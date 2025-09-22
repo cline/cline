@@ -1,4 +1,4 @@
-import React, { forwardRef, HTMLAttributes, useCallback } from "react"
+import React, { forwardRef, type HTMLAttributes, useCallback } from "react"
 
 type TabProps = HTMLAttributes<HTMLDivElement>
 

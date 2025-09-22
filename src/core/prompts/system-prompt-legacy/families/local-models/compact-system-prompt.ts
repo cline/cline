@@ -1,8 +1,8 @@
+import os from "node:os"
 import type { McpHub } from "@services/mcp/McpHub"
-import { BrowserSettings } from "@shared/BrowserSettings"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
+import type { BrowserSettings } from "@shared/BrowserSettings"
+import type { FocusChainSettings } from "@shared/FocusChainSettings"
 import { getShell } from "@utils/shell"
-import os from "os"
 import osName from "os-name"
 
 export const SYSTEM_PROMPT_COMPACT = async (

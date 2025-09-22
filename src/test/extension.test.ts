@@ -1,6 +1,6 @@
-import { readFile } from "fs/promises"
+import { readFile } from "node:fs/promises"
+import path from "node:path"
 import { after, describe, it } from "mocha"
-import path from "path"
 import "should"
 import * as vscode from "vscode"
 
@@ -13,7 +13,7 @@ describe("Cline Extension", () => {
 
 	it("should verify extension ID matches package.json", async () => {
 		const packageJSON = JSON.parse(await readFile(packagePath, "utf8"))
-		const id = packageJSON.publisher + "." + packageJSON.name
+		const id = `${packageJSON.publisher}.${packageJSON.name}`
 		const clineExtensionApi = vscode.extensions.getExtension(id)
 
 		clineExtensionApi?.id.should.equal(id)

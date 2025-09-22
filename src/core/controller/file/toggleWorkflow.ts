@@ -1,5 +1,5 @@
-import { ClineRulesToggles, ToggleWorkflowRequest } from "@shared/proto/cline/file"
-import { Controller } from ".."
+import { ClineRulesToggles, type ToggleWorkflowRequest } from "@shared/proto/cline/file"
+import type { Controller } from ".."
 
 /**
  * Toggles a workflow on or off
@@ -28,14 +28,13 @@ export async function toggleWorkflow(controller: Controller, request: ToggleWork
 
 		// Return the global toggles
 		return ClineRulesToggles.create({ toggles: toggles })
-	} else {
-		// Workspace workflows
-		const toggles = controller.stateManager.getWorkspaceStateKey("workflowToggles")
-		toggles[workflowPath] = enabled
-		controller.stateManager.setWorkspaceState("workflowToggles", toggles)
-		await controller.postStateToWebview()
-
-		// Return the workspace toggles
-		return ClineRulesToggles.create({ toggles: toggles })
 	}
+	// Workspace workflows
+	const toggles = controller.stateManager.getWorkspaceStateKey("workflowToggles")
+	toggles[workflowPath] = enabled
+	controller.stateManager.setWorkspaceState("workflowToggles", toggles)
+	await controller.postStateToWebview()
+
+	// Return the workspace toggles
+	return ClineRulesToggles.create({ toggles: toggles })
 }

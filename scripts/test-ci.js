@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-const { execSync } = require("child_process")
-const process = require("process")
+const { execSync } = require("node:child_process")
+const process = require("node:process")
 
 try {
 	if (process.platform === "linux") {

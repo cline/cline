@@ -1,5 +1,5 @@
 import { workspaceResolver } from "@core/workspace"
-import { DifyHandler } from "../../core/api/providers/dify"
+import type { DifyHandler } from "../../core/api/providers/dify"
 
 /**
  * Dify Integration Utilities
@@ -252,7 +252,7 @@ export function createDifyIntegration(
  * @returns Promise with array of file data ready for upload
  */
 export async function prepareClineFilesForDify(files: string[]): Promise<Array<{ name: string; content: Buffer }>> {
-	const fs = await import("fs")
+	const fs = await import("node:fs")
 
 	const fileData: Array<{ name: string; content: Buffer }> = []
 

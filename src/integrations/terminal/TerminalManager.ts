@@ -2,8 +2,8 @@ import { arePathsEqual } from "@utils/path"
 import { getShellForProfile } from "@utils/shell"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
-import { mergePromise, TerminalProcess, TerminalProcessResultPromise } from "./TerminalProcess"
-import { TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
+import { mergePromise, TerminalProcess, type TerminalProcessResultPromise } from "./TerminalProcess"
+import { type TerminalInfo, TerminalRegistry } from "./TerminalRegistry"
 
 /*
 TerminalManager:

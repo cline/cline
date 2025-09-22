@@ -1,4 +1,4 @@
-import { StringRequest } from "@shared/proto/cline/common"
+import type { StringRequest } from "@shared/proto/cline/common"
 import { OcaCompatibleModelInfo, OcaModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
 import { HostProvider } from "@/hosts/host-provider"
@@ -7,7 +7,7 @@ import { DEFAULT_OCA_BASE_URL } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders, getProxyAgents } from "@/services/auth/oca/utils/utils"
 import { Logger } from "@/services/logging/Logger"
 import { ShowMessageType } from "@/shared/proto/index.host"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Refreshes the Oca models and returns the updated model list
@@ -127,7 +127,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 		}
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: `Error refreshing OCA models. ` + userMsg + ` opc-request-id: ${headers["opc-request-id"]}`,
+			message: `Error refreshing OCA models. ${userMsg} opc-request-id: ${headers["opc-request-id"]}`,
 		})
 		return OcaCompatibleModelInfo.create({ error: userMsg })
 	}

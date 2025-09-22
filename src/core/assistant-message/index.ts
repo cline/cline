@@ -1,4 +1,4 @@
-import { ClineDefaultTool } from "@shared/tools"
+import type { ClineDefaultTool } from "@shared/tools"
 export type AssistantMessageContent = TextContent | ToolUse
 
 export { parseAssistantMessageV2 } from "./parse-assistant-message"

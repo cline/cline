@@ -1,4 +1,4 @@
-import { UserOrganizationUpdateRequest } from "@shared/proto/cline/account"
+import type { UserOrganizationUpdateRequest } from "@shared/proto/cline/account"
 import { Empty } from "@shared/proto/cline/common"
 import type { Controller } from "../index"
 

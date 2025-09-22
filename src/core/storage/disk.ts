@@ -1,15 +1,15 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
+import fs from "node:fs/promises"
+import os from "node:os"
+import * as path from "node:path"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes"
 import { execa } from "@packages/execa"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { HistoryItem } from "@shared/HistoryItem"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { HistoryItem } from "@shared/HistoryItem"
 import { fileExistsAtPath } from "@utils/fs"
-import fs from "fs/promises"
-import os from "os"
-import * as path from "path"
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
-import { GlobalState } from "./state-keys"
+import type { GlobalState } from "./state-keys"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -140,14 +140,13 @@ export async function getSavedClineMessages(context: vscode.ExtensionContext, ta
 	const filePath = path.join(await ensureTaskDirectoryExists(context, taskId), GlobalFileNames.uiMessages)
 	if (await fileExistsAtPath(filePath)) {
 		return JSON.parse(await fs.readFile(filePath, "utf8"))
-	} else {
-		// check old location
-		const oldPath = path.join(await ensureTaskDirectoryExists(context, taskId), "claude_messages.json")
-		if (await fileExistsAtPath(oldPath)) {
-			const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
-			await fs.unlink(oldPath) // remove old file
-			return data
-		}
+	}
+	// check old location
+	const oldPath = path.join(await ensureTaskDirectoryExists(context, taskId), "claude_messages.json")
+	if (await fileExistsAtPath(oldPath)) {
+		const data = JSON.parse(await fs.readFile(oldPath, "utf8"))
+		await fs.unlink(oldPath) // remove old file
+		return data
 	}
 	return []
 }

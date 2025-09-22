@@ -1,12 +1,18 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 // Restore GenerateContentConfig import and add GenerateContentResponseUsageMetadata
-import { ApiError, type GenerateContentConfig, type GenerateContentResponseUsageMetadata, GoogleGenAI, Part } from "@google/genai"
-import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import {
+	ApiError,
+	type GenerateContentConfig,
+	type GenerateContentResponseUsageMetadata,
+	GoogleGenAI,
+	type Part,
+} from "@google/genai"
+import { type GeminiModelId, geminiDefaultModelId, geminiModels, type ModelInfo } from "@shared/api"
 import { telemetryService } from "@/services/telemetry"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { RetriableError, withRetry } from "../retry"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 // Define a default TTL for the cache (e.g., 15 minutes in seconds)
 const _DEFAULT_CACHE_TTL_SECONDS = 900
@@ -169,7 +175,7 @@ export class GeminiHandler implements ApiHandler {
 						if (thought && text) {
 							// Ensure part.text exists
 							// Handle the thought part
-							thoughts += text + "\n" // Append thought and a newline
+							thoughts += `${text}\n` // Append thought and a newline
 						}
 					}
 				}
@@ -423,7 +429,8 @@ export class GeminiHandler implements ApiHandler {
 		const totalChars = content.reduce((total, block) => {
 			if (typeof block === "string") {
 				return total + block.length
-			} else if (block && typeof block === "object") {
+			}
+			if (block && typeof block === "object") {
 				// Safely stringify the object
 				try {
 					const jsonStr = JSON.stringify(block)
@@ -453,9 +460,11 @@ export class GeminiHandler implements ApiHandler {
 
 		if (unit === "s") {
 			return value
-		} else if (unit === "m") {
+		}
+		if (unit === "m") {
 			return value * 60 // Convert minutes to seconds
-		} else if (unit === "h") {
+		}
+		if (unit === "h") {
 			return value * 60 * 60 // Convert hours to seconds
 		}
 

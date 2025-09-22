@@ -1,4 +1,4 @@
-import { ApiHandler } from "@core/api"
+import type { ApiHandler } from "@core/api"
 import { OpenAiHandler } from "@core/api/providers/openai"
 
 /**

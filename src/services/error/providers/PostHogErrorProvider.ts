@@ -5,7 +5,7 @@ import { getDistinctId } from "@/services/logging/distinctId"
 import { PostHogClientProvider } from "@/services/posthog/PostHogClientProvider"
 import { Setting } from "@/shared/proto/index.host"
 import * as pkg from "../../../../package.json"
-import { PostHogClientValidConfig } from "../../../shared/services/config/posthog-config"
+import type { PostHogClientValidConfig } from "../../../shared/services/config/posthog-config"
 import { ClineError } from "../ClineError"
 import type { ErrorSettings, IErrorProvider } from "./IErrorProvider"
 

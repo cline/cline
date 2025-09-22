@@ -1,4 +1,4 @@
-import { McpServer } from "@shared/mcp"
+import type { McpServer } from "@shared/mcp"
 import ServerRow from "./server-row/ServerRow"
 
 const ServersToggleList = ({

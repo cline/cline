@@ -1,5 +1,5 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { Message } from "ollama"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type { Message } from "ollama"
 
 export function convertToOllamaMessages(anthropicMessages: Anthropic.Messages.MessageParam[]): Message[] {
 	const ollamaMessages: Message[] = []

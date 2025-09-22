@@ -1,6 +1,6 @@
+import fs from "node:fs/promises"
+import * as path from "node:path"
 import { workspaceResolver } from "@core/workspace"
-import fs from "fs/promises"
-import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 
 const IS_WINDOWS = /^win/.test(process.platform)

@@ -1,12 +1,12 @@
-import * as fs from "fs/promises"
+import * as fs from "node:fs/promises"
+import * as os from "node:os"
+import * as path from "node:path"
 import { after, describe, it } from "mocha"
-import * as os from "os"
-import * as path from "path"
 import "should"
 import { createDirectoriesForFile, fileExistsAtPath, isDirectory, readDirectory } from "./fs"
 
 describe("Filesystem Utilities", () => {
-	const tmpDir = path.join(os.tmpdir(), "cline-test-" + Math.random().toString(36).slice(2))
+	const tmpDir = path.join(os.tmpdir(), `cline-test-${Math.random().toString(36).slice(2)}`)
 
 	// Clean up after tests
 	after(async () => {

@@ -1,5 +1,5 @@
 import { anthropicModels, CLAUDE_SONNET_4_1M_SUFFIX } from "@shared/api"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -48,7 +48,8 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 				alternate: `${SONNET_4_MODEL_ID}${CLAUDE_SONNET_4_1M_SUFFIX}`,
 				linkText: "Switch to 1M context window model",
 			}
-		} else if (selectedModelId === `${SONNET_4_MODEL_ID}${CLAUDE_SONNET_4_1M_SUFFIX}`) {
+		}
+		if (selectedModelId === `${SONNET_4_MODEL_ID}${CLAUDE_SONNET_4_1M_SUFFIX}`) {
 			return {
 				current: `${SONNET_4_MODEL_ID}${CLAUDE_SONNET_4_1M_SUFFIX}`,
 				alternate: SONNET_4_MODEL_ID,

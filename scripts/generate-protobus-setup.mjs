@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import path from "path"
-import { fileURLToPath } from "url"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 import { writeFileWithMkdirs } from "./file-utils.mjs"
 import { getFqn, loadServicesFromProtoDescriptor } from "./proto-utils.mjs"
 
@@ -157,8 +157,8 @@ async function generateStandaloneProtobusServiceSetup(protobusServices) {
 		handlerSetup.push(`    server.addService(cline.${name}Service, {`)
 		for (const [rpcName, rpc] of Object.entries(def.service)) {
 			imports.push(`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`)
-			const requestType = "cline." + rpc.requestType.type.name
-			const responseType = "cline." + rpc.responseType.type.name
+			const requestType = `cline.${rpc.requestType.type.name}`
+			const responseType = `cline.${rpc.responseType.type.name}`
 			if (rpc.requestStream) {
 				throw new Error("Request streaming is not supported")
 			}

@@ -1,19 +1,19 @@
-import { Anthropic } from "@anthropic-ai/sdk"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import {
 	internationalZAiDefaultModelId,
-	internationalZAiModelId,
+	type internationalZAiModelId,
 	internationalZAiModels,
-	ModelInfo,
+	type ModelInfo,
 	mainlandZAiDefaultModelId,
-	mainlandZAiModelId,
+	type mainlandZAiModelId,
 	mainlandZAiModels,
 } from "@shared/api"
 import OpenAI from "openai"
 import { version as extensionVersion } from "../../../../package.json"
-import { ApiHandler, CommonApiHandlerOptions } from ".."
+import type { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 interface ZAiHandlerOptions extends CommonApiHandlerOptions {
 	zaiApiLine?: string
@@ -61,13 +61,12 @@ export class ZAiHandler implements ApiHandler {
 				id: (modelId as mainlandZAiModelId) ?? mainlandZAiDefaultModelId,
 				info: mainlandZAiModels[modelId as mainlandZAiModelId] ?? mainlandZAiModels[mainlandZAiDefaultModelId],
 			}
-		} else {
-			return {
-				id: (modelId as internationalZAiModelId) ?? internationalZAiDefaultModelId,
-				info:
-					internationalZAiModels[modelId as internationalZAiModelId] ??
-					internationalZAiModels[internationalZAiDefaultModelId],
-			}
+		}
+		return {
+			id: (modelId as internationalZAiModelId) ?? internationalZAiDefaultModelId,
+			info:
+				internationalZAiModels[modelId as internationalZAiModelId] ??
+				internationalZAiModels[internationalZAiDefaultModelId],
 		}
 	}
 

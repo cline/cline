@@ -4,7 +4,7 @@
 
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
+import type { ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
 
 /**
  * Combine API requests and command sequences in messages

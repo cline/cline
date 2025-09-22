@@ -1,9 +1,9 @@
-import { RelativePaths, RelativePathsRequest } from "@shared/proto/cline/file"
-import * as path from "path"
+import * as path from "node:path"
+import { RelativePaths, type RelativePathsRequest } from "@shared/proto/cline/file"
 import { URI } from "vscode-uri"
 import { isDirectory } from "@/utils/fs"
 import { asRelativePath } from "@/utils/path"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Converts a list of URIs to workspace-relative paths
@@ -32,7 +32,7 @@ async function getRelativePath(uriString: string): Promise<string> {
 		throw new Error(`Dropped file ${relativePath} is outside the workspace.`)
 	}
 
-	let result = "/" + relativePath.replace(/\\/g, "/")
+	let result = `/${relativePath.replace(/\\/g, "/")}`
 	if (await isDirectory(filePath)) {
 		result += "/"
 	}

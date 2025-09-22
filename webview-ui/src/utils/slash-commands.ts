@@ -169,7 +169,7 @@ export function insertSlashCommand(
 
 	// replace the partial command with the full command
 	const newValue =
-		beforeSlash + commandName + (afterPartialCommand.startsWith(" ") ? afterPartialCommand : " " + afterPartialCommand)
+		beforeSlash + commandName + (afterPartialCommand.startsWith(" ") ? afterPartialCommand : ` ${afterPartialCommand}`)
 
 	return { newValue, commandIndex: slashIndex }
 }

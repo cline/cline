@@ -1,5 +1,5 @@
-import { Empty, EmptyRequest } from "@shared/proto/cline/common"
-import { Controller } from ".."
+import { Empty, type EmptyRequest } from "@shared/proto/cline/common"
+import type { Controller } from ".."
 
 /**
  * Cancel the currently running task

@@ -1,8 +1,8 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import React from "react"
+import type React from "react"
 import styled from "styled-components"
 import HeroTooltip from "@/components/common/HeroTooltip"
-import { ActionMetadata } from "./types"
+import type { ActionMetadata } from "./types"
 
 interface AutoApproveMenuItemProps {
 	action: ActionMetadata

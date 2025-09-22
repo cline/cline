@@ -1,6 +1,6 @@
 import { describe, it } from "mocha"
 import "should"
-import { ModelInfo } from "@shared/api"
+import type { ModelInfo } from "@shared/api"
 import { calculateApiCostAnthropic, calculateApiCostOpenAI } from "@utils/cost"
 
 describe("Cost Utilities", () => {

@@ -1,6 +1,6 @@
+import * as path from "node:path"
 import deepEqual from "fast-deep-equal"
-import * as path from "path"
-import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
+import { type Diagnostic, DiagnosticSeverity, type FileDiagnostics } from "@/shared/proto/index.cline"
 import { getCwd } from "@/utils/path"
 
 export function getNewDiagnostics(oldDiagnostics: FileDiagnostics[], newDiagnostics: FileDiagnostics[]): FileDiagnostics[] {

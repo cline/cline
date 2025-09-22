@@ -21,14 +21,14 @@
  * See PRD: Multi-Workspace Folder Support for complete requirements
  */
 
-import { MessageStateHandler } from "@core/task/message-state"
+import type { MessageStateHandler } from "@core/task/message-state"
 import { showChangedFilesDiff } from "@core/task/multifile-diff"
-import { VcsType, WorkspaceRootManager } from "@core/workspace"
+import { VcsType, type WorkspaceRootManager } from "@core/workspace"
 import { telemetryService } from "@services/telemetry"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import CheckpointTracker from "./CheckpointTracker"
-import { ICheckpointManager } from "./types"
+import type { ICheckpointManager } from "./types"
 
 /**
  * Manages checkpoints across multiple workspace roots.
@@ -304,7 +304,7 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 			console.error("[MultiRootCheckpointManager] Failed to present multifile diff:", errorMessage)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "Failed to present diff: " + errorMessage,
+				message: `Failed to present diff: ${errorMessage}`,
 			})
 		}
 	}

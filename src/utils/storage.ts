@@ -1,5 +1,5 @@
+import path from "node:path"
 import getFolderSize from "get-folder-size"
-import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 
 /**

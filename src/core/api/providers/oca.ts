@@ -1,15 +1,15 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
-import OpenAI, { APIError, OpenAIError } from "openai"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import { type LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
+import OpenAI, { type APIError, OpenAIError } from "openai"
 import type { FinalRequestOptions, Headers as OpenAIHeaders } from "openai/core"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { DEFAULT_OCA_BASE_URL, OCI_HEADER_OPC_REQUEST_ID } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
 import { Logger } from "@/services/logging/Logger"
-import { ApiHandler, type CommonApiHandlerOptions } from ".."
+import type { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 export interface OcaHandlerOptions extends CommonApiHandlerOptions {
 	ocaBaseUrl?: string
@@ -117,10 +117,9 @@ export class OcaHandler implements ApiHandler {
 			if (response.ok) {
 				const data: { cost: number } = await response.json()
 				return data.cost
-			} else {
-				console.error("Error calculating spend:", response.statusText)
-				return undefined
 			}
+			console.error("Error calculating spend:", response.statusText)
+			return undefined
 		} catch (error) {
 			console.error("Error calculating spend:", error)
 			return undefined
@@ -140,7 +139,7 @@ export class OcaHandler implements ApiHandler {
 
 		// Configuration for extended thinking
 		const budgetTokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = budgetTokens !== 0 ? true : false
+		const reasoningOn = budgetTokens !== 0
 		const thinkingConfig = reasoningOn ? { type: "enabled", budget_tokens: budgetTokens } : undefined
 
 		let temperature: number | undefined = this.options.ocaModelInfo?.temperature ?? 0

@@ -1,4 +1,4 @@
-import { SVGProps } from "react"
+import type { SVGProps } from "react"
 
 /**
  * ClineLogoVariable component renders the Cline logo with automatic theme adaptation.

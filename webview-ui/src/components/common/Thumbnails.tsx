@@ -1,5 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import React, { memo, useLayoutEffect, useRef, useState } from "react"
+import type React from "react"
+import { memo, useLayoutEffect, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { FileServiceClient } from "@/services/grpc-client"
 

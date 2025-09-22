@@ -1,6 +1,6 @@
 import axios from "axios"
-import { SapAiCoreModelDeployment, SapAiCoreModelsRequest, SapAiCoreModelsResponse } from "@/shared/proto/cline/models"
-import { Controller } from ".."
+import { SapAiCoreModelDeployment, type SapAiCoreModelsRequest, SapAiCoreModelsResponse } from "@/shared/proto/cline/models"
+import type { Controller } from ".."
 
 interface Token {
 	access_token: string
@@ -30,7 +30,7 @@ async function getToken(clientId: string, clientSecret: string, tokenUrl: string
 		client_secret: clientSecret,
 	})
 
-	const url = tokenUrl.replace(/\/+$/, "") + "/oauth/token"
+	const url = `${tokenUrl.replace(/\/+$/, "")}/oauth/token`
 	const response = await axios.post(url, payload, {
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
 	})
@@ -102,7 +102,7 @@ async function fetchAiCoreDeploymentsAndOrchestration(
  * @returns SapAiCoreModelsResponse with deployments and orchestration availability
  */
 export async function getSapAiCoreModels(
-	controller: Controller,
+	_controller: Controller,
 	request: SapAiCoreModelsRequest,
 ): Promise<SapAiCoreModelsResponse> {
 	try {

@@ -1,6 +1,6 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
-import { Mode } from "@shared/storage/types"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import { type ApiConfiguration, type ModelInfo, QwenApiRegions } from "@shared/api"
+import type { Mode } from "@shared/storage/types"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
 import { BasetenHandler } from "./providers/baseten"
@@ -37,7 +37,7 @@ import { VertexHandler } from "./providers/vertex"
 import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { XAIHandler } from "./providers/xai"
 import { ZAiHandler } from "./providers/zai"
-import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
+import type { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 
 export type CommonApiHandlerOptions = {
 	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]

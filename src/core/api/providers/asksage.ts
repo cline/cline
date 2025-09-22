@@ -1,8 +1,8 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { AskSageModelId, askSageDefaultModelId, askSageDefaultURL, askSageModels, ModelInfo } from "@shared/api"
-import { ApiHandler, CommonApiHandlerOptions } from ".."
+import type { Anthropic } from "@anthropic-ai/sdk"
+import { type AskSageModelId, askSageDefaultModelId, askSageDefaultURL, askSageModels, type ModelInfo } from "@shared/api"
+import type { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 interface AskSageHandlerOptions extends CommonApiHandlerOptions {
 	asksageApiKey?: string

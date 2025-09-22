@@ -1,9 +1,9 @@
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
 import { fileExistsAtPath } from "@utils/fs"
-import * as fs from "fs/promises"
-import * as path from "path"
 // @ts-ignore
 import PCR from "puppeteer-chromium-resolver"
-import { launch } from "puppeteer-core"
+import type { launch } from "puppeteer-core"
 import { HostProvider } from "@/hosts/host-provider"
 
 interface PCRStats {

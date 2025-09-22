@@ -1,5 +1,5 @@
-import { ClineRulesToggles } from "@shared/cline-rules"
-import fs from "fs/promises"
+import fs from "node:fs/promises"
+import type { ClineRulesToggles } from "@shared/cline-rules"
 import { telemetryService } from "@/services/telemetry"
 import {
 	condenseToolResponse,

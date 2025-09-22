@@ -1,10 +1,10 @@
+import fs from "node:fs/promises"
+import * as path from "node:path"
 import ExcelJS from "exceljs"
-import fs from "fs/promises"
 import * as iconv from "iconv-lite"
 import { isBinaryFile } from "isbinaryfile"
 import * as chardet from "jschardet"
 import mammoth from "mammoth"
-import * as path from "path"
 // @ts-ignore-next-line
 import pdf from "pdf-parse/lib/pdf-parse"
 
@@ -12,17 +12,17 @@ export async function detectEncoding(fileBuffer: Buffer, fileExtension?: string)
 	const detected = chardet.detect(fileBuffer)
 	if (typeof detected === "string") {
 		return detected
-	} else if (detected && (detected as any).encoding) {
-		return (detected as any).encoding
-	} else {
-		if (fileExtension) {
-			const isBinary = await isBinaryFile(fileBuffer).catch(() => false)
-			if (isBinary) {
-				throw new Error(`Cannot read text for file type: ${fileExtension}`)
-			}
-		}
-		return "utf8"
 	}
+	if (detected && (detected as any).encoding) {
+		return (detected as any).encoding
+	}
+	if (fileExtension) {
+		const isBinary = await isBinaryFile(fileBuffer).catch(() => false)
+		if (isBinary) {
+			throw new Error(`Cannot read text for file type: ${fileExtension}`)
+		}
+	}
+	return "utf8"
 }
 
 export async function extractTextFromFile(filePath: string): Promise<string> {
@@ -81,7 +81,7 @@ async function extractTextFromIPYNB(filePath: string): Promise<string> {
 
 	for (const cell of notebook.cells) {
 		if ((cell.cell_type === "markdown" || cell.cell_type === "code") && cell.source) {
-			extractedText += cell.source.join("\n") + "\n"
+			extractedText += `${cell.source.join("\n")}\n`
 		}
 	}
 
@@ -121,9 +121,8 @@ function formatCellValue(cell: ExcelJS.Cell): string {
 	if (typeof value === "object" && "formula" in value) {
 		if ("result" in value && value.result !== undefined && value.result !== null) {
 			return value.result.toString()
-		} else {
-			return `[Formula: ${value.formula}]`
 		}
+		return `[Formula: ${value.formula}]`
 	}
 
 	return value.toString()
@@ -167,7 +166,7 @@ async function extractTextFromExcel(filePath: string): Promise<string> {
 
 				// Only add rows with actual content
 				if (hasContent) {
-					excelText += rowTexts.join("\t") + "\n"
+					excelText += `${rowTexts.join("\t")}\n`
 				}
 
 				return true

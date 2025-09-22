@@ -1,16 +1,16 @@
-import Anthropic from "@anthropic-ai/sdk"
-import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import type Anthropic from "@anthropic-ai/sdk"
+import type CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import getFolderSize from "get-folder-size"
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import { findLastIndex } from "@/shared/array"
 import { combineApiRequests } from "@/shared/combineApiRequests"
 import { combineCommandSequences } from "@/shared/combineCommandSequences"
-import { ClineMessage } from "@/shared/ExtensionMessage"
+import type { ClineMessage } from "@/shared/ExtensionMessage"
 import { getApiMetrics } from "@/shared/getApiMetrics"
-import { HistoryItem } from "@/shared/HistoryItem"
+import type { HistoryItem } from "@/shared/HistoryItem"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
-import { TaskState } from "./TaskState"
+import type { TaskState } from "./TaskState"
 
 interface MessageStateHandlerParams {
 	context: vscode.ExtensionContext

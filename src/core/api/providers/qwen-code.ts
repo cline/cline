@@ -1,13 +1,13 @@
 import { promises as fs } from "node:fs"
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ModelInfo, QwenCodeModelId, qwenCodeDefaultModelId, qwenCodeModels } from "@shared/api"
+import * as os from "node:os"
+import * as path from "node:path"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import { type ModelInfo, type QwenCodeModelId, qwenCodeDefaultModelId, qwenCodeModels } from "@shared/api"
 import OpenAI from "openai"
-import * as os from "os"
-import * as path from "path"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 // --- Constants for Qwen OAuth2 ---
 const QWEN_OAUTH_BASE_URL = "https://chat.qwen.ai"
@@ -167,9 +167,8 @@ export class QwenCodeHandler implements ApiHandler {
 				client.apiKey = this.credentials.access_token
 				client.baseURL = this.getBaseUrl(this.credentials)
 				return await apiCall()
-			} else {
-				throw error
 			}
+			throw error
 		}
 	}
 

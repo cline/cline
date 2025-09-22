@@ -1,4 +1,4 @@
-import { ModelInfo } from "@shared/api"
+import type { ModelInfo } from "@shared/api"
 
 /**
  * Formats a price as a currency string

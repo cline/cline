@@ -1,7 +1,7 @@
-import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
-import * as childProcess from "child_process"
-import * as path from "path"
-import * as readline from "readline"
+import * as childProcess from "node:child_process"
+import * as path from "node:path"
+import * as readline from "node:readline"
+import type { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { getBinaryLocation } from "@/utils/fs"
 
 /*
@@ -73,7 +73,7 @@ async function execRipgrep(args: string[]): Promise<string> {
 
 		rl.on("line", (line) => {
 			if (lineCount < maxLines) {
-				output += line + "\n"
+				output += `${line}\n`
 				lineCount++
 			} else {
 				rl.close()

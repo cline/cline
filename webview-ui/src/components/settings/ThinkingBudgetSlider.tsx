@@ -1,5 +1,5 @@
 import { anthropicModels, geminiDefaultModelId, geminiModels } from "@shared/api"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import styled from "styled-components"

@@ -1,6 +1,6 @@
-import { Controller } from "@core/controller"
+import type { Controller } from "@core/controller"
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
-import { GrpcCancel, GrpcRequest } from "@shared/WebviewMessage"
+import type { GrpcCancel, GrpcRequest } from "@shared/WebviewMessage"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"

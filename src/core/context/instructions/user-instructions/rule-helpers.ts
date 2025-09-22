@@ -1,9 +1,9 @@
+import fs from "node:fs/promises"
+import * as path from "node:path"
 import { ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { ClineRulesToggles } from "@shared/cline-rules"
+import type { ClineRulesToggles } from "@shared/cline-rules"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
-import fs from "fs/promises"
-import * as path from "path"
-import { Controller } from "@/core/controller"
+import type { Controller } from "@/core/controller"
 
 /**
  * Recursively traverses directory and finds all files, including checking for optional whitelisted file extension
@@ -121,7 +121,7 @@ export const getRuleFilesTotalContent = async (rulesFilePaths: string[], basePat
 				return null
 			}
 
-			return `${ruleFilePathRelative}\n` + (await fs.readFile(ruleFilePath, "utf8")).trim()
+			return `${ruleFilePathRelative}\n${(await fs.readFile(ruleFilePath, "utf8")).trim()}`
 		}),
 	).then((contents) => contents.filter(Boolean).join("\n\n"))
 	return ruleFilesTotalContent
@@ -140,7 +140,7 @@ export async function ensureLocalClineDirExists(clinerulePath: string, defaultRu
 		if (exists && !(await isDirectory(clinerulePath))) {
 			// logic to convert .clinerules file into directory, and rename the rules file to {defaultRuleFilename}
 			const content = await fs.readFile(clinerulePath, "utf8")
-			const tempPath = clinerulePath + ".bak"
+			const tempPath = `${clinerulePath}.bak`
 			await fs.rename(clinerulePath, tempPath) // create backup
 			try {
 				await fs.mkdir(clinerulePath, { recursive: true })

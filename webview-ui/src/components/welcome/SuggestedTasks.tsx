@@ -1,8 +1,8 @@
 import { NewTaskRequest } from "@shared/proto/cline/task"
-import React from "react"
+import type React from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
 import QuickWinCard from "./QuickWinCard"
-import { QuickWinTask, quickWinTasks } from "./quickWinTasks"
+import { type QuickWinTask, quickWinTasks } from "./quickWinTasks"
 
 export const SuggestedTasks: React.FC<{ shouldShowQuickWins: boolean }> = ({ shouldShowQuickWins }) => {
 	const handleExecuteQuickWin = async (prompt: string) => {

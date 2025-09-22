@@ -1,5 +1,5 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React from "react"
+import type React from "react"
 import styled from "styled-components"
 
 const PreviewContainer = styled.div`

@@ -1,11 +1,11 @@
+import fs from "node:fs/promises"
+import path from "node:path"
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { EmptyRequest } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
-import fs from "fs/promises"
-import path from "path"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Refreshes Vercel AI Gateway models and returns updated model list

@@ -1,6 +1,6 @@
-import { Empty, EmptyRequest } from "@shared/proto/cline/common"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import { Controller } from "../index"
+import { Empty, type EmptyRequest } from "@shared/proto/cline/common"
+import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
+import type { Controller } from "../index"
 
 // Keep track of active chatButtonClicked subscriptions by controller ID
 const activeChatButtonClickedSubscriptions = new Map<string, StreamingResponseHandler<Empty>>()

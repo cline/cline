@@ -1,5 +1,5 @@
+import * as path from "node:path"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
 import { arePathsEqual } from "@/utils/path"

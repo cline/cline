@@ -1,13 +1,13 @@
+import * as fs from "node:fs/promises"
 import { formatResponse } from "@core/prompts/responses"
 import { workspaceResolver } from "@core/workspace"
 import { createDirectoriesForFile } from "@utils/fs"
 import { getCwd } from "@utils/path"
 import * as diff from "diff"
-import * as fs from "fs/promises"
 import * as iconv from "iconv-lite"
 import { HostProvider } from "@/hosts/host-provider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
-import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
+import { DiagnosticSeverity, type FileDiagnostics } from "@/shared/proto/index.cline"
 import { detectEncoding } from "../misc/extract-text"
 import { openFile } from "../misc/open-file"
 
@@ -182,7 +182,7 @@ export abstract class DiffViewProvider {
 			// Replace all content up to the current line with accumulated lines
 			// This is necessary (as compared to inserting one line at a time) to handle cases where html tags
 			// on previous lines are auto closed for example
-			const contentToReplace = accumulatedLines.slice(0, currentLine + 1).join("\n") + "\n"
+			const contentToReplace = `${accumulatedLines.slice(0, currentLine + 1).join("\n")}\n`
 			const rangeToReplace = { startLine: 0, endLine: currentLine + 1 }
 			await this.replaceText(contentToReplace, rangeToReplace, currentLine)
 

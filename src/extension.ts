@@ -243,7 +243,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				Logger.log("Cline dev task commands registered")
 			})
 			.catch((error) => {
-				Logger.log("Failed to register dev task commands: " + error)
+				Logger.log(`Failed to register dev task commands: ${error}`)
 			})
 	}
 

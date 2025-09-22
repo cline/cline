@@ -1,10 +1,10 @@
-import React from "react"
+import type React from "react"
 import Announcement from "@/components/chat/Announcement"
 import TelemetryBanner from "@/components/common/TelemetryBanner"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import HomeHeader from "@/components/welcome/HomeHeader"
 import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
-import { WelcomeSectionProps } from "../../types/chatTypes"
+import type { WelcomeSectionProps } from "../../types/chatTypes"
 
 /**
  * Welcome section shown when there's no active task

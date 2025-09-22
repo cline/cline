@@ -1,5 +1,5 @@
+import path from "node:path"
 import { expect } from "chai"
-import path from "path"
 import proxyquire from "proxyquire"
 import sinon from "sinon"
 

@@ -1,4 +1,4 @@
-import { ApiConfiguration } from "@shared/api"
+import type { ApiConfiguration } from "@shared/api"
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { ExtensionStateContextProvider, useExtensionState } from "@/context/ExtensionStateContext"

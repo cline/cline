@@ -1,4 +1,4 @@
-import { FileInfo } from "@shared/proto/cline/file"
+import type { FileInfo } from "@shared/proto/cline/file"
 
 /**
  * Converts domain search result objects to proto FileInfo objects

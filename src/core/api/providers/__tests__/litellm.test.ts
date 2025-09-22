@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk"
+import type Anthropic from "@anthropic-ai/sdk"
 import { LiteLlmHandler, type LiteLlmModelInfoResponse } from "@core/api/providers/litellm"
 import { convertToOpenAiMessages } from "@core/api/transform/openai-format"
 import { expect } from "chai"

@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
+import { execSync } from "node:child_process"
+import fs from "node:fs"
+import { cp } from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import archiver from "archiver"
-import { execSync } from "child_process"
-import fs from "fs"
-import { cp } from "fs/promises"
 import { glob } from "glob"
 import minimatch from "minimatch"
-import os from "os"
-import path from "path"
 import { rmrf } from "./file-utils.mjs"
 
 const BUILD_DIR = "dist-standalone"

@@ -208,7 +208,9 @@ export class OcaAuthService {
 		await this.sendAuthStatusUpdate()
 
 		// Avoid repeated/looping login attempts
-		if (this._interactiveLoginPending) return
+		if (this._interactiveLoginPending) {
+			return
+		}
 		this._interactiveLoginPending = true
 		try {
 			// Kickstart interactive login (opens browser)

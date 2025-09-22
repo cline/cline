@@ -1,14 +1,14 @@
-import { FocusChainSettings } from "@shared/FocusChainSettings"
+import * as fs from "node:fs/promises"
+import type { FocusChainSettings } from "@shared/FocusChainSettings"
 import * as chokidar from "chokidar"
-import * as fs from "fs/promises"
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import { telemetryService } from "@/services/telemetry"
-import { ClineSay } from "../../../shared/ExtensionMessage"
-import { Mode } from "../../../shared/storage/types"
+import type { ClineSay } from "../../../shared/ExtensionMessage"
+import type { Mode } from "../../../shared/storage/types"
 import { writeFile } from "../../../utils/fs"
 import { ensureTaskDirectoryExists } from "../../storage/disk"
-import { StateManager } from "../../storage/StateManager"
-import { TaskState } from "../TaskState"
+import type { StateManager } from "../../storage/StateManager"
+import type { TaskState } from "../TaskState"
 import {
 	createFocusChainMarkdownContent,
 	extractFocusChainItemsFromText,
@@ -232,22 +232,22 @@ Keeping the todo list updated helps track progress and ensures nothing is missed
 			`
 
 				// If there are no user changes, proceed with reminders based on list progress
-			} else {
-				let progressBasedMessageStub = ""
-				// If there are items on the list, but none have been completed yet, remind the model to update the list when appropriate
-				if (completedItems === 0 && totalItems > 0) {
-					progressBasedMessageStub =
-						"\n\n**Note:** No items are marked complete yet. As you work through the task, remember to mark items as complete when finished."
-				} else if (percentComplete >= 25 && percentComplete < 50) {
-					progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete.`
-				} else if (percentComplete >= 50 && percentComplete < 75) {
-					progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete. Proceed with the task.`
-				} else if (percentComplete >= 75) {
-					progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete! Focus on finishing the remaining items.`
-				}
-				// Every item on the list has been completed. Hooray!
-				else if (completedItems === totalItems && totalItems > 0) {
-					progressBasedMessageStub = `\n\n**🎉 EXCELLENT! All ${totalItems} items have been completed!**
+			}
+			let progressBasedMessageStub = ""
+			// If there are items on the list, but none have been completed yet, remind the model to update the list when appropriate
+			if (completedItems === 0 && totalItems > 0) {
+				progressBasedMessageStub =
+					"\n\n**Note:** No items are marked complete yet. As you work through the task, remember to mark items as complete when finished."
+			} else if (percentComplete >= 25 && percentComplete < 50) {
+				progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete.`
+			} else if (percentComplete >= 50 && percentComplete < 75) {
+				progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete. Proceed with the task.`
+			} else if (percentComplete >= 75) {
+				progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete! Focus on finishing the remaining items.`
+			}
+			// Every item on the list has been completed. Hooray!
+			else if (completedItems === totalItems && totalItems > 0) {
+				progressBasedMessageStub = `\n\n**🎉 EXCELLENT! All ${totalItems} items have been completed!**
 
 **Completed Items:**
 ${this.taskState.currentFocusChainChecklist}
@@ -258,10 +258,10 @@ ${this.taskState.currentFocusChainChecklist}
 - If there are related tasks or follow-up items the user might want, you can suggest them in a new checklist
 
 **Remember:** Only use attempt_completion if you're confident the task is truly finished. If there's any remaining work, create a new focus chain list to track it.`
-				}
+			}
 
-				// Return with progress-based stub
-				return `\n
+			// Return with progress-based stub
+			return `\n
 				${introUpdateRequired}\n
 				${listCurrentProgress}\n
 				${this.taskState.currentFocusChainChecklist}\n
@@ -269,38 +269,35 @@ ${this.taskState.currentFocusChainChecklist}
 				${listInstrunctionsReminder}\n
 				${progressBasedMessageStub}\n
 				`
-			}
 		}
 		// When switching from Plan to Act, request that a new list be generated
-		else if (this.taskState.didRespondToPlanAskBySwitchingMode) {
+		if (this.taskState.didRespondToPlanAskBySwitchingMode) {
 			return `${listInstructionsInitial}`
 		}
 
 		// When in plan mode, lists are optional. TODO - May want to improve this soft prompt approach in a future version
-		else if (this.stateManager.getGlobalSettingsKey("mode") === "plan") {
+		if (this.stateManager.getGlobalSettingsKey("mode") === "plan") {
 			return `\n
 # Todo List (Optional - Plan Mode)\n
 \n
 While in PLAN MODE, if you've outlined concrete steps or requirements for the user, you may include a preliminary todo list using the task_progress parameter.\n
 Reminder on how to use the task_progress parameter:\n
 ${listInstrunctionsReminder}`
-		} else {
-			// Check if we're early in the task
-			const isEarlyInTask = this.taskState.apiRequestCount < 10
-			if (isEarlyInTask) {
-				return `\n
+		}
+		// Check if we're early in the task
+		const isEarlyInTask = this.taskState.apiRequestCount < 10
+		if (isEarlyInTask) {
+			return `\n
 # TODO LIST RECOMMENDED
 When starting a new task, it is recommended to create a todo list.
 \n
 ${listInstructionsRecommended}\n`
-			} else {
-				return `\n
+		}
+		return `\n
 # TODO LIST \n
 You've made ${this.taskState.apiRequestCount} API requests without a todo list. Consider creating one to track remaining work.\n
 \n
 ${listInstrunctionsReminder}\n`
-			}
-		}
 	}
 
 	/**

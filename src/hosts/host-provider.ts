@@ -1,9 +1,9 @@
-import fs from "fs/promises"
-import path from "path"
-import { WebviewProvider } from "@/core/webview"
-import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
-import { WebviewProviderType } from "@/shared/webview/types"
-import { HostBridgeClientProvider } from "./host-provider-types"
+import fs from "node:fs/promises"
+import path from "node:path"
+import type { WebviewProvider } from "@/core/webview"
+import type { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
+import type { WebviewProviderType } from "@/shared/webview/types"
+import type { HostBridgeClientProvider } from "./host-provider-types"
 /**
  * Singleton class that manages host-specific providers for dependency injection.
  *

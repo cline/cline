@@ -1,4 +1,4 @@
-import {
+import type {
 	DiffServiceClientInterface,
 	EnvServiceClientInterface,
 	WindowServiceClientInterface,
@@ -10,7 +10,7 @@ import {
 	WindowServiceClientImpl,
 	WorkspaceServiceClientImpl,
 } from "@generated/hosts/standalone/host-bridge-clients"
-import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
+import type { HostBridgeClientProvider } from "@/hosts/host-provider-types"
 import { HOSTBRIDGE_PORT } from "@/standalone/hostbridge-client"
 
 /**

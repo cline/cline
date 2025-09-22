@@ -1,12 +1,12 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import { type ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import { toRequestyServiceStringUrl } from "@/shared/providers/requesty"
-import { ApiHandler, CommonApiHandlerOptions } from "../index"
+import type { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 interface RequestyHandlerOptions extends CommonApiHandlerOptions {
 	requestyBaseUrl?: string

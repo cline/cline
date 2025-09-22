@@ -1,4 +1,4 @@
-import { ActionMetadata } from "./types"
+import type { ActionMetadata } from "./types"
 
 export const ACTION_METADATA: ActionMetadata[] = [
 	{

@@ -1,6 +1,6 @@
-import fs from "fs"
+import fs from "node:fs"
+import path from "node:path"
 import { diff } from "jest-diff"
-import path from "path"
 
 export function loadJson(filePath: string): any {
 	return JSON.parse(fs.readFileSync(path.resolve(filePath), "utf-8"))

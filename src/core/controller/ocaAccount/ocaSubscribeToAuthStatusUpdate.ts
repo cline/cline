@@ -1,8 +1,8 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { OcaAuthState } from "@shared/proto/cline/oca_account"
+import type { EmptyRequest } from "@shared/proto/cline/common"
+import type { OcaAuthState } from "@shared/proto/cline/oca_account"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
-import { Controller } from ".."
-import { StreamingResponseHandler } from "../grpc-handler"
+import type { Controller } from ".."
+import type { StreamingResponseHandler } from "../grpc-handler"
 
 export async function ocaSubscribeToAuthStatusUpdate(
 	_controller: Controller,

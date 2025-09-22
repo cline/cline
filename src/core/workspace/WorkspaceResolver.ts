@@ -5,11 +5,11 @@
  * Phase 1+: Will handle multi-root path resolution
  */
 
-import * as path from "path"
+import * as path from "node:path"
 import { MigrationReporter, type UsageStats } from "./MigrationReporter"
 import { parseWorkspaceInlinePath } from "./utils/parseWorkspaceInlinePath"
 import { WorkspacePathAdapter } from "./WorkspacePathAdapter"
-import { WorkspaceRoot } from "./WorkspaceRoot"
+import type { WorkspaceRoot } from "./WorkspaceRoot"
 
 /**
  * Maximum number of example paths to store per component for debugging purposes.

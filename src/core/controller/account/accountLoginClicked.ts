@@ -1,6 +1,6 @@
-import { EmptyRequest, String } from "@shared/proto/cline/common"
+import type { EmptyRequest, String } from "@shared/proto/cline/common"
 import { AuthService } from "@/services/auth/AuthService"
-import { Controller } from "../index"
+import type { Controller } from "../index"
 
 /**
  * Handles the user clicking the login link in the UI.

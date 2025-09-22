@@ -4,8 +4,8 @@
  * instead of relying on process.env which may not be consistent across different parts of the extension
  */
 
-import * as fs from "fs"
-import * as path from "path"
+import * as fs from "node:fs"
+import * as path from "node:path"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "../logging/Logger"

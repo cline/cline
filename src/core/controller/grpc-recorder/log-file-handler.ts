@@ -1,7 +1,7 @@
+import fs from "node:fs/promises"
+import * as path from "node:path"
 import { writeFile } from "@utils/fs"
-import fs from "fs/promises"
-import * as path from "path"
-import { GrpcSessionLog } from "@/core/controller/grpc-recorder/types"
+import type { GrpcSessionLog } from "@/core/controller/grpc-recorder/types"
 
 const LOG_FILE_PREFIX = "grpc_recorded_session"
 

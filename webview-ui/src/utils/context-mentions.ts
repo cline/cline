@@ -1,6 +1,6 @@
+import * as path from "node:path"
 import { mentionRegex } from "@shared/context-mentions"
 import { Fzf } from "fzf"
-import * as path from "path"
 import { PLATFORM_CONFIG } from "@/config/platform.config"
 
 export interface SearchResult {
@@ -36,11 +36,11 @@ export function insertMention(
 		const afterPartialQuery = text.substring(lastAtIndex + 1 + partialQueryLength)
 
 		// replace the partial query with the full mention
-		newValue = beforeAt + formattedValue + (afterPartialQuery.startsWith(" ") ? afterPartialQuery : " " + afterPartialQuery)
+		newValue = beforeAt + formattedValue + (afterPartialQuery.startsWith(" ") ? afterPartialQuery : ` ${afterPartialQuery}`)
 		mentionIndex = lastAtIndex
 	} else {
 		// If there's no '@' symbol, insert the mention at the cursor position
-		newValue = beforeCursor + "@" + formattedValue + " " + afterCursor
+		newValue = `${beforeCursor}@${formattedValue} ${afterCursor}`
 		mentionIndex = position
 	}
 
@@ -57,7 +57,7 @@ export function insertMentionDirectly(text: string, position: number, value: str
 		formattedValue = `"${value}"`
 	}
 
-	const newValue = beforeCursor + "@" + formattedValue + " " + afterCursor
+	const newValue = `${beforeCursor}@${formattedValue} ${afterCursor}`
 	const mentionIndex = position
 	return { newValue, mentionIndex }
 }
@@ -67,7 +67,7 @@ export function removeMention(text: string, position: number): { newText: string
 	const afterCursor = text.slice(position)
 
 	// Check if we're at the end of a mention
-	const matchEnd = beforeCursor.match(new RegExp(mentionRegex.source + "$"))
+	const matchEnd = beforeCursor.match(new RegExp(`${mentionRegex.source}$`))
 
 	if (matchEnd) {
 		// If we're at the end of a mention, remove it

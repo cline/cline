@@ -22,7 +22,8 @@ const convertToProtoValue = (field: keyof UpdateSettingsRequest, value: any): an
 			default:
 				throw new Error(`Invalid OpenAI reasoning effort value: ${value}`)
 		}
-	} else if (field === "mcpDisplayMode" && typeof value === "string") {
+	}
+	if (field === "mcpDisplayMode" && typeof value === "string") {
 		switch (value) {
 			case "rich":
 				return McpDisplayMode.RICH

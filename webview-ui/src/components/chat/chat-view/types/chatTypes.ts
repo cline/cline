@@ -2,9 +2,9 @@
  * Shared types and interfaces for the chat view components
  */
 
-import { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
-import { VirtuosoHandle } from "react-virtuoso"
-import { ButtonActionType } from "../shared/buttonConfig"
+import type { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
+import type { VirtuosoHandle } from "react-virtuoso"
+import type { ButtonActionType } from "../shared/buttonConfig"
 
 /**
  * Main ChatView component props

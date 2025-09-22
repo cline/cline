@@ -1,4 +1,8 @@
-import { GetOrganizationCreditsRequest, OrganizationCreditsData, OrganizationUsageTransaction } from "@shared/proto/cline/account"
+import {
+	type GetOrganizationCreditsRequest,
+	OrganizationCreditsData,
+	OrganizationUsageTransaction,
+} from "@shared/proto/cline/account"
 import type { Controller } from "../index"
 
 /**

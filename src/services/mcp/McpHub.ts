@@ -1,3 +1,5 @@
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { GlobalFileNames } from "@core/storage/disk"
@@ -14,29 +16,27 @@ import {
 } from "@modelcontextprotocol/sdk/types.js"
 import {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
-	McpResource,
-	McpResourceResponse,
-	McpResourceTemplate,
-	McpServer,
-	McpTool,
-	McpToolCallResponse,
+	type McpResource,
+	type McpResourceResponse,
+	type McpResourceTemplate,
+	type McpServer,
+	type McpTool,
+	type McpToolCallResponse,
 	MIN_MCP_TIMEOUT_SECONDS,
 } from "@shared/mcp"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { fileExistsAtPath } from "@utils/fs"
 import { secondsToMs } from "@utils/time"
-import chokidar, { FSWatcher } from "chokidar"
+import chokidar, { type FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
-import * as fs from "fs/promises"
-import * as path from "path"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { TelemetryService } from "../telemetry/TelemetryService"
+import type { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
-import { McpConnection, McpServerConfig, Transport } from "./types"
+import type { McpConnection, McpServerConfig, Transport } from "./types"
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
@@ -1057,9 +1057,8 @@ export class McpHub {
 				// Get the servers in their correct order from settings
 				const serverOrder = Object.keys(config.mcpServers || {})
 				return this.getSortedMcpServers(serverOrder)
-			} else {
-				throw new Error(`${serverName} not found in MCP configuration`)
 			}
+			throw new Error(`${serverName} not found in MCP configuration`)
 		} catch (error) {
 			console.error(`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`)
 			throw error

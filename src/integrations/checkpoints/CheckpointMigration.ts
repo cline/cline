@@ -1,6 +1,6 @@
+import fs from "node:fs/promises"
+import * as path from "node:path"
 import { fileExistsAtPath } from "@utils/fs"
-import fs from "fs/promises"
-import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 
 /**

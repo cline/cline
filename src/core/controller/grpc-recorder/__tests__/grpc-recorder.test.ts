@@ -1,7 +1,7 @@
-import { GrpcRecorder, IRecorder } from "@core/controller/grpc-recorder/grpc-recorder"
+import { GrpcRecorder, type IRecorder } from "@core/controller/grpc-recorder/grpc-recorder"
 import { expect } from "chai"
-import { ExtensionMessage } from "@/shared/ExtensionMessage"
-import { GrpcRequest } from "@/shared/WebviewMessage"
+import type { ExtensionMessage } from "@/shared/ExtensionMessage"
+import type { GrpcRequest } from "@/shared/WebviewMessage"
 
 describe("grpc-recorder", () => {
 	let recorder: IRecorder

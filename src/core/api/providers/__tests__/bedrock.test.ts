@@ -1,6 +1,6 @@
 import "should"
+import { Readable } from "node:stream"
 import { ConverseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
-import { Readable } from "stream"
 import type { AwsBedrockHandlerOptions } from "../bedrock"
 import { AwsBedrockHandler } from "../bedrock"
 

@@ -1,9 +1,10 @@
 import { mentionRegexGlobal } from "@shared/context-mentions"
-import { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { FOCUS_CHAIN_ITEM_REGEX, isCompletedFocusChainItem, isFocusChainItem } from "@shared/focus-chain-utils"
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { memo, useEffect, useMemo, useRef, useState } from "react"
+import type React from "react"
+import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import ChecklistRenderer from "@/components/common/ChecklistRenderer"
 import HeroTooltip from "@/components/common/HeroTooltip"
@@ -846,18 +847,17 @@ export const highlightMentions = (text: string, withShadow = true) => {
 		if (index % 2 === 0) {
 			// This is regular text
 			return part
-		} else {
-			// This is a mention
-			return (
-				<span
-					className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
-					key={`mention-${Math.floor(index / 2)}`}
-					onClick={() => FileServiceClient.openMention(StringRequest.create({ value: part }))}
-					style={{ cursor: "pointer" }}>
-					@{part}
-				</span>
-			)
 		}
+		// This is a mention
+		return (
+			<span
+				className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"}
+				key={`mention-${Math.floor(index / 2)}`}
+				onClick={() => FileServiceClient.openMention(StringRequest.create({ value: part }))}
+				style={{ cursor: "pointer" }}>
+				@{part}
+			</span>
+		)
 	})
 }
 

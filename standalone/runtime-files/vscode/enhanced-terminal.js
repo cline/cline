@@ -1,7 +1,7 @@
-const { spawn } = require("child_process")
-const { EventEmitter } = require("events")
-const _path = require("path")
-const _os = require("os")
+const { spawn } = require("node:child_process")
+const { EventEmitter } = require("node:events")
+const _path = require("node:path")
+const _os = require("node:os")
 
 // Enhanced terminal management for standalone Cline
 // This replaces VSCode's terminal integration with real subprocess management
@@ -182,22 +182,19 @@ class StandaloneTerminalProcess extends EventEmitter {
 	getDefaultShell() {
 		if (process.platform === "win32") {
 			return process.env.COMSPEC || "cmd.exe"
-		} else {
-			return process.env.SHELL || "/bin/bash"
 		}
+		return process.env.SHELL || "/bin/bash"
 	}
 
 	getShellArgs(shell, command) {
 		if (process.platform === "win32") {
 			if (shell.toLowerCase().includes("powershell") || shell.toLowerCase().includes("pwsh")) {
 				return ["-Command", command]
-			} else {
-				return ["/c", command]
 			}
-		} else {
-			// Use -l for login shell, -c for command
-			return ["-l", "-c", command]
+			return ["/c", command]
 		}
+		// Use -l for login shell, -c for command
+		return ["-l", "-c", command]
 	}
 
 	// Terminate the process if it's still running

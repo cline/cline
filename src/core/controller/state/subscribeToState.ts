@@ -1,8 +1,8 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { State } from "@shared/proto/cline/state"
-import { ExtensionState } from "@/shared/ExtensionMessage"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import { Controller } from "../index"
+import type { EmptyRequest } from "@shared/proto/cline/common"
+import type { State } from "@shared/proto/cline/state"
+import type { ExtensionState } from "@/shared/ExtensionMessage"
+import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
+import type { Controller } from "../index"
 
 // Keep track of active state subscriptions by controller ID
 const activeStateSubscriptions = new Map<string, StreamingResponseHandler<State>>()

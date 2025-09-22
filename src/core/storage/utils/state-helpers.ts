@@ -1,14 +1,14 @@
-import { ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
-import { ExtensionContext } from "vscode"
-import { Controller } from "@/core/controller"
+import { type ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
+import type { ExtensionContext } from "vscode"
+import type { Controller } from "@/core/controller"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
-import { ClineRulesToggles } from "@/shared/cline-rules"
+import type { ClineRulesToggles } from "@/shared/cline-rules"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@/shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@/shared/McpDisplayMode"
-import { OpenaiReasoningEffort } from "@/shared/storage/types"
+import type { OpenaiReasoningEffort } from "@/shared/storage/types"
 import { readTaskHistoryFromState } from "../disk"
-import { GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "../state-keys"
+import type { GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "../state-keys"
 
 export async function readSecretsFromDisk(context: ExtensionContext): Promise<Secrets> {
 	const [

@@ -1,13 +1,13 @@
+import fs from "node:fs/promises"
+import path from "node:path"
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { EmptyRequest } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import cloneDeep from "clone-deep"
-import fs from "fs/promises"
-import path from "path"
 import { CLAUDE_SONNET_4_1M_TIERS, clineCodeSupernovaModelInfo, openRouterClaudeSonnet41mModelId } from "@/shared/api"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 type OpenRouterSupportedParams =
 	| "frequency_penalty"
@@ -258,7 +258,7 @@ export async function refreshOpenRouterModels(
 /**
  * Reads cached OpenRouter models from disk
  */
-async function readOpenRouterModels(controller: Controller): Promise<Record<string, OpenRouterModelInfo> | undefined> {
+async function readOpenRouterModels(_controller: Controller): Promise<Record<string, OpenRouterModelInfo> | undefined> {
 	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 	const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
 	if (fileExists) {

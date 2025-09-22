@@ -1,4 +1,4 @@
-import { PromptVariant, SystemPromptContext, SystemPromptSection, TemplateEngine } from ".."
+import { type PromptVariant, type SystemPromptContext, SystemPromptSection, TemplateEngine } from ".."
 
 const UPDATING_TASK_PROGRESS = `UPDATING TASK PROGRESS
 

@@ -1,6 +1,6 @@
 import { resolveWorkspacePath } from "@core/workspace"
 import { ClineDefaultTool } from "@shared/tools"
-import { StateManager } from "@/core/storage/StateManager"
+import type { StateManager } from "@/core/storage/StateManager"
 import { getCwd, getDesktopDir, isLocatedInPath } from "@/utils/path"
 
 export class AutoApprove {
@@ -97,8 +97,7 @@ export class AutoApprove {
 
 		if ((isLocalRead && autoApproveLocal) || (!isLocalRead && autoApproveLocal && autoApproveExternal)) {
 			return true
-		} else {
-			return false
 		}
+		return false
 	}
 }

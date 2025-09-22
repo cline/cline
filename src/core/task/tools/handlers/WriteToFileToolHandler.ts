@@ -4,7 +4,7 @@ import { constructNewFileContent } from "@core/assistant-message/diff"
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
-import { ClineSayTool } from "@shared/ExtensionMessage"
+import type { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
@@ -216,26 +216,25 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 					await config.services.diffViewProvider.revertChanges()
 					return `The user denied this operation. ${fileDeniedNote}`
-				} else {
-					// User hit the approve button, and may have provided feedback
-					if (text || (images && images.length > 0) || (files && files.length > 0)) {
-						let fileContentString = ""
-						if (files && files.length > 0) {
-							fileContentString = await processFilesIntoText(files)
-						}
-
-						// Push additional tool feedback using existing utilities
-						ToolResultUtils.pushAdditionalToolFeedback(
-							config.taskState.userMessageContent,
-							text,
-							images,
-							fileContentString,
-						)
-						await config.callbacks.say("user_feedback", text, images, files)
+				}
+				// User hit the approve button, and may have provided feedback
+				if (text || (images && images.length > 0) || (files && files.length > 0)) {
+					let fileContentString = ""
+					if (files && files.length > 0) {
+						fileContentString = await processFilesIntoText(files)
 					}
 
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
+					// Push additional tool feedback using existing utilities
+					ToolResultUtils.pushAdditionalToolFeedback(
+						config.taskState.userMessageContent,
+						text,
+						images,
+						fileContentString,
+					)
+					await config.callbacks.say("user_feedback", text, images, files)
 				}
+
+				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}
 
 			// Mark the file as edited by Cline
@@ -271,9 +270,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					finalContent,
 					newProblemsMessage,
 				)
-			} else {
-				return formatResponse.fileEditWithoutUserChanges(relPath, autoFormattingEdits, finalContent, newProblemsMessage)
 			}
+			return formatResponse.fileEditWithoutUserChanges(relPath, autoFormattingEdits, finalContent, newProblemsMessage)
 		} catch (error) {
 			// Reset diff view on error
 			await config.services.diffViewProvider.revertChanges()

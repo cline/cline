@@ -1,12 +1,12 @@
+import fs from "node:fs/promises"
+import path from "node:path"
 import { huggingFaceModels } from "@shared/api"
-import { EmptyRequest } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
-import fs from "fs/promises"
-import path from "path"
 import { ensureCacheDirectoryExists } from "@/core/storage/disk"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Refreshes the Hugging Face models and returns the updated model list

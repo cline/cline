@@ -1,5 +1,5 @@
-import crypto from "crypto"
-import fs from "fs"
+import crypto from "node:crypto"
+import fs from "node:fs"
 import {
 	DEFAULT_IDCS_CLIENT_ID,
 	DEFAULT_IDCS_PORT_CANDIDATES,
@@ -140,7 +140,9 @@ export function getProxyUrl(): string | undefined {
 
 export function getProxyAgents(): { httpAgent?: any; httpsAgent?: any } {
 	const proxyUrl = getProxyUrl()
-	if (!proxyUrl) return {}
+	if (!proxyUrl) {
+		return {}
+	}
 	const agent = new HttpsProxyAgent(proxyUrl)
 	return { httpAgent: agent as any, httpsAgent: agent as any }
 }

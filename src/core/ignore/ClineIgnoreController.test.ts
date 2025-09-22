@@ -1,7 +1,7 @@
-import fs from "fs/promises"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import { after, beforeEach, describe, it } from "mocha"
-import os from "os"
-import path from "path"
 import { ClineIgnoreController } from "./ClineIgnoreController"
 import "should"
 

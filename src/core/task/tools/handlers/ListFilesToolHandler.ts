@@ -109,9 +109,8 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 			if (!didApprove) {
 				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
 				return formatResponse.toolDenied()
-			} else {
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}
+			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 		}
 
 		return result

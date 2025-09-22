@@ -1,6 +1,6 @@
-import { StringRequest } from "@shared/proto/cline/common"
+import type { StringRequest } from "@shared/proto/cline/common"
 import { TaskResponse } from "@shared/proto/cline/task"
-import { Controller } from ".."
+import type { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
 /**

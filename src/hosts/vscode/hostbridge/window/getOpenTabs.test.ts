@@ -1,4 +1,4 @@
-import { strict as assert } from "assert"
+import { strict as assert } from "node:assert"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"

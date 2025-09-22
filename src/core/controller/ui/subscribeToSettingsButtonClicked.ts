@@ -1,6 +1,6 @@
 import { Empty } from "@shared/proto/cline/common"
-import { WebviewProviderType, WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
+import { WebviewProviderType, type WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
+import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
 import type { Controller } from "../index"
 
 // Track subscriptions with their provider type

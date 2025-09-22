@@ -1,9 +1,9 @@
-import { Anthropic } from "@anthropic-ai/sdk"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import Cerebras from "@cerebras/cerebras_cloud_sdk"
-import { CerebrasModelId, cerebrasDefaultModelId, cerebrasModels, ModelInfo } from "@shared/api"
-import { ApiHandler, CommonApiHandlerOptions } from "../index"
+import { type CerebrasModelId, cerebrasDefaultModelId, cerebrasModels, type ModelInfo } from "@shared/api"
+import type { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 interface CerebrasHandlerOptions extends CommonApiHandlerOptions {
 	cerebrasApiKey?: string
@@ -70,7 +70,8 @@ export class CerebrasHandler implements ApiHandler {
 							.map((block) => {
 								if (block.type === "text") {
 									return block.text
-								} else if (block.type === "image") {
+								}
+								if (block.type === "image") {
 									return "[Image content not supported in Cerebras]"
 								}
 								return ""
@@ -180,14 +181,18 @@ export class CerebrasHandler implements ApiHandler {
 				// Rate limit error - will be handled by retry decorator with patient backoff
 				const _limits = this.getRateLimits()
 				throw new Error(`Cerebras API rate limit exceeded.`)
-			} else if (error?.status === 401) {
+			}
+			if (error?.status === 401) {
 				throw new Error("Cerebras API authentication failed. Please check your API key.")
-			} else if (error?.status === 403) {
+			}
+			if (error?.status === 403) {
 				throw new Error("Cerebras API access denied. Please check your API key permissions.")
-			} else if (error?.status >= 500) {
+			}
+			if (error?.status >= 500) {
 				// Server errors - retryable
 				throw new Error(`Cerebras API server error (${error.status}): ${error.message || "Unknown server error"}`)
-			} else if (error?.status === 400) {
+			}
+			if (error?.status === 400) {
 				// Client errors - not retryable
 				throw new Error(`Cerebras API bad request: ${error.message || "Invalid request parameters"}`)
 			}

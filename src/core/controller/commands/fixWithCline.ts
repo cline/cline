@@ -1,8 +1,8 @@
 import { getFileMentionFromPath } from "@/core/mentions"
 import { singleFileDiagnosticsToProblemsString } from "@/integrations/diagnostics"
 import { telemetryService } from "@/services/telemetry"
-import { CommandContext, Empty } from "@/shared/proto/index.cline"
-import { Controller } from "../index"
+import type { CommandContext, Empty } from "@/shared/proto/index.cline"
+import type { Controller } from "../index"
 
 export async function fixWithCline(controller: Controller, request: CommandContext): Promise<Empty> {
 	const filePath = request.filePath || ""

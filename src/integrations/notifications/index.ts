@@ -1,5 +1,5 @@
+import { platform } from "node:os"
 import { execa } from "execa"
-import { platform } from "os"
 
 interface NotificationOptions {
 	title?: string

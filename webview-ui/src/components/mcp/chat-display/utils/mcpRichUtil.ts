@@ -93,19 +93,19 @@ export const normalizeRelativeUrl = (relativeUrl: string, baseUrl: string): stri
 		if (relativeUrl.startsWith("//")) {
 			// Protocol-relative URL
 			return `${baseUrlObj.protocol}${relativeUrl}`
-		} else if (relativeUrl.startsWith("/")) {
+		}
+		if (relativeUrl.startsWith("/")) {
 			// Root-relative URL
 			return `${baseUrlObj.protocol}//${baseUrlObj.host}${relativeUrl}`
-		} else {
-			// Path-relative URL
-			// Get the directory part of the URL
-			let basePath = baseUrlObj.pathname
-			if (!basePath.endsWith("/")) {
-				// If the path doesn't end with a slash, remove the file part
-				basePath = basePath.substring(0, basePath.lastIndexOf("/") + 1)
-			}
-			return `${baseUrlObj.protocol}//${baseUrlObj.host}${basePath}${relativeUrl}`
 		}
+		// Path-relative URL
+		// Get the directory part of the URL
+		let basePath = baseUrlObj.pathname
+		if (!basePath.endsWith("/")) {
+			// If the path doesn't end with a slash, remove the file part
+			basePath = basePath.substring(0, basePath.lastIndexOf("/") + 1)
+		}
+		return `${baseUrlObj.protocol}//${baseUrlObj.host}${basePath}${relativeUrl}`
 	} catch (error) {
 		console.log(`Error normalizing relative URL: ${error}`)
 		return relativeUrl // Return original on error

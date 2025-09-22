@@ -1,9 +1,9 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import debounce from "debounce"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import { VirtuosoHandle } from "react-virtuoso"
-import { ScrollBehavior } from "../types/chatTypes"
+import type { VirtuosoHandle } from "react-virtuoso"
+import type { ScrollBehavior } from "../types/chatTypes"
 
 /**
  * Custom hook for managing scroll behavior
@@ -138,7 +138,8 @@ export function useScrollBehavior(
 					scrollToBottomAuto()
 				}, 0)
 				return () => clearTimeout(timer)
-			} else if (isLast || isSecondToLast) {
+			}
+			if (isLast || isSecondToLast) {
 				if (isCollapsing) {
 					if (isSecondToLast && !isLastCollapsedApiReq) {
 						return
@@ -147,15 +148,14 @@ export function useScrollBehavior(
 						scrollToBottomAuto()
 					}, 0)
 					return () => clearTimeout(timer)
-				} else {
-					const timer = setTimeout(() => {
-						virtuosoRef.current?.scrollToIndex({
-							index: groupedMessages.length - (isLast ? 1 : 2),
-							align: "start",
-						})
-					}, 0)
-					return () => clearTimeout(timer)
 				}
+				const timer = setTimeout(() => {
+					virtuosoRef.current?.scrollToIndex({
+						index: groupedMessages.length - (isLast ? 1 : 2),
+						align: "start",
+					})
+				}, 0)
+				return () => clearTimeout(timer)
 			}
 		},
 		[groupedMessages, expandedRows, scrollToBottomAuto, isAtBottom],

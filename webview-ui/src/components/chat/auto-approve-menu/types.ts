@@ -1,4 +1,4 @@
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 
 export interface ActionMetadata {
 	id: keyof AutoApprovalSettings["actions"] | "enableNotifications" | "enableAll" | "enableAutoApprove"

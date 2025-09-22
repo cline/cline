@@ -1,13 +1,13 @@
+import fs from "node:fs/promises"
+import path from "node:path"
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
+import type { EmptyRequest } from "@shared/proto/cline/common"
+import { OpenRouterCompatibleModelInfo, type OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
-import fs from "fs/promises"
-import path from "path"
 import { telemetryService } from "@/services/telemetry"
 import { groqModels } from "../../../shared/api"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Refreshes the Groq models and returns the updated model list
@@ -45,7 +45,7 @@ export async function refreshGroqModels(controller: Controller, _request: EmptyR
 				throw new Error("Invalid Groq API key format. Groq API keys should start with 'gsk_'")
 			}
 
-			console.log("Fetching Groq models with API key:", cleanApiKey.substring(0, 10) + "...")
+			console.log("Fetching Groq models with API key:", `${cleanApiKey.substring(0, 10)}...`)
 
 			const response = await axios.get("https://api.groq.com/openai/v1/models", {
 				headers: {
@@ -164,7 +164,7 @@ export async function refreshGroqModels(controller: Controller, _request: EmptyR
 /**
  * Reads cached Groq models from disk
  */
-async function readGroqModels(controller: Controller): Promise<Record<string, Partial<OpenRouterModelInfo>> | undefined> {
+async function readGroqModels(_controller: Controller): Promise<Record<string, Partial<OpenRouterModelInfo>> | undefined> {
 	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.groqModels)
 	const fileExists = await fileExistsAtPath(groqModelsFilePath)
 	if (fileExists) {

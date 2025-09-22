@@ -1,5 +1,5 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type OpenAI from "openai"
 
 export function convertToOpenAiMessages(
 	anthropicMessages: Anthropic.Messages.MessageParam[],

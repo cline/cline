@@ -1,5 +1,5 @@
-import * as fs from "fs/promises"
-import * as path from "path"
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
 /**
  * Write `contents` to `filePath`, creating any necessary directories in `filePath`.
  */

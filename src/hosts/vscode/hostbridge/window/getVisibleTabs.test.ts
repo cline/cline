@@ -1,4 +1,4 @@
-import { strict as assert } from "assert"
+import { strict as assert } from "node:assert"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as vscode from "vscode"
 import { getVisibleTabs } from "@/hosts/vscode/hostbridge/window/getVisibleTabs"

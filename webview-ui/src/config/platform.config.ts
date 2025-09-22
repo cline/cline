@@ -50,7 +50,7 @@ const postMessageStrategies: Record<string, PostMessageFunction> = {
 			return
 		}
 		const json = JSON.stringify(message)
-		console.log("Standalone postMessage: " + json.slice(0, 200))
+		console.log(`Standalone postMessage: ${json.slice(0, 200)}`)
 		window.standalonePostMessage(json)
 	},
 }

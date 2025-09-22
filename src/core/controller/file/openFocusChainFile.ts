@@ -1,8 +1,8 @@
 import { openFile as openFileIntegration } from "@integrations/misc/open-file"
 import { telemetryService } from "../../../services/telemetry"
-import { Empty, StringRequest } from "../../../shared/proto/cline/common"
+import { Empty, type StringRequest } from "../../../shared/proto/cline/common"
 import { ensureFocusChainFile, extractFocusChainListFromText } from "../../task/focus-chain/file-utils"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Opens or creates a focus chain checklist markdown file for editing

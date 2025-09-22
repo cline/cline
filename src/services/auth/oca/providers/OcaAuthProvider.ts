@@ -1,7 +1,7 @@
-import { OcaAuthState, OcaUserInfo } from "@shared/proto/cline/oca_account"
+import type { OcaAuthState, OcaUserInfo } from "@shared/proto/cline/oca_account"
 import axios from "axios"
 import { jwtDecode } from "jwt-decode"
-import { Controller } from "@/core/controller"
+import type { Controller } from "@/core/controller"
 import { getProxyAgents } from "@/services/auth/oca/utils/utils"
 
 import { generateCodeVerifier, generateRandomString, pkceChallengeFromVerifier } from "../utils/utils"
@@ -136,7 +136,7 @@ export class OcaAuthProvider {
 			}
 		}
 		OcaAuthProvider.pkceStateMap.set(state, { code_verifier, nonce, createdAt: Date.now(), redirect_uri: callbackUrl })
-		const base = idcs_url.replace(/\/$/, "") + "/oauth2/v1/authorize"
+		const base = `${idcs_url.replace(/\/$/, "")}/oauth2/v1/authorize`
 		const url = new URL(base)
 		url.searchParams.set("client_id", client_id)
 		url.searchParams.set("response_type", "code")

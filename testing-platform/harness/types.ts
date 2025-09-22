@@ -1,4 +1,4 @@
-import { ServiceClients } from "@adapters/grpcAdapter"
+import type { ServiceClients } from "@adapters/grpcAdapter"
 
 export interface Entry {
 	requestId: string

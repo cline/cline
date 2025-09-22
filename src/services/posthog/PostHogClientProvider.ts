@@ -1,4 +1,4 @@
-import { EventMessage, PostHog } from "posthog-node"
+import { type EventMessage, PostHog } from "posthog-node"
 import { posthogConfig } from "../../shared/services/config/posthog-config"
 
 export class PostHogClientProvider {

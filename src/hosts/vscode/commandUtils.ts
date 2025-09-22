@@ -1,8 +1,8 @@
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"
-import { CommandContext } from "@/shared/proto/index.cline"
-import { Controller } from "../../core/controller"
+import type { CommandContext } from "@/shared/proto/index.cline"
+import type { Controller } from "../../core/controller"
 import { WebviewProvider } from "../../core/webview"
 import { convertVscodeDiagnostics } from "./hostbridge/workspace/getDiagnostics"
 

@@ -1,4 +1,4 @@
-import { ToolParamName, ToolUse } from "@core/assistant-message"
+import type { ToolParamName, ToolUse } from "@core/assistant-message"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { removeClosingTag } from "./ToolConstants"
 

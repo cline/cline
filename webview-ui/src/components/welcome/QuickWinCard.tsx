@@ -1,5 +1,5 @@
-import React from "react"
-import { QuickWinTask } from "./quickWinTasks"
+import type React from "react"
+import type { QuickWinTask } from "./quickWinTasks"
 
 interface QuickWinCardProps {
 	task: QuickWinTask

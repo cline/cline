@@ -1,8 +1,8 @@
+import fs from "node:fs/promises"
+import path from "node:path"
 import { fileExistsAtPath } from "@utils/fs"
-import chokidar, { FSWatcher } from "chokidar"
-import fs from "fs/promises"
-import ignore, { Ignore } from "ignore"
-import path from "path"
+import chokidar, { type FSWatcher } from "chokidar"
+import ignore, { type Ignore } from "ignore"
 
 export const LOCK_TEXT_SYMBOL = "\u{1F512}"
 
@@ -117,14 +117,14 @@ export class ClineIgnoreController {
 			const trimmedLine = line.trim()
 
 			if (!trimmedLine.startsWith("!include ")) {
-				combinedContent += "\n" + line
+				combinedContent += `\n${line}`
 				continue
 			}
 
 			// Process !include directive
 			const includedContent = await this.readIncludedFile(trimmedLine)
 			if (includedContent) {
-				combinedContent += "\n" + includedContent
+				combinedContent += `\n${includedContent}`
 			}
 		}
 

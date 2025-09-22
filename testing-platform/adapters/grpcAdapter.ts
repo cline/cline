@@ -1,3 +1,4 @@
+import { promisify } from "node:util"
 import { AccountServiceClient } from "@cline-grpc/account"
 import { BrowserServiceClient } from "@cline-grpc/browser"
 import { CheckpointsServiceClient } from "@cline-grpc/checkpoints"
@@ -11,7 +12,6 @@ import { TaskServiceClient } from "@cline-grpc/task"
 import { UiServiceClient } from "@cline-grpc/ui"
 import { WebServiceClient } from "@cline-grpc/web"
 import { credentials } from "@grpc/grpc-js"
-import { promisify } from "util"
 
 const serviceRegistry = {
 	"cline.AccountService": AccountServiceClient,

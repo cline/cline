@@ -1,9 +1,9 @@
-import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
+import type { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { listFiles } from "@services/glob/list-files"
 import { fileExistsAtPath } from "@utils/fs"
-import * as fs from "fs/promises"
-import * as path from "path"
-import { LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
+import { type LanguageParser, loadRequiredLanguageParsers } from "./languageParser"
 
 // TODO: implement caching behavior to avoid having to keep analyzing project for new tasks.
 export async function parseSourceCodeForDefinitionsTopLevel(

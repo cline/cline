@@ -1,11 +1,11 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { SELECTOR_SEPARATOR, stringifyVsCodeLmModelSelector } from "@shared/vsCodeSelectorUtils"
 import { calculateApiCostAnthropic } from "@utils/cost"
 import * as vscode from "vscode"
-import { ApiHandler, CommonApiHandlerOptions, SingleCompletionHandler } from "../"
+import type { ApiHandler, CommonApiHandlerOptions, SingleCompletionHandler } from "../"
 import { withRetry } from "../retry"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 import { convertToVsCodeLmMessages } from "../transform/vscode-lm-format"
 import type { LanguageModelChatSelector as LanguageModelChatSelectorFromTypes } from "./types"
 
@@ -497,17 +497,17 @@ export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
 
 				// Return original error if it's already an Error instance
 				throw error
-			} else if (typeof error === "object" && error !== null) {
+			}
+			if (typeof error === "object" && error !== null) {
 				// Handle error-like objects
 				const errorDetails = JSON.stringify(error, null, 2)
 				console.error("Cline <Language Model API>: Stream error object:", errorDetails)
 				throw new Error(`Cline <Language Model API>: Response stream error: ${errorDetails}`)
-			} else {
-				// Fallback for unknown error types
-				const errorMessage = String(error)
-				console.error("Cline <Language Model API>: Unknown stream error:", errorMessage)
-				throw new Error(`Cline <Language Model API>: Response stream error: ${errorMessage}`)
 			}
+			// Fallback for unknown error types
+			const errorMessage = String(error)
+			console.error("Cline <Language Model API>: Unknown stream error:", errorMessage)
+			throw new Error(`Cline <Language Model API>: Response stream error: ${errorMessage}`)
 		}
 	}
 

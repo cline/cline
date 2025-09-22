@@ -1,6 +1,6 @@
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import { WebviewProvider } from "@/core/webview"
-import { WebviewProviderType } from "@/shared/webview/types"
+import type { WebviewProviderType } from "@/shared/webview/types"
 
 export class ExternalWebviewProvider extends WebviewProvider {
 	// This hostname cannot be changed without updating the external webview handler.

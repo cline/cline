@@ -1,4 +1,4 @@
-import { McpMarketplaceItem, McpServer } from "@shared/mcp"
+import type { McpMarketplaceItem, McpServer } from "@shared/mcp"
 import { StringRequest } from "@shared/proto/cline/common"
 import { useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"

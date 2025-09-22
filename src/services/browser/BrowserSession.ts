@@ -1,18 +1,18 @@
+import { spawn } from "node:child_process"
+import os from "node:os"
+import * as path from "node:path"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import { Controller } from "@core/controller"
-import { BrowserActionResult } from "@shared/ExtensionMessage"
+import type { Controller } from "@core/controller"
+import type { BrowserActionResult } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
-import { spawn } from "child_process"
 import * as chromeLauncher from "chrome-launcher"
-import os from "os"
 import pWaitFor from "p-wait-for"
-import * as path from "path"
 // @ts-ignore
 import type { ConsoleMessage, ScreenshotOptions } from "puppeteer-core"
-import { Browser, connect, launch, Page, TimeoutError } from "puppeteer-core"
+import { type Browser, connect, launch, type Page, TimeoutError } from "puppeteer-core"
 import * as vscode from "vscode"
-import { StateManager } from "@/core/storage/StateManager"
+import type { StateManager } from "@/core/storage/StateManager"
 import { telemetryService } from "@/services/telemetry"
 import { discoverChromeInstances, isPortOpen, testBrowserConnection } from "./BrowserDiscovery"
 import { ensureChromiumExists } from "./utils"
@@ -36,7 +36,6 @@ function splitArgs(str?: string | null): string[] {
 }
 
 export class BrowserSession {
-	private context: vscode.ExtensionContext
 	private browser?: Browser
 	private page?: Page
 	private currentMousePosition?: string

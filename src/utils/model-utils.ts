@@ -1,5 +1,5 @@
-import { ApiHandlerModel, ApiProviderInfo } from "@core/api"
-import { AnthropicModelId, anthropicModels } from "@/shared/api"
+import type { ApiHandlerModel, ApiProviderInfo } from "@core/api"
+import { type AnthropicModelId, anthropicModels } from "@/shared/api"
 
 export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()

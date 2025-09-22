@@ -3,10 +3,10 @@
  * This class handles workspace root resolution, path mapping, and workspace context
  */
 
+import * as path from "node:path"
 import { execa } from "execa"
-import * as path from "path"
 import { getLatestGitCommitHash } from "../../utils/git"
-import { VcsType, WorkspaceRoot } from "./WorkspaceRoot"
+import { VcsType, type WorkspaceRoot } from "./WorkspaceRoot"
 
 export interface WorkspaceContext {
 	workspaceRoots: WorkspaceRoot[]

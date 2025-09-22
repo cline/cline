@@ -2,7 +2,7 @@ import * as diskModule from "@core/storage/disk"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import type { TaskMetadata } from "./ContextTrackerTypes"
 import { ModelContextTracker } from "./ModelContextTracker"
 

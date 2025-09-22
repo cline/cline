@@ -1,5 +1,5 @@
-import { SaveDialogOptions, Uri, window } from "vscode"
-import { ShowSaveDialogRequest, ShowSaveDialogResponse } from "@/shared/proto/index.host"
+import { type SaveDialogOptions, Uri, window } from "vscode"
+import { type ShowSaveDialogRequest, ShowSaveDialogResponse } from "@/shared/proto/index.host"
 
 export async function showSaveDialog(request: ShowSaveDialogRequest): Promise<ShowSaveDialogResponse> {
 	const { options } = request

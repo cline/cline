@@ -1,6 +1,6 @@
 import { memo, useEffect } from "react"
 import { useRemark } from "react-remark"
-import rehypeHighlight, { Options } from "rehype-highlight"
+import rehypeHighlight, { type Options } from "rehype-highlight"
 import styled from "styled-components"
 import { visit } from "unist-util-visit"
 import "./codeblock-parser.css"

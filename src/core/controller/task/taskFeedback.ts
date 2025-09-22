@@ -1,6 +1,6 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
+import { Empty, type StringRequest } from "@shared/proto/cline/common"
 import { telemetryService } from "@/services/telemetry"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Handles task feedback submission (thumbs up/down)

@@ -1,8 +1,8 @@
 import { HostProvider } from "@/hosts/host-provider"
-import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
+import type CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
 import { findLast } from "@/shared/array"
 import { ShowMessageType } from "@/shared/proto/index.host"
-import { MessageStateHandler } from "./message-state"
+import type { MessageStateHandler } from "./message-state"
 
 export async function showChangedFilesDiff(
 	messageStateHandler: MessageStateHandler,
@@ -81,7 +81,7 @@ async function getChangedFiles(
 		const errorMessage = error instanceof Error ? error.message : "Unknown error"
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
-			message: "Failed to retrieve diff set: " + errorMessage,
+			message: `Failed to retrieve diff set: ${errorMessage}`,
 		})
 		return []
 	}

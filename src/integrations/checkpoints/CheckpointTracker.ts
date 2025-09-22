@@ -1,5 +1,5 @@
-import fs from "fs/promises"
-import * as path from "path"
+import fs from "node:fs/promises"
+import * as path from "node:path"
 import simpleGit from "simple-git"
 import { telemetryService } from "@/services/telemetry"
 import { GitOperations } from "./CheckpointGitOperations"
@@ -184,7 +184,7 @@ class CheckpointTracker {
 				console.error("Failed to add at least one file(s) to checkpoints shadow git")
 			}
 
-			const commitMessage = "checkpoint-" + this.cwdHash + "-" + this.taskId
+			const commitMessage = `checkpoint-${this.cwdHash}-${this.taskId}`
 
 			console.info(`Creating checkpoint commit with message: ${commitMessage}`)
 			const result = await git.commit(commitMessage, {

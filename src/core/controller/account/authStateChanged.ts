@@ -1,4 +1,4 @@
-import { AuthState, AuthStateChangedRequest } from "@shared/proto/cline/account"
+import { AuthState, type AuthStateChangedRequest } from "@shared/proto/cline/account"
 import type { Controller } from "../index"
 
 /**

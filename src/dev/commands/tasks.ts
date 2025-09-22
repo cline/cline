@@ -1,8 +1,8 @@
-import { Controller } from "@core/controller"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { HistoryItem } from "@shared/HistoryItem"
-import * as fs from "fs/promises"
-import * as path from "path"
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
+import type { Controller } from "@core/controller"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import type { HistoryItem } from "@shared/HistoryItem"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -11,7 +11,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
  * Registers development-only commands for task manipulation.
  * These are only activated in development mode.
  */
-export function registerTaskCommands(context: vscode.ExtensionContext, controller: Controller): vscode.Disposable[] {
+export function registerTaskCommands(_context: vscode.ExtensionContext, controller: Controller): vscode.Disposable[] {
 	return [
 		vscode.commands.registerCommand("cline.dev.createTestTasks", async () => {
 			const count = (
@@ -272,7 +272,7 @@ function getRandomTaskName(index: number): string {
 		"Create a notification system",
 	]
 
-	return tasks[index % tasks.length] + ` (Test ${index + 1})`
+	return `${tasks[index % tasks.length]} (Test ${index + 1})`
 }
 
 /**

@@ -1,4 +1,4 @@
-import { ClineMessage } from "./ExtensionMessage"
+import type { ClineMessage } from "./ExtensionMessage"
 
 /**
  * Combines sequences of command and command_output messages in an array of ClineMessages.
@@ -44,7 +44,7 @@ export function combineCommandSequences(messages: ClineMessage[]): ClineMessage[
 					// handle cases where we receive empty command_output (ie when extension is relinquishing control over exit command button)
 					const output = messages[j].text || ""
 					if (output.length > 0) {
-						combinedText += "\n" + output
+						combinedText += `\n${output}`
 					}
 				}
 				j++

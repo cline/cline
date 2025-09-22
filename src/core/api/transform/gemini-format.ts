@@ -1,5 +1,5 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { Content, GenerateContentResponse, Part } from "@google/genai"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type { Content, GenerateContentResponse, Part } from "@google/genai"
 
 export function convertAnthropicContentToGemini(content: string | Anthropic.ContentBlockParam[]): Part[] {
 	if (typeof content === "string") {

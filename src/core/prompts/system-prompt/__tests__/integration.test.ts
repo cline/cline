@@ -166,7 +166,7 @@ const baseContext: SystemPromptContext = {
 	providerInfo: mockProviderInfo,
 }
 
-const makeMockContext = (modelId: string, providerId: string = "test"): SystemPromptContext => ({
+const _makeMockContext = (modelId: string, providerId: string = "test"): SystemPromptContext => ({
 	...baseContext,
 	providerInfo: makeMockProviderInfo(modelId, providerId),
 })
@@ -284,10 +284,9 @@ describe("Prompt System Integration Tests", () => {
 														`This is a new test case. Run with --update-snapshots to create the initial snapshot.`,
 												),
 											)
-										} else {
-											// Re-throw comparison errors
-											throw error
 										}
+										// Re-throw comparison errors
+										throw error
 									}
 								}
 							} catch (error) {

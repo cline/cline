@@ -1,6 +1,6 @@
 import { Tooltip } from "@heroui/react"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import React from "react"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import type React from "react"
 import { getColor } from "./util"
 
 interface TaskTimelineTooltipProps {
@@ -31,11 +31,14 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								toolData.tool === "searchFiles"
 							) {
 								return `File Read: ${toolData.tool}`
-							} else if (toolData.tool === "editedExistingFile") {
+							}
+							if (toolData.tool === "editedExistingFile") {
 								return `File Edit: ${toolData.path || "Unknown file"}`
-							} else if (toolData.tool === "newFileCreated") {
+							}
+							if (toolData.tool === "newFileCreated") {
 								return `New File: ${toolData.path || "Unknown file"}`
-							} else if (toolData.tool === "webFetch") {
+							}
+							if (toolData.tool === "webFetch") {
 								return `Web Fetch: ${toolData.path || "Unknown URL"}`
 							}
 							return `Tool: ${toolData.tool}`
@@ -59,7 +62,8 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 				default:
 					return message.say || "Unknown"
 			}
-		} else if (message.type === "ask") {
+		}
+		if (message.type === "ask") {
 			switch (message.ask) {
 				case "followup":
 					return "Assistant Message"
@@ -77,11 +81,14 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								toolData.tool === "searchFiles"
 							) {
 								return `File Read Approval: ${toolData.tool}`
-							} else if (toolData.tool === "editedExistingFile") {
+							}
+							if (toolData.tool === "editedExistingFile") {
 								return `File Edit Approval: ${toolData.path || "Unknown file"}`
-							} else if (toolData.tool === "newFileCreated") {
+							}
+							if (toolData.tool === "newFileCreated") {
 								return `New File Approval: ${toolData.path || "Unknown file"}`
-							} else if (toolData.tool === "webFetch") {
+							}
+							if (toolData.tool === "webFetch") {
 								return `Web Fetch: ${toolData.path || "Unknown URL"}`
 							}
 							return `Tool Approval: ${toolData.tool}`
@@ -120,7 +127,7 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 			}
 
 			if (message.text.length > 200) {
-				return message.text.substring(0, 200) + "..."
+				return `${message.text.substring(0, 200)}...`
 			}
 			return message.text
 		}
@@ -142,11 +149,11 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 
 			if (messageDateOnly.getTime() === todayDate.getTime()) {
 				return `${time}`
-			} else if (messageDate.getFullYear() === today.getFullYear()) {
-				return `${monthName} ${messageDate.getDate()} ${time}`
-			} else {
-				return `${monthName} ${messageDate.getDate()}, ${messageDate.getFullYear()} ${time}`
 			}
+			if (messageDate.getFullYear() === today.getFullYear()) {
+				return `${monthName} ${messageDate.getDate()} ${time}`
+			}
+			return `${monthName} ${messageDate.getDate()}, ${messageDate.getFullYear()} ${time}`
 		}
 		return ""
 	}

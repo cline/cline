@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
-import { ClineMessage } from "@/shared/ExtensionMessage"
+import type { ClineMessage } from "@/shared/ExtensionMessage"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
@@ -217,7 +217,7 @@ describe("multifile-diff", () => {
 			expect(
 				(HostProvider.window.showMessage as sinon.SinonStub).calledWith({
 					type: ShowMessageType.ERROR,
-					message: "Failed to retrieve diff set: " + errorMessage,
+					message: `Failed to retrieve diff set: ${errorMessage}`,
 				}),
 			).to.be.true
 			expect((HostProvider.diff.openMultiFileDiff as sinon.SinonStub).called).to.be.false

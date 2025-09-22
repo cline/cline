@@ -1,5 +1,5 @@
-import { McpDisplayMode } from "@shared/McpDisplayMode"
-import { OpenaiReasoningEffort } from "@shared/storage/types"
+import type { McpDisplayMode } from "@shared/McpDisplayMode"
+import type { OpenaiReasoningEffort } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"

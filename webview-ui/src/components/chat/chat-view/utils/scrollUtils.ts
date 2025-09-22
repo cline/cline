@@ -3,7 +3,7 @@
  */
 
 import debounce from "debounce"
-import { VirtuosoHandle } from "react-virtuoso"
+import type { VirtuosoHandle } from "react-virtuoso"
 
 /**
  * Create a debounced smooth scroll function

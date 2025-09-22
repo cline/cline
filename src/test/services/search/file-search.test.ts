@@ -1,11 +1,11 @@
+import type * as childProcess from "node:child_process"
+import * as fs from "node:fs"
+import { Readable } from "node:stream"
 import * as fileSearch from "@services/search/file-search"
-import * as childProcess from "child_process"
-import * as fs from "fs"
 import type { FzfResultItem } from "fzf"
 import { describe, it } from "mocha"
 import should from "should"
 import sinon from "sinon"
-import { Readable } from "stream"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
 describe("File Search", () => {

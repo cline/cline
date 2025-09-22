@@ -1,4 +1,4 @@
-import { OpenGraphData as DomainOpenGraphData } from "@integrations/misc/link-preview"
+import type { OpenGraphData as DomainOpenGraphData } from "@integrations/misc/link-preview"
 import { OpenGraphData as ProtoOpenGraphData } from "@shared/proto/cline/web"
 
 /**

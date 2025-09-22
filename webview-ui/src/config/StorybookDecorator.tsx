@@ -1,11 +1,11 @@
 import { cn } from "@heroui/react"
 import type { Decorator } from "@storybook/react-vite"
 import React from "react"
-import { ClineAuthContext, ClineAuthContextType, ClineAuthProvider, useClineAuth } from "@/context/ClineAuthContext"
+import { ClineAuthContext, type ClineAuthContextType, ClineAuthProvider, useClineAuth } from "@/context/ClineAuthContext"
 import {
 	ExtensionStateContext,
 	ExtensionStateContextProvider,
-	ExtensionStateContextType,
+	type ExtensionStateContextType,
 	useExtensionState,
 } from "@/context/ExtensionStateContext"
 import { StorybookThemes } from "../../.storybook/themes"

@@ -1,6 +1,6 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { useCallback, useMemo, useRef, useState } from "react"
-import { ChatState } from "../types/chatTypes"
+import type { ChatState } from "../types/chatTypes"
 
 /**
  * Custom hook for managing chat state

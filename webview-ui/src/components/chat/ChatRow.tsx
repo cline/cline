@@ -1,17 +1,18 @@
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import {
-	ClineApiReqInfo,
-	ClineAskQuestion,
-	ClineAskUseMcpServer,
-	ClineMessage,
-	ClinePlanModeResponse,
-	ClineSayTool,
+	type ClineApiReqInfo,
+	type ClineAskQuestion,
+	type ClineAskUseMcpServer,
+	type ClineMessage,
+	type ClinePlanModeResponse,
+	type ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
 import { Int64Request, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type React from "react"
+import { type MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import styled from "styled-components"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
@@ -497,7 +498,7 @@ export const ChatRowContent = memo(
 											direction: "rtl",
 											textAlign: "left",
 										}}>
-										{cleanPathPrefix(tool.path ?? "") + "\u200E"}
+										{`${cleanPathPrefix(tool.path ?? "")}\u200E`}
 									</span>
 									<div style={{ flexGrow: 1 }}></div>
 									{!isImage && (
@@ -657,7 +658,7 @@ export const ChatRowContent = memo(
 													textAlign: "left",
 													flex: 1,
 												}}>
-												{tool.content + "\u200E"}
+												{`${tool.content}\u200E`}
 											</span>
 											<span
 												className="codicon codicon-chevron-down"
@@ -720,7 +721,7 @@ export const ChatRowContent = memo(
 										color: "var(--vscode-textLink-foreground)",
 										textDecoration: "underline",
 									}}>
-									{tool.path + "\u200E"}
+									{`${tool.path}\u200E`}
 								</span>
 							</div>
 							{/* Displaying the 'content' which now holds "Fetching URL: [URL]" */}
@@ -1048,7 +1049,7 @@ export const ChatRowContent = memo(
 														textAlign: "left",
 														flex: 1,
 													}}>
-													{message.text + "\u200E"}
+													{`${message.text}\u200E`}
 												</span>
 												<span
 													className="codicon codicon-chevron-right"
@@ -1321,9 +1322,8 @@ export const ChatRowContent = memo(
 									)}
 								</div>
 							)
-						} else {
-							return null // Don't render anything when we get a completion_result ask without text
 						}
+						return null // Don't render anything when we get a completion_result ask without text
 					case "followup":
 						let question: string | undefined
 						let options: string[] | undefined

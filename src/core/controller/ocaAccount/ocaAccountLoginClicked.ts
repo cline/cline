@@ -1,6 +1,6 @@
-import { EmptyRequest, String as ProtoString } from "@shared/proto/cline/common"
+import type { EmptyRequest, String as ProtoString } from "@shared/proto/cline/common"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
-import { Controller } from "../index"
+import type { Controller } from "../index"
 
 /**
  * Handles the user clicking the login link in the UI.

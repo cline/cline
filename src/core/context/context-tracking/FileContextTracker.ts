@@ -1,9 +1,9 @@
+import * as path from "node:path"
 import { getTaskMetadata, readTaskHistoryFromState, saveTaskMetadata } from "@core/storage/disk"
 import type { ClineMessage } from "@shared/ExtensionMessage"
-import chokidar, { FSWatcher } from "chokidar"
-import * as path from "path"
-import * as vscode from "vscode"
-import { Controller } from "@/core/controller"
+import chokidar, { type FSWatcher } from "chokidar"
+import type * as vscode from "vscode"
+import type { Controller } from "@/core/controller"
 import { getCwd } from "@/utils/path"
 import type { FileMetadataEntry } from "./ContextTrackerTypes"
 

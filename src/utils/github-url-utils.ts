@@ -13,11 +13,11 @@
  * fields containing special characters.
  */
 
+import * as cp from "node:child_process"
+import * as os from "node:os"
+import * as util from "node:util"
 import { HostProvider } from "@hosts/host-provider"
 import { ShowMessageType } from "@shared/proto/host/window"
-import * as cp from "child_process"
-import * as os from "os"
-import * as util from "util"
 import { openExternal, writeTextToClipboard } from "@/utils/env"
 
 /**

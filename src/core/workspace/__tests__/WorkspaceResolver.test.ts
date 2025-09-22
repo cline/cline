@@ -3,13 +3,13 @@
  * These tests ensure behavior preservation during refactoring
  */
 
+import * as path from "node:path"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
-import * as path from "path"
 import * as sinon from "sinon"
 import { Logger } from "../../../services/logging/Logger"
 import { WorkspaceResolver } from "../WorkspaceResolver"
-import { VcsType, WorkspaceRoot } from "../WorkspaceRoot"
+import { VcsType, type WorkspaceRoot } from "../WorkspaceRoot"
 
 describe("WorkspaceResolver", () => {
 	let resolver: WorkspaceResolver
@@ -197,7 +197,7 @@ describe("WorkspaceResolver", () => {
 		})
 
 		it("should handle very long paths", () => {
-			const longPath = "a/".repeat(100) + "file.ts"
+			const longPath = `${"a/".repeat(100)}file.ts`
 			const result = resolver.resolveWorkspacePath("/test", longPath, "Component")
 
 			expect(result).to.equal(path.resolve("/test", longPath))

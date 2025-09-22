@@ -1,8 +1,8 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
 import { toRequestyServiceUrl } from "@/shared/providers/requesty"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Refreshes the Requesty models and returns the updated model list

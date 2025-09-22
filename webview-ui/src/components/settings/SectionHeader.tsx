@@ -1,5 +1,5 @@
 import { cn } from "@heroui/theme"
-import { HTMLAttributes } from "react"
+import type { HTMLAttributes } from "react"
 
 type SectionHeaderProps = HTMLAttributes<HTMLDivElement> & {
 	children: React.ReactNode

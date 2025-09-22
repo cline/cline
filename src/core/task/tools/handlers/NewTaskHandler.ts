@@ -59,9 +59,8 @@ export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 				images,
 				fileContentString,
 			)
-		} else {
-			// If no response, the user clicked the "Create New Task" button
-			return formatResponse.toolResult(`The user has created a new task with the provided context.`)
 		}
+		// If no response, the user clicked the "Create New Task" button
+		return formatResponse.toolResult(`The user has created a new task with the provided context.`)
 	}
 }

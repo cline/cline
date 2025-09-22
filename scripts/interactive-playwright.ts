@@ -27,10 +27,10 @@
  *   5. Close the VS Code window or press Ctrl+C to end the session and trigger cleanup.
  */
 
+import { mkdtempSync } from "node:fs"
+import os from "node:os"
+import path from "node:path"
 import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron"
-import { mkdtempSync } from "fs"
-import os from "os"
-import path from "path"
 import { _electron } from "playwright"
 import { ClineApiServerMock } from "../src/test/e2e/fixtures/server"
 import { E2ETestHelper } from "../src/test/e2e/utils/helpers"

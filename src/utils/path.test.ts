@@ -1,6 +1,6 @@
+import * as os from "node:os"
+import * as path from "node:path"
 import { describe, it } from "mocha"
-import * as os from "os"
-import * as path from "path"
 import "should"
 import { arePathsEqual, getReadablePath } from "./path"
 

@@ -1,4 +1,4 @@
-import { geminiModels, ModelInfo } from "@shared/api"
+import { geminiModels, type ModelInfo } from "@shared/api"
 import { Fragment, useState } from "react"
 import { ModelDescriptionMarkdown } from "../OpenRouterModelPicker"
 import {

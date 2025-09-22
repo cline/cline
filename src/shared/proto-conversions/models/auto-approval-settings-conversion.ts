@@ -1,5 +1,5 @@
-import { AutoApprovalSettingsRequest } from "@shared/proto/cline/state"
-import { AutoApprovalSettings } from "../../AutoApprovalSettings"
+import type { AutoApprovalSettingsRequest } from "@shared/proto/cline/state"
+import type { AutoApprovalSettings } from "../../AutoApprovalSettings"
 
 // Converts domain AutoApprovalSettings to proto AutoApprovalSettingsRequest
 export function convertAutoApprovalSettingsToProto(settings: AutoApprovalSettings): AutoApprovalSettingsRequest {

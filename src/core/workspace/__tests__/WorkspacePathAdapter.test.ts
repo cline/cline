@@ -3,12 +3,12 @@
  * Tests the core functionality of path resolution in single and multi-root workspaces
  */
 
+import * as path from "node:path"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
-import * as path from "path"
 import * as sinon from "sinon"
 import { createWorkspacePathAdapter, WorkspacePathAdapter } from "../WorkspacePathAdapter"
-import { VcsType, WorkspaceRoot } from "../WorkspaceRoot"
+import { VcsType, type WorkspaceRoot } from "../WorkspaceRoot"
 import { WorkspaceRootManager } from "../WorkspaceRootManager"
 import "@utils/path"
 

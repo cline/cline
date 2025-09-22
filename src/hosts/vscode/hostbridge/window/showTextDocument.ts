@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { ShowTextDocumentRequest, TextEditorInfo } from "@/shared/proto/host/window"
+import { type ShowTextDocumentRequest, TextEditorInfo } from "@/shared/proto/host/window"
 import { arePathsEqual } from "@/utils/path"
 
 export async function showTextDocument(request: ShowTextDocumentRequest): Promise<TextEditorInfo> {

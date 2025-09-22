@@ -1,7 +1,7 @@
 import { Empty } from "@shared/proto/cline/common"
-import { WebviewProviderType, WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
-import { Controller } from "../index"
+import { WebviewProviderType, type WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
+import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
+import type { Controller } from "../index"
 
 // Keep track of active subscriptions with their provider type
 const activeHistoryButtonClickedSubscriptions = new Map<StreamingResponseHandler<Empty>, WebviewProviderType>()

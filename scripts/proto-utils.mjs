@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
 import * as grpc from "@grpc/grpc-js"
 import * as protoLoader from "@grpc/proto-loader"
-import * as fs from "fs/promises"
-import * as path from "path"
 
 const DESCRIPTOR_SET = path.resolve("dist-standalone/proto/descriptor_set.pb")
 

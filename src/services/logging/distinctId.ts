@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid"
-import { ExtensionContext } from "vscode"
+import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { EmptyRequest } from "@/shared/proto/cline/common"
 
@@ -26,7 +26,7 @@ export async function initializeDistinctId(context: ExtensionContext, uuid: () =
 		// Fallback to generating a unique ID and keeping in global storage.
 		console.warn("No machine ID found for telemetry, generating UUID")
 		// Add a prefix to the UUID so we can see in the telemetry how many clients are don't have a machine ID.
-		distinctId = "cl-" + uuid()
+		distinctId = `cl-${uuid()}`
 		context.globalState.update(_GENERATED_MACHINE_ID_KEY, distinctId)
 	}
 

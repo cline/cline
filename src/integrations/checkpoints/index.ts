@@ -1,24 +1,24 @@
 import { ContextManager } from "@core/context/context-management/ContextManager"
-import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import type { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
 import { ensureTaskDirectoryExists } from "@core/storage/disk"
-import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
+import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
-import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
+import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { findLast, findLastIndex } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { ClineApiReqInfo, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
-import { HistoryItem } from "@shared/HistoryItem"
-import { ClineCheckpointRestore } from "@shared/WebviewMessage"
+import type { HistoryItem } from "@shared/HistoryItem"
+import type { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import pTimeout from "p-timeout"
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { MessageStateHandler } from "../../core/task/message-state"
-import { TaskState } from "../../core/task/TaskState"
-import { ICheckpointManager } from "./types"
+import type { MessageStateHandler } from "../../core/task/message-state"
+import type { TaskState } from "../../core/task/TaskState"
+import type { ICheckpointManager } from "./types"
 
 // Type definitions for better code organization
 type SayFunction = (
@@ -306,7 +306,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 							)
 							HostProvider.window.showMessage({
 								type: ShowMessageType.ERROR,
-								message: "Failed to restore checkpoint: " + errorMessage,
+								message: `Failed to restore checkpoint: ${errorMessage}`,
 							})
 							didWorkspaceRestoreFail = true
 						}
@@ -321,7 +321,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 							)
 							HostProvider.window.showMessage({
 								type: ShowMessageType.ERROR,
-								message: "Failed to restore offset checkpoint: " + errorMessage,
+								message: `Failed to restore offset checkpoint: ${errorMessage}`,
 							})
 							didWorkspaceRestoreFail = true
 						}
@@ -340,7 +340,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 							)
 							HostProvider.window.showMessage({
 								type: ShowMessageType.ERROR,
-								message: "Failed to restore checkpoint: " + errorMessage,
+								message: `Failed to restore checkpoint: ${errorMessage}`,
 							})
 							didWorkspaceRestoreFail = true
 						}
@@ -532,7 +532,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			console.error(`[TaskCheckpointManager] Failed to present multifile diff for task ${this.task.taskId}:`, errorMessage)
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
-				message: "Failed to retrieve diff set: " + errorMessage,
+				message: `Failed to retrieve diff set: ${errorMessage}`,
 			})
 			relinquishButton()
 		}

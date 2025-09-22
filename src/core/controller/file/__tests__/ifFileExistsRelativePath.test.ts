@@ -1,4 +1,4 @@
-import { Controller } from "@core/controller"
+import type { Controller } from "@core/controller"
 import { BooleanResponse, StringRequest } from "@shared/proto/cline/common"
 import * as pathUtils from "@utils/path"
 import { expect } from "chai"

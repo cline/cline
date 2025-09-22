@@ -1,4 +1,4 @@
-import { ModelInfo } from "@shared/api"
+import type { ModelInfo } from "@shared/api"
 
 function calculateApiCostInternal(
 	modelInfo: ModelInfo,

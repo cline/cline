@@ -1,5 +1,5 @@
 import { TelemetrySettingEnum } from "@shared/proto/cline/state"
-import { TelemetrySetting } from "../../TelemetrySetting"
+import type { TelemetrySetting } from "../../TelemetrySetting"
 
 /**
  * Converts a domain TelemetrySetting string to a proto TelemetrySettingEnum

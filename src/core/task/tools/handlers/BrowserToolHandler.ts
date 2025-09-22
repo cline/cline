@@ -1,8 +1,13 @@
-import { BrowserAction, BrowserActionResult, browserActions, ClineSayBrowserAction } from "@shared/ExtensionMessage"
+import {
+	type BrowserAction,
+	type BrowserActionResult,
+	browserActions,
+	type ClineSayBrowserAction,
+} from "@shared/ExtensionMessage"
 import { ClineDefaultTool } from "@/shared/tools"
-import { ToolUse } from "../../../assistant-message"
+import type { ToolUse } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
-import { ToolResponse } from "../.."
+import type { ToolResponse } from "../.."
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"

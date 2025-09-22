@@ -1,4 +1,4 @@
-import { McpMarketplaceCatalog } from "@shared/mcp"
+import type { McpMarketplaceCatalog } from "@shared/mcp"
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { telemetryService } from "@/services/telemetry"

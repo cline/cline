@@ -1,16 +1,21 @@
-import { Anthropic } from "@anthropic-ai/sdk"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import {
 	type ContentBlock as BedrockContentBlock,
 	ConversationRole as BedrockConversationRole,
 	type Message as BedrockMessage,
 } from "@aws-sdk/client-bedrock-runtime"
-import { ChatMessages, LlmModuleConfig, OrchestrationClient, TemplatingModuleConfig } from "@sap-ai-sdk/orchestration"
-import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
+import {
+	type ChatMessages,
+	type LlmModuleConfig,
+	OrchestrationClient,
+	type TemplatingModuleConfig,
+} from "@sap-ai-sdk/orchestration"
+import { type ModelInfo, type SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
 import axios from "axios"
-import OpenAI from "openai"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type OpenAI from "openai"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 interface SapAiCoreHandlerOptions extends CommonApiHandlerOptions {
 	sapAiCoreClientId?: string
@@ -244,7 +249,7 @@ namespace Gemini {
 			for (const part of partsForThoughts) {
 				const { thought, text } = part
 				if (thought && text) {
-					thoughts += text + "\n"
+					thoughts += `${text}\n`
 				}
 			}
 		}
@@ -380,7 +385,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			client_secret: this.options.sapAiCoreClientSecret,
 		}
 
-		const tokenUrl = this.options.sapAiCoreTokenUrl!.replace(/\/+$/, "") + "/oauth/token"
+		const tokenUrl = `${this.options.sapAiCoreTokenUrl!.replace(/\/+$/, "")}/oauth/token`
 		const response = await axios.post(tokenUrl, payload, {
 			headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		})
@@ -802,7 +807,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	): AsyncGenerator<any, void, unknown> {
 		function toStrictJson(str: string): string {
 			// Wrap it in parentheses so JS will treat it as an expression
-			const obj = new Function("return " + str)()
+			const obj = new Function(`return ${str}`)()
 			return JSON.stringify(obj)
 		}
 

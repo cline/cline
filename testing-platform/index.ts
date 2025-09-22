@@ -1,12 +1,12 @@
 #!/usr/bin/env ts-node
 
-import fs from "fs"
-import path from "path"
+import fs from "node:fs"
+import path from "node:path"
 import "tsconfig-paths/register"
 
 import { GrpcAdapter } from "@adapters/grpcAdapter"
 import { NON_DETERMINISTIC_FIELDS } from "@harness/config"
-import { SpecFile } from "@harness/types"
+import type { SpecFile } from "@harness/types"
 import { compareResponse, loadJson, retry } from "@harness/utils"
 
 const STANDALONE_GRPC_SERVER_PORT = process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
@@ -26,11 +26,13 @@ async function tryFixEntry(
 	spec: SpecFile,
 	specPath: string,
 ): Promise<boolean> {
-	if (!shouldAttemptFix()) return false
+	if (!shouldAttemptFix()) {
+		return false
+	}
 
 	console.warn(`✏️ Updating response for RequestID: ${entry.requestId}`)
 	entry.response.message = actualResponse
-	fs.writeFileSync(specPath, JSON.stringify(spec, null, 2) + "\n")
+	fs.writeFileSync(specPath, `${JSON.stringify(spec, null, 2)}\n`)
 	console.log(`💾 Spec file updated: ${specPath}`)
 
 	const { success } = compareResponse(actualResponse, entry?.response?.message, NON_DETERMINISTIC_FIELDS)

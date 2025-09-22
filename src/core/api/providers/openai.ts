@@ -1,12 +1,17 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import {
+	azureOpenAiDefaultApiVersion,
+	type ModelInfo,
+	type OpenAiCompatibleModelInfo,
+	openAiModelInfoSaneDefaults,
+} from "@shared/api"
 import OpenAI, { AzureOpenAI } from "openai"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
-import { ApiHandler, CommonApiHandlerOptions } from "../index"
+import type { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 	openAiApiKey?: string

@@ -1,4 +1,4 @@
-import { StreamingResponseHandler } from "./grpc-handler"
+import type { StreamingResponseHandler } from "./grpc-handler"
 
 /**
  * Information about a registered gRPC request

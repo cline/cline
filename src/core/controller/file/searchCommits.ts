@@ -1,8 +1,8 @@
-import { StringRequest } from "@shared/proto/cline/common"
+import type { StringRequest } from "@shared/proto/cline/common"
 import { GitCommits } from "@shared/proto/cline/file"
 import { searchCommits as searchCommitsUtil } from "@utils/git"
 import { getWorkspacePath } from "@utils/path"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Searches for git commits in the workspace repository

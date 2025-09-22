@@ -1,5 +1,5 @@
 import "should"
-import { Anthropic } from "@anthropic-ai/sdk"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import { SapAiCoreHandler } from "../sapaicore"
 
 describe("SapAiCoreHandler", () => {

@@ -1,8 +1,8 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { AssistantMessage } from "@mistralai/mistralai/models/components/assistantmessage"
-import { SystemMessage } from "@mistralai/mistralai/models/components/systemmessage"
-import { ToolMessage } from "@mistralai/mistralai/models/components/toolmessage"
-import { UserMessage } from "@mistralai/mistralai/models/components/usermessage"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type { AssistantMessage } from "@mistralai/mistralai/models/components/assistantmessage"
+import type { SystemMessage } from "@mistralai/mistralai/models/components/systemmessage"
+import type { ToolMessage } from "@mistralai/mistralai/models/components/toolmessage"
+import type { UserMessage } from "@mistralai/mistralai/models/components/usermessage"
 
 export type MistralMessage =
 	| (SystemMessage & { role: "system" })

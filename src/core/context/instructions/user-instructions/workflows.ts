@@ -1,8 +1,8 @@
+import path from "node:path"
 import { synchronizeRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { ClineRulesToggles } from "@shared/cline-rules"
-import path from "path"
-import { Controller } from "@/core/controller"
+import type { ClineRulesToggles } from "@shared/cline-rules"
+import type { Controller } from "@/core/controller"
 
 /**
  * Refresh the workflow toggles

@@ -1,5 +1,5 @@
 import { internationalZAiModels, mainlandZAiModels } from "@shared/api"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"

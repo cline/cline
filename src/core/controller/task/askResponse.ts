@@ -1,7 +1,7 @@
 import { Empty } from "@shared/proto/cline/common"
-import { AskResponseRequest } from "@shared/proto/cline/task"
-import { ClineAskResponse } from "../../../shared/WebviewMessage"
-import { Controller } from ".."
+import type { AskResponseRequest } from "@shared/proto/cline/task"
+import type { ClineAskResponse } from "../../../shared/WebviewMessage"
+import type { Controller } from ".."
 
 /**
  * Handles a response from the webview for a previous ask operation

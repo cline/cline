@@ -1,4 +1,4 @@
-import { GrpcRequest } from "@/shared/WebviewMessage"
+import type { GrpcRequest } from "@/shared/WebviewMessage"
 
 export type GrpcPostRecordHook = (entry: GrpcLogEntry, controller?: any) => Promise<void> | void
 

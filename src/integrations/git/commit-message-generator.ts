@@ -77,7 +77,7 @@ async function performCommitGeneration(context: vscode.ExtensionContext, gitDiff
 			prompts.push(PROMPT.user.replace("{{USER_CURRENT_INPUT}}", currentInput))
 		}
 
-		const truncatedDiff = gitDiff.length > 5000 ? gitDiff.substring(0, 5000) + "\n\n[Diff truncated due to size]" : gitDiff
+		const truncatedDiff = gitDiff.length > 5000 ? `${gitDiff.substring(0, 5000)}\n\n[Diff truncated due to size]` : gitDiff
 		prompts.push(truncatedDiff)
 		const prompt = prompts.join("\n\n")
 

@@ -94,7 +94,7 @@ export class PromptBuilder {
 			.trim() // Remove leading/trailing whitespace
 			.replace(/====+\s*$/, "") // Remove trailing ==== after trim
 			.replace(/\n====+\s*\n+\s*====+\n/g, "\n====\n") // Remove empty sections between separators
-			.replace(/====+\n(?!\n)([^\n])/g, (match, nextChar, offset, string) => {
+			.replace(/====+\n(?!\n)([^\n])/g, (match, _nextChar, offset, string) => {
 				// Add extra newline after ====+ if not already followed by a newline
 				// Exception: preserve single newlines when ====+ appears to be part of diff-like content
 				// Look for patterns like "SEARCH\n=======\n" or ";\n=======\n" (diff markers)
@@ -109,7 +109,7 @@ export class PromptBuilder {
 				const beforeContext = string.substring(Math.max(0, offset - 50), offset)
 				const afterContext = string.substring(offset, Math.min(string.length, offset + 50))
 				const isDiffLike = /SEARCH|REPLACE|\+\+\+\+\+\+\+|-------/.test(beforeContext + afterContext)
-				return isDiffLike ? match : prevChar + "\n\n" + match.substring(1).replace(/\n/, "")
+				return isDiffLike ? match : `${prevChar}\n\n${match.substring(1).replace(/\n/, "")}`
 			})
 	}
 

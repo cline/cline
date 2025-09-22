@@ -1,6 +1,6 @@
+import os from "node:os"
+import * as path from "node:path"
 import { workspaceResolver } from "@core/workspace"
-import os from "os"
-import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 
 /*
@@ -92,16 +92,14 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 	if (arePathsEqual(path.normalize(absolutePath), path.normalize(cwd))) {
 		const basenameResult = workspaceResolver.getBasename(absolutePath, "Utils.path.getReadablePath")
 		return basenameResult.toPosix()
-	} else {
-		// show the relative path to the cwd
-		const normalizedRelPath = path.relative(cwd, absolutePath)
-		if (absolutePath.includes(cwd)) {
-			return normalizedRelPath.toPosix()
-		} else {
-			// we are outside the cwd, so show the absolute path (useful for when cline passes in '../../' for example)
-			return absolutePath.toPosix()
-		}
 	}
+	// show the relative path to the cwd
+	const normalizedRelPath = path.relative(cwd, absolutePath)
+	if (absolutePath.includes(cwd)) {
+		return normalizedRelPath.toPosix()
+	}
+	// we are outside the cwd, so show the absolute path (useful for when cline passes in '../../' for example)
+	return absolutePath.toPosix()
 }
 
 // Returns the path of the first workspace directory, or the defaultCwdPath if there is no workspace open.

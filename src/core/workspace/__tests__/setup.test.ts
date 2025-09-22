@@ -1,6 +1,6 @@
+import * as path from "node:path"
 import { VcsType } from "@core/workspace"
 import { expect } from "chai"
-import * as path from "path"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import * as featureFlags from "@/services/feature-flags"

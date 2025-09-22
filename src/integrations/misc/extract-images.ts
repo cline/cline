@@ -1,5 +1,5 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import fs from "fs/promises"
+import fs from "node:fs/promises"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import sizeOf from "image-size"
 import { getMimeType } from "./process-files"
 

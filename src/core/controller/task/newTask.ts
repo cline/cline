@@ -1,6 +1,6 @@
 import { Empty } from "@shared/proto/cline/common"
-import { NewTaskRequest } from "@shared/proto/cline/task"
-import { Controller } from ".."
+import type { NewTaskRequest } from "@shared/proto/cline/task"
+import type { Controller } from ".."
 
 /**
  * Creates a new task with the given text and optional images

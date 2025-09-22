@@ -1,9 +1,9 @@
+import * as os from "node:os"
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
 import { createAndOpenGitHubIssue } from "@utils/github-url-utils"
-import * as os from "os"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -73,7 +73,7 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 		}
 
 		// Derive system information values algorithmically
-		const operatingSystem = os.platform() + " " + os.release()
+		const operatingSystem = `${os.platform()} ${os.release()}`
 		const currentMode = config.mode
 		const clineVersion = ExtensionRegistryInfo.version
 		const host = await HostProvider.env.getHostVersion({})
@@ -111,29 +111,28 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 				images,
 				fileContentString,
 			)
-		} else {
-			// If no response, the user accepted the bug report
-			try {
-				// Create a Map of parameters for the GitHub issue
-				const params = new Map<string, string>()
-				params.set("title", title)
-				params.set("operating-system", operatingSystem)
-				params.set("cline-version", clineVersion)
-				params.set("system-info", systemInfo)
-				params.set("additional-context", additional_context)
-				params.set("what-happened", what_happened)
-				params.set("steps", steps_to_reproduce)
-				params.set("provider-model", providerAndModel)
-				params.set("logs", api_request_output)
-
-				// Use our utility function to create and open the GitHub issue URL
-				// This bypasses VS Code's URI handling issues with special characters
-				await createAndOpenGitHubIssue("cline", "cline", "bug_report.yml", params)
-			} catch (error) {
-				console.error(`An error occurred while attempting to report the bug: ${error}`)
-			}
-
-			return formatResponse.toolResult(`The user accepted the creation of the Github issue.`)
 		}
+		// If no response, the user accepted the bug report
+		try {
+			// Create a Map of parameters for the GitHub issue
+			const params = new Map<string, string>()
+			params.set("title", title)
+			params.set("operating-system", operatingSystem)
+			params.set("cline-version", clineVersion)
+			params.set("system-info", systemInfo)
+			params.set("additional-context", additional_context)
+			params.set("what-happened", what_happened)
+			params.set("steps", steps_to_reproduce)
+			params.set("provider-model", providerAndModel)
+			params.set("logs", api_request_output)
+
+			// Use our utility function to create and open the GitHub issue URL
+			// This bypasses VS Code's URI handling issues with special characters
+			await createAndOpenGitHubIssue("cline", "cline", "bug_report.yml", params)
+		} catch (error) {
+			console.error(`An error occurred while attempting to report the bug: ${error}`)
+		}
+
+		return formatResponse.toolResult(`The user accepted the creation of the Github issue.`)
 	}
 }

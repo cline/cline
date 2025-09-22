@@ -1,10 +1,10 @@
-import { Empty, StringArrayRequest } from "@shared/proto/cline/common"
-import fs from "fs/promises"
-import path from "path"
+import fs from "node:fs/promises"
+import path from "node:path"
+import { Empty, type StringArrayRequest } from "@shared/proto/cline/common"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { fileExistsAtPath } from "../../../utils/fs"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Deletes tasks with the specified IDs

@@ -4,12 +4,12 @@
  * and validates the NoOpTelemetryProvider functionality
  */
 
-import * as assert from "assert"
+import * as assert from "node:assert"
 import * as sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import * as posthogConfigModule from "@/shared/services/config/posthog-config"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
-import { NoOpTelemetryProvider, TelemetryProviderFactory, TelemetryProviderType } from "./TelemetryProviderFactory"
+import { NoOpTelemetryProvider, TelemetryProviderFactory, type TelemetryProviderType } from "./TelemetryProviderFactory"
 import { TelemetryService } from "./TelemetryService"
 
 describe("Telemetry system is abstracted and can easily switch between providers", () => {

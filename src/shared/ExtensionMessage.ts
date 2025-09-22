@@ -1,16 +1,16 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
-import { WorkspaceRoot } from "../core/workspace"
-import { AutoApprovalSettings } from "./AutoApprovalSettings"
-import { ApiConfiguration } from "./api"
-import { BrowserSettings } from "./BrowserSettings"
-import { ClineRulesToggles } from "./cline-rules"
-import { FocusChainSettings } from "./FocusChainSettings"
-import { HistoryItem } from "./HistoryItem"
-import { McpDisplayMode } from "./McpDisplayMode"
-import { Mode, OpenaiReasoningEffort } from "./storage/types"
-import { TelemetrySetting } from "./TelemetrySetting"
-import { UserInfo } from "./UserInfo"
+import type { WorkspaceRoot } from "../core/workspace"
+import type { AutoApprovalSettings } from "./AutoApprovalSettings"
+import type { ApiConfiguration } from "./api"
+import type { BrowserSettings } from "./BrowserSettings"
+import type { ClineRulesToggles } from "./cline-rules"
+import type { FocusChainSettings } from "./FocusChainSettings"
+import type { HistoryItem } from "./HistoryItem"
+import type { McpDisplayMode } from "./McpDisplayMode"
+import type { Mode, OpenaiReasoningEffort } from "./storage/types"
+import type { TelemetrySetting } from "./TelemetrySetting"
+import type { UserInfo } from "./UserInfo"
 
 // webview will hold state
 export interface ExtensionMessage {

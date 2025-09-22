@@ -1,6 +1,6 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ModelInfo } from "@shared/api"
-import OpenAI from "openai"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type { ModelInfo } from "@shared/api"
+import type OpenAI from "openai"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 
 export async function createVercelAIGatewayStream(

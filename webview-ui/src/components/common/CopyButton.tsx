@@ -1,5 +1,6 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { forwardRef, useState } from "react"
+import type React from "react"
+import { forwardRef, useState } from "react"
 import styled from "styled-components"
 
 // ======== Interfaces ========

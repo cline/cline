@@ -1,6 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import type React from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { cleanPathPrefix } from "@/components/common/CodeAccordian"
-import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions, SearchResult } from "@/utils/context-mentions"
+import {
+	ContextMenuOptionType,
+	type ContextMenuQueryItem,
+	getContextMenuOptions,
+	type SearchResult,
+} from "@/utils/context-mentions"
 
 interface ContextMenuProps {
 	onSelect: (type: ContextMenuOptionType, value?: string) => void
@@ -110,9 +116,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							</span>
 						</div>
 					)
-				} else {
-					return <span>Git Commits</span>
 				}
+				return <span>Git Commits</span>
 			case ContextMenuOptionType.File:
 			case ContextMenuOptionType.Folder:
 				if (option.value) {
@@ -129,13 +134,12 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 									direction: "rtl",
 									textAlign: "left",
 								}}>
-								{cleanPathPrefix(option.value || "") + "\u200E"}
+								{`${cleanPathPrefix(option.value || "")}\u200E`}
 							</span>
 						</>
 					)
-				} else {
-					return <span>Add {option.type === ContextMenuOptionType.File ? "File" : "Folder"}</span>
 				}
+				return <span>Add {option.type === ContextMenuOptionType.File ? "File" : "Folder"}</span>
 		}
 	}
 

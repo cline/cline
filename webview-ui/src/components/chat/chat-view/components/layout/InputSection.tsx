@@ -1,7 +1,7 @@
-import React from "react"
+import type React from "react"
 import ChatTextArea from "@/components/chat/ChatTextArea"
 import QuotedMessagePreview from "@/components/chat/QuotedMessagePreview"
-import { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
+import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 
 interface InputSectionProps {
 	chatState: ChatState

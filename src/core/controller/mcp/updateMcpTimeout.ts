@@ -1,6 +1,6 @@
-import { McpServers, UpdateMcpTimeoutRequest } from "@shared/proto/cline/mcp"
+import { McpServers, type UpdateMcpTimeoutRequest } from "@shared/proto/cline/mcp"
 import { convertMcpServersToProtoMcpServers } from "@/shared/proto-conversions/mcp/mcp-server-conversion"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Updates the timeout configuration for an MCP server.
@@ -15,10 +15,9 @@ export async function updateMcpTimeout(controller: Controller, request: UpdateMc
 			const convertedMcpServers = convertMcpServersToProtoMcpServers(mcpServers)
 			console.log("convertedMcpServers", convertedMcpServers)
 			return McpServers.create({ mcpServers: convertedMcpServers })
-		} else {
-			console.error("Server name and timeout are required")
-			throw new Error("Server name and timeout are required")
 		}
+		console.error("Server name and timeout are required")
+		throw new Error("Server name and timeout are required")
 	} catch (error) {
 		console.error(`Failed to update timeout for server ${request.serverName}:`, error)
 		throw error

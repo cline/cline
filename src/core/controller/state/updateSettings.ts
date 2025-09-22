@@ -4,18 +4,18 @@ import {
 	PlanActMode,
 	McpDisplayMode as ProtoMcpDisplayMode,
 	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
-	UpdateSettingsRequest,
+	type UpdateSettingsRequest,
 } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { OpenaiReasoningEffort } from "@shared/storage/types"
-import { TelemetrySetting } from "@shared/TelemetrySetting"
+import type { OpenaiReasoningEffort } from "@shared/storage/types"
+import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import { HostProvider } from "@/hosts/host-provider"
-import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
-import { McpDisplayMode } from "@/shared/McpDisplayMode"
+import type { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
+import type { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { telemetryService } from "../../../services/telemetry"
-import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
-import { Controller } from ".."
+import type { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
+import type { Controller } from ".."
 
 /**
  * Updates multiple extension settings in a single request

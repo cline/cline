@@ -264,7 +264,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				if (event.value) {
 					setInputValue((prevValue) => {
 						const newText = event.value
-						const newTextWithNewline = newText + "\n"
+						const newTextWithNewline = `${newText}\n`
 						return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
 					})
 					// Add scroll to bottom after state update

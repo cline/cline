@@ -1,7 +1,7 @@
 import { AuthService } from "@services/auth/AuthService"
-import { AuthState, EmptyRequest } from "@/shared/proto/index.cline"
-import { Controller } from ".."
-import { StreamingResponseHandler } from "../grpc-handler"
+import type { AuthState, EmptyRequest } from "@/shared/proto/index.cline"
+import type { Controller } from ".."
+import type { StreamingResponseHandler } from "../grpc-handler"
 
 export async function subscribeToAuthStatusUpdate(
 	controller: Controller,

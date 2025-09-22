@@ -1,8 +1,8 @@
 #!/usr/bin/env npx tsx
+import * as os from "node:os"
 import * as grpc from "@grpc/grpc-js"
 import { ReflectionService } from "@grpc/reflection"
 import * as health from "grpc-health-check"
-import * as os from "os"
 import { type DiffServiceServer, DiffServiceService } from "../src/generated/grpc-js/host/diff"
 import { type EnvServiceServer, EnvServiceService } from "../src/generated/grpc-js/host/env"
 import { type TestingServiceServer, TestingServiceService } from "../src/generated/grpc-js/host/testing"
@@ -70,7 +70,7 @@ function createMockService<T extends grpc.UntypedServiceImplementation>(serviceN
 
 					case "getMachineId":
 						callback(null, {
-							value: "fake-machine-id-" + os.hostname(),
+							value: `fake-machine-id-${os.hostname()}`,
 						})
 						return
 
@@ -102,7 +102,7 @@ function createMockService<T extends grpc.UntypedServiceImplementation>(serviceN
 
 					case "openDiff":
 						callback(null, {
-							diff_id: "fake-diff-" + Date.now(),
+							diff_id: `fake-diff-${Date.now()}`,
 						})
 						return
 

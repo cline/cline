@@ -1,12 +1,12 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandler } from "@core/api"
+import fs from "node:fs/promises"
+import * as path from "node:path"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type { ApiHandler } from "@core/api"
 import { formatResponse } from "@core/prompts/responses"
 import { GlobalFileNames } from "@core/storage/disk"
-import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import cloneDeep from "clone-deep"
-import fs from "fs/promises"
-import * as path from "path"
 import { getContextWindowInfo } from "./context-window-utils"
 
 enum EditType {
@@ -582,9 +582,8 @@ export class ContextManager {
 							}
 							// otherwise there are still file reads here we can overwrite, so still need to process this text chunk
 							// to do so we need to keep track of which files we've already replaced so we don't replace them again
-							else {
-								thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
-							}
+
+							thisExistingFileReads = blockUpdates[blockUpdates.length - 1][3][0]
 						}
 					} else {
 						// for all other cases we can assume that we dont need to check this again

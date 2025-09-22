@@ -1,9 +1,9 @@
-import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings" // Import the interface and defaults
+import { type BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings" // Import the interface and defaults
 import * as cheerio from "cheerio"
 // @ts-ignore
-import { Browser, Page } from "puppeteer-core"
+import type { Browser, Page } from "puppeteer-core"
 import TurndownService from "turndown"
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import { ensureChromiumExists } from "./utils"
 
 export class UrlContentFetcher {

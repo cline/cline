@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { SelectedResources, ShowOpenDialogueRequest } from "@/shared/proto/host/window"
+import { SelectedResources, type ShowOpenDialogueRequest } from "@/shared/proto/host/window"
 
 export async function showOpenDialogue(request: ShowOpenDialogueRequest): Promise<SelectedResources> {
 	const options: vscode.OpenDialogOptions = {}

@@ -131,7 +131,7 @@ vscode.Uri = {
 			with: (change) => {
 				const newUrl = new URL(uriString)
 				if (change.scheme) {
-					newUrl.protocol = change.scheme + ":"
+					newUrl.protocol = `${change.scheme}:`
 				}
 				if (change.authority) {
 					newUrl.hostname = change.authority
@@ -140,10 +140,10 @@ vscode.Uri = {
 					newUrl.pathname = change.path
 				}
 				if (change.query) {
-					newUrl.search = "?" + change.query
+					newUrl.search = `?${change.query}`
 				}
 				if (change.fragment) {
-					newUrl.hash = "#" + change.fragment
+					newUrl.hash = `#${change.fragment}`
 				}
 				return vscode.Uri.parse(newUrl.toString())
 			},
@@ -169,7 +169,7 @@ vscode.Uri = {
 
 	joinPath: (...segments) => {
 		const joined = segments.map((s) => (typeof s === "string" ? s : s.path)).join("/")
-		return vscode.Uri.file("/" + joined.replace(/\/+/g, "/"))
+		return vscode.Uri.file(`/${joined.replace(/\/+/g, "/")}`)
 	},
 }
 

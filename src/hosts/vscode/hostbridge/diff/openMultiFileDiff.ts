@@ -1,6 +1,6 @@
-import path from "path"
+import path from "node:path"
 import * as vscode from "vscode"
-import { OpenMultiFileDiffRequest, OpenMultiFileDiffResponse } from "@/shared/proto/index.host"
+import type { OpenMultiFileDiffRequest, OpenMultiFileDiffResponse } from "@/shared/proto/index.host"
 import { getCwd } from "@/utils/path"
 import { DIFF_VIEW_URI_SCHEME } from "../../VscodeDiffViewProvider"
 

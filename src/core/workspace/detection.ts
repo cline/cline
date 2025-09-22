@@ -1,5 +1,5 @@
-import { VcsType, WorkspaceRoot } from "@core/workspace"
-import * as path from "path"
+import * as path from "node:path"
+import { VcsType, type WorkspaceRoot } from "@core/workspace"
 import { HostProvider } from "@/hosts/host-provider"
 import { getLatestGitCommitHash, isGitRepository } from "@/utils/git"
 import { getCwd, getDesktopDir } from "@/utils/path"

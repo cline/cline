@@ -28,11 +28,11 @@
  * Ideal for local development, testing, or lightweight E2E scenarios.
  */
 
+import { type ChildProcess, execSync, spawn } from "node:child_process"
 import * as fs from "node:fs"
 import { mkdtempSync, rmSync } from "node:fs"
 import * as os from "node:os"
-import { ChildProcess, execSync, spawn } from "child_process"
-import * as path from "path"
+import * as path from "node:path"
 import { ClineApiServerMock } from "../src/test/e2e/fixtures/server/index"
 
 const PROTOBUS_PORT = process.env.PROTOBUS_PORT || "26040"
@@ -134,7 +134,9 @@ async function main(): Promise<void> {
 
 		while (childProcesses.length > 0) {
 			const child = childProcesses.pop()
-			if (child && !child.killed) child.kill("SIGINT")
+			if (child && !child.killed) {
+				child.kill("SIGINT")
+			}
 		}
 
 		await ClineApiServerMock.stopGlobalServer()

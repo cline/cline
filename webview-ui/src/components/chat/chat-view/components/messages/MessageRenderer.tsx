@@ -1,8 +1,8 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
-import React from "react"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import type React from "react"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
-import { MessageHandlers } from "../../types/chatTypes"
+import type { MessageHandlers } from "../../types/chatTypes"
 
 interface MessageRendererProps {
 	index: number

@@ -2,7 +2,7 @@
 import "../providers/vscode-lm"
 import { describe, it } from "mocha"
 import "should"
-import { Anthropic } from "@anthropic-ai/sdk"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import * as vscode from "vscode"
 import { asObjectSafe, convertToAnthropicMessage, convertToAnthropicRole, convertToVsCodeLmMessages } from "./vscode-lm-format"
 

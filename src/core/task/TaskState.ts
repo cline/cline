@@ -1,6 +1,6 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { AssistantMessageContent } from "@core/assistant-message"
-import { ClineAskResponse } from "@shared/WebviewMessage"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type { AssistantMessageContent } from "@core/assistant-message"
+import type { ClineAskResponse } from "@shared/WebviewMessage"
 
 export class TaskState {
 	// Streaming flags

@@ -1,7 +1,7 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ModelInfo } from "@shared/api"
-import { ApiHandler } from "../../core/api/index"
-import { ApiStream } from "../../core/api/transform/stream"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type { ModelInfo } from "@shared/api"
+import type { ApiHandler } from "../../core/api/index"
+import type { ApiStream } from "../../core/api/transform/stream"
 
 interface DifyHandlerOptions {
 	difyApiKey?: string
@@ -9,7 +9,6 @@ interface DifyHandlerOptions {
 }
 
 export class DifyHandler implements ApiHandler {
-	private options: DifyHandlerOptions
 	private baseUrl: string
 	private apiKey: string
 	private conversationId: string | null = null
@@ -241,7 +240,7 @@ export class DifyHandler implements ApiHandler {
 								console.error("[DIFY DEBUG] Direct JSON Error event:", parsed)
 								throw new Error(`Dify API error: ${parsed.message || "Unknown error"}`)
 							}
-						} catch (e) {
+						} catch (_e) {
 							// Not JSON, continue
 							console.log("[DIFY DEBUG] Line is not direct JSON, continuing")
 						}

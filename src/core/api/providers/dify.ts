@@ -1,7 +1,7 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { ModelInfo } from "../../../shared/api"
-import { ApiHandler } from "../index"
-import { ApiStream } from "../transform/stream"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type { ModelInfo } from "../../../shared/api"
+import type { ApiHandler } from "../index"
+import type { ApiStream } from "../transform/stream"
 
 interface DifyHandlerOptions {
 	difyApiKey?: string
@@ -71,12 +71,9 @@ interface DifyConversationResponse {
 }
 
 export class DifyHandler implements ApiHandler {
-	private options: DifyHandlerOptions
 	private baseUrl: string
 	private apiKey: string
 	private conversationId: string | null = null
-	private currentTaskId: string | null = null
-	private abortController: AbortController | null = null
 
 	constructor(options: DifyHandlerOptions) {
 		this.options = options
@@ -341,7 +338,7 @@ export class DifyHandler implements ApiHandler {
 								}
 								hasYieldedContent = true
 							}
-						} catch (e) {
+						} catch (_e) {
 							// Not JSON, continue
 							console.log("[DIFY DEBUG] Line is not direct JSON, continuing")
 						}

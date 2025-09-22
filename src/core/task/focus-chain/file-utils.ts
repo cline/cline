@@ -1,7 +1,7 @@
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
 import { isFocusChainItem } from "@shared/focus-chain-utils"
-import * as fs from "fs/promises"
-import * as path from "path"
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import { ensureTaskDirectoryExists } from "../../storage/disk"
 
 /**

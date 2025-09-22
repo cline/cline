@@ -1,5 +1,5 @@
-import { SapAiCoreModelDeployment, SapAiCoreModelsRequest } from "@shared/proto/index.cline"
-import { Mode } from "@shared/storage/types"
+import { type SapAiCoreModelDeployment, SapAiCoreModelsRequest } from "@shared/proto/index.cline"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"

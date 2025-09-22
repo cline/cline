@@ -1,5 +1,5 @@
-import { ApiConfiguration } from "@shared/api"
-import chokidar, { FSWatcher } from "chokidar"
+import type { ApiConfiguration } from "@shared/api"
+import chokidar, { type FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/index.host"
@@ -11,7 +11,7 @@ import {
 	writeTaskSettingsToStorage,
 } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
-import {
+import type {
 	GlobalState,
 	GlobalStateAndSettings,
 	GlobalStateAndSettingsKey,
@@ -805,9 +805,8 @@ export class StateManager {
 					const value = this.secretsCache[key]
 					if (value) {
 						return this.context.secrets.store(key, value)
-					} else {
-						return this.context.secrets.delete(key)
 					}
+					return this.context.secrets.delete(key)
 				}),
 			)
 		} catch (error) {

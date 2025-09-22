@@ -1,5 +1,5 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI from "openai"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import type OpenAI from "openai"
 
 /**
  * Converts Anthropic messages to OpenAI format and merges consecutive messages with the same role.

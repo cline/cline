@@ -55,9 +55,8 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 				// consider it a real error.
 				console.log("Diff not found:", this.activeDiffEditorId)
 				return false
-			} else {
-				throw err
 			}
+			throw err
 		}
 	}
 

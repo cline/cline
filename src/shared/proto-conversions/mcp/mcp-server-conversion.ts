@@ -1,11 +1,11 @@
 import {
 	McpServerStatus,
-	McpResource as ProtoMcpResource,
-	McpResourceTemplate as ProtoMcpResourceTemplate,
-	McpServer as ProtoMcpServer,
-	McpTool as ProtoMcpTool,
+	type McpResource as ProtoMcpResource,
+	type McpResourceTemplate as ProtoMcpResourceTemplate,
+	type McpServer as ProtoMcpServer,
+	type McpTool as ProtoMcpTool,
 } from "@shared/proto/cline/mcp"
-import { McpResource, McpResourceTemplate, McpServer, McpTool } from "../../mcp"
+import type { McpResource, McpResourceTemplate, McpServer, McpTool } from "../../mcp"
 
 // Helper to convert TS status to Proto enum
 function convertMcpStatusToProto(status: McpServer["status"]): McpServerStatus {

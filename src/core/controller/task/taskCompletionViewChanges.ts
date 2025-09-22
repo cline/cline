@@ -1,5 +1,5 @@
-import { Empty, Int64Request } from "@shared/proto/cline/common"
-import { Controller } from ".."
+import { Empty, type Int64Request } from "@shared/proto/cline/common"
+import type { Controller } from ".."
 
 /**
  * Shows task completion changes in a diff view

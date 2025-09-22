@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
-import { Controller } from "@core/controller"
-import { IRecorder } from "@core/controller/grpc-recorder/grpc-recorder"
+import type { Controller } from "@core/controller"
+import type { IRecorder } from "@core/controller/grpc-recorder/grpc-recorder"
 import { GrpcRecorderBuilder } from "@core/controller/grpc-recorder/grpc-recorder.builder"
 import { testHooks } from "@core/controller/grpc-recorder/test-hooks"
-import { GrpcLogEntry } from "@core/controller/grpc-recorder/types"
+import type { GrpcLogEntry } from "@core/controller/grpc-recorder/types"
 import * as sinon from "sinon"
 
 describe("test-hooks", () => {

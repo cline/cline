@@ -1,6 +1,6 @@
-import { EmptyRequest, String } from "@shared/proto/cline/common"
+import type { EmptyRequest, String } from "@shared/proto/cline/common"
 import { HostProvider } from "@/hosts/host-provider"
-import { Controller } from "../index"
+import type { Controller } from "../index"
 
 /**
  * Constructs and returns a URL that will redirect to the user's IDE.

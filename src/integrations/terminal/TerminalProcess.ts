@@ -1,6 +1,6 @@
+import { EventEmitter } from "node:events"
 import { TerminalOutputFailureReason, telemetryService } from "@services/telemetry"
-import { EventEmitter } from "events"
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import { stripAnsi } from "./ansiUtils"
 import { getLatestTerminalOutput } from "./get-latest-output"
 
@@ -80,7 +80,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					}
 					// Place output back after removing vscode sequences
 					if (outputBetweenSequences) {
-						data = outputBetweenSequences + "\n" + data
+						data = `${outputBetweenSequences}\n${data}`
 					}
 					// remove ansi
 					data = stripAnsi(data)

@@ -1,10 +1,10 @@
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { ClineAsk, ClineSayTool } from "@shared/ExtensionMessage"
+import type { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import type { ClineAsk, ClineSayTool } from "@shared/ExtensionMessage"
 import { ClineDefaultTool } from "@shared/tools"
 import { telemetryService } from "@/services/telemetry"
-import { ToolUse } from "../../../assistant-message"
+import type { ToolUse } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
-import { ToolResponse } from "../.."
+import type { ToolResponse } from "../.."
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -74,9 +74,8 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 				if (!didApprove) {
 					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
 					return formatResponse.toolDenied()
-				} else {
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 				}
+				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}
 
 			// Execute the actual fetch

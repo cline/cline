@@ -1,7 +1,7 @@
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
-import * as vscode from "vscode"
+import type * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { _GENERATED_MACHINE_ID_KEY, getDistinctId, initializeDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
@@ -14,7 +14,7 @@ describe("distinctId", () => {
 	const MOCK_GLOBAL_STATE_ID = "existing-distinct-id-123"
 	const MOCK_MACHINE_ID = "machine-id-456"
 	const MOCK_UUID = "mock-uuid-12345678-1234-1234-1234-123456789012"
-	const GENERATED_MACHINE_ID = "cl-" + MOCK_UUID
+	const GENERATED_MACHINE_ID = `cl-${MOCK_UUID}`
 
 	const mockUuidGenerator = () => MOCK_UUID
 

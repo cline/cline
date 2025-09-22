@@ -1,4 +1,4 @@
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import BasetenModelPicker from "../BasetenModelPicker"
 import { ApiKeyField } from "../common/ApiKeyField"

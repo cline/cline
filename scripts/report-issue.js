@@ -1,6 +1,6 @@
-const { execSync } = require("child_process")
-const readline = require("readline")
-const os = require("os")
+const { execSync } = require("node:child_process")
+const readline = require("node:readline")
+const os = require("node:os")
 
 const rl = readline.createInterface({
 	input: process.stdin,

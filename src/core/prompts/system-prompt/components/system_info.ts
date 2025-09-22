@@ -56,7 +56,7 @@ export async function getSystemInfo(variant: PromptVariant, context: SystemPromp
 				return `\n  - ${root.name}: ${root.path}${vcsInfo}`
 			})
 			.join("")
-		workingDirInfo = rootsInfo + `\n\nPrimary Working Directory: ${context.cwd}`
+		workingDirInfo = `${rootsInfo}\n\nPrimary Working Directory: ${context.cwd}`
 	} else {
 		// Single workspace
 		WORKSPACE_TITLE = "Current Working Directory"

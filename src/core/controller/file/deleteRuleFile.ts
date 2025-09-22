@@ -1,9 +1,9 @@
 import { deleteRuleFile as deleteRuleFileImpl } from "@core/context/instructions/user-instructions/rule-helpers"
 import { getWorkspaceBasename } from "@core/workspace"
-import { RuleFile, RuleFileRequest } from "@shared/proto/cline/file"
+import { RuleFile, type RuleFileRequest } from "@shared/proto/cline/file"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Deletes a rule file from either global or workspace rules directory

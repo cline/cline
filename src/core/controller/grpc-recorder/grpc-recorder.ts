@@ -1,8 +1,8 @@
-import { GrpcResponse } from "@shared/ExtensionMessage"
-import { GrpcRequest } from "@shared/WebviewMessage"
+import type { GrpcResponse } from "@shared/ExtensionMessage"
+import type { GrpcRequest } from "@shared/WebviewMessage"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"
-import { ILogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
-import {
+import type { ILogFileHandler } from "@/core/controller/grpc-recorder/log-file-handler"
+import type {
 	GrpcLogEntry,
 	GrpcPostRecordHook,
 	GrpcRequestFilter,
@@ -146,7 +146,9 @@ export class GrpcRecorder implements IRecorder {
 	}
 
 	private async runHooks(entry: GrpcLogEntry): Promise<void> {
-		if (entry.meta?.synthetic) return
+		if (entry.meta?.synthetic) {
+			return
+		}
 		for (const hook of this.postRecordHooks) {
 			await hook(entry)
 		}

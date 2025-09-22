@@ -1,5 +1,5 @@
 import * as vscode from "vscode"
-import { ShowInputBoxRequest, ShowInputBoxResponse } from "@/shared/proto/index.host"
+import { type ShowInputBoxRequest, ShowInputBoxResponse } from "@/shared/proto/index.host"
 
 export async function showInputBox(request: ShowInputBoxRequest): Promise<ShowInputBoxResponse> {
 	const response = await vscode.window.showInputBox({

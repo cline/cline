@@ -4,7 +4,7 @@ import { telemetryService } from "@/services/telemetry"
 import type { HistoryItem } from "@/shared/HistoryItem"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getCwd, getDesktopDir } from "@/utils/path"
-import { StateManager } from "../storage/StateManager"
+import type { StateManager } from "../storage/StateManager"
 import type { WorkspaceRoot } from "./WorkspaceRoot"
 import { WorkspaceRootManager } from "./WorkspaceRootManager"
 

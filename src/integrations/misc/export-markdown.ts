@@ -1,7 +1,7 @@
-import { Anthropic } from "@anthropic-ai/sdk"
+import os from "node:os"
+import * as path from "node:path"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import { writeFile } from "@utils/fs"
-import os from "os"
-import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { openFile } from "./open-file"
@@ -74,13 +74,13 @@ export function formatContentBlockToMarkdown(block: Anthropic.ContentBlockParam)
 		case "tool_result":
 			if (typeof block.content === "string") {
 				return `[Tool${block.is_error ? " (Error)" : ""}]\n${block.content}`
-			} else if (Array.isArray(block.content)) {
+			}
+			if (Array.isArray(block.content)) {
 				return `[Tool${block.is_error ? " (Error)" : ""}]\n${block.content
 					.map((contentBlock) => formatContentBlockToMarkdown(contentBlock))
 					.join("\n")}`
-			} else {
-				return `[Tool${block.is_error ? " (Error)" : ""}]`
 			}
+			return `[Tool${block.is_error ? " (Error)" : ""}]`
 		default:
 			return "[Unexpected content type]"
 	}

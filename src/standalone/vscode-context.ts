@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs"
-import os from "os"
-import path from "path"
+import os from "node:os"
+import path from "node:path"
 import type { Extension, ExtensionContext } from "vscode"
 import { ExtensionKind, ExtensionMode } from "vscode"
 import { URI } from "vscode-uri"

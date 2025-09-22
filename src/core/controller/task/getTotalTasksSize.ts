@@ -1,6 +1,6 @@
-import { EmptyRequest, Int64 } from "@shared/proto/cline/common"
+import type { EmptyRequest, Int64 } from "@shared/proto/cline/common"
 import { getTotalTasksSize as calculateTotalTasksSize } from "../../../utils/storage"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Gets the total size of all tasks including task data and checkpoints

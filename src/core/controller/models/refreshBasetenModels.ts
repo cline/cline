@@ -1,13 +1,13 @@
+import fs from "node:fs/promises"
+import path from "node:path"
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
+import type { EmptyRequest } from "@shared/proto/cline/common"
+import { OpenRouterCompatibleModelInfo, type OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
 import { parsePrice } from "@utils/model-utils"
 import axios from "axios"
-import fs from "fs/promises"
-import path from "path"
 import { basetenModels } from "../../../shared/api"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Refreshes the Baseten models and returns the updated model list
@@ -50,7 +50,7 @@ export async function refreshBasetenModels(
 				throw new Error("Invalid Baseten API key format")
 			}
 
-			console.log("Fetching Baseten models with API key:", cleanApiKey.substring(0, 10) + "...")
+			console.log("Fetching Baseten models with API key:", `${cleanApiKey.substring(0, 10)}...`)
 
 			const response = await axios.get("https://inference.baseten.co/v1/models", {
 				headers: {

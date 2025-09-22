@@ -1,6 +1,6 @@
-import { isPostHogConfigValid, PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
-import { ClineError } from "./ClineError"
-import { IErrorProvider } from "./providers/IErrorProvider"
+import { isPostHogConfigValid, type PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
+import type { ClineError } from "./ClineError"
+import type { IErrorProvider } from "./providers/IErrorProvider"
 import { PostHogErrorProvider } from "./providers/PostHogErrorProvider"
 
 /**

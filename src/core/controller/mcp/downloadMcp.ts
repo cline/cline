@@ -1,9 +1,9 @@
-import { McpServer } from "@shared/mcp"
-import { StringRequest } from "@shared/proto/cline/common"
+import type { McpServer } from "@shared/mcp"
+import type { StringRequest } from "@shared/proto/cline/common"
 import { McpDownloadResponse } from "@shared/proto/cline/mcp"
 import axios from "axios"
 import { clineEnvConfig } from "@/config"
-import { Controller } from ".."
+import type { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
 /**

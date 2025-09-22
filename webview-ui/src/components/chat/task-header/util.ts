@@ -1,4 +1,4 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { COLOR_BEIGE, COLOR_BLUE, COLOR_DARK_GRAY, COLOR_GRAY, COLOR_GREEN, COLOR_PURPLE, COLOR_WHITE } from "../colors"
 
 /**
@@ -29,9 +29,11 @@ export const getColor = (message: ClineMessage): string => {
 							toolData.tool === "searchFiles"
 						) {
 							return COLOR_BEIGE // Beige for file read operations
-						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
+						}
+						if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
 							return COLOR_BLUE // Blue for file edit/create operations
-						} else if (toolData.tool === "webFetch") {
+						}
+						if (toolData.tool === "webFetch") {
 							return COLOR_PURPLE // Purple for web fetch operations
 						}
 					} catch (_e) {
@@ -50,7 +52,8 @@ export const getColor = (message: ClineMessage): string => {
 			default:
 				return COLOR_DARK_GRAY // Dark gray for unknown
 		}
-	} else if (message.type === "ask") {
+	}
+	if (message.type === "ask") {
 		switch (message.ask) {
 			case "followup":
 				return COLOR_GRAY // Gray for user messages
@@ -69,9 +72,11 @@ export const getColor = (message: ClineMessage): string => {
 							toolData.tool === "searchFiles"
 						) {
 							return COLOR_BEIGE // Beige for file read operations
-						} else if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
+						}
+						if (toolData.tool === "editedExistingFile" || toolData.tool === "newFileCreated") {
 							return COLOR_BLUE // Blue for file edit/create operations
-						} else if (toolData.tool === "webFetch") {
+						}
+						if (toolData.tool === "webFetch") {
 							return COLOR_PURPLE // Purple for web fetch operations
 						}
 					} catch (_e) {

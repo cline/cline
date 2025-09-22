@@ -1,6 +1,6 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import fs from "fs/promises"
-import * as path from "path"
+import fs from "node:fs/promises"
+import * as path from "node:path"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import { extractImageContent } from "./extract-images"
 import { callTextExtractionFunctions } from "./extract-text"
 
@@ -33,21 +33,20 @@ export async function extractFileContent(absolutePath: string, modelSupportsImag
 				text: "Successfully read image",
 				imageBlock: imageResult.imageBlock,
 			}
-		} else {
-			throw new Error(imageResult.error)
 		}
-	} else if (isImage && !modelSupportsImages) {
+		throw new Error(imageResult.error)
+	}
+	if (isImage && !modelSupportsImages) {
 		throw new Error(`Current model does not support image input`)
-	} else {
-		// Handle text files using existing extraction functions
-		try {
-			const textContent = await callTextExtractionFunctions(absolutePath)
-			return {
-				text: textContent,
-			}
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Unknown error"
-			throw new Error(`Error reading file: ${errorMessage}`)
+	}
+	// Handle text files using existing extraction functions
+	try {
+		const textContent = await callTextExtractionFunctions(absolutePath)
+		return {
+			text: textContent,
 		}
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : "Unknown error"
+		throw new Error(`Error reading file: ${errorMessage}`)
 	}
 }

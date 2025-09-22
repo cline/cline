@@ -1,11 +1,11 @@
-import { Anthropic } from "@anthropic-ai/sdk"
-import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
+import type { Anthropic } from "@anthropic-ai/sdk"
+import { type LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
 import { isAnthropicModelId } from "@/utils/model-utils"
-import { ApiHandler, CommonApiHandlerOptions } from ".."
+import type { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 interface LiteLlmHandlerOptions extends CommonApiHandlerOptions {
 	liteLlmApiKey?: string
@@ -99,27 +99,25 @@ export class LiteLlmHandler implements ApiHandler {
 				this.modelInfoCache = data
 				this.modelInfoCacheTimestamp = now
 				return data
-			} else {
-				console.warn("Failed to fetch LiteLLM model info:", response.statusText)
-				// Try with Authorization header instead
-				const retryResponse = await fetch(url, {
-					method: "GET",
-					headers: {
-						accept: "application/json",
-						Authorization: `Bearer ${this.options.liteLlmApiKey || ""}`,
-					},
-				})
-
-				if (retryResponse.ok) {
-					const data: LiteLlmModelInfoResponse = await retryResponse.json()
-					this.modelInfoCache = data
-					this.modelInfoCacheTimestamp = now
-					return data
-				} else {
-					console.warn("Failed to fetch LiteLLM model info with Authorization header:", retryResponse.statusText)
-					return undefined
-				}
 			}
+			console.warn("Failed to fetch LiteLLM model info:", response.statusText)
+			// Try with Authorization header instead
+			const retryResponse = await fetch(url, {
+				method: "GET",
+				headers: {
+					accept: "application/json",
+					Authorization: `Bearer ${this.options.liteLlmApiKey || ""}`,
+				},
+			})
+
+			if (retryResponse.ok) {
+				const data: LiteLlmModelInfoResponse = await retryResponse.json()
+				this.modelInfoCache = data
+				this.modelInfoCacheTimestamp = now
+				return data
+			}
+			console.warn("Failed to fetch LiteLLM model info with Authorization header:", retryResponse.statusText)
+			return undefined
 		} catch (error) {
 			console.warn("Error fetching LiteLLM model info:", error)
 			return undefined
@@ -245,7 +243,8 @@ export class LiteLlmHandler implements ApiHandler {
 								},
 							] as any,
 						}
-					} else if (Array.isArray(message.content)) {
+					}
+					if (Array.isArray(message.content)) {
 						// Apply cache control to the last content item in the array
 						return {
 							...message,

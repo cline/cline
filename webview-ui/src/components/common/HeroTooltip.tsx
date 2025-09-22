@@ -1,5 +1,5 @@
 import { Tooltip } from "@heroui/react"
-import React from "react"
+import type React from "react"
 
 interface HeroTooltipProps {
 	content: React.ReactNode

@@ -1,8 +1,8 @@
 import { StringArray } from "@shared/proto/cline/common"
-import { OpenAiModelsRequest } from "@shared/proto/cline/models"
+import type { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import type { AxiosRequestConfig } from "axios"
 import axios from "axios"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 /**
  * Fetches available models from the OpenAI API

@@ -1,4 +1,4 @@
-import { Anthropic } from "@anthropic-ai/sdk"
+import type { Anthropic } from "@anthropic-ai/sdk"
 // Import proper AWS SDK types
 import type { ContentBlock, Message } from "@aws-sdk/client-bedrock-runtime"
 import {
@@ -9,12 +9,12 @@ import {
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
-import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_4_1M_SUFFIX, ModelInfo } from "@shared/api"
+import { type BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_4_1M_SUFFIX, type ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToR1Format } from "../transform/r1-format"
-import { ApiStream } from "../transform/stream"
+import type { ApiStream } from "../transform/stream"
 
 export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
@@ -479,7 +479,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				}
 			}
 
-			combinedContent += message.role === "user" ? "User: " + content + "\n" : "Assistant: " + content + "\n"
+			combinedContent += message.role === "user" ? `User: ${content}\n` : `Assistant: ${content}\n`
 		}
 
 		// Format according to DeepSeek R1's expected prompt format

@@ -1,6 +1,6 @@
+import * as path from "node:path"
 import { Logger } from "@services/logging/Logger"
 import { execa } from "execa"
-import * as path from "path"
 
 /**
  * Validates that the workspace path is valid and writable for Git operations
@@ -86,7 +86,7 @@ export async function initializeGitRepository(workspacePath: string): Promise<bo
 				// There are files to commit
 				await execa("git", ["add", "."], { cwd: workspacePath })
 				await execa("git", ["commit", "-m", "Initial commit for evaluation"], { cwd: workspacePath })
-				Logger.log("Created initial Git commit in " + workspacePath)
+				Logger.log(`Created initial Git commit in ${workspacePath}`)
 			} else {
 				// No files to commit, create an empty commit
 				Logger.log("No files to commit, creating empty initial commit")
@@ -95,7 +95,7 @@ export async function initializeGitRepository(workspacePath: string): Promise<bo
 					await execa("git", ["commit", "--allow-empty", "-m", "Initial empty commit for evaluation"], {
 						cwd: workspacePath,
 					})
-					Logger.log("Created empty initial commit in " + workspacePath)
+					Logger.log(`Created empty initial commit in ${workspacePath}`)
 				} catch (emptyCommitError) {
 					// Even empty commit failed, but we'll continue anyway
 					Logger.log(`Warning: Failed to create empty commit: ${emptyCommitError.message}`)

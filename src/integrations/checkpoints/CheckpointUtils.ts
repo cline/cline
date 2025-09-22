@@ -1,6 +1,6 @@
-import { access, constants, mkdir } from "fs/promises"
-import os from "os"
-import * as path from "path"
+import { access, constants, mkdir } from "node:fs/promises"
+import os from "node:os"
+import * as path from "node:path"
 import { HostProvider } from "@/hosts/host-provider"
 import { getCwd, getDesktopDir } from "@/utils/path"
 

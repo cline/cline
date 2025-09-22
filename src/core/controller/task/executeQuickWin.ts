@@ -1,5 +1,5 @@
 import { Empty } from "@shared/proto/cline/common"
-import { ExecuteQuickWinRequest } from "@shared/proto/cline/task"
+import type { ExecuteQuickWinRequest } from "@shared/proto/cline/task"
 import type { Controller } from "../index"
 
 /**

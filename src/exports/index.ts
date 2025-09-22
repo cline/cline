@@ -1,7 +1,7 @@
-import { Controller } from "@core/controller"
+import type { Controller } from "@core/controller"
 import { sendChatButtonClickedEvent } from "@core/controller/ui/subscribeToChatButtonClicked"
 import { HostProvider } from "@/hosts/host-provider"
-import { ClineAPI } from "./cline"
+import type { ClineAPI } from "./cline"
 
 export function createClineAPI(sidebarController: Controller): ClineAPI {
 	const api: ClineAPI = {

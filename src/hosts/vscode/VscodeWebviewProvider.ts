@@ -5,7 +5,7 @@ import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/gr
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
-import { WebviewMessage } from "@/shared/WebviewMessage"
+import type { WebviewMessage } from "@/shared/WebviewMessage"
 import type { WebviewProviderType } from "@/shared/webview/types"
 
 /*

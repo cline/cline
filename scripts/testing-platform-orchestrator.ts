@@ -21,11 +21,11 @@
  *   SERVER_BOOT_DELAY    				Server startup delay in ms (default: 1300)
  */
 
-import { ChildProcess, spawn } from "child_process"
-import fs from "fs"
+import { type ChildProcess, spawn } from "node:child_process"
+import fs from "node:fs"
+import net from "node:net"
+import path from "node:path"
 import minimist from "minimist"
-import net from "net"
-import path from "path"
 import kill from "tree-kill"
 
 let showServerLogs = false
@@ -75,10 +75,14 @@ async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }
 
 function stopServer(server: ChildProcess): Promise<void> {
 	return new Promise((resolve) => {
-		if (!server.pid) return resolve()
+		if (!server.pid) {
+			return resolve()
+		}
 
 		kill(server.pid, "SIGKILL", (err) => {
-			if (err) console.warn("Failed to kill server process:", err)
+			if (err) {
+				console.warn("Failed to kill server process:", err)
+			}
 			server.once("exit", () => resolve())
 		})
 	})
@@ -114,7 +118,9 @@ async function runSpec(specFile: string): Promise<void> {
 
 function collectSpecFiles(inputPath: string): string[] {
 	const fullPath = path.resolve(inputPath)
-	if (!fs.existsSync(fullPath)) throw new Error(`Path does not exist: ${fullPath}`)
+	if (!fs.existsSync(fullPath)) {
+		throw new Error(`Path does not exist: ${fullPath}`)
+	}
 
 	const stat = fs.statSync(fullPath)
 	if (stat.isDirectory()) {
@@ -123,7 +129,9 @@ function collectSpecFiles(inputPath: string): string[] {
 			.filter((f) => f.endsWith(".json"))
 			.map((f) => path.join(fullPath, f))
 	}
-	if (fullPath.endsWith(".json")) return [fullPath]
+	if (fullPath.endsWith(".json")) {
+		return [fullPath]
+	}
 	throw new Error("Spec path must be a JSON file or a folder containing JSON files")
 }
 
@@ -150,11 +158,15 @@ async function runAll(inputPath: string, count: number) {
 			}
 		}
 
-		if (failure > 0) process.exitCode = 1
+		if (failure > 0) {
+			process.exitCode = 1
+		}
 	}
 
 	console.log(`✅ Passed: ${success}`)
-	if (failure > 0) console.log(`❌ Failed: ${failure}`)
+	if (failure > 0) {
+		console.log(`❌ Failed: ${failure}`)
+	}
 	console.log(`📋 Total specs: ${specFiles.length} Total runs: ${specFiles.length * count}`)
 	console.log(`🏁 All runs completed in ${((Date.now() - totalStart) / 1000).toFixed(2)}s`)
 }

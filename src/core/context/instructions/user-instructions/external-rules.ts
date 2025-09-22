@@ -1,3 +1,5 @@
+import fs from "node:fs/promises"
+import path from "node:path"
 import {
 	combineRuleToggles,
 	getRuleFilesTotalContent,
@@ -6,11 +8,9 @@ import {
 } from "@core/context/instructions/user-instructions/rule-helpers"
 import { formatResponse } from "@core/prompts/responses"
 import { GlobalFileNames } from "@core/storage/disk"
-import { ClineRulesToggles } from "@shared/cline-rules"
+import type { ClineRulesToggles } from "@shared/cline-rules"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
-import fs from "fs/promises"
-import path from "path"
-import { Controller } from "@/core/controller"
+import type { Controller } from "@/core/controller"
 
 /**
  * Refreshes the toggles for windsurf and cursor rules

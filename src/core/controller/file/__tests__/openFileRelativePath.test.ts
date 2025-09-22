@@ -1,10 +1,10 @@
-import { Controller } from "@core/controller"
+import * as path from "node:path"
+import type { Controller } from "@core/controller"
 import * as openFileIntegration from "@integrations/misc/open-file"
 import { Empty, StringRequest } from "@shared/proto/cline/common"
 import * as pathUtils from "@utils/path"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
-import * as path from "path"
 import * as sinon from "sinon"
 import { openFileRelativePath } from "../openFileRelativePath"
 

@@ -1,7 +1,8 @@
 import { sapAiCoreModels } from "@shared/api"
-import { SapAiCoreModelDeployment } from "@shared/proto/index.cline"
+import type { SapAiCoreModelDeployment } from "@shared/proto/index.cline"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import React, { memo, useEffect, useMemo } from "react"
+import type React from "react"
+import { memo, useEffect, useMemo } from "react"
 import { DropdownContainer } from "./common/ModelSelector"
 
 export const SAP_AI_CORE_MODEL_PICKER_Z_INDEX = 1_000

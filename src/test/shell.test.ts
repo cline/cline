@@ -1,7 +1,7 @@
+import { userInfo } from "node:os"
 import { getShell } from "@utils/shell"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
-import { userInfo } from "os"
 import * as vscode from "vscode"
 
 describe("Shell Detection Tests", () => {

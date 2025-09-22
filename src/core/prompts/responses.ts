@@ -1,8 +1,8 @@
-import { Anthropic } from "@anthropic-ai/sdk"
+import * as path from "node:path"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import * as diff from "diff"
-import * as path from "path"
-import { Mode } from "@/shared/storage/types"
-import { ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
+import type { Mode } from "@/shared/storage/types"
+import { type ClineIgnoreController, LOCK_TEXT_SYMBOL } from "../ignore/ClineIgnoreController"
 
 export const formatResponse = {
 	duplicateFileReadNotice: () =>
@@ -19,7 +19,7 @@ export const formatResponse = {
 		}
 
 		const truncated = originalContent.substring(0, MAX_CHARS)
-		return truncated + "\n\n[[NOTE] This message was truncated past this point to preserve context window space.]"
+		return `${truncated}\n\n[[NOTE] This message was truncated past this point to preserve context window space.]`
 	},
 
 	condense: () =>
@@ -97,7 +97,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 			.map((file) => {
 				// convert absolute path to relative path
 				const relativePath = path.relative(absolutePath, file).toPosix()
-				return file.endsWith("/") ? relativePath + "/" : relativePath
+				return file.endsWith("/") ? `${relativePath}/` : relativePath
 			})
 			// Sort so files are listed under their respective directories to make it clear what files are children of what directories. Since we build file list top down, even if file list is truncated it will show directories that cline can then explore further.
 			.sort((a, b) => {
@@ -132,7 +132,7 @@ Otherwise, if you have not completed the task and do not need additional informa
 					const absoluteFilePath = path.resolve(absolutePath, filePath)
 					const isIgnored = !clineIgnoreController.validateAccess(absoluteFilePath)
 					if (isIgnored) {
-						return LOCK_TEXT_SYMBOL + " " + filePath
+						return `${LOCK_TEXT_SYMBOL} ${filePath}`
 					}
 
 					return filePath
@@ -143,11 +143,11 @@ Otherwise, if you have not completed the task and do not need additional informa
 			return `${clineIgnoreParsed.join(
 				"\n",
 			)}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
-		} else if (clineIgnoreParsed.length === 0 || (clineIgnoreParsed.length === 1 && clineIgnoreParsed[0] === "")) {
-			return "No files found."
-		} else {
-			return clineIgnoreParsed.join("\n")
 		}
+		if (clineIgnoreParsed.length === 0 || (clineIgnoreParsed.length === 1 && clineIgnoreParsed[0] === "")) {
+			return "No files found."
+		}
+		return clineIgnoreParsed.join("\n")
 	},
 
 	createPrettyPatch: (filename = "file", oldStr?: string, newStr?: string) => {

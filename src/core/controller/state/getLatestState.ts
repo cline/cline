@@ -1,6 +1,6 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import type { EmptyRequest } from "@shared/proto/cline/common"
 import { State } from "@shared/proto/cline/state"
-import { Controller } from "../index"
+import type { Controller } from "../index"
 
 /**
  * Get the latest extension state

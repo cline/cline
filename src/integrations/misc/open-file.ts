@@ -1,6 +1,6 @@
+import * as os from "node:os"
+import * as path from "node:path"
 import { writeFile } from "@utils/fs"
-import * as os from "os"
-import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 

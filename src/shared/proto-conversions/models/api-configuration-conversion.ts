@@ -1,13 +1,13 @@
 import {
-	LiteLLMModelInfo,
-	OpenAiCompatibleModelInfo,
-	OpenRouterModelInfo,
-	ModelsApiConfiguration as ProtoApiConfiguration,
+	type LiteLLMModelInfo,
+	type OpenAiCompatibleModelInfo,
+	type OpenRouterModelInfo,
+	type ModelsApiConfiguration as ProtoApiConfiguration,
 	ApiProvider as ProtoApiProvider,
-	OcaModelInfo as ProtoOcaModelInfo,
-	ThinkingConfig,
+	type OcaModelInfo as ProtoOcaModelInfo,
+	type ThinkingConfig,
 } from "@shared/proto/cline/models"
-import {
+import type {
 	ApiConfiguration,
 	ApiProvider,
 	LiteLLMModelInfo as AppLiteLLMModelInfo,

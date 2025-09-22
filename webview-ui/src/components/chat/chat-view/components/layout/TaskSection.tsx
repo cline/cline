@@ -1,7 +1,7 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
-import React from "react"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import type React from "react"
 import TaskHeader from "@/components/chat/task-header/TaskHeader"
-import { MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
+import type { MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 
 interface TaskSectionProps {
 	task: ClineMessage

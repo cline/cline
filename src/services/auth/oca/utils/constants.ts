@@ -1,5 +1,5 @@
-import os from "os"
-import path from "path"
+import os from "node:os"
+import path from "node:path"
 
 export const DEFAULT_IDCS_CLIENT_ID = "a8331954c0cf48ba99b5dd223a14c6ea"
 export const DEFAULT_IDCS_URL = "https://idcs-9dc693e80d9b469480d7afe00e743931.identity.oraclecloud.com"

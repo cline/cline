@@ -1,6 +1,6 @@
-import { Controller } from "@core/controller"
-import * as grpc from "@grpc/grpc-js"
-import { Channel, createChannel } from "nice-grpc"
+import type { Controller } from "@core/controller"
+import type * as grpc from "@grpc/grpc-js"
+import { type Channel, createChannel } from "nice-grpc"
 
 /**
  * Type definition for a gRPC handler function.

@@ -1,4 +1,5 @@
-import React, { createContext, useContext } from "react"
+import type React from "react"
+import { createContext, useContext } from "react"
 import type { PlatformConfig } from "../config/platform.config"
 import { PLATFORM_CONFIG } from "../config/platform.config"
 

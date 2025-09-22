@@ -1,5 +1,5 @@
 import type { ToolUse } from "@core/assistant-message"
-import { ClineDefaultTool } from "@/shared/tools"
+import type { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../index"
 import type { TaskConfig } from "./types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "./types/UIHelpers"

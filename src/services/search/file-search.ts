@@ -1,8 +1,8 @@
-import * as childProcess from "child_process"
-import * as fs from "fs"
+import * as childProcess from "node:child_process"
+import * as fs from "node:fs"
+import * as path from "node:path"
+import * as readline from "node:readline"
 import type { FzfResultItem } from "fzf"
-import * as path from "path"
-import * as readline from "readline"
 import { HostProvider } from "@/hosts/host-provider"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
 import { getBinaryLocation } from "@/utils/fs"
@@ -140,7 +140,8 @@ export async function searchWorkspaceFiles(
 		if (!query.trim()) {
 			if (selectedType === "file") {
 				return combinedItems.filter((item) => item.type === "file").slice(0, limit)
-			} else if (selectedType === "folder") {
+			}
+			if (selectedType === "folder") {
 				return combinedItems.filter((item) => item.type === "folder").slice(0, limit)
 			}
 			return combinedItems.slice(0, limit)

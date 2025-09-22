@@ -2,11 +2,11 @@ import crypto from "node:crypto"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import readline from "node:readline"
 import type Anthropic from "@anthropic-ai/sdk"
 import { execa } from "execa"
-import readline from "readline"
 import { getCwd } from "@/utils/path"
-import { ClaudeCodeMessage } from "./types"
+import type { ClaudeCodeMessage } from "./types"
 
 type ClaudeCodeOptions = {
 	systemPrompt: string

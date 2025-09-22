@@ -1,5 +1,5 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
-import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
+import { Empty, type StringRequest } from "@shared/proto/cline/common"
+import { getRequestRegistry, type StreamingResponseHandler } from "../grpc-handler"
 import type { Controller } from "../index"
 
 // Map client IDs to their subscription handlers

@@ -1,7 +1,8 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
-import React, { useCallback } from "react"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import type React from "react"
+import { useCallback } from "react"
 import { Virtuoso } from "react-virtuoso"
-import { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
+import type { ChatState, MessageHandlers, ScrollBehavior } from "../../types/chatTypes"
 import { createMessageRenderer } from "../messages/MessageRenderer"
 
 interface MessagesAreaProps {

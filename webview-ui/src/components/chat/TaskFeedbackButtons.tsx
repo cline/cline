@@ -1,7 +1,8 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import { TaskFeedbackType } from "@shared/WebviewMessage"
+import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import React, { useEffect, useState } from "react"
+import type React from "react"
+import { useEffect, useState } from "react"
 import styled from "styled-components"
 import { TaskServiceClient } from "@/services/grpc-client"
 

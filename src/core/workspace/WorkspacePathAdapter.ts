@@ -7,7 +7,7 @@
  * to their absolute equivalents.
  */
 
-import * as path from "path"
+import * as path from "node:path"
 import { resolveWorkspacePath } from "./WorkspaceResolver"
 import type { WorkspaceRootManager } from "./WorkspaceRootManager"
 

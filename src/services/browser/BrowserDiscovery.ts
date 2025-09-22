@@ -1,5 +1,5 @@
+import * as net from "node:net"
 import axios from "axios"
-import * as net from "net"
 
 /**
  * Check if a port is open on a given host

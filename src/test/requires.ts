@@ -1,4 +1,4 @@
-const Module = require("module")
+const Module = require("node:module")
 const originalRequire = Module.prototype.require
 
 /**

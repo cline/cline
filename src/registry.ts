@@ -9,22 +9,22 @@ const prefix = name === "claude-dev" ? "cline" : name
  * In production, all commands are registered under "cline" for consistency.
  */
 const ClineCommands = {
-	PlusButton: prefix + ".plusButtonClicked",
-	McpButton: prefix + ".mcpButtonClicked",
-	PopoutButton: prefix + ".popoutButtonClicked",
-	OpenInNewTab: prefix + ".openInNewTab",
-	SettingsButton: prefix + ".settingsButtonClicked",
-	HistoryButton: prefix + ".historyButtonClicked",
-	AccountButton: prefix + ".accountButtonClicked",
-	TerminalOutput: prefix + ".addTerminalOutputToChat",
-	AddToChat: prefix + ".addToChat",
-	FixWithCline: prefix + ".fixWithCline",
-	ExplainCode: prefix + ".explainCode",
-	ImproveCode: prefix + ".improveCode",
-	FocusChatInput: prefix + ".focusChatInput",
-	Walkthrough: prefix + ".openWalkthrough",
-	GenerateCommit: prefix + ".generateGitCommitMessage",
-	AbortCommit: prefix + ".abortGitCommitMessage",
+	PlusButton: `${prefix}.plusButtonClicked`,
+	McpButton: `${prefix}.mcpButtonClicked`,
+	PopoutButton: `${prefix}.popoutButtonClicked`,
+	OpenInNewTab: `${prefix}.openInNewTab`,
+	SettingsButton: `${prefix}.settingsButtonClicked`,
+	HistoryButton: `${prefix}.historyButtonClicked`,
+	AccountButton: `${prefix}.accountButtonClicked`,
+	TerminalOutput: `${prefix}.addTerminalOutputToChat`,
+	AddToChat: `${prefix}.addToChat`,
+	FixWithCline: `${prefix}.fixWithCline`,
+	ExplainCode: `${prefix}.explainCode`,
+	ImproveCode: `${prefix}.improveCode`,
+	FocusChatInput: `${prefix}.focusChatInput`,
+	Walkthrough: `${prefix}.openWalkthrough`,
+	GenerateCommit: `${prefix}.generateGitCommitMessage`,
+	AbortCommit: `${prefix}.abortGitCommitMessage`,
 }
 
 /**
@@ -32,8 +32,8 @@ const ClineCommands = {
  * These should match the name + view IDs defined in package.json.
  */
 const ClineViewIds = {
-	Sidebar: name + ".SidebarProvider",
-	TabPanel: name + ".TabPanelProvider",
+	Sidebar: `${name}.SidebarProvider`,
+	TabPanel: `${name}.TabPanelProvider`,
 }
 
 /**
@@ -41,7 +41,7 @@ const ClineViewIds = {
  * registered for the current host.
  */
 export const ExtensionRegistryInfo = {
-	id: publisher + "." + name,
+	id: `${publisher}.${name}`,
 	name,
 	version,
 	publisher,

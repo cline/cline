@@ -1,5 +1,5 @@
 import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
-import { ClineCheckpointRestore } from "@shared/WebviewMessage"
+import type { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import React, { forwardRef, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import Thumbnails from "@/components/common/Thumbnails"

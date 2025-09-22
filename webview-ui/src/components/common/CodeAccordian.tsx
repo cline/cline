@@ -98,7 +98,7 @@ const CodeAccordian = ({
 									direction: "rtl",
 									textAlign: "left",
 								}}>
-								{cleanPathPrefix(path ?? "") + "\u200E"}
+								{`${cleanPathPrefix(path ?? "")}\u200E`}
 							</span>
 						</>
 					)}
