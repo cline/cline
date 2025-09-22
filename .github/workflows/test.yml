@@ -17,7 +17,33 @@ permissions:
     pull-requests: write # Needed to add comments/annotations to PRs
 
 jobs:
+    quality-checks:
+        runs-on: ubuntu-latest
+        name: Quality Checks
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js environment
+              uses: actions/setup-node@v4
+              with:
+                node-version: 22
+                cache: 'npm'
+                cache-dependency-path: |
+                  package-lock.json
+                  webview-ui/package-lock.json
+
+            - name: Install root dependencies
+              run: npm ci
+
+            - name: Install webview-ui dependencies
+              run: cd webview-ui && npm ci
+
+            - name: Run Quality Checks (Parallel)
+              run: npm run ci:check-all
+
     test:
+        needs: quality-checks
         strategy:
             fail-fast: false
             matrix:
@@ -51,18 +77,9 @@ jobs:
               run: |
                   npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
 
-            - name: Type Check
-              run: npm run check-types
-
-            - name: Lint Check
-              run: npm run lint
-
-            - name: Format Check
-              run: npm run format
-
-            # Build the extension before running tests
+            # Build the extension and tests (without redundant checks)
             - name: Build Tests and Extension
-              run: npm run pretest
+              run: npm run ci:build
 
             - name: Unit Tests with coverage - Linux
               id: unit_tests_linux
