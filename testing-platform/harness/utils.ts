@@ -13,7 +13,15 @@ export function pretty(obj: any): string {
 // Normalize object and ignore specified fields
 function normalize(obj: any, ignoreFields: string[] = [], parentPath = ""): any {
 	if (Array.isArray(obj)) {
-		return obj.map((item, _) => normalize(item, ignoreFields, parentPath)) // do not include index
+		// Normalize each element, then sort in a stable way
+		const normalizedArray = obj.map((item) => normalize(item, ignoreFields, parentPath))
+
+		// Sort array by JSON stringification (works for objects & primitives)
+		return normalizedArray.sort((a, b) => {
+			const sa = JSON.stringify(a)
+			const sb = JSON.stringify(b)
+			return sa < sb ? -1 : sa > sb ? 1 : 0
+		})
 	}
 	if (obj && typeof obj === "object") {
 		const result: Record<string, any> = {}
@@ -36,7 +44,7 @@ function normalize(obj: any, ignoreFields: string[] = [], parentPath = ""): any 
 	return obj
 }
 
-// Compare two objects, ignoring specified fields
+// Compare two objects, ignoring specified fields & array order
 export function compareResponse(actual: any, expected: any, ignoreFields: string[] = []): { success: boolean; diffs: string[] } {
 	const diffs: string[] = []
 

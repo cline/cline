@@ -199,12 +199,18 @@ jobs:
 
             - name: Running testing platform integration spec tests
               continue-on-error: true
-              timeout-minutes: 5
+              timeout-minutes: 7
               # Temporarily wrapping the test command to always return a neutral exit code.
               # This prevents the job from showing as failed and avoids distracting developers
               # until the integration tests are ready to be enforced.
               run: |
-                npm run test:tp-orchestrator -- tests/specs/ --count=1 || true
+                npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage || true
+
+            - name: Save Coverage Reports
+              uses: actions/upload-artifact@v4
+              with:
+                name: test-platform-integration-core-coverage
+                path: coverage/**/lcov.info
 
     coverage:
         needs: test
@@ -286,17 +292,16 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     qlty:
-        needs: test
+        needs: [test, test-platform-integration]
         runs-on: ubuntu-latest
         # Run on PRs to main, pushes to main, and manual dispatches
-        if: always() && needs.test.result == 'success'
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
               with:
                   fetch-depth: 0 # Fetch all history for accurate comparison
 
-            - name: Download Coverage Reports
+            - name: Download unit tests coverage reports
               uses: actions/download-artifact@v4
               with:
                   name: pr-coverage-reports
@@ -320,3 +325,16 @@ jobs:
                     webview-ui/coverage/lcov.info
                   tag: unit:webview-ui
                   add-prefix: webview-ui/
+
+            - name: Download test platform integration core coverage artifact
+              uses: actions/download-artifact@v4
+              with:
+                name: test-platform-integration-core-coverage
+                path: integration-core-coverage-reports
+
+            - name: Upload core integration tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                files: integration-core-coverage-reports/**/lcov.info
+                tag: integration:core

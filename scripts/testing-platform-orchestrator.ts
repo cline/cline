@@ -15,10 +15,8 @@
  *   --server-logs        Show server logs (hidden by default)
  *   --count=<number>     Repeat execution N times (default: 1)
  *   --fix     			  Automatically update spec files with actual responses
+ *   --coverage     	  Generate integration test coverage information
  *
- * Environment Variables:
- *   STANDALONE_GRPC_SERVER_PORT     	gRPC server port (default: 26040)
- *   SERVER_BOOT_DELAY    				Server startup delay in ms (default: 1300)
  */
 
 import { ChildProcess, spawn } from "child_process"
@@ -30,11 +28,47 @@ import kill from "tree-kill"
 
 let showServerLogs = false
 let fix = false
-
-const STANDALONE_GRPC_SERVER_PORT = process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
+let coverage = false
 const WAIT_SERVER_DEFAULT_TIMEOUT = 15000
+const usedPorts = new Set<number>()
 
-// Poll until port is accepting connections
+/**
+ * Find an available TCP port within the given range [min, max].
+ *
+ * - Ports are allocated sequentially (starting at `min`) rather than randomly,
+ *   which avoids accidental reuse when running hundreds of tests in a row.
+ * - Each successfully allocated port is tracked in `usedPorts` to guarantee
+ *   it is never handed out again within the lifetime of this orchestrator.
+ * - Before returning, the function binds a temporary server to the port to
+ *   verify that the OS really considers it available, then immediately closes it.
+ *
+ * This approach makes the orchestrator much more robust on CI (e.g. GitHub Actions),
+ * where a just-terminated server may leave its socket in TIME_WAIT and cause
+ * flakiness if the same port is reallocated too soon.
+ */
+async function getAvailablePort(min = 20000, max = 49151): Promise<number> {
+	return new Promise((resolve, _) => {
+		const tryPort = (candidate?: number) => {
+			const port = candidate ?? Math.floor(Math.random() * (max - min + 1)) + min
+			if (usedPorts.has(port)) {
+				// already allocated in this run
+				return tryPort()
+			}
+			const server = net.createServer()
+			server.once("error", () => tryPort())
+			server.once("listening", () => {
+				server.close(() => {
+					usedPorts.add(port) // mark reserved
+					resolve(port)
+				})
+			})
+			server.listen(port, "127.0.0.1")
+		}
+		tryPort()
+	})
+}
+
+// Poll until a given TCP port on a host is accepting connections.
 async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): Promise<void> {
 	const start = Date.now()
 	const waitForPortSleepMs = 100
@@ -57,11 +91,17 @@ async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): P
 }
 
 async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }> {
-	const grpcPort = STANDALONE_GRPC_SERVER_PORT
+	const grpcPort = (await getAvailablePort()).toString()
+	const hostbridgePort = (await getAvailablePort()).toString()
 
 	const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
 		stdio: showServerLogs ? "inherit" : "pipe",
-		env: { ...process.env, STANDALONE_GRPC_SERVER_PORT: grpcPort },
+		env: {
+			...process.env,
+			PROTOBUS_PORT: grpcPort,
+			HOSTBRIDGE_PORT: hostbridgePort,
+			USE_C8: coverage ? "true" : "false",
+		},
 	})
 
 	// Wait for either the server to become ready or fail on spawn error
@@ -77,7 +117,7 @@ function stopServer(server: ChildProcess): Promise<void> {
 	return new Promise((resolve) => {
 		if (!server.pid) return resolve()
 
-		kill(server.pid, "SIGKILL", (err) => {
+		kill(server.pid, "SIGINT", (err) => {
 			if (err) console.warn("Failed to kill server process:", err)
 			server.once("exit", () => resolve())
 		})
@@ -165,10 +205,11 @@ async function main() {
 	const count = Number(args.count)
 	showServerLogs = Boolean(args["server-logs"])
 	fix = Boolean(args["fix"])
+	coverage = Boolean(args["coverage"])
 
 	if (!inputPath) {
 		console.error(
-			"Usage: npx tsx scripts/testing-platform-orchestrator.ts <spec-file-or-folder> [--count=N] [--server-logs] [--fix]",
+			"Usage: npx tsx scripts/testing-platform-orchestrator.ts <spec-file-or-folder> [--count=N] [--server-logs] [--fix] [--coverage]",
 		)
 		process.exit(1)
 	}

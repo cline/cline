@@ -40,6 +40,7 @@ const HOSTBRIDGE_PORT = process.env.HOSTBRIDGE_PORT || "26041"
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || process.cwd()
 const E2E_TEST = process.env.E2E_TEST || "true"
 const CLINE_ENVIRONMENT = process.env.CLINE_ENVIRONMENT || "local"
+const USE_C8 = process.env.USE_C8 === "true"
 
 // Locate the standalone build directory and core file with flexible path resolution
 const projectRoot = process.env.PROJECT_ROOT || path.resolve(__dirname, "..")
@@ -51,6 +52,7 @@ const childProcesses: ChildProcess[] = []
 
 async function main(): Promise<void> {
 	console.log("Starting Simple Cline gRPC Server...")
+	console.log(`Project Root: ${projectRoot}`)
 	console.log(`Workspace: ${WORKSPACE_DIR}`)
 	console.log(`ProtoBus Port: ${PROTOBUS_PORT}`)
 	console.log(`HostBridge Port: ${HOSTBRIDGE_PORT}`)
@@ -111,9 +113,16 @@ async function main(): Promise<void> {
 		process.exit(1)
 	}
 
-	console.log("Starting Cline Core Service...")
-	const coreService: ChildProcess = spawn("node", [clineCoreFile], {
-		cwd: distDir,
+	const covDir = path.join(projectRoot, `coverage/coverage-core-${PROTOBUS_PORT}`)
+
+	const baseArgs = ["--enable-source-maps", path.join(distDir, "cline-core.js")]
+
+	const spawnArgs = USE_C8 ? ["c8", "--report-dir", covDir, "node", ...baseArgs] : ["node", ...baseArgs]
+
+	console.log(`Starting Cline Core Service... (useC8=${USE_C8})`)
+
+	const coreService: ChildProcess = spawn("npx", spawnArgs, {
+		cwd: projectRoot,
 		env: {
 			...process.env,
 			NODE_PATH: "./node_modules",
