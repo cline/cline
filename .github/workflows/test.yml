@@ -10,10 +10,11 @@ on:
             - main
     workflow_call:
 
+# Set default permissions for all jobs
 permissions:
-    contents: read
-    checks: write
-    pull-requests: write
+    contents: read # Needed to check out code
+    checks: write # Needed to report test results
+    pull-requests: write # Needed to add comments/annotations to PRs
 
 jobs:
     quality-checks:
