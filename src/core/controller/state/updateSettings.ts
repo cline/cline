@@ -98,9 +98,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.mode !== undefined) {
 			const mode = request.mode === PlanActMode.PLAN ? "plan" : "act"
-			if (controller.task) {
-				controller.task.updateMode(mode)
-			}
 			controller.stateManager.setGlobalState("mode", mode)
 		}
 
@@ -124,17 +121,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 					throw new Error(`Invalid OpenAI reasoning effort value: ${request.openaiReasoningEffort}`)
 			}
 
-			if (controller.task) {
-				controller.task.openaiReasoningEffort = reasoningEffort
-			}
-
 			controller.stateManager.setGlobalState("openaiReasoningEffort", reasoningEffort)
 		}
 
 		if (request.preferredLanguage !== undefined) {
-			if (controller.task) {
-				controller.task.preferredLanguage = request.preferredLanguage
-			}
 			controller.stateManager.setGlobalState("preferredLanguage", request.preferredLanguage)
 		}
 
@@ -155,16 +145,13 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update strict plan mode setting
 		if (request.strictPlanModeEnabled !== undefined) {
-			if (controller.task) {
-				controller.task.updateStrictPlanMode(request.strictPlanModeEnabled)
-			}
 			controller.stateManager.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
 		}
 
 		// Update yolo mode setting
 		if (request.yoloModeToggled !== undefined) {
 			if (controller.task) {
-				controller.task.updateYoloModeToggled(request.yoloModeToggled)
+				telemetryService.captureYoloModeToggle(controller.task.ulid, request.yoloModeToggled)
 			}
 			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
 		}
@@ -172,7 +159,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update auto-condense setting
 		if (request.useAutoCondense !== undefined) {
 			if (controller.task) {
-				controller.task.updateUseAutoCondense(request.useAutoCondense)
+				telemetryService.captureAutoCondenseToggle(
+					controller.task.ulid,
+					request.useAutoCondense,
+					controller.task.api.getModel().id,
+				)
 			}
 			controller.stateManager.setGlobalState("useAutoCondense", request.useAutoCondense)
 		}
@@ -241,12 +232,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 			// Update global state with new settings
 			controller.stateManager.setGlobalState("browserSettings", newBrowserSettings)
-
-			// Update task browser settings if task exists
-			if (controller.task) {
-				controller.task.browserSettings = newBrowserSettings
-				controller.task.browserSession.browserSettings = newBrowserSettings
-			}
 		}
 
 		// Update default terminal profile

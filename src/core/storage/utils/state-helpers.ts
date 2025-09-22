@@ -1,4 +1,4 @@
-import { ApiProvider, fireworksDefaultModelId } from "@shared/api"
+import { ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
@@ -48,6 +48,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		vercelAiGatewayApiKey,
 		difyApiKey,
 		authNonce,
+		ocaApiKey,
+		ocaRefreshToken,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -84,6 +86,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("vercelAiGatewayApiKey") as Promise<Secrets["vercelAiGatewayApiKey"]>,
 		context.secrets.get("difyApiKey") as Promise<Secrets["difyApiKey"]>,
 		context.secrets.get("authNonce") as Promise<Secrets["authNonce"]>,
+		context.secrets.get("ocaApiKey") as Promise<string | undefined>,
+		context.secrets.get("ocaRefreshToken") as Promise<string | undefined>,
 	])
 
 	return {
@@ -122,6 +126,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		awsAccessKey,
 		awsSecretKey,
 		awsSessionToken,
+		ocaApiKey,
+		ocaRefreshToken,
 	}
 }
 
@@ -220,6 +226,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const sapAiResourceGroup = context.globalState.get<GlobalStateAndSettings["sapAiResourceGroup"]>("sapAiResourceGroup")
 		const claudeCodePath = context.globalState.get<GlobalStateAndSettings["claudeCodePath"]>("claudeCodePath")
 		const difyBaseUrl = context.globalState.get<GlobalStateAndSettings["difyBaseUrl"]>("difyBaseUrl")
+		const ocaBaseUrl = context.globalState.get("ocaBaseUrl") as string | undefined
 		const openaiReasoningEffort =
 			context.globalState.get<GlobalStateAndSettings["openaiReasoningEffort"]>("openaiReasoningEffort")
 		const preferredLanguage = context.globalState.get<GlobalStateAndSettings["preferredLanguage"]>("preferredLanguage")
@@ -297,6 +304,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const planModeVercelAiGatewayModelInfo = context.globalState.get<
 			GlobalStateAndSettings["planModeVercelAiGatewayModelInfo"]
 		>("planModeVercelAiGatewayModelInfo")
+		const planModeOcaModelId = context.globalState.get("planModeOcaModelId") as string | undefined
+		const planModeOcaModelInfo = context.globalState.get("planModeOcaModelInfo") as OcaModelInfo | undefined
 		// Act mode configurations
 		const actModeApiProvider = context.globalState.get<GlobalStateAndSettings["actModeApiProvider"]>("actModeApiProvider")
 		const actModeApiModelId = context.globalState.get<GlobalStateAndSettings["actModeApiModelId"]>("actModeApiModelId")
@@ -361,6 +370,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const actModeVercelAiGatewayModelInfo = context.globalState.get<
 			GlobalStateAndSettings["actModeVercelAiGatewayModelInfo"]
 		>("actModeVercelAiGatewayModelInfo")
+		const actModeOcaModelId = context.globalState.get("actModeOcaModelId") as string | undefined
+		const actModeOcaModelInfo = context.globalState.get("actModeOcaModelInfo") as OcaModelInfo | undefined
 		const sapAiCoreUseOrchestrationMode =
 			context.globalState.get<GlobalStateAndSettings["sapAiCoreUseOrchestrationMode"]>("sapAiCoreUseOrchestrationMode")
 
@@ -441,6 +452,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			sapAiResourceGroup,
 			difyBaseUrl,
 			sapAiCoreUseOrchestrationMode: sapAiCoreUseOrchestrationMode ?? true,
+			ocaBaseUrl,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -473,6 +485,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeBasetenModelInfo,
 			planModeVercelAiGatewayModelId,
 			planModeVercelAiGatewayModelInfo,
+			planModeOcaModelId,
+			planModeOcaModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -505,6 +519,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeBasetenModelInfo,
 			actModeVercelAiGatewayModelId,
 			actModeVercelAiGatewayModelInfo,
+			actModeOcaModelId,
+			actModeOcaModelInfo,
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
@@ -594,6 +610,8 @@ export async function resetGlobalState(controller: Controller) {
 		"vercelAiGatewayApiKey",
 		"zaiApiKey",
 		"difyApiKey",
+		"ocaApiKey",
+		"ocaRefreshToken",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()

@@ -1,21 +1,19 @@
 import { resolveWorkspacePath } from "@core/workspace"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { ClineDefaultTool } from "@shared/tools"
+import { StateManager } from "@/core/storage/StateManager"
 import { getCwd, getDesktopDir, isLocatedInPath } from "@/utils/path"
 
 export class AutoApprove {
-	autoApprovalSettings: AutoApprovalSettings
-	approveAll: boolean
+	private stateManager: StateManager
 
-	constructor(autoApprovalSettings: AutoApprovalSettings, approveAll: boolean) {
-		this.autoApprovalSettings = autoApprovalSettings
-		this.approveAll = approveAll
+	constructor(stateManager: StateManager) {
+		this.stateManager = stateManager
 	}
 
 	// Check if the tool should be auto-approved based on the settings
 	// Returns bool for most tools, and tuple for tools with nested settings
 	shouldAutoApproveTool(toolName: ClineDefaultTool): boolean | [boolean, boolean] {
-		if (this.approveAll) {
+		if (this.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
 			switch (toolName) {
 				case ClineDefaultTool.FILE_READ:
 				case ClineDefaultTool.LIST_FILES:
@@ -35,35 +33,31 @@ export class AutoApprove {
 			}
 		}
 
-		if (this.autoApprovalSettings.enabled) {
+		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+
+		if (autoApprovalSettings.enabled) {
 			switch (toolName) {
 				case ClineDefaultTool.FILE_READ:
 				case ClineDefaultTool.LIST_FILES:
 				case ClineDefaultTool.LIST_CODE_DEF:
 				case ClineDefaultTool.SEARCH:
-					return [
-						this.autoApprovalSettings.actions.readFiles,
-						this.autoApprovalSettings.actions.readFilesExternally ?? false,
-					]
+					return [autoApprovalSettings.actions.readFiles, autoApprovalSettings.actions.readFilesExternally ?? false]
 				case ClineDefaultTool.NEW_RULE:
 				case ClineDefaultTool.FILE_NEW:
 				case ClineDefaultTool.FILE_EDIT:
-					return [
-						this.autoApprovalSettings.actions.editFiles,
-						this.autoApprovalSettings.actions.editFilesExternally ?? false,
-					]
+					return [autoApprovalSettings.actions.editFiles, autoApprovalSettings.actions.editFilesExternally ?? false]
 				case ClineDefaultTool.BASH:
 					return [
-						this.autoApprovalSettings.actions.executeSafeCommands ?? false,
-						this.autoApprovalSettings.actions.executeAllCommands ?? false,
+						autoApprovalSettings.actions.executeSafeCommands ?? false,
+						autoApprovalSettings.actions.executeAllCommands ?? false,
 					]
 				case ClineDefaultTool.BROWSER:
-					return this.autoApprovalSettings.actions.useBrowser
+					return autoApprovalSettings.actions.useBrowser
 				case ClineDefaultTool.WEB_FETCH:
-					return this.autoApprovalSettings.actions.useBrowser
+					return autoApprovalSettings.actions.useBrowser
 				case ClineDefaultTool.MCP_ACCESS:
 				case ClineDefaultTool.MCP_USE:
-					return this.autoApprovalSettings.actions.useMcp
+					return autoApprovalSettings.actions.useMcp
 			}
 		}
 		return false
@@ -76,7 +70,7 @@ export class AutoApprove {
 		blockname: ClineDefaultTool,
 		autoApproveActionpath: string | undefined,
 	): Promise<boolean> {
-		if (this.approveAll) {
+		if (this.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
 			return true
 		}
 
@@ -106,13 +100,5 @@ export class AutoApprove {
 		} else {
 			return false
 		}
-	}
-
-	updateSettings(settings: AutoApprovalSettings): void {
-		this.autoApprovalSettings = settings
-	}
-
-	updateApproveAll(approveAll: boolean): void {
-		this.approveAll = approveAll
 	}
 }
