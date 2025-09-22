@@ -15,6 +15,10 @@ export const AutoCondenseMarker: React.FC<{
 
 	// Animation effect when shouldAnimate prop changes (initial load)
 	useEffect(() => {
+		let animationFrameId: number | null = null
+		let fadeOutTimeoutId: NodeJS.Timeout | null = null
+		let hideTimeoutId: NodeJS.Timeout | null = null
+
 		if (shouldAnimate && threshold > 0) {
 			setIsAnimating(true)
 			setAnimatedPosition(0)
@@ -38,15 +42,15 @@ export const AutoCondenseMarker: React.FC<{
 				setAnimatedPercentage(currentPercentage)
 
 				if (progress < 1) {
-					requestAnimationFrame(animate)
+					animationFrameId = requestAnimationFrame(animate)
 				} else {
 					setIsAnimating(false)
 					setShowPercentageAfterAnimation(true)
 					// Start fade out after 1 second
-					setTimeout(() => {
+					fadeOutTimeoutId = setTimeout(() => {
 						setIsFadingOut(true)
 						// Completely hide after fade transition
-						setTimeout(() => {
+						hideTimeoutId = setTimeout(() => {
 							setShowPercentageAfterAnimation(false)
 							setIsFadingOut(false)
 						}, 300) // 300ms fade duration
@@ -54,12 +58,27 @@ export const AutoCondenseMarker: React.FC<{
 				}
 			}
 
-			requestAnimationFrame(animate)
+			animationFrameId = requestAnimationFrame(animate)
+		}
+
+		// Cleanup function
+		return () => {
+			if (animationFrameId !== null) {
+				cancelAnimationFrame(animationFrameId)
+			}
+			if (fadeOutTimeoutId !== null) {
+				clearTimeout(fadeOutTimeoutId)
+			}
+			if (hideTimeoutId !== null) {
+				clearTimeout(hideTimeoutId)
+			}
 		}
 	}, [shouldAnimate, threshold])
 
 	// Animation effect when threshold changes (user clicks progress bar)
 	useEffect(() => {
+		let animationFrameId: number | null = null
+
 		if (threshold !== previousThreshold && previousThreshold > 0 && threshold > 0 && !shouldAnimate) {
 			setIsAnimating(true)
 			setAnimatedPosition(previousThreshold * 100)
@@ -84,16 +103,23 @@ export const AutoCondenseMarker: React.FC<{
 				setAnimatedPercentage(currentPercentage)
 
 				if (progress < 1) {
-					requestAnimationFrame(animate)
+					animationFrameId = requestAnimationFrame(animate)
 				} else {
 					setIsAnimating(false)
 				}
 			}
 
-			requestAnimationFrame(animate)
+			animationFrameId = requestAnimationFrame(animate)
 		}
 
 		setPreviousThreshold(threshold)
+
+		// Cleanup function
+		return () => {
+			if (animationFrameId !== null) {
+				cancelAnimationFrame(animationFrameId)
+			}
+		}
 	}, [threshold, previousThreshold, shouldAnimate])
 
 	// The marker position is calculated based on the threshold percentage
