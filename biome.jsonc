@@ -42,8 +42,8 @@
 			},
 			"a11y": "off",
 			"style": {
-				"useNodejsImportProtocol": "off",
-				"useImportType": "off",
+				"useNodejsImportProtocol": "info",
+				"useImportType": "info",
 				"useBlockStatements": "warn",
 				"useNamingConvention": "off",
 				"useThrowOnlyError": "info",
@@ -57,8 +57,8 @@
 				"useSingleVarDeclarator": "off",
 				"useNumberNamespace": "off",
 				"noInferrableTypes": "off",
-				"useTemplate": "off",
-				"noUselessElse": "off"
+				"useTemplate": "info",
+				"noUselessElse": "warn"
 			},
 			"suspicious": {
 				"noDoubleEquals": "warn",
