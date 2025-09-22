@@ -209,7 +209,7 @@ jobs:
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
               with:
-                name: core-coverage
+                name: test-platform-integration-core-coverage
                 path: coverage/**/lcov.info
 
     coverage:
@@ -326,15 +326,15 @@ jobs:
                   tag: unit:webview-ui
                   add-prefix: webview-ui/
 
-            - name: Download integration core coverage artifact
+            - name: Download test platform integration core coverage artifact
               uses: actions/download-artifact@v4
               with:
-                name: core-coverage
-                path: integration-coverage-reports
+                name: test-platform-integration-core-coverage
+                path: integration-core-coverage-reports
 
             - name: Upload core integration tests coverage to Qlty
               uses: qltysh/qlty-action/coverage@v2
               with:
                 token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
-                files: integration-coverage-reports/**/lcov.info
+                files: integration-core-coverage-reports/**/lcov.info
                 tag: integration:core
