@@ -16,12 +16,15 @@ function hasCommand(cmd: string): boolean {
 	return result.status === 0
 }
 
-// Check if required OS credential tools are available
-const shouldSkip = (platform === "darwin" && !hasCommand("security")) || (platform === "linux" && !hasCommand("secret-tool"))
+// Skip on Windows (validated via E2E using the shell), and skip if required tools missing on macOS/Linux
+const shouldSkip =
+	platform === "win32" ||
+	(platform === "darwin" && !hasCommand("security")) ||
+	(platform === "linux" && !hasCommand("secret-tool"))
 
 describe("CredentialStorage", () => {
 	if (shouldSkip) {
-		console.warn("Skipping CredentialStorage tests: required OS credential tool not available")
+		console.warn("Skipping CredentialStorage tests: Windows covered via E2E; or OS tool missing")
 		return
 	}
 
