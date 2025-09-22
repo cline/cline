@@ -10,11 +10,10 @@ on:
             - main
     workflow_call:
 
-# Set default permissions for all jobs
 permissions:
-    contents: read # Needed to check out code
-    checks: write # Needed to report test results
-    pull-requests: write # Needed to add comments/annotations to PRs
+    contents: read
+    checks: write
+    pull-requests: write
 
 jobs:
     quality-checks:
@@ -27,16 +26,28 @@ jobs:
             - name: Setup Node.js environment
               uses: actions/setup-node@v4
               with:
-                node-version: 22
-                cache: 'npm'
-                cache-dependency-path: |
-                  package-lock.json
-                  webview-ui/package-lock.json
+                  node-version: 22
+
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+            - name: Cache webview-ui dependencies
+              uses: actions/cache@v4
+              id: webview-cache
+              with:
+                  path: webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
             - name: Install root dependencies
+              if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
 
             - name: Install webview-ui dependencies
+              if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
             - name: Run Quality Checks (Parallel)
@@ -60,16 +71,28 @@ jobs:
             - name: Setup Node.js environment
               uses: actions/setup-node@v4
               with:
-                node-version: 22
-                cache: 'npm'
-                cache-dependency-path: |
-                  package-lock.json
-                  webview-ui/package-lock.json
+                  node-version: 22
+
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+            - name: Cache webview-ui dependencies
+              uses: actions/cache@v4
+              id: webview-cache
+              with:
+                  path: webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
 
             - name: Install root dependencies
+              if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
 
             - name: Install webview-ui dependencies
+              if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
             - name: Set up NPM on Windows
@@ -117,15 +140,15 @@ jobs:
             - name: Check Test Results
               if: always()
               run: |
-                if [[ ("${{ steps.unit_tests_linux.outcome }}" == "failure" && "${{ runner.os }}" == "Linux") || 
-                      ("${{ steps.unit_tests_non_linux.outcome }}" == "failure" && "${{ runner.os }}" != "Linux") ||
-                      ("${{ steps.integration_tests_linux.outcome }}" == "failure" && "${{ runner.os }}" == "Linux") || 
-                      ("${{ steps.integration_tests_non_linux.outcome }}" == "failure" && "${{ runner.os }}" != "Linux") ||
-                      "${{ steps.webview_tests.outcome }}" == "failure" ]]; then
-                  echo "One or more test suites failed"
-                  exit 1
-                fi
-                echo "All tests passed"
+                  if [[ ("${{ steps.unit_tests_linux.outcome }}" == "failure" && "${{ runner.os }}" == "Linux") || 
+                        ("${{ steps.unit_tests_non_linux.outcome }}" == "failure" && "${{ runner.os }}" != "Linux") ||
+                        ("${{ steps.integration_tests_linux.outcome }}" == "failure" && "${{ runner.os }}" == "Linux") || 
+                        ("${{ steps.integration_tests_non_linux.outcome }}" == "failure" && "${{ runner.os }}" != "Linux") ||
+                        "${{ steps.webview_tests.outcome }}" == "failure" ]]; then
+                      echo "One or more test suites failed"
+                      exit 1
+                  fi
+                  echo "All tests passed"
 
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
@@ -136,7 +159,6 @@ jobs:
                   path: |
                       coverage-unit/lcov.info
                       webview-ui/coverage/lcov.info
-
 
     qlty:
         needs: test
@@ -159,7 +181,7 @@ jobs:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
                   # we can merge multiple files if necessary
                   files: |
-                    coverage-unit/lcov.info
+                      coverage-unit/lcov.info
                   tag: unit:core
 
             - name: Upload webview-ui unit tests coverage to Qlty
@@ -168,6 +190,6 @@ jobs:
                   token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
                   # we can merge multiple files if necessary
                   files: |
-                    webview-ui/coverage/lcov.info
+                      webview-ui/coverage/lcov.info
                   tag: unit:webview-ui
                   add-prefix: webview-ui/

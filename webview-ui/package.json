@@ -60,7 +60,7 @@
 		"@types/uuid": "^9.0.8",
 		"@types/vscode-webview": "^1.57.5",
 		"@vitejs/plugin-react-swc": "^3.5.0",
-		"@vitest/coverage-v8": "^3.2.4",
+		"@vitest/coverage-v8": "^3.0.9",
 		"globals": "^15.14.0",
 		"jsdom": "^26.0.0",
 		"react-devtools": "^6.1.2",
