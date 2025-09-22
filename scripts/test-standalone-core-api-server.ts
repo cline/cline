@@ -130,8 +130,6 @@ async function main(): Promise<void> {
 	childProcesses.push(coreService)
 
 	const shutdown = async () => {
-		if (childProcesses.length === 0) return
-
 		console.log("\nShutting down services...")
 
 		while (childProcesses.length > 0) {
