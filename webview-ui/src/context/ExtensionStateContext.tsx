@@ -10,7 +10,6 @@ import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { type TerminalProfile } from "@shared/proto/cline/state"
 import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
-import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import {
 	basetenDefaultModelId,
 	basetenModels,
@@ -25,7 +24,7 @@ import {
 	vercelAiGatewayDefaultModelInfo,
 } from "../../../src/shared/api"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
-import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
+import { ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -179,7 +178,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		openaiReasoningEffort: "medium",
 		mode: "act",
 		platform: DEFAULT_PLATFORM,
-		distinctId: "",
 		planActSeparateModelsSetting: true,
 		globalClineRulesToggles: {},
 		localClineRulesToggles: {},
@@ -365,22 +363,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			onComplete: () => {},
 		})
 
-		// Subscribe to MCP servers updates
-		mcpServersSubscriptionRef.current = McpServiceClient.subscribeToMcpServers(EmptyRequest.create(), {
-			onResponse: (response) => {
-				console.log("[DEBUG] Received MCP servers update from gRPC stream")
-				if (response.mcpServers) {
-					setMcpServers(convertProtoMcpServersToMcpServers(response.mcpServers))
-				}
-			},
-			onError: (error) => {
-				console.error("Error in MCP servers subscription:", error)
-			},
-			onComplete: () => {
-				console.log("MCP servers subscription completed")
-			},
-		})
-
 		// Set up settings button clicked subscription
 		settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(
 			WebviewProviderTypeRequest.create({
@@ -430,20 +412,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 			onComplete: () => {
 				console.log("[DEBUG] partialMessage subscription completed")
-			},
-		})
-
-		// Subscribe to MCP marketplace catalog updates
-		mcpMarketplaceUnsubscribeRef.current = McpServiceClient.subscribeToMcpMarketplaceCatalog(EmptyRequest.create({}), {
-			onResponse: (catalog) => {
-				console.log("[DEBUG] Received MCP marketplace catalog update from gRPC stream")
-				setMcpMarketplaceCatalog(catalog)
-			},
-			onError: (error) => {
-				console.error("Error in MCP marketplace catalog subscription:", error)
-			},
-			onComplete: () => {
-				console.log("MCP marketplace catalog subscription completed")
 			},
 		})
 

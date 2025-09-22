@@ -10,7 +10,8 @@ import { Controller } from ".."
  * @returns Empty response
  */
 export async function updateAutoApprovalSettings(controller: Controller, request: AutoApprovalSettingsRequest): Promise<Empty> {
-	const currentSettings = (await controller.getStateToPostToWebview()).autoApprovalSettings
+	const currentSettings = (await controller.getStateToPostToWebview(controller.stateManager, controller.task?.taskId))
+		.autoApprovalSettings
 	const incomingVersion = request.version
 	const currentVersion = currentSettings?.version ?? 1
 

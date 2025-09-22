@@ -23,7 +23,7 @@ export async function subscribeToState(
 	const controllerId = controller.id
 
 	// Send the initial state
-	const initialState = await controller.getStateToPostToWebview()
+	const initialState = await controller.getStateToPostToWebview(controller.stateManager, controller.task?.taskId)
 	const initialStateJson = JSON.stringify(initialState)
 
 	//console.log(`[DEBUG] set up state subscription for controller ${controllerId}`)

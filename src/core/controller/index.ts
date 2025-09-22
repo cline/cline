@@ -1,12 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
-import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { ClineAccountService } from "@services/account/ClineAccountService"
-import { McpHub } from "@services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
-import { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpMarketplaceCatalog } from "@shared/mcp"
 import { Mode } from "@shared/storage/types"
@@ -23,21 +20,15 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
-import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
+import { ExtensionState, Platform } from "@/shared/ExtensionMessage"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
-import {
-	ensureCacheDirectoryExists,
-	ensureMcpServersDirectoryExists,
-	ensureSettingsDirectoryExists,
-	GlobalFileNames,
-} from "../storage/disk"
+import { ensureCacheDirectoryExists, GlobalFileNames } from "../storage/disk"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
-import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { sendStateUpdate } from "./state/subscribeToState"
 
 /*
@@ -50,7 +41,6 @@ export class Controller {
 	readonly id: string
 	task?: Task
 
-	mcpHub: McpHub
 	accountService: ClineAccountService
 	authService: AuthService
 	ocaAuthService: OcaAuthService
@@ -67,7 +57,6 @@ export class Controller {
 		this.authService = AuthService.getInstance(this)
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
-
 		// Initialize cache service asynchronously - critical for extension functionality
 		this.stateManager
 			.initialize()
@@ -107,18 +96,81 @@ export class Controller {
 		this.stateManager.onSyncExternalChange = async () => {
 			await this.postStateToWebview()
 		}
+	}
 
-		this.mcpHub = new McpHub(
-			() => ensureMcpServersDirectoryExists(),
-			() => ensureSettingsDirectoryExists(this.context),
-			ExtensionRegistryInfo.version,
-			telemetryService,
+	async postStateToWebview() {
+		const state = await this.getStateToPostToWebview(this.stateManager, this.task?.taskId)
+		await sendStateUpdate(this.id, state)
+	}
+
+	async getStateToPostToWebview(stateManager: StateManager, taskId: string | undefined): Promise<ExtensionState> {
+		// Get API configuration from cache for immediate access
+		const apiConfiguration = stateManager.getApiConfiguration()
+		const lastShownAnnouncementId = stateManager.getGlobalStateKey("lastShownAnnouncementId")
+		const taskHistory = stateManager.getGlobalStateKey("taskHistory")
+		const autoApprovalSettings = stateManager.getGlobalSettingsKey("autoApprovalSettings")
+		const preferredLanguage = stateManager.getGlobalSettingsKey("preferredLanguage")
+		const openaiReasoningEffort = stateManager.getGlobalSettingsKey("openaiReasoningEffort")
+		const mode = stateManager.getGlobalSettingsKey("mode")
+		const strictPlanModeEnabled = stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
+		const yoloModeToggled = stateManager.getGlobalSettingsKey("yoloModeToggled")
+		const userInfo = stateManager.getGlobalStateKey("userInfo")
+		const planActSeparateModelsSetting = stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+		const globalClineRulesToggles = stateManager.getGlobalSettingsKey("globalClineRulesToggles")
+		const globalWorkflowToggles = stateManager.getGlobalSettingsKey("globalWorkflowToggles")
+		const isNewUser = stateManager.getGlobalStateKey("isNewUser")
+		const welcomeViewCompleted = Boolean(
+			stateManager.getGlobalStateKey("welcomeViewCompleted") || this.authService.getInfo()?.user?.uid,
 		)
+		const customPrompt = stateManager.getGlobalSettingsKey("customPrompt")
+		const favoritedModelIds = stateManager.getGlobalStateKey("favoritedModelIds")
 
-		// Clean up legacy checkpoints
-		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath).catch((error) => {
-			console.error("Failed to cleanup legacy checkpoints:", error)
-		})
+		const localClineRulesToggles = stateManager.getWorkspaceStateKey("localClineRulesToggles")
+		const localWindsurfRulesToggles = stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
+		const localCursorRulesToggles = stateManager.getWorkspaceStateKey("localCursorRulesToggles")
+		const workflowToggles = stateManager.getWorkspaceStateKey("workflowToggles")
+
+		const currentTaskItem = taskId ? (taskHistory || []).find((item) => item.id === taskId) : undefined
+		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
+
+		const processedTaskHistory = (taskHistory || [])
+			.filter((item) => item.ts && item.task)
+			.sort((a, b) => b.ts - a.ts)
+			.slice(0, 100) // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
+
+		const latestAnnouncementId = getLatestAnnouncementId()
+		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
+		const platform = process.platform as Platform
+		const version = ExtensionRegistryInfo.version
+
+		return {
+			version,
+			apiConfiguration,
+			currentTaskItem,
+			clineMessages,
+			autoApprovalSettings,
+			preferredLanguage,
+			openaiReasoningEffort,
+			mode,
+			strictPlanModeEnabled,
+			yoloModeToggled,
+			userInfo,
+			planActSeparateModelsSetting,
+			globalClineRulesToggles: globalClineRulesToggles || {},
+			localClineRulesToggles: localClineRulesToggles || {},
+			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
+			localCursorRulesToggles: localCursorRulesToggles || {},
+			localWorkflowToggles: workflowToggles || {},
+			globalWorkflowToggles: globalWorkflowToggles || {},
+			isNewUser,
+			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
+
+			customPrompt,
+			taskHistory: processedTaskHistory,
+			platform,
+			shouldShowAnnouncement,
+			favoritedModelIds,
+		}
 	}
 
 	async getCurrentMode(): Promise<Mode> {
@@ -132,7 +184,6 @@ export class Controller {
 	*/
 	async dispose() {
 		await this.clearTask()
-		this.mcpHub.dispose()
 
 		console.error("Controller disposed")
 	}
@@ -199,7 +250,6 @@ export class Controller {
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
 		const yoloModeToggled = this.stateManager.getGlobalSettingsKey("yoloModeToggled")
-		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
@@ -526,31 +576,6 @@ export class Controller {
 		}
 	}
 
-	async silentlyRefreshMcpMarketplace() {
-		try {
-			const catalog = await this.fetchMcpMarketplaceFromApi(true)
-			if (catalog) {
-				await sendMcpMarketplaceCatalogEvent(catalog)
-			}
-		} catch (error) {
-			console.error("Failed to silently refresh MCP marketplace:", error)
-		}
-	}
-
-	/**
-	 * RPC variant that silently refreshes the MCP marketplace catalog and returns the result
-	 * Unlike silentlyRefreshMcpMarketplace, this doesn't send a message to the webview
-	 * @returns MCP marketplace catalog or undefined if refresh failed
-	 */
-	async silentlyRefreshMcpMarketplaceRPC() {
-		try {
-			return await this.fetchMcpMarketplaceFromApiRPC(true)
-		} catch (error) {
-			console.error("Failed to silently refresh MCP marketplace (RPC):", error)
-			return undefined
-		}
-	}
-
 	// OpenRouter
 
 	async handleOpenRouterCallback(code: string) {
@@ -663,83 +688,6 @@ export class Controller {
 		await this.postStateToWebview()
 
 		return updatedTaskHistory
-	}
-
-	async postStateToWebview() {
-		const state = await this.getStateToPostToWebview()
-		await sendStateUpdate(this.id, state)
-	}
-
-	async getStateToPostToWebview(): Promise<ExtensionState> {
-		// Get API configuration from cache for immediate access
-		const apiConfiguration = this.stateManager.getApiConfiguration()
-		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
-		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
-		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-		const preferredLanguage = this.stateManager.getGlobalSettingsKey("preferredLanguage")
-		const openaiReasoningEffort = this.stateManager.getGlobalSettingsKey("openaiReasoningEffort")
-		const mode = this.stateManager.getGlobalSettingsKey("mode")
-		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
-		const yoloModeToggled = this.stateManager.getGlobalSettingsKey("yoloModeToggled")
-		const userInfo = this.stateManager.getGlobalStateKey("userInfo")
-		const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
-		const globalClineRulesToggles = this.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
-		const globalWorkflowToggles = this.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
-		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
-		const welcomeViewCompleted = Boolean(
-			this.stateManager.getGlobalStateKey("welcomeViewCompleted") || this.authService.getInfo()?.user?.uid,
-		)
-		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
-		const favoritedModelIds = this.stateManager.getGlobalStateKey("favoritedModelIds")
-
-		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
-		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
-		const localCursorRulesToggles = this.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
-		const workflowToggles = this.stateManager.getWorkspaceStateKey("workflowToggles")
-
-		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
-		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
-
-		const processedTaskHistory = (taskHistory || [])
-			.filter((item) => item.ts && item.task)
-			.sort((a, b) => b.ts - a.ts)
-			.slice(0, 100) // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
-
-		const latestAnnouncementId = getLatestAnnouncementId()
-		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
-		const platform = process.platform as Platform
-		const distinctId = getDistinctId()
-		const version = ExtensionRegistryInfo.version
-
-		return {
-			version,
-			apiConfiguration,
-			currentTaskItem,
-			clineMessages,
-			autoApprovalSettings,
-			preferredLanguage,
-			openaiReasoningEffort,
-			mode,
-			strictPlanModeEnabled,
-			yoloModeToggled,
-			userInfo,
-			planActSeparateModelsSetting,
-			distinctId,
-			globalClineRulesToggles: globalClineRulesToggles || {},
-			localClineRulesToggles: localClineRulesToggles || {},
-			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
-			localCursorRulesToggles: localCursorRulesToggles || {},
-			localWorkflowToggles: workflowToggles || {},
-			globalWorkflowToggles: globalWorkflowToggles || {},
-			isNewUser,
-			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
-
-			customPrompt,
-			taskHistory: processedTaskHistory,
-			platform,
-			shouldShowAnnouncement,
-			favoritedModelIds,
-		}
 	}
 
 	async clearTask() {

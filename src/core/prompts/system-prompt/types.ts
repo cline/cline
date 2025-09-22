@@ -3,7 +3,6 @@
  */
 
 import { ApiProviderInfo } from "@/core/api"
-import type { McpHub } from "@/services/mcp/McpHub"
 import type { BrowserSettings } from "@/shared/BrowserSettings"
 import type { FocusChainSettings } from "@/shared/FocusChainSettings"
 import { ModelFamily } from "@/shared/prompts"
@@ -93,7 +92,6 @@ export interface SystemPromptContext {
 	readonly cwd?: string
 	readonly ide: string
 	readonly supportsBrowserUse?: boolean
-	readonly mcpHub?: McpHub
 	readonly focusChainSettings?: FocusChainSettings
 	readonly globalClineRulesFileInstructions?: string
 	readonly localClineRulesFileInstructions?: string

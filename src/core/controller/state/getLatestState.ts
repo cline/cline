@@ -10,7 +10,7 @@ import { Controller } from "../index"
  */
 export async function getLatestState(controller: Controller, _: EmptyRequest): Promise<State> {
 	// Get the state using the existing method
-	const state = await controller.getStateToPostToWebview()
+	const state = await controller.getStateToPostToWebview(controller.stateManager, controller.task?.taskId)
 
 	// Convert the state to a JSON string
 	const stateJson = JSON.stringify(state)

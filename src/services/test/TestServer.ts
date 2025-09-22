@@ -236,7 +236,10 @@ export function createTestServer(controller: Controller): http.Server {
 					}
 
 					// Ensure we're in Act mode before initiating the task
-					const { mode } = await visibleWebview.controller.getStateToPostToWebview()
+					const { mode } = await visibleWebview.controller.getStateToPostToWebview(
+						visibleWebview.controller.stateManager,
+						visibleWebview.controller.task?.taskId,
+					)
 					if (mode === "plan") {
 						// Switch to Act mode if currently in Plan mode
 						await visibleWebview.controller.togglePlanActMode("act")
@@ -262,14 +265,20 @@ export function createTestServer(controller: Controller): http.Server {
 						await new Promise((resolve) => setTimeout(resolve, 1000))
 
 						// Try to get the task ID from the controller's state
-						const state = await visibleWebview.controller.getStateToPostToWebview()
+						const state = await visibleWebview.controller.getStateToPostToWebview(
+							visibleWebview.controller.stateManager,
+							visibleWebview.controller.task?.taskId,
+						)
 						taskId = state.currentTaskItem?.id
 
 						// If still not found, try polling a few times
 						if (!taskId) {
 							for (let i = 0; i < 5; i++) {
 								await new Promise((resolve) => setTimeout(resolve, 500))
-								const updatedState = await visibleWebview.controller.getStateToPostToWebview()
+								const updatedState = await visibleWebview.controller.getStateToPostToWebview(
+									visibleWebview.controller.stateManager,
+									visibleWebview.controller.task?.taskId,
+								)
 								taskId = updatedState.currentTaskItem?.id
 								if (taskId) {
 									break
@@ -297,7 +306,10 @@ export function createTestServer(controller: Controller): http.Server {
 						await Promise.race([completionPromise, timeoutPromise])
 
 						// Get task history and metrics
-						const taskHistory = await visibleWebview.controller.getStateToPostToWebview()
+						const taskHistory = await visibleWebview.controller.getStateToPostToWebview(
+							visibleWebview.controller.stateManager,
+							visibleWebview.controller.task?.taskId,
+						)
 						const taskData = taskHistory.taskHistory?.find((t: HistoryItem) => t.id === taskId)
 
 						// Get messages and API conversation history

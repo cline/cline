@@ -5,7 +5,6 @@ import { getTodoListSection } from "./auto_todo"
 import { getCapabilitiesSection } from "./capabilities"
 import { getEditingFilesSection } from "./editing_files"
 import { getFeedbackSection } from "./feedback"
-import { getMcp } from "./mcp"
 import { getObjectiveSection } from "./objective"
 import { getRulesSection } from "./rules"
 import { getSystemInfo } from "./system_info"
@@ -22,7 +21,6 @@ export function getSystemPromptComponents() {
 	return [
 		{ id: SystemPromptSection.AGENT_ROLE, fn: getAgentRoleSection },
 		{ id: SystemPromptSection.SYSTEM_INFO, fn: getSystemInfo },
-		{ id: SystemPromptSection.MCP, fn: getMcp },
 		{ id: SystemPromptSection.TODO, fn: getTodoListSection },
 		{
 			id: SystemPromptSection.USER_INSTRUCTIONS,

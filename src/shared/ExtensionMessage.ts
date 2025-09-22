@@ -41,7 +41,6 @@ export interface ExtensionState {
 	taskHistory: HistoryItem[]
 	userInfo?: UserInfo
 	version: string
-	distinctId: string
 	globalClineRulesToggles: ClineRulesToggles
 	localClineRulesToggles: ClineRulesToggles
 	localWorkflowToggles: ClineRulesToggles
