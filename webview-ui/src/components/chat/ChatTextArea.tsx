@@ -162,14 +162,6 @@ const ButtonContainer = styled.div`
 	width: 100%;
 `
 
-const ControlsContainer = styled.div`
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	margin-top: -5px;
-	padding: 0px 15px 5px 15px;
-`
-
 const ModelSelectorTooltip = styled.div<ModelSelectorTooltipProps>`
 	position: fixed;
 	bottom: calc(100% + 9px);
@@ -1512,9 +1504,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					)}
 					<div
 						className={cn(
-							"absolute left-2.5 right-2.5 bottom-2.5 top-2.5 whitespace-pre-wrap break-words rounded-xs px-9 py-9 overflow-hidden bg-input-background",
+							"absolute left-3.5 right-3.5 bottom-2.5 top-2.5 whitespace-pre-wrap break-words rounded-xs px-9 py-9 overflow-hidden bg-input-background",
 							{
 								"border-input-border": isTextAreaFocused,
+								"left-2.5 right-2.5": isTextAreaFocused,
 							},
 						)}
 						ref={highlightLayerRef}
@@ -1634,7 +1627,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						/>
 					)}
 					<div
-						className="absolute flex items-end bottom-3.5 right-4 z-10 h-8 text-xs"
+						className="absolute flex items-end bottom-3.5 right-5 z-10 h-8 text-xs"
 						style={{ height: textAreaBaseHeight }}>
 						<div className="flex flex-row items-center">
 							{dictationSettings?.dictationEnabled === true && dictationSettings?.featureEnabled && (
@@ -1693,16 +1686,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</div>
 					</div>
 				</div>
-
-				<ControlsContainer>
+				<div className="flex justify-between items-center -mt-1 px-2.5 py-0.5">
 					{/* Always render both components, but control visibility with CSS */}
-					<div
-						style={{
-							position: "relative",
-							flex: 1,
-							minWidth: 0,
-							height: "28px", // Fixed height to prevent container shrinking
-						}}>
+					<div className="relative flex-1 min-w-0 h-7">
 						{/* ButtonGroup - always in DOM but visibility controlled */}
 						<ButtonGroup className="absolute top-0 left-0 right-0 transition-opacity duration-300 ease-in-out w-full h-5 z-10 flex items-center">
 							<Tooltip style={{ left: 0 }} tipText="Add Context">
@@ -1794,7 +1780,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</SwitchOption>
 						</SwitchContainer>
 					</Tooltip>
-				</ControlsContainer>
+				</div>
 			</div>
 		)
 	},
