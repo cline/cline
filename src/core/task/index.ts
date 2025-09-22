@@ -2,7 +2,7 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
-import { parseAssistantMessageV2 } from "@core/assistant-message"
+import { AssistantMessageContent, parseAssistantMessageV2, TextContent } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
@@ -2123,6 +2123,79 @@ export class Task {
 				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
 			}
 
+			let dontCheckForToolUse = false
+			if (assistantMessage.length === 0 && reasoningMessage) {
+				// Check if reasoning contains tool usage that should be parsed
+				const reasoningContentBlocks = parseAssistantMessageV2(reasoningMessage)
+				for (const b of reasoningContentBlocks) {
+					b.partial = false // needed to initiate tool execution
+				}
+				let reasoningToolBlocks = reasoningContentBlocks.filter((block) => block.type === "tool_use")
+				console.log("reasoningToolBlocks:", reasoningToolBlocks)
+				reasoningToolBlocks = reasoningToolBlocks.map((block) => {
+					// let's correct some common tool misuse in reasoning blocks (looking at you, grok-code-fast-1)
+					if (block.name == "search_files" && block.params.path && block.params.regex === undefined) {
+						;(block as AssistantMessageContent).type = "text" // don't attempt execution, it's malformed
+						;(block as AssistantMessageContent as TextContent).content = "<redacted></redacted>" //reasoningMessage
+						// Increment the mistake counter, but don't send the no tool use message. It did attempt a tool usage.
+						this.taskState.consecutiveMistakeCount++
+						dontCheckForToolUse = true
+						if (this.taskState.consecutiveMistakeCount < 2) {
+							// it has just been incremented, so this is the first retry
+							console.log("Reasoning tool call: first search_files failure")
+							const formattedResponse = formatResponse.tooManyMistakes(
+								`You're getting a little trigger-happy with the tool calls. Try to think through what you're trying to do, then use a tool after you've thought about it and decided your next step.`,
+							)
+							this.taskState.userMessageContent.push({
+								type: "text",
+								text: formattedResponse,
+							})
+						} else {
+							// This is the 2nd retry - this is getting serious.
+							console.log("Reasoning tool call: second search_files failure")
+							// simulate a user hitting "Proceed anyway" with a user message
+							const text = formatResponse.tooManyMistakes(
+								"Stop! You're getting off track. Your next thoughts should consist of re-evaluating your progress on the to-do list before you call a tool again. Then, resume progress on the to-do list.",
+							)
+							this.taskState.userMessageContent.push({
+								type: "text",
+								text: text,
+							})
+						}
+					} else if (
+						block.name == "read_file" &&
+						reasoningMessage == this.messageStateHandler.getApiConversationHistory().at(-1)!.content
+					) {
+						console.log("Reasoning tool call: exact duplicate read_file call (potential loop)")
+						// don't attempt execution, we just did this in the previous step
+						;(block as AssistantMessageContent).type = "text"
+						this.taskState.userMessageContent.push({
+							type: "text",
+							text: formatResponse.tooManyMistakes(
+								"You're getting a little trigger-happy with the tool calls. Try to think through what you're trying to do, then use a tool after you've thought about it and decided your next step.",
+							),
+						})
+					} else if (block.name == "execute_command" && block.params.requires_approval === undefined) {
+						console.log("Reasoning tool call: execute_command without requires_approval")
+						// just set it to true, that allows the task to progress without errors
+						block.params.requires_approval = "true"
+						assistantMessage += "<requires_approval>true</requires_approval>"
+					} else {
+						console.log("Other reasoning tool call:", block.name, block.params)
+					}
+					return block
+				})
+				if (reasoningToolBlocks.length > 0) {
+					// Found tools in reasoning - add them to assistant message content for execution
+					this.taskState.assistantMessageContent = [...this.taskState.assistantMessageContent, ...reasoningToolBlocks]
+					assistantMessage = reasoningMessage
+					// present content to user (executes tool use blocks)
+					this.presentAssistantMessage().then(() => {
+						this.taskState.userMessageContentReady = true // allows task to progress
+					})
+				}
+			}
+
 			await updateApiReqMsg({
 				messageStateHandler: this.messageStateHandler,
 				lastApiReqIndex,
@@ -2164,7 +2237,8 @@ export class Task {
 				await pWaitFor(() => this.taskState.userMessageContentReady)
 
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
-				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")
+				const didToolUse =
+					this.taskState.assistantMessageContent.some((block) => block.type === "tool_use") || dontCheckForToolUse
 
 				if (!didToolUse) {
 					// normal request where tool use is required
