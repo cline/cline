@@ -149,13 +149,11 @@ jobs:
                       exit 1
                   fi
 
-    test-integration:
+    test-platform-integration:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
 
             - name: Setup Node.js environment
               uses: actions/setup-node@v4

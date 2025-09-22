@@ -19,6 +19,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		mcpResponsesCollapsed,
 		openaiReasoningEffort,
 		strictPlanModeEnabled,
+		yoloModeToggled,
 		useAutoCondense,
 		focusChainSettings,
 	} = useExtensionState()
@@ -186,6 +187,20 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								target="_blank">
 								Learn more
 							</a>
+						</p>
+					</div>
+					<div style={{ marginTop: 10 }}>
+						<VSCodeCheckbox
+							checked={yoloModeToggled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("yoloModeToggled", checked)
+							}}>
+							Enable Yolo Mode
+						</VSCodeCheckbox>
+						<p className="text-xs text-[var(--vscode-errorForeground)]">
+							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
+							automatically approve all actions without asking. Use with extreme caution.
 						</p>
 					</div>
 				</div>

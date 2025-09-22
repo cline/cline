@@ -11,7 +11,18 @@ import {
 	writeTaskSettingsToStorage,
 } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
-import { GlobalState, GlobalStateKey, LocalState, LocalStateKey, SecretKey, Secrets } from "./state-keys"
+import {
+	GlobalState,
+	GlobalStateAndSettings,
+	GlobalStateAndSettingsKey,
+	GlobalStateKey,
+	LocalState,
+	LocalStateKey,
+	SecretKey,
+	Secrets,
+	Settings,
+	SettingsKey,
+} from "./state-keys"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 
 export interface PersistenceErrorEvent {
@@ -23,16 +34,16 @@ export interface PersistenceErrorEvent {
  * Provides immediate reads/writes with async disk persistence
  */
 export class StateManager {
-	private globalStateCache: GlobalState = {} as GlobalState
-	private taskStateCache: Partial<GlobalState> = {}
+	private globalStateCache: GlobalStateAndSettings = {} as GlobalStateAndSettings
+	private taskStateCache: Partial<Settings> = {}
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
 	private context: ExtensionContext
 	private isInitialized = false
 
 	// Debounced persistence state
-	private pendingGlobalState = new Set<GlobalStateKey>()
-	private pendingTaskState = new Set<GlobalStateKey>()
+	private pendingGlobalState = new Set<GlobalStateAndSettingsKey>()
+	private pendingTaskState = new Set<SettingsKey>()
 	private pendingSecrets = new Set<SecretKey>()
 	private pendingWorkspaceState = new Set<LocalStateKey>()
 	private persistenceTimeout: NodeJS.Timeout | null = null
@@ -76,7 +87,7 @@ export class StateManager {
 	/**
 	 * Set method for global state keys - updates cache immediately and schedules debounced persistence
 	 */
-	setGlobalState<K extends keyof GlobalState>(key: K, value: GlobalState[K]): void {
+	setGlobalState<K extends keyof GlobalStateAndSettings>(key: K, value: GlobalStateAndSettings[K]): void {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
@@ -92,7 +103,7 @@ export class StateManager {
 	/**
 	 * Batch set method for global state keys - updates cache immediately and schedules debounced persistence
 	 */
-	setGlobalStateBatch(updates: Partial<GlobalState>): void {
+	setGlobalStateBatch(updates: Partial<GlobalStateAndSettings>): void {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
@@ -113,7 +124,7 @@ export class StateManager {
 	/**
 	 * Set method for task settings keys - updates cache immediately and schedules debounced persistence
 	 */
-	setTaskSettings<K extends keyof GlobalState>(taskId: string, key: K, value: GlobalState[K]): void {
+	setTaskSettings<K extends keyof Settings>(taskId: string, key: K, value: Settings[K]): void {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
@@ -129,7 +140,7 @@ export class StateManager {
 	/**
 	 * Batch set method for task settings keys - updates cache immediately and schedules debounced persistence
 	 */
-	setTaskSettingsBatch(taskId: string, updates: Partial<GlobalState>): void {
+	setTaskSettingsBatch(taskId: string, updates: Partial<Settings>): void {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
@@ -139,7 +150,7 @@ export class StateManager {
 
 		// Then track the keys for persistence
 		Object.keys(updates).forEach((key) => {
-			this.pendingTaskState.add(key as GlobalStateKey)
+			this.pendingTaskState.add(key as SettingsKey)
 		})
 
 		// Schedule debounced persistence
@@ -401,6 +412,7 @@ export class StateManager {
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 			requestTimeoutMs,
+			ocaBaseUrl,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -433,6 +445,8 @@ export class StateManager {
 			planModeHuaweiCloudMaasModelInfo,
 			planModeVercelAiGatewayModelId,
 			planModeVercelAiGatewayModelInfo,
+			planModeOcaModelId,
+			planModeOcaModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -465,6 +479,8 @@ export class StateManager {
 			actModeHuaweiCloudMaasModelInfo,
 			actModeVercelAiGatewayModelId,
 			actModeVercelAiGatewayModelInfo,
+			actModeOcaModelId,
+			actModeOcaModelInfo,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -501,6 +517,8 @@ export class StateManager {
 			planModeHuaweiCloudMaasModelInfo,
 			planModeVercelAiGatewayModelId,
 			planModeVercelAiGatewayModelInfo,
+			planModeOcaModelId,
+			planModeOcaModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -534,6 +552,8 @@ export class StateManager {
 			actModeHuaweiCloudMaasModelInfo,
 			actModeVercelAiGatewayModelId,
 			actModeVercelAiGatewayModelInfo,
+			actModeOcaModelId,
+			actModeOcaModelInfo,
 
 			// Global state updates
 			awsRegion,
@@ -572,6 +592,7 @@ export class StateManager {
 			claudeCodePath,
 			difyBaseUrl,
 			qwenCodeOauthPath,
+			ocaBaseUrl,
 		})
 
 		// Batch update secrets
@@ -614,14 +635,24 @@ export class StateManager {
 	}
 
 	/**
-	 * Get method for global state keys - reads from in-memory cache
+	 * Get method for global settings keys - reads from in-memory cache
 	 */
-	getGlobalStateKey<K extends keyof GlobalState>(key: K): GlobalState[K] {
+	getGlobalSettingsKey<K extends keyof Settings>(key: K): Settings[K] {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		if (this.taskStateCache[key] !== undefined) {
 			return this.taskStateCache[key]
+		}
+		return this.globalStateCache[key]
+	}
+
+	/**
+	 * Get method for global state keys - reads from in-memory cache
+	 */
+	getGlobalStateKey<K extends keyof GlobalState>(key: K): GlobalState[K] {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		return this.globalStateCache[key]
 	}
@@ -682,7 +713,7 @@ export class StateManager {
 		this.pendingWorkspaceState.clear()
 		this.pendingTaskState.clear()
 
-		this.globalStateCache = {} as GlobalState
+		this.globalStateCache = {} as GlobalStateAndSettings
 		this.secretsCache = {} as Secrets
 		this.workspaceStateCache = {} as LocalState
 		this.taskStateCache = {}
@@ -728,7 +759,7 @@ export class StateManager {
 	/**
 	 * Private method to batch persist global state keys with Promise.all
 	 */
-	private async persistGlobalStateBatch(keys: Set<GlobalStateKey>): Promise<void> {
+	private async persistGlobalStateBatch(keys: Set<GlobalStateAndSettingsKey>): Promise<void> {
 		try {
 			await Promise.all(
 				Array.from(keys).map((key) => {
@@ -748,7 +779,7 @@ export class StateManager {
 	/**
 	 * Private method to batch persist task state keys with Promise.all
 	 */
-	private async persistTaskStateBatch(keys: Set<GlobalStateKey>, taskId: string | undefined): Promise<void> {
+	private async persistTaskStateBatch(keys: Set<SettingsKey>, taskId: string | undefined): Promise<void> {
 		if (!taskId) {
 			return
 		}
@@ -898,6 +929,7 @@ export class StateManager {
 			claudeCodePath: this.taskStateCache["claudeCodePath"] || this.globalStateCache["claudeCodePath"],
 			qwenCodeOauthPath: this.taskStateCache["qwenCodeOauthPath"] || this.globalStateCache["qwenCodeOauthPath"],
 			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
+			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.taskStateCache["planModeApiProvider"] || this.globalStateCache["planModeApiProvider"],
@@ -960,6 +992,8 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo:
 				this.taskStateCache["planModeVercelAiGatewayModelInfo"] ||
 				this.globalStateCache["planModeVercelAiGatewayModelInfo"],
+			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
+			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
 
 			// Act mode configurations
 			actModeApiProvider: this.taskStateCache["actModeApiProvider"] || this.globalStateCache["actModeApiProvider"],
@@ -1020,6 +1054,8 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo:
 				this.taskStateCache["actModeVercelAiGatewayModelInfo"] ||
 				this.globalStateCache["actModeVercelAiGatewayModelInfo"],
+			actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
+			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
 		}
 	}
 }

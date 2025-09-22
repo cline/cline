@@ -91,29 +91,26 @@ async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): P
 }
 
 async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }> {
-	return new Promise(async (resolve, reject) => {
-		const grpcPort = (await getAvailablePort()).toString()
-		const hostbridgePort = (await getAvailablePort()).toString()
+	const grpcPort = (await getAvailablePort()).toString()
+	const hostbridgePort = (await getAvailablePort()).toString()
 
-		const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
-			stdio: showServerLogs ? "inherit" : "pipe",
-			env: {
-				...process.env,
-				PROTOBUS_PORT: grpcPort,
-				HOSTBRIDGE_PORT: hostbridgePort,
-				USE_C8: coverage ? "true" : "false",
-			},
-		})
-
-		server.once("error", reject)
-
-		try {
-			await waitForPort(Number(grpcPort), "127.0.0.1", WAIT_SERVER_DEFAULT_TIMEOUT)
-			resolve({ server, grpcPort })
-		} catch (err) {
-			reject(err)
-		}
+	const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
+		stdio: showServerLogs ? "inherit" : "pipe",
+		env: {
+			...process.env,
+			PROTOBUS_PORT: grpcPort,
+			HOSTBRIDGE_PORT: hostbridgePort,
+			USE_C8: coverage ? "true" : "false",
+		},
 	})
+
+	// Wait for either the server to become ready or fail on spawn error
+	await Promise.race([
+		waitForPort(Number(grpcPort), "127.0.0.1", WAIT_SERVER_DEFAULT_TIMEOUT),
+		new Promise((_, reject) => server.once("error", reject)),
+	])
+
+	return { server, grpcPort }
 }
 
 function stopServer(server: ChildProcess): Promise<void> {
