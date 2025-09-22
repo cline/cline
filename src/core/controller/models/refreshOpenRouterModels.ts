@@ -1,7 +1,6 @@
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
@@ -79,7 +78,7 @@ export async function refreshOpenRouterModels(
 ): Promise<OpenRouterCompatibleModelInfo> {
 	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
-	let models: Record<string, OpenRouterModelInfo> = {}
+	const models: Record<string, OpenRouterModelInfo> = {}
 	try {
 		const response = await axios.get("https://openrouter.ai/api/v1/models")
 
@@ -230,39 +229,19 @@ export async function refreshOpenRouterModels(
 		console.error("Error fetching OpenRouter models:", error)
 
 		// If we failed to fetch models, try to read cached models
-		const cachedModels = await readOpenRouterModels(controller)
+		const cachedModels = await controller.readOpenRouterModels()
 		if (cachedModels) {
-			models = cachedModels
+			return OpenRouterCompatibleModelInfo.create({ models: cachedModels })
 		}
 	}
 	// Append stealth models if any
-	return OpenRouterCompatibleModelInfo.create({ models: appendStealthModels(models) })
-}
-
-/**
- * Reads cached OpenRouter models from disk
- */
-async function readOpenRouterModels(controller: Controller): Promise<Record<string, OpenRouterModelInfo> | undefined> {
-	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
-	const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
-	if (fileExists) {
-		try {
-			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
-			const models = JSON.parse(fileContents)
-			// Append stealth models
-			return appendStealthModels(models)
-		} catch (error) {
-			console.error("Error reading cached OpenRouter models:", error)
-			return undefined
-		}
-	}
-	return undefined
+	return OpenRouterCompatibleModelInfo.create({ models: appendClineStealthModels(models) })
 }
 
 /**
  * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
  */
-const STEALTH_MODELS: Record<string, OpenRouterModelInfo> = {
+const CLINE_STEALTH_MODELS: Record<string, OpenRouterModelInfo> = {
 	"cline/code-supernova": OpenRouterModelInfo.create({
 		maxTokens: clineCodeSupernovaModelInfo.maxTokens ?? 0,
 		contextWindow: clineCodeSupernovaModelInfo.contextWindow ?? 0,
@@ -277,17 +256,18 @@ const STEALTH_MODELS: Record<string, OpenRouterModelInfo> = {
 		supportsGlobalEndpoint: clineCodeSupernovaModelInfo.supportsGlobalEndpoint ?? undefined,
 		tiers: clineCodeSupernovaModelInfo.tiers ?? [],
 	}),
+	// Add more stealth models here as needed
 }
 
-function appendStealthModels(
+export function appendClineStealthModels(
 	currentModels: Record<string, OpenRouterModelInfo>,
-): Record<string, OpenRouterModelInfo> | undefined {
-	// Create a clone of the current models to avoid mutating the original object
-	const clone = cloneDeep(currentModels)
-	for (const [modelId, modelInfo] of Object.entries(STEALTH_MODELS)) {
-		if (!clone[modelId]) {
-			clone[modelId] = modelInfo
+): Record<string, OpenRouterModelInfo> {
+	// Create a shallow clone of the current models to avoid mutating the original object
+	const cloned = { ...currentModels }
+	for (const [modelId, modelInfo] of Object.entries(CLINE_STEALTH_MODELS)) {
+		if (!cloned[modelId]) {
+			cloned[modelId] = modelInfo
 		}
 	}
-	return clone
+	return cloned
 }
