@@ -6,7 +6,7 @@ export interface DictationSettings {
 
 export const DEFAULT_DICTATION_SETTINGS: DictationSettings = {
 	featureEnabled: true, // Feature flag, currently hardcoded to true
-	dictationEnabled: false, // Default is true while this service is in Experimental status
+	dictationEnabled: false, // Default is false while this service is in Experimental status
 	dictationLanguage: "en",
 }
 
