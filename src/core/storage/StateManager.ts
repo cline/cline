@@ -992,9 +992,8 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo:
 				this.taskStateCache["planModeVercelAiGatewayModelInfo"] ||
 				this.globalStateCache["planModeVercelAiGatewayModelInfo"],
-						planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
+			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
 			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
-
 
 			// Act mode configurations
 			actModeApiProvider: this.taskStateCache["actModeApiProvider"] || this.globalStateCache["actModeApiProvider"],
@@ -1055,7 +1054,7 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo:
 				this.taskStateCache["actModeVercelAiGatewayModelInfo"] ||
 				this.globalStateCache["actModeVercelAiGatewayModelInfo"],
-				actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
+			actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
 			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
 		}
 	}

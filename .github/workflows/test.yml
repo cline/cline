@@ -161,15 +161,14 @@ jobs:
                       webview-ui/coverage/lcov.info
 
     qlty:
-        needs: test
+        needs: [test, test-platform-integration]
         runs-on: ubuntu-latest
         # Run on PRs to main, pushes to main, and manual dispatches
-        if: always() && needs.test.result == 'success'
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
 
-            - name: Download Coverage Reports
+            - name: Download unit tests coverage reports
               uses: actions/download-artifact@v4
               with:
                   name: pr-coverage-reports
@@ -193,3 +192,16 @@ jobs:
                     webview-ui/coverage/lcov.info
                   tag: unit:webview-ui
                   add-prefix: webview-ui/
+
+            - name: Download test platform integration core coverage artifact
+              uses: actions/download-artifact@v4
+              with:
+                name: test-platform-integration-core-coverage
+                path: integration-core-coverage-reports
+
+            - name: Upload core integration tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                files: integration-core-coverage-reports/**/lcov.info
+                tag: integration:core
