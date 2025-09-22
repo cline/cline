@@ -21,6 +21,7 @@ import { LmStudioHandler } from "./providers/lmstudio"
 import { MistralHandler } from "./providers/mistral"
 import { MoonshotHandler } from "./providers/moonshot"
 import { NebiusHandler } from "./providers/nebius"
+import { OcaHandler } from "./providers/oca"
 import { OllamaHandler } from "./providers/ollama"
 import { OpenAiHandler } from "./providers/openai"
 import { OpenAiNativeHandler } from "./providers/openai-native"
@@ -371,6 +372,19 @@ function createHandlerForProvider(
 				zaiApiLine: options.zaiApiLine,
 				zaiApiKey: options.zaiApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
+		case "oca":
+			return new OcaHandler({
+				ocaBaseUrl: options.ocaBaseUrl,
+				ocaModelId: mode === "plan" ? options.planModeOcaModelId : options.actModeOcaModelId,
+				ocaModelInfo: mode === "plan" ? options.planModeOcaModelInfo : options.actModeOcaModelInfo,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				ocaUsePromptCache:
+					mode === "plan"
+						? options.planModeOcaModelInfo?.supportsPromptCache
+						: options.actModeOcaModelInfo?.supportsPromptCache,
+				taskId: options.ulid,
 			})
 		default:
 			return new AnthropicHandler({

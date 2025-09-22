@@ -183,7 +183,8 @@
 					"provider-config/openrouter",
 					"provider-config/sap-aicore",
 					"provider-config/vercel-ai-gateway",
-					"provider-config/requesty"
+					"provider-config/requesty",
+					"provider-config/baseten"
 				]
 			},
 			{
