@@ -139,20 +139,19 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			totalResultCount += resultCount
 
 			// If multi-workspace and we have results, annotate with workspace name
-			if (
-				config.isMultiRootEnabled &&
-				searchPaths.length > 1 &&
-				workspaceName &&
-				workspaceResults &&
-				!workspaceResults.startsWith("Found 0 results")
-			) {
-				// Skip the "Found X results" line and add workspace annotation
-				const lines = workspaceResults.split("\n")
-				const resultsWithoutHeader = lines.slice(2).join("\n") // Skip first two lines (count and empty line)
+			if (config.isMultiRootEnabled && searchPaths.length > 1 && workspaceName) {
+				// Check if this workspace has results (resultCount > 0)
+				if (resultCount > 0) {
+					// Skip the "Found X results" line and add workspace annotation
+					const lines = workspaceResults.split("\n")
+					// Skip first two lines (count and empty line) if they exist
+					const resultsWithoutHeader = lines.length > 2 ? lines.slice(2).join("\n") : workspaceResults
 
-				if (resultsWithoutHeader.trim()) {
-					allResults.push(`## Workspace: ${workspaceName}\n${resultsWithoutHeader}`)
+					if (resultsWithoutHeader.trim()) {
+						allResults.push(`## Workspace: ${workspaceName}\n${resultsWithoutHeader}`)
+					}
 				}
+				// Don't add anything for workspaces with 0 results in multi-workspace mode
 			} else if (!config.isMultiRootEnabled || searchPaths.length === 1) {
 				// Single workspace mode or single workspace search
 				allResults.push(workspaceResults)
@@ -162,7 +161,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		// Combine results
 		if (config.isMultiRootEnabled && searchPaths.length > 1) {
 			// Multi-workspace search result
-			if (allResults.length === 0 || totalResultCount === 0) {
+			if (totalResultCount === 0) {
 				return "Found 0 results."
 			} else {
 				return `Found ${totalResultCount === 1 ? "1 result" : `${totalResultCount.toLocaleString()} results`} across ${searchPaths.length} workspace${searchPaths.length > 1 ? "s" : ""}.\n\n${allResults.join("\n\n")}`
