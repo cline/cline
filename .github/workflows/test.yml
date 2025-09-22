@@ -141,15 +141,14 @@ jobs:
             - name: Check Test Results
               if: always()
               run: |
-                  if [[ ("${{ steps.unit_tests_linux.outcome }}" == "failure" && "${{ runner.os }}" == "Linux") || 
-                        ("${{ steps.unit_tests_non_linux.outcome }}" == "failure" && "${{ runner.os }}" != "Linux") ||
-                        ("${{ steps.integration_tests_linux.outcome }}" == "failure" && "${{ runner.os }}" == "Linux") || 
-                        ("${{ steps.integration_tests_non_linux.outcome }}" == "failure" && "${{ runner.os }}" != "Linux") ||
-                        "${{ steps.webview_tests.outcome }}" == "failure" ]]; then
-                      echo "One or more test suites failed"
-                      exit 1
-                  fi
-                  echo "All tests passed"
+                  failed=""
+                  [[ "${{ steps.unit_tests_linux.outcome }}" == "failure" && "${{ runner.os }}" == "Linux" ]] && failed="$failed unit_tests_linux"
+                  [[ "${{ steps.unit_tests_non_linux.outcome }}" == "failure" && "${{ runner.os }}" != "Linux" ]] && failed="$failed unit_tests_non_linux"
+                  [[ "${{ steps.integration_tests_linux.outcome }}" == "failure" && "${{ runner.os }}" == "Linux" ]] && failed="$failed integration_tests_linux"
+                  [[ "${{ steps.integration_tests_non_linux.outcome }}" == "failure" && "${{ runner.os }}" != "Linux" ]] && failed="$failed integration_tests_non_linux"
+                  [[ "${{ steps.webview_tests.outcome }}" == "failure" ]] && failed="$failed webview_tests"
+                  [[ -n "$failed" ]] && { echo "❌ The following test suites failed:$failed"; exit 1; }
+                  echo "✅ All tests passed"
 
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
