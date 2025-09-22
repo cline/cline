@@ -130,10 +130,13 @@ async function main(): Promise<void> {
 	childProcesses.push(coreService)
 
 	const shutdown = async () => {
+		if (childProcesses.length === 0) return
+
 		console.log("\nShutting down services...")
 
-		for (const child of childProcesses) {
-			if (!child.killed) child.kill("SIGINT")
+		while (childProcesses.length > 0) {
+			const child = childProcesses.pop()
+			if (child && !child.killed) child.kill("SIGINT")
 		}
 
 		await ClineApiServerMock.stopGlobalServer()
