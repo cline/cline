@@ -57,23 +57,19 @@ async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): P
 }
 
 async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }> {
-	return new Promise(async (resolve, reject) => {
-		const grpcPort = STANDALONE_GRPC_SERVER_PORT
+	const grpcPort = STANDALONE_GRPC_SERVER_PORT
 
-		const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
-			stdio: showServerLogs ? "inherit" : "pipe",
-			env: { ...process.env, STANDALONE_GRPC_SERVER_PORT: grpcPort },
-		})
-
-		server.once("error", reject)
-
-		try {
-			await waitForPort(Number(grpcPort), "127.0.0.1", WAIT_SERVER_DEFAULT_TIMEOUT)
-			resolve({ server, grpcPort })
-		} catch (err) {
-			reject(err)
-		}
+	const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
+		stdio: showServerLogs ? "inherit" : "pipe",
+		env: { ...process.env, STANDALONE_GRPC_SERVER_PORT: grpcPort },
 	})
+
+	server.once("error", (err) => {
+		throw err
+	})
+
+	await waitForPort(Number(grpcPort), "127.0.0.1", WAIT_SERVER_DEFAULT_TIMEOUT)
+	return { server, grpcPort }
 }
 
 function stopServer(server: ChildProcess): Promise<void> {
