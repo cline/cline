@@ -2129,9 +2129,6 @@ export class Task {
 				// Check if reasoning contains tool usage that should be parsed
 				const reasoningContentBlocks = parseAssistantMessageV2(reasoningMessage)
 				for (const b of reasoningContentBlocks) {
-					if (b.partial) {
-						console.log("partial tool call in reasoning message")
-					}
 					b.partial = false // needed to initiate tool execution
 				}
 				let reasoningToolBlocks = reasoningContentBlocks.filter((block) => block.type === "tool_use")
@@ -2146,7 +2143,7 @@ export class Task {
 						dontCheckForToolUse = true
 						if (this.taskState.consecutiveMistakeCount < 2) {
 							// it has just been incremented, so this is the first retry
-							console.log("First search_files failure")
+							console.log("Reasoning tool call: first search_files failure")
 							const formattedResponse = formatResponse.tooManyMistakes(
 								`You're getting a little trigger-happy with the tool calls. Try to think through what you're trying to do, then use a tool after you've thought about it and decided your next step.`,
 							)
@@ -2156,7 +2153,7 @@ export class Task {
 							})
 						} else {
 							// This is the 2nd retry - this is getting serious.
-							console.log("Second search_files failure")
+							console.log("Reasoning tool call: second search_files failure")
 							// simulate a user hitting "Proceed anyway" with a user message
 							const text = formatResponse.tooManyMistakes(
 								"Stop! You're getting off track. Your next thoughts should consist of re-evaluating your progress on the to-do list before you call a tool again. Then, resume progress on the to-do list.",
@@ -2166,6 +2163,26 @@ export class Task {
 								text: text,
 							})
 						}
+					} else if (
+						block.name == "read_file" &&
+						reasoningMessage == this.messageStateHandler.getApiConversationHistory().at(-1)!.content
+					) {
+						console.log("Reasoning tool call: exact duplicate read_file call (potential loop)")
+						// don't attempt execution, we just did this in the previous step
+						;(block as AssistantMessageContent).type = "text"
+						this.taskState.userMessageContent.push({
+							type: "text",
+							text: formatResponse.tooManyMistakes(
+								"You're getting a little trigger-happy with the tool calls. Try to think through what you're trying to do, then use a tool after you've thought about it and decided your next step.",
+							),
+						})
+					} else if (block.name == "execute_command" && block.params.requires_approval === undefined) {
+						console.log("Reasoning tool call: execute_command without requires_approval")
+						// just set it to true, that allows the task to progress without errors
+						block.params.requires_approval = "true"
+						assistantMessage += "<requires_approval>true</requires_approval>"
+					} else {
+						console.log("Other reasoning tool call:", block.name, block.params)
 					}
 					return block
 				})
