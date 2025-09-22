@@ -64,11 +64,12 @@ async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }
 		env: { ...process.env, STANDALONE_GRPC_SERVER_PORT: grpcPort },
 	})
 
-	server.once("error", (err) => {
-		throw err
-	})
+	// Wait for either the server to become ready or fail on spawn error
+	await Promise.race([
+		waitForPort(Number(grpcPort), "127.0.0.1", WAIT_SERVER_DEFAULT_TIMEOUT),
+		new Promise((_, reject) => server.once("error", reject)),
+	])
 
-	await waitForPort(Number(grpcPort), "127.0.0.1", WAIT_SERVER_DEFAULT_TIMEOUT)
 	return { server, grpcPort }
 }
 
