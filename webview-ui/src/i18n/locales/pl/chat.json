@@ -317,8 +317,6 @@
 		"tooltips": {
 			"expand": "Rozwiń blok kodu",
 			"collapse": "Zwiń blok kodu",
-			"enable_wrap": "Włącz zawijanie wierszy",
-			"disable_wrap": "Wyłącz zawijanie wierszy",
 			"copy_code": "Kopiuj kod"
 		}
 	},

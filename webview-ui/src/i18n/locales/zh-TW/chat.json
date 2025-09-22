@@ -336,8 +336,6 @@
 		"tooltips": {
 			"expand": "展開程式碼區塊",
 			"collapse": "摺疊程式碼區塊",
-			"enable_wrap": "啟用自動換行",
-			"disable_wrap": "停用自動換行",
 			"copy_code": "複製程式碼"
 		}
 	},

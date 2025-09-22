@@ -318,8 +318,6 @@
 		"tooltips": {
 			"expand": "Mở rộng khối mã",
 			"collapse": "Thu gọn khối mã",
-			"enable_wrap": "Bật tự động xuống dòng",
-			"disable_wrap": "Tắt tự động xuống dòng",
 			"copy_code": "Sao chép mã"
 		}
 	},

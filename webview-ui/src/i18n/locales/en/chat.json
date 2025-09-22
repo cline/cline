@@ -335,8 +335,6 @@
 		"tooltips": {
 			"expand": "Expand code block",
 			"collapse": "Collapse code block",
-			"enable_wrap": "Enable word wrap",
-			"disable_wrap": "Disable word wrap",
 			"copy_code": "Copy code"
 		}
 	},

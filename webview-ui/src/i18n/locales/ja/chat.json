@@ -317,8 +317,6 @@
 		"tooltips": {
 			"expand": "コードブロックを展開",
 			"collapse": "コードブロックを折りたたむ",
-			"enable_wrap": "折り返しを有効化",
-			"disable_wrap": "折り返しを無効化",
 			"copy_code": "コードをコピー"
 		}
 	},

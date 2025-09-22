@@ -1,12 +1,11 @@
 import { memo, useEffect, useRef, useCallback, useState } from "react"
 import styled from "styled-components"
 import { useCopyToClipboard } from "@src/utils/clipboard"
-import { getHighlighter, isLanguageLoaded, normalizeLanguage, ExtendedLanguage } from "@src/utils/highlighter"
-import { bundledLanguages } from "shiki"
+import { getHighlighter, isLanguageLoaded, normalizeLanguage } from "@src/utils/highlighter"
 import type { ShikiTransformer } from "shiki"
 import { toJsxRuntime } from "hast-util-to-jsx-runtime"
 import { Fragment, jsx, jsxs } from "react/jsx-runtime"
-import { ChevronDown, ChevronUp, WrapText, AlignJustify, Copy, Check } from "lucide-react"
+import { ChevronDown, ChevronUp, Copy, Check } from "lucide-react"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { StandardTooltip } from "@/components/ui"
 
@@ -38,7 +37,6 @@ interface CodeBlockProps {
 	initialWordWrap?: boolean
 	collapsedHeight?: number
 	initialWindowShade?: boolean
-	onLanguageChange?: (language: string) => void
 }
 
 const CodeBlockButton = styled.button`
@@ -167,52 +165,6 @@ export const StyledPre = styled.div<{
 	}
 `
 
-const LanguageSelect = styled.select`
-	font-size: 12px;
-	color: var(--vscode-foreground);
-	opacity: 0.4;
-	font-family: monospace;
-	appearance: none;
-	background: transparent;
-	border: none;
-	cursor: pointer;
-	padding: 4px;
-	margin: 0;
-	vertical-align: middle;
-	height: 24px;
-
-	& option {
-		background: var(--vscode-editor-background);
-		color: var(--vscode-foreground);
-		padding: 0;
-		margin: 0;
-	}
-
-	&::-webkit-scrollbar {
-		width: 6px;
-	}
-
-	&::-webkit-scrollbar-thumb {
-		background: var(--vscode-scrollbarSlider-background);
-	}
-
-	&::-webkit-scrollbar-track {
-		background: var(--vscode-editor-background);
-	}
-
-	&:hover {
-		opacity: 1;
-		background: var(--vscode-toolbar-hoverBackground);
-		border-radius: 3px;
-	}
-
-	&:focus {
-		opacity: 1;
-		outline: none;
-		border-radius: 3px;
-	}
-`
-
 const CodeBlock = memo(
 	({
 		source,
@@ -222,12 +174,11 @@ const CodeBlock = memo(
 		initialWordWrap = true,
 		initialWindowShade = true,
 		collapsedHeight,
-		onLanguageChange,
 	}: CodeBlockProps) => {
-		const [wordWrap, setWordWrap] = useState(initialWordWrap)
+		// Use word wrap from props, default to true
+		const wordWrap = initialWordWrap
 		const [windowShade, setWindowShade] = useState(initialWindowShade)
-		const [currentLanguage, setCurrentLanguage] = useState<ExtendedLanguage>(() => normalizeLanguage(language))
-		const userChangedLanguageRef = useRef(false)
+		const currentLanguage = normalizeLanguage(language)
 		const [highlightedCode, setHighlightedCode] = useState<React.ReactNode>(null)
 		const [showCollapseButton, setShowCollapseButton] = useState(true)
 		const codeBlockRef = useRef<HTMLDivElement>(null)
@@ -239,16 +190,6 @@ const CodeBlock = memo(
 		const buttonPositionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 		const collapseTimeout1Ref = useRef<NodeJS.Timeout | null>(null)
 		const collapseTimeout2Ref = useRef<NodeJS.Timeout | null>(null)
-
-		// Update current language when prop changes, but only if user hasn't
-		// made a selection.
-		useEffect(() => {
-			const normalizedLang = normalizeLanguage(language)
-
-			if (normalizedLang !== currentLanguage && !userChangedLanguageRef.current) {
-				setCurrentLanguage(normalizedLang)
-			}
-		}, [language, currentLanguage])
 
 		// Syntax highlighting with cached Shiki instance and mounted state management
 		useEffect(() => {
@@ -707,48 +648,6 @@ const CodeBlock = memo(
 						ref={copyButtonWrapperRef}
 						onMouseOver={() => updateCodeBlockButtonPosition()}
 						style={{ gap: 0 }}>
-						<LanguageSelect
-							value={currentLanguage}
-							style={{
-								width: `calc(${currentLanguage?.length || 0}ch + 9px)`,
-							}}
-							onClick={(e) => {
-								e.currentTarget.focus()
-							}}
-							onChange={(e) => {
-								const newLang = normalizeLanguage(e.target.value)
-								userChangedLanguageRef.current = true
-								setCurrentLanguage(newLang)
-								if (onLanguageChange) {
-									onLanguageChange(newLang)
-								}
-							}}>
-							<option
-								value={normalizeLanguage(language)}
-								style={{ fontWeight: "bold", textAlign: "left", fontSize: "1.2em" }}>
-								{normalizeLanguage(language)}
-							</option>
-							{
-								// Display all available languages in alphabetical order
-								Object.keys(bundledLanguages)
-									.sort()
-									.map((lang) => {
-										const normalizedLang = normalizeLanguage(lang)
-										return (
-											<option
-												key={normalizedLang}
-												value={normalizedLang}
-												style={{
-													fontWeight: normalizedLang === currentLanguage ? "bold" : "normal",
-													textAlign: "left",
-													fontSize: normalizedLang === currentLanguage ? "1.2em" : "inherit",
-												}}>
-												{normalizedLang}
-											</option>
-										)
-									})
-							}
-						</LanguageSelect>
 						{showCollapseButton && (
 							<StandardTooltip
 								content={t(`chat:codeblock.tooltips.${windowShade ? "expand" : "collapse"}`)}
@@ -787,13 +686,6 @@ const CodeBlock = memo(
 								</CodeBlockButton>
 							</StandardTooltip>
 						)}
-						<StandardTooltip
-							content={t(`chat:codeblock.tooltips.${wordWrap ? "disable_wrap" : "enable_wrap"}`)}
-							side="top">
-							<CodeBlockButton onClick={() => setWordWrap(!wordWrap)}>
-								{wordWrap ? <AlignJustify size={16} /> : <WrapText size={16} />}
-							</CodeBlockButton>
-						</StandardTooltip>
 						<StandardTooltip content={t("chat:codeblock.tooltips.copy_code")} side="top">
 							<CodeBlockButton onClick={handleCopy}>
 								{showCopyFeedback ? <Check size={16} /> : <Copy size={16} />}

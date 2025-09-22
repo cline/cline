@@ -318,8 +318,6 @@
 		"tooltips": {
 			"expand": "展开代码块",
 			"collapse": "收起代码块",
-			"enable_wrap": "启用自动换行",
-			"disable_wrap": "禁用自动换行",
 			"copy_code": "复制代码"
 		}
 	},

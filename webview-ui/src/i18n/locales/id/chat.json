@@ -338,8 +338,6 @@
 		"tooltips": {
 			"expand": "Perluas blok kode",
 			"collapse": "Tutup blok kode",
-			"enable_wrap": "Aktifkan word wrap",
-			"disable_wrap": "Nonaktifkan word wrap",
 			"copy_code": "Salin kode"
 		}
 	},

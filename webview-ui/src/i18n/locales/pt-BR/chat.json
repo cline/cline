@@ -317,8 +317,6 @@
 		"tooltips": {
 			"expand": "Expandir bloco de código",
 			"collapse": "Recolher bloco de código",
-			"enable_wrap": "Ativar quebra de linha",
-			"disable_wrap": "Desativar quebra de linha",
 			"copy_code": "Copiar código"
 		}
 	},

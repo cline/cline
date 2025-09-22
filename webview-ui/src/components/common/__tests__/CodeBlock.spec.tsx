@@ -13,8 +13,6 @@ vi.mock("../../../i18n/TranslationContext", () => ({
 				"chat:codeblock.tooltips.copy_code": "Copy code",
 				"chat:codeblock.tooltips.expand": "Expand code block",
 				"chat:codeblock.tooltips.collapse": "Collapse code block",
-				"chat:codeblock.tooltips.enable_wrap": "Enable word wrap",
-				"chat:codeblock.tooltips.disable_wrap": "Disable word wrap",
 			}
 			return translations[key] || key
 		},

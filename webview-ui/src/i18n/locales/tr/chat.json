@@ -318,8 +318,6 @@
 		"tooltips": {
 			"expand": "Kod bloğunu genişlet",
 			"collapse": "Kod bloğunu daralt",
-			"enable_wrap": "Satır kaydırmayı etkinleştir",
-			"disable_wrap": "Satır kaydırmayı devre dışı bırak",
 			"copy_code": "Kodu kopyala"
 		}
 	},

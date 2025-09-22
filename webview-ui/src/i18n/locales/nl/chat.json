@@ -317,8 +317,6 @@
 		"tooltips": {
 			"expand": "Codeblok uitvouwen",
 			"collapse": "Codeblok samenvouwen",
-			"enable_wrap": "Regelafbreking inschakelen",
-			"disable_wrap": "Regelafbreking uitschakelen",
 			"copy_code": "Code kopiëren"
 		}
 	},

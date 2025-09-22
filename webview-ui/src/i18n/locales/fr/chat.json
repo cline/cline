@@ -317,8 +317,6 @@
 		"tooltips": {
 			"expand": "Développer le bloc de code",
 			"collapse": "Réduire le bloc de code",
-			"enable_wrap": "Activer le retour à la ligne",
-			"disable_wrap": "Désactiver le retour à la ligne",
 			"copy_code": "Copier le code"
 		}
 	},

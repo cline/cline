@@ -317,8 +317,6 @@
 		"tooltips": {
 			"expand": "코드 블록 확장",
 			"collapse": "코드 블록 축소",
-			"enable_wrap": "자동 줄바꿈 활성화",
-			"disable_wrap": "자동 줄바꿈 비활성화",
 			"copy_code": "코드 복사"
 		}
 	},
