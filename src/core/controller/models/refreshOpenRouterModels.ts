@@ -221,22 +221,6 @@ export async function refreshOpenRouterModels(
 					models[openRouterClaudeSonnet41mModelId] = claudeSonnet41mModelInfo
 				}
 			}
-
-			// Add hardcoded stealth model
-			models["cline/code-supernova"] = OpenRouterModelInfo.create({
-				maxTokens: clineCodeSupernovaModelInfo.maxTokens ?? 0,
-				contextWindow: clineCodeSupernovaModelInfo.contextWindow ?? 0,
-				supportsImages: clineCodeSupernovaModelInfo.supportsImages ?? false,
-				supportsPromptCache: clineCodeSupernovaModelInfo.supportsPromptCache ?? false,
-				inputPrice: clineCodeSupernovaModelInfo.inputPrice ?? 0,
-				outputPrice: clineCodeSupernovaModelInfo.outputPrice ?? 0,
-				cacheWritesPrice: clineCodeSupernovaModelInfo.cacheWritesPrice ?? 0,
-				cacheReadsPrice: clineCodeSupernovaModelInfo.cacheReadsPrice ?? 0,
-				description: clineCodeSupernovaModelInfo.description ?? "",
-				thinkingConfig: clineCodeSupernovaModelInfo.thinkingConfig ?? undefined,
-				supportsGlobalEndpoint: clineCodeSupernovaModelInfo.supportsGlobalEndpoint ?? undefined,
-				tiers: clineCodeSupernovaModelInfo.tiers ?? [],
-			})
 		} else {
 			console.error("Invalid response from OpenRouter API")
 		}
@@ -251,8 +235,8 @@ export async function refreshOpenRouterModels(
 			models = cachedModels
 		}
 	}
-
-	return OpenRouterCompatibleModelInfo.create({ models })
+	// Append stealth models if any
+	return OpenRouterCompatibleModelInfo.create({ models: appendStealthModels(models) })
 }
 
 /**
@@ -264,11 +248,46 @@ async function readOpenRouterModels(controller: Controller): Promise<Record<stri
 	if (fileExists) {
 		try {
 			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
-			return JSON.parse(fileContents)
+			const models = JSON.parse(fileContents)
+			// Append stealth models
+			return appendStealthModels(models)
 		} catch (error) {
 			console.error("Error reading cached OpenRouter models:", error)
 			return undefined
 		}
 	}
 	return undefined
+}
+
+/**
+ * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
+ */
+const STEALTH_MODELS: Record<string, OpenRouterModelInfo> = {
+	"cline/code-supernova": OpenRouterModelInfo.create({
+		maxTokens: clineCodeSupernovaModelInfo.maxTokens ?? 0,
+		contextWindow: clineCodeSupernovaModelInfo.contextWindow ?? 0,
+		supportsImages: clineCodeSupernovaModelInfo.supportsImages ?? false,
+		supportsPromptCache: clineCodeSupernovaModelInfo.supportsPromptCache ?? false,
+		inputPrice: clineCodeSupernovaModelInfo.inputPrice ?? 0,
+		outputPrice: clineCodeSupernovaModelInfo.outputPrice ?? 0,
+		cacheWritesPrice: clineCodeSupernovaModelInfo.cacheWritesPrice ?? 0,
+		cacheReadsPrice: clineCodeSupernovaModelInfo.cacheReadsPrice ?? 0,
+		description: clineCodeSupernovaModelInfo.description ?? "",
+		thinkingConfig: clineCodeSupernovaModelInfo.thinkingConfig ?? undefined,
+		supportsGlobalEndpoint: clineCodeSupernovaModelInfo.supportsGlobalEndpoint ?? undefined,
+		tiers: clineCodeSupernovaModelInfo.tiers ?? [],
+	}),
+}
+
+function appendStealthModels(
+	currentModels: Record<string, OpenRouterModelInfo>,
+): Record<string, OpenRouterModelInfo> | undefined {
+	// Create a clone of the current models to avoid mutating the original object
+	const clone = cloneDeep(currentModels)
+	for (const [modelId, modelInfo] of Object.entries(STEALTH_MODELS)) {
+		if (!clone[modelId]) {
+			clone[modelId] = modelInfo
+		}
+	}
+	return clone
 }
