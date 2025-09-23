@@ -32,11 +32,6 @@ let STANDALONE_DEPS_WARNING: string | undefined
 const standaloneBackend = selectStandaloneSecrets(DATA_DIR)
 secretStorage.init(standaloneBackend)
 
-// One-time migration: if using OS credentials and secrets.json exists, migrate entries
-if (standaloneBackend instanceof CredentialStorage) {
-	void migrateFileSecretsToOS(SECRETS_FILE)
-}
-
 export const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
 const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
@@ -191,6 +186,21 @@ async function migrateFileSecretsToOS(filePath: string): Promise<void> {
 		}
 	} catch (error) {
 		log(`Migration from secrets.json failed or partial (non-fatal): ${String(error)}`)
+	}
+}
+
+export async function runLegacySecretsMigrationIfNeeded(): Promise<void> {
+	try {
+		if (standaloneBackend instanceof CredentialStorage) {
+			log("Starting legacy secrets migration to OS keychain...")
+			await migrateFileSecretsToOS(SECRETS_FILE)
+			log("Legacy secrets migration completed.")
+		} else {
+			// Graceful fallback to file-based storage; no migration needed
+			log("OS keychain unavailable; using file-based secrets. Skipping migration.")
+		}
+	} catch (error) {
+		log(`Legacy secrets migration error: ${String(error)}`)
 	}
 }
 

@@ -14,7 +14,13 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { waitForHostBridgeReady } from "./hostbridge-client"
 import { startProtobusService } from "./protobus-service"
 import { log } from "./utils"
-import { DATA_DIR, EXTENSION_DIR, extensionContext, getStandaloneDepsWarning } from "./vscode-context"
+import {
+	DATA_DIR,
+	EXTENSION_DIR,
+	extensionContext,
+	getStandaloneDepsWarning,
+	runLegacySecretsMigrationIfNeeded,
+} from "./vscode-context"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
@@ -26,6 +32,9 @@ async function main() {
 
 	// Set up global error handlers to prevent process crashes
 	setupGlobalErrorHandlers()
+
+	// Ensure legacy secrets are migrated to OS keychain before any reads during initialization
+	await runLegacySecretsMigrationIfNeeded()
 
 	const webviewProvider = await initialize(extensionContext)
 

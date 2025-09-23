@@ -240,6 +240,30 @@ export const e2e = test
 			const executablePath = await downloadAndUnzipVSCode(channel, undefined, new SilentReporter())
 
 			await use(async (workspacePath: string) => {
+				// Prepare CLINE_DIR in the VS Code environment to isolate per-test data
+				// Optionally pre-create legacy secrets.json for migration tests
+				try {
+					const fs = await import("node:fs")
+					const pathMod = await import("node:path")
+					const clineDir = userDataDir // Use user data dir as CLINE_DIR for isolation
+					// Pre-create secrets.json if requested for migration test titles
+					const wantsMigration =
+						(process.env.E2E_MIGRATION_SECRETS_JSON || "").length > 0 &&
+						testInfo.title.toLowerCase().includes("migration")
+					if (wantsMigration) {
+						const dataDir = pathMod.join(clineDir, "data")
+						fs.mkdirSync(dataDir, { recursive: true })
+						const secretsPath = pathMod.join(dataDir, "secrets.json")
+						fs.writeFileSync(
+							secretsPath,
+							JSON.stringify(JSON.parse(process.env.E2E_MIGRATION_SECRETS_JSON as string), null, 2),
+						)
+					}
+				} catch {}
+
+				// Expose the chosen CLINE_DIR to the test process for assertions
+				process.env.LAST_E2E_CLINE_DIR = userDataDir
+
 				const app = await _electron.launch({
 					executablePath,
 					env: {
@@ -247,6 +271,8 @@ export const e2e = test
 						TEMP_PROFILE: "true",
 						E2E_TEST: "true",
 						CLINE_ENVIRONMENT: "local",
+						// Ensure extension uses test-specific data directory
+						CLINE_DIR: userDataDir,
 						GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
 						// GRPC_RECORDER_ENABLED: "true",
 						// GRPC_RECORDER_TESTS_FILTERS_ENABLED: "true"
