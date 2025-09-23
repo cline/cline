@@ -1,5 +1,6 @@
-import { EnvironmentConfig } from "@/config"
+import { clineEnvConfig, EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
+import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/services/logging/Logger"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import type { ClineAuthInfo } from "../AuthService"
@@ -198,6 +199,117 @@ export class ClineAuthProvider {
 				},
 			}
 		} catch (error: any) {
+			throw error
+		}
+	}
+
+	async getAuthRequest(callbackUrl: string): Promise<string> {
+		// GET /api/v1/auth/authorize
+		// Query Parameters:
+		//   - client_type: "extension" (required)
+		//   - callback_url: Extension callback URL (required)
+		const authUrl = new URL(CLINE_API_ENDPOINT.AUTH, clineEnvConfig.apiBaseUrl)
+		authUrl.searchParams.set("client_type", "extension")
+		authUrl.searchParams.set("callback_url", callbackUrl)
+		// Ensure the redirect_uri is properly encoded and included
+		authUrl.searchParams.set("redirect_uri", callbackUrl)
+
+		// The server will respond with a 302 redirect to the OAuth provider
+		// We need to follow the redirect and get the final URL
+		let response: Response
+		try {
+			// Set redirect: 'manual' to handle the redirect manually
+			response = await fetch(authUrl.toString(), {
+				method: "GET",
+				redirect: "manual",
+				credentials: "include", // Important for cookies if needed
+				headers: {
+					Accept: "application/json",
+					"Content-Type": "application/json",
+				},
+			})
+
+			// If we get a redirect status (3xx), get the Location header
+			if (response.status >= 300 && response.status < 400) {
+				const redirectUrl = response.headers.get("Location")
+				if (!redirectUrl) {
+					throw new Error("No redirect URL found in the response")
+				}
+
+				return redirectUrl
+			}
+
+			// If we didn't get a redirect, try to parse the response as JSON
+			const responseData = await response.json()
+			if (responseData.redirect_url) {
+				return responseData.redirect_url
+			}
+
+			throw new Error("Unexpected response from auth server")
+		} catch (error) {
+			console.error("Error during authentication request:", error)
+			throw new Error(`Authentication failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+		}
+	}
+
+	async signIn(controller: Controller, authorizationCode: string, provider: string): Promise<ClineAuthInfo | null> {
+		try {
+			// Get the callback URL that was used during the initial auth request
+			const callbackHost = await HostProvider.get().getCallbackUrl()
+			const callbackUrl = `${callbackHost}/auth`
+
+			// Exchange the authorization code for tokens
+			const tokenUrl = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, clineEnvConfig.apiBaseUrl)
+
+			const response = await fetch(tokenUrl.toString(), {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Accept: "application/json",
+				},
+				body: JSON.stringify({
+					grant_type: "authorization_code",
+					code: authorizationCode,
+					client_type: "extension",
+					redirect_uri: callbackUrl,
+					provider: provider,
+				}),
+			})
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}))
+				throw new Error(errorData.error_description || "Failed to exchange authorization code for tokens")
+			}
+
+			const responseJSON = await response.json()
+			console.log("Token data received:", responseJSON)
+
+			const responseType: ClineAuthApiTokenExchangeResponse = responseJSON
+			const tokenData = responseType.data
+
+			if (!tokenData.accessToken || !tokenData.refreshToken || !tokenData.userInfo) {
+				throw new Error("Invalid token response from server")
+			}
+
+			// Store the tokens and user info
+			const clineAuthInfo = {
+				idToken: tokenData.accessToken,
+				refreshToken: tokenData.refreshToken,
+				userInfo: {
+					id: tokenData.userInfo.clineUserId || "",
+					email: tokenData.userInfo.email || "",
+					displayName: tokenData.userInfo.name || "",
+					createdAt: new Date().toISOString(),
+					organizations: [],
+				},
+				expiresAt: new Date(tokenData.expiresAt).getTime() / 1000, // "2025-09-17T04:32:24.842636548Z"
+			}
+
+			controller.stateManager.setSecret("clineAccountId", JSON.stringify(clineAuthInfo))
+
+			return clineAuthInfo
+		} catch (error) {
+			console.error("Error handling auth callback:", error)
 			throw error
 		}
 	}

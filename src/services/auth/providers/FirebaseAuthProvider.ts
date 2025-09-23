@@ -1,5 +1,6 @@
 import axios from "axios"
-import { User } from "firebase/auth"
+import { initializeApp } from "firebase/app"
+import { GithubAuthProvider, GoogleAuthProvider, getAuth, type OAuthCredential, signInWithCredential, User } from "firebase/auth"
 import { jwtDecode } from "jwt-decode"
 import { clineEnvConfig, EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
@@ -10,9 +11,9 @@ export class FirebaseAuthProvider {
 	readonly name = "firebase"
 	readonly callbackEndpoint = "/auth"
 
-	private _config: EnvironmentConfig["firebase"]
+	private _config: EnvironmentConfig
 
-	constructor(config: EnvironmentConfig["firebase"]) {
+	constructor(config: EnvironmentConfig) {
 		this._config = config || {}
 	}
 
@@ -81,7 +82,7 @@ export class FirebaseAuthProvider {
 	async refreshToken(userRefreshToken: string): Promise<string> {
 		// Exchange refresh token for new access token using Firebase's secure token endpoint
 		// https://stackoverflow.com/questions/38233687/how-to-use-the-firebase-refreshtoken-to-reauthenticate/57119131#57119131
-		const firebaseApiKey = this._config.apiKey
+		const firebaseApiKey = this._config.firebase.apiKey
 		const googleAccessTokenResponse = await axios.post(
 			`https://securetoken.googleapis.com/v1/token?key=${firebaseApiKey}`,
 			`grant_type=refresh_token&refresh_token=${encodeURIComponent(userRefreshToken)}`,
@@ -96,5 +97,54 @@ export class FirebaseAuthProvider {
 
 		// This returns an object with access_token, expires_in (3600), id_token (can be used as bearer token to authenticate requests, we'll use this in the future instead of firebase but need to be aware of how we use firebase sdk for e.g. user info like the profile image), project_id, refresh_token, token_type (always Bearer), and user_id
 		return googleAccessTokenResponse.data.id_token
+	}
+
+	getAuthRequest(callbackUrl: string): string {
+		// Use URL object for more graceful query construction
+		const authUrl = new URL(`${clineEnvConfig.appBaseUrl}/auth`)
+		authUrl.searchParams.set("callback_url", callbackUrl)
+
+		const authUrlString = authUrl.toString()
+
+		return authUrlString
+	}
+
+	async signIn(controller: Controller, token: string, provider: string): Promise<ClineAuthInfo | null> {
+		try {
+			let credential: OAuthCredential
+			switch (provider) {
+				case "google":
+					credential = GoogleAuthProvider.credential(token)
+					break
+				case "github":
+					credential = GithubAuthProvider.credential(token)
+					break
+				default:
+					throw new Error(`Unsupported provider: ${provider}`)
+			}
+			// we've received the short-lived tokens from google/github, now we need to sign in to firebase with them
+			const firebaseConfig = Object.assign({}, this._config.firebase)
+			const app = initializeApp(firebaseConfig)
+			const auth = getAuth(app)
+			// this signs the user into firebase sdk internally
+			const userCredential = (await signInWithCredential(auth, credential)).user
+			// const userRefreshToken = await userCredential.getIdToken()
+
+			// store the long-lived refresh token in secret storage
+			try {
+				controller.stateManager.setSecret("clineAccountId", userCredential.refreshToken)
+			} catch (error) {
+				ErrorService.get().logMessage("Firebase store token error", "error")
+				ErrorService.get().logException(error)
+				throw error
+			}
+
+			// userCredential = await this._signInWithCredential(context, credential)
+			return await this.retrieveClineAuthInfo(controller)
+		} catch (error) {
+			ErrorService.get().logMessage("Firebase sign-in error", "error")
+			ErrorService.get().logException(error)
+			throw error
+		}
 	}
 }

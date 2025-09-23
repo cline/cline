@@ -5,12 +5,12 @@ import { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
 import { telemetryService } from "@/services/telemetry"
-import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { openExternal } from "@/utils/env"
 import { featureFlagsService } from "../feature-flags"
-import { ClineAuthApiTokenExchangeResponse, ClineAuthProvider } from "./providers/ClineAuthProvider"
+import { ClineAuthProvider } from "./providers/ClineAuthProvider"
+import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 
-type AvailableAuthProviders = ClineAuthProvider
+type AvailableAuthProvider = ClineAuthProvider | FirebaseAuthProvider
 
 export interface ClineAuthInfo {
 	/**
@@ -59,7 +59,8 @@ export class AuthService {
 	protected static instance: AuthService | null = null
 	protected _authenticated: boolean = false
 	protected _clineAuthInfo: ClineAuthInfo | null = null
-	protected _provider: AvailableAuthProviders | null = null
+	protected providerName: string = "firebase"
+	protected _provider: AvailableAuthProvider | null = null
 	protected _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()
 	protected _handlerToController = new Map<StreamingResponseHandler<AuthState>, Controller>()
 	protected _controller: Controller
@@ -69,9 +70,8 @@ export class AuthService {
 	 * @param controller - Optional reference to the Controller instance.
 	 */
 	protected constructor(controller: Controller) {
-		const providerName = "cline"
-		this._setProvider(providerName)
-
+		// Default to firebase for now
+		this._setProvider("firebase")
 		this._controller = controller
 	}
 
@@ -105,7 +105,7 @@ export class AuthService {
 		this._controller = controller
 	}
 
-	get authProvider(): ClineAuthProvider | null {
+	get authProvider(): ClineAuthProvider | FirebaseAuthProvider | null {
 		return this._provider
 	}
 
@@ -139,17 +139,27 @@ export class AuthService {
 				await this.sendAuthStatusUpdate()
 			}
 			// IMPORTANT: Prefix with 'workos:' so backend can route verification to WorkOS provider
-			return clineAccountAuthToken ? `workos:${clineAccountAuthToken}` : null
+			const prefix = this.providerName === "cline" ? "workos:" : ""
+			return clineAccountAuthToken ? `${prefix}${clineAccountAuthToken}` : null
 		} catch (error) {
 			console.error("Error getting auth token:", error)
 			return null
 		}
 	}
 
-	protected _setProvider(_providerName: string): void {
+	protected _setProvider(providerName: string): void {
 		// Only ClineAuthProvider is supported going forward
 		// Keeping the providerName param for forward compatibility/telemetry
-		this._provider = new ClineAuthProvider(clineEnvConfig)
+		this.providerName = providerName
+		switch (providerName) {
+			case "cline":
+				this._provider = new ClineAuthProvider(clineEnvConfig)
+				break
+			case "firebase":
+			default:
+				this._provider = new FirebaseAuthProvider(clineEnvConfig)
+				break
+		}
 	}
 
 	getInfo(): AuthState {
@@ -181,63 +191,17 @@ export class AuthService {
 		}
 
 		if (!this._provider) {
-			throw new Error("Authentication provider is not configured")
+			return String.create({ value: "Authentication provider is not configured" })
 		}
 
 		const callbackHost = await HostProvider.get().getCallbackUrl()
 		const callbackUrl = `${callbackHost}/auth`
 
-		// GET /api/v1/auth/authorize
-		// Query Parameters:
-		//   - client_type: "extension" (required)
-		//   - callback_url: Extension callback URL (required)
-		const authUrl = new URL(CLINE_API_ENDPOINT.AUTH, clineEnvConfig.apiBaseUrl)
-		authUrl.searchParams.set("client_type", "extension")
-		authUrl.searchParams.set("callback_url", callbackUrl)
-		// Ensure the redirect_uri is properly encoded and included
-		authUrl.searchParams.set("redirect_uri", callbackUrl)
+		const authUrl = await this._provider.getAuthRequest(callbackUrl)
+		const authUrlString = authUrl.toString()
 
-		// The server will respond with a 302 redirect to the OAuth provider
-		// We need to follow the redirect and get the final URL
-		let response: Response
-		try {
-			// Set redirect: 'manual' to handle the redirect manually
-			response = await fetch(authUrl.toString(), {
-				method: "GET",
-				redirect: "manual",
-				credentials: "include", // Important for cookies if needed
-				headers: {
-					Accept: "application/json",
-					"Content-Type": "application/json",
-				},
-			})
-
-			// If we get a redirect status (3xx), get the Location header
-			if (response.status >= 300 && response.status < 400) {
-				const redirectUrl = response.headers.get("Location")
-				if (!redirectUrl) {
-					throw new Error("No redirect URL found in the response")
-				}
-
-				// Open the OAuth provider's URL in the default browser
-				await openExternal(redirectUrl)
-				return String.create({ value: redirectUrl })
-			}
-
-			// If we didn't get a redirect, try to parse the response as JSON
-			const responseData = await response.json()
-			if (responseData.redirect_url) {
-				await openExternal(responseData.redirect_url)
-				return String.create({ value: responseData.redirect_url })
-			}
-
-			throw new Error("Unexpected response from auth server")
-		} catch (error) {
-			console.error("Error during authentication request:", error)
-			this._authenticated = false
-			this._clineAuthInfo = null
-			throw new Error(`Authentication failed: ${error instanceof Error ? error.message : "Unknown error"}`)
-		}
+		await openExternal(authUrlString)
+		return String.create({ value: authUrlString })
 	}
 
 	async handleDeauth(): Promise<void> {
@@ -261,66 +225,12 @@ export class AuthService {
 		}
 
 		try {
-			// Get the callback URL that was used during the initial auth request
-			const callbackHost = await HostProvider.get().getCallbackUrl()
-			const callbackUrl = `${callbackHost}/auth`
+			this._clineAuthInfo = await this._provider.signIn(this._controller, authorizationCode, provider)
+			this._authenticated = this._clineAuthInfo?.idToken !== undefined
 
-			// Exchange the authorization code for tokens
-			const tokenUrl = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, clineEnvConfig.apiBaseUrl)
-
-			const response = await fetch(tokenUrl.toString(), {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Accept: "application/json",
-				},
-				body: JSON.stringify({
-					grant_type: "authorization_code",
-					code: authorizationCode,
-					client_type: "extension",
-					redirect_uri: callbackUrl,
-					provider: provider,
-				}),
-			})
-
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}))
-				throw new Error(errorData.error_description || "Failed to exchange authorization code for tokens")
-			}
-
-			const responseJSON = await response.json()
-			console.log("Token data received:", responseJSON)
-
-			const responseType: ClineAuthApiTokenExchangeResponse = responseJSON
-			const tokenData = responseType.data
-
-			if (!tokenData.accessToken || !tokenData.refreshToken || !tokenData.userInfo) {
-				throw new Error("Invalid token response from server")
-			}
-
-			// Store the tokens and user info
-			this._clineAuthInfo = {
-				idToken: tokenData.accessToken,
-				refreshToken: tokenData.refreshToken,
-				userInfo: {
-					id: tokenData.userInfo.clineUserId || "",
-					email: tokenData.userInfo.email || "",
-					displayName: tokenData.userInfo.name || "",
-					createdAt: new Date().toISOString(),
-					organizations: [],
-				},
-				expiresAt: new Date(tokenData.expiresAt).getTime() / 1000, // "2025-09-17T04:32:24.842636548Z"
-			}
-
-			this._authenticated = true
-			this._controller.stateManager.setSecret("clineAccountId", JSON.stringify(this._clineAuthInfo))
-
-			// Notify all subscribers about the auth state change
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
-			console.error("Error handling auth callback:", error)
-			// this._authenticated = false
-			// this._clineAuthInfo = null
+			console.error("Error signing in with custom token:", error)
 			throw error
 		}
 	}
