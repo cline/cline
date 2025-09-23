@@ -1,4 +1,5 @@
 import { buildApiHandler } from "@core/api"
+
 import { Empty } from "@shared/proto/cline/common"
 import {
 	PlanActMode,
@@ -147,7 +148,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		if (request.strictPlanModeEnabled !== undefined) {
 			controller.stateManager.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
 		}
-
 		// Update yolo mode setting
 		if (request.yoloModeToggled !== undefined) {
 			if (controller.task) {
@@ -156,6 +156,15 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
 		}
 
+		if (request.dictationSettings !== undefined) {
+			// Convert from protobuf format (snake_case) to TypeScript format (camelCase)
+			const dictationSettings = {
+				featureEnabled: request.dictationSettings.featureEnabled ?? true,
+				dictationEnabled: request.dictationSettings.dictationEnabled ?? true,
+				dictationLanguage: request.dictationSettings.dictationLanguage ?? "en",
+			}
+			controller.stateManager.setGlobalState("dictationSettings", dictationSettings)
+		}
 		// Update auto-condense setting
 		if (request.useAutoCondense !== undefined) {
 			if (controller.task) {

@@ -1,3 +1,4 @@
+import { SUPPORTED_DICTATION_LANGUAGES } from "@shared/DictationSettings"
 import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -20,6 +21,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		openaiReasoningEffort,
 		strictPlanModeEnabled,
 		yoloModeToggled,
+		dictationSettings,
 		useAutoCondense,
 		focusChainSettings,
 	} = useExtensionState()
@@ -168,6 +170,62 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								provide more frequent reminders.
 							</p>
 						</div>
+					)}
+					{dictationSettings?.featureEnabled && (
+						<>
+							<div className="mt-2.5">
+								<VSCodeCheckbox
+									checked={dictationSettings?.dictationEnabled}
+									onChange={(e: any) => {
+										const checked = e.target.checked === true
+										const updatedDictationSettings = {
+											...dictationSettings,
+											dictationEnabled: checked,
+										}
+										updateSetting("dictationSettings", updatedDictationSettings)
+									}}>
+									Enable Dictation
+								</VSCodeCheckbox>
+								<p className="text-xs text-description mt-1">
+									Enables speech-to-text transcription using your Cline account. Uses the Whisper model, at
+									$0.006 credits per minute of audio processed. 5 minutes max per message.
+								</p>
+							</div>
+
+							{/* TODO: Fix and use CollapsibleContent, the animation is good but it breaks the dropdown
+							<CollapsibleContent isOpen={dictationSettings?.dictationEnabled}> */}
+							{dictationSettings?.dictationEnabled && (
+								<div className="mt-2.5 ml-5">
+									<label
+										className="block text-sm font-medium text-foreground mb-1"
+										htmlFor="dictation-language-dropdown">
+										Dictation Language
+									</label>
+									<VSCodeDropdown
+										className="w-full"
+										currentValue={dictationSettings?.dictationLanguage || "en"}
+										id="dictation-language-dropdown"
+										onChange={(e: any) => {
+											const newValue = e.target.value
+											const updatedDictationSettings = {
+												...dictationSettings,
+												dictationLanguage: newValue,
+											}
+											updateSetting("dictationSettings", updatedDictationSettings)
+										}}>
+										{SUPPORTED_DICTATION_LANGUAGES.map((language) => (
+											<VSCodeOption className="py-0.5" key={language.code} value={language.code}>
+												{language.name}
+											</VSCodeOption>
+										))}
+									</VSCodeDropdown>
+									<p className="text-xs mt-1 text-description">
+										The language you want to speak to the Dictation service in. This is separate from your
+										preferred UI language.
+									</p>
+								</div>
+							)}
+						</>
 					)}
 					<div style={{ marginTop: 10 }}>
 						<VSCodeCheckbox
