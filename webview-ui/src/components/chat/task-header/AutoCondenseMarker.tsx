@@ -93,7 +93,7 @@ export const AutoCondenseMarker: React.FC<{
 		return {
 			start: startingPosition + "%",
 			label: startingPosition.toFixed(0),
-			end: usage > startingPosition ? (usage - startingPosition).toFixed(0) + "%" : undefined,
+			end: usage > startingPosition ? usage - startingPosition + "%" : 0,
 		}
 	}, [threshold, usage, isAnimating, animatedPosition])
 
@@ -103,13 +103,6 @@ export const AutoCondenseMarker: React.FC<{
 
 	return (
 		<div className="flex-1" id="auto-condense-threshold-marker">
-			{marker.end !== undefined && (
-				<div
-					className="absolute top-0 bottom-0 h-full z-100 bg-black/40"
-					key={marker.start}
-					style={{ left: marker.start, width: marker.end }}
-				/>
-			)}
 			<div
 				className={cn(
 					"absolute top-0 bottom-0 h-full cursor-pointer pointer-events-none z-10 bg-button-background shadow-lg w-1",
@@ -133,6 +126,11 @@ export const AutoCondenseMarker: React.FC<{
 					</div>
 				)}
 			</div>
+			<div
+				className="absolute top-0 bottom-0 h-full z-10 bg-black/40"
+				key={marker.start}
+				style={{ left: marker.start, width: marker.end }}
+			/>
 		</div>
 	)
 }
