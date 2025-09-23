@@ -108,15 +108,22 @@ export class ContextManager {
 	/**
 	 * Determine whether we should compact context window, based on token counts
 	 */
-	shouldCompactContextWindow(clineMessages: ClineMessage[], api: ApiHandler, previousApiReqIndex: number): boolean {
+	shouldCompactContextWindow(
+		clineMessages: ClineMessage[],
+		api: ApiHandler,
+		previousApiReqIndex: number,
+		thresholdPercentage?: number,
+	): boolean {
 		if (previousApiReqIndex >= 0) {
 			const previousRequest = clineMessages[previousApiReqIndex]
 			if (previousRequest && previousRequest.text) {
 				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(previousRequest.text)
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 
-				const { maxAllowedSize } = getContextWindowInfo(api)
-				return totalTokens >= maxAllowedSize
+				const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
+				const roundedThreshold = thresholdPercentage ? Math.floor(contextWindow * thresholdPercentage) : maxAllowedSize
+				const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
+				return totalTokens >= thresholdTokens
 			}
 		}
 		return false
