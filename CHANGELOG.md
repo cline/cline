@@ -16,9 +16,11 @@
 
 ## [3.28.5] - 2025-09-20
 
+![3.28.5 Release - Kangaroo staying hydrated](/releases/3.28.5-release.png)
+
+- Fix: Resolve duplicate rehydrate during reasoning; centralize rehydrate and preserve cancel metadata (#8153 by @hannesrudolph, PR by @hannesrudolph)
 - Add an announcement for Supernova (thanks @mrubens!)
 - Wrap code blocks by default for improved readability (thanks @mrubens!)
-- Fix: Resolve duplicate rehydrate during reasoning; centralize rehydrate and preserve cancel metadata (#8153 by @hannesrudolph, PR by @hannesrudolph)
 - Fix: Support dash prefix in parseMarkdownChecklist for todo lists (#8054 by @NaccOll, PR by app/roomote)
 - Fix: Apply tiered pricing for Gemini models via Vertex AI (#8017 by @ikumi3, PR by app/roomote)
 - Update SambaNova models to latest versions (thanks @snova-jorgep!)
