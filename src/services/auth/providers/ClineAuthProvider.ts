@@ -68,7 +68,7 @@ export class ClineAuthProvider {
 	/**
 	 * Checks if the access token needs to be refreshed (expired or about to expire).
 	 * Since the new flow doesn't support refresh tokens, this will return true if token is expired.
-	 * @param existingAccessToken - The existing access token to check.
+	 * @param _refreshToken - The existing refresh token to check.
 	 * @returns {Promise<boolean>} True if the token is expired or about to expire.
 	 */
 	async shouldRefreshIdToken(_refreshToken: string, expiresAt?: number): Promise<boolean> {
@@ -204,10 +204,6 @@ export class ClineAuthProvider {
 	}
 
 	async getAuthRequest(callbackUrl: string): Promise<string> {
-		// GET /api/v1/auth/authorize
-		// Query Parameters:
-		//   - client_type: "extension" (required)
-		//   - callback_url: Extension callback URL (required)
 		const authUrl = new URL(CLINE_API_ENDPOINT.AUTH, clineEnvConfig.apiBaseUrl)
 		authUrl.searchParams.set("client_type", "extension")
 		authUrl.searchParams.set("callback_url", callbackUrl)
