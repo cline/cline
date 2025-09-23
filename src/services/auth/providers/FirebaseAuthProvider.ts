@@ -6,8 +6,9 @@ import { clineEnvConfig, EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { ErrorService } from "@/services/error"
 import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
+import { IAuthProvider } from "./IAuthProvider"
 
-export class FirebaseAuthProvider {
+export class FirebaseAuthProvider implements IAuthProvider {
 	readonly name = "firebase"
 	readonly callbackEndpoint = "/auth"
 
@@ -51,7 +52,11 @@ export class FirebaseAuthProvider {
 		}
 		try {
 			// Exchange refresh token for new access token using Firebase's secure token endpoint
-			const idToken = await this.refreshToken(userRefreshToken)
+			const { idToken } = await this.refreshToken(userRefreshToken)
+
+			if (!idToken) {
+				throw new Error("No ID token received from refresh token exchange")
+			}
 
 			// Now retrieve the user info from the backend (this was an easy solution to keep providing user profile details like name and email, but we should move to using the fetchMe() function instead)
 			// Fetch user info from Cline API
@@ -66,20 +71,13 @@ export class FirebaseAuthProvider {
 			const userInfo: ClineAccountUserInfo = userResponse.data.data
 
 			return { idToken, userInfo }
-
-			// let userObject = JSON.parse(credentialJSON)
-			// let user = User.
-			// userObject = User.constructor._fromJSON(auth, user2);
-			// const credentialData: AuthCredential = OAuthCredential.fromJSON(credentialJSON) as AuthCredential
-			// const userCredential = await this._signInWithCredential(context, credentialData)
-			// return userCredential.user
 		} catch (error) {
 			ErrorService.get().logException(error)
 			throw error
 		}
 	}
 
-	async refreshToken(userRefreshToken: string): Promise<string> {
+	async refreshToken(userRefreshToken: string): Promise<Partial<ClineAuthInfo>> {
 		// Exchange refresh token for new access token using Firebase's secure token endpoint
 		// https://stackoverflow.com/questions/38233687/how-to-use-the-firebase-refreshtoken-to-reauthenticate/57119131#57119131
 		const firebaseApiKey = this._config.firebase.apiKey
@@ -93,20 +91,17 @@ export class FirebaseAuthProvider {
 			},
 		)
 
-		// console.log("googleAccessTokenResponse", googleAccessTokenResponse)
-
 		// This returns an object with access_token, expires_in (3600), id_token (can be used as bearer token to authenticate requests, we'll use this in the future instead of firebase but need to be aware of how we use firebase sdk for e.g. user info like the profile image), project_id, refresh_token, token_type (always Bearer), and user_id
-		return googleAccessTokenResponse.data.id_token
+		// Store user data
+		return { idToken: googleAccessTokenResponse.data.id_token }
 	}
 
-	getAuthRequest(callbackUrl: string): string {
+	getAuthRequest(callbackUrl: string): Promise<string> {
 		// Use URL object for more graceful query construction
 		const authUrl = new URL(`${clineEnvConfig.appBaseUrl}/auth`)
 		authUrl.searchParams.set("callback_url", callbackUrl)
 
-		const authUrlString = authUrl.toString()
-
-		return authUrlString
+		return Promise.resolve(authUrl.toString())
 	}
 
 	async signIn(controller: Controller, token: string, provider: string): Promise<ClineAuthInfo | null> {

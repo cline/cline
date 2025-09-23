@@ -5,6 +5,7 @@ import { WebviewProvider } from "@/core/webview"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { AuthService } from "./AuthService"
 
+// TODO: Consider adding a mock auth provider implementing IAuthProvider for more realistic testing
 export class AuthServiceMock extends AuthService {
 	protected constructor(controller: Controller) {
 		super(controller)
@@ -47,7 +48,7 @@ export class AuthServiceMock extends AuthService {
 		// Use URL object for more graceful query construction
 		const authUrl = new URL(clineEnvConfig.apiBaseUrl)
 		const authUrlString = authUrl.toString()
-
+		// Call the parent implementation
 		if (this._authenticated && this._clineAuthInfo) {
 			console.log("Already authenticated with mock server")
 			return String.create({ value: authUrlString })
@@ -103,7 +104,8 @@ export class AuthServiceMock extends AuthService {
 			const visibleWebview = WebviewProvider.getVisibleInstance()
 
 			// Use appropriate provider name for callback
-			const providerName = this._provider?.name || "cline"
+			const providerName = this._provider?.name || "mock"
+			// Simulate handling the auth callback as if from a real provider
 			await visibleWebview?.controller.handleAuthCallback(authData.accessToken, providerName)
 		} catch (error) {
 			console.error("Error signing in with mock server:", error)

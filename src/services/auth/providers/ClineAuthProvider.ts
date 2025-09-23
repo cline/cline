@@ -4,6 +4,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/services/logging/Logger"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import type { ClineAuthInfo } from "../AuthService"
+import { IAuthProvider } from "./IAuthProvider"
 
 interface ClineAuthApiUser {
 	subject: string | null
@@ -49,7 +50,7 @@ export interface ClineAuthApiTokenRefreshResponse {
 	data: ClineAuthResponseData
 }
 
-export class ClineAuthProvider {
+export class ClineAuthProvider implements IAuthProvider {
 	readonly name = "cline"
 	private _config
 
@@ -153,7 +154,7 @@ export class ClineAuthProvider {
 	 * @param refreshToken - The refresh token.
 	 * @returns {Promise<ClineAuthInfo>} The new access token and user info.
 	 */
-	private async refreshToken(refreshToken: string): Promise<ClineAuthInfo> {
+	async refreshToken(refreshToken: string): Promise<ClineAuthInfo> {
 		try {
 			// Get the callback URL that was used during the initial auth request
 			const endpoint = new URL(CLINE_API_ENDPOINT.REFRESH_TOKEN, this._config.apiBaseUrl)

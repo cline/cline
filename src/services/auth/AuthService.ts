@@ -9,8 +9,12 @@ import { openExternal } from "@/utils/env"
 import { featureFlagsService } from "../feature-flags"
 import { ClineAuthProvider } from "./providers/ClineAuthProvider"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
+import { IAuthProvider } from "./providers/IAuthProvider"
 
-type AvailableAuthProvider = ClineAuthProvider | FirebaseAuthProvider
+export type ServiceConfig = {
+	URI?: string
+	[key: string]: any
+}
 
 export interface ClineAuthInfo {
 	/**
@@ -53,14 +57,11 @@ export interface ClineAccountOrganization {
 	roles: string[]
 }
 
-// TODO: Add logic to handle multiple webviews getting auth updates.
-
 export class AuthService {
 	protected static instance: AuthService | null = null
 	protected _authenticated: boolean = false
 	protected _clineAuthInfo: ClineAuthInfo | null = null
-	protected providerName: string = "firebase"
-	protected _provider: AvailableAuthProvider | null = null
+	protected _provider: IAuthProvider | null = null
 	protected _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()
 	protected _handlerToController = new Map<StreamingResponseHandler<AuthState>, Controller>()
 	protected _controller: Controller
@@ -105,7 +106,7 @@ export class AuthService {
 		this._controller = controller
 	}
 
-	get authProvider(): ClineAuthProvider | FirebaseAuthProvider | null {
+	get authProvider(): IAuthProvider | null {
 		return this._provider
 	}
 
@@ -139,7 +140,7 @@ export class AuthService {
 				await this.sendAuthStatusUpdate()
 			}
 			// IMPORTANT: Prefix with 'workos:' so backend can route verification to WorkOS provider
-			const prefix = this.providerName === "cline" ? "workos:" : ""
+			const prefix = this._provider?.name === "cline" ? "workos:" : ""
 			return clineAccountAuthToken ? `${prefix}${clineAccountAuthToken}` : null
 		} catch (error) {
 			console.error("Error getting auth token:", error)
@@ -149,8 +150,7 @@ export class AuthService {
 
 	protected _setProvider(providerName: string): void {
 		// Only ClineAuthProvider is supported going forward
-		// Keeping the providerName param for forward compatibility/telemetry
-		this.providerName = providerName
+		// Keeping the providerName param for forward compatibility/telemetrye
 		switch (providerName) {
 			case "cline":
 				this._provider = new ClineAuthProvider(clineEnvConfig)
@@ -258,12 +258,12 @@ export class AuthService {
 				this._authenticated = true
 				await this.sendAuthStatusUpdate()
 			} else {
-				console.warn("No valid authentication data found or token expired")
+				console.warn("No user found after restoring auth token")
 				this._authenticated = false
 				this._clineAuthInfo = null
 			}
 		} catch (error) {
-			console.error("Error restoring authentication data:", error)
+			console.error("Error restoring auth token:", error)
 			this._authenticated = false
 			this._clineAuthInfo = null
 			return
