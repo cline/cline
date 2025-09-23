@@ -2198,8 +2198,8 @@ export class Task {
 				})
 
 				const baseErrorMessage =
-					"Unexpected API Response: The language model did not provide any assistant messages. This may indicate an issue with the API or the model's output."
-				const errorText = reqId ? `${baseErrorMessage} (reqId: ${reqId})` : baseErrorMessage
+					"Invalid API Response: The provider returned an empty or unparsable response. This is a provider-side issue where the model failed to generate valid output or returned tool calls that Cline cannot process. Retrying the request may help resolve this issue."
+				const errorText = reqId ? `${baseErrorMessage} (Request ID: ${reqId})` : baseErrorMessage
 
 				await this.say("error", errorText)
 				await this.messageStateHandler.addToApiConversationHistory({
