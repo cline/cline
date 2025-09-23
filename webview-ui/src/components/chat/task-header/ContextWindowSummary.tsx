@@ -1,4 +1,3 @@
-import { cn } from "@heroui/react"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { formatLargeNumber as formatTokenNumber } from "@/utils/format"
@@ -152,17 +151,7 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 					isExpanded={expandedSections.has("threshold")}
 					onToggle={(event) => toggleSection("threshold", event)}
 					title="Auto Condense Threshold"
-					value={
-						<span
-							className={cn({
-								"transition-all": !isThresholdChanged && !isThresholdFadingOut,
-								"text-success/50 transition-discrete": isThresholdChanged === "up" && !isThresholdFadingOut,
-								"text-error/50 transition-discrete": isThresholdChanged === "down" && !isThresholdFadingOut,
-								"text-muted-foreground transition-all": isThresholdFadingOut,
-							})}>
-							{`${(thresholdDisplay * 100).toFixed(0)}%`}
-						</span>
-					}>
+					value={<span className="text-muted-foreground">{`${(thresholdDisplay * 100).toFixed(0)}%`}</span>}>
 					<div className="space-y-1">
 						<p className="text-xs leading-relaxed text-white">
 							Click on the context window bar to set a new threshold.
