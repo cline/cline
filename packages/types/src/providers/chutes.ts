@@ -29,6 +29,7 @@ export type ChutesModelId =
 	| "tngtech/DeepSeek-R1T-Chimera"
 	| "zai-org/GLM-4.5-Air"
 	| "zai-org/GLM-4.5-FP8"
+	| "zai-org/GLM-4.5-turbo"
 	| "moonshotai/Kimi-K2-Instruct-75k"
 	| "moonshotai/Kimi-K2-Instruct-0905"
 	| "Qwen/Qwen3-235B-A22B-Thinking-2507"
@@ -273,6 +274,15 @@ export const chutesModels = {
 		outputPrice: 0,
 		description:
 			"GLM-4.5-FP8 model with 128k token context window, optimized for agent-based applications with MoE architecture.",
+	},
+	"zai-org/GLM-4.5-turbo": {
+		maxTokens: 32768,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 1,
+		outputPrice: 3,
+		description: "GLM-4.5-turbo model with 128K token context window, optimized for fast inference.",
 	},
 	"Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8": {
 		maxTokens: 32768,
