@@ -1,6 +1,6 @@
 import { cn, Progress, Tooltip } from "@heroui/react"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import debounce from "lodash/debounce"
+import debounce from "debounce"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { updateSetting } from "@/components/settings/utils/settingsHandlers"
 import { formatLargeNumber as formatTokenNumber } from "@/utils/format"
