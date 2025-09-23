@@ -55,40 +55,61 @@ test("Standalone migration moves secrets.json to OS keychain and removes file", 
 		{ stdio: "pipe", env: procEnv },
 	)
 
-	// Allow time for startup and extraction
-	await new Promise((r) => setTimeout(r, 5000))
+	// Capture logs
+	let output = ""
+	server.stdout?.on("data", (d) => (output += String(d)))
+	server.stderr?.on("data", (d) => (output += String(d)))
 
-	// Poll keychain up to ~30s for migration to complete
-	const start = Date.now()
-	let present = false
-	while (Date.now() - start < 30000) {
-		const status =
-			platform === "darwin"
-				? spawnSync("security", ["find-generic-password", "-s", service, "-a", account, "-w"], {
-						stdio: "ignore",
-					}).status
-				: spawnSync("secret-tool", ["lookup", "service", service, "account", account], { stdio: "ignore" }).status
-		if (status === 0) {
-			present = true
-			break
+	// Helper to wait for a regex in output up to timeoutMs
+	async function waitFor(pattern: RegExp, timeoutMs: number): Promise<boolean> {
+		const start = Date.now()
+		while (Date.now() - start < timeoutMs) {
+			if (pattern.test(output)) return true
+			await new Promise((r) => setTimeout(r, 200))
 		}
-		await new Promise((r) => setTimeout(r, 300))
+		return false
 	}
+
+	// Wait for migration complete log (deterministic), up to 45s
+	const successSeen = await waitFor(
+		/Secrets migration: (migrated .* entries; removed secrets\.json|all entries already present; removed secrets\.json)/i,
+		45000,
+	)
+	// If an abort log appeared, surface it
+	const abortSeen =
+		/Secrets migration aborted and rolled back/i.test(output) || /Migration from secrets\.json failed/i.test(output)
 
 	// Stop server
 	try {
 		server.kill("SIGINT")
 	} catch {}
 
-	expect(present).toBeTruthy()
+	expect(abortSeen).toBeFalsy()
+	expect(successSeen).toBeTruthy()
+	// File should be removed
 	expect(fs.existsSync(secretsPath)).toBeFalsy()
+
+	// Quick keychain presence check (5s max)
+	let present = false
+	const checkStart = Date.now()
+	while (Date.now() - checkStart < 5000) {
+		const status =
+			platform === "darwin"
+				? spawnSync("security", ["find-generic-password", "-s", service, "-a", account, "-w"], { stdio: "ignore" }).status
+				: spawnSync("secret-tool", ["lookup", "service", service, "account", account], { stdio: "ignore" }).status
+		if (status === 0) {
+			present = true
+			break
+		}
+		await new Promise((r) => setTimeout(r, 250))
+	}
+	expect(present).toBeTruthy()
 })
 
 test("Standalone deps warning emitted when deps missing (best-effort)", async () => {
 	const platform = os.platform()
-	// Only meaningful off Linux with deps:false or Windows without module; but we can just assert process stays up.
-	if (platform === "darwin") {
-		test.skip(true, "Mac usually has security; skip dedicated deps warning test here")
+	if (platform === "win32") {
+		test.skip(true, "Skip on Windows to avoid spawn EINVAL with npx in CI")
 		return
 	}
 
@@ -103,18 +124,18 @@ test("Standalone deps warning emitted when deps missing (best-effort)", async ()
 		},
 	)
 
-	let output = ""
-	server.stdout?.on("data", (d) => (output += String(d)))
-	server.stderr?.on("data", (d) => (output += String(d)))
+	let output2 = ""
+	server.stdout?.on("data", (d) => (output2 += String(d)))
+	server.stderr?.on("data", (d) => (output2 += String(d)))
 
-	await new Promise((r) => setTimeout(r, 4000))
+	await new Promise((r) => setTimeout(r, 6000))
 	try {
 		server.kill("SIGINT")
 	} catch {}
 
 	// Non-strict: just check our message shows up if deps are missing
 	const hinted = /Falling back to file storage|CredentialManager PowerShell module not available|secret-tool\/libsecret/i.test(
-		output,
+		output2,
 	)
 	expect(typeof hinted).toBe("boolean")
 })
