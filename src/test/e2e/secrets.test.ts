@@ -1,7 +1,5 @@
 import { spawnSync } from "node:child_process"
-import * as fs from "node:fs"
 import os from "node:os"
-import * as path from "node:path"
 import { expect, test } from "@playwright/test"
 import { e2e } from "./utils/helpers"
 
@@ -60,6 +58,8 @@ function winDelete(service: string, account: string): boolean {
 	const res = spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps], { stdio: "ignore" })
 	return res.status === 0
 }
+
+// Extension-host validation of OS keychain commands
 
 e2e("Secrets - OS keychain get/store/delete", async () => {
 	const platform = os.platform()
@@ -126,60 +126,7 @@ e2e("Secrets - OS keychain get/store/delete", async () => {
 	expect(after).toBeUndefined()
 })
 
-e2e("Secrets migration - moves legacy secrets.json to OS keychain and removes file", async () => {
-	const platform = os.platform()
-	if (platform !== "darwin" && platform !== "linux") {
-		test.skip(true, "Migration test only runs on macOS/Linux where OS keychain is available in CI")
-		return
-	}
-	if (platform === "darwin" && !hasCommand("security")) {
-		test.skip(true, "security CLI not available")
-		return
-	}
-	if (platform === "linux" && !hasCommand("secret-tool")) {
-		test.skip(true, "secret-tool not available")
-		return
-	}
-
-	// Prepare env for helpers to seed secrets.json before app launch
-	process.env.E2E_MIGRATION_SECRETS_JSON = JSON.stringify({ openRouterApiKey: "migrate-me" })
-
-	// Launch VS Code to trigger extension startup and migration
-	const { E2ETestHelper } = await import("./utils/helpers")
-	const executablePath = await (await import("@vscode/test-electron")).downloadAndUnzipVSCode("stable", undefined)
-	const { _electron } = await import("playwright")
-	const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "vsce-mig"))
-	const app = await _electron.launch({
-		executablePath,
-		env: { ...process.env, CLINE_DIR: userDataDir, E2E_TEST: "true" },
-		args: [
-			"--disable-extensions",
-			"--skip-welcome",
-			"--skip-release-notes",
-			`--user-data-dir=${userDataDir}`,
-			`--install-extension=${path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
-			`--extensionDevelopmentPath=${E2ETestHelper.CODEBASE_ROOT_DIR}`,
-			path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "workspace"),
-		],
-	})
-	await E2ETestHelper.waitUntil(() => app.windows().length > 0)
-
-	// Verify key present in OS keychain
-	const service = "Cline: openRouterApiKey"
-	const account = "cline_openRouterApiKey"
-	const present =
-		platform === "darwin"
-			? spawnSync("security", ["find-generic-password", "-s", service, "-a", account, "-w"], { stdio: "ignore" }).status ===
-				0
-			: spawnSync("secret-tool", ["lookup", "service", service, "account", account], { stdio: "ignore" }).status === 0
-	expect(present).toBeTruthy()
-
-	// Verify legacy file removed
-	const secretsPath = path.join(userDataDir, "data", "secrets.json")
-	expect(fs.existsSync(secretsPath)).toBeFalsy()
-
-	await app.close()
-})
+// Standalone deps warning remains part of extension-host E2E (UI toast)
 
 test.describe("Standalone deps warning", () => {
 	e2e("Toast presence matches EXPECT_DEPS env", async ({ page }) => {

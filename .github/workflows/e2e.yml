@@ -97,8 +97,16 @@ jobs:
         if: matrix.runner == 'ubuntu' && matrix.deps == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install -y dbus gnome-keyring libsecret-1-0 libsecret-tools xvfb
+          sudo apt-get install -y dbus gnome-keyring libsecret-1-0 libsecret-tools xvfb unzip
           echo "Provisioned libsecret and keyring"
+
+      - name: Build standalone (Linux - deps:true)
+        if: matrix.runner == 'ubuntu' && matrix.deps == 'true'
+        run: npm run compile-standalone
+
+      - name: Build standalone (macOS)
+        if: matrix.runner == 'macos'
+        run: npm run compile-standalone
 
       - name: Run E2E tests - Linux
         if: matrix.runner == 'ubuntu'
