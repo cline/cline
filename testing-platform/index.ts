@@ -55,7 +55,12 @@ async function runSpec(specPath: string, grpcAdapter: GrpcAdapter) {
 			await retry(async () => {
 				actualResponse = await grpcAdapter.call(entry.service, entry.method, entry.request)
 
-				const { success, diffs } = compareResponse(actualResponse, entry?.response?.message, NON_DETERMINISTIC_FIELDS)
+				const { success, diffs } = compareResponse(
+					actualResponse,
+					entry?.response?.message,
+					NON_DETERMINISTIC_FIELDS,
+					entry.meta?.expected,
+				)
 
 				if (success) {
 					console.log("✅ Response matched! RequestID: %s", entry.requestId)

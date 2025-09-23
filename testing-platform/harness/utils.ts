@@ -1,5 +1,6 @@
 import fs from "fs"
 import { diff } from "jest-diff"
+import _ from "lodash"
 import path from "path"
 
 export function loadJson(filePath: string): any {
@@ -44,21 +45,36 @@ function normalize(obj: any, ignoreFields: string[] = [], parentPath = ""): any 
 	return obj
 }
 
-// Compare two objects, ignoring specified fields & array order
-export function compareResponse(actual: any, expected: any, ignoreFields: string[] = []): { success: boolean; diffs: string[] } {
-	const diffs: string[] = []
+function pickDeep(actual: any, filter: any): any {
+	if (_.isPlainObject(filter)) {
+		return _.mapValues(filter, (v, k) => (actual && k in actual ? pickDeep(actual[k], v) : undefined))
+	}
+	return actual
+}
 
-	const normalizedActual = normalize(actual, ignoreFields)
-	const normalizedExpected = normalize(expected, ignoreFields)
+export function compareResponse(actual: any, expected: any, ignoreFields: string[] = [], expectedSubset?: any) {
+	const actualToCompare = normalize(actual, ignoreFields)
+	const expectedToCompare = normalize(expected, ignoreFields)
 
-	if (JSON.stringify(normalizedActual) !== JSON.stringify(normalizedExpected)) {
-		const difference = diff(normalizedExpected, normalizedActual, {
-			expand: false, // compact diff
-		})
-		diffs.push(difference || "Objects differ but no diff generated.")
+	if (expectedSubset) {
+		// Extract only what we care about
+		const actualSubset = pickDeep(actualToCompare, expectedSubset)
+
+		const success = _.isEqual(actualSubset, expectedSubset)
+		if (!success) {
+			const difference = diff(expectedSubset, actualSubset, { expand: false })
+			return { success: false, diffs: [difference || "Objects differ"] }
+		}
+		return { success: true, diffs: [] }
 	}
 
-	return { success: diffs.length === 0, diffs }
+	// Fallback: full comparison
+	const success = _.isEqual(actualToCompare, expectedToCompare)
+	if (!success) {
+		const difference = diff(expectedToCompare, actualToCompare, { expand: false })
+		return { success: false, diffs: [difference || "Objects differ"] }
+	}
+	return { success: true, diffs: [] }
 }
 
 /**

@@ -2,7 +2,7 @@ import { ServiceClients } from "@adapters/grpcAdapter"
 
 export interface Meta {
 	synthetic: boolean
-	expect: any
+	expected: any
 }
 
 export interface Entry {
