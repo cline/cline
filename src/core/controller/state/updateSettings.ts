@@ -177,11 +177,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("useAutoCondense", request.useAutoCondense)
 		}
 
-		if (request.autoCondenseThreshold !== undefined) {
-			const threshold = Math.min(1, Math.max(0, request.autoCondenseThreshold)) // Clamp to 0-1 range
-			controller.stateManager.setGlobalState("autoCondenseThreshold", threshold)
-		}
-
 		// Update focus chain settings
 		if (request.focusChainSettings !== undefined) {
 			{
