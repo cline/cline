@@ -130,6 +130,26 @@ export const Ollama = ({ apiConfiguration, setApiConfigurationField }: OllamaPro
 					))}
 				</VSCodeRadioGroup>
 			)}
+			<VSCodeTextField
+				value={apiConfiguration?.ollamaNumCtx?.toString() || ""}
+				onInput={(e: any) => {
+					const value = e.target?.value
+					if (value === "") {
+						setApiConfigurationField("ollamaNumCtx", undefined)
+					} else {
+						const numValue = parseInt(value, 10)
+						if (!isNaN(numValue) && numValue >= 128) {
+							setApiConfigurationField("ollamaNumCtx", numValue)
+						}
+					}
+				}}
+				placeholder="e.g., 4096"
+				className="w-full">
+				<label className="block font-medium mb-1">{t("settings:providers.ollama.numCtx")}</label>
+				<div className="text-xs text-vscode-descriptionForeground mt-1">
+					{t("settings:providers.ollama.numCtxHelp")}
+				</div>
+			</VSCodeTextField>
 			<div className="text-sm text-vscode-descriptionForeground">
 				{t("settings:providers.ollama.description")}
 				<span className="text-vscode-errorForeground ml-1">{t("settings:providers.ollama.warning")}</span>

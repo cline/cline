@@ -73,6 +73,61 @@ describe("NativeOllamaHandler", () => {
 			expect(results[2]).toEqual({ type: "usage", inputTokens: 10, outputTokens: 2 })
 		})
 
+		it("should not include num_ctx by default", async () => {
+			// Mock the chat response
+			mockChat.mockImplementation(async function* () {
+				yield { message: { content: "Response" } }
+			})
+
+			const stream = handler.createMessage("System", [{ role: "user" as const, content: "Test" }])
+
+			// Consume the stream
+			for await (const _ of stream) {
+				// consume stream
+			}
+
+			// Verify that num_ctx was NOT included in the options
+			expect(mockChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					options: expect.not.objectContaining({
+						num_ctx: expect.anything(),
+					}),
+				}),
+			)
+		})
+
+		it("should include num_ctx when explicitly set via ollamaNumCtx", async () => {
+			const options: ApiHandlerOptions = {
+				apiModelId: "llama2",
+				ollamaModelId: "llama2",
+				ollamaBaseUrl: "http://localhost:11434",
+				ollamaNumCtx: 8192, // Explicitly set num_ctx
+			}
+
+			handler = new NativeOllamaHandler(options)
+
+			// Mock the chat response
+			mockChat.mockImplementation(async function* () {
+				yield { message: { content: "Response" } }
+			})
+
+			const stream = handler.createMessage("System", [{ role: "user" as const, content: "Test" }])
+
+			// Consume the stream
+			for await (const _ of stream) {
+				// consume stream
+			}
+
+			// Verify that num_ctx was included with the specified value
+			expect(mockChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					options: expect.objectContaining({
+						num_ctx: 8192,
+					}),
+				}),
+			)
+		})
+
 		it("should handle DeepSeek R1 models with reasoning detection", async () => {
 			const options: ApiHandlerOptions = {
 				apiModelId: "deepseek-r1",
@@ -119,6 +174,49 @@ describe("NativeOllamaHandler", () => {
 				},
 			})
 			expect(result).toBe("This is the response")
+		})
+
+		it("should not include num_ctx in completePrompt by default", async () => {
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			await handler.completePrompt("Test prompt")
+
+			// Verify that num_ctx was NOT included in the options
+			expect(mockChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					options: expect.not.objectContaining({
+						num_ctx: expect.anything(),
+					}),
+				}),
+			)
+		})
+
+		it("should include num_ctx in completePrompt when explicitly set", async () => {
+			const options: ApiHandlerOptions = {
+				apiModelId: "llama2",
+				ollamaModelId: "llama2",
+				ollamaBaseUrl: "http://localhost:11434",
+				ollamaNumCtx: 4096, // Explicitly set num_ctx
+			}
+
+			handler = new NativeOllamaHandler(options)
+
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			await handler.completePrompt("Test prompt")
+
+			// Verify that num_ctx was included with the specified value
+			expect(mockChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					options: expect.objectContaining({
+						num_ctx: 4096,
+					}),
+				}),
+			)
 		})
 	})
 
