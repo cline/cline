@@ -1433,30 +1433,39 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					onDragLeave={handleDragLeave}
 					onDragOver={onDragOver}
 					onDrop={onDrop}>
-					<div className="absolute inset-0 pointer-events-none z-10 overflow-hidden rounded-xs transition-colors ease-in-out duration-1000 left-2.5 right-2.5 top-2.5 bottom-2.5">
-						<PulsingBorder
-							bloom={1}
-							className="w-full h-full"
-							colorBack={"rgba(0,0,0,0)"}
-							colors={[
-								"#ffffff", // white
-								"#ffffff",
-								"#9d57fa",
-								"#ffffff",
-							]}
-							intensity={0.97}
-							pulse={0}
-							roundness={0} // Match textarea border radius
-							scale={1.0}
-							smoke={0.18}
-							smokeSize={0.76}
-							softness={1}
-							speed={1}
-							spotSize={0.4}
-							spots={3}
-							thickness={0.1}
-						/>
-					</div>
+					{isVoiceRecording && (
+						<div
+							className={cn(
+								"absolute pointer-events-none z-10 overflow-hidden rounded-xs transition-all ease-in-out duration-300",
+								{
+									"left-2.5 right-2.5 top-2.5 bottom-2.5": isTextAreaFocused || isVoiceRecording,
+									"left-3.5 right-3.5 top-2.5 bottom-2.5": !isTextAreaFocused && !isVoiceRecording,
+								},
+							)}>
+							<PulsingBorder
+								bloom={1}
+								className="w-full h-full"
+								colorBack={"rgba(0,0,0,0)"}
+								colors={[
+									"#9d57fa", // purple
+									"#57c7fa", // cyan
+									"#fa57a8", // pink
+									"#9d57fa", // purple again for smooth loop
+								]}
+								intensity={0.4}
+								pulse={0.3}
+								roundness={0} // Match textarea border radius
+								scale={1.0}
+								smoke={0.25}
+								smokeSize={0.8}
+								softness={0.8}
+								speed={1.5}
+								spotSize={0.5}
+								spots={4}
+								thickness={0.05}
+							/>
+						</div>
+					)}
 
 					{showDimensionError && (
 						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
