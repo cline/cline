@@ -1,7 +1,9 @@
 import { resolveWorkspacePath } from "@core/workspace"
 import { ClineDefaultTool } from "@shared/tools"
 import { StateManager } from "@/core/storage/StateManager"
-import { getCwd, getDesktopDir, isLocatedInPath } from "@/utils/path"
+import { HostProvider } from "@/hosts/host-provider"
+import { featureFlagsService } from "@/services/feature-flags"
+import { getCwd, getDesktopDir, isLocatedInPath, isLocatedInWorkspace } from "@/utils/path"
 
 export class AutoApprove {
 	private stateManager: StateManager
@@ -76,14 +78,24 @@ export class AutoApprove {
 
 		let isLocalRead: boolean = false
 		if (autoApproveActionpath) {
-			const cwd = await getCwd(getDesktopDir())
-			// When called with a string cwd, resolveWorkspacePath returns a string
-			const absolutePath = resolveWorkspacePath(
-				cwd,
-				autoApproveActionpath,
-				"AutoApprove.shouldAutoApproveToolWithPath",
-			) as string
-			isLocalRead = isLocatedInPath(cwd, absolutePath)
+			// Check if multi-root is enabled and we have multiple workspaces
+			const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
+			const isMultiRootScenario = featureFlagsService.getMultiRootEnabled() && workspacePaths.paths.length > 1
+
+			if (isMultiRootScenario) {
+				// Multi-root: check if file is in ANY workspace
+				isLocalRead = await isLocatedInWorkspace(autoApproveActionpath)
+			} else {
+				// Single-root: use existing logic
+				const cwd = await getCwd(getDesktopDir())
+				// When called with a string cwd, resolveWorkspacePath returns a string
+				const absolutePath = resolveWorkspacePath(
+					cwd,
+					autoApproveActionpath,
+					"AutoApprove.shouldAutoApproveToolWithPath",
+				) as string
+				isLocalRead = isLocatedInPath(cwd, absolutePath)
+			}
 		} else {
 			// If we do not get a path for some reason, default to a (safer) false return
 			isLocalRead = false
