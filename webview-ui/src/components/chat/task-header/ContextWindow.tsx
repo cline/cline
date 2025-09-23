@@ -178,10 +178,6 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 		setIsOpened(true)
 	}, [])
 
-	const handleBlur = useCallback(() => {
-		setIsOpened(false)
-	}, [])
-
 	// Close tooltip when clicking outside
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -242,7 +238,6 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 								aria-valuenow={Math.round(threshold * 100)}
 								aria-valuetext={`${Math.round(threshold * 100)}% threshold`}
 								className="relative w-full text-badge-foreground context-window-progress brightness-100"
-								onBlur={handleBlur}
 								onFocus={handleFocus}
 								onKeyDown={handleKeyDown}
 								ref={progressBarRef}
