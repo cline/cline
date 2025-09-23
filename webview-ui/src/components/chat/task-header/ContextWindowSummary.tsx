@@ -164,11 +164,11 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 						</span>
 					}>
 					<div className="space-y-1">
-						<p className="text-xs leading-relaxed">
-							When the context window usage exceeds this threshold, the task will be automatically condensed.
-						</p>
-						<p className="text-xs opacity-75 leading-relaxed">
+						<p className="text-xs leading-relaxed text-white">
 							Click on the context window bar to set a new threshold.
+						</p>
+						<p className="text-xs leading-relaxed mt-0 mb-0">
+							When the context window usage exceeds this threshold, the task will be automatically condensed.
 						</p>
 					</div>
 				</AccordionItem>
