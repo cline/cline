@@ -26,6 +26,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
+import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -793,6 +794,10 @@ export class Controller {
 			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
 			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
 			isMultiRootWorkspace: (this.workspaceManager?.getRoots().length ?? 0) > 1,
+			multiRootSetting: {
+				user: this.stateManager.getGlobalStateKey("multiRootEnabled"),
+				featureFlag: featureFlagsService.getMultiRootEnabled(),
+			},
 		}
 	}
 
