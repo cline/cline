@@ -13,8 +13,7 @@ const CompactTaskButton: React.FC<{
 					<div className="text-sm font-medium">Compact Task</div>
 					<div className="text-sm text-muted-foreground">
 						Reduces the number of tokens used by summarizing the task. To enable automatic condensing, turn on{" "}
-						<kbd>Auto Condense</kbd> in the settings and set the auto-condense threshold by clicking on the context
-						window usage bar.
+						<kbd>Auto Compact</kbd> in the settings and set the threshold by clicking on the context window usage bar.
 					</div>
 				</div>
 			}
