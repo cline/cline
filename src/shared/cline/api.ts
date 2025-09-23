@@ -1,4 +1,4 @@
-enum CLINE_API_ENDPOINT_AUTH {
+enum CLINE_API_AUTH_ENDPOINTS {
 	AUTH = "/api/v1/auth/authorize",
 	REFRESH_TOKEN = "/api/v1/auth/refresh",
 }
