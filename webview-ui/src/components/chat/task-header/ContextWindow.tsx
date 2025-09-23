@@ -214,7 +214,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 							closeDelay={0}
 							content={
 								<ContextWindowSummary
-									autoCompactThreshold={threshold}
+									autoCompactThreshold={useAutoCondense ? threshold : undefined}
 									cacheReads={cacheReads}
 									cacheWrites={cacheWrites}
 									contextWindow={tokenData.max}
