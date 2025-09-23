@@ -126,11 +126,6 @@ export const AutoCondenseMarker: React.FC<{
 					</div>
 				)}
 			</div>
-			<div
-				className="absolute top-0 bottom-0 h-full z-10 bg-black/40"
-				key={marker.start}
-				style={{ left: marker.start, width: marker.end }}
-			/>
 		</div>
 	)
 }
