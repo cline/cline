@@ -23,6 +23,8 @@
 	"havingTrouble": "Having trouble?",
 	"pasteCallbackUrl": "Copy the redirect URL from your browser and paste it here:",
 	"startOver": "Start over",
+	"personalAccount": "Personal Account",
+	"switchAccount": "Switch Roo Code Cloud Account",
 	"upsell": {
 		"autoApprovePowerUser": "Giving Roo some independence? Control it from anywhere with Roo Code Cloud. <learnMoreLink>Learn more</learnMoreLink>.",
 		"longRunningTask": "This might take a while. Continue from anywhere with Cloud.",

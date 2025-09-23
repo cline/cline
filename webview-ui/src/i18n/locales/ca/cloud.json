@@ -23,6 +23,8 @@
 	"havingTrouble": "Tens problemes?",
 	"pasteCallbackUrl": "Copia l'URL de redirect del teu navegador i enganxa-la aquí:",
 	"startOver": "Torna a començar",
+	"personalAccount": "Compte Personal",
+	"switchAccount": "Canviar Compte de Roo Code Cloud",
 	"upsell": {
 		"autoApprovePowerUser": "Donant-li una mica d'independència a Roo? Controla'l des de qualsevol lloc amb Roo Code Cloud. <learnMoreLink>Més informació</learnMoreLink>.",
 		"longRunningTask": "Això pot trigar una estona. Continua des de qualsevol lloc amb Cloud.",

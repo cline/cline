@@ -22,6 +22,8 @@
 	"havingTrouble": "遇到问题？",
 	"pasteCallbackUrl": "从浏览器复制重定向 URL 并粘贴到这里：",
 	"startOver": "重新开始",
+	"personalAccount": "个人账户",
+	"switchAccount": "切换 Roo Code Cloud 账户",
 	"cloudUrlPillLabel": "Roo Code Cloud URL",
 	"upsell": {
 		"autoApprovePowerUser": "给 Roo 一些独立性？使用 Roo Code Cloud 从任何地方控制它。 <learnMoreLink>了解更多</learnMoreLink>。",

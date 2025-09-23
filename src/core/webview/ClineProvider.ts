@@ -30,6 +30,7 @@ import {
 	type TerminalActionPromptType,
 	type HistoryItem,
 	type CloudUserInfo,
+	type CloudOrganizationMembership,
 	type CreateTaskOptions,
 	type TokenUsage,
 	RooCodeEventName,
@@ -1815,6 +1816,16 @@ export class ClineProvider
 			featureRoomoteControlEnabled,
 		} = await this.getState()
 
+		let cloudOrganizations: CloudOrganizationMembership[] = []
+
+		try {
+			cloudOrganizations = await CloudService.instance.getOrganizationMemberships()
+		} catch (error) {
+			console.error(
+				`[getStateToPostToWebview] failed to get cloud organizations: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
+
 		const telemetryKey = process.env.POSTHOG_API_KEY
 		const machineId = vscode.env.machineId
 		const mergedAllowedCommands = this.mergeAllowedCommands(allowedCommands)
@@ -1916,6 +1927,7 @@ export class ClineProvider
 			historyPreviewCollapsed: historyPreviewCollapsed ?? false,
 			cloudUserInfo,
 			cloudIsAuthenticated: cloudIsAuthenticated ?? false,
+			cloudOrganizations,
 			sharingEnabled: sharingEnabled ?? false,
 			organizationAllowList,
 			organizationSettingsVersion,

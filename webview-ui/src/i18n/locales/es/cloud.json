@@ -22,6 +22,8 @@
 	"havingTrouble": "¿Tienes problemas?",
 	"pasteCallbackUrl": "Copia la URL de redirect desde tu navegador y pégala aquí:",
 	"startOver": "Empezar de nuevo",
+	"personalAccount": "Cuenta Personal",
+	"switchAccount": "Cambiar Cuenta de Roo Code Cloud",
 	"cloudUrlPillLabel": "URL de Roo Code Cloud",
 	"upsell": {
 		"autoApprovePowerUser": "¿Dándole a Roo un poco de independencia? Contrólalo desde cualquier lugar con Roo Code Cloud. <learnMoreLink>Saber más</learnMoreLink>.",

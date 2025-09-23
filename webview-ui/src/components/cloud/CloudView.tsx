@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { VSCodeButton, VSCodeProgressRing, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 
-import { type CloudUserInfo, TelemetryEventName } from "@roo-code/types"
+import { type CloudUserInfo, type CloudOrganizationMembership, TelemetryEventName } from "@roo-code/types"
 
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
@@ -9,10 +9,12 @@ import { vscode } from "@src/utils/vscode"
 import { telemetryClient } from "@src/utils/TelemetryClient"
 import { ToggleSwitch } from "@/components/ui/toggle-switch"
 import { renderCloudBenefitsContent } from "./CloudUpsellDialog"
-import { TriangleAlert } from "lucide-react"
+import { CircleAlert, Info, Lock, TriangleAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tab, TabContent, TabHeader } from "../common/Tab"
 import { Button } from "@/components/ui/button"
+import { OrganizationSwitcher } from "./OrganizationSwitcher"
+import { StandardTooltip } from "../ui"
 
 // Define the production URL constant locally to avoid importing from cloud package in tests
 const PRODUCTION_ROO_CODE_API_URL = "https://app.roocode.com"
@@ -22,9 +24,10 @@ type CloudViewProps = {
 	isAuthenticated: boolean
 	cloudApiUrl?: string
 	onDone: () => void
+	organizations?: CloudOrganizationMembership[]
 }
 
-export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: CloudViewProps) => {
+export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone, organizations = [] }: CloudViewProps) => {
 	const { t } = useAppTranslation()
 	const {
 		remoteControlEnabled,
@@ -161,11 +164,11 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 				<Button onClick={onDone}>{t("settings:common.done")}</Button>
 			</TabHeader>
 
-			<TabContent>
+			<TabContent className="pt-10">
 				{isAuthenticated ? (
 					<>
 						{userInfo && (
-							<div className="flex flex-col items-center mb-6">
+							<div className="flex flex-col items-start ml-4 mb-6">
 								<div className="w-16 h-16 mb-3 rounded-full overflow-hidden">
 									{userInfo?.picture ? (
 										<img
@@ -185,23 +188,18 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 								{userInfo?.email && (
 									<p className="text-sm text-vscode-descriptionForeground my-0">{userInfo?.email}</p>
 								)}
-								{userInfo?.organizationName && (
-									<div className="flex items-center gap-2 text-sm text-vscode-descriptionForeground mt-2">
-										{userInfo.organizationImageUrl && (
-											<img
-												src={userInfo.organizationImageUrl}
-												alt={userInfo.organizationName}
-												className="w-4 h-4 rounded object-cover"
-											/>
-										)}
-										<span>{userInfo.organizationName}</span>
+
+								{/* Organization Switcher - moved below email */}
+								{organizations && organizations.length > 0 && (
+									<div className="w-full max-w-60 mt-4">
+										<OrganizationSwitcher userInfo={userInfo} organizations={organizations} />
 									</div>
 								)}
 							</div>
 						)}
 
 						{/* Task Sync Toggle - Always shown when authenticated */}
-						<div className="border-t border-vscode-widget-border pt-4 mt-4">
+						<div className="mt-4 p-4 border-b border-t border-vscode-widget-border pl-4 max-w-140">
 							<div className="flex items-center gap-3 mb-2">
 								<ToggleSwitch
 									checked={taskSyncEnabled}
@@ -211,21 +209,25 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 									data-testid="task-sync-toggle"
 									disabled={!!userInfo?.organizationId}
 								/>
-								<span className="font-medium text-vscode-foreground">{t("cloud:taskSync")}</span>
+								<span className="font-medium text-vscode-foreground flex items-center">
+									{t("cloud:taskSync")}
+									{userInfo?.organizationId && (
+										<StandardTooltip content={t("cloud:taskSyncManagedByOrganization")}>
+											<div className="bg-vscode-badge-background text-vscode-badge-foreground/80 p-1.5 ml-2 -mb-2 relative -top-1 rounded-full inline-block cursor-help">
+												<Lock className="size-3 block" />
+											</div>
+										</StandardTooltip>
+									)}
+								</span>
 							</div>
-							<div className="text-vscode-descriptionForeground text-sm mt-1 mb-4 ml-8">
+							<div className="text-vscode-descriptionForeground text-sm mt-1 ml-8">
 								{t("cloud:taskSyncDescription")}
 							</div>
-							{userInfo?.organizationId && (
-								<div className="text-vscode-descriptionForeground text-sm mt-1 mb-4 ml-8 italic">
-									{t("cloud:taskSyncManagedByOrganization")}
-								</div>
-							)}
 
 							{/* Remote Control Toggle - Only shown when both extensionBridgeEnabled and featureRoomoteControlEnabled are true */}
 							{userInfo?.extensionBridgeEnabled && featureRoomoteControlEnabled && (
 								<>
-									<div className="flex items-center gap-3 mb-2">
+									<div className="flex items-center gap-3 mt-4 mb-2">
 										<ToggleSwitch
 											checked={remoteControlEnabled}
 											onChange={handleRemoteControlToggle}
@@ -238,37 +240,42 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 											{t("cloud:remoteControl")}
 										</span>
 									</div>
-									<div className="text-vscode-descriptionForeground text-sm mt-1 mb-4 ml-8">
+									<div className="text-vscode-descriptionForeground text-sm mt-1 mb-2 ml-8">
 										{t("cloud:remoteControlDescription")}
 										{!taskSyncEnabled && (
-											<div className="text-vscode-errorForeground mt-2">
+											<div className="text-vscode-editorWarning-foreground mt-2">
+												<CircleAlert className="inline size-3 mr-1 mb-0.5 text-vscode-editorWarning-foreground" />
 												{t("cloud:remoteControlRequiresTaskSync")}
 											</div>
 										)}
 									</div>
 								</>
 							)}
-
-							{/* Info text about usage metrics */}
-							<div className="text-vscode-descriptionForeground text-sm mt-4 mb-4 ml-8 italic">
-								{t("cloud:usageMetricsAlwaysReported")}
-							</div>
-
-							<hr className="border-vscode-widget-border mb-4" />
 						</div>
 
-						<div className="flex flex-col gap-2 mt-4">
-							<VSCodeButton appearance="secondary" onClick={handleVisitCloudWebsite} className="w-full">
+						<div className="text-vscode-descriptionForeground text-sm mt-4 mb-8 pl-4">
+							<Info className="inline size-3 mr-1 mb-0.5 text-vscode-descriptionForeground" />
+							{t("cloud:usageMetricsAlwaysReported")}
+						</div>
+
+						<div className="flex flex-col gap-2 mt-4 pl-4">
+							<VSCodeButton
+								appearance="secondary"
+								onClick={handleVisitCloudWebsite}
+								className="w-full max-w-80">
 								{t("cloud:visitCloudWebsite")}
 							</VSCodeButton>
-							<VSCodeButton appearance="secondary" onClick={handleLogoutClick} className="w-full">
+							<VSCodeButton
+								appearance="secondary"
+								onClick={handleLogoutClick}
+								className="w-full max-w-80">
 								{t("cloud:logOut")}
 							</VSCodeButton>
 						</div>
 					</>
 				) : (
 					<>
-						<div className="flex flex-col items-start gap-4 px-8">
+						<div className="flex flex-col items-start gap-4 px-8 max-w-100">
 							<div className={cn(authInProgress && "opacity-50")}>{renderCloudBenefitsContent(t)}</div>
 
 							{!authInProgress && (
@@ -323,10 +330,10 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone }: Cl
 					</>
 				)}
 				{cloudApiUrl && cloudApiUrl !== PRODUCTION_ROO_CODE_API_URL && (
-					<div className="ml-8 mt-6 flex justify-start">
+					<div className="ml-4 mt-6 flex">
 						<div className="inline-flex items-center gap-2 text-xs">
-							<TriangleAlert className="size-4 text-vscode-descriptionForeground" />
-							<span className="text-vscode-foreground/75">{t("cloud:cloudUrlPillLabel")}: </span>
+							<TriangleAlert className="size-3 text-vscode-descriptionForeground" />
+							<span className="text-vscode-foreground/75">{t("cloud:cloudUrlPillLabel")} </span>
 							<button
 								onClick={handleOpenCloudUrl}
 								className="text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground underline cursor-pointer bg-transparent border-none p-0">

@@ -22,6 +22,8 @@
 	"havingTrouble": "問題が発生していますか？",
 	"pasteCallbackUrl": "ブラウザからリダイレクトURLをコピーし、ここに貼り付けてください：",
 	"startOver": "最初からやり直す",
+	"personalAccount": "個人アカウント",
+	"switchAccount": "Roo Code Cloud アカウントを切り替え",
 	"cloudUrlPillLabel": "Roo Code Cloud URL",
 	"upsell": {
 		"autoApprovePowerUser": "Rooに少し独立性を与えませんか？Roo Code Cloudでどこからでもコントロールできます。<learnMoreLink>詳細</learnMoreLink>。",

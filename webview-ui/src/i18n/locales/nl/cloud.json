@@ -22,6 +22,8 @@
 	"havingTrouble": "Problemen?",
 	"pasteCallbackUrl": "Kopieer de redirect-URL uit je browser en plak hem hier:",
 	"startOver": "Opnieuw beginnen",
+	"personalAccount": "Persoonlijk Account",
+	"switchAccount": "Wissel van Roo Code Cloud Account",
 	"cloudUrlPillLabel": "Roo Code Cloud URL",
 	"upsell": {
 		"autoApprovePowerUser": "Roo wat onafhankelijkheid geven? Bedien het overal met Roo Code Cloud. <learnMoreLink>Meer informatie</learnMoreLink>.",

@@ -308,8 +308,15 @@ describe("CloudView", () => {
 		expect(taskSyncToggle).toBeInTheDocument()
 		expect(taskSyncToggle).toHaveAttribute("tabindex", "-1")
 
-		// Check that the organization message is displayed
-		expect(screen.getByText("Task sync is managed by your organization")).toBeInTheDocument()
+		// Check that the lock icon is displayed (indicating organization control)
+		const lockIcon = screen.getByTestId("task-sync-toggle").parentElement?.querySelector(".lucide-lock")
+		expect(lockIcon).toBeInTheDocument()
+
+		// Check that the tooltip trigger is present (which contains the organization message)
+		const tooltipTrigger = screen
+			.getByTestId("task-sync-toggle")
+			.parentElement?.querySelector('[data-slot="tooltip-trigger"]')
+		expect(tooltipTrigger).toBeInTheDocument()
 	})
 
 	it("should enable task sync toggle for non-organization users", () => {

@@ -22,6 +22,8 @@
 	"havingTrouble": "Sorun yaşıyor musun?",
 	"pasteCallbackUrl": "Tarayıcından redirect URL'sini kopyala ve buraya yapıştır:",
 	"startOver": "Baştan başla",
+	"personalAccount": "Kişisel Hesap",
+	"switchAccount": "Roo Code Cloud Hesabını Değiştir",
 	"cloudUrlPillLabel": "Roo Code Cloud URL'si",
 	"upsell": {
 		"autoApprovePowerUser": "Roo'ya biraz bağımsızlık mı veriyorsunuz? Roo Code Cloud ile onu her yerden kontrol edin. <learnMoreLink>Daha fazla bilgi edinin</learnMoreLink>.",

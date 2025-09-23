@@ -22,6 +22,8 @@
 	"havingTrouble": "Ada masalah?",
 	"pasteCallbackUrl": "Salin URL redirect dari browser dan tempel di sini:",
 	"startOver": "Mulai dari awal",
+	"personalAccount": "Akun Pribadi",
+	"switchAccount": "Ganti Akun Roo Code Cloud",
 	"cloudUrlPillLabel": "URL Roo Code Cloud",
 	"upsell": {
 		"autoApprovePowerUser": "Memberi Roo sedikit kebebasan? Kendalikan dari mana saja dengan Roo Code Cloud. <learnMoreLink>Pelajari lebih lanjut</learnMoreLink>.",

@@ -63,6 +63,14 @@ export class StaticTokenAuthService extends EventEmitter<AuthServiceEvents> impl
 		throw new Error("Authentication methods are disabled in StaticTokenAuthService")
 	}
 
+	public async switchOrganization(_organizationId: string | null): Promise<void> {
+		throw new Error("Authentication methods are disabled in StaticTokenAuthService")
+	}
+
+	public async getOrganizationMemberships(): Promise<import("@roo-code/types").CloudOrganizationMembership[]> {
+		throw new Error("Authentication methods are disabled in StaticTokenAuthService")
+	}
+
 	public getState(): AuthState {
 		return this.state
 	}
