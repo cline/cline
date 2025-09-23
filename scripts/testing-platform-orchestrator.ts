@@ -15,62 +15,123 @@
  *   --server-logs        Show server logs (hidden by default)
  *   --count=<number>     Repeat execution N times (default: 1)
  *   --fix     			  Automatically update spec files with actual responses
+ *   --coverage     	  Generate integration test coverage information
  *
- * Environment Variables:
- *   STANDALONE_GRPC_SERVER_PORT     	gRPC server port (default: 26040)
- *   SERVER_BOOT_DELAY    				Server startup delay in ms (default: 1300)
  */
 
 import { ChildProcess, spawn } from "child_process"
 import fs from "fs"
 import minimist from "minimist"
+import net from "net"
 import path from "path"
-
-const STANDALONE_GRPC_SERVER_PORT = process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
-const SERVER_BOOT_DELAY = Number(process.env.SERVER_BOOT_DELAY) || 1300
+import kill from "tree-kill"
 
 let showServerLogs = false
 let fix = false
+let coverage = false
+const WAIT_SERVER_DEFAULT_TIMEOUT = 15000
+const usedPorts = new Set<number>()
 
-function startServer(): Promise<ChildProcess> {
-	return new Promise((resolve, reject) => {
-		const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
-			stdio: showServerLogs ? "inherit" : "ignore",
-		})
-
-		server.once("error", reject)
-
-		setTimeout(() => {
-			if (server.killed) {
-				reject(new Error("Server died during startup"))
-			} else {
-				resolve(server)
+/**
+ * Find an available TCP port within the given range [min, max].
+ *
+ * - Ports are allocated sequentially (starting at `min`) rather than randomly,
+ *   which avoids accidental reuse when running hundreds of tests in a row.
+ * - Each successfully allocated port is tracked in `usedPorts` to guarantee
+ *   it is never handed out again within the lifetime of this orchestrator.
+ * - Before returning, the function binds a temporary server to the port to
+ *   verify that the OS really considers it available, then immediately closes it.
+ *
+ * This approach makes the orchestrator much more robust on CI (e.g. GitHub Actions),
+ * where a just-terminated server may leave its socket in TIME_WAIT and cause
+ * flakiness if the same port is reallocated too soon.
+ */
+async function getAvailablePort(min = 20000, max = 49151): Promise<number> {
+	return new Promise((resolve, _) => {
+		const tryPort = (candidate?: number) => {
+			const port = candidate ?? Math.floor(Math.random() * (max - min + 1)) + min
+			if (usedPorts.has(port)) {
+				// already allocated in this run
+				return tryPort()
 			}
-		}, SERVER_BOOT_DELAY)
+			const server = net.createServer()
+			server.once("error", () => tryPort())
+			server.once("listening", () => {
+				server.close(() => {
+					usedPorts.add(port) // mark reserved
+					resolve(port)
+				})
+			})
+			server.listen(port, "127.0.0.1")
+		}
+		tryPort()
 	})
+}
+
+// Poll until a given TCP port on a host is accepting connections.
+async function waitForPort(port: number, host = "127.0.0.1", timeout = 10000): Promise<void> {
+	const start = Date.now()
+	const waitForPortSleepMs = 100
+	while (Date.now() - start < timeout) {
+		await new Promise((res) => setTimeout(res, waitForPortSleepMs))
+		try {
+			await new Promise<void>((resolve, reject) => {
+				const socket = net.connect(port, host, () => {
+					socket.destroy()
+					resolve()
+				})
+				socket.on("error", reject)
+			})
+			return
+		} catch {
+			// try again
+		}
+	}
+	throw new Error(`Timeout waiting for ${host}:${port}`)
+}
+
+async function startServer(): Promise<{ server: ChildProcess; grpcPort: string }> {
+	const grpcPort = (await getAvailablePort()).toString()
+	const hostbridgePort = (await getAvailablePort()).toString()
+
+	const server = spawn("npx", ["tsx", "scripts/test-standalone-core-api-server.ts"], {
+		stdio: showServerLogs ? "inherit" : "pipe",
+		env: {
+			...process.env,
+			PROTOBUS_PORT: grpcPort,
+			HOSTBRIDGE_PORT: hostbridgePort,
+			USE_C8: coverage ? "true" : "false",
+		},
+	})
+
+	// Wait for either the server to become ready or fail on spawn error
+	await Promise.race([
+		waitForPort(Number(grpcPort), "127.0.0.1", WAIT_SERVER_DEFAULT_TIMEOUT),
+		new Promise((_, reject) => server.once("error", reject)),
+	])
+
+	return { server, grpcPort }
 }
 
 function stopServer(server: ChildProcess): Promise<void> {
 	return new Promise((resolve) => {
-		server.once("exit", () => resolve())
-		server.kill("SIGINT")
-		setTimeout(() => {
-			if (!server.killed) {
-				server.kill("SIGKILL")
-				resolve()
-			}
-		}, 5000)
+		if (!server.pid) return resolve()
+
+		kill(server.pid, "SIGINT", (err) => {
+			if (err) console.warn("Failed to kill server process:", err)
+			server.once("exit", () => resolve())
+		})
 	})
 }
 
-function runTestingPlatform(specFile: string): Promise<void> {
+function runTestingPlatform(specFile: string, grpcPort: string): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const testProcess = spawn("npx", ["ts-node", "index.ts", specFile, ...(fix ? ["--fix"] : [])], {
 			cwd: path.join(process.cwd(), "testing-platform"),
 			stdio: "inherit",
 			env: {
 				...process.env,
-				STANDALONE_GRPC_SERVER_PORT,
+				STANDALONE_GRPC_SERVER_PORT: grpcPort,
 			},
 		})
 
@@ -82,9 +143,9 @@ function runTestingPlatform(specFile: string): Promise<void> {
 }
 
 async function runSpec(specFile: string): Promise<void> {
-	const server = await startServer()
+	const { server, grpcPort } = await startServer()
 	try {
-		await runTestingPlatform(specFile)
+		await runTestingPlatform(specFile, grpcPort)
 		console.log(`✅ ${path.basename(specFile)} passed`)
 	} finally {
 		await stopServer(server)
@@ -135,8 +196,7 @@ async function runAll(inputPath: string, count: number) {
 	console.log(`✅ Passed: ${success}`)
 	if (failure > 0) console.log(`❌ Failed: ${failure}`)
 	console.log(`📋 Total specs: ${specFiles.length} Total runs: ${specFiles.length * count}`)
-	const totalElapsed = ((Date.now() - totalStart) / 1000).toFixed(2)
-	console.log(`\n🏁 All runs completed in ${totalElapsed}s`)
+	console.log(`🏁 All runs completed in ${((Date.now() - totalStart) / 1000).toFixed(2)}s`)
 }
 
 async function main() {
@@ -145,10 +205,11 @@ async function main() {
 	const count = Number(args.count)
 	showServerLogs = Boolean(args["server-logs"])
 	fix = Boolean(args["fix"])
+	coverage = Boolean(args["coverage"])
 
 	if (!inputPath) {
 		console.error(
-			"Usage: npx tsx scripts/testing-platform-orchestrator.ts <spec-file-or-folder> [--count=N] [--server-logs] [--fix]",
+			"Usage: npx tsx scripts/testing-platform-orchestrator.ts <spec-file-or-folder> [--count=N] [--server-logs] [--fix] [--coverage]",
 		)
 		process.exit(1)
 	}
