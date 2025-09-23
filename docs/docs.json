@@ -91,6 +91,7 @@
 					"features/focus-chain",
 					"features/auto-compact",
 					"features/editing-messages",
+					"features/dictation",
 					{
 						"group": "@ Mentions",
 						"pages": [

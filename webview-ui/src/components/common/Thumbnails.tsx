@@ -1,4 +1,5 @@
 import { isAttachmentPath } from "@shared/attachments"
+import { cn } from "@heroui/react"
 import { StringRequest } from "@shared/proto/cline/common"
 import { DeleteUploadedFilesRequest } from "@shared/proto/cline/file"
 import React, { memo, useLayoutEffect, useRef, useState } from "react"
@@ -12,9 +13,10 @@ interface ThumbnailsProps {
 	setImages?: React.Dispatch<React.SetStateAction<string[]>>
 	setFiles?: React.Dispatch<React.SetStateAction<string[]>>
 	onHeightChange?: (height: number) => void
+	className?: string
 }
 
-const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange }: ThumbnailsProps) => {
+const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange, className }: ThumbnailsProps) => {
 	const [hoveredIndex, setHoveredIndex] = useState<string | null>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
 	const { width } = useWindowSize()
@@ -70,10 +72,9 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange 
 
 	return (
 		<div
+			className={cn("flex flex-wrap", className)}
 			ref={containerRef}
 			style={{
-				display: "flex",
-				flexWrap: "wrap",
 				gap: 5,
 				rowGap: 3,
 				...style,

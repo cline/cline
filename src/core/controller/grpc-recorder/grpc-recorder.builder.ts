@@ -98,6 +98,7 @@ function testFilters(): GrpcRequestFilter[] {
 				"showTaskWithId",
 				"deleteTasksWithIds",
 				"getTotalTasksSize",
+				"cancelTask",
 			].includes(req.method),
 	]
 }
