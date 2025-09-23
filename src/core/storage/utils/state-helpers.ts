@@ -562,7 +562,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			primaryRootIndex: primaryRootIndex ?? 0,
 			// Feature flag - defaults to false
 			// For now, always return false to disable multi-root support by default
-			multiRootEnabled: multiRootEnabled ?? false,
+			multiRootEnabled: !!multiRootEnabled,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)

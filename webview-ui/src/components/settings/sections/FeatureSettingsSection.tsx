@@ -24,6 +24,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		dictationSettings,
 		useAutoCondense,
 		focusChainSettings,
+		multiRootSetting,
 	} = useExtensionState()
 
 	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
@@ -261,6 +262,21 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							automatically approve all actions without asking. Use with extreme caution.
 						</p>
 					</div>
+					{multiRootSetting.featureFlag && (
+						<div className="mt-2.5">
+							<VSCodeCheckbox
+								checked={multiRootSetting.user}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("multiRootEnabled", checked)
+								}}>
+								Enable Multi-Root Workspace
+							</VSCodeCheckbox>
+							<p className="text-xs text-description">
+								Allows Cline to work across workspaces opened in your editor.
+							</p>
+						</div>
+					)}
 				</div>
 			</Section>
 		</div>

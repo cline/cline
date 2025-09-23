@@ -287,6 +287,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("autoCondenseThreshold", threshold)
 		}
 
+		// Update focus chain settings
+		if (request.multiRootEnabled !== undefined) {
+			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 
