@@ -36,7 +36,7 @@ export const CheckpointSaved = ({ checkpoint, ...props }: CheckpointSavedProps) 
 
 	return (
 		<div className="group flex items-center justify-between gap-2 pt-2 pb-3 ">
-			<div className="flex items-center gap-2 text-blue-400">
+			<div className="flex items-center gap-2 text-blue-400 whitespace-nowrap">
 				<GitCommitVertical className="w-4" />
 				<span className="font-semibold">{t("chat:checkpoint.regular")}</span>
 				{isCurrent && <span className="text-muted">({t("chat:checkpoint.current")})</span>}
