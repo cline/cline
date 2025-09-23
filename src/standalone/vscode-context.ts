@@ -1,69 +1,89 @@
-import { mkdirSync } from "node:fs"
-import os from "os"
+import { mkdirSync } from "fs"
 import path from "path"
 import type { Extension, ExtensionContext } from "vscode"
 import { ExtensionKind, ExtensionMode } from "vscode"
 import { URI } from "vscode-uri"
-import { ExtensionRegistryInfo } from "@/registry"
+// @ts-ignore
+import { StandaloneTerminalManager } from "../../standalone/runtime-files/vscode/enhanced-terminal"
 import { log } from "./utils"
-import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
+import { EnvironmentVariableCollection, MementoStore, SecretStore } from "./vscode-context-utils"
 
-log("Running standalone cline", ExtensionRegistryInfo.version)
-log(`CLINE_ENVIRONMENT: ${process.env.CLINE_ENVIRONMENT}`)
-
-export const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
-export const DATA_DIR = path.join(CLINE_DIR, "data")
-const INSTALL_DIR = process.env.INSTALL_DIR || __dirname
-const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || path.join(DATA_DIR, "workspace")
-
-mkdirSync(DATA_DIR, { recursive: true })
-mkdirSync(WORKSPACE_STORAGE_DIR, { recursive: true })
-log("Using settings dir:", DATA_DIR)
-
-export const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
-const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
-
-const extension: Extension<void> = {
-	id: ExtensionRegistryInfo.id,
-	isActive: true,
-	extensionPath: EXTENSION_DIR,
-	extensionUri: URI.file(EXTENSION_DIR),
-	packageJSON: readJson(path.join(EXTENSION_DIR, "package.json")),
-	exports: undefined, // There are no API exports in the standalone version.
-	activate: async () => {},
-	extensionKind: ExtensionKind.UI,
+function getPackageVersion(): string {
+	// Use build-time injected version (only method)
+	return process.env.CLINE_VERSION || "unknown"
 }
 
-const extensionContext: ExtensionContext = {
-	extension: extension,
-	extensionMode: EXTENSION_MODE,
+const VERSION = getPackageVersion()
+log("Running standalone cline ", VERSION)
 
-	// Set up KV stores.
-	globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
-	secrets: new SecretStore(path.join(DATA_DIR, "secrets.json")),
+function createExtensionContext(clineDir: string): ExtensionContext {
+	const DATA_DIR = path.join(clineDir, "data")
+	const INSTALL_DIR = process.env.INSTALL_DIR || path.join(clineDir, "core", VERSION)
+	mkdirSync(DATA_DIR, { recursive: true })
+	log("Using settings dir:", DATA_DIR)
 
-	// Set up URIs.
-	storageUri: URI.file(WORKSPACE_STORAGE_DIR),
-	storagePath: WORKSPACE_STORAGE_DIR, // Deprecated, not used in cline.
-	globalStorageUri: URI.file(DATA_DIR),
-	globalStoragePath: DATA_DIR, // Deprecated, not used in cline.
+	const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
+	const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
-	// Logs are global per extension, not per workspace.
-	logUri: URI.file(DATA_DIR),
-	logPath: DATA_DIR, // Deprecated, not used in cline.
+	// Static package.json data for extension context (no filesystem reading)
+	function getExtensionPackageJson(): any {
+		return {
+			name: "claude-dev",
+			displayName: "Cline",
+			version: VERSION,
+			publisher: "saoudrizwan",
+		}
+	}
 
-	extensionUri: URI.file(EXTENSION_DIR),
-	extensionPath: EXTENSION_DIR, // Deprecated, not used in cline.
-	asAbsolutePath: (relPath: string) => path.join(EXTENSION_DIR, relPath),
+	const extension: Extension<void> = {
+		id: "saoudrizwan.claude-dev",
+		isActive: true,
+		extensionPath: EXTENSION_DIR,
+		extensionUri: URI.file(EXTENSION_DIR),
+		packageJSON: getExtensionPackageJson(),
+		exports: undefined, // There are no API exports in the standalone version.
+		activate: async () => {},
+		extensionKind: ExtensionKind.UI,
+	}
 
-	subscriptions: [], // These need to be destroyed when the extension is deactivated.
+	const extensionContext: ExtensionContext = {
+		extension: extension,
+		extensionMode: EXTENSION_MODE,
 
-	environmentVariableCollection: new EnvironmentVariableCollection(),
+		// Set up KV stores.
+		globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
+		secrets: new SecretStore(path.join(DATA_DIR, "secrets.json")),
 
-	// Workspace state is per project/workspace when WORKSPACE_STORAGE_DIR is provided by the host.
-	workspaceState: new MementoStore(path.join(WORKSPACE_STORAGE_DIR, "workspaceState.json")),
+		// Set up URIs.
+		storageUri: URI.file(DATA_DIR),
+		storagePath: DATA_DIR, // Deprecated, not used in cline.
+		globalStorageUri: URI.file(DATA_DIR),
+		globalStoragePath: DATA_DIR, // Deprecated, not used in cline.
+
+		logUri: URI.file(DATA_DIR),
+		logPath: DATA_DIR, // Deprecated, not used in cline.
+
+		extensionUri: URI.file(EXTENSION_DIR),
+		extensionPath: EXTENSION_DIR, // Deprecated, not used in cline.
+		asAbsolutePath: (relPath: string) => path.join(EXTENSION_DIR, relPath),
+
+		subscriptions: [], // These need to be destroyed when the extension is deactivated.
+
+		environmentVariableCollection: new EnvironmentVariableCollection(),
+
+		// TODO(sjf): Workspace state needs to be per project/workspace.
+		workspaceState: new MementoStore(path.join(DATA_DIR, "workspaceState.json")),
+	}
+
+	return extensionContext
 }
+
+// Initialize the standalone terminal manager for use by Task instances
+const standaloneTerminalManager = new StandaloneTerminalManager()
+
+// Set it as a global so Task constructor can access it
+;(global as any).standaloneTerminalManager = standaloneTerminalManager
 
 console.log("Finished loading vscode context...")
 
-export { extensionContext }
+export { createExtensionContext }

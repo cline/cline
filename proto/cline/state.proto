@@ -18,6 +18,13 @@ service StateService {
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
+  rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
+}
+
+message ProcessInfo {
+  int32 process_id = 1;
+  optional string version = 2;
+  optional int64 uptime_ms = 3;
 }
 
 message State {
