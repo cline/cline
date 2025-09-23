@@ -120,6 +120,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						</div>
 						<div>
 							{headerEntries.map(([key, value], index) => (
+								// biome-ignore lint/suspicious/noArrayIndexKey:handle simple static list for user-defined headers
 								<div key={index} style={{ display: "flex", gap: 5, marginTop: 5 }}>
 									<DebouncedTextField
 										initialValue={key}

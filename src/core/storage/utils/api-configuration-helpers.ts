@@ -1,5 +1,5 @@
 import { ApiConfiguration } from "@shared/api"
-import { SecretKeys, Secrets, Settings, SettingsKeys } from "../state-keys"
+import { ApiHandlerSecrets, ApiHandlerSecretsKeys, SecretKeys, Settings, SettingsKeys } from "../state-keys"
 
 /**
  * Helper functions to automatically categorize ApiConfiguration keys based on optimized state definitions
@@ -12,12 +12,12 @@ const SECRET_KEYS = new Set(SecretKeys)
 /**
  * Categorizes ApiConfiguration keys into settings and secrets based on optimized state definitions
  */
-export function categorizeApiConfigurationKeys(apiConfiguration: ApiConfiguration): {
+export function categorizeApiConfigurationKeys(apiConfiguration: Partial<ApiConfiguration>): {
 	settingsUpdates: Partial<Settings>
-	secretsUpdates: Partial<Secrets>
+	secretsUpdates: Partial<ApiHandlerSecrets>
 } {
 	const settingsUpdates: Partial<Settings> = {}
-	const secretsUpdates: Partial<Secrets> = {}
+	const secretsUpdates: Partial<ApiHandlerSecrets> = {}
 
 	// Iterate through all keys in the ApiConfiguration
 	for (const [key, value] of Object.entries(apiConfiguration)) {
@@ -53,6 +53,6 @@ export function getApiConfigurationSettingsKeys(): (keyof Settings)[] {
 /**
  * Type-safe helper to get all API configuration keys that should be stored as secrets
  */
-export function getApiConfigurationSecretKeys(): (keyof Secrets)[] {
-	return [...SecretKeys] as (keyof Secrets)[]
+export function getApiConfigurationSecretKeys(): (keyof ApiHandlerSecrets)[] {
+	return [...ApiHandlerSecretsKeys]
 }

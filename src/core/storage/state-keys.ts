@@ -1,17 +1,17 @@
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { ApiProvider, fireworksDefaultModelId, ModelInfo, type OcaModelInfo } from "@shared/api"
+import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
+import { ClineRulesToggles } from "@shared/cline-rules"
+import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@shared/DictationSettings"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS, FocusChainSettings } from "@shared/FocusChainSettings"
+import { HistoryItem } from "@shared/HistoryItem"
+import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@shared/McpDisplayMode"
+import { McpMarketplaceCatalog } from "@shared/mcp"
+import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
-import { WorkspaceRoot } from "@/core/workspace/WorkspaceRoot"
-import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
-import { BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
-import { ClineRulesToggles } from "@/shared/cline-rules"
-import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@/shared/DictationSettings"
-import { HistoryItem } from "@/shared/HistoryItem"
-import { DEFAULT_MCP_DISPLAY_MODE, McpDisplayMode } from "@/shared/McpDisplayMode"
-import { McpMarketplaceCatalog } from "@/shared/mcp"
-import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
-import { TelemetrySetting } from "@/shared/TelemetrySetting"
-import { UserInfo } from "@/shared/UserInfo"
+import { WorkspaceRoot } from "../workspace/WorkspaceRoot"
 
 // ============================================================================
 // SINGLE SOURCE OF TRUTH - Property definitions
@@ -126,7 +126,7 @@ const SETTINGS_PROPS = {
 	autoCondenseThreshold: { type: 0.75 as number | undefined, defaultValue: 0.75 },
 
 	// Plan Mode Configurations
-	planModeApiProvider: { type: "openrouter" as ApiProvider, defaultValue: "openrouter" as ApiProvider, isComputed: true },
+	planModeApiProvider: { type: "openrouter" as ApiProvider, defaultValue: "openrouter" as ApiProvider },
 	planModeApiModelId: { type: undefined as string | undefined },
 	planModeThinkingBudgetTokens: { type: undefined as number | undefined },
 	planModeReasoningEffort: { type: undefined as string | undefined },
@@ -161,7 +161,7 @@ const SETTINGS_PROPS = {
 	planModeOcaModelInfo: { type: undefined as OcaModelInfo | undefined },
 
 	// Act Mode Configurations
-	actModeApiProvider: { type: "openrouter" as ApiProvider, defaultValue: "openrouter" as ApiProvider, isComputed: true },
+	actModeApiProvider: { type: "openrouter" as ApiProvider, defaultValue: "openrouter" as ApiProvider },
 	actModeApiModelId: { type: undefined as string | undefined },
 	actModeThinkingBudgetTokens: { type: undefined as number | undefined },
 	actModeReasoningEffort: { type: undefined as string | undefined },
@@ -256,8 +256,7 @@ export const SettingsKeys = new Set(Object.keys(SETTINGS_PROPS))
 // ============================================================================
 // SECRET KEYS AND LOCAL STATE - Static definitions
 // ============================================================================
-
-export const SecretKeys = [
+export const ApiHandlerSecretsKeys = [
 	"apiKey",
 	"clineAccountId",
 	"openRouterApiKey",
@@ -277,7 +276,6 @@ export const SecretKeys = [
 	"doubaoApiKey",
 	"mistralApiKey",
 	"liteLlmApiKey",
-	"authNonce",
 	"asksageApiKey",
 	"xaiApiKey",
 	"moonshotApiKey",
@@ -293,9 +291,11 @@ export const SecretKeys = [
 	"basetenApiKey",
 	"vercelAiGatewayApiKey",
 	"difyApiKey",
-	"ocaApiKey",
-	"ocaRefreshToken",
 ] as const
+
+const AuthSecretsKeys = ["authNonce", "ocaApiKey", "ocaRefreshToken"] as const
+
+export const SecretKeys = [...ApiHandlerSecretsKeys, ...AuthSecretsKeys] as const
 
 export const LocalStateKeys = [
 	"localClineRulesToggles",
@@ -309,8 +309,10 @@ export const LocalStateKeys = [
 // ============================================================================
 
 export type Secrets = { [K in (typeof SecretKeys)[number]]: string | undefined }
+export type ApiHandlerSecrets = { [K in (typeof ApiHandlerSecretsKeys)[number]]: string | undefined }
 export type LocalState = { [K in (typeof LocalStateKeys)[number]]: ClineRulesToggles }
 export type SecretKey = (typeof SecretKeys)[number]
+export type ApiHandlerSecretKey = (typeof ApiHandlerSecretsKeys)[number]
 export type GlobalStateKey = keyof GlobalState
 export type LocalStateKey = keyof LocalState
 export type SettingsKey = keyof Settings

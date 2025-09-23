@@ -80,7 +80,7 @@ export default meta
 type Story = StoryObj<typeof MockApp>
 
 // Mock data factories
-const createApiConfig = (overrides: Partial<ApiConfiguration> = {}): ApiConfiguration => ({
+const createApiConfig = (overrides: Partial<ApiConfiguration> = {}): Partial<ApiConfiguration> => ({
 	actModeApiProvider: "anthropic",
 	actModeApiModelId: "claude-3-5-sonnet-20241022",
 	actModeOpenRouterModelInfo: {

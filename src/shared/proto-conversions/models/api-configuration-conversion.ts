@@ -393,7 +393,7 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 }
 
 // Converts application ApiConfiguration to proto ApiConfiguration
-export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoApiConfiguration {
+export function convertApiConfigurationToProto(config: Partial<ApiConfiguration>): ProtoApiConfiguration {
 	return {
 		// Global configuration fields
 		apiKey: config.apiKey,

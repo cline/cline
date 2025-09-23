@@ -1,5 +1,5 @@
-import { SecretKeys } from "@/core/storage/state-keys"
 import type { LanguageModelChatSelector } from "../core/api/providers/types"
+import type { ApiHandlerSecrets } from "../core/storage/state-keys"
 
 export type ApiProvider =
 	| "anthropic"
@@ -38,10 +38,6 @@ export type ApiProvider =
 	| "vercel-ai-gateway"
 	| "zai"
 	| "oca"
-
-export type ApiHandlerSecrets = {
-	[K in (typeof SecretKeys)[number]]?: string
-}
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)

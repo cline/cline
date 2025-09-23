@@ -343,7 +343,7 @@ export class StateManager {
 	 * Convenience method for setting API configuration
 	 * Automatically categorizes keys based on STATE_DEFINITION and SecretKeys
 	 */
-	setApiConfiguration(apiConfiguration: ApiConfiguration): void {
+	setApiConfiguration(apiConfiguration: Partial<ApiConfiguration>): void {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
@@ -611,6 +611,6 @@ export class StateManager {
 		// Add special case for openAiHeaders with default empty object
 		config.openAiHeaders = this.getSettingWithOverride("openAiHeaders") || {}
 
-		return config as ApiConfiguration
+		return config satisfies ApiConfiguration
 	}
 }
