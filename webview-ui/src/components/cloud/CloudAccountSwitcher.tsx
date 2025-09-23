@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react"
 import { Building2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectSeparator } from "@/components/ui/select"
-import { StandardTooltip } from "@src/components/ui"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { vscode } from "@src/utils/vscode"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
@@ -86,64 +85,62 @@ export const CloudAccountSwitcher = () => {
 	}
 
 	return (
-		<StandardTooltip content={t("cloud:switchAccount")}>
-			<div className="inline-block ml-1">
-				<Select value={currentValue} onValueChange={handleOrganizationChange} disabled={isLoading}>
-					<SelectTrigger
-						className={cn(
-							"h-4.5 w-4.5 p-0 gap-0",
-							"bg-transparent opacity-90 hover:opacity-50",
-							"flex items-center justify-center",
-							"rounded-lg overflow-clip",
-							"border border-vscode-dropdown-border",
-							"[&>svg]:hidden", // Hide the default chevron/caret
-							isLoading && "opacity-50",
-						)}
-						aria-label={selectedOrgId ? currentOrg?.organization.name : t("cloud:personalAccount")}>
-						{renderAccountIcon()}
-					</SelectTrigger>
+		<div className="inline-block ml-1">
+			<Select value={currentValue} onValueChange={handleOrganizationChange} disabled={isLoading}>
+				<SelectTrigger
+					className={cn(
+						"h-4.5 w-4.5 p-0 gap-0",
+						"bg-transparent opacity-90 hover:opacity-50",
+						"flex items-center justify-center",
+						"rounded-lg overflow-clip",
+						"border border-vscode-dropdown-border",
+						"[&>svg]:hidden", // Hide the default chevron/caret
+						isLoading && "opacity-50",
+					)}
+					aria-label={selectedOrgId ? currentOrg?.organization.name : t("cloud:personalAccount")}>
+					{renderAccountIcon()}
+				</SelectTrigger>
 
-					<SelectContent>
-						{/* Personal Account Option */}
-						<SelectItem value="personal">
+				<SelectContent>
+					{/* Personal Account Option */}
+					<SelectItem value="personal">
+						<div className="flex items-center gap-2">
+							{cloudUserInfo.picture ? (
+								<img
+									src={cloudUserInfo.picture}
+									alt={cloudUserInfo.name || cloudUserInfo.email}
+									className="w-4.5 h-4.5 rounded-full object-cover overflow-clip"
+								/>
+							) : (
+								<div className="w-4.5 h-4.5 rounded-full flex items-center justify-center bg-vscode-button-background text-vscode-button-foreground text-xs">
+									{cloudUserInfo.name?.charAt(0) || cloudUserInfo.email?.charAt(0) || "?"}
+								</div>
+							)}
+							<span>{t("cloud:personalAccount")}</span>
+						</div>
+					</SelectItem>
+
+					{cloudOrganizations.length > 0 && <SelectSeparator />}
+
+					{/* Organization Options */}
+					{cloudOrganizations.map((org) => (
+						<SelectItem key={org.organization.id} value={org.organization.id}>
 							<div className="flex items-center gap-2">
-								{cloudUserInfo.picture ? (
+								{org.organization.image_url ? (
 									<img
-										src={cloudUserInfo.picture}
-										alt={cloudUserInfo.name || cloudUserInfo.email}
+										src={org.organization.image_url}
+										alt=""
 										className="w-4.5 h-4.5 rounded-full object-cover overflow-clip"
 									/>
 								) : (
-									<div className="w-4.5 h-4.5 rounded-full flex items-center justify-center bg-vscode-button-background text-vscode-button-foreground text-xs">
-										{cloudUserInfo.name?.charAt(0) || cloudUserInfo.email?.charAt(0) || "?"}
-									</div>
+									<Building2 className="w-4.5 h-4.5" />
 								)}
-								<span>{t("cloud:personalAccount")}</span>
+								<span className="truncate">{org.organization.name}</span>
 							</div>
 						</SelectItem>
-
-						{cloudOrganizations.length > 0 && <SelectSeparator />}
-
-						{/* Organization Options */}
-						{cloudOrganizations.map((org) => (
-							<SelectItem key={org.organization.id} value={org.organization.id}>
-								<div className="flex items-center gap-2">
-									{org.organization.image_url ? (
-										<img
-											src={org.organization.image_url}
-											alt=""
-											className="w-4.5 h-4.5 rounded-full object-cover overflow-clip"
-										/>
-									) : (
-										<Building2 className="w-4.5 h-4.5" />
-									)}
-									<span className="truncate">{org.organization.name}</span>
-								</div>
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
-		</StandardTooltip>
+					))}
+				</SelectContent>
+			</Select>
+		</div>
 	)
 }
