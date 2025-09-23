@@ -121,7 +121,8 @@ export class ContextManager {
 				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 
 				const { contextWindow, maxAllowedSize } = getContextWindowInfo(api)
-				const thresholdTokens = thresholdPercentage ? Math.floor(contextWindow * thresholdPercentage) : maxAllowedSize
+				const roundedThreshold = thresholdPercentage ? Math.floor(contextWindow * thresholdPercentage) : maxAllowedSize
+				const thresholdTokens = Math.min(roundedThreshold, maxAllowedSize)
 				return totalTokens >= thresholdTokens
 			}
 		}
