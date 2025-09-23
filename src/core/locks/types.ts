@@ -1,4 +1,4 @@
-export type LockType = "file" | "instance" | "task" | "checkpoint"
+export type LockType = "file" | "instance" | "folder"
 
 export type LockStatus = "starting" | "healthy" | "unhealthy"
 
@@ -6,7 +6,7 @@ export interface LockRow {
 	id: number
 	held_by: string // address:port of instance holding the lock
 	lock_type: LockType
-	lock_target: string // varies by type: file path, task ID, host address, repo path
+	lock_target: string // varies by type: file path, host address, or folder path
 	locked_at: number // timestamp when lock was acquired
 }
 

@@ -11,11 +11,6 @@ interface PortCheckResult {
 	error?: string
 }
 
-interface RegistryEntry {
-	instanceAddress: string
-	hostAddress: string
-}
-
 /**
  * Creates a gRPC health client for the given address
  */

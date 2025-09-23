@@ -123,7 +123,7 @@ export class SqliteLockManager {
 			CREATE TABLE IF NOT EXISTS locks (
 				id INTEGER PRIMARY KEY,
 				held_by TEXT NOT NULL,
-				lock_type TEXT NOT NULL CHECK (lock_type IN ('file', 'instance', 'task', 'checkpoint')),
+				lock_type TEXT NOT NULL CHECK (lock_type IN ('file', 'instance', 'folder')),
 				lock_target TEXT NOT NULL,
 				locked_at INTEGER NOT NULL,
 				UNIQUE(lock_type, lock_target)

@@ -23,6 +23,7 @@ const log = (...args: unknown[]) => {
 
 function getPackageDefinition() {
 	// Load service definitions.
+	// When running as standalone, the descriptor set is in the same directory as the standalone.js file
 	const descriptorSet = fs.readFileSync("proto/descriptor_set.pb")
 	const options = { longs: Number } // Encode int64 fields as numbers
 	const descriptorDefs = protoLoader.loadFileDescriptorSetFromBuffer(descriptorSet, options)
