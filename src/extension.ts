@@ -487,6 +487,15 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// Register the reconstructTaskHistory command handler
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.ReconstructTaskHistory, async () => {
+			const { reconstructTaskHistory } = await import("./core/commands/reconstructTaskHistory")
+			await reconstructTaskHistory(context)
+			telemetryService.captureButtonClick("command_reconstructTaskHistory")
+		}),
+	)
+
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.GenerateCommit, async (scm) => {
