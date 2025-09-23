@@ -41,6 +41,7 @@ import {
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
+import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
 import { sendStateUpdate } from "./state/subscribeToState"
 
 /*
@@ -599,10 +600,15 @@ export class Controller {
 	// Read OpenRouter models from disk cache
 	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
 		const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
-		const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
-		if (fileExists) {
-			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
-			return JSON.parse(fileContents)
+		try {
+			if (await fileExistsAtPath(openRouterModelsFilePath)) {
+				const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
+				const models = JSON.parse(fileContents)
+				// Append stealth models
+				return appendClineStealthModels(models)
+			}
+		} catch (error) {
+			console.error("Error reading cached OpenRouter models:", error)
 		}
 		return undefined
 	}
