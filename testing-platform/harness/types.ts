@@ -7,7 +7,7 @@ export interface Meta {
 	 * Only the fields specified here will be compared against the actual response.
 	 * Useful for partial validation of nested objects or arrays.
 	 */
-	expected: any
+	expected?: any
 }
 
 export interface Entry {
