@@ -1,3 +1,4 @@
+import { SecretKeys } from "@/core/storage/state-keys"
 import type { LanguageModelChatSelector } from "../core/api/providers/types"
 
 export type ApiProvider =
@@ -38,43 +39,8 @@ export type ApiProvider =
 	| "zai"
 	| "oca"
 
-export interface ApiHandlerSecrets {
-	apiKey?: string // anthropic
-	liteLlmApiKey?: string
-	awsAccessKey?: string
-	awsSecretKey?: string
-	openRouterApiKey?: string
-
-	clineAccountId?: string
-	awsSessionToken?: string
-	awsBedrockApiKey?: string
-	openAiApiKey?: string
-	geminiApiKey?: string
-	openAiNativeApiKey?: string
-	ollamaApiKey?: string
-	deepSeekApiKey?: string
-	requestyApiKey?: string
-	togetherApiKey?: string
-	fireworksApiKey?: string
-	qwenApiKey?: string
-	doubaoApiKey?: string
-	mistralApiKey?: string
-	authNonce?: string
-	asksageApiKey?: string
-	xaiApiKey?: string
-	moonshotApiKey?: string
-	zaiApiKey?: string
-	huggingFaceApiKey?: string
-	nebiusApiKey?: string
-	sambanovaApiKey?: string
-	cerebrasApiKey?: string
-	sapAiCoreClientId?: string
-	sapAiCoreClientSecret?: string
-	groqApiKey?: string
-	huaweiCloudMaasApiKey?: string
-	basetenApiKey?: string
-	vercelAiGatewayApiKey?: string
-	difyApiKey?: string
+export type ApiHandlerSecrets = {
+	[K in (typeof SecretKeys)[number]]?: string
 }
 
 export interface ApiHandlerOptions {
