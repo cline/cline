@@ -1,5 +1,5 @@
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react"
+import React, { memo, useCallback, useMemo, useState } from "react"
 import { formatLargeNumber as formatTokenNumber } from "@/utils/format"
 
 interface TokenUsageInfoProps {
@@ -102,10 +102,6 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 	percentage,
 	autoCompactThreshold = 0,
 }) => {
-	const [thresholdDisplay, setThresholdDisplay] = useState(autoCompactThreshold)
-	const [isThresholdChanged, setIsThresholdChanged] = useState<"up" | "down" | undefined>(undefined)
-	const [isThresholdFadingOut, setIsThresholdFadingOut] = useState(false)
-
 	// Accordion state
 	const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
 
@@ -125,33 +121,16 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 		})
 	}, [])
 
-	useEffect(() => {
-		if (autoCompactThreshold !== thresholdDisplay) {
-			const type = autoCompactThreshold > thresholdDisplay ? "up" : "down"
-			setIsThresholdChanged(type)
-			setThresholdDisplay(autoCompactThreshold)
-			return () => {
-				setTimeout(() => {
-					setIsThresholdFadingOut(true)
-					setTimeout(() => {
-						setIsThresholdChanged(undefined)
-						setIsThresholdFadingOut(false)
-					}, 1000) // Duration of fade-out effect
-				}, 2000) // Duration to show the changed value before starting fade-out
-			}
-		}
-	}, [autoCompactThreshold, thresholdDisplay])
-
 	const totalTokens = (tokensIn || 0) + (tokensOut || 0)
 
 	return (
 		<div className="context-window-tooltip-content flex flex-col gap-2 bg-menu rounded shadow-sm border border-menu-border z-100 w-60 p-4">
-			{thresholdDisplay > 0 && (
+			{autoCompactThreshold > 0 && (
 				<AccordionItem
 					isExpanded={expandedSections.has("threshold")}
 					onToggle={(event) => toggleSection("threshold", event)}
 					title="Auto Condense Threshold"
-					value={<span className="text-muted-foreground">{`${(thresholdDisplay * 100).toFixed(0)}%`}</span>}>
+					value={<span className="text-muted-foreground">{`${(autoCompactThreshold * 100).toFixed(0)}%`}</span>}>
 					<div className="space-y-1">
 						<p className="text-xs leading-relaxed text-white">
 							Click on the context window bar to set a new threshold.
