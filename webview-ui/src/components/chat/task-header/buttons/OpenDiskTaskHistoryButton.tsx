@@ -1,12 +1,11 @@
-import { Button, cn } from "@heroui/react"
 import { StringRequest } from "@shared/proto/cline/common"
-import { ArrowDownToLineIcon } from "lucide-react"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import HeroTooltip from "@/components/common/HeroTooltip"
 import { FileServiceClient } from "@/services/grpc-client"
 
 const OpenDiskTaskHistoryButton: React.FC<{
 	taskId?: string
-	className?: string
-}> = ({ taskId, className }) => {
+}> = ({ taskId }) => {
 	const handleOpenDiskTaskHistory = () => {
 		if (!taskId) {
 			return
@@ -18,16 +17,18 @@ const OpenDiskTaskHistoryButton: React.FC<{
 	}
 
 	return (
-		<Button
-			aria-label="Open Disk Task History"
-			className={cn("flex items-center border-0 text-sm font-bold bg-transparent hover:opacity-100", className)}
-			isIconOnly={true}
-			onPress={() => handleOpenDiskTaskHistory()}
-			radius="sm"
-			size="sm"
-			title="Export Task">
-			<ArrowDownToLineIcon size="14" />
-		</Button>
+		<HeroTooltip content="Open Disk Task History">
+			<VSCodeButton
+				appearance="icon"
+				aria-label="Open Disk Task History"
+				className="p-0"
+				onClick={handleOpenDiskTaskHistory}
+				style={{ padding: "0px 0px" }}>
+				<div className="flex items-center gap-[3px] text-[8px] font-bold opacity-60">
+					<i className={`codicon codicon-folder`} />
+				</div>
+			</VSCodeButton>
+		</HeroTooltip>
 	)
 }
 
