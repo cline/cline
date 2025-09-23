@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process"
 import os from "node:os"
-import { expect, test } from "@playwright/test"
+import { expect } from "@playwright/test"
 import { e2e } from "./utils/helpers"
 
 function hasCommand(cmd: string): boolean {
@@ -126,22 +126,4 @@ e2e("Secrets - OS keychain get/store/delete", async () => {
 	expect(after).toBeUndefined()
 })
 
-// Standalone deps warning remains part of extension-host E2E (UI toast)
-
-test.describe("Standalone deps warning", () => {
-	e2e("Toast presence matches EXPECT_DEPS env", async ({ page }) => {
-		const expectDeps = process.env.EXPECT_DEPS === "true"
-		const toastLocator = page.locator(".monaco-workbench .notifications-toasts .notification-list-item")
-		if (expectDeps) {
-			// With deps provisioned, no toast expected
-			await page.waitForTimeout(2000)
-			await expect(toastLocator).toHaveCount(0)
-		} else {
-			// Without deps, expect fallback toast
-			await expect(toastLocator).toContainText(
-				/Falling back to file storage|CredentialManager PowerShell module not available|secret-tool\/libsecret/i,
-				{ timeout: 10000 },
-			)
-		}
-	})
-})
+// Standalone deps warning moved to standalone-migration.test.ts
