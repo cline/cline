@@ -55,7 +55,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		clineMessages,
 		navigateToSettings,
 		useAutoCondense,
-		autoCondenseThreshold,
 		mode,
 		expandTaskHeader: isTaskExpanded,
 		setExpandTaskHeader: setIsTaskExpanded,
@@ -158,7 +157,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						)}
 
 						<ContextWindow
-							autoCondenseThreshold={autoCondenseThreshold}
 							cacheReads={cacheReads}
 							cacheWrites={cacheWrites}
 							contextWindow={selectedModelInfo?.contextWindow}
@@ -166,7 +164,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							onSendMessage={onSendMessage}
 							tokensIn={tokensIn}
 							tokensOut={tokensOut}
-							useAutoCondense={useAutoCondense || false}
+							useAutoCondense={false} // Disable auto-condense configuration in UI for now
 						/>
 
 						<TaskTimeline messages={clineMessages} onBlockClick={onScrollToMessage} />
