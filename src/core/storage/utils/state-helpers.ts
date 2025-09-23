@@ -558,7 +558,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			mcpMarketplaceCatalog,
 			qwenCodeOauthPath,
 			customPrompt,
-			autoCondenseThreshold: autoCondenseThreshold || 0.75,
+			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
 			// Multi-root workspace support
 			workspaceRoots,
 			primaryRootIndex: primaryRootIndex ?? 0,
