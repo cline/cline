@@ -221,6 +221,9 @@
 	},
 	"response": "Yanıt",
 	"arguments": "Argümanlar",
+	"text": {
+		"rooSaid": "Roo dedi"
+	},
 	"feedback": {
 		"youSaid": "Dediniz ki"
 	},

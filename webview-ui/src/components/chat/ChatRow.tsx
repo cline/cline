@@ -60,6 +60,7 @@ import {
 	PocketKnife,
 	FolderTree,
 	TerminalSquare,
+	MessageCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -1118,14 +1119,20 @@ export const ChatRowContent = ({
 				case "text":
 					return (
 						<div>
-							<Markdown markdown={message.text} partial={message.partial} />
-							{message.images && message.images.length > 0 && (
-								<div style={{ marginTop: "10px" }}>
-									{message.images.map((image, index) => (
-										<ImageBlock key={index} imageData={image} />
-									))}
-								</div>
-							)}
+							<div style={headerStyle}>
+								<MessageCircle className="w-4" aria-label="Speech bubble icon" />
+								<span style={{ fontWeight: "bold" }}>{t("chat:text.rooSaid")}</span>
+							</div>
+							<div className="pl-6">
+								<Markdown markdown={message.text} partial={message.partial} />
+								{message.images && message.images.length > 0 && (
+									<div style={{ marginTop: "10px" }}>
+										{message.images.map((image, index) => (
+											<ImageBlock key={index} imageData={image} />
+										))}
+									</div>
+								)}
+							</div>
 						</div>
 					)
 				case "user_feedback":

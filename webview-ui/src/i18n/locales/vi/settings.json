@@ -30,6 +30,7 @@
 		"terminal": "Terminal",
 		"slashCommands": "Lệnh Gạch Chéo",
 		"prompts": "Lời nhắc",
+		"ui": "UI",
 		"experimental": "Thử nghiệm",
 		"language": "Ngôn ngữ",
 		"about": "Giới thiệu"
@@ -879,6 +880,12 @@
 			"input": "Đầu vào",
 			"output": "Đầu ra",
 			"cacheReads": "Lượt đọc bộ nhớ đệm"
+		}
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "Thu gọn tin nhắn Suy nghĩ theo mặc định",
+			"description": "Khi được bật, các khối suy nghĩ sẽ được thu gọn theo mặc định cho đến khi bạn tương tác với chúng"
 		}
 	}
 }

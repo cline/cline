@@ -30,6 +30,7 @@
 		"terminal": "Terminal",
 		"slashCommands": "Comandi Slash",
 		"prompts": "Prompt",
+		"ui": "UI",
 		"experimental": "Sperimentale",
 		"language": "Lingua",
 		"about": "Informazioni su Roo Code"
@@ -879,6 +880,12 @@
 			"input": "Input",
 			"output": "Output",
 			"cacheReads": "Letture cache"
+		}
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "Comprimi i messaggi di pensiero per impostazione predefinita",
+			"description": "Se abilitato, i blocchi di pensiero verranno compressi per impostazione predefinita finché non interagisci con essi"
 		}
 	}
 }

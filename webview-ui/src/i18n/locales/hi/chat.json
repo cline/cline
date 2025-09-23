@@ -220,6 +220,9 @@
 	},
 	"response": "प्रतिक्रिया",
 	"arguments": "आर्ग्युमेंट्स",
+	"text": {
+		"rooSaid": "रू ने कहा"
+	},
 	"feedback": {
 		"youSaid": "आपने कहा"
 	},

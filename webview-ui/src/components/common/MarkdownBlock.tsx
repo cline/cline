@@ -146,6 +146,12 @@ const StyledMarkdown = styled.div`
 		}
 	}
 
+	h1 {
+		font-size: 1.65em;
+		font-weight: 700;
+		margin: 1.35em 0 0.5em;
+	}
+
 	h2 {
 		font-size: 1.35em;
 		font-weight: 500;

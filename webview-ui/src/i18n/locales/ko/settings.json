@@ -30,6 +30,7 @@
 		"terminal": "터미널",
 		"slashCommands": "슬래시 명령",
 		"prompts": "프롬프트",
+		"ui": "UI",
 		"experimental": "실험적",
 		"language": "언어",
 		"about": "Roo Code 정보"
@@ -879,6 +880,12 @@
 			"input": "입력",
 			"output": "출력",
 			"cacheReads": "캐시 읽기"
+		}
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "기본적으로 생각 메시지 접기",
+			"description": "활성화하면 상호 작용할 때까지 생각 블록이 기본적으로 접힙니다"
 		}
 	}
 }

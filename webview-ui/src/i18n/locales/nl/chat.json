@@ -215,6 +215,9 @@
 	},
 	"response": "Antwoord",
 	"arguments": "Argumenten",
+	"text": {
+		"rooSaid": "Roo zei"
+	},
 	"feedback": {
 		"youSaid": "Jij zei"
 	},

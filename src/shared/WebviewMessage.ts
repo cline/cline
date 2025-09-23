@@ -194,6 +194,7 @@ export interface WebviewMessage {
 		| "focusPanelRequest"
 		| "profileThresholds"
 		| "setHistoryPreviewCollapsed"
+		| "setReasoningBlockCollapsed"
 		| "openExternal"
 		| "filterMarketplaceItems"
 		| "marketplaceButtonClicked"

@@ -30,6 +30,7 @@
 		"terminal": "終端機",
 		"slashCommands": "斜線命令",
 		"prompts": "提示詞",
+		"ui": "UI",
 		"experimental": "實驗性",
 		"language": "語言",
 		"about": "關於 Roo Code"
@@ -879,6 +880,12 @@
 			"input": "輸入",
 			"output": "輸出",
 			"cacheReads": "快取讀取"
+		}
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "預設折疊“思考”訊息",
+			"description": "啟用後，“思考”塊將預設折疊，直到您與其互動"
 		}
 	}
 }

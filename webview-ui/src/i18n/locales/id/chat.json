@@ -242,6 +242,9 @@
 	},
 	"response": "Respons",
 	"arguments": "Argumen",
+	"text": {
+		"rooSaid": "Roo berkata"
+	},
 	"feedback": {
 		"youSaid": "Anda bilang"
 	},

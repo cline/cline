@@ -30,12 +30,19 @@
 		"terminal": "Terminal",
 		"slashCommands": "Slash Commands",
 		"prompts": "Prompts",
+		"ui": "UI",
 		"experimental": "Experimental",
 		"language": "Language",
 		"about": "About Roo Code"
 	},
 	"slashCommands": {
 		"description": "Manage your slash commands to quickly execute custom workflows and actions. <DocsLink>Learn more</DocsLink>"
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "Collapse Thinking messages by default",
+			"description": "When enabled, thinking blocks will be collapsed by default until you interact with them"
+		}
 	},
 	"prompts": {
 		"description": "Configure support prompts that are used for quick actions like enhancing prompts, explaining code, and fixing issues. These prompts help Roo provide better assistance for common development tasks."

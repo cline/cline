@@ -287,6 +287,7 @@ export type ExtensionState = Pick<
 	| "maxDiagnosticMessages"
 	| "openRouterImageGenerationSelectedModel"
 	| "includeTaskHistoryInEnhance"
+	| "reasoningBlockCollapsed"
 > & {
 	version: string
 	clineMessages: ClineMessage[]

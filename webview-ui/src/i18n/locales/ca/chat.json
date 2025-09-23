@@ -220,6 +220,9 @@
 	},
 	"response": "Resposta",
 	"arguments": "Arguments",
+	"text": {
+		"rooSaid": "En Roo ha dit"
+	},
 	"feedback": {
 		"youSaid": "Has dit"
 	},

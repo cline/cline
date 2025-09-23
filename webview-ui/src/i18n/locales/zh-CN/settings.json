@@ -30,6 +30,7 @@
 		"terminal": "终端",
 		"slashCommands": "斜杠命令",
 		"prompts": "提示词",
+		"ui": "UI",
 		"experimental": "实验性",
 		"language": "语言",
 		"about": "关于 Roo Code"
@@ -879,6 +880,12 @@
 			"input": "输入",
 			"output": "输出",
 			"cacheReads": "缓存读取"
+		}
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "默认折叠“思考”消息",
+			"description": "启用后，“思考”块将默认折叠，直到您与其交互"
 		}
 	}
 }

@@ -221,6 +221,9 @@
 	},
 	"response": "Phản hồi",
 	"arguments": "Tham số",
+	"text": {
+		"rooSaid": "Roo đã nói"
+	},
 	"feedback": {
 		"youSaid": "Bạn đã nói"
 	},

@@ -30,6 +30,7 @@
 		"terminal": "Terminal",
 		"slashCommands": "Comandos de Barra",
 		"prompts": "Indicaciones",
+		"ui": "UI",
 		"experimental": "Experimental",
 		"language": "Idioma",
 		"about": "Acerca de Roo Code"
@@ -878,6 +879,12 @@
 			"input": "Entrada",
 			"output": "Salida",
 			"cacheReads": "Lecturas de caché"
+		}
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "Colapsar mensajes de pensamiento por defecto",
+			"description": "Cuando está activado, los bloques de pensamiento se colapsarán por defecto hasta que interactúes con ellos"
 		}
 	}
 }

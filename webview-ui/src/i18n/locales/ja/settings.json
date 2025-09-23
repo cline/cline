@@ -30,6 +30,7 @@
 		"terminal": "ターミナル",
 		"slashCommands": "スラッシュコマンド",
 		"prompts": "プロンプト",
+		"ui": "UI",
 		"experimental": "実験的",
 		"language": "言語",
 		"about": "Roo Codeについて"
@@ -879,6 +880,12 @@
 			"input": "入力",
 			"output": "出力",
 			"cacheReads": "キャッシュ読み取り"
+		}
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "デフォルトで思考メッセージを折りたたむ",
+			"description": "有効にすると、操作するまで思考ブロックがデフォルトで折りたたまれます"
 		}
 	}
 }

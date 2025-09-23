@@ -30,6 +30,7 @@
 		"terminal": "Terminal",
 		"slashCommands": "Comandos de Barra",
 		"prompts": "Prompts",
+		"ui": "UI",
 		"experimental": "Experimental",
 		"language": "Idioma",
 		"about": "Sobre"
@@ -879,6 +880,12 @@
 			"input": "Entrada",
 			"output": "Saída",
 			"cacheReads": "Leituras de cache"
+		}
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "Recolher mensagens de pensamento por padrão",
+			"description": "Quando ativado, os blocos de pensamento serão recolhidos por padrão até que você interaja com eles"
 		}
 	}
 }

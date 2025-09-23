@@ -216,6 +216,9 @@
 	},
 	"response": "Ответ",
 	"arguments": "Аргументы",
+	"text": {
+		"rooSaid": "Ру сказал"
+	},
 	"feedback": {
 		"youSaid": "Вы сказали"
 	},

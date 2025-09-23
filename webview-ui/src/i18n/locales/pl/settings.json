@@ -30,6 +30,7 @@
 		"terminal": "Terminal",
 		"slashCommands": "Polecenia Slash",
 		"prompts": "Podpowiedzi",
+		"ui": "UI",
 		"experimental": "Eksperymentalne",
 		"language": "Język",
 		"about": "O Roo Code"
@@ -879,6 +880,12 @@
 			"input": "Wejście",
 			"output": "Wyjście",
 			"cacheReads": "Odczyty z pamięci podręcznej"
+		}
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "Domyślnie zwijaj komunikaty o myśleniu",
+			"description": "Gdy włączone, bloki myślenia będą domyślnie zwinięte, dopóki nie wejdziesz z nimi w interakcję"
 		}
 	}
 }

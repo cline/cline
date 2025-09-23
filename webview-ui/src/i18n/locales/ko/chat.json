@@ -220,6 +220,9 @@
 	},
 	"response": "응답",
 	"arguments": "인수",
+	"text": {
+		"rooSaid": "루가 말했다"
+	},
 	"feedback": {
 		"youSaid": "당신은 말했다"
 	},

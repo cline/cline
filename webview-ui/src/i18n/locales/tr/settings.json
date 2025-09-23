@@ -30,6 +30,7 @@
 		"terminal": "Terminal",
 		"slashCommands": "Eğik Çizgi Komutları",
 		"prompts": "Promptlar",
+		"ui": "UI",
 		"experimental": "Deneysel",
 		"language": "Dil",
 		"about": "Roo Code Hakkında"
@@ -879,6 +880,12 @@
 			"input": "Giriş",
 			"output": "Çıkış",
 			"cacheReads": "Önbellek okumaları"
+		}
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "Düşünme mesajlarını varsayılan olarak daralt",
+			"description": "Etkinleştirildiğinde, düşünme blokları siz onlarla etkileşime girene kadar varsayılan olarak daraltılır"
 		}
 	}
 }

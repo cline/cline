@@ -30,6 +30,7 @@
 		"terminal": "Terminal",
 		"slashCommands": "Slash-opdrachten",
 		"prompts": "Prompts",
+		"ui": "UI",
 		"experimental": "Experimenteel",
 		"language": "Taal",
 		"about": "Over Roo Code"
@@ -879,6 +880,12 @@
 			"input": "Invoer",
 			"output": "Uitvoer",
 			"cacheReads": "Cache leest"
+		}
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "Denkberichten standaard samenvouwen",
+			"description": "Indien ingeschakeld, worden denkblokken standaard samengevouwen totdat je ermee interageert"
 		}
 	}
 }

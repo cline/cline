@@ -221,6 +221,9 @@
 	},
 	"response": "响应",
 	"arguments": "参数",
+	"text": {
+		"rooSaid": "Roo 说"
+	},
 	"feedback": {
 		"youSaid": "你说"
 	},

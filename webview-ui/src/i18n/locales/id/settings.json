@@ -30,6 +30,7 @@
 		"terminal": "Terminal",
 		"slashCommands": "Perintah Slash",
 		"prompts": "Prompt",
+		"ui": "UI",
 		"experimental": "Eksperimental",
 		"language": "Bahasa",
 		"about": "Tentang Roo Code"
@@ -908,6 +909,12 @@
 			"input": "Input",
 			"output": "Output",
 			"cacheReads": "Pembacaan cache"
+		}
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "Ciutkan pesan Berpikir secara default",
+			"description": "Jika diaktifkan, blok berpikir akan diciutkan secara default sampai Anda berinteraksi dengannya"
 		}
 	}
 }

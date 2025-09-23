@@ -239,6 +239,9 @@
 	},
 	"response": "Response",
 	"arguments": "Arguments",
+	"text": {
+		"rooSaid": "Roo said"
+	},
 	"feedback": {
 		"youSaid": "You said"
 	},
