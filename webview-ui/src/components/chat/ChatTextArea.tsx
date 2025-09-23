@@ -1433,26 +1433,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					onDragLeave={handleDragLeave}
 					onDragOver={onDragOver}
 					onDrop={onDrop}>
-					<div
-						className={cn(
-							// transition: "opacity 1s ease-in-out",
-							"absolute pointer-events-none z-10 overflow-hidden rounded-xs transition-colors ease-in-out duration-1000",
-							{
-								"opacity-0": !isVoiceRecording,
-							},
-						)}>
+					<div className="absolute inset-0 pointer-events-none z-10 overflow-hidden rounded-xs transition-colors ease-in-out duration-1000 left-2.5 right-2.5 top-2.5 bottom-2.5">
 						<PulsingBorder
 							bloom={1}
+							className="w-full h-full"
 							colorBack={"rgba(0,0,0,0)"}
 							colors={[
 								"#ffffff", // white
 								"#ffffff",
 								"#9d57fa",
 								"#ffffff",
-							]} // Match textarea border radius
+							]}
 							intensity={0.97}
 							pulse={0}
-							roundness={0}
+							roundness={0} // Match textarea border radius
 							scale={1.0}
 							smoke={0.18}
 							smokeSize={0.76}
@@ -1460,9 +1454,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							speed={1}
 							spotSize={0.4}
 							spots={3}
-							thickness={0}
+							thickness={0.1}
 						/>
 					</div>
+
 					{showDimensionError && (
 						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
 							<span className="text-error font-bold text-xs text-center">Image dimensions exceed 7500px</span>
@@ -1506,8 +1501,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						className={cn(
 							"absolute left-3.5 right-3.5 bottom-2.5 top-2.5 whitespace-pre-wrap break-words rounded-xs px-9 py-9 overflow-hidden bg-input-background",
 							{
-								"border-input-border": isTextAreaFocused,
-								"left-2.5 right-2.5": isTextAreaFocused,
+								"border-input-border": isTextAreaFocused || isVoiceRecording,
+								"left-2.5 right-2.5": isTextAreaFocused || isVoiceRecording,
 							},
 						)}
 						ref={highlightLayerRef}
