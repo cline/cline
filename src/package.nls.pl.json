@@ -32,6 +32,7 @@
 	"commands.deniedCommands.description": "Prefiksy poleceń, które będą automatycznie odrzucane bez pytania o zatwierdzenie. W przypadku konfliktów z dozwolonymi poleceniami, najdłuższe dopasowanie prefiksu ma pierwszeństwo. Dodaj * aby odrzucić wszystkie polecenia.",
 	"commands.commandExecutionTimeout.description": "Maksymalny czas w sekundach oczekiwania na zakończenie wykonania polecenia przed przekroczeniem limitu czasu (0 = brak limitu czasu, 1-600s, domyślnie: 0s)",
 	"commands.commandTimeoutAllowlist.description": "Prefiksy poleceń, które są wykluczone z limitu czasu wykonania poleceń. Polecenia pasujące do tych prefiksów będą wykonywane bez ograniczeń czasowych.",
+	"commands.preventCompletionWithOpenTodos.description": "Zapobiegaj ukończeniu zadania gdy na liście zadań są niekompletne todos",
 	"settings.vsCodeLmModelSelector.description": "Ustawienia dla API modelu językowego VSCode",
 	"settings.vsCodeLmModelSelector.vendor.description": "Dostawca modelu językowego (np. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Rodzina modelu językowego (np. gpt-4)",
@@ -40,5 +41,6 @@
 	"settings.autoImportSettingsPath.description": "Ścieżka do pliku konfiguracyjnego RooCode, który ma być automatycznie importowany podczas uruchamiania rozszerzenia. Obsługuje ścieżki bezwzględne i ścieżki względne do katalogu domowego (np. '~/Documents/roo-code-settings.json'). Pozostaw puste, aby wyłączyć automatyczne importowanie.",
 	"settings.useAgentRules.description": "Włącz wczytywanie plików AGENTS.md dla reguł specyficznych dla agenta (zobacz https://agent-rules.org/)",
 	"settings.apiRequestTimeout.description": "Maksymalny czas w sekundach oczekiwania na odpowiedzi API (0 = brak limitu czasu, 1-3600s, domyślnie: 600s). Wyższe wartości są zalecane dla lokalnych dostawców, takich jak LM Studio i Ollama, którzy mogą potrzebować więcej czasu na przetwarzanie.",
+	"settings.newTaskRequireTodos.description": "Wymagaj parametru todos podczas tworzenia nowych zadań za pomocą narzędzia new_task",
 	"settings.codeIndex.embeddingBatchSize.description": "Rozmiar partii dla operacji osadzania podczas indeksowania kodu. Dostosuj to w oparciu o limity twojego dostawcy API. Domyślnie to 60."
 }

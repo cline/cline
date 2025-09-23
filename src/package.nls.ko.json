@@ -32,6 +32,7 @@
 	"commands.deniedCommands.description": "승인을 요청하지 않고 자동으로 거부될 명령어 접두사. 허용된 명령어와 충돌하는 경우 가장 긴 접두사 일치가 우선됩니다. 모든 명령어를 거부하려면 *를 추가하세요.",
 	"commands.commandExecutionTimeout.description": "명령어 실행이 완료되기를 기다리는 최대 시간(초), 타임아웃 전까지 (0 = 타임아웃 없음, 1-600초, 기본값: 0초)",
 	"commands.commandTimeoutAllowlist.description": "명령어 실행 타임아웃에서 제외되는 명령어 접두사. 이러한 접두사와 일치하는 명령어는 타임아웃 제한 없이 실행됩니다.",
+	"commands.preventCompletionWithOpenTodos.description": "할 일 목록에 미완료 할 일이 있을 때 작업 완료를 방지",
 	"settings.vsCodeLmModelSelector.description": "VSCode 언어 모델 API 설정",
 	"settings.vsCodeLmModelSelector.vendor.description": "언어 모델 공급자 (예: copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "언어 모델 계열 (예: gpt-4)",
@@ -40,5 +41,6 @@
 	"settings.autoImportSettingsPath.description": "확장 프로그램 시작 시 자동으로 가져올 RooCode 구성 파일의 경로입니다. 절대 경로 및 홈 디렉토리에 대한 상대 경로를 지원합니다(예: '~/Documents/roo-code-settings.json'). 자동 가져오기를 비활성화하려면 비워 둡니다.",
 	"settings.useAgentRules.description": "에이전트별 규칙에 대한 AGENTS.md 파일 로드를 활성화합니다 (참조: https://agent-rules.org/)",
 	"settings.apiRequestTimeout.description": "API 응답을 기다리는 최대 시간(초) (0 = 시간 초과 없음, 1-3600초, 기본값: 600초). 더 많은 처리 시간이 필요할 수 있는 LM Studio 및 Ollama와 같은 로컬 공급자에게는 더 높은 값을 사용하는 것이 좋습니다.",
+	"settings.newTaskRequireTodos.description": "new_task 도구로 새 작업을 생성할 때 todos 매개변수 필요",
 	"settings.codeIndex.embeddingBatchSize.description": "코드 인덱싱 중 임베딩 작업의 배치 크기입니다. API 공급자의 제한에 따라 이를 조정하세요. 기본값은 60입니다."
 }

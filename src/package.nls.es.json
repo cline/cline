@@ -32,6 +32,7 @@
 	"commands.deniedCommands.description": "Prefijos de comandos que serán automáticamente denegados sin solicitar aprobación. En caso de conflictos con comandos permitidos, la coincidencia de prefijo más larga tiene prioridad. Añade * para denegar todos los comandos.",
 	"commands.commandExecutionTimeout.description": "Tiempo máximo en segundos para esperar que se complete la ejecución del comando antes de que expire (0 = sin tiempo límite, 1-600s, predeterminado: 0s)",
 	"commands.commandTimeoutAllowlist.description": "Prefijos de comandos que están excluidos del tiempo límite de ejecución de comandos. Los comandos que coincidan con estos prefijos se ejecutarán sin restricciones de tiempo límite.",
+	"commands.preventCompletionWithOpenTodos.description": "Prevenir la finalización de tareas cuando hay todos incompletos en la lista de todos",
 	"settings.vsCodeLmModelSelector.description": "Configuración para la API del modelo de lenguaje VSCode",
 	"settings.vsCodeLmModelSelector.vendor.description": "El proveedor del modelo de lenguaje (ej. copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "La familia del modelo de lenguaje (ej. gpt-4)",
@@ -40,5 +41,6 @@
 	"settings.autoImportSettingsPath.description": "Ruta a un archivo de configuración de RooCode para importar automáticamente al iniciar la extensión. Admite rutas absolutas y rutas relativas al directorio de inicio (por ejemplo, '~/Documents/roo-code-settings.json'). Dejar vacío para desactivar la importación automática.",
 	"settings.useAgentRules.description": "Habilita la carga de archivos AGENTS.md para reglas específicas del agente (ver https://agent-rules.org/)",
 	"settings.apiRequestTimeout.description": "Tiempo máximo en segundos de espera para las respuestas de la API (0 = sin tiempo de espera, 1-3600s, por defecto: 600s). Se recomiendan valores más altos para proveedores locales como LM Studio y Ollama que puedan necesitar más tiempo de procesamiento.",
+	"settings.newTaskRequireTodos.description": "Requerir el parámetro todos al crear nuevas tareas con la herramienta new_task",
 	"settings.codeIndex.embeddingBatchSize.description": "El tamaño del lote para operaciones de embedding durante la indexación de código. Ajusta esto según los límites de tu proveedor de API. Por defecto es 60."
 }

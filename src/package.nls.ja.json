@@ -32,6 +32,7 @@
 	"commands.deniedCommands.description": "承認を求めずに自動的に拒否されるコマンドプレフィックス。許可されたコマンドとの競合がある場合、最長プレフィックスマッチが優先されます。すべてのコマンドを拒否するには * を追加してください。",
 	"commands.commandExecutionTimeout.description": "コマンド実行の完了を待つ最大時間（秒）、タイムアウトまで（0 = タイムアウトなし、1-600秒、デフォルト: 0秒）",
 	"commands.commandTimeoutAllowlist.description": "コマンド実行タイムアウトから除外されるコマンドプレフィックス。これらのプレフィックスに一致するコマンドは、タイムアウト制限なしで実行されます。",
+	"commands.preventCompletionWithOpenTodos.description": "TODOリストに未完了のTODOがある場合にタスクの完了を防ぐ",
 	"settings.vsCodeLmModelSelector.description": "VSCode 言語モデル API の設定",
 	"settings.vsCodeLmModelSelector.vendor.description": "言語モデルのベンダー（例：copilot）",
 	"settings.vsCodeLmModelSelector.family.description": "言語モデルのファミリー（例：gpt-4）",
@@ -40,5 +41,6 @@
 	"settings.autoImportSettingsPath.description": "拡張機能の起動時に自動的にインポートするRooCode設定ファイルへのパス。絶対パスとホームディレクトリからの相対パスをサポートします（例：'~/Documents/roo-code-settings.json'）。自動インポートを無効にするには、空のままにします。",
 	"settings.useAgentRules.description": "エージェント固有のルールのためにAGENTS.mdファイルの読み込みを有効にします（参照：https://agent-rules.org/）",
 	"settings.apiRequestTimeout.description": "API応答を待機する最大時間（秒）（0 = タイムアウトなし、1-3600秒、デフォルト: 600秒）。LM StudioやOllamaのような、より多くの処理時間を必要とする可能性のあるローカルプロバイダーには、より高い値が推奨されます。",
+	"settings.newTaskRequireTodos.description": "new_taskツールで新しいタスクを作成する際にtodosパラメータを必須にする",
 	"settings.codeIndex.embeddingBatchSize.description": "コードインデックス作成中のエンベディング操作のバッチサイズ。APIプロバイダーの制限に基づいてこれを調整してください。デフォルトは60です。"
 }

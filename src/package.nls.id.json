@@ -32,6 +32,7 @@
 	"commands.deniedCommands.description": "Awalan perintah yang akan otomatis ditolak tanpa meminta persetujuan. Jika terjadi konflik dengan perintah yang diizinkan, pencocokan awalan terpanjang akan diprioritaskan. Tambahkan * untuk menolak semua perintah.",
 	"commands.commandExecutionTimeout.description": "Waktu maksimum dalam detik untuk menunggu eksekusi perintah selesai sebelum timeout (0 = tanpa timeout, 1-600s, default: 0s)",
 	"commands.commandTimeoutAllowlist.description": "Awalan perintah yang dikecualikan dari timeout eksekusi perintah. Perintah yang cocok dengan awalan ini akan berjalan tanpa batasan timeout.",
+	"commands.preventCompletionWithOpenTodos.description": "Mencegah penyelesaian tugas ketika ada todos yang belum selesai dalam daftar todos",
 	"settings.vsCodeLmModelSelector.description": "Pengaturan untuk API Model Bahasa VSCode",
 	"settings.vsCodeLmModelSelector.vendor.description": "Vendor dari model bahasa (misalnya copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Keluarga dari model bahasa (misalnya gpt-4)",
@@ -40,5 +41,6 @@
 	"settings.autoImportSettingsPath.description": "Path ke file konfigurasi RooCode untuk diimpor secara otomatis saat ekstensi dimulai. Mendukung path absolut dan path relatif terhadap direktori home (misalnya '~/Documents/roo-code-settings.json'). Biarkan kosong untuk menonaktifkan impor otomatis.",
 	"settings.useAgentRules.description": "Aktifkan pemuatan file AGENTS.md untuk aturan khusus agen (lihat https://agent-rules.org/)",
 	"settings.apiRequestTimeout.description": "Waktu maksimum dalam detik untuk menunggu respons API (0 = tidak ada batas waktu, 1-3600s, default: 600s). Nilai yang lebih tinggi disarankan untuk penyedia lokal seperti LM Studio dan Ollama yang mungkin memerlukan lebih banyak waktu pemrosesan.",
+	"settings.newTaskRequireTodos.description": "Memerlukan parameter todos saat membuat tugas baru dengan alat new_task",
 	"settings.codeIndex.embeddingBatchSize.description": "Ukuran batch untuk operasi embedding selama pengindeksan kode. Sesuaikan ini berdasarkan batas penyedia API kamu. Default adalah 60."
 }

@@ -32,6 +32,7 @@
 	"commands.deniedCommands.description": "Onay istenmeden otomatik olarak reddedilecek komut önekleri. İzin verilen komutlarla çakışma durumunda en uzun önek eşleşmesi öncelik alır. Tüm komutları reddetmek için * ekleyin.",
 	"commands.commandExecutionTimeout.description": "Komut yürütmesinin tamamlanmasını beklemek için maksimum süre (saniye), zaman aşımından önce (0 = zaman aşımı yok, 1-600s, varsayılan: 0s)",
 	"commands.commandTimeoutAllowlist.description": "Komut yürütme zaman aşımından hariç tutulan komut önekleri. Bu öneklerle eşleşen komutlar zaman aşımı kısıtlamaları olmadan çalışacaktır.",
+	"commands.preventCompletionWithOpenTodos.description": "Todo listesinde tamamlanmamış todolar olduğunda görev tamamlanmasını engelle",
 	"settings.vsCodeLmModelSelector.description": "VSCode dil modeli API'si için ayarlar",
 	"settings.vsCodeLmModelSelector.vendor.description": "Dil modelinin sağlayıcısı (örn: copilot)",
 	"settings.vsCodeLmModelSelector.family.description": "Dil modelinin ailesi (örn: gpt-4)",
@@ -40,5 +41,6 @@
 	"settings.autoImportSettingsPath.description": "Uzantı başlangıcında otomatik olarak içe aktarılacak bir RooCode yapılandırma dosyasının yolu. Mutlak yolları ve ana dizine göreli yolları destekler (ör. '~/Documents/roo-code-settings.json'). Otomatik içe aktarmayı devre dışı bırakmak için boş bırakın.",
 	"settings.useAgentRules.description": "Aracıya özgü kurallar için AGENTS.md dosyalarının yüklenmesini etkinleştirin (bkz. https://agent-rules.org/)",
 	"settings.apiRequestTimeout.description": "API yanıtları için beklenecek maksimum süre (saniye cinsinden) (0 = zaman aşımı yok, 1-3600s, varsayılan: 600s). LM Studio ve Ollama gibi daha fazla işlem süresi gerektirebilecek yerel sağlayıcılar için daha yüksek değerler önerilir.",
+	"settings.newTaskRequireTodos.description": "new_task aracıyla yeni görevler oluştururken todos parametresini gerekli kıl",
 	"settings.codeIndex.embeddingBatchSize.description": "Kod indeksleme sırasında gömme işlemleri için toplu iş boyutu. Bunu API sağlayıcınızın sınırlarına göre ayarlayın. Varsayılan 60'tır."
 }

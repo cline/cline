@@ -32,6 +32,7 @@
 	"commands.deniedCommands.description": "將自動拒絕而無需請求批准的命令前綴。與允許命令衝突時，最長前綴匹配優先。新增 * 拒絕所有命令。",
 	"commands.commandExecutionTimeout.description": "等待命令執行完成的最大時間（秒），逾時前（0 = 無逾時，1-600秒，預設：0秒）",
 	"commands.commandTimeoutAllowlist.description": "從命令執行逾時中排除的命令前綴。符合這些前綴的命令將在沒有逾時限制的情況下執行。",
+	"commands.preventCompletionWithOpenTodos.description": "當待辦事項清單中有未完成的待辦事項時阻止工作完成",
 	"settings.vsCodeLmModelSelector.description": "VSCode 語言模型 API 的設定",
 	"settings.vsCodeLmModelSelector.vendor.description": "語言模型供應商（例如：copilot）",
 	"settings.vsCodeLmModelSelector.family.description": "語言模型系列（例如：gpt-4）",
@@ -40,5 +41,6 @@
 	"settings.autoImportSettingsPath.description": "RooCode 設定檔案的路徑，用於在擴充功能啟動時自動匯入。支援絕對路徑和相對於主目錄的路徑（例如 '~/Documents/roo-code-settings.json'）。留空以停用自動匯入。",
 	"settings.useAgentRules.description": "為特定於代理的規則啟用 AGENTS.md 檔案的載入（請參閱 https://agent-rules.org/）",
 	"settings.apiRequestTimeout.description": "等待 API 回應的最長時間（秒）（0 = 無超時，1-3600秒，預設值：600秒）。對於像 LM Studio 和 Ollama 這樣可能需要更多處理時間的本地提供商，建議使用更高的值。",
+	"settings.newTaskRequireTodos.description": "使用 new_task 工具建立新工作時需要 todos 參數",
 	"settings.codeIndex.embeddingBatchSize.description": "程式碼索引期間嵌入操作的批次大小。根據 API 提供商的限制調整此設定。預設值為 60。"
 }
