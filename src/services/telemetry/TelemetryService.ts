@@ -1112,13 +1112,15 @@ export class TelemetryService {
 	 * Records terminal command execution outcomes
 	 * @param success Whether the command output was successfully captured
 	 * @param method The method used to capture output ("shell_integration" | "clipboard" | "none")
+	 * @param shell The shell being used (e.g., "bash", "zsh", "powershell")
 	 */
-	public captureTerminalExecution(success: boolean, method: "shell_integration" | "clipboard" | "none") {
+	public captureTerminalExecution(success: boolean, method: "shell_integration" | "clipboard" | "none", shell?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
 			properties: {
 				success,
 				method,
+				shell,
 			},
 		})
 	}
@@ -1126,12 +1128,14 @@ export class TelemetryService {
 	/**
 	 * Records when terminal output capture fails
 	 * @param reason The reason for failure
+	 * @param shell The shell being used (e.g., "bash", "zsh", "powershell")
 	 */
-	public captureTerminalOutputFailure(reason: TerminalOutputFailureReason) {
+	public captureTerminalOutputFailure(reason: TerminalOutputFailureReason, shell?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_OUTPUT_FAILURE,
 			properties: {
 				reason,
+				shell,
 			},
 		})
 	}
@@ -1139,12 +1143,14 @@ export class TelemetryService {
 	/**
 	 * Records when user has to intervene with terminal execution
 	 * @param action The user action
+	 * @param shell The shell being used (e.g., "bash", "zsh", "powershell")
 	 */
-	public captureTerminalUserIntervention(action: TerminalUserInterventionAction) {
+	public captureTerminalUserIntervention(action: TerminalUserInterventionAction, shell?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TERMINAL_USER_INTERVENTION,
 			properties: {
 				action,
+				shell,
 			},
 		})
 	}
