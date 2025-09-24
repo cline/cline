@@ -176,25 +176,25 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 				className="relative flex flex-col gap-1.5 select-none overflow-hidden transition-[transform,box-shadow] duration-200 cursor-pointer hover:brightness-120"
 				onClick={handleToggle}
 				style={{
-					backgroundColor: "color-mix(in srgb, var(--vscode-progressBar-background) 40%, transparent)",
+					backgroundColor: "color-mix(in srgb, var(--vscode-editorWidget-background) 60%, transparent)",
 					borderTopLeftRadius: 0,
 					borderTopRightRadius: 0,
 					borderBottomLeftRadius: "4px",
 					borderBottomRightRadius: "4px",
-					borderLeft: "1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent)",
-					borderRight: "1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent)",
-					borderBottom: "1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent)",
-					width: "calc(100% - 14px)",
-					marginLeft: "7px",
-					marginTop: "-5.5px",
+					borderLeft: "1px solid color-mix(in srgb, var(--vscode-editorWidget-border) 50%, transparent)",
+					borderRight: "1px solid color-mix(in srgb, var(--vscode-editorWidget-border) 50%, transparent)",
+					borderBottom: "1px solid color-mix(in srgb, var(--vscode-editorWidget-border) 50%, transparent)",
+					width: "calc(100% - 8.5px)",
+					marginLeft: "4px",
+					marginTop: "-6px",
 				}}
 				title={CLICK_TO_EDIT_TITLE}>
 				{/* Progress bar background */}
 				<div
 					className="absolute inset-0 pointer-events-none"
 					style={{
-						background: `linear-gradient(to right, var(--vscode-progressBar-background) ${todoInfo.progressPercentage}%, transparent ${todoInfo.progressPercentage}%)`,
-						opacity: 0.3,
+						background: `linear-gradient(to right, var(--vscode-editorWidget-foreground) ${todoInfo.progressPercentage}%, transparent ${todoInfo.progressPercentage}%)`,
+						opacity: 0.15,
 						transition: "all 0.3s ease-in-out",
 					}}
 				/>
