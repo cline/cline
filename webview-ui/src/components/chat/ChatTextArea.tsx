@@ -1568,7 +1568,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						style={{
 							width: "100%",
 							boxSizing: "border-box",
-							backgroundColor: "transparent",
+							backgroundColor: "var(--vscode-input-background)",
 							color: "var(--vscode-input-foreground)",
 							//border: "1px solid var(--vscode-input-border)",
 							borderRadius: 2,
@@ -1605,7 +1605,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						value={inputValue}
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
-						<div className="text-[10px] absolute bottom-5 left-5 right-16 text-[var(--vscode-input-placeholderForeground)]/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
+						<div className="text-[10px] absolute bottom-5 left-5 right-16 text-(--vscode-input-placeholderForeground)/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
 							Type @ for context, / for slash commands & workflows, hold shift to drag in files/images
 						</div>
 					)}

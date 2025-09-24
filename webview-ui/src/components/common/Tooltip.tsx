@@ -1,4 +1,5 @@
-import { Tooltip as RadixTooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { TooltipContent, Tooltip as TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 
 interface TooltipProps {
 	visible?: boolean
@@ -6,16 +7,17 @@ interface TooltipProps {
 	tipText: string
 	children: React.ReactNode
 	style?: React.CSSProperties
+	className?: string
 }
 
-const Tooltip: React.FC<TooltipProps> = ({ tipText, hintText, children }) => {
+const Tooltip: React.FC<TooltipProps> = ({ tipText, hintText, children, className }) => {
 	return (
-		<RadixTooltip>
-			<TooltipTrigger>{children}</TooltipTrigger>
+		<TooltipProvider>
+			<TooltipTrigger asChild>{children}</TooltipTrigger>
 			<TooltipContent>
-				<p className="bg-code-background">{tipText ?? hintText}</p>
+				<p className={cn("bg-code-background", className)}>{tipText ?? hintText}</p>
 			</TooltipContent>
-		</RadixTooltip>
+		</TooltipProvider>
 	)
 }
 

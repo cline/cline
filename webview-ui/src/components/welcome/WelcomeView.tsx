@@ -49,7 +49,7 @@ const WelcomeView = memo(() => {
 					create new tools and extend my own capabilities.
 				</p>
 
-				<p className="text-[var(--vscode-descriptionForeground)]">
+				<p className="text-(--vscode-descriptionForeground)">
 					Sign up for an account to get started for free, or use an API key that provides access to models like Claude
 					Sonnet.
 				</p>
