@@ -491,7 +491,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.ReconstructTaskHistory, async () => {
 			const { reconstructTaskHistory } = await import("./core/commands/reconstructTaskHistory")
-			await reconstructTaskHistory(context)
+			await reconstructTaskHistory()
 			telemetryService.captureButtonClick("command_reconstructTaskHistory")
 		}),
 	)
