@@ -60,6 +60,11 @@ const featuredModels = [
 		description: "Advanced model with 262K context for complex coding",
 		label: "Free",
 	},
+	{
+		id: "cline/code-supernova",
+		description: "Stealth coding model with image support",
+		label: "Free",
+	},
 ]
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {

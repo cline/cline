@@ -1,30 +1,81 @@
 #!/usr/bin/env ts-node
+
+import fs from "fs"
+import path from "path"
 import "tsconfig-paths/register"
 
 import { GrpcAdapter } from "@adapters/grpcAdapter"
 import { NON_DETERMINISTIC_FIELDS } from "@harness/config"
 import { SpecFile } from "@harness/types"
-import { compareResponse, loadJson } from "@harness/utils"
-import fs from "fs"
-import path from "path"
+import { compareResponse, loadJson, retry } from "@harness/utils"
 
 const STANDALONE_GRPC_SERVER_PORT = process.env.STANDALONE_GRPC_SERVER_PORT || "26040"
+const FIX_MODE = process.argv.includes("--fix")
+
+function shouldAttemptFix(): boolean {
+	return FIX_MODE
+}
+
+function shouldThrowError(fixed: boolean): boolean {
+	return !FIX_MODE || !fixed
+}
+
+async function tryFixEntry(
+	entry: SpecFile["entries"][number],
+	actualResponse: any,
+	spec: SpecFile,
+	specPath: string,
+): Promise<boolean> {
+	if (!shouldAttemptFix()) return false
+
+	console.warn(`✏️ Updating response for RequestID: ${entry.requestId}`)
+	entry.response.message = actualResponse
+	fs.writeFileSync(specPath, JSON.stringify(spec, null, 2) + "\n")
+	console.log(`💾 Spec file updated: ${specPath}`)
+
+	const { success } = compareResponse(actualResponse, entry?.response?.message, NON_DETERMINISTIC_FIELDS)
+
+	if (success) {
+		console.log("✅ Response matched after fix! RequestID: %s", entry.requestId)
+		return true
+	}
+
+	return false
+}
 
 async function runSpec(specPath: string, grpcAdapter: GrpcAdapter) {
 	const spec: SpecFile = loadJson(specPath)
 
 	for (const entry of spec.entries) {
 		console.log(`▶️ ${entry.service}.${entry.method}`)
-		await new Promise((resolve) => setTimeout(resolve, 50))
-		const response = await grpcAdapter.call(entry.service, entry.method, entry.request)
+		let actualResponse
+		let fixed = false
 
-		const { success, diffs } = compareResponse(response, entry?.response?.message, NON_DETERMINISTIC_FIELDS)
-		if (!success) {
-			console.error("❌ Response mismatch! RequestID: %s", entry.requestId)
-			console.error(diffs.join("\n"))
-			process.exit(1)
+		try {
+			await retry(async () => {
+				actualResponse = await grpcAdapter.call(entry.service, entry.method, entry.request)
+
+				const { success, diffs } = compareResponse(actualResponse, entry?.response?.message, NON_DETERMINISTIC_FIELDS)
+
+				if (success) {
+					console.log("✅ Response matched! RequestID: %s", entry.requestId)
+					return
+				}
+
+				// Try to fix if mismatch
+				fixed = await tryFixEntry(entry, actualResponse, spec, specPath)
+
+				if (!fixed) {
+					const diffMsg = diffs.join("\n")
+					throw new Error(`❌ Response mismatch! RequestID: ${entry.requestId}\n${diffMsg}`)
+				}
+			})
+		} catch (err) {
+			if (shouldThrowError(fixed)) {
+				throw err
+			}
+			console.log("✅ Test passed after fixing response")
 		}
-		console.log("✅ Response matched! RequestID: %s", entry.requestId)
 	}
 }
 
@@ -46,7 +97,7 @@ async function runSpecsFromFolder(folderPath: string, grpcAdapter: GrpcAdapter) 
 async function main() {
 	const inputPath = process.argv[2]
 	if (!inputPath) {
-		console.error("Usage: ts-node runSpecs.ts <spec-file-or-folder>")
+		console.error("Usage: ts-node index.ts <spec-file-or-folder> [--fix]")
 		process.exit(1)
 	}
 

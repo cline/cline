@@ -1,12 +1,11 @@
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
-import { CLAUDE_SONNET_4_1M_TIERS, clineMicrowaveAlphaModelInfo, openRouterClaudeSonnet41mModelId } from "@/shared/api"
+import { CLAUDE_SONNET_4_1M_TIERS, clineCodeSupernovaModelInfo, openRouterClaudeSonnet41mModelId } from "@/shared/api"
 import { Controller } from ".."
 
 type OpenRouterSupportedParams =
@@ -79,7 +78,7 @@ export async function refreshOpenRouterModels(
 ): Promise<OpenRouterCompatibleModelInfo> {
 	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
-	let models: Record<string, OpenRouterModelInfo> = {}
+	const models: Record<string, OpenRouterModelInfo> = {}
 	try {
 		const response = await axios.get("https://openrouter.ai/api/v1/models")
 
@@ -221,22 +220,6 @@ export async function refreshOpenRouterModels(
 					models[openRouterClaudeSonnet41mModelId] = claudeSonnet41mModelInfo
 				}
 			}
-
-			// Add hardcoded cline/sonic model
-			models["cline/sonic"] = OpenRouterModelInfo.create({
-				maxTokens: clineMicrowaveAlphaModelInfo.maxTokens ?? 0,
-				contextWindow: clineMicrowaveAlphaModelInfo.contextWindow ?? 0,
-				supportsImages: clineMicrowaveAlphaModelInfo.supportsImages ?? false,
-				supportsPromptCache: clineMicrowaveAlphaModelInfo.supportsPromptCache ?? false,
-				inputPrice: clineMicrowaveAlphaModelInfo.inputPrice ?? 0,
-				outputPrice: clineMicrowaveAlphaModelInfo.outputPrice ?? 0,
-				cacheWritesPrice: clineMicrowaveAlphaModelInfo.cacheWritesPrice ?? 0,
-				cacheReadsPrice: clineMicrowaveAlphaModelInfo.cacheReadsPrice ?? 0,
-				description: clineMicrowaveAlphaModelInfo.description ?? "",
-				thinkingConfig: clineMicrowaveAlphaModelInfo.thinkingConfig ?? undefined,
-				supportsGlobalEndpoint: clineMicrowaveAlphaModelInfo.supportsGlobalEndpoint ?? undefined,
-				tiers: clineMicrowaveAlphaModelInfo.tiers ?? [],
-			})
 		} else {
 			console.error("Invalid response from OpenRouter API")
 		}
@@ -246,29 +229,45 @@ export async function refreshOpenRouterModels(
 		console.error("Error fetching OpenRouter models:", error)
 
 		// If we failed to fetch models, try to read cached models
-		const cachedModels = await readOpenRouterModels(controller)
+		const cachedModels = await controller.readOpenRouterModels()
 		if (cachedModels) {
-			models = cachedModels
+			return OpenRouterCompatibleModelInfo.create({ models: cachedModels })
 		}
 	}
-
-	return OpenRouterCompatibleModelInfo.create({ models })
+	// Append stealth models if any
+	return OpenRouterCompatibleModelInfo.create({ models: appendClineStealthModels(models) })
 }
 
 /**
- * Reads cached OpenRouter models from disk
+ * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
  */
-async function readOpenRouterModels(controller: Controller): Promise<Record<string, OpenRouterModelInfo> | undefined> {
-	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
-	const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
-	if (fileExists) {
-		try {
-			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
-			return JSON.parse(fileContents)
-		} catch (error) {
-			console.error("Error reading cached OpenRouter models:", error)
-			return undefined
+const CLINE_STEALTH_MODELS: Record<string, OpenRouterModelInfo> = {
+	"cline/code-supernova": OpenRouterModelInfo.create({
+		maxTokens: clineCodeSupernovaModelInfo.maxTokens ?? 0,
+		contextWindow: clineCodeSupernovaModelInfo.contextWindow ?? 0,
+		supportsImages: clineCodeSupernovaModelInfo.supportsImages ?? false,
+		supportsPromptCache: clineCodeSupernovaModelInfo.supportsPromptCache ?? false,
+		inputPrice: clineCodeSupernovaModelInfo.inputPrice ?? 0,
+		outputPrice: clineCodeSupernovaModelInfo.outputPrice ?? 0,
+		cacheWritesPrice: clineCodeSupernovaModelInfo.cacheWritesPrice ?? 0,
+		cacheReadsPrice: clineCodeSupernovaModelInfo.cacheReadsPrice ?? 0,
+		description: clineCodeSupernovaModelInfo.description ?? "",
+		thinkingConfig: clineCodeSupernovaModelInfo.thinkingConfig ?? undefined,
+		supportsGlobalEndpoint: clineCodeSupernovaModelInfo.supportsGlobalEndpoint ?? undefined,
+		tiers: clineCodeSupernovaModelInfo.tiers ?? [],
+	}),
+	// Add more stealth models here as needed
+}
+
+export function appendClineStealthModels(
+	currentModels: Record<string, OpenRouterModelInfo>,
+): Record<string, OpenRouterModelInfo> {
+	// Create a shallow clone of the current models to avoid mutating the original object
+	const cloned = { ...currentModels }
+	for (const [modelId, modelInfo] of Object.entries(CLINE_STEALTH_MODELS)) {
+		if (!cloned[modelId]) {
+			cloned[modelId] = modelInfo
 		}
 	}
-	return undefined
+	return cloned
 }

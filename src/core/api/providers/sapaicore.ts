@@ -823,16 +823,13 @@ export class SapAiCoreHandler implements ApiHandler {
 
 							// Handle metadata (token usage)
 							if (data.metadata?.usage) {
+								// inputTokens does not include cached write/read tokens
 								let inputTokens = data.metadata.usage.inputTokens || 0
 								const outputTokens = data.metadata.usage.outputTokens || 0
 
-								// calibrate input token
-								const totalTokens = data.metadata.usage.totalTokens || 0
 								const cacheReadInputTokens = data.metadata.usage.cacheReadInputTokens || 0
-								const cacheWriteOutputTokens = data.metadata.usage.cacheWriteOutputTokens || 0
-								if (inputTokens + outputTokens + cacheReadInputTokens + cacheWriteOutputTokens !== totalTokens) {
-									inputTokens = totalTokens - outputTokens - cacheReadInputTokens - cacheWriteOutputTokens
-								}
+								const cacheWriteInputTokens = data.metadata.usage.cacheWriteInputTokens || 0
+								inputTokens = inputTokens + cacheReadInputTokens + cacheWriteInputTokens
 
 								yield {
 									type: "usage",

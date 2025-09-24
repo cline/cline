@@ -348,6 +348,15 @@ export function normalizeApiConfiguration(
 						? fireworksModels[fireworksModelId as keyof typeof fireworksModels]
 						: fireworksModels[fireworksDefaultModelId],
 			}
+		case "oca":
+			const ocaModelId = currentMode === "plan" ? apiConfiguration?.planModeOcaModelId : apiConfiguration?.actModeOcaModelId
+			const ocaModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeOcaModelInfo : apiConfiguration?.actModeOcaModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: ocaModelId || "",
+				selectedModelInfo: ocaModelInfo || liteLlmModelInfoSaneDefaults,
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -428,6 +437,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan" ? apiConfiguration.planModeHuaweiCloudMaasModelId : apiConfiguration.actModeHuaweiCloudMaasModelId,
 		vercelAiGatewayModelId:
 			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelId : apiConfiguration.actModeVercelAiGatewayModelId,
+		ocaModelId: mode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -467,6 +477,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		thinkingBudgetTokens:
 			mode === "plan" ? apiConfiguration.planModeThinkingBudgetTokens : apiConfiguration.actModeThinkingBudgetTokens,
 		reasoningEffort: mode === "plan" ? apiConfiguration.planModeReasoningEffort : apiConfiguration.actModeReasoningEffort,
+		// Oracle Code Assist
+		ocaModelInfo: mode === "plan" ? apiConfiguration.planModeOcaModelInfo : apiConfiguration.actModeOcaModelInfo,
 	}
 }
 
@@ -603,6 +615,12 @@ export async function syncModeConfigurations(
 			updates.actModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
 			updates.planModeVercelAiGatewayModelInfo = sourceFields.vercelAiGatewayModelInfo
 			updates.actModeVercelAiGatewayModelInfo = sourceFields.vercelAiGatewayModelInfo
+			break
+		case "oca":
+			updates.planModeOcaModelId = sourceFields.ocaModelId
+			updates.actModeOcaModelId = sourceFields.ocaModelId
+			updates.planModeOcaModelInfo = sourceFields.ocaModelInfo
+			updates.actModeOcaModelInfo = sourceFields.ocaModelInfo
 			break
 
 		// Providers that use apiProvider + apiModelId fields

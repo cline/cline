@@ -1,6 +1,6 @@
 import { ServiceClients } from "@adapters/grpcAdapter"
 
-interface Entry {
+export interface Entry {
 	requestId: string
 	service: keyof ServiceClients
 	method: string

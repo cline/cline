@@ -1,11 +1,14 @@
-/* Import Azeret Mono font from local package */
-@import "@fontsource/azeret-mono/300.css";
-@import "@fontsource/azeret-mono/400.css";
-@import "@fontsource/azeret-mono/700.css";
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+/* Disable Tailwind's CSS reset to preserve existing styles */
+/* @import "tailwindcss/preflight.css" layer(base); */
+@import "tailwindcss/utilities.css" layer(utilities);
 
-@import "tailwindcss";
-@plugin './hero.ts';
-@custom-variant dark (&:is(.vscode-dark *));
+@config "../tailwind.config.mjs";
+
+/* Import external CSS files */
+@import url("../../node_modules/@vscode/codicons/dist/codicon.css");
+@import url("../node_modules/@fontsource/azeret-mono/index.css");
 
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);

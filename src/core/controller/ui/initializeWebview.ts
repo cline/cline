@@ -18,12 +18,11 @@ import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels
  */
 export async function initializeWebview(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	try {
-		// Post last cached models in case the call to endpoint fails
-		controller.readOpenRouterModels().then((openRouterModels) => {
-			if (openRouterModels) {
-				sendOpenRouterModelsEvent(OpenRouterCompatibleModelInfo.create({ models: openRouterModels }))
-			}
-		})
+		// Post last cached models as soon as possible for immediate availability in the UI
+		const lastCachedModels = await controller.readOpenRouterModels()
+		if (lastCachedModels) {
+			sendOpenRouterModelsEvent(OpenRouterCompatibleModelInfo.create({ models: lastCachedModels }))
+		}
 
 		// Refresh OpenRouter models from API
 		refreshOpenRouterModels(controller, EmptyRequest.create()).then(async (response) => {

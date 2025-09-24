@@ -6,7 +6,7 @@ import * as esbuild from "esbuild"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const production = process.argv.includes("--production")
+const production = process.argv.includes("--production") || process.env["IS_DEBUG_BUILD"] === "false"
 const watch = process.argv.includes("--watch")
 const standalone = process.argv.includes("--standalone")
 const e2eBuild = process.argv.includes("--e2e-build")
@@ -123,24 +123,29 @@ const copyWasmFiles = {
 	},
 }
 
+const buildEnvVars = { "import.meta.url": "_importMetaUrl" }
+if (production) {
+	// IS_DEV is always disable in production builds.
+	buildEnvVars["process.env.IS_DEV"] = "false"
+}
+// Set the environment and telemetry env vars. The API key env vars need to be populated in the GitHub
+// workflows from the secrets.
+if (process.env.CLINE_ENVIRONMENT) {
+	buildEnvVars["process.env.CLINE_ENVIRONMENT"] = JSON.stringify(process.env.CLINE_ENVIRONMENT)
+}
+if (process.env.TELEMETRY_SERVICE_API_KEY) {
+	buildEnvVars["process.env.TELEMETRY_SERVICE_API_KEY"] = JSON.stringify(process.env.TELEMETRY_SERVICE_API_KEY)
+}
+if (process.env.ERROR_SERVICE_API_KEY) {
+	buildEnvVars["process.env.ERROR_SERVICE_API_KEY"] = JSON.stringify(process.env.ERROR_SERVICE_API_KEY)
+}
 // Base configuration shared between extension and standalone builds
 const baseConfig = {
 	bundle: true,
 	minify: production,
 	sourcemap: !production,
 	logLevel: "silent",
-	define: production
-		? {
-				"import.meta.url": "_importMetaUrl",
-				"process.env.IS_DEV": JSON.stringify(!production),
-				...(process.env.TELEMETRY_SERVICE_API_KEY && process.env.ERROR_SERVICE_API_KEY
-					? {
-							"process.env.TELEMETRY_SERVICE_API_KEY": JSON.stringify(process.env.TELEMETRY_SERVICE_API_KEY),
-							"process.env.ERROR_SERVICE_API_KEY": JSON.stringify(process.env.ERROR_SERVICE_API_KEY),
-						}
-					: {}),
-			}
-		: { "import.meta.url": "_importMetaUrl" },
+	define: buildEnvVars,
 	tsconfig: path.resolve(__dirname, "tsconfig.json"),
 	plugins: [
 		copyWasmFiles,

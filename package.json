@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.29.0",
+	"version": "3.30.3",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -199,6 +199,11 @@
 			{
 				"command": "cline.openWalkthrough",
 				"title": "Open Walkthrough",
+				"category": "Cline"
+			},
+			{
+				"command": "cline.reconstructTaskHistory",
+				"title": "Reconstruct Task History",
 				"category": "Cline"
 			}
 		],
@@ -404,8 +409,9 @@
 		"@vscode/test-cli": "^0.0.10",
 		"@vscode/test-electron": "^2.5.2",
 		"@vscode/vsce": "^3.6.0",
+		"c8": "^10.1.3",
 		"chai": "^4.3.10",
-		"chalk": "^5.3.0",
+		"chalk": "5.6.2",
 		"esbuild": "^0.25.0",
 		"grpc-tools": "^1.13.0",
 		"husky": "^9.1.7",
@@ -418,6 +424,7 @@
 		"rimraf": "^6.0.1",
 		"should": "^13.2.3",
 		"sinon": "^19.0.2",
+		"tree-kill": "^1.2.2",
 		"ts-node": "^10.9.2",
 		"ts-proto": "^2.6.1",
 		"tsconfig-paths": "^4.2.0",
@@ -450,7 +457,7 @@
 		"@types/uuid": "^10.0.0",
 		"@vscode/codicons": "^0.0.36",
 		"archiver": "^7.0.1",
-		"axios": "^1.8.2",
+		"axios": "^1.12.0",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
 		"chrome-launcher": "^1.1.2",
@@ -465,6 +472,7 @@
 		"get-folder-size": "^5.0.0",
 		"globby": "^14.0.2",
 		"grpc-health-check": "^2.0.2",
+		"https-proxy-agent": "^7.0.6",
 		"iconv-lite": "^0.6.3",
 		"ignore": "^7.0.3",
 		"image-size": "^2.0.2",
@@ -487,7 +495,7 @@
 		"reconnecting-eventsource": "^1.6.4",
 		"serialize-error": "^11.0.3",
 		"simple-git": "^3.27.0",
-		"strip-ansi": "^7.1.0",
+		"strip-ansi": "^7.1.2",
 		"tree-sitter-wasms": "^0.1.11",
 		"ts-morph": "^25.0.1",
 		"turndown": "^7.2.0",
@@ -496,5 +504,40 @@
 		"vscode-uri": "^3.1.0",
 		"web-tree-sitter": "^0.22.6",
 		"zod": "^3.24.2"
+	},
+	"c8": {
+		"reporter": [
+			"lcov",
+			"html"
+		],
+		"exclude": [
+			"**/testing-platform/**",
+			"**/webview-ui/**",
+			"**/.vscode-test/**",
+			"**/node_modules/**",
+			"node_modules",
+			"**/dist-standalone/src/**",
+			"**/dist-standalone/vsce-extension/https:/**",
+			"**/dist-standalone/vsce-extension/**",
+			"**/dist-standalone/https:/**",
+			"**/dist-standalone/LIB/src/**",
+			"**/dist-standalone/pdfjs-dist/**",
+			"**/*.d.ts",
+			"**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}",
+			"**/__tests__/**",
+			"**/test/**",
+			"**/tests/**",
+			"**/.nyc_output/**",
+			"**/tests-results/**",
+			"src/test/**",
+			"**/src/xml/**",
+			"**/standalone/**",
+			"**/src/generated/**",
+			"**/evals/cli/dist/**",
+			"**/evals/cli/src/**",
+			"dist"
+		],
+		"all": true,
+		"exclude-after-remap": true
 	}
 }

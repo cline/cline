@@ -91,7 +91,15 @@ function testFilters(): GrpcRequestFilter[] {
 	return [
 		(req) => req.is_streaming,
 		(req) => ["cline.UiService", "cline.McpService", "cline.WebService"].includes(req.service),
-		(req) => ["refreshOpenRouterModels", "getAvailableTerminalProfiles"].includes(req.method),
+		(req) =>
+			[
+				"refreshOpenRouterModels",
+				"getAvailableTerminalProfiles",
+				"showTaskWithId",
+				"deleteTasksWithIds",
+				"getTotalTasksSize",
+				"cancelTask",
+			].includes(req.method),
 	]
 }
 

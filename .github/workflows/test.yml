@@ -149,6 +149,69 @@ jobs:
                       exit 1
                   fi
 
+    test-platform-integration:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js environment
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+            - name: Cache webview-ui dependencies
+              uses: actions/cache@v4
+              id: webview-cache
+              with:
+                  path: webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+
+            # Cache testing-platform dependencies
+            - name: Cache testing-platform dependencies
+              uses: actions/cache@v4
+              id: testing-platform-cache
+              with:
+                path: testing-platform/node_modules
+                key: ${{ runner.os }}-npm-testing-platform-${{ hashFiles('testing-platform/package-lock.json') }}
+
+            - name: Install root dependencies
+              if: steps.root-cache.outputs.cache-hit != 'true'
+              run: npm ci
+
+            - name: Install webview-ui dependencies
+              if: steps.webview-cache.outputs.cache-hit != 'true'
+              run: cd webview-ui && npm ci
+
+            - name: Compile standalone
+              run: npm run compile-standalone
+
+            - name: Install testing platform dependencies
+              if: steps.testing-platform-cache.outputs.cache-hit != 'true'
+              run: cd testing-platform && npm ci
+
+            - name: Running testing platform integration spec tests
+              continue-on-error: true
+              timeout-minutes: 7
+              # Temporarily wrapping the test command to always return a neutral exit code.
+              # This prevents the job from showing as failed and avoids distracting developers
+              # until the integration tests are ready to be enforced.
+              run: |
+                npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage || true
+
+            - name: Save Coverage Reports
+              uses: actions/upload-artifact@v4
+              with:
+                name: test-platform-integration-core-coverage
+                path: coverage/**/lcov.info
+
     coverage:
         needs: test
         runs-on: ubuntu-latest
@@ -229,17 +292,16 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     qlty:
-        needs: test
+        needs: [test, test-platform-integration]
         runs-on: ubuntu-latest
         # Run on PRs to main, pushes to main, and manual dispatches
-        if: always() && needs.test.result == 'success'
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
               with:
                   fetch-depth: 0 # Fetch all history for accurate comparison
 
-            - name: Download Coverage Reports
+            - name: Download unit tests coverage reports
               uses: actions/download-artifact@v4
               with:
                   name: pr-coverage-reports
@@ -263,3 +325,16 @@ jobs:
                     webview-ui/coverage/lcov.info
                   tag: unit:webview-ui
                   add-prefix: webview-ui/
+
+            - name: Download test platform integration core coverage artifact
+              uses: actions/download-artifact@v4
+              with:
+                name: test-platform-integration-core-coverage
+                path: integration-core-coverage-reports
+
+            - name: Upload core integration tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                files: integration-core-coverage-reports/**/lcov.info
+                tag: integration:core

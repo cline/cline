@@ -162,7 +162,7 @@ export class ClineHandler implements ApiHandler {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
-					if (this.getModel().id === "cline/sonic") {
+					if (this.getModel().id === "cline/code-supernova") {
 						totalCost = 0
 					}
 
@@ -200,14 +200,13 @@ export class ClineHandler implements ApiHandler {
 	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
 		if (this.lastGenerationId) {
 			try {
-				// TODO: replace this with firebase auth
-				// TODO: use global API Host
 				const clineAccountAuthToken = await this._authService.getAuthToken()
 				if (!clineAccountAuthToken) {
 					throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 				}
 				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
 					headers: {
+						// Align with backend auth expectations
 						Authorization: `Bearer ${clineAccountAuthToken}`,
 					},
 					timeout: 15_000, // this request hangs sometimes

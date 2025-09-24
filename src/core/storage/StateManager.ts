@@ -24,7 +24,6 @@ import {
 	SettingsKey,
 } from "./state-keys"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
-
 export interface PersistenceErrorEvent {
 	error: Error
 }
@@ -276,7 +275,7 @@ export class StateManager {
 	 */
 	private async setupTaskHistoryWatcher(): Promise<void> {
 		try {
-			const historyFile = await getTaskHistoryStateFilePath(this.context)
+			const historyFile = await getTaskHistoryStateFilePath()
 
 			// Close any existing watcher before creating a new one
 			if (this.taskHistoryWatcher) {
@@ -296,7 +295,7 @@ export class StateManager {
 					if (!this.isInitialized) {
 						return
 					}
-					const onDisk = await readTaskHistoryFromState(this.context)
+					const onDisk = await readTaskHistoryFromState()
 					const cached = this.globalStateCache["taskHistory"]
 					if (JSON.stringify(onDisk) !== JSON.stringify(cached)) {
 						this.globalStateCache["taskHistory"] = onDisk
@@ -412,6 +411,7 @@ export class StateManager {
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 			requestTimeoutMs,
+			ocaBaseUrl,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -444,6 +444,8 @@ export class StateManager {
 			planModeHuaweiCloudMaasModelInfo,
 			planModeVercelAiGatewayModelId,
 			planModeVercelAiGatewayModelInfo,
+			planModeOcaModelId,
+			planModeOcaModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -476,6 +478,8 @@ export class StateManager {
 			actModeHuaweiCloudMaasModelInfo,
 			actModeVercelAiGatewayModelId,
 			actModeVercelAiGatewayModelInfo,
+			actModeOcaModelId,
+			actModeOcaModelInfo,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -512,6 +516,8 @@ export class StateManager {
 			planModeHuaweiCloudMaasModelInfo,
 			planModeVercelAiGatewayModelId,
 			planModeVercelAiGatewayModelInfo,
+			planModeOcaModelId,
+			planModeOcaModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -545,6 +551,8 @@ export class StateManager {
 			actModeHuaweiCloudMaasModelInfo,
 			actModeVercelAiGatewayModelId,
 			actModeVercelAiGatewayModelInfo,
+			actModeOcaModelId,
+			actModeOcaModelInfo,
 
 			// Global state updates
 			awsRegion,
@@ -583,6 +591,7 @@ export class StateManager {
 			claudeCodePath,
 			difyBaseUrl,
 			qwenCodeOauthPath,
+			ocaBaseUrl,
 		})
 
 		// Batch update secrets
@@ -755,7 +764,7 @@ export class StateManager {
 				Array.from(keys).map((key) => {
 					if (key === "taskHistory") {
 						// Route task history persistence to file, not VS Code globalState
-						return writeTaskHistoryToState(this.context, this.globalStateCache[key])
+						return writeTaskHistoryToState(this.globalStateCache[key])
 					}
 					return this.context.globalState.update(key, this.globalStateCache[key])
 				}),
@@ -919,6 +928,7 @@ export class StateManager {
 			claudeCodePath: this.taskStateCache["claudeCodePath"] || this.globalStateCache["claudeCodePath"],
 			qwenCodeOauthPath: this.taskStateCache["qwenCodeOauthPath"] || this.globalStateCache["qwenCodeOauthPath"],
 			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
+			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.taskStateCache["planModeApiProvider"] || this.globalStateCache["planModeApiProvider"],
@@ -981,6 +991,8 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo:
 				this.taskStateCache["planModeVercelAiGatewayModelInfo"] ||
 				this.globalStateCache["planModeVercelAiGatewayModelInfo"],
+			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
+			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
 
 			// Act mode configurations
 			actModeApiProvider: this.taskStateCache["actModeApiProvider"] || this.globalStateCache["actModeApiProvider"],
@@ -1041,6 +1053,8 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo:
 				this.taskStateCache["actModeVercelAiGatewayModelInfo"] ||
 				this.globalStateCache["actModeVercelAiGatewayModelInfo"],
+			actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
+			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
 		}
 	}
 }
