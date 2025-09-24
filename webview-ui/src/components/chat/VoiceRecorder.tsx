@@ -260,7 +260,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 				content={`Stop Recording (${formatSeconds(recordingDuration)}/${formatSeconds(MAX_DURATION)})`}
 				placement="top">
 				<div
-					className={cn("input-icon-button mr-1.5 text-base", iconAdjustment, iconAnimation, {
+					className={cn("input-icon-button mr-1.5 text-error", iconAdjustment, iconAnimation, {
 						disabled: disabled || isProcessing,
 					})}
 					onClick={handleStopClick}>
