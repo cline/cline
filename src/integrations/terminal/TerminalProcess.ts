@@ -34,6 +34,20 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	}
 
 	/**
+	 * Detect shell from environment variables as a fallback
+	 */
+	private detectShellFromEnvironment(): string | undefined {
+		// Try to detect shell from environment variables
+		if (process.platform === "win32") {
+			// On Windows, check COMSPEC
+			return process.env.COMSPEC || undefined
+		} else {
+			// On Unix-like systems, check SHELL
+			return process.env.SHELL || undefined
+		}
+	}
+
+	/**
 	 * Extract a normalized shell name from the shell path
 	 */
 	private extractShellName(shellPath?: string): string {
@@ -62,8 +76,23 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	}
 
 	async run(terminal: vscode.Terminal, command: string) {
-		// Get the shell name for telemetry
-		const shellName = this.extractShellName(this.shellPath)
+		// Get the actual shell that VSCode is using for this terminal
+		// First try shellPath (set from TerminalInfo), then try to get from terminal.creationOptions
+		let shellPathToUse = this.shellPath
+
+		// If shellPath not set, try to get the actual shell from the terminal's creation options
+		if (!shellPathToUse && terminal.creationOptions) {
+			const options = terminal.creationOptions as any
+			// VSCode stores the shell path in creationOptions
+			shellPathToUse = options.shellPath || options.shellArgs?.shell
+		}
+
+		// Final fallback to environment if we still don't have it
+		if (!shellPathToUse) {
+			shellPathToUse = this.detectShellFromEnvironment()
+		}
+
+		const shellName = this.extractShellName(shellPathToUse)
 
 		// When command does not produce any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
 		const returnCurrentTerminalContents = async () => {
