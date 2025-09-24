@@ -742,10 +742,10 @@ export class Controller {
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
 
-		// Set feature flag in dictation settings
+		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
 			...dictationSettings,
-			featureEnabled: true, // Currently hardcoded, was: featureFlagsService.getBooleanFlagEnabled(FeatureFlag.DICTATION, true)
+			featureEnabled: process.platform === "darwin", // Enable dictation only on macOS
 		}
 
 		return {
