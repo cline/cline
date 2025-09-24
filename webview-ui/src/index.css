@@ -1,14 +1,9 @@
-@layer theme, base, components, utilities;
-@import "tailwindcss/theme.css" layer(theme);
-/* Disable Tailwind's CSS reset to preserve existing styles */
-/* @import "tailwindcss/preflight.css" layer(base); */
-@import "tailwindcss/utilities.css" layer(utilities);
-
-@config "../tailwind.config.mjs";
-
 /* Import external CSS files */
 @import url("../../node_modules/@vscode/codicons/dist/codicon.css");
 @import url("../node_modules/@fontsource/azeret-mono/index.css");
+
+@import "tailwindcss";
+@config "../tailwind.config.mjs";
 
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);

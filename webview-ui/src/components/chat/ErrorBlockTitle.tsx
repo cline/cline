@@ -25,7 +25,7 @@ const RetryMessage = React.memo(
 		}, [seconds])
 
 		return (
-			<span className="font-bold text-[var(--vscode-foreground)]">
+			<span className="font-bold text-(--vscode-foreground)">
 				{`API Request (Retrying failed attempt ${attempt}/${retryOperations}`}
 				{remainingSeconds > 0 && ` in ${remainingSeconds} seconds`}
 				)...
@@ -61,14 +61,14 @@ export const ErrorBlockTitle = ({
 	const icon =
 		apiReqCancelReason != null ? (
 			apiReqCancelReason === "user_cancelled" ? (
-				getIconSpan("error", "text-[var(--vscode-descriptionForeground)]")
+				getIconSpan("error", "text-(--vscode-descriptionForeground)")
 			) : (
-				getIconSpan("error", "text-[var(--vscode-errorForeground)]")
+				getIconSpan("error", "text-(--vscode-errorForeground)")
 			)
 		) : cost != null ? (
-			getIconSpan("check", "text-[var(--vscode-charts-green)]")
+			getIconSpan("check", "text-(--vscode-charts-green)")
 		) : apiRequestFailedMessage ? (
-			getIconSpan("error", "text-[var(--vscode-errorForeground)]")
+			getIconSpan("error", "text-(--vscode-errorForeground)")
 		) : (
 			<ProgressIndicator />
 		)
@@ -79,20 +79,20 @@ export const ErrorBlockTitle = ({
 		// Handle cancellation states first
 		if (apiReqCancelReason === "user_cancelled") {
 			details.title = "API Request Cancelled"
-			details.classNames.push("text-[var(--vscode-foreground)]")
+			details.classNames.push("text-(--vscode-foreground)")
 		} else if (apiReqCancelReason != null) {
 			details.title = "API Streaming Failed"
-			details.classNames.push("text-[var(--vscode-errorForeground)]")
+			details.classNames.push("text-(--vscode-errorForeground)")
 		} else if (cost != null) {
 			// Handle completed request
 			details.title = "API Request"
-			details.classNames.push("text-[var(--vscode-foreground)]")
+			details.classNames.push("text-(--vscode-foreground)")
 		} else if (apiRequestFailedMessage) {
 			// Handle failed request
 			const clineError = ClineError.parse(apiRequestFailedMessage)
 			const titleText = clineError?.isErrorType(ClineErrorType.Balance) ? "Credit Limit Reached" : "API Request Failed"
 			details.title = titleText
-			details.classNames.push("font-bold text-[var(--vscode-errorForeground)]")
+			details.classNames.push("font-bold text-(--vscode-errorForeground)")
 		} else if (retryStatus) {
 			// Handle retry state
 			const retryOperations = Math.max(0, retryStatus.maxAttempts - 1)

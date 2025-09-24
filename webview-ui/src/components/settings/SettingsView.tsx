@@ -23,11 +23,11 @@ const IS_DEV = process.env.IS_DEV
 // Styles for the tab system
 const settingsTabsContainer = "flex flex-1 overflow-hidden [&.narrow_.tab-label]:hidden"
 const settingsTabList =
-	"w-48 data-[compact=true]:w-12 flex-shrink-0 flex flex-col overflow-y-auto overflow-x-hidden border-r border-[var(--vscode-sideBar-background)]"
+	"w-48 data-[compact=true]:w-12 shrink-0 flex flex-col overflow-y-auto overflow-x-hidden border-r border-(--vscode-sideBar-background)"
 const settingsTabTrigger =
-	"whitespace-nowrap overflow-hidden min-w-0 h-12 px-4 py-3 box-border flex items-center border-l-2 border-transparent text-[var(--vscode-foreground)] opacity-70 bg-transparent hover:bg-[var(--vscode-list-hoverBackground)] data-[compact=true]:w-12 data-[compact=true]:p-4 cursor-pointer"
+	"whitespace-nowrap overflow-hidden min-w-0 h-12 px-4 py-3 box-border flex items-center border-l-2 border-transparent text-(--vscode-foreground) opacity-70 bg-transparent hover:bg-(--vscode-list-hoverBackground) data-[compact=true]:w-12 data-[compact=true]:p-4 cursor-pointer"
 const settingsTabTriggerActive =
-	"opacity-100 border-l-2 border-l-[var(--vscode-focusBorder)] border-t-0 border-r-0 border-b-0 bg-[var(--vscode-list-activeSelectionBackground)]"
+	"opacity-100 border-l-2 border-l-(--vscode-focusBorder) border-t-0 border-r-0 border-b-0 bg-(--vscode-list-activeSelectionBackground)"
 
 // Tab definitions
 interface SettingsTab {

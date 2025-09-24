@@ -141,9 +141,9 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 						aria-label="Previous Updates"
 						classNames={{
 							trigger: "bg-transparent border-0 pl-0 pb-0 w-fit",
-							title: "font-bold text-[var(--vscode-foreground)]",
+							title: "font-bold text-(--vscode-foreground)",
 							indicator:
-								"text-[var(--vscode-foreground)] mb-0.5 -rotate-180 data-[open=true]:-rotate-90 rtl:rotate-0 rtl:data-[open=true]:-rotate-90",
+								"text-(--vscode-foreground) mb-0.5 -rotate-180 data-[open=true]:-rotate-90 rtl:rotate-0 rtl:data-[open=true]:-rotate-90",
 						}}
 						key="1"
 						title="Previous Updates:">

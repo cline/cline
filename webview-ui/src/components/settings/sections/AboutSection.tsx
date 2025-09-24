@@ -11,7 +11,7 @@ const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 		<div>
 			{renderSectionHeader("about")}
 			<Section>
-				<div className="text-center text-[var(--vscode-descriptionForeground)] text-xs leading-[1.2] px-0 py-0 pr-2 pb-[15px] mt-auto">
+				<div className="text-center text-(--vscode-descriptionForeground) text-xs leading-[1.2] px-0 py-0 pr-2 pb-[15px] mt-auto">
 					<p className="break-words m-0 p-0">
 						If you have any questions or feedback, feel free to open an issue at{" "}
 						<VSCodeLink className="inline" href="https://github.com/cline/cline">
