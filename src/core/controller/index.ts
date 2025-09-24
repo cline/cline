@@ -272,11 +272,6 @@ export class Controller {
 		await this.postStateToWebview()
 	}
 
-	async updateInfoBannerVersion(version: number) {
-		this.stateManager.setGlobalState("lastDismissedInfoBannerVersion", version)
-		await this.postStateToWebview()
-	}
-
 	async toggleActModeForYoloMode(): Promise<boolean> {
 		const modeToSwitchTo: Mode = "act"
 

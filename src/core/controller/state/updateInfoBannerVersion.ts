@@ -9,6 +9,9 @@ import { Controller } from ".."
  */
 export async function updateInfoBannerVersion(controller: Controller, request: Int64Request): Promise<Empty> {
 	const version = Number(request.value)
-	await controller.updateInfoBannerVersion(version)
+
+	controller.stateManager.setGlobalState("lastDismissedInfoBannerVersion", version)
+	await controller.postStateToWebview()
+
 	return Empty.create()
 }
