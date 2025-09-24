@@ -1,9 +1,9 @@
 /// <reference types="vitest/config" />
 
 import { writeFileSync } from "node:fs"
+import { resolve } from "node:path"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react-swc"
-import { resolve } from "path"
 import { defineConfig, type Plugin, ViteDevServer } from "vite"
 
 // Custom plugin to write the server port to a file

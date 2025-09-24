@@ -1,16 +1,10 @@
-import { heroui } from "@heroui/react"
-
 /** @type {import('tailwindcss').Config} */
 
 export default {
-	content: {
-		relative: true,
-		files: ["./src/**/*.{jsx,tsx,mdx}", "./node_modules/@heroui/theme/dist/**/*.{ts,tsx}"],
-	},
 	theme: {
 		extend: {
 			fontFamily: {
-				"azeret-mono": ['"Azeret Mono"', "monospace"],
+				"azeret-mono": ["Azeret Mono", "monospace"],
 			},
 			colors: {
 				background: "var(--vscode-editor-background)",
@@ -21,7 +15,7 @@ export default {
 				foreground: "var(--vscode-foreground)",
 				shadow: "var(--vscode-widget-shadow)",
 				code: {
-					background: "var(--vscode-editor-background)",
+					DEFAULT: "var(--vscode-editor-background)",
 					foreground: "var(--vscode-editor-foreground)",
 					border: "var(--vscode-editor-border)",
 				},
@@ -86,32 +80,21 @@ export default {
 					DEFAULT: "var(--vscode-toolbar-background)",
 					hover: "var(--vscode-toolbar-hoverBackground)",
 				},
-				error: "var(--vscode-errorForeground)",
-				description: "var(--vscode-descriptionForeground)",
-				success: "var(--vscode-charts-green)",
-				warning: "var(--vscode-charts-yellow)",
+				level: {
+					error: "var(--vscode-errorForeground)",
+					description: "var(--vscode-descriptionForeground)",
+					success: "var(--vscode-charts-green)",
+					warning: "var(--vscode-charts-yellow)",
+				},
 			},
 			fontSize: {
 				xl: "calc(2 * var(--vscode-font-size))",
 				lg: "calc(1.5 * var(--vscode-font-size))",
 				md: "calc(1.25 * var(--vscode-font-size))",
 				sm: "var(--vscode-font-size)",
-				xs: "calc(0.85 * var(--vscode-font-size))",
-				xxs: "calc(0.75 * var(--vscode-font-size))",
+				xs: "calc(0.75 * var(--vscode-font-size))",
+				xxs: "calc(0.5 * var(--vscode-font-size))",
 			},
 		},
 	},
-	darkMode: "class",
-	plugins: [
-		heroui({
-			defaultTheme: "vscode",
-			themes: {
-				vscode: {
-					colors: {
-						background: "",
-					},
-				},
-			},
-		}),
-	],
 }
