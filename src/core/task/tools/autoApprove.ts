@@ -7,9 +7,34 @@ import { getCwd, getDesktopDir, isLocatedInPath, isLocatedInWorkspace } from "@/
 
 export class AutoApprove {
 	private stateManager: StateManager
+	// Cache for workspace paths - populated on first access and reused for the task lifetime
+	// NOTE: This assumes that the task has a fixed set of workspace roots(which is currently true).
+	private workspacePathsCache: { paths: string[] } | null = null
+	private isMultiRootScenarioCache: boolean | null = null
 
 	constructor(stateManager: StateManager) {
 		this.stateManager = stateManager
+	}
+
+	/**
+	 * Get workspace information with caching to avoid repeated API calls
+	 * Cache is task-scoped since each task gets a new AutoApprove instance
+	 */
+	private async getWorkspaceInfo(): Promise<{
+		workspacePaths: { paths: string[] }
+		isMultiRootScenario: boolean
+	}> {
+		// Check if we already have cached values
+		if (this.workspacePathsCache === null || this.isMultiRootScenarioCache === null) {
+			// First time - fetch and cache for the lifetime of this task
+			this.workspacePathsCache = await HostProvider.workspace.getWorkspacePaths({})
+			this.isMultiRootScenarioCache = featureFlagsService.getMultiRootEnabled() && this.workspacePathsCache.paths.length > 1
+		}
+
+		return {
+			workspacePaths: this.workspacePathsCache,
+			isMultiRootScenario: this.isMultiRootScenarioCache,
+		}
 	}
 
 	// Check if the tool should be auto-approved based on the settings
@@ -78,9 +103,8 @@ export class AutoApprove {
 
 		let isLocalRead: boolean = false
 		if (autoApproveActionpath) {
-			// Check if multi-root is enabled and we have multiple workspaces
-			const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
-			const isMultiRootScenario = featureFlagsService.getMultiRootEnabled() && workspacePaths.paths.length > 1
+			// Use cached workspace info instead of fetching every time
+			const { isMultiRootScenario } = await this.getWorkspaceInfo()
 
 			if (isMultiRootScenario) {
 				// Multi-root: check if file is in ANY workspace
