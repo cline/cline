@@ -184,9 +184,9 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 					borderLeft: "1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent)",
 					borderRight: "1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent)",
 					borderBottom: "1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent)",
-					width: "calc(100% - 20px)",
-					marginLeft: "10px",
-					marginTop: "-7px", // Compensate for gap-1.5 (6px) + border overlap (1px)
+					width: "calc(100% - 14px)",
+					marginLeft: "7px",
+					marginTop: "-5.5px",
 				}}
 				title={CLICK_TO_EDIT_TITLE}>
 				{/* Progress bar background */}
@@ -207,10 +207,33 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 							onClick={handleEditClick}
 							onMouseEnter={() => setIsHoveringList(true)}
 							onMouseLeave={() => setIsHoveringList(false)}>
-							<ChecklistRenderer text={lastProgressMessageText!} />
-							{isCompleted && (
+							<style>
+								{`
+									.focuschain-thin-scrollbar::-webkit-scrollbar {
+										width: 2px;
+									}
+									.focuschain-thin-scrollbar::-webkit-scrollbar-track {
+										background: transparent;
+									}
+									.focuschain-thin-scrollbar::-webkit-scrollbar-thumb {
+										background: var(--vscode-scrollbarSlider-background);
+										border-radius: 1px;
+									}
+									.focuschain-thin-scrollbar::-webkit-scrollbar-thumb:hover {
+										background: var(--vscode-scrollbarSlider-hoverBackground);
+									}
+									.focuschain-thin-scrollbar {
+										scrollbar-width: thin;
+										scrollbar-color: var(--vscode-scrollbarSlider-background) transparent;
+									}
+								`}
+							</style>
+							<div className="focuschain-thin-scrollbar">
+								<ChecklistRenderer text={lastProgressMessageText!} />
+							</div>
+							{/* {isCompleted && (
 								<div className="mt-2 text-xs font-semibold text-muted-foreground">{NEW_STEPS_MESSAGE}</div>
-							)}
+							)} */}
 							{/* Pencil icon on hover */}
 							<div
 								className={cn("absolute bottom-2 right-2", isHoveringList ? "opacity-60" : "opacity-0")}
