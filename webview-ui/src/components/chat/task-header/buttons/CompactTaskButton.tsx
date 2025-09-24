@@ -17,6 +17,8 @@ const CompactTaskButton: React.FC<{
 					</div>
 				</div>
 			}
+			delay={0}
+			disableAnimation={true}
 			placement="bottom">
 			<VSCodeButton
 				appearance="icon"
