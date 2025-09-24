@@ -33,7 +33,7 @@ interface TaskHeaderProps {
 	onSendMessage?: (command: string, files: string[], images: string[]) => void
 }
 
-const BUTTON_CLASS = "max-h-3 border-0 font-bold bg-transparent hover:opacity-100 text-badge-foreground"
+const BUTTON_CLASS = "max-h-3 border-0 font-bold bg-transparent hover:opacity-100 text-foreground"
 
 const TaskHeader: React.FC<TaskHeaderProps> = ({
 	task,
@@ -88,7 +88,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const highlightedText = useMemo(() => highlightText(task.text, false), [task.text])
 
 	return (
-		<div className={"p-2 flex flex-col gap-1.5 text-badge-foreground"}>
+		<div className={"p-2 flex flex-col gap-1.5"}>
 			{/* Display Checkpoint Error */}
 			<CheckpointError
 				checkpointManagerErrorMessage={checkpointManagerErrorMessage}
@@ -97,10 +97,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			{/* Task Header */}
 			<div
 				className={cn(
-					"relative overflow-hidden cursor-pointer text-badge-foreground rounded-sm flex flex-col gap-1.5 z-10 pt-2 pb-2 px-2 hover:opacity-100 bg-[var(--vscode-toolbar-hoverBackground)]/65",
+					"relative overflow-hidden cursor-pointer rounded-sm flex flex-col gap-1.5 z-10 pt-2 pb-2 px-2 hover:opacity-100 bg-[var(--vscode-toolbar-hoverBackground)]/65",
 					{
-						"opacity-100 border-1 border-muted-foreground": isTaskExpanded, // No hover effects when expanded, add border
-						"opacity-80 transition-opacity duration-200 hover:bg-[var(--vscode-toolbar-hoverBackground)]":
+						"opacity-100 border-1 border-[var(--vscode-editorGroup-border)]": isTaskExpanded, // No hover effects when expanded, add border
+						"hover:bg-[var(--vscode-toolbar-hoverBackground)] border-1 border-[var(--vscode-editorGroup-border)]":
 							!isTaskExpanded, // Hover effects only when collapsed
 					},
 				)}>
@@ -146,7 +146,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						<div className="whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0 max-h-20 overflow-y-auto scroll-smooth">
 							<div
 								className={
-									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer opacity-80 hover:opacity-100 transition-opacity duration-200 mt-1"
+									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer mt-1"
 								}>
 								{highlightedText}
 							</div>

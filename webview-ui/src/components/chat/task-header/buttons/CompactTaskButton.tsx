@@ -17,11 +17,13 @@ const CompactTaskButton: React.FC<{
 					</div>
 				</div>
 			}
+			delay={0}
+			disableAnimation={true}
 			placement="bottom">
 			<VSCodeButton
 				appearance="icon"
 				className={cn(
-					"text-badge-foreground flex items-center text-sm font-bold hover:bg-transparent hover:opacity-80",
+					"text-foreground flex items-center text-sm font-bold hover:bg-transparent hover:opacity-80",
 					className,
 				)}
 				onClick={onClick}

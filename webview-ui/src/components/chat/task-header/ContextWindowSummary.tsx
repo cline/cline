@@ -17,8 +17,8 @@ interface TokenDetail {
 
 interface TaskContextWindowButtonsProps extends TokenUsageInfoProps {
 	percentage: number
-	tokenUsed: string
-	contextWindow: string
+	tokenUsed: number
+	contextWindow: number
 	autoCompactThreshold?: number
 	isThresholdChanged?: boolean
 	isThresholdFadingOut?: boolean
@@ -121,7 +121,7 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 		})
 	}, [])
 
-	const totalTokens = (tokensIn || 0) + (tokensOut || 0)
+	const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 
 	return (
 		<div className="context-window-tooltip-content flex flex-col gap-2 bg-menu rounded shadow-sm border border-menu-border z-100 w-60 p-4">
@@ -146,21 +146,19 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 				isExpanded={expandedSections.has("context")}
 				onToggle={(event) => toggleSection("context", event)}
 				title="Context Window"
-				value={percentage ? `${percentage.toFixed(1)}% used` : contextWindow}>
+				value={percentage ? `${percentage.toFixed(1)}% used` : formatTokenNumber(contextWindow)}>
 				<div className="space-y-1">
 					<div className="flex justify-between">
 						<span>Used:</span>
-						<span className="font-mono">{tokenUsed}</span>
+						<span className="font-mono">{formatTokenNumber(tokenUsed)}</span>
 					</div>
 					<div className="flex justify-between">
 						<span>Total:</span>
-						<span className="font-mono">{contextWindow}</span>
+						<span className="font-mono">{formatTokenNumber(contextWindow)}</span>
 					</div>
 					<div className="flex justify-between">
 						<span>Remaining:</span>
-						<span className="font-mono">
-							{formatTokenNumber(parseInt(contextWindow.replace(/,/g, "")) - parseInt(tokenUsed.replace(/,/g, "")))}
-						</span>
+						<span className="font-mono">{formatTokenNumber(contextWindow - tokenUsed)}</span>
 					</div>
 				</div>
 			</AccordionItem>

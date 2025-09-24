@@ -17,12 +17,12 @@ export function getFocusChainFilePath(taskDir: string, taskId: string): string {
 export function createFocusChainMarkdownContent(taskId: string, focusChainList: string): string {
 	return `# Focus Chain List for Task ${taskId}
 
-<!-- Edit this markdown file to update your focus chain focusChain list -->
+<!-- Edit this markdown file to update your focus chain list -->
 <!-- Use the format: - [ ] for incomplete items and - [x] for completed items -->
 
 ${focusChainList}
 
-<!-- Save this file and the focusChain list will be updated in the task -->`
+<!-- Save this file and the focus chain list will be updated in the task -->`
 }
 
 /**
