@@ -1,7 +1,7 @@
 import { cn } from "@heroui/react"
 import { isCompletedFocusChainItem, isFocusChainItem } from "@shared/focus-chain-utils"
 import { StringRequest } from "@shared/proto/cline/common"
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
+import { ChevronDownIcon, ChevronRightIcon, PencilIcon } from "lucide-react"
 import React, { memo, useCallback, useMemo, useState } from "react"
 import ChecklistRenderer from "@/components/common/ChecklistRenderer"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -31,46 +31,30 @@ const ToDoListHeader = memo<{
 	todoInfo: TodoInfo
 	isExpanded: boolean
 }>(({ todoInfo, isExpanded }) => {
-	const { currentTodo, currentIndex, totalCount, completedCount, progressPercentage } = todoInfo
+	const { currentTodo, currentIndex, totalCount, completedCount } = todoInfo
 	const isCompleted = completedCount === totalCount
 
 	// Pre-compute display text
 	const displayText = isCompleted ? COMPLETED_MESSAGE : currentTodo?.text || TODO_LIST_LABEL
 
 	return (
-		<div
-			className={cn("relative w-full h-full", {
-				"text-success": isCompleted,
-			})}>
-			<div
-				className={cn(
-					"absolute bottom-0 left-0 transition-[width] duration-300 ease-in-out pointer-events-none z-1 h-1 bg-success",
-					{
-						"opacity-0": progressPercentage === 0 || progressPercentage === 100,
-					},
-				)}
-				style={{
-					width: `${progressPercentage}%`,
-				}}
-			/>
-			<div className="flex items-center justify-between gap-2 z-10 py-2.5 px-1.5">
-				<div className="flex items-center gap-1.5 flex-1 min-w-0">
-					<span
-						className={cn(
-							"rounded-lg px-2 py-0.25 text-xs inline-block shrink-0 bg-badge-foreground/20 text-badge-foreground",
-							{
-								"bg-success text-black": isCompleted,
-							},
-						)}>
-						{currentIndex}/{totalCount}
-					</span>
-					<span className="header-text text-xs font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap">
-						{displayText}
-					</span>
-				</div>
-				<div className="flex items-center justify-between text-foreground">
-					{isExpanded ? <ChevronDownIcon className="ml-0.25" size="16" /> : <ChevronRightIcon size="16" />}
-				</div>
+		<div className="flex items-center justify-between gap-2 z-10 py-2.5 px-1.5 relative">
+			<div className="flex items-center gap-1.5 flex-1 min-w-0">
+				<span
+					className={cn(
+						"rounded-lg px-2 py-0.25 text-xs inline-block shrink-0 bg-badge-foreground/20 text-foreground",
+						{
+							"bg-success text-black": isCompleted,
+						},
+					)}>
+					{currentIndex}/{totalCount}
+				</span>
+				<span className="header-text text-xs font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap">
+					{displayText}
+				</span>
+			</div>
+			<div className="flex items-center justify-between text-foreground">
+				{isExpanded ? <ChevronDownIcon className="ml-0.25" size="16" /> : <ChevronRightIcon size="16" />}
 			</div>
 		</div>
 	)
@@ -158,6 +142,7 @@ const parseCurrentTodoInfo = (text: string): TodoInfo | null => {
 export const FocusChain: React.FC<FocusChainProps> = memo(
 	({ currentTaskItemId, lastProgressMessageText }) => {
 		const [isExpanded, setIsExpanded] = useState(false)
+		const [isHoveringList, setIsHoveringList] = useState(false)
 
 		// Parse todo info with caching
 		const todoInfo = useMemo(
@@ -188,18 +173,55 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 
 		return (
 			<div
-				className="relative rounded-sm bg-toolbar-hover/65 flex flex-col gap-1.5 select-none hover:bg-toolbar-hover overflow-hidden opacity-80 hover:opacity-100 transition-all duration-200 cursor-pointer"
+				className="relative flex flex-col gap-1.5 select-none overflow-hidden transition-[transform,box-shadow] duration-200 cursor-pointer hover:brightness-120"
 				onClick={handleToggle}
+				style={{
+					backgroundColor: "color-mix(in srgb, var(--vscode-progressBar-background) 40%, transparent)",
+					borderTopLeftRadius: 0,
+					borderTopRightRadius: 0,
+					borderBottomLeftRadius: "4px",
+					borderBottomRightRadius: "4px",
+					borderLeft: "1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent)",
+					borderRight: "1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent)",
+					borderBottom: "1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent)",
+					width: "calc(100% - 20px)",
+					marginLeft: "10px",
+					marginTop: "-7px", // Compensate for gap-1.5 (6px) + border overlap (1px)
+				}}
 				title={CLICK_TO_EDIT_TITLE}>
-				<ToDoListHeader isExpanded={isExpanded} todoInfo={todoInfo} />
-				{isExpanded && (
-					<div className="mx-1 pb-2 px-1 relative" onClick={handleEditClick}>
-						<ChecklistRenderer text={lastProgressMessageText!} />
-						{isCompleted && (
-							<div className="mt-2 text-xs font-semibold text-muted-foreground">{NEW_STEPS_MESSAGE}</div>
-						)}
-					</div>
-				)}
+				{/* Progress bar background */}
+				<div
+					className="absolute inset-0 pointer-events-none"
+					style={{
+						background: `linear-gradient(to right, var(--vscode-progressBar-background) ${todoInfo.progressPercentage}%, transparent ${todoInfo.progressPercentage}%)`,
+						opacity: 0.3,
+						transition: "all 0.3s ease-in-out",
+					}}
+				/>
+				{/* Content with higher z-index */}
+				<div className="relative z-10">
+					<ToDoListHeader isExpanded={isExpanded} todoInfo={todoInfo} />
+					{isExpanded && (
+						<div
+							className="mx-1 pb-2 px-1 relative group cursor-pointer"
+							onClick={handleEditClick}
+							onMouseEnter={() => setIsHoveringList(true)}
+							onMouseLeave={() => setIsHoveringList(false)}>
+							<ChecklistRenderer text={lastProgressMessageText!} />
+							{isCompleted && (
+								<div className="mt-2 text-xs font-semibold text-muted-foreground">{NEW_STEPS_MESSAGE}</div>
+							)}
+							{/* Pencil icon on hover */}
+							<div
+								className={cn("absolute bottom-2 right-2", isHoveringList ? "opacity-60" : "opacity-0")}
+								style={{
+									pointerEvents: "none",
+								}}>
+								<PencilIcon className="text-foreground" size={14} />
+							</div>
+						</div>
+					)}
+				</div>
 			</div>
 		)
 	},

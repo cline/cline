@@ -23,7 +23,7 @@ const CompactTaskButton: React.FC<{
 			<VSCodeButton
 				appearance="icon"
 				className={cn(
-					"text-badge-foreground flex items-center text-sm font-bold hover:bg-transparent hover:opacity-80",
+					"text-foreground flex items-center text-sm font-bold hover:bg-transparent hover:opacity-80",
 					className,
 				)}
 				onClick={onClick}
