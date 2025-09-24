@@ -442,7 +442,7 @@
 		"@grpc/grpc-js": "^1.9.15",
 		"@grpc/reflection": "^1.0.4",
 		"@mistralai/mistralai": "^1.5.0",
-		"@modelcontextprotocol/sdk": "^1.11.1",
+		"@modelcontextprotocol/sdk": "1.17.4",
 		"@opentelemetry/api": "^1.4.1",
 		"@opentelemetry/exporter-trace-otlp-http": "^0.39.1",
 		"@opentelemetry/resources": "^1.30.1",
