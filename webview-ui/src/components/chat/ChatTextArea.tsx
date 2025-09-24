@@ -1688,7 +1688,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{/* Always render both components, but control visibility with CSS */}
 					<div className="relative flex-1 min-w-0 h-5">
 						{/* ButtonGroup - always in DOM but visibility controlled */}
-						<ButtonGroup className="absolute top-0 left-0 right-0 transition-opacity duration-300 ease-in-out w-full h-5 z-10 flex items-center">
+						<ButtonGroup className="absolute top-0 left-0 right-0 ease-in-out w-full h-5 z-10 flex items-center">
 							<Tooltip style={{ left: 0 }} tipText="Add Context">
 								<VSCodeButton
 									appearance="icon"

@@ -24,7 +24,7 @@ export const CheckpointError: React.FC<CheckpointErrorProps> = ({
 		return null
 	}
 	return (
-		<div className="flex items-center justify-center w-full opacity-80 hover:opacity-100 transition-opacity duration-200">
+		<div className="flex items-center justify-center w-full">
 			<Alert
 				className="rounded-sm border-0 bg-[var(--vscode-inputValidation-errorBackground)] text-[var(--vscode-inputValidation-errorForeground)] p-1.5"
 				color="warning"
