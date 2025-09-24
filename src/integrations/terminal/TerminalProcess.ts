@@ -44,17 +44,18 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		const shellName = pathParts[pathParts.length - 1].toLowerCase()
 
 		// Normalize common variations
+		// Order matters: check more specific names before generic ones
 		if (shellName.includes("pwsh")) return "powershell-7"
 		if (shellName.includes("powershell")) return "powershell"
 		if (shellName.includes("bash")) return "bash"
 		if (shellName.includes("zsh")) return "zsh"
-		if (shellName.includes("cmd")) return "cmd"
 		if (shellName.includes("fish")) return "fish"
 		if (shellName.includes("dash")) return "dash"
 		if (shellName.includes("tcsh")) return "tcsh"
-		if (shellName.includes("csh")) return "csh"
 		if (shellName.includes("ksh")) return "ksh"
-		if (shellName.includes("sh")) return "sh"
+		if (shellName.includes("csh")) return "csh" // Check 'csh' before 'sh'
+		if (shellName.includes("cmd")) return "cmd"
+		if (shellName.includes("sh")) return "sh" // Check 'sh' last as it's a substring of many shells
 
 		// Remove .exe extension on Windows
 		return shellName.replace(/\.exe$/, "")
