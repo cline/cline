@@ -26,6 +26,7 @@ interface WithCopyButtonProps {
 
 const StyledButton = styled(VSCodeButton)`
 	z-index: 1;
+	transform: scale(0.9);
 `
 
 // Unified container component
@@ -49,7 +50,7 @@ const ButtonContainer = styled.div<{ $position?: "top-right" | "bottom-right" }>
 	opacity: 0;
 
 	${ContentContainer}:hover & {
-		opacity: 1;
+		opacity: 0.5;
 	}
 `
 
