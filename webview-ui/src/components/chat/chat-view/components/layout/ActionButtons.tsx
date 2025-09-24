@@ -120,7 +120,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			<div className="flex px-[15px]">
 				<VSCodeButton
 					appearance="icon"
-					aria-label="Scroll to bottom"
+					aria-label={showScrollToBottom ? "Scroll to bottom" : "Scroll to top"}
 					className="text-lg text-[var(--vscode-primaryButton-foreground)] bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_55%,transparent)] rounded-[3px] overflow-hidden cursor-pointer flex justify-center items-center flex-1 h-[25px] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_90%,transparent)] active:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_70%,transparent)] border-0"
 					onClick={showScrollToBottom ? handleScrollToBottom : handleScrollToTop}
 					onKeyDown={(e) => {
