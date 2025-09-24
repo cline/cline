@@ -8,7 +8,7 @@
 		"dev": "scripts/check-services.sh && next dev -p 3446",
 		"format": "prettier --write src",
 		"build": "next build",
-		"start": "next start",
+		"start": "next start -p 3446",
 		"clean": "rimraf tsconfig.tsbuildinfo .next .turbo"
 	},
 	"dependencies": {

@@ -60,5 +60,5 @@ RUN chmod +x /usr/local/bin/entrypoint.sh
 
 ENV DATABASE_URL=postgresql://postgres:password@db:5432/evals_development
 ENV REDIS_URL=redis://redis:6379
-EXPOSE 3000
+EXPOSE 3446
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

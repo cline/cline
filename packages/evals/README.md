@@ -29,7 +29,7 @@ Start the evals service:
 pnpm evals
 ```
 
-The initial build process can take a minute or two. Upon success you should see output indicating that a web service is running on localhost:3000:
+The initial build process can take a minute or two. Upon success you should see output indicating that a web service is running on localhost:3446:
 <img width="1182" src="https://github.com/user-attachments/assets/34f25a59-1362-458c-aafa-25e13cdb2a7a" />
 
 Additionally, you'll find in Docker Desktop that database and redis services are running:
