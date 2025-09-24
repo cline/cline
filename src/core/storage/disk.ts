@@ -184,8 +184,8 @@ export async function saveTaskMetadata(context: vscode.ExtensionContext, taskId:
 	}
 }
 
-export async function ensureStateDirectoryExists(context: vscode.ExtensionContext): Promise<string> {
-	const stateDir = path.join(context.globalStorageUri.fsPath, "state")
+export async function ensureStateDirectoryExists(): Promise<string> {
+	const stateDir = path.join(HostProvider.get().globalStorageFsPath, "state")
 	await fs.mkdir(stateDir, { recursive: true })
 	return stateDir
 }
@@ -194,18 +194,18 @@ export async function ensureCacheDirectoryExists(): Promise<string> {
 	return HostProvider.getGlobalStorageDir("cache")
 }
 
-export async function getTaskHistoryStateFilePath(context: vscode.ExtensionContext): Promise<string> {
-	return path.join(await ensureStateDirectoryExists(context), "taskHistory.json")
+export async function getTaskHistoryStateFilePath(): Promise<string> {
+	return path.join(await ensureStateDirectoryExists(), "taskHistory.json")
 }
 
-export async function taskHistoryStateFileExists(context: vscode.ExtensionContext): Promise<boolean> {
-	const filePath = await getTaskHistoryStateFilePath(context)
+export async function taskHistoryStateFileExists(): Promise<boolean> {
+	const filePath = await getTaskHistoryStateFilePath()
 	return fileExistsAtPath(filePath)
 }
 
-export async function readTaskHistoryFromState(context: vscode.ExtensionContext): Promise<HistoryItem[]> {
+export async function readTaskHistoryFromState(): Promise<HistoryItem[]> {
 	try {
-		const filePath = await getTaskHistoryStateFilePath(context)
+		const filePath = await getTaskHistoryStateFilePath()
 		if (await fileExistsAtPath(filePath)) {
 			const contents = await fs.readFile(filePath, "utf8")
 			try {
@@ -222,9 +222,9 @@ export async function readTaskHistoryFromState(context: vscode.ExtensionContext)
 	}
 }
 
-export async function writeTaskHistoryToState(context: vscode.ExtensionContext, items: HistoryItem[]): Promise<void> {
+export async function writeTaskHistoryToState(items: HistoryItem[]): Promise<void> {
 	try {
-		const filePath = await getTaskHistoryStateFilePath(context)
+		const filePath = await getTaskHistoryStateFilePath()
 		// Always create the file; if items is empty, write [] to ensure presence on first startup
 		await fs.writeFile(filePath, JSON.stringify(items))
 	} catch (error) {

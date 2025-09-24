@@ -122,14 +122,14 @@ async function performTaskHistoryReconstruction(context: vscode.ExtensionContext
 	reconstructedItems.sort((a, b) => b.ts - a.ts)
 
 	// Write reconstructed history
-	await writeTaskHistoryToState(context, reconstructedItems)
+	await writeTaskHistoryToState(reconstructedItems)
 
 	return result
 }
 
 async function backupExistingTaskHistory(context: vscode.ExtensionContext): Promise<void> {
 	try {
-		const existingHistory = await readTaskHistoryFromState(context)
+		const existingHistory = await readTaskHistoryFromState()
 		if (existingHistory.length > 0) {
 			const backupPath = path.join(context.globalStorageUri.fsPath, "state", `taskHistory.backup.${Date.now()}.json`)
 
