@@ -200,14 +200,13 @@ export class ClineHandler implements ApiHandler {
 	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
 		if (this.lastGenerationId) {
 			try {
-				// TODO: replace this with firebase auth
-				// TODO: use global API Host
 				const clineAccountAuthToken = await this._authService.getAuthToken()
 				if (!clineAccountAuthToken) {
 					throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 				}
 				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
 					headers: {
+						// Align with backend auth expectations
 						Authorization: `Bearer ${clineAccountAuthToken}`,
 					},
 					timeout: 15_000, // this request hangs sometimes

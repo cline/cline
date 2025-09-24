@@ -2,7 +2,7 @@ import { OcaAuthState, OcaUserInfo } from "@shared/proto/cline/oca_account"
 import axios from "axios"
 import { jwtDecode } from "jwt-decode"
 import { Controller } from "@/core/controller"
-import { getProxyAgents } from "@/services/auth/oca/utils/utils"
+import { getAxiosSettings } from "@/services/auth/oca/utils/utils"
 
 import { generateCodeVerifier, generateRandomString, pkceChallengeFromVerifier } from "../utils/utils"
 
@@ -93,7 +93,7 @@ export class OcaAuthProvider {
 		}
 		try {
 			const { idcs_url, client_id } = this._config
-			const discovery = await axios.get(`${idcs_url}/.well-known/openid-configuration`, { ...getProxyAgents() })
+			const discovery = await axios.get(`${idcs_url}/.well-known/openid-configuration`, { ...getAxiosSettings() })
 			const tokenEndpoint = discovery.data.token_endpoint
 			const params: any = {
 				grant_type: "refresh_token",
@@ -102,7 +102,7 @@ export class OcaAuthProvider {
 			}
 			const tokenResponse = await axios.post(tokenEndpoint, new URLSearchParams(params), {
 				headers: { "Content-Type": "application/x-www-form-urlencoded" },
-				...getProxyAgents(),
+				...getAxiosSettings(),
 			})
 			const accessToken = tokenResponse.data.access_token
 			const userInfo: OcaUserInfo = await this.getUserAccountInfo(accessToken)
@@ -159,7 +159,7 @@ export class OcaAuthProvider {
 			}
 			const { code_verifier, nonce, redirect_uri } = entry
 			OcaAuthProvider.pkceStateMap.delete(state)
-			const discovery = await axios.get(`${idcs_url}/.well-known/openid-configuration`, { ...getProxyAgents() })
+			const discovery = await axios.get(`${idcs_url}/.well-known/openid-configuration`, { ...getAxiosSettings() })
 			const tokenEndpoint = discovery.data.token_endpoint
 			const params: any = {
 				grant_type: "authorization_code",
@@ -170,7 +170,7 @@ export class OcaAuthProvider {
 			}
 			const tokenResponse = await axios.post(tokenEndpoint, new URLSearchParams(params), {
 				headers: { "Content-Type": "application/x-www-form-urlencoded" },
-				...getProxyAgents(),
+				...getAxiosSettings(),
 			})
 			// Step 1: Nonce validation
 			const idToken = tokenResponse.data.id_token
@@ -179,6 +179,8 @@ export class OcaAuthProvider {
 				if (decoded.nonce !== nonce) {
 					throw new Error("OIDC nonce verification failed")
 				}
+			} else {
+				throw new Error("No ID token received from OCA")
 			}
 
 			// Step 2: Get access_token (this is what you'll use for APIs)

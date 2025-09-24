@@ -1,5 +1,6 @@
 import fs from "fs"
 import { diff } from "jest-diff"
+import _ from "lodash"
 import path from "path"
 
 export function loadJson(filePath: string): any {
@@ -10,7 +11,20 @@ export function pretty(obj: any): string {
 	return JSON.stringify(obj, null, 2)
 }
 
-// Normalize object and ignore specified fields
+/**
+ * Recursively normalizes an object or array by:
+ * 1. Ignoring specified fields.
+ * 2. Sorting arrays in a stable manner.
+ * 3. Parsing JSON strings where possible.
+ *
+ * This ensures that comparison between objects/arrays is consistent
+ * and ignores non-deterministic or irrelevant fields.
+ *
+ * @param obj - The object/array/value to normalize.
+ * @param ignoreFields - List of field names or dot-paths to ignore during normalization.
+ * @param parentPath - Internal use for tracking nested paths (used for ignoreFields).
+ * @returns A normalized object/array/value suitable for comparison.
+ */
 function normalize(obj: any, ignoreFields: string[] = [], parentPath = ""): any {
 	if (Array.isArray(obj)) {
 		// Normalize each element, then sort in a stable way
@@ -44,21 +58,96 @@ function normalize(obj: any, ignoreFields: string[] = [], parentPath = ""): any 
 	return obj
 }
 
-// Compare two objects, ignoring specified fields & array order
-export function compareResponse(actual: any, expected: any, ignoreFields: string[] = []): { success: boolean; diffs: string[] } {
-	const diffs: string[] = []
+/**
+ * Recursively picks only the keys specified in `filter` from `actual`.
+ * This is used for partial comparison of objects and arrays.
+ *
+ * Behavior:
+ * 1. For objects: keeps only keys present in `filter`, recursively.
+ * 2. For arrays: assumes `filter` is an array and picks corresponding keys
+ *    from each element in `actual` array.
+ * 3. For primitives: returns the actual value.
+ *
+ * @param actual - The full object/array/value received.
+ * @param filter - The subset of keys/structure to keep from `actual`.
+ * @returns A new object/array/value that only contains keys from `filter`.
+ *
+ * Example:
+ * actual = {
+ *   a: 1,
+ *   b: { x: 10, y: 20 },
+ *   c: [{ id: 1, val: "x" }, { id: 2, val: "y" }]
+ * }
+ *
+ * filter = {
+ *   b: { y: 20 },
+ *   c: [{ val: "x" }]
+ * }
+ *
+ * Result:
+ * {
+ *   b: { y: 20 },
+ *   c: [{ val: "x" }, undefined]
+ * }
+ */
+function pickDeep(actual: any, filter: any): any {
+	if (_.isArray(filter)) {
+		if (!_.isArray(actual)) return actual
 
-	const normalizedActual = normalize(actual, ignoreFields)
-	const normalizedExpected = normalize(expected, ignoreFields)
-
-	if (JSON.stringify(normalizedActual) !== JSON.stringify(normalizedExpected)) {
-		const difference = diff(normalizedExpected, normalizedActual, {
-			expand: false, // compact diff
-		})
-		diffs.push(difference || "Objects differ but no diff generated.")
+		// Compare arrays element by element, picking only keys from filter
+		return filter.map((f, i) => pickDeep(actual[i], f))
 	}
 
-	return { success: diffs.length === 0, diffs }
+	if (_.isPlainObject(filter)) {
+		return _.mapValues(filter, (v, k) => (actual && k in actual ? pickDeep(actual[k], v) : undefined))
+	}
+
+	return actual
+}
+
+/**
+ * Compares an actual response against an expected response, with optional:
+ * - Ignored fields
+ * - Partial comparison (via expectedSubset)
+ *
+ * Behavior:
+ * 1. Normalizes actual and expected objects (sorting arrays, parsing JSON strings).
+ * 2. If expectedSubset is provided, only compares the keys/structure defined in it.
+ * 3. Returns a boolean success flag and an array of diffs (for reporting mismatches).
+ *
+ * @param actual - The response received from gRPC call.
+ * @param expected - The full expected response from the spec file.
+ * @param ignoreFields - Fields or paths to ignore in comparison.
+ * @param expectedSubset - Optional subset of fields to validate (for meta.expected).
+ * @returns Object with `success` (true/false) and `diffs` (array of string diffs).
+ */
+export function compareResponse(
+	actual: any,
+	expected: any,
+	ignoreFields: string[] = [],
+	expectedSubset?: any,
+): { success: boolean; diffs: string[] } {
+	const actualToCompare = normalize(actual, ignoreFields)
+	const expectedToCompare = normalize(expected, ignoreFields)
+
+	if (expectedSubset) {
+		// Extract only the subset we care about
+		const actualSubset = pickDeep(actualToCompare, expectedSubset)
+		const success = _.isEqual(actualSubset, expectedSubset)
+		if (!success) {
+			const difference = diff(expectedSubset, actualSubset, { expand: false })
+			return { success: false, diffs: [difference || "Objects differ"] }
+		}
+		return { success: true, diffs: [] }
+	}
+
+	// Fallback: full comparison
+	const success = _.isEqual(actualToCompare, expectedToCompare)
+	if (!success) {
+		const difference = diff(expectedToCompare, actualToCompare, { expand: false })
+		return { success: false, diffs: [difference || "Objects differ"] }
+	}
+	return { success: true, diffs: [] }
 }
 
 /**

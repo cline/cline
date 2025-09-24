@@ -145,6 +145,8 @@ message UpdateSettingsRequest {
   optional string default_terminal_profile = 21;
   optional bool yolo_mode_toggled = 22;
   optional DictationSettings dictation_settings = 23;
+  optional int32 auto_condense_threshold = 24;
+  optional bool multi_root_enabled = 25;
 }
 
 // Complete API Configuration message

@@ -55,6 +55,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	showAccount: boolean
 	showAnnouncement: boolean
 	showChatModelSelector: boolean
+	expandTaskHeader: boolean
 
 	// Setters
 	setDictationSettings: (value: DictationSettings) => void
@@ -75,6 +76,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
+	setExpandTaskHeader: (value: boolean) => void
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
@@ -210,13 +212,16 @@ export const ExtensionStateContextProvider: React.FC<{
 		yoloModeToggled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,
+		autoCondenseThreshold: undefined,
 		favoritedModelIds: [],
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
 		primaryRootIndex: 0,
 		isMultiRootWorkspace: false,
+		multiRootSetting: { user: false, featureFlag: false },
 	})
+	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
 	const [didHydrateState, setDidHydrateState] = useState(false)
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
@@ -721,6 +726,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshOpenRouterModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
+		expandTaskHeader,
+		setExpandTaskHeader,
 		setDictationSettings: (value: DictationSettings) =>
 			setState((prevState) => ({
 				...prevState,

@@ -1807,10 +1807,14 @@ export class Task {
 					}
 				}
 			} else {
+				const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold") as
+					| number
+					| undefined
 				shouldCompact = this.contextManager.shouldCompactContextWindow(
 					this.messageStateHandler.getClineMessages(),
 					this.api,
 					previousApiReqIndex,
+					autoCondenseThreshold,
 				)
 
 				// There is an edge case where the summarize_task tool call completes but the user cancels the next request before it finishes

@@ -200,6 +200,11 @@
 				"command": "cline.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.reconstructTaskHistory",
+				"title": "Reconstruct Task History",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [

@@ -173,99 +173,102 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 					flexShrink: 0,
 				}}
 			/>
-			<Label $isCheckedOut={isCheckpointCheckedOut}>
-				{isCheckpointCheckedOut ? "Checkpoint (restored)" : "Checkpoint"}
-			</Label>
-			<DottedLine $isCheckedOut={isCheckpointCheckedOut} />
-			<ButtonGroup>
-				<CustomButton
-					$isCheckedOut={isCheckpointCheckedOut}
-					disabled={compareDisabled}
-					onClick={async () => {
-						setCompareDisabled(true)
-						try {
-							await CheckpointsServiceClient.checkpointDiff(
-								Int64Request.create({
-									value: messageTs,
-								}),
-							)
-						} catch (err) {
-							console.error("CheckpointDiff error:", err)
-						} finally {
-							setCompareDisabled(false)
-						}
-					}}
-					style={{ cursor: compareDisabled ? "wait" : "pointer" }}>
-					Compare
-				</CustomButton>
-				<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
-				<div ref={refs.setReference} style={{ position: "relative", marginTop: -2 }}>
+			<DottedLine $isCheckedOut={isCheckpointCheckedOut} className="hover-show-inverse" />
+			<div className="hover-content">
+				<Label $isCheckedOut={isCheckpointCheckedOut}>
+					{isCheckpointCheckedOut ? "Checkpoint (restored)" : "Checkpoint"}
+				</Label>
+				<DottedLine $isCheckedOut={isCheckpointCheckedOut} />
+				<ButtonGroup>
 					<CustomButton
 						$isCheckedOut={isCheckpointCheckedOut}
-						isActive={showRestoreConfirm}
-						onClick={() => setShowRestoreConfirm(true)}>
-						Restore
+						disabled={compareDisabled}
+						onClick={async () => {
+							setCompareDisabled(true)
+							try {
+								await CheckpointsServiceClient.checkpointDiff(
+									Int64Request.create({
+										value: messageTs,
+									}),
+								)
+							} catch (err) {
+								console.error("CheckpointDiff error:", err)
+							} finally {
+								setCompareDisabled(false)
+							}
+						}}
+						style={{ cursor: compareDisabled ? "wait" : "pointer" }}>
+						Compare
 					</CustomButton>
-					{showRestoreConfirm &&
-						createPortal(
-							<RestoreConfirmTooltip
-								data-placement={placement}
-								onMouseEnter={handleMouseEnter}
-								onMouseLeave={handleMouseLeave}
-								ref={refs.setFloating}
-								style={floatingStyles}>
-								<RestoreOption>
-									<VSCodeButton
-										disabled={restoreWorkspaceDisabled || isCheckpointCheckedOut}
-										onClick={handleRestoreWorkspace}
-										style={{
-											cursor: isCheckpointCheckedOut
-												? "not-allowed"
-												: restoreWorkspaceDisabled
-													? "wait"
-													: "pointer",
-											width: "100%",
-											marginBottom: "10px",
-										}}>
-										Restore Files
-									</VSCodeButton>
-									<p>
-										Restores your project's files back to a snapshot taken at this point (use "Compare" to see
-										what will be reverted)
-									</p>
-								</RestoreOption>
-								<RestoreOption>
-									<VSCodeButton
-										disabled={restoreTaskDisabled}
-										onClick={handleRestoreTask}
-										style={{
-											cursor: restoreTaskDisabled ? "wait" : "pointer",
-											width: "100%",
-											marginBottom: "10px",
-										}}>
-										Restore Task Only
-									</VSCodeButton>
-									<p>Deletes messages after this point (does not affect workspace files)</p>
-								</RestoreOption>
-								<RestoreOption>
-									<VSCodeButton
-										disabled={restoreBothDisabled}
-										onClick={handleRestoreBoth}
-										style={{
-											cursor: restoreBothDisabled ? "wait" : "pointer",
-											width: "100%",
-											marginBottom: "10px",
-										}}>
-										Restore Files & Task
-									</VSCodeButton>
-									<p>Restores your project's files and deletes all messages after this point</p>
-								</RestoreOption>
-							</RestoreConfirmTooltip>,
-							document.body,
-						)}
-				</div>
-				<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
-			</ButtonGroup>
+					<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
+					<div ref={refs.setReference} style={{ position: "relative", marginTop: -2 }}>
+						<CustomButton
+							$isCheckedOut={isCheckpointCheckedOut}
+							isActive={showRestoreConfirm}
+							onClick={() => setShowRestoreConfirm(true)}>
+							Restore
+						</CustomButton>
+						{showRestoreConfirm &&
+							createPortal(
+								<RestoreConfirmTooltip
+									data-placement={placement}
+									onMouseEnter={handleMouseEnter}
+									onMouseLeave={handleMouseLeave}
+									ref={refs.setFloating}
+									style={floatingStyles}>
+									<RestoreOption>
+										<VSCodeButton
+											disabled={restoreWorkspaceDisabled || isCheckpointCheckedOut}
+											onClick={handleRestoreWorkspace}
+											style={{
+												cursor: isCheckpointCheckedOut
+													? "not-allowed"
+													: restoreWorkspaceDisabled
+														? "wait"
+														: "pointer",
+												width: "100%",
+												marginBottom: "10px",
+											}}>
+											Restore Files
+										</VSCodeButton>
+										<p>
+											Restores your project's files back to a snapshot taken at this point (use "Compare" to
+											see what will be reverted)
+										</p>
+									</RestoreOption>
+									<RestoreOption>
+										<VSCodeButton
+											disabled={restoreTaskDisabled}
+											onClick={handleRestoreTask}
+											style={{
+												cursor: restoreTaskDisabled ? "wait" : "pointer",
+												width: "100%",
+												marginBottom: "10px",
+											}}>
+											Restore Task Only
+										</VSCodeButton>
+										<p>Deletes messages after this point (does not affect workspace files)</p>
+									</RestoreOption>
+									<RestoreOption>
+										<VSCodeButton
+											disabled={restoreBothDisabled}
+											onClick={handleRestoreBoth}
+											style={{
+												cursor: restoreBothDisabled ? "wait" : "pointer",
+												width: "100%",
+												marginBottom: "10px",
+											}}>
+											Restore Files & Task
+										</VSCodeButton>
+										<p>Restores your project's files and deletes all messages after this point</p>
+									</RestoreOption>
+								</RestoreConfirmTooltip>,
+								document.body,
+							)}
+					</div>
+					<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
+				</ButtonGroup>
+			</div>
 		</Container>
 	)
 }
@@ -277,12 +280,33 @@ const Container = styled.div<{ isMenuOpen?: boolean; $isCheckedOut?: boolean }>`
 	gap: 4px;
 	position: relative;
 	min-width: 0;
+	min-height: 17px;
 	margin-top: -10px;
 	margin-bottom: -10px;
 	opacity: ${(props) => (props.$isCheckedOut ? 1 : props.isMenuOpen ? 1 : 0.5)};
 
 	&:hover {
 		opacity: 1;
+	}
+
+	.hover-content {
+		display: ${(props) => (props.isMenuOpen ? "flex" : "none")};
+		align-items: center;
+		gap: 4px;
+		flex: 1;
+	}
+
+	&:hover .hover-content {
+		display: flex;
+	}
+
+	.hover-show-inverse {
+		display: ${(props) => (props.isMenuOpen ? "none" : "flex")};
+		flex: 1;
+	}
+
+	&:hover .hover-show-inverse {
+		display: none;
 	}
 `
 

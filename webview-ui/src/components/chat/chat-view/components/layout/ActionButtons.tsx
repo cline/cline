@@ -145,7 +145,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			{secondaryText && secondaryAction && (
 				<VSCodeButton
 					appearance="secondary"
-					className={primaryText ? "flex-1 mr-[6px]" : "flex-[2]"}
+					className={primaryText ? "flex-1" : "flex-[2]"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(secondaryAction, inputValue, selectedImages, selectedFiles)}>
 					{secondaryText}

@@ -275,7 +275,7 @@ export class StateManager {
 	 */
 	private async setupTaskHistoryWatcher(): Promise<void> {
 		try {
-			const historyFile = await getTaskHistoryStateFilePath(this.context)
+			const historyFile = await getTaskHistoryStateFilePath()
 
 			// Close any existing watcher before creating a new one
 			if (this.taskHistoryWatcher) {
@@ -295,7 +295,7 @@ export class StateManager {
 					if (!this.isInitialized) {
 						return
 					}
-					const onDisk = await readTaskHistoryFromState(this.context)
+					const onDisk = await readTaskHistoryFromState()
 					const cached = this.globalStateCache["taskHistory"]
 					if (JSON.stringify(onDisk) !== JSON.stringify(cached)) {
 						this.globalStateCache["taskHistory"] = onDisk
@@ -764,7 +764,7 @@ export class StateManager {
 				Array.from(keys).map((key) => {
 					if (key === "taskHistory") {
 						// Route task history persistence to file, not VS Code globalState
-						return writeTaskHistoryToState(this.context, this.globalStateCache[key])
+						return writeTaskHistoryToState(this.globalStateCache[key])
 					}
 					return this.context.globalState.update(key, this.globalStateCache[key])
 				}),

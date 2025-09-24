@@ -1,5 +1,8 @@
 import crypto from "crypto"
 import fs from "fs"
+import { type JwtPayload, jwtDecode } from "jwt-decode"
+import { HostProvider } from "@/hosts/host-provider"
+import { ExtensionRegistryInfo } from "@/registry"
 import {
 	DEFAULT_IDCS_CLIENT_ID,
 	DEFAULT_IDCS_PORT_CANDIDATES,
@@ -70,11 +73,6 @@ export function pkceChallengeFromVerifier(verifier: string): string {
 		.replace(/=+$/, "")
 }
 
-import { HttpsProxyAgent } from "https-proxy-agent"
-import { type JwtPayload, jwtDecode } from "jwt-decode"
-import * as vscode from "vscode"
-import { name, version } from "../../../../../package.json"
-
 /**
  * Generates a compliant customer opc-request-id segment.
  *
@@ -117,32 +115,26 @@ export async function generateOpcRequestId(taskId: string, token: string): Promi
 
 export async function createOcaHeaders(accessToken: string, taskId: string): Promise<Record<string, string>> {
 	const opcRequestId = await generateOpcRequestId(taskId, accessToken)
+	const host = await HostProvider.env.getHostVersion({})
+	const clineVersion = ExtensionRegistryInfo.version
 
 	return {
 		Authorization: `Bearer ${accessToken}`,
 		"Content-Type": "application/json",
 		client: "Cline",
-		"client-version": `${name}-${version}`,
-		"client-ide": vscode.env.appName,
-		"client-ide-version": vscode.version,
+		"client-version": `${clineVersion}`,
+		"client-ide": host.platform || "unknown",
+		"client-ide-version": host.version || "unknown",
 		"opc-request-id": opcRequestId,
 	}
 }
 
 /**
- * Proxy helpers for HTTPS/HTTP proxies via environment variables.
- * - Prioritizes HTTPS_PROXY over HTTP_PROXY
- * - Returns axios-compatible agent options when a proxy is configured
+ *
+ * @returns Axios settings including fetch adapter for compatibility
  */
-export function getProxyUrl(): string | undefined {
-	return process.env.HTTPS_PROXY || process.env.HTTP_PROXY
-}
-
-export function getProxyAgents(): { httpAgent?: any; httpsAgent?: any } {
-	const proxyUrl = getProxyUrl()
-	if (!proxyUrl) return {}
-	const agent = new HttpsProxyAgent(proxyUrl)
-	return { httpAgent: agent as any, httpsAgent: agent as any }
+export function getAxiosSettings(): { adapter?: any } {
+	return { adapter: "fetch" as any }
 }
 
 /**
