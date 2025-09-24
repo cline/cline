@@ -269,7 +269,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			</HeroTooltip>
 			<HeroTooltip content="Cancel Recording" placement="top">
 				<div
-					className={`input-icon-button text-base mt-1 text-foreground ${disabled || isProcessing ? "disabled" : ""}`}
+					className={`input-icon-button text-base ${isRecording ? "mt-0.5" : "mt-1"} text-foreground ${disabled || isProcessing ? "disabled" : ""}`}
 					onClick={handleCancelClick}>
 					<span className="codicon codicon-close" />
 				</div>
