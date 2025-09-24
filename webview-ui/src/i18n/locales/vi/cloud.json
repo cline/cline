@@ -24,6 +24,7 @@
 	"startOver": "Bắt đầu lại",
 	"personalAccount": "Tài Khoản Cá Nhân",
 	"switchAccount": "Chuyển Tài Khoản Roo Code Cloud",
+	"createTeamAccount": "Tạo Tài Khoản Nhóm",
 	"cloudUrlPillLabel": "URL Roo Code Cloud",
 	"upsell": {
 		"autoApprovePowerUser": "Trao cho Roo một chút độc lập? Kiểm soát nó từ mọi nơi với Roo Code Cloud. <learnMoreLink>Tìm hiểu thêm</learnMoreLink>.",

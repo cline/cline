@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Building2 } from "lucide-react"
+import { Building2, Plus } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectSeparator } from "@/components/ui/select"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
 import { vscode } from "@src/utils/vscode"
@@ -8,7 +8,7 @@ import { cn } from "@src/lib/utils"
 
 export const CloudAccountSwitcher = () => {
 	const { t } = useAppTranslation()
-	const { cloudUserInfo, cloudOrganizations = [] } = useExtensionState()
+	const { cloudUserInfo, cloudOrganizations = [], cloudApiUrl } = useExtensionState()
 	const [selectedOrgId, setSelectedOrgId] = useState<string | null>(cloudUserInfo?.organizationId || null)
 	const [isLoading, setIsLoading] = useState(false)
 
@@ -17,12 +17,21 @@ export const CloudAccountSwitcher = () => {
 		setSelectedOrgId(cloudUserInfo?.organizationId || null)
 	}, [cloudUserInfo?.organizationId])
 
-	// Don't show the switcher if user has no organizations
-	if (!cloudOrganizations || cloudOrganizations.length === 0 || !cloudUserInfo) {
+	// Show the switcher whenever user is authenticated
+	if (!cloudUserInfo) {
 		return null
 	}
 
 	const handleOrganizationChange = async (value: string) => {
+		// Handle "Create Team Account" option
+		if (value === "create-team") {
+			if (cloudApiUrl) {
+				const billingUrl = `${cloudApiUrl}/billing`
+				vscode.postMessage({ type: "openExternal", url: billingUrl })
+			}
+			return
+		}
+
 		const newOrgId = value === "personal" ? null : value
 
 		// Don't do anything if selecting the same organization
@@ -139,6 +148,19 @@ export const CloudAccountSwitcher = () => {
 							</div>
 						</SelectItem>
 					))}
+
+					{/* Only show Create Team Account if user has no organizations */}
+					{cloudOrganizations.length === 0 && (
+						<>
+							<SelectSeparator />
+							<SelectItem value="create-team">
+								<div className="flex items-center gap-2">
+									<Plus className="w-4.5 h-4.5" />
+									<span>{t("cloud:createTeamAccount")}</span>
+								</div>
+							</SelectItem>
+						</>
+					)}
 				</SelectContent>
 			</Select>
 		</div>

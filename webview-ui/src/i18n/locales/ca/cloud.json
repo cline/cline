@@ -24,6 +24,7 @@
 	"pasteCallbackUrl": "Copia l'URL de redirect del teu navegador i enganxa-la aquí:",
 	"startOver": "Torna a començar",
 	"personalAccount": "Compte Personal",
+	"createTeamAccount": "Crear Compte d'Equip",
 	"switchAccount": "Canviar Compte de Roo Code Cloud",
 	"upsell": {
 		"autoApprovePowerUser": "Donant-li una mica d'independència a Roo? Controla'l des de qualsevol lloc amb Roo Code Cloud. <learnMoreLink>Més informació</learnMoreLink>.",

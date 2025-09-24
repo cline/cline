@@ -190,11 +190,13 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone, orga
 								)}
 
 								{/* Organization Switcher - moved below email */}
-								{organizations && organizations.length > 0 && (
-									<div className="w-full max-w-60 mt-4">
-										<OrganizationSwitcher userInfo={userInfo} organizations={organizations} />
-									</div>
-								)}
+								<div className="w-full max-w-60 mt-4">
+									<OrganizationSwitcher
+										userInfo={userInfo}
+										organizations={organizations}
+										cloudApiUrl={cloudApiUrl}
+									/>
+								</div>
 							</div>
 						)}
 

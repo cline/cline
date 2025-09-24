@@ -24,6 +24,7 @@
 	"startOver": "重新開始",
 	"personalAccount": "個人帳戶",
 	"switchAccount": "切換 Roo Code Cloud 帳戶",
+	"createTeamAccount": "創建團隊帳戶",
 	"cloudUrlPillLabel": "Roo Code Cloud URL",
 	"upsell": {
 		"autoApprovePowerUser": "給 Roo 一點獨立性？使用 Roo Code Cloud 隨時隨地控制它。<learnMoreLink>了解更多</learnMoreLink>。",

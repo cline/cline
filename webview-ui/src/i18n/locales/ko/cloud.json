@@ -24,6 +24,7 @@
 	"startOver": "다시 시작",
 	"personalAccount": "개인 계정",
 	"switchAccount": "Roo Code Cloud 계정 전환",
+	"createTeamAccount": "팀 계정 만들기",
 	"cloudUrlPillLabel": "Roo Code Cloud URL",
 	"upsell": {
 		"autoApprovePowerUser": "Roo에게 약간의 독립성을 부여하시겠습니까? Roo Code Cloud로 어디서든 제어하세요. <learnMoreLink>더 알아보기</learnMoreLink>.",

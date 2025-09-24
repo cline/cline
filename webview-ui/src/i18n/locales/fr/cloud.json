@@ -24,6 +24,7 @@
 	"startOver": "Recommencer",
 	"personalAccount": "Compte Personnel",
 	"switchAccount": "Changer de Compte Roo Code Cloud",
+	"createTeamAccount": "Créer un Compte d'Équipe",
 	"cloudUrlPillLabel": "URL de Roo Code Cloud",
 	"upsell": {
 		"autoApprovePowerUser": "Donner à Roo un peu d'indépendance ? Contrôlez-le de n'importe où avec Roo Code Cloud. <learnMoreLink>En savoir plus</learnMoreLink>.",

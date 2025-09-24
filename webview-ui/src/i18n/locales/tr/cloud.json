@@ -24,6 +24,7 @@
 	"startOver": "Baştan başla",
 	"personalAccount": "Kişisel Hesap",
 	"switchAccount": "Roo Code Cloud Hesabını Değiştir",
+	"createTeamAccount": "Takım Hesabı Oluştur",
 	"cloudUrlPillLabel": "Roo Code Cloud URL'si",
 	"upsell": {
 		"autoApprovePowerUser": "Roo'ya biraz bağımsızlık mı veriyorsunuz? Roo Code Cloud ile onu her yerden kontrol edin. <learnMoreLink>Daha fazla bilgi edinin</learnMoreLink>.",

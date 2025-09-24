@@ -89,7 +89,6 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			clineMessages,
 			commands,
 			cloudUserInfo,
-			cloudOrganizations,
 		} = useExtensionState()
 
 		// Find the ID and display text for the currently selected API configuration.
@@ -1238,9 +1237,7 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<div
 						className={cn(
 							"flex flex-shrink-0 items-center gap-0.5",
-							!isEditMode && cloudOrganizations && cloudOrganizations.length > 0 && cloudUserInfo
-								? ""
-								: "pr-2",
+							!isEditMode && cloudUserInfo ? "" : "pr-2",
 						)}>
 						{isTtsPlaying && (
 							<StandardTooltip content={t("chat:stopTts")}>
@@ -1263,9 +1260,7 @@ export const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</StandardTooltip>
 						)}
 						{!isEditMode ? <IndexingStatusBadge /> : null}
-						{!isEditMode && cloudOrganizations && cloudOrganizations.length > 0 && cloudUserInfo && (
-							<CloudAccountSwitcher />
-						)}
+						{!isEditMode && cloudUserInfo && <CloudAccountSwitcher />}
 					</div>
 				</div>
 			</div>

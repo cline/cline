@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Building2, User } from "lucide-react"
+import { Building2, User, Plus } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from "@/components/ui/select"
 import { type CloudUserInfo, type CloudOrganizationMembership } from "@roo-code/types"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
@@ -10,9 +10,15 @@ type OrganizationSwitcherProps = {
 	userInfo: CloudUserInfo
 	organizations: CloudOrganizationMembership[]
 	onOrganizationChange?: (organizationId: string | null) => void
+	cloudApiUrl?: string
 }
 
-export const OrganizationSwitcher = ({ userInfo, organizations, onOrganizationChange }: OrganizationSwitcherProps) => {
+export const OrganizationSwitcher = ({
+	userInfo,
+	organizations,
+	onOrganizationChange,
+	cloudApiUrl,
+}: OrganizationSwitcherProps) => {
 	const { t } = useAppTranslation()
 	const [selectedOrgId, setSelectedOrgId] = useState<string | null>(userInfo.organizationId || null)
 	const [isLoading, setIsLoading] = useState(false)
@@ -45,6 +51,15 @@ export const OrganizationSwitcher = ({ userInfo, organizations, onOrganizationCh
 	}, [userInfo.organizationId])
 
 	const handleOrganizationChange = async (value: string) => {
+		// Handle "Create Team Account" option
+		if (value === "create-team") {
+			if (cloudApiUrl) {
+				const billingUrl = `${cloudApiUrl}/billing`
+				vscode.postMessage({ type: "openExternal", url: billingUrl })
+			}
+			return
+		}
+
 		const newOrgId = value === "personal" ? null : value
 
 		// Don't do anything if selecting the same organization
@@ -69,10 +84,7 @@ export const OrganizationSwitcher = ({ userInfo, organizations, onOrganizationCh
 		}
 	}
 
-	// If user has no organizations, don't show the switcher
-	if (!organizations || organizations.length === 0) {
-		return null
-	}
+	// Always show the switcher when user is authenticated
 
 	const currentValue = selectedOrgId || "personal"
 
@@ -139,6 +151,19 @@ export const OrganizationSwitcher = ({ userInfo, organizations, onOrganizationCh
 							</div>
 						</SelectItem>
 					))}
+
+					{/* Only show Create Team Account if user has no organizations */}
+					{organizations.length === 0 && (
+						<>
+							<SelectSeparator />
+							<SelectItem value="create-team">
+								<div className="flex items-center gap-2">
+									<Plus className="w-4.5 h-4.5" />
+									<span>{t("cloud:createTeamAccount")}</span>
+								</div>
+							</SelectItem>
+						</>
+					)}
 				</SelectContent>
 			</Select>
 		</div>
