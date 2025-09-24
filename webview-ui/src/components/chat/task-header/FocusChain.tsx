@@ -50,7 +50,7 @@ const ToDoListHeader = memo<{
 					},
 				)}
 				style={{
-					width: `${100 - progressPercentage}%`,
+					width: `${progressPercentage}%`,
 				}}
 			/>
 			<div className="flex items-center justify-between gap-2 z-10 py-2.5 px-1.5">
