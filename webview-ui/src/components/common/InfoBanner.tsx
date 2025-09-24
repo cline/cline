@@ -22,7 +22,7 @@ export const InfoBanner: React.FC = () => {
 			<p className="m-0">
 				<a
 					className="text-link cursor-pointer underline"
-					href="https://cline.bot/docs/features/opening-cline-in-the-sidebar"
+					href="https://docs.cline.bot/features/customization/opening-cline-in-sidebar"
 					rel="noopener noreferrer"
 					target="_blank">
 					See how →

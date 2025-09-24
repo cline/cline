@@ -237,7 +237,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const mcpMarketplaceCatalog =
 			context.globalState.get<GlobalStateAndSettings["mcpMarketplaceCatalog"]>("mcpMarketplaceCatalog")
 		const lastDismissedInfoBannerVersion =
-			context.globalState.get<GlobalState["lastDismissedInfoBannerVersion"]>("lastDismissedInfoBannerVersion")
+			context.globalState.get<GlobalStateAndSettings["lastDismissedInfoBannerVersion"]>("lastDismissedInfoBannerVersion")
 		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
 		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
 		const autoCondenseThreshold =
