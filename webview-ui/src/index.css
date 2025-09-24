@@ -7,9 +7,7 @@
 @config "../tailwind.config.mjs";
 
 /* Import Azeret Mono font from local package */
-@import "@fontsource/azeret-mono/300.css";
-@import "@fontsource/azeret-mono/400.css";
-@import "@fontsource/azeret-mono/700.css";
+@import url("../../node_modules/fontsource/azeret-mono");
 
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);
