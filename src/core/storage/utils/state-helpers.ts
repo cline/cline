@@ -403,7 +403,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			}
 		}
 
-		const taskHistory = await readTaskHistoryFromState(context)
+		const taskHistory = await readTaskHistoryFromState()
 
 		// Multi-root workspace support
 		const workspaceRoots = context.globalState.get<GlobalStateAndSettings["workspaceRoots"]>("workspaceRoots")
