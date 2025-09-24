@@ -20,7 +20,7 @@ const DeleteTaskButton: React.FC<{
 			}}
 			radius="sm"
 			size="sm">
-			<TrashIcon size="14" />
+			<TrashIcon size="13" />
 		</Button>
 	</HeroTooltip>
 )

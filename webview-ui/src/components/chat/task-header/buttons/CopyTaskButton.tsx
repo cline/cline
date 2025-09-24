@@ -30,7 +30,7 @@ const CopyTaskButton: React.FC<{
 				onPress={() => handleCopy()}
 				radius="sm"
 				size="sm">
-				{copied ? <CheckIcon size="14" /> : <CopyIcon size="14" />}
+				{copied ? <CheckIcon size="13" /> : <CopyIcon size="13" />}
 			</Button>
 		</HeroTooltip>
 	)
