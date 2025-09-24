@@ -38,7 +38,7 @@ const ToDoListHeader = memo<{
 	const displayText = isCompleted ? COMPLETED_MESSAGE : currentTodo?.text || TODO_LIST_LABEL
 
 	return (
-		<div className="flex items-center justify-between gap-2 z-10 py-2.5 px-1.5 relative">
+		<div className="flex items-center justify-between gap-2 z-10 py-2 px-1.5 relative">
 			<div className="flex items-center gap-1.5 flex-1 min-w-0">
 				<span
 					className={cn(
