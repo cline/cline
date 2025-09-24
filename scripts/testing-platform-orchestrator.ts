@@ -194,7 +194,11 @@ async function runAll(inputPath: string, count: number) {
 	}
 
 	console.log(`✅ Passed: ${success}`)
-	if (failure > 0) console.log(`❌ Failed: ${failure}`)
+	if (failure > 0) {
+		console.log(
+			`❌ Test Failed: ${failure}. Please review the integration tests in the /tests/specs directory and try rerunning them with the --fix flag.`,
+		)
+	}
 	console.log(`📋 Total specs: ${specFiles.length} Total runs: ${specFiles.length * count}`)
 	console.log(`🏁 All runs completed in ${((Date.now() - totalStart) / 1000).toFixed(2)}s`)
 }

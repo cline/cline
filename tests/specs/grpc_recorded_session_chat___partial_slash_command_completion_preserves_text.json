@@ -56,7 +56,10 @@
       },
       "status": "completed",
       "meta": {
-        "synthetic": true
+        "synthetic": true,
+        "expected": {
+          "stateJson": {}
+        }
       },
       "response": {
         "message": {
