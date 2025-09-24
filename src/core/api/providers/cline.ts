@@ -48,7 +48,6 @@ export class ClineHandler implements ApiHandler {
 		if (!this.client) {
 			try {
 				const ideId = await getIdeId()
-				console.log("[TEMP] X-IDE-ID header will be set to:", ideId)
 				this.client = new OpenAI({
 					baseURL: `${this._baseUrl}/api/v1`,
 					apiKey: clineAccountAuthToken,

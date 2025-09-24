@@ -6,6 +6,7 @@ import * as os from "os"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Setting } from "@/shared/proto/index.host"
 import { Mode } from "@/shared/storage/types"
+import { getIdeId } from "@/utils/ide"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
@@ -50,6 +51,8 @@ export type TelemetryMetadata = {
 	extension_version: string
 	/** The name of the host IDE or environment e.g. VSCode */
 	platform: string
+	/** Normalized IDE identifier string */
+	ide_id: string
 	/** The version of the host environment */
 	platform_version: string
 	/** The operating system type, e.g. darwin, win32. This is the value returned by os.platform() */
@@ -206,9 +209,11 @@ export class TelemetryService {
 			type: "posthog",
 		})
 		const hostVersion = await HostProvider.env.getHostVersion({})
+		const ideId = await getIdeId()
 		const metadata: TelemetryMetadata = {
 			extension_version: extensionVersion,
 			platform: hostVersion.platform || "unknown",
+			ide_id: ideId,
 			platform_version: hostVersion.version || "unknown",
 			os_type: os.platform(),
 			os_version: os.version(),
