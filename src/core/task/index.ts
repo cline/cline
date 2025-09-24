@@ -56,7 +56,7 @@ import { convertClineMessageToProto } from "@shared/proto-conversions/cline-mess
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { getGitRemoteUrls, getLatestGitCommitHash } from "@utils/git"
-import { isNextGenModelFamily } from "@utils/model-utils"
+import { isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
@@ -1861,14 +1861,11 @@ export class Task {
 					"Issue with processing the /newrule command. Double check that, if '.clinerules' already exists, it's a directory and not a file. Otherwise there was an issue referencing this file/directory.",
 				)
 			}
-			// Compact prompt is tailored for models with small context window where environment details would often
-			// overflow the context window
-			const useCompactPrompt = customPrompt === "compact"
 
 			userContent = parsedUserContent
 			// add environment details as its own text block, separate from tool results
 			// do not add environment details to the message which we are compacting the context window
-			if (!shouldCompact && !useCompactPrompt) {
+			if (!shouldCompact) {
 				userContent.push({ type: "text", text: environmentDetails })
 			}
 
@@ -1879,10 +1876,11 @@ export class Task {
 				})
 			}
 		} else {
+			const useCompactPrompt = customPrompt === "compact" && isLocalModel(this.getCurrentProviderInfo())
 			const [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
 				userContent,
 				includeFileDetails,
-				customPrompt === "compact",
+				useCompactPrompt,
 			)
 
 			if (clinerulesError === true) {
