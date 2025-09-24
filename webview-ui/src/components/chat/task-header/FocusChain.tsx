@@ -64,7 +64,7 @@ const ToDoListHeader = memo<{
 						)}>
 						{currentIndex}/{totalCount}
 					</span>
-					<span className="header-text text-xs font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap max-w-[calc(100%-60px)]">
+					<span className="header-text text-xs font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap">
 						{displayText}
 					</span>
 				</div>
