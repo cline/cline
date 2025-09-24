@@ -79,7 +79,7 @@ export const Navbar = () => {
 						onClick={() => tab.navigate()}
 						style={{ padding: "0px", height: "20px" }}>
 						<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-							<tab.icon className="text-[var(--vscode-foreground)]" size={18} strokeWidth={1} />
+							<tab.icon className="text-(--vscode-foreground)" size={18} strokeWidth={1} />
 						</div>
 					</VSCodeButton>
 				</HeroTooltip>

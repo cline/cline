@@ -106,7 +106,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 				<VSCodeButton
 					appearance="icon"
 					aria-label="Scroll to bottom"
-					className="text-lg text-[var(--vscode-primaryButton-foreground)] bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_55%,transparent)] rounded-[3px] overflow-hidden cursor-pointer flex justify-center items-center flex-1 h-[25px] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_90%,transparent)] active:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_70%,transparent)] border-0"
+					className="text-lg text-(--vscode-primaryButton-foreground) bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_55%,transparent)] rounded-[3px] overflow-hidden cursor-pointer flex justify-center items-center flex-1 h-[25px] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_90%,transparent)] active:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_70%,transparent)] border-0"
 					onClick={handleScrollToBottom}
 					onKeyDown={(e) => {
 						if (e.key === "Enter" || e.key === " ") {
@@ -136,7 +136,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			{primaryText && primaryAction && (
 				<VSCodeButton
 					appearance="primary"
-					className={secondaryText ? "flex-1 mr-[6px]" : "flex-[2]"}
+					className={secondaryText ? "flex-1 mr-[6px]" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(primaryAction, inputValue, selectedImages, selectedFiles)}>
 					{primaryText}
@@ -145,7 +145,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			{secondaryText && secondaryAction && (
 				<VSCodeButton
 					appearance="secondary"
-					className={primaryText ? "flex-1 mr-[6px]" : "flex-[2]"}
+					className={primaryText ? "flex-1 mr-[6px]" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(secondaryAction, inputValue, selectedImages, selectedFiles)}>
 					{secondaryText}

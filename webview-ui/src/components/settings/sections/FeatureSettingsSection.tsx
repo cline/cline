@@ -45,7 +45,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							}}>
 							Enable Checkpoints
 						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+						<p className="text-xs text-(--vscode-descriptionForeground)">
 							Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which
 							may not work well with large workspaces.
 						</p>
@@ -59,13 +59,13 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							}}>
 							Enable MCP Marketplace
 						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+						<p className="text-xs text-(--vscode-descriptionForeground)">
 							Enables the MCP Marketplace tab for discovering and installing MCP servers.
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
 						<label
-							className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1"
+							className="block text-sm font-medium text-(--vscode-foreground) mb-1"
 							htmlFor="mcp-display-mode-dropdown">
 							MCP Display Mode
 						</label>
@@ -75,7 +75,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							onChange={(newMode: McpDisplayMode) => updateSetting("mcpDisplayMode", newMode)}
 							value={mcpDisplayMode}
 						/>
-						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+						<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
 							Controls how MCP responses are displayed: plain text, rich formatting with links/images, or markdown
 							rendering.
 						</p>
@@ -89,13 +89,13 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							}}>
 							Collapse MCP Responses
 						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+						<p className="text-xs text-(--vscode-descriptionForeground)">
 							Sets the default display mode for MCP response panels
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
 						<label
-							className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1"
+							className="block text-sm font-medium text-(--vscode-foreground) mb-1"
 							htmlFor="openai-reasoning-effort-dropdown">
 							OpenAI Reasoning Effort
 						</label>
@@ -112,7 +112,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							<VSCodeOption value="medium">Medium</VSCodeOption>
 							<VSCodeOption value="high">High</VSCodeOption>
 						</VSCodeDropdown>
-						<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+						<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
 							Reasoning effort for the OpenAI family of models(applies to all OpenAI model providers)
 						</p>
 					</div>
@@ -125,7 +125,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							}}>
 							Enable strict plan mode
 						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+						<p className="text-xs text-(--vscode-descriptionForeground)">
 							Enforces strict tool use while in plan mode, preventing file edits.
 						</p>
 					</div>
@@ -139,7 +139,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								}}>
 								Enable Focus Chain
 							</VSCodeCheckbox>
-							<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+							<p className="text-xs text-(--vscode-descriptionForeground)">
 								Enables enhanced task progress tracking and automatic focus chain list management throughout
 								tasks.
 							</p>
@@ -148,7 +148,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 					{focusChainSettings?.enabled && (
 						<div style={{ marginTop: 10, marginLeft: 20 }}>
 							<label
-								className="block text-sm font-medium text-[var(--vscode-foreground)] mb-1"
+								className="block text-sm font-medium text-(--vscode-foreground) mb-1"
 								htmlFor="focus-chain-remind-interval">
 								Focus Chain Reminder Interval
 							</label>
@@ -166,7 +166,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								}}
 								value={String(focusChainSettings?.remindClineInterval || 6)}
 							/>
-							<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+							<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
 								Interval (in messages) to remind Cline about its focus chain checklist (1-100). Lower values
 								provide more frequent reminders.
 							</p>
@@ -237,10 +237,10 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							}}>
 							Enable Auto Compact
 						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+						<p className="text-xs text-(--vscode-descriptionForeground)">
 							Enables advanced context management system which uses LLM based condensing for next-gen models.{" "}
 							<a
-								className="text-[var(--vscode-textLink-foreground)] hover:text-[var(--vscode-textLink-activeForeground)]"
+								className="text-(--vscode-textLink-foreground) hover:text-(--vscode-textLink-activeForeground)"
 								href="https://docs.cline.bot/features/auto-compact"
 								rel="noopener noreferrer"
 								target="_blank">
@@ -257,7 +257,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							}}>
 							Enable Yolo Mode
 						</VSCodeCheckbox>
-						<p className="text-xs text-[var(--vscode-errorForeground)]">
+						<p className="text-xs text-(--vscode-errorForeground)">
 							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
 							automatically approve all actions without asking. Use with extreme caution.
 						</p>

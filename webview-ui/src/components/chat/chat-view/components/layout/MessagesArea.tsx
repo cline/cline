@@ -62,7 +62,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 
 	return (
 		<div className="overflow-hidden flex flex-col h-full">
-			<div className="flex-grow flex" ref={scrollContainerRef}>
+			<div className="grow flex" ref={scrollContainerRef}>
 				<Virtuoso
 					atBottomStateChange={(isAtBottom) => {
 						setIsAtBottom(isAtBottom)

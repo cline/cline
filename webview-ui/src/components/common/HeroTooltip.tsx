@@ -20,7 +20,7 @@ const HeroTooltip: React.FC<HeroTooltipProps> = ({
 	content,
 	children,
 	className,
-	showArrow = false,
+	showArrow = true,
 	delay = 0,
 	closeDelay = 500,
 	placement = "top",
@@ -31,9 +31,9 @@ const HeroTooltip: React.FC<HeroTooltipProps> = ({
 		return typeof content === "string" ? (
 			<div
 				className={cn(
-					"bg-code-background text-code-foreground border border-code-foreground/20 rounded shadow-md max-w-[250px] text-sm",
+					"bg-code-background text-code-foreground/80 border border-code-foreground/20 rounded shadow-md max-w-[250px] text-sm",
 					className,
-					"p-2",
+					"px-2 py-1 bg-menu text-xs m-0",
 				)}>
 				<span className="whitespace-pre-wrap break-words overflow-y-auto">{content}</span>
 			</div>
@@ -47,15 +47,15 @@ const HeroTooltip: React.FC<HeroTooltipProps> = ({
 		<Tooltip
 			classNames={{
 				content: "hero-tooltip-content pointer-events-none", // Prevent hovering over tooltip
+				base: "p-0 m-0",
 			}}
 			closeDelay={closeDelay}
 			content={formattedContent} // Immediate close when cursor moves away
 			delay={delay}
-			disableAnimation={true}
 			isDisabled={disabled}
 			placement={placement} // Disable animation for immediate appearance/disappearance
 			showArrow={showArrow}>
-			{children}
+			<div className="m-0">{children}</div>
 		</Tooltip>
 	)
 }

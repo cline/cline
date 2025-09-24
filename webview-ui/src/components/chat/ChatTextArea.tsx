@@ -49,6 +49,7 @@ import {
 } from "@/utils/slash-commands"
 import { validateApiConfiguration, validateModelId } from "@/utils/validate"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
+import HeroTooltip from "../common/HeroTooltip"
 import ServersToggleModal from "./ServersToggleModal"
 import VoiceRecorder from "./VoiceRecorder"
 
@@ -1605,7 +1606,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						value={inputValue}
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
-						<div className="text-[10px] absolute bottom-5 left-5 right-16 text-[var(--vscode-input-placeholderForeground)]/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
+						<div className="text-[10px] absolute bottom-5 left-5 right-16 text-(--vscode-input-placeholderForeground)/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
 							Type @ for context, / for slash commands & workflows, hold shift to drag in files/images
 						</div>
 					)}
@@ -1691,7 +1692,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<div className="relative flex-1 min-w-0 h-7">
 						{/* ButtonGroup - always in DOM but visibility controlled */}
 						<ButtonGroup className="absolute top-0 left-0 right-0 transition-opacity duration-300 ease-in-out w-full h-5 z-10 flex items-center">
-							<Tooltip style={{ left: 0 }} tipText="Add Context">
+							<HeroTooltip className="left-0" content="Add Context">
 								<VSCodeButton
 									appearance="icon"
 									aria-label="Add Context"
@@ -1702,9 +1703,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										<AtSignIcon size={12} />
 									</ButtonContainer>
 								</VSCodeButton>
-							</Tooltip>
+							</HeroTooltip>
 
-							<Tooltip tipText="Add Files & Images">
+							<HeroTooltip className="left-0" content="Add Files & Images">
 								<VSCodeButton
 									appearance="icon"
 									aria-label="Add Files & Images"
@@ -1720,7 +1721,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										<PlusIcon size={13} />
 									</ButtonContainer>
 								</VSCodeButton>
-							</Tooltip>
+							</HeroTooltip>
 							<ServersToggleModal />
 							<ClineRulesToggleModal />
 							<ModelContainer ref={modelSelectorRef}>

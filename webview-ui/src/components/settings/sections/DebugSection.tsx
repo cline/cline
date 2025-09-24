@@ -23,7 +23,7 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 					style={{ backgroundColor: "var(--vscode-errorForeground)", color: "black" }}>
 					Reset Global State
 				</VSCodeButton>
-				<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+				<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
 					This will reset all global state and secret storage in the extension.
 				</p>
 			</Section>
