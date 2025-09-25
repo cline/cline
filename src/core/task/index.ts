@@ -80,7 +80,7 @@ import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
-import { updateApiReqMsg } from "./utils"
+import { updateApiReqMsg, detectAvailableCliTools } from "./utils"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -2528,6 +2528,12 @@ export class Task {
 			const latestGitHash = await getLatestGitCommitHash(this.cwd)
 			if (latestGitHash) {
 				details += `\n\n# Latest Git Commit Hash\n${latestGitHash}`
+			}
+      
+			// Add detected CLI tools
+			const availableCliTools = await detectAvailableCliTools()
+			if (availableCliTools.length > 0) {
+				details += `\n\n# Detected CLI Tools\nThese are some of the tools on the user's machine, and may be useful if needed to accomplish the task: ${availableCliTools.join(", ")}. This list is not exhaustive, and other tools may be available.`
 			}
 		}
 
