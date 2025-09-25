@@ -21,7 +21,7 @@ export const ClineAccountInfoCard = () => {
 	}
 
 	return (
-		<div className="max-w-[600px]">
+		<div className="max-w-[600px] justify-start">
 			{user ? (
 				<VSCodeButton appearance="secondary" onClick={handleShowAccount}>
 					View Billing & Usage

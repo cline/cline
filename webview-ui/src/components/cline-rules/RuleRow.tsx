@@ -1,6 +1,7 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { RuleFileRequest } from "@shared/proto/index.cline"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { Switch } from "@/components/ui/switch"
 import { FileServiceClient } from "@/services/grpc-client"
 
 const RuleRow: React.FC<{
@@ -75,7 +76,7 @@ const RuleRow: React.FC<{
 	return (
 		<div className="mb-2.5">
 			<div
-				className={`flex items-center p-2 rounded bg-(--vscode-textCodeBlock-background) h-[18px] ${
+				className={`flex items-center px-2 py-3 rounded-xs bg-(--vscode-textCodeBlock-background) h-4 ${
 					enabled ? "opacity-100" : "opacity-60"
 				}`}>
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1" title={rulePath}>
@@ -85,28 +86,7 @@ const RuleRow: React.FC<{
 
 				{/* Toggle Switch */}
 				<div className="flex items-center ml-2 space-x-2">
-					<div
-						aria-checked={enabled}
-						className={`w-[20px] h-[10px] rounded-[5px] relative cursor-pointer transition-colors duration-200 ${
-							enabled
-								? "bg-(--vscode-testing-iconPassed) opacity-90"
-								: "bg-(--vscode-titleBar-inactiveForeground) opacity-50"
-						}`}
-						onClick={() => toggleRule(rulePath, !enabled)}
-						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
-								e.preventDefault()
-								toggleRule(rulePath, !enabled)
-							}
-						}}
-						role="switch"
-						tabIndex={0}>
-						<div
-							className={`w-[6px] h-[6px] bg-white border border-[#66666699] rounded-full absolute top-px transition-all duration-200 ${
-								enabled ? "left-[12px]" : "left-[2px]"
-							}`}
-						/>
-					</div>
+					<Switch aria-readonly checked={enabled} onCheckedChange={() => toggleRule(rulePath, !enabled)} />
 					<VSCodeButton
 						appearance="icon"
 						aria-label="Edit rule file"

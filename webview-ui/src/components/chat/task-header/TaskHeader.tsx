@@ -96,7 +96,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			{/* Task Header */}
 			<div
 				className={cn(
-					"relative overflow-hidden cursor-pointer text-badge-foreground rounded-sm flex flex-col gap-1.5 z-10 pt-2 pb-2 px-2 hover:opacity-100 bg-(--vscode-toolbar-hoverBackground)/65",
+					"relative overflow-hidden cursor-pointer text-badge-foreground rounded-sm flex flex-col gap-1 z-10 pt-2 pb-2 px-2 hover:opacity-100 bg-(--vscode-toolbar-hoverBackground)/65",
 					{
 						"opacity-100 border border-muted-foreground": isTaskExpanded, // No hover effects when expanded, add border
 						"opacity-80 transition-opacity duration-200 hover:bg-(--vscode-toolbar-hoverBackground)": !isTaskExpanded, // Hover effects only when collapsed
@@ -104,10 +104,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				)}>
 				{/* Task Title */}
 				<div className="flex justify-between items-center cursor-pointer" onClick={toggleTaskExpanded}>
-					<div className="flex justify-between items-center">
+					<div className="flex justify-between items-center gap-1">
 						{isTaskExpanded ? <ChevronDownIcon size="16" /> : <ChevronRightIcon size="16" />}
 						{isTaskExpanded && (
-							<div className="mt-1 max-h-3 flex justify-end flex-wrap cursor-pointer opacity-80">
+							<div className="ml-1 mt-1 max-h-3 flex justify-end flex-wrap cursor-pointer opacity-80 gap-2">
 								<CopyTaskButton className={BUTTON_CLASS} taskText={task.text} />
 								<DeleteTaskButton
 									className={BUTTON_CLASS}
@@ -115,7 +115,11 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									taskSize={currentTaskItem?.size}
 								/>
 								{/* Only visible in development mode */}
-								{IS_DEV && <OpenDiskTaskHistoryButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />}
+								<OpenDiskTaskHistoryButton
+									className={BUTTON_CLASS}
+									taskId={currentTaskItem?.id}
+									visible={IS_DEV}
+								/>
 							</div>
 						)}
 					</div>

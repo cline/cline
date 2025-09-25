@@ -1,5 +1,4 @@
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
-import React, { memo, useCallback, useMemo, useState } from "react"
+import React, { memo, useMemo } from "react"
 import { formatLargeNumber as formatTokenNumber } from "@/utils/format"
 
 interface TokenUsageInfoProps {
@@ -28,31 +27,17 @@ interface TaskContextWindowButtonsProps extends TokenUsageInfoProps {
 const AccordionItem = memo<{
 	title: string
 	value: React.ReactNode
-	isExpanded: boolean
-	onToggle: (event?: React.MouseEvent) => void
 	children?: React.ReactNode
-}>(({ title, value, isExpanded, onToggle, children }) => {
-	const handleClick = useCallback(
-		(event: React.MouseEvent) => {
-			event.preventDefault()
-			event.stopPropagation()
-			onToggle(event)
-		},
-		[onToggle],
-	)
-
+}>(({ title, value, children }) => {
 	return (
-		<div className="flex flex-col">
-			<div
-				className="flex justify-between items-center gap-3 cursor-pointer hover:bg-foreground/5 rounded px-1 py-0.5 transition-colors"
-				onClick={handleClick}>
+		<div className="flex flex-col text-xs">
+			<div className="flex justify-between items-center gap-3 rounded px-1 transition-colors text-foreground">
 				<div className="flex items-center gap-1">
-					{isExpanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
-					<div className="font-semibold text-sm">{title}</div>
+					<div className="font-semibold text-xs">{title}</div>
 				</div>
-				<div className="text-muted-foreground text-sm">{value}</div>
+				<div className="text-muted-foreground text-xs">{value}</div>
 			</div>
-			{isExpanded && children && <div className="ml-4 mt-2 mb-1 text-xs text-muted-foreground">{children}</div>}
+			{children && <div className="mt-2 mb-1 text-xs text-muted-foreground px-1.5">{children}</div>}
 		</div>
 	)
 })
@@ -60,10 +45,10 @@ AccordionItem.displayName = "AccordionItem"
 
 // Constants
 const TOKEN_DETAILS_CONFIG: Omit<TokenDetail, "value">[] = [
-	{ title: "Prompt Tokens", icon: "codicon-arrow-up" },
-	{ title: "Completion Tokens", icon: "codicon-arrow-down" },
-	{ title: "Cache Writes", icon: "codicon-arrow-left" },
-	{ title: "Cache Reads", icon: "codicon-arrow-right" },
+	{ title: "Prompt:", icon: "codicon-arrow-up" },
+	{ title: "Completion:", icon: "codicon-arrow-down" },
+	{ title: "Cache Writes:", icon: "codicon-arrow-left" },
+	{ title: "Cache Reads:", icon: "codicon-arrow-right" },
 ]
 
 const TokenUsageDetails = memo<TokenUsageInfoProps>(({ tokensIn, tokensOut, cacheWrites, cacheReads }) => {
@@ -77,13 +62,10 @@ const TokenUsageDetails = memo<TokenUsageInfoProps>(({ tokensIn, tokensOut, cach
 	}
 
 	return (
-		<div className="space-y-2">
+		<div className="space-y-1">
 			{contextTokenDetails.map((item) => (
-				<div className="flex items-center justify-between" key={item.icon}>
-					<div className="flex items-center gap-1">
-						<i className={`codicon ${item.icon} text-xs`} />
-						<span>{item.title}</span>
-					</div>
+				<div className="flex justify-between">
+					<span>{item.title}</span>
 					<span className="font-mono">{formatTokenNumber(item.value || 0)}</span>
 				</div>
 			))}
@@ -102,33 +84,12 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 	percentage,
 	autoCompactThreshold = 0,
 }) => {
-	// Accordion state
-	const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
-
-	const toggleSection = useCallback((section: string, event?: React.MouseEvent) => {
-		if (event) {
-			event.preventDefault()
-			event.stopPropagation()
-		}
-		setExpandedSections((prev) => {
-			const newSet = new Set(prev)
-			if (newSet.has(section)) {
-				newSet.delete(section)
-			} else {
-				newSet.add(section)
-			}
-			return newSet
-		})
-	}, [])
-
 	const totalTokens = (tokensIn || 0) + (tokensOut || 0)
 
 	return (
-		<div className="context-window-tooltip-content flex flex-col gap-2 bg-menu rounded shadow-sm border border-menu-border z-100 w-60 p-4">
+		<div className="context-window-tooltip-content flex flex-col gap-2 p-1">
 			{autoCompactThreshold > 0 && (
 				<AccordionItem
-					isExpanded={expandedSections.has("threshold")}
-					onToggle={(event) => toggleSection("threshold", event)}
 					title="Auto Condense Threshold"
 					value={<span className="text-muted-foreground">{`${(autoCompactThreshold * 100).toFixed(0)}%`}</span>}>
 					<div className="space-y-1">
@@ -142,11 +103,7 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 				</AccordionItem>
 			)}
 
-			<AccordionItem
-				isExpanded={expandedSections.has("context")}
-				onToggle={(event) => toggleSection("context", event)}
-				title="Context Window"
-				value={percentage ? `${percentage.toFixed(1)}% used` : contextWindow}>
+			<AccordionItem title="Context Window" value={percentage ? `${percentage.toFixed(1)}% used` : contextWindow}>
 				<div className="space-y-1">
 					<div className="flex justify-between">
 						<span>Used:</span>
@@ -166,11 +123,7 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 			</AccordionItem>
 
 			{totalTokens > 0 && (
-				<AccordionItem
-					isExpanded={expandedSections.has("tokens")}
-					onToggle={(event) => toggleSection("tokens", event)}
-					title="Token Usage"
-					value={`${formatTokenNumber(totalTokens)} total`}>
+				<AccordionItem title="Token Usage" value={`${formatTokenNumber(totalTokens)} total`}>
 					<TokenUsageDetails
 						cacheReads={cacheReads}
 						cacheWrites={cacheWrites}

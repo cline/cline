@@ -118,6 +118,7 @@ https://github.com/microsoft/vscode-webview-ui-toolkit/tree/main/src/dropdown#wi
 	align-items: flex-start;
 	justify-content: flex-start;
 }
+
 .dropdown-container label {
 	display: block;
 	color: var(--vscode-foreground);

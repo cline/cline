@@ -18,6 +18,7 @@ import {
 } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useState } from "react"
 import DangerButton from "@/components/common/DangerButton"
+import { Switch } from "@/components/ui/switch"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
 import { getMcpServerDisplayName } from "@/utils/mcp"
@@ -203,7 +204,7 @@ const ServerRow = ({
 				</span>
 				{/* Collapsed view controls */}
 				{!server.error && (
-					<div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "8px" }}>
+					<div style={{ display: "flex", alignItems: "center", gap: "4px", marginLeft: "8px", marginRight: "4px" }}>
 						<VSCodeButton
 							appearance="icon"
 							disabled={server.status === "connecting" || isRestarting}
@@ -229,47 +230,7 @@ const ServerRow = ({
 					</div>
 				)}
 				{/* Toggle Switch */}
-				<div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", marginLeft: "8px" }}>
-					<div
-						aria-checked={!server.disabled}
-						onClick={() => {
-							handleToggleMcpServer()
-						}}
-						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
-								e.preventDefault()
-								handleToggleMcpServer()
-							}
-						}}
-						role="switch"
-						style={{
-							width: "20px",
-							height: "10px",
-							backgroundColor: server.disabled
-								? "var(--vscode-titleBar-inactiveForeground)"
-								: "var(--vscode-testing-iconPassed)",
-							borderRadius: "5px",
-							position: "relative",
-							cursor: "pointer",
-							transition: "background-color 0.2s",
-							opacity: server.disabled ? 0.5 : 0.9,
-						}}
-						tabIndex={0}>
-						<div
-							style={{
-								width: "6px",
-								height: "6px",
-								backgroundColor: "white",
-								border: "1px solid color-mix(in srgb, #666666 65%, transparent)",
-								borderRadius: "50%",
-								position: "absolute",
-								top: "1px",
-								left: server.disabled ? "2px" : "12px",
-								transition: "left 0.2s",
-							}}
-						/>
-					</div>
-				</div>
+				<Switch aria-readonly checked={!server.disabled} onCheckedChange={() => handleToggleMcpServer()} />
 				<div
 					style={{
 						width: "8px",

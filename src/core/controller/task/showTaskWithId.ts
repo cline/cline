@@ -1,7 +1,7 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { TaskResponse } from "@shared/proto/cline/task"
+import { sendChatButtonClickedEvent } from "@/components/ui/subscribeToChatButtonClicked"
 import { Controller } from ".."
-import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
 /**
  * Shows a task with the specified ID

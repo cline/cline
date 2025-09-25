@@ -1,3 +1,4 @@
+import { TooltipTrigger } from "@radix-ui/react-tooltip"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
@@ -5,7 +6,7 @@ import debounce from "debounce"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import HeroTooltip from "@/components/common/HeroTooltip"
+import { Tooltip, TooltipContent } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
@@ -244,16 +245,19 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 			if (isCompactMode) {
 				return (
-					<HeroTooltip content={tab.tooltipText} key={tab.id} placement="right">
-						<div
-							className={tabClassName}
-							data-compact={isCompactMode}
-							data-testid={`tab-${tab.id}`}
-							data-value={tab.id}
-							onClick={() => handleTabChange(tab.id)}>
-							{tabContent}
-						</div>
-					</HeroTooltip>
+					<Tooltip key={tab.id}>
+						<TooltipTrigger>
+							<div
+								className={tabClassName}
+								data-compact={isCompactMode}
+								data-testid={`tab-${tab.id}`}
+								data-value={tab.id}
+								onClick={() => handleTabChange(tab.id)}>
+								{tabContent}
+							</div>
+						</TooltipTrigger>
+						<TooltipContent side="right">{tab.tooltipText}</TooltipContent>
+					</Tooltip>
 				)
 			}
 

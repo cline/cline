@@ -19,9 +19,9 @@ import { CHAT_CONSTANTS } from "@/components/chat/chat-view/constants"
 import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
-import Tooltip from "@/components/common/Tooltip"
 import ApiOptions from "@/components/settings/ApiOptions"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { usePlatform } from "@/context/PlatformContext"
@@ -319,7 +319,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [menuPosition, setMenuPosition] = useState(0)
 		const [shownTooltipMode, setShownTooltipMode] = useState<Mode | null>(null)
 		const [pendingInsertions, setPendingInsertions] = useState<string[]>([])
-		const _shiftHoldTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showUnsupportedFileError, setShowUnsupportedFileError] = useState(false)
 		const unsupportedFileTimerRef = useRef<NodeJS.Timeout | null>(null)
 		const [showDimensionError, setShowDimensionError] = useState(false)
@@ -1691,35 +1690,41 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<div className="relative flex-1 min-w-0 h-7">
 						{/* ButtonGroup - always in DOM but visibility controlled */}
 						<ButtonGroup className="absolute top-0 left-0 right-0 transition-opacity duration-300 ease-in-out w-full h-5 z-10 flex items-center">
-							<Tooltip style={{ left: 0 }} tipText="Add Context">
-								<VSCodeButton
-									appearance="icon"
-									aria-label="Add Context"
-									className="p-0 m-0 flex items-center mt-0.5"
-									data-testid="context-button"
-									onClick={handleContextButtonClick}>
-									<ButtonContainer>
-										<AtSignIcon size={12} />
-									</ButtonContainer>
-								</VSCodeButton>
+							<Tooltip>
+								<TooltipContent>Add Context</TooltipContent>
+								<TooltipTrigger>
+									<VSCodeButton
+										appearance="icon"
+										aria-label="Add Context"
+										className="p-0 m-0 flex items-center mt-0.5"
+										data-testid="context-button"
+										onClick={handleContextButtonClick}>
+										<ButtonContainer>
+											<AtSignIcon size={12} />
+										</ButtonContainer>
+									</VSCodeButton>
+								</TooltipTrigger>
 							</Tooltip>
 
-							<Tooltip tipText="Add Files & Images">
-								<VSCodeButton
-									appearance="icon"
-									aria-label="Add Files & Images"
-									className="p-0 m-0 flex items-center mt-0.5"
-									data-testid="files-button"
-									disabled={shouldDisableFilesAndImages}
-									onClick={() => {
-										if (!shouldDisableFilesAndImages) {
-											onSelectFilesAndImages()
-										}
-									}}>
-									<ButtonContainer>
-										<PlusIcon size={13} />
-									</ButtonContainer>
-								</VSCodeButton>
+							<Tooltip>
+								<TooltipContent>Add Files & Images</TooltipContent>
+								<TooltipTrigger>
+									<VSCodeButton
+										appearance="icon"
+										aria-label="Add Files & Images"
+										className="p-0 m-0 flex items-center mt-0.5"
+										data-testid="files-button"
+										disabled={shouldDisableFilesAndImages}
+										onClick={() => {
+											if (!shouldDisableFilesAndImages) {
+												onSelectFilesAndImages()
+											}
+										}}>
+										<ButtonContainer>
+											<PlusIcon size={13} />
+										</ButtonContainer>
+									</VSCodeButton>
+								</TooltipTrigger>
 							</Tooltip>
 							<ServersToggleModal />
 							<ClineRulesToggleModal />
@@ -1755,30 +1760,36 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</ButtonGroup>
 					</div>
 					{/* Tooltip for Plan/Act toggle remains outside the conditional rendering */}
-					<Tooltip
-						hintText={`Toggle w/ ${togglePlanActKeys}`}
-						style={{ zIndex: 1000 }}
-						tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
-						visible={shownTooltipMode !== null}>
-						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
-							<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
-							<SwitchOption
-								aria-checked={mode === "plan"}
-								isActive={mode === "plan"}
-								onMouseLeave={() => setShownTooltipMode(null)}
-								onMouseOver={() => setShownTooltipMode("plan")}
-								role="switch">
-								Plan
-							</SwitchOption>
-							<SwitchOption
-								aria-checked={mode === "act"}
-								isActive={mode === "act"}
-								onMouseLeave={() => setShownTooltipMode(null)}
-								onMouseOver={() => setShownTooltipMode("act")}
-								role="switch">
-								Act
-							</SwitchOption>
-						</SwitchContainer>
+					<Tooltip>
+						{shownTooltipMode !== null && (
+							<TooltipContent className="text-xs text-description p-2 flex flex-col gap-1" side="top">
+								<div>{`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}</div>
+								<div className="text-description/80">
+									Toggle w/ <kbd className="text-xs text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
+								</div>
+							</TooltipContent>
+						)}
+						<TooltipTrigger>
+							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
+								<SwitchOption
+									aria-checked={mode === "plan"}
+									isActive={mode === "plan"}
+									onMouseLeave={() => setShownTooltipMode(null)}
+									onMouseOver={() => setShownTooltipMode("plan")}
+									role="switch">
+									Plan
+								</SwitchOption>
+								<SwitchOption
+									aria-checked={mode === "act"}
+									isActive={mode === "act"}
+									onMouseLeave={() => setShownTooltipMode(null)}
+									onMouseOver={() => setShownTooltipMode("act")}
+									role="switch">
+									Act
+								</SwitchOption>
+							</SwitchContainer>
+						</TooltipTrigger>
 					</Tooltip>
 				</div>
 			</div>

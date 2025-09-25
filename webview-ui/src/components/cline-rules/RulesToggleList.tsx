@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils"
 import NewRuleRow from "./NewRuleRow"
 import RuleRow from "./RuleRow"
 
@@ -27,9 +28,12 @@ const RulesToggleList = ({
 	const gapClass = gapClasses[listGap]
 
 	return (
-		<div className={`flex flex-col ${gapClass}`}>
+		<div
+			className={cn("flex flex-col", {
+				[gapClass]: gapClass,
+			})}>
 			{rules.length > 0 ? (
-				<>
+				<div>
 					{rules.map(([rulePath, enabled]) => (
 						<RuleRow
 							enabled={enabled}
@@ -41,16 +45,16 @@ const RulesToggleList = ({
 						/>
 					))}
 					{showNewRule && <NewRuleRow isGlobal={isGlobal} ruleType={ruleType} />}
-				</>
+				</div>
 			) : (
-				<>
+				<div>
 					{showNoRules && (
 						<div className="flex flex-col items-center gap-3 my-3 text-(--vscode-descriptionForeground)">
 							{ruleType === "workflow" ? "No workflows found" : "No rules found"}
 						</div>
 					)}
 					{showNewRule && <NewRuleRow isGlobal={isGlobal} ruleType={ruleType} />}
-				</>
+				</div>
 			)}
 		</div>
 	)

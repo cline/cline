@@ -31,7 +31,7 @@ function TooltipContent({
 		<TooltipPrimitive.Portal>
 			<TooltipPrimitive.Content
 				className={cn(
-					"bg-background text-foreground animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 origin-(--radix-tooltip-content-transform-origin) rounded-xs px-1 py-1.5 text-xs text-balance border border-muted-foreground/30 shadow-2xs mx-1",
+					"bg-background animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 origin-(--radix-tooltip-content-transform-origin) rounded-xs px-1 py-1.5 text-xs text-balance border border-muted-foreground/30 shadow-2xs mx-1",
 					className,
 				)}
 				data-slot="tooltip-content"

@@ -1,8 +1,9 @@
+import { TooltipContent, TooltipTrigger } from "@radix-ui/react-tooltip"
 import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
 import { useClickAway, useWindowSize } from "react-use"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import HeroTooltip from "@/components/common/HeroTooltip"
+import { Tooltip } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
@@ -138,11 +139,15 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 				{/* Scrollable content container */}
 				<div className="overflow-y-auto p-3 flex-1 min-h-0 overscroll-contain">
 					<div className="flex justify-between items-center mb-3">
-						<HeroTooltip
-							content="Auto-approve allows Cline to perform the following actions without asking for permission. Please use with caution and only enable if you understand the risks."
-							placement="top">
-							<div className="text-base font-semibold mb-1">Auto-approve Settings</div>
-						</HeroTooltip>
+						<Tooltip>
+							<TooltipContent side="top">
+								Auto-approve allows Cline to perform the following actions without asking for permission. Please
+								use with caution and only enable if you understand the risks.
+							</TooltipContent>
+							<TooltipTrigger>
+								<div className="text-base font-semibold mb-1">Auto-approve Settings</div>
+							</TooltipTrigger>
+						</Tooltip>
 						<VSCodeButton appearance="icon" onClick={() => setIsVisible(false)}>
 							<span className="codicon codicon-close text-[10px]"></span>
 						</VSCodeButton>
@@ -196,36 +201,40 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 						onToggleFavorite={toggleFavorite}
 					/>
 
-					<HeroTooltip
-						content="Cline will automatically make this many API requests before asking for approval to proceed with the task."
-						placement="top">
-						<div className="flex items-center pl-1.5 my-2">
-							<span className="codicon codicon-settings text-[#CCCCCC] text-[14px]" />
-							<span className="text-[#CCCCCC] text-xs font-medium ml-2">Max Requests:</span>
-							<VSCodeTextField
-								className="flex-1 w-full pr-[35px] ml-4"
-								onInput={async (e) => {
-									const input = e.target as HTMLInputElement
-									// Remove any non-numeric characters
-									input.value = input.value.replace(/[^0-9]/g, "")
-									const value = parseInt(input.value)
-									if (!Number.isNaN(value) && value > 0) {
-										await updateMaxRequests(value)
-									}
-								}}
-								onKeyDown={(e) => {
-									// Prevent non-numeric keys (except for backspace, delete, arrows)
-									if (
-										!/^\d$/.test(e.key) &&
-										!["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)
-									) {
-										e.preventDefault()
-									}
-								}}
-								value={autoApprovalSettings.maxRequests.toString()}
-							/>
-						</div>
-					</HeroTooltip>
+					<Tooltip>
+						<TooltipContent side="top">
+							Cline will automatically make this many API requests before asking for approval to proceed with the
+							task.
+						</TooltipContent>
+						<TooltipTrigger>
+							<div className="flex items-center pl-1.5 my-2">
+								<span className="codicon codicon-settings text-[#CCCCCC] text-[14px]" />
+								<span className="text-[#CCCCCC] text-xs font-medium ml-2">Max Requests:</span>
+								<VSCodeTextField
+									className="flex-1 w-full pr-[35px] ml-4"
+									onInput={async (e) => {
+										const input = e.target as HTMLInputElement
+										// Remove any non-numeric characters
+										input.value = input.value.replace(/[^0-9]/g, "")
+										const value = parseInt(input.value)
+										if (!Number.isNaN(value) && value > 0) {
+											await updateMaxRequests(value)
+										}
+									}}
+									onKeyDown={(e) => {
+										// Prevent non-numeric keys (except for backspace, delete, arrows)
+										if (
+											!/^\d$/.test(e.key) &&
+											!["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)
+										) {
+											e.preventDefault()
+										}
+									}}
+									value={autoApprovalSettings.maxRequests.toString()}
+								/>
+							</div>
+						</TooltipTrigger>
+					</Tooltip>
 				</div>
 			</div>
 		</div>

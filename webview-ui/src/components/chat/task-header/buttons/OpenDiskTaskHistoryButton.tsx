@@ -1,33 +1,38 @@
-import { Button, cn } from "@heroui/react"
 import { StringRequest } from "@shared/proto/cline/common"
 import { ArrowDownToLineIcon } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 
 const OpenDiskTaskHistoryButton: React.FC<{
 	taskId?: string
+	visible?: boolean
 	className?: string
-}> = ({ taskId, className }) => {
-	const handleOpenDiskTaskHistory = () => {
-		if (!taskId) {
-			return
-		}
-
-		FileServiceClient.openTaskHistory(StringRequest.create({ value: taskId })).catch((err) => {
-			console.error(err)
-		})
+}> = ({ taskId, className, visible }) => {
+	if (!visible) {
+		return null
 	}
 
 	return (
-		<Button
-			aria-label="Open Disk Task History"
-			className={cn("flex items-center border-0 text-sm font-bold bg-transparent hover:opacity-100", className)}
-			isIconOnly={true}
-			onPress={() => handleOpenDiskTaskHistory()}
-			radius="sm"
-			size="sm"
-			title="Export Task">
-			<ArrowDownToLineIcon size="14" />
-		</Button>
+		<Tooltip>
+			<TooltipContent>Export Task</TooltipContent>
+			<TooltipTrigger className={cn("flex items-center", className)}>
+				<Button
+					aria-label="Delete Task"
+					onClick={() =>
+						taskId &&
+						FileServiceClient.openTaskHistory(StringRequest.create({ value: taskId })).catch((err) => {
+							console.error(err)
+						})
+					}
+					size="icon"
+					title="Export Task"
+					variant="icon">
+					<ArrowDownToLineIcon strokeWidth={1.5} />
+				</Button>
+			</TooltipTrigger>
+		</Tooltip>
 	)
 }
 

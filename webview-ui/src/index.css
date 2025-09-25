@@ -9,7 +9,7 @@
 
 /* Editor theme mapping */
 @theme {
-	--color-background: var(--vscode-editor-background);
+	--color-background: var(--vscode-sideBar-background);
 	--color-border: var(--vscode-focusBorder);
 	--color-border-panel: var(--vscode-panel-border);
 	--color-foreground: var(--vscode-foreground);
@@ -57,6 +57,7 @@
 	--text-xl: calc(2 * var(--vscode-font-size));
 	--text-lg: calc(1.5 * var(--vscode-font-size));
 	--text-md: calc(1.25 * var(--vscode-font-size));
+	--text-base: var(--vscode-font-size);
 	--text-sm: var(--vscode-font-size);
 	--text-xs: calc(0.75 * var(--vscode-font-size));
 	--text-xxs: calc(0.5 * var(--vscode-font-size));

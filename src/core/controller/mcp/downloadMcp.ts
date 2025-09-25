@@ -2,9 +2,9 @@ import { McpServer } from "@shared/mcp"
 import { StringRequest } from "@shared/proto/cline/common"
 import { McpDownloadResponse } from "@shared/proto/cline/mcp"
 import axios from "axios"
+import { sendChatButtonClickedEvent } from "@/components/ui/subscribeToChatButtonClicked"
 import { clineEnvConfig } from "@/config"
 import { Controller } from ".."
-import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
 /**
  * Download an MCP server from the marketplace

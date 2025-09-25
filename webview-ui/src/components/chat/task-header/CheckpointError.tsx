@@ -1,7 +1,7 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { AlertCircleIcon, XIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 
 interface CheckpointErrorProps {
 	checkpointManagerErrorMessage?: string
@@ -20,33 +20,38 @@ export const CheckpointError: React.FC<CheckpointErrorProps> = ({
 		return { message, showDisableButton, showGitInstructions }
 	}, [checkpointManagerErrorMessage])
 
-	if (dismissed) {
+	if (dismissed || !messages?.message) {
 		return null
 	}
 	return (
-		<div className="flex items-center justify-center w-full opacity-80 hover:opacity-100 transition-opacity duration-200">
-			<Alert className="relative w-full" variant="destructive">
-				<AlertCircleIcon />
-				<AlertTitle className="text-sm">{messages.message}Omg omg </AlertTitle>
+		<Alert
+			className="relative w-full h-fit flex items-center opacity-80 hover:opacity-100 transition-opacity duration-200 justify-between"
+			variant="error">
+			<div className="flex items-center">
+				<AlertCircleIcon size={12} />
+				<AlertTitle className="flex text-xs items-end">{messages.message}</AlertTitle>
 				<AlertDescription className="text-xs">
-					my name is
-					{messages.showDisableButton && (
-						<button
-							className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit"
-							onClick={handleCheckpointSettingsClick}>
-							Disable Checkpoints
-						</button>
-					)}
+					<div className="flex gap-2">
+						{messages.showDisableButton && (
+							<button
+								className="underline cursor-pointer bg-transparent border-0 p-0 text-inherit"
+								onClick={handleCheckpointSettingsClick}>
+								Disable Checkpoints
+							</button>
+						)}
+						{messages.showGitInstructions && (
+							<a
+								className="text-link underline"
+								href="https://github.com/cline/cline/wiki/Installing-Git-for-Checkpoints">
+								See instructions
+							</a>
+						)}
+					</div>
 				</AlertDescription>
-				<VSCodeButton
-					appearance="icon"
-					aria-label="Dismiss"
-					className="absolute right-2 top-2"
-					onClick={() => setDismissed(true)}
-					title="Dismiss Checkpoint Error">
-					<XIcon size={12} />
-				</VSCodeButton>
-			</Alert>
-		</div>
+			</div>
+			<Button aria-label="Dismiss" onClick={() => setDismissed(true)} title="Dismiss Checkpoint Error">
+				<XIcon size={10} />
+			</Button>
+		</Alert>
 	)
 }

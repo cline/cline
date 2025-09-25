@@ -92,7 +92,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 			onClick={() => !isExpanded && setIsExpanded(true)}
 			ref={componentRef}>
 			<div
-				className={`flex items-center p-2 rounded bg-(--vscode-input-background) transition-all duration-300 ease-in-out h-[18px] ${
+				className={`flex items-center px-2 py-3 rounded bg-(--vscode-input-background) transition-all duration-300 ease-in-out h-[18px] ${
 					isExpanded ? "shadow-sm" : ""
 				}`}>
 				{isExpanded ? (

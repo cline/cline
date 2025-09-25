@@ -1,10 +1,10 @@
+import { sendAddToInputEventToClient } from "@/components/ui/subscribeToAddToInput"
 import { getFileMentionFromPath } from "@/core/mentions"
 import { WebviewProvider } from "@/core/webview"
 import { singleFileDiagnosticsToProblemsString } from "@/integrations/diagnostics"
 import { telemetryService } from "@/services/telemetry"
 import { CommandContext, Empty } from "@/shared/proto/index.cline"
 import { Controller } from "../index"
-import { sendAddToInputEventToClient } from "../ui/subscribeToAddToInput"
 
 // 'Add to Cline' context menu in editor and code action
 // Inserts the selected code into the chat.
