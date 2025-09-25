@@ -73,8 +73,8 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	}
 
 	const setCodeSupernova = () => {
-		const modelId = "cline/code-supernova"
-		// set both plan and act modes to use code-supernova
+		const modelId = "cline/code-supernova-1-million"
+		// set both plan and act modes to use code-supernova-1-million
 		handleFieldsChange({
 			planModeOpenRouterModelId: modelId,
 			actModeOpenRouterModelId: modelId,
@@ -104,8 +104,8 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={h3TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
-			<b>Free Stealth Model 🥷:</b> Try code-supernova, an agentic coding model built for Cline with 200k context window and
-			multi-modal support!
+			<b>Free Stealth Model 🥷:</b> Try code-supernova-1-million, an agentic coding model built for Cline with 1M context
+			window and multi-modal support!
 			<div style={{ margin: "8px 0" }} />
 			{user ? (
 				!didClickCodeSupernovaButton ? (
