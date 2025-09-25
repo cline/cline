@@ -2757,12 +2757,6 @@ export class Task {
 		const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? "+" : ""}${timeZoneOffset}:00`
 		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
 
-		// Add detected CLI tools
-		const availableCliTools = await detectAvailableCliTools()
-		if (availableCliTools.length > 0) {
-			details += `\n\n# Detected CLI Tools\nThese are some of the tools on the user's machine, and may be useful if needed to accomplish the task: ${availableCliTools.join(", ")}. This list is not exhaustive, and other tools may be available.`
-		}
-
 		if (includeFileDetails) {
 			details += `\n\n# Current Working Directory (${this.cwd.toPosix()}) Files\n`
 			const isDesktop = arePathsEqual(this.cwd, getDesktopDir())
@@ -2779,6 +2773,12 @@ export class Task {
 			const gitRemotes = await getGitRemoteUrls(this.cwd)
 			if (gitRemotes.length > 0) {
 				details += `\n\n# Git Remote URLs\n${gitRemotes.join("\n")}`
+			}
+
+			// Add detected CLI tools
+			const availableCliTools = await detectAvailableCliTools()
+			if (availableCliTools.length > 0) {
+				details += `\n\n# Detected CLI Tools\nThese are some of the tools on the user's machine, and may be useful if needed to accomplish the task: ${availableCliTools.join(", ")}. This list is not exhaustive, and other tools may be available.`
 			}
 		}
 
