@@ -10,6 +10,10 @@
 		},
 		"openrouter": {
 			"description": "Giao diện thống nhất cho các LLM"
+		},
+		"roo": {
+			"description": "Những mô hình miễn phí tốt nhất để bắt đầu",
+			"incentive": "Dùng thử Roo miễn phí"
 		}
 	},
 	"chooseProvider": "Để thực hiện phép màu của mình, Roo cần một khóa API.",

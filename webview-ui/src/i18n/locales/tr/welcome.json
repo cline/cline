@@ -10,6 +10,10 @@
 		},
 		"openrouter": {
 			"description": "LLM'ler için birleşik bir arayüz"
+		},
+		"roo": {
+			"description": "Başlamak için en iyi ücretsiz modeller",
+			"incentive": "Roo'yu ücretsiz dene"
 		}
 	},
 	"chooseProvider": "Sihirini yapabilmesi için Roo'nun bir API anahtarına ihtiyacı var.",

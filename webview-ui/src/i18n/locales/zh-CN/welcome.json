@@ -10,6 +10,10 @@
 		},
 		"openrouter": {
 			"description": "统一了大语言模型的接口"
+		},
+		"roo": {
+			"description": "最优秀的免费模型助你开始",
+			"incentive": "免费试用 Roo"
 		}
 	},
 	"chooseProvider": "Roo 需要一个 API 密钥才能发挥魔力。",

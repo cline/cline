@@ -10,6 +10,10 @@
 		},
 		"openrouter": {
 			"description": "Una interfície unificada per a LLMs"
+		},
+		"roo": {
+			"description": "Els millors models gratuïts per començar",
+			"incentive": "Prova Roo gratis"
 		}
 	},
 	"chooseProvider": "Per fer la seva màgia, Roo necessita una clau API.",

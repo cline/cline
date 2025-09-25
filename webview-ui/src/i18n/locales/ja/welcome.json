@@ -10,6 +10,10 @@
 		},
 		"openrouter": {
 			"description": "LLMsのための統一インターフェース"
+		},
+		"roo": {
+			"description": "始めるための最高の無料モデル",
+			"incentive": "Rooを無料で試す"
 		}
 	},
 	"chooseProvider": "Rooが機能するには、APIキーが必要です。",

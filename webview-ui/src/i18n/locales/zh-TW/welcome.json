@@ -10,6 +10,10 @@
 		},
 		"openrouter": {
 			"description": "LLM 的統一介面"
+		},
+		"roo": {
+			"description": "最優秀的免費模型助你開始",
+			"incentive": "免費試用 Roo"
 		}
 	},
 	"chooseProvider": "Roo 需要 API 金鑰才能發揮魔力。",

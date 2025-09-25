@@ -10,6 +10,10 @@
 		},
 		"openrouter": {
 			"description": "Interface terpadu untuk LLM"
+		},
+		"roo": {
+			"description": "Model gratis terbaik untuk memulai",
+			"incentive": "Coba Roo gratis"
 		}
 	},
 	"chooseProvider": "Untuk melakukan keajaibannya, Roo membutuhkan API key.",
