@@ -145,12 +145,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 						</VSCodeButton>
 					)}
 				</li>
-				<li>
-					Updated the Terms of Service for Cline account users:{" "}
-					<VSCodeLink href="https://cline.bot/tos" style={linkStyle}>
-						https://cline.bot/tos
-					</VSCodeLink>
-				</li>
+				{user && (
+					<li>
+						Updated the Terms of Service for Cline account users:{" "}
+						<VSCodeLink href="https://cline.bot/tos" style={linkStyle}>
+							https://cline.bot/tos
+						</VSCodeLink>
+					</li>
+				)}
 			</ul>
 			<div style={{ margin: "12px 0" }} />
 			<div style={{ margin: "-8px 0 -3px 0" }}>
