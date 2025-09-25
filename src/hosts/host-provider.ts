@@ -2,7 +2,6 @@ import fs from "fs/promises"
 import path from "path"
 import { WebviewProvider } from "@/core/webview"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
-import { WebviewProviderType } from "@/shared/webview/types"
 import { HostBridgeClientProvider } from "./host-provider-types"
 /**
  * Singleton class that manages host-specific providers for dependency injection.
@@ -147,7 +146,7 @@ export class HostProvider {
 /**
  * A function that creates WebviewProvider instances
  */
-export type WebviewProviderCreator = (providerType: WebviewProviderType) => WebviewProvider
+export type WebviewProviderCreator = () => WebviewProvider
 
 /**
  * A function that creates DiffViewProvider instances

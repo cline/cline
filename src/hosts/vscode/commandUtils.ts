@@ -54,12 +54,12 @@ export async function focusChatInput(): Promise<WebviewProvider | undefined> {
 	await vscode.commands.executeCommand(ExtensionRegistryInfo.commands.FocusChatInput)
 
 	// Wait for a webview instance to become available after focusing
-	await pWaitFor(() => !!WebviewProvider.getLastActiveInstance())
-	const activeWebview = WebviewProvider.getLastActiveInstance()
-	if (!activeWebview) {
+	await pWaitFor(() => !!WebviewProvider.getInstance())
+	const sidebarWebview = WebviewProvider.getInstance()
+	if (!sidebarWebview) {
 		console.error("No active webview to receive command")
 		return
 	}
 
-	return activeWebview
+	return sidebarWebview
 }
