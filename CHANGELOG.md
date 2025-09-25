@@ -2,8 +2,6 @@
 
 ## 3.30.4
 
-### Patch Changes
-
 - d0da22d: Checkpoints multiroot pt.1: Accept array of workspaces when initializting checkpoints
 - 5be6ba6: Support partial response validation via meta.expected
 - 58b0ea9: Run Testing platform within Test workflow
