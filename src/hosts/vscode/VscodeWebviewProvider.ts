@@ -17,7 +17,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	// views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly SIDEBAR_ID = ExtensionRegistryInfo.views.Sidebar
 
-	private webview?: vscode.WebviewView | vscode.WebviewPanel
+	private webview?: vscode.WebviewView
 	private disposables: vscode.Disposable[] = []
 
 	override getWebviewUrl(path: string) {
