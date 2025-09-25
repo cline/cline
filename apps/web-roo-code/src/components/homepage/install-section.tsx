@@ -46,12 +46,13 @@ export function InstallSection({ downloads }: InstallSectionProps) {
 
 						<div className="relative text-center">
 							{/* Updated h2 to match other sections */}
-							<h2 className="bg-gradient-to-b from-foreground to-foreground/70 bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">
-								Install Roo Code — Open & Flexible
+							<h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-5xl">
+								Install Roo Code now
 							</h2>
 							<p className="mt-6 text-lg text-muted-foreground">
-								Roo Code is open-source, model-agnostic, and developer-focused. Install from the VS Code
-								Marketplace or the CLI in minutes, then bring your own AI model.
+								Install from the VSCode Marketplace or the CLI in minutes, then bring your own AI model.
+								<br />
+								Roo Code is also compatible with all VSCode forks.
 							</p>
 
 							<div className="mt-12 flex flex-col items-center justify-center gap-6">
@@ -64,7 +65,7 @@ export function InstallSection({ downloads }: InstallSectionProps) {
 									<div className="relative flex items-center gap-3">
 										<VscVscode className="h-6 w-6 sm:h-7 sm:w-7" />
 										<span className="flex flex-wrap items-center gap-2">
-											<span>VSCode Marketplace</span>
+											<span>From VSCode Marketplace</span>
 											{downloads !== null && (
 												<>
 													<span className="font-black opacity-60">&middot;</span>
@@ -80,7 +81,7 @@ export function InstallSection({ downloads }: InstallSectionProps) {
 									<div className="absolute -inset-px rounded-xl bg-gradient-to-r from-blue-500/50 via-cyan-500/50 to-purple-500/50 opacity-30 blur-sm transition-all duration-500 group-hover:opacity-60 dark:opacity-40 dark:group-hover:opacity-70" />
 									<div className="relative overflow-hidden rounded-xl border border-border bg-background/80 shadow-lg backdrop-blur-xl transition-all duration-500 ease-out group-hover:border-blue-500/50 group-hover:shadow-xl group-hover:shadow-blue-500/10 dark:border-border/50 dark:bg-background/60 dark:group-hover:border-blue-400/50">
 										<div className="border-b border-border/50 bg-muted/30 px-4 py-3 dark:bg-muted/20">
-											<div className="text-sm font-medium text-foreground">Install via CLI</div>
+											<div className="text-sm font-medium text-foreground">or via CLI</div>
 										</div>
 										<div className="overflow-x-auto bg-background/50 dark:bg-background/30">
 											<pre className="p-4">

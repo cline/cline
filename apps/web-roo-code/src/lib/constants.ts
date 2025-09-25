@@ -24,7 +24,8 @@ export const EXTERNAL_LINKS = {
 	OFFICE_HOURS_PODCAST: "https://www.youtube.com/@RooCodeYT/podcasts",
 	FAQ: "https://roocode.com/#faq",
 	TESTIMONIALS: "https://roocode.com/#testimonials",
-	CLOUD_APP: "https://app.roocode.com",
+	CLOUD_APP_LOGIN: "https://app.roocode.com/sign-in",
+	CLOUD_APP_SIGNUP: "https://app.roocode.com/sign-up",
 }
 
 export const INTERNAL_LINKS = {

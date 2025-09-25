@@ -8,12 +8,12 @@ import { useState } from "react"
 import { RxGithubLogo } from "react-icons/rx"
 import { VscVscode } from "react-icons/vsc"
 import { HiMenu } from "react-icons/hi"
-import { IoClose } from "react-icons/io5"
 
 import { EXTERNAL_LINKS } from "@/lib/constants"
 import { useLogoSrc } from "@/lib/hooks/use-logo-src"
 import { ScrollButton } from "@/components/ui"
 import ThemeToggle from "@/components/chromes/theme-toggle"
+import { ChevronDown, Cloud, X } from "lucide-react"
 
 interface NavBarProps {
 	stars: string | null
@@ -26,56 +26,66 @@ export function NavBar({ stars, downloads }: NavBarProps) {
 
 	return (
 		<header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
-			<div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+			<div className="container flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
 				<div className="flex items-center">
 					<Link href="/" className="flex items-center">
-						<Image src={logoSrc} alt="Roo Code Logo" width={120} height={40} className="h-8 w-auto" />
+						<Image src={logoSrc} alt="Roo Code Logo" width={130} height={24} className="h-[24px] w-auto" />
 					</Link>
 				</div>
 
 				{/* Desktop Navigation */}
-				<nav className="hidden text-sm font-medium md:flex md:items-center md:space-x-3 xl:space-x-8">
-					{/* note: features and testimonials links are hidden for screen sizes smaller than lg */}
+				<nav className="grow ml-6 hidden text-sm font-medium md:flex md:items-center">
 					<ScrollButton
-						targetId="features"
-						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground max-lg:hidden">
-						Features
+						targetId="product"
+						className="text-muted-foreground px-4 py-6 transition-transform duration-200 hover:scale-105 hover:text-foreground max-lg:hidden">
+						Product
 					</ScrollButton>
-					<ScrollButton
-						targetId="testimonials"
-						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground max-lg:hidden">
-						Testimonials
-					</ScrollButton>
-					<Link
-						href="/evals"
-						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground">
-						Evals
-					</Link>
-					<Link
-						href="/enterprise"
-						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground">
-						Enterprise
-					</Link>
 					<a
 						href={EXTERNAL_LINKS.DOCUMENTATION}
 						target="_blank"
-						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground">
+						className="text-muted-foreground px-4 py-6 transition-transform duration-200 hover:scale-105 hover:text-foreground">
 						Docs
 					</a>
-					<a
-						href={EXTERNAL_LINKS.DISCORD}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground">
-						Community
-					</a>
-					<a
-						href={EXTERNAL_LINKS.CLOUD_APP}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground">
-						Cloud
-					</a>
+					<Link
+						href="/pricing"
+						className="text-muted-foreground px-4 py-6 transition-transform duration-200 hover:scale-105 hover:text-foreground">
+						Pricing
+					</Link>
+					{/* Resources Dropdown */}
+					<div className="relative group">
+						<button className="flex items-center px-4 py-6 gap-1 text-muted-foreground transition-transform duration-200 hover:scale-105 hover:text-foreground">
+							Resources
+							<ChevronDown className="size-3" />
+						</button>
+						{/* Dropdown Menu */}
+						<div className="absolute left-0 top-12 mt-2 w-40 rounded-md border border-border bg-background py-1 shadow-lg opacity-0 -translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all duration-200">
+							<ScrollButton
+								targetId="faq"
+								className="block px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+								FAQ
+							</ScrollButton>
+							<Link
+								href="/evals"
+								className="block px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+								Evals
+							</Link>
+							<a
+								href={EXTERNAL_LINKS.DISCORD}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="block px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+								Discord
+							</a>
+							<a
+								href={EXTERNAL_LINKS.SECURITY}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="block px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+								onClick={() => setIsMenuOpen(false)}>
+								Trust Center
+							</a>
+						</div>
+					</div>
 				</nav>
 
 				<div className="hidden md:flex md:items-center md:space-x-4">
@@ -92,108 +102,128 @@ export function NavBar({ stars, downloads }: NavBarProps) {
 					<Link
 						href={EXTERNAL_LINKS.MARKETPLACE}
 						target="_blank"
-						className="hidden items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-200 hover:bg-primary/80 hover:shadow-lg hover:scale-105 md:flex">
+						className="hidden items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-all duration-200 hover:shadow-lg hover:scale-105 md:flex">
 						<VscVscode className="-mr-[2px] mt-[1px] h-4 w-4" />
 						<span>
 							Install <span className="font-black max-lg:text-xs">&middot;</span>
 						</span>
 						{downloads !== null && <span>{downloads}</span>}
 					</Link>
+					<a
+						href={EXTERNAL_LINKS.CLOUD_APP_LOGIN}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="hidden items-center gap-1.5 rounded-md py-2 text-sm border border-primary-background px-4 font-medium text-primary-background transition-all duration-200 hover:shadow-lg hover:scale-105 md:flex">
+						<Cloud className="inline h-4 w-4" />
+						Log in
+					</a>
 				</div>
 
 				{/* Mobile Menu Button */}
 				<button
 					aria-expanded={isMenuOpen}
 					onClick={() => setIsMenuOpen(!isMenuOpen)}
-					className="flex items-center justify-center rounded-full p-2 transition-colors hover:bg-accent md:hidden"
+					className="relative z-10 flex items-center justify-center rounded-full p-2 transition-colors hover:bg-accent md:hidden"
 					aria-label="Toggle mobile menu">
-					{isMenuOpen ? <IoClose className="h-6 w-6" /> : <HiMenu className="h-6 w-6" />}
+					<HiMenu className={`h-6 w-6 ${isMenuOpen ? "hidden" : "block"}`} />
+					<X className={`h-6 w-6 ${isMenuOpen ? "block" : "hidden"}`} />
 				</button>
 			</div>
 
-			{/* Mobile Menu Panel */}
+			{/* Mobile Menu Panel - Full Screen */}
 			<div
-				className={`absolute left-0 right-0 top-16 z-50 transform border-b border-border bg-background shadow-lg backdrop-blur-none transition-all duration-200 md:hidden ${isMenuOpen ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-2 opacity-0"}`}>
-				<nav className="flex flex-col py-2">
-					<ScrollButton
-						targetId="features"
-						className="w-full px-8 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
-						onClick={() => setIsMenuOpen(false)}>
-						Features
-					</ScrollButton>
-					<ScrollButton
-						targetId="testimonials"
-						className="w-full px-8 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
-						onClick={() => setIsMenuOpen(false)}>
-						Testimonials
-					</ScrollButton>
-					<Link
-						href="/evals"
-						className="w-full px-8 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
-						onClick={() => setIsMenuOpen(false)}>
-						Evals
-					</Link>
-					<Link
-						href="/enterprise"
-						className="w-full px-8 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
-						onClick={() => setIsMenuOpen(false)}>
-						Enterprise
-					</Link>
-					<a
-						href={EXTERNAL_LINKS.SECURITY}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="w-full px-8 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
-						onClick={() => setIsMenuOpen(false)}>
-						Security
-					</a>
-					<a
-						href={EXTERNAL_LINKS.DOCUMENTATION}
-						target="_blank"
-						className="w-full px-8 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
-						onClick={() => setIsMenuOpen(false)}>
-						Docs
-					</a>
-					<a
-						href={EXTERNAL_LINKS.DISCORD}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="w-full px-8 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
-						onClick={() => setIsMenuOpen(false)}>
-						Community
-					</a>
-					<a
-						href={EXTERNAL_LINKS.CLOUD_APP}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="w-full px-8 py-3 text-left text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
-						onClick={() => setIsMenuOpen(false)}>
-						Cloud
-					</a>
-
-					<hr className="mx-8 my-2 border-t border-border/50" />
-
-					{/* Icons & Stats */}
-					<div className="flex items-center justify-center gap-8 px-8 py-3">
-						<Link
-							href={EXTERNAL_LINKS.GITHUB}
-							target="_blank"
-							className="inline-flex items-center gap-2 rounded-md p-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
+				className={`fixed top-16 left-0 bg-background right-0 z-[100] transition-all duration-200 pointer-events-none md:hidden ${isMenuOpen ? "block h-dvh" : "hidden"}`}>
+				<nav className="flex flex-col justify-between h-full pb-16 overflow-y-auto bg-background pointer-events-auto">
+					{/* Main navigation items */}
+					<div className="grow-1 py-4 font-semibold text-lg">
+						<ScrollButton
+							targetId="product"
+							className="block w-full p-5 py-3 text-left text-foreground active:opacity-50"
 							onClick={() => setIsMenuOpen(false)}>
-							<RxGithubLogo className="h-5 w-5" />
-							{stars !== null && <span>{stars}</span>}
+							Product
+						</ScrollButton>
+						<a
+							href={EXTERNAL_LINKS.DOCUMENTATION}
+							target="_blank"
+							className="block w-full p-5 text-left text-foreground active:opacity-50"
+							onClick={() => setIsMenuOpen(false)}>
+							Docs
+						</a>
+						<Link
+							href="/pricing"
+							className="block w-full p-5 text-left text-foreground active:opacity-50"
+							onClick={() => setIsMenuOpen(false)}>
+							Pricing
 						</Link>
-						<div className="flex items-center rounded-md p-2 transition-colors hover:bg-accent">
-							<ThemeToggle />
+
+						{/* Resources Section */}
+						<div className="mt-4 w-full">
+							<div className="px-5 pb-2 pt-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+								Resources
+							</div>
+							<ScrollButton
+								targetId="faq"
+								className="block w-full p-5 py-3 text-left text-foreground active:opacity-50"
+								onClick={() => setIsMenuOpen(false)}>
+								FAQ
+							</ScrollButton>
+							<Link
+								href="/evals"
+								className="block w-full p-5 py-3 text-left text-foreground active:opacity-50"
+								onClick={() => setIsMenuOpen(false)}>
+								Evals
+							</Link>
+							<a
+								href={EXTERNAL_LINKS.DISCORD}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="block w-full p-5 py-3 text-left text-foreground active:opacity-50"
+								onClick={() => setIsMenuOpen(false)}>
+								Discord
+							</a>
+							<a
+								href={EXTERNAL_LINKS.SECURITY}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="block w-full p-5 py-3 text-left text-foreground active:opacity-50"
+								onClick={() => setIsMenuOpen(false)}>
+								Security Center
+							</a>
 						</div>
-						<Link
-							href={EXTERNAL_LINKS.MARKETPLACE}
+					</div>
+
+					{/* Bottom section with Cloud Login and stats */}
+					<div className="border-t border-border">
+						<div className="flex items-center justify-around px-6 pt-2">
+							<Link
+								href={EXTERNAL_LINKS.GITHUB}
+								target="_blank"
+								className="inline-flex items-center gap-2 rounded-md p-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+								onClick={() => setIsMenuOpen(false)}>
+								<RxGithubLogo className="h-6 w-6" />
+								{stars !== null && <span>{stars}</span>}
+							</Link>
+							<div className="flex items-center rounded-md p-3 transition-colors hover:bg-accent">
+								<ThemeToggle />
+							</div>
+							<Link
+								href={EXTERNAL_LINKS.MARKETPLACE}
+								target="_blank"
+								className="inline-flex items-center gap-2 rounded-md p-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+								onClick={() => setIsMenuOpen(false)}>
+								<VscVscode className="h-6 w-6" />
+								{downloads !== null && <span>{downloads}</span>}
+							</Link>
+						</div>
+						<a
+							href={EXTERNAL_LINKS.CLOUD_APP_LOGIN}
 							target="_blank"
-							className="inline-flex items-center gap-2 rounded-md p-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground"
+							rel="noopener noreferrer"
+							className="flex items-center justify-center gap-2 rounded-lg border border-primary bg-background p-4 mx-4 mb-4 text-base font-semibold text-primary"
 							onClick={() => setIsMenuOpen(false)}>
-							<VscVscode className="h-5 w-5" />
-							{downloads !== null && <span>{downloads}</span>}
-						</Link>
+							<Cloud className="h-5 w-5" />
+							Log in
+						</a>
 					</div>
 				</nav>
 			</div>

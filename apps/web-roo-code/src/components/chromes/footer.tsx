@@ -64,43 +64,18 @@ export function Footer() {
 								<ul className="mt-6 space-y-4">
 									<li>
 										<ScrollButton
-											targetId="features"
+											targetId="product"
 											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
 											Features
 										</ScrollButton>
 									</li>
 									<li>
-										<Link
-											href="/enterprise"
-											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
-											Enterprise
-										</Link>
-									</li>
-									<li>
 										<a
-											href={EXTERNAL_LINKS.EVALS}
+											href={EXTERNAL_LINKS.DOCUMENTATION}
 											target="_blank"
 											rel="noopener noreferrer"
 											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
-											Evals
-										</a>
-									</li>
-									<li>
-										<a
-											href={EXTERNAL_LINKS.SECURITY}
-											target="_blank"
-											rel="noopener noreferrer"
-											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
-											Security
-										</a>
-									</li>
-									<li>
-										<a
-											href={EXTERNAL_LINKS.INTEGRATIONS}
-											target="_blank"
-											rel="noopener noreferrer"
-											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
-											Integrations
+											Docs
 										</a>
 									</li>
 									<li>
@@ -112,6 +87,31 @@ export function Footer() {
 											Changelog
 										</a>
 									</li>
+									<li>
+										<a
+											href={EXTERNAL_LINKS.TESTIMONIALS}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
+											Testimonials
+										</a>
+									</li>
+									<li>
+										<Link
+											href="/enterprise"
+											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
+											Enterprise
+										</Link>
+									</li>
+									<li>
+										<a
+											href={EXTERNAL_LINKS.SECURITY}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
+											Security Center
+										</a>
+									</li>
 								</ul>
 							</div>
 							<div className="mt-10 md:mt-0">
@@ -119,20 +119,20 @@ export function Footer() {
 								<ul className="mt-6 space-y-4">
 									<li>
 										<a
+											href={EXTERNAL_LINKS.EVALS}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
+											Evals
+										</a>
+									</li>
+									<li>
+										<a
 											href={EXTERNAL_LINKS.FAQ}
 											target="_blank"
 											rel="noopener noreferrer"
 											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
 											FAQ
-										</a>
-									</li>
-									<li>
-										<a
-											href={EXTERNAL_LINKS.DOCUMENTATION}
-											target="_blank"
-											rel="noopener noreferrer"
-											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
-											Docs
 										</a>
 									</li>
 									<li>
@@ -192,24 +192,6 @@ export function Footer() {
 											rel="noopener noreferrer"
 											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
 											Careers
-										</a>
-									</li>
-									<li>
-										<a
-											href={EXTERNAL_LINKS.BLOG}
-											target="_blank"
-											rel="noopener noreferrer"
-											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
-											Blog
-										</a>
-									</li>
-									<li>
-										<a
-											href={EXTERNAL_LINKS.TESTIMONIALS}
-											target="_blank"
-											rel="noopener noreferrer"
-											className="text-sm leading-6 text-muted-foreground transition-colors hover:text-foreground">
-											Testimonials
 										</a>
 									</li>
 									<li>
