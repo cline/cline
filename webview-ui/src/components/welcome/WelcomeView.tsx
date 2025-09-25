@@ -1,11 +1,11 @@
+import { BooleanRequest, EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState, memo } from "react"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { validateApiConfiguration } from "@/utils/validate"
-import ApiOptions from "@/components/settings/ApiOptions"
+import { memo, useEffect, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
+import ApiOptions from "@/components/settings/ApiOptions"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { EmptyRequest, BooleanRequest } from "@shared/proto/cline/common"
+import { validateApiConfiguration } from "@/utils/validate"
 
 const WelcomeView = memo(() => {
 	const { apiConfiguration, mode } = useExtensionState()
@@ -41,7 +41,7 @@ const WelcomeView = memo(() => {
 				</div>
 				<p>
 					I can do all kinds of tasks thanks to breakthroughs in{" "}
-					<VSCodeLink href="https://www.anthropic.com/claude/sonnet" className="inline">
+					<VSCodeLink className="inline" href="https://www.anthropic.com/claude/sonnet">
 						Claude 4 Sonnet's
 					</VSCodeLink>
 					agentic coding capabilities and access to tools that let me create & edit files, explore complex projects, use
@@ -51,18 +51,18 @@ const WelcomeView = memo(() => {
 
 				<p className="text-[var(--vscode-descriptionForeground)]">
 					Sign up for an account to get started for free, or use an API key that provides access to models like Claude
-					3.7 Sonnet.
+					Sonnet.
 				</p>
 
-				<VSCodeButton appearance="primary" onClick={handleLogin} className="w-full mt-1">
+				<VSCodeButton appearance="primary" className="w-full mt-1" onClick={handleLogin}>
 					Get Started for Free
 				</VSCodeButton>
 
 				{!showApiOptions && (
 					<VSCodeButton
 						appearance="secondary"
-						onClick={() => setShowApiOptions(!showApiOptions)}
-						className="mt-2.5 w-full">
+						className="mt-2.5 w-full"
+						onClick={() => setShowApiOptions(!showApiOptions)}>
 						Use your own API key
 					</VSCodeButton>
 				)}
@@ -70,8 +70,8 @@ const WelcomeView = memo(() => {
 				<div className="mt-4.5">
 					{showApiOptions && (
 						<div>
-							<ApiOptions showModelOptions={false} currentMode={mode} />
-							<VSCodeButton onClick={handleSubmit} disabled={disableLetsGoButton} className="mt-0.75">
+							<ApiOptions currentMode={mode} showModelOptions={false} />
+							<VSCodeButton className="mt-0.75" disabled={disableLetsGoButton} onClick={handleSubmit}>
 								Let's go!
 							</VSCodeButton>
 						</div>

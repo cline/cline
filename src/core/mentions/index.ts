@@ -1,20 +1,21 @@
-import * as vscode from "vscode"
-import * as path from "path"
+import { diagnosticsToProblemsString } from "@integrations/diagnostics"
+import { extractTextFromFile } from "@integrations/misc/extract-text"
 import { openFile } from "@integrations/misc/open-file"
+import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { mentionRegexGlobal } from "@shared/context-mentions"
-import fs from "fs/promises"
-import { extractTextFromFile } from "@integrations/misc/extract-text"
-import { isBinaryFile } from "isbinaryfile"
-import { getWorkspaceProblemsString } from "@/integrations/diagnostics"
-import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
-import { getCommitInfo } from "@utils/git"
-import { getWorkingState } from "@utils/git"
-import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
-import { getCwd } from "@/utils/path"
 import { openExternal } from "@utils/env"
+import { getCommitInfo, getWorkingState } from "@utils/git"
+import fs from "fs/promises"
+import { isBinaryFile } from "isbinaryfile"
+import * as path from "path"
+import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { DiagnosticSeverity } from "@/shared/proto/index.cline"
+import { isDirectory } from "@/utils/fs"
+import { getCwd } from "@/utils/path"
+import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
@@ -29,18 +30,27 @@ export async function openMention(mention?: string): Promise<void> {
 	if (isFileMention(mention)) {
 		const relPath = getFilePathFromMention(mention)
 		const absPath = path.resolve(cwd, relPath)
-		if (mention.endsWith("/")) {
-			vscode.commands.executeCommand("revealInExplorer", vscode.Uri.file(absPath))
+		if (await isDirectory(absPath)) {
+			await HostProvider.workspace.openInFileExplorerPanel({ path: absPath })
 		} else {
 			openFile(absPath)
 		}
 	} else if (mention === "problems") {
-		vscode.commands.executeCommand("workbench.actions.view.problems")
+		await HostProvider.workspace.openProblemsPanel({})
 	} else if (mention === "terminal") {
 		vscode.commands.executeCommand("workbench.action.terminal.focus")
 	} else if (mention.startsWith("http")) {
 		await openExternal(mention)
 	}
+}
+
+export async function getFileMentionFromPath(filePath: string) {
+	const cwd = await getCwd()
+	if (!cwd) {
+		return "@/" + filePath
+	}
+	const relativePath = path.relative(cwd, filePath)
+	return "@/" + relativePath
 }
 
 export async function parseMentions(
@@ -89,6 +99,14 @@ export async function parseMentions(
 	const uniqueMentions = Array.from(new Set(mentions))
 
 	for (const mention of uniqueMentions) {
+		// Safety guard: skip a bare "/" mention. This can surface from parsed strings or tool output and would resolve to the
+		// workspace root. Expanding it would scan the entire project, inflate context, and can trigger recursive loops.
+		// If root-level expansion is ever desired, gate it behind an explicit syntax (e.g. "@root" or "@folder:/")
+		// and enforce strict size/.clineignore limits instead.
+		if (mention === "/") {
+			continue
+		}
+
 		if (mention.startsWith("http")) {
 			let result: string
 			if (launchBrowserError) {
@@ -202,7 +220,7 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 								}
 								const content = await extractTextFromFile(absoluteFilePath)
 								return `<file_content path="${filePath.toPosix()}">\n${content}\n</file_content>`
-							} catch (error) {
+							} catch (_error) {
 								return undefined
 							}
 						})(),
@@ -225,7 +243,14 @@ async function getFileOrFolderContent(mentionPath: string, cwd: string): Promise
 }
 
 async function getWorkspaceProblems(): Promise<string> {
-	return await getWorkspaceProblemsString()
+	const response = await HostProvider.workspace.getDiagnostics({})
+	if (response.fileDiagnostics.length === 0) {
+		return "No errors or warnings detected."
+	}
+	return diagnosticsToProblemsString(response.fileDiagnostics, [
+		DiagnosticSeverity.DIAGNOSTIC_ERROR,
+		DiagnosticSeverity.DIAGNOSTIC_WARNING,
+	])
 }
 
 function isFileMention(mention: string): boolean {

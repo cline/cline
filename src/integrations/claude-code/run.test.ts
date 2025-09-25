@@ -1,6 +1,6 @@
 import { expect } from "chai"
-import proxyquire from "proxyquire"
 import path from "path"
+import proxyquire from "proxyquire"
 import sinon from "sinon"
 
 const createMockProcess = () => {
@@ -53,7 +53,7 @@ const createMockReadlineInterface = () => {
 	return mockInterface
 }
 
-const mockExeca = sinon.fake((...args) => {
+const mockExeca = sinon.fake((..._args) => {
 	return createMockProcess()
 })
 

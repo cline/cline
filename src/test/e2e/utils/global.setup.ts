@@ -1,10 +1,10 @@
 import { rmSync } from "node:fs"
 import { test as setup } from "@playwright/test"
-import { getResultsDir } from "./helpers"
+import { E2ETestHelper } from "./helpers"
 
 setup("setup test environment", async () => {
 	try {
-		const path = getResultsDir()
+		const path = E2ETestHelper.getResultsDir()
 		const options = { recursive: true, force: true }
 
 		const maxAttempts = 2

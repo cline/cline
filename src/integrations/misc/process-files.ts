@@ -1,9 +1,8 @@
-import * as vscode from "vscode"
 import fs from "fs/promises"
-import * as path from "path"
 import sizeOf from "image-size"
+import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageRequest, ShowMessageType, ShowOpenDialogueRequest } from "@/shared/proto/host/window"
+import { ShowMessageType } from "@/shared/proto/host/window"
 
 /**
  * Supports processing of images and other file types
@@ -13,26 +12,22 @@ export async function selectFiles(imagesAllowed: boolean): Promise<{ images: str
 	const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp"] // supported by anthropic and openrouter
 	const OTHER_FILE_EXTENSIONS = ["xml", "json", "txt", "log", "md", "docx", "ipynb", "pdf", "xlsx", "csv"]
 
-	const showDialogueResponse = await HostProvider.window.showOpenDialogue(
-		ShowOpenDialogueRequest.create({
-			canSelectMany: true,
-			openLabel: "Select",
-			filters: {
-				files: imagesAllowed ? [...IMAGE_EXTENSIONS, ...OTHER_FILE_EXTENSIONS] : OTHER_FILE_EXTENSIONS,
-			},
-		}),
-	)
+	const showDialogueResponse = await HostProvider.window.showOpenDialogue({
+		canSelectMany: true,
+		openLabel: "Select",
+		filters: {
+			files: imagesAllowed ? [...IMAGE_EXTENSIONS, ...OTHER_FILE_EXTENSIONS] : OTHER_FILE_EXTENSIONS,
+		},
+	})
 
-	const fileUris = showDialogueResponse.paths.map((path) => vscode.Uri.file(path))
+	const filePaths = showDialogueResponse.paths
 
-	if (!fileUris || fileUris.length === 0) {
+	if (!filePaths || filePaths.length === 0) {
 		return { images: [], files: [] }
 	}
 
-	const processFilesPromises = fileUris.map(async (uri) => {
-		const filePath = uri.fsPath
+	const processFilesPromises = filePaths.map(async (filePath) => {
 		const fileExtension = path.extname(filePath).toLowerCase().substring(1)
-		//const fileName = path.basename(filePath)
 
 		const isImage = IMAGE_EXTENSIONS.includes(fileExtension)
 

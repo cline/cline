@@ -1,8 +1,8 @@
-import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
-import { WebServiceClient } from "@/services/grpc-client"
 import { StringRequest } from "@shared/proto/cline/common"
 import DOMPurify from "dompurify"
 import React from "react"
+import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
+import { WebServiceClient } from "@/services/grpc-client"
 import { checkIfImageUrl, formatUrlForOpening, getSafeHostname } from "./utils/mcpRichUtil"
 
 interface ImagePreviewProps {
@@ -202,19 +202,19 @@ class ImagePreview extends React.Component<
 					{/* Hidden image that we'll use to detect load/error events */}
 					{/\.svg(\?.*)?$/i.test(url) ? (
 						<object
-							type="image/svg+xml"
 							data={DOMPurify.sanitize(url)}
-							style={{ display: "none" }}
-							onLoad={this.handleImageLoad}
 							onError={this.handleImageError}
+							onLoad={this.handleImageLoad}
+							style={{ display: "none" }}
+							type="image/svg+xml"
 						/>
 					) : (
 						<img
-							src={DOMPurify.sanitize(url)}
 							alt=""
-							ref={this.imgRef}
-							onLoad={this.handleImageLoad}
 							onError={this.handleImageError}
+							onLoad={this.handleImageLoad}
+							ref={this.imgRef}
+							src={DOMPurify.sanitize(url)}
 							style={{ display: "none" }}
 						/>
 					)}
@@ -227,12 +227,6 @@ class ImagePreview extends React.Component<
 			return (
 				<div
 					className="image-preview-error"
-					style={{
-						padding: "12px",
-						border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
-						borderRadius: "4px",
-						color: "var(--vscode-errorForeground)",
-					}}
 					onClick={async () => {
 						try {
 							await WebServiceClient.openInBrowser(
@@ -243,6 +237,12 @@ class ImagePreview extends React.Component<
 						} catch (err) {
 							console.error("Error opening URL in browser:", err)
 						}
+					}}
+					style={{
+						padding: "12px",
+						border: "1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.3))",
+						borderRadius: "4px",
+						color: "var(--vscode-errorForeground)",
 					}}>
 					<div style={{ fontWeight: "bold" }}>Failed to load image</div>
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
@@ -257,11 +257,6 @@ class ImagePreview extends React.Component<
 		return (
 			<div
 				className="image-preview"
-				style={{
-					margin: "10px 0",
-					maxWidth: "100%",
-					cursor: "pointer",
-				}}
 				onClick={async () => {
 					try {
 						await WebServiceClient.openInBrowser(
@@ -272,22 +267,27 @@ class ImagePreview extends React.Component<
 					} catch (err) {
 						console.error("Error opening URL in browser:", err)
 					}
+				}}
+				style={{
+					margin: "10px 0",
+					maxWidth: "100%",
+					cursor: "pointer",
 				}}>
 				{/\.svg(\?.*)?$/i.test(url) ? (
 					// Special handling for SVG images
 					<object
-						type="image/svg+xml"
+						aria-label={`SVG from ${getSafeHostname(url)}`}
 						data={DOMPurify.sanitize(url)}
 						style={{
 							width: "85%",
 							height: "auto",
 							borderRadius: "4px",
 						}}
-						aria-label={`SVG from ${getSafeHostname(url)}`}>
+						type="image/svg+xml">
 						{/* Fallback if object tag fails */}
 						<img
-							src={DOMPurify.sanitize(url)}
 							alt={`SVG from ${getSafeHostname(url)}`}
+							src={DOMPurify.sanitize(url)}
 							style={{
 								width: "85%",
 								height: "auto",
@@ -297,15 +297,7 @@ class ImagePreview extends React.Component<
 					</object>
 				) : (
 					<img
-						src={DOMPurify.sanitize(url)}
 						alt={`Image from ${getSafeHostname(url)}`}
-						style={{
-							width: "85%",
-							height: "auto",
-							borderRadius: "4px",
-							// Use contain only for very extreme aspect ratios, otherwise use cover
-							objectFit: this.aspectRatio > 3 || this.aspectRatio < 0.33 ? "contain" : "cover",
-						}}
 						loading="eager"
 						onLoad={(e) => {
 							// Double-check aspect ratio from the actual loaded image
@@ -321,6 +313,14 @@ class ImagePreview extends React.Component<
 									img.style.objectFit = "cover"
 								}
 							}
+						}}
+						src={DOMPurify.sanitize(url)}
+						style={{
+							width: "85%",
+							height: "auto",
+							borderRadius: "4px",
+							// Use contain only for very extreme aspect ratios, otherwise use cover
+							objectFit: this.aspectRatio > 3 || this.aspectRatio < 0.33 ? "contain" : "cover",
 						}}
 					/>
 				)}

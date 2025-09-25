@@ -1,95 +1,50 @@
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { memo, useState } from "react"
-import styled from "styled-components"
+import { TelemetrySettingEnum, TelemetrySettingRequest } from "@shared/proto/cline/state"
+import { useCallback } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
-import { TelemetrySettingEnum, TelemetrySettingRequest } from "@shared/proto/cline/state"
 
-const BannerContainer = styled.div`
-	background-color: var(--vscode-banner-background);
-	padding: 12px 20px;
-	display: flex;
-	flex-direction: column;
-	gap: 10px;
-	flex-shrink: 0;
-	margin-bottom: 6px;
-	position: relative;
-`
+const telemetryRequest = TelemetrySettingRequest.create({
+	setting: TelemetrySettingEnum.ENABLED,
+})
 
-const CloseButton = styled.button`
-	position: absolute;
-	top: 12px;
-	right: 12px;
-	background: none;
-	border: none;
-	color: var(--vscode-foreground);
-	cursor: pointer;
-	font-size: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 4px;
-	opacity: 0.7;
-	&:hover {
-		opacity: 1;
-	}
-`
-
-const ButtonContainer = styled.div`
-	display: flex;
-	gap: 8px;
-	width: 100%;
-
-	& > vscode-button {
-		flex: 1;
-	}
-`
-
-const TelemetryBanner = () => {
+export const TelemetryBanner: React.FC = () => {
 	const { navigateToSettings } = useExtensionState()
 
-	const handleOpenSettings = () => {
+	const handleClose = useCallback(() => {
+		StateServiceClient.updateTelemetrySetting(telemetryRequest).catch(console.error)
+	}, [])
+
+	const handleOpenSettings = useCallback(() => {
 		handleClose()
 		navigateToSettings()
-	}
-
-	const handleClose = async () => {
-		try {
-			await StateServiceClient.updateTelemetrySetting(
-				TelemetrySettingRequest.create({
-					setting: TelemetrySettingEnum.ENABLED,
-				}),
-			)
-		} catch (error) {
-			console.error("Error updating telemetry setting:", error)
-		}
-	}
+	}, [handleClose, navigateToSettings])
 
 	return (
-		<BannerContainer>
-			<CloseButton onClick={handleClose} aria-label="Close banner and enable telemetry">
+		<div className="bg-banner-background text-banner-foreground px-3 py-2 flex flex-col gap-1 shrink-0 mb-1 relative text-sm m-4">
+			<h3 className="m-0">Help Improve Cline</h3>
+			<i>(and access experimental features)</i>
+			<p className="m-0">
+				Cline collects error and usage data to help us fix bugs and improve the extension. No code, prompts, or personal
+				information is ever sent.
+			</p>
+			<p className="m-0">
+				<span>You can turn this setting off in </span>
+				<span className="text-link cursor-pointer" onClick={handleOpenSettings}>
+					settings
+				</span>
+				.
+			</p>
+
+			{/* Close button */}
+			<button
+				aria-label="Close banner and enable telemetry"
+				className="absolute top-3 right-3 opacity-70 hover:opacity-100 cursor-pointer border-0 bg-transparent p-0 text-inherit"
+				onClick={handleClose}
+				type="button">
 				✕
-			</CloseButton>
-			<div>
-				<strong>Help Improve Cline</strong>
-				<i>
-					<br />
-					(and access experimental features)
-				</i>
-				<div style={{ marginTop: 4 }}>
-					Cline collects error and usage data to help us fix bugs and improve the extension. No code, prompts, or
-					personal information is ever sent.
-					<div style={{ marginTop: 4 }}>
-						You can turn this setting off in{" "}
-						<VSCodeLink href="#" onClick={handleOpenSettings}>
-							settings
-						</VSCodeLink>
-						.
-					</div>
-				</div>
-			</div>
-		</BannerContainer>
+			</button>
+		</div>
 	)
 }
 
-export default memo(TelemetryBanner)
+export default TelemetryBanner

@@ -1,9 +1,8 @@
-import { useState, useRef, useEffect } from "react"
-import { vscode } from "@/utils/vscode"
+import { RuleFileRequest } from "@shared/proto/index.cline"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"
 import { FileServiceClient } from "@/services/grpc-client"
-import { CreateRuleFileRequest } from "@shared/proto-conversions/file/rule-files-conversion"
 
 interface NewRuleRowProps {
 	isGlobal: boolean
@@ -34,7 +33,9 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 	})
 
 	const getExtension = (filename: string): string => {
-		if (filename.startsWith(".") && !filename.includes(".", 1)) return ""
+		if (filename.startsWith(".") && !filename.includes(".", 1)) {
+			return ""
+		}
 		const match = filename.match(/\.[^.]+$/)
 		return match ? match[0].toLowerCase() : ""
 	}
@@ -62,7 +63,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 
 			try {
 				await FileServiceClient.createRuleFile(
-					CreateRuleFileRequest.create({
+					RuleFileRequest.create({
 						isGlobal,
 						filename: finalFilename,
 						type: ruleType || "cline",
@@ -87,39 +88,39 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 
 	return (
 		<div
-			ref={componentRef}
 			className={`mb-2.5 transition-all duration-300 ease-in-out ${isExpanded ? "opacity-100" : "opacity-70 hover:opacity-100"}`}
-			onClick={() => !isExpanded && setIsExpanded(true)}>
+			onClick={() => !isExpanded && setIsExpanded(true)}
+			ref={componentRef}>
 			<div
 				className={`flex items-center p-2 rounded bg-[var(--vscode-input-background)] transition-all duration-300 ease-in-out h-[18px] ${
 					isExpanded ? "shadow-sm" : ""
 				}`}>
 				{isExpanded ? (
-					<form onSubmit={handleSubmit} className="flex flex-1 items-center">
+					<form className="flex flex-1 items-center" onSubmit={handleSubmit}>
 						<input
-							ref={inputRef}
-							type="text"
+							className="flex-1 bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border-0 outline-0 rounded focus:outline-none focus:ring-0 focus:border-transparent"
+							onChange={(e) => setFilename(e.target.value)}
+							onKeyDown={handleKeyDown}
 							placeholder={
 								ruleType === "workflow"
 									? "workflow-name (.md, .txt, or no extension)"
 									: "rule-name (.md, .txt, or no extension)"
 							}
-							value={filename}
-							onChange={(e) => setFilename(e.target.value)}
-							onKeyDown={handleKeyDown}
-							className="flex-1 bg-[var(--vscode-input-background)] text-[var(--vscode-input-foreground)] border-0 outline-0 rounded focus:outline-none focus:ring-0 focus:border-transparent"
+							ref={inputRef}
 							style={{
 								outline: "none",
 							}}
+							type="text"
+							value={filename}
 						/>
 
 						<div className="flex items-center ml-2 space-x-2">
 							<VSCodeButton
 								appearance="icon"
-								type="submit"
 								aria-label="Create rule file"
+								style={{ padding: "0px" }}
 								title="Create rule file"
-								style={{ padding: "0px" }}>
+								type="submit">
 								<span className="codicon codicon-add text-[14px]" />
 							</VSCodeButton>
 						</div>
@@ -132,13 +133,13 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 						<div className="flex items-center ml-2 space-x-2">
 							<VSCodeButton
 								appearance="icon"
-								aria-label="New rule file"
-								title="New rule file"
+								aria-label={ruleType === "workflow" ? "New workflow file..." : "New rule file..."}
 								onClick={(e) => {
 									e.stopPropagation()
 									setIsExpanded(true)
 								}}
-								style={{ padding: "0px" }}>
+								style={{ padding: "0px" }}
+								title="New rule file">
 								<span className="codicon codicon-add text-[14px]" />
 							</VSCodeButton>
 						</div>

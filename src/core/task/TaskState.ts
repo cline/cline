@@ -1,6 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AssistantMessageContent } from "@core/assistant-message"
-import { StreamingJsonReplacer } from "@core/assistant-message/diff-json"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 
 export class TaskState {
@@ -18,10 +17,6 @@ export class TaskState {
 	// Presentation locks
 	presentAssistantMessageLocked = false
 	presentAssistantMessageHasPendingUpdates = false
-
-	// Claude 4 experimental JSON streaming
-	streamingJsonReplacer?: StreamingJsonReplacer
-	lastProcessedJsonLength: number = 0
 
 	// Ask/Response handling
 	askResponse?: ClineAskResponse
@@ -48,13 +43,23 @@ export class TaskState {
 	// Error tracking
 	consecutiveMistakeCount: number = 0
 	didAutomaticallyRetryFailedApiRequest = false
-	checkpointTrackerErrorMessage?: string
+	checkpointManagerErrorMessage?: string
 
 	// Task Initialization
 	isInitialized = false
+
+	// Focus Chain / Todo List Management
+	apiRequestCount: number = 0
+	apiRequestsSinceLastTodoUpdate: number = 0
+	currentFocusChainChecklist: string | null = null
+	todoListWasUpdatedByUser: boolean = false
 
 	// Task Abort / Cancellation
 	abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
+
+	// Auto-context summarization
+	currentlySummarizing: boolean = false
+	lastAutoCompactTriggerIndex?: number
 }

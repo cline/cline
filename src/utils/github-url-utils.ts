@@ -13,12 +13,12 @@
  * fields containing special characters.
  */
 
+import { HostProvider } from "@hosts/host-provider"
+import { ShowMessageType } from "@shared/proto/host/window"
 import * as cp from "child_process"
 import * as os from "os"
 import * as util from "util"
-import { writeTextToClipboard, openExternal } from "@/utils/env"
-import { HostProvider } from "@hosts/host-provider"
-import { ShowMessageType } from "@shared/proto/host/window"
+import { openExternal, writeTextToClipboard } from "@/utils/env"
 
 /**
  * Creates a properly encoded GitHub issue URL.
@@ -199,7 +199,7 @@ export async function createAndOpenGitHubIssue(
 	params: Map<string, string>,
 ): Promise<void> {
 	// Construct the base URL
-	let baseUrl = `https://github.com/${repoOwner}/${repoName}/issues/new`
+	const baseUrl = `https://github.com/${repoOwner}/${repoName}/issues/new`
 
 	// Add template parameter if provided
 	if (issueTemplate) {

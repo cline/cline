@@ -1,8 +1,8 @@
-import { ToggleClineRules } from "@shared/proto/cline/file"
+import { getWorkspaceBasename } from "@core/workspace"
 import type { ToggleClineRuleRequest } from "@shared/proto/cline/file"
+import { ToggleClineRules } from "@shared/proto/cline/file"
+import { telemetryService } from "@/services/telemetry"
 import type { Controller } from "../index"
-import { getGlobalState, getWorkspaceState, updateGlobalState, updateWorkspaceState } from "../../../core/storage/state"
-import { ClineRulesToggles as AppClineRulesToggles } from "@shared/cline-rules"
 
 /**
  * Toggles a Cline rule (enable or disable)
@@ -24,18 +24,25 @@ export async function toggleClineRule(controller: Controller, request: ToggleCli
 
 	// This is the same core logic as in the original handler
 	if (isGlobal) {
-		const toggles = ((await getGlobalState(controller.context, "globalClineRulesToggles")) as AppClineRulesToggles) || {}
+		const toggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
 		toggles[rulePath] = enabled
-		await updateGlobalState(controller.context, "globalClineRulesToggles", toggles)
+		controller.stateManager.setGlobalState("globalClineRulesToggles", toggles)
 	} else {
-		const toggles = ((await getWorkspaceState(controller.context, "localClineRulesToggles")) as AppClineRulesToggles) || {}
+		const toggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		toggles[rulePath] = enabled
-		await updateWorkspaceState(controller.context, "localClineRulesToggles", toggles)
+		controller.stateManager.setWorkspaceState("localClineRulesToggles", toggles)
+	}
+
+	// Track rule toggle telemetry with current task context
+	if (controller.task?.ulid) {
+		// Extract just the filename for privacy (no full paths)
+		const ruleFileName = getWorkspaceBasename(rulePath, "Controller.toggleClineRule")
+		telemetryService.captureClineRuleToggled(controller.task.ulid, ruleFileName, enabled, isGlobal)
 	}
 
 	// Get the current state to return in the response
-	const globalToggles = ((await getGlobalState(controller.context, "globalClineRulesToggles")) as AppClineRulesToggles) || {}
-	const localToggles = ((await getWorkspaceState(controller.context, "localClineRulesToggles")) as AppClineRulesToggles) || {}
+	const globalToggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
+	const localToggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 
 	return ToggleClineRules.create({
 		globalClineRulesToggles: { toggles: globalToggles },

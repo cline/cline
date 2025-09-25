@@ -24,14 +24,14 @@ export const CreditBalance = ({ balance, fetchCreditBalance, creditUrl, lastFetc
 				<VSCodeButton
 					appearance="icon"
 					className={`mt-1 ${isLoading ? "animate-spin" : ""}`}
-					onClick={fetchCreditBalance}
-					disabled={isLoading}>
+					disabled={isLoading}
+					onClick={fetchCreditBalance}>
 					<span className="codicon codicon-refresh"></span>
 				</VSCodeButton>
 			</div>
 
 			<div className="w-full">
-				<VSCodeButtonLink href={creditUrl.href} className="w-full">
+				<VSCodeButtonLink className="w-full" href={creditUrl.href}>
 					Add Credits
 				</VSCodeButtonLink>
 			</div>

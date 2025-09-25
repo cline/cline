@@ -1,16 +1,17 @@
-import React, { useMemo, useState, useRef, useEffect, useCallback } from "react"
-import { Virtuoso } from "react-virtuoso"
-import { ClineMessage } from "@shared/ExtensionMessage"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import React, { useCallback, useEffect, useMemo, useRef } from "react"
+import { Virtuoso } from "react-virtuoso"
+import { COLOR_GRAY } from "../colors"
 import TaskTimelineTooltip from "./TaskTimelineTooltip"
 import { getColor } from "./util"
 
 // Timeline dimensions and spacing
-const TIMELINE_HEIGHT = "18px"
-const BLOCK_WIDTH = "9px"
-const BLOCK_GAP = "3px"
-const TOOLTIP_MARGIN = 32 // 32px margin on each side
+const TIMELINE_HEIGHT = "12px"
+const BLOCK_WIDTH = "11px"
+const BLOCK_GAP = "4px"
+const _TOOLTIP_MARGIN = 32 // 32px margin on each side
 
 interface TaskTimelineProps {
 	messages: ClineMessage[]
@@ -20,14 +21,17 @@ interface TaskTimelineProps {
 const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) => {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const scrollableRef = useRef<HTMLDivElement>(null)
+	const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null)
 
 	const { taskTimelinePropsMessages, messageIndexMap } = useMemo(() => {
-		if (messages.length <= 1) return { taskTimelinePropsMessages: [], messageIndexMap: [] }
+		if (messages.length <= 1) {
+			return { taskTimelinePropsMessages: [], messageIndexMap: [] }
+		}
 
 		const processed = combineApiRequests(combineCommandSequences(messages.slice(1)))
 		const indexMap: number[] = []
 
-		const filtered = processed.filter((msg, processedIndex) => {
+		const filtered = processed.filter((msg, _processedIndex) => {
 			const originalIndex = messages.findIndex((originalMsg, idx) => idx > 0 && originalMsg.ts === msg.ts)
 
 			// Filter out standard "say" events we don't want to show
@@ -38,6 +42,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 					msg.say === "api_req_retried" ||
 					msg.say === "deleted_api_reqs" ||
 					msg.say === "checkpoint_created" ||
+					msg.say === "task_progress" ||
 					(msg.say === "text" && (!msg.text || msg.text.trim() === "")))
 			) {
 				return false
@@ -80,11 +85,12 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 					<div
 						style={{
 							width: BLOCK_WIDTH,
-							height: "100%",
+							height: BLOCK_WIDTH,
 							backgroundColor: "#e5e5e5", // Light gray placeholder
 							flexShrink: 0,
 							marginRight: BLOCK_GAP,
 							opacity: 0.5,
+							borderRadius: "50%",
 						}}
 					/>
 				)
@@ -99,23 +105,38 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 				}
 			}
 
+			const handleMouseEnter = () => {
+				setHoveredIndex(index)
+			}
+
+			const handleMouseLeave = () => {
+				setHoveredIndex(null)
+			}
+
+			const isHovered = hoveredIndex === index
+
 			return (
 				<TaskTimelineTooltip message={message}>
 					<div
 						onClick={handleClick}
+						onMouseEnter={handleMouseEnter}
+						onMouseLeave={handleMouseLeave}
 						style={{
 							width: BLOCK_WIDTH,
-							height: "100%",
+							height: BLOCK_WIDTH,
 							backgroundColor: getColor(message),
 							flexShrink: 0,
 							cursor: "pointer",
 							marginRight: BLOCK_GAP,
+							opacity: isHovered ? 0.7 : 1,
+							transition: "opacity 0.2s ease",
+							borderRadius: "50%",
 						}}
 					/>
 				</TaskTimelineTooltip>
 			)
 		},
-		[taskTimelinePropsMessages, messageIndexMap, onBlockClick],
+		[taskTimelinePropsMessages, messageIndexMap, onBlockClick, hoveredIndex],
 	)
 
 	// Scroll to the end when messages change
@@ -128,15 +149,47 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 		}
 	}, [taskTimelinePropsMessages])
 
+	if (taskTimelinePropsMessages.length === 0) {
+		return (
+			<div
+				ref={containerRef}
+				style={{
+					position: "relative",
+					width: "100%",
+					marginBottom: "4px",
+					overflow: "hidden",
+				}}>
+				<div
+					style={{
+						height: TIMELINE_HEIGHT,
+						width: "100%",
+						display: "flex",
+						alignItems: "center",
+					}}>
+					<div
+						style={{
+							width: BLOCK_WIDTH,
+							height: BLOCK_WIDTH,
+							backgroundColor: COLOR_GRAY,
+							borderRadius: "50%",
+							opacity: 0.5,
+							flexShrink: 0,
+							marginRight: BLOCK_GAP,
+						}}
+					/>
+				</div>
+			</div>
+		)
+	}
+
 	return (
 		<div
 			ref={containerRef}
 			style={{
 				position: "relative",
 				width: "100%",
-				marginTop: "4px",
+				height: TIMELINE_HEIGHT,
 				marginBottom: "4px",
-				overflow: "hidden",
 			}}>
 			<style>
 				{`
@@ -152,17 +205,18 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 			</style>
 
 			<Virtuoso
-				ref={virtuosoRef}
 				className="timeline-virtuoso"
+				fixedItemHeight={itemWidth}
+				horizontalDirection={true}
+				increaseViewportBy={12}
+				itemContent={TimelineBlock}
+				ref={virtuosoRef}
 				style={{
 					height: TIMELINE_HEIGHT,
 					width: "100%",
+					//overflowY: "hidden",
 				}}
 				totalCount={Math.max(1, taskTimelinePropsMessages.length)}
-				itemContent={TimelineBlock}
-				horizontalDirection={true}
-				increaseViewportBy={12}
-				fixedItemHeight={itemWidth}
 			/>
 		</div>
 	)

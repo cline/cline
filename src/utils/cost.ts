@@ -81,7 +81,7 @@ export function calculateApiCostAnthropic(
 		outputTokens,
 		cacheCreationInputTokensNum,
 		cacheReadInputTokensNum,
-		inputTokens,
+		inputTokens + cacheCreationInputTokensNum + cacheReadInputTokensNum, // used for tiered price lookup
 		thinkingBudgetTokens,
 	)
 }

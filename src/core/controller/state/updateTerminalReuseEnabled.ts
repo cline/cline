@@ -1,6 +1,5 @@
-import { Controller } from "../index"
 import * as proto from "@/shared/proto"
-import { updateGlobalState } from "../../storage/state"
+import { Controller } from "../index"
 
 export async function updateTerminalReuseEnabled(
 	controller: Controller,
@@ -9,7 +8,7 @@ export async function updateTerminalReuseEnabled(
 	const enabled = request.value
 
 	// Update the terminal reuse setting in the state
-	await updateGlobalState(controller.context, "terminalReuseEnabled", enabled)
+	controller.stateManager.setGlobalState("terminalReuseEnabled", enabled)
 
 	// Broadcast state update to all webviews
 	await controller.postStateToWebview()

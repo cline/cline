@@ -1,27 +1,29 @@
+import { requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
+import { toRequestyServiceUrl } from "@shared/providers/requesty"
+import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
 import { useRemark } from "react-remark"
 import { useMount } from "react-use"
 import styled from "styled-components"
-import { requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { ModelsServiceClient } from "../../services/grpc-client"
 import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
-import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
+import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/storage/types"
 
 export interface RequestyModelPickerProps {
 	isPopup?: boolean
+	baseUrl?: string
 	currentMode: Mode
 }
 
-const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, currentMode }) => {
+const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, baseUrl, currentMode }) => {
 	const { apiConfiguration, requestyModels, setRequestyModels } = useExtensionState()
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
@@ -32,13 +34,22 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, curr
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
+	const resolvedUrl = toRequestyServiceUrl(baseUrl)
+	const requestyModelListUrl = new URL("models", resolvedUrl)
+
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
 
 		handleModeFieldsChange(
 			{
-				requestyModelId: { plan: "planModeRequestyModelId", act: "actModeRequestyModelId" },
-				requestyModelInfo: { plan: "planModeRequestyModelInfo", act: "actModeRequestyModelInfo" },
+				requestyModelId: {
+					plan: "planModeRequestyModelId",
+					act: "actModeRequestyModelId",
+				},
+				requestyModelInfo: {
+					plan: "planModeRequestyModelInfo",
+					act: "actModeRequestyModelInfo",
+				},
 			},
 			{
 				requestyModelId: newModelId,
@@ -103,7 +114,7 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, curr
 	}, [searchableItems])
 
 	const modelSearchResults = useMemo(() => {
-		let results: { id: string; html: string }[] = searchTerm
+		const results: { id: string; html: string }[] = searchTerm
 			? highlight(fuse.search(searchTerm), "model-item-highlight")
 			: searchableItems
 		// results.sort((a, b) => a.id.localeCompare(b.id)) NOTE: sorting like this causes ids in objects to be reordered and mismatched
@@ -111,7 +122,9 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, curr
 	}, [searchableItems, searchTerm, fuse])
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-		if (!isDropdownVisible) return
+		if (!isDropdownVisible) {
+			return
+		}
 
 		switch (event.key) {
 			case "ArrowDown":
@@ -181,23 +194,23 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, curr
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						id="model-search"
-						placeholder="Search and select a model..."
-						value={searchTerm}
+						onFocus={() => setIsDropdownVisible(true)}
 						onInput={(e) => {
 							handleModelChange((e.target as HTMLInputElement)?.value?.toLowerCase())
 							setIsDropdownVisible(true)
 						}}
-						onFocus={() => setIsDropdownVisible(true)}
 						onKeyDown={handleKeyDown}
+						placeholder="Search and select a model..."
 						style={{
 							width: "100%",
 							zIndex: REQUESTY_MODEL_PICKER_Z_INDEX,
 							position: "relative",
-						}}>
+						}}
+						value={searchTerm}>
 						{searchTerm && (
 							<div
-								className="input-icon-button codicon codicon-close"
 								aria-label="Clear search"
+								className="input-icon-button codicon codicon-close"
 								onClick={() => {
 									handleModelChange("")
 									setIsDropdownVisible(true)
@@ -216,17 +229,17 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, curr
 						<DropdownList ref={dropdownListRef}>
 							{modelSearchResults.map((item, index) => (
 								<DropdownItem
-									key={item.id}
-									ref={(el) => (itemRefs.current[index] = el)}
+									dangerouslySetInnerHTML={{
+										__html: item.html,
+									}}
 									isSelected={index === selectedIndex}
-									onMouseEnter={() => setSelectedIndex(index)}
+									key={item.id}
 									onClick={() => {
 										handleModelChange(item.id)
 										setIsDropdownVisible(false)
 									}}
-									dangerouslySetInnerHTML={{
-										__html: item.html,
-									}}
+									onMouseEnter={() => setSelectedIndex(index)}
+									ref={(el) => (itemRefs.current[index] = el)}
 								/>
 							))}
 						</DropdownList>
@@ -237,7 +250,7 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, curr
 			{hasInfo ? (
 				<>
 					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			) : (
 				<p
@@ -248,13 +261,13 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, curr
 					}}>
 					<>
 						The extension automatically fetches the latest list of models available on{" "}
-						<VSCodeLink style={{ display: "inline", fontSize: "inherit" }} href="https://app.requesty.ai/router/list">
+						<VSCodeLink href={requestyModelListUrl.toString()} style={{ display: "inline", fontSize: "inherit" }}>
 							Requesty.
 						</VSCodeLink>
 						If you're unsure which model to choose, Cline works best with{" "}
 						<VSCodeLink
-							style={{ display: "inline", fontSize: "inherit" }}
-							onClick={() => handleModelChange("anthropic/claude-3-7-sonnet-latest")}>
+							onClick={() => handleModelChange("anthropic/claude-3-7-sonnet-latest")}
+							style={{ display: "inline", fontSize: "inherit" }}>
 							anthropic/claude-3-7-sonnet-latest.
 						</VSCodeLink>
 					</>
@@ -269,84 +282,84 @@ export default RequestyModelPicker
 // Dropdown
 
 const DropdownWrapper = styled.div`
-	position: relative;
-	width: 100%;
+  position: relative;
+  width: 100%;
 `
 
 export const REQUESTY_MODEL_PICKER_Z_INDEX = 1_000
 
 const DropdownList = styled.div`
-	position: absolute;
-	top: calc(100% - 3px);
-	left: 0;
-	width: calc(100% - 2px);
-	max-height: 200px;
-	overflow-y: auto;
-	background-color: var(--vscode-dropdown-background);
-	border: 1px solid var(--vscode-list-activeSelectionBackground);
-	z-index: ${REQUESTY_MODEL_PICKER_Z_INDEX - 1};
-	border-bottom-left-radius: 3px;
-	border-bottom-right-radius: 3px;
+  position: absolute;
+  top: calc(100% - 3px);
+  left: 0;
+  width: calc(100% - 2px);
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-list-activeSelectionBackground);
+  z-index: ${REQUESTY_MODEL_PICKER_Z_INDEX - 1};
+  border-bottom-left-radius: 3px;
+  border-bottom-right-radius: 3px;
 `
 
 const DropdownItem = styled.div<{ isSelected: boolean }>`
-	padding: 5px 10px;
-	cursor: pointer;
-	word-break: break-all;
-	white-space: normal;
+  padding: 5px 10px;
+  cursor: pointer;
+  word-break: break-all;
+  white-space: normal;
 
-	background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
+  background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
 
-	&:hover {
-		background-color: var(--vscode-list-activeSelectionBackground);
-	}
+  &:hover {
+    background-color: var(--vscode-list-activeSelectionBackground);
+  }
 `
 
 // Markdown
 
 const StyledMarkdown = styled.div`
-	font-family:
-		var(--vscode-font-family),
-		system-ui,
-		-apple-system,
-		BlinkMacSystemFont,
-		"Segoe UI",
-		Roboto,
-		Oxygen,
-		Ubuntu,
-		Cantarell,
-		"Open Sans",
-		"Helvetica Neue",
-		sans-serif;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
+  font-family:
+    var(--vscode-font-family),
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Open Sans",
+    "Helvetica Neue",
+    sans-serif;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
 
-	p,
-	li,
-	ol,
-	ul {
-		line-height: 1.25;
-		margin: 0;
-	}
+  p,
+  li,
+  ol,
+  ul {
+    line-height: 1.25;
+    margin: 0;
+  }
 
-	ol,
-	ul {
-		padding-left: 1.5em;
-		margin-left: 0;
-	}
+  ol,
+  ul {
+    padding-left: 1.5em;
+    margin-left: 0;
+  }
 
-	p {
-		white-space: pre-wrap;
-	}
+  p {
+    white-space: pre-wrap;
+  }
 
-	a {
-		text-decoration: none;
-	}
-	a {
-		&:hover {
-			text-decoration: underline;
-		}
-	}
+  a {
+    text-decoration: none;
+  }
+  a {
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 `
 
 export const ModelDescriptionMarkdown = memo(
@@ -425,6 +438,7 @@ export const ModelDescriptionMarkdown = memo(
 								}}
 							/>
 							<VSCodeLink
+								onClick={() => setIsExpanded(true)}
 								style={{
 									// cursor: "pointer",
 									// color: "var(--vscode-textLink-foreground)",
@@ -432,8 +446,7 @@ export const ModelDescriptionMarkdown = memo(
 									paddingRight: 0,
 									paddingLeft: 3,
 									backgroundColor: isPopup ? CODE_BLOCK_BG_COLOR : "var(--vscode-sideBar-background)",
-								}}
-								onClick={() => setIsExpanded(true)}>
+								}}>
 								See more
 							</VSCodeLink>
 						</div>

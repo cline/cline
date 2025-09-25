@@ -1,25 +1,12 @@
-import { Controller } from ".."
+import { huggingFaceModels } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
-import axios from "axios"
-import path from "path"
-import fs from "fs/promises"
 import { fileExistsAtPath } from "@utils/fs"
-import { GlobalFileNames } from "@core/storage/disk"
-import { huggingFaceModels } from "@shared/api"
-
-/**
- * Ensures the cache directory exists and returns its path
- */
-async function ensureCacheDirectoryExists(controller: Controller): Promise<string> {
-	const cacheDir = path.join(controller.context.globalStorageUri.fsPath, "cache")
-	try {
-		await fs.mkdir(cacheDir, { recursive: true })
-	} catch (error) {
-		// Directory might already exist
-	}
-	return cacheDir
-}
+import axios from "axios"
+import fs from "fs/promises"
+import path from "path"
+import { ensureCacheDirectoryExists } from "@/core/storage/disk"
+import { Controller } from ".."
 
 /**
  * Refreshes the Hugging Face models and returns the updated model list
@@ -28,10 +15,10 @@ async function ensureCacheDirectoryExists(controller: Controller): Promise<strin
  * @returns Response containing the Hugging Face models
  */
 export async function refreshHuggingFaceModels(
-	controller: Controller,
+	_controller: Controller,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
-	const huggingFaceModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), "huggingface_models.json")
+	const huggingFaceModelsFilePath = path.join(await ensureCacheDirectoryExists(), "huggingface_models.json")
 
 	let models: Record<string, OpenRouterModelInfo> = {}
 

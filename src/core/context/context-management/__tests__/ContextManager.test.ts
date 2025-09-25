@@ -1,6 +1,6 @@
-import { ContextManager } from "../ContextManager"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { expect } from "chai"
+import { ContextManager } from "../ContextManager"
 
 describe("ContextManager", () => {
 	function createMessages(count: number): Anthropic.Messages.MessageParam[] {

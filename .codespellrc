@@ -1,6 +1,0 @@
-[codespell]
-# Ref: https://github.com/codespell-project/codespell#using-a-config-file
-skip = .git*,*.svg,package-lock.json,*.css,.codespellrc,locales
-check-hidden = true
-ignore-regex = (\b(optIn|isTaller)\b|https://\S+)
-# ignore-words-list =

@@ -1,11 +1,11 @@
-import * as vscode from "vscode"
+import { Controller } from "@core/controller"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { HistoryItem } from "@shared/HistoryItem"
 import * as fs from "fs/promises"
 import * as path from "path"
-import { Controller } from "@core/controller"
-import { HistoryItem } from "@shared/HistoryItem"
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { ShowMessageType } from "@/shared/proto/host/window"
+import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 
 /**
  * Registers development-only commands for task manipulation.
@@ -27,7 +27,7 @@ export function registerTaskCommands(context: vscode.ExtensionContext, controlle
 			}
 
 			const tasksCount = parseInt(count)
-			const globalStoragePath = context.globalStorageUri.fsPath
+			const globalStoragePath = HostProvider.get().globalStorageFsPath
 			const tasksDir = path.join(globalStoragePath, "tasks")
 
 			vscode.window.withProgress(

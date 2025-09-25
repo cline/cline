@@ -1,6 +1,5 @@
+import { Empty, Int64Request } from "@shared/proto/cline/common"
 import { Controller } from ".."
-import { Empty } from "@shared/proto/cline/common"
-import { Int64Request } from "@shared/proto/cline/common"
 
 /**
  * Shows task completion changes in a diff view
@@ -11,7 +10,8 @@ import { Int64Request } from "@shared/proto/cline/common"
 export async function taskCompletionViewChanges(controller: Controller, request: Int64Request): Promise<Empty> {
 	try {
 		if (request.value && controller.task) {
-			await controller.task.presentMultifileDiff(request.value, true)
+			// presentMultifileDiff is optional on ICheckpointManager, so capture then optionally invoke
+			await controller.task.checkpointManager?.presentMultifileDiff?.(request.value, true)
 		}
 		return Empty.create()
 	} catch (error) {

@@ -2,9 +2,9 @@
  * Utility functions for message filtering, grouping, and manipulation
  */
 
-import { ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { ClineMessage, ClineSayBrowserAction } from "@shared/ExtensionMessage"
 
 /**
  * Combine API requests and command sequences in messages
@@ -34,6 +34,7 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 			case "api_req_finished": // combineApiRequests removes this from modifiedMessages anyways
 			case "api_req_retried": // this message is used to update the latest api_req_started that the request was retried
 			case "deleted_api_reqs": // aggregated api_req metrics from deleted messages
+			case "task_progress": // task progress messages are displayed in TaskHeader, not in main chat
 				return false
 			case "text":
 				// Sometimes cline returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)

@@ -1,8 +1,8 @@
 import { Mode } from "@shared/storage/types"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import GroqModelPicker from "../GroqModelPicker"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
  * Props for the GroqProvider component
@@ -29,7 +29,7 @@ export const GroqProvider = ({ showModelOptions, isPopup, currentMode }: GroqPro
 				signupUrl="https://console.groq.com/keys"
 			/>
 
-			{showModelOptions && <GroqModelPicker isPopup={isPopup} currentMode={currentMode} />}
+			{showModelOptions && <GroqModelPicker currentMode={currentMode} isPopup={isPopup} />}
 		</div>
 	)
 }

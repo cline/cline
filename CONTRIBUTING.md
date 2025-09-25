@@ -147,7 +147,7 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
     - Run `npm run lint` to check code style
     - Run `npm run format` to automatically format code
     - All PRs must pass CI checks which include both linting and formatting
-    - Address any ESLint warnings or errors before submitting
+    - Address any warnings or errors from linter before submitting
     - Follow TypeScript best practices and maintain type safety
 
 3. **Testing**
@@ -156,6 +156,36 @@ Anyone can contribute code to Cline, but we ask that you follow these guidelines
     - Run `npm test` to ensure all tests pass
     - Update existing tests if your changes affect them
     - Include both unit tests and integration tests where appropriate
+
+    **End-to-End (E2E) Testing**
+    
+    Cline includes comprehensive E2E tests using Playwright that simulate real user interactions with the extension in VS Code:
+    
+    - **Running E2E tests:**
+      ```bash
+      npm run test:e2e        # Build and run all E2E tests
+      npm run e2e             # Run tests without rebuilding
+      npm run test:e2e -- --debug  # Run with interactive debugger
+      ```
+    
+    - **Writing E2E tests:**
+      - Tests are located in `src/test/e2e/`
+      - Use the `e2e` fixture for single-root workspace tests
+      - Use `e2eMultiRoot` fixture for multi-root workspace tests
+      - Follow existing patterns in `auth.test.ts`, `chat.test.ts`, `diff.test.ts`, and `editor.test.ts`
+      - See `src/test/e2e/README.md` for detailed documentation
+    
+    - **Debug mode features:**
+      - Interactive Playwright Inspector for step-by-step debugging
+      - Record new interactions and generate test code automatically
+      - Visual VS Code instance for manual testing
+      - Element inspection and selector validation
+    
+    - **Test environment:**
+      - Automated VS Code setup with Cline extension loaded
+      - Mock API server for backend testing
+      - Temporary workspaces with test fixtures
+      - Video recording for failed tests
 
 4. **Version Management with Changesets**
 

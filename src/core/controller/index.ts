@@ -1,15 +1,10 @@
-import { clineEnvConfig } from "@/config"
-import { HostProvider } from "@/hosts/host-provider"
-import { AuthService } from "@/services/auth/AuthService"
-import { PostHogClientProvider, telemetryService } from "@/services/posthog/PostHogClientProvider"
-import { ShowMessageType } from "@/shared/proto/host/window"
-import { getLatestAnnouncementId } from "@/utils/announcements"
-import { getCwd, getDesktopDir } from "@/utils/path"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { buildApiHandler } from "@api/index"
+import { buildApiHandler } from "@core/api"
+import { detectWorkspaceRoots } from "@core/workspace/detection"
+import { setupWorkspaceManager } from "@core/workspace/setup"
+import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
-import WorkspaceTracker from "@integrations/workspace/WorkspaceTracker"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import { ApiProvider, ModelInfo } from "@shared/api"
@@ -23,18 +18,32 @@ import { UserInfo } from "@shared/UserInfo"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import * as vscode from "vscode"
-import { CacheService, PersistenceErrorEvent } from "../storage/CacheService"
-import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "../storage/disk"
-import { getAllExtensionState, getGlobalState, updateGlobalState } from "../storage/state"
+import { clineEnvConfig } from "@/config"
+import { HostProvider } from "@/hosts/host-provider"
+import { ExtensionRegistryInfo } from "@/registry"
+import { AuthService } from "@/services/auth/AuthService"
+import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
+import { featureFlagsService } from "@/services/feature-flags"
+import { getDistinctId } from "@/services/logging/distinctId"
+import { telemetryService } from "@/services/telemetry"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { getLatestAnnouncementId } from "@/utils/announcements"
+import { getCwd, getDesktopDir } from "@/utils/path"
+import { PromptRegistry } from "../prompts/system-prompt"
+import {
+	ensureCacheDirectoryExists,
+	ensureMcpServersDirectoryExists,
+	ensureSettingsDirectoryExists,
+	GlobalFileNames,
+} from "../storage/disk"
+import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
+import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
 import { sendStateUpdate } from "./state/subscribeToState"
-import { sendAddToInputEvent, sendAddToInputEventToClient } from "./ui/subscribeToAddToInput"
-import { WebviewProvider } from "../webview"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -44,47 +53,58 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 
 export class Controller {
 	readonly id: string
-	private disposables: vscode.Disposable[] = []
 	task?: Task
 
-	workspaceTracker: WorkspaceTracker
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	readonly cacheService: CacheService
+	authService: AuthService
+	ocaAuthService: OcaAuthService
+	readonly stateManager: StateManager
+
+	// NEW: Add workspace manager (optional initially)
+	private workspaceManager?: WorkspaceRootManager
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
 		id: string,
 	) {
 		this.id = id
-
+		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
+		this.stateManager = new StateManager(context)
+		this.authService = AuthService.getInstance(this)
+		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
-		this.cacheService = new CacheService(context)
-		const authService = AuthService.getInstance(this)
 
 		// Initialize cache service asynchronously - critical for extension functionality
-		this.cacheService
+		this.stateManager
 			.initialize()
 			.then(() => {
-				authService.restoreRefreshTokenAndRetrieveAuthInfo()
+				this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 			})
 			.catch((error) => {
-				console.error("CRITICAL: Failed to initialize CacheService - extension may not function properly:", error)
+				console.error(
+					"[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:",
+					error,
+				)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: "Failed to initialize Cline's application state. Please restart the extension.",
+				})
 			})
 
 		// Set up persistence error recovery
-		this.cacheService.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
-			console.error("Cache persistence failed, recovering:", error)
+		this.stateManager.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
+			console.error("[Controller] Cache persistence failed, recovering:", error)
 			try {
-				await this.cacheService.reInitialize()
+				await this.stateManager.reInitialize(this.task?.taskId)
 				await this.postStateToWebview()
 				HostProvider.window.showMessage({
 					type: ShowMessageType.WARNING,
 					message: "Saving settings to storage failed.",
 				})
 			} catch (recoveryError) {
-				console.error("Cache recovery failed:", recoveryError)
+				console.error("[Controller] Cache recovery failed:", recoveryError)
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Failed to save settings. Please restart the extension.",
@@ -92,11 +112,15 @@ export class Controller {
 			}
 		}
 
-		this.workspaceTracker = new WorkspaceTracker()
+		this.stateManager.onSyncExternalChange = async () => {
+			await this.postStateToWebview()
+		}
+
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
 			() => ensureSettingsDirectoryExists(this.context),
-			this.context.extension?.packageJSON?.version ?? "1.0.0",
+			ExtensionRegistryInfo.version,
+			telemetryService,
 		)
 
 		// Clean up legacy checkpoints
@@ -106,7 +130,7 @@ export class Controller {
 	}
 
 	async getCurrentMode(): Promise<Mode> {
-		return ((await getGlobalState(this.context, "mode")) as Mode | undefined) || "act"
+		return this.stateManager.getGlobalSettingsKey("mode")
 	}
 
 	/*
@@ -116,13 +140,6 @@ export class Controller {
 	*/
 	async dispose() {
 		await this.clearTask()
-		while (this.disposables.length) {
-			const x = this.disposables.pop()
-			if (x) {
-				x.dispose()
-			}
-		}
-		this.workspaceTracker.dispose()
 		this.mcpHub.dispose()
 
 		console.error("Controller disposed")
@@ -132,24 +149,24 @@ export class Controller {
 	async handleSignOut() {
 		try {
 			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
-			this.cacheService.setSecret("clineAccountId", undefined)
-			await updateGlobalState(this.context, "userInfo", undefined)
+			this.stateManager.setSecret("clineAccountId", undefined)
+			this.stateManager.setGlobalState("userInfo", undefined)
 
 			// Update API providers through cache service
-			const apiConfiguration = this.cacheService.getApiConfiguration()
+			const apiConfiguration = this.stateManager.getApiConfiguration()
 			const updatedConfig = {
 				...apiConfiguration,
 				planModeApiProvider: "openrouter" as ApiProvider,
 				actModeApiProvider: "openrouter" as ApiProvider,
 			}
-			this.cacheService.setApiConfiguration(updatedConfig)
+			this.stateManager.setApiConfiguration(updatedConfig)
 
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Successfully logged out of Cline",
 			})
-		} catch (error) {
+		} catch (_error) {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
 				message: "Logout failed",
@@ -157,37 +174,44 @@ export class Controller {
 		}
 	}
 
+	// Oca Auth methods
+	async handleOcaSignOut() {
+		try {
+			await this.ocaAuthService.handleDeauth()
+			await this.postStateToWebview()
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "Successfully logged out of OCA",
+			})
+		} catch (_error) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "OCA Logout failed",
+			})
+		}
+	}
+
 	async setUserInfo(info?: UserInfo) {
-		await updateGlobalState(this.context, "userInfo", info)
+		this.stateManager.setGlobalState("userInfo", info)
 	}
 
 	async initTask(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
-		// Get API configuration from cache for immediate access
-		const apiConfiguration = this.cacheService.getApiConfiguration()
-
-		const {
-			autoApprovalSettings,
-			browserSettings,
-			preferredLanguage,
-			openaiReasoningEffort,
-			mode,
-			shellIntegrationTimeout,
-			terminalReuseEnabled,
-			terminalOutputLineLimit,
-			defaultTerminalProfile,
-			enableCheckpointsSetting,
-			isNewUser,
-			taskHistory,
-			strictPlanModeEnabled,
-		} = await getAllExtensionState(this.context)
+		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
+		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
+		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
+		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
+		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
+		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
+		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
 		// Check if the user has completed enough tasks to no longer be considered a "new user"
 		if (isNewUser && !historyItem && taskHistory && taskHistory.length >= NEW_USER_TASK_COUNT_THRESHOLD) {
-			await updateGlobalState(this.context, "isNewUser", false)
+			this.stateManager.setGlobalState("isNewUser", false)
 			await this.postStateToWebview()
 		}
 
@@ -196,35 +220,42 @@ export class Controller {
 				...autoApprovalSettings,
 				version: (autoApprovalSettings.version ?? 1) + 1,
 			}
-			await updateGlobalState(this.context, "autoApprovalSettings", updatedAutoApprovalSettings)
+			this.stateManager.setGlobalState("autoApprovalSettings", updatedAutoApprovalSettings)
 		}
+
+		// Initialize and persist the workspace manager (multi-root or single-root) with telemetry + fallback
+		this.workspaceManager = await setupWorkspaceManager({
+			stateManager: this.stateManager,
+			detectRoots: detectWorkspaceRoots,
+		})
+
+		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
+
 		this.task = new Task(
-			this.context,
+			this,
 			this.mcpHub,
-			this.workspaceTracker,
 			(historyItem) => this.updateTaskHistory(historyItem),
 			() => this.postStateToWebview(),
 			(taskId) => this.reinitExistingTaskFromId(taskId),
 			() => this.cancelTask(),
-			apiConfiguration,
-			autoApprovalSettings,
-			browserSettings,
-			preferredLanguage,
-			openaiReasoningEffort,
-			mode,
-			strictPlanModeEnabled ?? false,
 			shellIntegrationTimeout,
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,
 			defaultTerminalProfile ?? "default",
 			enableCheckpointsSetting ?? true,
-			await getCwd(getDesktopDir()),
-			this.cacheService,
+			cwd,
+			this.stateManager,
+			this.workspaceManager,
 			task,
 			images,
 			files,
 			historyItem,
 		)
+
+		// Load task settings after task creation
+		if (this.task.taskId) {
+			await this.stateManager.loadTaskSettings(this.task.taskId)
+		}
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {
@@ -235,31 +266,51 @@ export class Controller {
 	}
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting) {
-		await updateGlobalState(this.context, "telemetrySetting", telemetrySetting)
+		this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
 		const isOptedIn = telemetrySetting !== "disabled"
 		telemetryService.updateTelemetryState(isOptedIn)
 		await this.postStateToWebview()
+	}
+
+	async toggleActModeForYoloMode(): Promise<boolean> {
+		const modeToSwitchTo: Mode = "act"
+
+		// Switch to act mode
+		this.stateManager.setGlobalState("mode", modeToSwitchTo)
+
+		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
+		if (this.task) {
+			const apiConfiguration = this.stateManager.getApiConfiguration()
+			this.task.api = buildApiHandler({ ...apiConfiguration, ulid: this.task.ulid }, modeToSwitchTo)
+		}
+
+		await this.postStateToWebview()
+
+		// Additional safety
+		if (this.task) {
+			return true
+		}
+		return false
 	}
 
 	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
 		const didSwitchToActMode = modeToSwitchTo === "act"
 
 		// Store mode to global state
-		await updateGlobalState(this.context, "mode", modeToSwitchTo)
+		this.stateManager.setGlobalState("mode", modeToSwitchTo)
 
 		// Capture mode switch telemetry | Capture regardless of if we know the taskId
-		telemetryService.captureModeSwitch(this.task?.taskId ?? "0", modeToSwitchTo)
+		telemetryService.captureModeSwitch(this.task?.ulid ?? "0", modeToSwitchTo)
 
 		// Update API handler with new mode (buildApiHandler now selects provider based on mode)
 		if (this.task) {
-			const apiConfiguration = this.cacheService.getApiConfiguration()
-			this.task.api = buildApiHandler({ ...apiConfiguration, taskId: this.task.taskId }, modeToSwitchTo)
+			const apiConfiguration = this.stateManager.getApiConfiguration()
+			this.task.api = buildApiHandler({ ...apiConfiguration, ulid: this.task.ulid }, modeToSwitchTo)
 		}
 
 		await this.postStateToWebview()
 
 		if (this.task) {
-			this.task.updateMode(modeToSwitchTo)
 			if (this.task.taskState.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.taskState.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
@@ -312,16 +363,17 @@ export class Controller {
 
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
-			await AuthService.getInstance(this).handleAuthCallback(customToken, provider ? provider : "google")
+			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
 
 			const clineProvider: ApiProvider = "cline"
 
 			// Get current settings to determine how to update providers
-			const { planActSeparateModelsSetting } = await getAllExtensionState(this.context)
+			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+
 			const currentMode = await this.getCurrentMode()
 
 			// Get current API configuration from cache
-			const currentApiConfiguration = this.cacheService.getApiConfiguration()
+			const currentApiConfiguration = this.stateManager.getApiConfiguration()
 
 			const updatedConfig = { ...currentApiConfiguration }
 
@@ -339,13 +391,13 @@ export class Controller {
 			}
 
 			// Update the API configuration through cache service
-			this.cacheService.setApiConfiguration(updatedConfig)
+			this.stateManager.setApiConfiguration(updatedConfig)
 
 			// Mark welcome view as completed since user has successfully logged in
-			await updateGlobalState(this.context, "welcomeViewCompleted", true)
+			this.stateManager.setGlobalState("welcomeViewCompleted", true)
 
 			if (this.task) {
-				this.task.api = buildApiHandler({ ...updatedConfig, taskId: this.task.taskId }, currentMode)
+				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
 			}
 
 			await this.postStateToWebview()
@@ -354,6 +406,57 @@ export class Controller {
 			HostProvider.window.showMessage({
 				type: ShowMessageType.ERROR,
 				message: "Failed to log in to Cline",
+			})
+			// Even on login failure, we preserve any existing tokens
+			// Only clear tokens on explicit logout
+		}
+	}
+
+	async handleOcaAuthCallback(code: string, state: string) {
+		try {
+			await this.ocaAuthService.handleAuthCallback(code, state)
+
+			const ocaProvider: ApiProvider = "oca"
+
+			// Get current settings to determine how to update providers
+			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+
+			const currentMode = await this.getCurrentMode()
+
+			// Get current API configuration from cache
+			const currentApiConfiguration = this.stateManager.getApiConfiguration()
+
+			const updatedConfig = { ...currentApiConfiguration }
+
+			if (planActSeparateModelsSetting) {
+				// Only update the current mode's provider
+				if (currentMode === "plan") {
+					updatedConfig.planModeApiProvider = ocaProvider
+				} else {
+					updatedConfig.actModeApiProvider = ocaProvider
+				}
+			} else {
+				// Update both modes to keep them in sync
+				updatedConfig.planModeApiProvider = ocaProvider
+				updatedConfig.actModeApiProvider = ocaProvider
+			}
+
+			// Update the API configuration through cache service
+			this.stateManager.setApiConfiguration(updatedConfig)
+
+			// Mark welcome view as completed since user has successfully logged in
+			this.stateManager.setGlobalState("welcomeViewCompleted", true)
+
+			if (this.task) {
+				this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+			}
+
+			await this.postStateToWebview()
+		} catch (error) {
+			console.error("Failed to handle auth callback:", error)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "Failed to log in to OCA",
 			})
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
@@ -383,7 +486,7 @@ export class Controller {
 			}
 
 			// Store in global state
-			await updateGlobalState(this.context, "mcpMarketplaceCatalog", catalog)
+			this.stateManager.setGlobalState("mcpMarketplaceCatalog", catalog)
 			return catalog
 		} catch (error) {
 			console.error("Failed to fetch MCP marketplace:", error)
@@ -421,7 +524,7 @@ export class Controller {
 			}
 
 			// Store in global state
-			await updateGlobalState(this.context, "mcpMarketplaceCatalog", catalog)
+			this.stateManager.setGlobalState("mcpMarketplaceCatalog", catalog)
 			return catalog
 		} catch (error) {
 			console.error("Failed to fetch MCP marketplace:", error)
@@ -478,118 +581,47 @@ export class Controller {
 		const currentMode = await this.getCurrentMode()
 
 		// Update API configuration through cache service
-		const currentApiConfiguration = this.cacheService.getApiConfiguration()
+		const currentApiConfiguration = this.stateManager.getApiConfiguration()
 		const updatedConfig = {
 			...currentApiConfiguration,
 			planModeApiProvider: openrouter,
 			actModeApiProvider: openrouter,
 			openRouterApiKey: apiKey,
 		}
-		this.cacheService.setApiConfiguration(updatedConfig)
+		this.stateManager.setApiConfiguration(updatedConfig)
 
 		await this.postStateToWebview()
 		if (this.task) {
-			this.task.api = buildApiHandler({ ...updatedConfig, taskId: this.task.taskId }, currentMode)
+			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
 		}
 		// Dont send settingsButtonClicked because its bad ux if user is on welcome
 	}
 
-	private async ensureCacheDirectoryExists(): Promise<string> {
-		const cacheDir = path.join(this.context.globalStorageUri.fsPath, "cache")
-		await fs.mkdir(cacheDir, { recursive: true })
-		return cacheDir
-	}
-
 	// Read OpenRouter models from disk cache
 	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
-		const openRouterModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
-		const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
-		if (fileExists) {
-			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
-			return JSON.parse(fileContents)
+		const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
+		try {
+			if (await fileExistsAtPath(openRouterModelsFilePath)) {
+				const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
+				const models = JSON.parse(fileContents)
+				// Append stealth models
+				return appendClineStealthModels(models)
+			}
+		} catch (error) {
+			console.error("Error reading cached OpenRouter models:", error)
 		}
 		return undefined
 	}
 
-	// Context menus and code actions
-
-	async getFileMentionFromPath(filePath: string) {
-		const cwd = await getCwd()
-		if (!cwd) {
-			return "@/" + filePath
+	// Read Vercel AI Gateway models from disk cache
+	async readVercelAiGatewayModels(): Promise<Record<string, ModelInfo> | undefined> {
+		const vercelAiGatewayModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.vercelAiGatewayModels)
+		const fileExists = await fileExistsAtPath(vercelAiGatewayModelsFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(vercelAiGatewayModelsFilePath, "utf8")
+			return JSON.parse(fileContents)
 		}
-		const relativePath = path.relative(cwd, filePath)
-		return "@/" + relativePath
-	}
-
-	// 'Add to Cline' context menu in editor and code action
-	async addSelectedCodeToChat(code: string, filePath: string, languageId: string, diagnostics?: vscode.Diagnostic[]) {
-		// Post message to webview with the selected code
-		const fileMention = await this.getFileMentionFromPath(filePath)
-
-		let input = `${fileMention}\n\`\`\`\n${code}\n\`\`\``
-		if (diagnostics) {
-			const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
-			input += `\nProblems:\n${problemsString}`
-		}
-
-		const lastActiveWebview = WebviewProvider.getLastActiveInstance()
-		if (lastActiveWebview) {
-			await sendAddToInputEventToClient(lastActiveWebview.getClientId(), input)
-		}
-
-		console.log("addSelectedCodeToChat", code, filePath, languageId)
-	}
-
-	// 'Add to Cline' context menu in Terminal
-	async addSelectedTerminalOutputToChat(output: string, terminalName: string) {
-		// Ensure the sidebar view is visible
-		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-		await setTimeoutPromise(100)
-		await sendAddToInputEvent(`Terminal output:\n\`\`\`\n${output}\n\`\`\``)
-
-		console.log("addSelectedTerminalOutputToChat", output, terminalName)
-	}
-
-	// 'Fix with Cline' in code actions
-	async fixWithCline(code: string, filePath: string, languageId: string, diagnostics: vscode.Diagnostic[]) {
-		// Ensure the sidebar view is visible
-		await vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
-		await setTimeoutPromise(100)
-
-		const fileMention = await this.getFileMentionFromPath(filePath)
-		const problemsString = this.convertDiagnosticsToProblemsString(diagnostics)
-		await this.initTask(`Fix the following code in ${fileMention}\n\`\`\`\n${code}\n\`\`\`\n\nProblems:\n${problemsString}`)
-
-		console.log("fixWithCline", code, filePath, languageId, diagnostics, problemsString)
-	}
-
-	convertDiagnosticsToProblemsString(diagnostics: vscode.Diagnostic[]) {
-		let problemsString = ""
-		for (const diagnostic of diagnostics) {
-			let label: string
-			switch (diagnostic.severity) {
-				case vscode.DiagnosticSeverity.Error:
-					label = "Error"
-					break
-				case vscode.DiagnosticSeverity.Warning:
-					label = "Warning"
-					break
-				case vscode.DiagnosticSeverity.Information:
-					label = "Information"
-					break
-				case vscode.DiagnosticSeverity.Hint:
-					label = "Hint"
-					break
-				default:
-					label = "Diagnostic"
-			}
-			const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-			const source = diagnostic.source ? `${diagnostic.source} ` : ""
-			problemsString += `\n- [${source}${label}] Line ${line}: ${diagnostic.message}`
-		}
-		problemsString = problemsString.trim()
-		return problemsString
+		return undefined
 	}
 
 	// Task history
@@ -603,10 +635,10 @@ export class Controller {
 		taskMetadataFilePath: string
 		apiConversationHistory: Anthropic.MessageParam[]
 	}> {
-		const history = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[] | undefined) || []
+		const history = this.stateManager.getGlobalStateKey("taskHistory")
 		const historyItem = history.find((item) => item.id === id)
 		if (historyItem) {
-			const taskDirPath = path.join(this.context.globalStorageUri.fsPath, "tasks", id)
+			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks", id)
 			const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
 			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
 			const contextHistoryFilePath = path.join(taskDirPath, GlobalFileNames.contextHistory)
@@ -638,9 +670,9 @@ export class Controller {
 
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
-		const taskHistory = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[] | undefined) || []
+		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
-		await updateGlobalState(this.context, "taskHistory", updatedTaskHistory)
+		this.stateManager.setGlobalState("taskHistory", updatedTaskHistory)
 
 		// Notify the webview that the task has been deleted
 		await this.postStateToWebview()
@@ -655,70 +687,84 @@ export class Controller {
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
 		// Get API configuration from cache for immediate access
-		const apiConfiguration = this.cacheService.getApiConfiguration()
+		const apiConfiguration = this.stateManager.getApiConfiguration()
+		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
+		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
+		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
+		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
+		const dictationSettings = this.stateManager.getGlobalSettingsKey("dictationSettings")
+		const preferredLanguage = this.stateManager.getGlobalSettingsKey("preferredLanguage")
+		const openaiReasoningEffort = this.stateManager.getGlobalSettingsKey("openaiReasoningEffort")
+		const mode = this.stateManager.getGlobalSettingsKey("mode")
+		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
+		const yoloModeToggled = this.stateManager.getGlobalSettingsKey("yoloModeToggled")
+		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
+		const userInfo = this.stateManager.getGlobalStateKey("userInfo")
+		const mcpMarketplaceEnabled = this.stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
+		const mcpDisplayMode = this.stateManager.getGlobalStateKey("mcpDisplayMode")
+		const telemetrySetting = this.stateManager.getGlobalSettingsKey("telemetrySetting")
+		const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
+		const globalClineRulesToggles = this.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
+		const globalWorkflowToggles = this.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
+		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
+		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
+		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
+		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
+		const welcomeViewCompleted = Boolean(
+			this.stateManager.getGlobalStateKey("welcomeViewCompleted") || this.authService.getInfo()?.user?.uid,
+		)
+		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
+		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")
+		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
+		const favoritedModelIds = this.stateManager.getGlobalStateKey("favoritedModelIds")
+		const lastDismissedInfoBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
 
-		const {
-			lastShownAnnouncementId,
-			taskHistory,
-			autoApprovalSettings,
-			browserSettings,
-			preferredLanguage,
-			openaiReasoningEffort,
-			mode,
-			strictPlanModeEnabled,
-			userInfo,
-			mcpMarketplaceEnabled,
-			mcpDisplayMode,
-			telemetrySetting,
-			planActSeparateModelsSetting,
-			enableCheckpointsSetting,
-			globalClineRulesToggles,
-			globalWorkflowToggles,
-			shellIntegrationTimeout,
-			terminalReuseEnabled,
-			defaultTerminalProfile,
-			isNewUser,
-			welcomeViewCompleted,
-			mcpResponsesCollapsed,
-			terminalOutputLineLimit,
-			localClineRulesToggles,
-			localWindsurfRulesToggles,
-			localCursorRulesToggles,
-			localWorkflowToggles,
-		} = await getAllExtensionState(this.context)
+		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
+		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
+		const localCursorRulesToggles = this.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
+		const workflowToggles = this.stateManager.getWorkspaceStateKey("workflowToggles")
+		const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold")
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
-		const checkpointTrackerErrorMessage = this.task?.taskState.checkpointTrackerErrorMessage
 		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
+		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 
 		const processedTaskHistory = (taskHistory || [])
 			.filter((item) => item.ts && item.task)
 			.sort((a, b) => b.ts - a.ts)
 			.slice(0, 100) // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
 
-		const latestAnnouncementId = getLatestAnnouncementId(this.context)
+		const latestAnnouncementId = getLatestAnnouncementId()
 		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId
 		const platform = process.platform as Platform
-		const distinctId = PostHogClientProvider.getInstance().distinctId
-		const version = this.context.extension?.packageJSON?.version ?? ""
-		const uriScheme = vscode.env.uriScheme
+		const distinctId = getDistinctId()
+		const version = ExtensionRegistryInfo.version
+
+		// Set feature flag in dictation settings based on platform
+		const updatedDictationSettings = {
+			...dictationSettings,
+			featureEnabled: process.platform === "darwin", // Enable dictation only on macOS
+		}
 
 		return {
 			version,
 			apiConfiguration,
-			uriScheme,
 			currentTaskItem,
-			checkpointTrackerErrorMessage,
 			clineMessages,
-			taskHistory: processedTaskHistory,
-			shouldShowAnnouncement,
-			platform,
+			currentFocusChainChecklist: this.task?.taskState.currentFocusChainChecklist || null,
+			checkpointManagerErrorMessage,
 			autoApprovalSettings,
 			browserSettings,
+			focusChainSettings,
+			dictationSettings: updatedDictationSettings,
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled,
+			yoloModeToggled,
+			useAutoCondense,
 			userInfo,
 			mcpMarketplaceEnabled,
 			mcpDisplayMode,
@@ -730,7 +776,7 @@ export class Controller {
 			localClineRulesToggles: localClineRulesToggles || {},
 			localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 			localCursorRulesToggles: localCursorRulesToggles || {},
-			localWorkflowToggles: localWorkflowToggles || {},
+			localWorkflowToggles: workflowToggles || {},
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
@@ -739,11 +785,28 @@ export class Controller {
 			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
+			customPrompt,
+			taskHistory: processedTaskHistory,
+			platform,
+			shouldShowAnnouncement,
+			favoritedModelIds,
+			autoCondenseThreshold,
+			// NEW: Add workspace information
+			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
+			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
+			isMultiRootWorkspace: (this.workspaceManager?.getRoots().length ?? 0) > 1,
+			multiRootSetting: {
+				user: this.stateManager.getGlobalStateKey("multiRootEnabled"),
+				featureFlag: featureFlagsService.getMultiRootEnabled(),
+			},
+			lastDismissedInfoBannerVersion,
 		}
 	}
 
 	async clearTask() {
 		if (this.task) {
+			// Clear task settings cache when task ends
+			await this.stateManager.clearTaskSettings(this.task.taskId)
 		}
 		await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
@@ -767,37 +830,15 @@ export class Controller {
 	For now we'll store the conversation history in memory, and if we need to store in state directly we'd need to do a manual conversion to ensure proper json stringification.
 	*/
 
-	// getApiConversationHistory(): Anthropic.MessageParam[] {
-	// 	// const history = (await this.getGlobalState(
-	// 	// 	this.getApiConversationHistoryStateKey()
-	// 	// )) as Anthropic.MessageParam[]
-	// 	// return history || []
-	// 	return this.apiConversationHistory
-	// }
-
-	// setApiConversationHistory(history: Anthropic.MessageParam[] | undefined) {
-	// 	// await this.updateGlobalState(this.getApiConversationHistoryStateKey(), history)
-	// 	this.apiConversationHistory = history || []
-	// }
-
-	// addMessageToApiConversationHistory(message: Anthropic.MessageParam): Anthropic.MessageParam[] {
-	// 	// const history = await this.getApiConversationHistory()
-	// 	// history.push(message)
-	// 	// await this.setApiConversationHistory(history)
-	// 	// return history
-	// 	this.apiConversationHistory.push(message)
-	// 	return this.apiConversationHistory
-	// }
-
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
-		const history = ((await getGlobalState(this.context, "taskHistory")) as HistoryItem[]) || []
+		const history = this.stateManager.getGlobalStateKey("taskHistory")
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
 			history[existingItemIndex] = item
 		} else {
 			history.push(item)
 		}
-		await updateGlobalState(this.context, "taskHistory", history)
+		this.stateManager.setGlobalState("taskHistory", history)
 		return history
 	}
 }

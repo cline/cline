@@ -1,6 +1,6 @@
-import { StateServiceClient } from "@/services/grpc-client"
 import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { convertAutoApprovalSettingsToProto } from "@shared/proto-conversions/models/auto-approval-settings-conversion"
+import { StateServiceClient } from "@/services/grpc-client"
 
 /**
  * Updates auto approval settings using the gRPC/Protobus client

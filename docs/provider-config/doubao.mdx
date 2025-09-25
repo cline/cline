@@ -1,0 +1,87 @@
+---
+title: "Doubao"
+description: "Learn how to configure and use ByteDance's Doubao AI models with Cline. Experience advanced reasoning, multimodal capabilities, and cost-effective inference with Chinese language optimization."
+---
+
+Doubao is ByteDance's flagship AI model series, featuring innovative sparse Mixture-of-Experts (MoE) architecture that delivers performance equivalent to much larger models while maintaining cost efficiency. With over 13 million users and advanced multimodal capabilities, Doubao offers competitive alternatives to Western AI systems with particular strength in Chinese language processing.
+
+**Website:** [https://www.volcengine.com/](https://www.volcengine.com/)
+
+### Getting an API Key
+
+1.  **Sign Up/Sign In:** Visit the [Volcano Engine Console](https://console.volcengine.com/). Create an account or sign in.
+2.  **Navigate to Model Service:** Access the AI model service section in the console.
+3.  **Create API Key:** Generate a new API key for the Doubao service.
+4.  **Copy the Key:** Copy the API key immediately and store it securely. You may not be able to view it again.
+
+### Supported Models
+
+Cline supports the following Doubao models:
+
+-   `doubao-seed-1-6-250615` (Default) - General purpose model with balanced performance
+-   `doubao-seed-1-6-thinking-250715` - Enhanced reasoning model with step-by-step thinking
+-   `doubao-seed-1-6-flash-250715` - Speed-optimized model for fast inference
+
+All models feature:
+-   **128,000 token context window** for extensive document processing
+-   **32,768 max output tokens** for comprehensive responses
+-   **Image input support** for multimodal applications
+-   **Prompt caching** with 80% discount on cached reads
+
+### Configuration in Cline
+
+1.  **Open Cline Settings:** Click the settings icon (⚙️) in the Cline panel.
+2.  **Select Provider:** Choose "Doubao" from the "API Provider" dropdown.
+3.  **Enter API Key:** Paste your Doubao API key into the "Doubao API Key" field.
+4.  **Select Model:** Choose your desired model from the "Model" dropdown.
+
+**Note:** Doubao uses the base URL `https://ark.cn-beijing.volces.com/api/v3` and servers are located in Beijing, China.
+
+### ByteDance's AI Innovation
+
+Doubao represents ByteDance's strategic entry into the AI model space with several key innovations:
+
+#### Sparse Mixture-of-Experts Architecture
+Doubao 1.5 Pro employs an innovative sparse MoE framework where 20 billion activated parameters deliver performance equivalent to a 140-billion-parameter dense model. This architecture significantly reduces operational costs while maintaining high performance standards.
+
+#### Extended Context Processing
+With context windows ranging from 32,000 to 256,000 tokens, Doubao excels at processing long-form content including legal documents, academic research, market reports, and creative content generation.
+
+#### Multimodal Excellence
+- **Advanced Visual Processing:** Enhanced visual reasoning, document recognition, and fine-grained information understanding
+- **Integrated Speech:** Seamless speech and text token integration with superior emotional continuity
+- **Document Analysis:** Comprehensive document summarization and content processing capabilities
+
+#### Chinese Language Optimization
+Doubao was specifically trained for Chinese language fluency and cultural relevance, providing significant advantages for Chinese-speaking users and applications requiring deep cultural context understanding.
+
+#### Cost Efficiency
+Doubao maintains pricing approximately **half the cost of comparable OpenAI offerings**, making advanced AI more accessible while establishing competitive market positioning.
+
+### Special Features
+
+#### Reasoning Models
+The `doubao-seed-1-6-thinking-250715` model offers enhanced reasoning capabilities with step-by-step thinking processes, making it ideal for complex problem-solving tasks.
+
+#### Multimodal Capabilities
+Unlike traditional cascaded approaches, Doubao integrates speech and text processing seamlessly, enabling more natural voice interactions and comprehensive document analysis.
+
+#### Prompt Caching
+All models support prompt caching with significant cost savings (80% discount on cached reads), making repeated queries more economical.
+
+#### ByteDance Ecosystem Integration
+Doubao integrates vertically with ByteDance properties including TikTok (Douyin), Toutiao, and Feishu, enabling seamless workflow integration across the ecosystem.
+
+### Performance and Benchmarks
+
+Doubao-1.5 Pro-AS1 Preview has demonstrated superior performance compared to OpenAI's O1-preview on specific benchmarks, including surpassing O1 models on AIME tests. The model continues to improve through reinforcement learning, with performance expected to enhance over time.
+
+### Tips and Notes
+
+-   **Regional Advantage:** Optimized for Chinese language and cultural contexts, making it ideal for Chinese-speaking users and markets.
+-   **Cost Effectiveness:** Approximately 50% lower cost than comparable Western AI models while maintaining competitive performance.
+-   **Context Windows:** Large context windows (up to 256K tokens) enable processing of extensive documents and codebases.
+-   **Multimodal Applications:** Strong visual and speech processing capabilities make it suitable for diverse multimedia applications.
+-   **Server Location:** Servers located in Beijing, China - consider latency implications for global users.
+-   **Ecosystem Benefits:** Integration with ByteDance services provides additional workflow advantages for users of TikTok, Toutiao, and Feishu.
+-   **Pricing:** Check the Volcano Engine console for current pricing information and regional availability.

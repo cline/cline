@@ -8,7 +8,7 @@ export async function showMessage(request: ShowMessageRequest): Promise<Selected
 	const { modal, detail, items } = { ...DEFAULT_OPTIONS, ...options }
 	const option = { modal, detail }
 
-	let selectedOption: string | undefined = undefined
+	let selectedOption: string | undefined
 
 	switch (type) {
 		case ShowMessageType.ERROR:

@@ -1,13 +1,14 @@
 import { claudeCodeModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
+import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SUPPORTED_ANTHROPIC_THINKING_MODELS } from "./AnthropicProvider"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { Mode } from "@shared/storage/types"
+
 /**
  * Props for the ClaudeCodeProvider component
  */
@@ -32,9 +33,9 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 			<DebouncedTextField
 				initialValue={apiConfiguration?.claudeCodePath || ""}
 				onChange={(value) => handleFieldChange("claudeCodePath", value)}
+				placeholder="Default: claude"
 				style={{ width: "100%", marginTop: 3 }}
-				type="text"
-				placeholder="Default: claude">
+				type="text">
 				<span style={{ fontWeight: 500 }}>Claude Code CLI Path</span>
 			</DebouncedTextField>
 
@@ -50,8 +51,8 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 			{showModelOptions && (
 				<>
 					<ModelSelector
+						label="Model"
 						models={claudeCodeModels}
-						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -59,14 +60,14 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 								currentMode,
 							)
 						}
-						label="Model"
+						selectedModelId={selectedModelId}
 					/>
 
 					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} currentMode={currentMode} />
+						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					)}
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

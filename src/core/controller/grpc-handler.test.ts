@@ -1,10 +1,10 @@
-import { describe, it, beforeEach, afterEach } from "mocha"
-import { expect } from "chai"
-import * as sinon from "sinon"
-import { handleGrpcRequest, handleGrpcRequestCancel, getRequestRegistry } from "./grpc-handler"
 import { Controller } from "@core/controller"
-import { GrpcRequest, GrpcCancel } from "@shared/WebviewMessage"
 import { serviceHandlers } from "@generated/hosts/vscode/protobus-services"
+import { GrpcCancel, GrpcRequest } from "@shared/WebviewMessage"
+import { expect } from "chai"
+import { afterEach, beforeEach, describe, it } from "mocha"
+import * as sinon from "sinon"
+import { getRequestRegistry, handleGrpcRequest, handleGrpcRequestCancel } from "./grpc-handler"
 
 describe("grpc-handler", () => {
 	let sandbox: sinon.SinonSandbox
@@ -148,12 +148,14 @@ describe("grpc-handler", () => {
 
 				// Reset the mock and set up the handler using callsFake
 				mockStreamingHandler.reset()
-				mockStreamingHandler.callsFake(async (controller: any, message: any, responseStream: any, requestId: string) => {
-					// Simulate streaming multiple messages
-					await responseStream({ value: 1 }, false, 0)
-					await responseStream({ value: 2 }, false, 1)
-					await responseStream({ value: 3 }, true, 2) // Last message
-				})
+				mockStreamingHandler.callsFake(
+					async (_controller: any, _message: any, responseStream: any, _requestId: string) => {
+						// Simulate streaming multiple messages
+						await responseStream({ value: 1 }, false, 0)
+						await responseStream({ value: 2 }, false, 1)
+						await responseStream({ value: 3 }, true, 2) // Last message
+					},
+				)
 
 				await handleGrpcRequest(mockController, mockPostMessageToWebview, request)
 
@@ -236,12 +238,14 @@ describe("grpc-handler", () => {
 
 				// Reset the mock and set up the handler to throw an error after being called
 				mockStreamingHandler.reset()
-				mockStreamingHandler.callsFake(async (controller: any, message: any, responseStream: any, requestId: string) => {
-					// Send first message successfully
-					await responseStream({ value: "first" }, false, 0)
-					// Throw an error
-					throw new Error("Mid-stream error")
-				})
+				mockStreamingHandler.callsFake(
+					async (_controller: any, _message: any, responseStream: any, _requestId: string) => {
+						// Send first message successfully
+						await responseStream({ value: "first" }, false, 0)
+						// Throw an error
+						throw new Error("Mid-stream error")
+					},
+				)
 
 				await handleGrpcRequest(mockController, mockPostMessageToWebview, request)
 

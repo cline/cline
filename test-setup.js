@@ -32,7 +32,7 @@ Module.prototype.require = function (id) {
 	// Intercept requires for @google/genai
 	if (id === "@google/genai") {
 		// Return the mock instead
-		const mockPath = path.join(baseUrl, "out/src/api/providers/gemini-mock.test.js")
+		const mockPath = path.join(baseUrl, "out/src/core/api/providers/gemini-mock.test.js")
 		return originalRequire.call(this, mockPath)
 	}
 	return originalRequire.call(this, id)

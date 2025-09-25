@@ -1,14 +1,12 @@
 import { sendDidBecomeVisibleEvent } from "@core/controller/ui/subscribeToDidBecomeVisible"
-import { sendThemeEvent } from "@core/controller/ui/subscribeToTheme"
 import { WebviewProvider } from "@core/webview"
-import { getTheme } from "@integrations/theme/getTheme"
-import type { Uri } from "vscode"
 import * as vscode from "vscode"
-import { HostProvider } from "@/hosts/host-provider"
-import type { ExtensionMessage } from "@/shared/ExtensionMessage"
-import type { WebviewProviderType } from "@/shared/webview/types"
-import { WebviewMessage } from "@/shared/WebviewMessage"
 import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
+import { HostProvider } from "@/hosts/host-provider"
+import { ExtensionRegistryInfo } from "@/registry"
+import type { ExtensionMessage } from "@/shared/ExtensionMessage"
+import { WebviewMessage } from "@/shared/WebviewMessage"
+import type { WebviewProviderType } from "@/shared/webview/types"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -16,6 +14,11 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class VscodeWebviewProvider extends WebviewProvider implements vscode.WebviewViewProvider {
+	// Used in package.json as the view's id. This value cannot be changed due to how vscode caches
+	// views based on their id, and updating the id would break existing instances of the extension.
+	public static readonly SIDEBAR_ID = ExtensionRegistryInfo.views.Sidebar
+	public static readonly TAB_PANEL_ID = ExtensionRegistryInfo.views.TabPanel
+
 	private webview?: vscode.WebviewView | vscode.WebviewPanel
 	private disposables: vscode.Disposable[] = []
 
@@ -23,32 +26,49 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		super(context, providerType)
 	}
 
-	override getWebviewUri(uri: Uri) {
+	override getWebviewUrl(path: string) {
 		if (!this.webview) {
 			throw new Error("Webview not initialized")
 		}
-		return this.webview.webview.asWebviewUri(uri)
+		const uri = this.webview.webview.asWebviewUri(vscode.Uri.file(path))
+		return uri.toString()
 	}
+
 	override getCspSource() {
 		if (!this.webview) {
 			throw new Error("Webview not initialized")
 		}
 		return this.webview.webview.cspSource
 	}
+
+	protected isActive() {
+		if (this.webview && this.webview.viewType === VscodeWebviewProvider.TAB_PANEL_ID && "active" in this.webview) {
+			return this.webview.active === true
+		}
+		return false
+	}
+
 	override isVisible() {
 		return this.webview?.visible || false
 	}
-	override getWebview() {
+
+	public getWebview(): vscode.WebviewView | vscode.WebviewPanel | undefined {
 		return this.webview
 	}
 
-	override async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel) {
+	/**
+	 * Initializes and sets up the webview when it's first created.
+	 *
+	 * @param webviewView - The webview view or panel instance to be resolved
+	 * @returns A promise that resolves when the webview has been fully initialized
+	 */
+	public async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel): Promise<void> {
 		this.webview = webviewView
 
 		webviewView.webview.options = {
 			// Allow scripts in the webview
 			enableScripts: true,
-			localResourceRoots: [this.context.extensionUri],
+			localResourceRoots: [vscode.Uri.file(HostProvider.get().extensionFsPath)],
 		}
 
 		webviewView.webview.html =
@@ -109,13 +129,6 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// Listen for configuration changes
 		vscode.workspace.onDidChangeConfiguration(
 			async (e) => {
-				if (e && e.affectsConfiguration("workbench.colorTheme")) {
-					// Send theme update via gRPC subscription
-					const theme = await getTheme()
-					if (theme) {
-						await sendThemeEvent(JSON.stringify(theme))
-					}
-				}
 				if (e && e.affectsConfiguration("cline.mcpMarketplace.enabled")) {
 					// Update state when marketplace tab setting changes
 					await this.controller.postStateToWebview()

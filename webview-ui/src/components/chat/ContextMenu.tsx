@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
-import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions, SearchResult } from "@/utils/context-mentions"
 import { cleanPathPrefix } from "@/components/common/CodeAccordian"
+import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions, SearchResult } from "@/utils/context-mentions"
 
 interface ContextMenuProps {
 	onSelect: (type: ContextMenuOptionType, value?: string) => void
@@ -166,14 +166,14 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 
 	return (
 		<div
+			onMouseDown={onMouseDown}
 			style={{
 				position: "absolute",
 				bottom: "calc(100% - 10px)",
 				left: 15,
 				right: 15,
 				overflowX: "hidden",
-			}}
-			onMouseDown={onMouseDown}>
+			}}>
 			<div
 				ref={menuRef}
 				style={{
@@ -205,6 +205,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 					<div
 						key={`${option.type}-${option.value || index}`}
 						onClick={() => isOptionSelectable(option) && onSelect(option.type, option.value)}
+						onMouseEnter={() => isOptionSelectable(option) && setSelectedIndex(index)}
 						style={{
 							padding: "8px 12px",
 							cursor: isOptionSelectable(option) ? "pointer" : "default",
@@ -220,8 +221,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 								index === selectedIndex && isOptionSelectable(option)
 									? "var(--vscode-quickInputList-focusBackground)"
 									: "",
-						}}
-						onMouseEnter={() => isOptionSelectable(option) && setSelectedIndex(index)}>
+						}}>
 						<div
 							style={{
 								display: "flex",

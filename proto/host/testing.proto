@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package host;
+option java_package = "bot.cline.host.proto";
+option java_multiple_files = true;
+
+// This is for use in integration tests to get the contents of the webview.
+service TestingService {
+  rpc getWebviewHtml(GetWebviewHtmlRequest) returns (GetWebviewHtmlResponse);
+}
+
+message GetWebviewHtmlRequest {
+}
+
+message GetWebviewHtmlResponse {
+  optional string html = 1;
+}

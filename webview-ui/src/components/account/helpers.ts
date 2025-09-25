@@ -2,10 +2,16 @@ import type { UsageTransaction as ClineAccountUsageTransaction } from "@shared/C
 import type { UsageTransaction as ProtoUsageTransaction } from "@shared/proto/cline/account"
 
 export const getMainRole = (roles?: string[]) => {
-	if (!roles) return undefined
+	if (!roles) {
+		return undefined
+	}
 
-	if (roles.includes("owner")) return "Owner"
-	if (roles.includes("admin")) return "Admin"
+	if (roles.includes("owner")) {
+		return "Owner"
+	}
+	if (roles.includes("admin")) {
+		return "Admin"
+	}
 
 	return "Member"
 }

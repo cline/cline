@@ -1,7 +1,6 @@
+import { status } from "@grpc/grpc-js"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
-import { DiagnosticSeverity } from "@/shared/proto/host/workspace"
-import { status } from "@grpc/grpc-js"
 
 export class ExternalDiffViewProvider extends DiffViewProvider {
 	private activeDiffEditorId: string | undefined
@@ -75,38 +74,16 @@ export class ExternalDiffViewProvider extends DiffViewProvider {
 		if (!this.activeDiffEditorId) {
 			return undefined
 		}
-		return (await HostProvider.diff.getDocumentText({ diffId: this.activeDiffEditorId })).content
+		try {
+			return (await HostProvider.diff.getDocumentText({ diffId: this.activeDiffEditorId })).content
+		} catch (err) {
+			console.log("Error getting contents of diff editor", err)
+			return undefined
+		}
 	}
 
-	protected override async getNewDiagnosticProblems(): Promise<string> {
-		// Get diagnostics using the HostBridge workspace service
-		const response = await HostProvider.workspace.getDiagnostics({})
-
-		if (response.fileDiagnostics.length === 0) {
-			return ""
-		}
-
-		let result = ""
-		for (const fileDiagnostics of response.fileDiagnostics) {
-			const errors = fileDiagnostics.diagnostics.filter((d) => d.severity === DiagnosticSeverity.DIAGNOSTIC_ERROR)
-
-			if (errors.length > 0) {
-				result += `\n\n${fileDiagnostics.filePath}`
-				for (const diagnostic of errors) {
-					const line = (diagnostic.range?.start?.line || 0) + 1 // Proto lines are 0-indexed
-					const source = diagnostic.source ? `${diagnostic.source} ` : ""
-					result += `\n- [${source}Error] Line ${line}: ${diagnostic.message}`
-				}
-			}
-		}
-		return result.trim()
-	}
-
-	protected override async closeDiffView(): Promise<void> {
-		if (!this.activeDiffEditorId) {
-			return
-		}
-		await HostProvider.diff.closeDiff({ diffId: this.activeDiffEditorId })
+	protected override async closeAllDiffViews(): Promise<void> {
+		await HostProvider.diff.closeAllDiffs({})
 		this.activeDiffEditorId = undefined
 	}
 

@@ -1,21 +1,22 @@
-import HeroTooltip from "@/components/common/HeroTooltip"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { StateServiceClient } from "@/services/grpc-client"
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import debounce from "debounce"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
+import HeroTooltip from "@/components/common/HeroTooltip"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { StateServiceClient } from "@/services/grpc-client"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
-import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import SectionHeader from "./SectionHeader"
-import TerminalSettingsSection from "./sections/TerminalSettingsSection"
+import AboutSection from "./sections/AboutSection"
 import ApiConfigurationSection from "./sections/ApiConfigurationSection"
-import GeneralSettingsSection from "./sections/GeneralSettingsSection"
 import BrowserSettingsSection from "./sections/BrowserSettingsSection"
 import DebugSection from "./sections/DebugSection"
-import AboutSection from "./sections/AboutSection"
+import FeatureSettingsSection from "./sections/FeatureSettingsSection"
+import GeneralSettingsSection from "./sections/GeneralSettingsSection"
+import TerminalSettingsSection from "./sections/TerminalSettingsSection"
 
 const IS_DEV = process.env.IS_DEV
 
@@ -35,6 +36,7 @@ interface SettingsTab {
 	tooltipText: string
 	headerText: string
 	icon: LucideIcon
+	hidden?: boolean
 }
 
 export const SETTINGS_TABS: SettingsTab[] = [
@@ -74,17 +76,14 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		icon: SquareTerminal,
 	},
 	// Only show in dev mode
-	...(IS_DEV
-		? [
-				{
-					id: "debug",
-					name: "Debug",
-					tooltipText: "Debug Tools",
-					headerText: "Debug",
-					icon: FlaskConical,
-				},
-			]
-		: []),
+	{
+		id: "debug",
+		name: "Debug",
+		tooltipText: "Debug Tools",
+		headerText: "Debug",
+		icon: FlaskConical,
+		hidden: !IS_DEV,
+	},
 	{
 		id: "about",
 		name: "About",
@@ -99,63 +98,100 @@ type SettingsViewProps = {
 	targetSection?: string
 }
 
+// Helper to render section header - moved outside component for better performance
+const renderSectionHeader = (tabId: string) => {
+	const tab = SETTINGS_TABS.find((t) => t.id === tabId)
+	if (!tab) {
+		return null
+	}
+
+	return (
+		<SectionHeader>
+			<div className="flex items-center gap-2">
+				<tab.icon className="w-4" />
+				<div>{tab.headerText}</div>
+			</div>
+		</SectionHeader>
+	)
+}
+
 const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
-	// Track active tab
-	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
-	// Track if we're currently switching modes
+	// Memoize to avoid recreation
+	const TAB_CONTENT_MAP = useMemo(
+		() => ({
+			"api-config": ApiConfigurationSection,
+			general: GeneralSettingsSection,
+			features: FeatureSettingsSection,
+			browser: BrowserSettingsSection,
+			terminal: TerminalSettingsSection,
+			about: AboutSection,
+			debug: DebugSection,
+		}),
+		[],
+	) // Empty deps - these imports never change
 
-	const { version } = useExtensionState()
+	const { version, telemetrySetting } = useExtensionState()
 
+	// Initialize active tab with memoized calculation
+	const initialTab = useMemo(
+		() => targetSection || (telemetrySetting === "unset" ? "general" : SETTINGS_TABS[0].id),
+		[targetSection, telemetrySetting],
+	)
+
+	const [activeTab, setActiveTab] = useState<string>(initialTab)
+	const [isCompactMode, setIsCompactMode] = useState(true)
+	const containerRef = useRef<HTMLDivElement>(null)
+
+	// Optimized message handler with early returns
 	const handleMessage = useCallback((event: MessageEvent) => {
 		const message: ExtensionMessage = event.data
-		switch (message.type) {
-			// Handle tab navigation through targetSection prop instead
-			case "grpc_response":
-				if (message.grpc_response?.message?.key === "scrollToSettings") {
-					const tabId = message.grpc_response?.message?.value
-					if (tabId) {
-						console.log("Opening settings tab from GRPC response:", tabId)
-						// Check if the value corresponds to a valid tab ID
-						const isValidTabId = SETTINGS_TABS.some((tab) => tab.id === tabId)
-
-						if (isValidTabId) {
-							// Set the active tab directly
-							setActiveTab(tabId)
-						} else {
-							// Fall back to the old behavior of scrolling to an element
-							setTimeout(() => {
-								const element = document.getElementById(tabId)
-								if (element) {
-									element.scrollIntoView({ behavior: "smooth" })
-
-									element.style.transition = "background-color 0.5s ease"
-									element.style.backgroundColor = "var(--vscode-textPreformat-background)"
-
-									setTimeout(() => {
-										element.style.backgroundColor = "transparent"
-									}, 1200)
-								}
-							}, 300)
-						}
-					}
-				}
-				break
+		if (message.type !== "grpc_response") {
+			return
 		}
+
+		const grpcMessage = message.grpc_response?.message
+		if (grpcMessage?.key !== "scrollToSettings") {
+			return
+		}
+
+		const tabId = grpcMessage.value
+		if (!tabId) {
+			return
+		}
+
+		// Check if valid tab ID
+		if (SETTINGS_TABS.some((tab) => tab.id === tabId)) {
+			setActiveTab(tabId)
+			return
+		}
+
+		// Fallback to element scrolling
+		requestAnimationFrame(() => {
+			const element = document.getElementById(tabId)
+			if (!element) {
+				return
+			}
+
+			element.scrollIntoView({ behavior: "smooth" })
+			element.style.transition = "background-color 0.5s ease"
+			element.style.backgroundColor = "var(--vscode-textPreformat-background)"
+
+			setTimeout(() => {
+				element.style.backgroundColor = "transparent"
+			}, 1200)
+		})
 	}, [])
 
 	useEvent("message", handleMessage)
 
-	const handleResetState = async (resetGlobalState?: boolean) => {
+	// Memoized reset state handler
+	const handleResetState = useCallback(async (resetGlobalState?: boolean) => {
 		try {
-			await StateServiceClient.resetState(
-				ResetStateRequest.create({
-					global: resetGlobalState,
-				}),
-			)
+			await StateServiceClient.resetState(ResetStateRequest.create({ global: resetGlobalState }))
 		} catch (error) {
 			console.error("Failed to reset state:", error)
 		}
-	}
+	}, [])
 
 	// Update active tab when targetSection changes
 	useEffect(() => {
@@ -164,152 +200,116 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		}
 	}, [targetSection])
 
-	// Enhanced tab change handler with debugging
-	const handleTabChange = useCallback(
-		(tabId: string) => {
-			console.log("Tab change requested:", tabId, "Current:", activeTab)
-			setActiveTab(tabId)
-		},
-		[activeTab],
-	)
+	// Simplified tab change handler without debugging
+	const handleTabChange = useCallback((tabId: string) => {
+		setActiveTab(tabId)
+	}, [])
 
-	// Debug tab changes
+	// Optimized resize observer with debouncing
 	useEffect(() => {
-		console.log("Active tab changed to:", activeTab)
-	}, [activeTab])
+		const container = containerRef.current
+		if (!container) {
+			return
+		}
 
-	// Track whether we're in compact mode
-	const [isCompactMode, setIsCompactMode] = useState(false)
-	const containerRef = useRef<HTMLDivElement>(null)
-
-	// Setup resize observer to detect when we should switch to compact mode
-	useEffect(() => {
-		if (!containerRef.current) return
+		const checkCompactMode = debounce((width: number) => {
+			setIsCompactMode(width < 500)
+		}, 100)
 
 		const observer = new ResizeObserver((entries) => {
-			for (const entry of entries) {
-				// If container width is less than 500px, switch to compact mode
-				setIsCompactMode(entry.contentRect.width < 500)
+			const entry = entries[0]
+			if (entry) {
+				checkCompactMode(entry.contentRect.width)
 			}
 		})
 
-		observer.observe(containerRef.current)
-
-		return () => {
-			observer?.disconnect()
-		}
+		observer.observe(container)
+		return () => observer.disconnect()
 	}, [])
+
+	// Memoized tab item renderer
+	const renderTabItem = useCallback(
+		(tab: (typeof SETTINGS_TABS)[0]) => {
+			const isActive = activeTab === tab.id
+			const tabClassName = `${isActive ? `${settingsTabTrigger} ${settingsTabTriggerActive}` : settingsTabTrigger} focus:ring-0`
+			const iconContainerClassName = `flex items-center gap-2 ${isCompactMode ? "justify-center" : ""}`
+
+			const TabIcon = tab.icon
+			const tabContent = (
+				<div className={iconContainerClassName}>
+					<TabIcon className="w-4 h-4" />
+					<span className="tab-label">{tab.name}</span>
+				</div>
+			)
+
+			if (isCompactMode) {
+				return (
+					<HeroTooltip content={tab.tooltipText} key={tab.id} placement="right">
+						<div
+							className={tabClassName}
+							data-compact={isCompactMode}
+							data-testid={`tab-${tab.id}`}
+							data-value={tab.id}
+							onClick={() => handleTabChange(tab.id)}>
+							{tabContent}
+						</div>
+					</HeroTooltip>
+				)
+			}
+
+			return (
+				<TabTrigger
+					className={tabClassName}
+					data-compact={isCompactMode}
+					data-testid={`tab-${tab.id}`}
+					key={tab.id}
+					value={tab.id}>
+					{tabContent}
+				</TabTrigger>
+			)
+		},
+		[activeTab, isCompactMode, handleTabChange],
+	)
+
+	// Memoized active content component
+	const ActiveContent = useMemo(() => {
+		const Component = TAB_CONTENT_MAP[activeTab as keyof typeof TAB_CONTENT_MAP]
+		if (!Component) {
+			return null
+		}
+
+		// Special props for specific components
+		const props: any = { renderSectionHeader }
+		if (activeTab === "debug") {
+			props.onResetState = handleResetState
+		} else if (activeTab === "about") {
+			props.version = version
+		}
+
+		return <Component {...props} />
+	}, [activeTab, handleResetState, version])
 
 	return (
 		<Tab>
 			<TabHeader className="flex justify-between items-center gap-2">
 				<div className="flex items-center gap-1">
-					<h3 className="text-[var(--vscode-foreground)] m-0">Settings</h3>
+					<h3 className="text-foreground m-0">Settings</h3>
 				</div>
 				<div className="flex gap-2">
-					{/* All settings now save immediately, so only show Done button */}
 					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 				</div>
 			</TabHeader>
 
-			{/* Vertical tabs layout */}
-			<div ref={containerRef} className={`${settingsTabsContainer} ${isCompactMode ? "narrow" : ""}`}>
-				{/* Tab sidebar */}
+			<div className={`${settingsTabsContainer} ${isCompactMode ? "narrow" : ""}`} ref={containerRef}>
 				<TabList
-					value={activeTab}
-					onValueChange={handleTabChange}
 					className={settingsTabList}
-					data-compact={isCompactMode}>
-					{SETTINGS_TABS.map((tab) =>
-						isCompactMode ? (
-							<HeroTooltip key={tab.id} content={tab.tooltipText} placement="right">
-								<div
-									className={`${
-										activeTab === tab.id
-											? `${settingsTabTrigger} ${settingsTabTriggerActive}`
-											: settingsTabTrigger
-									} focus:ring-0`}
-									data-compact={isCompactMode}
-									data-testid={`tab-${tab.id}`}
-									data-value={tab.id}
-									onClick={() => {
-										console.log("Compact tab clicked:", tab.id)
-										handleTabChange(tab.id)
-									}}>
-									<div className={`flex items-center gap-2 ${isCompactMode ? "justify-center" : ""}`}>
-										<tab.icon className="w-4 h-4" />
-										<span className="tab-label">{tab.name}</span>
-									</div>
-								</div>
-							</HeroTooltip>
-						) : (
-							<TabTrigger
-								key={tab.id}
-								value={tab.id}
-								className={`${
-									activeTab === tab.id
-										? `${settingsTabTrigger} ${settingsTabTriggerActive}`
-										: settingsTabTrigger
-								} focus:ring-0`}
-								data-compact={isCompactMode}
-								data-testid={`tab-${tab.id}`}>
-								<div className={`flex items-center gap-2 ${isCompactMode ? "justify-center" : ""}`}>
-									<tab.icon className="w-4 h-4" />
-									<span className="tab-label">{tab.name}</span>
-								</div>
-							</TabTrigger>
-						),
-					)}
+					data-compact={isCompactMode}
+					onValueChange={handleTabChange}
+					value={activeTab}>
+					{SETTINGS_TABS.filter((tab) => !tab.hidden).map(renderTabItem)}
 				</TabList>
 
-				{/* Helper function to render section header */}
-				{(() => {
-					const renderSectionHeader = (tabId: string) => {
-						const tab = SETTINGS_TABS.find((t) => t.id === tabId)
-						if (!tab) return null
-
-						return (
-							<SectionHeader>
-								<div className="flex items-center gap-2">
-									{(() => {
-										const Icon = tab.icon
-										return <Icon className="w-4" />
-									})()}
-									<div>{tab.headerText}</div>
-								</div>
-							</SectionHeader>
-						)
-					}
-
-					return (
-						<TabContent className="flex-1 overflow-auto">
-							{/* API Configuration Tab */}
-							{activeTab === "api-config" && <ApiConfigurationSection renderSectionHeader={renderSectionHeader} />}
-
-							{/* General Settings Tab */}
-							{activeTab === "general" && <GeneralSettingsSection renderSectionHeader={renderSectionHeader} />}
-
-							{/* Feature Settings Tab */}
-							{activeTab === "features" && <FeatureSettingsSection renderSectionHeader={renderSectionHeader} />}
-
-							{/* Browser Settings Tab */}
-							{activeTab === "browser" && <BrowserSettingsSection renderSectionHeader={renderSectionHeader} />}
-
-							{/* Terminal Settings Tab */}
-							{activeTab === "terminal" && <TerminalSettingsSection renderSectionHeader={renderSectionHeader} />}
-
-							{/* Debug Tab (only in dev mode) */}
-							{IS_DEV && activeTab === "debug" && (
-								<DebugSection onResetState={handleResetState} renderSectionHeader={renderSectionHeader} />
-							)}
-
-							{/* About Tab */}
-							{activeTab === "about" && (
-								<AboutSection version={version} renderSectionHeader={renderSectionHeader} />
-							)}
-						</TabContent>
-					)
-				})()}
+				<TabContent className="flex-1 overflow-auto">{ActiveContent}</TabContent>
 			</div>
 		</Tab>
 	)

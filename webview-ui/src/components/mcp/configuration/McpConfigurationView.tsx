@@ -1,15 +1,15 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { McpServiceClient } from "@/services/grpc-client"
 import { McpViewTab } from "@shared/mcp"
 import { EmptyRequest } from "@shared/proto/cline/common"
+import { McpServers } from "@shared/proto/cline/mcp"
+import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import styled from "styled-components"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { McpServiceClient } from "@/services/grpc-client"
 import AddRemoteServerForm from "./tabs/add-server/AddRemoteServerForm"
 import InstalledServersView from "./tabs/installed/InstalledServersView"
 import McpMarketplaceView from "./tabs/marketplace/McpMarketplaceView"
-import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { McpServers } from "@shared/proto/cline/mcp"
 
 type McpViewProps = {
 	onDone: () => void
@@ -145,7 +145,7 @@ export const TabButton = ({
 	disabled?: boolean
 	style?: React.CSSProperties
 }) => (
-	<StyledTabButton isActive={isActive} onClick={onClick} disabled={disabled} style={style}>
+	<StyledTabButton disabled={disabled} isActive={isActive} onClick={onClick} style={style}>
 		{children}
 	</StyledTabButton>
 )

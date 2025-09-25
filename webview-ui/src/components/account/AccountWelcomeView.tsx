@@ -11,7 +11,7 @@ export const AccountWelcomeView = () => (
 			upcoming features.
 		</p>
 
-		<VSCodeButton onClick={() => handleSignIn()} className="w-full mb-4">
+		<VSCodeButton className="w-full mb-4" onClick={() => handleSignIn()}>
 			Sign up with Cline
 		</VSCodeButton>
 

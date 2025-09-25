@@ -1,0 +1,23 @@
+{
+	"entry": [
+		"src/extension.ts",
+		"src/standalone/cline-core.ts",
+		"src/generated/hosts/standalone/protobus-server-setup.ts",
+		"src/generated/hosts/standalone/host-bridge-clients.ts",
+		"src/generated/hosts/vscode/protobus-services.ts",
+		"src/generated/hosts/vscode/hostbridge-grpc-service-config.ts"
+	],
+	"project": [
+		"src/**/*.ts"
+	],
+	"ignore": [
+		"out/**",
+		"node_modules/**",
+		"*.d.ts",
+		"**/*.test.ts",
+		"**/__tests__",
+		"src/test/**",
+		"src/shared/**"
+	],
+	"vite": true
+}

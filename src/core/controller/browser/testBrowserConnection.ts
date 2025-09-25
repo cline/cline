@@ -1,9 +1,8 @@
+import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
+import { BrowserSession } from "@services/browser/BrowserSession"
 import { BrowserConnection } from "@shared/proto/cline/browser"
 import { StringRequest } from "@shared/proto/cline/common"
 import { Controller } from "../index"
-import { getAllExtensionState } from "@core/storage/state"
-import { BrowserSession } from "@services/browser/BrowserSession"
-import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
 
 /**
  * Test connection to a browser instance
@@ -13,8 +12,7 @@ import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
  */
 export async function testBrowserConnection(controller: Controller, request: StringRequest): Promise<BrowserConnection> {
 	try {
-		const { browserSettings } = await getAllExtensionState(controller.context)
-		const browserSession = new BrowserSession(controller.context, browserSettings)
+		const browserSession = new BrowserSession(controller.context, controller.stateManager)
 		const text = request.value || ""
 
 		// If no text is provided, try auto-discovery

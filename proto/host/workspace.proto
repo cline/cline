@@ -10,12 +10,23 @@ import "cline/common.proto";
 service WorkspaceService {
   // Returns a list of the top level directories of the workspace.
   rpc getWorkspacePaths(GetWorkspacePathsRequest) returns (GetWorkspacePathsResponse);
+
   // Saves an open document if it's open in the editor and has unsaved changes. 
   // Returns true if the document was saved, returns false if the document was not found, or did not
   // need to be saved.
   rpc saveOpenDocumentIfDirty(SaveOpenDocumentIfDirtyRequest) returns (SaveOpenDocumentIfDirtyResponse);
+
   // Get diagnostics from the workspace.
   rpc getDiagnostics(GetDiagnosticsRequest) returns (GetDiagnosticsResponse);
+
+  // Makes the problems panel/pane visible in the IDE and focuses it.
+  rpc openProblemsPanel(OpenProblemsPanelRequest) returns (OpenProblemsPanelResponse);
+
+  // Opens the IDE file explorer panel and selects a file or directory.
+  rpc openInFileExplorerPanel(OpenInFileExplorerPanelRequest) returns (OpenInFileExplorerPanelResponse); 
+
+  // Opens and focuses the Cline sidebar panel in the host IDE.
+  rpc openClineSidebarPanel(OpenClineSidebarPanelRequest) returns (OpenClineSidebarPanelResponse);
 }
 
 message GetWorkspacePathsRequest {
@@ -44,34 +55,39 @@ message GetDiagnosticsRequest {
 }
 
 message GetDiagnosticsResponse {
-  repeated FileDiagnostics file_diagnostics = 1;
+  repeated cline.FileDiagnostics file_diagnostics = 1;
 }
 
-message FileDiagnostics {
-  string file_path = 1;
-  repeated Diagnostic diagnostics = 2;
+// Request for host-side workspace search (files/folders) used by mentions autocomplete
+message SearchWorkspaceItemsRequest {
+  string query = 1;                    // Search query string
+  optional int32 limit = 2;            // Optional limit for results (default decided by host)
+  // Optional selected type filter
+  enum SearchItemType {
+    FILE = 0;
+    FOLDER = 1;
+  }
+  optional SearchItemType selected_type = 3;
 }
 
-message Diagnostic {
-  string message = 1;
-  DiagnosticRange range = 2;
-  DiagnosticSeverity severity = 3;
-  optional string source = 4;
+// Response for host-side workspace search
+message SearchWorkspaceItemsResponse {
+  message SearchItem {
+    string path = 1;                    // Workspace-relative path using platform separators
+    SearchWorkspaceItemsRequest.SearchItemType type = 2;
+    optional string label = 3;          // Optional display label (e.g., basename)
+  }
+  repeated SearchItem items = 1;
 }
 
-message DiagnosticRange {
-  DiagnosticPosition start = 1;
-  DiagnosticPosition end = 2;
-}
+message OpenProblemsPanelRequest {}
+message OpenProblemsPanelResponse {}
 
-message DiagnosticPosition {
-  int32 line = 1;
-  int32 character = 2;
+message OpenInFileExplorerPanelRequest {
+  string path = 1;
 }
+message OpenInFileExplorerPanelResponse {}
 
-enum DiagnosticSeverity {
-  DIAGNOSTIC_ERROR = 0;
-  DIAGNOSTIC_WARNING = 1;
-  DIAGNOSTIC_INFORMATION = 2;
-  DIAGNOSTIC_HINT = 3;
-}
+// Request/response for opening the Cline sidebar
+message OpenClineSidebarPanelRequest {}
+message OpenClineSidebarPanelResponse {}

@@ -95,9 +95,11 @@ jobs:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
                   CLINE_ENVIRONMENT: production
+                  TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+                  ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
               run: |
                   # Required to generate the .vsix
-                  vsce package --out "cline-${{ steps.get_version.outputs.version }}.vsix"
+                  vsce package  --allow-package-secrets sendgrid --out "cline-${{ steps.get_version.outputs.version }}.vsix"
 
                   if [ "${{ github.event.inputs.release-type }}" = "pre-release" ]; then
                     npm run publish:marketplace:prerelease

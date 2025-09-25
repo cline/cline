@@ -1,5 +1,5 @@
-import * as vscode from "vscode"
 import { userInfo } from "os"
+import * as vscode from "vscode"
 
 const SHELL_PATHS = {
 	// Windows paths

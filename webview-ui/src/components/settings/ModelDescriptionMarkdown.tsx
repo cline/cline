@@ -118,13 +118,13 @@ export const ModelDescriptionMarkdown = memo(
 								}}
 							/>
 							<VSCodeLink
+								onClick={() => setIsExpanded(true)}
 								style={{
 									fontSize: "inherit",
 									paddingRight: 0,
 									paddingLeft: 3,
 									backgroundColor: isPopup ? CODE_BLOCK_BG_COLOR : "var(--vscode-sideBar-background)",
-								}}
-								onClick={() => setIsExpanded(true)}>
+								}}>
 								See more
 							</VSCodeLink>
 						</div>

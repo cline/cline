@@ -1,5 +1,4 @@
-import { HostProvider } from "@/hosts/host-provider"
-import { ShowMessageType } from "@/shared/proto/host/window"
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { GlobalFileNames } from "@core/storage/disk"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
@@ -29,12 +28,12 @@ import { secondsToMs } from "@utils/time"
 import chokidar, { FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import * as path from "path"
 import ReconnectingEventSource from "reconnecting-eventsource"
-import * as vscode from "vscode"
 import { z } from "zod"
-import { FileChangeEvent_ChangeType, SubscribeToFileRequest } from "../../shared/proto/host/watch"
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig, Transport } from "./types"
@@ -42,9 +41,9 @@ export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
 	private clientVersion: string
+	private telemetryService: TelemetryService
 
-	private disposables: vscode.Disposable[] = []
-	private settingsWatcher?: vscode.FileSystemWatcher
+	private settingsWatcher?: FSWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
@@ -64,10 +63,12 @@ export class McpHub {
 		getMcpServersPath: () => Promise<string>,
 		getSettingsDirectoryPath: () => Promise<string>,
 		clientVersion: string,
+		telemetryService: TelemetryService,
 	) {
 		this.getMcpServersPath = getMcpServersPath
 		this.getSettingsDirectoryPath = getSettingsDirectoryPath
 		this.clientVersion = clientVersion
+		this.telemetryService = telemetryService
 		this.watchMcpSettingsFile()
 		this.initializeMcpServers()
 	}
@@ -104,7 +105,7 @@ export class McpHub {
 			// Parse JSON file content
 			try {
 				config = JSON.parse(content)
-			} catch (error) {
+			} catch (_error) {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
 					message: "Invalid MCP settings format. Please ensure your settings follow the correct JSON format.",
@@ -132,41 +133,31 @@ export class McpHub {
 	private async watchMcpSettingsFile(): Promise<void> {
 		const settingsPath = await this.getMcpSettingsFilePath()
 
-		// Subscribe to file changes using the gRPC WatchService
-		//console.log("[DEBUG] subscribing to mcp file changes")
-		const cancelSubscription = HostProvider.watch.subscribeToFile(
-			SubscribeToFileRequest.create({
-				path: settingsPath,
-			}),
-			{
-				onResponse: async (response) => {
-					// console.log(
-					// 	`[DEBUG] MCP settings ${response.type === FileChangeEvent_ChangeType.CHANGED ? "changed" : "event"}`,
-					// )
-
-					// Only process the file if it was changed (not created or deleted)
-					if (response.type === FileChangeEvent_ChangeType.CHANGED) {
-						const settings = await this.readAndValidateMcpSettingsFile()
-						if (settings) {
-							try {
-								await this.updateServerConnections(settings.mcpServers)
-							} catch (error) {
-								console.error("Failed to process MCP settings change:", error)
-							}
-						}
-					}
-				},
-				onError: (error) => {
-					console.error("Error watching MCP settings file:", error)
-				},
-				onComplete: () => {
-					//console.log("[DEBUG] MCP settings file watch completed")
-				},
+		this.settingsWatcher = chokidar.watch(settingsPath, {
+			persistent: true, // Keep the process running as long as files are being watched
+			ignoreInitial: true, // Don't fire 'add' events when discovering the file initially
+			awaitWriteFinish: {
+				// Wait for writes to finish before emitting events (handles chunked writes)
+				stabilityThreshold: 100, // Wait 100ms for file size to remain constant
+				pollInterval: 100, // Check file size every 100ms while waiting for stability
 			},
-		)
+			atomic: true, // Handle atomic writes where editors write to a temp file then rename (prevents duplicate events)
+		})
 
-		// Add the cancellation function to disposables
-		this.disposables.push({ dispose: cancelSubscription })
+		this.settingsWatcher.on("change", async () => {
+			const settings = await this.readAndValidateMcpSettingsFile()
+			if (settings) {
+				try {
+					await this.updateServerConnections(settings.mcpServers)
+				} catch (error) {
+					console.error("Failed to process MCP settings change:", error)
+				}
+			}
+		})
+
+		this.settingsWatcher.on("error", (error) => {
+			console.error("Error watching MCP settings file:", error)
+		})
 	}
 
 	private async initializeMcpServers(): Promise<void> {
@@ -176,7 +167,7 @@ export class McpHub {
 		}
 	}
 
-	private findConnection(name: string, source: "rpc" | "internal"): McpConnection | undefined {
+	private findConnection(name: string, _source: "rpc" | "internal"): McpConnection | undefined {
 		return this.connections.find((conn) => conn.server.name === name)
 	}
 
@@ -256,7 +247,7 @@ export class McpHub {
 					if (stderrStream) {
 						stderrStream.on("data", async (data: Buffer) => {
 							const output = data.toString()
-							const isInfoLog = /INFO/i.test(output)
+							const isInfoLog = !/\berror\b/i.test(output)
 
 							if (isInfoLog) {
 								console.log(`Server "${name}" info:`, output)
@@ -285,7 +276,7 @@ export class McpHub {
 					}
 					const reconnectingEventSourceOptions = {
 						max_retry_time: 5000,
-						withCredentials: config.headers?.["Authorization"] ? true : false,
+						withCredentials: !!config.headers?.["Authorization"],
 					}
 					global.EventSource = ReconnectingEventSource
 					transport = new SSEClientTransport(new URL(config.url), {
@@ -481,7 +472,7 @@ export class McpHub {
 				timeout: DEFAULT_REQUEST_TIMEOUT_MS,
 			})
 			return response?.resources || []
-		} catch (error) {
+		} catch (_error) {
 			// console.error(`Failed to fetch resources for ${serverName}:`, error)
 			return []
 		}
@@ -505,7 +496,7 @@ export class McpHub {
 			)
 
 			return response?.resourceTemplates || []
-		} catch (error) {
+		} catch (_error) {
 			// console.error(`Failed to fetch resource templates for ${serverName}:`, error)
 			return []
 		}
@@ -819,7 +810,12 @@ export class McpHub {
 		)
 	}
 
-	async callTool(serverName: string, toolName: string, toolArguments?: Record<string, unknown>): Promise<McpToolCallResponse> {
+	async callTool(
+		serverName: string,
+		toolName: string,
+		toolArguments: Record<string, unknown> | undefined,
+		ulid: string,
+	): Promise<McpToolCallResponse> {
 		const connection = this.connections.find((conn) => conn.server.name === serverName)
 		if (!connection) {
 			throw new Error(
@@ -841,23 +837,53 @@ export class McpHub {
 			console.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
 		}
 
-		const result = await connection.client.request(
-			{
-				method: "tools/call",
-				params: {
-					name: toolName,
-					arguments: toolArguments,
-				},
-			},
-			CallToolResultSchema,
-			{
-				timeout,
-			},
+		this.telemetryService.captureMcpToolCall(
+			ulid,
+			serverName,
+			toolName,
+			"started",
+			undefined,
+			toolArguments ? Object.keys(toolArguments) : undefined,
 		)
 
-		return {
-			...result,
-			content: result.content ?? [],
+		try {
+			const result = await connection.client.request(
+				{
+					method: "tools/call",
+					params: {
+						name: toolName,
+						arguments: toolArguments,
+					},
+				},
+				CallToolResultSchema,
+				{
+					timeout,
+				},
+			)
+
+			this.telemetryService.captureMcpToolCall(
+				ulid,
+				serverName,
+				toolName,
+				"success",
+				undefined,
+				toolArguments ? Object.keys(toolArguments) : undefined,
+			)
+
+			return {
+				...result,
+				content: result.content ?? [],
+			}
+		} catch (error) {
+			this.telemetryService.captureMcpToolCall(
+				ulid,
+				serverName,
+				toolName,
+				"error",
+				error instanceof Error ? error.message : String(error),
+				toolArguments ? Object.keys(toolArguments) : undefined,
+			)
+			throw error
 		}
 	}
 
@@ -1123,8 +1149,7 @@ export class McpHub {
 		}
 		this.connections = []
 		if (this.settingsWatcher) {
-			this.settingsWatcher.dispose()
+			await this.settingsWatcher.close()
 		}
-		this.disposables.forEach((d) => d.dispose())
 	}
 }

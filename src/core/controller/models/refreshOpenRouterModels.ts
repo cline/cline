@@ -1,14 +1,73 @@
-import { Controller } from ".."
+import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
-import path from "path"
+import cloneDeep from "clone-deep"
 import fs from "fs/promises"
-import { fileExistsAtPath } from "@utils/fs"
-import { GlobalFileNames } from "@core/storage/disk"
+import path from "path"
+import { CLAUDE_SONNET_4_1M_TIERS, clineCodeSupernovaModelInfo, openRouterClaudeSonnet41mModelId } from "@/shared/api"
+import { Controller } from ".."
+
+type OpenRouterSupportedParams =
+	| "frequency_penalty"
+	| "include_reasoning"
+	| "logit_bias"
+	| "logprobs"
+	| "max_tokens"
+	| "min_p"
+	| "presence_penalty"
+	| "reasoning"
+	| "repetition_penalty"
+	| "response_format"
+	| "seed"
+	| "stop"
+	| "temperature"
+	| "tool_choice"
+	| "tools"
+	| "top_k"
+	| "top_logprobs"
+	| "top_p"
 
 /**
- * Refreshes the OpenRouter models and returns the updated model list
+ * The raw model information returned by the OpenRouter API to list models
+ * @link https://openrouter.ai/docs/overview/models
+ */
+interface OpenRouterRawModelInfo {
+	id: string
+	name: string
+	description: string | null
+	context_length: number | null
+	top_provider: {
+		max_completion_tokens: number | null
+		context_length: number | null
+		is_moderated: boolean | null
+	} | null
+	architecture: {
+		modality: string[]
+		input_modalities: string[]
+		output_modalities: string[]
+		tokenizer: string
+		instruct_type: string
+	} | null
+	pricing: {
+		prompt: string
+		completion: string
+		request: string
+		image: string
+		audio: string
+		web_search: string
+		internal_reasoning: string
+		input_cache_read: string
+		input_cache_write: string
+	} | null
+	thinking_config: any | null
+	supports_global_endpoint: boolean | null
+	tiers: any[] | null
+	supported_parameters?: OpenRouterSupportedParams[] | null
+}
+
+/**
+ * Refreshes the OpenRouter models and returns the updated model listhttps://openrouter.ai/docs/overview/models
  * @param controller The controller instance
  * @param request Empty request object
  * @returns Response containing the OpenRouter models
@@ -17,9 +76,9 @@ export async function refreshOpenRouterModels(
 	controller: Controller,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
-	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.openRouterModels)
+	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
-	let models: Record<string, OpenRouterModelInfo> = {}
+	const models: Record<string, OpenRouterModelInfo> = {}
 	try {
 		const response = await axios.get("https://openrouter.ai/api/v1/models")
 
@@ -31,7 +90,8 @@ export async function refreshOpenRouterModels(
 				}
 				return undefined
 			}
-			for (const rawModel of rawModels) {
+			for (const rawModel of rawModels as OpenRouterRawModelInfo[]) {
+				const supportThinking = rawModel.supported_parameters?.some((p) => p === "include_reasoning")
 				const modelInfo = OpenRouterModelInfo.create({
 					maxTokens: rawModel.top_provider?.max_completion_tokens ?? 0,
 					contextWindow: rawModel.context_length ?? 0,
@@ -39,16 +99,22 @@ export async function refreshOpenRouterModels(
 					supportsPromptCache: false,
 					inputPrice: parsePrice(rawModel.pricing?.prompt) ?? 0,
 					outputPrice: parsePrice(rawModel.pricing?.completion) ?? 0,
-					cacheWritesPrice: 0,
-					cacheReadsPrice: 0,
+					cacheWritesPrice: parsePrice(rawModel.pricing?.input_cache_write),
+					cacheReadsPrice: parsePrice(rawModel.pricing?.input_cache_read),
 					description: rawModel.description ?? "",
-					thinkingConfig: rawModel.thinking_config ?? undefined,
+					thinkingConfig: supportThinking ? (rawModel.thinking_config ?? {}) : undefined,
 					supportsGlobalEndpoint: rawModel.supports_global_endpoint ?? undefined,
 					tiers: rawModel.tiers ?? [],
 				})
 
 				switch (rawModel.id) {
 					case "anthropic/claude-sonnet-4":
+						// NOTE: we artificially restrict the context window to 200k to keep costs low for users, and have a :1m model variant created below for users that want to use the full 1m.
+						modelInfo.contextWindow = 200_000
+						modelInfo.supportsPromptCache = true
+						modelInfo.cacheWritesPrice = 3.75
+						modelInfo.cacheReadsPrice = 0.3
+						break
 					case "anthropic/claude-3-7-sonnet":
 					case "anthropic/claude-3-7-sonnet:beta":
 					case "anthropic/claude-3.7-sonnet":
@@ -115,6 +181,17 @@ export async function refreshOpenRouterModels(
 						modelInfo.outputPrice = 3
 						modelInfo.contextWindow = 131_000
 						break
+					case "openai/gpt-5":
+					case "openai/gpt-5-chat":
+					case "openai/gpt-5-mini":
+					case "openai/gpt-5-nano":
+						modelInfo.maxTokens = 8_192 // 128000 breaks context window truncation
+						modelInfo.contextWindow = 272_000 // openrouter reports 400k but the input limit is actually 400k-128k
+						break
+					case "x-ai/grok-code-fast-1":
+						modelInfo.supportsPromptCache = true
+						modelInfo.cacheReadsPrice = 0.02
+						break
 					default:
 						if (rawModel.id.startsWith("openai/")) {
 							modelInfo.cacheReadsPrice = parsePrice(rawModel.pricing?.input_cache_read)
@@ -134,6 +211,14 @@ export async function refreshOpenRouterModels(
 				}
 
 				models[rawModel.id] = modelInfo
+
+				// add custom :1m model variant
+				if (rawModel.id === "anthropic/claude-sonnet-4") {
+					const claudeSonnet41mModelInfo = cloneDeep(modelInfo)
+					claudeSonnet41mModelInfo.contextWindow = 1_000_000 // limiting providers to those that support 1m context window
+					claudeSonnet41mModelInfo.tiers = CLAUDE_SONNET_4_1M_TIERS
+					models[openRouterClaudeSonnet41mModelId] = claudeSonnet41mModelInfo
+				}
 			}
 		} else {
 			console.error("Invalid response from OpenRouter API")
@@ -144,38 +229,45 @@ export async function refreshOpenRouterModels(
 		console.error("Error fetching OpenRouter models:", error)
 
 		// If we failed to fetch models, try to read cached models
-		const cachedModels = await readOpenRouterModels(controller)
+		const cachedModels = await controller.readOpenRouterModels()
 		if (cachedModels) {
-			models = cachedModels
+			return OpenRouterCompatibleModelInfo.create({ models: cachedModels })
 		}
 	}
-
-	return OpenRouterCompatibleModelInfo.create({ models })
+	// Append stealth models if any
+	return OpenRouterCompatibleModelInfo.create({ models: appendClineStealthModels(models) })
 }
 
 /**
- * Reads cached OpenRouter models from disk
+ * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
  */
-async function readOpenRouterModels(controller: Controller): Promise<Record<string, OpenRouterModelInfo> | undefined> {
-	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.openRouterModels)
-	const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
-	if (fileExists) {
-		try {
-			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
-			return JSON.parse(fileContents)
-		} catch (error) {
-			console.error("Error reading cached OpenRouter models:", error)
-			return undefined
-		}
-	}
-	return undefined
+const CLINE_STEALTH_MODELS: Record<string, OpenRouterModelInfo> = {
+	"cline/code-supernova": OpenRouterModelInfo.create({
+		maxTokens: clineCodeSupernovaModelInfo.maxTokens ?? 0,
+		contextWindow: clineCodeSupernovaModelInfo.contextWindow ?? 0,
+		supportsImages: clineCodeSupernovaModelInfo.supportsImages ?? false,
+		supportsPromptCache: clineCodeSupernovaModelInfo.supportsPromptCache ?? false,
+		inputPrice: clineCodeSupernovaModelInfo.inputPrice ?? 0,
+		outputPrice: clineCodeSupernovaModelInfo.outputPrice ?? 0,
+		cacheWritesPrice: clineCodeSupernovaModelInfo.cacheWritesPrice ?? 0,
+		cacheReadsPrice: clineCodeSupernovaModelInfo.cacheReadsPrice ?? 0,
+		description: clineCodeSupernovaModelInfo.description ?? "",
+		thinkingConfig: clineCodeSupernovaModelInfo.thinkingConfig ?? undefined,
+		supportsGlobalEndpoint: clineCodeSupernovaModelInfo.supportsGlobalEndpoint ?? undefined,
+		tiers: clineCodeSupernovaModelInfo.tiers ?? [],
+	}),
+	// Add more stealth models here as needed
 }
 
-/**
- * Ensures the cache directory exists and returns its path
- */
-async function ensureCacheDirectoryExists(controller: Controller): Promise<string> {
-	const cacheDir = path.join(controller.context.globalStorageUri.fsPath, "cache")
-	await fs.mkdir(cacheDir, { recursive: true })
-	return cacheDir
+export function appendClineStealthModels(
+	currentModels: Record<string, OpenRouterModelInfo>,
+): Record<string, OpenRouterModelInfo> {
+	// Create a shallow clone of the current models to avoid mutating the original object
+	const cloned = { ...currentModels }
+	for (const [modelId, modelInfo] of Object.entries(CLINE_STEALTH_MODELS)) {
+		if (!cloned[modelId]) {
+			cloned[modelId] = modelInfo
+		}
+	}
+	return cloned
 }

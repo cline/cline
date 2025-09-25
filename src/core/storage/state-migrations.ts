@@ -1,8 +1,9 @@
-import * as vscode from "vscode"
-import { ensureRulesDirectoryExists } from "./disk"
 import fs from "fs/promises"
 import path from "path"
-import { updateGlobalState, getAllExtensionState, getGlobalState } from "./state"
+import * as vscode from "vscode"
+import { HistoryItem } from "@/shared/HistoryItem"
+import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
+import { StateManager } from "./StateManager"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
 	// Keys to migrate from workspace storage back to global storage
@@ -66,6 +67,60 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 	}
 }
 
+export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext) {
+	try {
+		// Get data from old location
+		const vscodeGlobalStateTaskHistory = context.globalState.get<HistoryItem[] | undefined>("taskHistory")
+
+		// Normalize old location data to array (empty array if undefined/null/not-array)
+		const oldLocationData = Array.isArray(vscodeGlobalStateTaskHistory) ? vscodeGlobalStateTaskHistory : []
+
+		// Early return if no migration needed
+		if (oldLocationData.length === 0) {
+			console.log("[Storage Migration] No task history to migrate")
+			return
+		}
+
+		let finalData: HistoryItem[]
+		let migrationAction: string
+
+		const newLocationData = await readTaskHistoryFromState()
+
+		if (newLocationData.length === 0) {
+			// Move old data to new location
+			finalData = oldLocationData
+			migrationAction = "Migrated task history from old location to new location"
+		} else {
+			// Merge old data (more recent) with new data
+			finalData = [...newLocationData, ...oldLocationData]
+			migrationAction = "Merged task history from old and new locations"
+		}
+
+		// Perform migration operations sequentially - only clear old data if write succeeds
+		await writeTaskHistoryToState(finalData)
+
+		const successfullyWrittenData = await readTaskHistoryFromState()
+
+		if (!Array.isArray(successfullyWrittenData)) {
+			console.error("[Storage Migration] Failed to write taskHistory to file: Written data is not an array")
+			return
+		}
+
+		if (successfullyWrittenData.length !== finalData.length) {
+			console.error(
+				"[Storage Migration] Failed to write taskHistory to file: Written data does not match the old location data",
+			)
+			return
+		}
+
+		await context.globalState.update("taskHistory", undefined)
+
+		console.log(`[Storage Migration] ${migrationAction}`)
+	} catch (error) {
+		console.error("[Storage Migration] Failed to migrate task history to file:", error)
+	}
+}
+
 export async function migrateMcpMarketplaceEnableSetting(mcpMarketplaceEnabledRaw: boolean | undefined): Promise<boolean> {
 	const config = vscode.workspace.getConfiguration("cline")
 	const mcpMarketplaceEnabled = config.get<boolean>("mcpMarketplace.enabled")
@@ -108,7 +163,7 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 				let existingContent = ""
 				try {
 					existingContent = await fs.readFile(migrationFilePath, "utf8")
-				} catch (readError) {
+				} catch (_readError) {
 					// File doesn't exist, which is fine
 				}
 
@@ -506,14 +561,15 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 export async function migrateWelcomeViewCompleted(context: vscode.ExtensionContext) {
 	try {
 		// Check if welcomeViewCompleted is already set
-		const welcomeViewCompleted = await getGlobalState(context, "welcomeViewCompleted")
+		const welcomeViewCompleted = context.globalState.get("welcomeViewCompleted")
 
 		if (welcomeViewCompleted === undefined) {
 			console.log("Migrating welcomeViewCompleted setting...")
 
 			// Get all extension state to check for existing API keys
-			const extensionState = await getAllExtensionState(context)
-			const config = extensionState.apiConfiguration
+			const stateManager = new StateManager(context)
+			await stateManager.initialize()
+			const config = stateManager.getApiConfiguration()
 
 			// This is the original logic used for checking is the welcome view should be shown
 			// It was located in the ExtensionStateContextProvider
@@ -545,11 +601,12 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 						config.xaiApiKey,
 						config.sambanovaApiKey,
 						config.sapAiCoreClientId,
+						config.difyApiKey,
 					].some((key) => key !== undefined)
 				: false
 
 			// Set welcomeViewCompleted based on whether user has keys
-			await updateGlobalState(context, "welcomeViewCompleted", hasKey)
+			await context.globalState.update("welcomeViewCompleted", hasKey)
 
 			console.log(`Migration: Set welcomeViewCompleted to ${hasKey} based on existing API keys`)
 		}

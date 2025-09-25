@@ -41,6 +41,7 @@ enum ClineAsk {
   NEW_TASK = 13;
   CONDENSE = 14;
   REPORT_BUG = 15;
+  SUMMARIZE_TASK = 16;
 }
 
 // Enum for ClineSay types
@@ -72,6 +73,7 @@ enum ClineSay {
   CHECKPOINT_CREATED = 24;
   LOAD_MCP_DOCUMENTATION = 25;
   INFO = 26;
+  TASK_PROGRESS = 27;
 }
 
 // Enum for ClineSayTool tool types
@@ -246,9 +248,6 @@ service UiService {
   
   // Subscribe to partial message updates (streaming Cline messages as they're built)
   rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);
-  
-  // Subscribe to theme change events
-  rpc subscribeToTheme(EmptyRequest) returns (stream String);
   
   // Initialize webview when it launches
   rpc initializeWebview(EmptyRequest) returns (Empty);

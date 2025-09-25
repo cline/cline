@@ -1,9 +1,9 @@
-import { McpServiceClient } from "@/services/grpc-client"
 import { McpMarketplaceItem, McpServer } from "@shared/mcp"
 import { StringRequest } from "@shared/proto/cline/common"
 import { useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { McpServiceClient } from "@/services/grpc-client"
 
 interface McpMarketplaceCardProps {
 	item: McpMarketplaceItem
@@ -50,8 +50,8 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 				`}
 			</style>
 			<a
-				href={item.githubUrl}
 				className="mcp-card"
+				href={item.githubUrl}
 				style={{
 					padding: "14px 16px",
 					display: "flex",
@@ -66,8 +66,8 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 					{/* Logo */}
 					{item.logoUrl && (
 						<img
-							src={item.logoUrl}
 							alt={`${item.name} logo`}
+							src={item.logoUrl}
 							style={{
 								width: 42,
 								height: 42,
@@ -127,7 +127,7 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 									}
 								}}
 								style={{}}>
-								<StyledInstallButton disabled={isInstalled || isDownloading} $isInstalled={isInstalled}>
+								<StyledInstallButton $isInstalled={isInstalled} disabled={isInstalled || isDownloading}>
 									{isInstalled ? "Installed" : isDownloading ? "Installing..." : "Install"}
 								</StyledInstallButton>
 							</div>
@@ -146,7 +146,16 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 								rowGap: 0,
 							}}>
 							<a
+								className="github-link"
 								href={githubAuthorUrl}
+								onMouseEnter={(e) => {
+									e.currentTarget.style.opacity = "1"
+									e.currentTarget.style.color = "var(--link-active-foreground)"
+								}}
+								onMouseLeave={(e) => {
+									e.currentTarget.style.opacity = "0.7"
+									e.currentTarget.style.color = "var(--vscode-foreground)"
+								}}
 								style={{
 									display: "flex",
 									alignItems: "center",
@@ -155,17 +164,8 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 									opacity: 0.7,
 									textDecoration: "none",
 									border: "none !important",
-								}}
-								className="github-link"
-								onMouseEnter={(e) => {
-									e.currentTarget.style.opacity = "1"
-									e.currentTarget.style.color = "var(--link-active-foreground)"
-								}}
-								onMouseLeave={(e) => {
-									e.currentTarget.style.opacity = "0.7"
-									e.currentTarget.style.color = "var(--vscode-foreground)"
 								}}>
-								<div style={{ display: "flex", gap: "4px", alignItems: "center" }} ref={githubLinkRef}>
+								<div ref={githubLinkRef} style={{ display: "flex", gap: "4px", alignItems: "center" }}>
 									<span className="codicon codicon-github" style={{ fontSize: "14px" }} />
 									<span
 										style={{
@@ -201,7 +201,7 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 								<span style={{ wordBreak: "break-all" }}>{item.downloadCount?.toLocaleString() ?? 0}</span>
 							</div>
 							{item.requiresApiKey && (
-								<span className="codicon codicon-key" title="Requires API key" style={{ flexShrink: 0 }} />
+								<span className="codicon codicon-key" style={{ flexShrink: 0 }} title="Requires API key" />
 							)}
 						</div>
 					</div>
@@ -227,6 +227,13 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 
 					<p style={{ fontSize: "13px", margin: 0 }}>{item.description}</p>
 					<div
+						onScroll={(e) => {
+							const target = e.currentTarget
+							const gradient = target.querySelector(".tags-gradient") as HTMLElement
+							if (gradient) {
+								gradient.style.visibility = target.scrollLeft > 0 ? "hidden" : "visible"
+							}
+						}}
 						style={{
 							display: "flex",
 							gap: "6px",
@@ -234,13 +241,6 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 							overflowX: "auto",
 							scrollbarWidth: "none",
 							position: "relative",
-						}}
-						onScroll={(e) => {
-							const target = e.currentTarget
-							const gradient = target.querySelector(".tags-gradient") as HTMLElement
-							if (gradient) {
-								gradient.style.visibility = target.scrollLeft > 0 ? "hidden" : "visible"
-							}
 						}}>
 						<span
 							style={{

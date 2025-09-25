@@ -3,13 +3,15 @@ import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
-import { BooleanRequest, EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useMemo } from "react"
 import { useMount } from "react-use"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useShowNavbar } from "@/context/PlatformContext"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { Navbar } from "../menu/Navbar"
+import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 // Import utilities and hooks from the new structure
 import {
 	ActionButtons,
@@ -21,14 +23,11 @@ import {
 	InputSection,
 	MessagesArea,
 	TaskSection,
-	useButtonState,
 	useChatState,
-	useIsStreaming,
 	useMessageHandlers,
 	useScrollBehavior,
 	WelcomeSection,
 } from "./chat-view"
-import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -41,18 +40,17 @@ interface ChatViewProps {
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
 const QUICK_WINS_HISTORY_THRESHOLD = 3
 
-const IS_STANDALONE = window?.__is_standalone__ ?? false
-
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
+	const showNavbar = useShowNavbar()
 	const {
 		version,
 		clineMessages: messages,
 		taskHistory,
 		apiConfiguration,
 		telemetrySetting,
-		navigateToChat,
 		mode,
 		userInfo,
+		currentFocusChainChecklist,
 	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
@@ -65,40 +63,37 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	const lastApiReqTotalTokens = useMemo(() => {
 		const getTotalTokensFromApiReqMessage = (msg: ClineMessage) => {
-			if (!msg.text) return 0
+			if (!msg.text) {
+				return 0
+			}
 			const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(msg.text)
 			return (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 		}
 		const lastApiReqMessage = findLast(modifiedMessages, (msg) => {
-			if (msg.say !== "api_req_started") return false
+			if (msg.say !== "api_req_started") {
+				return false
+			}
 			return getTotalTokensFromApiReqMessage(msg) > 0
 		})
-		if (!lastApiReqMessage) return undefined
+		if (!lastApiReqMessage) {
+			return undefined
+		}
 		return getTotalTokensFromApiReqMessage(lastApiReqMessage)
 	}, [modifiedMessages])
 
 	// Use custom hooks for state management
 	const chatState = useChatState(messages)
 	const {
-		inputValue,
 		setInputValue,
-		activeQuote,
-		setActiveQuote,
-		isTextAreaFocused,
 		selectedImages,
 		setSelectedImages,
 		selectedFiles,
 		setSelectedFiles,
 		sendingDisabled,
 		enableButtons,
-		primaryButtonText,
-		secondaryButtonText,
-		didClickCancel,
 		expandedRows,
 		setExpandedRows,
 		textAreaRef,
-		handleFocusChange,
-		clineAsk,
 	} = chatState
 
 	useEffect(() => {
@@ -193,16 +188,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setExpandedRows({})
 	}, [task?.ts])
 
-	// Use streaming hook
-	const isStreaming = useIsStreaming(modifiedMessages, clineAsk, enableButtons, primaryButtonText)
-
 	// handleFocusChange is already provided by chatState
 
-	// Use button state hook
-	useButtonState(messages, chatState)
-
 	// Use message handlers hook
-	const messageHandlers = useMessageHandlers(messages, chatState, isStreaming)
+	const messageHandlers = useMessageHandlers(messages, chatState)
 
 	const { selectedModelInfo } = useMemo(() => {
 		return normalizeApiConfiguration(apiConfiguration, mode)
@@ -248,10 +237,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// Listen for local focusChatInput event
 	useEffect(() => {
 		const handleFocusChatInput = () => {
-			if (isHidden) {
-				navigateToChat()
+			// Only focus chat input box if user is currently viewing the chat (not hidden).
+			if (!isHidden) {
+				textAreaRef.current?.focus()
 			}
-			textAreaRef.current?.focus()
 		}
 
 		window.addEventListener("focusChatInput", handleFocusChatInput)
@@ -319,6 +308,17 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		return filterVisibleMessages(modifiedMessages)
 	}, [modifiedMessages])
 
+	const lastProgressMessageText = useMemo(() => {
+		// First check if we have a current focus chain list from the extension state
+		if (currentFocusChainChecklist) {
+			return currentFocusChainChecklist
+		}
+
+		// Fall back to the last task_progress message if no state focus chain list
+		const lastProgressMessage = [...modifiedMessages].reverse().find((message) => message.say === "task_progress")
+		return lastProgressMessage?.text
+	}, [modifiedMessages, currentFocusChainChecklist])
+
 	const groupedMessages = useMemo(() => {
 		return groupMessages(visibleMessages)
 	}, [visibleMessages])
@@ -334,62 +334,63 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	return (
 		<ChatLayout isHidden={isHidden}>
 			<div className="flex flex-col flex-1 overflow-hidden">
-				{IS_STANDALONE && <Navbar />}
+				{showNavbar && <Navbar />}
 				{task ? (
 					<TaskSection
-						task={task}
 						apiMetrics={apiMetrics}
+						lastApiReqTotalTokens={lastApiReqTotalTokens}
+						lastProgressMessageText={lastProgressMessageText}
+						messageHandlers={messageHandlers}
+						scrollBehavior={scrollBehavior}
 						selectedModelInfo={{
 							supportsPromptCache: selectedModelInfo.supportsPromptCache,
 							supportsImages: selectedModelInfo.supportsImages || false,
 						}}
-						lastApiReqTotalTokens={lastApiReqTotalTokens}
-						messageHandlers={messageHandlers}
-						scrollBehavior={scrollBehavior}
+						task={task}
 					/>
 				) : (
 					<WelcomeSection
-						telemetrySetting={telemetrySetting}
-						showAnnouncement={showAnnouncement}
-						version={version}
 						hideAnnouncement={hideAnnouncement}
 						shouldShowQuickWins={shouldShowQuickWins}
-						taskHistory={taskHistory}
+						showAnnouncement={showAnnouncement}
 						showHistoryView={showHistoryView}
+						taskHistory={taskHistory}
+						telemetrySetting={telemetrySetting}
+						version={version}
 					/>
 				)}
 				{task && (
 					<MessagesArea
-						task={task}
+						chatState={chatState}
 						groupedMessages={groupedMessages}
+						messageHandlers={messageHandlers}
 						modifiedMessages={modifiedMessages}
 						scrollBehavior={scrollBehavior}
-						chatState={chatState}
-						messageHandlers={messageHandlers}
+						task={task}
 					/>
 				)}
 			</div>
 			<footer className="bg-[var(--vscode-sidebar-background)]" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
-				{task && (
-					<ActionButtons
-						chatState={chatState}
-						messageHandlers={messageHandlers}
-						isStreaming={isStreaming}
-						scrollBehavior={{
-							scrollToBottomSmooth: scrollBehavior.scrollToBottomSmooth,
-							disableAutoScrollRef: scrollBehavior.disableAutoScrollRef,
-							showScrollToBottom: scrollBehavior.showScrollToBottom,
-						}}
-					/>
-				)}
+				<ActionButtons
+					chatState={chatState}
+					messageHandlers={messageHandlers}
+					messages={messages}
+					mode={mode}
+					scrollBehavior={{
+						scrollToBottomSmooth: scrollBehavior.scrollToBottomSmooth,
+						disableAutoScrollRef: scrollBehavior.disableAutoScrollRef,
+						showScrollToBottom: scrollBehavior.showScrollToBottom,
+					}}
+					task={task}
+				/>
 				<InputSection
 					chatState={chatState}
 					messageHandlers={messageHandlers}
-					scrollBehavior={scrollBehavior}
 					placeholderText={placeholderText}
-					shouldDisableFilesAndImages={shouldDisableFilesAndImages}
+					scrollBehavior={scrollBehavior}
 					selectFilesAndImages={selectFilesAndImages}
+					shouldDisableFilesAndImages={shouldDisableFilesAndImages}
 				/>
 			</footer>
 		</ChatLayout>

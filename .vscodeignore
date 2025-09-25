@@ -61,6 +61,12 @@ old_docs/**
 !assets/icons/**
 
 # Ignore E2E build files
-e2e-build.js
+e2e-build.mjs
 e2e.vsix
 test-results/
+
+# Ignore Storybook files
+**/*.stories.tsx
+*storybook.log
+storybook-static
+**/StorybookDecorator.tsx

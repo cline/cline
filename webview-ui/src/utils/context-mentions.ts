@@ -1,6 +1,7 @@
 import { mentionRegex } from "@shared/context-mentions"
 import { Fzf } from "fzf"
 import * as path from "path"
+import { PLATFORM_CONFIG } from "@/config/platform.config"
 
 export interface SearchResult {
 	path: string
@@ -8,7 +9,12 @@ export interface SearchResult {
 	label?: string
 }
 
-export function insertMention(text: string, position: number, value: string): { newValue: string; mentionIndex: number } {
+export function insertMention(
+	text: string,
+	position: number,
+	value: string,
+	partialQueryLength: number = 0,
+): { newValue: string; mentionIndex: number } {
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)
 
@@ -26,8 +32,11 @@ export function insertMention(text: string, position: number, value: string): { 
 
 	if (lastAtIndex !== -1) {
 		// If there's an '@' symbol, replace everything after it with the new mention
-		const beforeMention = text.slice(0, lastAtIndex)
-		newValue = beforeMention + "@" + formattedValue + " " + afterCursor.replace(/^[^\s]*/, "")
+		const beforeAt = text.substring(0, lastAtIndex + 1)
+		const afterPartialQuery = text.substring(lastAtIndex + 1 + partialQueryLength)
+
+		// replace the partial query with the full mention
+		newValue = beforeAt + formattedValue + (afterPartialQuery.startsWith(" ") ? afterPartialQuery : " " + afterPartialQuery)
 		mentionIndex = lastAtIndex
 	} else {
 		// If there's no '@' symbol, insert the mention at the cursor position
@@ -88,17 +97,22 @@ export interface ContextMenuQueryItem {
 	description?: string
 }
 
-const DEFAULT_CONTEXT_MENU_OPTIONS = [
-	ContextMenuOptionType.URL,
-	ContextMenuOptionType.Problems,
-	ContextMenuOptionType.Terminal,
-	ContextMenuOptionType.Git,
-	ContextMenuOptionType.Folder,
-	ContextMenuOptionType.File,
-]
+function getContextMenuEntries(): ContextMenuOptionType[] {
+	const entries = [
+		ContextMenuOptionType.URL,
+		ContextMenuOptionType.Problems,
+		ContextMenuOptionType.Git,
+		ContextMenuOptionType.Folder,
+		ContextMenuOptionType.File,
+	]
+	if (PLATFORM_CONFIG.supportsTerminalMentions) {
+		entries.splice(2, 0, ContextMenuOptionType.Terminal)
+	}
+	return entries
+}
 
 export function getContextMenuOptionIndex(option: ContextMenuOptionType) {
-	return DEFAULT_CONTEXT_MENU_OPTIONS.findIndex((item) => item === option)
+	return getContextMenuEntries().findIndex((item) => item === option)
 }
 
 export function getContextMenuOptions(
@@ -114,23 +128,38 @@ export function getContextMenuOptions(
 		description: "Current uncommitted changes",
 	}
 
+	const searchResultItems: ContextMenuQueryItem[] = dynamicSearchResults.map((result) => {
+		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
+		const item = {
+			type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
+			value: formattedPath,
+			label: result.label || path.basename(result.path),
+			description: formattedPath,
+		}
+		return item
+	})
+
 	if (query === "") {
 		if (selectedType === ContextMenuOptionType.File) {
-			const files = queryItems
+			const files = searchResultItems
 				.filter((item) => item.type === ContextMenuOptionType.File)
 				.map((item) => ({
 					type: item.type,
 					value: item.value,
+					label: item.label,
+					description: item.description,
 				}))
 			return files.length > 0 ? files : [{ type: ContextMenuOptionType.NoResults }]
 		}
 
 		if (selectedType === ContextMenuOptionType.Folder) {
-			const folders = queryItems
-				.filter((item) => item.type === ContextMenuOptionType.Folder)
+			const folders = searchResultItems
+				.filter((item) => item.type !== ContextMenuOptionType.File)
 				.map((item) => ({
 					type: ContextMenuOptionType.Folder,
 					value: item.value,
+					label: item.label,
+					description: item.description,
 				}))
 			return folders.length > 0 ? folders : [{ type: ContextMenuOptionType.NoResults }]
 		}
@@ -140,7 +169,7 @@ export function getContextMenuOptions(
 			return commits.length > 0 ? [workingChanges, ...commits] : [workingChanges]
 		}
 
-		return DEFAULT_CONTEXT_MENU_OPTIONS.map((type) => ({ type }))
+		return getContextMenuEntries().map((type) => ({ type }))
 	}
 
 	const lowerQuery = query.toLowerCase()
@@ -206,17 +235,6 @@ export function getContextMenuOptions(
 			item.type !== ContextMenuOptionType.Folder &&
 			item.type !== ContextMenuOptionType.Git,
 	)
-
-	const searchResultItems = dynamicSearchResults.map((result) => {
-		const formattedPath = result.path.startsWith("/") ? result.path : `/${result.path}`
-		const item = {
-			type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
-			value: formattedPath,
-			label: result.label || path.basename(result.path),
-			description: formattedPath,
-		}
-		return item
-	})
 
 	// If we have dynamic search results, prioritize those
 	if (dynamicSearchResults.length > 0) {

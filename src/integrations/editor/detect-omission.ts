@@ -1,6 +1,6 @@
-import { openExternal } from "@utils/env"
 import { HostProvider } from "@hosts/host-provider"
 import { ShowMessageType } from "@shared/proto/host/window"
+import { openExternal } from "@utils/env"
 
 /**
  * Detects potential AI-generated code omissions in the given file content.

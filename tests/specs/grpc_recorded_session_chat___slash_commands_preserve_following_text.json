@@ -1,0 +1,94 @@
+{
+  "startTime": "2025-09-12T17:30:58.798Z",
+  "entries": [
+    {
+      "requestId": "5643a2ef-2b56-4d06-81de-34b9375cd884",
+      "service": "cline.ModelsService",
+      "method": "updateApiConfigurationProto",
+      "isStreaming": false,
+      "request": {
+        "message": {
+          "apiConfiguration": {
+            "openAiHeaders": {},
+            "openRouterApiKey": "test-api-key",
+            "planModeApiProvider": 1,
+            "planModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905",
+            "actModeApiProvider": 1,
+            "actModeFireworksModelId": "accounts/fireworks/models/kimi-k2-instruct-0905"
+          }
+        }
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {}
+      },
+      "duration": 2
+    },
+    {
+      "requestId": "4f25e39a-4357-4368-975b-3981ee4467f1",
+      "service": "cline.StateService",
+      "method": "setWelcomeViewCompleted",
+      "isStreaming": false,
+      "request": {
+        "message": {
+          "value": true
+        }
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {}
+      },
+      "duration": 0
+    },
+    {
+      "requestId": "5643a2ef-2b56-4d06-81de-34b9375cd884",
+      "service": "cline.StateService",
+      "method": "getLatestState",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": true
+      },
+      "response": {
+        "message": {
+          "stateJson": "{\"version\":\"3.30.3\",\"apiConfiguration\":{\"openRouterApiKey\":\"test-api-key\",\"openAiHeaders\":{},\"planModeApiProvider\":\"openrouter\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"openrouter\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"clineMessages\":[],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":1,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"dictationSettings\":{\"featureEnabled\":true,\"dictationEnabled\":false,\"dictationLanguage\":\"en\"},\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"yoloModeToggled\":false,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"fake-machine-id-Joses-MacBook-Pro.local\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[],\"platform\":\"darwin\",\"shouldShowAnnouncement\":true,\"favoritedModelIds\":[],\"workspaceRoots\":[],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
+        }
+      },
+      "duration": 0
+    },
+    {
+      "requestId": "4f25e39a-4357-4368-975b-3981ee4467f1",
+      "service": "cline.StateService",
+      "method": "getLatestState",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": true
+      },
+      "response": {
+        "message": {
+          "stateJson": "{\"version\":\"3.30.3\",\"apiConfiguration\":{\"openRouterApiKey\":\"test-api-key\",\"openAiHeaders\":{},\"planModeApiProvider\":\"openrouter\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"openrouter\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"clineMessages\":[],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":1,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"dictationSettings\":{\"featureEnabled\":true,\"dictationEnabled\":false,\"dictationLanguage\":\"en\"},\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"yoloModeToggled\":false,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"fake-machine-id-Joses-MacBook-Pro.local\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[],\"platform\":\"darwin\",\"shouldShowAnnouncement\":true,\"favoritedModelIds\":[],\"workspaceRoots\":[],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
+        }
+      },
+      "duration": 0
+    }
+  ],
+  "stats": {
+    "totalRequests": 4,
+    "pendingRequests": 0,
+    "completedRequests": 4,
+    "errorRequests": 0
+  }
+}

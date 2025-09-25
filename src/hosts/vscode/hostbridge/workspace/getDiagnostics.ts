@@ -1,69 +1,67 @@
 import * as vscode from "vscode"
-import {
-	GetDiagnosticsRequest,
-	GetDiagnosticsResponse,
-	FileDiagnostics,
-	Diagnostic,
-	DiagnosticRange,
-	DiagnosticPosition,
-	DiagnosticSeverity,
-} from "@/shared/proto/host/workspace"
+import { GetDiagnosticsRequest, GetDiagnosticsResponse } from "@/shared/proto/host/workspace"
+import { Diagnostic, DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
+import "@/utils/path" // for String.prototype.toPosix
 
-export async function getDiagnostics(request: GetDiagnosticsRequest): Promise<GetDiagnosticsResponse> {
+export async function getDiagnostics(_request: GetDiagnosticsRequest): Promise<GetDiagnosticsResponse> {
 	// Get all diagnostics from VS Code
 	const vscodeAllDiagnostics = vscode.languages.getDiagnostics()
 
-	const fileDiagnostics: FileDiagnostics[] = []
+	const fileDiagnostics = convertToFileDiagnostics(vscodeAllDiagnostics)
 
+	return { fileDiagnostics }
+}
+
+export function convertToFileDiagnostics(vscodeAllDiagnostics: [vscode.Uri, vscode.Diagnostic[]][]): FileDiagnostics[] {
+	const result = []
 	for (const [uri, diagnostics] of vscodeAllDiagnostics) {
 		if (diagnostics.length > 0) {
-			const convertedDiagnostics: Diagnostic[] = diagnostics.map((vsDiagnostic) => {
-				// Convert VS Code severity to proto severity
-				let severity: DiagnosticSeverity
-				switch (vsDiagnostic.severity) {
-					case vscode.DiagnosticSeverity.Error:
-						severity = DiagnosticSeverity.DIAGNOSTIC_ERROR
-						break
-					case vscode.DiagnosticSeverity.Warning:
-						severity = DiagnosticSeverity.DIAGNOSTIC_WARNING
-						break
-					case vscode.DiagnosticSeverity.Information:
-						severity = DiagnosticSeverity.DIAGNOSTIC_INFORMATION
-						break
-					case vscode.DiagnosticSeverity.Hint:
-						severity = DiagnosticSeverity.DIAGNOSTIC_HINT
-						break
-					default:
-						severity = DiagnosticSeverity.DIAGNOSTIC_ERROR
-				}
-
-				return Diagnostic.create({
-					message: vsDiagnostic.message,
-					range: DiagnosticRange.create({
-						start: DiagnosticPosition.create({
-							line: vsDiagnostic.range.start.line,
-							character: vsDiagnostic.range.start.character,
-						}),
-						end: DiagnosticPosition.create({
-							line: vsDiagnostic.range.end.line,
-							character: vsDiagnostic.range.end.character,
-						}),
-					}),
-					severity: severity,
-					source: vsDiagnostic.source || undefined,
-				})
-			})
-
-			fileDiagnostics.push(
+			result.push(
 				FileDiagnostics.create({
-					filePath: uri.fsPath,
-					diagnostics: convertedDiagnostics,
+					filePath: uri.fsPath.toPosix(),
+					diagnostics: convertVscodeDiagnostics(diagnostics),
 				}),
 			)
 		}
 	}
+	return result
+}
 
-	return GetDiagnosticsResponse.create({
-		fileDiagnostics: fileDiagnostics,
-	})
+export function convertVscodeDiagnostics(vscodeDiagnostics: vscode.Diagnostic[]): Diagnostic[] {
+	return vscodeDiagnostics.map(convertVscodeDiagnostic)
+}
+
+function convertVscodeDiagnostic(vscodeDiagnostic: vscode.Diagnostic): Diagnostic {
+	return {
+		message: vscodeDiagnostic.message,
+		range: {
+			start: {
+				line: vscodeDiagnostic.range.start.line,
+				character: vscodeDiagnostic.range.start.character,
+			},
+			end: {
+				line: vscodeDiagnostic.range.end.line,
+				character: vscodeDiagnostic.range.end.character,
+			},
+		},
+		severity: convertSeverity(vscodeDiagnostic.severity),
+		source: vscodeDiagnostic.source,
+	}
+}
+
+// Convert VS Code severity to proto severity
+function convertSeverity(vscodeSeverity: vscode.DiagnosticSeverity): DiagnosticSeverity {
+	switch (vscodeSeverity) {
+		case vscode.DiagnosticSeverity.Error:
+			return DiagnosticSeverity.DIAGNOSTIC_ERROR
+		case vscode.DiagnosticSeverity.Warning:
+			return DiagnosticSeverity.DIAGNOSTIC_WARNING
+		case vscode.DiagnosticSeverity.Information:
+			return DiagnosticSeverity.DIAGNOSTIC_INFORMATION
+		case vscode.DiagnosticSeverity.Hint:
+			return DiagnosticSeverity.DIAGNOSTIC_HINT
+		default:
+			console.warn("Unhandled vscode severity", vscodeSeverity)
+			return DiagnosticSeverity.DIAGNOSTIC_ERROR
+	}
 }

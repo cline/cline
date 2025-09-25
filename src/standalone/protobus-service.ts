@@ -2,13 +2,13 @@ import { Controller } from "@core/controller"
 import { StreamingResponseHandler } from "@core/controller/grpc-handler"
 import { addProtobusServices } from "@generated/hosts/standalone/protobus-server-setup"
 import * as grpc from "@grpc/grpc-js"
+
 import { ReflectionService } from "@grpc/reflection"
 import { GrpcHandler, GrpcStreamingResponseHandler } from "@hosts/external/grpc-types"
 import * as health from "grpc-health-check"
 import { getPackageDefinition, log } from "./utils"
 
 export const PROTOBUS_PORT = 26040
-export const HOSTBRIDGE_PORT = 26041
 
 export function startProtobusService(controller: Controller) {
 	const server = new grpc.Server()
@@ -31,11 +31,11 @@ export function startProtobusService(controller: Controller) {
 	const host = process.env.PROTOBUS_ADDRESS || `127.0.0.1:${PROTOBUS_PORT}`
 	server.bindAsync(host, grpc.ServerCredentials.createInsecure(), (err) => {
 		if (err) {
-			log(`Error: Failed to bind to ${host}, port may be unavailable. ${err.message}`)
+			log(`Could not start ProtoBus service: Failed to bind to ${host}, port may be unavailable. ${err.message}`)
 			process.exit(1)
 		}
 		server.start()
-		log(`gRPC server listening on ${host}`)
+		log(`ProtoBus gRPC server listening on ${host}`)
 	})
 }
 
@@ -64,11 +64,11 @@ function wrapHandler<TRequest, TResponse>(
 ): grpc.handleUnaryCall<TRequest, TResponse> {
 	return async (call: grpc.ServerUnaryCall<TRequest, TResponse>, callback: grpc.sendUnaryData<TResponse>) => {
 		try {
-			log(`gRPC request: ${call.getPath()}`)
+			log(`ProtoBus request: ${call.getPath()}`)
 			const result = await handler(controller, call.request)
 			callback(null, result)
 		} catch (err: any) {
-			log(`gRPC handler error: ${call.getPath()}\n${err.stack}`)
+			log(`ProtoBus handler error: ${call.getPath()}\n${err.stack}`)
 			callback({
 				code: grpc.status.INTERNAL,
 				message: err.message || "Internal error",
@@ -84,14 +84,14 @@ function wrapStreamingResponseHandler<TRequest, TResponse>(
 	return async (call: grpc.ServerWritableStream<TRequest, TResponse>) => {
 		try {
 			const requestId = call.metadata.get("request-id").pop()?.toString()
-			log(`gRPC streaming request: ${call.getPath()}`)
+			log(`ProtoBus gRPC streaming request: ${call.getPath()}`)
 
-			const responseHandler: StreamingResponseHandler<TResponse> = (response, isLast, sequenceNumber) => {
+			const responseHandler: StreamingResponseHandler<TResponse> = (response, isLast, _sequenceNumber) => {
 				try {
 					call.write(response) // Use a bound version of call.write to maintain proper 'this' context
 
 					if (isLast === true) {
-						log(`Closing stream for ${requestId}`)
+						log(`Closing ProtoBus stream for ${requestId}`)
 						call.end()
 					}
 					return Promise.resolve()
@@ -101,7 +101,7 @@ function wrapStreamingResponseHandler<TRequest, TResponse>(
 			}
 			await handler(controller, call.request, responseHandler, requestId)
 		} catch (err: any) {
-			log(`gRPC handler error: ${call.getPath()}\n${err.stack}`)
+			log(`ProtoBus handler error: ${call.getPath()}\n${err.stack}`)
 			call.destroy({
 				code: grpc.status.INTERNAL,
 				message: err.message || "Internal error",

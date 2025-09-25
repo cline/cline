@@ -1,0 +1,48 @@
+{
+	"all": true,
+	"check-coverage": false,
+	"reporter": [
+		"text",
+		"lcov"
+	],
+	"include": [
+		"src/**/*.ts"
+	],
+	"exclude": [
+		"**/*.d.ts",
+
+		"**/*.{test,spec}.{js,jsx,ts,tsx,mjs,cjs}",
+		"**/__tests__/**",
+		"**/test/**",
+		"**/tests/**",
+		"**/.nyc_output/**",
+		"**/.vscode-test/**",
+		"**/tests-results/**",
+		"src/test/**",
+
+		"src/generated/**",
+
+		"**/node_modules/**",
+		"**/dist/**",
+		"**/out/**",
+		"**/build/**",
+		"**/coverage/**",
+		"**/coverage-unit/**",
+		"**/proto/**",
+
+		"**/*.{config,setup}.{js,ts,mjs,cjs}",
+		"**/vite-env.d.ts",
+
+		"**/*.{css,scss,sass,less,styl}",
+		"**/*.{svg,png,jpg,jpeg,gif,ico}",
+		"**/*.{json,yaml,yml}"
+	],
+	"extension": [
+		".ts",
+		".js"
+	],
+	"cache": true,
+	"sourceMap": true,
+	"instrument": true,
+	"report-dir": "./coverage-unit"
+}

@@ -1,6 +1,6 @@
-import React from "react"
-import { ClineMessage } from "@shared/ExtensionMessage"
 import { Tooltip } from "@heroui/react"
+import { ClineMessage } from "@shared/ExtensionMessage"
+import React from "react"
 import { getColor } from "./util"
 
 interface TaskTimelineTooltipProps {
@@ -39,7 +39,7 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								return `Web Fetch: ${toolData.path || "Unknown URL"}`
 							}
 							return `Tool: ${toolData.tool}`
-						} catch (e) {
+						} catch (_e) {
 							return "Tool Use"
 						}
 					}
@@ -85,7 +85,7 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								return `Web Fetch: ${toolData.path || "Unknown URL"}`
 							}
 							return `Tool Approval: ${toolData.tool}`
-						} catch (e) {
+						} catch (_e) {
 							return "Tool Approval"
 						}
 					}
@@ -107,14 +107,14 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 				try {
 					const planData = JSON.parse(message.text)
 					return planData.response || message.text
-				} catch (e) {
+				} catch (_e) {
 					return message.text
 				}
 			} else if (message.type === "say" && message.say === "tool" && message.text) {
 				try {
 					const toolData = JSON.parse(message.text)
 					return JSON.stringify(toolData, null, 2)
-				} catch (e) {
+				} catch (_e) {
 					return message.text
 				}
 			}
@@ -153,6 +153,10 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 
 	return (
 		<Tooltip
+			classNames={{
+				base: "bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)] border-[var(--vscode-widget-border)] py-1 rounded-[3px] max-w-[calc(100dvw-2rem)] text-xs",
+			}}
+			closeDelay={100}
 			content={
 				<div className="flex flex-col">
 					<div className="flex flex-wrap items-center font-bold mb-1">
@@ -197,14 +201,10 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 					)}
 				</div>
 			}
-			classNames={{
-				base: "bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)] border-[var(--vscode-widget-border)] py-1 rounded-[3px] max-w-[calc(100dvw-2rem)] text-xs",
-			}}
-			shadow="sm"
-			placement="bottom"
 			disableAnimation
-			closeDelay={100}
-			isKeyboardDismissDisabled={true}>
+			isKeyboardDismissDisabled={true}
+			placement="bottom"
+			shadow="sm">
 			{children}
 		</Tooltip>
 	)

@@ -1,8 +1,12 @@
+import { toRequestyServiceUrl } from "@shared/providers/requesty"
 import { Mode } from "@shared/storage/types"
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { useState } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import RequestyModelPicker from "../RequestyModelPicker"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 
 /**
  * Props for the RequestyProvider component
@@ -20,16 +24,45 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 
+	const [requestyEndpointSelected, setRequestyEndpointSelected] = useState(!!apiConfiguration?.requestyBaseUrl)
+
+	const resolvedUrl = toRequestyServiceUrl(apiConfiguration?.requestyBaseUrl, "app")
+	const apiKeyUrl = new URL("api-keys", resolvedUrl).toString()
+
 	return (
 		<div>
 			<ApiKeyField
 				initialValue={apiConfiguration?.requestyApiKey || ""}
 				onChange={(value) => handleFieldChange("requestyApiKey", value)}
 				providerName="Requesty"
-				signupUrl="https://app.requesty.ai/manage-api"
+				signupUrl={apiKeyUrl}
 			/>
+			<VSCodeCheckbox
+				checked={requestyEndpointSelected}
+				onChange={(e: any) => {
+					const isChecked = e.target.checked === true
+					setRequestyEndpointSelected(isChecked)
 
-			{showModelOptions && <RequestyModelPicker isPopup={isPopup} currentMode={currentMode} />}
+					if (!isChecked) {
+						handleFieldChange("requestyBaseUrl", "")
+					}
+				}}>
+				Use custom base URL
+			</VSCodeCheckbox>
+			{requestyEndpointSelected && (
+				<DebouncedTextField
+					initialValue={apiConfiguration?.requestyBaseUrl ?? ""}
+					onChange={(value) => {
+						handleFieldChange("requestyBaseUrl", value)
+					}}
+					placeholder="Custom base URL"
+					style={{ width: "100%", marginBottom: 5 }}
+					type="url"
+				/>
+			)}
+			{showModelOptions && (
+				<RequestyModelPicker baseUrl={apiConfiguration?.requestyBaseUrl} currentMode={currentMode} isPopup={isPopup} />
+			)}
 		</div>
 	)
 }

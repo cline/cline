@@ -1,8 +1,3 @@
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import Tooltip from "@/components/common/Tooltip"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { FileServiceClient } from "@/services/grpc-client"
-import { vscode } from "@/utils/vscode"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import {
 	ClineRulesToggles,
@@ -16,6 +11,10 @@ import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
 import { useClickAway, useWindowSize } from "react-use"
 import styled from "styled-components"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import Tooltip from "@/components/common/Tooltip"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { FileServiceClient } from "@/services/grpc-client"
 import RulesToggleList from "./RulesToggleList"
 
 const ClineRulesToggleModal: React.FC = () => {
@@ -196,11 +195,11 @@ const ClineRulesToggleModal: React.FC = () => {
 
 	return (
 		<div ref={modalRef}>
-			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
+			<div className="inline-flex min-w-0 max-w-full" ref={buttonRef}>
 				<Tooltip tipText="Manage Cline Rules & Workflows" visible={isVisible ? false : undefined}>
 					<VSCodeButton
 						appearance="icon"
-						aria-label="Cline Rules"
+						aria-label={isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows"}
 						onClick={() => setIsVisible(!isVisible)}
 						style={{ padding: "0px 0px", height: "20px" }}>
 						<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
@@ -260,9 +259,9 @@ const ClineRulesToggleModal: React.FC = () => {
 								Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way to
 								include context and preferences for your projects or globally for every conversation.{" "}
 								<VSCodeLink
+									className="text-xs"
 									href="https://docs.cline.bot/features/cline-rules"
-									style={{ display: "inline" }}
-									className="text-xs">
+									style={{ display: "inline" }}>
 									Docs
 								</VSCodeLink>
 							</p>
@@ -277,9 +276,9 @@ const ClineRulesToggleModal: React.FC = () => {
 								</span>{" "}
 								in the chat.{" "}
 								<VSCodeLink
+									className="text-xs"
 									href="https://docs.cline.bot/features/slash-commands/workflows"
-									style={{ display: "inline" }}
-									className="text-xs">
+									style={{ display: "inline" }}>
 									Docs
 								</VSCodeLink>
 							</p>
@@ -292,13 +291,13 @@ const ClineRulesToggleModal: React.FC = () => {
 							<div className="mb-3">
 								<div className="text-sm font-normal mb-2">Global Rules</div>
 								<RulesToggleList
-									rules={globalRules}
-									toggleRule={(rulePath, enabled) => toggleRule(true, rulePath, enabled)}
-									listGap="small"
 									isGlobal={true}
+									listGap="small"
+									rules={globalRules}
 									ruleType={"cline"}
 									showNewRule={true}
 									showNoRules={false}
+									toggleRule={(rulePath, enabled) => toggleRule(true, rulePath, enabled)}
 								/>
 							</div>
 
@@ -306,31 +305,31 @@ const ClineRulesToggleModal: React.FC = () => {
 							<div style={{ marginBottom: -10 }}>
 								<div className="text-sm font-normal mb-2">Workspace Rules</div>
 								<RulesToggleList
-									rules={localRules}
-									toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}
-									listGap="small"
 									isGlobal={false}
+									listGap="small"
+									rules={localRules}
 									ruleType={"cline"}
 									showNewRule={false}
 									showNoRules={false}
+									toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}
 								/>
 								<RulesToggleList
-									rules={cursorRules}
-									toggleRule={toggleCursorRule}
-									listGap="small"
 									isGlobal={false}
+									listGap="small"
+									rules={cursorRules}
 									ruleType={"cursor"}
 									showNewRule={false}
 									showNoRules={false}
+									toggleRule={toggleCursorRule}
 								/>
 								<RulesToggleList
-									rules={windsurfRules}
-									toggleRule={toggleWindsurfRule}
-									listGap="small"
 									isGlobal={false}
+									listGap="small"
+									rules={windsurfRules}
 									ruleType={"windsurf"}
 									showNewRule={true}
 									showNoRules={false}
+									toggleRule={toggleWindsurfRule}
 								/>
 							</div>
 						</>
@@ -340,13 +339,13 @@ const ClineRulesToggleModal: React.FC = () => {
 							<div className="mb-3">
 								<div className="text-sm font-normal mb-2">Global Workflows</div>
 								<RulesToggleList
-									rules={globalWorkflows}
-									toggleRule={(rulePath, enabled) => toggleWorkflow(true, rulePath, enabled)}
-									listGap="small"
 									isGlobal={true}
+									listGap="small"
+									rules={globalWorkflows}
 									ruleType={"workflow"}
 									showNewRule={true}
 									showNoRules={false}
+									toggleRule={(rulePath, enabled) => toggleWorkflow(true, rulePath, enabled)}
 								/>
 							</div>
 
@@ -354,13 +353,13 @@ const ClineRulesToggleModal: React.FC = () => {
 							<div style={{ marginBottom: -10 }}>
 								<div className="text-sm font-normal mb-2">Workspace Workflows</div>
 								<RulesToggleList
-									rules={localWorkflows}
-									toggleRule={(rulePath, enabled) => toggleWorkflow(false, rulePath, enabled)}
-									listGap="small"
 									isGlobal={false}
+									listGap="small"
+									rules={localWorkflows}
 									ruleType={"workflow"}
 									showNewRule={true}
 									showNoRules={false}
+									toggleRule={(rulePath, enabled) => toggleWorkflow(false, rulePath, enabled)}
 								/>
 							</div>
 						</>
@@ -396,7 +395,7 @@ export const TabButton = ({
 	isActive: boolean
 	onClick: () => void
 }) => (
-	<StyledTabButton isActive={isActive} onClick={onClick}>
+	<StyledTabButton aria-pressed={isActive} isActive={isActive} onClick={onClick}>
 		{children}
 	</StyledTabButton>
 )

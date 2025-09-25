@@ -17,3 +17,10 @@ Object.defineProperty(window, "matchMedia", {
 		dispatchEvent: vi.fn(),
 	})),
 })
+
+// Mock VSCode API for webview tests
+vi.stubGlobal("acquireVsCodeApi", () => ({
+	postMessage: vi.fn(),
+	getState: vi.fn(),
+	setState: vi.fn(),
+}))

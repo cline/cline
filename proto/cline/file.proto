@@ -55,8 +55,14 @@ service FileService {
   // Toggles a workflow on or off
   rpc toggleWorkflow(ToggleWorkflowRequest) returns (ClineRulesToggles);
 
-  // Subscribe to workspace file updates
-  rpc subscribeToWorkspaceUpdates(EmptyRequest) returns (stream StringArray);
+  // Check if file exists in the project
+  rpc ifFileExistsRelativePath(StringRequest) returns (BooleanResponse);
+
+  // Open a file in editor by a relative path
+  rpc openFileRelativePath(StringRequest) returns (Empty);
+  
+  // Opens or creates a focus chain checklist markdown file for editing
+  rpc openFocusChainFile(StringRequest) returns (Empty);
 }
 
 // Response for refreshRules operation
@@ -87,12 +93,19 @@ message RelativePaths {
   repeated string paths = 1;
 }
 
+// Enum for file search type filtering
+enum FileSearchType {
+  FILE = 0;
+  FOLDER = 1;
+}
+
 // Request for file search operations
 message FileSearchRequest {
   Metadata metadata = 1;
   string query = 2;                  // Search query string
   optional string mentions_request_id = 3;  // Optional request ID for tracking requests
   optional int32 limit = 4;          // Optional limit for results (default: 20)
+  optional FileSearchType selected_type = 5;  // Optional selected type filter
 }
 
 // Result for file search operations

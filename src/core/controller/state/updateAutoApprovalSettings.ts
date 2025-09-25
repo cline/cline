@@ -1,8 +1,7 @@
-import { Controller } from ".."
-import { AutoApprovalSettingsRequest } from "@shared/proto/cline/state"
 import { Empty } from "@shared/proto/cline/common"
+import { AutoApprovalSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToAutoApprovalSettings } from "../../../shared/proto-conversions/models/auto-approval-settings-conversion"
-import { updateGlobalState } from "../../../core/storage/state"
+import { Controller } from ".."
 
 /**
  * Updates the auto approval settings
@@ -19,11 +18,17 @@ export async function updateAutoApprovalSettings(controller: Controller, request
 	if (incomingVersion > currentVersion) {
 		const settings = convertProtoToAutoApprovalSettings(request)
 
-		await updateGlobalState(controller.context, "autoApprovalSettings", settings)
-
 		if (controller.task) {
-			controller.task.updateAutoApprovalSettings(settings)
+			const maxRequestsChanged =
+				controller.stateManager.getGlobalSettingsKey("autoApprovalSettings").maxRequests !== settings.maxRequests
+
+			// Reset counter if max requests limit changed
+			if (maxRequestsChanged) {
+				controller.task.resetConsecutiveAutoApprovedRequestsCount()
+			}
 		}
+
+		controller.stateManager.setGlobalState("autoApprovalSettings", settings)
 
 		await controller.postStateToWebview()
 	}

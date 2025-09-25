@@ -1,6 +1,6 @@
-import { Controller } from ".."
 import { Empty, StringRequest } from "@shared/proto/cline/common"
 import { writeTextToClipboard } from "@/utils/env"
+import { Controller } from ".."
 
 /**
  * Copies text to the system clipboard

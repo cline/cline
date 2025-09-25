@@ -1,6 +1,6 @@
-import { Controller } from ".."
-import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { openFile as openFileIntegration } from "@integrations/misc/open-file"
+import { Empty, EmptyRequest } from "@shared/proto/cline/common"
+import { Controller } from ".."
 
 /**
  * Opens the MCP settings file in the editor

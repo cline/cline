@@ -1,18 +1,16 @@
-import { combineApiRequests } from "@/shared/combineApiRequests"
-import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
+import Anthropic from "@anthropic-ai/sdk"
+import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import getFolderSize from "get-folder-size"
 import * as vscode from "vscode"
+import { findLastIndex } from "@/shared/array"
+import { combineApiRequests } from "@/shared/combineApiRequests"
+import { combineCommandSequences } from "@/shared/combineCommandSequences"
 import { ClineMessage } from "@/shared/ExtensionMessage"
 import { getApiMetrics } from "@/shared/getApiMetrics"
-import { combineCommandSequences } from "@/shared/combineCommandSequences"
-import { findLastIndex } from "@/shared/array"
-import getFolderSize from "get-folder-size"
-import os from "os"
-import * as path from "path"
-import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { HistoryItem } from "@/shared/HistoryItem"
-import Anthropic from "@anthropic-ai/sdk"
-import { TaskState } from "./TaskState"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
+import { TaskState } from "./TaskState"
 
 interface MessageStateHandlerParams {
 	context: vscode.ExtensionContext
@@ -21,7 +19,7 @@ interface MessageStateHandlerParams {
 	taskIsFavorited?: boolean
 	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	taskState: TaskState
-	checkpointTrackerErrorMessage?: string
+	checkpointManagerErrorMessage?: string
 }
 
 export class MessageStateHandler {
@@ -29,7 +27,7 @@ export class MessageStateHandler {
 	private clineMessages: ClineMessage[] = []
 	private taskIsFavorited: boolean
 	private checkpointTracker: CheckpointTracker | undefined
-	private checkpointTrackerErrorMessage: string | undefined
+	private checkpointManagerErrorMessage: string | undefined
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	private context: vscode.ExtensionContext
 	private taskId: string
@@ -43,7 +41,7 @@ export class MessageStateHandler {
 		this.taskState = params.taskState
 		this.taskIsFavorited = params.taskIsFavorited ?? false
 		this.updateTaskHistory = params.updateTaskHistory
-		this.checkpointTrackerErrorMessage = this.taskState.checkpointTrackerErrorMessage
+		this.checkpointManagerErrorMessage = this.taskState.checkpointManagerErrorMessage
 	}
 
 	setCheckpointTracker(tracker: CheckpointTracker | undefined) {
@@ -105,7 +103,7 @@ export class MessageStateHandler {
 				cwdOnTaskInitialization: cwd,
 				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
 				isFavorited: this.taskIsFavorited,
-				checkpointTrackerErrorMessage: this.taskState.checkpointTrackerErrorMessage,
+				checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
 			})
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)

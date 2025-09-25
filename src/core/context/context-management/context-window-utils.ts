@@ -1,5 +1,5 @@
-import { ApiHandler } from "@api/index"
-import { OpenAiHandler } from "@api/providers/openai"
+import { ApiHandler } from "@core/api"
+import { OpenAiHandler } from "@core/api/providers/openai"
 
 /**
  * Gets context window information for the given API handler
@@ -13,7 +13,7 @@ export function getContextWindowInfo(api: ApiHandler) {
 
 	// Handle special cases like DeepSeek
 	if (api instanceof OpenAiHandler && api.getModel().id.toLowerCase().includes("deepseek")) {
-		contextWindow = 64_000
+		contextWindow = 128_000
 	}
 
 	let maxAllowedSize: number

@@ -1,9 +1,8 @@
+import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
+import { BrowserSession } from "@services/browser/BrowserSession"
 import { BrowserConnection } from "@shared/proto/cline/browser"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { Controller } from "../index"
-import { getAllExtensionState } from "@core/storage/state"
-import { BrowserSession } from "@services/browser/BrowserSession"
-import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
 
 /**
  * Discover Chrome instances
@@ -11,7 +10,7 @@ import { discoverChromeInstances } from "@services/browser/BrowserDiscovery"
  * @param request The request message
  * @returns The browser connection result
  */
-export async function discoverBrowser(controller: Controller, request: EmptyRequest): Promise<BrowserConnection> {
+export async function discoverBrowser(controller: Controller, _request: EmptyRequest): Promise<BrowserConnection> {
 	try {
 		const discoveredHost = await discoverChromeInstances()
 
@@ -20,8 +19,7 @@ export async function discoverBrowser(controller: Controller, request: EmptyRequ
 			// This way we don't override the user's preference
 
 			// Test the connection to get the endpoint
-			const { browserSettings } = await getAllExtensionState(controller.context)
-			const browserSession = new BrowserSession(controller.context, browserSettings)
+			const browserSession = new BrowserSession(controller.context, controller.stateManager)
 			const result = await browserSession.testConnection(discoveredHost)
 
 			return BrowserConnection.create({

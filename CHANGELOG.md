@@ -1,5 +1,188 @@
 # Changelog
 
+## [3.31.0]
+
+- UI Improvements: New task header and focus chain design to take up less space for a cleaner experience
+- Voice Mode: Experimental feature that must be enabled in settings for hands-free coding
+- YOLO Mode: Enable in settings to let Cline approve all actions and automatically switch between plan/act mode
+- Fix Oracle Code Assist provider issues
+
+## [3.30.3]
+
+- Add Oracle Code Assist provider
+
+## [3.30.2]
+
+- Fix UI tests
+
+## [3.30.1]
+
+- Fix model list not being updated in time for user to use shortcut button to update model to stealth model
+- Fix flicker issue when switching modes
+- Fix Sticky header in settings view overlaping with content on scroll
+- Add experimental yolo mode feature that disables all user approvals and automatically executes a task and navigates through plan to act mode until the task is complete
+
+## [3.30.0]
+
+- Add code-supernova stealth model
+
+## [3.29.2]
+
+- Fix: Reverted change that caused formatting issues
+- Fix: Moonshot - Pass max_tokens value to provider
+
+## [3.29.1]
+
+- Changeset bump + Announcement banner update
+
+## [3.29.0]
+
+- Updated Baseten provider to fetch models from server
+- Fix: Updated insufficient balance URL for easy Cline balance top-ups
+- Accessibility: Improvements to screen readers in MCP, Cline Rules, workflows, and history views.
+
+## [3.28.4]
+
+- Fix bug where some Windows machines had API request hanging
+- Fix bug where 'Proceed while running' action button would be disabled after running an interactive command
+- Fix prompt cache info not being displayed in History
+
+## [3.28.3]
+
+- Fixed issue with start new task button
+- Feature to generate commit message for staged changes, with unstaged as fallback
+
+## [3.28.2]
+
+- Fix for focus chain settings
+
+## [3.28.1]
+
+- Requesty: use base URL to get models and API keys
+- Removed focus chain feature flag
+
+## [3.28.0]
+
+- Synchronized Task History: Real-time task history synchronization across all Cline instances
+- Optimized GPT-5 Integration: Fine-tuned system prompts for improved performance with GPT-5 model family
+- Deep Planning Improvements: Optimized prompts for Windows/PowerShell environments and dependency exclusion
+- Streamlined UI Experience: ESC key navigation, cleaner approve/reject buttons, and improved editor panel focus
+- Smart Provider Search: Improved search functionality in API provider dropdown for faster model selection
+- Added per-provider thinking tokens configurability
+- Added Ollama custom prompt options
+- Enhanced SAP AI Core Provider: Orchestration mode support and improved model visibility
+- Added Dify.ai API Integration
+- SambaNova Updates: Added DeepSeek-V3.1 model
+- Better Gemini rate limit handling
+- OpenAI Reasoning Effort: Minimal reasoning effort configuration for OpenAI models
+- Fixed LiteLLM Caching: Anthropic caching compatibility when using LiteLLM
+- Fixed Ollama default endpoint connections
+- Fixed AutoApprove menu overflow
+- Fixed extended thinking token issue with Anthropic models
+- Fixed issue with slash commands removing text from prompt
+
+## [3.27.2]
+
+- Remove `grok-code-fast-1` promotion deadline
+
+## [3.27.1]
+
+- Add new Kimi K2 model to groq and moonshot providers
+
+## [3.27.0]
+
+- Fix `grok-code-fast-1` model information
+- Add call to action for trying free `grok-code-fast-1` in Announcement banner
+
+## [3.26.7]
+
+- Add 200k context window variant for Claude Sonnet 4 to OpenRouter and Cline providers
+
+## [3.26.6]
+
+- Add free Grok Coder model to Cline provider for users looking for a fast, free coding model option
+- Fix GPT-5 models not respecting auto-compact setting when enabled, improving context window management
+- Fix provider retry attempts not showing proper user feedback during rate limiting scenarios
+- Improve markdown and code block styling to automatically adapt when switching VS Code themes
+
+## [3.26.5]
+
+- fix (provider/vercel-ai-gateway): reduce model list load frequency in settings view
+- Fix OVSX publish command to resolve deployment failure
+
+## [3.26.4]
+
+- Update nebius ai studio models
+- Update sap provider - support reasoning effort for open ai models
+- Fix Claude 4 image input in SAP AI Core Provider
+
+## [3.26.3]
+
+- Add compact system prompt option for LM Studio and Ollama models, optimized for smaller context windows (8k or less)
+- Add token usage tracking for LM Studio models to better monitor API consumption
+- Add "Use compact prompt" checkbox in LM Studio provider settings
+- Fix "Unexpected API Response" bug with gpt-5
+
+## [3.26.2]
+
+- Improve OpenRouter model parsing to show reasoning budget sliders for all models that support thinking, not just Claude models
+- Fix OpenRouter context window error handling to properly extract error codes from error messages, resolving "Unexpected API Response" errors with GPT-5 on Cline provider
+- Fix GPT-5 context window configuration for OpenAI/OpenRouter/Cline providers to use correct 272K limit
+- Remove max tokens configuration from Sonic Alpha model
+- Add Go language support to deep-planning feature (Thanks @yuvalman!)
+- Fix typo in Focus Chain settings page (Thanks @joyceerhl!)
+
+## [3.26.1]
+
+- Add Vercel AI Gateway as a new API provider option (Thanks @joshualipman123!)
+- Improve SAP AI Core provider to show deployed and undeployed models in the UI (Thanks @yuvalman!)
+- Fix Fireworks provider configuration and functionality (Thanks @ershang-fireworks!)
+- Add telemetry tracking for MCP tool usage to help improve the extension
+- Improve telemetry tracking for rules and workflow usage analytics
+- Set Plan mode to use strict mode by default for better planning results
+
+## [3.26.0]
+
+- Add Z AI as a new API provider with GLM-4.5 and GLM-4.5 Air models, offering competitive performance with cost-effective pricing especially for Chinese language tasks (Thanks @jues!)
+- Add Cline Sonic Alpha model - experimental advanced model with 262K context window for complex coding tasks
+- Add support for LM Studio local models from v0 API endpoint with configurable max tokens
+- Fix Ollama context window configuration not being used in requests
+
+## [3.25.3]
+
+- Fix bug where 'Enable checkpoints' and 'Disable MCP Marketplace' settings would be reset to default on reload
+- Move the position of the focus chain edit button when a scrollbar is present. Make the pencil icon bigger and better centered.
+
+## [3.25.2]
+
+- Fix attempt_completion showing twice in chat due to partial logic not being handled correctly
+- Fix OpenRouter showing cline credits error after 402 response
+
+## [3.25.1]
+
+- Fix attempt_completion command showing twice in chat view when updating progress checklist
+- Fix bug where announcement banner could not be dismissed
+- Add GPT-OSS models to AWS Bedrock
+
+## [3.25.0]
+
+- **Focus Chain:** Automatically creates and maintains todo lists as you work with Cline, breaking down complex tasks into manageable steps with real-time progress tracking
+- **Auto Compact:** Intelligently manages conversation context to prevent token limit errors by automatically compacting older messages while preserving important context
+- **Deep Planning:** New `/deep-planning` slash command for structured 4-step implementation planning that integrates with Focus Chain for automatic progress tracking
+- Add support for 200k context window for Claude Sonnet 4 in OpenRouter and Cline providers
+- Add option to configure custom base URL for Requesty provider
+
+## [3.24.0]
+
+- Add OpenAI GPT-5 Chat(gpt-5-chat-latest)
+- Add custom browser arguments setting to allow passing flags to the Chrome executable for better headless compatibility.
+- Add 1m context window model support for claude sonnet 4
+- Fis the API Keys URL for Requesty
+- Set gpt5 max tokens to 8_192 to fix 'context window exceeded' error
+- Fix issue where fallback request to retrieve cost was not using correct auth token
+- Add OpenAI context window exceeded error handling
+- Calibrate input token counts when using anthropic models of sap ai core provider
+
 ## [3.23.0]
 
 - Add caching support for Bedrock inferences using SAP AI Core and minor refactor

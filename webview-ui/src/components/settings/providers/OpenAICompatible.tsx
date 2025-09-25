@@ -1,17 +1,18 @@
-import { ApiConfiguration, azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shared/api"
+import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shared/api"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
-import { ModelsServiceClient } from "@/services/grpc-client"
-import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
+import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { DebouncedTextField } from "../common/DebouncedTextField"
-import { ModelInfoView } from "../common/ModelInfoView"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
+import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
-import { normalizeApiConfiguration, getModeSpecificFields } from "../utils/providerUtils"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { DebouncedTextField } from "../common/DebouncedTextField"
+import { ModelInfoView } from "../common/ModelInfoView"
+import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { Mode } from "@shared/storage/types"
+
 /**
  * Props for the OpenAICompatibleProvider component
  */
@@ -74,9 +75,9 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					handleFieldChange("openAiBaseUrl", value)
 					debouncedRefreshOpenAiModels(value, apiConfiguration?.openAiApiKey)
 				}}
+				placeholder={"Enter base URL..."}
 				style={{ width: "100%", marginBottom: 10 }}
-				type="url"
-				placeholder={"Enter base URL..."}>
+				type="url">
 				<span style={{ fontWeight: 500 }}>Base URL</span>
 			</DebouncedTextField>
 
@@ -94,8 +95,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				onChange={(value) =>
 					handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
 				}
-				style={{ width: "100%", marginBottom: 10 }}
-				placeholder={"Enter Model ID..."}>
+				placeholder={"Enter Model ID..."}
+				style={{ width: "100%", marginBottom: 10 }}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>
 			</DebouncedTextField>
 
@@ -122,8 +123,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 								<div key={index} style={{ display: "flex", gap: 5, marginTop: 5 }}>
 									<DebouncedTextField
 										initialValue={key}
-										style={{ width: "40%" }}
-										placeholder="Header name"
 										onChange={(newValue) => {
 											const currentHeaders = apiConfiguration?.openAiHeaders ?? {}
 											if (newValue && newValue !== key) {
@@ -134,17 +133,19 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 												})
 											}
 										}}
+										placeholder="Header name"
+										style={{ width: "40%" }}
 									/>
 									<DebouncedTextField
 										initialValue={value}
-										style={{ width: "40%" }}
-										placeholder="Header value"
 										onChange={(newValue) => {
 											handleFieldChange("openAiHeaders", {
 												...(apiConfiguration?.openAiHeaders ?? {}),
 												[key]: newValue,
 											})
 										}}
+										placeholder="Header value"
+										style={{ width: "40%" }}
 									/>
 									<VSCodeButton
 										appearance="secondary"
@@ -163,20 +164,20 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 			<BaseUrlField
 				initialValue={apiConfiguration?.azureApiVersion}
-				onChange={(value) => handleFieldChange("azureApiVersion", value)}
 				label="Set Azure API version"
+				onChange={(value) => handleFieldChange("azureApiVersion", value)}
 				placeholder={`Default: ${azureOpenAiDefaultApiVersion}`}
 			/>
 
 			<div
+				onClick={() => setModelConfigurationSelected((val) => !val)}
 				style={{
 					color: getAsVar(VSC_DESCRIPTION_FOREGROUND),
 					display: "flex",
 					margin: "10px 0",
 					cursor: "pointer",
 					alignItems: "center",
-				}}
-				onClick={() => setModelConfigurationSelected((val) => !val)}>
+				}}>
 				<span
 					className={`codicon ${modelConfigurationSelected ? "codicon-chevron-down" : "codicon-chevron-right"}`}
 					style={{
@@ -212,7 +213,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						checked={!!openAiModelInfo?.supportsImages}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
-							let modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
+							const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 							modelInfo.supportsImages = isChecked
 							handleModeFieldChange(
 								{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
@@ -246,7 +247,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 									? openAiModelInfo.contextWindow.toString()
 									: (openAiModelInfoSaneDefaults.contextWindow?.toString() ?? "")
 							}
-							style={{ flex: 1 }}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 								modelInfo.contextWindow = Number(value)
@@ -255,7 +255,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 									modelInfo,
 									currentMode,
 								)
-							}}>
+							}}
+							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Context Window Size</span>
 						</DebouncedTextField>
 
@@ -265,7 +266,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 									? openAiModelInfo.maxTokens.toString()
 									: (openAiModelInfoSaneDefaults.maxTokens?.toString() ?? "")
 							}
-							style={{ flex: 1 }}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 								modelInfo.maxTokens = Number(value)
@@ -274,7 +274,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 									modelInfo,
 									currentMode,
 								)
-							}}>
+							}}
+							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
 						</DebouncedTextField>
 					</div>
@@ -286,7 +287,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 									? openAiModelInfo.inputPrice.toString()
 									: (openAiModelInfoSaneDefaults.inputPrice?.toString() ?? "")
 							}
-							style={{ flex: 1 }}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 								modelInfo.inputPrice = Number(value)
@@ -295,7 +295,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 									modelInfo,
 									currentMode,
 								)
-							}}>
+							}}
+							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Input Price / 1M tokens</span>
 						</DebouncedTextField>
 
@@ -305,7 +306,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 									? openAiModelInfo.outputPrice.toString()
 									: (openAiModelInfoSaneDefaults.outputPrice?.toString() ?? "")
 							}
-							style={{ flex: 1 }}
 							onChange={(value) => {
 								const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
 								modelInfo.outputPrice = Number(value)
@@ -314,7 +314,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 									modelInfo,
 									currentMode,
 								)
-							}}>
+							}}
+							style={{ flex: 1 }}>
 							<span style={{ fontWeight: 500 }}>Output Price / 1M tokens</span>
 						</DebouncedTextField>
 					</div>
@@ -363,7 +364,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 			</p>
 
 			{showModelOptions && (
-				<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+				<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 			)}
 		</div>
 	)

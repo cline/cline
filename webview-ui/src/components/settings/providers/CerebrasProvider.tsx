@@ -1,11 +1,12 @@
 import { cerebrasModels } from "@shared/api"
+import { Mode } from "@shared/storage/types"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
-import { ModelSelector } from "../common/ModelSelector"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { Mode } from "@shared/storage/types"
+
 /**
  * Props for the CerebrasProvider component
  */
@@ -37,8 +38,8 @@ export const CerebrasProvider = ({ showModelOptions, isPopup, currentMode }: Cer
 			{showModelOptions && (
 				<>
 					<ModelSelector
+						label="Model"
 						models={cerebrasModels}
-						selectedModelId={selectedModelId}
 						onChange={(e: any) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -46,10 +47,10 @@ export const CerebrasProvider = ({ showModelOptions, isPopup, currentMode }: Cer
 								currentMode,
 							)
 						}
-						label="Model"
+						selectedModelId={selectedModelId}
 					/>
 
-					<ModelInfoView selectedModelId={selectedModelId} modelInfo={selectedModelInfo} isPopup={isPopup} />
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			)}
 		</div>

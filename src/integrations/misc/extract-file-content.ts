@@ -1,8 +1,8 @@
-import * as path from "path"
-import fs from "fs/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { callTextExtractionFunctions } from "./extract-text"
+import fs from "fs/promises"
+import * as path from "path"
 import { extractImageContent } from "./extract-images"
+import { callTextExtractionFunctions } from "./extract-text"
 
 export type FileContentResult = {
 	text: string
@@ -17,7 +17,7 @@ export async function extractFileContent(absolutePath: string, modelSupportsImag
 	// Check if file exists first
 	try {
 		await fs.access(absolutePath)
-	} catch (error) {
+	} catch (_error) {
 		throw new Error(`File not found: ${absolutePath}`)
 	}
 

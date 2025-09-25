@@ -1,27 +1,21 @@
-import * as vscode from "vscode"
-import * as fs from "fs/promises"
-import * as path from "path"
-import { exec, spawn } from "child_process"
-import { Browser, Page, TimeoutError, launch, connect } from "puppeteer-core"
-import type { ScreenshotOptions, ConsoleMessage } from "puppeteer-core"
-// @ts-ignore
-import PCR from "puppeteer-chromium-resolver"
-import pWaitFor from "p-wait-for"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
-import axios from "axios"
-import { fileExistsAtPath } from "@utils/fs"
-import { BrowserActionResult } from "@shared/ExtensionMessage"
-import { BrowserSettings } from "@shared/BrowserSettings"
-import { discoverChromeInstances, testBrowserConnection, isPortOpen } from "./BrowserDiscovery"
-import * as chromeLauncher from "chrome-launcher"
 import { Controller } from "@core/controller"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { BrowserActionResult } from "@shared/ExtensionMessage"
+import { fileExistsAtPath } from "@utils/fs"
+import axios from "axios"
+import { spawn } from "child_process"
+import * as chromeLauncher from "chrome-launcher"
 import os from "os"
-
-interface PCRStats {
-	puppeteer: { launch: typeof launch }
-	executablePath: string
-}
+import pWaitFor from "p-wait-for"
+import * as path from "path"
+// @ts-ignore
+import type { ConsoleMessage, ScreenshotOptions } from "puppeteer-core"
+import { Browser, connect, launch, Page, TimeoutError } from "puppeteer-core"
+import * as vscode from "vscode"
+import { StateManager } from "@/core/storage/StateManager"
+import { telemetryService } from "@/services/telemetry"
+import { discoverChromeInstances, isPortOpen, testBrowserConnection } from "./BrowserDiscovery"
+import { ensureChromiumExists } from "./utils"
 
 // Define browser connection info interface
 export interface BrowserConnectionInfo {
@@ -32,6 +26,15 @@ export interface BrowserConnectionInfo {
 
 const DEBUG_PORT = 9222 // Chrome's default debugging port
 
+// helper function required to append custom browser arguments from UI
+function splitArgs(str?: string | null): string[] {
+	if (!str) {
+		return []
+	}
+	// split on spaces but keep quoted chunks; strip quotes
+	return (str.match(/"[^"]+"|\S+/g) || []).map((s) => s.replace(/^"(.*)"$/, "$1"))
+}
+
 export class BrowserSession {
 	private context: vscode.ExtensionContext
 	private browser?: Browser
@@ -39,18 +42,18 @@ export class BrowserSession {
 	private currentMousePosition?: string
 	private cachedWebSocketEndpoint?: string
 	private lastConnectionAttempt: number = 0
-	browserSettings: BrowserSettings
 	private isConnectedToRemote: boolean = false
 	private useWebp: boolean
 
 	// Telemetry tracking properties
 	private sessionStartTime: number = 0
 	private browserActions: string[] = []
-	private taskId?: string
+	private ulid?: string
+	private stateManager: StateManager
 
-	constructor(context: vscode.ExtensionContext, browserSettings: BrowserSettings, useWebp: boolean = true) {
+	constructor(context: vscode.ExtensionContext, stateManager: StateManager, useWebp: boolean = true) {
 		this.context = context
-		this.browserSettings = browserSettings
+		this.stateManager = stateManager
 		this.useWebp = useWebp
 	}
 
@@ -66,7 +69,9 @@ export class BrowserSession {
 		return {
 			isConnected: !!this.browser,
 			isRemote: this.isConnectedToRemote,
-			host: this.isConnectedToRemote ? this.browserSettings.remoteBrowserHost : undefined,
+			host: this.isConnectedToRemote
+				? this.stateManager.getGlobalSettingsKey("browserSettings").remoteBrowserHost
+				: undefined,
 		}
 	}
 
@@ -78,7 +83,7 @@ export class BrowserSession {
 		const configPath = vscode.workspace.getConfiguration("cline").get<string>("chromeExecutablePath")
 
 		if (configPath !== undefined) {
-			this.browserSettings.chromeExecutablePath = configPath
+			this.stateManager.getGlobalSettingsKey("browserSettings").chromeExecutablePath = configPath
 			// Remove from VSCode configuration
 			await config.update("chromeExecutablePath", undefined, true)
 		}
@@ -86,10 +91,11 @@ export class BrowserSession {
 
 	async getDetectedChromePath(): Promise<{ path: string; isBundled: boolean }> {
 		// First check browserSettings (from UI, stored in global state)
+		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		await this.migrateChromeExecutablePathSetting()
-		if (this.browserSettings.chromeExecutablePath && (await fileExistsAtPath(this.browserSettings.chromeExecutablePath))) {
+		if (browserSettings.chromeExecutablePath && (await fileExistsAtPath(browserSettings.chromeExecutablePath))) {
 			return {
-				path: this.browserSettings.chromeExecutablePath,
+				path: browserSettings.chromeExecutablePath,
 				isBundled: false,
 			}
 		}
@@ -106,29 +112,11 @@ export class BrowserSession {
 		}
 
 		// Finally fall back to PCR's bundled version
-		const stats = await this.ensureChromiumExists()
+		const stats = await ensureChromiumExists()
 		return { path: stats.executablePath, isBundled: true }
 	}
 
-	async ensureChromiumExists(): Promise<PCRStats> {
-		const globalStoragePath = this.context?.globalStorageUri?.fsPath
-		if (!globalStoragePath) {
-			throw new Error("Global storage uri is invalid")
-		}
-
-		const puppeteerDir = path.join(globalStoragePath, "puppeteer")
-		const dirExists = await fileExistsAtPath(puppeteerDir)
-		if (!dirExists) {
-			await fs.mkdir(puppeteerDir, { recursive: true })
-		}
-
-		// if chromium doesn't exist, this will download it to path.join(puppeteerDir, ".chromium-browser-snapshots")
-		// if it does exist it will return the path to existing chromium
-		const stats = await PCR({ downloadPath: puppeteerDir })
-		return stats
-	}
-
-	async relaunchChromeDebugMode(controller: Controller): Promise<string> {
+	async relaunchChromeDebugMode(_controller: Controller): Promise<string> {
 		try {
 			const userDataDir = path.join(os.tmpdir(), "chrome-debug-profile")
 			const installation = chromeLauncher.Launcher.getFirstInstallation()
@@ -137,10 +125,13 @@ export class BrowserSession {
 			}
 			console.info("chrome installation", installation)
 
+			const userArgs = splitArgs(this.stateManager.getGlobalSettingsKey("browserSettings").customArgs)
+
 			const args = [
 				`--remote-debugging-port=${DEBUG_PORT}`,
 				`--user-data-dir=${userDataDir}`,
 				"--disable-notifications",
+				...userArgs,
 				"chrome://newtab",
 			]
 
@@ -171,11 +162,11 @@ export class BrowserSession {
 	}
 
 	/**
-	 * Set the task ID for telemetry tracking
-	 * @param taskId The task ID to associate with browser actions
+	 * Set the ULID for telemetry tracking
+	 * @param ulid The task ID to associate with browser actions
 	 */
-	setTaskId(taskId: string) {
-		this.taskId = taskId
+	setUlid(ulid: string) {
+		this.ulid = ulid
 	}
 
 	async launchBrowser() {
@@ -190,15 +181,17 @@ export class BrowserSession {
 		// Reset remote connection status
 		this.isConnectedToRemote = false
 
-		if (this.browserSettings.remoteBrowserEnabled) {
+		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
+
+		if (browserSettings.remoteBrowserEnabled) {
 			console.log(`launch browser called -- remote host mode (non-headless)`)
 			try {
 				await this.launchRemoteBrowser()
 				// Don't create a new page here, as we'll create it in launchRemoteBrowser
 
 				// Send telemetry for browser tool start
-				if (this.taskId) {
-					telemetryService.captureBrowserToolStart(this.taskId, this.browserSettings)
+				if (this.ulid) {
+					telemetryService.captureBrowserToolStart(this.ulid, browserSettings)
 				}
 
 				return
@@ -206,14 +199,14 @@ export class BrowserSession {
 				console.error("Failed to launch remote browser, falling back to local mode:", error)
 
 				// Capture error telemetry
-				if (this.taskId) {
+				if (this.ulid) {
 					telemetryService.captureBrowserError(
-						this.taskId,
+						this.ulid,
 						"remote_browser_launch_error",
 						error instanceof Error ? error.message : String(error),
 						{
 							isRemote: true,
-							remoteBrowserHost: this.browserSettings.remoteBrowserHost,
+							remoteBrowserHost: browserSettings.remoteBrowserHost,
 						},
 					)
 				}
@@ -228,31 +221,35 @@ export class BrowserSession {
 		this.page = await this.browser?.newPage()
 
 		// Send telemetry for browser tool start
-		if (this.taskId) {
-			telemetryService.captureBrowserToolStart(this.taskId, this.browserSettings)
+		if (this.ulid) {
+			telemetryService.captureBrowserToolStart(this.ulid, browserSettings)
 		}
 	}
 
 	async launchLocalBrowser() {
+		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const { path } = await this.getDetectedChromePath()
+		const userArgs = splitArgs(browserSettings.customArgs)
 		this.browser = await launch({
 			args: [
 				"--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+				...userArgs,
 			],
 			executablePath: path,
-			defaultViewport: this.browserSettings.viewport,
+			defaultViewport: browserSettings.viewport,
 			headless: "shell", // Always use headless mode for local connections
 		})
 		this.isConnectedToRemote = false
 	}
 
 	async launchRemoteBrowser() {
-		let remoteBrowserHost = this.browserSettings.remoteBrowserHost
+		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
+		let remoteBrowserHost = browserSettings.remoteBrowserHost
 		let browserWSEndpoint: string | undefined = this.cachedWebSocketEndpoint
-		let reconnectionAttempted = false
+		let _reconnectionAttempted = false
 
 		const getViewport = () => {
-			return this.browserSettings.viewport
+			return browserSettings.viewport
 		}
 
 		// First try auto-discovery if no host is provided
@@ -285,9 +282,9 @@ export class BrowserSession {
 				console.log(`Failed to connect using cached endpoint: ${error}`)
 
 				// Capture error telemetry
-				if (this.taskId) {
+				if (this.ulid) {
 					telemetryService.captureBrowserError(
-						this.taskId,
+						this.ulid,
 						"cached_endpoint_connection_error",
 						error instanceof Error ? error.message : String(error),
 						{
@@ -301,7 +298,7 @@ export class BrowserSession {
 				this.cachedWebSocketEndpoint = undefined
 				// User wants to give up after one reconnection attempt
 				if (remoteBrowserHost) {
-					reconnectionAttempted = true
+					_reconnectionAttempted = true
 				}
 			}
 		}
@@ -337,9 +334,9 @@ export class BrowserSession {
 				console.log(`Failed to connect to remote browser: ${error}`)
 
 				// Capture error telemetry
-				if (this.taskId) {
+				if (this.ulid) {
 					telemetryService.captureBrowserError(
-						this.taskId,
+						this.ulid,
 						"remote_host_connection_error",
 						error instanceof Error ? error.message : String(error),
 						{
@@ -357,46 +354,12 @@ export class BrowserSession {
 		)
 	}
 
-	/**
-	 * Kill all Chrome instances, including those not launched by chrome-launcher
-	 */
-	private async killAllChromeBrowsers(): Promise<void> {
-		// First try chrome-launcher's killAll to handle instances it launched
-		try {
-			await chromeLauncher.killAll()
-		} catch (err: unknown) {
-			console.log("Error in chrome-launcher killAll:", err)
-		}
-
-		// Then kill other Chrome instances using platform-specific commands
-		try {
-			if (process.platform === "win32") {
-				// Windows: Use taskkill to forcefully terminate Chrome processes
-				await new Promise<void>((resolve, reject) => {
-					exec("taskkill /F /IM chrome.exe /T", () => resolve())
-				})
-			} else if (process.platform === "darwin") {
-				// macOS: Use pkill to terminate Chrome processes
-				await new Promise<void>((resolve) => {
-					exec('pkill -x "Google Chrome"', () => resolve())
-				})
-			} else {
-				// Linux: Use pkill for Chrome and chromium
-				await new Promise<void>((resolve) => {
-					exec('pkill -f "chrome|chromium"', () => resolve())
-				})
-			}
-		} catch (error) {
-			console.error("Error killing Chrome processes:", error)
-		}
-	}
-
 	async closeBrowser(): Promise<BrowserActionResult> {
 		if (this.browser || this.page) {
 			// Send telemetry for browser tool end if we have a task ID and session was started
-			if (this.taskId && this.sessionStartTime > 0) {
+			if (this.ulid && this.sessionStartTime > 0) {
 				const sessionDuration = Date.now() - this.sessionStartTime
-				telemetryService.captureBrowserToolEnd(this.taskId, {
+				telemetryService.captureBrowserToolEnd(this.ulid, {
 					actionCount: this.browserActions.length,
 					duration: sessionDuration,
 					actions: this.browserActions,
@@ -466,8 +429,8 @@ export class BrowserSession {
 				logs.push(`[Error] ${errorMessage}`)
 
 				// Capture error telemetry
-				if (this.taskId) {
-					telemetryService.captureBrowserError(this.taskId, "browser_action_error", errorMessage, {
+				if (this.ulid) {
+					telemetryService.captureBrowserError(this.ulid, "browser_action_error", errorMessage, {
 						isRemote: this.isConnectedToRemote,
 						action: this.browserActions[this.browserActions.length - 1],
 					})
@@ -511,8 +474,8 @@ export class BrowserSession {
 
 		if (!screenshotBase64) {
 			// Capture error telemetry
-			if (this.taskId) {
-				telemetryService.captureBrowserError(this.taskId, "screenshot_error", "Failed to take screenshot", {
+			if (this.ulid) {
+				telemetryService.captureBrowserError(this.ulid, "screenshot_error", "Failed to take screenshot", {
 					isRemote: this.isConnectedToRemote,
 					action: this.browserActions[this.browserActions.length - 1],
 				})

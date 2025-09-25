@@ -1,17 +1,17 @@
-import { getCwd } from "@/utils/path"
 import { getSavedApiConversationHistory, getSavedClineMessages } from "@core/storage/disk"
-import { getAllExtensionState, updateGlobalState } from "@core/storage/state"
 import { WebviewProvider } from "@core/webview"
 import { Logger } from "@services/logging/Logger"
+import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { ApiProvider } from "@shared/api"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { HistoryItem } from "@shared/HistoryItem"
 import { execa } from "execa"
 import * as http from "http"
 import * as path from "path"
 import * as vscode from "vscode"
-import { calculateToolSuccessRate, getFileChanges, initializeGitRepository, validateWorkspacePath } from "./GitHelper"
 import { Controller } from "@/core/controller"
+import { ExtensionRegistryInfo } from "@/registry"
+import { getCwd } from "@/utils/path"
+import { calculateToolSuccessRate, getFileChanges, initializeGitRepository, validateWorkspacePath } from "./GitHelper"
 
 /**
  * Creates a tracker to monitor tool calls and failures during task execution
@@ -29,13 +29,13 @@ function createToolCallTracker(): {
 }
 
 // Task completion tracking
-let taskCompletionResolver: (() => void) | null = null
+let _taskCompletionResolver: (() => void) | null = null
 
 // Function to create a new task completion promise
 function createTaskCompletionTracker(): Promise<void> {
 	// Create a new promise that will resolve when the task is completed
 	return new Promise<void>((resolve) => {
-		taskCompletionResolver = resolve
+		_taskCompletionResolver = resolve
 	})
 }
 
@@ -47,13 +47,13 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  * @param context The VSCode extension context
  * @param controller The webview provider instance
  */
-async function updateAutoApprovalSettings(context: vscode.ExtensionContext, controller?: Controller) {
+async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, controller?: Controller) {
 	try {
-		const { autoApprovalSettings } = await getAllExtensionState(context)
+		const autoApprovalSettings = controller?.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 
 		// Enable all actions
 		const updatedSettings: AutoApprovalSettings = {
-			...autoApprovalSettings,
+			...(autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS),
 			enabled: true,
 			actions: {
 				readFiles: true,
@@ -68,7 +68,7 @@ async function updateAutoApprovalSettings(context: vscode.ExtensionContext, cont
 			maxRequests: 10000, // Increase max requests for tests
 		}
 
-		await updateGlobalState(context, "autoApprovalSettings", updatedSettings)
+		controller?.stateManager.setGlobalState("autoApprovalSettings", updatedSettings)
 		Logger.log("Auto approval settings updated for test mode")
 
 		// Update the webview with the new state
@@ -88,10 +88,10 @@ async function updateAutoApprovalSettings(context: vscode.ExtensionContext, cont
 export function createTestServer(controller: Controller): http.Server {
 	// Try to show the Cline sidebar
 	Logger.log("[createTestServer] Opening Cline in sidebar...")
-	vscode.commands.executeCommand("workbench.view.claude-dev-ActivityBar")
+	vscode.commands.executeCommand(`workbench.view.${ExtensionRegistryInfo.name}-ActivityBar`)
 
 	// Then ensure the webview is focused/loaded
-	vscode.commands.executeCommand("claude-dev.SidebarProvider.focus")
+	vscode.commands.executeCommand(`${ExtensionRegistryInfo.views.Sidebar}.focus`)
 
 	// Update auto approval settings is available
 	updateAutoApprovalSettings(controller.context, controller)
@@ -209,7 +209,7 @@ export function createTestServer(controller: Controller): http.Server {
 						Logger.log("API key provided, updating API configuration")
 
 						// Get current API configuration
-						const { apiConfiguration } = await getAllExtensionState(visibleWebview.controller.context)
+						const apiConfiguration = visibleWebview.controller.stateManager.getApiConfiguration()
 
 						// Update API configuration with API key
 						const updatedConfig = {
@@ -219,13 +219,13 @@ export function createTestServer(controller: Controller): http.Server {
 						}
 
 						// Store the API key securely
-						visibleWebview.controller.cacheService.setSecret("clineAccountId", apiKey)
+						visibleWebview.controller.stateManager.setSecret("clineAccountId", apiKey)
 
-						visibleWebview.controller.cacheService.setApiConfiguration(updatedConfig)
+						visibleWebview.controller.stateManager.setApiConfiguration(updatedConfig)
 
 						// Update cache service to use cline provider
-						const currentConfig = visibleWebview.controller.cacheService.getApiConfiguration()
-						visibleWebview.controller.cacheService.setApiConfiguration({
+						const currentConfig = visibleWebview.controller.stateManager.getApiConfiguration()
+						visibleWebview.controller.stateManager.setApiConfiguration({
 							...currentConfig,
 							planModeApiProvider: "cline",
 							actModeApiProvider: "cline",
@@ -402,7 +402,7 @@ export function createTestServer(controller: Controller): http.Server {
 								files: fileChanges,
 							}),
 						)
-					} catch (timeoutError) {
+					} catch (_timeoutError) {
 						// Task didn't complete within the timeout period
 						res.writeHead(200, { "Content-Type": "application/json" })
 						res.end(

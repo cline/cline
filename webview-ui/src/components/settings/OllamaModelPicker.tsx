@@ -1,4 +1,3 @@
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
@@ -69,7 +68,9 @@ const OllamaModelPicker: React.FC<OllamaModelPickerProps> = ({
 	}, [searchableItems, searchTerm, fuse])
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-		if (!isDropdownVisible) return
+		if (!isDropdownVisible) {
+			return
+		}
 
 		switch (event.key) {
 			case "ArrowDown":
@@ -130,24 +131,24 @@ const OllamaModelPicker: React.FC<OllamaModelPickerProps> = ({
 			<DropdownWrapper ref={dropdownRef}>
 				<VSCodeTextField
 					id="ollama-model-search"
-					placeholder={placeholder}
-					value={searchTerm}
+					onFocus={() => setIsDropdownVisible(true)}
 					onInput={(e) => {
 						const value = (e.target as HTMLInputElement)?.value || ""
 						handleModelChange(value)
 						setIsDropdownVisible(true)
 					}}
-					onFocus={() => setIsDropdownVisible(true)}
 					onKeyDown={handleKeyDown}
+					placeholder={placeholder}
 					style={{
 						width: "100%",
 						zIndex: OLLAMA_MODEL_PICKER_Z_INDEX,
 						position: "relative",
-					}}>
+					}}
+					value={searchTerm}>
 					{searchTerm && (
 						<div
-							className="input-icon-button codicon codicon-close"
 							aria-label="Clear search"
+							className="input-icon-button codicon codicon-close"
 							onClick={() => {
 								handleModelChange("")
 								setIsDropdownVisible(true)
@@ -166,14 +167,14 @@ const OllamaModelPicker: React.FC<OllamaModelPickerProps> = ({
 					<DropdownList ref={dropdownListRef}>
 						{modelSearchResults.map((item, index) => (
 							<DropdownItem
-								key={item.id}
-								ref={(el) => (itemRefs.current[index] = el)}
 								isSelected={index === selectedIndex}
-								onMouseEnter={() => setSelectedIndex(index)}
+								key={item.id}
 								onClick={() => {
 									handleModelChange(item.id)
 									setIsDropdownVisible(false)
-								}}>
+								}}
+								onMouseEnter={() => setSelectedIndex(index)}
+								ref={(el) => (itemRefs.current[index] = el)}>
 								<span dangerouslySetInnerHTML={{ __html: item.html }} />
 							</DropdownItem>
 						))}

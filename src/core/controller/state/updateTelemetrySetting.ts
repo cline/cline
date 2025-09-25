@@ -1,7 +1,7 @@
-import { Controller } from ".."
 import { Empty } from "@shared/proto/cline/common"
 import { TelemetrySettingRequest } from "@shared/proto/cline/state"
 import { convertProtoTelemetrySettingToDomain } from "../../../shared/proto-conversions/state/telemetry-setting-conversion"
+import { Controller } from ".."
 
 /**
  * Updates the telemetry setting

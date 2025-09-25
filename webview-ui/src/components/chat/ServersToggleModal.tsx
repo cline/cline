@@ -1,15 +1,14 @@
-import React, { useRef, useState, useEffect } from "react"
-import { useClickAway, useWindowSize } from "react-use"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import ServersToggleList from "@/components/mcp/configuration/tabs/installed/ServersToggleList"
-
-import { McpServiceClient } from "@/services/grpc-client"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import Tooltip from "@/components/common/Tooltip"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { McpServers } from "@shared/proto/cline/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import React, { useEffect, useRef, useState } from "react"
+import { useClickAway, useWindowSize } from "react-use"
+import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import Tooltip from "@/components/common/Tooltip"
+import ServersToggleList from "@/components/mcp/configuration/tabs/installed/ServersToggleList"
+import { useExtensionState } from "@/context/ExtensionStateContext"
+import { McpServiceClient } from "@/services/grpc-client"
 
 const ServersToggleModal: React.FC = () => {
 	const { mcpServers, navigateToMcp, setMcpServers } = useExtensionState()
@@ -54,11 +53,11 @@ const ServersToggleModal: React.FC = () => {
 
 	return (
 		<div ref={modalRef}>
-			<div ref={buttonRef} className="inline-flex min-w-0 max-w-full">
+			<div className="inline-flex min-w-0 max-w-full" ref={buttonRef}>
 				<Tooltip tipText="Manage MCP Servers" visible={isVisible ? false : undefined}>
 					<VSCodeButton
 						appearance="icon"
-						aria-label="MCP Servers"
+						aria-label={isVisible ? "Hide MCP Servers" : "Show MCP Servers"}
 						onClick={() => setIsVisible(!isVisible)}
 						style={{ padding: "0px 0px", height: "20px" }}>
 						<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
@@ -93,6 +92,7 @@ const ServersToggleModal: React.FC = () => {
 						<div className="m-0 text-base font-semibold">MCP Servers</div>
 						<VSCodeButton
 							appearance="icon"
+							aria-label="Go to MCP server settings"
 							onClick={() => {
 								setIsVisible(false)
 								navigateToMcp("installed")
@@ -102,7 +102,7 @@ const ServersToggleModal: React.FC = () => {
 					</div>
 
 					<div style={{ marginBottom: -10 }}>
-						<ServersToggleList servers={mcpServers} isExpandable={false} hasTrashIcon={false} listGap="small" />
+						<ServersToggleList hasTrashIcon={false} isExpandable={false} listGap="small" servers={mcpServers} />
 					</div>
 				</div>
 			)}

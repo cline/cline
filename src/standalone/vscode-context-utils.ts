@@ -1,6 +1,6 @@
 import * as fs from "fs"
+import type { EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableScope } from "vscode"
 import * as vscode from "vscode"
-import type { EnvironmentVariableMutatorOptions, EnvironmentVariableMutator, EnvironmentVariableScope } from "vscode"
 export class SecretStore implements vscode.SecretStorage {
 	private data: JsonKeyValueStore<string>
 	private readonly _onDidChange = new EventEmitter<vscode.SecretStorageChangeEvent>()

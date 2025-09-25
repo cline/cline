@@ -41,12 +41,13 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
 			<div className="flex-grow overflow-hidden pr-[8px] flex flex-col">
-				<div className="h-full mb-[5px]">
+				<div className="h-full mb-1.5">
 					{clineUser?.uid ? (
 						<ClineAccountView
-							clineUser={clineUser}
-							userOrganizations={organizations}
 							activeOrganization={activeOrganization}
+							clineUser={clineUser}
+							key={clineUser.uid}
+							userOrganizations={organizations}
 						/>
 					) : (
 						<AccountWelcomeView />
@@ -89,20 +90,25 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 	}, [])
 
 	// Simple cache function without dependencies
-	const cacheCurrentData = (id: string) => {
-		dataCache.current.set(id, {
-			balance,
-			usageData,
-			paymentsData,
-			lastFetchTime,
-		})
-	}
+	const cacheCurrentData = useCallback(
+		(id: string) => {
+			dataCache.current.set(id, {
+				balance,
+				usageData,
+				paymentsData,
+				lastFetchTime,
+			})
+		},
+		[balance, usageData, paymentsData, lastFetchTime],
+	)
 	// Track the active organization ID to detect changes
 	const [lastActiveOrgId, setLastActiveOrgId] = useState<string | undefined>(activeOrganization?.organizationId)
 	// Use ref for debounce timeout to avoid re-renders
 	const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 	// Track if manual fetch is in progress to avoid duplicate fetches
 	const manualFetchInProgressRef = useRef<boolean>(false)
+	// Track if initial mount fetch has completed to avoid duplicate fetches
+	const initialFetchCompleteRef = useRef<boolean>(false)
 
 	const fetchUserCredit = useCallback(async () => {
 		try {
@@ -119,11 +125,12 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 		}
 	}, [])
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: <cacheCurrentData changes on every re-render>
 	const fetchCreditBalance = useCallback(
 		async (id: string, skipCache = false) => {
 			try {
-				if (isLoading) return // Prevent multiple concurrent fetches
+				if (isLoading) {
+					return // Prevent multiple concurrent fetches
+				}
 
 				// Load cached data immediately if available (unless skipping cache)
 				if (!skipCache && loadCachedData(id)) {
@@ -157,34 +164,52 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 		[isLoading, uid, fetchUserCredit, loadCachedData],
 	)
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: <cacheCurrentData changes on every re-render>
 	const handleOrganizationChange = useCallback(
 		async (event: any) => {
 			const target = event.target as HTMLSelectElement
-			if (!target) return
+			if (!target) {
+				return
+			}
 
 			const newValue = target.value
 			if (newValue !== dropdownValue) {
+				// Clear any pending debounced fetch since we're doing a manual one
+				if (debounceTimeoutRef.current) {
+					clearTimeout(debounceTimeoutRef.current)
+					debounceTimeoutRef.current = null
+				}
+
 				// Cache current data before switching
 				cacheCurrentData(dropdownValue)
 				setDropdownValue(newValue)
+
 				// Load cached data for new selection immediately, or clear if no cache
+				// Only clear if we don't have cached data to avoid unnecessary flashing
 				if (!loadCachedData(newValue)) {
 					// No cached data - clear current state to avoid showing wrong data
 					setBalance(null)
 					setUsageData([])
 					setPaymentsData([])
 				}
+
+				// Set flag to indicate manual fetch in progress
+				manualFetchInProgressRef.current = true
+
+				// Fetch the new data
+				await fetchCreditBalance(newValue)
+
+				// Update the last active org ID to prevent the effect from triggering
+				setLastActiveOrgId(newValue === uid ? undefined : newValue)
+
+				// Send the change to the server
+				const organizationId = newValue === uid ? undefined : newValue
+				await AccountServiceClient.setUserOrganization({ organizationId })
+
+				// Clear the manual fetch flag after everything is done
+				manualFetchInProgressRef.current = false
 			}
-			// Set flag to indicate manual fetch in progress
-			manualFetchInProgressRef.current = true
-			await fetchCreditBalance(newValue)
-			manualFetchInProgressRef.current = false
-			// Send the change to the server
-			const organizationId = newValue === uid ? undefined : newValue
-			AccountServiceClient.setUserOrganization({ organizationId })
 		},
-		[uid, dropdownValue, loadCachedData],
+		[uid, dropdownValue, loadCachedData, fetchCreditBalance, cacheCurrentData],
 	)
 
 	// Fetch balance every 60 seconds
@@ -195,33 +220,39 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 	const clineUrl = appBaseUrl || "https://app.cline.bot"
 
 	// Fetch balance on mount
-	// biome-ignore lint/correctness/useExhaustiveDependencies: <Only run once on mount>
 	useEffect(() => {
 		async function initialFetch() {
 			await fetchCreditBalance(dropdownValue)
+			initialFetchCompleteRef.current = true
 		}
 		initialFetch()
 	}, [])
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: <cacheCurrentData changes on every re-render>
 	useEffect(() => {
 		// Handle organization changes with 500ms debounce
 		const currentActiveOrgId = activeOrganization?.organizationId
-		const hasDropdownChanged = dropdownValue !== (currentActiveOrgId || uid)
 		const hasActiveOrgChanged = currentActiveOrgId !== lastActiveOrgId
 
-		if (hasDropdownChanged || hasActiveOrgChanged) {
+		// Only handle external organization changes (not dropdown changes)
+		// Dropdown changes are handled by handleOrganizationChange
+		const isExternalOrgChange = hasActiveOrgChanged && !manualFetchInProgressRef.current
+
+		if (isExternalOrgChange) {
 			// Clear any existing timeout
 			if (debounceTimeoutRef.current) {
 				clearTimeout(debounceTimeoutRef.current)
 			}
 
-			// If dropdown changed, load cached data for the current dropdown value
-			if (hasDropdownChanged) {
-				// Cache the previous data first
-				cacheCurrentData(lastActiveOrgId || uid)
-				// Load cached data for current dropdown value, or clear if no cache
-				if (!loadCachedData(dropdownValue)) {
+			// Update dropdown to match the new active organization
+			const newDropdownValue = currentActiveOrgId || uid
+			if (newDropdownValue !== dropdownValue) {
+				// Cache current data before switching
+				cacheCurrentData(dropdownValue)
+				setDropdownValue(newDropdownValue)
+
+				// Load cached data for new selection immediately, or clear if no cache
+				// Only clear data if initial fetch has completed to avoid clearing on mount
+				if (!loadCachedData(newDropdownValue) && initialFetchCompleteRef.current) {
 					// No cached data - clear to avoid showing wrong data
 					setBalance(null)
 					setUsageData([])
@@ -229,15 +260,15 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 				}
 			}
 
-			// Only set timeout if manual fetch is not in progress
-			if (!manualFetchInProgressRef.current) {
+			// Only set timeout if initial fetch is complete
+			if (initialFetchCompleteRef.current) {
 				// Set new timeout to fetch after 500ms
 				debounceTimeoutRef.current = setTimeout(() => {
-					fetchCreditBalance(dropdownValue)
+					fetchCreditBalance(newDropdownValue)
 					setLastActiveOrgId(currentActiveOrgId)
 				}, 500)
 			} else {
-				// Manual fetch is handling this, just update the active org ID
+				// Just update the active org ID
 				setLastActiveOrgId(currentActiveOrgId)
 			}
 		}
@@ -248,7 +279,15 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 				clearTimeout(debounceTimeoutRef.current)
 			}
 		}
-	}, [dropdownValue, activeOrganization?.organizationId, lastActiveOrgId, uid])
+	}, [
+		activeOrganization?.organizationId,
+		lastActiveOrgId,
+		uid,
+		dropdownValue,
+		loadCachedData,
+		fetchCreditBalance,
+		cacheCurrentData,
+	])
 
 	return (
 		<div className="h-full flex flex-col">
@@ -272,11 +311,11 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 
 							<div className="flex gap-2 items-center mt-1">
 								<VSCodeDropdown
+									className="w-full"
 									currentValue={dropdownValue}
-									onChange={handleOrganizationChange}
 									disabled={isLoading}
-									className="w-full">
-									<VSCodeOption value={uid} key="personal">
+									onChange={handleOrganizationChange}>
+									<VSCodeOption key="personal" value={uid}>
 										Personal
 									</VSCodeOption>
 									{userOrganizations?.map((org: UserOrganization) => (
@@ -297,11 +336,11 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 
 				<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 					<div className="w-full min-[225px]:w-1/2">
-						<VSCodeButtonLink href={getClineUris(clineUrl, "dashboard").href} appearance="primary" className="w-full">
+						<VSCodeButtonLink appearance="primary" className="w-full" href={getClineUris(clineUrl, "dashboard").href}>
 							Dashboard
 						</VSCodeButtonLink>
 					</div>
-					<VSCodeButton appearance="secondary" onClick={() => handleSignOut()} className="w-full min-[225px]:w-1/2">
+					<VSCodeButton appearance="secondary" className="w-full min-[225px]:w-1/2" onClick={() => handleSignOut()}>
 						Log out
 					</VSCodeButton>
 				</div>
@@ -309,11 +348,11 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 				<VSCodeDivider className="w-full my-6" />
 
 				<CreditBalance
-					isLoading={isLoading}
 					balance={balance}
-					fetchCreditBalance={() => fetchCreditBalance(dropdownValue)}
-					lastFetchTime={lastFetchTime}
 					creditUrl={getClineUris(clineUrl, "credits", dropdownValue === uid ? "account" : "organization")}
+					fetchCreditBalance={() => fetchCreditBalance(dropdownValue)}
+					isLoading={isLoading}
+					lastFetchTime={lastFetchTime}
 				/>
 
 				<VSCodeDivider className="mt-6 mb-3 w-full" />
@@ -321,9 +360,9 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 				<div className="flex-grow flex flex-col min-h-0 pb-[0px]">
 					<CreditsHistoryTable
 						isLoading={isLoading}
-						usageData={usageData}
 						paymentsData={paymentsData}
 						showPayments={dropdownValue === uid}
+						usageData={usageData}
 					/>
 				</div>
 			</div>

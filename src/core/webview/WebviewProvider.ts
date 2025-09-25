@@ -1,20 +1,16 @@
-import axios from "axios"
-import * as vscode from "vscode"
-import { getNonce } from "./getNonce"
-
-import { WebviewProviderType } from "@/shared/webview/types"
+import path from "node:path"
 import { Controller } from "@core/controller/index"
 import { findLast } from "@shared/array"
+import axios from "axios"
 import { readFile } from "fs/promises"
-import path from "node:path"
 import { v4 as uuidv4 } from "uuid"
-import { Uri } from "vscode"
+import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { WebviewProviderType } from "@/shared/webview/types"
+import { getNonce } from "./getNonce"
 
 export abstract class WebviewProvider {
-	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
-	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
 	private static activeInstances: Set<WebviewProvider> = new Set()
 	private static clientIdMap = new Map<WebviewProvider, string>()
 	controller: Controller
@@ -24,7 +20,6 @@ export abstract class WebviewProvider {
 
 	constructor(
 		readonly context: vscode.ExtensionContext,
-
 		private readonly providerType: WebviewProviderType,
 	) {
 		WebviewProvider.activeInstances.add(this)
@@ -58,14 +53,10 @@ export abstract class WebviewProvider {
 	}
 
 	public static getActiveInstance(): WebviewProvider | undefined {
-		return Array.from(WebviewProvider.activeInstances).find((instance) => {
-			const webview = instance.getWebview()
-			if (webview && webview.viewType === "claude-dev.TabPanelProvider" && "active" in webview) {
-				return webview.active === true
-			}
-			return false
-		})
+		return Array.from(WebviewProvider.activeInstances).find((instance) => instance.isActive())
 	}
+
+	protected abstract isActive(): boolean
 
 	public static getAllInstances(): WebviewProvider[] {
 		return Array.from(WebviewProvider.activeInstances)
@@ -116,27 +107,12 @@ export abstract class WebviewProvider {
 	}
 
 	/**
-	 * Initializes and sets up the webview when it's first created.
+	 * Converts a local filesystem path to a URL that can be used within the webview.
 	 *
-	 * @param webviewView - The webview view or panel instance to be resolved
-	 * @returns A promise that resolves when the webview has been fully initialized
+	 * @param path - The local path to convert
+	 * @returns A URL that can be used within the webview
 	 */
-	abstract resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel): Promise<void>
-
-	/**
-	 * Gets the current webview instance.
-	 *
-	 * @returns The webview instance (WebviewView, WebviewPanel, or similar)
-	 */
-	abstract getWebview(): any
-
-	/**
-	 * Converts a local URI to a webview URI that can be used within the webview.
-	 *
-	 * @param uri - The local URI to convert
-	 * @returns A URI that can be used within the webview
-	 */
-	abstract getWebviewUri(uri: Uri): Uri
+	abstract getWebviewUrl(path: string): string
 
 	/**
 	 * Gets the Content Security Policy source for the webview.
@@ -158,33 +134,23 @@ export abstract class WebviewProvider {
 	 * @remarks This is also the place where references to the React webview build files
 	 * are created and inserted into the webview HTML.
 	 *
-	 * @param webview A reference to the extension webview
-	 * @param extensionUri The URI of the directory containing the extension
 	 * @returns A template string literal containing the HTML that should be
 	 * rendered within the webview panel
 	 */
 	public getHtmlContent(): string {
 		// Get the local path to main script run in the webview,
-		// then convert it to a uri we can use in the webview.
+		// then convert it to a url we can use in the webview.
+		// The JS file from the React build output
+		const scriptUrl = this.getExtensionUrl("webview-ui", "build", "assets", "index.js")
 
 		// The CSS file from the React build output
-		const stylesUri = this.getExtensionUri("webview-ui", "build", "assets", "index.css")
-		// The JS file from the React build output
-		const scriptUri = this.getExtensionUri("webview-ui", "build", "assets", "index.js")
+		const stylesUrl = this.getExtensionUrl("webview-ui", "build", "assets", "index.css")
 
 		// The codicon font from the React build output
 		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-codicons-sample/src/extension.ts
 		// we installed this package in the extension so that we can access it how its intended from the extension (the font file is likely bundled in vscode), and we just import the css fileinto our react app we don't have access to it
 		// don't forget to add font-src ${webview.cspSource};
-		const codiconsUri = this.getExtensionUri("node_modules", "@vscode", "codicons", "dist", "codicon.css")
-
-		// const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.js"))
-
-		// const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "reset.css"))
-		// const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "vscode.css"))
-
-		// // Same for stylesheet
-		// const stylesheetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, "assets", "main.css"))
+		const codiconsUrl = this.getExtensionUrl("node_modules", "@vscode", "codicons", "dist", "codicon.css")
 
 		// Use a nonce to only allow a specific script to be run.
 		/*
@@ -207,8 +173,8 @@ export abstract class WebviewProvider {
 				<meta charset="utf-8">
 				<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 				<meta name="theme-color" content="#000000">
-				<link rel="stylesheet" type="text/css" href="${stylesUri}">
-				<link href="${codiconsUri}" rel="stylesheet" />
+				<link rel="stylesheet" type="text/css" href="${stylesUrl}">
+				<link href="${codiconsUrl}" rel="stylesheet" />
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none';
 					connect-src https://*.posthog.com https://*.cline.bot https://*.firebaseauth.com https://*.firebaseio.com https://*.googleapis.com https://*.firebase.com; 
 					font-src ${this.getCspSource()} data:; 
@@ -227,7 +193,7 @@ export abstract class WebviewProvider {
                     // Inject the client ID
                     window.clineClientId = "${this.clientId}";
                 </script>
-				<script type="module" nonce="${nonce}" src="${scriptUri}"></script>
+				<script type="module" nonce="${nonce}" src="${scriptUrl}"></script>
 				<script src="http://localhost:8097"></script> 
 			</body>
 		</html>
@@ -251,7 +217,7 @@ export abstract class WebviewProvider {
 
 				return port
 			})
-			.catch((err) => {
+			.catch((_err) => {
 				console.warn(
 					`[getDevServerPort] Port file not found or couldn't be read at ${portFilePath}, using default port: ${DEFAULT_PORT}`,
 				)
@@ -273,7 +239,7 @@ export abstract class WebviewProvider {
 		// Check if local dev server is running.
 		try {
 			await axios.get(`http://${localServerUrl}`)
-		} catch (error) {
+		} catch (_error) {
 			// Only show the error message when in development mode.
 			if (process.env.IS_DEV) {
 				HostProvider.window.showMessage({
@@ -287,11 +253,11 @@ export abstract class WebviewProvider {
 		}
 
 		const nonce = getNonce()
-		const stylesUri = this.getExtensionUri("webview-ui", "build", "assets", "index.css")
-		const codiconsUri = this.getExtensionUri("node_modules", "@vscode", "codicons", "dist", "codicon.css")
+		const stylesUrl = this.getExtensionUrl("webview-ui", "build", "assets", "index.css")
+		const codiconsUrl = this.getExtensionUrl("node_modules", "@vscode", "codicons", "dist", "codicon.css")
 
 		const scriptEntrypoint = "src/main.tsx"
-		const scriptUri = `http://${localServerUrl}/${scriptEntrypoint}`
+		const scriptUrl = `http://${localServerUrl}/${scriptEntrypoint}`
 
 		const reactRefresh = /*html*/ `
 			<script nonce="${nonce}" type="module">
@@ -320,8 +286,8 @@ export abstract class WebviewProvider {
 					<meta charset="utf-8">
 					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
-					<link rel="stylesheet" type="text/css" href="${stylesUri}">
-					<link href="${codiconsUri}" rel="stylesheet" />
+					<link rel="stylesheet" type="text/css" href="${stylesUrl}">
+					<link href="${codiconsUrl}" rel="stylesheet" />
 					<title>Cline</title>
 				</head>
 				<body>
@@ -334,24 +300,22 @@ export abstract class WebviewProvider {
 						window.clineClientId = "${this.clientId}";
 					</script>
 					${reactRefresh}
-					<script type="module" src="${scriptUri}"></script>
+					<script type="module" src="${scriptUrl}"></script>
 				</body>
 			</html>
 		`
 	}
 	/**
-	 * A helper function which will get the webview URI of a given file or resource in the extension directory.
+	 * A helper function which will get the webview URL of a given file or resource in the extension directory.
 	 *
-	 * @remarks This URI can be used within a webview's HTML as a link to the
+	 * @remarks This URL can be used within a webview's HTML as a link to the
 	 * given file/resource.
 	 *
 	 * @param pathList An array of strings representing the path to a file/resource in the extension directory.
-	 * @returns A URI pointing to the file/resource
+	 * @returns A URL pointing to the file/resource
 	 */
-	private getExtensionUri(...pathList: string[]): Uri {
-		if (!this.getWebview()) {
-			throw Error("webview is not initialized.")
-		}
-		return this.getWebviewUri(Uri.joinPath(this.context.extensionUri, ...pathList))
+	private getExtensionUrl(...pathList: string[]): string {
+		const assetPath = path.resolve(HostProvider.get().extensionFsPath, ...pathList)
+		return this.getWebviewUrl(assetPath)
 	}
 }

@@ -64,18 +64,18 @@ const AppContent = () => {
 			{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
 			{showAccount && (
 				<AccountView
-					onDone={hideAccount}
-					clineUser={clineUser}
-					organizations={organizations}
 					activeOrganization={activeOrganization}
+					clineUser={clineUser}
+					onDone={hideAccount}
+					organizations={organizations}
 				/>
 			)}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
 			<ChatView
-				showHistoryView={navigateToHistory}
+				hideAnnouncement={hideAnnouncement}
 				isHidden={showSettings || showHistory || showMcp || showAccount}
 				showAnnouncement={showAnnouncement}
-				hideAnnouncement={hideAnnouncement}
+				showHistoryView={navigateToHistory}
 			/>
 		</div>
 	)
