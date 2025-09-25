@@ -1,12 +1,21 @@
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import DismissibleUpsell from "../DismissibleUpsell"
+import { TelemetryEventName } from "@roo-code/types"
 
 // Mock the vscode API
 const mockPostMessage = vi.fn()
 vi.mock("@src/utils/vscode", () => ({
 	vscode: {
 		postMessage: (message: any) => mockPostMessage(message),
+	},
+}))
+
+// Mock telemetryClient
+const mockCapture = vi.fn()
+vi.mock("@src/utils/TelemetryClient", () => ({
+	telemetryClient: {
+		capture: (eventName: string, properties?: Record<string, any>) => mockCapture(eventName, properties),
 	},
 }))
 
@@ -26,6 +35,7 @@ vi.mock("@src/i18n/TranslationContext", () => ({
 describe("DismissibleUpsell", () => {
 	beforeEach(() => {
 		mockPostMessage.mockClear()
+		mockCapture.mockClear()
 		vi.clearAllTimers()
 	})
 
@@ -72,7 +82,7 @@ describe("DismissibleUpsell", () => {
 		})
 	})
 
-	it("hides the upsell when dismiss button is clicked", async () => {
+	it("hides the upsell when dismiss button is clicked and tracks telemetry", async () => {
 		const onDismiss = vi.fn()
 		const { container } = render(
 			<DismissibleUpsell upsellId="test-upsell" onDismiss={onDismiss}>
@@ -91,6 +101,11 @@ describe("DismissibleUpsell", () => {
 		// Find and click the dismiss button
 		const dismissButton = screen.getByRole("button", { name: /dismiss/i })
 		fireEvent.click(dismissButton)
+
+		// Check that telemetry was tracked
+		expect(mockCapture).toHaveBeenCalledWith(TelemetryEventName.UPSELL_DISMISSED, {
+			upsellId: "test-upsell",
+		})
 
 		// Check that the dismiss message was sent BEFORE hiding
 		expect(mockPostMessage).toHaveBeenCalledWith({
@@ -351,7 +366,7 @@ describe("DismissibleUpsell", () => {
 		})
 	})
 
-	it("calls onClick when the container is clicked", async () => {
+	it("calls onClick when the container is clicked and tracks telemetry", async () => {
 		const onClick = vi.fn()
 		render(
 			<DismissibleUpsell upsellId="test-upsell" onClick={onClick}>
@@ -372,6 +387,11 @@ describe("DismissibleUpsell", () => {
 		fireEvent.click(container)
 
 		expect(onClick).toHaveBeenCalledTimes(1)
+
+		// Check that telemetry was tracked
+		expect(mockCapture).toHaveBeenCalledWith(TelemetryEventName.UPSELL_CLICKED, {
+			upsellId: "test-upsell",
+		})
 	})
 
 	it("does not call onClick when dismiss button is clicked", async () => {
@@ -470,7 +490,7 @@ describe("DismissibleUpsell", () => {
 		})
 	})
 
-	it("dismisses when clicked if dismissOnClick is true", async () => {
+	it("dismisses when clicked if dismissOnClick is true and tracks both telemetry events", async () => {
 		const onClick = vi.fn()
 		const onDismiss = vi.fn()
 		const { container } = render(
@@ -493,6 +513,14 @@ describe("DismissibleUpsell", () => {
 		expect(onClick).toHaveBeenCalledTimes(1)
 		expect(onDismiss).toHaveBeenCalledTimes(1)
 
+		// Check that both telemetry events were tracked
+		expect(mockCapture).toHaveBeenCalledWith(TelemetryEventName.UPSELL_CLICKED, {
+			upsellId: "test-upsell",
+		})
+		expect(mockCapture).toHaveBeenCalledWith(TelemetryEventName.UPSELL_DISMISSED, {
+			upsellId: "test-upsell",
+		})
+
 		expect(mockPostMessage).toHaveBeenCalledWith({
 			type: "dismissUpsell",
 			upsellId: "test-upsell",
@@ -503,6 +531,46 @@ describe("DismissibleUpsell", () => {
 		})
 	})
 
+	it("dismisses on container click when dismissOnClick is true and no onClick is provided; tracks only dismissal", async () => {
+		const onDismiss = vi.fn()
+		const { container } = render(
+			<DismissibleUpsell upsellId="test-upsell" onDismiss={onDismiss} dismissOnClick={true}>
+				<div>Test content</div>
+			</DismissibleUpsell>,
+		)
+
+		// Make component visible
+		makeUpsellVisible()
+
+		// Wait for component to be visible
+		await waitFor(() => {
+			expect(screen.getByText("Test content")).toBeInTheDocument()
+		})
+
+		// Click on the container (not the dismiss button)
+		const containerDiv = screen.getByText("Test content").parentElement as HTMLElement
+		fireEvent.click(containerDiv)
+
+		// onDismiss should be called
+		expect(onDismiss).toHaveBeenCalledTimes(1)
+
+		// Telemetry: only dismissal should be tracked
+		expect(mockCapture).toHaveBeenCalledWith(TelemetryEventName.UPSELL_DISMISSED, {
+			upsellId: "test-upsell",
+		})
+		expect(mockCapture).not.toHaveBeenCalledWith(TelemetryEventName.UPSELL_CLICKED, expect.anything())
+
+		// Dismiss message should be sent
+		expect(mockPostMessage).toHaveBeenCalledWith({
+			type: "dismissUpsell",
+			upsellId: "test-upsell",
+		})
+
+		// Component should be hidden
+		await waitFor(() => {
+			expect(container.firstChild).toBeNull()
+		})
+	})
 	it("does not dismiss when clicked if dismissOnClick is false", async () => {
 		const onClick = vi.fn()
 		const onDismiss = vi.fn()
