@@ -36,8 +36,6 @@ export const Requesty = ({
 }: RequestyProps) => {
 	const { t } = useAppTranslation()
 
-	const [didRefetch, setDidRefetch] = useState<boolean>()
-
 	const [requestyEndpointSelected, setRequestyEndpointSelected] = useState(!!apiConfiguration.requestyBaseUrl)
 
 	// This ensures that the "Use custom URL" checkbox is hidden when the user deletes the URL.
@@ -131,18 +129,12 @@ export const Requesty = ({
 				onClick={() => {
 					vscode.postMessage({ type: "flushRouterModels", text: "requesty" })
 					refetchRouterModels()
-					setDidRefetch(true)
 				}}>
 				<div className="flex items-center gap-2">
 					<span className="codicon codicon-refresh" />
 					{t("settings:providers.refreshModels.label")}
 				</div>
 			</Button>
-			{didRefetch && (
-				<div className="flex items-center text-vscode-errorForeground">
-					{t("settings:providers.refreshModels.hint")}
-				</div>
-			)}
 			<ModelPicker
 				apiConfiguration={apiConfiguration}
 				setApiConfigurationField={setApiConfigurationField}
