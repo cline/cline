@@ -1,8 +1,9 @@
 # Changelog
 
-## 3.31.1
+## [3.31.1]
 
-- 3b1477b: Rename MCP tab 'Installed' to 'Configure'
+- Add installed useful CLI tools to environment details
+- Rename MCP tab 'Installed' to 'Configure'
 
 ## [3.31.0]
 
