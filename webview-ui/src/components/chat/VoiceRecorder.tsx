@@ -260,7 +260,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 				content={`Stop Recording (${formatSeconds(recordingDuration)}/${formatSeconds(MAX_DURATION)})`}
 				placement="top">
 				<div
-					className={cn("input-icon-button mr-1.5 text-base", iconAdjustment, iconAnimation, {
+					className={cn("input-icon-button mr-1.5 text-error", iconAdjustment, iconAnimation, {
 						disabled: disabled || isProcessing,
 					})}
 					onClick={handleStopClick}>
@@ -269,7 +269,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			</HeroTooltip>
 			<HeroTooltip content="Cancel Recording" placement="top">
 				<div
-					className={`input-icon-button text-base mt-1 text-foreground ${disabled || isProcessing ? "disabled" : ""}`}
+					className={`input-icon-button text-base ${isRecording ? "mt-0.5" : "mt-1"} text-foreground ${disabled || isProcessing ? "disabled" : ""}`}
 					onClick={handleCancelClick}>
 					<span className="codicon codicon-close" />
 				</div>

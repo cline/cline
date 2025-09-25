@@ -1428,7 +1428,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		return (
 			<div>
 				<div
-					className="relative flex transition-colors ease-in-out duration-100 p-2.5"
+					className="relative flex transition-colors ease-in-out duration-100 px-3.5 py-2.5"
 					onDragEnter={handleDragEnter}
 					onDragLeave={handleDragLeave}
 					onDragOver={onDragOver}
@@ -1436,7 +1436,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{isVoiceRecording && (
 						<div
 							className={cn(
-								"absolute pointer-events-none z-10 overflow-hidden rounded-xs transition-all ease-in-out duration-300 left-2.5 right-2.5 top-2.5 bottom-2.5",
+								"absolute pointer-events-none z-10 overflow-hidden rounded-xs transition-all ease-in-out duration-300 left-3.5 right-3.5 top-2.5 bottom-2.5",
 							)}>
 							<PulsingBorder
 								bloom={1}
@@ -1458,7 +1458,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								speed={1.5}
 								spotSize={0.5}
 								spots={4}
-								thickness={0.05}
+								thickness={0.1}
 							/>
 						</div>
 					)}
@@ -1504,11 +1504,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					)}
 					<div
 						className={cn(
-							"absolute left-3.5 right-3.5 bottom-2.5 top-2.5 whitespace-pre-wrap break-words rounded-xs px-9 py-9 overflow-hidden bg-input-background",
-							{
-								"border-input-border": isTextAreaFocused || isVoiceRecording,
-								"left-2.5 right-2.5": isTextAreaFocused || isVoiceRecording,
-							},
+							"absolute bottom-2.5 top-2.5 whitespace-pre-wrap break-words rounded-xs overflow-hidden bg-input-background",
+							isTextAreaFocused || isVoiceRecording
+								? "left-3.5 right-3.5"
+								: "left-3.5 right-3.5 border border-input-border",
 						)}
 						ref={highlightLayerRef}
 						style={{
@@ -1522,12 +1521,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
 							borderRadius: 2,
-							borderLeft: 0,
-							borderRight: 0,
-							borderTop: 0,
-							borderColor: "transparent",
-							borderBottom: `${thumbnailsHeight}px solid transparent`,
-							padding: "9px 28px 9px 9px",
+							borderLeft: isTextAreaFocused || isVoiceRecording ? 0 : undefined,
+							borderRight: isTextAreaFocused || isVoiceRecording ? 0 : undefined,
+							borderTop: isTextAreaFocused || isVoiceRecording ? 0 : undefined,
+							borderBottom: isTextAreaFocused || isVoiceRecording ? 0 : undefined,
+							padding: `9px 28px ${9 + thumbnailsHeight}px 9px`,
 						}}
 					/>
 					<DynamicTextArea
@@ -1627,7 +1625,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						/>
 					)}
 					<div
-						className="absolute flex items-end bottom-3.5 right-5 z-10 h-8 text-xs"
+						className="absolute flex items-end bottom-4.5 right-5 z-10 h-8 text-xs"
 						style={{ height: textAreaBaseHeight }}>
 						<div className="flex flex-row items-center">
 							{dictationSettings?.dictationEnabled === true && dictationSettings?.featureEnabled && (
@@ -1686,16 +1684,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</div>
 					</div>
 				</div>
-				<div className="flex justify-between items-center -mt-1 px-2.5 py-0.5">
+				<div className="flex justify-between items-center -mt-1 px-3 pb-2">
 					{/* Always render both components, but control visibility with CSS */}
-					<div className="relative flex-1 min-w-0 h-7">
+					<div className="relative flex-1 min-w-0 h-5">
 						{/* ButtonGroup - always in DOM but visibility controlled */}
-						<ButtonGroup className="absolute top-0 left-0 right-0 transition-opacity duration-300 ease-in-out w-full h-5 z-10 flex items-center">
+						<ButtonGroup className="absolute top-0 left-0 right-0 ease-in-out w-full h-5 z-10 flex items-center">
 							<Tooltip style={{ left: 0 }} tipText="Add Context">
 								<VSCodeButton
 									appearance="icon"
 									aria-label="Add Context"
-									className="p-0 m-0 flex items-center mt-0.5"
+									className="p-0 m-0 flex items-center"
 									data-testid="context-button"
 									onClick={handleContextButtonClick}>
 									<ButtonContainer>
@@ -1708,7 +1706,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								<VSCodeButton
 									appearance="icon"
 									aria-label="Add Files & Images"
-									className="p-0 m-0 flex items-center mt-0.5"
+									className="p-0 m-0 flex items-center"
 									data-testid="files-button"
 									disabled={shouldDisableFilesAndImages}
 									onClick={() => {

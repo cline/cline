@@ -9,19 +9,20 @@ const CompactTaskButton: React.FC<{
 	return (
 		<Tooltip
 			content={
-				<div className="flex flex-col gap-1.5 bg-menu rounded shadow-sm border border-menu-border z-100 max-w-xs p-4">
-					<div className="text-sm font-medium">Compact Task</div>
-					<div className="text-sm text-muted-foreground">
-						Reduces the number of tokens used by summarizing the task. To enable automatic condensing, turn on{" "}
-						<kbd>Auto Compact</kbd> in the settings and set the threshold by clicking on the context window usage bar.
+				<div className="flex flex-col gap-1 bg-menu rounded shadow-sm border border-menu-border z-100 max-w-xs py-1 px-2">
+					<div className="text-xs font-medium">Compact Task</div>
+					<div className="text-xs text-muted-foreground">
+						Reduces the number of tokens used by summarizing the task.
 					</div>
 				</div>
 			}
+			delay={0}
+			disableAnimation={true}
 			placement="bottom">
 			<VSCodeButton
 				appearance="icon"
 				className={cn(
-					"text-badge-foreground flex items-center text-sm font-bold hover:bg-transparent hover:opacity-80",
+					"text-foreground flex items-center text-sm font-bold hover:bg-transparent hover:opacity-80",
 					className,
 				)}
 				onClick={onClick}

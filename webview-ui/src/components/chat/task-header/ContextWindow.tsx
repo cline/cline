@@ -124,8 +124,8 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 		}
 		return {
 			percentage: (lastApiReqTotalTokens / contextWindow) * 100,
-			max: formatTokenNumber(contextWindow),
-			used: formatTokenNumber(lastApiReqTotalTokens),
+			max: contextWindow,
+			used: lastApiReqTotalTokens,
 		}
 	}, [contextWindow, lastApiReqTotalTokens])
 
@@ -207,7 +207,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 			<div className="flex gap-1 flex-row @max-xs:flex-col @max-xs:items-start items-center text-sm">
 				<div className="flex items-center gap-1.5 flex-1 whitespace-nowrap text-xs">
 					<span className="cursor-pointer" title="Current tokens used in this request">
-						{tokenData.used}
+						{formatTokenNumber(tokenData.used)}
 					</span>
 					<div className="flex relative items-center gap-1 flex-1 w-full h-full" onMouseEnter={() => setIsOpened(true)}>
 						<Tooltip
@@ -237,7 +237,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 								aria-valuemin={0}
 								aria-valuenow={Math.round(threshold * 100)}
 								aria-valuetext={`${Math.round(threshold * 100)}% threshold`}
-								className="relative w-full text-badge-foreground context-window-progress brightness-100"
+								className="relative w-full text-foreground context-window-progress brightness-100"
 								onFocus={handleFocus}
 								onKeyDown={handleKeyDown}
 								ref={progressBarRef}
@@ -271,7 +271,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 						</Tooltip>
 					</div>
 					<span className="cursor-pointer" title="Maximum context window size for this model">
-						{tokenData.max}
+						{formatTokenNumber(tokenData.max)}
 					</span>
 				</div>
 				<CompactTaskButton onClick={handleCompactClick} />
