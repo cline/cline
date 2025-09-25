@@ -4,7 +4,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { memo, useCallback, useMemo, useState } from "react"
 import ChecklistRenderer from "@/components/common/ChecklistRenderer"
-import MarkdownBlock from "@/components/common/MarkdownBlock"
+import LightMarkdown from "@/components/common/LightMarkdown"
 import { FileServiceClient } from "@/services/grpc-client"
 
 // Optimized interface with readonly properties to prevent accidental mutations
@@ -66,7 +66,7 @@ const ToDoListHeader = memo<{
 						{currentIndex}/{totalCount}
 					</span>
 					<div className="header-text text-xs font-medium break-words overflow-hidden text-ellipsis whitespace-nowrap max-w-[calc(100%-60px)]">
-						<MarkdownBlock compact markdown={displayText} />
+						<LightMarkdown compact text={displayText} />
 					</div>
 				</div>
 				<div className="flex items-center justify-between text-foreground">
