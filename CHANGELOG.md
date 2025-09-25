@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.31.1]
+
+- Add installed useful CLI tools to environment details
+- Rename MCP tab 'Installed' to 'Configure'
+
 ## [3.31.0]
 
 - UI Improvements: New task header and focus chain design to take up less space for a cleaner experience
