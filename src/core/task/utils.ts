@@ -105,11 +105,8 @@ const CLI_TOOLS = [
 	"dotnet",
 	"helm",
 	"ansible",
-	"svn",
-	"hg",
 	"ssh",
 	"wget",
-	"ping",
 ]
 
 /**
