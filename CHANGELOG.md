@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.30.4
+
+### Patch Changes
+
+- d0da22d: Checkpoints multiroot pt.1: Accept array of workspaces when initializting checkpoints
+- 5be6ba6: Support partial response validation via meta.expected
+- 58b0ea9: Run Testing platform within Test workflow
+- b3aee38: Refactor Task Header UI with interactive context window management
+- a10d778: remove temperature settings in z.ai models
+- 407e472: Feature flags are now accessible too all users instead of authenticated users only.
+- bc228de: Update anthropic input token usage calculation
+- 10cbbb2: Support new Cline endpoint auth flow
+- c16e271: Add speech-to-text dictation feature for Cline account users
+
 ## [3.30.3]
 
 - Add Oracle Code Assist provider
