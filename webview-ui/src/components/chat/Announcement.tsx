@@ -208,7 +208,7 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					discord,
 				</VSCodeLink>{" "}
 				or{" "}
-				<VSCodeLink href="https://www.reddit.com/r/r/cline/" style={linkStyle}>
+				<VSCodeLink href="https://www.reddit.com/r/cline/" style={linkStyle}>
 					r/cline
 				</VSCodeLink>
 				for more updates!
