@@ -20,7 +20,7 @@ export interface ClineAuthContextType {
 	activeOrganization: UserOrganization | null
 }
 
-const ClineAuthContext = createContext<ClineAuthContextType | undefined>(undefined)
+export const ClineAuthContext = createContext<ClineAuthContextType | undefined>(undefined)
 
 export const ClineAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [user, setUser] = useState<ClineUser | null>(null)

@@ -12,7 +12,9 @@ import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
-import { errorService } from "./services/error"
+import { ExtensionRegistryInfo } from "./registry"
+import { audioRecordingService } from "./services/dictation/AudioRecordingService"
+import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
 import { initializeDistinctId } from "./services/logging/distinctId"
 import { PostHogClientProvider } from "./services/posthog/PostHogClientProvider"
@@ -31,6 +33,10 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// Initialize PostHog client provider
 	PostHogClientProvider.getInstance()
+
+	// Setup the external services
+	await ErrorService.initialize()
+	await featureFlagsService.poll()
 
 	// Migrate custom instructions to global Cline rules (one-time cleanup)
 	await migrateCustomInstructionsToGlobalRules(context)
@@ -58,7 +64,7 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
 	// Version checking for autoupdate notification
-	const currentVersion = context.extension.packageJSON.version
+	const currentVersion = ExtensionRegistryInfo.version
 	const previousVersion = context.globalState.get<string>("clineVersion")
 	// Perform post-update actions if necessary
 	try {
@@ -67,7 +73,7 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
 
 			// Use the same condition as announcements: focus when there's a new announcement to show
 			const lastShownAnnouncementId = context.globalState.get<string>("lastShownAnnouncementId")
-			const latestAnnouncementId = getLatestAnnouncementId(context)
+			const latestAnnouncementId = getLatestAnnouncementId()
 
 			if (lastShownAnnouncementId !== latestAnnouncementId) {
 				// Focus Cline when there's a new announcement to show (major/minor updates or fresh installs)
@@ -94,9 +100,12 @@ async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
  * Performs cleanup when Cline is deactivated that is common to all platforms.
  */
 export async function tearDown(): Promise<void> {
+	// Clean up audio recording service to ensure no orphaned processes
+	audioRecordingService.cleanup()
+
 	PostHogClientProvider.getInstance().dispose()
 	telemetryService.dispose()
-	errorService.dispose()
+	ErrorService.get().dispose()
 	featureFlagsService.dispose()
 	// Dispose all webview instances
 	await WebviewProvider.disposeAllInstances()

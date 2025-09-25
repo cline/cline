@@ -3,8 +3,8 @@ import type { BrowserSettings } from "@shared/BrowserSettings"
 import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
-import * as vscode from "vscode"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
+import { Setting } from "@/shared/proto/index.host"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
@@ -16,7 +16,7 @@ import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser" | "focus_chain"
+type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation"
 
 /**
  * Enum for terminal output failure reasons
@@ -76,6 +76,7 @@ export class TelemetryService {
 	private telemetryCategoryEnabled: Map<TelemetryCategory, boolean> = new Map([
 		["checkpoints", true], // Checkpoints telemetry enabled
 		["browser", true], // Browser telemetry enabled
+		["dictation", true], // Dictation telemetry enabled
 		["focus_chain", true], // Focus Chain telemetry enabled
 	])
 
@@ -87,6 +88,32 @@ export class TelemetryService {
 			OPT_OUT: "user.opt_out",
 			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
+		},
+		DICTATION: {
+			// Tracks when voice recording is started
+			RECORDING_STARTED: "voice.recording_started",
+			// Tracks when voice recording is stopped
+			RECORDING_STOPPED: "voice.recording_stopped",
+			// Tracks when voice transcription is started
+			TRANSCRIPTION_STARTED: "voice.transcription_started",
+			// Tracks when voice transcription is completed successfully
+			TRANSCRIPTION_COMPLETED: "voice.transcription_completed",
+			// Tracks when voice transcription fails
+			TRANSCRIPTION_ERROR: "voice.transcription_error",
+			// Tracks when voice feature is enabled or disabled in settings
+		},
+		// Workspace-related events for multi-root support
+		WORKSPACE: {
+			// Track workspace initialization
+			INITIALIZED: "workspace.initialized",
+			// Track initialization errors
+			INIT_ERROR: "workspace.init_error",
+			// Track VCS detection
+			VCS_DETECTED: "workspace.vcs_detected",
+			// Track multi-root checkpoint operations
+			MULTI_ROOT_CHECKPOINT: "workspace.multi_root_checkpoint",
+			// Track workspace resolution
+			PATH_RESOLVED: "workspace.path_resolved",
 		},
 		TASK: {
 			// Tracks when a new task/conversation is started
@@ -151,6 +178,8 @@ export class TelemetryService {
 			RULE_TOGGLED: "task.rule_toggled",
 			// Tracks when auto condense setting is toggled on/off
 			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
+			// Tracks when yolo mode setting is toggled on/off
+			YOLO_MODE_TOGGLED: "task.yolo_mode_toggled",
 			// Tracks task initialization timing
 			INITIALIZATION: "task.initialization",
 			// Terminal execution telemetry events
@@ -173,7 +202,7 @@ export class TelemetryService {
 	}
 
 	public static async create(): Promise<TelemetryService> {
-		const provider = TelemetryProviderFactory.createProvider({
+		const provider = await TelemetryProviderFactory.createProvider({
 			type: "posthog",
 		})
 		const hostVersion = await HostProvider.env.getHostVersion({})
@@ -208,34 +237,27 @@ export class TelemetryService {
 	public async updateTelemetryState(didUserOptIn: boolean): Promise<void> {
 		// First check global telemetry level - telemetry should only be enabled when level is "all"
 
-		// We only enable telemetry if global vscode telemetry is enabled
-		if (!vscode.env.isTelemetryEnabled) {
-			// Only show warning if user has opted in to Cline telemetry but VS Code telemetry is disabled
+		// We only enable telemetry if global host telemetry is enabled
+		const hostSetting = await HostProvider.env.getTelemetrySettings({})
+		if (hostSetting.isEnabled === Setting.DISABLED) {
+			// Only show warning if user has opted in to Cline telemetry but host telemetry is disabled
 			if (didUserOptIn) {
-				const isVsCodeHost = vscode?.env?.uriScheme === "vscode"
-				if (isVsCodeHost) {
-					void HostProvider.window
-						.showMessage({
-							type: ShowMessageType.WARNING,
-							message:
-								"Anonymous Cline error and usage reporting is enabled, but VSCode telemetry is disabled. To enable error and usage reporting for this extension, enable VSCode telemetry in settings.",
-							options: {
-								items: ["Open Settings"],
-							},
-						})
-						.then((response) => {
-							if (response.selectedOption === "Open Settings") {
-								void HostProvider.window.openSettings({
-									query: "telemetry.telemetryLevel",
-								})
-							}
-						})
-				} else {
-					void HostProvider.window.showMessage({
+				void HostProvider.window
+					.showMessage({
 						type: ShowMessageType.WARNING,
-						message: "Anonymous Cline error and usage reporting is enabled, but host telemetry is disabled.",
+						message:
+							"Anonymous Cline error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
+						options: {
+							items: ["Open Settings"],
+						},
 					})
-				}
+					.then((response) => {
+						if (response.selectedOption === "Open Settings") {
+							void HostProvider.window.openSettings({
+								query: "telemetry.telemetryLevel",
+							})
+						}
+					})
 			}
 		}
 
@@ -277,7 +299,126 @@ export class TelemetryService {
 			setDistinctId(userInfo.id)
 		}
 	}
+	// Dictation events
+	/**
+	 * Records when voice recording is started
+	 * @param taskId Optional task identifier if recording was started during a task
+	 * @param platform The platform where recording is happening (macOS, Windows, Linux)
+	 */
+	public captureVoiceRecordingStarted(taskId?: string, platform?: string) {
+		if (!this.isCategoryEnabled("dictation")) {
+			return
+		}
 
+		this.capture({
+			event: TelemetryService.EVENTS.DICTATION.RECORDING_STARTED,
+			properties: {
+				taskId,
+				platform: platform ?? process.platform,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when voice recording is stopped
+	 * @param taskId Optional task identifier if recording was stopped during a task
+	 * @param durationMs Duration of the recording in milliseconds
+	 * @param success Whether the recording was successful
+	 * @param platform The platform where recording happened
+	 */
+	public captureVoiceRecordingStopped(taskId?: string, durationMs?: number, success?: boolean, platform?: string) {
+		if (!this.isCategoryEnabled("dictation")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.DICTATION.RECORDING_STOPPED,
+			properties: {
+				taskId,
+				durationMs,
+				success,
+				platform: platform ?? process.platform,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when voice transcription is started
+	 * @param taskId Optional task identifier if transcription was started during a task
+	 * @param language Language hint provided for transcription
+	 */
+	public captureVoiceTranscriptionStarted(taskId?: string, language?: string) {
+		if (!this.isCategoryEnabled("dictation")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.DICTATION.TRANSCRIPTION_STARTED,
+			properties: {
+				taskId,
+				language,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when voice transcription is completed successfully
+	 * @param taskId Optional task identifier if transcription was completed during a task
+	 * @param transcriptionLength Length of the transcribed text
+	 * @param durationMs Time taken for transcription in milliseconds
+	 * @param language Language used for transcription
+	 * @param isOrgAccount Whether the transcription was done using an organization account
+	 */
+	public captureVoiceTranscriptionCompleted(
+		taskId?: string,
+		transcriptionLength?: number,
+		durationMs?: number,
+		language?: string,
+		isOrgAccount?: boolean,
+	) {
+		if (!this.isCategoryEnabled("dictation")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.DICTATION.TRANSCRIPTION_COMPLETED,
+			properties: {
+				taskId,
+				transcriptionLength,
+				durationMs,
+				language,
+				accountType: isOrgAccount ? "organization" : "personal",
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when voice transcription fails
+	 * @param taskId Optional task identifier if transcription failed during a task
+	 * @param errorType Type of error that occurred (e.g., "no_openai_key", "api_error", "network_error")
+	 * @param errorMessage The error message
+	 * @param durationMs Time taken before failure in milliseconds
+	 */
+	public captureVoiceTranscriptionError(taskId?: string, errorType?: string, errorMessage?: string, durationMs?: number) {
+		if (!this.isCategoryEnabled("dictation")) {
+			return
+		}
+
+		this.capture({
+			event: TelemetryService.EVENTS.DICTATION.TRANSCRIPTION_ERROR,
+			properties: {
+				taskId,
+				errorType,
+				errorMessage,
+				durationMs,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
 	// Task events
 	/**
 	 * Records when a new task/conversation is started
@@ -730,6 +871,7 @@ export class TelemetryService {
 		ulid: string
 		model: string
 		errorMessage: string
+		provider?: string
 		errorStatus?: number | undefined
 		requestId?: string | undefined
 	}) {
@@ -921,6 +1063,21 @@ export class TelemetryService {
 	}
 
 	/**
+	 * Records when yolo mode is enabled/disabled by the user
+	 * @param ulid Unique identifier for the task
+	 * @param enabled Whether yolo mode was enabled (true) or disabled (false)
+	 */
+	public captureYoloModeToggle(ulid: string, enabled: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.YOLO_MODE_TOGGLED,
+			properties: {
+				ulid,
+				enabled,
+			},
+		})
+	}
+
+	/**
 	 * Records task initialization timing and metadata
 	 * @param ulid Unique identifier for the task
 	 * @param taskId Task ID (timestamp in milliseconds when task was created)
@@ -1001,6 +1158,84 @@ export class TelemetryService {
 			event: TelemetryService.EVENTS.TASK.TERMINAL_HANG,
 			properties: {
 				stage,
+			},
+		})
+	}
+
+	// Workspace telemetry methods
+
+	/**
+	 * Records when workspace is initialized
+	 * @param rootCount Number of workspace roots
+	 * @param vcsTypes Array of VCS types detected
+	 * @param initDurationMs Time taken to initialize in milliseconds
+	 * @param featureFlagEnabled Whether multi-root feature flag is enabled
+	 */
+	public captureWorkspaceInitialized(
+		rootCount: number,
+		vcsTypes: string[],
+		initDurationMs?: number,
+		featureFlagEnabled?: boolean,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKSPACE.INITIALIZED,
+			properties: {
+				root_count: rootCount,
+				vcs_types: vcsTypes,
+				is_multi_root: rootCount > 1,
+				has_git: vcsTypes.includes("Git"),
+				has_mercurial: vcsTypes.includes("Mercurial"),
+				init_duration_ms: initDurationMs,
+				feature_flag_enabled: featureFlagEnabled,
+			},
+		})
+	}
+
+	/**
+	 * Records workspace initialization errors
+	 * @param error The error that occurred
+	 * @param fallbackMode Whether system fell back to single-root mode
+	 * @param workspaceCount Number of workspace folders detected
+	 */
+	public captureWorkspaceInitError(error: Error, fallbackMode: boolean, workspaceCount?: number) {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKSPACE.INIT_ERROR,
+			properties: {
+				error_type: error.constructor.name,
+				error_message: error.message.substring(0, MAX_ERROR_MESSAGE_LENGTH),
+				fallback_to_single_root: fallbackMode,
+				workspace_count: workspaceCount ?? 0,
+			},
+		})
+	}
+
+	/**
+	 * Records multi-root checkpoint operations
+	 * @param ulid Task identifier
+	 * @param action Type of checkpoint action
+	 * @param rootCount Number of roots being checkpointed
+	 * @param successCount Number of successful checkpoints
+	 * @param failureCount Number of failed checkpoints
+	 * @param durationMs Total operation duration in milliseconds
+	 */
+	public captureMultiRootCheckpoint(
+		ulid: string,
+		action: "initialized" | "committed" | "restored",
+		rootCount: number,
+		successCount: number,
+		failureCount: number,
+		durationMs?: number,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKSPACE.MULTI_ROOT_CHECKPOINT,
+			properties: {
+				ulid,
+				action,
+				root_count: rootCount,
+				success_count: successCount,
+				failure_count: failureCount,
+				success_rate: rootCount > 0 ? successCount / rootCount : 0,
+				duration_ms: durationMs,
 			},
 		})
 	}

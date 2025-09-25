@@ -3,13 +3,14 @@ import { formatResponse } from "@core/prompts/responses"
 import { findLast, parsePartialArrayString } from "@shared/array"
 import { telemetryService } from "@/services/telemetry"
 import { ClinePlanModeResponse } from "@/shared/ExtensionMessage"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandler {
-	readonly name = "plan_mode_respond"
+	readonly name = ClineDefaultTool.PLAN_MODE
 
 	constructor() {}
 
@@ -29,7 +30,7 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 			options: parsePartialArrayString(uiHelpers.removeClosingTag(block, "options", optionsRaw)),
 		} satisfies ClinePlanModeResponse
 
-		await uiHelpers.ask("plan_mode_respond", JSON.stringify(sharedMessage), true).catch(() => {})
+		await uiHelpers.ask(this.name, JSON.stringify(sharedMessage), true).catch(() => {})
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
@@ -52,8 +53,26 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 			)
 		}
 
+		// For safety, if we are in yolo mode and we get a plan_mode_respond tool call we should always continue the loop
+		if (config.yoloModeToggled && config.mode === "act") {
+			return formatResponse.toolResult(`[Go ahead and execute.]`)
+		}
+
 		// Store the number of options for telemetry
 		const options = parsePartialArrayString(optionsRaw || "[]")
+
+		// Auto-switch to Act mode while in yolo mode
+		if (config.mode === "plan" && config.yoloModeToggled && !needsMoreExploration) {
+			// Trigger automatic mode switch
+			const switchSuccessful = await config.callbacks.switchToActMode()
+
+			if (switchSuccessful) {
+				// we dont need to process any text, options, files or other content here
+				return formatResponse.toolResult(`[The user has switched to ACT MODE, so you may now proceed with the task.]`)
+			} else {
+				console.warn("YOLO MODE: Failed to switch to ACT MODE, continuing with normal plan mode")
+			}
+		}
 
 		// Set awaiting plan response state
 		config.taskState.isAwaitingPlanResponse = true
@@ -68,7 +87,7 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 			text,
 			images,
 			files: planResponseFiles,
-		} = await config.callbacks.ask("plan_mode_respond", JSON.stringify(sharedMessage), false)
+		} = await config.callbacks.ask(this.name, JSON.stringify(sharedMessage), false)
 
 		config.taskState.isAwaitingPlanResponse = false
 
@@ -82,7 +101,7 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 			telemetryService.captureOptionSelected(config.ulid, options.length, "plan")
 			// Valid option selected, don't show user message in UI
 			// Update last plan message with selected option
-			const lastPlanMessage = findLast(config.messageState.getClineMessages(), (m: any) => m.ask === "plan_mode_respond")
+			const lastPlanMessage = findLast(config.messageState.getClineMessages(), (m: any) => m.ask === this.name)
 			if (lastPlanMessage) {
 				lastPlanMessage.text = JSON.stringify({
 					...sharedMessage,

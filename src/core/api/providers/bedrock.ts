@@ -16,7 +16,7 @@ import { withRetry } from "../retry"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 
-interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
+export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
@@ -30,7 +30,7 @@ interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	awsProfile?: string
 	awsBedrockEndpoint?: string
 	awsBedrockCustomSelected?: boolean
-	awsBedrockCustomModelBaseId?: BedrockModelId
+	awsBedrockCustomModelBaseId?: string
 	thinkingBudgetTokens?: number
 }
 
@@ -170,7 +170,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			if (baseModel && baseModel in bedrockModels) {
 				return {
 					id: modelId,
-					info: bedrockModels[baseModel],
+					info: bedrockModels[baseModel as BedrockModelId],
 				}
 			}
 			// For custom models without valid base model in bedrock model list, use default model's capabilities

@@ -2,9 +2,9 @@ import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
-const CAPABILITIES_TEMPLATE_TEXT = `CAPABILITIES
+const getCapabilitiesTemplateText = (context: SystemPromptContext) => `CAPABILITIES
 
-- You have access to tools that let you execute CLI commands on the user's computer, list files, view source code definitions, regex search{{BROWSER_SUPPORT}}, read and edit files, and ask follow-up questions. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
+- You have access to tools that let you execute CLI commands on the user's computer, list files, view source code definitions, regex search{{BROWSER_SUPPORT}}, read and edit files${context.yoloModeToggled !== true ? ", and ask follow-up questions" : ""}. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.
 - When the user initially gives you a task, a recursive list of all filepaths in the current working directory ('{{CWD}}') will be included in environment_details. This provides an overview of the project's file structure, offering key insights into the project from directory/file names (how developers conceptualize and organize their code) and file extensions (the language used). This can also guide decision-making on which files to explore further. If you need to further explore directories such as outside the current working directory, you can use the list_files tool. If you pass 'true' for the recursive parameter, it will list files recursively. Otherwise, it will list files at the top level, which is better suited for generic directories where you don't necessarily need the nested structure, like the Desktop.
 - You can use search_files to perform regex searches across files in a specified directory, outputting context-rich results that include surrounding lines. This is particularly useful for understanding code patterns, finding specific implementations, or identifying areas that need refactoring.
 - You can use the list_code_definition_names tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.
@@ -13,7 +13,7 @@ const CAPABILITIES_TEMPLATE_TEXT = `CAPABILITIES
 - You have access to MCP servers that may provide additional tools and resources. Each server may provide different capabilities that you can use to accomplish tasks more effectively.`
 
 export async function getCapabilitiesSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	const template = variant.componentOverrides?.[SystemPromptSection.CAPABILITIES]?.template || CAPABILITIES_TEMPLATE_TEXT
+	const template = variant.componentOverrides?.[SystemPromptSection.CAPABILITIES]?.template || getCapabilitiesTemplateText
 
 	const browserSupport = context.supportsBrowserUse ? ", use the browser" : ""
 	const browserCapabilities = context.supportsBrowserUse
@@ -21,7 +21,7 @@ export async function getCapabilitiesSection(variant: PromptVariant, context: Sy
 		: ""
 
 	const templateEngine = new TemplateEngine()
-	return templateEngine.resolve(template, {
+	return templateEngine.resolve(template, context, {
 		BROWSER_SUPPORT: browserSupport,
 		BROWSER_CAPABILITIES: browserCapabilities,
 		CWD: context.cwd || process.cwd(),

@@ -23,7 +23,7 @@ export class FeatureFlagsService {
 	/**
 	 * Poll all known feature flags to update their cached values
 	 */
-	public async cacheFeatureFlags(): Promise<void> {
+	public async poll(): Promise<void> {
 		// Do not update cache if last update was less than an hour ago
 		const timesNow = Date.now()
 		if (timesNow - this.lastCacheUpdateTime < DEFAULT_CACHE_TTL) {
@@ -38,10 +38,13 @@ export class FeatureFlagsService {
 
 	private async getFeatureFlag(flagName: FeatureFlag): Promise<boolean> {
 		try {
-			const flagEnabled = await this.provider.getFeatureFlag(flagName)
-			return flagEnabled === true
+			const flagValue = await this.provider.getFeatureFlag(flagName)
+			const enabled = flagValue === true
+			this.cache.set(flagName, enabled)
+			return enabled
 		} catch (error) {
 			console.error(`Error checking if feature flag ${flagName} is enabled:`, error)
+			this.cache.set(flagName, false)
 			return false
 		}
 	}
@@ -63,21 +66,20 @@ export class FeatureFlagsService {
 
 	/**
 	 * Wrapper: safely get boolean flag with default fallback
+	 * Only check the cached value of a feature flag. If not cached, return defaultValue.
+	 * Useful for performance-sensitive paths where we don't want to await a network call.
+	 * Cache is updated periodically via poll(), and is generated on extension startup,
+	 * and whenever the user logs in.
 	 */
-	public async getBooleanFlagEnabled(flagName: FeatureFlag, defaultValue = false): Promise<boolean> {
-		try {
-			return this.isFeatureFlagEnabled(flagName) ?? defaultValue
-		} catch (error) {
-			console.error(`Error getting boolean flag ${flagName}:`, error)
-			return defaultValue
-		}
+	public getBooleanFlagEnabled(flagName: FeatureFlag, defaultValue = false): boolean {
+		return this.cache.get(flagName) ?? defaultValue
 	}
 
 	/**
-	 * Convenience: focus chain checklist remote gate
+	 * Convenience: multi-root workspace remote gate
 	 */
-	public async getFocusChainEnabled(): Promise<boolean> {
-		return this.getBooleanFlagEnabled(FeatureFlag.FOCUS_CHAIN_CHECKLIST, true)
+	public getMultiRootEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.MULTI_ROOT_WORKSPACE, false)
 	}
 
 	/**
@@ -116,6 +118,24 @@ export class FeatureFlagsService {
 	 */
 	public getSettings() {
 		return this.provider.getSettings()
+	}
+
+	/**
+	 * Reset the feature flags cache
+	 * Should run on user auth state changes to ensure flags are up-to-date
+	 */
+	public reset(): void {
+		this.cache.clear()
+		this.lastCacheUpdateTime = 0
+	}
+
+	/**
+	 * For testing: directly set a feature flag in the cache
+	 */
+	public test(flagName: FeatureFlag, value: boolean) {
+		if (process.env.NODE_ENV === "true") {
+			this.cache.set(flagName, value)
+		}
 	}
 
 	/**

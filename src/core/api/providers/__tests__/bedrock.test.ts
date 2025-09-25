@@ -1,7 +1,7 @@
 import "should"
 import { ConverseStreamCommand } from "@aws-sdk/client-bedrock-runtime"
-import { ApiHandlerOptions } from "@shared/api"
 import { Readable } from "stream"
+import type { AwsBedrockHandlerOptions } from "../bedrock"
 import { AwsBedrockHandler } from "../bedrock"
 
 describe("AwsBedrockHandler", () => {
@@ -202,8 +202,8 @@ describe("AwsBedrockHandler", () => {
 		})
 	})
 
-	const mockOptions: ApiHandlerOptions = {
-		actModeApiModelId: "anthropic.claude-3-7-sonnet-20250219-v1:0",
+	const mockOptions: AwsBedrockHandlerOptions = {
+		apiModelId: "anthropic.claude-3-7-sonnet-20250219-v1:0",
 		awsRegion: "us-east-1",
 		awsAccessKey: "test-key",
 		awsSecretKey: "test-secret",
@@ -214,9 +214,9 @@ describe("AwsBedrockHandler", () => {
 		awsBedrockUsePromptCache: false,
 		awsUseCrossRegionInference: false,
 		awsBedrockEndpoint: "",
-		actModeAwsBedrockCustomSelected: false,
-		actModeAwsBedrockCustomModelBaseId: undefined,
-		actModeThinkingBudgetTokens: 1600,
+		awsBedrockCustomSelected: false,
+		awsBedrockCustomModelBaseId: undefined,
+		thinkingBudgetTokens: 1600,
 	}
 
 	const mockModelInfo = {

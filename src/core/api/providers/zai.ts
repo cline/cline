@@ -85,7 +85,6 @@ export class ZAiHandler implements ApiHandler {
 			messages: openAiMessages,
 			stream: true,
 			stream_options: { include_usage: true },
-			temperature: 0,
 		})
 
 		for await (const chunk of stream) {

@@ -18,13 +18,16 @@ export async function getToolUseToolsSection(variant: PromptVariant, context: Sy
 	// (TODO tool is now dynamically added when focusChainEnabled is true)
 	const shouldIncludeTaskProgress = focusChainEnabled
 
-	return new TemplateEngine().resolve(template, {
+	// Define multi-root hint based on feature flag
+	const multiRootHint = context.isMultiRootEnabled ? MULTI_ROOT_HINT : ""
+	return new TemplateEngine().resolve(template, context, {
 		TASK_PROGRESS: shouldIncludeTaskProgress ? TASK_PROGRESS : "",
 		FOCUS_CHAIN_ATTEMPT: shouldIncludeTaskProgress ? FOCUS_CHAIN_ATTEMPT : "",
 		FOCUS_CHAIN_USAGE: shouldIncludeTaskProgress ? FOCUS_CHAIN_USAGE : "",
 		BROWSER_VIEWPORT_WIDTH: context.browserSettings?.viewport?.width || 0,
 		BROWSER_VIEWPORT_HEIGHT: context.browserSettings?.viewport?.height || 0,
 		CWD: context.cwd,
+		MULTI_ROOT_HINT: multiRootHint,
 	})
 }
 
@@ -35,3 +38,4 @@ const FOCUS_CHAIN_USAGE = `<task_progress>
 Checklist here (optional)
 </task_progress>
 `
+const MULTI_ROOT_HINT = " Use @workspace:path syntax (e.g., @frontend:src/index.ts) to specify a workspace."

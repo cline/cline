@@ -34,7 +34,7 @@ const generic: ClineToolSpec = {
 		{
 			name: "path",
 			required: true,
-			instruction: `The path of the file to write to (relative to the current working directory {{CWD}})`,
+			instruction: `The path of the file to write to (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}`,
 			usage: "File path here",
 		},
 		{

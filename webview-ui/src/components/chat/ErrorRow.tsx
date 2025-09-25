@@ -35,11 +35,11 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 							const errorDetails = clineError._error?.details
 							return (
 								<CreditLimitError
+									buyCreditsUrl={errorDetails?.buy_credits_url}
 									currentBalance={errorDetails?.current_balance}
 									message={errorDetails?.message}
 									totalPromotions={errorDetails?.total_promotions}
 									totalSpent={errorDetails?.total_spent}
-									// buyCreditsUrl={errorDetails?.buy_credits_url}
 								/>
 							)
 						}

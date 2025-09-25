@@ -1,5 +1,5 @@
 import { HostProvider } from "@/hosts/host-provider"
-import { errorService } from "../error"
+import { ErrorService } from "../error"
 
 /**
  * Simple logging utility for the extension's backend code.
@@ -8,12 +8,12 @@ export class Logger {
 	public readonly channelName = "Cline Dev Logger"
 	static error(message: string, error?: Error) {
 		Logger.#output("ERROR", message, error)
-		errorService.logMessage(message, "error")
-		error && errorService.logException(error)
+		ErrorService.get().logMessage(message, "error")
+		error && ErrorService.get().logException(error)
 	}
 	static warn(message: string) {
 		Logger.#output("WARN", message)
-		errorService.logMessage(message, "warning")
+		ErrorService.get().logMessage(message, "warning")
 	}
 	static log(message: string) {
 		Logger.#output("LOG", message)

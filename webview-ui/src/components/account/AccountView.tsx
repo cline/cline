@@ -46,6 +46,7 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 						<ClineAccountView
 							activeOrganization={activeOrganization}
 							clineUser={clineUser}
+							key={clineUser.uid}
 							userOrganizations={organizations}
 						/>
 					) : (

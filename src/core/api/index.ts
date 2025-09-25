@@ -21,6 +21,7 @@ import { LmStudioHandler } from "./providers/lmstudio"
 import { MistralHandler } from "./providers/mistral"
 import { MoonshotHandler } from "./providers/moonshot"
 import { NebiusHandler } from "./providers/nebius"
+import { OcaHandler } from "./providers/oca"
 import { OllamaHandler } from "./providers/ollama"
 import { OpenAiHandler } from "./providers/openai"
 import { OpenAiNativeHandler } from "./providers/openai-native"
@@ -57,6 +58,7 @@ export interface ApiProviderInfo {
 	providerId: string
 	model: ApiHandlerModel
 	customPrompt?: string // "compact"
+	autoCondenseThreshold?: number // 0-1 range
 }
 
 export interface SingleCompletionHandler {
@@ -331,6 +333,7 @@ function createHandlerForProvider(
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				deploymentId: mode === "plan" ? options.planModeSapAiCoreDeploymentId : options.actModeSapAiCoreDeploymentId,
 				sapAiCoreUseOrchestrationMode: options.sapAiCoreUseOrchestrationMode,
 			})
 		case "claude-code":
@@ -351,10 +354,6 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeHuaweiCloudMaasModelInfo : options.actModeHuaweiCloudMaasModelInfo,
 			})
 		case "dify": // Add Dify.ai handler
-			console.log("[DIFY DEBUG] Instantiating DifyHandler with options:", {
-				difyApiKeyPresent: !!options.difyApiKey,
-				difyBaseUrl: options.difyBaseUrl,
-			})
 			return new DifyHandler({
 				difyApiKey: options.difyApiKey,
 				difyBaseUrl: options.difyBaseUrl,
@@ -374,6 +373,19 @@ function createHandlerForProvider(
 				zaiApiLine: options.zaiApiLine,
 				zaiApiKey: options.zaiApiKey,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
+		case "oca":
+			return new OcaHandler({
+				ocaBaseUrl: options.ocaBaseUrl,
+				ocaModelId: mode === "plan" ? options.planModeOcaModelId : options.actModeOcaModelId,
+				ocaModelInfo: mode === "plan" ? options.planModeOcaModelInfo : options.actModeOcaModelInfo,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+				ocaUsePromptCache:
+					mode === "plan"
+						? options.planModeOcaModelInfo?.supportsPromptCache
+						: options.actModeOcaModelInfo?.supportsPromptCache,
+				taskId: options.ulid,
 			})
 		default:
 			return new AnthropicHandler({
@@ -400,7 +412,7 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 			const handler = createHandlerForProvider(apiProvider, options, mode)
 
 			const modelInfo = handler.getModel().info
-			if (modelInfo.maxTokens && thinkingBudgetTokens > modelInfo.maxTokens) {
+			if (modelInfo?.maxTokens && modelInfo.maxTokens > 0 && thinkingBudgetTokens > modelInfo.maxTokens) {
 				const clippedValue = modelInfo.maxTokens - 1
 				if (mode === "plan") {
 					options.planModeThinkingBudgetTokens = clippedValue

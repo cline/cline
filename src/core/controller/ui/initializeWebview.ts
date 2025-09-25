@@ -1,7 +1,6 @@
 import { McpMarketplaceCatalog } from "@shared/mcp"
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { featureFlagsService } from "@/services/feature-flags"
 import { telemetryService } from "@/services/telemetry"
 import type { Controller } from "../index"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
@@ -19,19 +18,18 @@ import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels
  */
 export async function initializeWebview(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	try {
-		// Post last cached models in case the call to endpoint fails
-		controller.readOpenRouterModels().then((openRouterModels) => {
-			if (openRouterModels) {
-				sendOpenRouterModelsEvent(OpenRouterCompatibleModelInfo.create({ models: openRouterModels }))
-			}
-		})
+		// Post last cached models as soon as possible for immediate availability in the UI
+		const lastCachedModels = await controller.readOpenRouterModels()
+		if (lastCachedModels) {
+			sendOpenRouterModelsEvent(OpenRouterCompatibleModelInfo.create({ models: lastCachedModels }))
+		}
 
 		// Refresh OpenRouter models from API
 		refreshOpenRouterModels(controller, EmptyRequest.create()).then(async (response) => {
 			if (response && response.models) {
 				// Update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.stateManager.getApiConfiguration()
-				const planActSeparateModelsSetting = controller.stateManager.getGlobalStateKey("planActSeparateModelsSetting")
+				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 				const currentMode = await controller.getCurrentMode()
 
 				if (planActSeparateModelsSetting) {
@@ -77,7 +75,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 			if (response && response.models) {
 				// Update model info in state for Groq (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.stateManager.getApiConfiguration()
-				const planActSeparateModelsSetting = controller.stateManager.getGlobalStateKey("planActSeparateModelsSetting")
+				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 				const currentMode = await controller.getCurrentMode()
 
 				if (planActSeparateModelsSetting) {
@@ -123,7 +121,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 			if (response && response.models) {
 				// Update model info in state for Baseten (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.stateManager.getApiConfiguration()
-				const planActSeparateModelsSetting = controller.stateManager.getGlobalStateKey("planActSeparateModelsSetting")
+				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 
 				const currentMode = await controller.getCurrentMode()
 
@@ -165,7 +163,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 			if (response && response.models) {
 				// Update model info in state for Vercel AI Gateway (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.stateManager.getApiConfiguration()
-				const planActSeparateModelsSetting = controller.stateManager.getGlobalStateKey("planActSeparateModelsSetting")
+				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 				const currentMode = await controller.getCurrentMode()
 
 				if (planActSeparateModelsSetting) {
@@ -230,15 +228,6 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 			const isOptedIn = telemetrySetting !== "disabled"
 			telemetryService.updateTelemetryState(isOptedIn)
 		})
-
-		// Refresh focus chain remote flag on webview init
-		featureFlagsService
-			.getFocusChainEnabled()
-			.then(async (enabled: boolean) => {
-				controller.stateManager.setGlobalState("focusChainFeatureFlagEnabled", enabled)
-				await controller.postStateToWebview()
-			})
-			.catch((err: any) => console.error("Failed to refresh focus chain remote flag on webview init", err))
 
 		return Empty.create({})
 	} catch (error) {

@@ -9,6 +9,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -19,21 +20,12 @@ import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class WriteToFileToolHandler implements IFullyManagedTool {
-	readonly name = "write_to_file" // This handler supports write_to_file, replace_in_file, and new_rule
+	readonly name = ClineDefaultTool.FILE_NEW // This handler supports write_to_file, replace_in_file, and new_rule
 
 	constructor(private validator: ToolValidator) {}
 
 	getDescription(block: ToolUse): string {
-		switch (block.name) {
-			case "write_to_file":
-				return `[${block.name} for '${block.params.path}']`
-			case "replace_in_file":
-				return `[${block.name} for '${block.params.path}']`
-			case "new_rule":
-				return `[${block.name} for '${block.params.path}']`
-			default:
-				return `[${block.name} for '${block.params.path}']`
-		}
+		return `[${block.name} for '${block.params.path}']`
 	}
 
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
@@ -305,14 +297,21 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	 *          or undefined if validation fails
 	 */
 	async validateAndPrepareFileOperation(config: TaskConfig, block: ToolUse, relPath: string, diff?: string, content?: string) {
+		// Parse workspace hint and resolve path for multi-workspace support
+		const pathResult = resolveWorkspacePath(config, relPath, "WriteToFileToolHandler.validateAndPrepareFileOperation")
+		const { absolutePath, resolvedPath } =
+			typeof pathResult === "string"
+				? { absolutePath: pathResult, resolvedPath: relPath }
+				: { absolutePath: pathResult.absolutePath, resolvedPath: pathResult.resolvedPath }
+
 		// Check clineignore access first
-		const accessValidation = this.validator.checkClineIgnorePath(relPath)
+		const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
 		if (!accessValidation.ok) {
 			// Show error and return early (full original behavior)
-			await config.callbacks.say("clineignore_error", relPath)
+			await config.callbacks.say("clineignore_error", resolvedPath)
 
 			// Push tool result and save checkpoint using existing utilities
-			const errorResponse = formatResponse.toolError(formatResponse.clineIgnoreError(relPath))
+			const errorResponse = formatResponse.toolError(formatResponse.clineIgnoreError(resolvedPath))
 			ToolResultUtils.pushToolResult(
 				errorResponse,
 				block,
@@ -332,11 +331,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (config.services.diffViewProvider.editType !== undefined) {
 			fileExists = config.services.diffViewProvider.editType === "modify"
 		} else {
-			const absolutePath = resolveWorkspacePath(
-				config.cwd,
-				relPath,
-				"WriteToFileToolHandler.validateAndPrepareFileOperation",
-			)
 			fileExists = await fileExistsAtPath(absolutePath)
 			config.services.diffViewProvider.editType = fileExists ? "modify" : "create"
 		}

@@ -4,13 +4,14 @@ import { formatResponse } from "@core/prompts/responses"
 import { ensureTaskDirectoryExists } from "@core/storage/disk"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { telemetryService } from "@/services/telemetry"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 
 export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler {
-	readonly name = "summarize_task"
+	readonly name = ClineDefaultTool.SUMMARIZE_TASK
 
 	constructor() {}
 
@@ -25,7 +26,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			// Validate required parameters
 			if (!context) {
 				config.taskState.consecutiveMistakeCount++
-				return await config.callbacks.sayAndCreateMissingParamError("summarize_task", "context")
+				return await config.callbacks.sayAndCreateMissingParamError(this.name, "context")
 			}
 
 			config.taskState.consecutiveMistakeCount = 0

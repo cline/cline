@@ -65,43 +65,6 @@ export class WorkspaceRootManager {
 	}
 
 	/**
-	 * Add a new workspace root
-	 */
-	async addRoot(rootPath: string, name?: string): Promise<void> {
-		const vcs = await WorkspaceRootManager.detectVcs(rootPath)
-		const gitHash = vcs === VcsType.Git ? await getLatestGitCommitHash(rootPath) : null
-		const commitHash = gitHash === null ? undefined : gitHash
-
-		const root: WorkspaceRoot = {
-			path: rootPath,
-			name: name || path.basename(rootPath),
-			vcs,
-			commitHash,
-		}
-
-		this.roots.push(root)
-	}
-
-	/**
-	 * Remove a workspace root by path
-	 */
-	removeRoot(path: string): boolean {
-		const index = this.roots.findIndex((r) => r.path === path)
-		if (index === -1) {
-			return false
-		}
-
-		this.roots.splice(index, 1)
-
-		// Adjust primary index if needed
-		if (this.primaryIndex >= this.roots.length) {
-			this.primaryIndex = Math.max(0, this.roots.length - 1)
-		}
-
-		return true
-	}
-
-	/**
 	 * Get all workspace roots
 	 */
 	getRoots(): WorkspaceRoot[] {
@@ -113,6 +76,13 @@ export class WorkspaceRootManager {
 	 */
 	getPrimaryRoot(): WorkspaceRoot | undefined {
 		return this.roots[this.primaryIndex]
+	}
+
+	/**
+	 * Get the primary workspace root index
+	 */
+	getPrimaryIndex(): number {
+		return this.primaryIndex
 	}
 
 	/**

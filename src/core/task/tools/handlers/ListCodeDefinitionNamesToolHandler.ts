@@ -4,6 +4,7 @@ import { parseSourceCodeForDefinitionsTopLevel } from "@services/tree-sitter"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { formatResponse } from "@/core/prompts/responses"
 import { telemetryService } from "@/services/telemetry"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -13,7 +14,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
-	readonly name = "list_code_definition_names"
+	readonly name = ClineDefaultTool.LIST_CODE_DEF
 
 	constructor(private validator: ToolValidator) {}
 
@@ -53,18 +54,23 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 		const pathValidation = this.validator.assertRequiredParams(block, "path")
 		if (!pathValidation.ok) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError("list_code_definition_names", "path")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = resolveWorkspacePath(config.cwd, relDirPath!, "ListCodeDefinitionNamesToolHandler.execute")
+
+		// Resolve the absolute path based on multi-workspace configuration
+		const pathResult = resolveWorkspacePath(config, relDirPath!, "ListCodeDefinitionNamesToolHandler.execute")
+		const { absolutePath, displayPath } =
+			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult
+
 		// Execute the actual parse source code operation
 		const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.clineIgnoreController)
 
 		// Handle approval flow
 		const sharedMessageProps = {
 			tool: "listCodeDefinitionNames",
-			path: getReadablePath(config.cwd, relDirPath!),
+			path: getReadablePath(config.cwd, displayPath),
 			content: result,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relDirPath!),
 		}

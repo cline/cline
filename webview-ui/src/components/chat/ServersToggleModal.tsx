@@ -57,7 +57,7 @@ const ServersToggleModal: React.FC = () => {
 				<Tooltip tipText="Manage MCP Servers" visible={isVisible ? false : undefined}>
 					<VSCodeButton
 						appearance="icon"
-						aria-label="MCP Servers"
+						aria-label={isVisible ? "Hide MCP Servers" : "Show MCP Servers"}
 						onClick={() => setIsVisible(!isVisible)}
 						style={{ padding: "0px 0px", height: "20px" }}>
 						<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
@@ -92,6 +92,7 @@ const ServersToggleModal: React.FC = () => {
 						<div className="m-0 text-base font-semibold">MCP Servers</div>
 						<VSCodeButton
 							appearance="icon"
+							aria-label="Go to MCP server settings"
 							onClick={() => {
 								setIsVisible(false)
 								navigateToMcp("configure")

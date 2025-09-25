@@ -157,7 +157,7 @@ export async function getToolUseExamplesSection(_variant: PromptVariant, context
 	// Return the placeholder that will be replaced with actual tools
 	const focusChainEnabled = context.focusChainSettings?.enabled
 
-	return new TemplateEngine().resolve(TOOL_USE_EXAMPLES_TEMPLATE_TEXT, {
+	return new TemplateEngine().resolve(TOOL_USE_EXAMPLES_TEMPLATE_TEXT, context, {
 		FOCUS_CHAIN_EXAMPLE_BASH: focusChainEnabled ? FOCUS_CHAIN_EXAMPLE_BASH : "",
 		FOCUS_CHAIN_EXAMPLE_NEW_FILE: focusChainEnabled ? FOCUS_CHAIN_EXAMPLE_NEW_FILE : "",
 		FOCUS_CHAIN_EXAMPLE_EDIT: focusChainEnabled ? FOCUS_CHAIN_EXAMPLE_EDIT : "",

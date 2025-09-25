@@ -2,6 +2,7 @@ import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { ClineAsk, ClineAskUseMcpServer } from "@shared/ExtensionMessage"
 import { telemetryService } from "@/services/telemetry"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -10,9 +11,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class AccessMcpResourceHandler implements IFullyManagedTool {
-	readonly name = "access_mcp_resource"
-
-	constructor() {}
+	readonly name = ClineDefaultTool.MCP_ACCESS
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for '${block.params.server_name}']`
@@ -23,7 +22,7 @@ export class AccessMcpResourceHandler implements IFullyManagedTool {
 		const uri = block.params.uri
 
 		const partialMessage = JSON.stringify({
-			type: "access_mcp_resource",
+			type: this.name,
 			serverName: uiHelpers.removeClosingTag(block, "server_name", server_name),
 			toolName: undefined,
 			uri: uiHelpers.removeClosingTag(block, "uri", uri),
@@ -49,12 +48,12 @@ export class AccessMcpResourceHandler implements IFullyManagedTool {
 		// Validate required parameters
 		if (!server_name) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError("access_mcp_resource", "server_name")
+			return await config.callbacks.sayAndCreateMissingParamError(ClineDefaultTool.MCP_ACCESS, "server_name")
 		}
 
 		if (!uri) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError("access_mcp_resource", "uri")
+			return await config.callbacks.sayAndCreateMissingParamError(ClineDefaultTool.MCP_ACCESS, "uri")
 		}
 
 		config.taskState.consecutiveMistakeCount = 0

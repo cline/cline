@@ -5,6 +5,7 @@ import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
+import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
@@ -14,7 +15,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ReadFileToolHandler implements IFullyManagedTool {
-	readonly name = "read_file"
+	readonly name = ClineDefaultTool.FILE_READ
 
 	constructor(private validator: ToolValidator) {}
 
@@ -54,7 +55,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		const pathValidation = this.validator.assertRequiredParams(block, "path")
 		if (!pathValidation.ok) {
 			config.taskState.consecutiveMistakeCount++
-			return await config.callbacks.sayAndCreateMissingParamError("read_file", "path")
+			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
 		// Check clineignore access
@@ -65,12 +66,16 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = resolveWorkspacePath(config.cwd, relPath!, "ReadFileToolHandler.execute")
+
+		// Resolve the absolute path based on multi-workspace configuration
+		const pathResult = resolveWorkspacePath(config, relPath!, "ReadFileToolHandler.execute")
+		const { absolutePath, displayPath } =
+			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relPath! } : pathResult
 
 		// Handle approval flow
 		const sharedMessageProps = {
 			tool: "readFile",
-			path: getReadablePath(config.cwd, relPath!),
+			path: getReadablePath(config.cwd, displayPath),
 			content: absolutePath,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath!),
 		} satisfies ClineSayTool
@@ -109,16 +114,16 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 
 		// Execute the actual file read operation
 		const supportsImages = config.api.getModel().info.supportsImages ?? false
-		const result = await extractFileContent(absolutePath, supportsImages)
+		const fileContent = await extractFileContent(absolutePath, supportsImages)
 
 		// Track file read operation
 		await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")
 
 		// Handle image blocks separately - they need to be pushed to userMessageContent
-		if (result.imageBlock) {
-			config.taskState.userMessageContent.push(result.imageBlock)
+		if (fileContent.imageBlock) {
+			config.taskState.userMessageContent.push(fileContent.imageBlock)
 		}
 
-		return result.text
+		return fileContent.text
 	}
 }

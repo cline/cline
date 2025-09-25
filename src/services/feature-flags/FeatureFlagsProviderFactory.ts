@@ -1,3 +1,5 @@
+import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
+import { Logger } from "../logging/Logger"
 import { PostHogClientProvider } from "../posthog/PostHogClientProvider"
 import type { IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 import { PostHogFeatureFlagsProvider } from "./providers/PostHogFeatureFlagsProvider"
@@ -5,7 +7,7 @@ import { PostHogFeatureFlagsProvider } from "./providers/PostHogFeatureFlagsProv
 /**
  * Supported feature flags provider types
  */
-export type FeatureFlagsProviderType = "posthog" | "none"
+export type FeatureFlagsProviderType = "posthog" | "no-op"
 
 /**
  * Configuration for feature flags providers
@@ -26,18 +28,17 @@ export class FeatureFlagsProviderFactory {
 	 */
 	public static createProvider(config: FeatureFlagsProviderConfig): IFeatureFlagsProvider {
 		switch (config.type) {
-			case "posthog":
+			case "posthog": {
 				// Get the shared PostHog client from PostHogClientProvider
-				const client = PostHogClientProvider.getClient()
-				if (client) {
-					return new PostHogFeatureFlagsProvider(client)
+				const sharedClient = PostHogClientProvider.getClient()
+				if (sharedClient) {
+					return new PostHogFeatureFlagsProvider(sharedClient)
 				}
 				// Fall back to NoOp provider if no client is available
 				return new NoOpFeatureFlagsProvider()
-			case "none":
-				return new NoOpFeatureFlagsProvider()
+			}
 			default:
-				throw new Error(`Unsupported feature flags provider type: ${config.type}`)
+				return new NoOpFeatureFlagsProvider()
 		}
 	}
 
@@ -46,8 +47,9 @@ export class FeatureFlagsProviderFactory {
 	 * @returns Default configuration using PostHog
 	 */
 	public static getDefaultConfig(): FeatureFlagsProviderConfig {
+		const hasValidConfig = isPostHogConfigValid(posthogConfig)
 		return {
-			type: "posthog",
+			type: hasValidConfig ? "posthog" : "no-op",
 		}
 	}
 }
@@ -57,26 +59,28 @@ export class FeatureFlagsProviderFactory {
  * or for testing purposes
  */
 class NoOpFeatureFlagsProvider implements IFeatureFlagsProvider {
-	public async getFeatureFlag(_flagName: string): Promise<boolean | string | undefined> {
+	public async getFeatureFlag(flagName: string): Promise<boolean | string | undefined> {
+		Logger.info(`[NoOpFeatureFlagsProvider] getFeatureFlag called with flagName=${flagName}`)
 		return undefined
 	}
 
-	public async getFeatureFlagPayload(_flagName: string): Promise<unknown> {
+	public async getFeatureFlagPayload(flagName: string): Promise<unknown> {
+		Logger.info(`[NoOpFeatureFlagsProvider] getFeatureFlagPayload called with flagName=${flagName}`)
 		return null
 	}
 
 	public isEnabled(): boolean {
-		return false
+		return true
 	}
 
 	public getSettings() {
 		return {
-			enabled: false,
-			timeout: 0,
+			enabled: true,
+			timeout: 1000,
 		}
 	}
 
 	public async dispose(): Promise<void> {
-		// No-op
+		Logger.info("[NoOpFeatureFlagsProvider] Disposing")
 	}
 }

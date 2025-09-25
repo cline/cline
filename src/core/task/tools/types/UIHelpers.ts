@@ -1,7 +1,8 @@
 import type { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
+import type { ClineDefaultTool } from "@shared/tools"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import { telemetryService } from "@/services/telemetry"
-import type { ToolParamName, ToolUse, ToolUseName } from "../../../assistant-message"
+import type { ToolParamName, ToolUse } from "../../../assistant-message"
 import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
 import { removeClosingTag } from "../utils/ToolConstants"
 import type { TaskConfig } from "./TaskConfig"
@@ -29,12 +30,12 @@ export interface StronglyTypedUIHelpers {
 	removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>
 
 	// Approval methods
-	shouldAutoApproveTool: (toolName: ToolUseName) => boolean | [boolean, boolean]
-	shouldAutoApproveToolWithPath: (toolName: ToolUseName, path?: string) => Promise<boolean>
+	shouldAutoApproveTool: (toolName: ClineDefaultTool) => boolean | [boolean, boolean]
+	shouldAutoApproveToolWithPath: (toolName: ClineDefaultTool, path?: string) => Promise<boolean>
 	askApproval: (messageType: ClineAsk, message: string) => Promise<boolean>
 
 	// Telemetry and notifications
-	captureTelemetry: (toolName: ToolUseName, autoApproved: boolean, approved: boolean) => void
+	captureTelemetry: (toolName: ClineDefaultTool, autoApproved: boolean, approved: boolean) => void
 	showNotificationIfEnabled: (message: string) => void
 
 	// Config access - returns the proper typed config
@@ -50,13 +51,13 @@ export function createUIHelpers(config: TaskConfig): StronglyTypedUIHelpers {
 		ask: config.callbacks.ask,
 		removeClosingTag: (block: ToolUse, tag: ToolParamName, text?: string) => removeClosingTag(block, tag, text),
 		removeLastPartialMessageIfExistsWithType: config.callbacks.removeLastPartialMessageIfExistsWithType,
-		shouldAutoApproveTool: (toolName: ToolUseName) => config.autoApprover.shouldAutoApproveTool(toolName),
+		shouldAutoApproveTool: (toolName: ClineDefaultTool) => config.autoApprover.shouldAutoApproveTool(toolName),
 		shouldAutoApproveToolWithPath: config.callbacks.shouldAutoApproveToolWithPath,
 		askApproval: async (messageType: ClineAsk, message: string): Promise<boolean> => {
 			const { response } = await config.callbacks.ask(messageType, message, false)
 			return response === "yesButtonClicked"
 		},
-		captureTelemetry: (toolName: ToolUseName, autoApproved: boolean, approved: boolean) => {
+		captureTelemetry: (toolName: ClineDefaultTool, autoApproved: boolean, approved: boolean) => {
 			telemetryService.captureToolUsage(config.ulid, toolName, config.api.getModel().id, autoApproved, approved)
 		},
 		showNotificationIfEnabled: (message: string) => {

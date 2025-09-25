@@ -5,18 +5,16 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { BrowserSettings } from "@shared/BrowserSettings"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
-import { Mode } from "@shared/storage/types"
+import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
 import { modelDoesntSupportWebp } from "@/utils/model-utils"
-import { ToolUse, ToolUseName } from "../assistant-message"
+import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { formatResponse } from "../prompts/responses"
 import { StateManager } from "../storage/StateManager"
+import { WorkspaceRootManager } from "../workspace"
 import { ToolResponse } from "."
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
@@ -51,12 +49,12 @@ export class ToolExecutor {
 	private coordinator: ToolExecutorCoordinator
 
 	// Auto-approval methods using the AutoApprove class
-	private shouldAutoApproveTool(toolName: ToolUseName): boolean | [boolean, boolean] {
+	private shouldAutoApproveTool(toolName: ClineDefaultTool): boolean | [boolean, boolean] {
 		return this.autoApprover.shouldAutoApproveTool(toolName)
 	}
 
 	private async shouldAutoApproveToolWithPath(
-		blockname: ToolUseName,
+		blockname: ClineDefaultTool,
 		autoApproveActionpath: string | undefined,
 	): Promise<boolean> {
 		return this.autoApprover.shouldAutoApproveToolWithPath(blockname, autoApproveActionpath)
@@ -78,14 +76,14 @@ export class ToolExecutor {
 		private stateManager: StateManager,
 
 		// Configuration & Settings
-		private autoApprovalSettings: AutoApprovalSettings,
-		private browserSettings: BrowserSettings,
-		private focusChainSettings: FocusChainSettings,
+
 		private cwd: string,
 		private taskId: string,
 		private ulid: string,
-		private mode: Mode,
-		private strictPlanModeEnabled: boolean,
+
+		// Workspace Management
+		private workspaceManager: WorkspaceRootManager | undefined,
+		private isMultiRootEnabled: boolean,
 
 		// Callbacks to the Task (Entity)
 		private say: (
@@ -106,13 +104,14 @@ export class ToolExecutor {
 			files?: string[]
 		}>,
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>,
-		private sayAndCreateMissingParamError: (toolName: ToolUseName, paramName: string, relPath?: string) => Promise<any>,
+		private sayAndCreateMissingParamError: (toolName: ClineDefaultTool, paramName: string, relPath?: string) => Promise<any>,
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
-		private executeCommandTool: (command: string) => Promise<[boolean, any]>,
+		private executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
+		private switchToActMode: () => Promise<boolean>,
 	) {
-		this.autoApprover = new AutoApprove(autoApprovalSettings)
+		this.autoApprover = new AutoApprove(this.stateManager)
 
 		// Initialize the coordinator and register all tool handlers
 		this.coordinator = new ToolExecutorCoordinator()
@@ -126,16 +125,19 @@ export class ToolExecutor {
 			taskId: this.taskId,
 			ulid: this.ulid,
 			context: this.context,
-			mode: this.mode,
-			strictPlanModeEnabled: this.strictPlanModeEnabled,
+			mode: this.stateManager.getGlobalSettingsKey("mode"),
+			strictPlanModeEnabled: this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled"),
+			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			cwd: this.cwd,
+			workspaceManager: this.workspaceManager,
+			isMultiRootEnabled: this.isMultiRootEnabled,
 			taskState: this.taskState,
 			messageState: this.messageStateHandler,
 			api: this.api,
-			autoApprovalSettings: this.autoApprovalSettings,
+			autoApprovalSettings: this.stateManager.getGlobalSettingsKey("autoApprovalSettings"),
 			autoApprover: this.autoApprover,
-			browserSettings: this.browserSettings,
-			focusChainSettings: this.focusChainSettings,
+			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
+			focusChainSettings: this.stateManager.getGlobalSettingsKey("focusChainSettings"),
 			services: {
 				mcpHub: this.mcpHub,
 				browserSession: this.browserSession,
@@ -162,6 +164,7 @@ export class ToolExecutor {
 				shouldAutoApproveTool: this.shouldAutoApproveTool.bind(this),
 				shouldAutoApproveToolWithPath: this.shouldAutoApproveToolWithPath.bind(this),
 				applyLatestBrowserSettings: this.applyLatestBrowserSettings.bind(this),
+				switchToActMode: this.switchToActMode,
 			},
 			coordinator: this.coordinator,
 		}
@@ -186,9 +189,9 @@ export class ToolExecutor {
 
 		// Register WriteToFileToolHandler for all three file tools with proper typing
 		const writeHandler = new WriteToFileToolHandler(validator)
-		this.coordinator.register(writeHandler) // registers as "write_to_file"
-		this.coordinator.register(new SharedToolHandler("replace_in_file", writeHandler))
-		this.coordinator.register(new SharedToolHandler("new_rule", writeHandler))
+		this.coordinator.register(writeHandler) // registers as "write_to_file" (ClineDefaultTool.FILE_NEW)
+		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.FILE_EDIT, writeHandler))
+		this.coordinator.register(new SharedToolHandler(ClineDefaultTool.NEW_RULE, writeHandler))
 
 		this.coordinator.register(new ListCodeDefinitionNamesToolHandler(validator))
 		this.coordinator.register(new SearchFilesToolHandler(validator))
@@ -202,21 +205,6 @@ export class ToolExecutor {
 		this.coordinator.register(new CondenseHandler())
 		this.coordinator.register(new SummarizeTaskHandler())
 		this.coordinator.register(new ReportBugHandler())
-	}
-
-	/**
-	 * Updates the auto approval settings
-	 */
-	public updateAutoApprovalSettings(settings: AutoApprovalSettings): void {
-		this.autoApprover.updateSettings(settings)
-	}
-
-	public updateMode(mode: Mode): void {
-		this.mode = mode
-	}
-
-	public updateStrictPlanModeEnabled(strictPlanModeEnabled: boolean): void {
-		this.strictPlanModeEnabled = strictPlanModeEnabled
 	}
 
 	/**
@@ -234,7 +222,7 @@ export class ToolExecutor {
 			await this.browserSession.dispose()
 			const apiHandlerModel = this.api.getModel()
 			const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
-			this.browserSession = new BrowserSession(this.context, this.browserSettings, useWebp)
+			this.browserSession = new BrowserSession(this.context, this.stateManager, useWebp)
 		} else {
 			console.warn("no controller context available for browserSession")
 		}
@@ -246,6 +234,7 @@ export class ToolExecutor {
 	 * Handles errors during tool execution
 	 */
 	private async handleError(action: string, error: Error, block: ToolUse): Promise<void> {
+		console.log(error)
 		const errorString = `Error ${action}: ${error.message}`
 		await this.say("error", errorString)
 
@@ -272,7 +261,11 @@ export class ToolExecutor {
 	/**
 	 * Tools that are restricted in plan mode and can only be used in act mode
 	 */
-	private static readonly PLAN_MODE_RESTRICTED_TOOLS: ToolUseName[] = ["write_to_file", "replace_in_file", "new_rule"]
+	private static readonly PLAN_MODE_RESTRICTED_TOOLS: ClineDefaultTool[] = [
+		ClineDefaultTool.FILE_NEW,
+		ClineDefaultTool.FILE_EDIT,
+		ClineDefaultTool.NEW_RULE,
+	]
 
 	/**
 	 * Execute a tool through the coordinator if it's registered
@@ -304,7 +297,12 @@ export class ToolExecutor {
 			}
 
 			// Logic for plan-mode tool call restrictions
-			if (this.strictPlanModeEnabled && this.mode === "plan" && block.name && this.isPlanModeToolRestricted(block.name)) {
+			if (
+				this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled") &&
+				this.stateManager.getGlobalSettingsKey("mode") === "plan" &&
+				block.name &&
+				this.isPlanModeToolRestricted(block.name)
+			) {
 				const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. Only use tools available for PLAN MODE when in that mode.`
 				await this.say("error", errorMessage)
 				this.pushToolResult(formatResponse.toolError(errorMessage), block)
@@ -337,7 +335,7 @@ export class ToolExecutor {
 	/**
 	 * Check if a tool is restricted in plan mode
 	 */
-	private isPlanModeToolRestricted(toolName: ToolUseName): boolean {
+	private isPlanModeToolRestricted(toolName: ClineDefaultTool): boolean {
 		return ToolExecutor.PLAN_MODE_RESTRICTED_TOOLS.includes(toolName)
 	}
 
@@ -377,7 +375,7 @@ export class ToolExecutor {
 		this.pushToolResult(result, block)
 
 		// Handle focus chain updates
-		if (!block.partial && this.focusChainSettings.enabled) {
+		if (!block.partial && this.stateManager.getGlobalSettingsKey("focusChainSettings").enabled) {
 			await this.updateFCListFromToolResponse(block.params.task_progress)
 		}
 	}

@@ -1,3 +1,5 @@
+import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
+import { Logger } from "../logging/Logger"
 import { PostHogClientProvider } from "../posthog/PostHogClientProvider"
 import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
 import { PostHogTelemetryProvider } from "./providers/PostHogTelemetryProvider"
@@ -5,7 +7,7 @@ import { PostHogTelemetryProvider } from "./providers/PostHogTelemetryProvider"
 /**
  * Supported telemetry provider types
  */
-export type TelemetryProviderType = "posthog" | "none"
+export type TelemetryProviderType = "posthog" | "no-op"
 
 /**
  * Configuration for telemetry providers
@@ -24,17 +26,17 @@ export class TelemetryProviderFactory {
 	 * @param config Configuration for the telemetry provider
 	 * @returns ITelemetryProvider instance
 	 */
-	public static createProvider(config: TelemetryProviderConfig): ITelemetryProvider {
+	public static async createProvider(config: TelemetryProviderConfig): Promise<ITelemetryProvider> {
 		// Get the shared PostHog client from PostHogClientProvider
-		const sharedClient = PostHogClientProvider.getClient()
 		switch (config.type) {
-			case "posthog":
+			case "posthog": {
+				// Get the shared PostHog client from PostHogClientProvider
+				const sharedClient = PostHogClientProvider.getClient()
 				if (sharedClient) {
-					return new PostHogTelemetryProvider(sharedClient)
+					return await new PostHogTelemetryProvider(sharedClient).initialize()
 				}
 				return new NoOpTelemetryProvider()
-			case "none":
-				return new NoOpTelemetryProvider()
+			}
 			default:
 				console.error(`Unsupported telemetry provider type: ${config.type}`)
 				return new NoOpTelemetryProvider()
@@ -46,8 +48,9 @@ export class TelemetryProviderFactory {
 	 * @returns Default configuration using PostHog
 	 */
 	public static getDefaultConfig(): TelemetryProviderConfig {
+		const hasValidConfig = isPostHogConfigValid(posthogConfig)
 		return {
-			type: "posthog",
+			type: hasValidConfig ? "posthog" : "no-op",
 		}
 	}
 }
@@ -56,17 +59,20 @@ export class TelemetryProviderFactory {
  * No-operation telemetry provider for when telemetry is disabled
  * or for testing purposes
  */
-class NoOpTelemetryProvider implements ITelemetryProvider {
-	public log(_event: string, _properties?: Record<string, unknown>): void {
-		// No-op
+export class NoOpTelemetryProvider implements ITelemetryProvider {
+	public isOptIn = true
+
+	public log(event: string, properties?: Record<string, unknown>): void {
+		Logger.log(`[NoOpTelemetryProvider] ${event}: ${JSON.stringify(properties)}`)
 	}
 
-	public identifyUser(_userInfo: any, _properties?: Record<string, unknown>): void {
-		// No-op
+	public identifyUser(userInfo: any, properties?: Record<string, unknown>): void {
+		Logger.info(`[NoOpTelemetryProvider] identifyUser - ${JSON.stringify(userInfo)} - ${JSON.stringify(properties)}`)
 	}
 
-	public setOptIn(_optIn: boolean): void {
-		// No-op
+	public setOptIn(optIn: boolean): void {
+		Logger.info(`[NoOpTelemetryProvider] setOptIn(${optIn})`)
+		this.isOptIn = optIn
 	}
 
 	public isEnabled(): boolean {
@@ -82,6 +88,6 @@ class NoOpTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public async dispose(): Promise<void> {
-		// No-op
+		Logger.info("[NoOpTelemetryProvider] Disposing")
 	}
 }

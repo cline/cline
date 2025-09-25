@@ -30,7 +30,6 @@ import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
 import * as path from "path"
 import ReconnectingEventSource from "reconnecting-eventsource"
-import * as vscode from "vscode"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -44,7 +43,6 @@ export class McpHub {
 	private clientVersion: string
 	private telemetryService: TelemetryService
 
-	private disposables: vscode.Disposable[] = []
 	private settingsWatcher?: FSWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
@@ -140,7 +138,7 @@ export class McpHub {
 			ignoreInitial: true, // Don't fire 'add' events when discovering the file initially
 			awaitWriteFinish: {
 				// Wait for writes to finish before emitting events (handles chunked writes)
-				stabilityThreshold: 100, // Wait 100ms for file size to remain constant (matches the debounce from subscribeToFile.ts)
+				stabilityThreshold: 100, // Wait 100ms for file size to remain constant
 				pollInterval: 100, // Check file size every 100ms while waiting for stability
 			},
 			atomic: true, // Handle atomic writes where editors write to a temp file then rename (prevents duplicate events)
@@ -1153,6 +1151,5 @@ export class McpHub {
 		if (this.settingsWatcher) {
 			await this.settingsWatcher.close()
 		}
-		this.disposables.forEach((d) => d.dispose())
 	}
 }

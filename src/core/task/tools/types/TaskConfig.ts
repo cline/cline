@@ -10,9 +10,10 @@ import type { BrowserSettings } from "@shared/BrowserSettings"
 import type { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import type { FocusChainSettings } from "@shared/FocusChainSettings"
 import type { Mode } from "@shared/storage/types"
+import type { ClineDefaultTool } from "@shared/tools"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
-import type { ToolUseName } from "../../../assistant-message"
+import { WorkspaceRootManager } from "@/core/workspace"
 import type { ContextManager } from "../../../context/context-management/ContextManager"
 import type { StateManager } from "../../../storage/StateManager"
 import type { MessageStateHandler } from "../../message-state"
@@ -31,7 +32,12 @@ export interface TaskConfig {
 	cwd: string
 	mode: Mode
 	strictPlanModeEnabled: boolean
+	yoloModeToggled: boolean
 	context: vscode.ExtensionContext
+
+	// Multi-workspace support (optional for backward compatibility)
+	workspaceManager?: WorkspaceRootManager
+	isMultiRootEnabled?: boolean
 
 	// State management
 	taskState: TaskState
@@ -87,18 +93,18 @@ export interface TaskCallbacks {
 
 	saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>
 
-	sayAndCreateMissingParamError: (toolName: ToolUseName, paramName: string, relPath?: string) => Promise<any>
+	sayAndCreateMissingParamError: (toolName: ClineDefaultTool, paramName: string, relPath?: string) => Promise<any>
 
 	removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>
 
-	executeCommandTool: (command: string) => Promise<[boolean, any]>
+	executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>
 
 	doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>
 
 	updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>
 
-	shouldAutoApproveTool: (toolName: ToolUseName) => boolean | [boolean, boolean]
-	shouldAutoApproveToolWithPath: (toolName: ToolUseName, path?: string) => Promise<boolean>
+	shouldAutoApproveTool: (toolName: ClineDefaultTool) => boolean | [boolean, boolean]
+	shouldAutoApproveToolWithPath: (toolName: ClineDefaultTool, path?: string) => Promise<boolean>
 
 	// Additional callbacks for task management
 	postStateToWebview: () => Promise<void>
@@ -107,6 +113,8 @@ export interface TaskCallbacks {
 	updateTaskHistory: (update: any) => Promise<any[]>
 
 	applyLatestBrowserSettings: () => Promise<BrowserSession>
+
+	switchToActMode: () => Promise<boolean>
 }
 
 /**

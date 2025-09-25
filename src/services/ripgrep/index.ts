@@ -1,19 +1,16 @@
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
-import { workspaceResolver } from "@core/workspace"
-import { fileExistsAtPath } from "@utils/fs"
 import * as childProcess from "child_process"
 import * as path from "path"
 import * as readline from "readline"
-import * as vscode from "vscode"
+import { getBinaryLocation } from "@/utils/fs"
 
 /*
 This file provides functionality to perform regex searches on files using ripgrep.
 Inspired by: https://github.com/DiscreteTom/vscode-ripgrep-utils
 
 Key components:
-1. getBinPath: Locates the ripgrep binary within the VSCode installation.
-2. execRipgrep: Executes the ripgrep command and returns the output.
-3. regexSearchFiles: The main function that performs regex searches on files.
+* execRipgrep: Executes the ripgrep command and returns the output.
+* regexSearchFiles: The main function that performs regex searches on files.
    - Parameters:
      * cwd: The current working directory (for relative path calculation)
      * directoryPath: The directory to search in
@@ -48,9 +45,6 @@ rel/path/to/helper.ts
 │----
 */
 
-const isWindows = /^win/.test(process.platform)
-const binName = isWindows ? "rg.exe" : "rg"
-
 interface SearchResult {
 	filePath: string
 	line: number
@@ -62,28 +56,11 @@ interface SearchResult {
 
 const MAX_RESULTS = 300
 
-export async function getBinPath(vscodeAppRoot: string): Promise<string | undefined> {
-	const checkPath = async (pkgFolder: string) => {
-		const fullPathResult = workspaceResolver.resolveWorkspacePath(
-			vscodeAppRoot,
-			path.join(pkgFolder, binName),
-			"Services.ripgrep.getBinPath",
-		)
-		const fullPath = typeof fullPathResult === "string" ? fullPathResult : fullPathResult.absolutePath
-		return (await fileExistsAtPath(fullPath)) ? fullPath : undefined
-	}
+async function execRipgrep(args: string[]): Promise<string> {
+	const binPath: string = await getBinaryLocation("rg")
 
-	return (
-		(await checkPath("node_modules/@vscode/ripgrep/bin/")) ||
-		(await checkPath("node_modules/vscode-ripgrep/bin")) ||
-		(await checkPath("node_modules.asar.unpacked/vscode-ripgrep/bin/")) ||
-		(await checkPath("node_modules.asar.unpacked/@vscode/ripgrep/bin/"))
-	)
-}
-
-async function execRipgrep(bin: string, args: string[]): Promise<string> {
 	return new Promise((resolve, reject) => {
-		const rgProcess = childProcess.spawn(bin, args)
+		const rgProcess = childProcess.spawn(binPath, args)
 		// cross-platform alternative to head, which is ripgrep author's recommendation for limiting output.
 		const rl = readline.createInterface({
 			input: rgProcess.stdout,
@@ -128,20 +105,13 @@ export async function regexSearchFiles(
 	filePattern?: string,
 	clineIgnoreController?: ClineIgnoreController,
 ): Promise<string> {
-	const vscodeAppRoot = vscode.env.appRoot
-	const rgPath = await getBinPath(vscodeAppRoot)
-
-	if (!rgPath) {
-		throw new Error("Could not find ripgrep binary")
-	}
-
 	const args = ["--json", "-e", regex, "--glob", filePattern || "*", "--context", "1", directoryPath]
 
 	let output: string
 	try {
-		output = await execRipgrep(rgPath, args)
-	} catch {
-		return "No results found"
+		output = await execRipgrep(args)
+	} catch (error) {
+		throw Error("Error calling ripgrep", { cause: error })
 	}
 	const results: SearchResult[] = []
 	let currentResult: Partial<SearchResult> | null = null

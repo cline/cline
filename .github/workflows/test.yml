@@ -90,8 +90,14 @@ jobs:
             - name: Build Tests and Extension
               run: npm run pretest
 
-            - name: Unit Tests
-              run: npm run test:unit
+            - name: Unit Tests (with coverage on Linux)
+              run: |
+                if [ "${{ runner.os }}" = "Linux" ]; then
+                  npm install --no-save nyc
+                  npx nyc --nycrc-path .nycrc.unit.json --reporter=lcov npm run test:unit
+                else
+                  npm run test:unit
+                fi
 
             # Run extension tests with coverage
             - name: Extension Integration Tests with Coverage
@@ -125,6 +131,8 @@ jobs:
                   path: |
                       extension_coverage.txt
                       webview-ui/webview_coverage.txt
+                      coverage-unit/lcov.info
+                      webview-ui/coverage/lcov.info
 
             # Set the check as failed if any of the tests failed
             - name: Check for test failures
@@ -140,6 +148,69 @@ jobs:
                   if [ "${{ steps.extension_coverage.outcome }}" != "success" ] || [ "${{ steps.webview_coverage.outcome }}" != "success" ]; then
                       exit 1
                   fi
+
+    test-platform-integration:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js environment
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - name: Cache root dependencies
+              uses: actions/cache@v4
+              id: root-cache
+              with:
+                  path: node_modules
+                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+
+            - name: Cache webview-ui dependencies
+              uses: actions/cache@v4
+              id: webview-cache
+              with:
+                  path: webview-ui/node_modules
+                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+
+            # Cache testing-platform dependencies
+            - name: Cache testing-platform dependencies
+              uses: actions/cache@v4
+              id: testing-platform-cache
+              with:
+                path: testing-platform/node_modules
+                key: ${{ runner.os }}-npm-testing-platform-${{ hashFiles('testing-platform/package-lock.json') }}
+
+            - name: Install root dependencies
+              if: steps.root-cache.outputs.cache-hit != 'true'
+              run: npm ci
+
+            - name: Install webview-ui dependencies
+              if: steps.webview-cache.outputs.cache-hit != 'true'
+              run: cd webview-ui && npm ci
+
+            - name: Compile standalone
+              run: npm run compile-standalone
+
+            - name: Install testing platform dependencies
+              if: steps.testing-platform-cache.outputs.cache-hit != 'true'
+              run: cd testing-platform && npm ci
+
+            - name: Running testing platform integration spec tests
+              continue-on-error: true
+              timeout-minutes: 7
+              # Temporarily wrapping the test command to always return a neutral exit code.
+              # This prevents the job from showing as failed and avoids distracting developers
+              # until the integration tests are ready to be enforced.
+              run: |
+                npm run test:tp-orchestrator -- tests/specs/ --count=1 --coverage || true
+
+            - name: Save Coverage Reports
+              uses: actions/upload-artifact@v4
+              with:
+                name: test-platform-integration-core-coverage
+                path: coverage/**/lcov.info
 
     coverage:
         needs: test
@@ -219,3 +290,51 @@ jobs:
                     --verbose
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    qlty:
+        needs: [test, test-platform-integration]
+        runs-on: ubuntu-latest
+        # Run on PRs to main, pushes to main, and manual dispatches
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0 # Fetch all history for accurate comparison
+
+            - name: Download unit tests coverage reports
+              uses: actions/download-artifact@v4
+              with:
+                  name: pr-coverage-reports
+                  path: .
+
+            - name: Upload core unit tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                  token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                  # we can merge multiple files if necessary
+                  files: |
+                    coverage-unit/lcov.info
+                  tag: unit:core
+
+            - name: Upload webview-ui unit tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                  token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                  # we can merge multiple files if necessary
+                  files: |
+                    webview-ui/coverage/lcov.info
+                  tag: unit:webview-ui
+                  add-prefix: webview-ui/
+
+            - name: Download test platform integration core coverage artifact
+              uses: actions/download-artifact@v4
+              with:
+                name: test-platform-integration-core-coverage
+                path: integration-core-coverage-reports
+
+            - name: Upload core integration tests coverage to Qlty
+              uses: qltysh/qlty-action/coverage@v2
+              with:
+                token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
+                files: integration-core-coverage-reports/**/lcov.info
+                tag: integration:core
