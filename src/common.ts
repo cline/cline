@@ -7,7 +7,6 @@ import {
 } from "./core/storage/state-migrations"
 import { WebviewProvider } from "./core/webview"
 import { Logger } from "./services/logging/Logger"
-import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
@@ -53,7 +52,7 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
 
-	const sidebarWebview = HostProvider.get().createWebviewProvider(WebviewProviderType.SIDEBAR)
+	const sidebarWebview = HostProvider.get().createWebviewProvider()
 
 	await showVersionUpdateAnnouncement(context)
 

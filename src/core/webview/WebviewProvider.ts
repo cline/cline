@@ -1,34 +1,24 @@
 import path from "node:path"
 import { Controller } from "@core/controller/index"
-import { findLast } from "@shared/array"
 import axios from "axios"
 import { readFile } from "fs/promises"
 import { v4 as uuidv4 } from "uuid"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { WebviewProviderType } from "@/shared/webview/types"
 import { getNonce } from "./getNonce"
 
 export abstract class WebviewProvider {
-	private static activeInstances: Set<WebviewProvider> = new Set()
-	private static clientIdMap = new Map<WebviewProvider, string>()
+	private static instance: WebviewProvider | null = null
 	controller: Controller
 	private clientId: string
 
-	private static lastActiveControllerId: string | null = null
-
-	constructor(
-		readonly context: vscode.ExtensionContext,
-		private readonly providerType: WebviewProviderType,
-	) {
-		WebviewProvider.activeInstances.add(this)
+	constructor(readonly context: vscode.ExtensionContext) {
+		WebviewProvider.instance = this
 		this.clientId = uuidv4()
-		WebviewProvider.clientIdMap.set(this, this.clientId)
 
 		// Create controller with cache service
 		this.controller = new Controller(context, this.clientId)
-		WebviewProvider.setLastActiveControllerId(this.controller.id)
 	}
 
 	// Add a method to get the client ID
@@ -36,73 +26,22 @@ export abstract class WebviewProvider {
 		return this.clientId
 	}
 
-	// Add a static method to get the client ID for a specific instance
-	public static getClientIdForInstance(instance: WebviewProvider): string | undefined {
-		return WebviewProvider.clientIdMap.get(instance)
-	}
-
 	async dispose() {
 		await this.controller.dispose()
-		WebviewProvider.activeInstances.delete(this)
-		// Remove from client ID map
-		WebviewProvider.clientIdMap.delete(this)
+		WebviewProvider.instance = null
+	}
+
+	public static getInstance(): WebviewProvider | null {
+		return WebviewProvider.instance
 	}
 
 	public static getVisibleInstance(): WebviewProvider | undefined {
-		return findLast(Array.from(WebviewProvider.activeInstances), (instance) => instance.isVisible() === true)
-	}
-
-	public static getActiveInstance(): WebviewProvider | undefined {
-		return Array.from(WebviewProvider.activeInstances).find((instance) => instance.isActive())
-	}
-
-	protected abstract isActive(): boolean
-
-	public static getAllInstances(): WebviewProvider[] {
-		return Array.from(WebviewProvider.activeInstances)
-	}
-
-	public static getSidebarInstance() {
-		return Array.from(WebviewProvider.activeInstances).find(
-			(instance) => instance.providerType === WebviewProviderType.SIDEBAR,
-		)
-	}
-
-	public static getTabInstances(): WebviewProvider[] {
-		return Array.from(WebviewProvider.activeInstances).filter((instance) => instance.providerType === WebviewProviderType.TAB)
-	}
-
-	public static getLastActiveInstance(): WebviewProvider | undefined {
-		const lastActiveId = WebviewProvider.getLastActiveControllerId()
-		if (!lastActiveId) {
-			return undefined
-		}
-		return Array.from(WebviewProvider.activeInstances).find((instance) => instance.controller.id === lastActiveId)
-	}
-
-	/**
-	 * Gets the last active controller ID with performance optimization
-	 * @returns The last active controller ID or null
-	 */
-	public static getLastActiveControllerId(): string | null {
-		return WebviewProvider.lastActiveControllerId || WebviewProvider.getSidebarInstance()?.controller.id || null
-	}
-
-	/**
-	 * Sets the last active controller ID with validation and performance optimization
-	 * @param controllerId The controller ID to set as last active
-	 */
-	public static setLastActiveControllerId(controllerId: string | null): void {
-		// Only update if the value is actually different to avoid unnecessary operations
-		if (WebviewProvider.lastActiveControllerId !== controllerId) {
-			WebviewProvider.lastActiveControllerId = controllerId
-		}
+		return WebviewProvider.instance?.isVisible() ? WebviewProvider.instance : undefined
 	}
 
 	public static async disposeAllInstances() {
-		const instances = Array.from(WebviewProvider.activeInstances)
-		for (const instance of instances) {
-			await instance.dispose()
+		if (WebviewProvider.instance) {
+			await WebviewProvider.instance.dispose()
 		}
 	}
 
@@ -187,9 +126,6 @@ export abstract class WebviewProvider {
 				<noscript>You need to enable JavaScript to run this app.</noscript>
 				<div id="root"></div>
 				 <script type="text/javascript" nonce="${nonce}">
-                    // Inject the provider type
-                    window.WEBVIEW_PROVIDER_TYPE = ${JSON.stringify(this.providerType)};
-                    
                     // Inject the client ID
                     window.clineClientId = "${this.clientId}";
                 </script>
@@ -293,9 +229,6 @@ export abstract class WebviewProvider {
 				<body>
 					<div id="root"></div>
 					<script type="text/javascript" nonce="${nonce}">
-						// Inject the provider type
-						window.WEBVIEW_PROVIDER_TYPE = ${JSON.stringify(this.providerType)};
-						
 						// Inject the client ID
 						window.clineClientId = "${this.clientId}";
 					</script>

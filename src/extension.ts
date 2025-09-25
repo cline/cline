@@ -2,9 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 
 import assert from "node:assert"
-import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { DIFF_VIEW_URI_SCHEME } from "@hosts/vscode/VscodeDiffViewProvider"
-import { WebviewProviderType as WebviewProviderTypeEnum } from "@shared/proto/cline/ui"
 import * as vscode from "vscode"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
 import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
@@ -15,7 +13,6 @@ import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
 import { Logger } from "./services/logging/Logger"
 import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
-import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import path from "node:path"
@@ -74,132 +71,50 @@ export async function activate(context: vscode.ExtensionContext) {
 	const { commands } = ExtensionRegistryInfo
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.PlusButton, async (webview: any) => {
-			console.log("[DEBUG] plusButtonClicked", webview)
-			// Pass the webview type to the event sender
-			const isSidebar = !webview
+		vscode.commands.registerCommand(commands.PlusButton, async () => {
+			console.log("[DEBUG] plusButtonClicked")
 
-			const openChat = async (instance: WebviewProvider) => {
-				await instance?.controller.clearTask()
-				await instance?.controller.postStateToWebview()
-				await sendChatButtonClickedEvent(instance.controller.id)
+			const sidebarInstance = WebviewProvider.getInstance()
+			if (sidebarInstance) {
+				await sidebarInstance.controller.clearTask()
+				await sidebarInstance.controller.postStateToWebview()
+				await sendChatButtonClickedEvent(sidebarInstance.controller.id)
 			}
+		}),
+	)
 
-			if (isSidebar) {
-				const sidebarInstance = WebviewProvider.getSidebarInstance()
-				if (sidebarInstance) {
-					openChat(sidebarInstance)
-					// Send event to the sidebar instance
-				}
+	context.subscriptions.push(
+		vscode.commands.registerCommand(commands.McpButton, () => {
+			const sidebarInstance = WebviewProvider.getInstance()
+
+			const sidebarInstanceId = sidebarInstance?.getClientId()
+			if (sidebarInstanceId) {
+				sendMcpButtonClickedEvent(sidebarInstanceId)
 			} else {
-				const tabInstances = WebviewProvider.getTabInstances()
-				for (const instance of tabInstances) {
-					openChat(instance)
-				}
+				console.error("[DEBUG] No sidebar instance found, cannot send MCP button event")
 			}
 		}),
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.McpButton, (webview: any) => {
-			console.log("[DEBUG] mcpButtonClicked", webview)
-
-			const activeInstance = WebviewProvider.getActiveInstance()
-			const isSidebar = !webview
-
-			if (isSidebar) {
-				const sidebarInstance = WebviewProvider.getSidebarInstance()
-				const sidebarInstanceId = sidebarInstance?.getClientId()
-				if (sidebarInstanceId) {
-					sendMcpButtonClickedEvent(sidebarInstanceId)
-				} else {
-					console.error("[DEBUG] No sidebar instance found, cannot send MCP button event")
-				}
-			} else {
-				const activeInstanceId = activeInstance?.getClientId()
-				if (activeInstanceId) {
-					sendMcpButtonClickedEvent(activeInstanceId)
-				} else {
-					console.error("[DEBUG] No active instance found, cannot send MCP button event")
-				}
-			}
-		}),
-	)
-
-	const openClineInNewTab = async () => {
-		Logger.log("Opening Cline in new tab")
-		// (this example uses webviewProvider activation event which is necessary to deserialize cached webview, but since we use retainContextWhenHidden, we don't need to use that event)
-		// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
-		const tabWebview = HostProvider.get().createWebviewProvider(WebviewProviderType.TAB) as VscodeWebviewProvider
-		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
-
-		// Check if there are any visible text editors, otherwise open a new group to the right
-		const hasVisibleEditors = vscode.window.visibleTextEditors.length > 0
-		if (!hasVisibleEditors) {
-			await vscode.commands.executeCommand("workbench.action.newGroupRight")
-		}
-		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
-
-		const panel = vscode.window.createWebviewPanel(VscodeWebviewProvider.TAB_PANEL_ID, "Cline", targetCol, {
-			enableScripts: true,
-			retainContextWhenHidden: true,
-			localResourceRoots: [vscode.Uri.file(HostProvider.get().extensionFsPath)],
-		})
-		// TODO: use better svg icon with light and dark variants (see https://stackoverflow.com/questions/58365687/vscode-extension-iconpath)
-
-		panel.iconPath = {
-			light: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_light.png"),
-			dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_dark.png"),
-		}
-		tabWebview.resolveWebviewView(panel)
-
-		// Lock the editor group so clicking on files doesn't open them over the panel
-		await setTimeoutPromise(100)
-		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
-		return tabWebview
-	}
-
-	context.subscriptions.push(vscode.commands.registerCommand(commands.PopoutButton, openClineInNewTab))
-	context.subscriptions.push(vscode.commands.registerCommand(commands.OpenInNewTab, openClineInNewTab))
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.SettingsButton, (webview: any) => {
-			const isSidebar = !webview
-			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
-
-			sendSettingsButtonClickedEvent(webviewType)
+		vscode.commands.registerCommand(commands.SettingsButton, () => {
+			sendSettingsButtonClickedEvent()
 		}),
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.HistoryButton, async (webview: any) => {
-			console.log("[DEBUG] historyButtonClicked", webview)
-			// Pass the webview type to the event sender
-			const isSidebar = !webview
-			const webviewType = isSidebar ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
-
+		vscode.commands.registerCommand(commands.HistoryButton, async () => {
 			// Send event to all subscribers using the gRPC streaming method
-			await sendHistoryButtonClickedEvent(webviewType)
+			await sendHistoryButtonClickedEvent()
 		}),
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.AccountButton, (webview: any) => {
-			console.log("[DEBUG] accountButtonClicked", webview)
-
-			const isSidebar = !webview
-			if (isSidebar) {
-				const sidebarInstance = WebviewProvider.getSidebarInstance()
-				if (sidebarInstance) {
-					// Send event to sidebar controller
-					sendAccountButtonClickedEvent(sidebarInstance.controller.id)
-				}
-			} else {
-				// Send to all tab instances
-				const tabInstances = WebviewProvider.getTabInstances()
-				for (const instance of tabInstances) {
-					sendAccountButtonClickedEvent(instance.controller.id)
-				}
+		vscode.commands.registerCommand(commands.AccountButton, () => {
+			const sidebarInstance = WebviewProvider.getInstance()
+			if (sidebarInstance) {
+				// Send event to sidebar controller
+				sendAccountButtonClickedEvent(sidebarInstance.controller.id)
 			}
 		}),
 	)
@@ -428,43 +343,23 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register the focusChatInput command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.FocusChatInput, async () => {
-			// Fast path: check for existing active instance
-			let activeWebview = WebviewProvider.getLastActiveInstance() as VscodeWebviewProvider
+			// Get the sidebar instance
+			let sidebarWebview = WebviewProvider.getInstance() as VscodeWebviewProvider
 
-			if (activeWebview) {
-				// Instance exists - just reveal and focus it
-				const webview = activeWebview.getWebview()
+			if (sidebarWebview) {
+				// Instance exists - just show it
+				const webview = sidebarWebview.getWebview()
 				if (webview) {
-					if (webview && "reveal" in webview) {
-						webview.reveal()
-					} else if ("show" in webview) {
-						webview.show()
-					}
+					webview.show()
 				}
 			} else {
-				// No active instance - need to find or create one
-				WebviewProvider.setLastActiveControllerId(null)
-
-				// Check for existing tab instances first (cheaper than focusing sidebar)
-				const tabInstances = WebviewProvider.getTabInstances() as VscodeWebviewProvider[]
-				if (tabInstances.length > 0) {
-					activeWebview = tabInstances[tabInstances.length - 1]
-				} else {
-					// Try to focus sidebar via hostbridge
-					await HostProvider.workspace.openClineSidebarPanel({})
-
-					// Small delay for focus to complete
-					await new Promise((resolve) => setTimeout(resolve, 200))
-					activeWebview = WebviewProvider.getSidebarInstance() as VscodeWebviewProvider
-					if (!activeWebview) {
-						// Last resort: create new tab
-						activeWebview = (await openClineInNewTab()) as VscodeWebviewProvider
-					}
-				}
+				// Try to focus sidebar via hostbridge
+				await HostProvider.workspace.openClineSidebarPanel({})
+				sidebarWebview = WebviewProvider.getInstance() as VscodeWebviewProvider
 			}
 
 			// Send focus event
-			const clientId = activeWebview?.getClientId()
+			const clientId = sidebarWebview?.getClientId()
 			if (!clientId) {
 				console.error("FocusChatInput: Could not find or activate a Cline webview to focus.")
 				HostProvider.window.showMessage({
@@ -475,7 +370,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			sendFocusChatInputEvent(clientId)
-			telemetryService.captureButtonClick("command_focusChatInput", activeWebview.controller?.task?.ulid)
+			telemetryService.captureButtonClick("command_focusChatInput", sidebarWebview.controller?.task?.ulid)
 		}),
 	)
 
@@ -511,8 +406,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (event.key === "clineAccountId") {
 				// Check if the secret was removed (logout) or added/updated (login)
 				const secretValue = await context.secrets.get("clineAccountId")
-				const activeWebviewProvider = WebviewProvider.getVisibleInstance()
-				const controller = activeWebviewProvider?.controller
+				const activeSidebarWebview = WebviewProvider.getVisibleInstance()
+				const controller = activeSidebarWebview?.controller
 
 				const authService = AuthService.getInstance(controller)
 				if (secretValue) {
@@ -532,7 +427,7 @@ export async function activate(context: vscode.ExtensionContext) {
 function setupHostProvider(context: ExtensionContext) {
 	console.log("Setting up vscode host providers...")
 
-	const createWebview = (type: WebviewProviderType) => new VscodeWebviewProvider(context, type)
+	const createWebview = () => new VscodeWebviewProvider(context)
 	const createDiffView = () => new VscodeDiffViewProvider()
 	const outputChannel = vscode.window.createOutputChannel("Cline")
 	context.subscriptions.push(outputChannel)
