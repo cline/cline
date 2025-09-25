@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.31.0]
+
+- UI Improvements: New task header and focus chain design to take up less space for a cleaner experience
+- Voice Mode: Experimental feature that must be enabled in settings for hands-free coding
+- YOLO Mode: Enable in settings to let Cline approve all actions and automatically switch between plan/act mode
+- Fix Oracle Code Assist provider issues
+
 ## [3.30.3]
 
 - Add Oracle Code Assist provider
