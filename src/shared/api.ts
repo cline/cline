@@ -2515,6 +2515,7 @@ export const xaiModels = {
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0.2,
+		cacheReadsPrice: 0.05,
 		outputPrice: 0.5,
 		description: "xAI's Grok 4 Fast (free) multimodal model with 2M context.",
 	},
