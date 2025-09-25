@@ -104,36 +104,54 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={h3TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
-			<b>Free Stealth Model 🥷:</b> Try code-supernova, an agentic coding model built for Cline with 200k context window and
-			multi-modal support!
-			<div style={{ margin: "8px 0" }} />
-			{user ? (
-				!didClickCodeSupernovaButton ? (
-					<VSCodeButton appearance="primary" onClick={setCodeSupernova}>
-						Try code-supernova
-					</VSCodeButton>
-				) : null
-			) : null}
-			<div style={{ margin: "12px 0" }} />
-			<b>Continued Grok Promotion:</b> Free grok-code-fast-1 access extended!
-			<div style={{ margin: "10px 0" }} />
-			{user ? (
-				!didClickGrokCodeButton ? (
-					<VSCodeButton appearance="primary" onClick={setGrokCodeFast1}>
-						Try grok-code-fast-1
-					</VSCodeButton>
-				) : null
-			) : (
-				<VSCodeButton appearance="primary" onClick={handleShowAccount}>
-					Sign Up with Cline
-				</VSCodeButton>
-			)}
-			<div style={{ margin: "12px 0" }} />
-			<b>JetBrains Support is Live!</b>
-			<br />
-			Use Cline in IntelliJ IDEA, PyCharm, WebStorm, Android Studio, GoLand, PhpStorm, and all JetBrains IDEs.
-			<div style={{ margin: "10px 0" }} />
-			<VSCodeButtonLink href="https://cline.bot/jetbrains">Get Cline for JetBrains!</VSCodeButtonLink>
+			<ul style={ulStyle}>
+				<li>
+					<b>UI Improvements:</b> New task header and focus chain design to take up less space for a cleaner experience
+				</li>
+				<li>
+					<b>Voice Mode:</b> Experimental feature that must be enabled in settings for hands-free coding
+				</li>
+				<li>
+					<b>YOLO Mode:</b> Enable in settings to let Cline approve all actions and automatically switch between
+					plan/act mode
+				</li>
+				<li>
+					<b>JetBrains Updates:</b> We've brought support to Rider and made tons of improvements thanks to all the
+					feedback!
+					<br />
+					<VSCodeButtonLink href="https://cline.bot/jetbrains" style={{ margin: "5px 0" }}>
+						Get Cline for JetBrains
+					</VSCodeButtonLink>
+				</li>
+				<li>
+					<b>Continued Free Models:</b> Try grok-code-fast-1 or code-supernova (stealth model 🥷)!
+					<br />
+					{user ? (
+						<div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "5px 0" }}>
+							{!didClickGrokCodeButton && (
+								<VSCodeButton appearance="primary" onClick={setGrokCodeFast1}>
+									Try grok-code-fast-1
+								</VSCodeButton>
+							)}
+							{!didClickCodeSupernovaButton && (
+								<VSCodeButton appearance="primary" onClick={setCodeSupernova}>
+									Try code-supernova
+								</VSCodeButton>
+							)}
+						</div>
+					) : (
+						<VSCodeButton appearance="primary" onClick={handleShowAccount} style={{ margin: "5px 0" }}>
+							Sign Up with Cline
+						</VSCodeButton>
+					)}
+				</li>
+				<li>
+					Updated the Terms of Service for Cline account users:{" "}
+					<VSCodeLink href="https://cline.bot/tos" style={linkStyle}>
+						https://cline.bot/tos
+					</VSCodeLink>
+				</li>
+			</ul>
 			<div style={{ margin: "12px 0" }} />
 			<div style={{ margin: "-8px 0 -3px 0" }}>
 				<Accordion className="pl-0" isCompact>
