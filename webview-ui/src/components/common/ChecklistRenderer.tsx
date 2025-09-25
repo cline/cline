@@ -2,7 +2,7 @@ import { cn } from "@heroui/react"
 import { parseFocusChainItem } from "@shared/focus-chain-utils"
 import { CheckIcon, CircleIcon } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
-import MarkdownBlock from "./MarkdownBlock"
+import LightMarkdown from "./LightMarkdown"
 
 interface ChecklistRendererProps {
 	text: string
@@ -116,7 +116,7 @@ const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ text }) => {
 							textDecoration: item.checked ? "line-through" : "none",
 							lineHeight: "1.3",
 						}}>
-						<MarkdownBlock compact markdown={item.text} />
+						<LightMarkdown compact text={item.text} />
 					</div>
 				</div>
 			))}
