@@ -2255,6 +2255,18 @@ export class ClineProvider
 			return
 		}
 
+		// Log out from cloud if authenticated
+		if (CloudService.hasInstance()) {
+			try {
+				await CloudService.instance.logout()
+			} catch (error) {
+				this.log(
+					`Failed to logout from cloud during reset: ${error instanceof Error ? error.message : String(error)}`,
+				)
+				// Continue with reset even if logout fails
+			}
+		}
+
 		await this.contextProxy.resetAllState()
 		await this.providerSettingsManager.resetAllConfigs()
 		await this.customModesManager.resetCustomModes()
