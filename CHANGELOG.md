@@ -1,5 +1,15 @@
 # Roo Code Changelog
 
+## [3.28.8] - 2025-09-25
+
+![3.28.8 Release - Bug fixes and improvements](/releases/3.28.8-release.png)
+
+- Fix: Resolve frequent "No tool used" errors by clarifying tool-use rules (thanks @hannesrudolph!)
+- Fix: Include initial ask in condense summarization (thanks @hannesrudolph!)
+- Add support for more free models in the Roo provider (thanks @mrubens!)
+- Show cloud switcher and option to add a team when logged in (thanks @mrubens!)
+- Add Opengraph image for web (thanks @brunobergher!)
+
 ## [3.28.7] - 2025-09-23
 
 ![3.28.7 Release - Hidden Thinking](/releases/3.28.7-release.png)
