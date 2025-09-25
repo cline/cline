@@ -29,7 +29,7 @@ export const InfoBanner: React.FC = () => {
 			{/* Close button */}
 			<VSCodeButton
 				appearance="icon"
-				data-testid="close-button"
+				data-testid="info-banner-close-button"
 				onClick={handleClose}
 				style={{ position: "absolute", top: "8px", right: "8px" }}>
 				<span className="codicon codicon-close"></span>
