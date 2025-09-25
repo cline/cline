@@ -1,16 +1,11 @@
 # Changelog
 
-## 3.30.4
+## [3.31.0]
 
-- d0da22d: Checkpoints multiroot pt.1: Accept array of workspaces when initializting checkpoints
-- 5be6ba6: Support partial response validation via meta.expected
-- 58b0ea9: Run Testing platform within Test workflow
-- b3aee38: Refactor Task Header UI with interactive context window management
-- a10d778: remove temperature settings in z.ai models
-- 407e472: Feature flags are now accessible too all users instead of authenticated users only.
-- bc228de: Update anthropic input token usage calculation
-- 10cbbb2: Support new Cline endpoint auth flow
-- c16e271: Add speech-to-text dictation feature for Cline account users
+- UI Improvements: New task header and focus chain design to take up less space for a cleaner experience
+- Voice Mode: Experimental feature that must be enabled in settings for hands-free coding
+- YOLO Mode: Enable in settings to let Cline approve all actions and automatically switch between plan/act mode
+- Fix Oracle Code Assist provider issues
 
 ## [3.30.3]
 
