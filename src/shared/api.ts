@@ -1117,7 +1117,7 @@ export type OpenAiNativeModelId = keyof typeof openAiNativeModels
 export const openAiNativeDefaultModelId: OpenAiNativeModelId = "gpt-5-2025-08-07"
 export const openAiNativeModels = {
 	"gpt-5-codex": {
-		maxTokens: 8_192, // 128000 breaks context window truncation
+		maxTokens: 8_192,
 		contextWindow: 400000,
 		supportsImages: true,
 		supportsPromptCache: true,
