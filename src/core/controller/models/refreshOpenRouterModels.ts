@@ -242,7 +242,7 @@ export async function refreshOpenRouterModels(
  * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
  */
 const CLINE_STEALTH_MODELS: Record<string, OpenRouterModelInfo> = {
-	"cline/code-supernova": OpenRouterModelInfo.create({
+	"cline/code-supernova-1-million": OpenRouterModelInfo.create({
 		maxTokens: clineCodeSupernovaModelInfo.maxTokens ?? 0,
 		contextWindow: clineCodeSupernovaModelInfo.contextWindow ?? 0,
 		supportsImages: clineCodeSupernovaModelInfo.supportsImages ?? false,
