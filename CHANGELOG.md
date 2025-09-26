@@ -1,9 +1,13 @@
 # Changelog
 
+## [3.32.0]
+
+- Added the new code-supernova-1-million stealth model, available for free and delivering a 1 million token context window
+- Changes to inform Cline about commands that are available on your system 
+
 ## [3.31.1]
 
-- Add installed useful CLI tools to environment details
-- Rename MCP tab 'Installed' to 'Configure'
+- Version bump
 
 ## [3.31.0]
 
