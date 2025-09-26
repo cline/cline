@@ -124,25 +124,18 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					</VSCodeButtonLink>
 				</li>
 				<li>
-					<b>New Free Stealth Model 🥷:</b> Try code-supernova-1-million, a new stealth coding model with 1M context
-					window and image support
-					<br />
-					{user ? (
-						!didClickCodeSupernovaButton ? (
-							<VSCodeButton appearance="primary" onClick={setCodeSupernova} style={{ margin: "5px 0" }}>
-								Try code-supernova-1-million
-							</VSCodeButton>
-						) : null
-					) : null}
-				</li>
-				<li>
-					<b>Free Grok-Code-Fast:</b> Continue using xAI's coding model for free
+					<b>Free Models:</b> Try the new code-supernova-1-million stealth model, or grok-code-fast-1 for free!
 					<br />
 					{user ? (
 						<div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "5px 0" }}>
 							{!didClickCodeSupernovaButton && (
 								<VSCodeButton appearance="primary" onClick={setCodeSupernova}>
 									Try code-supernova
+								</VSCodeButton>
+							)}
+							{!didClickGrokCodeButton && (
+								<VSCodeButton appearance="primary" onClick={setGrokCodeFast1}>
+									Try grok-code-fast-1
 								</VSCodeButton>
 							)}
 						</div>
