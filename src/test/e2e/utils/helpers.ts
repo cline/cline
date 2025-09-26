@@ -319,9 +319,7 @@ export const e2e = test
 		},
 	})
 
-/**
- * Multi-root workspace variant of the e2e test fixture
- */
-export const e2eMultiRoot = e2e.extend<E2ETestConfigs>({
-	workspaceType: "multi",
-})
+export const E2E_WORKSPACE_TYPES = [
+	{ title: "Single Root", workspaceType: "single" },
+	{ title: "Multi-Roots", workspaceType: "multi" },
+] as const

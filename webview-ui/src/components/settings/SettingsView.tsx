@@ -1,7 +1,7 @@
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import debounce from "lodash/debounce"
+import debounce from "debounce"
 import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
@@ -139,7 +139,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	)
 
 	const [activeTab, setActiveTab] = useState<string>(initialTab)
-	const [isCompactMode, setIsCompactMode] = useState(false)
+	const [isCompactMode, setIsCompactMode] = useState(true)
 	const containerRef = useRef<HTMLDivElement>(null)
 
 	// Optimized message handler with early returns
@@ -293,7 +293,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		<Tab>
 			<TabHeader className="flex justify-between items-center gap-2">
 				<div className="flex items-center gap-1">
-					<h3 className="text-[var(--vscode-foreground)] m-0">Settings</h3>
+					<h3 className="text-foreground m-0">Settings</h3>
 				</div>
 				<div className="flex gap-2">
 					<VSCodeButton onClick={onDone}>Done</VSCodeButton>

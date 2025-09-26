@@ -45,6 +45,7 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 		apiConfiguration: null,
 		openRouterModels: {},
 		setShowChatModelSelector: vi.fn(),
+		refreshOpenRouterModels: vi.fn(), // Add this missing mock function
 		version: "2.0.0",
 		clineMessages: [],
 		taskHistory: [],

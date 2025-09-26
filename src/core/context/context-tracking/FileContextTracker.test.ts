@@ -48,7 +48,7 @@ describe("FileContextTracker", () => {
 
 		// Mock controller and context
 		mockController = {
-			context: { globalStorageUri: { fsPath: "/mock/storage" } } as vscode.ExtensionContext,
+			context: {} as vscode.ExtensionContext,
 		} as unknown as Controller
 
 		// Mock disk module functions

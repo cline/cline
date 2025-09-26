@@ -1,17 +1,17 @@
-import { ApiProvider, ModelInfo } from "@shared/api"
+import { ApiProvider, ModelInfo, type OcaModelInfo } from "@shared/api"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { LanguageModelChatSelector } from "vscode"
 import { WorkspaceRoot } from "@/core/workspace/WorkspaceRoot"
 import { AutoApprovalSettings } from "@/shared/AutoApprovalSettings"
 import { BrowserSettings } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { DictationSettings } from "@/shared/DictationSettings"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
-
 export type SecretKey = keyof Secrets
 
 export type GlobalStateKey = keyof GlobalState
@@ -40,6 +40,7 @@ export interface GlobalState {
 	workspaceRoots: WorkspaceRoot[] | undefined
 	primaryRootIndex: number
 	multiRootEnabled: boolean
+	lastDismissedInfoBannerVersion: number
 }
 
 export interface Settings {
@@ -94,9 +95,12 @@ export interface Settings {
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
+	dictationSettings: DictationSettings
 	focusChainSettings: FocusChainSettings
 	customPrompt: "compact" | undefined
 	difyBaseUrl: string | undefined
+	autoCondenseThreshold: number | undefined // number from 0 to 1
+	ocaBaseUrl: string | undefined
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -128,6 +132,8 @@ export interface Settings {
 	planModeHuggingFaceModelInfo: ModelInfo | undefined
 	planModeHuaweiCloudMaasModelId: string | undefined
 	planModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
+	planModeOcaModelId: string | undefined
+	planModeOcaModelInfo: OcaModelInfo | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
@@ -162,6 +168,8 @@ export interface Settings {
 	planModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	actModeVercelAiGatewayModelId: string | undefined
 	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
+	actModeOcaModelId: string | undefined
+	actModeOcaModelInfo: OcaModelInfo | undefined
 }
 
 export interface Secrets {
@@ -200,6 +208,8 @@ export interface Secrets {
 	basetenApiKey: string | undefined
 	vercelAiGatewayApiKey: string | undefined
 	difyApiKey: string | undefined
+	ocaApiKey: string | undefined
+	ocaRefreshToken: string | undefined
 }
 
 export interface LocalState {
