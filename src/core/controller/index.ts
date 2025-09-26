@@ -268,12 +268,6 @@ export class Controller {
 				this.stateManager.setTaskSettingsBatch(this.task.taskId, taskSettings)
 			}
 		}
-
-		this.task.updateYoloModeToggled(this.stateManager.getGlobalSettingsKey("yoloModeToggled"))
-		this.task.updateStrictPlanMode(this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled"))
-		this.task.updateUseAutoCondense(this.stateManager.getGlobalSettingsKey("useAutoCondense"))
-
-		console.log("[Controller] yoloModeToggled", this.task.yoloModeToggled)
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {

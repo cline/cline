@@ -2,6 +2,8 @@ import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, OpenaiReasoningEffort as ProtoOpenaiReasoningEffort } from "@shared/proto/cline/state"
 import { NewTaskRequest } from "@shared/proto/cline/task"
 import { Settings } from "@/core/storage/state-keys"
+import { DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
+import { convertProtoToAutoApprovalSettings } from "../../../shared/proto-conversions/models/auto-approval-settings-conversion"
 import { Controller } from ".."
 
 /**
@@ -11,10 +13,29 @@ import { Controller } from ".."
  * @returns Empty response
  */
 export async function newTask(controller: Controller, request: NewTaskRequest): Promise<Empty> {
-	let taskSettingsConverted: any = {}
+	const taskSettingsConverted: any = {
+		...request.taskSettings,
+	}
 
 	if (request.taskSettings) {
-		taskSettingsConverted = { ...request.taskSettings }
+		// Convert complex nested objects
+		if (request.taskSettings.autoApprovalSettings) {
+			taskSettingsConverted.autoApprovalSettings = convertProtoToAutoApprovalSettings({
+				...request.taskSettings.autoApprovalSettings,
+				metadata: {},
+			})
+		}
+
+		if (request.taskSettings.browserSettings) {
+			taskSettingsConverted.browserSettings = {
+				viewport: request.taskSettings.browserSettings.viewport || DEFAULT_BROWSER_SETTINGS.viewport,
+				remoteBrowserHost: request.taskSettings.browserSettings.remoteBrowserHost,
+				remoteBrowserEnabled: request.taskSettings.browserSettings.remoteBrowserEnabled,
+				chromeExecutablePath: request.taskSettings.browserSettings.chromeExecutablePath,
+				disableToolUse: request.taskSettings.browserSettings.disableToolUse,
+				customArgs: request.taskSettings.browserSettings.customArgs,
+			}
+		}
 
 		// Convert enum fields
 		if (request.taskSettings.openaiReasoningEffort !== undefined) {
