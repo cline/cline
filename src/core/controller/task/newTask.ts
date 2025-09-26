@@ -1,6 +1,7 @@
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, OpenaiReasoningEffort as ProtoOpenaiReasoningEffort } from "@shared/proto/cline/state"
 import { NewTaskRequest } from "@shared/proto/cline/task"
+import { Settings } from "@/core/storage/state-keys"
 import { Controller } from ".."
 
 /**
@@ -10,33 +11,10 @@ import { Controller } from ".."
  * @returns Empty response
  */
 export async function newTask(controller: Controller, request: NewTaskRequest): Promise<Empty> {
-	let taskSettingsConverted: any
+	let taskSettingsConverted: any = {}
 
 	if (request.taskSettings) {
-		taskSettingsConverted = {}
-
-		// Copy over all non-enum properties that don't need conversion
-		if (request.taskSettings.planActSeparateModelsSetting !== undefined) {
-			taskSettingsConverted.planActSeparateModelsSetting = request.taskSettings.planActSeparateModelsSetting
-		}
-		if (request.taskSettings.preferredLanguage !== undefined) {
-			taskSettingsConverted.preferredLanguage = request.taskSettings.preferredLanguage
-		}
-		if (request.taskSettings.strictPlanModeEnabled !== undefined) {
-			taskSettingsConverted.strictPlanModeEnabled = request.taskSettings.strictPlanModeEnabled
-		}
-		if (request.taskSettings.useAutoCondense !== undefined) {
-			taskSettingsConverted.useAutoCondense = request.taskSettings.useAutoCondense
-		}
-		if (request.taskSettings.focusChainSettings !== undefined) {
-			taskSettingsConverted.focusChainSettings = request.taskSettings.focusChainSettings
-		}
-		if (request.taskSettings.yoloModeToggled !== undefined) {
-			taskSettingsConverted.yoloModeToggled = request.taskSettings.yoloModeToggled
-		}
-		if (request.taskSettings.enableCheckpointsSetting !== undefined) {
-			taskSettingsConverted.enableCheckpointsSetting = request.taskSettings.enableCheckpointsSetting
-		}
+		taskSettingsConverted = { ...request.taskSettings }
 
 		// Convert enum fields
 		if (request.taskSettings.openaiReasoningEffort !== undefined) {
@@ -69,6 +47,10 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 		}
 	}
 
-	await controller.initTask(request.text, request.images, request.files, undefined, taskSettingsConverted)
+	const filteredTaskSettings: Partial<Settings> = Object.fromEntries(
+		Object.entries(taskSettingsConverted).filter(([_, value]) => value !== undefined),
+	)
+
+	await controller.initTask(request.text, request.images, request.files, undefined, filteredTaskSettings)
 	return Empty.create()
 }
