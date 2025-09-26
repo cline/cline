@@ -10,10 +10,23 @@ import {
 	ProviderSettingsEntry,
 	DEFAULT_CONSECUTIVE_MISTAKE_LIMIT,
 	getModelId,
+	type ProviderName,
+	type RooModelId,
 } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 
 import { Mode, modes } from "../../shared/modes"
+
+// Type-safe model migrations mapping
+type ModelMigrations = {
+	[K in ProviderName]?: Record<string, string>
+}
+
+const MODEL_MIGRATIONS: ModelMigrations = {
+	roo: {
+		"roo/code-supernova": "roo/code-supernova-1-million" as RooModelId,
+	},
+} as const satisfies ModelMigrations
 
 export interface SyncCloudProfilesResult {
 	hasChanges: boolean
@@ -105,6 +118,11 @@ export class ProviderSettingsManager {
 						Object.values(providerProfiles.apiConfigs)[0]?.id ??
 						this.defaultConfigId
 					providerProfiles.modeApiConfigs = Object.fromEntries(modes.map((m) => [m.slug, seedId]))
+					isDirty = true
+				}
+
+				// Apply model migrations for all providers
+				if (this.applyModelMigrations(providerProfiles)) {
 					isDirty = true
 				}
 
@@ -273,6 +291,44 @@ export class ProviderSettingsManager {
 		} catch (error) {
 			console.error(`[MigrateTodoListEnabled] Failed to migrate todo list enabled setting:`, error)
 		}
+	}
+
+	/**
+	 * Apply model migrations for all providers
+	 * Returns true if any migrations were applied
+	 */
+	private applyModelMigrations(providerProfiles: ProviderProfiles): boolean {
+		let migrated = false
+
+		try {
+			for (const [_name, apiConfig] of Object.entries(providerProfiles.apiConfigs)) {
+				// Skip configs without provider or model ID
+				if (!apiConfig.apiProvider || !apiConfig.apiModelId) {
+					continue
+				}
+
+				// Check if this provider has migrations (with type safety)
+				const provider = apiConfig.apiProvider as ProviderName
+				const providerMigrations = MODEL_MIGRATIONS[provider]
+				if (!providerMigrations) {
+					continue
+				}
+
+				// Check if the current model ID needs migration
+				const newModelId = providerMigrations[apiConfig.apiModelId]
+				if (newModelId && newModelId !== apiConfig.apiModelId) {
+					console.log(
+						`[ModelMigration] Migrating ${apiConfig.apiProvider} model from ${apiConfig.apiModelId} to ${newModelId}`,
+					)
+					apiConfig.apiModelId = newModelId
+					migrated = true
+				}
+			}
+		} catch (error) {
+			console.error(`[ModelMigration] Failed to apply model migrations:`, error)
+		}
+
+		return migrated
 	}
 
 	/**

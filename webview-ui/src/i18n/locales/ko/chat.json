@@ -287,7 +287,7 @@
 	"announcement": {
 		"title": "🎉 Roo Code {{version}} 출시",
 		"stealthModel": {
-			"feature": "<bold>기간 한정 무료 스텔스 모델</bold> - Code Supernova: 이미지 입력을 지원하는 다목적 에이전틱 코딩 모델, Roo Code Cloud를 통해 이용 가능.",
+			"feature": "<bold>기간 한정 무료 스텔스 모델</bold> - Code Supernova: 이제 <bold>1M 토큰 컨텍스트 윈도우</bold>로 업그레이드되었습니다! 이미지 입력을 지원하는 다목적 에이전틱 코딩 모델, Roo Code Cloud를 통해 이용 가능.",
 			"note": "(참고: 프롬프트와 완성은 모델 제작자에 의해 기록되고 모델 개선에 사용됩니다)",
 			"connectButton": "Roo Code Cloud에 연결",
 			"selectModel": "설정에서 Roo Code Cloud 제공업체의 <code>roo/code-supernova</code>를 선택하여 시작하세요.",

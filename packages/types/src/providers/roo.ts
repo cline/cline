@@ -2,7 +2,7 @@ import type { ModelInfo } from "../model.js"
 
 export type RooModelId =
 	| "xai/grok-code-fast-1"
-	| "roo/code-supernova"
+	| "roo/code-supernova-1-million"
 	| "xai/grok-4-fast"
 	| "deepseek/deepseek-chat-v3.1"
 
@@ -19,15 +19,15 @@ export const rooModels = {
 		description:
 			"A reasoning model that is blazing fast and excels at agentic coding, accessible for free through Roo Code Cloud for a limited time. (Note: the free prompts and completions are logged by xAI and used to improve the model.)",
 	},
-	"roo/code-supernova": {
-		maxTokens: 16_384,
-		contextWindow: 200_000,
+	"roo/code-supernova-1-million": {
+		maxTokens: 30_000,
+		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 0,
 		outputPrice: 0,
 		description:
-			"A versatile agentic coding stealth model that supports image inputs, accessible for free through Roo Code Cloud for a limited time. (Note: the free prompts and completions are logged by the model provider and used to improve the model.)",
+			"A versatile agentic coding stealth model with a 1M token context window that supports image inputs, accessible for free through Roo Code Cloud for a limited time. (Note: the free prompts and completions are logged by the model provider and used to improve the model.)",
 	},
 	"xai/grok-4-fast": {
 		maxTokens: 30_000,
