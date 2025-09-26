@@ -50,7 +50,8 @@ export function InstallSection({ downloads }: InstallSectionProps) {
 								Install Roo Code now
 							</h2>
 							<p className="mt-6 text-lg text-muted-foreground">
-								Install from the VSCode Marketplace or the CLI in minutes, then bring your own AI model.
+								Install from the VS Code Marketplace or the CLI in minutes, then bring your own AI
+								model.
 								<br />
 								Roo Code is also compatible with all VSCode forks.
 							</p>
@@ -62,13 +63,15 @@ export function InstallSection({ downloads }: InstallSectionProps) {
 									target="_blank"
 									className="group relative inline-flex w-full items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-4 text-lg font-medium text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-cyan-700 hover:shadow-xl hover:shadow-blue-500/25 dark:from-blue-500 dark:to-cyan-500 dark:hover:from-blue-600 dark:hover:to-cyan-600 sm:w-auto sm:px-8 sm:text-xl">
 									<div className="absolute -inset-px rounded-xl bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-400 opacity-0 blur transition-opacity duration-500 group-hover:opacity-70" />
-									<div className="relative flex items-center gap-3">
-										<VscVscode className="h-6 w-6 sm:h-7 sm:w-7" />
-										<span className="flex flex-wrap items-center gap-2">
-											<span>From VSCode Marketplace</span>
+									<div className="relative flex flex-col md:flex-row items-center md:gap-3">
+										<VscVscode className="h-6 w-6 shrink-0" />
+										<span className="flex flex-col md:flex-row items-center md:gap-2">
+											<span>From VS Code Marketplace</span>
 											{downloads !== null && (
 												<>
-													<span className="font-black opacity-60">&middot;</span>
+													<span className="font-black opacity-60 hidden md:inline">
+														&middot;
+													</span>
 													<span className="opacity-90">{downloads} Downloads</span>
 												</>
 											)}

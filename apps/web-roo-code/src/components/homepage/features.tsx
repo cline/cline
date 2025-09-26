@@ -1,48 +1,52 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Brain, Shield, Users2, ReplaceAll, Keyboard, LucideIcon, CheckCheck } from "lucide-react"
+import { Shield, Users2, ReplaceAll, Keyboard, LucideIcon, CheckCheck, GitPullRequest } from "lucide-react"
+import Image from "next/image"
 
 export interface Feature {
 	icon: LucideIcon
 	title: string
 	description: string
+	logos?: string[]
 }
 
 export const features: Feature[] = [
 	{
 		icon: Users2,
-		title: "Specialized Modes",
+		title: "Specialized modes",
 		description:
-			"Planning, Architecture, Debugging and beyond: Roo's modes stay on-task and deliver. Create your own modes or download from the marketplace.",
+			"Planning, Architecture, Debugging and beyond: Roo's modes stay on-task and deliver. They even know when to hand off work to other modes. Create your own or download from the marketplace.",
 	},
 	{
 		icon: ReplaceAll,
-		title: "Model-Agnostic",
-		description: "Bring your own model key or use local inference — no markup, lock-in, no restrictions.",
+		title: "Model-agnostic",
+		description: "Bring your own provider key or even run local inference — no markup, lock-in, no restrictions.",
+		logos: ["Anthropic", "OpenAI", "Gemini", "Grok", "Qwen", "Kimi", "Mistral", "Ollama"],
 	},
 	{
 		icon: CheckCheck,
 		title: "Granular auto-approval",
-		description: "Control each action and make Roo as autonomous as you want as you build confidence. Or go YOLO.",
+		description:
+			"Control each action and make Roo as autonomous as you want as you build confidence. Or go YOLO and let it rip.",
+	},
+	{
+		icon: GitPullRequest,
+		title: "Proudly open source",
+		description:
+			"Community-driven and fully auditable: no throttling or surprises about what's happening behind the scenes.",
 	},
 	{
 		icon: Keyboard,
-		title: "Highly Customizable",
+		title: "Highly customizable",
 		description:
 			"Fine-tune settings for Roo to work for you, like inference context, model properties, slash commands and more.",
 	},
 	{
-		icon: Brain,
-		title: "Deep Project-wide Context",
-		description:
-			"Roo Code reads your entire codebase, preserving valid code through diff-based edits for seamless multi-file refactors.",
-	},
-	{
 		icon: Shield,
-		title: "Secure and Private by Design",
+		title: "Secure and private by design",
 		description:
-			"Open source and local-first. No code leaves your machine unless you say so. SOC 2 Type II compliant.",
+			"Client-only architecture means no code leaves your machine unless you say so. SOC 2 Type II compliant.",
 	},
 ]
 
@@ -108,7 +112,7 @@ export function Features() {
 					initial="hidden"
 					whileInView="visible"
 					viewport={{ once: true }}>
-					<ul className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
+					<ul className="grid grid-cols-1 place-items-center gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-8">
 						{features.map((feature, index) => {
 							const Icon = feature.icon
 							return (
@@ -120,6 +124,20 @@ export function Features() {
 									<p className="leading-relaxed font-light text-muted-foreground">
 										{feature.description}
 									</p>
+									{feature.logos && (
+										<div className="mt-4 flex flex-wrap items-center gap-4">
+											{feature.logos.map((logo) => (
+												<Image
+													key={logo}
+													width={20}
+													height={20}
+													className="w-5 h-5 overflow-clip opacity-50 dark:invert"
+													src={`/logos/${logo.toLowerCase()}.svg`}
+													alt={`${logo} Logo`}
+												/>
+											))}
+										</div>
+									)}
 								</li>
 							)
 						})}
