@@ -61,7 +61,7 @@ const featuredModels = [
 		label: "Free",
 	},
 	{
-		id: "cline/code-supernova",
+		id: "cline/code-supernova-1-million",
 		description: "Stealth coding model with image support",
 		label: "Free",
 	},
