@@ -1,9 +1,9 @@
 import { ApiHandler } from "@core/api"
+import { execSync } from "child_process"
 import { showSystemNotification } from "@/integrations/notifications"
 import { ClineApiReqCancelReason, ClineApiReqInfo } from "@/shared/ExtensionMessage"
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { MessageStateHandler } from "./message-state"
-import { execSync } from "child_process"
 
 export const showNotificationForApprovalIfAutoApprovalEnabled = (
 	message: string,

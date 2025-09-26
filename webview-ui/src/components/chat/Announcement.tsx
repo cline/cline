@@ -73,8 +73,8 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	}
 
 	const setCodeSupernova = () => {
-		const modelId = "cline/code-supernova"
-		// set both plan and act modes to use code-supernova
+		const modelId = "cline/code-supernova-1-million"
+		// set both plan and act modes to use code-supernova-1-million
 		handleFieldsChange({
 			planModeOpenRouterModelId: modelId,
 			actModeOpenRouterModelId: modelId,
@@ -124,18 +124,18 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					</VSCodeButtonLink>
 				</li>
 				<li>
-					<b>Continued Free Models:</b> Try grok-code-fast-1 or code-supernova (stealth model 🥷)!
+					<b>Free Models:</b> Try the new code-supernova-1-million stealth model, or grok-code-fast-1 for free!
 					<br />
 					{user ? (
 						<div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "5px 0" }}>
-							{!didClickGrokCodeButton && (
-								<VSCodeButton appearance="primary" onClick={setGrokCodeFast1}>
-									Try grok-code-fast-1
-								</VSCodeButton>
-							)}
 							{!didClickCodeSupernovaButton && (
 								<VSCodeButton appearance="primary" onClick={setCodeSupernova}>
 									Try code-supernova
+								</VSCodeButton>
+							)}
+							{!didClickGrokCodeButton && (
+								<VSCodeButton appearance="primary" onClick={setGrokCodeFast1}>
+									Try grok-code-fast-1
 								</VSCodeButton>
 							)}
 						</div>
