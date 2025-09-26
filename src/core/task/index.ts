@@ -95,9 +95,6 @@ export class Task {
 
 	taskState: TaskState
 
-	// Task configuration
-	private enableCheckpoints: boolean
-
 	// Core dependencies
 	private controller: Controller
 	private mcpHub: McpHub
@@ -146,7 +143,6 @@ export class Task {
 		terminalReuseEnabled: boolean,
 		terminalOutputLineLimit: number,
 		defaultTerminalProfile: string,
-		enableCheckpointsSetting: boolean,
 		cwd: string,
 		stateManager: StateManager,
 		workspaceManager?: WorkspaceRootManager,
@@ -186,7 +182,6 @@ export class Task {
 		this.browserSession = new BrowserSession(controller.context, stateManager)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
-		this.enableCheckpoints = enableCheckpointsSetting
 		this.cwd = cwd
 		this.stateManager = stateManager
 		this.workspaceManager = workspaceManager
@@ -245,7 +240,6 @@ export class Task {
 		try {
 			this.checkpointManager = buildCheckpointManager({
 				taskId: this.taskId,
-				enableCheckpoints: enableCheckpointsSetting,
 				messageStateHandler: this.messageStateHandler,
 				fileContextTracker: this.fileContextTracker,
 				diffViewProvider: this.diffViewProvider,
@@ -258,13 +252,14 @@ export class Task {
 				postStateToWebview: this.postStateToWebview,
 				initialConversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
 				initialCheckpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
+				stateManager: this.stateManager,
 			})
 
 			// If multi-root, kick off non-blocking initialization
 			if (
 				shouldUseMultiRoot({
 					workspaceManager: this.workspaceManager,
-					enableCheckpoints: enableCheckpointsSetting,
+					enableCheckpoints: this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting"),
 					isMultiRootEnabled: featureFlagsService.getMultiRootEnabled(),
 				})
 			) {
@@ -275,7 +270,7 @@ export class Task {
 			}
 		} catch (error) {
 			console.error("Failed to initialize checkpoint manager:", error)
-			if (enableCheckpointsSetting) {
+			if (this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error"
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
@@ -1740,7 +1735,7 @@ export class Task {
 		// Initialize checkpointManager first if enabled and it's the first request
 		if (
 			isFirstRequest &&
-			this.enableCheckpoints &&
+			this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") &&
 			this.checkpointManager && // TODO REVIEW: may be able to implement a replacement for the 15s timer
 			!this.taskState.checkpointManagerErrorMessage
 		) {
@@ -1759,7 +1754,7 @@ export class Task {
 
 		// Now, if it's the first request AND checkpoints are enabled AND tracker was successfully initialized,
 		// then say "checkpoint_created" and perform the commit.
-		if (isFirstRequest && this.enableCheckpoints && this.checkpointManager) {
+		if (isFirstRequest && this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") && this.checkpointManager) {
 			const commitHash = await this.checkpointManager.commit() // Actual commit
 			await this.say("checkpoint_created") // Now this is conditional
 			const lastCheckpointMessageIndex = findLastIndex(
@@ -1776,7 +1771,7 @@ export class Task {
 			}
 		} else if (
 			isFirstRequest &&
-			this.enableCheckpoints &&
+			this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") &&
 			!this.checkpointManager &&
 			this.taskState.checkpointManagerErrorMessage
 		) {
@@ -1905,7 +1900,12 @@ export class Task {
 		// Capture task initialization timing telemetry for the first API request
 		if (isFirstRequest) {
 			const durationMs = Math.round(performance.now() - this.taskInitializationStartTime)
-			telemetryService.captureTaskInitialization(this.ulid, this.taskId, durationMs, this.enableCheckpoints)
+			telemetryService.captureTaskInitialization(
+				this.ulid,
+				this.taskId,
+				durationMs,
+				this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting"),
+			)
 		}
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
