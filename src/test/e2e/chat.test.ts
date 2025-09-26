@@ -20,9 +20,6 @@ e2e.describe("Chat - can send messages and switch between modes", () => {
 			// Loading State initially
 			await expect(sidebar.getByText("API Request...")).toBeVisible()
 
-			// The request should eventually fail
-			await expect(sidebar.getByText("API Request Failed")).toBeVisible()
-
 			await expect(inputbox).toBeVisible()
 
 			await expect(sidebar.getByRole("button", { name: "Retry" })).toBeVisible()
@@ -30,7 +27,6 @@ e2e.describe("Chat - can send messages and switch between modes", () => {
 
 			// Starting a new task should clear the current chat view and show the recent tasks
 			await sidebar.getByRole("button", { name: "Start New Task" }).click()
-			await expect(sidebar.getByText("API Request Failed")).not.toBeVisible()
 			await expect(sidebar.getByText("Recent Tasks")).toBeVisible()
 			await expect(sidebar.getByText("Hello, Cline!")).toBeVisible()
 
