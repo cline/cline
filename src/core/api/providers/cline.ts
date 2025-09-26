@@ -6,8 +6,8 @@ import OpenAI from "openai"
 import { clineEnvConfig } from "@/config"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
+import { buildClineExtraHeaders } from "@/services/EnvService"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
-import { getIdeId } from "@/utils/ide"
 import { version as extensionVersion } from "../../../../package.json"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -47,17 +47,18 @@ export class ClineHandler implements ApiHandler {
 		}
 		if (!this.client) {
 			try {
-				const ideId = await getIdeId()
+				const defaultHeaders: Record<string, string> = {
+					"HTTP-Referer": "https://cline.bot",
+					"X-Title": "Cline",
+					"X-Task-ID": this.options.ulid || "",
+					"X-Cline-Version": extensionVersion,
+				}
+				Object.assign(defaultHeaders, await buildClineExtraHeaders())
+
 				this.client = new OpenAI({
 					baseURL: `${this._baseUrl}/api/v1`,
 					apiKey: clineAccountAuthToken,
-					defaultHeaders: {
-						"HTTP-Referer": "https://cline.bot",
-						"X-Title": "Cline",
-						"X-Task-ID": this.options.ulid || "",
-						"X-Cline-Version": extensionVersion,
-						"X-IDE-ID": ideId,
-					},
+					defaultHeaders,
 					// Capture real HTTP request ID from initial streaming response headers
 					fetch: async (...args: Parameters<typeof fetch>): Promise<Awaited<ReturnType<typeof fetch>>> => {
 						const [input, init] = args
@@ -207,13 +208,14 @@ export class ClineHandler implements ApiHandler {
 				if (!clineAccountAuthToken) {
 					throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 				}
-				const ideId = await getIdeId()
+				const headers: Record<string, string> = {
+					// Align with backend auth expectations
+					Authorization: `Bearer ${clineAccountAuthToken}`,
+				}
+				Object.assign(headers, await buildClineExtraHeaders())
+
 				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
-					headers: {
-						// Align with backend auth expectations
-						Authorization: `Bearer ${clineAccountAuthToken}`,
-						"X-IDE-ID": ideId,
-					},
+					headers,
 					timeout: 15_000, // this request hangs sometimes
 				})
 

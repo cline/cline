@@ -4,9 +4,9 @@ import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
+import { getIdeId } from "@/services/EnvService"
 import { Setting } from "@/shared/proto/index.host"
 import { Mode } from "@/shared/storage/types"
-import { getIdeId } from "@/utils/ide"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
@@ -51,8 +51,8 @@ export type TelemetryMetadata = {
 	extension_version: string
 	/** The name of the host IDE or environment e.g. VSCode */
 	platform: string
-	/** Normalized IDE identifier string */
-	ide_id: string
+	/** IDE identifier string */
+	ide_id: string | undefined
 	/** The version of the host environment */
 	platform_version: string
 	/** The operating system type, e.g. darwin, win32. This is the value returned by os.platform() */
