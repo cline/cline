@@ -1154,7 +1154,7 @@ export const openAiNativeModels = {
 	},
 	"gpt-5-codex": {
 		maxTokens: 8_192,
-		contextWindow: 400000,
+		contextWindow: 400_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 1.25,
