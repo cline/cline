@@ -236,6 +236,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 
 		const mcpMarketplaceCatalog =
 			context.globalState.get<GlobalStateAndSettings["mcpMarketplaceCatalog"]>("mcpMarketplaceCatalog")
+		const lastDismissedInfoBannerVersion =
+			context.globalState.get<GlobalStateAndSettings["lastDismissedInfoBannerVersion"]>("lastDismissedInfoBannerVersion")
 		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
 		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
 		const autoCondenseThreshold =
@@ -403,7 +405,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			}
 		}
 
-		const taskHistory = await readTaskHistoryFromState(context)
+		const taskHistory = await readTaskHistoryFromState()
 
 		// Multi-root workspace support
 		const workspaceRoots = context.globalState.get<GlobalStateAndSettings["workspaceRoots"]>("workspaceRoots")
@@ -557,12 +559,13 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			qwenCodeOauthPath,
 			customPrompt,
 			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
+			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			// Multi-root workspace support
 			workspaceRoots,
 			primaryRootIndex: primaryRootIndex ?? 0,
 			// Feature flag - defaults to false
 			// For now, always return false to disable multi-root support by default
-			multiRootEnabled: multiRootEnabled ?? false,
+			multiRootEnabled: !!multiRootEnabled,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)

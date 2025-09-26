@@ -18,6 +18,7 @@ service StateService {
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
+  rpc updateInfoBannerVersion(Int64Request) returns (Empty);
 }
 message DictationSettings {
   bool feature_enabled = 1;
@@ -146,6 +147,7 @@ message UpdateSettingsRequest {
   optional bool yolo_mode_toggled = 22;
   optional DictationSettings dictation_settings = 23;
   optional int32 auto_condense_threshold = 24;
+  optional bool multi_root_enabled = 25;
 }
 
 // Complete API Configuration message

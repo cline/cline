@@ -50,14 +50,14 @@ const ToDoListHeader = memo<{
 					},
 				)}
 				style={{
-					width: `${100 - progressPercentage}%`,
+					width: `${progressPercentage}%`,
 				}}
 			/>
 			<div className="flex items-center justify-between gap-2 z-10 py-2.5 px-1.5">
 				<div className="flex items-center gap-1.5 flex-1 min-w-0">
 					<span
 						className={cn(
-							"rounded-lg px-2 py-0.25 text-xs inline-block shrink-0 bg-badge-foreground/20 text-badge-foreground",
+							"rounded-lg px-2 py-0.25 text-xs inline-block shrink-0 bg-badge-foreground/20 text-foreground",
 							{
 								"bg-success text-black": isCompleted,
 							},
@@ -188,7 +188,7 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 
 		return (
 			<div
-				className="relative rounded-sm bg-toolbar-hover/65 flex flex-col gap-1.5 select-none hover:bg-toolbar-hover overflow-hidden opacity-80 hover:opacity-100 transition-all duration-200 cursor-pointer"
+				className="relative rounded-sm bg-toolbar-hover/65 flex flex-col gap-1.5 select-none hover:bg-toolbar-hover overflow-hidden opacity-80 hover:opacity-100 transition-[transform,box-shadow] duration-200 cursor-pointer"
 				onClick={handleToggle}
 				title={CLICK_TO_EDIT_TITLE}>
 				<ToDoListHeader isExpanded={isExpanded} todoInfo={todoInfo} />

@@ -122,6 +122,12 @@
 							"features/commands-and-shortcuts/git-integration",
 							"features/commands-and-shortcuts/keyboard-shortcuts"
 						]
+					},
+					{
+						"group": "Customization",
+						"pages": [
+							"features/customization/opening-cline-in-sidebar"
+						]
 					}
 				]
 			},

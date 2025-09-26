@@ -24,7 +24,7 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 			<Section>
 				{/* Tabs container */}
 				{planActSeparateModelsSetting ? (
-					<div className="rounded-md mb-5 bg-[var(--vscode-panel-background)]">
+					<div className="rounded-md mb-5">
 						<div className="flex gap-[1px] mb-[10px] -mt-2 border-0 border-b border-solid border-[var(--vscode-panel-border)]">
 							<TabButton
 								disabled={currentTab === "plan"}

@@ -9,7 +9,7 @@ import { getColor } from "./util"
 
 // Timeline dimensions and spacing
 const TIMELINE_HEIGHT = "12px"
-const BLOCK_WIDTH = "13px"
+const BLOCK_WIDTH = "11px"
 const BLOCK_GAP = "4px"
 const _TOOLTIP_MARGIN = 32 // 32px margin on each side
 
@@ -85,11 +85,12 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 					<div
 						style={{
 							width: BLOCK_WIDTH,
-							height: "100%",
+							height: BLOCK_WIDTH,
 							backgroundColor: "#e5e5e5", // Light gray placeholder
 							flexShrink: 0,
 							marginRight: BLOCK_GAP,
 							opacity: 0.5,
+							borderRadius: "50%",
 						}}
 					/>
 				)
@@ -122,13 +123,14 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 						onMouseLeave={handleMouseLeave}
 						style={{
 							width: BLOCK_WIDTH,
-							height: "100%",
+							height: BLOCK_WIDTH,
 							backgroundColor: getColor(message),
 							flexShrink: 0,
 							cursor: "pointer",
 							marginRight: BLOCK_GAP,
 							opacity: isHovered ? 0.7 : 1,
 							transition: "opacity 0.2s ease",
+							borderRadius: "50%",
 						}}
 					/>
 				</TaskTimelineTooltip>

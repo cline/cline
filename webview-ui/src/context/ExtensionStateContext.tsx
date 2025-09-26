@@ -214,11 +214,13 @@ export const ExtensionStateContextProvider: React.FC<{
 		useAutoCondense: false,
 		autoCondenseThreshold: undefined,
 		favoritedModelIds: [],
+		lastDismissedInfoBannerVersion: 0,
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
 		primaryRootIndex: 0,
 		isMultiRootWorkspace: false,
+		multiRootSetting: { user: false, featureFlag: false },
 	})
 	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
 	const [didHydrateState, setDidHydrateState] = useState(false)
