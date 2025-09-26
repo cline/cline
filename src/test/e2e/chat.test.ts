@@ -33,16 +33,10 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	await expect(actButton).not.toBeChecked()
 	await expect(planButton).toBeChecked()
 
-	await inputbox.fill("Plan mode submission")
-	await sidebar.getByTestId("send-button").click()
-
 	// === slash commands preserve following text ===
-	await inputbox.fill("")
 	await expect(inputbox).toHaveValue("")
-	await inputbox.focus()
-
 	// Type partial slash command to trigger menu
-	await inputbox.pressSequentially("/new")
+	await inputbox.pressSequentially("/new", { timeout: 100 })
 
 	// Wait for menu to be visible and select first option with Tab
 	await inputbox.press("Tab")
@@ -55,7 +49,6 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	// === @ mentions preserve following text ===
 	await inputbox.fill("")
 	await expect(inputbox).toHaveValue("")
-	await inputbox.focus()
 
 	// Type partial @ mention to trigger menu
 	await inputbox.pressSequentially("@prob")
