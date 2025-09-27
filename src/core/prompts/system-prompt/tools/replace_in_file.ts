@@ -22,6 +22,7 @@ const generic: ClineToolSpec = {
 			name: "diff",
 			required: true,
 			instruction: `One or more SEARCH/REPLACE blocks following this exact format:
+         
   \`\`\`
   ------- SEARCH
   [exact content to find]

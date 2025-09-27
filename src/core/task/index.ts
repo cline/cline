@@ -1,6 +1,6 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { RedactedThinkingBlock, TextBlock, ThinkingBlock } from "@anthropic-ai/sdk/resources/index.mjs"
+import type { RedactedThinkingBlock, TextBlock, ThinkingBlock } from "@anthropic-ai/sdk/resources"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
 import { parseAssistantMessageV2 } from "@core/assistant-message"
