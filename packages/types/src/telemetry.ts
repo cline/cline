@@ -71,6 +71,7 @@ export enum TelemetryEventName {
 	SHELL_INTEGRATION_ERROR = "Shell Integration Error",
 	CONSECUTIVE_MISTAKE_ERROR = "Consecutive Mistake Error",
 	CODE_INDEX_ERROR = "Code Index Error",
+	TELEMETRY_SETTINGS_CHANGED = "Telemetry Settings Changed",
 }
 
 /**
@@ -201,6 +202,14 @@ export const rooCodeTelemetryEventSchema = z.discriminatedUnion("type", [
 			TelemetryEventName.CUSTOM_MODE_CREATED,
 		]),
 		properties: telemetryPropertiesSchema,
+	}),
+	z.object({
+		type: z.literal(TelemetryEventName.TELEMETRY_SETTINGS_CHANGED),
+		properties: z.object({
+			...telemetryPropertiesSchema.shape,
+			previousSetting: telemetrySettingsSchema,
+			newSetting: telemetrySettingsSchema,
+		}),
 	}),
 	z.object({
 		type: z.literal(TelemetryEventName.TASK_MESSAGE),
