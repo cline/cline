@@ -248,12 +248,12 @@ describe("Prompt System Integration Tests", () => {
 							this.timeout(30000) // Allow more time for prompt generation
 
 							try {
-								const prompt = await getSystemPrompt(context as SystemPromptContext)
+								const { systemPrompt } = await getSystemPrompt(context as SystemPromptContext)
 
 								// Basic structure assertions
-								expect(prompt).to.be.a("string")
-								expect(prompt.length).to.be.greaterThan(100)
-								expect(prompt).to.not.include("{{TOOL_USE_SECTION}}") // Tools placeholder should be removed
+								expect(systemPrompt).to.be.a("string")
+								expect(systemPrompt.length).to.be.greaterThan(100)
+								expect(systemPrompt).to.not.include("{{TOOL_USE_SECTION}}") // Tools placeholder should be removed
 
 								// Snapshot testing logic
 								const snapshotName = `${providerId}_${modelId.replace(/[^a-zA-Z0-9]/g, "_")}-${contextName}.snap`
@@ -261,13 +261,13 @@ describe("Prompt System Integration Tests", () => {
 
 								if (UPDATE_SNAPSHOTS) {
 									// Update mode: write new snapshot
-									await fs.writeFile(snapshotPath, prompt, "utf-8")
-									console.log(`Updated snapshot: ${snapshotName} (${prompt.length} chars)`)
+									await fs.writeFile(snapshotPath, systemPrompt, "utf-8")
+									console.log(`Updated snapshot: ${snapshotName} (${systemPrompt.length} chars)`)
 								} else {
 									// Test mode: compare with existing snapshot
 									try {
 										const existingSnapshot = await fs.readFile(snapshotPath, "utf-8")
-										const differences = compareStrings(existingSnapshot, prompt)
+										const differences = compareStrings(existingSnapshot, systemPrompt)
 
 										if (differences) {
 											throw new Error(formatSnapshotError(snapshotName, differences))
@@ -313,8 +313,8 @@ describe("Prompt System Integration Tests", () => {
 			const contextWithBrowser = { ...baseContext, supportsBrowserUse: true }
 
 			try {
-				const prompt = await getSystemPrompt(contextWithBrowser)
-				expect(prompt.toLowerCase()).to.include("browser")
+				const { systemPrompt } = await getSystemPrompt(contextWithBrowser)
+				expect(systemPrompt.toLowerCase()).to.include("browser")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
 					this.skip()
@@ -328,8 +328,8 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			try {
-				const prompt = await getSystemPrompt(baseContext)
-				expect(prompt).to.include("MCP")
+				const { systemPrompt } = await getSystemPrompt(baseContext)
+				expect(systemPrompt).to.include("MCP")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
 					this.skip()

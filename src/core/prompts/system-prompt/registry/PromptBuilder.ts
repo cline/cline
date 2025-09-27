@@ -1,7 +1,7 @@
 import type { ClineDefaultTool } from "@/shared/tools"
 import { getModelFamily } from "../"
 import { ClineToolSet } from "../registry/ClineToolSet"
-import type { ClineToolSpec } from "../spec"
+import { type ClineToolSpec, toolSpecFunctionDefinition } from "../spec"
 import { STANDARD_PLACEHOLDERS } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
@@ -94,7 +94,7 @@ export class PromptBuilder {
 			.trim() // Remove leading/trailing whitespace
 			.replace(/====+\s*$/, "") // Remove trailing ==== after trim
 			.replace(/\n====+\s*\n+\s*====+\n/g, "\n====\n") // Remove empty sections between separators
-			.replace(/====+\n(?!\n)([^\n])/g, (match, nextChar, offset, string) => {
+			.replace(/====+\n(?!\n)([^\n])/g, (match, _nextChar, offset, string) => {
 				// Add extra newline after ====+ if not already followed by a newline
 				// Exception: preserve single newlines when ====+ appears to be part of diff-like content
 				// Look for patterns like "SEARCH\n=======\n" or ";\n=======\n" (diff markers)
@@ -127,7 +127,19 @@ export class PromptBuilder {
 		}
 	}
 
-	public static async getToolsPrompts(variant: PromptVariant, context: SystemPromptContext) {
+	public static getNativeTools(variant: PromptVariant, context: SystemPromptContext) {
+		// Only return tool functions if the variant explicitly enables them
+		// via the "tool_functions" label set to 1
+		// This avoids exposing tools to models that don't support them
+		// or variants that aren't designed for tool use
+		if (variant.labels["tool_functions"] !== 1) {
+			return undefined
+		}
+		const enabledTools = PromptBuilder.getEnabledTools(variant, context)
+		return enabledTools.map((tool) => toolSpecFunctionDefinition(tool.config, context))
+	}
+
+	private static getEnabledTools(variant: PromptVariant, context: SystemPromptContext) {
 		let resolvedTools: ReturnType<typeof ClineToolSet.getTools> = []
 
 		// If the variant explicitly lists tools, resolve each by id with fallback to GENERIC
@@ -150,6 +162,12 @@ export class PromptBuilder {
 		const enabledTools = resolvedTools.filter(
 			(tool) => !tool.config.contextRequirements || tool.config.contextRequirements(context),
 		)
+
+		return enabledTools
+	}
+
+	public static async getToolsPrompts(variant: PromptVariant, context: SystemPromptContext) {
+		const enabledTools = PromptBuilder.getEnabledTools(variant, context)
 
 		const ids = enabledTools.map((tool) => tool.config.id)
 		return Promise.all(enabledTools.map((tool) => PromptBuilder.tool(tool.config, ids, context)))

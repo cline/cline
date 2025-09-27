@@ -24,7 +24,7 @@ Checklist here (optional)
 
 const id = ClineDefaultTool.FILE_NEW
 
-const generic: ClineToolSpec = {
+const GENERIC: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id,
 	name: "write_to_file",
@@ -48,4 +48,25 @@ const generic: ClineToolSpec = {
 	],
 }
 
-export const write_to_file_variants = [generic]
+const GPT_5: ClineToolSpec = {
+	variant: ModelFamily.GPT_5,
+	id,
+	name: "write_to_file",
+	description:
+		"Request to write content to a file at the specified path. If the file exists, it will be overwritten with the provided content. If the file doesn't exist, it will be created. This tool will automatically create any directories needed to write the file.",
+	parameters: [
+		{
+			name: "path",
+			required: true,
+			instruction: "The absolute path to the file to write to.",
+		},
+		{
+			name: "content",
+			required: true,
+			instruction: "The content to write to the file.",
+		},
+		TASK_PROGRESS_PARAMETER,
+	],
+}
+
+export const write_to_file_variants = [GENERIC, GPT_5]

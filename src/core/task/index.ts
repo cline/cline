@@ -1373,7 +1373,7 @@ export class Task {
 			workspaceRoots,
 		}
 
-		const systemPrompt = await getSystemPrompt(promptContext)
+		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
 
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
@@ -1391,7 +1391,7 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
-		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
+		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory, tools)
 
 		const iterator = stream[Symbol.asyncIterator]()
 

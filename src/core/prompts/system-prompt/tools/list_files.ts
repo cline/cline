@@ -24,6 +24,7 @@ const generic: ClineToolSpec = {
 			required: false,
 			instruction: "Whether to list files recursively. Use true for recursive listing, false or omit for top-level only.",
 			usage: "true or false (optional)",
+			type: "boolean",
 		},
 		TASK_PROGRESS_PARAMETER,
 	],

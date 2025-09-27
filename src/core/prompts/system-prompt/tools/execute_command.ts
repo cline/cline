@@ -1,7 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
-import { TASK_PROGRESS_PARAMETER } from "../types"
 
 const generic: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
@@ -21,10 +20,12 @@ const generic: ClineToolSpec = {
 			instruction:
 				"A boolean indicating whether this command requires explicit user approval before execution in case the user has auto-approve mode enabled. Set to 'true' for potentially impactful operations like installing/uninstalling packages, deleting/overwriting files, system configuration changes, network operations, or any commands that could have unintended side effects. Set to 'false' for safe operations like reading files/directories, running development servers, building projects, and other non-destructive operations.",
 			usage: "true or false",
+			type: "boolean",
 		},
 		{
 			name: "timeout",
 			required: false,
+			type: "integer",
 			contextRequirements: (context) => context.yoloModeToggled === true,
 			instruction:
 				"Integer representing the timeout in seconds for how long to run the terminal command, before timing out and continuing the task.",
@@ -33,34 +34,34 @@ const generic: ClineToolSpec = {
 	],
 }
 
-const gpt: ClineToolSpec = {
-	variant: ModelFamily.GPT,
+const GPT_5: ClineToolSpec = {
+	variant: ModelFamily.GPT_5,
 	id: ClineDefaultTool.BASH,
-	name: "bash",
+	name: ClineDefaultTool.BASH,
 	description:
-		"Run an arbitrary terminal command at the root of the users project. E.g. `ls -la` for listing files, or `find` for searching latest version of the codebase files locally.",
+		"Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task.",
 	parameters: [
 		{
 			name: "command",
 			required: true,
-			instruction: "The command to run in the root of the users project. Must be shell escaped.",
+			instruction: "The CLI command to execute. This should be valid for the current operating system.",
 			usage: "Your command here",
 		},
 		{
 			name: "requires_approval",
-			required: false,
-			instruction: "Whether the command is dangerous. If true, user will be asked to confirm.",
+			required: true,
+			type: "boolean",
+			instruction: "A boolean indicating whether this command requires explicit user approval before execution.",
 		},
 		{
 			name: "timeout",
 			required: false,
+			type: "integer",
 			contextRequirements: (context) => context.yoloModeToggled === true,
 			instruction:
 				"Integer representing the timeout in seconds for how long to run the terminal command, before timing out and continuing the task.",
-			usage: "30",
 		},
-		TASK_PROGRESS_PARAMETER,
 	],
 }
 
-export const execute_command_variants = [generic, gpt]
+export const execute_command_variants: ClineToolSpec[] = [generic, GPT_5]

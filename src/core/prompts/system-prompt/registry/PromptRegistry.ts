@@ -1,3 +1,4 @@
+import { ChatCompletionTool } from "openai/resources/chat/completions.mjs"
 import { ModelFamily } from "@/shared/prompts"
 import { getModelFamily } from ".."
 import { getSystemPromptComponents } from "../components"
@@ -12,6 +13,7 @@ export class PromptRegistry {
 	private variants: Map<string, PromptVariant> = new Map()
 	private components: ComponentRegistry = {}
 	private loaded: boolean = false
+	public nativeTools: ChatCompletionTool[] | undefined = undefined
 
 	private constructor() {
 		registerClineToolSets()
@@ -102,6 +104,9 @@ export class PromptRegistry {
 		}
 
 		const builder = new PromptBuilder(variant, context, this.components)
+		// Hacky way to get native tools for the current variant - it's bad and ugly
+		// TODO: Move getNativeTools to ClineToolSet
+		this.nativeTools = PromptBuilder.getNativeTools(variant, context)
 		return await builder.build()
 	}
 

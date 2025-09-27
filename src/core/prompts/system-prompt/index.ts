@@ -34,7 +34,9 @@ export function getModelFamily(providerInfo: ApiProviderInfo): ModelFamily {
 /**
  * Get the system prompt by id
  */
-export async function getSystemPrompt(context: SystemPromptContext): Promise<string> {
+export async function getSystemPrompt(context: SystemPromptContext) {
 	const registry = PromptRegistry.getInstance()
-	return await registry.get(context)
+	const systemPrompt = await registry.get(context)
+	const tools = registry.nativeTools
+	return { systemPrompt, tools }
 }

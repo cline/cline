@@ -3,6 +3,7 @@ import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from 
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
+import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import { clineEnvConfig } from "@/config"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
@@ -11,6 +12,7 @@ import { version as extensionVersion } from "../../../../package.json"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
+import { StreamingToolCallHandler } from "../transform/StreamingToolCallHandler"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { OpenRouterErrorResponse } from "./types"
 
@@ -33,6 +35,7 @@ export class ClineHandler implements ApiHandler {
 	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
 	lastGenerationId?: string
 	private lastRequestId?: string
+	private toolCallHandler = new StreamingToolCallHandler()
 
 	constructor(options: ClineHandlerOptions) {
 		this.options = options
@@ -91,7 +94,13 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		tools?: ChatCompletionTool[],
+	): ApiStream {
+		// Clear any pending tool calls from previous requests
+		this.toolCallHandler.reset()
 		try {
 			const client = await this.ensureClient()
 
@@ -108,6 +117,7 @@ export class ClineHandler implements ApiHandler {
 				this.options.reasoningEffort,
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
+				tools,
 			)
 
 			for await (const chunk of stream) {
@@ -148,6 +158,20 @@ export class ClineHandler implements ApiHandler {
 					}
 				}
 
+				if (delta.tool_calls) {
+					// Handle tool calls using the shared utility
+					for (const toolCallDelta of delta.tool_calls) {
+						const streamingXml = this.toolCallHandler.processToolCallDelta(toolCallDelta)
+						console.log("Received tool_calls delta:", delta.tool_calls)
+						if (streamingXml) {
+							yield {
+								type: "text",
+								text: streamingXml,
+							}
+						}
+					}
+				}
+
 				// Reasoning tokens are returned separately from the content
 				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
 				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
@@ -183,6 +207,14 @@ export class ClineHandler implements ApiHandler {
 				}
 			}
 
+			// Finalize any remaining tool calls at the end of the stream
+			const finalizedXmlResults = this.toolCallHandler.finalizePendingToolCalls()
+			for (const finalXml of finalizedXmlResults) {
+				yield {
+					type: "text",
+					text: finalXml,
+				}
+			}
 			// Fallback to generation endpoint if usage chunk not returned
 			if (!didOutputUsage) {
 				console.warn("Cline API did not return usage chunk, fetching from generation endpoint")

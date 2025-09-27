@@ -150,6 +150,9 @@ export function convertToOpenAiMessages(
 	return openAiMessages
 }
 
+// Unique name to use to filter out tool call that cannot be parsed correctly
+const UNIQUE_ERROR_TOOL_NAME = "_cline_error_unknown_function_"
+
 // Convert OpenAI response to Anthropic format
 export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.ChatCompletion): Anthropic.Messages.Message {
 	const openAiMessage = completion.choices[0].message
@@ -189,20 +192,24 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 
 	if (openAiMessage.tool_calls && openAiMessage.tool_calls.length > 0) {
 		anthropicMessage.content.push(
-			...openAiMessage.tool_calls.map((toolCall): Anthropic.ToolUseBlock => {
-				let parsedInput = {}
-				try {
-					parsedInput = JSON.parse(toolCall.function.arguments || "{}")
-				} catch (error) {
-					console.error("Failed to parse tool arguments:", error)
-				}
-				return {
-					type: "tool_use",
-					id: toolCall.id,
-					name: toolCall.function.name,
-					input: parsedInput,
-				}
-			}),
+			...openAiMessage.tool_calls
+				.map((toolCall): Anthropic.ToolUseBlock => {
+					const parsedName = toolCall.type === "function" && toolCall.function.name
+					let parsedInput = toolCall.function.arguments
+					try {
+						parsedInput = JSON.parse(toolCall.function.arguments || "{}")
+					} catch (error) {
+						console.error("Failed to parse tool arguments:", error)
+					}
+					return {
+						type: "tool_use",
+						id: toolCall.id,
+						name: parsedName || UNIQUE_ERROR_TOOL_NAME,
+						input: parsedInput,
+					}
+				})
+				// Filter out any tool uses with the UNIQUE_ERROR_TOOL_NAME, which indicates a parsing error
+				.filter((toolUse) => toolUse.name !== UNIQUE_ERROR_TOOL_NAME),
 		)
 	}
 	return anthropicMessage

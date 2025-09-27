@@ -3,25 +3,25 @@ import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
 import { validateVariant } from "../variant-validator"
-import { baseTemplate, rules_template } from "./template"
+import { GPT_5_TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
 export const config = createVariant(ModelFamily.GPT_5)
-	.description("Prompt tailored to GPT-5")
+	.description("Prompt tailored to GPT-5 with native tool use support")
 	.version(1)
-	.tags("gpt", "gpt-5", "advanced", "production")
+	.tags("gpt", "gpt-5", "advanced", "production", "native_tools")
 	.labels({
 		stable: 1,
 		production: 1,
 		advanced: 1,
+		tool_functions: 1,
 	})
-	.template(baseTemplate)
+	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
 		SystemPromptSection.TODO,
 		SystemPromptSection.MCP,
-		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.ACT_VS_PLAN,
 		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.CAPABILITIES,
@@ -56,7 +56,10 @@ export const config = createVariant(ModelFamily.GPT_5)
 	.config({})
 	// Override the RULES component with custom template
 	.overrideComponent(SystemPromptSection.RULES, {
-		template: rules_template,
+		template: GPT_5_TEMPLATE_OVERRIDES.RULES,
+	})
+	.overrideComponent(SystemPromptSection.TOOL_USE, {
+		template: GPT_5_TEMPLATE_OVERRIDES.TOOL_USE,
 	})
 	.build()
 

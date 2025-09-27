@@ -1,11 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { AzureOpenAI } from "openai"
-import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
+import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
+import { StreamingToolCallHandler } from "../transform/StreamingToolCallHandler"
 import { ApiStream } from "../transform/stream"
 
 interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
@@ -21,6 +22,7 @@ interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 export class OpenAiHandler implements ApiHandler {
 	private options: OpenAiHandlerOptions
 	private client: OpenAI | undefined
+	private toolCallHandler = new StreamingToolCallHandler()
 
 	constructor(options: OpenAiHandlerOptions) {
 		this.options = options
@@ -61,7 +63,14 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		tools?: ChatCompletionTool[],
+	): ApiStream {
+		// Clear any pending tool calls from previous requests
+		this.toolCallHandler.reset()
+
 		const client = this.ensureClient()
 		const modelId = this.options.openAiModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
@@ -100,6 +109,7 @@ export class OpenAiHandler implements ApiHandler {
 			reasoning_effort: reasoningEffort,
 			stream: true,
 			stream_options: { include_usage: true },
+			tools,
 		})
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
@@ -117,6 +127,19 @@ export class OpenAiHandler implements ApiHandler {
 				}
 			}
 
+			if (delta.tool_calls) {
+				// Handle tool calls using the shared utility
+				for (const toolCallDelta of delta.tool_calls) {
+					const streamingXml = this.toolCallHandler.processToolCallDelta(toolCallDelta)
+					if (streamingXml) {
+						yield {
+							type: "text",
+							text: streamingXml,
+						}
+					}
+				}
+			}
+
 			if (chunk.usage) {
 				yield {
 					type: "usage",
@@ -127,6 +150,15 @@ export class OpenAiHandler implements ApiHandler {
 					// @ts-ignore-next-line
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
 				}
+			}
+		}
+
+		// Finalize any remaining tool calls at the end of the stream
+		const finalizedXmlResults = this.toolCallHandler.finalizePendingToolCalls()
+		for (const finalXml of finalizedXmlResults) {
+			yield {
+				type: "text",
+				text: finalXml,
 			}
 		}
 	}
