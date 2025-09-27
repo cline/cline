@@ -165,7 +165,7 @@ export class StateManager {
 		}
 
 		try {
-			const taskSettings = await readTaskSettingsFromStorage(this.context, taskId)
+			const taskSettings = await readTaskSettingsFromStorage(taskId)
 			// Populate task cache with loaded settings
 			Object.assign(this.taskStateCache, taskSettings)
 		} catch (error) {
@@ -785,7 +785,7 @@ export class StateManager {
 		try {
 			await Promise.all(
 				Array.from(keys).map((key) => {
-					return writeTaskSettingsToStorage(this.context, taskId, { [key]: this.taskStateCache[key] })
+					return writeTaskSettingsToStorage(taskId, { [key]: this.taskStateCache[key] })
 				}),
 			)
 		} catch (error) {

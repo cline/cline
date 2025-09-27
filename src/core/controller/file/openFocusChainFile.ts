@@ -32,7 +32,7 @@ export async function openFocusChainFile(controller: Controller, request: String
 		}
 	}
 
-	const focusChainFilePath = await ensureFocusChainFile(controller.context, taskId, initialFocusChainContent)
+	const focusChainFilePath = await ensureFocusChainFile(taskId, initialFocusChainContent)
 	telemetryService.captureFocusChainListOpened(taskId)
 	await openFileIntegration(focusChainFilePath)
 

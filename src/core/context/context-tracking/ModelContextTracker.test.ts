@@ -2,13 +2,11 @@ import * as diskModule from "@core/storage/disk"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
-import * as vscode from "vscode"
 import type { TaskMetadata } from "./ContextTrackerTypes"
 import { ModelContextTracker } from "./ModelContextTracker"
 
 describe("ModelContextTracker", () => {
 	let sandbox: sinon.SinonSandbox
-	let mockContext: vscode.ExtensionContext
 	let tracker: ModelContextTracker
 	let taskId: string
 	let mockTaskMetadata: TaskMetadata
@@ -18,11 +16,6 @@ describe("ModelContextTracker", () => {
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
 
-		// Mock controller and context
-		mockContext = {
-			globalStorageUri: { fsPath: "/mock/storage" },
-		} as unknown as vscode.ExtensionContext
-
 		// Mock disk module functions
 		mockTaskMetadata = { files_in_context: [], model_usage: [] }
 		getTaskMetadataStub = sandbox.stub(diskModule, "getTaskMetadata").resolves(mockTaskMetadata)
@@ -30,7 +23,7 @@ describe("ModelContextTracker", () => {
 
 		// Create tracker instance
 		taskId = "test-task-id"
-		tracker = new ModelContextTracker(mockContext, taskId)
+		tracker = new ModelContextTracker(taskId)
 	})
 
 	afterEach(() => {

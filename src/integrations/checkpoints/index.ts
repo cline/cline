@@ -671,10 +671,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 
 				// update the context history state
 				const contextManager = new ContextManager()
-				await contextManager.truncateContextHistory(
-					message.ts,
-					await ensureTaskDirectoryExists(this.getContext(), this.task.taskId),
-				)
+				await contextManager.truncateContextHistory(message.ts, await ensureTaskDirectoryExists(this.task.taskId))
 
 				// aggregate deleted api reqs info so we don't lose costs/tokens
 				const clineMessages = this.services.messageStateHandler.getClineMessages()
