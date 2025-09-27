@@ -1,8 +1,13 @@
 import { describe, it } from "mocha"
 import "should"
+import sinon from "sinon"
 import { withRetry } from "./retry"
 
 describe("Retry Decorator", () => {
+	afterEach(() => {
+		sinon.restore()
+	})
+
 	describe("withRetry", () => {
 		it("should not retry on success", async () => {
 			let callCount = 0
@@ -73,9 +78,11 @@ describe("Retry Decorator", () => {
 
 		it("should respect retry-after header with delta seconds", async () => {
 			let callCount = 0
-			const startTime = Date.now()
+			const setTimeoutSpy = sinon.spy(global, "setTimeout")
+			const baseDelay = 1000
+
 			class TestClass {
-				@withRetry({ maxRetries: 2, baseDelay: 1000 }) // Use large baseDelay to ensure header takes precedence
+				@withRetry({ maxRetries: 2, baseDelay }) // Use large baseDelay to ensure header takes precedence
 				async *failMethod() {
 					callCount++
 					if (callCount === 1) {
@@ -94,19 +101,23 @@ describe("Retry Decorator", () => {
 				result.push(value)
 			}
 
-			const duration = Date.now() - startTime
-			duration.should.be.approximately(10, 10) // Allow 10ms variance
 			callCount.should.equal(2)
+			setTimeoutSpy.calledOnce.should.be.true
+			const [_, delay] = setTimeoutSpy.getCall(0).args
+			delay?.should.equal(0)
+
 			result.should.deepEqual(["success after retry"])
 		})
 
 		it("should respect retry-after header with Unix timestamp", async () => {
+			const setTimeoutSpy = sinon.spy(global, "setTimeout")
 			let callCount = 0
-			const startTime = Date.now()
-			const retryTimestamp = Math.floor(Date.now() / 1000) + 0.01 // 10ms in the future
+			const fixedDate = new Date("2010-01-01T00:00:00.000Z")
+			const retryTimestamp = Math.floor(fixedDate.getTime() / 1000) + 0.01 // 10ms in the future
+			const baseDelay = 1000
 
 			class TestClass {
-				@withRetry({ maxRetries: 2, baseDelay: 1000 }) // Use large baseDelay to ensure header takes precedence
+				@withRetry({ maxRetries: 2, baseDelay }) // Use large baseDelay to ensure header takes precedence
 				async *failMethod() {
 					callCount++
 					if (callCount === 1) {
@@ -125,17 +136,22 @@ describe("Retry Decorator", () => {
 				result.push(value)
 			}
 
-			const duration = Date.now() - startTime
-			duration.should.be.approximately(10, 10) // Allow 10ms variance
 			callCount.should.equal(2)
+
+			setTimeoutSpy.calledOnce.should.be.true
+			const [_, delay] = setTimeoutSpy.getCall(0).args
+			delay?.should.equal(fixedDate.getTime())
+
 			result.should.deepEqual(["success after retry"])
 		})
 
 		it("should use exponential backoff when no retry-after header", async () => {
+			const setTimeoutSpy = sinon.spy(global, "setTimeout")
 			let callCount = 0
-			const startTime = Date.now()
+			const baseDelay = 10
+
 			class TestClass {
-				@withRetry({ maxRetries: 2, baseDelay: 10, maxDelay: 100 })
+				@withRetry({ maxRetries: 2, baseDelay, maxDelay: 100 })
 				async *failMethod() {
 					callCount++
 					if (callCount === 1) {
@@ -153,18 +169,22 @@ describe("Retry Decorator", () => {
 				result.push(value)
 			}
 
-			const duration = Date.now() - startTime
-			// First retry should be after baseDelay (10ms)
-			duration.should.be.approximately(10, 10)
 			callCount.should.equal(2)
+			setTimeoutSpy.calledOnce.should.be.true
+			const [_, delay] = setTimeoutSpy.getCall(0).args
+			delay?.should.equal(baseDelay)
+
 			result.should.deepEqual(["success after retry"])
 		})
 
 		it("should respect maxDelay", async () => {
+			const setTimeoutSpy = sinon.spy(global, "setTimeout")
 			let callCount = 0
-			const startTime = Date.now()
+			const baseDelay = 50
+			const maxDelay = 10
+
 			class TestClass {
-				@withRetry({ maxRetries: 3, baseDelay: 50, maxDelay: 10 })
+				@withRetry({ maxRetries: 3, baseDelay, maxDelay })
 				async *failMethod() {
 					callCount++
 					if (callCount < 3) {
@@ -182,10 +202,11 @@ describe("Retry Decorator", () => {
 				result.push(value)
 			}
 
-			const duration = Date.now() - startTime
-			// Both retries should be capped at maxDelay (10ms each)
-			duration.should.be.approximately(20, 20)
 			callCount.should.equal(3)
+			setTimeoutSpy.calledOnce.should.be.true
+			const [_, delay] = setTimeoutSpy.getCall(0).args
+			delay?.should.equal(maxDelay)
+
 			result.should.deepEqual(["success after retries"])
 		})
 
