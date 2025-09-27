@@ -1,8 +1,8 @@
 import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shared/api"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
-import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
@@ -10,6 +10,8 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { DropdownContainer } from "../common/ModelSelector"
+import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
@@ -30,6 +32,89 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
+	const [modelSearchTerm, setModelSearchTerm] = useState("")
+	const dropdownRef = useRef<any>(null)
+	const lastPickedModelIdRef = useRef<string | null>(null)
+	const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+	const [activeIndex, setActiveIndex] = useState(-1)
+
+	// Local minimal preset + matcher (kept scoped to this file to avoid new shared files)
+	type OpenAICompatiblePresetLocal = {
+		provider: "openai"
+		defaults?: { openAiBaseUrl?: string }
+		apiKeyLabel?: string
+	}
+
+	const OPENAI_COMPATIBLE_PRESETS_LOCAL: Readonly<Record<string, OpenAICompatiblePresetLocal>> = {
+		portkey: {
+			provider: "openai",
+			defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" },
+			apiKeyLabel: "Your Portkey",
+		},
+	}
+
+	function matchPresetFromBaseUrlLocal(openAiBaseUrl?: string): string | null {
+		const base = (openAiBaseUrl || "").trim()
+		if (!base) {
+			return null
+		}
+		try {
+			const input = new URL(base)
+			const inputHost = input.hostname.toLowerCase()
+			const inputPath = input.pathname || "/"
+
+			for (const [key, preset] of Object.entries(OPENAI_COMPATIBLE_PRESETS_LOCAL)) {
+				const presetUrl = preset.defaults?.openAiBaseUrl
+				if (!presetUrl) {
+					continue
+				}
+				try {
+					const presetParsed = new URL(presetUrl)
+					const presetHost = presetParsed.hostname.toLowerCase()
+					const presetPath = presetParsed.pathname || "/"
+
+					const isSameHost = inputHost === presetHost
+					const isSubdomain = inputHost.endsWith(`.${presetHost}`)
+					const isPathCompatible = presetPath === "/" || inputPath.startsWith(presetPath)
+
+					if ((isSameHost || isSubdomain) && isPathCompatible) {
+						return key
+					}
+				} catch {
+					// ignore
+				}
+			}
+		} catch {
+			// ignore
+		}
+		return null
+	}
+
+	// Derive a friendlier API key label using local preset matcher
+	const apiKeyProviderName = useMemo(() => {
+		const key = matchPresetFromBaseUrlLocal(apiConfiguration?.openAiBaseUrl)
+		if (key && OPENAI_COMPATIBLE_PRESETS_LOCAL[key]?.apiKeyLabel) {
+			return OPENAI_COMPATIBLE_PRESETS_LOCAL[key].apiKeyLabel as string
+		}
+		return "OpenAI Compatible"
+	}, [apiConfiguration?.openAiBaseUrl])
+
+	// Keep suggestions visible while typing; reset on clear
+	useEffect(() => {
+		const hasQuery = (modelSearchTerm || "").trim().length > 0
+		setSuggestionsOpen(hasQuery)
+		setActiveIndex(-1)
+	}, [modelSearchTerm])
+
+	const selectAndApplyModel = useCallback(
+		(value: string) => {
+			lastPickedModelIdRef.current = value
+			setModelSearchTerm("")
+			setSuggestionsOpen(false)
+			handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
+		},
+		[currentMode, handleModeFieldChange],
+	)
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -39,6 +124,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
 	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+	const [availableModels, setAvailableModels] = useState<string[]>([])
 
 	useEffect(() => {
 		return () => {
@@ -60,12 +146,22 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						baseUrl,
 						apiKey,
 					}),
-				).catch((error) => {
-					console.error("Failed to refresh OpenAI models:", error)
-				})
+				)
+					.then((resp) => {
+						const fetched = resp?.values ?? []
+						setAvailableModels(fetched)
+					})
+					.catch((error) => {
+						console.error("Failed to refresh OpenAI models:", error)
+						setAvailableModels([])
+					})
 			}, 500)
+		} else {
+			setAvailableModels([])
 		}
 	}, [])
+
+	// (Manual entry branch removed) – searchable dropdown supports custom model IDs directly
 
 	return (
 		<div>
@@ -87,18 +183,191 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					handleFieldChange("openAiApiKey", value)
 					debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, value)
 				}}
-				providerName="OpenAI Compatible"
+				providerName={apiKeyProviderName}
 			/>
 
-			<DebouncedTextField
-				initialValue={selectedModelId || ""}
-				onChange={(value) =>
-					handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
-				}
-				placeholder={"Enter Model ID..."}
-				style={{ width: "100%", marginBottom: 10 }}>
-				<span style={{ fontWeight: 500 }}>Model ID</span>
-			</DebouncedTextField>
+			{/* Model ID */}
+			<div style={{ width: "100%", marginBottom: 10 }}>
+				<label htmlFor="openai-compatible-model-id">
+					<span style={{ fontWeight: 500 }}>Model ID</span>
+				</label>
+				{(() => {
+					const trimmed = modelSearchTerm.trim()
+					const filteredModels = trimmed
+						? availableModels.filter((m) => m.toLowerCase().includes(trimmed.toLowerCase()))
+						: availableModels
+					// Show custom option when there's no exact match (even if there are partial matches)
+					const showCustomOption =
+						trimmed.length > 0 && !availableModels.some((m) => m.toLowerCase() === trimmed.toLowerCase())
+					// Include the selected model at the top ONLY when there is no active search
+					let displayModels = filteredModels
+					if (trimmed === "") {
+						const pin = selectedModelId || lastPickedModelIdRef.current || ""
+						if (pin && !displayModels.includes(pin)) {
+							displayModels = [pin, ...displayModels]
+						}
+					}
+					// Prefer lastPicked immediately after selection (ensures instant visual update),
+					// otherwise clear selection during search and show selected when search is empty
+					const dropdownValue = lastPickedModelIdRef.current ?? (trimmed === "" ? selectedModelId || "" : "")
+					return (
+						<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 3}>
+							<VSCodeTextField
+								onInput={(e) => {
+									setModelSearchTerm((e.target as HTMLInputElement).value || "")
+									// Once user starts typing again, drop the last picked so the list resets to pure search
+									lastPickedModelIdRef.current = null
+								}}
+								onKeyDown={(e) => {
+									const trimmed = modelSearchTerm.trim()
+									const filteredModels = trimmed
+										? availableModels.filter((m) => m.toLowerCase().includes(trimmed.toLowerCase()))
+										: availableModels
+									const hasExact =
+										trimmed.length > 0 &&
+										availableModels.some((m) => m.toLowerCase() === trimmed.toLowerCase())
+									const showCustom = trimmed.length > 0 && !hasExact
+									const MAX_SUGGESTIONS = 30
+									const itemsForKeys = suggestionsOpen ? filteredModels.slice(0, MAX_SUGGESTIONS) : []
+									const total = itemsForKeys.length + (showCustom ? 1 : 0)
+									if (e.key === "ArrowDown" && suggestionsOpen && total > 0) {
+										e.preventDefault()
+										setActiveIndex((prev) => (prev + 1) % total)
+										return
+									}
+									if (e.key === "ArrowUp" && suggestionsOpen && total > 0) {
+										e.preventDefault()
+										setActiveIndex((prev) => (prev - 1 + total) % total)
+										return
+									}
+									if (e.key === "Enter" && suggestionsOpen && total > 0) {
+										e.preventDefault()
+										const idx = activeIndex >= 0 ? activeIndex : 0
+										if (idx < itemsForKeys.length) {
+											selectAndApplyModel(itemsForKeys[idx])
+										} else if (showCustom) {
+											selectAndApplyModel(trimmed)
+										}
+										return
+									}
+									if (e.key === "Escape" && suggestionsOpen) {
+										e.preventDefault()
+										setSuggestionsOpen(false)
+										return
+									}
+								}}
+								placeholder="Search models..."
+								style={{ width: "100%", marginBottom: 6 }}
+								value={modelSearchTerm}
+							/>
+							{/* Inline suggestions popover */}
+							{(() => {
+								if (!suggestionsOpen) {
+									return null
+								}
+								const trimmed = modelSearchTerm.trim()
+								const filteredModels = trimmed
+									? availableModels.filter((m) => m.toLowerCase().includes(trimmed.toLowerCase()))
+									: availableModels
+								const hasExact =
+									trimmed.length > 0 && availableModels.some((m) => m.toLowerCase() === trimmed.toLowerCase())
+								const showCustom = trimmed.length > 0 && !hasExact
+								const MAX_SUGGESTIONS = 30
+								const items = filteredModels.slice(0, MAX_SUGGESTIONS)
+								return (
+									<div
+										onWheel={(e) => {
+											const el = e.currentTarget
+											const delta = e.deltaY
+											const atTop = el.scrollTop === 0
+											const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1
+											if ((delta < 0 && atTop) || (delta > 0 && atBottom)) {
+												e.preventDefault()
+											}
+											e.stopPropagation()
+										}}
+										style={{
+											marginBottom: 6,
+											maxHeight: 200,
+											overflowY: "auto",
+											overscrollBehavior: "contain",
+											border: "1px solid var(--vscode-dropdown-border)",
+											borderRadius: 4,
+											background: "var(--vscode-dropdown-background)",
+											color: "var(--vscode-dropdown-foreground)",
+										}}>
+										{items.map((m, i) => (
+											<div
+												key={m}
+												onClick={() => selectAndApplyModel(m)}
+												onMouseDown={(e) => e.preventDefault()}
+												style={{
+													padding: "6px 8px",
+													cursor: "pointer",
+													background:
+														i === activeIndex
+															? "var(--vscode-list-activeSelectionBackground)"
+															: "transparent",
+												}}>
+												{m}
+											</div>
+										))}
+										{showCustom && (
+											<div
+												key={`__custom__${trimmed}`}
+												onClick={() => selectAndApplyModel(trimmed)}
+												onMouseDown={(e) => e.preventDefault()}
+												style={{
+													padding: "6px 8px",
+													cursor: "pointer",
+													background:
+														activeIndex === items.length
+															? "var(--vscode-list-activeSelectionBackground)"
+															: "transparent",
+													borderTop: items.length
+														? "1px solid var(--vscode-dropdown-border)"
+														: undefined,
+												}}>
+												Add Custom Model "{trimmed}"
+											</div>
+										)}
+									</div>
+								)
+							})()}
+							<VSCodeDropdown
+								id="openai-compatible-model-id"
+								key={`${selectedModelId || "empty"}-${availableModels.length}`}
+								onChange={(e: any) => {
+									const value = e.target.value
+									// Record picked value first for immediate visual feedback
+									lastPickedModelIdRef.current = value
+									// Clear search after selection to avoid stale filters
+									setModelSearchTerm("")
+									handleModeFieldChange(
+										{ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
+										value,
+										currentMode,
+									)
+								}}
+								ref={dropdownRef}
+								style={{ width: "100%", marginBottom: 10 }}
+								value={dropdownValue}>
+								<VSCodeOption value="">Select a model...</VSCodeOption>
+								{displayModels.map((m) => (
+									<VSCodeOption key={m} value={m}>
+										{m}
+									</VSCodeOption>
+								))}
+								{showCustomOption && (
+									<VSCodeOption key={`__custom__${trimmed}`} value={trimmed}>
+										Add Custom Model "{trimmed}"
+									</VSCodeOption>
+								)}
+							</VSCodeDropdown>
+						</DropdownContainer>
+					)
+				})()}
+			</div>
 
 			{/* OpenAI Compatible Custom Headers */}
 			{(() => {
@@ -119,8 +388,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							</VSCodeButton>
 						</div>
 						<div>
-							{headerEntries.map(([key, value], index) => (
-								<div key={index} style={{ display: "flex", gap: 5, marginTop: 5 }}>
+							{headerEntries.map(([key, value]) => (
+								<div key={key} style={{ display: "flex", gap: 5, marginTop: 5 }}>
 									<DebouncedTextField
 										initialValue={key}
 										onChange={(newValue) => {
@@ -207,21 +476,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							)
 						}}>
 						Supports Images
-					</VSCodeCheckbox>
-
-					<VSCodeCheckbox
-						checked={!!openAiModelInfo?.supportsImages}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-							modelInfo.supportsImages = isChecked
-							handleModeFieldChange(
-								{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
-								modelInfo,
-								currentMode,
-							)
-						}}>
-						Supports browser use
 					</VSCodeCheckbox>
 
 					<VSCodeCheckbox

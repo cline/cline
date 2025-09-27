@@ -46,6 +46,121 @@ import { VertexProvider } from "./providers/VertexProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
+
+// OpenAI-compatible provider presets (kept scoped to ApiOptions)
+type OpenAICompatiblePreset = {
+	provider: "openai"
+	defaults?: { openAiBaseUrl?: string }
+	apiKeyLabel?: string
+}
+
+const OPENAI_COMPATIBLE_PRESETS: Readonly<Record<string, OpenAICompatiblePreset>> = {
+	portkey: {
+		provider: "openai",
+		defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" },
+		apiKeyLabel: "Your Portkey",
+	},
+}
+
+// Determine which preset matches a given OpenAI-compatible base URL
+function matchPresetFromBaseUrl(openAiBaseUrl?: string): string | null {
+	const base = (openAiBaseUrl || "").trim()
+	if (!base) {
+		return null
+	}
+	try {
+		const input = new URL(base)
+		const inputHost = input.hostname.toLowerCase()
+		const inputPath = input.pathname || "/"
+
+		for (const [key, preset] of Object.entries(OPENAI_COMPATIBLE_PRESETS)) {
+			const presetUrl = preset.defaults?.openAiBaseUrl
+			if (!presetUrl) {
+				continue
+			}
+			try {
+				const presetParsed = new URL(presetUrl)
+				const presetHost = presetParsed.hostname.toLowerCase()
+				const presetPath = presetParsed.pathname || "/"
+
+				const isSameHost = inputHost === presetHost
+				const isSubdomain = inputHost.endsWith(`.${presetHost}`)
+				const isPathCompatible = presetPath === "/" || inputPath.startsWith(presetPath)
+
+				if ((isSameHost || isSubdomain) && isPathCompatible) {
+					return key
+				}
+			} catch {
+				// ignore invalid preset URL
+			}
+		}
+	} catch {
+		// ignore invalid input URL
+	}
+	return null
+}
+
+// Render highlighted label without using dangerouslySetInnerHTML
+function renderHighlightedLabel(html: string): JSX.Element[] {
+	const OPEN = '<span class="provider-item-highlight">'
+	const CLOSE = "</span>"
+	const nodes: JSX.Element[] = []
+	let i = 0
+	let key = 0
+
+	while (i < html.length) {
+		const start = html.indexOf(OPEN, i)
+		if (start === -1) {
+			const text = html.slice(i)
+			if (text) {
+				nodes.push(<span key={`t-${key++}`}>{text}</span>)
+			}
+			break
+		}
+		const pre = html.slice(i, start)
+		if (pre) {
+			nodes.push(<span key={`t-${key++}`}>{pre}</span>)
+		}
+
+		const end = html.indexOf(CLOSE, start + OPEN.length)
+		if (end === -1) {
+			const rest = html.slice(start)
+			if (rest) {
+				nodes.push(<span key={`t-${key++}`}>{rest}</span>)
+			}
+			break
+		}
+		const highlighted = html.slice(start + OPEN.length, end)
+		nodes.push(
+			<span className="provider-item-highlight" key={`h-${key++}`}>
+				{highlighted}
+			</span>,
+		)
+		i = end + CLOSE.length
+	}
+
+	return nodes
+}
+
+function mapOptionToProviderAndDefaults(optionValue: string): {
+	provider: string
+	defaults?: { openAiBaseUrl?: string }
+} {
+	const preset = OPENAI_COMPATIBLE_PRESETS[optionValue]
+	if (preset) {
+		return { provider: preset.provider, defaults: preset.defaults }
+	}
+	return { provider: optionValue }
+}
+
+function mapProviderToOption(provider: string, openAiBaseUrl?: string): string {
+	if (provider !== "openai") {
+		return provider
+	}
+	const matched = matchPresetFromBaseUrl(openAiBaseUrl)
+	return matched || provider
+}
+
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface ApiOptionsProps {
@@ -82,11 +197,11 @@ declare module "vscode" {
 
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup, currentMode }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, planActSeparateModelsSetting } = useExtensionState()
 
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
 
@@ -123,6 +238,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
+	const [lastChosenOption, setLastChosenOption] = useState<string | null>(null)
+
 	const providerOptions = useMemo(
 		() => [
 			{ value: "cline", label: "Cline" },
@@ -136,6 +253,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "openai-native", label: "OpenAI" },
 			{ value: "ollama", label: "Ollama" },
 			{ value: "vertex", label: "GCP Vertex AI" },
+			{ value: "portkey", label: "Portkey" },
 			{ value: "litellm", label: "LiteLLM" },
 			{ value: "claude-code", label: "Claude Code" },
 			{ value: "sapaicore", label: "SAP AI Core" },
@@ -166,8 +284,21 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	)
 
 	const currentProviderLabel = useMemo(() => {
-		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
-	}, [providerOptions, selectedProvider])
+		const mapped = mapProviderToOption(selectedProvider, apiConfiguration?.openAiBaseUrl)
+		const optionValue = lastChosenOption ?? mapped
+		return providerOptions.find((option) => option.value === optionValue)?.label || optionValue
+	}, [providerOptions, selectedProvider, apiConfiguration?.openAiBaseUrl, lastChosenOption])
+
+	// Clear temporary override once config matches last chosen option
+	useEffect(() => {
+		if (!lastChosenOption) {
+			return
+		}
+		const mapped = mapProviderToOption(selectedProvider, apiConfiguration?.openAiBaseUrl)
+		if (mapped === lastChosenOption) {
+			setLastChosenOption(null)
+		}
+	}, [selectedProvider, apiConfiguration?.openAiBaseUrl, lastChosenOption])
 
 	// Sync search term with current provider when not searching
 	useEffect(() => {
@@ -201,8 +332,34 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			: searchableItems
 	}, [searchableItems, searchTerm, fuse, currentProviderLabel])
 
-	const handleProviderChange = (newProvider: string) => {
-		handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, newProvider as any, currentMode)
+	const handleProviderChange = (newOptionValue: string) => {
+		const { provider: mappedProvider, defaults } = mapOptionToProviderAndDefaults(newOptionValue)
+
+		// Apply provider and preset defaults in a single atomic update to avoid race conditions
+		const updates: any = {}
+		if (planActSeparateModelsSetting) {
+			if (currentMode === "plan") {
+				updates.planModeApiProvider = mappedProvider
+			} else {
+				updates.actModeApiProvider = mappedProvider
+			}
+		} else {
+			updates.planModeApiProvider = mappedProvider
+			updates.actModeApiProvider = mappedProvider
+		}
+
+		if (defaults?.openAiBaseUrl) {
+			// Trim trailing slashes to keep a stable canonical form
+			updates.openAiBaseUrl = defaults.openAiBaseUrl.replace(/\/+$/, "")
+		}
+
+		handleFieldsChange(updates)
+
+		// Immediately reflect the chosen option label to avoid flicker
+		setLastChosenOption(newOptionValue)
+		const chosenLabel = providerOptions.find((o) => o.value === newOptionValue)?.label || newOptionValue
+		setSearchTerm(chosenLabel)
+
 		setIsDropdownVisible(false)
 		setSelectedIndex(-1)
 	}
@@ -331,7 +488,20 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						)}
 					</VSCodeTextField>
 					{isDropdownVisible && (
-						<ProviderDropdownList ref={dropdownListRef}>
+						<ProviderDropdownList
+							onWheel={(e) => {
+								const el = e.currentTarget
+								const delta = e.deltaY
+								const atTop = el.scrollTop === 0
+								const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1
+								// When the list is at its boundaries, prevent default to avoid scroll chaining
+								if ((delta < 0 && atTop) || (delta > 0 && atBottom)) {
+									e.preventDefault()
+								}
+								// Always stop propagation so parent containers don't react to wheel
+								e.stopPropagation()
+							}}
+							ref={dropdownListRef}>
 							{providerSearchResults.map((item, index) => (
 								<ProviderDropdownItem
 									data-testid={`provider-option-${item.value}`}
@@ -339,8 +509,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									key={item.value}
 									onClick={() => handleProviderChange(item.value)}
 									onMouseEnter={() => setSelectedIndex(index)}
-									ref={(el) => (itemRefs.current[index] = el)}>
-									<span dangerouslySetInnerHTML={{ __html: item.html }} />
+									ref={(el) => {
+										itemRefs.current[index] = el
+									}}>
+									{renderHighlightedLabel(item.html)}
 								</ProviderDropdownItem>
 							))}
 						</ProviderDropdownList>
@@ -524,6 +696,7 @@ const ProviderDropdownList = styled.div`
 	width: calc(100% - 2px);
 	max-height: 200px;
 	overflow-y: auto;
+	overscroll-behavior: contain;
 	background-color: var(--vscode-dropdown-background);
 	border: 1px solid var(--vscode-list-activeSelectionBackground);
 	z-index: ${DROPDOWN_Z_INDEX - 1};
