@@ -41,7 +41,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 	}
 
 	const isValidExtension = (ext: string): boolean => {
-		return ext === "" || ext === ".md" || ext === ".txt"
+		return ext === "" || ext === ".md" || ext === ".txt" || ext === ".xml"
 	}
 
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -52,7 +52,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 			const extension = getExtension(trimmedFilename)
 
 			if (!isValidExtension(extension)) {
-				setError("Only .md, .txt, or no file extension allowed")
+				setError("Only .md, .txt, .xml or no file extension allowed")
 				return
 			}
 
@@ -103,8 +103,8 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 							onKeyDown={handleKeyDown}
 							placeholder={
 								ruleType === "workflow"
-									? "workflow-name (.md, .txt, or no extension)"
-									: "rule-name (.md, .txt, or no extension)"
+									? "workflow-name (.md, .txt, .xml or no extension)"
+									: "rule-name (.md, .txt, .xml or no extension)"
 							}
 							ref={inputRef}
 							style={{
