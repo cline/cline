@@ -122,6 +122,21 @@ export class OpenRouterHandler implements ApiHandler {
 				}
 			}
 
+			// OpenRouter passes reasoning details that we can pass back unmodified in api requests to preserve reasoning traces for model
+			// See: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks
+			if (
+				"reasoning_details" in delta &&
+				delta.reasoning_details &&
+				// @ts-ignore-next-line
+				delta.reasoning_details.length && // exists and non-0
+				!shouldSkipReasoningForModel(this.options.openRouterModelId)
+			) {
+				yield {
+					type: "reasoning_details",
+					reasoning_details: delta.reasoning_details,
+				}
+			}
+
 			if (!didOutputUsage && chunk.usage) {
 				yield {
 					type: "usage",
