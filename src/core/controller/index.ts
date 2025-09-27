@@ -129,10 +129,6 @@ export class Controller {
 		})
 	}
 
-	async getCurrentMode(): Promise<Mode> {
-		return this.stateManager.getGlobalSettingsKey("mode")
-	}
-
 	/*
 	VSCode extensions use the disposable pattern to clean up resources when the sidebar/editor tab is closed by the user or system. This applies to event listening, commands, interacting with the UI, etc.
 	- https://vscode-docs.readthedocs.io/en/stable/extensions/patterns-and-principles/
@@ -370,7 +366,7 @@ export class Controller {
 			// Get current settings to determine how to update providers
 			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 
-			const currentMode = await this.getCurrentMode()
+			const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 
 			// Get current API configuration from cache
 			const currentApiConfiguration = this.stateManager.getApiConfiguration()
@@ -421,7 +417,7 @@ export class Controller {
 			// Get current settings to determine how to update providers
 			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 
-			const currentMode = await this.getCurrentMode()
+			const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 
 			// Get current API configuration from cache
 			const currentApiConfiguration = this.stateManager.getApiConfiguration()
@@ -578,7 +574,7 @@ export class Controller {
 		}
 
 		const openrouter: ApiProvider = "openrouter"
-		const currentMode = await this.getCurrentMode()
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 
 		// Update API configuration through cache service
 		const currentApiConfiguration = this.stateManager.getApiConfiguration()
