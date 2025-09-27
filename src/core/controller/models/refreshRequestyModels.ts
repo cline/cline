@@ -24,7 +24,11 @@ export async function refreshRequestyModels(controller: Controller, _: EmptyRequ
 		const baseUrl = controller.stateManager.getGlobalSettingsKey("requestyBaseUrl")
 
 		const resolvedUrl = toRequestyServiceUrl(baseUrl)
-		const url = new URL(`${resolvedUrl.pathname}/models`, resolvedUrl).toString()
+		const url = resolvedUrl != null ? new URL(`${resolvedUrl.pathname}/models`, resolvedUrl).toString() : undefined
+
+		if (url == null) {
+			throw new Error("URL is not valid.")
+		}
 
 		const headers = {
 			Authorization: `Bearer ${apiKey}`,
