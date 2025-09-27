@@ -30,6 +30,7 @@ import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
+import { secretStorage } from "./core/storage/secrets"
 import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
@@ -54,6 +55,8 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
 	setupHostProvider(context)
+
+	secretStorage.init(context.secrets)
 
 	const sidebarWebview = (await initialize(context)) as VscodeWebviewProvider
 

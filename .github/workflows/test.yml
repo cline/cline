@@ -87,8 +87,11 @@ jobs:
               run: npm run format
 
             # Build the extension before running tests
-            - name: Build Tests and Extension
-              run: npm run pretest
+            - name: Build Tests and Extension (skip standalone packaging)
+              run: |
+                  npm run compile
+                  npm run compile-tests
+                  npm run lint
 
             - name: Unit Tests (with coverage on Linux)
               run: |

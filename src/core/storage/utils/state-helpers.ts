@@ -8,6 +8,7 @@ import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@/shared/Dictatio
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@/shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@/shared/McpDisplayMode"
 import { OpenaiReasoningEffort } from "@/shared/storage/types"
+
 import { readTaskHistoryFromState } from "../disk"
 import { GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "../state-keys"
 export async function readSecretsFromDisk(context: ExtensionContext): Promise<Secrets> {
