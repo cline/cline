@@ -25,11 +25,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	constructor(private validator: ToolValidator) {}
 
 	getDescription(block: ToolUse): string {
-		return `[${block.name} for '${block.params.path}']`
+		return `[${block.name} for '${block.params.path || block.params.absolutePath}']`
 	}
 
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const rawRelPath = block.params.path
+		const rawRelPath = block.params.path || block.params.absolutePath
 		const rawContent = block.params.content // for write_to_file
 		const rawDiff = block.params.diff // for replace_in_file
 
@@ -53,7 +53,10 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			// Create and show partial UI message
 			const sharedMessageProps: ClineSayTool = {
 				tool: fileExists ? "editedExistingFile" : "newFileCreated",
-				path: getReadablePath(config.cwd, uiHelpers.removeClosingTag(block, "path", relPath)),
+				path: getReadablePath(
+					config.cwd,
+					uiHelpers.removeClosingTag(block, block.params.path ? "path" : "absolutePath", relPath),
+				),
 				content: diff || content,
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 			}
@@ -84,7 +87,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		const rawRelPath = block.params.path
+		const rawRelPath = block.params.path || block.params.absolutePath
 		const rawContent = block.params.content // for write_to_file
 		const rawDiff = block.params.diff // for replace_in_file
 

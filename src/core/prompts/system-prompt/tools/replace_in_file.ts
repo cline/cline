@@ -56,10 +56,10 @@ const GPT_5: ClineToolSpec = {
 	id,
 	name: "replace_in_file",
 	description:
-		"Request to replace sections of content in an existing file using SEARCH/REPLACE blocks that define exact changes to specific parts of the file. This tool should be used when you need to make targeted changes to specific parts of a file.",
+		"[IMPORTANT: Always output the absolutePath first] Request to replace sections of content in an existing file using SEARCH/REPLACE blocks that define exact changes to specific parts of the file. This tool should be used when you need to make targeted changes to specific parts of a file.",
 	parameters: [
 		{
-			name: "path",
+			name: "absolutePath",
 			required: true,
 			instruction: "The absolute path to the file to write to.",
 		},

@@ -147,6 +147,15 @@ export class StreamingToolCallHandler {
 				console.log("Previously yielded text:", pendingCall.yieldedText)
 			}
 
+			// First, try to detect and stream partial parameters before complete JSON parsing
+			const streamingContent = this.extractStreamingContent(pendingCall)
+			if (streamingContent) {
+				newText += streamingContent
+				if (this.debug) {
+					console.log("Yielding streaming content:", streamingContent)
+				}
+			}
+
 			try {
 				// Try to parse the current arguments as JSON
 				const parsedArgs = JSON.parse(pendingCall.arguments)
@@ -158,7 +167,12 @@ export class StreamingToolCallHandler {
 				let fullParamsXml = ""
 				for (const [key, value] of Object.entries(parsedArgs)) {
 					if (value !== undefined && value !== null) {
-						fullParamsXml += `<${key}>${value}</${key}>\n`
+						// Unescape JSON string values if they are strings
+						const unescapedValue =
+							typeof value === "string"
+								? value.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\")
+								: value
+						fullParamsXml += `<${key}>${unescapedValue}</${key}>\n`
 					}
 				}
 
@@ -212,7 +226,9 @@ export class StreamingToolCallHandler {
 					const keyValueMatch = match.match(/"(\w+)"\s*:\s*"([^"]*)"/)
 					if (keyValueMatch) {
 						const [, key, value] = keyValueMatch
-						partialXmlContent += `<${key}>${value}</${key}>\n`
+						// Unescape JSON string values
+						const unescapedValue = value.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\")
+						partialXmlContent += `<${key}>${unescapedValue}</${key}>\n`
 					}
 				}
 
@@ -250,6 +266,129 @@ export class StreamingToolCallHandler {
 		return newText
 	}
 
+	private extractStreamingContent(pendingCall: PendingToolCall): string {
+		const currentArgs = pendingCall.arguments
+		let newContent = ""
+
+		// Track what we've already yielded to avoid duplicates
+		const alreadyYielded = pendingCall.yieldedText
+
+		// Look for parameter names that are starting to be defined
+		// Pattern: "paramName": followed by opening quote for string values
+		const paramStartPattern = /"(\w+)"\s*:\s*"/g
+		let match
+		const foundParams = new Set<string>()
+
+		match = paramStartPattern.exec(currentArgs)
+		while (match !== null) {
+			const paramName = match[1]
+			foundParams.add(paramName)
+
+			// Check if we've already yielded an opening tag for this parameter
+			const paramOpenTag = `<${paramName}>`
+			if (!alreadyYielded.includes(paramOpenTag)) {
+				newContent += paramOpenTag
+				if (this.debug) {
+					console.log(`Starting to stream parameter: ${paramName}`)
+				}
+			}
+			match = paramStartPattern.exec(currentArgs)
+		}
+
+		// For each parameter that has started, try to extract and stream its content
+		for (const paramName of foundParams) {
+			const paramContentMatch = currentArgs.match(new RegExp(`"${paramName}"\\s*:\\s*"([^"]*(?:\\\\.[^"]*)*)"`, "s"))
+			if (paramContentMatch) {
+				const content = paramContentMatch[1]
+				// Unescape the JSON string content
+				const unescapedContent = content.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\")
+
+				const expectedParamXml = `<${paramName}>${unescapedContent}</${paramName}>\n`
+				const paramOpenTag = `<${paramName}>`
+
+				// If we have the opening tag in yielded text but not the complete param
+				if (alreadyYielded.includes(paramOpenTag) && !alreadyYielded.includes(expectedParamXml)) {
+					// Find where this parameter's content should be in the yielded text
+					const paramStart = alreadyYielded.indexOf(paramOpenTag)
+					if (paramStart !== -1) {
+						const afterOpenTag = paramStart + paramOpenTag.length
+						const alreadyYieldedParamContent = alreadyYielded.slice(afterOpenTag)
+
+						// Check if the content has grown
+						if (unescapedContent.length > alreadyYieldedParamContent.length - `</${paramName}>\n`.length) {
+							// Stream the new part of the content
+							const currentParamEndInYielded = alreadyYieldedParamContent.indexOf(`</${paramName}>`)
+							let alreadyStreamedContent = ""
+							if (currentParamEndInYielded !== -1) {
+								alreadyStreamedContent = alreadyYieldedParamContent.slice(0, currentParamEndInYielded)
+							} else {
+								// No closing tag yet, so all content after opening tag is already streamed content
+								alreadyStreamedContent = alreadyYieldedParamContent.replace(/\n$/, "")
+							}
+
+							if (unescapedContent.startsWith(alreadyStreamedContent)) {
+								const newPartContent = unescapedContent.slice(alreadyStreamedContent.length)
+								if (newPartContent) {
+									newContent += newPartContent
+									if (this.debug) {
+										console.log(`Streaming new content for ${paramName}: "${newPartContent}"`)
+									}
+								}
+							}
+						}
+					}
+				}
+			} else {
+				// Parameter started but no complete content yet - look for partial content
+				const partialMatch = currentArgs.match(new RegExp(`"${paramName}"\\s*:\\s*"([^"]*)`))
+				if (partialMatch) {
+					const partialContent = partialMatch[1]
+					// Unescape the partial content
+					const unescapedPartial = partialContent.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\")
+
+					const paramOpenTag = `<${paramName}>`
+
+					// If we have the opening tag but haven't streamed this content yet
+					if (alreadyYielded.includes(paramOpenTag)) {
+						const paramStart = alreadyYielded.indexOf(paramOpenTag)
+						const afterOpenTag = paramStart + paramOpenTag.length
+						const alreadyYieldedParamContent = alreadyYielded.slice(afterOpenTag)
+
+						// Extract already streamed content for this parameter
+						const currentParamEndInYielded = alreadyYieldedParamContent.indexOf(`</${paramName}>`)
+						let alreadyStreamedContent = ""
+						if (currentParamEndInYielded !== -1) {
+							alreadyStreamedContent = alreadyYieldedParamContent.slice(0, currentParamEndInYielded)
+						} else {
+							alreadyStreamedContent = alreadyYieldedParamContent.replace(/\n$/, "")
+						}
+
+						// Stream new partial content
+						if (
+							unescapedPartial.length > alreadyStreamedContent.length &&
+							unescapedPartial.startsWith(alreadyStreamedContent)
+						) {
+							const newPartContent = unescapedPartial.slice(alreadyStreamedContent.length)
+							if (newPartContent) {
+								newContent += newPartContent
+								if (this.debug) {
+									console.log(`Streaming partial content for ${paramName}: "${newPartContent}"`)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Update the yielded text with the new content
+		if (newContent) {
+			pendingCall.yieldedText += newContent
+		}
+
+		return newContent
+	}
+
 	private finalizeToolXml(pendingCall: PendingToolCall): string {
 		if (this.debug) {
 			console.log("Finalizing tool XML for:", pendingCall.name)
@@ -268,7 +407,7 @@ export class StreamingToolCallHandler {
 		// Try to parse the final JSON and yield any remaining parameters
 		if (pendingCall.arguments) {
 			try {
-				const parsedArgs = JSON.parse(pendingCall.arguments)
+				const parsedArgs = JSON.parse(JSON.stringify(pendingCall.arguments))
 				if (this.debug) {
 					console.log("Final JSON parse successful:", parsedArgs)
 				}

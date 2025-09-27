@@ -13,6 +13,7 @@ export const toolParamNames = [
 	"command",
 	"requires_approval",
 	"path",
+	"absolutePath",
 	"content",
 	"diff",
 	"regex",
