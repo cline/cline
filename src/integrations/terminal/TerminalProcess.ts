@@ -24,8 +24,76 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private lastRetrievedIndex: number = 0
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
+	private shellPath?: string
+
+	/**
+	 * Set the shell path for this terminal process
+	 */
+	public setShellPath(shellPath?: string): void {
+		this.shellPath = shellPath
+	}
+
+	/**
+	 * Detect shell from environment variables as a fallback
+	 */
+	private detectShellFromEnvironment(): string | undefined {
+		// Try to detect shell from environment variables
+		if (process.platform === "win32") {
+			// On Windows, check COMSPEC
+			return process.env.COMSPEC || undefined
+		} else {
+			// On Unix-like systems, check SHELL
+			return process.env.SHELL || undefined
+		}
+	}
+
+	/**
+	 * Extract a normalized shell name from the shell path
+	 */
+	private extractShellName(shellPath?: string): string {
+		if (!shellPath) return "unknown"
+
+		// Extract just the filename from the path
+		const pathParts = shellPath.split(/[/\\]/)
+		const shellName = pathParts[pathParts.length - 1].toLowerCase()
+
+		// Normalize common variations
+		// Order matters: check more specific names before generic ones
+		if (shellName.includes("pwsh")) return "powershell-7"
+		if (shellName.includes("powershell")) return "powershell"
+		if (shellName.includes("bash")) return "bash"
+		if (shellName.includes("zsh")) return "zsh"
+		if (shellName.includes("fish")) return "fish"
+		if (shellName.includes("dash")) return "dash"
+		if (shellName.includes("tcsh")) return "tcsh"
+		if (shellName.includes("ksh")) return "ksh"
+		if (shellName.includes("csh")) return "csh" // Check 'csh' before 'sh'
+		if (shellName.includes("cmd")) return "cmd"
+		if (shellName.includes("sh")) return "sh" // Check 'sh' last as it's a substring of many shells
+
+		// Remove .exe extension on Windows
+		return shellName.replace(/\.exe$/, "")
+	}
 
 	async run(terminal: vscode.Terminal, command: string) {
+		// Get the actual shell that VSCode is using for this terminal
+		// First try shellPath (set from TerminalInfo), then try to get from terminal.creationOptions
+		let shellPathToUse = this.shellPath
+
+		// If shellPath not set, try to get the actual shell from the terminal's creation options
+		if (!shellPathToUse && terminal.creationOptions) {
+			const options = terminal.creationOptions as any
+			// VSCode stores the shell path in creationOptions
+			shellPathToUse = options.shellPath || options.shellArgs?.shell
+		}
+
+		// Final fallback to environment if we still don't have it
+		if (!shellPathToUse) {
+			shellPathToUse = this.detectShellFromEnvironment()
+		}
+
+		const shellName = this.extractShellName(shellPathToUse)
+
 		// When command does not produce any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
 		const returnCurrentTerminalContents = async () => {
 			try {
@@ -192,18 +260,18 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			// the command process is finished, let's check the output to see if we need to use the terminal capture fallback
 			if (!this.fullOutput.trim()) {
 				// No output captured via shell integration, trying fallback
-				telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.TIMEOUT)
+				telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.TIMEOUT, shellName)
 				await returnCurrentTerminalContents()
 				// Check if fallback worked
 				const terminalSnapshot = await getLatestTerminalOutput()
 				if (terminalSnapshot && terminalSnapshot.trim()) {
-					telemetryService.captureTerminalExecution(true, "clipboard")
+					telemetryService.captureTerminalExecution(true, "clipboard", shellName)
 				} else {
-					telemetryService.captureTerminalExecution(false, "none")
+					telemetryService.captureTerminalExecution(false, "none", shellName)
 				}
 			} else {
 				// Shell integration worked
-				telemetryService.captureTerminalExecution(true, "shell_integration")
+				telemetryService.captureTerminalExecution(true, "shell_integration", shellName)
 			}
 
 			// for now we don't want this delaying requests since we don't send diagnostics automatically anymore (previous: "even though the command is finished, we still want to consider it 'hot' in case so that api request stalls to let diagnostics catch up")
@@ -217,7 +285,7 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			this.emit("continue")
 		} else {
 			// no shell integration detected, we'll fallback to running the command and capturing the terminal's output after some time
-			telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.NO_SHELL_INTEGRATION)
+			telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.NO_SHELL_INTEGRATION, shellName)
 			terminal.sendText(command, true)
 
 			// wait 3 seconds for the command to run
@@ -228,9 +296,9 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 			// Check if clipboard fallback worked
 			const terminalSnapshot = await getLatestTerminalOutput()
 			if (terminalSnapshot && terminalSnapshot.trim()) {
-				telemetryService.captureTerminalExecution(true, "clipboard")
+				telemetryService.captureTerminalExecution(true, "clipboard", shellName)
 			} else {
-				telemetryService.captureTerminalExecution(false, "none")
+				telemetryService.captureTerminalExecution(false, "none", shellName)
 			}
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay

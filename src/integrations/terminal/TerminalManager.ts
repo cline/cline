@@ -162,6 +162,10 @@ export class TerminalManager {
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 		const process = new TerminalProcess()
+
+		// Pass the shell path to the process for telemetry
+		process.setShellPath(terminalInfo.shellPath)
+
 		this.processes.set(terminalInfo.id, process)
 
 		process.once("completed", () => {
