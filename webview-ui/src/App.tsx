@@ -1,4 +1,5 @@
 import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
+import { Buffer } from "buffer"
 import { useEffect } from "react"
 import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
@@ -12,6 +13,11 @@ import { Providers } from "./Providers"
 import { UiServiceClient } from "./services/grpc-client"
 
 const AppContent = () => {
+	// Ensure Buffer exists in the webview (browser) environment for generated proto code
+	// Some generated message helpers use Buffer.alloc/from. VS Code webviews don't have Node's Buffer by default.
+	if (typeof (globalThis as any).Buffer === "undefined") {
+		;(globalThis as any).Buffer = Buffer
+	}
 	const {
 		didHydrateState,
 		showWelcome,

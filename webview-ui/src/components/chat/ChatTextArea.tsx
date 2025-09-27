@@ -2,12 +2,19 @@ import { cn } from "@heroui/react"
 import { PulsingBorder } from "@paper-design/shaders-react"
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import { FileSearchRequest, FileSearchType, RelativePathsRequest } from "@shared/proto/cline/file"
+import {
+	FileSearchRequest,
+	FileSearchType,
+	RelativePathsRequest,
+	type UploadedFile,
+	UploadFilesRequest,
+} from "@shared/proto/cline/file"
 import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import { convertApiConfigurationToProto } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { Buffer } from "buffer"
 import { AtSignIcon, PlusIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
@@ -1216,21 +1223,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			setIsDraggingOver(true)
 
 			// Check if files are being dragged
-			if (e.dataTransfer.types.includes("Files")) {
-				// Check if any of the files are not images
-				const items = Array.from(e.dataTransfer.items)
-				const hasNonImageFile = items.some((item) => {
-					if (item.kind === "file") {
-						const type = item.type.split("/")[0]
-						return type !== "image"
-					}
-					return false
-				})
-
-				if (hasNonImageFile) {
-					showUnsupportedFileErrorMessage()
-				}
-			}
+			// If files are being dragged, do not show an error overlay anymore; we support non-image uploads on drop
 		}
 		/**
 		 * Handles the drag over event to allow dropping.
@@ -1338,7 +1331,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return
 			}
 
-			// --- 3. Image Drop Handling ---
+			// --- 3. File Drop Handling ---
 			// Only proceed if it wasn't a VSCode resource or plain text drop
 			const files = Array.from(e.dataTransfer.files)
 			const acceptedTypes = ["png", "jpeg", "webp"]
@@ -1347,23 +1340,64 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				return type === "image" && acceptedTypes.includes(subtype)
 			})
 
-			if (shouldDisableFilesAndImages || imageFiles.length === 0) {
-				return
+			// Handle images (respecting per-message limit)
+			if (!shouldDisableFilesAndImages && imageFiles.length > 0) {
+				const imageDataArray = await readImageFiles(imageFiles)
+				const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
+
+				if (dataUrls.length > 0) {
+					const filesAndImagesLength = selectedImages.length + selectedFiles.length
+					const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - filesAndImagesLength
+
+					if (availableSlots > 0) {
+						const imagesToAdd = Math.min(dataUrls.length, availableSlots)
+						setSelectedImages((prevImages) => [...prevImages, ...dataUrls.slice(0, imagesToAdd)])
+					}
+				} else {
+					console.warn("No valid images were processed")
+				}
 			}
 
-			const imageDataArray = await readImageFiles(imageFiles)
-			const dataUrls = imageDataArray.filter((dataUrl): dataUrl is string => dataUrl !== null)
+			// Handle non-image files by uploading them via gRPC and logging saved locations
+			const nonImageFiles = files.filter((file) => {
+				const [type] = (file.type || "").split("/")
+				return type !== "image"
+			})
 
-			if (dataUrls.length > 0) {
-				const filesAndImagesLength = selectedImages.length + selectedFiles.length
-				const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - filesAndImagesLength
+			if (nonImageFiles.length > 0) {
+				try {
+					// Read file contents into UploadedFile[]
+					const uploadedFiles: UploadedFile[] = await Promise.all(
+						nonImageFiles.map(async (file) => {
+							const buffer = await file.arrayBuffer()
+							return {
+								filename: file.name,
+								mimeType: file.type || "application/octet-stream",
+								content: Buffer.from(buffer),
+								suggestedPath: undefined,
+							}
+						}),
+					)
 
-				if (availableSlots > 0) {
-					const imagesToAdd = Math.min(dataUrls.length, availableSlots)
-					setSelectedImages((prevImages) => [...prevImages, ...dataUrls.slice(0, imagesToAdd)])
+					const response = await FileServiceClient.uploadFiles(
+						UploadFilesRequest.create({ files: uploadedFiles, overwrite: true }),
+					)
+
+					if (response?.savedPaths?.length) {
+						console.log("Uploaded file(s). Saved attachment path(s):", response.savedPaths)
+						// Visually indicate attached files by adding them to selectedFiles (like images)
+						const filesAndImagesLength = selectedImages.length + selectedFiles.length
+						const availableSlots = Math.max(0, MAX_IMAGES_AND_FILES_PER_MESSAGE - filesAndImagesLength)
+						if (availableSlots > 0) {
+							const filesToAdd = response.savedPaths.slice(0, availableSlots)
+							setSelectedFiles((prev) => [...prev, ...filesToAdd])
+						}
+					} else {
+						console.log("File(s) uploaded, but no saved paths returned by server.")
+					}
+				} catch (err) {
+					console.error("Error uploading dropped file(s):", err)
 				}
-			} else {
-				console.warn("No valid images were processed")
 			}
 		}
 
@@ -1428,6 +1462,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		return (
 			<div>
 				<div
+
+					data-testid="chat-dropzone"
 					className="relative flex transition-colors ease-in-out duration-100 px-3.5 py-2.5"
 					onDragEnter={handleDragEnter}
 					onDragLeave={handleDragLeave}
