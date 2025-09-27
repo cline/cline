@@ -1,7 +1,7 @@
 /**
- * Tests for the abstracted telemetry system
- * This demonstrates how easy it is to switch between providers
- * and validates the NoOpTelemetryProvider functionality
+ * Tests for the abstracted multi-provider telemetry system
+ * This demonstrates the multi-provider architecture that supports dual tracking,
+ * validates provider switching capabilities, and ensures NoOpTelemetryProvider functionality
  */
 
 import * as assert from "assert"
@@ -48,7 +48,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const logSpy = sinon.spy(noOpProvider, "log")
 			const identifyUserSpy = sinon.spy(noOpProvider, "identifyUser")
 
-			const telemetryService = new TelemetryService(noOpProvider, MOCK_METADATA)
+			const telemetryService = new TelemetryService([noOpProvider], MOCK_METADATA)
 
 			// Reset the spy to ignore the initial telemetry event from constructor
 			logSpy.resetHistory()
@@ -88,6 +88,69 @@ describe("Telemetry system is abstracted and can easily switch between providers
 
 			await noOpProvider.dispose()
 		})
+
+		it("should support multi-provider telemetry for dual tracking", async () => {
+			// Create multiple providers for dual tracking scenario
+			const noOpProvider1 = await TelemetryProviderFactory.createProvider({
+				type: "no-op",
+			})
+			const noOpProvider2 = await TelemetryProviderFactory.createProvider({
+				type: "no-op",
+			})
+
+			// Spy on both providers to verify they both receive events
+			const logSpy1 = sinon.spy(noOpProvider1, "log")
+			const logSpy2 = sinon.spy(noOpProvider2, "log")
+			const identifyUserSpy1 = sinon.spy(noOpProvider1, "identifyUser")
+			const identifyUserSpy2 = sinon.spy(noOpProvider2, "identifyUser")
+
+			// Create TelemetryService with multiple providers
+			const telemetryService = new TelemetryService([noOpProvider1, noOpProvider2], MOCK_METADATA)
+
+			// Reset spies to ignore constructor events
+			logSpy1.resetHistory()
+			logSpy2.resetHistory()
+
+			// Test that events are sent to both providers
+			telemetryService.captureTaskCreated("multi-task-123", "anthropic")
+
+			// Verify both providers received the event
+			assert.ok(logSpy1.calledOnce, "First provider should receive the event")
+			assert.ok(logSpy2.calledOnce, "Second provider should receive the event")
+
+			// Verify event content is correct for both providers
+			const [eventName1, properties1] = logSpy1.firstCall.args
+			const [eventName2, properties2] = logSpy2.firstCall.args
+
+			assert.strictEqual(eventName1, "task.created", "First provider should receive correct event name")
+			assert.strictEqual(eventName2, "task.created", "Second provider should receive correct event name")
+
+			const expectedProperties = {
+				ulid: "multi-task-123",
+				apiProvider: "anthropic",
+				...MOCK_METADATA,
+			}
+			assert.deepStrictEqual(properties1, expectedProperties, "First provider should receive correct properties")
+			assert.deepStrictEqual(properties2, expectedProperties, "Second provider should receive correct properties")
+
+			// Test user identification with multiple providers
+			telemetryService.identifyAccount(MOCK_USER_INFO)
+
+			assert.ok(identifyUserSpy1.calledOnce, "First provider should receive user identification")
+			assert.ok(identifyUserSpy2.calledOnce, "Second provider should receive user identification")
+
+			// Verify provider count
+			const providers = telemetryService.getProviders()
+			assert.strictEqual(providers.length, 2, "Should have exactly 2 providers")
+
+			// Cleanup
+			logSpy1.restore()
+			logSpy2.restore()
+			identifyUserSpy1.restore()
+			identifyUserSpy2.restore()
+			await noOpProvider1.dispose()
+			await noOpProvider2.dispose()
+		})
 	})
 	describe("PostHog Provider", () => {
 		it("should create PostHog provider and track events", async () => {
@@ -96,7 +159,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 				type: "posthog",
 			})
 
-			const posthogTelemetryService = new TelemetryService(posthogProvider, MOCK_METADATA)
+			const posthogTelemetryService = new TelemetryService([posthogProvider], MOCK_METADATA)
 
 			// Test various telemetry methods
 			posthogTelemetryService.captureTaskCreated("task-123", "anthropic")
@@ -127,7 +190,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 				type: "no-op",
 			})
 
-			const noOpTelemetryService = new TelemetryService(noOpProvider, MOCK_METADATA)
+			const noOpTelemetryService = new TelemetryService([noOpProvider], MOCK_METADATA)
 
 			// Test various telemetry methods - should all be no-ops
 			noOpTelemetryService.captureTaskCreated("task-789", "google")
@@ -190,7 +253,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			)
 
 			// Should handle all operations safely
-			const telemetryService = new TelemetryService(unsupportedProvider, MOCK_METADATA)
+			const telemetryService = new TelemetryService([unsupportedProvider], MOCK_METADATA)
 			telemetryService.captureTaskCreated("task-456", "test")
 			telemetryService.identifyAccount(MOCK_USER_INFO)
 
@@ -224,7 +287,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const posthogProvider = await TelemetryProviderFactory.createProvider({
 				type: "posthog",
 			})
-			let telemetryService = new TelemetryService(posthogProvider, MOCK_METADATA)
+			let telemetryService = new TelemetryService([posthogProvider], MOCK_METADATA)
 
 			telemetryService.captureTaskCreated("task-switch-1", "anthropic")
 			console.log("Captured event with PostHog provider")
@@ -235,7 +298,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const noOpProvider = await TelemetryProviderFactory.createProvider({
 				type: "no-op",
 			})
-			telemetryService = new TelemetryService(noOpProvider, MOCK_METADATA)
+			telemetryService = new TelemetryService([noOpProvider], MOCK_METADATA)
 
 			telemetryService.captureTaskCreated("task-switch-2", "openai")
 			console.log("Captured event with No-Op provider")

@@ -1,7 +1,11 @@
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import dotenv from "dotenv"
 import * as esbuild from "esbuild"
+
+// Load environment variables from .env file for development
+dotenv.config()
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -138,6 +142,19 @@ if (process.env.TELEMETRY_SERVICE_API_KEY) {
 }
 if (process.env.ERROR_SERVICE_API_KEY) {
 	buildEnvVars["process.env.ERROR_SERVICE_API_KEY"] = JSON.stringify(process.env.ERROR_SERVICE_API_KEY)
+}
+
+if (process.env.JITSU_WRITE_KEY) {
+	buildEnvVars["process.env.JITSU_WRITE_KEY"] = JSON.stringify(process.env.JITSU_WRITE_KEY)
+}
+if (process.env.JITSU_HOST) {
+	buildEnvVars["process.env.JITSU_HOST"] = JSON.stringify(process.env.JITSU_HOST)
+}
+if (process.env.JITSU_ENABLED) {
+	buildEnvVars["process.env.JITSU_ENABLED"] = JSON.stringify(process.env.JITSU_ENABLED)
+}
+if (process.env.POSTHOG_TELEMETRY_ENABLED) {
+	buildEnvVars["process.env.POSTHOG_TELEMETRY_ENABLED"] = JSON.stringify(process.env.POSTHOG_TELEMETRY_ENABLED)
 }
 // Base configuration shared between extension and standalone builds
 const baseConfig = {
