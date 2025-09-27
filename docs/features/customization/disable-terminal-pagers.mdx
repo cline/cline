@@ -1,0 +1,79 @@
+---
+title: "Disable Terminal Pagers During Cline Sessions"
+description: "Make CLI output non-interactive when Cline runs commands by detecting the CLINE_ACTIVE environment variable and disabling pagers like less."
+---
+
+Many CLI tools (like Git) use a pager such as `less` for interactive, scrollable output. When Cline runs commands in your terminal, that interactivity gets in the way — the pager can pause on the first page and block progress. You can configure your shell so that when a terminal is spawned by Cline, pagers are disabled and output streams through normally.
+
+## How it works
+
+Cline sets an environment variable for terminals it opens to run commands:
+
+- `CLINE_ACTIVE` — non-empty when the shell is running under Cline
+
+You can detect this variable in your shell startup file and adjust environment variables or aliases only for Cline-run sessions. This keeps your normal interactive terminals unchanged.
+
+## Quick setup (Zsh/Bash)
+
+Add the following to your `~/.zshrc`, `~/.bashrc`, or `~/.bash_profile`:
+
+```bash
+# Disable pagers when the terminal is launched by Cline
+if [[ -n "$CLINE_ACTIVE" ]]; then
+  export PAGER=cat
+  export GIT_PAGER=cat
+  export SYSTEMD_PAGER=cat
+  export LESS="-FRX"
+fi
+```
+
+<Note>
+- `PAGER=cat` ensures generic pager-aware tools print directly to stdout
+- `GIT_PAGER=cat` prevents Git from invoking `less`
+- `SYSTEMD_PAGER=cat` disables paging in systemd tools (if present)
+- `LESS="-FRX"` makes `less` behave more like streaming output if a tool still calls it
+</Note>
+
+This configuration only applies when `CLINE_ACTIVE` is set, so your normal terminals keep their usual interactive behavior.
+
+## Verify
+
+- Open a task in Cline that runs terminal commands and check:
+  - `echo "$CLINE_ACTIVE"` prints a non-empty value
+  - `git log` or other long outputs should stream without pausing
+- If changes don't take effect:
+  - Make sure you updated the correct startup file for your shell
+  - Restart VS Code/Cursor so integrated terminals reload your shell config
+  - Confirm your terminal profile sources your `~/.zshrc` or `~/.bashrc`
+
+## Optional tweaks
+
+- Prefer command-line options when you don't want to rely on env vars:
+
+```bash
+# One-off usage (no aliases)
+git --no-pager log -n 50 --decorate --oneline
+systemctl --no-pager status nginx
+journalctl --no-pager -u nginx -n 200
+less -FRX README.md
+```
+
+- You can also override paging via shell aliases scoped to Cline sessions using options rather than env vars:
+
+```bash
+if [[ -n "$CLINE_ACTIVE" ]]; then
+  # Make 'less' non-interactive by default
+  alias less='less -FRX'
+  # Disable paging for common tools via CLI flags
+  alias git='command git --no-pager'
+  alias systemctl='command systemctl --no-pager'
+  alias journalctl='command journalctl --no-pager'
+fi
+```
+
+- If you prefer environment variables, many CLIs also respect a generic or tool-specific pager variable:
+  - Git: `GIT_PAGER=cat`
+  - Systemd: `SYSTEMD_PAGER=cat`
+  - Man pages: `MANPAGER=cat` (not typically needed for Cline-driven commands)
+
+- Aliases affect the current interactive shell, while environment variables propagate to child processes. Choose the approach that best fits your workflow.
