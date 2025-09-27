@@ -1,13 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { type ModelInfo, type NebiusModelId, nebiusDefaultModelId, nebiusModels } from "@shared/api"
 import OpenAI from "openai"
-import { ApiHandler } from "../index"
+import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 
-interface NebiusHandlerOptions {
+interface NebiusHandlerOptions extends CommonApiHandlerOptions {
 	nebiusApiKey?: string
 	apiModelId?: string
 }

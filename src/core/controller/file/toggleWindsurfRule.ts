@@ -20,9 +20,9 @@ export async function toggleWindsurfRule(controller: Controller, request: Toggle
 	}
 
 	// Update the toggles
-	const toggles = controller.cacheService.getWorkspaceStateKey("localWindsurfRulesToggles")
+	const toggles = controller.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
 	toggles[rulePath] = enabled
-	controller.cacheService.setWorkspaceState("localWindsurfRulesToggles", toggles)
+	controller.stateManager.setWorkspaceState("localWindsurfRulesToggles", toggles)
 
 	// Return the toggles directly
 	return ClineRulesToggles.create({ toggles: toggles })

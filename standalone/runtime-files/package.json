@@ -5,6 +5,7 @@
 	"dependencies": {
 		"@grpc/grpc-js": "^1.13.3",
 		"@grpc/reflection": "^1.0.4",
+		"better-sqlite3": "^12.2.0",
 		"grpc-health-check": "^2.0.2",
 		"open": "^10.1.2",
 		"vscode-uri": "^3.1.0"

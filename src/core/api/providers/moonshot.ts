@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import { ModelInfo, MoonshotModelId, moonshotDefaultModelId, moonshotModels } from "@/shared/api"
-import { ApiHandler } from "../index"
+import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface MoonshotHandlerOptions {
+interface MoonshotHandlerOptions extends CommonApiHandlerOptions {
 	moonshotApiKey?: string
 	moonshotApiLine?: string
 	apiModelId?: string
@@ -49,6 +49,7 @@ export class MoonshotHandler implements ApiHandler {
 			model: model.id,
 			messages: openAiMessages,
 			temperature: 0,
+			max_tokens: model.info.maxTokens,
 			stream: true,
 			stream_options: { include_usage: true },
 		})

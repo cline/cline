@@ -1,5 +1,6 @@
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
+import { ExtensionRegistryInfo } from "@/registry"
 import { CommandContext } from "@/shared/proto/index.cline"
 import { Controller } from "../../core/controller"
 import { WebviewProvider } from "../../core/webview"
@@ -50,7 +51,7 @@ export async function getContextForCommand(
 }
 
 export async function focusChatInput(): Promise<WebviewProvider | undefined> {
-	await vscode.commands.executeCommand("cline.focusChatInput")
+	await vscode.commands.executeCommand(ExtensionRegistryInfo.commands.FocusChatInput)
 
 	// Wait for a webview instance to become available after focusing
 	await pWaitFor(() => !!WebviewProvider.getLastActiveInstance())

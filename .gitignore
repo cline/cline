@@ -20,6 +20,8 @@ webview-ui/src/**/*.js.map
 
 # Ignore coverage directories and files
 coverage
+coverage-unit
+.nyc_output
 # But don't ignore the coverage scripts in .github/scripts/
 !.github/scripts/coverage/
 

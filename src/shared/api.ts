@@ -16,6 +16,7 @@ export type ApiProvider =
 	| "together"
 	| "deepseek"
 	| "qwen"
+	| "qwen-code"
 	| "doubao"
 	| "mistral"
 	| "vscode-lm"
@@ -32,45 +33,75 @@ export type ApiProvider =
 	| "groq"
 	| "huggingface"
 	| "huawei-cloud-maas"
+	| "dify"
 	| "baseten"
 	| "vercel-ai-gateway"
 	| "zai"
+	| "oca"
+
+export interface ApiHandlerSecrets {
+	apiKey?: string // anthropic
+	liteLlmApiKey?: string
+	awsAccessKey?: string
+	awsSecretKey?: string
+	openRouterApiKey?: string
+
+	clineAccountId?: string
+	awsSessionToken?: string
+	awsBedrockApiKey?: string
+	openAiApiKey?: string
+	geminiApiKey?: string
+	openAiNativeApiKey?: string
+	ollamaApiKey?: string
+	deepSeekApiKey?: string
+	requestyApiKey?: string
+	togetherApiKey?: string
+	fireworksApiKey?: string
+	qwenApiKey?: string
+	doubaoApiKey?: string
+	mistralApiKey?: string
+	authNonce?: string
+	asksageApiKey?: string
+	xaiApiKey?: string
+	moonshotApiKey?: string
+	zaiApiKey?: string
+	huggingFaceApiKey?: string
+	nebiusApiKey?: string
+	sambanovaApiKey?: string
+	cerebrasApiKey?: string
+	sapAiCoreClientId?: string
+	sapAiCoreClientSecret?: string
+	groqApiKey?: string
+	huaweiCloudMaasApiKey?: string
+	basetenApiKey?: string
+	vercelAiGatewayApiKey?: string
+	difyApiKey?: string
+}
 
 export interface ApiHandlerOptions {
 	// Global configuration (not mode-specific)
-	apiKey?: string // anthropic
-	clineAccountId?: string
 	ulid?: string // Used to identify the task in API requests
 	liteLlmBaseUrl?: string
-	liteLlmApiKey?: string
 	liteLlmUsePromptCache?: boolean
 	openAiHeaders?: Record<string, string> // Custom headers for OpenAI requests
 	anthropicBaseUrl?: string
-	openRouterApiKey?: string
 	openRouterProviderSorting?: string
-	awsAccessKey?: string
-	awsSecretKey?: string
-	awsSessionToken?: string
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
 	awsBedrockUsePromptCache?: boolean
 	awsAuthentication?: string
 	awsUseProfile?: boolean
 	awsProfile?: string
-	awsBedrockApiKey?: string
 	awsBedrockEndpoint?: string
 	claudeCodePath?: string
 	vertexProjectId?: string
 	vertexRegion?: string
 	openAiBaseUrl?: string
-	openAiApiKey?: string
 	ollamaBaseUrl?: string
-	ollamaApiKey?: string
 	ollamaApiOptionsCtxNum?: string
 	lmStudioBaseUrl?: string
 	lmStudioModelId?: string
 	lmStudioMaxTokens?: string
-	geminiApiKey?: string
 	geminiBaseUrl?: string
 	geminiCliOAuthPath?: string
 	geminiCliProjectId?: string
@@ -78,44 +109,30 @@ export interface ApiHandlerOptions {
 	deepSeekApiKey?: string
 	requestyApiKey?: string
 	requestyBaseUrl?: string
-	togetherApiKey?: string
-	fireworksApiKey?: string
 	fireworksModelMaxCompletionTokens?: number
 	fireworksModelMaxTokens?: number
-	qwenApiKey?: string
-	doubaoApiKey?: string
-	mistralApiKey?: string
+	qwenCodeOauthPath?: string
 	azureApiVersion?: string
 	qwenApiLine?: string
 	moonshotApiLine?: string
-	moonshotApiKey?: string
-	huggingFaceApiKey?: string
-	nebiusApiKey?: string
 	asksageApiUrl?: string
-	asksageApiKey?: string
-	xaiApiKey?: string
-	sambanovaApiKey?: string
-	cerebrasApiKey?: string
-	groqApiKey?: string
-	basetenApiKey?: string
-	vercelAiGatewayApiKey?: string
 	requestTimeoutMs?: number
-	sapAiCoreClientId?: string
-	sapAiCoreClientSecret?: string
 	sapAiResourceGroup?: string
 	sapAiCoreTokenUrl?: string
 	sapAiCoreBaseUrl?: string
-	huaweiCloudMaasApiKey?: string
-	zaiApiKey?: string
+	sapAiCoreUseOrchestrationMode?: boolean
+	difyBaseUrl?: string
 	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
+	ocaBaseUrl?: string
+
 	// Plan mode configurations
 	planModeApiModelId?: string
 	planModeThinkingBudgetTokens?: number
 	planModeReasoningEffort?: string
 	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
 	planModeAwsBedrockCustomSelected?: boolean
-	planModeAwsBedrockCustomModelBaseId?: BedrockModelId
+	planModeAwsBedrockCustomModelBaseId?: string
 	planModeOpenRouterModelId?: string
 	planModeOpenRouterModelInfo?: ModelInfo
 	planModeOpenAiModelId?: string
@@ -129,6 +146,7 @@ export interface ApiHandlerOptions {
 	planModeTogetherModelId?: string
 	planModeFireworksModelId?: string
 	planModeSapAiCoreModelId?: string
+	planModeSapAiCoreDeploymentId?: string
 	planModeGroqModelId?: string
 	planModeGroqModelInfo?: ModelInfo
 	planModeBasetenModelId?: string
@@ -139,14 +157,17 @@ export interface ApiHandlerOptions {
 	planModeHuaweiCloudMaasModelInfo?: ModelInfo
 	planModeVercelAiGatewayModelId?: string
 	planModeVercelAiGatewayModelInfo?: ModelInfo
+	planModeOcaModelId?: string
+	planModeOcaModelInfo?: OcaModelInfo
 	// Act mode configurations
 
+	// Act mode configurations
 	actModeApiModelId?: string
 	actModeThinkingBudgetTokens?: number
 	actModeReasoningEffort?: string
 	actModeVsCodeLmModelSelector?: LanguageModelChatSelector
 	actModeAwsBedrockCustomSelected?: boolean
-	actModeAwsBedrockCustomModelBaseId?: BedrockModelId
+	actModeAwsBedrockCustomModelBaseId?: string
 	actModeOpenRouterModelId?: string
 	actModeOpenRouterModelInfo?: ModelInfo
 	actModeOpenAiModelId?: string
@@ -160,6 +181,7 @@ export interface ApiHandlerOptions {
 	actModeTogetherModelId?: string
 	actModeFireworksModelId?: string
 	actModeSapAiCoreModelId?: string
+	actModeSapAiCoreDeploymentId?: string
 	actModeGroqModelId?: string
 	actModeGroqModelInfo?: ModelInfo
 	actModeBasetenModelId?: string
@@ -170,13 +192,15 @@ export interface ApiHandlerOptions {
 	actModeHuaweiCloudMaasModelInfo?: ModelInfo
 	actModeVercelAiGatewayModelId?: string
 	actModeVercelAiGatewayModelInfo?: ModelInfo
+	actModeOcaModelId?: string
+	actModeOcaModelInfo?: OcaModelInfo
 }
 
-export type ApiConfiguration = ApiHandlerOptions & {
-	planModeApiProvider?: ApiProvider
-	actModeApiProvider?: ApiProvider
-	favoritedModelIds?: string[]
-}
+export type ApiConfiguration = ApiHandlerOptions &
+	ApiHandlerSecrets & {
+		planModeApiProvider?: ApiProvider
+		actModeApiProvider?: ApiProvider
+	}
 
 // Models
 
@@ -215,6 +239,13 @@ export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	isR1FormatRequired?: boolean
 }
 
+export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
+	modelName: string
+	surveyId?: string
+	banner?: string
+	surveyContent?: string
+}
+
 export const CLAUDE_SONNET_4_1M_SUFFIX = ":1m"
 export const CLAUDE_SONNET_4_1M_TIERS = [
 	{
@@ -237,6 +268,7 @@ export const CLAUDE_SONNET_4_1M_TIERS = [
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-20250514"
+export const ANTHROPIC_MIN_THINKING_BUDGET = 1_024
 export const anthropicModels = {
 	"claude-sonnet-4-20250514:1m": {
 		maxTokens: 8192,
@@ -569,16 +601,16 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 		"Claude Sonnet 4 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
 
-// Cline custom model - sonic (same config as grok-4)
-export const clineMicrowaveAlphaModelInfo: ModelInfo = {
-	contextWindow: 262144,
-	supportsImages: false,
+// Cline custom model - code-supernova
+export const clineCodeSupernovaModelInfo: ModelInfo = {
+	contextWindow: 1000000,
+	supportsImages: true,
 	supportsPromptCache: true,
 	inputPrice: 0,
 	outputPrice: 0,
 	cacheReadsPrice: 0,
-	cacheWritesPrice: 0, // Not specified in grok-4, setting to 0
-	description: "Cline Microwave Alpha - Advanced model for complex coding tasks with large context window",
+	cacheWritesPrice: 0,
+	description: "A versatile agentic coding stealth model that supports image inputs.",
 }
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
@@ -2616,6 +2648,16 @@ export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies N
 export type XAIModelId = keyof typeof xaiModels
 export const xaiDefaultModelId: XAIModelId = "grok-4"
 export const xaiModels = {
+	"grok-4-fast-reasoning": {
+		maxTokens: 30000,
+		contextWindow: 2000000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		cacheReadsPrice: 0.05,
+		outputPrice: 0.5,
+		description: "xAI's Grok 4 Fast (free) multimodal model with 2M context.",
+	},
 	"grok-4": {
 		maxTokens: 8192,
 		contextWindow: 262144,
@@ -2872,6 +2914,14 @@ export const sambanovaModels = {
 		inputPrice: 3.0,
 		outputPrice: 4.5,
 	},
+	"DeepSeek-V3.1": {
+		maxTokens: 7168,
+		contextWindow: 32_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 4.5,
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // Cerebras
@@ -2967,7 +3017,7 @@ export const vercelAiGatewayDefaultModelInfo: ModelInfo = {
 // https://console.groq.com/docs/models
 // https://groq.com/pricing/
 export type GroqModelId = keyof typeof groqModels
-export const groqDefaultModelId: GroqModelId = "openai/gpt-oss-120b"
+export const groqDefaultModelId: GroqModelId = "moonshotai/kimi-k2-instruct-0905"
 export const groqModels = {
 	"openai/gpt-oss-120b": {
 		maxTokens: 32766, // Model fails if you try to use more than 32K tokens
@@ -3059,7 +3109,7 @@ export const groqModels = {
 		outputPrice: 0.08,
 		description: "Fast and efficient Llama 3.1 8B model optimized for speed, low latency, and reliable tool execution.",
 	},
-	// Mistral Models
+	// Moonshot Models
 	"moonshotai/kimi-k2-instruct": {
 		maxTokens: 16384,
 		contextWindow: 131072,
@@ -3070,6 +3120,17 @@ export const groqModels = {
 		cacheReadsPrice: 0.5, // 50% discount for cached input tokens
 		description:
 			"Kimi K2 is Moonshot AI's state-of-the-art Mixture-of-Experts (MoE) language model with 1 trillion total parameters and 32 billion activated parameters.",
+	},
+	"moonshotai/kimi-k2-instruct-0905": {
+		maxTokens: 16384,
+		contextWindow: 262144,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.15,
+		description:
+			"Kimi K2 model gets a new version update: Agentic coding: more accurate, better generalization across scaffolds. Frontend coding: improved aesthetics and functionalities on web, 3d, and other tasks. Context length: extended from 128k to 256k, providing better long-horizon support.",
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -3253,6 +3314,14 @@ export const sapAiCoreModels = {
 // Moonshot AI Studio
 // https://platform.moonshot.ai/docs/pricing/chat
 export const moonshotModels = {
+	"kimi-k2-0905-preview": {
+		maxTokens: 16384,
+		contextWindow: 262144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+	},
 	"kimi-k2-0711-preview": {
 		maxTokens: 32_000,
 		contextWindow: 131_072,
@@ -3263,7 +3332,7 @@ export const moonshotModels = {
 	},
 	"kimi-k2-turbo-preview": {
 		maxTokens: 32_000,
-		contextWindow: 131_072,
+		contextWindow: 262_144,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 2.4,
@@ -3287,9 +3356,11 @@ export const moonshotModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 export type MoonshotModelId = keyof typeof moonshotModels
-export const moonshotDefaultModelId = "kimi-k2-0711-preview" satisfies MoonshotModelId
+export const moonshotDefaultModelId = "kimi-k2-0905-preview" satisfies MoonshotModelId
 
 // Huawei Cloud MaaS
+// Dify.ai - No model selection needed, models are configured in Dify workflows
+
 export type HuaweiCloudMaasModelId = keyof typeof huaweiCloudMaasModels
 export const huaweiCloudMaasDefaultModelId: HuaweiCloudMaasModelId = "DeepSeek-V3"
 export const huaweiCloudMaasModels = {
@@ -3363,8 +3434,35 @@ export const huaweiCloudMaasModels = {
 
 // Baseten
 // https://baseten.co/products/model-apis/
+// Extended ModelInfo to include supportedFeatures, like tools
+export interface BasetenModelInfo extends ModelInfo {
+	supportedFeatures?: string[]
+}
+
 export const basetenModels = {
-	"deepseek-ai/DeepSeek-R1-0528": {
+	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
+		maxTokens: 262144,
+		contextWindow: 262144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.22,
+		outputPrice: 0.8,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Mixture-of-experts LLM with math and reasoning capabilities",
+	},
+	"meta-llama/Llama-4-Maverick-17B-128E-Instruct": {
+		maxTokens: 131072,
+		contextWindow: 1000000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.19,
+		outputPrice: 0.72,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "High-efficiency language processing",
+	},
+	"deepseek-ai/DeepSeek-R1": {
 		maxTokens: 131072,
 		contextWindow: 163840,
 		supportsImages: false,
@@ -3373,8 +3471,7 @@ export const basetenModels = {
 		outputPrice: 5.95,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description:
-			"DeepSeek R1 0528 - A state-of-the-art 671B-parameter MoE LLM with o1-style reasoning licensed for commercial use.",
+		description: "DeepSeek's first-generation reasoning model",
 	},
 	"deepseek-ai/DeepSeek-V3-0324": {
 		maxTokens: 131072,
@@ -3385,64 +3482,84 @@ export const basetenModels = {
 		outputPrice: 0.77,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "DeepSeek V3 0324 - A state-of-the-art 671B-parameter MoE LLM licensed for commercial use.",
-	},
-	"meta-llama/Llama-4-Maverick-17B-128E-Instruct": {
-		maxTokens: 8192,
-		contextWindow: 131072,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.19,
-		outputPrice: 0.72,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
-		description: "Meta's Llama 4 Maverick - A SOTA mixture-of-experts multi-modal LLM with 400 billion total parameters.",
+		description: "Fast general-purpose LLM with enhanced reasoning capabilities",
 	},
 	"meta-llama/Llama-4-Scout-17B-16E-Instruct": {
-		maxTokens: 8192,
-		contextWindow: 131072,
+		maxTokens: 131072,
+		contextWindow: 1000000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.13,
 		outputPrice: 0.5,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "Meta's Llama 4 Scout - A SOTA mixture-of-experts multi-modal LLM with 109 billion total parameters.",
+		description: "Precise context understanding with efficient reasoning capabilities",
 	},
-	"moonshotai/Kimi-K2-Instruct": {
+	"deepseek-ai/DeepSeek-V3.1": {
 		maxTokens: 131072,
-		contextWindow: 131072,
+		contextWindow: 163840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.5,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Extremely capable general-purpose LLM with hybrid reasoning capabilities and advanced tool calling",
+	},
+	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
+		maxTokens: 262144,
+		contextWindow: 262144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.38,
+		outputPrice: 1.53,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Mixture-of-experts LLM with advanced coding and reasoning capabilities",
+	},
+	"openai/gpt-oss-120b": {
+		maxTokens: 128072,
+		contextWindow: 128072,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.1,
+		outputPrice: 0.5,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Extremely capable general-purpose LLM with strong, controllable reasoning capabilities",
+	},
+	"moonshotai/Kimi-K2-Instruct-0905": {
+		maxTokens: 168000,
+		contextWindow: 262000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.6,
 		outputPrice: 2.5,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description: "Moonshot AI's Kimi K2 - The world's first 1 trillion parameter open source model.",
+		description: "State of the art language model for agentic and coding tasks. Septemeber Update.",
 	},
-	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
-		maxTokens: 163800,
-		contextWindow: 163800,
+	"moonshotai/Kimi-K2-Instruct": {
+		maxTokens: 131000,
+		contextWindow: 131000,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 0.22,
-		outputPrice: 0.8,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description:
-			"Qwen3-235B-A22B-Instruct-2507 is a multilingual, instruction-tuned mixture-of-experts language model based on the Qwen3-235B architecture, with 22B active parameters per forward pass.",
+		description: "State of the art language model for agentic and coding tasks",
 	},
-	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
-		maxTokens: 163800,
-		contextWindow: 163800,
+	"deepseek-ai/DeepSeek-R1-0528": {
+		maxTokens: 131072,
+		contextWindow: 163840,
 		supportsImages: false,
 		supportsPromptCache: false,
-		inputPrice: 1.7,
-		outputPrice: 1.7,
+		inputPrice: 2.55,
+		outputPrice: 5.95,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
-		description:
-			"Qwen3-Coder-480B-A35B-Instruct is a 480B parameter, instruction-tuned, agentic coding model that excels at function calling, tool use, and long-context reasoning over repositories.",
+		description: "The latest revision of DeepSeek's first-generation reasoning model",
 	},
 } as const satisfies Record<string, ModelInfo>
 export type BasetenModelId = keyof typeof basetenModels
@@ -3551,8 +3668,19 @@ export const mainlandZAiModels = {
 
 // Fireworks AI
 export type FireworksModelId = keyof typeof fireworksModels
-export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct"
+export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct-0905"
 export const fireworksModels = {
+	"accounts/fireworks/models/kimi-k2-instruct-0905": {
+		maxTokens: 16384,
+		contextWindow: 262144,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+		cacheReadsPrice: 0.15,
+		description:
+			"Kimi K2 model gets a new version update: Agentic coding: more accurate, better generalization across scaffolds. Frontend coding: improved aesthetics and functionalities on web, 3d, and other tasks. Context length: extended from 128k to 256k, providing better long-horizon support.",
+	},
 	"accounts/fireworks/models/kimi-k2-instruct": {
 		maxTokens: 16384,
 		contextWindow: 128000,
@@ -3602,3 +3730,32 @@ export const fireworksModels = {
 			"A strong Mixture-of-Experts (MoE) language model with 671B total parameters with 37B activated for each token from Deepseek. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// Qwen Code
+// https://chat.qwen.ai/
+export const qwenCodeModels = {
+	"qwen3-coder-plus": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Qwen3 Coder Plus - High-performance coding model with 1M context window for large codebases",
+	},
+	"qwen3-coder-flash": {
+		maxTokens: 65_536,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Qwen3 Coder Flash - Fast coding model with 1M context window optimized for speed",
+	},
+} as const satisfies Record<string, ModelInfo>
+export type QwenCodeModelId = keyof typeof qwenCodeModels
+export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"

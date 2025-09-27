@@ -1,13 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, SambanovaModelId, sambanovaDefaultModelId, sambanovaModels } from "@shared/api"
 import OpenAI from "openai"
-import { ApiHandler } from "../index"
+import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 
-interface SambanovaHandlerOptions {
+interface SambanovaHandlerOptions extends CommonApiHandlerOptions {
 	sambanovaApiKey?: string
 	apiModelId?: string
 }

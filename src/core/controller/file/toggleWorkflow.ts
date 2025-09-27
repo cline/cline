@@ -21,18 +21,18 @@ export async function toggleWorkflow(controller: Controller, request: ToggleWork
 	// Update the toggles based on isGlobal flag
 	if (isGlobal) {
 		// Global workflows
-		const toggles = controller.cacheService.getGlobalStateKey("globalWorkflowToggles")
+		const toggles = controller.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
 		toggles[workflowPath] = enabled
-		controller.cacheService.setGlobalState("globalWorkflowToggles", toggles)
+		controller.stateManager.setGlobalState("globalWorkflowToggles", toggles)
 		await controller.postStateToWebview()
 
 		// Return the global toggles
 		return ClineRulesToggles.create({ toggles: toggles })
 	} else {
 		// Workspace workflows
-		const toggles = controller.cacheService.getWorkspaceStateKey("workflowToggles")
+		const toggles = controller.stateManager.getWorkspaceStateKey("workflowToggles")
 		toggles[workflowPath] = enabled
-		controller.cacheService.setWorkspaceState("workflowToggles", toggles)
+		controller.stateManager.setWorkspaceState("workflowToggles", toggles)
 		await controller.postStateToWebview()
 
 		// Return the workspace toggles

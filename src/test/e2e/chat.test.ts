@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test"
 import { e2e } from "./utils/helpers"
 
-e2e("Chat - can send messages and switch between modes", async ({ helper, page, sidebar }) => {
+e2e("Chat - can send messages and switch between modes", async ({ helper, sidebar, page }) => {
 	// Sign in
 	await helper.signin(sidebar)
 
@@ -16,17 +16,8 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, page, 
 	// Loading State initially
 	await expect(sidebar.getByText("API Request...")).toBeVisible()
 
-	// The request should eventually fail
-	await expect(sidebar.getByText("API Request Failed")).toBeVisible()
-
-	await expect(inputbox).toBeVisible()
-
-	await expect(sidebar.getByRole("button", { name: "Retry" })).toBeVisible()
-	await expect(sidebar.getByRole("button", { name: "Start New Task" })).toBeVisible()
-
 	// Starting a new task should clear the current chat view and show the recent tasks
-	await sidebar.getByRole("button", { name: "Start New Task" }).click()
-	await expect(sidebar.getByText("API Request Failed")).not.toBeVisible()
+	await sidebar.getByRole("button", { name: "New Task" }).click()
 	await expect(sidebar.getByText("Recent Tasks")).toBeVisible()
 	await expect(sidebar.getByText("Hello, Cline!")).toBeVisible()
 
@@ -42,8 +33,33 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, page, 
 	await expect(actButton).not.toBeChecked()
 	await expect(planButton).toBeChecked()
 
-	await sidebar.getByTestId("chat-input").fill("Plan mode submission")
-	await sidebar.getByTestId("send-button").click()
+	// === slash commands preserve following text ===
+	await expect(inputbox).toHaveValue("")
+	// Type partial slash command to trigger menu
+	await inputbox.pressSequentially("/new", { delay: 100 })
 
-	await expect(sidebar.getByText("API Request Failed")).toBeVisible()
+	// Wait for menu to be visible and select first option with Tab
+	await inputbox.press("Tab")
+	await expect(inputbox).toHaveValue("/newtask ")
+
+	// Add following text to verify it works correctly
+	await inputbox.pressSequentially("following text should be preserved")
+	await expect(inputbox).toHaveValue("/newtask following text should be preserved")
+
+	// === @ mentions preserve following text ===
+	await inputbox.fill("")
+	await expect(inputbox).toHaveValue("")
+
+	// Type partial @ mention to trigger menu
+	await inputbox.pressSequentially("@prob")
+
+	// Wait for menu to be visible and select first option with Tab
+	await inputbox.press("Tab")
+	await expect(inputbox).toHaveValue("@problems ")
+
+	// Add following text to verify it works correctly
+	await inputbox.pressSequentially("following text should be preserved")
+	await expect(inputbox).toHaveValue("@problems following text should be preserved")
+
+	await page.close()
 })

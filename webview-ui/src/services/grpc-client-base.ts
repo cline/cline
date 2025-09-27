@@ -1,7 +1,12 @@
 /** biome-ignore-all lint/complexity/noThisInStatic: In static methods, this refers to the constructor (the subclass that invoked the method) when we want to refer to the subclass serviceName.
+ *
+ * NOTE: This file imports PLATFORM_CONFIG directly rather than using the PlatformProvider
+ * because it contains static utility methods that are called from various contexts,
+ * including non-React code. The configuration is compile-time constant, so direct
+ * import is safe and ensures the methods work consistently regardless of React context.
  */
 import { v4 as uuidv4 } from "uuid"
-import { vscode } from "../utils/vscode"
+import { PLATFORM_CONFIG } from "../config/platform.config"
 
 export interface Callbacks<TResponse> {
 	onResponse: (response: TResponse) => void
@@ -28,7 +33,7 @@ export abstract class ProtoBusClient {
 					// Remove listener once we get our response
 					window.removeEventListener("message", handleResponse)
 					if (message.grpc_response.message) {
-						const response = this.decode(message.grpc_response.message, decodeResponse)
+						const response = PLATFORM_CONFIG.decodeMessage(message.grpc_response.message, decodeResponse)
 						resolve(response)
 					} else if (message.grpc_response.error) {
 						reject(new Error(message.grpc_response.error))
@@ -39,13 +44,12 @@ export abstract class ProtoBusClient {
 			}
 
 			window.addEventListener("message", handleResponse)
-			// Send the request
-			vscode.postMessage({
+			PLATFORM_CONFIG.postMessage({
 				type: "grpc_request",
 				grpc_request: {
 					service: this.serviceName,
 					method: methodName,
-					message: this.encode(request, encodeRequest),
+					message: PLATFORM_CONFIG.encodeMessage(request, encodeRequest),
 					request_id: requestId,
 					is_streaming: false,
 				},
@@ -67,7 +71,7 @@ export abstract class ProtoBusClient {
 			if (message.type === "grpc_response" && message.grpc_response?.request_id === requestId) {
 				if (message.grpc_response.message) {
 					// Process streaming message
-					const response = this.decode(message.grpc_response.message, decodeResponse)
+					const response = PLATFORM_CONFIG.decodeMessage(message.grpc_response.message, decodeResponse)
 					callbacks.onResponse(response)
 				} else if (message.grpc_response.error) {
 					// Handle error
@@ -89,13 +93,12 @@ export abstract class ProtoBusClient {
 			}
 		}
 		window.addEventListener("message", handleResponse)
-		// Send the streaming request
-		vscode.postMessage({
+		PLATFORM_CONFIG.postMessage({
 			type: "grpc_request",
 			grpc_request: {
 				service: this.serviceName,
 				method: methodName,
-				message: this.encode(request, encodeRequest),
+				message: PLATFORM_CONFIG.encodeMessage(request, encodeRequest),
 				request_id: requestId,
 				is_streaming: true,
 			},
@@ -103,8 +106,7 @@ export abstract class ProtoBusClient {
 		// Return a function to cancel the stream
 		return () => {
 			window.removeEventListener("message", handleResponse)
-			// Send cancellation message
-			vscode.postMessage({
+			PLATFORM_CONFIG.postMessage({
 				type: "grpc_request_cancel",
 				grpc_request_cancel: {
 					request_id: requestId,
@@ -112,21 +114,5 @@ export abstract class ProtoBusClient {
 			})
 			console.log(`[DEBUG] Sent cancellation for request: ${requestId}`)
 		}
-	}
-
-	static encode<T>(message: T, encoder: (_: T) => unknown): any {
-		if (window.__is_standalone__) {
-			return encoder(message)
-		}
-		// VScode does not JSON encode ProtoBus messages
-		return message
-	}
-
-	static decode<T>(message: any, decoder: (_: { [key: string]: any }) => T): T {
-		if (window.__is_standalone__) {
-			return decoder(message)
-		}
-		// VScode does not JSON encode ProtoBus messages
-		return message
 	}
 }

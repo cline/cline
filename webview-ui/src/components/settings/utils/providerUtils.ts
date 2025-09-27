@@ -50,6 +50,8 @@ import {
 	openAiNativeModels,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
+	qwenCodeDefaultModelId,
+	qwenCodeModels,
 	requestyDefaultModelId,
 	requestyDefaultModelInfo,
 	sambanovaDefaultModelId,
@@ -117,10 +119,13 @@ export function normalizeApiConfiguration(
 					currentMode === "plan"
 						? apiConfiguration?.planModeAwsBedrockCustomModelBaseId
 						: apiConfiguration?.actModeAwsBedrockCustomModelBaseId
+
 				return {
 					selectedProvider: provider,
 					selectedModelId: modelId || bedrockDefaultModelId,
-					selectedModelInfo: (baseModelId && bedrockModels[baseModelId]) || bedrockModels[bedrockDefaultModelId],
+					selectedModelInfo:
+						(baseModelId && bedrockModels[baseModelId as keyof typeof bedrockModels]) ||
+						bedrockModels[bedrockDefaultModelId],
 				}
 			}
 			return getProviderData(bedrockModels, bedrockDefaultModelId)
@@ -139,6 +144,8 @@ export function normalizeApiConfiguration(
 			const qwenDefaultId =
 				apiConfiguration?.qwenApiLine === "china" ? mainlandQwenDefaultModelId : internationalQwenDefaultModelId
 			return getProviderData(qwenModels, qwenDefaultId)
+		case "qwen-code":
+			return getProviderData(qwenCodeModels, qwenCodeDefaultModelId)
 		case "doubao":
 			return getProviderData(doubaoModels, doubaoDefaultModelId)
 		case "mistral":
@@ -301,6 +308,20 @@ export function normalizeApiConfiguration(
 				selectedModelId: huaweiCloudMaasModelId || huaweiCloudMaasDefaultModelId,
 				selectedModelInfo: huaweiCloudMaasModelInfo || huaweiCloudMaasModels[huaweiCloudMaasDefaultModelId],
 			}
+		case "dify":
+			return {
+				selectedProvider: provider,
+				selectedModelId: "dify-workflow",
+				selectedModelInfo: {
+					maxTokens: 8192,
+					contextWindow: 128000,
+					supportsImages: true,
+					supportsPromptCache: false,
+					inputPrice: 0,
+					outputPrice: 0,
+					description: "Dify workflow - model selection is configured in your Dify application",
+				},
+			}
 		case "vercel-ai-gateway":
 			const vercelAiGatewayModelId =
 				currentMode === "plan"
@@ -330,6 +351,15 @@ export function normalizeApiConfiguration(
 					fireworksModelId && fireworksModelId in fireworksModels
 						? fireworksModels[fireworksModelId as keyof typeof fireworksModels]
 						: fireworksModels[fireworksDefaultModelId],
+			}
+		case "oca":
+			const ocaModelId = currentMode === "plan" ? apiConfiguration?.planModeOcaModelId : apiConfiguration?.actModeOcaModelId
+			const ocaModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeOcaModelInfo : apiConfiguration?.actModeOcaModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: ocaModelId || "",
+				selectedModelInfo: ocaModelInfo || liteLlmModelInfoSaneDefaults,
 			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
@@ -411,6 +441,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan" ? apiConfiguration.planModeHuaweiCloudMaasModelId : apiConfiguration.actModeHuaweiCloudMaasModelId,
 		vercelAiGatewayModelId:
 			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelId : apiConfiguration.actModeVercelAiGatewayModelId,
+		ocaModelId: mode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -450,6 +481,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		thinkingBudgetTokens:
 			mode === "plan" ? apiConfiguration.planModeThinkingBudgetTokens : apiConfiguration.actModeThinkingBudgetTokens,
 		reasoningEffort: mode === "plan" ? apiConfiguration.planModeReasoningEffort : apiConfiguration.actModeReasoningEffort,
+		// Oracle Code Assist
+		ocaModelInfo: mode === "plan" ? apiConfiguration.planModeOcaModelInfo : apiConfiguration.actModeOcaModelInfo,
 	}
 }
 
@@ -462,12 +495,16 @@ export async function syncModeConfigurations(
 	sourceMode: Mode,
 	handleFieldsChange: (updates: Partial<ApiConfiguration>) => Promise<void>,
 ): Promise<void> {
-	if (!apiConfiguration) return
+	if (!apiConfiguration) {
+		return
+	}
 
 	const sourceFields = getModeSpecificFields(apiConfiguration, sourceMode)
 	const { apiProvider } = sourceFields
 
-	if (!apiProvider) return
+	if (!apiProvider) {
+		return
+	}
 
 	// Build the complete update object with both plan and act mode fields
 	const updates: Partial<ApiConfiguration> = {
@@ -571,11 +608,23 @@ export async function syncModeConfigurations(
 			updates.planModeHuaweiCloudMaasModelInfo = sourceFields.huaweiCloudMaasModelInfo
 			updates.actModeHuaweiCloudMaasModelInfo = sourceFields.huaweiCloudMaasModelInfo
 			break
+
+		case "dify":
+			// Dify doesn't have mode-specific model configurations
+			// The model is configured in the Dify application itself
+			break
+
 		case "vercel-ai-gateway":
 			updates.planModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
 			updates.actModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
 			updates.planModeVercelAiGatewayModelInfo = sourceFields.vercelAiGatewayModelInfo
 			updates.actModeVercelAiGatewayModelInfo = sourceFields.vercelAiGatewayModelInfo
+			break
+		case "oca":
+			updates.planModeOcaModelId = sourceFields.ocaModelId
+			updates.actModeOcaModelId = sourceFields.ocaModelId
+			updates.planModeOcaModelInfo = sourceFields.ocaModelInfo
+			updates.actModeOcaModelInfo = sourceFields.ocaModelInfo
 			break
 
 		// Providers that use apiProvider + apiModelId fields

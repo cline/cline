@@ -50,6 +50,7 @@ const ResponseContainer = styled.div`
 	border-radius: 3px;
 	border: 1px solid var(--vscode-editorGroup-border);
 	overflow: hidden;
+	z-index: 0;
 
 	.response-content {
 		overflow-x: auto;

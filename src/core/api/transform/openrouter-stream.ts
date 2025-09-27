@@ -139,23 +139,12 @@ export async function createOpenRouterStream(
 				reasoning = { max_tokens: budget_tokens }
 			}
 			break
-		case "cline/sonic":
-			temperature = 0.7
-			topP = 0.95
-			break
 		default:
 			if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0) {
 				temperature = undefined // extended thinking does not support non-1 temperature
 				reasoning = { max_tokens: thinkingBudgetTokens }
 				break
 			}
-	}
-
-	// Removes messages in the middle when close to context window limit. Should not be applied to models that support prompt caching since it would continuously break the cache.
-	let shouldApplyMiddleOutTransform = !model.info.supportsPromptCache
-	// except for deepseek (which we set supportsPromptCache to true for), where because the context window is so small our truncation algo might miss and we should use openrouter's middle-out transform as a fallback to ensure we don't exceed the context window (FIXME: once we have a more robust token estimator we should not rely on this)
-	if (model.id === "deepseek/deepseek-chat") {
-		shouldApplyMiddleOutTransform = true
 	}
 
 	// hardcoded provider sorting for kimi-k2
@@ -171,7 +160,6 @@ export async function createOpenRouterStream(
 		messages: openAiMessages,
 		stream: true,
 		stream_options: { include_usage: true },
-		transforms: shouldApplyMiddleOutTransform ? ["middle-out"] : undefined,
 		include_reasoning: true,
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),

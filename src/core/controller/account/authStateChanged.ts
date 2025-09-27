@@ -11,7 +11,7 @@ import type { Controller } from "../index"
 export async function authStateChanged(controller: Controller, request: AuthStateChangedRequest): Promise<AuthState> {
 	try {
 		// Store the user info directly in global state
-		controller.cacheService.setGlobalState("userInfo", request.user)
+		controller.stateManager.setGlobalState("userInfo", request.user)
 
 		// Return the same user info
 		return AuthState.create({ user: request.user })

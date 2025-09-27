@@ -1,11 +1,11 @@
-import { GlobalFileNames } from "@core/storage/disk"
+import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
-import { telemetryService } from "@/services/posthog/PostHogClientProvider"
+import { telemetryService } from "@/services/telemetry"
 import { groqModels } from "../../../shared/api"
 import { Controller } from ".."
 
@@ -16,9 +16,9 @@ import { Controller } from ".."
  * @returns Response containing the Groq models
  */
 export async function refreshGroqModels(controller: Controller, _request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
-	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.groqModels)
+	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.groqModels)
 
-	const groqApiKey = controller.cacheService.getSecretKey("groqApiKey")
+	const groqApiKey = controller.stateManager.getSecretKey("groqApiKey")
 
 	let models: Record<string, Partial<OpenRouterModelInfo>> = {}
 	try {
@@ -165,7 +165,7 @@ export async function refreshGroqModels(controller: Controller, _request: EmptyR
  * Reads cached Groq models from disk
  */
 async function readGroqModels(controller: Controller): Promise<Record<string, Partial<OpenRouterModelInfo>> | undefined> {
-	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.groqModels)
+	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.groqModels)
 	const fileExists = await fileExistsAtPath(groqModelsFilePath)
 	if (fileExists) {
 		try {
@@ -245,13 +245,4 @@ function generateModelDescription(rawModel: any, staticModelInfo?: any): string 
 	}
 
 	return `${ownedBy} model with ${contextWindow.toLocaleString()} token context window`
-}
-
-/**
- * Ensures the cache directory exists and returns its path
- */
-async function ensureCacheDirectoryExists(controller: Controller): Promise<string> {
-	const cacheDir = path.join(controller.context.globalStorageUri.fsPath, "cache")
-	await fs.mkdir(cacheDir, { recursive: true })
-	return cacheDir
 }

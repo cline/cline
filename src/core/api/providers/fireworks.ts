@@ -1,12 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { FireworksModelId, fireworksDefaultModelId, fireworksModels, ModelInfo } from "@shared/api"
 import OpenAI from "openai"
-import { ApiHandler } from ".."
+import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface FireworksHandlerOptions {
+interface FireworksHandlerOptions extends CommonApiHandlerOptions {
 	fireworksApiKey?: string
 	fireworksModelId?: string
 	fireworksModelMaxCompletionTokens?: number

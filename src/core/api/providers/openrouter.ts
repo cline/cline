@@ -4,13 +4,13 @@ import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from 
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { OpenRouterErrorResponse } from "./types"
 
-interface OpenRouterHandlerOptions {
+interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 	openRouterApiKey?: string
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
@@ -119,6 +119,21 @@ export class OpenRouterHandler implements ApiHandler {
 					type: "reasoning",
 					// @ts-ignore-next-line
 					reasoning: delta.reasoning,
+				}
+			}
+
+			// OpenRouter passes reasoning details that we can pass back unmodified in api requests to preserve reasoning traces for model
+			// See: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks
+			if (
+				"reasoning_details" in delta &&
+				delta.reasoning_details &&
+				// @ts-ignore-next-line
+				delta.reasoning_details.length && // exists and non-0
+				!shouldSkipReasoningForModel(this.options.openRouterModelId)
+			) {
+				yield {
+					type: "reasoning_details",
+					reasoning_details: delta.reasoning_details,
 				}
 			}
 

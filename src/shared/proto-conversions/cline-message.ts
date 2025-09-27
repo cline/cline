@@ -188,6 +188,15 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 					endIndex: message.conversationHistoryDeletedRange[1],
 				}
 			: undefined,
+		// Additional optional fields for specific ask/say types
+		sayTool: undefined,
+		sayBrowserAction: undefined,
+		browserActionResult: undefined,
+		askUseMcpServer: undefined,
+		planModeResponse: undefined,
+		askQuestion: undefined,
+		askNewTask: undefined,
+		apiReqInfo: undefined,
 	}
 
 	return protoMessage

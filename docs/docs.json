@@ -60,6 +60,7 @@
 					"getting-started/what-is-cline",
 					"getting-started/model-selection-guide",
 					"getting-started/installing-cline",
+					"getting-started/installing-cline-jetbrains",
 					"getting-started/task-management",
 					"getting-started/understanding-context-management",
 					{
@@ -90,6 +91,7 @@
 					"features/focus-chain",
 					"features/auto-compact",
 					"features/editing-messages",
+					"features/dictation",
 					{
 						"group": "@ Mentions",
 						"pages": [
@@ -119,6 +121,12 @@
 							"features/commands-and-shortcuts/terminal-integration",
 							"features/commands-and-shortcuts/git-integration",
 							"features/commands-and-shortcuts/keyboard-shortcuts"
+						]
+					},
+					{
+						"group": "Customization",
+						"pages": [
+							"features/customization/opening-cline-in-sidebar"
 						]
 					}
 				]
@@ -182,7 +190,8 @@
 					"provider-config/openrouter",
 					"provider-config/sap-aicore",
 					"provider-config/vercel-ai-gateway",
-					"provider-config/requesty"
+					"provider-config/requesty",
+					"provider-config/baseten"
 				]
 			},
 			{

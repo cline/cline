@@ -1,12 +1,12 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
-import type { ApiHandler } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import type { ApiStream } from "../transform/stream"
 
-interface LmStudioHandlerOptions {
+interface LmStudioHandlerOptions extends CommonApiHandlerOptions {
 	lmStudioBaseUrl?: string
 	lmStudioModelId?: string
 	lmStudioMaxTokens?: string

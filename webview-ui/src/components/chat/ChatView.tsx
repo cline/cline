@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo } from "react"
 import { useMount } from "react-use"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useShowNavbar } from "@/context/PlatformContext"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { Navbar } from "../menu/Navbar"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
@@ -39,16 +40,14 @@ interface ChatViewProps {
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
 const QUICK_WINS_HISTORY_THRESHOLD = 3
 
-const IS_STANDALONE = window?.__is_standalone__ ?? false
-
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
+	const showNavbar = useShowNavbar()
 	const {
 		version,
 		clineMessages: messages,
 		taskHistory,
 		apiConfiguration,
 		telemetrySetting,
-		navigateToChat,
 		mode,
 		userInfo,
 		currentFocusChainChecklist,
@@ -238,10 +237,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// Listen for local focusChatInput event
 	useEffect(() => {
 		const handleFocusChatInput = () => {
-			if (isHidden) {
-				navigateToChat()
+			// Only focus chat input box if user is currently viewing the chat (not hidden).
+			if (!isHidden) {
+				textAreaRef.current?.focus()
 			}
-			textAreaRef.current?.focus()
 		}
 
 		window.addEventListener("focusChatInput", handleFocusChatInput)
@@ -335,7 +334,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	return (
 		<ChatLayout isHidden={isHidden}>
 			<div className="flex flex-col flex-1 overflow-hidden">
-				{IS_STANDALONE && <Navbar />}
+				{showNavbar && <Navbar />}
 				{task ? (
 					<TaskSection
 						apiMetrics={apiMetrics}
@@ -382,6 +381,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						scrollToBottomSmooth: scrollBehavior.scrollToBottomSmooth,
 						disableAutoScrollRef: scrollBehavior.disableAutoScrollRef,
 						showScrollToBottom: scrollBehavior.showScrollToBottom,
+						virtuosoRef: scrollBehavior.virtuosoRef,
 					}}
 					task={task}
 				/>

@@ -1,9 +1,9 @@
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
 import fs from "fs/promises"
 import * as path from "path"
 import simpleGit from "simple-git"
+import { telemetryService } from "@/services/telemetry"
 import { GitOperations } from "./CheckpointGitOperations"
-import { getShadowGitPath, getWorkingDirectory, hashWorkingDir } from "./CheckpointUtils"
+import { getShadowGitPath, hashWorkingDir } from "./CheckpointUtils"
 
 /**
  * CheckpointTracker Module
@@ -38,7 +38,6 @@ import { getShadowGitPath, getWorkingDirectory, hashWorkingDir } from "./Checkpo
  */
 
 class CheckpointTracker {
-	private globalStoragePath: string
 	private taskId: string
 	private cwd: string
 	private cwdHash: string
@@ -61,8 +60,7 @@ class CheckpointTracker {
 	 * @param cwd - The current working directory to track files in
 	 * @param cwdHash - Hash of the working directory path for shadow git organization
 	 */
-	private constructor(globalStoragePath: string, taskId: string, cwd: string, cwdHash: string) {
-		this.globalStoragePath = globalStoragePath
+	private constructor(taskId: string, cwd: string, cwdHash: string) {
 		this.taskId = taskId
 		this.cwd = cwd
 		this.cwdHash = cwdHash
@@ -75,6 +73,8 @@ class CheckpointTracker {
 	 *
 	 * @param taskId - Unique identifier for the task to track
 	 * @param globalStoragePath - the globalStorage path
+	 * @param enableCheckpointsSetting - Whether checkpoints are enabled in settings
+	 * @param workspacePaths - The workspace directory path(s) to track (string or array of strings)
 	 * @returns Promise resolving to new CheckpointTracker instance, or undefined if checkpoints are disabled
 	 * @throws Error if:
 	 * - globalStoragePath is not supplied
@@ -91,12 +91,9 @@ class CheckpointTracker {
 	 */
 	public static async create(
 		taskId: string,
-		globalStoragePath: string | undefined,
 		enableCheckpointsSetting: boolean,
+		workspacePaths: string | string[],
 	): Promise<CheckpointTracker | undefined> {
-		if (!globalStoragePath) {
-			throw new Error("Global storage path is required to create a checkpoint tracker")
-		}
 		try {
 			console.info(`Creating new CheckpointTracker for task ${taskId}`)
 			const startTime = performance.now()
@@ -114,13 +111,27 @@ class CheckpointTracker {
 				throw new Error("Git must be installed to use checkpoints.") // FIXME: must match what we check for in TaskHeader to show link
 			}
 
-			const workingDir = await getWorkingDirectory()
+			// Validate and normalize workspace paths - for now, we just use the first valid path
+			const pathsToValidate = Array.isArray(workspacePaths) ? workspacePaths : [workspacePaths]
+			const { validateWorkspacePath } = await import("./CheckpointUtils")
+
+			for (const workspacePath of pathsToValidate) {
+				if (!workspacePath) {
+					throw new Error("At least one workspace path must be provided")
+				}
+
+				await validateWorkspacePath(workspacePath)
+			}
+
+			// For now, we just use the first valid path
+			const workingDir = Array.isArray(workspacePaths) ? workspacePaths[0] : workspacePaths
+
 			const cwdHash = hashWorkingDir(workingDir)
 			console.debug(`Repository ID (cwdHash): ${cwdHash}`)
 
-			const newTracker = new CheckpointTracker(globalStoragePath, taskId, workingDir, cwdHash)
+			const newTracker = new CheckpointTracker(taskId, workingDir, cwdHash)
 
-			const gitPath = await getShadowGitPath(newTracker.globalStoragePath, newTracker.taskId, newTracker.cwdHash)
+			const gitPath = await getShadowGitPath(newTracker.cwdHash)
 			await newTracker.gitOperations.initShadowGit(gitPath, workingDir, taskId)
 
 			const durationMs = Math.round(performance.now() - startTime)
@@ -163,7 +174,7 @@ class CheckpointTracker {
 			console.info(`Creating new checkpoint commit for task ${this.taskId}`)
 			const startTime = performance.now()
 
-			const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+			const gitPath = await getShadowGitPath(this.cwdHash)
 			const git = simpleGit(path.dirname(gitPath))
 
 			console.info(`Using shadow git at: ${gitPath}`)
@@ -224,7 +235,7 @@ class CheckpointTracker {
 			return this.lastRetrievedShadowGitConfigWorkTree
 		}
 		try {
-			const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+			const gitPath = await getShadowGitPath(this.cwdHash)
 			this.lastRetrievedShadowGitConfigWorkTree = await this.gitOperations.getShadowGitConfigWorkTree(gitPath)
 			return this.lastRetrievedShadowGitConfigWorkTree
 		} catch (error) {
@@ -253,7 +264,7 @@ class CheckpointTracker {
 		console.info(`Resetting to checkpoint: ${commitHash}`)
 		const startTime = performance.now()
 
-		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+		const gitPath = await getShadowGitPath(this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
 		console.debug(`Using shadow git at: ${gitPath}`)
 		await git.reset(["--hard", this.cleanCommitHash(commitHash)]) // Hard reset to target commit
@@ -289,7 +300,7 @@ class CheckpointTracker {
 	> {
 		const startTime = performance.now()
 
-		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+		const gitPath = await getShadowGitPath(this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
 
 		console.info(`Getting diff between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)
@@ -354,7 +365,7 @@ class CheckpointTracker {
 	public async getDiffCount(lhsHash: string, rhsHash?: string): Promise<number> {
 		const startTime = performance.now()
 
-		const gitPath = await getShadowGitPath(this.globalStoragePath, this.taskId, this.cwdHash)
+		const gitPath = await getShadowGitPath(this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
 
 		console.info(`Getting diff count between commits: ${lhsHash || "initial"} -> ${rhsHash || "working directory"}`)

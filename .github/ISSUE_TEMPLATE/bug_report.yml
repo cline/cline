@@ -1,64 +1,69 @@
 name: 🐛 Bug Report
 description: File a bug report
-labels: ["bug"]
+labels: ['bug']
 body:
-    - type: markdown
-      attributes:
-          value: |
-              **Important:** All bug reports must be reproducible using Claude 4 Sonnet. Cline uses complex prompts so less capable models may not work as expected.
-    - type: textarea
-      id: what-happened
-      attributes:
-          label: What happened?
-          description: Also tell us, what did you expect to happen?
-          placeholder: Tell us what you see!
-      validations:
-          required: true
-    - type: textarea
-      id: steps
-      attributes:
-          label: Steps to reproduce
-          description: How do you trigger this bug? Please walk us through it step by step.
-          value: |
-              1.
-              2.
-              3.
-      validations:
-          required: false
-    - type: textarea
-      id: logs
-      attributes:
-          label: Relevant API REQUEST output
-          description: Please copy and paste any relevant output. This will be automatically formatted into code, so no need for backticks.
-          render: shell
-    - type: input
-      id: provider-model
-      attributes:
-          label: Provider/Model
-          description: What provider and model were you using when the issue occurred?
-          placeholder: "e.g., cline:anthropic/claude-3.7-sonnet, gemini:gemini-2.5-pro-exp-03-25"
-      validations:
-          required: true
-    - type: textarea
-      id: system-info
-      attributes:
-          label: System Information
-          description: What operating system and hardware are you using?
-          placeholder: |
-              Operating System: Windows 11, macOS Sonoma, Ubuntu 22.04, etc.
-              Hardware: CPU, GPU, RAM specifications if relevant
-              e.g.,
-              OS: Windows 11
-              CPU: Intel Core i7-11700K
-              GPU: NVIDIA GeForce RTX 3070
-              RAM: 32GB DDR4
-      validations:
-          required: true
-    - type: input
-      id: cline-version
-      attributes:
-          label: Cline Version
-          description: What version of Cline are you using? (You can find this at the bottom of the Settings view)
-          placeholder: "e.g., 1.2.3"
-      validations:
-          required: true
+  - type: markdown
+    attributes:
+      value: |
+        **Important:** All bug reports must be reproducible using Claude Sonnet 4. Cline uses complex prompts so less capable models may not work as expected.
+  - type: dropdown
+    id: plugin-type
+    attributes:
+      label: Plugin Type
+      description: Which plugin are you reporting a bug for?
+      options:
+        - VSCode Extension
+        - JetBrains Plugin
+      default: 0
+    validations:
+      required: true
+  - type: input
+    id: cline-version
+    attributes:
+      label: Cline Version
+      description: What version of Cline are you using? (You can find this at the bottom of the Settings view)
+      placeholder: 'e.g., 1.2.3'
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How do you trigger this bug? Please walk us through it step by step.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: false
+  - type: input
+    id: provider-model
+    attributes:
+      label: Provider/Model
+      description: What provider and model were you using when the issue occurred?
+      placeholder: 'e.g., cline:anthropic/claude-sonnet-4, gemini:gemini-2.5-pro-exp-03-25'
+    validations:
+      required: false
+  - type: textarea
+    id: system-info
+    attributes:
+      label: System Information
+      description: What operating system and hardware are you using?
+      placeholder: |
+        Operating System: Windows 11, macOS Sonoma, Ubuntu 22.04, etc.
+        Hardware: CPU, GPU, RAM specifications if relevant
+        e.g.,
+        OS: Windows 11
+        CPU: Intel Core i7-11700K
+        GPU: NVIDIA GeForce RTX 3070
+        RAM: 32GB DDR4
+    validations:
+      required: false

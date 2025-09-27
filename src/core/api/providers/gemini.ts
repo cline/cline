@@ -1,17 +1,19 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 // Restore GenerateContentConfig import and add GenerateContentResponseUsageMetadata
-import { type GenerateContentConfig, type GenerateContentResponseUsageMetadata, GoogleGenAI, Part } from "@google/genai"
-import { telemetryService } from "@services/posthog/PostHogClientProvider"
+import { ApiError, type GenerateContentConfig, type GenerateContentResponseUsageMetadata, GoogleGenAI, Part } from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
-import { ApiHandler } from "../"
-import { withRetry } from "../retry"
+import { telemetryService } from "@/services/telemetry"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
+import { RetriableError, withRetry } from "../retry"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
 // Define a default TTL for the cache (e.g., 15 minutes in seconds)
 const _DEFAULT_CACHE_TTL_SECONDS = 900
 
-interface GeminiHandlerOptions {
+const rateLimitPatterns = [/got status: 429/i, /429 Too Many Requests/i, /rate limit exceeded/i, /too many requests/i]
+
+interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 	isVertex?: boolean
 	vertexProjectId?: string
 	vertexRegion?: string
@@ -222,24 +224,40 @@ export class GeminiHandler implements ApiHandler {
 			if (error instanceof Error) {
 				apiError = error.message
 
-				// Gemini doesn't include status codes in their errors
-				// https://github.com/googleapis/js-genai/blob/61f7f27b866c74333ca6331883882489bcb708b9/src/_api_client.ts#L569
-				const rateLimitPatterns = [
-					/got status: 429/i,
-					/429 Too Many Requests/i,
-					/rate limit exceeded/i,
-					/too many requests/i,
-				]
+				if (error instanceof ApiError) {
+					if (error.status === 429) {
+						// The API includes more details in the message
+						// https://github.com/googleapis/js-genai/blob/v1.11.0/src/_api_client.ts#L758
+						const response = this.attemptParse(error.message)
 
-				const isRateLimit =
-					error.name === "ClientError" && rateLimitPatterns.some((pattern) => pattern.test(error.message))
+						if (response && response.error) {
+							const responseBody = this.attemptParse(response.error.message)
 
-				if (isRateLimit) {
-					const rateLimitError = Object.assign(new Error(error.message), {
-						...error,
-						status: 429,
-					})
-					throw rateLimitError
+							if (responseBody.error) {
+								const detail = responseBody.error.details?.find(
+									(d: any) => d["@type"] === "type.googleapis.com/google.rpc.RetryInfo",
+								)
+
+								const detailedError = new RetriableError(
+									apiError,
+									this.parseRetryDelay(detail?.retryDelay) || undefined,
+									{
+										cause: error,
+									},
+								)
+								throw detailedError
+							}
+						}
+
+						throw new RetriableError(apiError, undefined, { cause: error })
+					}
+
+					// Fallback in case Gemini throws a rate limit error without a 429 status code
+					// https://github.com/cline/cline/pull/5205#discussion_r2311761559
+					const isRateLimit = rateLimitPatterns.some((pattern) => pattern.test(error.message))
+					if (isRateLimit) {
+						throw new RetriableError(apiError, undefined, { cause: error })
+					}
 				}
 			} else {
 				apiError = String(error)
@@ -419,5 +437,36 @@ export class GeminiHandler implements ApiHandler {
 		}, 0)
 
 		return Math.ceil(totalChars / 4)
+	}
+
+	private parseRetryDelay(retryAfter?: string): number {
+		if (!retryAfter) {
+			return 0
+		}
+
+		const unit = retryAfter.at(-1)
+		const value = parseInt(retryAfter, 10)
+
+		if (Number.isNaN(value)) {
+			return 0
+		}
+
+		if (unit === "s") {
+			return value
+		} else if (unit === "m") {
+			return value * 60 // Convert minutes to seconds
+		} else if (unit === "h") {
+			return value * 60 * 60 // Convert hours to seconds
+		}
+
+		return value
+	}
+
+	private attemptParse(str: string) {
+		try {
+			return JSON.parse(str)
+		} catch (_) {
+			return null
+		}
 	}
 }

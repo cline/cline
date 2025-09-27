@@ -2,12 +2,12 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { GroqModelId, groqDefaultModelId, groqModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface GroqHandlerOptions {
+interface GroqHandlerOptions extends CommonApiHandlerOptions {
 	groqApiKey?: string
 	groqModelId?: string
 	groqModelInfo?: ModelInfo

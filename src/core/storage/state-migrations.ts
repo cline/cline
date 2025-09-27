@@ -1,8 +1,9 @@
 import fs from "fs/promises"
 import path from "path"
 import * as vscode from "vscode"
-import { ensureRulesDirectoryExists } from "./disk"
-import { readStateFromDisk } from "./utils/state-helpers"
+import { HistoryItem } from "@/shared/HistoryItem"
+import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
+import { StateManager } from "./StateManager"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
 	// Keys to migrate from workspace storage back to global storage
@@ -63,6 +64,60 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 
 			console.log(`[Storage Migration] migrated key: ${key} to global storage. Current value: ${newWorkspaceValue}`)
 		}
+	}
+}
+
+export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext) {
+	try {
+		// Get data from old location
+		const vscodeGlobalStateTaskHistory = context.globalState.get<HistoryItem[] | undefined>("taskHistory")
+
+		// Normalize old location data to array (empty array if undefined/null/not-array)
+		const oldLocationData = Array.isArray(vscodeGlobalStateTaskHistory) ? vscodeGlobalStateTaskHistory : []
+
+		// Early return if no migration needed
+		if (oldLocationData.length === 0) {
+			console.log("[Storage Migration] No task history to migrate")
+			return
+		}
+
+		let finalData: HistoryItem[]
+		let migrationAction: string
+
+		const newLocationData = await readTaskHistoryFromState()
+
+		if (newLocationData.length === 0) {
+			// Move old data to new location
+			finalData = oldLocationData
+			migrationAction = "Migrated task history from old location to new location"
+		} else {
+			// Merge old data (more recent) with new data
+			finalData = [...newLocationData, ...oldLocationData]
+			migrationAction = "Merged task history from old and new locations"
+		}
+
+		// Perform migration operations sequentially - only clear old data if write succeeds
+		await writeTaskHistoryToState(finalData)
+
+		const successfullyWrittenData = await readTaskHistoryFromState()
+
+		if (!Array.isArray(successfullyWrittenData)) {
+			console.error("[Storage Migration] Failed to write taskHistory to file: Written data is not an array")
+			return
+		}
+
+		if (successfullyWrittenData.length !== finalData.length) {
+			console.error(
+				"[Storage Migration] Failed to write taskHistory to file: Written data does not match the old location data",
+			)
+			return
+		}
+
+		await context.globalState.update("taskHistory", undefined)
+
+		console.log(`[Storage Migration] ${migrationAction}`)
+	} catch (error) {
+		console.error("[Storage Migration] Failed to migrate task history to file:", error)
 	}
 }
 
@@ -512,8 +567,9 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 			console.log("Migrating welcomeViewCompleted setting...")
 
 			// Get all extension state to check for existing API keys
-			const extensionState = await readStateFromDisk(context)
-			const config = extensionState.apiConfiguration
+			const stateManager = new StateManager(context)
+			await stateManager.initialize()
+			const config = stateManager.getApiConfiguration()
 
 			// This is the original logic used for checking is the welcome view should be shown
 			// It was located in the ExtensionStateContextProvider
@@ -545,6 +601,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 						config.xaiApiKey,
 						config.sambanovaApiKey,
 						config.sapAiCoreClientId,
+						config.difyApiKey,
 					].some((key) => key !== undefined)
 				: false
 
