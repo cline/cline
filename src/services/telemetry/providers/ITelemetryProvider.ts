@@ -30,6 +30,14 @@ export interface ITelemetryProvider {
 	log(event: string, properties?: Record<string, unknown>): void
 
 	/**
+	 * Log a required event that bypasses telemetry opt-out settings
+	 * Required events are critical for system health and error monitoring
+	 * @param event The event name to log
+	 * @param properties Optional properties to attach to the event
+	 */
+	logRequired(event: string, properties?: Record<string, unknown>): void
+
+	/**
 	 * Identify a user for tracking
 	 * @param userInfo The user's information
 	 * @param properties Optional additional properties

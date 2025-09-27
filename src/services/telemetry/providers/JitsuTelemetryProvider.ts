@@ -1,35 +1,34 @@
-import { PostHog } from "posthog-node"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { Setting } from "@/shared/proto/index.host"
-import { posthogConfig } from "../../../shared/services/config/posthog-config"
+import { type JitsuClientConfig } from "@/shared/services/config/jitsu-config"
 import type { ClineAccountUserInfo } from "../../auth/AuthService"
 import type { ITelemetryProvider, TelemetrySettings } from "./ITelemetryProvider"
+
+// Jitsu analytics client interface
+interface JitsuClient {
+	track(event: string, properties?: Record<string, unknown>): void
+	identify(userId: string, traits?: Record<string, unknown>): void
+	page(name?: string, properties?: Record<string, unknown>): void
+	setAnonymousId(id: string): void
+	configure(config: any): void
+}
+
+// Dynamic import for Jitsu client (will be installed)
+declare const jitsuAnalytics: (config: JitsuClientConfig) => JitsuClient
+
 /**
- * PostHog implementation of the telemetry provider interface
- * Handles PostHog-specific analytics tracking
+ * Jitsu implementation of the telemetry provider interface
+ * Handles Jitsu-specific analytics tracking
  */
-export class PostHogTelemetryProvider implements ITelemetryProvider {
-	private client: PostHog
+export class JitsuTelemetryProvider implements ITelemetryProvider {
+	private client: JitsuClient | null = null
 	private telemetrySettings: TelemetrySettings
-	private isSharedClient: boolean
+	private config: JitsuClientConfig
 
-	constructor(sharedClient?: PostHog) {
-		this.isSharedClient = !!sharedClient
-
-		// Use shared PostHog client if provided, otherwise create a new one
-		if (sharedClient) {
-			this.client = sharedClient
-		} else {
-			// Only create a new client if we have an API key
-			if (!posthogConfig.apiKey) {
-				throw new Error("PostHog API key is required to create a new client")
-			}
-			this.client = new PostHog(posthogConfig.apiKey, {
-				host: posthogConfig.host,
-			})
-		}
+	constructor(config: JitsuClientConfig) {
+		this.config = config
 
 		// Initialize telemetry settings
 		this.telemetrySettings = {
@@ -38,7 +37,30 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 			level: "all",
 		}
 	}
-	public async initialize(): Promise<PostHogTelemetryProvider> {
+
+	public async initialize(): Promise<JitsuTelemetryProvider> {
+		try {
+			// Initialize Jitsu client with configuration
+			if (typeof jitsuAnalytics !== "undefined" && this.config.writeKey) {
+				this.client = jitsuAnalytics({
+					writeKey: this.config.writeKey,
+					host: this.config.host,
+					debug: this.config.debug,
+					privacy: this.config.privacy,
+				})
+
+				// Set initial anonymous ID
+				const distinctId = getDistinctId()
+				if (distinctId && distinctId.startsWith("cl-")) {
+					this.client.setAnonymousId(distinctId)
+				}
+			} else {
+				console.warn("JitsuTelemetryProvider: Jitsu client not available or no write key configured")
+			}
+		} catch (error) {
+			console.error("JitsuTelemetryProvider: Failed to initialize Jitsu client:", error)
+		}
+
 		// Listen for host telemetry changes
 		HostProvider.env.subscribeToTelemetrySettings(
 			{},
@@ -61,7 +83,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public log(event: string, properties?: Record<string, unknown>): void {
-		if (!this.isEnabled() || this.telemetrySettings.level === "off") {
+		if (!this.client || !this.isEnabled() || this.telemetrySettings.level === "off") {
 			return
 		}
 
@@ -72,52 +94,67 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 			}
 		}
 
-		this.client.capture({
-			distinctId: getDistinctId(),
-			event,
-			properties,
-		})
+		try {
+			this.client.track(event, properties)
+		} catch (error) {
+			console.error("JitsuTelemetryProvider: Failed to track event:", error)
+		}
 	}
 
 	public logRequired(event: string, properties?: Record<string, unknown>): void {
-		this.client.capture({
-			distinctId: getDistinctId(),
-			event,
-			properties: {
+		if (!this.client) {
+			return
+		}
+
+		try {
+			this.client.track(event, {
 				...properties,
 				_required: true, // Mark as required event
-			},
-		})
+			})
+		} catch (error) {
+			console.error("JitsuTelemetryProvider: Failed to track required event:", error)
+		}
 	}
 
 	public identifyUser(userInfo: ClineAccountUserInfo, properties: Record<string, unknown> = {}): void {
+		if (!this.client) {
+			return
+		}
+
 		const distinctId = getDistinctId()
 		// Only identify user if telemetry is enabled and user ID is different than the currently set distinct ID
 		if (this.isEnabled() && userInfo && userInfo?.id !== distinctId) {
-			this.client.identify({
-				distinctId: userInfo.id,
-				properties: {
+			try {
+				this.client.identify(userInfo.id, {
 					uuid: userInfo.id,
 					email: userInfo.email,
 					name: userInfo.displayName,
 					...properties,
-					alias: distinctId,
-				},
-			})
-			// Ensure distinct ID is updated so that we will not identify the user again
-			setDistinctId(userInfo.id)
+				})
+				// Ensure distinct ID is updated so that we will not identify the user again
+				setDistinctId(userInfo.id)
+			} catch (error) {
+				console.error("JitsuTelemetryProvider: Failed to identify user:", error)
+			}
 		}
 	}
 
-	// Set extension-specific telemetry setting - opt-in/opt-out via UI
 	public setOptIn(optIn: boolean): void {
-		if (optIn && !this.telemetrySettings.extensionEnabled) {
-			this.client.optIn()
-		}
-		if (!optIn && this.telemetrySettings.extensionEnabled) {
-			this.client.optOut()
-		}
 		this.telemetrySettings.extensionEnabled = optIn
+
+		// Update Jitsu privacy settings
+		if (this.client) {
+			try {
+				this.client.configure({
+					privacy: {
+						...this.config.privacy,
+						dontSend: !optIn,
+					},
+				})
+			} catch (error) {
+				console.error("JitsuTelemetryProvider: Failed to update opt-in setting:", error)
+			}
+		}
 	}
 
 	public isEnabled(): boolean {
@@ -129,14 +166,9 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public async dispose(): Promise<void> {
-		// Only shut down the client if it's not shared (we own it)
-		if (!this.isSharedClient) {
-			try {
-				await this.client.shutdown()
-			} catch (error) {
-				console.error("Error shutting down PostHog client:", error)
-			}
-		}
+		// Jitsu client doesn't require explicit cleanup
+		this.client = null
+		console.debug("JitsuTelemetryProvider: Disposed")
 	}
 
 	/**

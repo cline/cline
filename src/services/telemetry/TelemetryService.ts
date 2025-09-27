@@ -202,9 +202,7 @@ export class TelemetryService {
 	}
 
 	public static async create(): Promise<TelemetryService> {
-		const provider = await TelemetryProviderFactory.createProvider({
-			type: "posthog",
-		})
+		const providers = await TelemetryProviderFactory.createProviders()
 		const hostVersion = await HostProvider.env.getHostVersion({})
 		const metadata: TelemetryMetadata = {
 			extension_version: extensionVersion,
@@ -214,19 +212,19 @@ export class TelemetryService {
 			os_version: os.version(),
 			is_dev: process.env.IS_DEV,
 		}
-		return new TelemetryService(provider, metadata)
+		return new TelemetryService(providers, metadata)
 	}
 
 	/**
-	 * Constructor that accepts a PostHogClientProvider instance
-	 * @param provider PostHogClientProvider instance for sending analytics events
+	 * Constructor that accepts multiple telemetry providers for dual tracking
+	 * @param providers Array of telemetry providers for dual/multi tracking
 	 */
 	constructor(
-		private provider: ITelemetryProvider,
+		private providers: ITelemetryProvider[],
 		private telemetryMetadata: TelemetryMetadata,
 	) {
 		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
-		console.info("[TelemetryService] Initialized with telemetry provider")
+		console.info(`[TelemetryService] Initialized with ${providers.length} telemetry provider(s)`)
 	}
 
 	/**
@@ -261,7 +259,10 @@ export class TelemetryService {
 			}
 		}
 
-		this.provider.setOptIn(didUserOptIn)
+		// Update all providers
+		this.providers.forEach((provider) => {
+			provider.setOptIn(didUserOptIn)
+		})
 	}
 
 	private addProperties(properties: any): any {
@@ -277,14 +278,44 @@ export class TelemetryService {
 	 */
 	public capture(event: { event: string; properties?: unknown }): void {
 		const propertiesWithVersion = this.addProperties(event.properties)
+		this.captureToProviders(event.event, propertiesWithVersion, false)
+	}
 
-		// Use the provider's log method
-		this.provider.log(event.event, propertiesWithVersion)
+	/**
+	 * Captures a required telemetry event that bypasses user opt-out settings
+	 * @param event The event name to capture
+	 * @param properties Optional properties to attach to the event
+	 */
+	public captureRequired(event: string, properties?: Record<string, unknown>): void {
+		const propertiesWithVersion = this.addProperties(properties)
+		this.captureToProviders(event, propertiesWithVersion, true)
+	}
+
+	/**
+	 * Internal method to capture events to all providers with error isolation
+	 * @param event The event name
+	 * @param properties Event properties
+	 * @param required Whether this is a required event
+	 */
+	private async captureToProviders(event: string, properties: Record<string, unknown>, required: boolean): Promise<void> {
+		const promises = this.providers.map(async (provider) => {
+			try {
+				if (required) {
+					provider.logRequired(event, properties)
+				} else {
+					provider.log(event, properties)
+				}
+			} catch (error) {
+				console.error(`[TelemetryService] Provider failed for event ${event}:`, error)
+			}
+		})
+
+		// Execute all provider calls concurrently with error isolation
+		await Promise.allSettled(promises)
 	}
 
 	public captureExtensionActivated() {
-		// Use provider's log method for the activation event
-		this.provider.log(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED)
+		this.captureToProviders(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED, {}, false)
 	}
 
 	/**
@@ -293,8 +324,16 @@ export class TelemetryService {
 	 */
 	public identifyAccount(userInfo: ClineAccountUserInfo) {
 		const propertiesWithVersion = this.addProperties({})
-		// Use the provider's log method instead of direct client capture
-		this.provider.identifyUser(userInfo, propertiesWithVersion)
+
+		// Update all providers with error isolation
+		this.providers.forEach((provider) => {
+			try {
+				provider.identifyUser(userInfo, propertiesWithVersion)
+			} catch (error) {
+				console.error(`[TelemetryService] Provider failed for user identification:`, error)
+			}
+		})
+
 		if (userInfo.id) {
 			setDistinctId(userInfo.id)
 		}
@@ -1251,33 +1290,40 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Get the telemetry provider instance
-	 * @returns The current telemetry provider
+	 * Get the telemetry provider instances
+	 * @returns The array of telemetry providers
 	 */
-	public getProvider(): ITelemetryProvider {
-		return this.provider
+	public getProviders(): ITelemetryProvider[] {
+		return [...this.providers]
 	}
 
 	/**
 	 * Check if telemetry is currently enabled
-	 * @returns Boolean indicating whether telemetry is enabled
+	 * @returns Boolean indicating whether any provider is enabled
 	 */
 	public isEnabled(): boolean {
-		return this.provider.isEnabled()
+		return this.providers.some((provider) => provider.isEnabled())
 	}
 
 	/**
-	 * Get current telemetry settings
+	 * Get current telemetry settings from the first provider
 	 * @returns Current telemetry settings
 	 */
 	public getSettings() {
-		return this.provider.getSettings()
+		return this.providers.length > 0
+			? this.providers[0].getSettings()
+			: {
+					extensionEnabled: false,
+					hostEnabled: false,
+					level: "off" as const,
+				}
 	}
 
 	/**
 	 * Clean up resources when the service is disposed
 	 */
 	public async dispose(): Promise<void> {
-		await this.provider.dispose()
+		const disposePromises = this.providers.map((provider) => provider.dispose())
+		await Promise.allSettled(disposePromises)
 	}
 }
