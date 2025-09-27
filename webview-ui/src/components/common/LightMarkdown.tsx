@@ -1,164 +1,166 @@
 import React from "react"
 
-// Pre-compiled regex patterns to avoid recreation on each render
-const BOLD_REGEX = /\*\*(.*?)\*\*|__(.*?)__/g
-const ITALIC_REGEX = /\*(.*?)\*|_(.*?)_/g
-
 interface LightMarkdownProps {
 	text: string
 	compact?: boolean
 }
 
 /**
- * Ultra-lightweight markdown renderer that supports bold, italic, and headers.
- * Memory-efficient alternative to MarkdownBlock for simple formatting needs.
- * Uses cached regex patterns and direct React element creation to minimize allocations.
+ * Super-lightweight emphasis parser.
+ * Scope:
+ * - Supported: bold (**text**), italic (*text*)
+ * - Not supported: headers, links, code, lists, HTML, full Markdown spec
+ * - Underscore-based emphasis is intentionally NOT supported to avoid snake_case false positives
+ * - Unmatched markers render literally
+ *
+ * Design goals:
+ * - O(n) single-pass scanning with minimal allocations
+ * - No recursive substring tail mutation
+ * - Memoize parsed output to avoid recomputation on parent re-renders
  */
+
+// Parse inline emphasis for a single line of text.
+// Supports nested emphasis in a simple way by parsing inner segments recursively.
+// Returns an array of strings and React elements (<strong>, <em>).
+function parseInlineEmphasis(text: string, nextKey: () => string): React.ReactNode[] {
+	const out: React.ReactNode[] = []
+	const len = text.length
+
+	// Fast path: if no '*' at all, return as a single text segment
+	const firstStar = text.indexOf("*")
+	if (firstStar === -1) {
+		out.push(text)
+		return out
+	}
+
+	let i = 0
+	let segmentStart = 0
+
+	while (i < len) {
+		const starIdx = text.indexOf("*", i)
+		if (starIdx === -1) {
+			// push trailing literal
+			if (segmentStart < len) {
+				out.push(text.slice(segmentStart, len))
+			}
+			break
+		}
+
+		// Check for bold start (**)
+		if (starIdx + 1 < len && text[starIdx + 1] === "*") {
+			const contentStart = starIdx + 2
+			const endIdx = text.indexOf("**", contentStart)
+			if (endIdx !== -1 && endIdx > contentStart) {
+				// flush literal before match
+				if (segmentStart < starIdx) {
+					out.push(text.slice(segmentStart, starIdx))
+				}
+				const inner = text.slice(contentStart, endIdx)
+				// Allow simple nested emphasis by parsing inner content
+				const children = parseInlineEmphasis(inner, nextKey)
+				out.push(<strong key={nextKey()}>{children}</strong>)
+				i = endIdx + 2
+				segmentStart = i
+				continue
+			} else {
+				// unmatched bold opener - treat the first '*' as literal and continue
+				i = starIdx + 1
+				continue
+			}
+		}
+
+		// Italic start (*)
+		const contentStart = starIdx + 1
+		const endIdx = text.indexOf("*", contentStart)
+		if (endIdx !== -1 && endIdx > contentStart) {
+			// flush literal before match
+			if (segmentStart < starIdx) {
+				out.push(text.slice(segmentStart, starIdx))
+			}
+			const inner = text.slice(contentStart, endIdx)
+			// Allow simple nested emphasis by parsing inner content
+			const children = parseInlineEmphasis(inner, nextKey)
+			out.push(<em key={nextKey()}>{children}</em>)
+			i = endIdx + 1
+			segmentStart = i
+		} else {
+			// unmatched italic opener - treat '*' as literal and continue
+			i = starIdx + 1
+		}
+	}
+
+	return out
+}
+
+// Split by lines and compose inline nodes.
+// compact=false: each line becomes a block-level span
+// compact=true: inline-only across lines, with no additional separators (preserves prior behavior)
+function parseTextToNodes(text: string, compact: boolean): React.ReactNode {
+	// Global fast path: if no '*' anywhere, short-circuit
+	if (text.indexOf("*") === -1) {
+		if (compact) {
+			// Return as a single text node (no extra wrappers)
+			return text
+		}
+		// Non-compact: render each line as block span for layout consistency
+		const lines = text.split(/\r?\n/)
+		let keyCounter = 0
+		const nextKey = () => `lm-${keyCounter++}`
+		return (
+			<React.Fragment>
+				{lines.map((line) => (
+					<span key={nextKey()} style={{ display: "block" }}>
+						{line}
+					</span>
+				))}
+			</React.Fragment>
+		)
+	}
+
+	const lines = text.split(/\r?\n/)
+	let keyCounter = 0
+	const nextKey = () => `lm-${keyCounter++}`
+
+	if (compact) {
+		// Flatten inline nodes across lines; no extra separators to preserve minimalism
+		const flat: React.ReactNode[] = []
+		for (let li = 0; li < lines.length; li++) {
+			const inlineNodes = parseInlineEmphasis(lines[li], nextKey)
+			for (let j = 0; j < inlineNodes.length; j++) {
+				const node = inlineNodes[j]
+				// Ensure each node in the top-level array has a key to avoid React key warnings
+				if (React.isValidElement(node)) {
+					flat.push(node.key == null ? React.cloneElement(node, { key: nextKey() }) : node)
+				} else {
+					// Wrap strings in keyed fragment (no extra DOM)
+					flat.push(<React.Fragment key={nextKey()}>{node}</React.Fragment>)
+				}
+			}
+		}
+		return <>{flat}</>
+	} else {
+		// Block-level lines; keys applied at line level
+		return (
+			<React.Fragment>
+				{lines.map((line) => (
+					<span key={nextKey()} style={{ display: "block" }}>
+						{parseInlineEmphasis(line, nextKey)}
+					</span>
+				))}
+			</React.Fragment>
+		)
+	}
+}
+
 const LightMarkdown: React.FC<LightMarkdownProps> = ({ text, compact = false }) => {
 	if (!text) {
 		return null
 	}
 
-	const parseText = (input: string): React.ReactNode[] => {
-		const elements: React.ReactNode[] = []
-		let key = 0
+	// Memoize parsed output; recompute only when inputs change
+	const content = React.useMemo(() => parseTextToNodes(text, compact), [text, compact])
 
-		// Split by lines to handle headers
-		const lines = input.split("\n")
-
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i]
-
-			// Check if line is a header
-			const headerMatch = line.match(/^(#{1,6})\s+(.*)$/)
-			if (headerMatch) {
-				const level = headerMatch[1].length
-				const headerText = headerMatch[2]
-				const HeaderTag = `h${level}` as keyof JSX.IntrinsicElements
-
-				elements.push(
-					React.createElement(
-						HeaderTag,
-						{
-							key: key++,
-							style: {
-								margin: compact ? "0" : undefined,
-								fontSize: level === 1 ? "1.2em" : level === 2 ? "1.1em" : "1em",
-								fontWeight: "bold",
-							},
-						},
-						parseInlineText(headerText),
-					),
-				)
-			} else {
-				// Parse regular line with inline formatting
-				const parsedLine = parseInlineText(line)
-				if (parsedLine.length > 0) {
-					if (compact) {
-						elements.push(
-							...parsedLine.map((el, idx) => {
-								// Handle both React elements and strings
-								if (React.isValidElement(el)) {
-									return React.cloneElement(el as React.ReactElement, { key: key++ })
-								} else {
-									return <span key={key++}>{el}</span>
-								}
-							}),
-						)
-					} else {
-						elements.push(
-							<span key={key++} style={{ display: "block" }}>
-								{parsedLine}
-							</span>,
-						)
-					}
-				}
-			}
-		}
-
-		return elements
-	}
-
-	const parseInlineText = (input: string): React.ReactNode[] => {
-		const elements: React.ReactNode[] = []
-		let remaining = input
-		let key = 0
-
-		// Process bold text first
-		while (true) {
-			BOLD_REGEX.lastIndex = 0 // Reset regex state
-			const boldMatch = BOLD_REGEX.exec(remaining)
-
-			if (!boldMatch) {
-				break
-			}
-
-			// Add text before match
-			if (boldMatch.index > 0) {
-				elements.push(remaining.substring(0, boldMatch.index))
-			}
-
-			// Add bold element
-			const boldText = boldMatch[1] || boldMatch[2]
-			elements.push(<strong key={`bold-${key++}`}>{parseItalicText(boldText)}</strong>)
-
-			// Update remaining text
-			remaining = remaining.substring(boldMatch.index + boldMatch[0].length)
-		}
-
-		// If no bold matches, process the entire remaining text for italics
-		if (elements.length === 0) {
-			return parseItalicText(remaining)
-		} else {
-			// Process remaining text for italics
-			if (remaining) {
-				elements.push(...parseItalicText(remaining))
-			}
-		}
-
-		return elements
-	}
-
-	const parseItalicText = (input: string): React.ReactNode[] => {
-		const elements: React.ReactNode[] = []
-		let remaining = input
-		let key = 0
-
-		while (true) {
-			ITALIC_REGEX.lastIndex = 0 // Reset regex state
-			const italicMatch = ITALIC_REGEX.exec(remaining)
-
-			if (!italicMatch) {
-				break
-			}
-
-			// Add text before match
-			if (italicMatch.index > 0) {
-				elements.push(remaining.substring(0, italicMatch.index))
-			}
-
-			// Add italic element
-			const italicText = italicMatch[1] || italicMatch[2]
-			elements.push(<em key={`italic-${key++}`}>{italicText}</em>)
-
-			// Update remaining text
-			remaining = remaining.substring(italicMatch.index + italicMatch[0].length)
-		}
-
-		// Add any remaining text
-		if (remaining) {
-			elements.push(remaining)
-		}
-
-		// If no matches found, return original text
-		if (elements.length === 0) {
-			return [input]
-		}
-
-		return elements
-	}
-
-	return <>{parseText(text)}</>
+	return <>{content}</>
 }
 
-export default LightMarkdown
+export default React.memo(LightMarkdown)
