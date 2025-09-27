@@ -152,7 +152,6 @@ export function convertToOpenAiMessages(
 					tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
 					// @ts-ignore-next-line
 					reasoning_details: reasoningDetails,
-					undefined,
 				})
 			}
 		}
