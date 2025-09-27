@@ -1218,7 +1218,6 @@ export class Task {
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)
-			await this.checkpointManager?.saveCheckpoint()
 
 			let fileContentString = ""
 			if (userFeedback.files && userFeedback.files.length > 0) {
