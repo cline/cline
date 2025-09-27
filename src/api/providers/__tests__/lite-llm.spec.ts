@@ -9,15 +9,9 @@ import { litellmDefaultModelId, litellmDefaultModelInfo } from "@roo-code/types"
 vi.mock("vscode", () => ({}))
 
 // Mock OpenAI
+const mockCreate = vi.fn()
+
 vi.mock("openai", () => {
-	const mockStream = {
-		[Symbol.asyncIterator]: vi.fn(),
-	}
-
-	const mockCreate = vi.fn().mockReturnValue({
-		withResponse: vi.fn().mockResolvedValue({ data: mockStream }),
-	})
-
 	return {
 		default: vi.fn().mockImplementation(() => ({
 			chat: {
@@ -34,6 +28,18 @@ vi.mock("../fetchers/modelCache", () => ({
 	getModels: vi.fn().mockImplementation(() => {
 		return Promise.resolve({
 			[litellmDefaultModelId]: litellmDefaultModelInfo,
+			"gpt-5": { ...litellmDefaultModelInfo, maxTokens: 8192 },
+			gpt5: { ...litellmDefaultModelInfo, maxTokens: 8192 },
+			"GPT-5": { ...litellmDefaultModelInfo, maxTokens: 8192 },
+			"gpt-5-turbo": { ...litellmDefaultModelInfo, maxTokens: 8192 },
+			"gpt5-preview": { ...litellmDefaultModelInfo, maxTokens: 8192 },
+			"gpt-5o": { ...litellmDefaultModelInfo, maxTokens: 8192 },
+			"gpt-5.1": { ...litellmDefaultModelInfo, maxTokens: 8192 },
+			"gpt-5-mini": { ...litellmDefaultModelInfo, maxTokens: 8192 },
+			"gpt-4": { ...litellmDefaultModelInfo, maxTokens: 8192 },
+			"claude-3-opus": { ...litellmDefaultModelInfo, maxTokens: 8192 },
+			"llama-3": { ...litellmDefaultModelInfo, maxTokens: 8192 },
+			"gpt-4-turbo": { ...litellmDefaultModelInfo, maxTokens: 8192 },
 		})
 	}),
 }))
@@ -41,7 +47,6 @@ vi.mock("../fetchers/modelCache", () => ({
 describe("LiteLLMHandler", () => {
 	let handler: LiteLLMHandler
 	let mockOptions: ApiHandlerOptions
-	let mockOpenAIClient: any
 
 	beforeEach(() => {
 		vi.clearAllMocks()
@@ -51,7 +56,6 @@ describe("LiteLLMHandler", () => {
 			litellmModelId: litellmDefaultModelId,
 		}
 		handler = new LiteLLMHandler(mockOptions)
-		mockOpenAIClient = new OpenAI()
 	})
 
 	describe("prompt caching", () => {
@@ -84,7 +88,7 @@ describe("LiteLLMHandler", () => {
 				},
 			}
 
-			mockOpenAIClient.chat.completions.create.mockReturnValue({
+			mockCreate.mockReturnValue({
 				withResponse: vi.fn().mockResolvedValue({ data: mockStream }),
 			})
 
@@ -95,7 +99,7 @@ describe("LiteLLMHandler", () => {
 			}
 
 			// Verify that create was called with cache control headers
-			const createCall = mockOpenAIClient.chat.completions.create.mock.calls[0][0]
+			const createCall = mockCreate.mock.calls[0][0]
 
 			// Check system message has cache control in the proper format
 			expect(createCall.messages[0]).toMatchObject({
@@ -152,6 +156,235 @@ describe("LiteLLMHandler", () => {
 				cacheWriteTokens: 20,
 				cacheReadTokens: 30,
 			})
+		})
+	})
+
+	describe("GPT-5 model handling", () => {
+		it("should use max_completion_tokens instead of max_tokens for GPT-5 models", async () => {
+			const optionsWithGPT5: ApiHandlerOptions = {
+				...mockOptions,
+				litellmModelId: "gpt-5",
+			}
+			handler = new LiteLLMHandler(optionsWithGPT5)
+
+			const systemPrompt = "You are a helpful assistant"
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+
+			// Mock the stream response
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield {
+						choices: [{ delta: { content: "Hello!" } }],
+						usage: {
+							prompt_tokens: 10,
+							completion_tokens: 5,
+						},
+					}
+				},
+			}
+
+			mockCreate.mockReturnValue({
+				withResponse: vi.fn().mockResolvedValue({ data: mockStream }),
+			})
+
+			const generator = handler.createMessage(systemPrompt, messages)
+			const results = []
+			for await (const chunk of generator) {
+				results.push(chunk)
+			}
+
+			// Verify that create was called with max_completion_tokens instead of max_tokens
+			const createCall = mockCreate.mock.calls[0][0]
+
+			// Should have max_completion_tokens, not max_tokens
+			expect(createCall.max_completion_tokens).toBeDefined()
+			expect(createCall.max_tokens).toBeUndefined()
+		})
+
+		it("should use max_completion_tokens for various GPT-5 model variations", async () => {
+			const gpt5Variations = [
+				"gpt-5",
+				"gpt5",
+				"GPT-5",
+				"gpt-5-turbo",
+				"gpt5-preview",
+				"gpt-5o",
+				"gpt-5.1",
+				"gpt-5-mini",
+			]
+
+			for (const modelId of gpt5Variations) {
+				vi.clearAllMocks()
+
+				const optionsWithGPT5: ApiHandlerOptions = {
+					...mockOptions,
+					litellmModelId: modelId,
+				}
+				handler = new LiteLLMHandler(optionsWithGPT5)
+
+				const systemPrompt = "You are a helpful assistant"
+				const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Test" }]
+
+				// Mock the stream response
+				const mockStream = {
+					async *[Symbol.asyncIterator]() {
+						yield {
+							choices: [{ delta: { content: "Response" } }],
+							usage: {
+								prompt_tokens: 10,
+								completion_tokens: 5,
+							},
+						}
+					},
+				}
+
+				mockCreate.mockReturnValue({
+					withResponse: vi.fn().mockResolvedValue({ data: mockStream }),
+				})
+
+				const generator = handler.createMessage(systemPrompt, messages)
+				for await (const chunk of generator) {
+					// Consume the generator
+				}
+
+				// Verify that create was called with max_completion_tokens for this model variation
+				const createCall = mockCreate.mock.calls[0][0]
+
+				expect(createCall.max_completion_tokens).toBeDefined()
+				expect(createCall.max_tokens).toBeUndefined()
+			}
+		})
+
+		it("should still use max_tokens for non-GPT-5 models", async () => {
+			const nonGPT5Models = ["gpt-4", "claude-3-opus", "llama-3", "gpt-4-turbo"]
+
+			for (const modelId of nonGPT5Models) {
+				vi.clearAllMocks()
+
+				const options: ApiHandlerOptions = {
+					...mockOptions,
+					litellmModelId: modelId,
+				}
+				handler = new LiteLLMHandler(options)
+
+				const systemPrompt = "You are a helpful assistant"
+				const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Test" }]
+
+				// Mock the stream response
+				const mockStream = {
+					async *[Symbol.asyncIterator]() {
+						yield {
+							choices: [{ delta: { content: "Response" } }],
+							usage: {
+								prompt_tokens: 10,
+								completion_tokens: 5,
+							},
+						}
+					},
+				}
+
+				mockCreate.mockReturnValue({
+					withResponse: vi.fn().mockResolvedValue({ data: mockStream }),
+				})
+
+				const generator = handler.createMessage(systemPrompt, messages)
+				for await (const chunk of generator) {
+					// Consume the generator
+				}
+
+				// Verify that create was called with max_tokens for non-GPT-5 models
+				const createCall = mockCreate.mock.calls[0][0]
+
+				expect(createCall.max_tokens).toBeDefined()
+				expect(createCall.max_completion_tokens).toBeUndefined()
+			}
+		})
+
+		it("should use max_completion_tokens in completePrompt for GPT-5 models", async () => {
+			const optionsWithGPT5: ApiHandlerOptions = {
+				...mockOptions,
+				litellmModelId: "gpt-5",
+			}
+			handler = new LiteLLMHandler(optionsWithGPT5)
+
+			mockCreate.mockResolvedValue({
+				choices: [{ message: { content: "Test response" } }],
+			})
+
+			await handler.completePrompt("Test prompt")
+
+			// Verify that create was called with max_completion_tokens
+			const createCall = mockCreate.mock.calls[0][0]
+
+			expect(createCall.max_completion_tokens).toBeDefined()
+			expect(createCall.max_tokens).toBeUndefined()
+		})
+
+		it("should not set any max token fields when maxTokens is undefined (GPT-5 streaming)", async () => {
+			const optionsWithGPT5: ApiHandlerOptions = {
+				...mockOptions,
+				litellmModelId: "gpt-5",
+			}
+			handler = new LiteLLMHandler(optionsWithGPT5)
+
+			// Force fetchModel to return undefined maxTokens
+			vi.spyOn(handler as any, "fetchModel").mockResolvedValue({
+				id: "gpt-5",
+				info: { ...litellmDefaultModelInfo, maxTokens: undefined },
+			})
+
+			// Mock the stream response
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield {
+						choices: [{ delta: { content: "Hello!" } }],
+						usage: {
+							prompt_tokens: 10,
+							completion_tokens: 5,
+						},
+					}
+				},
+			}
+
+			mockCreate.mockReturnValue({
+				withResponse: vi.fn().mockResolvedValue({ data: mockStream }),
+			})
+
+			const generator = handler.createMessage("You are a helpful assistant", [
+				{ role: "user", content: "Hello" } as unknown as Anthropic.Messages.MessageParam,
+			])
+			for await (const _chunk of generator) {
+				// consume
+			}
+
+			// Should not include either token field
+			const createCall = mockCreate.mock.calls[0][0]
+			expect(createCall.max_tokens).toBeUndefined()
+			expect(createCall.max_completion_tokens).toBeUndefined()
+		})
+
+		it("should not set any max token fields when maxTokens is undefined (GPT-5 completePrompt)", async () => {
+			const optionsWithGPT5: ApiHandlerOptions = {
+				...mockOptions,
+				litellmModelId: "gpt-5",
+			}
+			handler = new LiteLLMHandler(optionsWithGPT5)
+
+			// Force fetchModel to return undefined maxTokens
+			vi.spyOn(handler as any, "fetchModel").mockResolvedValue({
+				id: "gpt-5",
+				info: { ...litellmDefaultModelInfo, maxTokens: undefined },
+			})
+
+			mockCreate.mockResolvedValue({
+				choices: [{ message: { content: "Ok" } }],
+			})
+
+			await handler.completePrompt("Test prompt")
+
+			const createCall = mockCreate.mock.calls[0][0]
+			expect(createCall.max_tokens).toBeUndefined()
+			expect(createCall.max_completion_tokens).toBeUndefined()
 		})
 	})
 })
