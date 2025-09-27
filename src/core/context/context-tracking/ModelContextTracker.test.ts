@@ -6,9 +6,9 @@ import type { TaskMetadata } from "./ContextTrackerTypes"
 import { ModelContextTracker } from "./ModelContextTracker"
 
 describe("ModelContextTracker", () => {
+	const taskId = "test-task-id"
 	let sandbox: sinon.SinonSandbox
 	let tracker: ModelContextTracker
-	let taskId: string
 	let mockTaskMetadata: TaskMetadata
 	let getTaskMetadataStub: sinon.SinonStub
 	let saveTaskMetadataStub: sinon.SinonStub
@@ -22,7 +22,6 @@ describe("ModelContextTracker", () => {
 		saveTaskMetadataStub = sandbox.stub(diskModule, "saveTaskMetadata").resolves()
 
 		// Create tracker instance
-		taskId = "test-task-id"
 		tracker = new ModelContextTracker(taskId)
 	})
 
@@ -46,13 +45,13 @@ describe("ModelContextTracker", () => {
 
 			// Verify getTaskMetadata was called with correct parameters
 			expect(getTaskMetadataStub.calledOnce).to.be.true
-			expect(getTaskMetadataStub.firstCall.args[1]).to.equal(taskId)
+			expect(getTaskMetadataStub.firstCall.args[0]).to.equal(taskId)
 
 			// Verify saveTaskMetadata was called with the correct data
 			expect(saveTaskMetadataStub.calledOnce).to.be.true
 
 			// Extract the saved metadata from the call arguments
-			const savedMetadata = saveTaskMetadataStub.firstCall.args[2]
+			const savedMetadata = saveTaskMetadataStub.firstCall.args[1]
 
 			// Verify model_usage array has one entry
 			expect(savedMetadata.model_usage.length).to.equal(1)
@@ -98,7 +97,7 @@ describe("ModelContextTracker", () => {
 			expect(saveTaskMetadataStub.calledOnce).to.be.true
 
 			// Extract the saved metadata
-			const savedMetadata = saveTaskMetadataStub.firstCall.args[2]
+			const savedMetadata = saveTaskMetadataStub.firstCall.args[1]
 
 			// Verify model_usage array now has two entries
 			expect(savedMetadata.model_usage.length).to.equal(2)
@@ -159,7 +158,7 @@ describe("ModelContextTracker", () => {
 				expect(saveTaskMetadataStub.calledOnce).to.be.true
 
 				// Get the saved metadata
-				const savedMetadata = saveTaskMetadataStub.firstCall.args[2]
+				const savedMetadata = saveTaskMetadataStub.firstCall.args[1]
 
 				// Since we reset the array for each call, we should always have 1 entry
 				expect(savedMetadata.model_usage.length).to.equal(1)
