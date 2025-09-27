@@ -20,7 +20,7 @@ export function setVscodeHostProviderMock(options?: {
 }) {
 	HostProvider.reset()
 	HostProvider.initialize(
-		options?.webviewProviderCreator ?? (((_) => {}) as WebviewProviderCreator),
+		options?.webviewProviderCreator ?? ((() => {}) as WebviewProviderCreator),
 		options?.diffViewProviderCreator ?? ((() => {}) as DiffViewProviderCreator),
 		options?.hostBridgeClient ?? vscodeHostBridgeClient,
 		options?.logToChannel ?? ((_) => {}),

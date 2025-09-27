@@ -1,7 +1,6 @@
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
-import { WebviewProviderType } from "@shared/webview/types"
 import * as path from "path"
 import { initialize, tearDown } from "@/common"
 import { WebviewProvider } from "@/core/webview"
@@ -33,8 +32,8 @@ async function main() {
 }
 
 function setupHostProvider() {
-	const createWebview = (_: WebviewProviderType): WebviewProvider => {
-		return new ExternalWebviewProvider(extensionContext, WebviewProviderType.SIDEBAR)
+	const createWebview = (): WebviewProvider => {
+		return new ExternalWebviewProvider(extensionContext)
 	}
 	const createDiffView = (): DiffViewProvider => {
 		return new ExternalDiffViewProvider()

@@ -11,8 +11,6 @@ const prefix = name === "claude-dev" ? "cline" : name
 const ClineCommands = {
 	PlusButton: prefix + ".plusButtonClicked",
 	McpButton: prefix + ".mcpButtonClicked",
-	PopoutButton: prefix + ".popoutButtonClicked",
-	OpenInNewTab: prefix + ".openInNewTab",
 	SettingsButton: prefix + ".settingsButtonClicked",
 	HistoryButton: prefix + ".historyButtonClicked",
 	AccountButton: prefix + ".accountButtonClicked",
@@ -34,7 +32,6 @@ const ClineCommands = {
  */
 const ClineViewIds = {
 	Sidebar: name + ".SidebarProvider",
-	TabPanel: name + ".TabPanelProvider",
 }
 
 /**
