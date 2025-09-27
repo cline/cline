@@ -1,4 +1,4 @@
-import { anthropicModels, geminiDefaultModelId, geminiModels } from "@shared/api"
+import { ANTHROPIC_MIN_THINKING_BUDGET, anthropicModels, geminiDefaultModelId, geminiModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
@@ -8,7 +8,6 @@ import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Constants
-const DEFAULT_MIN_VALID_TOKENS = 1024
 const MAX_PERCENTAGE = 0.8
 const THUMB_SIZE = 16
 
@@ -143,7 +142,7 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 
 	const handleToggleChange = (event: any) => {
 		const isChecked = (event.target as HTMLInputElement).checked
-		const newThinkingBudgetValue = isChecked ? DEFAULT_MIN_VALID_TOKENS : 0
+		const newThinkingBudgetValue = isChecked ? ANTHROPIC_MIN_THINKING_BUDGET : 0
 		setIsEnabled(isChecked)
 		setLocalValue(newThinkingBudgetValue)
 
@@ -169,16 +168,16 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 					</LabelContainer>
 					<RangeInput
 						$max={maxSliderValue}
-						$min={DEFAULT_MIN_VALID_TOKENS}
+						$min={ANTHROPIC_MIN_THINKING_BUDGET}
 						$value={localValue}
 						aria-describedby="thinking-budget-description"
 						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
 						aria-valuemax={maxSliderValue}
-						aria-valuemin={DEFAULT_MIN_VALID_TOKENS}
+						aria-valuemin={ANTHROPIC_MIN_THINKING_BUDGET}
 						aria-valuenow={localValue}
 						id="thinking-budget-slider"
 						max={maxSliderValue}
-						min={DEFAULT_MIN_VALID_TOKENS}
+						min={ANTHROPIC_MIN_THINKING_BUDGET}
 						onChange={handleSliderChange}
 						onMouseUp={handleSliderComplete}
 						onTouchEnd={handleSliderComplete}

@@ -1,4 +1,4 @@
-import { ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
+import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
@@ -419,11 +419,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const primaryRootIndex = context.globalState.get<GlobalStateAndSettings["primaryRootIndex"]>("primaryRootIndex")
 		const multiRootEnabled = context.globalState.get<GlobalStateAndSettings["multiRootEnabled"]>("multiRootEnabled")
 
-		// thinking/reasoning default value
-		// undefined means it was never modified, 0 means it was turned off
-		// (having this on by default ensures that <thinking> text does not pollute the user's chat and is instead rendered as reasoning)
-		const defaultThinkingBudgetTokens = 1024 // minimum for claude sonnet
-
 		return {
 			// api configuration fields
 			claudeCodePath,
@@ -466,7 +461,9 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
-			planModeThinkingBudgetTokens: planModeThinkingBudgetTokens ?? defaultThinkingBudgetTokens,
+			// undefined means it was never modified, 0 means it was turned off
+			// (having this on by default ensures that <thinking> text does not pollute the user's chat and is instead rendered as reasoning)
+			planModeThinkingBudgetTokens: planModeThinkingBudgetTokens ?? ANTHROPIC_MIN_THINKING_BUDGET,
 			planModeReasoningEffort,
 			planModeVsCodeLmModelSelector,
 			planModeAwsBedrockCustomSelected,
@@ -500,7 +497,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
-			actModeThinkingBudgetTokens: actModeThinkingBudgetTokens ?? defaultThinkingBudgetTokens,
+			actModeThinkingBudgetTokens: actModeThinkingBudgetTokens ?? ANTHROPIC_MIN_THINKING_BUDGET,
 			actModeReasoningEffort,
 			actModeVsCodeLmModelSelector,
 			actModeAwsBedrockCustomSelected,
