@@ -1,6 +1,6 @@
 ---
 title: "Connecting to a Remote Server"
-description: "The Model Context Protocol (MCP) allows Cline to communicate with external servers that provide additional tools and resources to extend its capabilities. This guide explains how to add and connect to remote MCP servers through the MCP Servers interface."
+description: "The Model Context Protocol (MCP) allows Cline to communicate with external servers that provide additional tools and resources to extend its capabilities. This guide explains how to add and connect to remote MCP servers using SSE or Streamable HTTP transports through the MCP Servers interface."
 ---
 
 ## Adding and Managing Remote MCP Servers
@@ -17,9 +17,9 @@ To access the MCP Servers interface in Cline:
 
 The MCP Servers interface is divided into three main tabs:
 
--   **Marketplace**: Discover and install pre-configured MCP servers (if enabled)
--   **Remote Servers**: Connect to existing MCP servers via URL endpoints
--   **Installed**: Manage your connected MCP servers
+- **Marketplace**: Discover and install pre-configured MCP servers (if enabled)
+- **Remote Servers**: Connect to existing MCP servers via URL endpoints
+- **Installed**: Manage your connected MCP servers
 
 ### Adding a Remote MCP Server
 
@@ -60,9 +60,9 @@ Once added, your MCP servers appear in the "Configure" tab where you can:
 
 Each server displays its current status:
 
--   **Green dot**: Connected and ready to use
--   **Yellow dot**: In the process of connecting
--   **Red dot**: Disconnected or experiencing errors
+- **Green dot**: Connected and ready to use
+- **Yellow dot**: In the process of connecting
+- **Red dot**: Disconnected or experiencing errors
 
 #### Configure Server Settings
 
@@ -82,8 +82,8 @@ Click on a server to expand its settings panel:
 
 Toggle the switch next to each server to enable or disable it:
 
--   **Enabled**: Cline can use the server's tools and resources
--   **Disabled**: The server remains in your configuration but is not active
+- **Enabled**: Cline can use the server's tools and resources
+- **Disabled**: The server remains in your configuration but is not active
 
 ### Troubleshooting Connection Issues
 
@@ -114,12 +114,33 @@ For advanced users, Cline stores MCP server configurations in a JSON file that c
 }
 ```
 
+For Streamable HTTP servers, you can explicitly specify the transport type:
+
+```json
+{
+	"mcpServers": {
+		"streamableServer": {
+			"type": "streamableHttp",
+			"url": "https://example.com/mcp",
+			"headers": {
+				"Authorization": "Bearer your-token"
+			},
+			"disabled": false,
+			"autoApprove": ["tool1", "tool2"],
+			"timeout": 60
+		}
+	}
+}
+```
+
 Key configuration options:
 
--   **url**: The endpoint URL (for remote servers)
--   **disabled**: Whether the server is currently enabled (true/false)
--   **autoApprove**: List of tool names that don't require confirmation
--   **timeout**: Maximum time in seconds to wait for server responses
+- **type**: Transport type (`sse` or `streamableHttp`)
+- **url**: The endpoint URL (for remote servers)
+- **headers**: HTTP headers for authentication (optional)
+- **disabled**: Whether the server is currently enabled (true/false)
+- **autoApprove**: List of tool names that don't require confirmation
+- **timeout**: Maximum time in seconds to wait for server responses
 
 For additional MCP settings, click the "Advanced MCP Settings" link to access VSCode settings.
 
