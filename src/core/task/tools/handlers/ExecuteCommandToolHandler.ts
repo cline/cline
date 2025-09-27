@@ -122,13 +122,35 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			? autoApproveResult
 			: [autoApproveResult, false]
 
+		// Determine workspace context for telemetry
+		const commandMatch = command.match(/^@(\w+):(.+)$/)
+		const workspaceContext = {
+			isMultiRootEnabled: config.isMultiRootEnabled || false,
+			usedWorkspaceHint: !!commandMatch,
+			resolvedToNonPrimary: executionDir !== config.cwd,
+			resolutionMethod: (commandMatch ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
+		}
+
+		// Capture workspace path resolution telemetry
+		if (config.isMultiRootEnabled && config.workspaceManager) {
+			telemetryService.captureWorkspacePathResolved(
+				config.ulid,
+				"ExecuteCommandToolHandler",
+				commandMatch ? "hint_provided" : "fallback_to_primary",
+				commandMatch ? "workspace_name" : undefined,
+				executionDir !== config.cwd, // resolution success = resolved to different workspace
+				undefined, // TODO: could calculate workspace index if needed
+				true,
+			)
+		}
+
 		if ((!requiresApprovalPerLLM && autoApproveSafe) || (requiresApprovalPerLLM && autoApproveSafe && autoApproveAll)) {
 			// Auto-approve flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
 			await config.callbacks.say("command", actualCommand, undefined, undefined, false)
 			config.taskState.consecutiveAutoApprovedRequestsCount++
 			didAutoApprove = true
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
+			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
 		} else {
 			// Manual approval flow
 			showNotificationForApprovalIfAutoApprovalEnabled(
@@ -143,10 +165,17 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				config,
 			)
 			if (!didApprove) {
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
+				telemetryService.captureToolUsage(
+					config.ulid,
+					block.name,
+					config.api.getModel().id,
+					false,
+					false,
+					workspaceContext,
+				)
 				return formatResponse.toolDenied()
 			}
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
+			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true, workspaceContext)
 		}
 
 		// Setup timeout notification for long-running auto-approved commands

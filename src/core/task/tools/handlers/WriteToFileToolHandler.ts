@@ -121,7 +121,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				return "" // can only happen if the sharedLogic adds an error to userMessages
 			}
 
-			const { relPath, absolutePath, fileExists, diff, content, newContent } = result
+			const { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext } = result
+
 
 			// Handle approval flow
 			const sharedMessageProps: ClineSayTool = {
@@ -163,7 +164,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				config.taskState.consecutiveAutoApprovedRequestsCount++
 
 				// Capture telemetry
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
+				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
 
 				// we need an artificial delay to let the diagnostics catch up to the changes
 				await setTimeoutPromise(3_500)
@@ -212,7 +213,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					// await config.services.diffViewProvider.reset()
 
 					config.taskState.didRejectTool = true
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
+					telemetryService.captureToolUsage(
+						config.ulid,
+						block.name,
+						config.api.getModel().id,
+						false,
+						false,
+						workspaceContext,
+					)
 
 					await config.services.diffViewProvider.revertChanges()
 					return `The user denied this operation. ${fileDeniedNote}`
@@ -234,7 +242,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						await config.callbacks.say("user_feedback", text, images, files)
 					}
 
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
+					telemetryService.captureToolUsage(
+						config.ulid,
+						block.name,
+						config.api.getModel().id,
+						false,
+						true,
+						workspaceContext,
+					)
 				}
 			}
 
@@ -303,6 +318,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			typeof pathResult === "string"
 				? { absolutePath: pathResult, resolvedPath: relPath }
 				: { absolutePath: pathResult.absolutePath, resolvedPath: pathResult.resolvedPath }
+
+		// Determine workspace context for telemetry
+		const workspaceContext = {
+			isMultiRootEnabled: config.isMultiRootEnabled || false,
+			usedWorkspaceHint: typeof pathResult !== "string", // multi-root path result indicates hint usage
+			resolvedToNonPrimary: absolutePath !== (config.cwd + "/" + relPath).replace(/\/+/g, "/"),
+			resolutionMethod: (typeof pathResult !== "string" ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
+		}
 
 		// Check clineignore access first
 		const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
@@ -420,6 +443,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
 
-		return { relPath, absolutePath, fileExists, diff, content, newContent }
+		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext }
 	}
 }

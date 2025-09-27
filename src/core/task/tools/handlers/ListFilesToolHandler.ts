@@ -69,6 +69,14 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		const { absolutePath, displayPath } =
 			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult
 
+		// Determine workspace context for telemetry
+		const workspaceContext = {
+			isMultiRootEnabled: config.isMultiRootEnabled || false,
+			usedWorkspaceHint: typeof pathResult !== "string", // multi-root path result indicates hint usage
+			resolvedToNonPrimary: absolutePath !== (config.cwd + "/" + relDirPath!).replace(/\/+/g, "/"),
+			resolutionMethod: (typeof pathResult !== "string" ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
+		}
+
 		// Execute the actual list files operation
 		const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
 
@@ -91,7 +99,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 			config.taskState.consecutiveAutoApprovedRequestsCount++
 
 			// Capture telemetry
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
+			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
 		} else {
 			// Manual approval flow
 			const notificationMessage = `Cline wants to view directory ${getWorkspaceBasename(absolutePath, "ListFilesToolHandler.notification")}/`
@@ -107,10 +115,24 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 
 			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
 			if (!didApprove) {
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
+				telemetryService.captureToolUsage(
+					config.ulid,
+					block.name,
+					config.api.getModel().id,
+					false,
+					false,
+					workspaceContext,
+				)
 				return formatResponse.toolDenied()
 			} else {
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
+				telemetryService.captureToolUsage(
+					config.ulid,
+					block.name,
+					config.api.getModel().id,
+					false,
+					true,
+					workspaceContext,
+				)
 			}
 		}
 
