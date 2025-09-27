@@ -1,6 +1,5 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
-import { RedactedThinkingBlock, TextBlock, ThinkingBlock } from "@anthropic-ai/sdk/resources/index.mjs"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
 import { parseAssistantMessageV2 } from "@core/assistant-message"
@@ -2183,7 +2182,9 @@ export class Task {
 							// @ts-ignore-next-line
 							reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
 						},
-					] as Array<RedactedThinkingBlock | ThinkingBlock | TextBlock>,
+					] as Array<
+						Anthropic.Messages.RedactedThinkingBlock | Anthropic.Messages.ThinkingBlock | Anthropic.Messages.TextBlock
+					>,
 				})
 
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
