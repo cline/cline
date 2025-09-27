@@ -203,7 +203,6 @@ export class Controller {
 		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
-		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 
@@ -242,7 +241,6 @@ export class Controller {
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,
 			defaultTerminalProfile ?? "default",
-			enableCheckpointsSetting ?? true,
 			cwd,
 			this.stateManager,
 			this.workspaceManager,
