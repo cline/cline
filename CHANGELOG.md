@@ -2,8 +2,6 @@
 
 ## 3.32.1
 
-### Patch Changes
-
 - dd055b3: fix: automatically retry on rate limit errors with SAP AI Core provider
 - b831100: feat: preserve reasoning traces for cline/openrouter/anthropic providers to maintain conversation integrity
 - 8635720: Empty Pr to bump changeset
