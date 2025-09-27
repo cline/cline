@@ -262,6 +262,7 @@ export const CLAUDE_SONNET_4_1M_TIERS = [
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-20250514"
+export const ANTHROPIC_MIN_THINKING_BUDGET = 1_024
 export const anthropicModels = {
 	"claude-sonnet-4-20250514:1m": {
 		maxTokens: 8192,
