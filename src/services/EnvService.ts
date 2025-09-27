@@ -32,6 +32,7 @@ export async function getIdeVersion(): Promise<string | undefined> {
 export const ClineHeaders = {
 	IDE_ID: "X-IDE-ID",
 	IDE_VERSION: "X-IDE-VERSION",
+	CLIENT_VERSION: "X-CLIENT-VERSION",
 } as const
 export type ClineHeaderName = (typeof ClineHeaders)[keyof typeof ClineHeaders]
 
@@ -43,6 +44,7 @@ export async function buildClineExtraHeaders(): Promise<Record<string, string>> 
 	const headers: Record<string, string> = {}
 	if (ideId) headers[ClineHeaders.IDE_ID] = ideId
 	if (ideVersion) headers[ClineHeaders.IDE_VERSION] = ideVersion
+	// Dont set X-CLIENT-VERSION here, as it is populated at call sites (e.g., cline.ts) from package.json representing the Cline extension version
 	return headers
 }
 

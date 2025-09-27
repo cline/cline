@@ -51,7 +51,7 @@ export class ClineHandler implements ApiHandler {
 					"HTTP-Referer": "https://cline.bot",
 					"X-Title": "Cline",
 					"X-Task-ID": this.options.ulid || "",
-					"X-Cline-Version": extensionVersion,
+					"X-CLIENT-VERSION": extensionVersion,
 				}
 				Object.assign(defaultHeaders, await buildClineExtraHeaders())
 
@@ -213,6 +213,7 @@ export class ClineHandler implements ApiHandler {
 					Authorization: `Bearer ${clineAccountAuthToken}`,
 				}
 				Object.assign(headers, await buildClineExtraHeaders())
+				headers["X-CLIENT-VERSION"] = extensionVersion
 
 				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
 					headers,
