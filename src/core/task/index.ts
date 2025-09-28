@@ -1753,19 +1753,30 @@ export class Task {
 		// Now, if it's the first request AND checkpoints are enabled AND tracker was successfully initialized,
 		// then say "checkpoint_created" and perform the commit.
 		if (isFirstRequest && this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") && this.checkpointManager) {
-			const commitHash = await this.checkpointManager.commit() // Actual commit
 			await this.say("checkpoint_created") // Now this is conditional
 			const lastCheckpointMessageIndex = findLastIndex(
 				this.messageStateHandler.getClineMessages(),
 				(m) => m.say === "checkpoint_created",
 			)
 			if (lastCheckpointMessageIndex !== -1) {
-				await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
-					lastCheckpointHash: commitHash,
-				})
-				// saveClineMessagesAndUpdateHistory will be called later after API response,
-				// so no need to call it here unless this is the only modification to this message.
-				// For now, assuming it's handled later.
+				this.checkpointManager
+					?.commit()
+					.then(async (commitHash) => {
+						if (commitHash) {
+							await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
+								lastCheckpointHash: commitHash,
+							})
+							// saveClineMessagesAndUpdateHistory will be called later after API response,
+							// so no need to call it here unless this is the only modification to this message.
+							// For now, assuming it's handled later.
+						}
+					})
+					.catch((error) => {
+						console.error(
+							`[TaskCheckpointManager] Failed to create checkpoint commit for task ${this.taskId}:`,
+							error,
+						)
+					})
 			}
 		} else if (
 			isFirstRequest &&
