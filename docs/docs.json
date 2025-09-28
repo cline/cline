@@ -32,8 +32,7 @@
 		"strict": false
 	},
 	"fonts": {
-		"family": "Roboto",
-		"weight": 400
+		"family": "Roboto"
 	},
 	"navbar": {
 		"links": [
@@ -58,8 +57,8 @@
 				"group": "Getting Started",
 				"pages": [
 					"getting-started/what-is-cline",
-					"getting-started/model-selection-guide",
 					"getting-started/installing-cline",
+					"getting-started/model-selection-guide",
 					"getting-started/installing-cline-jetbrains",
 					"getting-started/task-management",
 					"getting-started/understanding-context-management",
