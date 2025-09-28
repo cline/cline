@@ -1041,8 +1041,8 @@ export class Task {
 
 		const flushBuffer = async (force = false) => {
 			if (outputBuffer.length === 0) {
-				if (force && outputBuffer.length > 0) {
-					// If force is true and no chunkEnroute, flush anyway
+				if (force) {
+					// If force is true, flush anyway
 				} else {
 					return
 				}
@@ -1073,7 +1073,7 @@ export class Task {
 			} catch {
 				Logger.error("Error while asking for command output")
 			} finally {
-				// This can only happen if the command_output ask promise was ignored which is expected when the command finishes execution, so ignore this error
+				// If the command finishes execution before the 'command_output' ask promise resolves (in other words before the user responded to the ask, which is expected when the command finishes execution first), this block is reached. This is expected and safe to ignore, as no further handling is required.
 			}
 		}
 
