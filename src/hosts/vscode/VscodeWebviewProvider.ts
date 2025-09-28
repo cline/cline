@@ -79,7 +79,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		webviewView.onDidChangeVisibility(
 			async () => {
 				if (this.webview?.visible) {
-					await sendDidBecomeVisibleEvent(this.controller.id)
+					await sendDidBecomeVisibleEvent()
 				}
 			},
 			null,

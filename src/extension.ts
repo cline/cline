@@ -77,15 +77,13 @@ export async function activate(context: vscode.ExtensionContext) {
 			const sidebarInstance = WebviewProvider.getInstance()
 			await sidebarInstance.controller.clearTask()
 			await sidebarInstance.controller.postStateToWebview()
-			await sendChatButtonClickedEvent(sidebarInstance.controller.id)
+			await sendChatButtonClickedEvent()
 		}),
 	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.McpButton, () => {
-			const sidebarInstance = WebviewProvider.getInstance()
-			const sidebarInstanceId = sidebarInstance.getClientId()
-			sendMcpButtonClickedEvent(sidebarInstanceId)
+			sendMcpButtonClickedEvent()
 		}),
 	)
 
@@ -104,9 +102,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.AccountButton, () => {
-			const sidebarInstance = WebviewProvider.getInstance()
-			// Send event to sidebar controller
-			sendAccountButtonClickedEvent(sidebarInstance.controller.id)
+			// Send event to all subscribers using the gRPC streaming method
+			sendAccountButtonClickedEvent()
 		}),
 	)
 
@@ -343,8 +340,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			// Send focus event
-			const clientId = webview.getClientId()
-			sendFocusChatInputEvent(clientId)
+			sendFocusChatInputEvent()
 			telemetryService.captureButtonClick("command_focusChatInput", webview.controller?.task?.ulid)
 		}),
 	)

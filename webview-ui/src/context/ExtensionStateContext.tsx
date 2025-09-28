@@ -6,7 +6,7 @@ import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { type TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
@@ -529,10 +529,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		})
 
 		// Subscribe to focus chat input events
-		const clientId = (window as any).clineClientId
-		if (clientId) {
-			const request = StringRequest.create({ value: clientId })
-			focusChatInputUnsubscribeRef.current = UiServiceClient.subscribeToFocusChatInput(request, {
+		focusChatInputUnsubscribeRef.current = UiServiceClient.subscribeToFocusChatInput(
+			{},
+			{
 				onResponse: () => {
 					// Dispatch a local DOM event within this webview only
 					window.dispatchEvent(new CustomEvent("focusChatInput"))
@@ -541,10 +540,8 @@ export const ExtensionStateContextProvider: React.FC<{
 					console.error("Error in focusChatInput subscription:", error)
 				},
 				onComplete: () => {},
-			})
-		} else {
-			console.error("Client ID not found in window object")
-		}
+			},
+		)
 
 		// Clean up subscriptions when component unmounts
 		return () => {

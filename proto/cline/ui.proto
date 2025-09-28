@@ -217,7 +217,7 @@ service UiService {
   rpc onDidShowAnnouncement(EmptyRequest) returns (Boolean);
   
   // Subscribe to addToInput events (when user adds content via context menu)
-  rpc subscribeToAddToInput(StringRequest) returns (stream String);
+  rpc subscribeToAddToInput(EmptyRequest) returns (stream String);
   
   // Subscribe to MCP button clicked events
   rpc subscribeToMcpButtonClicked(EmptyRequest) returns (stream Empty);
@@ -243,8 +243,8 @@ service UiService {
   // Subscribe to relinquish control events
   rpc subscribeToRelinquishControl(EmptyRequest) returns (stream Empty);
   
-  // Subscribe to focus chat input events with client ID
-  rpc subscribeToFocusChatInput(StringRequest) returns (stream Empty);
+  // Subscribe to focus chat input events
+  rpc subscribeToFocusChatInput(EmptyRequest) returns (stream Empty);
   
   // Subscribe to webview visibility change events
   rpc subscribeToDidBecomeVisible(EmptyRequest) returns (stream Empty);

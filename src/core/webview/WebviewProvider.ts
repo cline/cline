@@ -2,7 +2,6 @@ import path from "node:path"
 import { Controller } from "@core/controller/index"
 import axios from "axios"
 import { readFile } from "fs/promises"
-import { v4 as uuidv4 } from "uuid"
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -11,19 +10,12 @@ import { getNonce } from "./getNonce"
 export abstract class WebviewProvider {
 	private static instance: WebviewProvider | null = null
 	controller: Controller
-	private clientId: string
 
 	constructor(readonly context: vscode.ExtensionContext) {
 		WebviewProvider.instance = this
-		this.clientId = uuidv4()
 
 		// Create controller with cache service
-		this.controller = new Controller(context, this.clientId)
-	}
-
-	// Add a method to get the client ID
-	public getClientId(): string {
-		return this.clientId
+		this.controller = new Controller(context)
 	}
 
 	async dispose() {
@@ -128,10 +120,6 @@ export abstract class WebviewProvider {
 			<body>
 				<noscript>You need to enable JavaScript to run this app.</noscript>
 				<div id="root"></div>
-				 <script type="text/javascript" nonce="${nonce}">
-                    // Inject the client ID
-                    window.clineClientId = "${this.clientId}";
-                </script>
 				<script type="module" nonce="${nonce}" src="${scriptUrl}"></script>
 				<script src="http://localhost:8097"></script> 
 			</body>
@@ -231,10 +219,6 @@ export abstract class WebviewProvider {
 				</head>
 				<body>
 					<div id="root"></div>
-					<script type="text/javascript" nonce="${nonce}">
-						// Inject the client ID
-						window.clineClientId = "${this.clientId}";
-					</script>
 					${reactRefresh}
 					<script type="module" src="${scriptUrl}"></script>
 				</body>
