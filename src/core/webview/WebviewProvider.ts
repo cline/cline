@@ -31,7 +31,10 @@ export abstract class WebviewProvider {
 		WebviewProvider.instance = null
 	}
 
-	public static getInstance(): WebviewProvider | null {
+	public static getInstance(): WebviewProvider {
+		if (!WebviewProvider.instance) {
+			throw new Error("WebviewProvider instance not initialized. Make sure to create a WebviewProvider instance first.")
+		}
 		return WebviewProvider.instance
 	}
 

@@ -23,9 +23,7 @@ export async function addToCline(controller: Controller, request: CommandContext
 	}
 
 	const webview = WebviewProvider.getInstance()
-	if (webview) {
-		await sendAddToInputEventToClient(webview.getClientId(), input)
-	}
+	await sendAddToInputEventToClient(webview.getClientId(), input)
 
 	console.log("addToCline", request.selectedText, filePath, request.language)
 	telemetryService.captureButtonClick("codeAction_addToChat", controller.task?.ulid)

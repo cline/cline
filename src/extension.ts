@@ -75,24 +75,17 @@ export async function activate(context: vscode.ExtensionContext) {
 			console.log("[DEBUG] plusButtonClicked")
 
 			const sidebarInstance = WebviewProvider.getInstance()
-			if (sidebarInstance) {
-				await sidebarInstance.controller.clearTask()
-				await sidebarInstance.controller.postStateToWebview()
-				await sendChatButtonClickedEvent(sidebarInstance.controller.id)
-			}
+			await sidebarInstance.controller.clearTask()
+			await sidebarInstance.controller.postStateToWebview()
+			await sendChatButtonClickedEvent(sidebarInstance.controller.id)
 		}),
 	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.McpButton, () => {
 			const sidebarInstance = WebviewProvider.getInstance()
-
-			const sidebarInstanceId = sidebarInstance?.getClientId()
-			if (sidebarInstanceId) {
-				sendMcpButtonClickedEvent(sidebarInstanceId)
-			} else {
-				console.error("[DEBUG] No sidebar instance found, cannot send MCP button event")
-			}
+			const sidebarInstanceId = sidebarInstance.getClientId()
+			sendMcpButtonClickedEvent(sidebarInstanceId)
 		}),
 	)
 
@@ -112,10 +105,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.AccountButton, () => {
 			const sidebarInstance = WebviewProvider.getInstance()
-			if (sidebarInstance) {
-				// Send event to sidebar controller
-				sendAccountButtonClickedEvent(sidebarInstance.controller.id)
-			}
+			// Send event to sidebar controller
+			sendAccountButtonClickedEvent(sidebarInstance.controller.id)
 		}),
 	)
 
@@ -343,32 +334,16 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register the focusChatInput command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.FocusChatInput, async () => {
-			// Get the sidebar instance
-			let webview = WebviewProvider.getInstance() as VscodeWebviewProvider
+			const webview = WebviewProvider.getInstance() as VscodeWebviewProvider
 
-			if (webview) {
-				// Instance exists - just show it
-				const webviewView = webview.getWebview()
-				if (webviewView) {
-					webviewView.show()
-				}
-			} else {
-				// Try to focus sidebar via hostbridge
-				await HostProvider.workspace.openClineSidebarPanel({})
-				webview = WebviewProvider.getInstance() as VscodeWebviewProvider
+			// Show the webview
+			const webviewView = webview.getWebview()
+			if (webviewView) {
+				webviewView.show()
 			}
 
 			// Send focus event
-			const clientId = webview?.getClientId()
-			if (!clientId) {
-				console.error("FocusChatInput: Could not find or activate a Cline webview to focus.")
-				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: "Could not activate Cline view. Please try opening it manually from the Activity Bar.",
-				})
-				return
-			}
-
+			const clientId = webview.getClientId()
 			sendFocusChatInputEvent(clientId)
 			telemetryService.captureButtonClick("command_focusChatInput", webview.controller?.task?.ulid)
 		}),
