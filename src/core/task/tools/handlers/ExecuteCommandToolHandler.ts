@@ -4,6 +4,7 @@ import { WorkspacePathAdapter } from "@core/workspace/WorkspacePathAdapter"
 import { showSystemNotification } from "@integrations/notifications"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { ClineAsk } from "@shared/ExtensionMessage"
+import { arePathsEqual } from "@utils/path"
 import { fixModelHtmlEscaping } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -81,13 +82,17 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		let executionDir: string = config.cwd
 		let actualCommand: string = command
 
+		let workspaceHintUsed = false
+		let workspaceHint: string | undefined
+
 		if (config.isMultiRootEnabled && config.workspaceManager) {
 			// Check if command has a workspace hint prefix
 			// e.g., "@backend:npm install" or just "npm install"
 			const commandMatch = command.match(/^@(\w+):(.+)$/)
 
 			if (commandMatch) {
-				const workspaceHint = commandMatch[1]
+				workspaceHintUsed = true
+				workspaceHint = commandMatch[1]
 				actualCommand = commandMatch[2].trim()
 
 				// Find the workspace root for this hint
@@ -123,12 +128,12 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			: [autoApproveResult, false]
 
 		// Determine workspace context for telemetry
-		const commandMatch = command.match(/^@(\w+):(.+)$/)
+		const resolvedToNonPrimary = !arePathsEqual(executionDir, config.cwd)
 		const workspaceContext = {
 			isMultiRootEnabled: config.isMultiRootEnabled || false,
-			usedWorkspaceHint: !!commandMatch,
-			resolvedToNonPrimary: executionDir !== config.cwd,
-			resolutionMethod: (commandMatch ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
+			usedWorkspaceHint: workspaceHintUsed,
+			resolvedToNonPrimary,
+			resolutionMethod: (workspaceHintUsed ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
 		}
 
 		// Capture workspace path resolution telemetry
@@ -136,9 +141,9 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			telemetryService.captureWorkspacePathResolved(
 				config.ulid,
 				"ExecuteCommandToolHandler",
-				commandMatch ? "hint_provided" : "fallback_to_primary",
-				commandMatch ? "workspace_name" : undefined,
-				executionDir !== config.cwd, // resolution success = resolved to different workspace
+				workspaceHintUsed ? "hint_provided" : "fallback_to_primary",
+				workspaceHintUsed ? "workspace_name" : undefined,
+				resolvedToNonPrimary, // resolution success = resolved to different workspace
 				undefined, // TODO: could calculate workspace index if needed
 				true,
 			)

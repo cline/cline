@@ -1,6 +1,6 @@
 import type { ToolUse } from "@core/assistant-message"
 import { regexSearchFiles } from "@services/ripgrep"
-import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import * as path from "path"
 import { formatResponse } from "@/core/prompts/responses"
 import { parseWorkspaceInlinePath } from "@/core/workspace/utils/parseWorkspaceInlinePath"
@@ -228,10 +228,15 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		const searchPaths = this.determineSearchPaths(config, parsedPath, workspaceHint, relDirPath!)
 
 		// Determine workspace context for telemetry
+		const primaryWorkspaceRoot = searchPaths[0]?.workspaceRoot
+		const resolvedToNonPrimary =
+			searchPaths.length === 0
+				? true
+				: searchPaths.length > 1 || (primaryWorkspaceRoot ? !arePathsEqual(primaryWorkspaceRoot, config.cwd) : true)
 		const workspaceContext = {
 			isMultiRootEnabled: config.isMultiRootEnabled || false,
 			usedWorkspaceHint: !!workspaceHint,
-			resolvedToNonPrimary: searchPaths.length > 1 || searchPaths[0]?.workspaceRoot !== config.cwd,
+			resolvedToNonPrimary,
 			resolutionMethod: (workspaceHint ? "hint" : searchPaths.length > 1 ? "path_detection" : "primary_fallback") as
 				| "hint"
 				| "primary_fallback"

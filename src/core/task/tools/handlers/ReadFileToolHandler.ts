@@ -1,8 +1,9 @@
+import path from "node:path"
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
-import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -73,10 +74,11 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relPath! } : pathResult
 
 		// Determine workspace context for telemetry
+		const fallbackAbsolutePath = path.resolve(config.cwd, relPath ?? "")
 		const workspaceContext = {
 			isMultiRootEnabled: config.isMultiRootEnabled || false,
 			usedWorkspaceHint: typeof pathResult !== "string", // multi-root path result indicates hint usage
-			resolvedToNonPrimary: absolutePath !== (config.cwd + "/" + relPath!).replace(/\/+/g, "/"),
+			resolvedToNonPrimary: !arePathsEqual(absolutePath, fallbackAbsolutePath),
 			resolutionMethod: (typeof pathResult !== "string" ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
 		}
 

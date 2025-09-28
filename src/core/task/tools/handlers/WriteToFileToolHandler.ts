@@ -1,3 +1,4 @@
+import path from "node:path"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import type { ToolUse } from "@core/assistant-message"
 import { constructNewFileContent } from "@core/assistant-message/diff"
@@ -6,7 +7,7 @@ import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
-import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -320,10 +321,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				: { absolutePath: pathResult.absolutePath, resolvedPath: pathResult.resolvedPath }
 
 		// Determine workspace context for telemetry
+		const fallbackAbsolutePath = path.resolve(config.cwd, relPath)
 		const workspaceContext = {
 			isMultiRootEnabled: config.isMultiRootEnabled || false,
 			usedWorkspaceHint: typeof pathResult !== "string", // multi-root path result indicates hint usage
-			resolvedToNonPrimary: absolutePath !== (config.cwd + "/" + relPath).replace(/\/+/g, "/"),
+			resolvedToNonPrimary: !arePathsEqual(absolutePath, fallbackAbsolutePath),
 			resolutionMethod: (typeof pathResult !== "string" ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
 		}
 
