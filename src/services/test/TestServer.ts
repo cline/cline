@@ -85,7 +85,7 @@ async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, con
  * @param webviewProvider The webview provider instance to use for message catching
  * @returns The created HTTP server instance
  */
-export function createTestServer(controller: Controller): http.Server {
+export async function createTestServer(controller: Controller): Promise<http.Server> {
 	// Try to show the Cline sidebar
 	Logger.log("[createTestServer] Opening Cline in sidebar...")
 	vscode.commands.executeCommand(`workbench.view.${ExtensionRegistryInfo.name}-ActivityBar`)
@@ -94,7 +94,7 @@ export function createTestServer(controller: Controller): http.Server {
 	vscode.commands.executeCommand(`${ExtensionRegistryInfo.views.Sidebar}.focus`)
 
 	// Update auto approval settings is available
-	updateAutoApprovalSettings(controller.context, controller)
+	await updateAutoApprovalSettings(controller.context, controller)
 
 	const PORT = 9876
 
