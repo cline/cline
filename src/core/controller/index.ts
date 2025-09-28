@@ -454,7 +454,7 @@ export class Controller {
 	}
 
 	async handleTaskCreation(prompt: string) {
-		await sendChatButtonClickedEvent(this.id)
+		await sendChatButtonClickedEvent()
 		await this.initTask(prompt)
 	}
 
