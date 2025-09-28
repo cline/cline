@@ -7,7 +7,6 @@ import { fileExistsAtPath } from "@utils/fs"
 import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { GlobalState } from "./state-keys"
 
@@ -103,16 +102,13 @@ export async function ensureMcpServersDirectoryExists(): Promise<string> {
 	return mcpServersDir
 }
 
-export async function ensureSettingsDirectoryExists(context: vscode.ExtensionContext): Promise<string> {
-	const settingsDir = path.join(context.globalStorageUri.fsPath, "settings")
+export async function ensureSettingsDirectoryExists(): Promise<string> {
+	const settingsDir = path.join(HostProvider.get().globalStorageFsPath, "settings")
 	await fs.mkdir(settingsDir, { recursive: true })
 	return settingsDir
 }
 
-export async function getSavedApiConversationHistory(
-	context: vscode.ExtensionContext,
-	taskId: string,
-): Promise<Anthropic.MessageParam[]> {
+export async function getSavedApiConversationHistory(taskId: string): Promise<Anthropic.MessageParam[]> {
 	const filePath = path.join(await ensureTaskDirectoryExists(taskId), GlobalFileNames.apiConversationHistory)
 	const fileExists = await fileExistsAtPath(filePath)
 	if (fileExists) {

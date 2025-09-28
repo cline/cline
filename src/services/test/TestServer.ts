@@ -47,7 +47,7 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  * @param context The VSCode extension context
  * @param controller The webview provider instance
  */
-async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, controller?: Controller) {
+async function updateAutoApprovalSettings(controller?: Controller) {
 	try {
 		const autoApprovalSettings = controller?.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 
@@ -94,7 +94,7 @@ export async function createTestServer(controller: Controller): Promise<http.Ser
 	vscode.commands.executeCommand(`${ExtensionRegistryInfo.views.Sidebar}.focus`)
 
 	// Update auto approval settings is available
-	await updateAutoApprovalSettings(controller.context, controller)
+	await updateAutoApprovalSettings(controller)
 
 	const PORT = 9876
 
@@ -313,10 +313,7 @@ export async function createTestServer(controller: Controller): Promise<http.Ser
 
 						try {
 							if (typeof taskId === "string") {
-								apiConversationHistory = await getSavedApiConversationHistory(
-									visibleWebview.controller.context,
-									taskId,
-								)
+								apiConversationHistory = await getSavedApiConversationHistory(taskId)
 							}
 						} catch (error) {
 							Logger.log(`Error getting saved API conversation history: ${error}`)

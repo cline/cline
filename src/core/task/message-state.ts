@@ -1,7 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import getFolderSize from "get-folder-size"
-import * as vscode from "vscode"
 import { findLastIndex } from "@/shared/array"
 import { combineApiRequests } from "@/shared/combineApiRequests"
 import { combineCommandSequences } from "@/shared/combineCommandSequences"
@@ -13,7 +12,6 @@ import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessage
 import { TaskState } from "./TaskState"
 
 interface MessageStateHandlerParams {
-	context: vscode.ExtensionContext
 	taskId: string
 	ulid: string
 	taskIsFavorited?: boolean
@@ -27,21 +25,17 @@ export class MessageStateHandler {
 	private clineMessages: ClineMessage[] = []
 	private taskIsFavorited: boolean
 	private checkpointTracker: CheckpointTracker | undefined
-	private checkpointManagerErrorMessage: string | undefined
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
-	private context: vscode.ExtensionContext
 	private taskId: string
 	private ulid: string
 	private taskState: TaskState
 
 	constructor(params: MessageStateHandlerParams) {
-		this.context = params.context
 		this.taskId = params.taskId
 		this.ulid = params.ulid
 		this.taskState = params.taskState
 		this.taskIsFavorited = params.taskIsFavorited ?? false
 		this.updateTaskHistory = params.updateTaskHistory
-		this.checkpointManagerErrorMessage = this.taskState.checkpointManagerErrorMessage
 	}
 
 	setCheckpointTracker(tracker: CheckpointTracker | undefined) {
