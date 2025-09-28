@@ -25,7 +25,8 @@
 	},
 	"styling": {
 		"eyebrows": "breadcrumbs",
-		"codeblocks": "system"
+		"codeblocks": "system",
+		"css": "styles.css"
 	},
 	"appearance": {
 		"default": "system",
