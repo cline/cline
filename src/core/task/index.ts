@@ -1039,6 +1039,10 @@ export class Task {
 		let outputBufferSize: number = 0
 		let chunkTimer: NodeJS.Timeout | null = null
 
+		// Track if buffer gets stuck (correlated with PROCESS_WHILE_RUNNING to indicate genuine technical issues)
+		let bufferStuckTimer: NodeJS.Timeout | null = null
+		const BUFFER_STUCK_TIMEOUT_MS = 6000 // 6 seconds
+
 		const flushBuffer = async (force = false) => {
 			if (outputBuffer.length === 0) {
 				if (force) {
@@ -1050,6 +1054,12 @@ export class Task {
 			const chunk = outputBuffer.join("\n")
 			outputBuffer = []
 			outputBufferSize = 0
+
+			// Start timer to detect if buffer gets stuck
+			bufferStuckTimer = setTimeout(() => {
+				telemetryService.captureTerminalHang(TerminalHangStage.BUFFER_STUCK)
+				bufferStuckTimer = null
+			}, BUFFER_STUCK_TIMEOUT_MS)
 
 			try {
 				const { response, text, images, files } = await this.ask("command_output", chunk)
@@ -1074,6 +1084,12 @@ export class Task {
 				Logger.error("Error while asking for command output")
 			} finally {
 				// If the command finishes execution before the 'command_output' ask promise resolves (in other words before the user responded to the ask, which is expected when the command finishes execution first), this block is reached. This is expected and safe to ignore, as no further handling is required.
+
+				// Clear the stuck timer
+				if (bufferStuckTimer) {
+					clearTimeout(bufferStuckTimer)
+					bufferStuckTimer = null
+				}
 			}
 		}
 
