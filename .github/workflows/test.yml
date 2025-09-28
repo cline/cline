@@ -172,6 +172,20 @@ jobs:
               with:
                   node-version: 22
 
+            - name: Clean build artifacts and stale files
+              run: |
+                  # Remove build directories
+                  rm -rf dist/ dist-standalone/ webview-ui/build/ out/
+                  # Remove generated files
+                  rm -rf src/generated/
+                  # Remove test artifacts and coverage reports
+                  rm -rf coverage/ test-results/ .vscode-test/
+                  # Remove any temporary files
+                  rm -rf .nyc_output/
+                  # Use npm clean script if available
+                  npm run clean:build || true
+                  echo "Build artifacts and stale files cleaned"
+
             - name: Cache root dependencies
               uses: actions/cache@v4
               id: root-cache
