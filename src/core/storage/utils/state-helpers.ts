@@ -396,13 +396,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		if (planActSeparateModelsSettingRaw === true || planActSeparateModelsSettingRaw === false) {
 			planActSeparateModelsSetting = planActSeparateModelsSettingRaw
 		} else {
-			// default to true for existing users
-			if (planModeApiProvider) {
-				planActSeparateModelsSetting = true
-			} else {
-				// default to false for new users
-				planActSeparateModelsSetting = false
-			}
+			// default to false
+			planActSeparateModelsSetting = false
 		}
 
 		const taskHistory = await readTaskHistoryFromState()
