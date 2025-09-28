@@ -4,11 +4,11 @@ import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
 import { clineEnvConfig } from "@/config"
+import { ExtensionRegistryInfo } from "@/registry"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
-import { buildClineExtraHeaders } from "@/services/EnvService"
+import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
-import { version as extensionVersion } from "../../../../package.json"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
@@ -51,7 +51,7 @@ export class ClineHandler implements ApiHandler {
 					"HTTP-Referer": "https://cline.bot",
 					"X-Title": "Cline",
 					"X-Task-ID": this.options.ulid || "",
-					"X-CLIENT-VERSION": extensionVersion,
+					"X-CLIENT-VERSION": ExtensionRegistryInfo.version,
 				}
 				Object.assign(defaultHeaders, await buildClineExtraHeaders())
 
@@ -213,7 +213,7 @@ export class ClineHandler implements ApiHandler {
 					Authorization: `Bearer ${clineAccountAuthToken}`,
 				}
 				Object.assign(headers, await buildClineExtraHeaders())
-				headers["X-CLIENT-VERSION"] = extensionVersion
+				headers["X-CLIENT-VERSION"] = ExtensionRegistryInfo.version
 
 				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
 					headers,
