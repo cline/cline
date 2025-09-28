@@ -2,7 +2,16 @@ import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import debounce from "debounce"
-import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
+import {
+	CheckCheck,
+	FlaskConical,
+	Info,
+	LucideIcon,
+	Settings,
+	SlidersHorizontal,
+	SquareMousePointer,
+	SquareTerminal,
+} from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import HeroTooltip from "@/components/common/HeroTooltip"
@@ -41,18 +50,18 @@ interface SettingsTab {
 
 export const SETTINGS_TABS: SettingsTab[] = [
 	{
-		id: "api-config",
-		name: "API Configuration",
-		tooltipText: "API Configuration",
-		headerText: "API Configuration",
-		icon: Webhook,
-	},
-	{
 		id: "general",
 		name: "General",
 		tooltipText: "General Settings",
 		headerText: "General Settings",
 		icon: Settings,
+	},
+	{
+		id: "api-config",
+		name: "API Configuration",
+		tooltipText: "API Configuration",
+		headerText: "API Configuration",
+		icon: SlidersHorizontal,
 	},
 	{
 		id: "features",
