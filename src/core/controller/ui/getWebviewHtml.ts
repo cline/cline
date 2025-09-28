@@ -9,9 +9,9 @@ import type { Controller } from "../index"
  * resolved through `resolveWebviewView()`.
  */
 export async function getWebviewHtml(_controller: Controller, _: EmptyRequest): Promise<String> {
-	const sidebarWebview = WebviewProvider.getInstance()
-	if (!sidebarWebview) {
+	const webview = WebviewProvider.getInstance()
+	if (!webview) {
 		throw new Error("No active webview")
 	}
-	return Promise.resolve(String.create({ value: sidebarWebview.getHtmlContent() }))
+	return Promise.resolve(String.create({ value: webview.getHtmlContent() }))
 }

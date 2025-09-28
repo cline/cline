@@ -52,13 +52,13 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
 
-	const sidebarWebview = HostProvider.get().createWebviewProvider()
+	const webview = HostProvider.get().createWebviewProvider()
 
 	await showVersionUpdateAnnouncement(context)
 
 	telemetryService.captureExtensionActivated()
 
-	return sidebarWebview
+	return webview
 }
 
 async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {

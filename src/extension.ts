@@ -52,18 +52,18 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 export async function activate(context: vscode.ExtensionContext) {
 	setupHostProvider(context)
 
-	const sidebarWebview = (await initialize(context)) as VscodeWebviewProvider
+	const webview = (await initialize(context)) as VscodeWebviewProvider
 
 	Logger.log("Cline extension activated")
 
-	const testModeWatchers = await initializeTestMode(sidebarWebview)
+	const testModeWatchers = await initializeTestMode(webview)
 	// Initialize test mode and add disposables to context
 	context.subscriptions.push(...testModeWatchers)
 
 	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
 
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(VscodeWebviewProvider.SIDEBAR_ID, sidebarWebview, {
+		vscode.window.registerWebviewViewProvider(VscodeWebviewProvider.SIDEBAR_ID, webview, {
 			webviewOptions: { retainContextWhenHidden: true },
 		}),
 	)
@@ -120,15 +120,15 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	/*
-	We use the text document content provider API to show the left side for diff view by creating a 
-	virtual document for the original content. This makes it readonly so users know to edit the right 
+	We use the text document content provider API to show the left side for diff view by creating a
+	virtual document for the original content. This makes it readonly so users know to edit the right
 	side if they want to keep their changes.
 
-	- This API allows you to create readonly documents in VSCode from arbitrary sources, and works by 
-	claiming an uri-scheme for which your provider then returns text contents. The scheme must be 
+	- This API allows you to create readonly documents in VSCode from arbitrary sources, and works by
+	claiming an uri-scheme for which your provider then returns text contents. The scheme must be
 	provided when registering a provider and cannot change afterwards.
 	- Note how the provider doesn't create uris for virtual documents - its role is to provide contents
-	 given such an uri. In return, content providers are wired into the open document logic so that 
+	 given such an uri. In return, content providers are wired into the open document logic so that
 	 providers are always considered.
 	https://code.visualstudio.com/api/extension-guides/virtual-documents
 	*/
@@ -153,7 +153,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		// Use dynamic import to avoid loading the module in production
 		import("./dev/commands/tasks")
 			.then((module) => {
-				const devTaskCommands = module.registerTaskCommands(sidebarWebview.controller)
+				const devTaskCommands = module.registerTaskCommands(webview.controller)
 				context.subscriptions.push(...devTaskCommands)
 				Logger.log("Cline dev task commands registered")
 			})
@@ -344,22 +344,22 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.FocusChatInput, async () => {
 			// Get the sidebar instance
-			let sidebarWebview = WebviewProvider.getInstance() as VscodeWebviewProvider
+			let webview = WebviewProvider.getInstance() as VscodeWebviewProvider
 
-			if (sidebarWebview) {
+			if (webview) {
 				// Instance exists - just show it
-				const webview = sidebarWebview.getWebview()
-				if (webview) {
-					webview.show()
+				const webviewView = webview.getWebview()
+				if (webviewView) {
+					webviewView.show()
 				}
 			} else {
 				// Try to focus sidebar via hostbridge
 				await HostProvider.workspace.openClineSidebarPanel({})
-				sidebarWebview = WebviewProvider.getInstance() as VscodeWebviewProvider
+				webview = WebviewProvider.getInstance() as VscodeWebviewProvider
 			}
 
 			// Send focus event
-			const clientId = sidebarWebview?.getClientId()
+			const clientId = webview?.getClientId()
 			if (!clientId) {
 				console.error("FocusChatInput: Could not find or activate a Cline webview to focus.")
 				HostProvider.window.showMessage({
@@ -370,7 +370,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 
 			sendFocusChatInputEvent(clientId)
-			telemetryService.captureButtonClick("command_focusChatInput", sidebarWebview.controller?.task?.ulid)
+			telemetryService.captureButtonClick("command_focusChatInput", webview.controller?.task?.ulid)
 		}),
 	)
 
@@ -406,8 +406,8 @@ export async function activate(context: vscode.ExtensionContext) {
 			if (event.key === "clineAccountId") {
 				// Check if the secret was removed (logout) or added/updated (login)
 				const secretValue = await context.secrets.get("clineAccountId")
-				const activeSidebarWebview = WebviewProvider.getVisibleInstance()
-				const controller = activeSidebarWebview?.controller
+				const activeWebview = WebviewProvider.getVisibleInstance()
+				const controller = activeWebview?.controller
 
 				const authService = AuthService.getInstance(controller)
 				if (secretValue) {
@@ -421,7 +421,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	return createClineAPI(sidebarWebview.controller)
+	return createClineAPI(webview.controller)
 }
 
 function setupHostProvider(context: ExtensionContext) {

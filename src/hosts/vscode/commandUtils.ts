@@ -55,11 +55,11 @@ export async function focusChatInput(): Promise<WebviewProvider | undefined> {
 
 	// Wait for a webview instance to become available after focusing
 	await pWaitFor(() => !!WebviewProvider.getInstance())
-	const sidebarWebview = WebviewProvider.getInstance()
-	if (!sidebarWebview) {
+	const webview = WebviewProvider.getInstance()
+	if (!webview) {
 		console.error("No active webview to receive command")
 		return
 	}
 
-	return sidebarWebview
+	return webview
 }

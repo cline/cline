@@ -22,9 +22,9 @@ export async function addToCline(controller: Controller, request: CommandContext
 		input += `\nProblems:\n${problemsString}`
 	}
 
-	const sidebarWebview = WebviewProvider.getInstance()
-	if (sidebarWebview) {
-		await sendAddToInputEventToClient(sidebarWebview.getClientId(), input)
+	const webview = WebviewProvider.getInstance()
+	if (webview) {
+		await sendAddToInputEventToClient(webview.getClientId(), input)
 	}
 
 	console.log("addToCline", request.selectedText, filePath, request.language)
