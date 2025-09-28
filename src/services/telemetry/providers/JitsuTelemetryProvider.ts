@@ -1,22 +1,17 @@
+import { jitsuAnalytics } from "@jitsu/js" // Assume jitsu-analytics is the Jitsu client library
 import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { Setting } from "@/shared/proto/index.host"
 import { type JitsuClientConfig } from "@/shared/services/config/jitsu-config"
 import type { ClineAccountUserInfo } from "../../auth/AuthService"
-import type { ITelemetryProvider, TelemetrySettings } from "./ITelemetryProvider"
+import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "./ITelemetryProvider"
 
 // Jitsu analytics client interface
-interface JitsuClient {
-	track(event: string, properties?: Record<string, unknown>): void
-	identify(userId: string, traits?: Record<string, unknown>): void
-	page(name?: string, properties?: Record<string, unknown>): void
-	setAnonymousId(id: string): void
-	configure(config: any): void
-}
+type JitsuClient = ReturnType<typeof jitsuAnalytics>
 
-// Dynamic import for Jitsu client (will be installed)
-declare const jitsuAnalytics: (config: JitsuClientConfig) => JitsuClient
+// // Dynamic import for Jitsu client (will be installed)
+// declare const jitsuAnalytics: (config: JitsuClientConfig) => JitsuClient
 
 /**
  * Jitsu implementation of the telemetry provider interface
@@ -82,7 +77,7 @@ export class JitsuTelemetryProvider implements ITelemetryProvider {
 		return this
 	}
 
-	public log(event: string, properties?: Record<string, unknown>): void {
+	public log(event: string, properties?: TelemetryProperties): void {
 		if (!this.client || !this.isEnabled() || this.telemetrySettings.level === "off") {
 			return
 		}
@@ -101,7 +96,7 @@ export class JitsuTelemetryProvider implements ITelemetryProvider {
 		}
 	}
 
-	public logRequired(event: string, properties?: Record<string, unknown>): void {
+	public logRequired(event: string, properties?: TelemetryProperties): void {
 		if (!this.client) {
 			return
 		}
@@ -116,7 +111,7 @@ export class JitsuTelemetryProvider implements ITelemetryProvider {
 		}
 	}
 
-	public identifyUser(userInfo: ClineAccountUserInfo, properties: Record<string, unknown> = {}): void {
+	public identifyUser(userInfo: ClineAccountUserInfo, properties: TelemetryProperties = {}): void {
 		if (!this.client) {
 			return
 		}

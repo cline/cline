@@ -8,7 +8,7 @@ import { Setting } from "@/shared/proto/index.host"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
-import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
+import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
 import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
 
 /**
@@ -294,10 +294,10 @@ export class TelemetryService {
 	/**
 	 * Internal method to capture events to all providers with error isolation
 	 * @param event The event name
-	 * @param properties Event properties
+	 * @param properties Event properties (must be JSON-serializable)
 	 * @param required Whether this is a required event
 	 */
-	private async captureToProviders(event: string, properties: Record<string, unknown>, required: boolean): Promise<void> {
+	private async captureToProviders(event: string, properties: TelemetryProperties, required: boolean): Promise<void> {
 		const promises = this.providers.map(async (provider) => {
 			try {
 				if (required) {
