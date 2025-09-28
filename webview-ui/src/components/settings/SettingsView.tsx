@@ -7,10 +7,10 @@ import {
 	FlaskConical,
 	Info,
 	LucideIcon,
-	Settings,
 	SlidersHorizontal,
 	SquareMousePointer,
 	SquareTerminal,
+	Wrench,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
@@ -50,13 +50,6 @@ interface SettingsTab {
 
 export const SETTINGS_TABS: SettingsTab[] = [
 	{
-		id: "general",
-		name: "General",
-		tooltipText: "General Settings",
-		headerText: "General Settings",
-		icon: Settings,
-	},
-	{
 		id: "api-config",
 		name: "API Configuration",
 		tooltipText: "API Configuration",
@@ -92,6 +85,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		headerText: "Debug",
 		icon: FlaskConical,
 		hidden: !IS_DEV,
+	},
+	{
+		id: "general",
+		name: "General",
+		tooltipText: "General Settings",
+		headerText: "General Settings",
+		icon: Wrench,
 	},
 	{
 		id: "about",
@@ -139,13 +139,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		[],
 	) // Empty deps - these imports never change
 
-	const { version, telemetrySetting } = useExtensionState()
+	const { version } = useExtensionState()
 
 	// Initialize active tab with memoized calculation
-	const initialTab = useMemo(
-		() => targetSection || (telemetrySetting === "unset" ? "general" : SETTINGS_TABS[0].id),
-		[targetSection, telemetrySetting],
-	)
+	const initialTab = useMemo(() => targetSection || SETTINGS_TABS[0].id, [targetSection])
 
 	const [activeTab, setActiveTab] = useState<string>(initialTab)
 	const [isCompactMode, setIsCompactMode] = useState(true)
