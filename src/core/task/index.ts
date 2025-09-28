@@ -1038,15 +1038,10 @@ export class Task {
 		let outputBuffer: string[] = []
 		let outputBufferSize: number = 0
 		let chunkTimer: NodeJS.Timeout | null = null
-		let chunkEnroute = false
-
-		// Track if buffer gets stuck
-		let bufferStuckTimer: NodeJS.Timeout | null = null
-		const BUFFER_STUCK_TIMEOUT_MS = 6000 // 6 seconds
 
 		const flushBuffer = async (force = false) => {
-			if (chunkEnroute || outputBuffer.length === 0) {
-				if (force && !chunkEnroute && outputBuffer.length > 0) {
+			if (outputBuffer.length === 0) {
+				if (force && outputBuffer.length > 0) {
 					// If force is true and no chunkEnroute, flush anyway
 				} else {
 					return
@@ -1055,13 +1050,6 @@ export class Task {
 			const chunk = outputBuffer.join("\n")
 			outputBuffer = []
 			outputBufferSize = 0
-			chunkEnroute = true
-
-			// Start timer to detect if buffer gets stuck
-			bufferStuckTimer = setTimeout(() => {
-				telemetryService.captureTerminalHang(TerminalHangStage.BUFFER_STUCK)
-				bufferStuckTimer = null
-			}, BUFFER_STUCK_TIMEOUT_MS)
 
 			try {
 				const { response, text, images, files } = await this.ask("command_output", chunk)
@@ -1077,19 +1065,15 @@ export class Task {
 				}
 				didContinue = true
 				process.continue()
-			} catch {
-				Logger.error("Error while asking for command output")
-			} finally {
-				// Clear the stuck timer
-				if (bufferStuckTimer) {
-					clearTimeout(bufferStuckTimer)
-					bufferStuckTimer = null
-				}
-				chunkEnroute = false
-				// If more output accumulated while chunkEnroute, flush again
+
+				// If more output accumulated, flush again
 				if (outputBuffer.length > 0) {
 					await flushBuffer()
 				}
+			} catch {
+				Logger.error("Error while asking for command output")
+			} finally {
+				// This can only happen if the command_output ask promise was ignored which is expected when the command finishes execution, so ignore this error
 			}
 		}
 
