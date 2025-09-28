@@ -1,9 +1,17 @@
 # Changelog
 
+## 3.32.1
+
+### Patch Changes
+
+- dd055b3: fix: automatically retry on rate limit errors with SAP AI Core provider
+- b831100: feat: preserve reasoning traces for cline/openrouter/anthropic providers to maintain conversation integrity
+- 8635720: Empty Pr to bump changeset
+
 ## [3.32.0]
 
 - Added the new code-supernova-1-million stealth model, available for free and delivering a 1 million token context window
-- Changes to inform Cline about commands that are available on your system 
+- Changes to inform Cline about commands that are available on your system
 
 ## [3.31.1]
 
