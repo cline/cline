@@ -1,10 +1,11 @@
 # Changelog
 
-## 3.32.1
+## [3.32.1]
 
-- dd055b3: fix: automatically retry on rate limit errors with SAP AI Core provider
-- b831100: feat: preserve reasoning traces for cline/openrouter/anthropic providers to maintain conversation integrity
-- 8635720: Empty Pr to bump changeset
+- Preserve reasoning traces for Cline/OpenRouter/Anthropic providers to maintain conversation integrity
+- Add automatically retry on rate limit errors with SAP AI Core provider
+- Fix Cline accounts using stale id token at refresh response
+- Minor UI improvements to Settings and Task Header
 
 ## [3.32.0]
 
