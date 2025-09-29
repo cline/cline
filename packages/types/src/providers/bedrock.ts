@@ -13,7 +13,7 @@ export const bedrockDefaultPromptRouterModelId: BedrockModelId = "anthropic.clau
 // of the default prompt routers AWS enabled for GA of the promot router
 // feature.
 export const bedrockModels = {
-	"anthropic.claude-4.5-sonnet-v1:0": {
+	"anthropic.claude-sonnet-4-5-20250929-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
