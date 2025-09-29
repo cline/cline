@@ -1,6 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
-import { AnthropicModelId, anthropicDefaultModelId, anthropicModels, CLAUDE_SONNET_4_5_1M_SUFFIX, ModelInfo } from "@shared/api"
+import { AnthropicModelId, anthropicDefaultModelId, anthropicModels, CLAUDE_SONNET_4_1M_SUFFIX, ModelInfo } from "@shared/api"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
@@ -44,20 +44,16 @@ export class AnthropicHandler implements ApiHandler {
 		const model = this.getModel()
 		let stream: AnthropicStream<Anthropic.RawMessageStreamEvent>
 
-		const modelId = model.id.endsWith(CLAUDE_SONNET_4_5_1M_SUFFIX)
-			? model.id.slice(0, -CLAUDE_SONNET_4_5_1M_SUFFIX.length)
+		const modelId = model.id.endsWith(CLAUDE_SONNET_4_1M_SUFFIX)
+			? model.id.slice(0, -CLAUDE_SONNET_4_1M_SUFFIX.length)
 			: model.id
-		const enable1mContextWindow = model.id.endsWith(CLAUDE_SONNET_4_5_1M_SUFFIX)
+		const enable1mContextWindow = model.id.endsWith(CLAUDE_SONNET_4_1M_SUFFIX)
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = !!(
-			(modelId.includes("3-7") || modelId.includes("4-") || modelId.includes("4-5")) &&
-			budget_tokens !== 0
-		)
+		const reasoningOn = !!((modelId.includes("3-7") || modelId.includes("4-")) && budget_tokens !== 0)
 
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
-			case "claude-sonnet-4-5-20250929":
 			case "claude-sonnet-4-20250514":
 			case "claude-3-7-sonnet-20250219":
 			case "claude-3-5-sonnet-20241022":
