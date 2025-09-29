@@ -238,7 +238,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		// Use dynamic import to avoid loading the module in production
 		import("./dev/commands/tasks")
 			.then((module) => {
-				const devTaskCommands = module.registerTaskCommands(context, sidebarWebview.controller)
+				const devTaskCommands = module.registerTaskCommands(sidebarWebview.controller)
 				context.subscriptions.push(...devTaskCommands)
 				Logger.log("Cline dev task commands registered")
 			})
@@ -491,7 +491,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.ReconstructTaskHistory, async () => {
 			const { reconstructTaskHistory } = await import("./core/commands/reconstructTaskHistory")
-			await reconstructTaskHistory(context)
+			await reconstructTaskHistory()
 			telemetryService.captureButtonClick("command_reconstructTaskHistory")
 		}),
 	)
