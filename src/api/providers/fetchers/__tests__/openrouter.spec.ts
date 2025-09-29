@@ -34,6 +34,7 @@ describe("OpenRouter API", () => {
 				"google/gemini-2.5-flash", // OpenRouter doesn't report this as supporting prompt caching
 				"google/gemini-2.5-flash-lite-preview-06-17", // OpenRouter doesn't report this as supporting prompt caching
 				"anthropic/claude-opus-4.1", // Not yet available in OpenRouter API
+				"anthropic/claude-4.5-sonnet", // Not yet available in OpenRouter API
 			])
 
 			const ourCachingModels = Array.from(OPEN_ROUTER_PROMPT_CACHING_MODELS).filter(
@@ -52,6 +53,7 @@ describe("OpenRouter API", () => {
 
 			const excludedComputerUseModels = new Set([
 				"anthropic/claude-opus-4.1", // Not yet available in OpenRouter API
+				"anthropic/claude-4.5-sonnet", // Not yet available in OpenRouter API
 			])
 
 			const expectedComputerUseModels = Array.from(OPEN_ROUTER_COMPUTER_USE_MODELS)
@@ -134,6 +136,7 @@ describe("OpenRouter API", () => {
 				"google/gemini-2.5-flash-lite-preview-06-17",
 				"google/gemini-2.5-pro",
 				"anthropic/claude-opus-4.1", // Not yet available in OpenRouter API
+				"anthropic/claude-4.5-sonnet", // Not yet available in OpenRouter API
 			])
 
 			const expectedReasoningBudgetModels = Array.from(OPEN_ROUTER_REASONING_BUDGET_MODELS)
