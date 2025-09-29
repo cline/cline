@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.32.2
+
+### Patch Changes
+
+- b8dd6ab: Add /task deep link handler
+- 5826cb5: fix: Return the updated token
+
 ## [3.32.1]
 
 - Preserve reasoning traces for Cline/OpenRouter/Anthropic providers to maintain conversation integrity
