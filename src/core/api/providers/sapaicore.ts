@@ -591,12 +591,10 @@ export class SapAiCoreHandler implements ApiHandler {
 			const formattedMessages = Bedrock.formatMessagesForConverseAPI(messages)
 
 			// Get message indices for caching
-			const userMsgIndices = messages.reduce((acc, msg, index) => {
-				if (msg.role === "user") {
-					acc.push(index)
-				}
-				return acc
-			}, [] as number[])
+			const userMsgIndices = messages.reduce(
+				(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
+				[] as number[],
+			)
 			const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 			const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
