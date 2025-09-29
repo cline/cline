@@ -55,4 +55,20 @@ However, if while writing your response you realize you actually need to do more
 	],
 }
 
-export const plan_mode_respond_variants = [generic]
+const GPT_5: ClineToolSpec = {
+	variant: ModelFamily.GPT_5,
+	id,
+	name: "plan_mode_respond",
+	description: `Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should ONLY be used when you have already explored the relevant files and are ready to present a concrete plan. DO NOT use this tool to announce what files you're going to read - just read them first. This tool is only available in PLAN MODE. The environment_details will specify the current mode; if it is not PLAN_MODE then you should not use this tool.
+However, if while writing your response you realize you actually need to do more exploration before providing a complete plan, you can add the optional needs_more_exploration parameter to indicate this. This allows you to acknowledge that you should have done more exploration first, and signals that your next message will use exploration tools instead.`,
+	parameters: [
+		{
+			name: "response",
+			required: true,
+			instruction: `The response to provide to the user. Do not try to use tools in this parameter, this is simply a chat response. (You MUST use the response parameter, do not simply place the response text directly within <plan_mode_respond> tags.)`,
+			usage: "Your response here",
+		},
+	],
+}
+
+export const plan_mode_respond_variants = [generic, GPT_5]

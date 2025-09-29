@@ -30,4 +30,20 @@ const generic: ClineToolSpec = {
 	],
 }
 
-export const list_files_variants = [generic]
+const GPT_5: ClineToolSpec = {
+	variant: ModelFamily.GPT_5,
+	id,
+	name: "list_files",
+	description:
+		"Request to list files and directories within the specified directory. If recursive is true, it will list all files and directories recursively. If recursive is false or not provided, it will only list the top-level contents. Do not use this tool to confirm the existence of files you may have created, as the user will let you know if the files were created successfully or not.",
+	parameters: [
+		{
+			name: "path",
+			required: true,
+			instruction: "The path of the directory to list contents for.",
+			usage: "Directory path here",
+		},
+	],
+}
+
+export const list_files_variants = [generic, GPT_5]

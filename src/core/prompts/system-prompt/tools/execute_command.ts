@@ -47,20 +47,6 @@ const GPT_5: ClineToolSpec = {
 			instruction: "The CLI command to execute. This should be valid for the current operating system.",
 			usage: "Your command here",
 		},
-		{
-			name: "requires_approval",
-			required: true,
-			type: "boolean",
-			instruction: "A boolean indicating whether this command requires explicit user approval before execution.",
-		},
-		{
-			name: "timeout",
-			required: false,
-			type: "integer",
-			contextRequirements: (context) => context.yoloModeToggled === true,
-			instruction:
-				"Integer representing the timeout in seconds for how long to run the terminal command, before timing out and continuing the task.",
-		},
 	],
 }
 
