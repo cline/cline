@@ -10,7 +10,7 @@ import { UiServiceClient } from "@/services/grpc-client"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import NewTaskButton from "./buttons/NewTaskButton"
-import OpenDiskTaskHistoryButton from "./buttons/OpenDiskTaskHistoryButton"
+import OpenDiskConversationHistoryButton from "./buttons/OpenDiskConversationHistoryButton"
 import { CheckpointError } from "./CheckpointError"
 import ContextWindow from "./ContextWindow"
 import { FocusChain } from "./FocusChain"
@@ -117,7 +117,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 									taskSize={currentTaskItem?.size}
 								/>
 								{/* Only visible in development mode */}
-								{IS_DEV && <OpenDiskTaskHistoryButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />}
+								{IS_DEV && (
+									<OpenDiskConversationHistoryButton className={BUTTON_CLASS} taskId={currentTaskItem?.id} />
+								)}
 							</div>
 						)}
 					</div>

@@ -255,7 +255,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								const checked = e.target.checked === true
 								updateSetting("yoloModeToggled", checked)
 							}}>
-							Enable Yolo Mode
+							Enable YOLO Mode
 						</VSCodeCheckbox>
 						<p className="text-xs text-[var(--vscode-errorForeground)]">
 							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
