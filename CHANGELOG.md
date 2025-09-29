@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.32.3]
+
+- Add Claude Sonnet 4.5 to Bedrock provider
+- Add Alert banner for new Claude Sonnet 4.5 model
+
+## [3.32.2]
+
+- Add Claude Sonnet 4.5 to Cline/OpenRouter/Anthropic providers
+- Add /task deep link handler
+
 ## [3.32.1]
 
 - Preserve reasoning traces for Cline/OpenRouter/Anthropic providers to maintain conversation integrity
