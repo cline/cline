@@ -19,21 +19,6 @@ const Container = styled.div`
 	margin-bottom: 10px;
 `
 
-const LabelContainer = styled.div`
-	display: flex;
-	justify-content: space-between;
-	flex-wrap: wrap;
-	gap: 12px;
-`
-
-const Label = styled.label`
-    font-size: 12px;
-	font-weight: 500;
-	display: block;
-	margin-right: auto;
-	// color: var(--vscode-descriptionForeground);
-`
-
 const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 	width: 100%;
 	height: 8px;
@@ -126,7 +111,8 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
-		setLocalValue(value)
+		const clampedValue = Math.max(value, ANTHROPIC_MIN_THINKING_BUDGET)
+		setLocalValue(clampedValue)
 	}, [])
 
 	const handleSliderComplete = () => {
@@ -160,7 +146,7 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 				<Container>
 					<RangeInput
 						$max={maxSliderValue}
-						$min={ANTHROPIC_MIN_THINKING_BUDGET}
+						$min={0}
 						$value={localValue}
 						aria-describedby="thinking-budget-description"
 						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
@@ -169,7 +155,7 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 						aria-valuenow={localValue}
 						id="thinking-budget-slider"
 						max={maxSliderValue}
-						min={ANTHROPIC_MIN_THINKING_BUDGET}
+						min={0}
 						onChange={handleSliderChange}
 						onMouseUp={handleSliderComplete}
 						onTouchEnd={handleSliderComplete}
