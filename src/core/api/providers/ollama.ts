@@ -1,7 +1,7 @@
 import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import { type Config, type Message, Ollama } from "ollama"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { Agent, fetch as undiciFetch } from "undici"
 import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOllamaMessages } from "../transform/ollama-format"
@@ -26,43 +26,64 @@ export class OllamaHandler implements ApiHandler {
 		this.options = { ...options, ollamaApiOptionsCtxNum }
 	}
 
-	private ensureClient(): Ollama {
-		if (!this.client) {
-			try {
-				const clientOptions: Partial<Config> = {
-					host: this.options.ollamaBaseUrl,
-					fetch,
-				}
+	/**
+	 * Returns a cached client (no signal) or builds a one-off client with a per-request AbortSignal.
+	 * The client always uses an Undici agent with disabled headers/body timeouts to avoid premature first-byte aborts.
+	 */
+	private ensureClient(signal?: AbortSignal): Ollama {
+		// Reuse cached client when no per-request signal is needed
+		if (!signal && this.client) {
+			return this.client
+		}
 
-				// Add API key if provided (for Ollama cloud or authenticated instances)
-				if (this.options.ollamaApiKey) {
-					clientOptions.headers = {
-						Authorization: `Bearer ${this.options.ollamaApiKey}`,
-					}
-				}
+		const dispatcher = new Agent({
+			headersTimeout: 0,
+			bodyTimeout: 0,
+		})
 
-				this.client = new Ollama(clientOptions)
-			} catch (error) {
-				throw new Error(`Error creating Ollama client: ${error.message}`)
+		const longFetch: typeof globalThis.fetch = ((input: any, init?: any) => {
+			const mergedInit = { ...(init || {}), dispatcher, signal } as any
+			return (undiciFetch as any)(input, mergedInit)
+		}) as any
+
+		const clientOptions: Partial<Config> = {
+			host: this.options.ollamaBaseUrl,
+			fetch: longFetch as unknown as typeof globalThis.fetch,
+		}
+
+		// Add API key if provided (for Ollama cloud or authenticated instances)
+		if (this.options.ollamaApiKey) {
+			clientOptions.headers = {
+				Authorization: `Bearer ${this.options.ollamaApiKey}`,
 			}
 		}
-		return this.client
+
+		const newClient = new Ollama(clientOptions)
+		if (!signal) {
+			// only cache signal-less client
+			this.client = newClient
+		}
+		return newClient
 	}
 
 	@withRetry({ retryAllErrors: true })
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
-		const client = this.ensureClient()
+		const timeoutMs = this.options.requestTimeoutMs || 30000
+		const hasTimeout = typeof timeoutMs === "number" && timeoutMs > 0
+		const controller = hasTimeout ? new AbortController() : undefined
+		let timeoutId: ReturnType<typeof setTimeout> | undefined
+		if (hasTimeout) {
+			timeoutId = setTimeout(() => {
+				controller!.abort(new Error("Ollama request timed out"))
+			}, timeoutMs)
+		}
+
+		// Use a one-off client when we have a signal, reuse the cached client when we don't.
+		const client = this.ensureClient(controller?.signal)
 		const ollamaMessages: Message[] = [{ role: "system", content: systemPrompt }, ...convertToOllamaMessages(messages)]
 
 		try {
-			// Create a promise that rejects after timeout
-			const timeoutMs = this.options.requestTimeoutMs || 30000
-			const timeoutPromise = new Promise<never>((_, reject) => {
-				setTimeout(() => reject(new Error(`Ollama request timed out after ${timeoutMs / 1000} seconds`)), timeoutMs)
-			})
-
-			// Create the actual API request promise
-			const apiPromise = client.chat({
+			const stream = await client.chat({
 				model: this.getModel().id,
 				messages: ollamaMessages,
 				stream: true,
@@ -71,44 +92,36 @@ export class OllamaHandler implements ApiHandler {
 				},
 			})
 
-			// Race the API request against the timeout
-			const stream = (await Promise.race([apiPromise, timeoutPromise])) as Awaited<typeof apiPromise>
-
-			try {
-				for await (const chunk of stream) {
-					if (typeof chunk.message.content === "string") {
-						yield {
-							type: "text",
-							text: chunk.message.content,
-						}
-					}
-
-					// Handle token usage if available
-					if (chunk.eval_count !== undefined || chunk.prompt_eval_count !== undefined) {
-						yield {
-							type: "usage",
-							inputTokens: chunk.prompt_eval_count || 0,
-							outputTokens: chunk.eval_count || 0,
-						}
+			for await (const chunk of stream) {
+				if (typeof (chunk as any)?.message?.content === "string") {
+					yield {
+						type: "text",
+						text: (chunk as any).message.content,
 					}
 				}
-			} catch (streamError: any) {
-				console.error("Error processing Ollama stream:", streamError)
-				throw new Error(`Ollama stream processing error: ${streamError.message || "Unknown error"}`)
+				if ((chunk as any).eval_count !== undefined || (chunk as any).prompt_eval_count !== undefined) {
+					yield {
+						type: "usage",
+						inputTokens: (chunk as any).prompt_eval_count || 0,
+						outputTokens: (chunk as any).eval_count || 0,
+					}
+				}
 			}
-		} catch (error) {
-			// Check if it's a timeout error
-			if (error?.message?.includes("timed out")) {
-				const timeoutMs = this.options.requestTimeoutMs || 30000
-				throw new Error(`Ollama request timed out after ${timeoutMs / 1000} seconds`)
+		} catch (error: any) {
+			if (controller?.signal.aborted) {
+				const timeoutSecs = Math.floor(timeoutMs / 1000)
+				throw new Error(`Ollama request timed out after ${timeoutSecs} seconds`, { cause: error })
 			}
-
 			// Enhance error reporting
 			const statusCode = error.status || error.statusCode
 			const errorMessage = error.message || "Unknown error"
 
 			console.error(`Ollama API error (${statusCode || "unknown"}): ${errorMessage}`)
 			throw error
+		} finally {
+			if (timeoutId) {
+				clearTimeout(timeoutId)
+			}
 		}
 	}
 
