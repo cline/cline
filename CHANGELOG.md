@@ -1,5 +1,10 @@
 # Roo Code Changelog
 
+## [3.28.13] - 2025-09-29
+
+- Fix: Remove topP parameter from Bedrock inference config (#8377 by @ronyblum, PR by @daniel-lxs)
+- Fix: Correct Vertex AI Sonnet 4.5 model configuration (#8387 by @nickcatal, PR by @mrubens!)
+
 ## [3.28.12] - 2025-09-29
 
 - Fix: Correct Anthropic Sonnet 4.5 model ID and add Bedrock 1M context checkbox (thanks @daniel-lxs!)
