@@ -1,9 +1,9 @@
 import { isJitsuConfigValid, jitsuConfig, telemetryProvidersConfig } from "@/shared/services/config/jitsu-config"
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "../logging/Logger"
-import { PostHogClientProvider } from "../posthog/PostHogClientProvider"
 import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
 import { JitsuTelemetryProvider } from "./providers/JitsuTelemetryProvider"
+import { PostHogClientProvider } from "./providers/PostHogClientProvider"
 import { PostHogTelemetryProvider } from "./providers/PostHogTelemetryProvider"
 
 /**
