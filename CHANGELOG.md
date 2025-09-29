@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.32.4]
+
+- Add 1m context window support to Claude Sonnet 4.5
+- Add Claude Sonnet 4.5 to GCP Vertex
+- Add prompt caching support for OpenRouter accidental `anthropic/claude-4.5-sonnet` model ID
+
 ## [3.32.3]
 
 - Add Claude Sonnet 4.5 to Bedrock provider
