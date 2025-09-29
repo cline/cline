@@ -30,6 +30,7 @@ export const LITELLM_COMPUTER_USE_MODELS = new Set([
 	"vertex_ai/claude-opus-4-1@20250805",
 	"vertex_ai/claude-opus-4@20250514",
 	"vertex_ai/claude-sonnet-4@20250514",
+	"vertex_ai/claude-sonnet-4-5@20250929",
 	"openrouter/anthropic/claude-3.5-sonnet",
 	"openrouter/anthropic/claude-3.5-sonnet:beta",
 	"openrouter/anthropic/claude-3.7-sonnet",
