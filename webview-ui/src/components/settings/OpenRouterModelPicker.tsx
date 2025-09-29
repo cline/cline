@@ -46,13 +46,8 @@ export interface OpenRouterModelPickerProps {
 // Featured models for Cline provider
 const featuredModels = [
 	{
-		id: "anthropic/claude-sonnet-4",
+		id: "anthropic/claude-4.5-sonnet",
 		description: "Recommended for agentic coding in Cline",
-		label: "Best",
-	},
-	{
-		id: "openai/gpt-5",
-		description: "State of the art model for complex, long-horizon tasks",
 		label: "New",
 	},
 	{
@@ -222,6 +217,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const showBudgetSlider = useMemo(() => {
 		return (
 			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
+			selectedModelId?.toLowerCase().includes("claude-sonnet-4.5") ||
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4.1") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4") ||
@@ -383,9 +379,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					</VSCodeLink>
 					If you're unsure which model to choose, Cline works best with{" "}
 					<VSCodeLink
-						onClick={() => handleModelChange("anthropic/claude-sonnet-4")}
+						onClick={() => handleModelChange("anthropic/claude-4.5-sonnet")}
 						style={{ display: "inline", fontSize: "inherit" }}>
-						anthropic/claude-sonnet-4.
+						anthropic/claude-4.5-sonnet.
 					</VSCodeLink>
 					You can also try searching "free" for no-cost options currently available.
 				</p>
