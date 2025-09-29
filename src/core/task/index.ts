@@ -179,7 +179,7 @@ export class Task {
 		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
 		this.urlContentFetcher = new UrlContentFetcher(controller.context)
-		this.browserSession = new BrowserSession(controller.context, stateManager)
+		this.browserSession = new BrowserSession(stateManager)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.cwd = cwd
@@ -209,7 +209,6 @@ export class Task {
 		}
 
 		this.messageStateHandler = new MessageStateHandler({
-			context: controller.context,
 			taskId: this.taskId,
 			ulid: this.ulid,
 			taskState: this.taskState,
@@ -243,7 +242,6 @@ export class Task {
 				fileContextTracker: this.fileContextTracker,
 				diffViewProvider: this.diffViewProvider,
 				taskState: this.taskState,
-				context: controller.context,
 				workspaceManager: this.workspaceManager,
 				updateTaskHistory: this.updateTaskHistory,
 				say: this.say.bind(this),
@@ -389,16 +387,6 @@ export class Task {
 
 	public resetConsecutiveAutoApprovedRequestsCount(): void {
 		this.taskState.consecutiveAutoApprovedRequestsCount = 0
-	}
-
-	// While a task is ref'd by a controller, it will always have access to the extension context
-	// This error is thrown if the controller derefs the task after e.g., aborting the task
-	private getContext(): vscode.ExtensionContext {
-		const context = this.controller.context
-		if (!context) {
-			throw new Error("Unable to access extension context")
-		}
-		return context
 	}
 
 	// Communicate with webview
@@ -738,13 +726,11 @@ export class Task {
 
 		// Now present the cline messages to the user and ask if they want to resume (NOTE: we ran into a bug before where the apiconversationhistory wouldn't be initialized when opening a old task, and it was because we were waiting for resume)
 		// This is important in case the user deletes messages without resuming the task first
-		const context = this.getContext()
-		const savedApiConversationHistory = await getSavedApiConversationHistory(context, this.taskId)
+		const savedApiConversationHistory = await getSavedApiConversationHistory(this.taskId)
 		this.messageStateHandler.setApiConversationHistory(savedApiConversationHistory)
 
 		// load the context history state
-
-		const _taskDir = await ensureTaskDirectoryExists(this.taskId)
+		await ensureTaskDirectoryExists(this.taskId)
 		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.taskId))
 
 		const lastClineMessage = this.messageStateHandler
@@ -777,7 +763,6 @@ export class Task {
 		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
 
 		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] = await getSavedApiConversationHistory(
-			this.getContext(),
 			this.taskId,
 		)
 

@@ -6,7 +6,6 @@ import { createTaskCheckpointManager } from "@integrations/checkpoints"
 import { MultiRootCheckpointManager } from "@integrations/checkpoints/MultiRootCheckpointManager"
 import type { ICheckpointManager } from "@integrations/checkpoints/types"
 import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import type * as vscode from "vscode"
 import { StateManager } from "@/core/storage/StateManager"
 import { featureFlagsService } from "@/services/feature-flags"
 
@@ -34,7 +33,6 @@ type BuildArgs = {
 	fileContextTracker: FileContextTracker
 	diffViewProvider: DiffViewProvider
 	taskState: TaskState
-	context: vscode.ExtensionContext
 	// multi-root deps
 	workspaceManager?: WorkspaceRootManager
 
@@ -63,7 +61,6 @@ export function buildCheckpointManager(args: BuildArgs): ICheckpointManager {
 		fileContextTracker,
 		diffViewProvider,
 		taskState,
-		context,
 		workspaceManager,
 		updateTaskHistory,
 		say,
@@ -86,7 +83,6 @@ export function buildCheckpointManager(args: BuildArgs): ICheckpointManager {
 		{ taskId },
 		{ enableCheckpoints },
 		{
-			context,
 			diffViewProvider,
 			messageStateHandler,
 			fileContextTracker,
