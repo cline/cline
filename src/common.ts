@@ -1,4 +1,4 @@
-import * as vscode from "vscode"
+import { ExtensionContext } from "vscode"
 import {
 	migrateCustomInstructionsToGlobalRules,
 	migrateTaskHistoryToFile,
@@ -27,7 +27,7 @@ import { getLatestAnnouncementId } from "./utils/announcements"
  * @param context
  * @returns The webview provider
  */
-export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
+export async function initialize(context: ExtensionContext): Promise<WebviewProvider> {
 	// Set the distinct ID for logging and telemetry
 	await initializeDistinctId(context)
 
@@ -62,7 +62,7 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	return sidebarWebview
 }
 
-async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
+async function showVersionUpdateAnnouncement(context: ExtensionContext) {
 	// Version checking for autoupdate notification
 	const currentVersion = ExtensionRegistryInfo.version
 	const previousVersion = context.globalState.get<string>("clineVersion")

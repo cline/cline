@@ -1,11 +1,11 @@
 import fs from "fs/promises"
 import path from "path"
-import * as vscode from "vscode"
+import { ExtensionContext, workspace } from "vscode"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryToState } from "./disk"
 import { StateManager } from "./StateManager"
 
-export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
+export async function migrateWorkspaceToGlobalStorage(context: ExtensionContext) {
 	// Keys to migrate from workspace storage back to global storage
 	const keysToMigrate = [
 		// Core settings
@@ -67,7 +67,7 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 	}
 }
 
-export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext) {
+export async function migrateTaskHistoryToFile(context: ExtensionContext) {
 	try {
 		// Get data from old location
 		const vscodeGlobalStateTaskHistory = context.globalState.get<HistoryItem[] | undefined>("taskHistory")
@@ -122,7 +122,7 @@ export async function migrateTaskHistoryToFile(context: vscode.ExtensionContext)
 }
 
 export async function migrateMcpMarketplaceEnableSetting(mcpMarketplaceEnabledRaw: boolean | undefined): Promise<boolean> {
-	const config = vscode.workspace.getConfiguration("cline")
+	const config = workspace.getConfiguration("cline")
 	const mcpMarketplaceEnabled = config.get<boolean>("mcpMarketplace.enabled")
 	if (mcpMarketplaceEnabled !== undefined) {
 		// Remove from VSCode configuration
@@ -134,7 +134,7 @@ export async function migrateMcpMarketplaceEnableSetting(mcpMarketplaceEnabledRa
 }
 
 export async function migrateEnableCheckpointsSetting(enableCheckpointsSettingRaw: boolean | undefined): Promise<boolean> {
-	const config = vscode.workspace.getConfiguration("cline")
+	const config = workspace.getConfiguration("cline")
 	const enableCheckpoints = config.get<boolean>("enableCheckpoints")
 	if (enableCheckpoints !== undefined) {
 		// Remove from VSCode configuration
@@ -144,7 +144,7 @@ export async function migrateEnableCheckpointsSetting(enableCheckpointsSettingRa
 	return enableCheckpointsSettingRaw ?? true
 }
 
-export async function migrateCustomInstructionsToGlobalRules(context: vscode.ExtensionContext) {
+export async function migrateCustomInstructionsToGlobalRules(context: ExtensionContext) {
 	try {
 		const customInstructions = (await context.globalState.get("customInstructions")) as string | undefined
 
@@ -189,7 +189,7 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 	}
 }
 
-export async function migrateLegacyApiConfigurationToModeSpecific(context: vscode.ExtensionContext) {
+export async function migrateLegacyApiConfigurationToModeSpecific(context: ExtensionContext) {
 	try {
 		// Check if migration is needed - if planModeApiProvider already exists, skip migration
 		const planModeApiProvider = await context.globalState.get("planModeApiProvider")
@@ -558,7 +558,7 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 	}
 }
 
-export async function migrateWelcomeViewCompleted(context: vscode.ExtensionContext) {
+export async function migrateWelcomeViewCompleted(context: ExtensionContext) {
 	try {
 		// Check if welcomeViewCompleted is already set
 		const welcomeViewCompleted = context.globalState.get("welcomeViewCompleted")

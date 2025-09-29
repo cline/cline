@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.1.4/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.2.4/schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
@@ -58,7 +58,15 @@
 				"useNumberNamespace": "off",
 				"noInferrableTypes": "off",
 				"useTemplate": "off",
-				"noUselessElse": "off"
+				"noUselessElse": "off",
+				"noRestrictedImports": {
+					"level": "error",
+					"options": {
+						"paths": {
+							"vscode": "Use appropriate HostProvider methods or abstraction layer instead."
+						}
+					}
+				}
 			},
 			"suspicious": {
 				"noDoubleEquals": "warn",
@@ -114,17 +122,17 @@
 	"files": {
 		"includes": [
 			"**",
-			"!**/dist/**",
-			"!**/dist-*/**",
-			"!**/out/**",
-			"!**/evals/**",
-			"!**/playwright/**",
-			"!**/test-results/**",
-			"!**/node_modules/**",
-			"!**/webview-ui/build/**",
-			"!**/generated/**",
-			"!**/proto/**",
-			"!**/tests/specs/**"
+			"!**/dist",
+			"!**/dist-*",
+			"!**/out",
+			"!**/evals",
+			"!**/playwright",
+			"!**/test-results",
+			"!**/node_modules",
+			"!**/webview-ui/build",
+			"!**/generated",
+			"!**/proto",
+			"!**/tests/specs"
 		]
 	},
 	"plugins": [
@@ -147,20 +155,86 @@
 				"src/dev/grit/vscode-api.grit"
 			]
 		},
+		// Only ExtensionContext is allowed to be imported from 'vscode' in the files below.
 		{
 			"includes": [
-				"**",
-				"!src/core/storage/state-migrations.ts",
-				"!src/core/storage/FileContextTracker.ts",
-				"!src/core/context/context-tracking/FileContextTracker.ts",
-				"!src/common.ts",
-				"!src/services/logging/distinctId.ts",
-				"!src/core/storage/utils/state-helpers.ts",
-				"!src/extension.ts"
+				"src/core/storage/FileContextTracker.ts",
+				"src/core/context/context-tracking/FileContextTracker.ts",
+				"src/common.ts",
+				"src/services/logging/distinctId.ts",
+				"src/core/storage/utils/state-helpers.ts",
+				"src/core/storage/StateManager.ts"
 			],
-			"plugins": [
-				"src/dev/grit/use-cache-service.grit"
-			]
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"paths": {
+									"vscode": {
+										"message": "Use appropriate HostProvider methods or abstraction layer instead.",
+										"allowImportNames": [
+											"ExtensionContext"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		// Only workspace is allowed to be imported from 'vscode' in the files below.
+		{
+			"includes": [
+				"src/core/storage/state-migrations.ts"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"paths": {
+									"message": "Use appropriate HostProvider methods or abstraction layer instead.",
+									"vscode": {
+										"allowImportNames": [
+											"ExtensionContext",
+											"workspace"
+										]
+									}
+								},
+								"patterns": [
+									{
+										"message": "Use appropriate HostProvider methods or abstraction layer instead.",
+										"group": [
+											"!vscode/*",
+											"vscode/ExtensionContext/globalState/*",
+											"vscode/ExtensionContext/workspaceState/*",
+											"vscode/ExtensionContext/secrets/*",
+											"vscode/workspace/getConfiguration/*"
+										]
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		// Extension.ts allows to use vscode imports directly as it's the main entry point for VS Code extension.
+		{
+			"includes": [
+				"src/extension.ts"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": "off"
+					}
+				}
+			}
 		}
 	]
 }

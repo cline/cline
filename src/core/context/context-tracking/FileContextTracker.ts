@@ -2,7 +2,7 @@ import { getTaskMetadata, readTaskHistoryFromState, saveTaskMetadata } from "@co
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import chokidar, { FSWatcher } from "chokidar"
 import * as path from "path"
-import * as vscode from "vscode"
+import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
 import { getCwd } from "@/utils/path"
 import type { FileMetadataEntry } from "./ContextTrackerTypes"
@@ -277,7 +277,7 @@ export class FileContextTracker {
 	 * Static method to clean up orphaned pending file context warnings at startup
 	 * This removes warnings for tasks that may no longer exist
 	 */
-	static async cleanupOrphanedWarnings(context: vscode.ExtensionContext): Promise<void> {
+	static async cleanupOrphanedWarnings(context: ExtensionContext): Promise<void> {
 		const startTime = Date.now()
 		try {
 			const taskHistory = await readTaskHistoryFromState()
