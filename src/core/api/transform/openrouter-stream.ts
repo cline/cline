@@ -29,7 +29,7 @@ export async function createOpenRouterStream(
 	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
 	// handles direct model.id match logic
 	switch (model.id) {
-		case "anthropic/claude-4.5-sonnet":
+		case "anthropic/claude-sonnet-4.5":
 		case "anthropic/claude-sonnet-4":
 		case "anthropic/claude-opus-4.1":
 		case "anthropic/claude-opus-4":
@@ -89,7 +89,7 @@ export async function createOpenRouterStream(
 	// (models usually default to max tokens allowed)
 	let maxTokens: number | undefined
 	switch (model.id) {
-		case "anthropic/claude-4.5-sonnet":
+		case "anthropic/claude-sonnet-4.5":
 		case "anthropic/claude-sonnet-4":
 		case "anthropic/claude-opus-4.1":
 		case "anthropic/claude-opus-4":
@@ -126,7 +126,7 @@ export async function createOpenRouterStream(
 
 	let reasoning: { max_tokens: number } | undefined
 	switch (model.id) {
-		case "anthropic/claude-4.5-sonnet":
+		case "anthropic/claude-sonnet-4.5":
 		case "anthropic/claude-sonnet-4":
 		case "anthropic/claude-opus-4.1":
 		case "anthropic/claude-opus-4":

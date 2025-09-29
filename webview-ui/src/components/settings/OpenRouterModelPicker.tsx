@@ -46,7 +46,7 @@ export interface OpenRouterModelPickerProps {
 // Featured models for Cline provider
 const featuredModels = [
 	{
-		id: "anthropic/claude-4.5-sonnet",
+		id: "anthropic/claude-sonnet-4.5",
 		description: "Recommended for agentic coding in Cline",
 		label: "New",
 	},
@@ -379,9 +379,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					</VSCodeLink>
 					If you're unsure which model to choose, Cline works best with{" "}
 					<VSCodeLink
-						onClick={() => handleModelChange("anthropic/claude-4.5-sonnet")}
+						onClick={() => handleModelChange("anthropic/claude-sonnet-4.5")}
 						style={{ display: "inline", fontSize: "inherit" }}>
-						anthropic/claude-4.5-sonnet.
+						anthropic/claude-sonnet-4.5.
 					</VSCodeLink>
 					You can also try searching "free" for no-cost options currently available.
 				</p>
