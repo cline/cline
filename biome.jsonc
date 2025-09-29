@@ -63,7 +63,9 @@
 					"level": "error",
 					"options": {
 						"paths": {
-							"vscode": "Use appropriate HostProvider methods or abstraction layer instead."
+							"vscode": {
+								"message": "Use appropriate HostProvider methods or abstraction layer instead."
+							}
 						}
 					}
 				}
@@ -142,9 +144,9 @@
 		{
 			"includes": [
 				"**",
-				"!**/hosts/vscode/**",
 				"!**/test/**",
 				"!**/*.test.ts",
+				"!src/hosts/vscode/**",
 				"!src/dev/**",
 				"!src/extension.ts",
 				"!src/integrations/git/commit-message-generator.ts",
@@ -226,7 +228,11 @@
 		// Extension.ts allows to use vscode imports directly as it's the main entry point for VS Code extension.
 		{
 			"includes": [
-				"src/extension.ts"
+				"src/extension.ts",
+				"src/hosts/vscode/**",
+				"**/test/**",
+				"**/*.test.ts",
+				"src/dev/**"
 			],
 			"linter": {
 				"rules": {
