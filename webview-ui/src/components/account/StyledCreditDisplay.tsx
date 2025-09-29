@@ -54,7 +54,7 @@ export const StyledCreditDisplay = ({ balance }: { balance: number }) => {
 	return (
 		<span className="font-azeret-mono font-light tabular-nums">
 			{wholePart}.{firstTwoDecimals}
-			<span className="text-[var(--vscode-descriptionForeground)]">{lastTwoDecimals}</span>
+			<span className="text-(--vscode-descriptionForeground)">{lastTwoDecimals}</span>
 		</span>
 	)
 }

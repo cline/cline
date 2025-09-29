@@ -125,10 +125,10 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 	return (
 		<div className="overflow-hidden" ref={modalRef}>
 			<div
-				className="fixed left-[15px] right-[15px] border border-[var(--vscode-editorGroup-border)] rounded z-[1000] flex flex-col"
+				className="fixed left-[15px] right-[15px] border border-(--vscode-editorGroup-border) rounded z-1000 flex flex-col"
 				style={calculateModalStyle()}>
 				<div
-					className="fixed w-[10px] h-[10px] z-[-1] rotate-45 border-r border-b border-[var(--vscode-editorGroup-border)]"
+					className="fixed w-[10px] h-[10px] z-[-1] rotate-45 border-r border-b border-(--vscode-editorGroup-border)"
 					style={{
 						bottom: `calc(100vh - ${menuPosition}px)`,
 						right: arrowPosition,
@@ -149,7 +149,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 					</div>
 
 					<div className="mb-2.5">
-						<span className="text-[color:var(--vscode-foreground)] font-medium">Actions:</span>
+						<span className="text-(--vscode-foreground) font-medium">Actions:</span>
 					</div>
 
 					<div
@@ -184,7 +184,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 					</div>
 
 					<div className="mb-2.5">
-						<span className="text-[color:var(--vscode-foreground)] font-medium">Quick Settings:</span>
+						<span className="text-(--vscode-foreground) font-medium">Quick Settings:</span>
 					</div>
 
 					<AutoApproveMenuItem
@@ -208,7 +208,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 									const input = e.target as HTMLInputElement
 									// Remove any non-numeric characters
 									input.value = input.value.replace(/[^0-9]/g, "")
-									const value = parseInt(input.value)
+									const value = parseInt(input.value, 10)
 									if (!Number.isNaN(value) && value > 0) {
 										await updateMaxRequests(value)
 									}

@@ -287,7 +287,7 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 						}}>
 						Sign in with Oracle Code Assist
 					</VSCodeButton>
-					<p className="text-xs mt-0 text-[var(--vscode-descriptionForeground)]">
+					<p className="text-xs mt-0 text-(--vscode-descriptionForeground)">
 						Please ask your IT administrator to set up Oracle Code Assist as a model provider. Oracle Employees,
 						please see the{" "}
 						<VSCodeLink
@@ -312,7 +312,7 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 								<span className="font-semibold opacity-95 mt-2">Unknown User</span>
 							)}
 							{isOracle && (
-								<p className="text-xs mt-0 font-normal text-[var(--vscode-descriptionForeground)]">
+								<p className="text-xs mt-0 font-normal text-(--vscode-descriptionForeground)">
 									Oracle Employees, please see the{" "}
 									<VSCodeLink
 										href="https://confluence.oraclecorp.com/confluence/display/AICODE/Oracle+Code+Assist+via+Cline"
