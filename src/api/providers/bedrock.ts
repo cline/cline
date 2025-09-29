@@ -45,7 +45,6 @@ import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from ".
 interface BedrockInferenceConfig {
 	maxTokens: number
 	temperature?: number
-	topP?: number
 }
 
 // Define interface for Bedrock additional model request fields
@@ -374,12 +373,8 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			maxTokens: modelConfig.maxTokens || (modelConfig.info.maxTokens as number),
 			temperature: modelConfig.temperature ?? (this.options.modelTemperature as number),
 		}
-
-		if (!thinkingEnabled) {
-			inferenceConfig.topP = 0.1
-		}
-
-		// Check if 1M context is enabled for Claude Sonnet 4 / 4.5
+	
+		// Check if 1M context is enabled for Claude Sonnet 4
 		// Use parseBaseModelId to handle cross-region inference prefixes
 		const baseModelId = this.parseBaseModelId(modelConfig.id)
 		const is1MContextEnabled =
@@ -649,7 +644,6 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			const inferenceConfig: BedrockInferenceConfig = {
 				maxTokens: modelConfig.maxTokens || (modelConfig.info.maxTokens as number),
 				temperature: modelConfig.temperature ?? (this.options.modelTemperature as number),
-				...(thinkingEnabled ? {} : { topP: 0.1 }), // Only set topP when thinking is NOT enabled
 			}
 
 			// For completePrompt, use a unique conversation ID based on the prompt
