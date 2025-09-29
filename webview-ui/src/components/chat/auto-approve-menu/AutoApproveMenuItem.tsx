@@ -1,7 +1,7 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
 import styled from "styled-components"
-import HeroTooltip from "@/components/common/HeroTooltip"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ActionMetadata } from "./types"
 
 interface AutoApproveMenuItemProps {
@@ -89,34 +89,40 @@ const AutoApproveMenuItem = ({
 	const content = (
 		<>
 			<ActionButtonContainer>
-				<HeroTooltip content={action.description} delay={500}>
-					<CheckboxContainer isFavorited={favorited} onClick={onChange}>
-						<div className="left-content">
-							{onToggleFavorite && !condensed && (
-								<HeroTooltip
-									content={favorited ? "Remove from quick-access menu" : "Add to quick-access menu"}
-									delay={500}>
-									<span
-										className={`p-0.5 codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
-										onClick={async (e) => {
-											e.stopPropagation()
-											if (action.id === "enableAll") {
-												return
-											}
-											await onToggleFavorite?.(action.id)
-										}}
-										style={{
-											cursor: "pointer",
-										}}
-									/>
-								</HeroTooltip>
-							)}
-							<VSCodeCheckbox checked={checked} />
-							{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
-							<span className="label">{condensed ? action.shortName : action.label}</span>
-						</div>
-					</CheckboxContainer>
-				</HeroTooltip>
+				<Tooltip>
+					<TooltipContent>{action.description}</TooltipContent>
+					<TooltipTrigger>
+						<CheckboxContainer isFavorited={favorited} onClick={onChange}>
+							<div className="left-content">
+								{onToggleFavorite && !condensed && (
+									<Tooltip>
+										<TooltipContent>
+											{favorited ? "Remove from quick-access menu" : "Add to quick-access menu"}
+										</TooltipContent>
+										<TooltipTrigger>
+											<span
+												className={`p-0.5 codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
+												onClick={async (e) => {
+													e.stopPropagation()
+													if (action.id === "enableAll") {
+														return
+													}
+													await onToggleFavorite?.(action.id)
+												}}
+												style={{
+													cursor: "pointer",
+												}}
+											/>
+										</TooltipTrigger>
+									</Tooltip>
+								)}
+								<VSCodeCheckbox checked={checked} />
+								{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
+								<span className="label">{condensed ? action.shortName : action.label}</span>
+							</div>
+						</CheckboxContainer>
+					</TooltipTrigger>
+				</Tooltip>
 			</ActionButtonContainer>
 			{action.subAction && !condensed && (
 				<SubOptionAnimateIn show={checked}>

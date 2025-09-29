@@ -52,7 +52,7 @@ const AccordionItem = memo<{
 				</div>
 				<div className="text-muted-foreground text-sm">{value}</div>
 			</div>
-			{isExpanded && children && <div className="ml-4 mt-2 mb-1 text-xs text-muted-foreground">{children}</div>}
+			{isExpanded && children && <div className="mx-2 mt-2 mb-1 text-xs text-muted-foreground">{children}</div>}
 		</div>
 	)
 })
@@ -77,13 +77,10 @@ const TokenUsageDetails = memo<TokenUsageInfoProps>(({ tokensIn, tokensOut, cach
 	}
 
 	return (
-		<div className="space-y-2">
+		<div className="space-y-1">
 			{contextTokenDetails.map((item) => (
-				<div className="flex items-center justify-between" key={item.icon}>
-					<div className="flex items-center gap-1">
-						<i className={`codicon ${item.icon} text-xs`} />
-						<span>{item.title}</span>
-					</div>
+				<div className="flex justify-between">
+					<span>{item.title}</span>
 					<span className="font-mono">{formatTokenNumber(item.value || 0)}</span>
 				</div>
 			))}
@@ -124,7 +121,7 @@ export const ContextWindowSummary: React.FC<TaskContextWindowButtonsProps> = ({
 	const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 
 	return (
-		<div className="context-window-tooltip-content flex flex-col gap-2 bg-menu rounded shadow-sm border border-menu-border z-100 w-60 p-4">
+		<div className="context-window-tooltip-content flex flex-col gap-2 bg-menu rounded shadow-sm z-100 w-60 p-1">
 			{autoCompactThreshold > 0 && (
 				<AccordionItem
 					isExpanded={expandedSections.has("threshold")}
