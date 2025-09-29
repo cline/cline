@@ -1,5 +1,10 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { CLAUDE_SONNET_4_1M_SUFFIX, ModelInfo, openRouterClaudeSonnet41mModelId } from "@shared/api"
+import {
+	CLAUDE_SONNET_1M_SUFFIX,
+	ModelInfo,
+	openRouterClaudeSonnet41mModelId,
+	openRouterClaudeSonnet451mModelId,
+} from "@shared/api"
 import OpenAI from "openai"
 import { convertToOpenAiMessages } from "./openai-format"
 import { convertToR1Format } from "./r1-format"
@@ -19,10 +24,10 @@ export async function createOpenRouterStream(
 		...convertToOpenAiMessages(messages),
 	]
 
-	const isClaudeSonnet41m = model.id === openRouterClaudeSonnet41mModelId
-	if (isClaudeSonnet41m) {
+	const isClaudeSonnet1m = model.id === openRouterClaudeSonnet41mModelId || model.id === openRouterClaudeSonnet451mModelId
+	if (isClaudeSonnet1m) {
 		// remove the custom :1m suffix, to create the model id openrouter API expects
-		model.id = model.id.slice(0, -CLAUDE_SONNET_4_1M_SUFFIX.length)
+		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
 	}
 
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
@@ -172,7 +177,7 @@ export async function createOpenRouterStream(
 			? { provider: { order: ["groq", "together", "baseten", "parasail", "novita", "deepinfra"], allow_fallbacks: false } }
 			: {}),
 		// limit providers to only those that support the 1m context window
-		...(isClaudeSonnet41m ? { provider: { order: ["anthropic", "amazon-bedrock"], allow_fallbacks: false } } : {}),
+		...(isClaudeSonnet1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
 	})
 
 	return stream

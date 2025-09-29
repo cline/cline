@@ -1,4 +1,4 @@
-import { bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_4_1M_SUFFIX } from "@shared/api"
+import { bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
@@ -305,7 +305,8 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					{(selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0" ||
 						selectedModelId === "anthropic.claude-sonnet-4-20250514-v1:0" ||
 						selectedModelId === "anthropic.claude-sonnet-4-5-20250929-v1:0" ||
-						selectedModelId === `anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_4_1M_SUFFIX}` ||
+						selectedModelId === `anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_1M_SUFFIX}` ||
+						selectedModelId === `anthropic.claude-sonnet-4-5-20250929-v1:0${CLAUDE_SONNET_1M_SUFFIX}` ||
 						selectedModelId === "anthropic.claude-opus-4-1-20250805-v1:0" ||
 						selectedModelId === "anthropic.claude-opus-4-20250514-v1:0" ||
 						(modeFields.awsBedrockCustomSelected &&
@@ -316,7 +317,10 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							modeFields.awsBedrockCustomModelBaseId === "anthropic.claude-sonnet-4-5-20250929-v1:0") ||
 						(modeFields.awsBedrockCustomSelected &&
 							modeFields.awsBedrockCustomModelBaseId ===
-								`anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_4_1M_SUFFIX}`) ||
+								`anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_1M_SUFFIX}`) ||
+						(modeFields.awsBedrockCustomSelected &&
+							modeFields.awsBedrockCustomModelBaseId ===
+								`anthropic.claude-sonnet-4-5-20250929-v1:0${CLAUDE_SONNET_1M_SUFFIX}`) ||
 						(modeFields.awsBedrockCustomSelected &&
 							modeFields.awsBedrockCustomModelBaseId === "anthropic.claude-opus-4-1-20250805-v1:0") ||
 						(modeFields.awsBedrockCustomSelected &&
