@@ -1,9 +1,9 @@
 # Changelog
 
-## 3.32.2
+## [3.32.2]
 
-- b8dd6ab: Add /task deep link handler
-- 5826cb5: fix: Return the updated token
+- Add Claude Sonnet 4.5
+- Add /task deep link handler
 
 ## [3.32.1]
 
