@@ -15,7 +15,8 @@ const THUMB_SIZE = 16
 const Container = styled.div`
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	margin-top: 5px;
+	margin-bottom: 10px;
 `
 
 const LabelContainer = styled.div`
@@ -26,15 +27,11 @@ const LabelContainer = styled.div`
 `
 
 const Label = styled.label`
+    font-size: 12px;
 	font-weight: 500;
 	display: block;
 	margin-right: auto;
-`
-const Description = styled.p`
-	font-size: 12px;
-	margin-top: 0px;
-	margin-bottom: 0px;
-	color: var(--vscode-descriptionForeground);
+	// color: var(--vscode-descriptionForeground);
 `
 
 const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
@@ -154,18 +151,13 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 	}
 
 	return (
-		<Container>
+		<>
 			<VSCodeCheckbox checked={isEnabled} onClick={handleToggleChange}>
-				Enable extended thinking
+				Enable thinking{localValue && localValue > 0 ? ` (${localValue.toLocaleString()} tokens)` : ""}
 			</VSCodeCheckbox>
 
 			{isEnabled && (
-				<>
-					<LabelContainer>
-						<Label htmlFor="thinking-budget-slider">
-							<strong>Budget:</strong> {localValue.toLocaleString()} tokens
-						</Label>
-					</LabelContainer>
+				<Container>
 					<RangeInput
 						$max={maxSliderValue}
 						$min={ANTHROPIC_MIN_THINKING_BUDGET}
@@ -185,13 +177,9 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 						type="range"
 						value={localValue}
 					/>
-
-					<Description id="thinking-budget-description">
-						Higher budgets may allow you to achieve more comprehensive and nuanced reasoning
-					</Description>
-				</>
+				</Container>
 			)}
-		</Container>
+		</>
 	)
 }
 
