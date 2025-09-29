@@ -108,7 +108,7 @@ export async function refreshOpenRouterModels(
 				})
 
 				switch (rawModel.id) {
-					case "anthropic/claude-sonnet-4.5":
+					case "anthropic/claude-4.5-sonnet":
 					case "anthropic/claude-sonnet-4":
 						// NOTE: we artificially restrict the context window to 200k to keep costs low for users, and have a :1m model variant created below for users that want to use the full 1m.
 						modelInfo.contextWindow = 200_000
@@ -214,7 +214,7 @@ export async function refreshOpenRouterModels(
 				models[rawModel.id] = modelInfo
 
 				// add custom :1m model variant
-				if (rawModel.id === "anthropic/claude-sonnet-4.5") {
+				if (rawModel.id === "anthropic/claude-4.5-sonnet") {
 					const claudeSonnet451mModelInfo = cloneDeep(modelInfo)
 					claudeSonnet451mModelInfo.contextWindow = 1_000_000 // limiting providers to those that support 1m context window
 					claudeSonnet451mModelInfo.tiers = CLAUDE_SONNET_4_5_1M_TIERS

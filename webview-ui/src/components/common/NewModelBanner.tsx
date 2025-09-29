@@ -54,7 +54,7 @@ export const NewModelBanner: React.FC = () => {
 	}
 
 	const setNewModel = () => {
-		const modelId = "anthropic/claude-sonnet-4.5"
+		const modelId = "anthropic/claude-4.5-sonnet"
 		// set both plan and act modes to use new model
 		handleFieldsChange({
 			planModeOpenRouterModelId: modelId,
