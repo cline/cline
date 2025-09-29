@@ -1,5 +1,28 @@
 # Changelog
 
+## [3.32.1]
+
+- Preserve reasoning traces for Cline/OpenRouter/Anthropic providers to maintain conversation integrity
+- Add automatically retry on rate limit errors with SAP AI Core provider
+- Fix Cline accounts using stale id token at refresh response
+- Minor UI improvements to Settings and Task Header
+
+## [3.32.0]
+
+- Added the new code-supernova-1-million stealth model, available for free and delivering a 1 million token context window
+- Changes to inform Cline about commands that are available on your system
+
+## [3.31.1]
+
+- Version bump
+
+## [3.31.0]
+
+- UI Improvements: New task header and focus chain design to take up less space for a cleaner experience
+- Voice Mode: Experimental feature that must be enabled in settings for hands-free coding
+- YOLO Mode: Enable in settings to let Cline approve all actions and automatically switch between plan/act mode
+- Fix Oracle Code Assist provider issues
+
 ## [3.30.3]
 
 - Add Oracle Code Assist provider

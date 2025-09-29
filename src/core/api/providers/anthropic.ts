@@ -150,6 +150,8 @@ export class AnthropicHandler implements ApiHandler {
 			}
 		}
 
+		let thinkingDeltaAccumulator = ""
+
 		for await (const chunk of stream) {
 			switch (chunk?.type) {
 				case "message_start":
@@ -182,13 +184,25 @@ export class AnthropicHandler implements ApiHandler {
 								type: "reasoning",
 								reasoning: chunk.content_block.thinking || "",
 							}
+							const thinking = chunk.content_block.thinking
+							const signature = chunk.content_block.signature
+							if (thinking && signature) {
+								yield {
+									type: "ant_thinking",
+									thinking,
+									signature,
+								}
+							}
 							break
 						case "redacted_thinking":
-							// Handle redacted thinking blocks - we still mark it as reasoning
-							// but note that the content is encrypted
+							// Content is encrypted, and we don't to pass placeholder text back to the API
 							yield {
 								type: "reasoning",
 								reasoning: "[Redacted thinking block]",
+							}
+							yield {
+								type: "ant_redacted_thinking",
+								data: chunk.content_block.data,
 							}
 							break
 						case "text":
@@ -209,9 +223,22 @@ export class AnthropicHandler implements ApiHandler {
 				case "content_block_delta":
 					switch (chunk.delta.type) {
 						case "thinking_delta":
+							// 'reasoning' type just displays in the UI, but ant_thinking will be used to send the thinking traces back to the API
 							yield {
 								type: "reasoning",
 								reasoning: chunk.delta.thinking,
+							}
+							thinkingDeltaAccumulator += chunk.delta.thinking
+							break
+						case "signature_delta":
+							// It's used when sending the thinking block back to the API
+							// API expects this in completed form, not as array of deltas
+							if (thinkingDeltaAccumulator && chunk.delta.signature) {
+								yield {
+									type: "ant_thinking",
+									thinking: thinkingDeltaAccumulator,
+									signature: chunk.delta.signature,
+								}
 							}
 							break
 						case "text_delta":
@@ -219,10 +246,6 @@ export class AnthropicHandler implements ApiHandler {
 								type: "text",
 								text: chunk.delta.text,
 							}
-							break
-						case "signature_delta":
-							// We don't need to do anything with the signature in the client
-							// It's used when sending the thinking block back to the API
 							break
 					}
 					break

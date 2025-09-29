@@ -1436,7 +1436,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{isVoiceRecording && (
 						<div
 							className={cn(
-								"absolute pointer-events-none z-10 overflow-hidden rounded-xs transition-all ease-in-out duration-300 left-2.5 right-2.5 top-2.5 bottom-2.5",
+								"absolute pointer-events-none z-10 overflow-hidden rounded-xs transition-all ease-in-out duration-300 left-3.5 right-3.5 top-2.5 bottom-2.5",
 							)}>
 							<PulsingBorder
 								bloom={1}
@@ -1458,7 +1458,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								speed={1.5}
 								spotSize={0.5}
 								spots={4}
-								thickness={0.05}
+								thickness={0.1}
 							/>
 						</div>
 					)}

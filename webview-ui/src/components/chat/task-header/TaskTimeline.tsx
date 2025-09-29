@@ -130,7 +130,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 							marginRight: BLOCK_GAP,
 							opacity: isHovered ? 0.7 : 1,
 							transition: "opacity 0.2s ease",
-							borderRadius: "50%",
+							borderRadius: 1.5,
 						}}
 					/>
 				</TaskTimelineTooltip>

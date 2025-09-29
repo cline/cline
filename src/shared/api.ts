@@ -262,6 +262,7 @@ export const CLAUDE_SONNET_4_1M_TIERS = [
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-20250514"
+export const ANTHROPIC_MIN_THINKING_BUDGET = 1_024
 export const anthropicModels = {
 	"claude-sonnet-4-20250514:1m": {
 		maxTokens: 8192,
@@ -596,7 +597,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 
 // Cline custom model - code-supernova
 export const clineCodeSupernovaModelInfo: ModelInfo = {
-	contextWindow: 200000,
+	contextWindow: 1000000,
 	supportsImages: true,
 	supportsPromptCache: true,
 	inputPrice: 0,
@@ -2509,6 +2510,16 @@ export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies N
 export type XAIModelId = keyof typeof xaiModels
 export const xaiDefaultModelId: XAIModelId = "grok-4"
 export const xaiModels = {
+	"grok-4-fast-reasoning": {
+		maxTokens: 30000,
+		contextWindow: 2000000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.2,
+		cacheReadsPrice: 0.05,
+		outputPrice: 0.5,
+		description: "xAI's Grok 4 Fast (free) multimodal model with 2M context.",
+	},
 	"grok-4": {
 		maxTokens: 8192,
 		contextWindow: 262144,

@@ -44,6 +44,7 @@ import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
 import { sendStateUpdate } from "./state/subscribeToState"
+import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -118,19 +119,15 @@ export class Controller {
 
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
-			() => ensureSettingsDirectoryExists(this.context),
+			() => ensureSettingsDirectoryExists(),
 			ExtensionRegistryInfo.version,
 			telemetryService,
 		)
 
 		// Clean up legacy checkpoints
-		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath).catch((error) => {
+		cleanupLegacyCheckpoints().catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
-	}
-
-	async getCurrentMode(): Promise<Mode> {
-		return this.stateManager.getGlobalSettingsKey("mode")
 	}
 
 	/*
@@ -203,7 +200,6 @@ export class Controller {
 		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
-		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 
@@ -242,7 +238,6 @@ export class Controller {
 			terminalReuseEnabled ?? true,
 			terminalOutputLineLimit ?? 500,
 			defaultTerminalProfile ?? "default",
-			enableCheckpointsSetting ?? true,
 			cwd,
 			this.stateManager,
 			this.workspaceManager,
@@ -370,7 +365,7 @@ export class Controller {
 			// Get current settings to determine how to update providers
 			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 
-			const currentMode = await this.getCurrentMode()
+			const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 
 			// Get current API configuration from cache
 			const currentApiConfiguration = this.stateManager.getApiConfiguration()
@@ -421,7 +416,7 @@ export class Controller {
 			// Get current settings to determine how to update providers
 			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 
-			const currentMode = await this.getCurrentMode()
+			const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 
 			// Get current API configuration from cache
 			const currentApiConfiguration = this.stateManager.getApiConfiguration()
@@ -461,6 +456,11 @@ export class Controller {
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
 		}
+	}
+
+	async handleTaskCreation(prompt: string) {
+		await sendChatButtonClickedEvent(this.id)
+		await this.initTask(prompt)
 	}
 
 	// MCP Marketplace
@@ -578,7 +578,7 @@ export class Controller {
 		}
 
 		const openrouter: ApiProvider = "openrouter"
-		const currentMode = await this.getCurrentMode()
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 
 		// Update API configuration through cache service
 		const currentApiConfiguration = this.stateManager.getApiConfiguration()
@@ -719,6 +719,7 @@ export class Controller {
 		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
 		const favoritedModelIds = this.stateManager.getGlobalStateKey("favoritedModelIds")
+		const lastDismissedInfoBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -741,10 +742,10 @@ export class Controller {
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
 
-		// Set feature flag in dictation settings
+		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
 			...dictationSettings,
-			featureEnabled: true, // Currently hardcoded, was: featureFlagsService.getBooleanFlagEnabled(FeatureFlag.DICTATION, true)
+			featureEnabled: process.platform === "darwin", // Enable dictation only on macOS
 		}
 
 		return {
@@ -798,6 +799,7 @@ export class Controller {
 				user: this.stateManager.getGlobalStateKey("multiRootEnabled"),
 				featureFlag: featureFlagsService.getMultiRootEnabled(),
 			},
+			lastDismissedInfoBannerVersion,
 		}
 	}
 

@@ -162,7 +162,7 @@ export class ClineHandler implements ApiHandler {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
-					if (this.getModel().id === "cline/code-supernova") {
+					if (this.getModel().id === "cline/code-supernova-1-million") {
 						totalCost = 0
 					}
 
