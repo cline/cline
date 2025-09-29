@@ -1,5 +1,10 @@
 # Roo Code Changelog
 
+## [3.28.11] - 2025-09-29
+
+- Fix: Correct AWS Bedrock Claude Sonnet 4.5 model identifier (#8371 by @sunhyung, PR by @app/roomote)
+- Fix: Correct Claude Sonnet 4.5 model ID format (thanks @daniel-lxs!)
+
 ## [3.28.10] - 2025-09-29
 
 ![3.28.10 Release - Kangaroo Writing Sonnet 4.5](/releases/3.28.10-release.png)
