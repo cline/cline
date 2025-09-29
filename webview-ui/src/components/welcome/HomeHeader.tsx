@@ -26,7 +26,7 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 				<h2 className="m-0 text-md font-bold">What can I do for you?</h2>
 				<HoverCard>
 					<HoverCardContent className="h-full wrap-break-word">
-						<div className="space-y-1 text-description text-sm break-words">
+						<div className="space-y-1 text-description text-xs break-words">
 							I can develop software step-by-step by editing files, exploring projects, running commands, and using
 							browsers. I can even extend my capabilities with MCP tools to assist beyond basic code completion.
 						</div>

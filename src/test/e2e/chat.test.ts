@@ -26,12 +26,13 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	const actButton = sidebar.getByRole("switch", { name: "Act" })
 	const planButton = sidebar.getByRole("switch", { name: "Plan" })
 
-	await expect(actButton).toBeChecked()
-	await expect(planButton).not.toBeChecked()
+	// Act button should be active. It doesn't have c
+	await expect(actButton).toHaveAttribute("aria-checked", "true")
+	await expect(planButton).not.toHaveAttribute("aria-checked", "true")
 
-	await actButton.click()
-	await expect(actButton).not.toBeChecked()
-	await expect(planButton).toBeChecked()
+	await planButton.click()
+	await expect(planButton).toHaveAttribute("aria-checked", "true")
+	await expect(actButton).not.toHaveAttribute("aria-checked", "true")
 
 	// === slash commands preserve following text ===
 	await expect(inputbox).toHaveValue("")
