@@ -2,8 +2,6 @@
 
 ## 3.32.5
 
-### Patch Changes
-
 - d1fc597: Enhance Test Workflow and Report Coverage to Qlty on Main
 - da99e2b: fix: update vercel provider cost note and sign-up url
 - 00bf05c: Fix repeated API error 400 in SAP AI Core provider
