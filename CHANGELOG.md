@@ -2,8 +2,6 @@
 
 ## 3.32.2
 
-### Patch Changes
-
 - b8dd6ab: Add /task deep link handler
 - 5826cb5: fix: Return the updated token
 
