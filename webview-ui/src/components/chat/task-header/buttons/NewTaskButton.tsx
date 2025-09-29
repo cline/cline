@@ -12,7 +12,7 @@ const NewTaskButton: React.FC<{
 			<TooltipContent side="bottom">Start a New Task</TooltipContent>
 			<TooltipTrigger className={cn("flex items-center", className)}>
 				<Button
-					aria-label="Start a New Task"
+					aria-label="New Task"
 					onClick={(e) => {
 						e.preventDefault()
 						e.stopPropagation()
