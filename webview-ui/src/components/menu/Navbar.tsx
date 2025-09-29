@@ -2,7 +2,7 @@ import { TooltipContent } from "@radix-ui/react-tooltip"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { HistoryIcon, PlusIcon, SettingsIcon, UserCircleIcon } from "lucide-react"
 import { useMemo } from "react"
-import { Tooltip } from "@/components/ui/tooltip"
+import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 
@@ -72,7 +72,7 @@ export const Navbar = () => {
 			{SETTINGS_TABS.map((tab) => (
 				<Tooltip key={`navbar-tooltip-${tab.id}`}>
 					<TooltipContent side="bottom">{tab.tooltip}</TooltipContent>
-					<TooltipContent>
+					<TooltipTrigger asChild>
 						<VSCodeButton
 							appearance="icon"
 							aria-label={tab.tooltip}
@@ -84,7 +84,7 @@ export const Navbar = () => {
 								<tab.icon className="text-(--vscode-foreground)" size={18} strokeWidth={1} />
 							</div>
 						</VSCodeButton>
-					</TooltipContent>
+					</TooltipTrigger>
 				</Tooltip>
 			))}
 		</nav>

@@ -283,7 +283,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 						<SquareIcon />
 					</div>
 				</TooltipTrigger>
-				<TooltipContent side="top">"Cancel Recording</TooltipContent>
+				<TooltipContent side="top">Cancel Recording</TooltipContent>
 			</Tooltip>
 		</div>
 	)
