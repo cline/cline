@@ -23,7 +23,7 @@ export const Anthropic = ({ apiConfiguration, setApiConfigurationField }: Anthro
 
 	// Check if the current model supports 1M context beta
 	const supports1MContextBeta =
-		selectedModel?.id === "claude-sonnet-4-20250514" || selectedModel?.id === "claude-4.5-sonnet"
+		selectedModel?.id === "claude-sonnet-4-20250514" || selectedModel?.id === "claude-sonnet-4-5"
 
 	const handleInputChange = useCallback(
 		<K extends keyof ProviderSettings, E>(

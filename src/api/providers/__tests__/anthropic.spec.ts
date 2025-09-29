@@ -268,10 +268,10 @@ describe("AnthropicHandler", () => {
 		it("should handle Claude 4.5 Sonnet model correctly", () => {
 			const handler = new AnthropicHandler({
 				apiKey: "test-api-key",
-				apiModelId: "claude-4.5-sonnet",
+				apiModelId: "claude-sonnet-4-5",
 			})
 			const model = handler.getModel()
-			expect(model.id).toBe("claude-4.5-sonnet")
+			expect(model.id).toBe("claude-sonnet-4-5")
 			expect(model.info.maxTokens).toBe(64000)
 			expect(model.info.contextWindow).toBe(200000)
 			expect(model.info.supportsReasoningBudget).toBe(true)
@@ -280,7 +280,7 @@ describe("AnthropicHandler", () => {
 		it("should enable 1M context for Claude 4.5 Sonnet when beta flag is set", () => {
 			const handler = new AnthropicHandler({
 				apiKey: "test-api-key",
-				apiModelId: "claude-4.5-sonnet",
+				apiModelId: "claude-sonnet-4-5",
 				anthropicBeta1MContext: true,
 			})
 			const model = handler.getModel()
