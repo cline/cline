@@ -11,7 +11,7 @@ export default defineConfig({
 	testMatch: /.*\.test\.ts/,
 	timeout: isCI || isWindow ? 40000 : 20000,
 	expect: {
-		timeout: isCI || isWindow ? 5000 : 2000,
+		timeout: isCI || isWindow ? 6000 : 2000,
 	},
 	fullyParallel: true,
 	reporter: isCI ? [["github"], ["list"]] : [["list"]],
