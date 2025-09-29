@@ -741,7 +741,10 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private shouldEnableReasoning(baseModelId: string, budgetTokens: number): boolean {
 		return (
-			(baseModelId.includes("3-7") || baseModelId.includes("sonnet-4") || baseModelId.includes("opus-4")) &&
+			(baseModelId.includes("3-7") ||
+				baseModelId.includes("sonnet-4") ||
+				baseModelId.includes("opus-4") ||
+				baseModelId.includes("sonnet-4-5")) &&
 			budgetTokens !== 0
 		)
 	}

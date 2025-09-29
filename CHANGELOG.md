@@ -1,9 +1,26 @@
 # Changelog
 
+## [3.32.3]
+
+- Add Claude Sonnet 4.5 to Bedrock provider
+- Add Alert banner for new Claude Sonnet 4.5 model
+
+## [3.32.2]
+
+- Add Claude Sonnet 4.5 to Cline/OpenRouter/Anthropic providers
+- Add /task deep link handler
+
+## [3.32.1]
+
+- Preserve reasoning traces for Cline/OpenRouter/Anthropic providers to maintain conversation integrity
+- Add automatically retry on rate limit errors with SAP AI Core provider
+- Fix Cline accounts using stale id token at refresh response
+- Minor UI improvements to Settings and Task Header
+
 ## [3.32.0]
 
 - Added the new code-supernova-1-million stealth model, available for free and delivering a 1 million token context window
-- Changes to inform Cline about commands that are available on your system 
+- Changes to inform Cline about commands that are available on your system
 
 ## [3.31.1]
 

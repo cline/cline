@@ -126,7 +126,8 @@
 					{
 						"group": "Customization",
 						"pages": [
-							"features/customization/opening-cline-in-sidebar"
+							"features/customization/opening-cline-in-sidebar",
+							"features/customization/disable-terminal-pagers"
 						]
 					}
 				]
