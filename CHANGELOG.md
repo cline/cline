@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.32.2]
+
+- Add Claude Sonnet 4.5
+- Add /task deep link handler
+
 ## [3.32.1]
 
 - Preserve reasoning traces for Cline/OpenRouter/Anthropic providers to maintain conversation integrity
