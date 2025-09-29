@@ -64,9 +64,7 @@ export async function getDocumentsPath(): Promise<string> {
 }
 
 export async function ensureTaskDirectoryExists(taskId: string): Promise<string> {
-	const taskDir = path.join(HostProvider.get().globalStorageFsPath, "tasks", taskId)
-	await fs.mkdir(taskDir, { recursive: true })
-	return taskDir
+	return getGlobalStorageDir("tasks", taskId)
 }
 
 export async function ensureRulesDirectoryExists(): Promise<string> {
@@ -103,9 +101,7 @@ export async function ensureMcpServersDirectoryExists(): Promise<string> {
 }
 
 export async function ensureSettingsDirectoryExists(): Promise<string> {
-	const settingsDir = path.join(HostProvider.get().globalStorageFsPath, "settings")
-	await fs.mkdir(settingsDir, { recursive: true })
-	return settingsDir
+	return getGlobalStorageDir("settings")
 }
 
 export async function getSavedApiConversationHistory(taskId: string): Promise<Anthropic.MessageParam[]> {
@@ -176,13 +172,17 @@ export async function saveTaskMetadata(taskId: string, metadata: TaskMetadata) {
 }
 
 export async function ensureStateDirectoryExists(): Promise<string> {
-	const stateDir = path.join(HostProvider.get().globalStorageFsPath, "state")
-	await fs.mkdir(stateDir, { recursive: true })
-	return stateDir
+	return getGlobalStorageDir("state")
 }
 
 export async function ensureCacheDirectoryExists(): Promise<string> {
-	return HostProvider.getGlobalStorageDir("cache")
+	return getGlobalStorageDir("cache")
+}
+
+async function getGlobalStorageDir(...subdirs: string[]) {
+	const fullPath = path.resolve(HostProvider.get().globalStorageFsPath, ...subdirs)
+	await fs.mkdir(fullPath, { recursive: true })
+	return fullPath
 }
 
 export async function getTaskHistoryStateFilePath(): Promise<string> {
