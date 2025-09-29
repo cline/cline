@@ -409,8 +409,18 @@ export const claudeCodeModels = {
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export type BedrockModelId = keyof typeof bedrockModels
-export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
+export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-20250514-v1:0" // TODO: update to 4-5
 export const bedrockModels = {
+	"anthropic.claude-sonnet-4-5-20250929-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
 	"anthropic.claude-sonnet-4-20250514-v1:0:1m": {
 		maxTokens: 8192,
 		contextWindow: 1_000_000,
