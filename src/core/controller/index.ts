@@ -45,6 +45,7 @@ import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
 import { sendStateUpdate } from "./state/subscribeToState"
+import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -119,19 +120,15 @@ export class Controller {
 
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
-			() => ensureSettingsDirectoryExists(this.context),
+			() => ensureSettingsDirectoryExists(),
 			ExtensionRegistryInfo.version,
 			telemetryService,
 		)
 
 		// Clean up legacy checkpoints
-		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath).catch((error) => {
+		cleanupLegacyCheckpoints().catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
-	}
-
-	async getCurrentMode(): Promise<Mode> {
-		return this.stateManager.getGlobalSettingsKey("mode")
 	}
 
 	/*
@@ -210,7 +207,6 @@ export class Controller {
 		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
-		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
 
@@ -238,26 +234,25 @@ export class Controller {
 
 		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
 
-		this.task = new Task(
-			this,
-			this.mcpHub,
-			(historyItem) => this.updateTaskHistory(historyItem),
-			() => this.postStateToWebview(),
-			(taskId) => this.reinitExistingTaskFromId(taskId),
-			() => this.cancelTask(),
+		this.task = new Task({
+			controller: this,
+			mcpHub: this.mcpHub,
+			updateTaskHistory: (historyItem) => this.updateTaskHistory(historyItem),
+			postStateToWebview: () => this.postStateToWebview(),
+			reinitExistingTaskFromId: (taskId) => this.reinitExistingTaskFromId(taskId),
+			cancelTask: () => this.cancelTask(),
 			shellIntegrationTimeout,
-			terminalReuseEnabled ?? true,
-			terminalOutputLineLimit ?? 500,
-			defaultTerminalProfile ?? "default",
-			enableCheckpointsSetting ?? true,
+			terminalReuseEnabled: terminalReuseEnabled ?? true,
+			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
+			defaultTerminalProfile: defaultTerminalProfile ?? "default",
 			cwd,
-			this.stateManager,
-			this.workspaceManager,
+			stateManager: this.stateManager,
+			workspaceManager: this.workspaceManager,
 			task,
 			images,
 			files,
 			historyItem,
-		)
+		})
 
 		console.log("[Controller] taskSettings", taskSettings)
 
@@ -382,7 +377,7 @@ export class Controller {
 			// Get current settings to determine how to update providers
 			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 
-			const currentMode = await this.getCurrentMode()
+			const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 
 			// Get current API configuration from cache
 			const currentApiConfiguration = this.stateManager.getApiConfiguration()
@@ -433,7 +428,7 @@ export class Controller {
 			// Get current settings to determine how to update providers
 			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 
-			const currentMode = await this.getCurrentMode()
+			const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 
 			// Get current API configuration from cache
 			const currentApiConfiguration = this.stateManager.getApiConfiguration()
@@ -473,6 +468,11 @@ export class Controller {
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
 		}
+	}
+
+	async handleTaskCreation(prompt: string) {
+		await sendChatButtonClickedEvent(this.id)
+		await this.initTask(prompt)
 	}
 
 	// MCP Marketplace
@@ -590,7 +590,7 @@ export class Controller {
 		}
 
 		const openrouter: ApiProvider = "openrouter"
-		const currentMode = await this.getCurrentMode()
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 
 		// Update API configuration through cache service
 		const currentApiConfiguration = this.stateManager.getApiConfiguration()

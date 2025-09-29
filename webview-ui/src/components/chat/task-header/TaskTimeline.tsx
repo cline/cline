@@ -43,7 +43,8 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 					msg.say === "deleted_api_reqs" ||
 					msg.say === "checkpoint_created" ||
 					msg.say === "task_progress" ||
-					(msg.say === "text" && (!msg.text || msg.text.trim() === "")))
+					msg.say === "text" ||
+					msg.say === "reasoning")
 			) {
 				return false
 			}
@@ -130,7 +131,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 							marginRight: BLOCK_GAP,
 							opacity: isHovered ? 0.7 : 1,
 							transition: "opacity 0.2s ease",
-							borderRadius: "50%",
+							borderRadius: 1.5,
 						}}
 					/>
 				</TaskTimelineTooltip>

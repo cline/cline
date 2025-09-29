@@ -72,6 +72,15 @@ export class SharedUriHandler {
 					console.warn("SharedUriHandler: Missing code parameter for auth callback")
 					return false
 				}
+				case "/task": {
+					const prompt = query.get("prompt")
+					if (prompt) {
+						await visibleWebview.controller.handleTaskCreation(prompt)
+						return true
+					}
+					Logger.warn("SharedUriHandler: Missing prompt parameter for task creation")
+					return false
+				}
 				default:
 					Logger.warn(`SharedUriHandler: Unknown path: ${path}`)
 					return false
