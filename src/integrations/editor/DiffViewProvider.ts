@@ -26,12 +26,12 @@ export abstract class DiffViewProvider {
 
 	constructor() {}
 
-	public async open(relPath: string): Promise<void> {
+	public async open(relPath: string, options?: { displayPath?: string }): Promise<void> {
 		this.isEditing = true
-		this.relPath = relPath
 		const cwd = await getCwd()
 		const absolutePathResolved = workspaceResolver.resolveWorkspacePath(cwd, relPath, "DiffViewProvider.open.absolutePath")
 		this.absolutePath = typeof absolutePathResolved === "string" ? absolutePathResolved : absolutePathResolved.absolutePath
+		this.relPath = options?.displayPath ?? relPath
 		const fileExists = this.editType === "modify"
 
 		// if the file is already open, ensure it's not dirty before getting its contents
