@@ -230,6 +230,7 @@ export interface ModelInfo {
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
+	supportsBrowserUse?: boolean
 	isR1FormatRequired?: boolean
 }
 
@@ -984,6 +985,7 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	contextWindow: 128_000,
 	supportsImages: true,
 	supportsPromptCache: false,
+	supportsBrowserUse: false,
 	isR1FormatRequired: false,
 	inputPrice: 0,
 	outputPrice: 0,

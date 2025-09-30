@@ -50,9 +50,5 @@
 	},
 	"include": [
 		"src"
-	],
-	"exclude": [
-		"src/**/*.stories.*",
-		"src/config/StorybookDecorator.tsx"
 	]
 }

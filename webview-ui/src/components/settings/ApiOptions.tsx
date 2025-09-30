@@ -50,15 +50,6 @@ import { ZAiProvider } from "./providers/ZAiProvider"
 
 // OpenAI-compatible provider presets (kept scoped to ApiOptions)
 
-// Determine which preset matches a given OpenAI-compatible base URL (minimal heuristic)
-function matchPresetFromBaseUrl(openAiBaseUrl?: string): string | null {
-	const base = (openAiBaseUrl || "").toLowerCase()
-	if (!base) {
-		return null
-	}
-	return base.includes("portkey.ai") ? "portkey" : null
-}
-
 // Render highlighted label without using dangerouslySetInnerHTML
 function renderHighlightedLabel(html: string): JSX.Element[] {
 	const OPEN = '<span class="provider-item-highlight">'
@@ -109,14 +100,6 @@ function mapOptionToProviderAndDefaults(optionValue: string): {
 		return { provider: "openai", defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" } }
 	}
 	return { provider: optionValue }
-}
-
-function mapProviderToOption(provider: string, openAiBaseUrl?: string): string {
-	if (provider !== "openai") {
-		return provider
-	}
-	const matched = matchPresetFromBaseUrl(openAiBaseUrl)
-	return matched || provider
 }
 
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
@@ -247,21 +230,19 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	}, [])
 
 	const currentProviderLabel = useMemo(() => {
-		const mapped = mapProviderToOption(selectedProvider, apiConfiguration?.openAiBaseUrl)
-		const optionValue = lastChosenOption ?? mapped
+		const optionValue = lastChosenOption ?? selectedProvider
 		return providerOptions.find((option) => option.value === optionValue)?.label || optionValue
-	}, [providerOptions, selectedProvider, apiConfiguration?.openAiBaseUrl, lastChosenOption])
+	}, [providerOptions, selectedProvider, lastChosenOption])
 
 	// Clear temporary override once config matches last chosen option
 	useEffect(() => {
 		if (!lastChosenOption) {
 			return
 		}
-		const mapped = mapProviderToOption(selectedProvider, apiConfiguration?.openAiBaseUrl)
-		if (mapped === lastChosenOption) {
+		if (selectedProvider === lastChosenOption) {
 			setLastChosenOption(null)
 		}
-	}, [selectedProvider, apiConfiguration?.openAiBaseUrl, lastChosenOption])
+	}, [selectedProvider, lastChosenOption])
 
 	// Sync search term with current provider when not searching
 	useEffect(() => {
@@ -312,8 +293,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		}
 
 		if (defaults?.openAiBaseUrl) {
-			// Trim trailing slashes to keep a stable canonical form
-			updates.openAiBaseUrl = defaults.openAiBaseUrl.replace(/\/+$/, "")
+			// Apply preset default only if user doesn't have a URL already
+			if (!apiConfiguration?.openAiBaseUrl) {
+				updates.openAiBaseUrl = defaults.openAiBaseUrl
+			}
 		}
 
 		handleFieldsChange(updates)

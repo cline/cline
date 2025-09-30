@@ -2,7 +2,7 @@ import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shar
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
@@ -34,12 +34,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
 	const [modelSearchTerm, setModelSearchTerm] = useState("")
 	const [availableModels, setAvailableModels] = useState<string[]>([])
-
-	// Minimal friendly API key label heuristic (keep localized and tiny)
-	const apiKeyProviderName = useMemo(() => {
-		const base = (apiConfiguration?.openAiBaseUrl || "").toLowerCase()
-		return base.includes("portkey.ai") ? "Your Portkey" : "OpenAI Compatible"
-	}, [apiConfiguration?.openAiBaseUrl])
+	const [isLoadingModels, setIsLoadingModels] = useState(false)
+	const [modelFetchError, setModelFetchError] = useState<string | null>(null)
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -49,32 +45,69 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
 	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+	const lastFetchParamsRef = useRef<{ baseUrl: string; apiKey: string } | null>(null)
 	const debouncedRefreshOpenAiModels = useCallback((baseUrl?: string, apiKey?: string) => {
 		if (debounceTimerRef.current) {
 			clearTimeout(debounceTimerRef.current)
 		}
 
-		if (baseUrl && apiKey) {
+		const trimmedBaseUrl = (baseUrl ?? "").trim()
+		const normalizedBaseUrl = trimmedBaseUrl.replace(/\/+$/, "")
+
+		if (normalizedBaseUrl && apiKey) {
+			// Skip fetch if params haven't changed
+			if (
+				lastFetchParamsRef.current &&
+				lastFetchParamsRef.current.baseUrl === normalizedBaseUrl &&
+				lastFetchParamsRef.current.apiKey === apiKey
+			) {
+				return
+			}
+
+			lastFetchParamsRef.current = { baseUrl: normalizedBaseUrl, apiKey }
 			debounceTimerRef.current = setTimeout(() => {
+				setIsLoadingModels(true)
+				setModelFetchError(null)
 				ModelsServiceClient.refreshOpenAiModels(
 					OpenAiModelsRequest.create({
-						baseUrl,
+						baseUrl: trimmedBaseUrl,
 						apiKey,
 					}),
 				)
 					.then((resp) => {
 						const fetched = resp?.values ?? []
 						setAvailableModels(fetched)
+						setModelFetchError(null)
 					})
 					.catch((error) => {
 						console.error("Failed to refresh OpenAI models:", error)
 						setAvailableModels([])
+						setModelFetchError(error?.message || "Failed to fetch models. Please check your base URL and API key.")
+						lastFetchParamsRef.current = null
+					})
+					.finally(() => {
+						setIsLoadingModels(false)
 					})
 			}, 500)
 		} else {
+			lastFetchParamsRef.current = null
 			setAvailableModels([])
+			setIsLoadingModels(false)
+			setModelFetchError(null)
 		}
 	}, [])
+
+	// Fetch models on initial mount if credentials exist
+	useEffect(() => {
+		if (apiConfiguration?.openAiBaseUrl && apiConfiguration?.openAiApiKey) {
+			debouncedRefreshOpenAiModels(apiConfiguration.openAiBaseUrl, apiConfiguration.openAiApiKey)
+		}
+	}, [apiConfiguration?.openAiBaseUrl, apiConfiguration?.openAiApiKey, debouncedRefreshOpenAiModels])
+
+	// Clear search term when mode changes
+	useEffect(() => {
+		setModelSearchTerm("")
+	}, [currentMode])
 
 	// Cleanup any pending debounce timer on unmount
 	useEffect(() => {
@@ -105,7 +138,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					handleFieldChange("openAiApiKey", value)
 					debouncedRefreshOpenAiModels(apiConfiguration?.openAiBaseUrl, value)
 				}}
-				providerName={apiKeyProviderName}
+				providerName="OpenAI Compatible"
 			/>
 
 			{/* Model ID */}
@@ -143,7 +176,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							/>
 							<VSCodeDropdown
 								id="openai-compatible-model-id"
-								key={`${selectedModelId || "empty"}-${availableModels.length}`}
+								key={selectedModelId || "empty"}
 								onChange={(e: any) => {
 									const value = e.target.value
 									// Clear search after selection to avoid stale filters
@@ -156,7 +189,9 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 								}}
 								style={{ width: "100%", marginBottom: 10 }}
 								value={dropdownValue}>
-								<VSCodeOption value="">Select a model...</VSCodeOption>
+								<VSCodeOption value="">
+									{isLoadingModels ? "Loading models..." : "Select a model..."}
+								</VSCodeOption>
 								{displayModels.map((m) => (
 									<VSCodeOption key={m} value={m}>
 										{m}
