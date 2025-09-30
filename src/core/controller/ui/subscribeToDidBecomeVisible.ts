@@ -2,8 +2,8 @@ import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
-// Keep track of active didBecomeVisible subscriptions by controller ID
-const activeDidBecomeVisibleSubscriptions = new Map<string, StreamingResponseHandler<Empty>>()
+// Keep track of active didBecomeVisible subscriptions
+const activeDidBecomeVisibleSubscriptions = new Set<StreamingResponseHandler<Empty>>()
 
 /**
  * Subscribe to didBecomeVisible events
@@ -13,20 +13,19 @@ const activeDidBecomeVisibleSubscriptions = new Map<string, StreamingResponseHan
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToDidBecomeVisible(
-	controller: Controller,
+	_controller: Controller,
 	_request: EmptyRequest,
 	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
-	const controllerId = controller.id
-	console.log(`[DEBUG] set up didBecomeVisible subscription for controller ${controllerId}`)
+	console.log(`[DEBUG] set up didBecomeVisible subscription`)
 
-	// Add this subscription to the active subscriptions with the controller ID
-	activeDidBecomeVisibleSubscriptions.set(controllerId, responseStream)
+	// Add this subscription to the active subscriptions
+	activeDidBecomeVisibleSubscriptions.add(responseStream)
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
-		activeDidBecomeVisibleSubscriptions.delete(controllerId)
+		activeDidBecomeVisibleSubscriptions.delete(responseStream)
 	}
 
 	// Register the cleanup function with the request registry if we have a requestId
@@ -36,27 +35,23 @@ export async function subscribeToDidBecomeVisible(
 }
 
 /**
- * Send a didBecomeVisible event to a specific controller's subscription
- * @param controllerId The ID of the controller to send the event to
+ * Send a didBecomeVisible event to all active subscribers
  */
-export async function sendDidBecomeVisibleEvent(controllerId: string): Promise<void> {
-	// Get the subscription for this specific controller
-	const responseStream = activeDidBecomeVisibleSubscriptions.get(controllerId)
+export async function sendDidBecomeVisibleEvent(): Promise<void> {
+	// Send the event to all active subscribers
+	const promises = Array.from(activeDidBecomeVisibleSubscriptions).map(async (responseStream) => {
+		try {
+			const event = Empty.create({})
+			await responseStream(
+				event,
+				false, // Not the last message
+			)
+		} catch (error) {
+			console.error("Error sending didBecomeVisible event:", error)
+			// Remove the subscription if there was an error
+			activeDidBecomeVisibleSubscriptions.delete(responseStream)
+		}
+	})
 
-	if (!responseStream) {
-		console.log(`[DEBUG] No active subscription for controller ${controllerId}`)
-		return
-	}
-
-	try {
-		const event: Empty = Empty.create({})
-		await responseStream(
-			event,
-			false, // Not the last message
-		)
-	} catch (error) {
-		console.error(`Error sending didBecomeVisible event to controller ${controllerId}:`, error)
-		// Remove the subscription if there was an error
-		activeDidBecomeVisibleSubscriptions.delete(controllerId)
-	}
+	await Promise.all(promises)
 }

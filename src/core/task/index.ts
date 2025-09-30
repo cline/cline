@@ -85,6 +85,26 @@ import { detectAvailableCliTools, updateApiReqMsg } from "./utils"
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
 
+type TaskParams = {
+	controller: Controller
+	mcpHub: McpHub
+	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
+	postStateToWebview: () => Promise<void>
+	reinitExistingTaskFromId: (taskId: string) => Promise<void>
+	cancelTask: () => Promise<void>
+	shellIntegrationTimeout: number
+	terminalReuseEnabled: boolean
+	terminalOutputLineLimit: number
+	defaultTerminalProfile: string
+	cwd: string
+	stateManager: StateManager
+	workspaceManager?: WorkspaceRootManager
+	task?: string
+	images?: string[]
+	files?: string[]
+	historyItem?: HistoryItem
+}
+
 export class Task {
 	// Core task variables
 	readonly taskId: string
@@ -132,25 +152,27 @@ export class Task {
 	// Workspace manager
 	workspaceManager?: WorkspaceRootManager
 
-	constructor(
-		controller: Controller,
-		mcpHub: McpHub,
-		updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>,
-		postStateToWebview: () => Promise<void>,
-		reinitExistingTaskFromId: (taskId: string) => Promise<void>,
-		cancelTask: () => Promise<void>,
-		shellIntegrationTimeout: number,
-		terminalReuseEnabled: boolean,
-		terminalOutputLineLimit: number,
-		defaultTerminalProfile: string,
-		cwd: string,
-		stateManager: StateManager,
-		workspaceManager?: WorkspaceRootManager,
-		task?: string,
-		images?: string[],
-		files?: string[],
-		historyItem?: HistoryItem,
-	) {
+	constructor(params: TaskParams) {
+		const {
+			controller,
+			mcpHub,
+			updateTaskHistory,
+			postStateToWebview,
+			reinitExistingTaskFromId,
+			cancelTask,
+			shellIntegrationTimeout,
+			terminalReuseEnabled,
+			terminalOutputLineLimit,
+			defaultTerminalProfile,
+			cwd,
+			stateManager,
+			workspaceManager,
+			task,
+			images,
+			files,
+			historyItem,
+		} = params
+
 		this.taskInitializationStartTime = performance.now()
 		this.taskState = new TaskState()
 		this.controller = controller
@@ -179,7 +201,7 @@ export class Task {
 		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
 		this.urlContentFetcher = new UrlContentFetcher(controller.context)
-		this.browserSession = new BrowserSession(controller.context, stateManager)
+		this.browserSession = new BrowserSession(stateManager)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
 		this.cwd = cwd
@@ -209,7 +231,6 @@ export class Task {
 		}
 
 		this.messageStateHandler = new MessageStateHandler({
-			context: controller.context,
 			taskId: this.taskId,
 			ulid: this.ulid,
 			taskState: this.taskState,
@@ -219,7 +240,7 @@ export class Task {
 
 		// Initialize file context tracker
 		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
-		this.modelContextTracker = new ModelContextTracker(controller.context, this.taskId)
+		this.modelContextTracker = new ModelContextTracker(this.taskId)
 
 		// Initialize focus chain manager only if enabled
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
@@ -228,7 +249,6 @@ export class Task {
 				taskId: this.taskId,
 				taskState: this.taskState,
 				mode: this.stateManager.getGlobalSettingsKey("mode"),
-				context: this.getContext(),
 				stateManager: this.stateManager,
 				postStateToWebview: this.postStateToWebview,
 				say: this.say.bind(this),
@@ -246,7 +266,6 @@ export class Task {
 				fileContextTracker: this.fileContextTracker,
 				diffViewProvider: this.diffViewProvider,
 				taskState: this.taskState,
-				context: controller.context,
 				workspaceManager: this.workspaceManager,
 				updateTaskHistory: this.updateTaskHistory,
 				say: this.say.bind(this),
@@ -392,16 +411,6 @@ export class Task {
 
 	public resetConsecutiveAutoApprovedRequestsCount(): void {
 		this.taskState.consecutiveAutoApprovedRequestsCount = 0
-	}
-
-	// While a task is ref'd by a controller, it will always have access to the extension context
-	// This error is thrown if the controller derefs the task after e.g., aborting the task
-	private getContext(): vscode.ExtensionContext {
-		const context = this.controller.context
-		if (!context) {
-			throw new Error("Unable to access extension context")
-		}
-		return context
 	}
 
 	// Communicate with webview
@@ -715,7 +724,7 @@ export class Task {
 			// Optionally, inform the user or handle the error appropriately
 		}
 
-		const savedClineMessages = await getSavedClineMessages(this.getContext(), this.taskId)
+		const savedClineMessages = await getSavedClineMessages(this.taskId)
 
 		// Remove any resume messages that may have been added before
 		const lastRelevantMessageIndex = findLastIndex(
@@ -737,18 +746,16 @@ export class Task {
 		}
 
 		await this.messageStateHandler.overwriteClineMessages(savedClineMessages)
-		this.messageStateHandler.setClineMessages(await getSavedClineMessages(this.getContext(), this.taskId))
+		this.messageStateHandler.setClineMessages(await getSavedClineMessages(this.taskId))
 
 		// Now present the cline messages to the user and ask if they want to resume (NOTE: we ran into a bug before where the apiconversationhistory wouldn't be initialized when opening a old task, and it was because we were waiting for resume)
 		// This is important in case the user deletes messages without resuming the task first
-		const context = this.getContext()
-		const savedApiConversationHistory = await getSavedApiConversationHistory(context, this.taskId)
+		const savedApiConversationHistory = await getSavedApiConversationHistory(this.taskId)
 		this.messageStateHandler.setApiConversationHistory(savedApiConversationHistory)
 
 		// load the context history state
-
-		const _taskDir = await ensureTaskDirectoryExists(context, this.taskId)
-		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.getContext(), this.taskId))
+		await ensureTaskDirectoryExists(this.taskId)
+		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.taskId))
 
 		const lastClineMessage = this.messageStateHandler
 			.getClineMessages()
@@ -780,7 +787,6 @@ export class Task {
 		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
 
 		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] = await getSavedApiConversationHistory(
-			this.getContext(),
 			this.taskId,
 		)
 
@@ -1041,16 +1047,15 @@ export class Task {
 		let outputBuffer: string[] = []
 		let outputBufferSize: number = 0
 		let chunkTimer: NodeJS.Timeout | null = null
-		let chunkEnroute = false
 
-		// Track if buffer gets stuck
+		// Track if buffer gets stuck (correlated with PROCESS_WHILE_RUNNING to indicate genuine technical issues)
 		let bufferStuckTimer: NodeJS.Timeout | null = null
 		const BUFFER_STUCK_TIMEOUT_MS = 6000 // 6 seconds
 
 		const flushBuffer = async (force = false) => {
-			if (chunkEnroute || outputBuffer.length === 0) {
-				if (force && !chunkEnroute && outputBuffer.length > 0) {
-					// If force is true and no chunkEnroute, flush anyway
+			if (outputBuffer.length === 0) {
+				if (force) {
+					// If force is true, flush anyway
 				} else {
 					return
 				}
@@ -1058,7 +1063,6 @@ export class Task {
 			const chunk = outputBuffer.join("\n")
 			outputBuffer = []
 			outputBufferSize = 0
-			chunkEnroute = true
 
 			// Start timer to detect if buffer gets stuck
 			bufferStuckTimer = setTimeout(() => {
@@ -1080,18 +1084,20 @@ export class Task {
 				}
 				didContinue = true
 				process.continue()
+
+				// If more output accumulated, flush again
+				if (outputBuffer.length > 0) {
+					await flushBuffer()
+				}
 			} catch {
 				Logger.error("Error while asking for command output")
 			} finally {
+				// If the command finishes execution before the 'command_output' ask promise resolves (in other words before the user responded to the ask, which is expected when the command finishes execution first), this block is reached. This is expected and safe to ignore, as no further handling is required.
+
 				// Clear the stuck timer
 				if (bufferStuckTimer) {
 					clearTimeout(bufferStuckTimer)
 					bufferStuckTimer = null
-				}
-				chunkEnroute = false
-				// If more output accumulated while chunkEnroute, flush again
-				if (outputBuffer.length > 0) {
-					await flushBuffer()
 				}
 			}
 		}
@@ -1288,7 +1294,7 @@ export class Task {
 		await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 		await this.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 			Date.now(),
-			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+			await ensureTaskDirectoryExists(this.taskId),
 			apiConversationHistory,
 		)
 
@@ -1377,7 +1383,7 @@ export class Task {
 			this.api,
 			this.taskState.conversationHistoryDeletedRange,
 			previousApiReqIndex,
-			await ensureTaskDirectoryExists(this.getContext(), this.taskId),
+			await ensureTaskDirectoryExists(this.taskId),
 			this.stateManager.getGlobalSettingsKey("useAutoCondense"),
 		)
 
@@ -1758,19 +1764,30 @@ export class Task {
 		// Now, if it's the first request AND checkpoints are enabled AND tracker was successfully initialized,
 		// then say "checkpoint_created" and perform the commit.
 		if (isFirstRequest && enableCheckpoints && this.checkpointManager) {
-			const commitHash = await this.checkpointManager.commit() // Actual commit
 			await this.say("checkpoint_created") // Now this is conditional
 			const lastCheckpointMessageIndex = findLastIndex(
 				this.messageStateHandler.getClineMessages(),
 				(m) => m.say === "checkpoint_created",
 			)
 			if (lastCheckpointMessageIndex !== -1) {
-				await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
-					lastCheckpointHash: commitHash,
-				})
-				// saveClineMessagesAndUpdateHistory will be called later after API response,
-				// so no need to call it here unless this is the only modification to this message.
-				// For now, assuming it's handled later.
+				this.checkpointManager
+					?.commit()
+					.then(async (commitHash) => {
+						if (commitHash) {
+							await this.messageStateHandler.updateClineMessage(lastCheckpointMessageIndex, {
+								lastCheckpointHash: commitHash,
+							})
+							// saveClineMessagesAndUpdateHistory will be called later after API response,
+							// so no need to call it here unless this is the only modification to this message.
+							// For now, assuming it's handled later.
+						}
+					})
+					.catch((error) => {
+						console.error(
+							`[TaskCheckpointManager] Failed to create checkpoint commit for task ${this.taskId}:`,
+							error,
+						)
+					})
 			}
 		} else if (
 			isFirstRequest &&

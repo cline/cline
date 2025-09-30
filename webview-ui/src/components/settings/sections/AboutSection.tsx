@@ -5,20 +5,46 @@ interface AboutSectionProps {
 	version: string
 	renderSectionHeader: (tabId: string) => JSX.Element | null
 }
-
 const AboutSection = ({ version, renderSectionHeader }: AboutSectionProps) => {
 	return (
 		<div>
 			{renderSectionHeader("about")}
 			<Section>
-				<div className="text-center text-[var(--vscode-descriptionForeground)] text-xs leading-[1.2] px-0 py-0 pr-2 pb-[15px] mt-auto">
-					<p className="break-words m-0 p-0">
-						If you have any questions or feedback, feel free to open an issue at{" "}
-						<VSCodeLink className="inline" href="https://github.com/cline/cline">
-							https://github.com/cline/cline
+				<div style={{ padding: "0 16px" }}>
+					<h2>Cline v{version}</h2>
+					<p>
+						An AI assistant that can use your CLI and Editor. Cline can handle complex software development tasks
+						step-by-step with tools that let him create & edit files, explore large projects, use the browser, and
+						execute terminal commands (after you grant permission).
+					</p>
+
+					<h3>Community & Support</h3>
+					<p>
+						<VSCodeLink href="https://x.com/cline">X</VSCodeLink>
+						{" • "}
+						<VSCodeLink href="https://discord.gg/cline">Discord</VSCodeLink>
+						{" • "}
+						<VSCodeLink href="https://www.reddit.com/r/cline/"> r/cline</VSCodeLink>
+					</p>
+
+					<h3>Development</h3>
+					<p>
+						<VSCodeLink href="https://github.com/cline/cline">GitHub</VSCodeLink>
+						{" • "}
+						<VSCodeLink href="https://github.com/cline/cline/issues"> Issues</VSCodeLink>
+						{" • "}
+						<VSCodeLink href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop">
+							{" "}
+							Feature Requests
 						</VSCodeLink>
 					</p>
-					<p className="italic mt-[10px] mb-0 p-0">v{version}</p>
+
+					<h3>Resources</h3>
+					<p>
+						<VSCodeLink href="https://docs.cline.bot/getting-started/for-new-coders">Documentation</VSCodeLink>
+						{" • "}
+						<VSCodeLink href="https://cline.bot/">https://cline.bot</VSCodeLink>
+					</p>
 				</div>
 			</Section>
 		</div>

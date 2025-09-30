@@ -151,7 +151,7 @@ export function convertToOpenAiMessages(
 					// Cannot be an empty array. API expects an array with minimum length 1, and will respond with an error if it's empty
 					tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
 					// @ts-ignore-next-line
-					reasoning_details: reasoningDetails,
+					reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
 				})
 			}
 		}

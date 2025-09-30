@@ -218,15 +218,10 @@ export class ToolExecutor {
 	 * Updates the browser settings
 	 */
 	public async applyLatestBrowserSettings() {
-		if (this.context) {
-			await this.browserSession.dispose()
-			const apiHandlerModel = this.api.getModel()
-			const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
-			this.browserSession = new BrowserSession(this.context, this.stateManager, useWebp)
-		} else {
-			console.warn("no controller context available for browserSession")
-		}
-
+		await this.browserSession.dispose()
+		const apiHandlerModel = this.api.getModel()
+		const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
+		this.browserSession = new BrowserSession(this.stateManager, useWebp)
 		return this.browserSession
 	}
 
