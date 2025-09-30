@@ -1,6 +1,15 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
+import { BrowserSettings } from "@shared/proto/cline/browser"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
+import { ApiProvider } from "@shared/proto/cline/models"
+import { DictationSettings, FocusChainSettings, OpenaiReasoningEffort, PlanActMode, Viewport } from "@shared/proto/cline/state"
+import {
+	AskResponseRequest,
+	AutoApprovalActions,
+	AutoApprovalSettings,
+	NewTaskRequest,
+	TaskSettings,
+} from "@shared/proto/cline/task"
 import { useCallback } from "react"
 import { SlashServiceClient, TaskServiceClient } from "@/services/grpc-client"
 import type { ButtonActionType } from "../shared/buttonConfig"
@@ -40,7 +49,102 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				if (messages.length === 0) {
-					await TaskServiceClient.newTask(NewTaskRequest.create({ text: messageToSend, images, files }))
+					// Create comprehensive test TaskSettings to test all protobuf field types
+					const testTaskSettings = TaskSettings.create({
+						// String fields
+						awsRegion: "us-west-2",
+						anthropicBaseUrl: "https://api.anthropic.com",
+						preferredLanguage: "en",
+						customPrompt: "compact",
+						openAiBaseUrl: "https://api.openai.com",
+						vertexProjectId: "test-project",
+						defaultTerminalProfile: "bash",
+
+						// Boolean fields
+						awsUseCrossRegionInference: true,
+						strictPlanModeEnabled: false,
+						yoloModeToggled: false,
+						enableCheckpointsSetting: true,
+						useAutoCondense: false,
+						liteLlmUsePromptCache: true,
+
+						// Integer fields
+						requestTimeoutMs: 30000,
+						fireworksModelMaxTokens: 4096,
+						shellIntegrationTimeout: 5000,
+						terminalOutputLineLimit: 1000,
+						planModeThinkingBudgetTokens: 64000,
+						actModeThinkingBudgetTokens: 32000,
+
+						// Double fields
+						autoCondenseThreshold: 0.8,
+
+						// Enum fields
+						openaiReasoningEffort: OpenaiReasoningEffort.MEDIUM,
+						mode: PlanActMode.PLAN,
+						telemetrySetting: "enabled",
+						planModeApiProvider: ApiProvider.ANTHROPIC,
+						actModeApiProvider: ApiProvider.ANTHROPIC,
+
+						// Complex nested objects
+						autoApprovalSettings: AutoApprovalSettings.create({
+							version: 1,
+							enabled: true,
+							maxRequests: 10,
+							enableNotifications: false,
+							favorites: ["read_files", "edit_files"],
+							actions: AutoApprovalActions.create({
+								readFiles: true,
+								editFiles: true,
+								executeSafeCommands: false,
+								executeAllCommands: false,
+								useBrowser: true,
+								useMcp: false,
+								readFilesExternally: false,
+								editFilesExternally: false,
+							}),
+						}),
+
+						browserSettings: BrowserSettings.create({
+							viewport: Viewport.create({ width: 1280, height: 800 }),
+							remoteBrowserEnabled: false,
+							disableToolUse: false,
+							chromeExecutablePath: "/usr/bin/google-chrome",
+							customArgs: "--no-sandbox",
+						}),
+
+						dictationSettings: DictationSettings.create({
+							featureEnabled: true,
+							dictationEnabled: false,
+							dictationLanguage: "en-US",
+						}),
+
+						focusChainSettings: FocusChainSettings.create({
+							enabled: false,
+							remindClineInterval: 300,
+						}),
+
+						// Model configurations using Anthropic
+						planModeApiModelId: "claude-sonnet-4-20250514",
+						actModeApiModelId: "claude-sonnet-4-20250514",
+						planModeReasoningEffort: "medium",
+						actModeReasoningEffort: "low",
+
+						// Headers map
+						openAiHeaders: {
+							Authorization: "Bearer test-key",
+							"Content-Type": "application/json",
+						},
+					})
+
+					await TaskServiceClient.newTask(
+						NewTaskRequest.create({
+							text: messageToSend,
+							images,
+							files,
+							taskSettings: testTaskSettings,
+						}),
+					)
 				} else if (clineAsk) {
 					switch (clineAsk) {
 						case "followup":

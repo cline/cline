@@ -2,6 +2,7 @@ import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, OpenaiReasoningEffort as ProtoOpenaiReasoningEffort } from "@shared/proto/cline/state"
 import { NewTaskRequest } from "@shared/proto/cline/task"
 import { Settings } from "@/core/storage/state-keys"
+import { convertProtoToApiProvider } from "@/shared/proto-conversions/models/api-configuration-conversion"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
 import { convertProtoToAutoApprovalSettings } from "../../../shared/proto-conversions/models/auto-approval-settings-conversion"
 import { Controller } from ".."
@@ -13,63 +14,60 @@ import { Controller } from ".."
  * @returns Empty response
  */
 export async function newTask(controller: Controller, request: NewTaskRequest): Promise<Empty> {
-	const taskSettingsConverted: any = {
-		...request.taskSettings,
+	const convertOpenaiReasoningEffort = (effort: ProtoOpenaiReasoningEffort): string => {
+		switch (effort) {
+			case ProtoOpenaiReasoningEffort.LOW:
+				return "low"
+			case ProtoOpenaiReasoningEffort.MEDIUM:
+				return "medium"
+			case ProtoOpenaiReasoningEffort.HIGH:
+				return "high"
+			case ProtoOpenaiReasoningEffort.MINIMAL:
+				return "minimal"
+			default:
+				return "medium"
+		}
 	}
 
-	if (request.taskSettings) {
-		// Convert complex nested objects
-		if (request.taskSettings.autoApprovalSettings) {
-			taskSettingsConverted.autoApprovalSettings = convertProtoToAutoApprovalSettings({
-				...request.taskSettings.autoApprovalSettings,
-				metadata: {},
-			})
-		}
-
-		if (request.taskSettings.browserSettings) {
-			taskSettingsConverted.browserSettings = {
-				viewport: request.taskSettings.browserSettings.viewport || DEFAULT_BROWSER_SETTINGS.viewport,
-				remoteBrowserHost: request.taskSettings.browserSettings.remoteBrowserHost,
-				remoteBrowserEnabled: request.taskSettings.browserSettings.remoteBrowserEnabled,
-				chromeExecutablePath: request.taskSettings.browserSettings.chromeExecutablePath,
-				disableToolUse: request.taskSettings.browserSettings.disableToolUse,
-				customArgs: request.taskSettings.browserSettings.customArgs,
-			}
-		}
-
-		// Convert enum fields
-		if (request.taskSettings.openaiReasoningEffort !== undefined) {
-			switch (request.taskSettings.openaiReasoningEffort) {
-				case ProtoOpenaiReasoningEffort.LOW:
-					taskSettingsConverted.openaiReasoningEffort = "low"
-					break
-				case ProtoOpenaiReasoningEffort.MEDIUM:
-					taskSettingsConverted.openaiReasoningEffort = "medium"
-					break
-				case ProtoOpenaiReasoningEffort.HIGH:
-					taskSettingsConverted.openaiReasoningEffort = "high"
-					break
-				case ProtoOpenaiReasoningEffort.MINIMAL:
-					taskSettingsConverted.openaiReasoningEffort = "minimal"
-					break
-			}
-		}
-
-		if (request.taskSettings.mode !== undefined) {
-			if (request.taskSettings.mode === PlanActMode.PLAN) {
-				taskSettingsConverted.mode = "plan"
-			} else if (request.taskSettings.mode === PlanActMode.ACT) {
-				taskSettingsConverted.mode = "act"
-			}
-		}
-
-		if (request.taskSettings.customPrompt === "compact") {
-			taskSettingsConverted.customPrompt = "compact"
-		}
+	const convertPlanActMode = (mode: PlanActMode): string => {
+		return mode === PlanActMode.PLAN ? "plan" : "act"
 	}
 
 	const filteredTaskSettings: Partial<Settings> = Object.fromEntries(
-		Object.entries(taskSettingsConverted).filter(([_, value]) => value !== undefined),
+		Object.entries({
+			...request.taskSettings,
+			...(request.taskSettings?.autoApprovalSettings && {
+				autoApprovalSettings: convertProtoToAutoApprovalSettings({
+					...request.taskSettings.autoApprovalSettings,
+					metadata: {},
+				}),
+			}),
+			...(request.taskSettings?.browserSettings && {
+				browserSettings: {
+					viewport: request.taskSettings.browserSettings.viewport || DEFAULT_BROWSER_SETTINGS.viewport,
+					remoteBrowserHost: request.taskSettings.browserSettings.remoteBrowserHost,
+					remoteBrowserEnabled: request.taskSettings.browserSettings.remoteBrowserEnabled,
+					chromeExecutablePath: request.taskSettings.browserSettings.chromeExecutablePath,
+					disableToolUse: request.taskSettings.browserSettings.disableToolUse,
+					customArgs: request.taskSettings.browserSettings.customArgs,
+				},
+			}),
+			...(request.taskSettings?.openaiReasoningEffort !== undefined && {
+				openaiReasoningEffort: convertOpenaiReasoningEffort(request.taskSettings.openaiReasoningEffort),
+			}),
+			...(request.taskSettings?.mode !== undefined && {
+				mode: convertPlanActMode(request.taskSettings.mode),
+			}),
+			...(request.taskSettings?.customPrompt === "compact" && {
+				customPrompt: "compact",
+			}),
+			...(request.taskSettings?.planModeApiProvider !== undefined && {
+				planModeApiProvider: convertProtoToApiProvider(request.taskSettings.planModeApiProvider),
+			}),
+			...(request.taskSettings?.actModeApiProvider !== undefined && {
+				actModeApiProvider: convertProtoToApiProvider(request.taskSettings.actModeApiProvider),
+			}),
+		}).filter(([_, value]) => value !== undefined),
 	)
 
 	await controller.initTask(request.text, request.images, request.files, undefined, filteredTaskSettings)

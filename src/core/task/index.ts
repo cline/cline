@@ -103,6 +103,7 @@ type TaskParams = {
 	images?: string[]
 	files?: string[]
 	historyItem?: HistoryItem
+	taskId: string
 }
 
 export class Task {
@@ -171,6 +172,7 @@ export class Task {
 			images,
 			files,
 			historyItem,
+			taskId,
 		} = params
 
 		this.taskInitializationStartTime = performance.now()
@@ -214,9 +216,10 @@ export class Task {
 			await this.say("mcp_notification", `[${serverName}] ${message}`)
 		})
 
+		this.taskId = taskId
+
 		// Initialize taskId first
 		if (historyItem) {
-			this.taskId = historyItem.id
 			this.ulid = historyItem.ulid ?? ulid()
 			this.taskIsFavorited = historyItem.isFavorited
 			this.taskState.conversationHistoryDeletedRange = historyItem.conversationHistoryDeletedRange
@@ -224,7 +227,6 @@ export class Task {
 				this.taskState.checkpointManagerErrorMessage = historyItem.checkpointManagerErrorMessage
 			}
 		} else if (task || images || files) {
-			this.taskId = Date.now().toString()
 			this.ulid = ulid()
 		} else {
 			throw new Error("Either historyItem or task/images must be provided")

@@ -91,7 +91,7 @@ message TaskSettings {
    string qwen_api_line = 29;
    string moonshot_api_line = 30;
    string zai_api_line = 31;
-   TelemetrySettingEnum telemetry_setting = 32;
+   string telemetry_setting = 32;
    string asksage_api_url = 33;
    bool plan_act_separate_models_setting = 34;
    bool enable_checkpoints_setting = 35;

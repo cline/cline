@@ -234,6 +234,13 @@ export class Controller {
 
 		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
 
+		const taskId = historyItem?.id || Date.now().toString()
+
+		await this.stateManager.loadTaskSettings(taskId)
+		if (taskSettings) {
+			this.stateManager.setTaskSettingsBatch(taskId, taskSettings)
+		}
+
 		this.task = new Task({
 			controller: this,
 			mcpHub: this.mcpHub,
@@ -252,17 +259,8 @@ export class Controller {
 			images,
 			files,
 			historyItem,
+			taskId,
 		})
-
-		console.log("[Controller] taskSettings", taskSettings)
-
-		// Load task settings after task creation
-		if (this.task.taskId) {
-			await this.stateManager.loadTaskSettings(this.task.taskId)
-			if (taskSettings) {
-				this.stateManager.setTaskSettingsBatch(this.task.taskId, taskSettings)
-			}
-		}
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {
@@ -818,7 +816,7 @@ export class Controller {
 	async clearTask() {
 		if (this.task) {
 			// Clear task settings cache when task ends
-			await this.stateManager.clearTaskSettings(this.task.taskId)
+			await this.stateManager.clearTaskSettings()
 		}
 		await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected
