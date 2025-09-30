@@ -187,6 +187,10 @@ export class TelemetryService {
 			TERMINAL_OUTPUT_FAILURE: "task.terminal_output_failure",
 			TERMINAL_USER_INTERVENTION: "task.terminal_user_intervention",
 			TERMINAL_HANG: "task.terminal_hang",
+			// Mention telemetry events
+			MENTION_USED: "task.mention_used",
+			MENTION_FAILED: "task.mention_failed",
+			MENTION_SEARCH_RESULTS: "task.mention_search_results",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -299,6 +303,7 @@ export class TelemetryService {
 			setDistinctId(userInfo.id)
 		}
 	}
+
 	// Dictation events
 	/**
 	 * Records when voice recording is started
@@ -419,6 +424,7 @@ export class TelemetryService {
 			},
 		})
 	}
+
 	// Task events
 	/**
 	 * Records when a new task/conversation is started
@@ -1272,6 +1278,72 @@ export class TelemetryService {
 	 */
 	public getSettings() {
 		return this.provider.getSettings()
+	}
+
+	/**
+	 * Records when a mention is successfully used and content is retrieved
+	 * @param mentionType Type of mention (file, folder, url, problems, terminal, git-changes, commit)
+	 * @param contentLength Optional length of content retrieved (for size tracking)
+	 */
+	public captureMentionUsed(
+		mentionType: "file" | "folder" | "url" | "problems" | "terminal" | "git-changes" | "commit",
+		contentLength?: number,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MENTION_USED,
+			properties: {
+				mentionType,
+				contentLength,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when a mention fails to retrieve content
+	 * @param mentionType Type of mention that failed
+	 * @param errorType Category of error (not_found, permission_denied, network_error, parse_error)
+	 * @param errorMessage Optional error message for debugging (will be truncated)
+	 */
+	public captureMentionFailed(
+		mentionType: "file" | "folder" | "url" | "problems" | "terminal" | "git-changes" | "commit",
+		errorType: "not_found" | "permission_denied" | "network_error" | "parse_error" | "unknown",
+		errorMessage?: string,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MENTION_FAILED,
+			properties: {
+				mentionType,
+				errorType,
+				errorMessage: errorMessage?.substring(0, MAX_ERROR_MESSAGE_LENGTH),
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records search results when user searches for files/folders in mention dropdown
+	 * @param query The search query entered by user
+	 * @param resultCount Number of results returned
+	 * @param searchType Type of search (file, folder, or all)
+	 * @param isEmpty Whether the search returned no results
+	 */
+	public captureMentionSearchResults(
+		query: string,
+		resultCount: number,
+		searchType: "file" | "folder" | "all",
+		isEmpty: boolean,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MENTION_SEARCH_RESULTS,
+			properties: {
+				queryLength: query.length,
+				resultCount,
+				searchType,
+				isEmpty,
+				timestamp: new Date().toISOString(),
+			},
+		})
 	}
 
 	/**
