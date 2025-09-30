@@ -11,7 +11,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
  * Registers development-only commands for task manipulation.
  * These are only activated in development mode.
  */
-export function registerTaskCommands(context: vscode.ExtensionContext, controller: Controller): vscode.Disposable[] {
+export function registerTaskCommands(controller: Controller): vscode.Disposable[] {
 	return [
 		vscode.commands.registerCommand("cline.dev.createTestTasks", async () => {
 			const count = (

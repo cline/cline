@@ -95,7 +95,7 @@ const ServersToggleModal: React.FC = () => {
 							aria-label="Go to MCP server settings"
 							onClick={() => {
 								setIsVisible(false)
-								navigateToMcp("installed")
+								navigateToMcp("configure")
 							}}>
 							<span className="codicon codicon-gear text-[10px]"></span>
 						</VSCodeButton>

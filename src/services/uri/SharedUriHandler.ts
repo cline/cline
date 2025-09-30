@@ -1,4 +1,5 @@
 import { WebviewProvider } from "@/core/webview"
+import { Logger } from "../logging/Logger"
 
 /**
  * Shared URI handler that processes both VSCode URI events and HTTP server callbacks
@@ -18,16 +19,19 @@ export class SharedUriHandler {
 		const queryString = parsedUrl.search.slice(1) // Remove leading '?'
 		const query = new URLSearchParams(queryString.replace(/\+/g, "%2B"))
 
-		console.log("SharedUriHandler: Processing URI:", {
-			path: path,
-			query: query,
-			scheme: parsedUrl.protocol,
-		})
+		Logger.info(
+			"SharedUriHandler: Processing URI:" +
+				JSON.stringify({
+					path: path,
+					query: query,
+					scheme: parsedUrl.protocol,
+				}),
+		)
 
 		const visibleWebview = WebviewProvider.getVisibleInstance()
 
 		if (!visibleWebview) {
-			console.warn("SharedUriHandler: No visible webview found")
+			Logger.warn("SharedUriHandler: No visible webview found")
 			return false
 		}
 
@@ -44,15 +48,15 @@ export class SharedUriHandler {
 				}
 				case "/auth": {
 					const provider = query.get("provider")
-					const token = query.get("idToken")
 
-					console.log("SharedUriHandler: Auth callback received:", { path: path, provider: provider })
+					Logger.info(`SharedUriHandler - Auth callback received for ${provider} - ${path}`)
 
+					const token = query.get("refreshToken") || query.get("idToken") || query.get("code")
 					if (token) {
 						await visibleWebview.controller.handleAuthCallback(token, provider)
 						return true
 					}
-					console.warn("SharedUriHandler: Missing idToken parameter for auth callback")
+					Logger.warn("SharedUriHandler: Missing idToken parameter for auth callback")
 					return false
 				}
 				case "/auth/oca": {
@@ -68,12 +72,21 @@ export class SharedUriHandler {
 					console.warn("SharedUriHandler: Missing code parameter for auth callback")
 					return false
 				}
+				case "/task": {
+					const prompt = query.get("prompt")
+					if (prompt) {
+						await visibleWebview.controller.handleTaskCreation(prompt)
+						return true
+					}
+					Logger.warn("SharedUriHandler: Missing prompt parameter for task creation")
+					return false
+				}
 				default:
-					console.warn(`SharedUriHandler: Unknown path: ${path}`)
+					Logger.warn(`SharedUriHandler: Unknown path: ${path}`)
 					return false
 			}
 		} catch (error) {
-			console.error("SharedUriHandler: Error processing URI:", error)
+			Logger.error("SharedUriHandler: Error processing URI:", error)
 			return false
 		}
 	}

@@ -2,6 +2,7 @@ import { ContextManager } from "@core/context/context-management/ContextManager"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { sendRelinquishControlEvent } from "@core/controller/ui/subscribeToRelinquishControl"
 import { ensureTaskDirectoryExists } from "@core/storage/disk"
+import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { findLast, findLastIndex } from "@shared/array"
@@ -12,7 +13,6 @@ import { getApiMetrics } from "@shared/getApiMetrics"
 import { HistoryItem } from "@shared/HistoryItem"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import pTimeout from "p-timeout"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { MessageStateHandler } from "../../core/task/message-state"
@@ -39,8 +39,8 @@ interface CheckpointManagerServices {
 	readonly fileContextTracker: FileContextTracker
 	readonly diffViewProvider: DiffViewProvider
 	readonly messageStateHandler: MessageStateHandler
-	readonly context: vscode.ExtensionContext
 	readonly taskState: TaskState
+	readonly workspaceManager?: WorkspaceRootManager
 }
 interface CheckpointManagerCallbacks {
 	readonly updateTaskHistory: UpdateTaskHistoryFunction
@@ -272,9 +272,11 @@ export class TaskCheckpointManager implements ICheckpointManager {
 
 					if (!this.state.checkpointTracker && !this.state.checkpointManagerErrorMessage) {
 						try {
+							const workspacePath = await this.getWorkspacePath()
 							this.state.checkpointTracker = await CheckpointTracker.create(
 								this.task.taskId,
 								this.config.enableCheckpoints,
+								workspacePath,
 							)
 							this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 						} catch (error) {
@@ -423,7 +425,12 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			// Initialize checkpoint tracker if needed
 			if (!this.state.checkpointTracker && this.config.enableCheckpoints && !this.state.checkpointManagerErrorMessage) {
 				try {
-					this.state.checkpointTracker = await CheckpointTracker.create(this.task.taskId, this.config.enableCheckpoints)
+					const workspacePath = await this.getWorkspacePath()
+					this.state.checkpointTracker = await CheckpointTracker.create(
+						this.task.taskId,
+						this.config.enableCheckpoints,
+						workspacePath,
+					)
 					this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -586,7 +593,12 @@ export class TaskCheckpointManager implements ICheckpointManager {
 
 			if (this.config.enableCheckpoints && !this.state.checkpointTracker && !this.state.checkpointManagerErrorMessage) {
 				try {
-					this.state.checkpointTracker = await CheckpointTracker.create(this.task.taskId, this.config.enableCheckpoints)
+					const workspacePath = await this.getWorkspacePath()
+					this.state.checkpointTracker = await CheckpointTracker.create(
+						this.task.taskId,
+						this.config.enableCheckpoints,
+						workspacePath,
+					)
 					this.services.messageStateHandler.setCheckpointTracker(this.state.checkpointTracker)
 				} catch (error) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -657,10 +669,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 
 				// update the context history state
 				const contextManager = new ContextManager()
-				await contextManager.truncateContextHistory(
-					message.ts,
-					await ensureTaskDirectoryExists(this.getContext(), this.task.taskId),
-				)
+				await contextManager.truncateContextHistory(message.ts, await ensureTaskDirectoryExists(this.task.taskId))
 
 				// aggregate deleted api reqs info so we don't lose costs/tokens
 				const clineMessages = this.services.messageStateHandler.getClineMessages()
@@ -788,11 +797,15 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			}, 7_000)
 
 			// Timeout - If checkpoints take too long to initialize, warn user and disable checkpoints for the task
-			const tracker = await pTimeout(CheckpointTracker.create(this.task.taskId, this.config.enableCheckpoints), {
-				milliseconds: 15_000,
-				message:
-					"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
-			})
+			const workspacePath = await this.getWorkspacePath()
+			const tracker = await pTimeout(
+				CheckpointTracker.create(this.task.taskId, this.config.enableCheckpoints, workspacePath),
+				{
+					milliseconds: 15_000,
+					message:
+						"Checkpoints taking too long to initialize. Consider re-opening Cline in a project that uses git, or disabling checkpoints.",
+				},
+			)
 
 			// Update the state with the created tracker
 			this.state.checkpointTracker = tracker
@@ -854,13 +867,29 @@ export class TaskCheckpointManager implements ICheckpointManager {
 	// ============================================================================
 
 	/**
-	 * Gets the extension context with proper error handling
+	 * Gets the workspace path from WorkspaceRootManager when available, otherwise falls back to CheckpointUtils
+	 * @returns Promise<string> The workspace path to use for checkpoint operations
 	 */
-	private getContext(): vscode.ExtensionContext {
-		if (!this.services.context) {
-			throw new Error("Unable to access extension context")
+	private async getWorkspacePath(): Promise<string> {
+		// Try to use the centralized WorkspaceRootManager first
+		if (this.services.workspaceManager) {
+			try {
+				const primaryRoot = this.services.workspaceManager.getPrimaryRoot()
+				if (primaryRoot) {
+					return primaryRoot.path
+				}
+				console.warn(`[TaskCheckpointManager] WorkspaceRootManager returned no primary root for task ${this.task.taskId}`)
+			} catch (error) {
+				console.warn(
+					`[TaskCheckpointManager] Failed to get workspace path from WorkspaceRootManager for task ${this.task.taskId}:`,
+					error,
+				)
+			}
 		}
-		return this.services.context
+
+		// Fallback to the legacy CheckpointUtils implementation
+		const { getWorkingDirectory: getWorkingDirectoryImpl } = await import("./CheckpointUtils")
+		return getWorkingDirectoryImpl()
 	}
 
 	/**
