@@ -1,4 +1,4 @@
-import { isNextGenModelFamily } from "@utils/model-utils"
+import { isGPT5ModelFamily, isNextGenModelFamily } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -19,7 +19,11 @@ export const config = createVariant(ModelFamily.CLINE_NEXT_GEN)
 	})
 	.matcher((providerInfo) => {
 		// Match GPT-5 models from the Cline providers
-		return providerInfo.providerId === "cline" && isNextGenModelFamily(providerInfo.model.id)
+		return (
+			providerInfo.providerId === "cline" &&
+			!isGPT5ModelFamily(providerInfo.model.id) &&
+			isNextGenModelFamily(providerInfo.model.id)
+		)
 	})
 	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
 	.components(

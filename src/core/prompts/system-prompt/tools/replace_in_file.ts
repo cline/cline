@@ -51,8 +51,8 @@ const generic: ClineToolSpec = {
 	],
 }
 
-const GPT_5: ClineToolSpec = {
-	variant: ModelFamily.GPT_5,
+const CLINE_NEXT_GEN: ClineToolSpec = {
+	variant: ModelFamily.CLINE_NEXT_GEN,
 	id,
 	name: "replace_in_file",
 	description:
@@ -94,9 +94,4 @@ const GPT_5: ClineToolSpec = {
 	],
 }
 
-const CLINE_NEXT_GEN: ClineToolSpec = {
-	...GPT_5,
-	variant: ModelFamily.CLINE_NEXT_GEN,
-}
-
-export const replace_in_file_variants = [generic, GPT_5, CLINE_NEXT_GEN]
+export const replace_in_file_variants = [generic, CLINE_NEXT_GEN]

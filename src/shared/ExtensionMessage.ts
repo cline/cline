@@ -160,6 +160,7 @@ export interface ClineSayTool {
 		| "searchFiles"
 		| "webFetch"
 		| "summarizeTask"
+		| "applyingPatch"
 	path?: string
 	diff?: string
 	content?: string

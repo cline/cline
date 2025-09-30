@@ -40,6 +40,7 @@ export const toolParamNames = [
 	"needs_more_exploration",
 	"task_progress",
 	"timeout",
+	"input",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

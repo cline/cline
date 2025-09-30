@@ -48,8 +48,8 @@ const GENERIC: ClineToolSpec = {
 	],
 }
 
-const GPT_5: ClineToolSpec = {
-	variant: ModelFamily.GPT_5,
+const CLINE_NEXT_GEN: ClineToolSpec = {
+	variant: ModelFamily.CLINE_NEXT_GEN,
 	id,
 	name: "write_to_file",
 	description:
@@ -69,9 +69,4 @@ const GPT_5: ClineToolSpec = {
 	],
 }
 
-const CLINE_NEXT_GEN: ClineToolSpec = {
-	...GPT_5,
-	variant: ModelFamily.CLINE_NEXT_GEN,
-}
-
-export const write_to_file_variants = [GENERIC, GPT_5, CLINE_NEXT_GEN]
+export const write_to_file_variants = [GENERIC, CLINE_NEXT_GEN]
