@@ -10,7 +10,7 @@ import { getPackageDefinition, log } from "./utils"
 
 export const PROTOBUS_PORT = 26040
 
-export function startProtobusService(controller: Controller) {
+export function startProtobusService(controller: Controller): string {
 	const server = new grpc.Server()
 
 	// Set up health check.
@@ -37,6 +37,8 @@ export function startProtobusService(controller: Controller) {
 		server.start()
 		log(`ProtoBus gRPC server listening on ${host}`)
 	})
+
+	return host
 }
 
 function getProtobusServiceNames(packageDefinition: { [x: string]: any }): string[] {

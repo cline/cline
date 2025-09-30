@@ -3,6 +3,7 @@ import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
 import * as path from "path"
 import { initialize, tearDown } from "@/common"
+import { SqliteLockManager } from "@/core/locks/SqliteLockManager"
 import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
@@ -61,7 +62,7 @@ Options:
   -h, --help                     Show this help message
 
 Environment Variables:
-  PROTOBUS_ADDRESS              Override the main service address (format: host:port)
+  PROTOBUS_PORT              Override the main service address (format: host:port)
   HOSTBRIDGE_ADDRESS            Override the host bridge address (format: host:port)
 `)
 }
@@ -77,23 +78,23 @@ async function main() {
 	}
 
 	// Initialize context with optional custom directory from CLI
-	const { extensionContext, DATA_DIR, EXTENSION_DIR } = initializeContext(args.config)
+	const { extensionContext, CLINE_DIR, DATA_DIR, EXTENSION_DIR } = initializeContext(args.config)
 
 	// Configure ports - CLI args override everything
 	if (args.port) {
 		process.env.PROTOBUS_ADDRESS = `127.0.0.1:${args.port}`
 		// Auto-calculate hostbridge port if not specified
 		if (!args.hostBridgePort) {
-			process.env.HOST_BRIDGE_ADDRESS = `localhost:${args.port + 1000}`
+			process.env.HOST_BRIDGE_ADDRESS = `127.0.0.1:${args.port + 1000}`
 		}
 	}
 	if (args.hostBridgePort) {
-		process.env.HOST_BRIDGE_ADDRESS = `localhost:${args.hostBridgePort}`
+		process.env.HOST_BRIDGE_ADDRESS = `127.0.0.1:${args.hostBridgePort}`
 	}
 
 	log("\n\n\nStarting cline-core service...\n\n\n")
 
-	await waitForHostBridgeReady()
+	const hostAddress = await waitForHostBridgeReady()
 
 	// The host bridge should be available before creating the host provider because it depends on the host bridge.
 	setupHostProvider(extensionContext, EXTENSION_DIR, DATA_DIR)
@@ -106,7 +107,35 @@ async function main() {
 	// Enable the localhost HTTP server that handles auth redirects.
 	AuthHandler.getInstance().setEnabled(true)
 
-	startProtobusService(webviewProvider.controller)
+	const protobusAddress = startProtobusService(webviewProvider.controller)
+
+	// Initialize SQLite lock manager for instance registration
+	// This happens AFTER protobus service has been started, if it fails to connect we should
+	// handle that in global error handlers (do we even have to?)
+	const dbPath = `${CLINE_DIR}/${DATA_DIR}/locks.db`
+
+	let lockManager: SqliteLockManager | undefined
+
+	try {
+		lockManager = new SqliteLockManager({
+			dbPath,
+			instanceAddress: protobusAddress,
+		})
+
+		await lockManager.registerInstance({
+			hostAddress,
+		})
+		log(`Registered instance in SQLite locks: ${protobusAddress}`)
+	} catch (err) {
+		log(`CRITICAL ERROR: Failed to register instance in SQLite locks: ${String(err)}`)
+		log(`This is a fatal error - cline-core cannot start without proper instance registration`)
+		if (lockManager) {
+			try {
+				lockManager.close()
+			} catch {}
+		}
+		process.exit(1)
+	}
 }
 
 function setupHostProvider(extensionContext: any, extensionDir: string, dataDir: string) {
