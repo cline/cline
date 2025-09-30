@@ -1,4 +1,4 @@
-import { openRouterDefaultModelId } from "@shared/api"
+import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -11,6 +11,7 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
+import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
@@ -46,13 +47,8 @@ export interface OpenRouterModelPickerProps {
 // Featured models for Cline provider
 const featuredModels = [
 	{
-		id: "anthropic/claude-sonnet-4",
+		id: "anthropic/claude-sonnet-4.5",
 		description: "Recommended for agentic coding in Cline",
-		label: "Best",
-	},
-	{
-		id: "openai/gpt-5",
-		description: "State of the art model for complex, long-horizon tasks",
 		label: "New",
 	},
 	{
@@ -61,7 +57,7 @@ const featuredModels = [
 		label: "Free",
 	},
 	{
-		id: "cline/code-supernova",
+		id: "cline/code-supernova-1-million",
 		description: "Stealth coding model with image support",
 		label: "Free",
 	},
@@ -222,6 +218,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const showBudgetSlider = useMemo(() => {
 		return (
 			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
+			selectedModelId?.toLowerCase().includes("claude-sonnet-4.5") ||
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4.1") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4") ||
@@ -229,24 +226,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking")
 		)
-	}, [selectedModelId])
-
-	// Check if the current model is Claude Sonnet 4 and determine the alternate variant
-	const claudeSonnet4Variant = useMemo(() => {
-		if (selectedModelId === "anthropic/claude-sonnet-4") {
-			return {
-				current: "anthropic/claude-sonnet-4",
-				alternate: "anthropic/claude-sonnet-4:1m",
-				linkText: "Switch to 1M context window model",
-			}
-		} else if (selectedModelId === "anthropic/claude-sonnet-4:1m") {
-			return {
-				current: "anthropic/claude-sonnet-4:1m",
-				alternate: "anthropic/claude-sonnet-4",
-				linkText: "Switch to 200K context window model",
-			}
-		}
-		return null
 	}, [selectedModelId])
 
 	return (
@@ -349,19 +328,21 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					)}
 				</DropdownWrapper>
 
-				{claudeSonnet4Variant && (
-					<div style={{ marginBottom: 2 }}>
-						<VSCodeLink
-							onClick={() => handleModelChange(claudeSonnet4Variant.alternate)}
-							style={{
-								display: "inline",
-								fontSize: "10.5px",
-								color: "var(--vscode-textLink-foreground)",
-							}}>
-							{claudeSonnet4Variant.linkText}
-						</VSCodeLink>
-					</div>
-				)}
+				{/* Context window switcher for Claude Sonnet 4.5 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-sonnet-4.5"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
+				{/* Context window switcher for Claude Sonnet 4 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-sonnet-4"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
 			</div>
 
 			{hasInfo ? (
@@ -383,9 +364,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					</VSCodeLink>
 					If you're unsure which model to choose, Cline works best with{" "}
 					<VSCodeLink
-						onClick={() => handleModelChange("anthropic/claude-sonnet-4")}
+						onClick={() => handleModelChange("anthropic/claude-sonnet-4.5")}
 						style={{ display: "inline", fontSize: "inherit" }}>
-						anthropic/claude-sonnet-4.
+						anthropic/claude-sonnet-4.5.
 					</VSCodeLink>
 					You can also try searching "free" for no-cost options currently available.
 				</p>

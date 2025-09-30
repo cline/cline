@@ -25,15 +25,15 @@
 	},
 	"styling": {
 		"eyebrows": "breadcrumbs",
-		"codeblocks": "system"
+		"codeblocks": "system",
+		"css": "styles.css"
 	},
 	"appearance": {
 		"default": "system",
 		"strict": false
 	},
 	"fonts": {
-		"family": "Roboto",
-		"weight": 400
+		"family": "Roboto"
 	},
 	"navbar": {
 		"links": [
@@ -58,9 +58,8 @@
 				"group": "Getting Started",
 				"pages": [
 					"getting-started/what-is-cline",
-					"getting-started/model-selection-guide",
 					"getting-started/installing-cline",
-					"getting-started/installing-cline-jetbrains",
+					"getting-started/model-selection-guide",
 					"getting-started/task-management",
 					"getting-started/understanding-context-management",
 					{
@@ -82,15 +81,6 @@
 			{
 				"group": "Features",
 				"pages": [
-					"features/auto-approve",
-					"features/checkpoints",
-					"features/cline-rules",
-					"features/drag-and-drop",
-					"features/plan-and-act",
-					"features/slash-commands/workflows",
-					"features/focus-chain",
-					"features/auto-compact",
-					"features/editing-messages",
 					{
 						"group": "@ Mentions",
 						"pages": [
@@ -102,6 +92,32 @@
 							"features/at-mentions/url-mentions"
 						]
 					},
+					"features/auto-approve",
+					"features/auto-compact",
+					"features/checkpoints",
+					"features/cline-rules",
+					{
+						"group": "Commands & Shortcuts",
+						"pages": [
+							"features/commands-and-shortcuts/overview",
+							"features/commands-and-shortcuts/code-commands",
+							"features/commands-and-shortcuts/terminal-integration",
+							"features/commands-and-shortcuts/git-integration",
+							"features/commands-and-shortcuts/keyboard-shortcuts"
+						]
+					},
+					{
+						"group": "Customization",
+						"pages": [
+							"features/customization/opening-cline-in-sidebar",
+							"features/customization/disable-terminal-pagers"
+						]
+					},
+					"features/dictation",
+					"features/drag-and-drop",
+					"features/editing-messages",
+					"features/focus-chain",
+					"features/plan-and-act",
 					{
 						"group": "Slash Commands",
 						"pages": [
@@ -112,16 +128,8 @@
 							"features/slash-commands/deep-planning"
 						]
 					},
-					{
-						"group": "Commands & Shortcuts",
-						"pages": [
-							"features/commands-and-shortcuts/overview",
-							"features/commands-and-shortcuts/code-commands",
-							"features/commands-and-shortcuts/terminal-integration",
-							"features/commands-and-shortcuts/git-integration",
-							"features/commands-and-shortcuts/keyboard-shortcuts"
-						]
-					}
+					"features/slash-commands/workflows",
+					"features/yolo-mode"
 				]
 			},
 			{
@@ -222,6 +230,12 @@
 			"name": "What is Cline",
 			"icon": "house",
 			"url": "getting-started/what-is-cline"
+		}
+	],
+	"redirects": [
+		{
+			"source": "/getting-started/installing-cline-jetbrains",
+			"destination": "/getting-started/installing-cline"
 		}
 	],
 	"search": {
