@@ -12,6 +12,7 @@ import * as vscode from "vscode"
 import { modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
+import { HookFactory } from "../hooks/hook-factory"
 import { formatResponse } from "../prompts/responses"
 import { StateManager } from "../storage/StateManager"
 import { WorkspaceRootManager } from "../workspace"
@@ -365,9 +366,86 @@ export class ToolExecutor {
 	 * Handle complete block execution
 	 */
 	private async handleCompleteBlock(block: ToolUse, config: any): Promise<void> {
-		const result = await this.coordinator.execute(config, block)
+		// Check if hooks are enabled
+		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 
-		this.pushToolResult(result, block)
+		let executionSuccess = true
+		let toolResult: any = null
+
+		// Run PreToolUse hook, if enabled
+		if (hooksEnabled) {
+			let preToolUseResult: any = null
+			try {
+				const hookFactory = new HookFactory()
+				const preToolUseHook = await hookFactory.create("PreToolUse")
+
+				preToolUseResult = await preToolUseHook.run({
+					taskId: this.taskId,
+					preToolUse: {
+						toolName: block.name,
+						parameters: block.params,
+					},
+				})
+
+				// Check if hook wants to stop execution
+				if (!preToolUseResult.shouldContinue) {
+					const errorMessage = preToolUseResult.errorMessage || "PreToolUse hook prevented tool execution"
+					await this.say("error", errorMessage)
+					this.pushToolResult(formatResponse.toolError(errorMessage), block)
+					return
+				}
+
+				// Add context modification to the tool result if provided
+				if (preToolUseResult.contextModification) {
+					// TODO: Modify the context
+				}
+			} catch (hookError) {
+				const errorMessage = `PreToolUse hook failed: ${hookError.toString()}`
+				await this.say("error", errorMessage)
+				this.pushToolResult(formatResponse.toolError(errorMessage), block)
+				return
+			}
+		}
+
+		const executionStartTime = Date.now()
+		try {
+			// Execute the actual tool
+			toolResult = await this.coordinator.execute(config, block)
+			this.pushToolResult(toolResult, block)
+		} catch (error) {
+			executionSuccess = false
+			toolResult = formatResponse.toolError(`Tool execution failed: ${error}`)
+			this.pushToolResult(toolResult, block)
+			throw error
+		} finally {
+			// Run PostToolUse hook if enabled
+			if (hooksEnabled) {
+				const hookFactory = new HookFactory()
+				const postToolUseHook = await hookFactory.create("PostToolUse")
+
+				const executionTimeMs = Date.now() - executionStartTime
+				const postToolUseResult = await postToolUseHook.run({
+					taskId: this.taskId,
+					postToolUse: {
+						toolName: block.name,
+						parameters: block.params,
+						result: typeof toolResult === "string" ? toolResult : JSON.stringify(toolResult),
+						success: executionSuccess,
+						executionTimeMs,
+					},
+				})
+
+				if (postToolUseResult.contextModification) {
+					// Handle context modification from PostToolUse hook
+					// TODO: Implement context modification
+				}
+
+				// Log any error messages from the hook
+				if (postToolUseResult.errorMessage) {
+					this.say("error", postToolUseResult.errorMessage)
+				}
+			}
+		}
 
 		// Handle focus chain updates
 		if (!block.partial && this.stateManager.getGlobalSettingsKey("focusChainSettings").enabled) {

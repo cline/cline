@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -eu
+
+cat <<EOF
+{
+  "shouldContinue": false,
+  "errorMessage": "The pre tool use hook is running"
+}
+EOF
