@@ -38,8 +38,9 @@ const GPT_5: ClineToolSpec = {
 	],
 }
 
-const nextGen = { ...generic, variant: ModelFamily.NEXT_GEN }
-const gpt = { ...generic, variant: ModelFamily.GPT }
-const gemini = { ...generic, variant: ModelFamily.GEMINI }
+const CLINE_NEXT_GEN: ClineToolSpec = {
+	...GPT_5,
+	variant: ModelFamily.CLINE_NEXT_GEN,
+}
 
-export const read_file_variants = [generic, nextGen, gpt, gemini, GPT_5]
+export const read_file_variants = [generic, CLINE_NEXT_GEN, GPT_5]

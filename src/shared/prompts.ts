@@ -7,4 +7,5 @@ export enum ModelFamily {
 	NEXT_GEN = "next-gen",
 	GENERIC = "generic",
 	XS = "xs",
+	CLINE_NEXT_GEN = "cline-next-gen",
 }

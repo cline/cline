@@ -66,6 +66,12 @@ export const config = createVariant(ModelFamily.GPT_5)
 	.overrideComponent(SystemPromptSection.TOOL_USE, {
 		template: GPT_5_TEMPLATE_OVERRIDES.TOOL_USE,
 	})
+	.overrideComponent(SystemPromptSection.ACT_VS_PLAN, {
+		template: GPT_5_TEMPLATE_OVERRIDES.ACT_VS_PLAN,
+	})
+	.overrideComponent(SystemPromptSection.OBJECTIVE, {
+		template: GPT_5_TEMPLATE_OVERRIDES.OBJECTIVE,
+	})
 	.build()
 
 // Compile-time validation

@@ -71,4 +71,9 @@ However, if while writing your response you realize you actually need to do more
 	],
 }
 
-export const plan_mode_respond_variants = [generic, GPT_5]
+const CLINE_NEXT_GEN: ClineToolSpec = {
+	...GPT_5,
+	variant: ModelFamily.CLINE_NEXT_GEN,
+}
+
+export const plan_mode_respond_variants = [generic, GPT_5, CLINE_NEXT_GEN]

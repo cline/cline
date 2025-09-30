@@ -38,4 +38,9 @@ const GPT_5: ClineToolSpec = {
 	],
 }
 
-export const list_code_definition_names_variants = [generic, GPT_5]
+const CLINE_NEXT_GEN: ClineToolSpec = {
+	...GPT_5,
+	variant: ModelFamily.CLINE_NEXT_GEN,
+}
+
+export const list_code_definition_names_variants = [generic, GPT_5, CLINE_NEXT_GEN]

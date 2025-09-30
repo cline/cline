@@ -1,36 +1,32 @@
-import { isGPT5ModelFamily, isNextGenModelFamily } from "@utils/model-utils"
+import { isNextGenModelFamily } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
 import { validateVariant } from "../variant-validator"
-import { baseTemplate, rules_template } from "./template"
+import { GPT_5_TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
-export const config = createVariant(ModelFamily.NEXT_GEN)
-	.description("Prompt tailored to newer frontier models with smarter agentic capabilities.")
+export const config = createVariant(ModelFamily.CLINE_NEXT_GEN)
+	.description("")
 	.version(1)
-	.tags("next-gen", "advanced", "production")
+	.tags("advanced", "production", "native_tools")
 	.labels({
 		stable: 1,
 		production: 1,
 		advanced: 1,
+		tool_functions: 1,
 	})
 	.matcher((providerInfo) => {
-		// Match next-gen models
-		return (
-			providerInfo.providerId !== "cline" &&
-			!isGPT5ModelFamily(providerInfo.model.id) &&
-			isNextGenModelFamily(providerInfo.model.id)
-		)
+		// Match GPT-5 models from the Cline providers
+		return providerInfo.providerId === "cline" && isNextGenModelFamily(providerInfo.model.id)
 	})
-	.template(baseTemplate)
+	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
 		SystemPromptSection.TODO,
 		SystemPromptSection.MCP,
-		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.ACT_VS_PLAN,
 		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.CAPABILITIES,
@@ -60,25 +56,34 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		ClineDefaultTool.TODO,
 	)
 	.placeholders({
-		MODEL_FAMILY: ModelFamily.NEXT_GEN,
+		MODEL_FAMILY: ModelFamily.CLINE_NEXT_GEN,
 	})
 	.config({})
 	// Override the RULES component with custom template
 	.overrideComponent(SystemPromptSection.RULES, {
-		template: rules_template,
+		template: GPT_5_TEMPLATE_OVERRIDES.RULES,
+	})
+	.overrideComponent(SystemPromptSection.TOOL_USE, {
+		template: GPT_5_TEMPLATE_OVERRIDES.TOOL_USE,
+	})
+	.overrideComponent(SystemPromptSection.OBJECTIVE, {
+		template: GPT_5_TEMPLATE_OVERRIDES.OBJECTIVE,
+	})
+	.overrideComponent(SystemPromptSection.ACT_VS_PLAN, {
+		template: GPT_5_TEMPLATE_OVERRIDES.ACT_VS_PLAN,
 	})
 	.build()
 
 // Compile-time validation
-const validationResult = validateVariant({ ...config, id: "next-gen" }, { strict: true })
+const validationResult = validateVariant({ ...config, id: "gpt-5" }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("Next-gen variant configuration validation failed:", validationResult.errors)
-	throw new Error(`Invalid next-gen variant configuration: ${validationResult.errors.join(", ")}`)
+	console.error("GPT-5 variant configuration validation failed:", validationResult.errors)
+	throw new Error(`Invalid GPT-5 variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("Next-gen variant configuration warnings:", validationResult.warnings)
+	console.warn("GPT-5 variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support
-export type NextGenVariantConfig = typeof config
+export type GPT5VariantConfig = typeof config

@@ -49,6 +49,9 @@ const GPT_5: ClineToolSpec = {
 	],
 }
 
-const gpt = { ...nextGen, variant: ModelFamily.GPT }
+const CLINE_NEXT_GEN: ClineToolSpec = {
+	...GPT_5,
+	variant: ModelFamily.CLINE_NEXT_GEN,
+}
 
-export const web_fetch_variants = [nextGen, gpt, GPT_5]
+export const web_fetch_variants = [nextGen, GPT_5, CLINE_NEXT_GEN]

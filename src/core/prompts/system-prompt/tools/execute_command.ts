@@ -2,7 +2,7 @@ import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
 
-const generic: ClineToolSpec = {
+const GENERIC: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id: ClineDefaultTool.BASH,
 	name: "execute_command",
@@ -50,4 +50,9 @@ const GPT_5: ClineToolSpec = {
 	],
 }
 
-export const execute_command_variants: ClineToolSpec[] = [generic, GPT_5]
+const CLINE_NEXT_GEN: ClineToolSpec = {
+	...GPT_5,
+	variant: ModelFamily.CLINE_NEXT_GEN,
+}
+
+export const execute_command_variants: ClineToolSpec[] = [GENERIC, GPT_5, CLINE_NEXT_GEN]
