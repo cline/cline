@@ -1,6 +1,7 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
+import { StreamingToolCallHandler } from "@core/api/transform/StreamingToolCallHandler"
 import { ApiStream } from "@core/api/transform/stream"
 import { parseAssistantMessageV2 } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
@@ -129,6 +130,7 @@ export class Task {
 	public checkpointManager?: ICheckpointManager
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
+	private toolCallHandler: StreamingToolCallHandler
 
 	// Metadata tracking
 	private fileContextTracker: FileContextTracker
@@ -204,6 +206,7 @@ export class Task {
 		this.browserSession = new BrowserSession(stateManager)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
+		this.toolCallHandler = new StreamingToolCallHandler()
 		this.cwd = cwd
 		this.stateManager = stateManager
 		this.workspaceManager = workspaceManager
@@ -1407,9 +1410,7 @@ export class Task {
 			const clineError = ErrorService.get().toClineError(error, model.id, providerId)
 
 			// Capture provider failure telemetry using clineError
-			// TODO: Move into errorService
 			ErrorService.get().logMessage(clineError.message)
-			ErrorService.get().logException(clineError)
 
 			if (isContextWindowExceededError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
 				await this.handleContextWindowExceededError()
@@ -2011,6 +2012,7 @@ export class Task {
 			this.taskState.presentAssistantMessageHasPendingUpdates = false
 			this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			await this.diffViewProvider.reset()
+			this.toolCallHandler.reset()
 
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 			let assistantMessage = ""
@@ -2059,6 +2061,24 @@ export class Task {
 								data: chunk.data,
 							})
 							break
+						case "tool_calls": {
+							// Process tool call delta and convert to XML format
+							const streamingXml = this.toolCallHandler.processToolCallDelta(chunk.tool_call)
+							if (streamingXml) {
+								assistantMessage += streamingXml
+								// parse raw assistant message into content blocks
+								const prevLength = this.taskState.assistantMessageContent.length
+
+								this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
+
+								if (this.taskState.assistantMessageContent.length > prevLength) {
+									this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
+								}
+								// present content to user
+								this.presentAssistantMessage()
+							}
+							break
+						}
 						case "text": {
 							if (reasoningMessage && assistantMessage.length === 0) {
 								// complete reasoning message
@@ -2102,6 +2122,19 @@ export class Task {
 							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
 						break
 					}
+				}
+
+				// Finalize any remaining tool calls at the end of the stream
+				const finalizedXmlResults = this.toolCallHandler.finalizePendingToolCalls()
+				for (const finalXml of finalizedXmlResults) {
+					assistantMessage += finalXml
+					// parse and update assistant message content with finalized tool calls
+					const prevLength = this.taskState.assistantMessageContent.length
+					this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
+					if (this.taskState.assistantMessageContent.length > prevLength) {
+						this.taskState.userMessageContentReady = false
+					}
+					this.presentAssistantMessage()
 				}
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)

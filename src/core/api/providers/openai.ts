@@ -6,7 +6,6 @@ import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
-import { StreamingToolCallHandler } from "../transform/StreamingToolCallHandler"
 import { ApiStream } from "../transform/stream"
 
 interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
@@ -22,7 +21,6 @@ interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 export class OpenAiHandler implements ApiHandler {
 	private options: OpenAiHandlerOptions
 	private client: OpenAI | undefined
-	private toolCallHandler = new StreamingToolCallHandler()
 
 	constructor(options: OpenAiHandlerOptions) {
 		this.options = options
@@ -68,9 +66,6 @@ export class OpenAiHandler implements ApiHandler {
 		messages: Anthropic.Messages.MessageParam[],
 		tools?: ChatCompletionTool[],
 	): ApiStream {
-		// Clear any pending tool calls from previous requests
-		this.toolCallHandler.reset()
-
 		const client = this.ensureClient()
 		const modelId = this.options.openAiModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
@@ -128,14 +123,11 @@ export class OpenAiHandler implements ApiHandler {
 			}
 
 			if (delta.tool_calls) {
-				// Handle tool calls using the shared utility
+				// Yield tool calls as ApiStreamToolCallsChunk for processing in the task loop
 				for (const toolCallDelta of delta.tool_calls) {
-					const streamingXml = this.toolCallHandler.processToolCallDelta(toolCallDelta)
-					if (streamingXml) {
-						yield {
-							type: "text",
-							text: streamingXml,
-						}
+					yield {
+						type: "tool_calls",
+						tool_call: toolCallDelta,
 					}
 				}
 			}
@@ -150,15 +142,6 @@ export class OpenAiHandler implements ApiHandler {
 					// @ts-ignore-next-line
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
 				}
-			}
-		}
-
-		// Finalize any remaining tool calls at the end of the stream
-		const finalizedXmlResults = this.toolCallHandler.finalizePendingToolCalls()
-		for (const finalXml of finalizedXmlResults) {
-			yield {
-				type: "text",
-				text: finalXml,
 			}
 		}
 	}
