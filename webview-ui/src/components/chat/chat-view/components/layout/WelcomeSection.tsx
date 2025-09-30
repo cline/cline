@@ -1,7 +1,7 @@
 import React from "react"
 import Announcement from "@/components/chat/Announcement"
 import InfoBanner, { CURRENT_INFO_BANNER_VERSION } from "@/components/common/InfoBanner"
-import NewModelBanner from "@/components/common/NewModelBanner"
+import NewModelBanner, { CURRENT_MODEL_BANNER_VERSION } from "@/components/common/NewModelBanner"
 import HistoryPreview from "@/components/history/HistoryPreview"
 import HomeHeader from "@/components/welcome/HomeHeader"
 import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
@@ -21,16 +21,17 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	taskHistory,
 	shouldShowQuickWins,
 }) => {
-	const { lastDismissedInfoBannerVersion } = useExtensionState()
+	const { lastDismissedInfoBannerVersion, lastDismissedModelBannerVersion } = useExtensionState()
 
 	const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
+	const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
 
 	return (
 		<div className="flex flex-col flex-1 w-full h-full p-0 m-0">
 			<div className="overflow-y-auto flex flex-col pb-2.5">
 				{shouldShowInfoBanner && <InfoBanner />}
 				{showAnnouncement && <Announcement hideAnnouncement={hideAnnouncement} version={version} />}
-				<NewModelBanner />
+				{shouldShowNewModelBanner && <NewModelBanner />}
 				<HomeHeader shouldShowQuickWins={shouldShowQuickWins} />
 				{!shouldShowQuickWins && taskHistory.length > 0 && <HistoryPreview showHistoryView={showHistoryView} />}
 			</div>
