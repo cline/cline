@@ -2,8 +2,8 @@ import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
-// Keep track of active mcpButtonClicked subscriptions by controller ID
-const activeMcpButtonClickedSubscriptions = new Map<string, StreamingResponseHandler<Empty>>()
+// Keep track of active mcpButtonClicked subscriptions
+const activeMcpButtonClickedSubscriptions = new Set<StreamingResponseHandler<Empty>>()
 
 /**
  * Subscribe to mcpButtonClicked events
@@ -13,20 +13,19 @@ const activeMcpButtonClickedSubscriptions = new Map<string, StreamingResponseHan
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToMcpButtonClicked(
-	controller: Controller,
+	_controller: Controller,
 	_request: EmptyRequest,
 	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
-	const controllerId = controller.id
-	console.log(`[DEBUG] set up mcpButtonClicked subscription for controller ${controllerId}`)
+	console.log(`[DEBUG] set up mcpButtonClicked subscription`)
 
-	// Add this subscription to the active subscriptions with the controller ID
-	activeMcpButtonClickedSubscriptions.set(controllerId, responseStream)
+	// Add this subscription to the active subscriptions
+	activeMcpButtonClickedSubscriptions.add(responseStream)
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
-		activeMcpButtonClickedSubscriptions.delete(controllerId)
+		activeMcpButtonClickedSubscriptions.delete(responseStream)
 	}
 
 	// Register the cleanup function with the request registry if we have a requestId
@@ -36,27 +35,23 @@ export async function subscribeToMcpButtonClicked(
 }
 
 /**
- * Send a mcpButtonClicked event to a specific controller's subscription
- * @param controllerId The ID of the controller to send the event to
+ * Send a mcpButtonClicked event to all active subscribers
  */
-export async function sendMcpButtonClickedEvent(controllerId: string): Promise<void> {
-	// Get the subscription for this specific controller
-	const responseStream = activeMcpButtonClickedSubscriptions.get(controllerId)
+export async function sendMcpButtonClickedEvent(): Promise<void> {
+	// Send the event to all active subscribers
+	const promises = Array.from(activeMcpButtonClickedSubscriptions).map(async (responseStream) => {
+		try {
+			const event = Empty.create({})
+			await responseStream(
+				event,
+				false, // Not the last message
+			)
+		} catch (error) {
+			console.error("Error sending mcpButtonClicked event:", error)
+			// Remove the subscription if there was an error
+			activeMcpButtonClickedSubscriptions.delete(responseStream)
+		}
+	})
 
-	if (!responseStream) {
-		console.error(`[DEBUG] No active subscription for controller ${controllerId}`)
-		return
-	}
-
-	try {
-		const event = Empty.create({})
-		await responseStream(
-			event,
-			false, // Not the last message
-		)
-	} catch (error) {
-		console.error(`Error sending mcpButtonClicked event to controller ${controllerId}:`, error)
-		// Remove the subscription if there was an error
-		activeMcpButtonClickedSubscriptions.delete(controllerId)
-	}
+	await Promise.all(promises)
 }

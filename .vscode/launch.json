@@ -12,8 +12,7 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
-				// Avoid conflicts with the nightly extension
-				"--disable-extension=saoudrizwan.cline-nightly",
+				"--disable-extensions", // Avoid conflicts with installed extensions
 				"${workspaceFolder}"
 			],
 			"outFiles": [
@@ -33,7 +32,7 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
-				"--disable-extension=claude-dev.cline-nightly",
+				"--disable-extensions", // Avoid conflicts with installed extensions
 				"${workspaceFolder}"
 			],
 			"outFiles": [
@@ -53,7 +52,7 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"--disable-workspace-trust",
-				"--disable-extension=claude-dev.cline-nightly",
+				"--disable-extensions", // Avoid conflicts with installed extensions
 				"${workspaceFolder}"
 			],
 			"outFiles": [
@@ -75,7 +74,7 @@
 				"--user-data-dir=${workspaceFolder}/dist/tmp/user",
 				"--profile-temp",
 				"--sync=off",
-				"--disable-extensions",
+				"--disable-extensions", // Avoid conflicts with installed extensions
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"${workspaceFolder}"
 			],

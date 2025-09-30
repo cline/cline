@@ -9,7 +9,7 @@ if [[ "${1:-}" == "-h" ]]; then
 fi
 
 CORE_DIR=~/.cline/core
-INSTALL_DIR=$CORE_DIR/0.0.1
+INSTALL_DIR=$CORE_DIR/dev-instance/
 LOG_FILE=~/.cline/cline-core-service.log
 
 ZIP_FILE=standalone.zip
@@ -25,4 +25,6 @@ unp $ZIP_FILE > /dev/null
 
 pkill -f cline-core.js || true
 
+echo pwd: $(pwd)
+set -x
 NODE_PATH=./node_modules DEV_WORKSPACE_FOLDER=/tmp/ node cline-core.js 2>&1 | tee $LOG_FILE

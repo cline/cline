@@ -13,8 +13,9 @@ interface E2ETestDirectories {
 	extensionsDir: string
 }
 
-export interface WorkspaceType {
+export interface E2ETestConfigs {
 	workspaceType: "single" | "multi"
+	channel: "stable" | "insiders"
 }
 
 export class E2ETestHelper {
@@ -230,12 +231,13 @@ export const e2e = test
 			await use(mkdtempSync(path.join(os.tmpdir(), "vsce")))
 		},
 	})
-	.extend<WorkspaceType>({
+	.extend<E2ETestConfigs>({
 		workspaceType: "single",
+		channel: "stable",
 	})
 	.extend<{ openVSCode: (workspacePath: string) => Promise<ElectronApplication> }>({
-		openVSCode: async ({ userDataDir, extensionsDir }, use, testInfo) => {
-			const executablePath = await downloadAndUnzipVSCode("stable", undefined, new SilentReporter())
+		openVSCode: async ({ userDataDir, channel }, use, testInfo) => {
+			const executablePath = await downloadAndUnzipVSCode(channel, undefined, new SilentReporter())
 
 			await use(async (workspacePath: string) => {
 				const app = await _electron.launch({
@@ -247,6 +249,7 @@ export const e2e = test
 						CLINE_ENVIRONMENT: "local",
 						GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
 						// GRPC_RECORDER_ENABLED: "true",
+						// GRPC_RECORDER_TESTS_FILTERS_ENABLED: "true"
 						// IS_DEV: "true",
 						// DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
 					},
@@ -257,10 +260,10 @@ export const e2e = test
 						"--no-sandbox",
 						"--disable-updates",
 						"--disable-workspace-trust",
+						"--disable-extensions", // Run VS Code with all extensions disabled other than the one under test.
 						"--skip-welcome",
 						"--skip-release-notes",
 						`--user-data-dir=${userDataDir}`,
-						`--extensions-dir=${extensionsDir}`,
 						`--install-extension=${path.join(E2ETestHelper.CODEBASE_ROOT_DIR, "dist", "e2e.vsix")}`,
 						`--extensionDevelopmentPath=${E2ETestHelper.CODEBASE_ROOT_DIR}`,
 						workspacePath,
@@ -297,7 +300,15 @@ export const e2e = test
 	.extend({
 		page: async ({ app }, use) => {
 			const page = await app.firstWindow()
-			await use(page)
+			try {
+				await use(page)
+			} finally {
+				// Ensure proper cleanup: Close the page if it's still open and not already closed by app.close()
+				// This provides a common teardown mechanism for all e2e tests without requiring explicit page.close() calls
+				if (!page.isClosed()) {
+					await page.close()
+				}
+			}
 		},
 	})
 	.extend<{ sidebar: Frame }>({
@@ -308,12 +319,7 @@ export const e2e = test
 		},
 	})
 
-/**
- * Multi-root workspace variant of the e2e test fixture
- */
-export const e2eMultiRoot = e2e.extend<WorkspaceType>({
-	workspaceType: "multi",
-})
-
-// Backward compatibility exports
-export const getResultsDir = E2ETestHelper.getResultsDir
+export const E2E_WORKSPACE_TYPES = [
+	{ title: "Single Root", workspaceType: "single" },
+	{ title: "Multi-Roots", workspaceType: "multi" },
+] as const

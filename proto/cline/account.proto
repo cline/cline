@@ -38,6 +38,9 @@ service AccountService {
   rpc setUserOrganization(UserOrganizationUpdateRequest) returns (Empty);
 
   rpc openrouterAuthClicked(EmptyRequest) returns (Empty);
+
+  // Returns a link the webview can use to redirect back to the user's IDE.
+  rpc getRedirectUrl(EmptyRequest) returns (String);
 }
 
 message AuthStateChangedRequest {

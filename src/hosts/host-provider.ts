@@ -1,8 +1,6 @@
 import { WebviewProvider } from "@/core/webview"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
-import { WebviewProviderType } from "@/shared/webview/types"
 import { HostBridgeClientProvider } from "./host-provider-types"
-
 /**
  * Singleton class that manages host-specific providers for dependency injection.
  *
@@ -26,8 +24,8 @@ export class HostProvider {
 	// Logs to a user-visible output channel.
 	logToChannel: LogToChannel
 
-	// Returns a callback URI that will redirect to Cline.
-	getCallbackUri: () => Promise<string>
+	// Returns a callback URL that will redirect to Cline.
+	getCallbackUrl: () => Promise<string>
 
 	// Returns the location of the binary `name`.
 	// Use `getBinaryLocation()` from utils/ts.ts instead of using
@@ -35,21 +33,32 @@ export class HostProvider {
 	// extension on Windows.
 	getBinaryLocation: (name: string) => Promise<string>
 
+	// The absolute file system path where the extension is installed.
+	// Use to this to get the location of extension assets.
+	extensionFsPath: string
+
+	// The absolute file system path where the extension can store global state.
+	globalStorageFsPath: string
+
 	// Private constructor to enforce singleton pattern
 	private constructor(
 		createWebviewProvider: WebviewProviderCreator,
 		createDiffViewProvider: DiffViewProviderCreator,
 		hostBridge: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
-		getCallbackUri: () => Promise<string>,
+		getCallbackUrl: () => Promise<string>,
 		getBinaryLocation: (name: string) => Promise<string>,
+		extensionFsPath: string,
+		globalStorageFsPath: string,
 	) {
 		this.createWebviewProvider = createWebviewProvider
 		this.createDiffViewProvider = createDiffViewProvider
 		this.hostBridge = hostBridge
 		this.logToChannel = logToChannel
-		this.getCallbackUri = getCallbackUri
+		this.getCallbackUrl = getCallbackUrl
 		this.getBinaryLocation = getBinaryLocation
+		this.extensionFsPath = extensionFsPath
+		this.globalStorageFsPath = globalStorageFsPath
 	}
 
 	public static initialize(
@@ -57,8 +66,10 @@ export class HostProvider {
 		diffViewProviderCreator: DiffViewProviderCreator,
 		hostBridgeProvider: HostBridgeClientProvider,
 		logToChannel: LogToChannel,
-		getCallbackUri: () => Promise<string>,
+		getCallbackUrl: () => Promise<string>,
 		getBinaryLocation: (name: string) => Promise<string>,
+		extensionFsPath: string,
+		globalStorageFsPath: string,
 	): HostProvider {
 		if (HostProvider.instance) {
 			throw new Error("Host provider has already been initialized.")
@@ -68,8 +79,10 @@ export class HostProvider {
 			diffViewProviderCreator,
 			hostBridgeProvider,
 			logToChannel,
-			getCallbackUri,
+			getCallbackUrl,
 			getBinaryLocation,
+			extensionFsPath,
+			globalStorageFsPath,
 		)
 		return HostProvider.instance
 	}
@@ -116,7 +129,7 @@ export class HostProvider {
 /**
  * A function that creates WebviewProvider instances
  */
-export type WebviewProviderCreator = (providerType: WebviewProviderType) => WebviewProvider
+export type WebviewProviderCreator = () => WebviewProvider
 
 /**
  * A function that creates DiffViewProvider instances

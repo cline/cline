@@ -6,15 +6,22 @@
 
 import * as assert from "assert"
 import * as sinon from "sinon"
+import { HostProvider } from "@/hosts/host-provider"
+import * as posthogConfigModule from "@/shared/services/config/posthog-config"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
-import { NoOpTelemetryProvider, TelemetryProviderFactory, type TelemetryProviderType } from "./TelemetryProviderFactory"
+import { NoOpTelemetryProvider, TelemetryProviderFactory, TelemetryProviderType } from "./TelemetryProviderFactory"
 import { TelemetryService } from "./TelemetryService"
 
 describe("Telemetry system is abstracted and can easily switch between providers", () => {
+	// Setup and teardown for HostProvider mocking
 	before(() => {
 		setVscodeHostProviderMock()
 	})
 
+	after(() => {
+		// Reset HostProvider after tests
+		HostProvider.reset()
+	})
 	const MOCK_USER_INFO = {
 		id: "test-user-123",
 		email: "test@example.com",
@@ -34,7 +41,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 	describe("Telemetry Service", () => {
 		it("should include correct metadata with telemetry events", async () => {
 			const noOpProvider = await TelemetryProviderFactory.createProvider({
-				type: "none",
+				type: "no-op",
 			})
 
 			// Spy on the provider's log method to verify metadata
@@ -117,7 +124,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 		it("should create No-Op provider and handle all operations safely", async () => {
 			console.log("\n=== Testing No-Op Provider ===")
 			const noOpProvider = await TelemetryProviderFactory.createProvider({
-				type: "none",
+				type: "no-op",
 			})
 
 			const noOpTelemetryService = new TelemetryService(noOpProvider, MOCK_METADATA)
@@ -193,6 +200,9 @@ describe("Telemetry system is abstracted and can easily switch between providers
 
 	describe("Factory Configuration", () => {
 		it("should return default configuration", () => {
+			// Mock PostHog config validation to return true for this test
+			const isPostHogConfigValidStub = sinon.stub(posthogConfigModule, "isPostHogConfigValid").returns(true)
+
 			const defaultConfig = TelemetryProviderFactory.getDefaultConfig()
 
 			assert.deepStrictEqual(
@@ -202,6 +212,9 @@ describe("Telemetry system is abstracted and can easily switch between providers
 				},
 				"Should return PostHog as default configuration",
 			)
+
+			// Restore the stub
+			isPostHogConfigValidStub.restore()
 		})
 
 		it("should handle provider switching seamlessly", async () => {
@@ -220,7 +233,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 
 			// Switch to No-Op provider
 			const noOpProvider = await TelemetryProviderFactory.createProvider({
-				type: "none",
+				type: "no-op",
 			})
 			telemetryService = new TelemetryService(noOpProvider, MOCK_METADATA)
 

@@ -3,6 +3,7 @@ import { expect } from "chai"
 import * as path from "path"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
+import * as featureFlags from "@/services/feature-flags"
 import * as telemetry from "@/services/telemetry"
 import * as pathUtils from "@/utils/path"
 import { setupWorkspaceManager } from "../setup"
@@ -31,14 +32,27 @@ describe("setupWorkspaceManager", () => {
 	}) => {
 		const state: { roots?: WorkspaceRoot[]; primaryIndex?: number } = {}
 		return {
-			isMultiRootEnabled: () => multiRootEnabled,
-			getWorkspaceRoots: () => savedRoots,
-			getPrimaryRootIndex: () => savedPrimaryIndex,
-			setWorkspaceRoots: (roots: WorkspaceRoot[]) => {
-				state.roots = roots
+			getGlobalStateKey: (key: string) => {
+				switch (key) {
+					case "multiRootEnabled":
+						return multiRootEnabled
+					case "workspaceRoots":
+						return savedRoots
+					case "primaryRootIndex":
+						return savedPrimaryIndex
+					default:
+						return undefined
+				}
 			},
-			setPrimaryRootIndex: (idx: number) => {
-				state.primaryIndex = idx
+			setGlobalState: (key: string, value: any) => {
+				switch (key) {
+					case "workspaceRoots":
+						state.roots = value
+						break
+					case "primaryRootIndex":
+						state.primaryIndex = value
+						break
+				}
 			},
 			// for assertions
 			_state: state,
@@ -83,6 +97,11 @@ describe("setupWorkspaceManager", () => {
 	it("initializes multi-root manager when multi-root is enabled and persists roots + primary index", async () => {
 		const stateManager = makeStateManager({ multiRootEnabled: true })
 		const detectRoots = sandbox.stub().resolves(defaultRoots)
+
+		// Stub featureFlagsService to return true for multi-root
+		sandbox.stub(featureFlags, "featureFlagsService").value({
+			getMultiRootEnabled: () => true,
+		})
 
 		const manager = await setupWorkspaceManager({
 			stateManager: stateManager as any,
@@ -148,6 +167,11 @@ describe("setupWorkspaceManager", () => {
 		// Multi-root enabled but detectRoots throws
 		const stateManager = makeStateManager({ multiRootEnabled: true })
 		const detectRoots = sandbox.stub().rejects(new Error("boom"))
+
+		// Stub featureFlagsService to return true for multi-root
+		sandbox.stub(featureFlags, "featureFlagsService").value({
+			getMultiRootEnabled: () => true,
+		})
 
 		const manager = await setupWorkspaceManager({
 			stateManager: stateManager as any,

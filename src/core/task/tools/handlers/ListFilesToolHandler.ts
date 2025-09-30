@@ -63,7 +63,11 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = resolveWorkspacePath(config.cwd, relDirPath!, "ListFilesToolHandler.execute")
+
+		// Resolve the absolute path based on multi-workspace configuration
+		const pathResult = resolveWorkspacePath(config, relDirPath!, "ListFilesToolHandler.execute")
+		const { absolutePath, displayPath } =
+			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult
 
 		// Execute the actual list files operation
 		const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
@@ -73,7 +77,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		// Handle approval flow
 		const sharedMessageProps = {
 			tool: recursive ? "listFilesRecursive" : "listFilesTopLevel",
-			path: getReadablePath(config.cwd, relDirPath!),
+			path: getReadablePath(config.cwd, displayPath),
 			content: result,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relDirPath!),
 		}

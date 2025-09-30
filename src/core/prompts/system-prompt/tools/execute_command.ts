@@ -7,7 +7,7 @@ const generic: ClineToolSpec = {
 	variant: ModelFamily.GENERIC,
 	id: ClineDefaultTool.BASH,
 	name: "execute_command",
-	description: `Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: {{CWD}}`,
+	description: `Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: {{CWD}}{{MULTI_ROOT_HINT}}`,
 	parameters: [
 		{
 			name: "command",
@@ -22,10 +22,18 @@ const generic: ClineToolSpec = {
 				"A boolean indicating whether this command requires explicit user approval before execution in case the user has auto-approve mode enabled. Set to 'true' for potentially impactful operations like installing/uninstalling packages, deleting/overwriting files, system configuration changes, network operations, or any commands that could have unintended side effects. Set to 'false' for safe operations like reading files/directories, running development servers, building projects, and other non-destructive operations.",
 			usage: "true or false",
 		},
+		{
+			name: "timeout",
+			required: false,
+			contextRequirements: (context) => context.yoloModeToggled === true,
+			instruction:
+				"Integer representing the timeout in seconds for how long to run the terminal command, before timing out and continuing the task.",
+			usage: "30",
+		},
 	],
 }
 
-const gpt = {
+const gpt: ClineToolSpec = {
 	variant: ModelFamily.GPT,
 	id: ClineDefaultTool.BASH,
 	name: "bash",
@@ -42,6 +50,14 @@ const gpt = {
 			name: "requires_approval",
 			required: false,
 			instruction: "Whether the command is dangerous. If true, user will be asked to confirm.",
+		},
+		{
+			name: "timeout",
+			required: false,
+			contextRequirements: (context) => context.yoloModeToggled === true,
+			instruction:
+				"Integer representing the timeout in seconds for how long to run the terminal command, before timing out and continuing the task.",
+			usage: "30",
 		},
 		TASK_PROGRESS_PARAMETER,
 	],

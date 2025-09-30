@@ -87,7 +87,7 @@ or {
 			$var <: `workspaceFolders`,
 			$var <: `appRoot`,
 			$var <: `machineId`,
-			//$var <: `uriScheme`,
+			$var <: `uriScheme`,
 			$var <: `isTelemetryEnabled`,
 			$var <: `onDidChangeTelemetryEnabled`,
 			$var <: `all`,

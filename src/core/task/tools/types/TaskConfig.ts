@@ -13,6 +13,7 @@ import type { Mode } from "@shared/storage/types"
 import type { ClineDefaultTool } from "@shared/tools"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
+import { WorkspaceRootManager } from "@/core/workspace"
 import type { ContextManager } from "../../../context/context-management/ContextManager"
 import type { StateManager } from "../../../storage/StateManager"
 import type { MessageStateHandler } from "../../message-state"
@@ -31,7 +32,12 @@ export interface TaskConfig {
 	cwd: string
 	mode: Mode
 	strictPlanModeEnabled: boolean
+	yoloModeToggled: boolean
 	context: vscode.ExtensionContext
+
+	// Multi-workspace support (optional for backward compatibility)
+	workspaceManager?: WorkspaceRootManager
+	isMultiRootEnabled?: boolean
 
 	// State management
 	taskState: TaskState
@@ -91,7 +97,7 @@ export interface TaskCallbacks {
 
 	removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>
 
-	executeCommandTool: (command: string) => Promise<[boolean, any]>
+	executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>
 
 	doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>
 
@@ -107,6 +113,8 @@ export interface TaskCallbacks {
 	updateTaskHistory: (update: any) => Promise<any[]>
 
 	applyLatestBrowserSettings: () => Promise<BrowserSession>
+
+	switchToActMode: () => Promise<boolean>
 }
 
 /**

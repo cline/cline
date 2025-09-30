@@ -5,11 +5,7 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { BrowserSettings } from "@shared/BrowserSettings"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
-import { Mode } from "@shared/storage/types"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
@@ -18,6 +14,7 @@ import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
 import { formatResponse } from "../prompts/responses"
 import { StateManager } from "../storage/StateManager"
+import { WorkspaceRootManager } from "../workspace"
 import { ToolResponse } from "."
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
@@ -79,14 +76,14 @@ export class ToolExecutor {
 		private stateManager: StateManager,
 
 		// Configuration & Settings
-		private autoApprovalSettings: AutoApprovalSettings,
-		private browserSettings: BrowserSettings,
-		private focusChainSettings: FocusChainSettings,
+
 		private cwd: string,
 		private taskId: string,
 		private ulid: string,
-		private mode: Mode,
-		private strictPlanModeEnabled: boolean,
+
+		// Workspace Management
+		private workspaceManager: WorkspaceRootManager | undefined,
+		private isMultiRootEnabled: boolean,
 
 		// Callbacks to the Task (Entity)
 		private say: (
@@ -109,11 +106,12 @@ export class ToolExecutor {
 		private saveCheckpoint: (isAttemptCompletionMessage?: boolean, completionMessageTs?: number) => Promise<void>,
 		private sayAndCreateMissingParamError: (toolName: ClineDefaultTool, paramName: string, relPath?: string) => Promise<any>,
 		private removeLastPartialMessageIfExistsWithType: (type: "ask" | "say", askOrSay: ClineAsk | ClineSay) => Promise<void>,
-		private executeCommandTool: (command: string) => Promise<[boolean, any]>,
+		private executeCommandTool: (command: string, timeoutSeconds: number | undefined) => Promise<[boolean, any]>,
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
+		private switchToActMode: () => Promise<boolean>,
 	) {
-		this.autoApprover = new AutoApprove(autoApprovalSettings)
+		this.autoApprover = new AutoApprove(this.stateManager)
 
 		// Initialize the coordinator and register all tool handlers
 		this.coordinator = new ToolExecutorCoordinator()
@@ -127,16 +125,19 @@ export class ToolExecutor {
 			taskId: this.taskId,
 			ulid: this.ulid,
 			context: this.context,
-			mode: this.mode,
-			strictPlanModeEnabled: this.strictPlanModeEnabled,
+			mode: this.stateManager.getGlobalSettingsKey("mode"),
+			strictPlanModeEnabled: this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled"),
+			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			cwd: this.cwd,
+			workspaceManager: this.workspaceManager,
+			isMultiRootEnabled: this.isMultiRootEnabled,
 			taskState: this.taskState,
 			messageState: this.messageStateHandler,
 			api: this.api,
-			autoApprovalSettings: this.autoApprovalSettings,
+			autoApprovalSettings: this.stateManager.getGlobalSettingsKey("autoApprovalSettings"),
 			autoApprover: this.autoApprover,
-			browserSettings: this.browserSettings,
-			focusChainSettings: this.focusChainSettings,
+			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
+			focusChainSettings: this.stateManager.getGlobalSettingsKey("focusChainSettings"),
 			services: {
 				mcpHub: this.mcpHub,
 				browserSession: this.browserSession,
@@ -163,6 +164,7 @@ export class ToolExecutor {
 				shouldAutoApproveTool: this.shouldAutoApproveTool.bind(this),
 				shouldAutoApproveToolWithPath: this.shouldAutoApproveToolWithPath.bind(this),
 				applyLatestBrowserSettings: this.applyLatestBrowserSettings.bind(this),
+				switchToActMode: this.switchToActMode,
 			},
 			coordinator: this.coordinator,
 		}
@@ -206,21 +208,6 @@ export class ToolExecutor {
 	}
 
 	/**
-	 * Updates the auto approval settings
-	 */
-	public updateAutoApprovalSettings(settings: AutoApprovalSettings): void {
-		this.autoApprover.updateSettings(settings)
-	}
-
-	public updateMode(mode: Mode): void {
-		this.mode = mode
-	}
-
-	public updateStrictPlanModeEnabled(strictPlanModeEnabled: boolean): void {
-		this.strictPlanModeEnabled = strictPlanModeEnabled
-	}
-
-	/**
 	 * Main entry point for tool execution - called by Task class
 	 */
 	public async executeTool(block: ToolUse): Promise<void> {
@@ -231,15 +218,10 @@ export class ToolExecutor {
 	 * Updates the browser settings
 	 */
 	public async applyLatestBrowserSettings() {
-		if (this.context) {
-			await this.browserSession.dispose()
-			const apiHandlerModel = this.api.getModel()
-			const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
-			this.browserSession = new BrowserSession(this.context, this.browserSettings, useWebp)
-		} else {
-			console.warn("no controller context available for browserSession")
-		}
-
+		await this.browserSession.dispose()
+		const apiHandlerModel = this.api.getModel()
+		const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
+		this.browserSession = new BrowserSession(this.stateManager, useWebp)
 		return this.browserSession
 	}
 
@@ -310,7 +292,12 @@ export class ToolExecutor {
 			}
 
 			// Logic for plan-mode tool call restrictions
-			if (this.strictPlanModeEnabled && this.mode === "plan" && block.name && this.isPlanModeToolRestricted(block.name)) {
+			if (
+				this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled") &&
+				this.stateManager.getGlobalSettingsKey("mode") === "plan" &&
+				block.name &&
+				this.isPlanModeToolRestricted(block.name)
+			) {
 				const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. Only use tools available for PLAN MODE when in that mode.`
 				await this.say("error", errorMessage)
 				this.pushToolResult(formatResponse.toolError(errorMessage), block)
@@ -383,7 +370,7 @@ export class ToolExecutor {
 		this.pushToolResult(result, block)
 
 		// Handle focus chain updates
-		if (!block.partial && this.focusChainSettings.enabled) {
+		if (!block.partial && this.stateManager.getGlobalSettingsKey("focusChainSettings").enabled) {
 			await this.updateFCListFromToolResponse(block.params.task_progress)
 		}
 	}

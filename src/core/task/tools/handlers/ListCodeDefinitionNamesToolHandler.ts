@@ -58,14 +58,19 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
-		const absolutePath = resolveWorkspacePath(config.cwd, relDirPath!, "ListCodeDefinitionNamesToolHandler.execute")
+
+		// Resolve the absolute path based on multi-workspace configuration
+		const pathResult = resolveWorkspacePath(config, relDirPath!, "ListCodeDefinitionNamesToolHandler.execute")
+		const { absolutePath, displayPath } =
+			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult
+
 		// Execute the actual parse source code operation
 		const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.clineIgnoreController)
 
 		// Handle approval flow
 		const sharedMessageProps = {
 			tool: "listCodeDefinitionNames",
-			path: getReadablePath(config.cwd, relDirPath!),
+			path: getReadablePath(config.cwd, displayPath),
 			content: result,
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relDirPath!),
 		}

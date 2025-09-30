@@ -23,7 +23,7 @@
 
 import { MessageStateHandler } from "@core/task/message-state"
 import { showChangedFilesDiff } from "@core/task/multifile-diff"
-import { VcsType, WorkspaceRootManager } from "@core/workspace"
+import { WorkspaceRootManager } from "@core/workspace"
 import { telemetryService } from "@services/telemetry"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -35,7 +35,7 @@ import { ICheckpointManager } from "./types"
  * Only created when multiple roots are detected and feature flag is enabled.
  *
  * This implementation follows Option B: Simple All-Workspace Approach
- * - Checkpoints all Git-enabled workspaces every time
+ * - Creates checkpoints instance for each input workspace root
  * - Commits run in parallel in the background (non-blocking)
  * - Maintains backward compatibility with single-root expectations
  */
@@ -47,13 +47,12 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 	constructor(
 		private workspaceManager: WorkspaceRootManager,
 		private taskId: string,
-		private globalStoragePath: string,
 		private enableCheckpoints: boolean,
 		private messageStateHandler: MessageStateHandler,
 	) {}
 
 	/**
-	 * Initialize checkpoint trackers for all Git-enabled roots
+	 * Initialize checkpoint trackers for all workspace roots
 	 * This is called separately to avoid blocking the Task constructor
 	 */
 	async initialize(): Promise<void> {
@@ -79,16 +78,13 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 
 		const startTime = performance.now()
 		const roots = this.workspaceManager.getRoots()
-		const gitRoots = roots.filter((root) => root.vcs === VcsType.Git)
-		console.log(
-			`[MultiRootCheckpointManager] Initializing for ${roots.length} workspace roots (${gitRoots.length} Git-enabled)`,
-		)
+		console.log(`[MultiRootCheckpointManager] Initializing for ${roots.length} workspace roots`)
 
-		// Initialize all Git-enabled roots in parallel
-		const initPromises = gitRoots.map(async (root) => {
+		// Initialize all workspace roots in parallel
+		const initPromises = roots.map(async (root) => {
 			try {
 				console.log(`[MultiRootCheckpointManager] Creating tracker for ${root.name} at ${root.path}`)
-				const tracker = await CheckpointTracker.create(this.taskId, this.globalStoragePath, this.enableCheckpoints)
+				const tracker = await CheckpointTracker.create(this.taskId, this.enableCheckpoints, root.path)
 				if (tracker) {
 					this.trackers.set(root.path, tracker)
 					console.log(`[MultiRootCheckpointManager] Successfully initialized tracker for ${root.name}`)
@@ -113,7 +109,7 @@ export class MultiRootCheckpointManager implements ICheckpointManager {
 		telemetryService.captureMultiRootCheckpoint(
 			this.taskId,
 			"initialized",
-			gitRoots.length,
+			roots.length,
 			successCount,
 			failureCount,
 			performance.now() - startTime,

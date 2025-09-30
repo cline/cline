@@ -15,7 +15,8 @@ const generic: ClineToolSpec = {
 		{
 			name: "path",
 			required: true,
-			instruction: "The path of the directory to list contents for (relative to the current working directory {{CWD}})",
+			instruction:
+				"The path of the directory to list contents for (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}",
 			usage: "Directory path here",
 		},
 		{

@@ -33,6 +33,8 @@ service ModelsService {
   rpc refreshBasetenModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Fetches available models from SAP AI Core
   rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (SapAiCoreModelsResponse);
+  // Fetches available models from OCA
+  rpc refreshOcaModels(StringRequest) returns (OcaCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -127,6 +129,48 @@ message UpdateApiConfigurationRequest {
   ModelsApiConfiguration api_configuration = 2;
 }
 
+ // Model info for OCA (OpenAI-compatible) models exposed by the OCA provider
+message OcaModelInfo {
+  // Maximum completion tokens per request supported by this model
+  optional int64 max_tokens = 1;
+  // Total context window in tokens (input + output)
+  optional int64 context_window = 2;
+  // Whether the model supports image inputs
+  optional bool supports_images = 3;
+  // Whether prompt caching is supported for this model
+  bool supports_prompt_cache = 4;
+  // Price per million input tokens (USD unless otherwise specified by provider)
+  optional double input_price = 5;
+  // Price per million output tokens (USD unless otherwise specified by provider)
+  optional double output_price = 6;
+  // Thinking/reasoning configuration if the model supports it
+  optional ThinkingConfig thinking_config = 7;
+  // Price per million tokens for prompt cache writes
+  optional double cache_writes_price = 9;
+  // Price per million tokens for prompt cache reads
+  optional double cache_reads_price = 10;
+  // Human-readable model description
+  optional string description = 11;
+  // Recommended default temperature for this model
+  optional double temperature = 13;
+  // Optional survey content to display in the UI
+  optional string survey_content = 14;
+  // Identifier for the survey associated with this model
+  optional string survey_id = 15;
+  // Optional banner content (e.g., deprecation or promotion notes)
+  optional string banner = 16;
+  // Canonical model identifier as reported by OCA
+  string model_name = 17;
+}
+
+ // Aggregated OCA model catalog keyed by model identifier
+message OcaCompatibleModelInfo {
+  // key: canonical model id as reported by OCA (e.g., "openai/gpt-4o-mini")
+  // value: OcaModelInfo describing that model
+  map<string, OcaModelInfo> models = 1;
+  optional string error = 2;
+}
+
 // API Provider enumeration
 enum ApiProvider {
   ANTHROPIC = 0;
@@ -164,6 +208,7 @@ enum ApiProvider {
   VERCEL_AI_GATEWAY = 32;
   QWEN_CODE = 33;
   DIFY = 34;
+  OCA = 35;
 }
 
 // Model info for OpenAI-compatible models
@@ -276,6 +321,9 @@ message ModelsApiConfiguration {
   optional string qwen_code_oauth_path = 70;
   optional string dify_api_key = 71;
   optional string dify_base_url = 72;
+  optional string oca_base_url = 73;
+  optional string oca_api_key = 74;
+  optional string oca_refresh_token = 75;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -309,6 +357,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_baseten_model_info = 128;
   optional string plan_mode_vercel_ai_gateway_model_id = 129;
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 130;
+  optional string plan_mode_oca_model_id = 131;
+  optional OcaModelInfo plan_mode_oca_model_info = 132;
 
 
   // Act mode configurations
@@ -343,7 +393,6 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_baseten_model_info = 228;
   optional string act_mode_vercel_ai_gateway_model_id = 229;
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
-
-
-  repeated string favorited_model_ids = 300;
+  optional string act_mode_oca_model_id = 231;
+  optional OcaModelInfo act_mode_oca_model_info = 232;
 }

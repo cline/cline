@@ -1,7 +1,8 @@
-import { GlobalFileNames } from "@core/storage/disk"
+import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
+import { parsePrice } from "@utils/model-utils"
 import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
@@ -19,16 +20,16 @@ export async function refreshBasetenModels(
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
 	console.log("=== refreshBasetenModels called ===")
-	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.basetenModels)
+	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.basetenModels)
 
 	// Get the Baseten API key from the controller's state
 	const basetenApiKey = controller.stateManager.getSecretKey("basetenApiKey")
 
-	const models: Record<string, Partial<OpenRouterModelInfo>> = {}
+	const models: Record<string, Partial<OpenRouterModelInfo> & { supportedFeatures?: string[] }> = {}
 	try {
 		if (!basetenApiKey) {
 			console.log("No Baseten API key found, using static models as fallback")
-			// Don't throw an error, just use static models
+			// Don't throw an error, just use static models, althought this might be slightly out of date
 			for (const [modelId, modelInfo] of Object.entries(basetenModels)) {
 				models[modelId] = {
 					maxTokens: modelInfo.maxTokens,
@@ -69,25 +70,20 @@ export async function refreshBasetenModels(
 						continue
 					}
 
-					// Only include models that are listed in the static basetenModels
-					if (!(rawModel.id in basetenModels)) {
-						console.log(`Skipping model ${rawModel.id} - not in static basetenModels list`)
-						continue
-					}
-
 					// Check if we have static pricing information for this model
 					const staticModelInfo = basetenModels[rawModel.id as keyof typeof basetenModels]
 
-					const modelInfo: Partial<OpenRouterModelInfo> = {
-						maxTokens: staticModelInfo?.maxTokens || 8192,
-						contextWindow: staticModelInfo?.contextWindow || 8192,
-						supportsImages: staticModelInfo?.supportsImages || false,
+					const modelInfo: Partial<OpenRouterModelInfo> & { supportedFeatures?: string[] } = {
+						maxTokens: rawModel.max_completion_tokens || staticModelInfo?.maxTokens,
+						contextWindow: rawModel.context_length || staticModelInfo?.contextWindow,
+						supportsImages: false, // Baseten model APIs does not support image input
 						supportsPromptCache: staticModelInfo?.supportsPromptCache || false,
-						inputPrice: staticModelInfo?.inputPrice || 0,
-						outputPrice: staticModelInfo?.outputPrice || 0,
+						inputPrice: parsePrice(rawModel.pricing?.prompt) || staticModelInfo?.inputPrice || 0,
+						outputPrice: parsePrice(rawModel.pricing?.completion) || staticModelInfo?.outputPrice || 0,
 						cacheWritesPrice: staticModelInfo?.cacheWritesPrice || 0,
 						cacheReadsPrice: staticModelInfo?.cacheReadsPrice || 0,
 						description: generateModelDescription(rawModel, staticModelInfo),
+						supportedFeatures: rawModel.supported_features || [],
 					}
 
 					models[rawModel.id] = modelInfo
@@ -122,14 +118,12 @@ export async function refreshBasetenModels(
 		console.error("Baseten API Error:", errorMessage)
 
 		// If we failed to fetch models, try to read cached models first
-		const cachedModels = await readBasetenModels(controller)
+		const cachedModels = await readBasetenModels()
 		if (cachedModels && Object.keys(cachedModels).length > 0) {
 			console.log("Using cached Baseten models")
-			// Filter cached models to only include those in static basetenModels
+			// Use all cached models (no filtering)
 			for (const [modelId, modelInfo] of Object.entries(cachedModels)) {
-				if (modelId in basetenModels) {
-					models[modelId] = modelInfo
-				}
+				models[modelId] = modelInfo
 			}
 		} else {
 			// Fall back to static models from shared/api.ts
@@ -165,6 +159,7 @@ export async function refreshBasetenModels(
 			cacheReadsPrice: model.cacheReadsPrice ?? 0,
 			description: model.description ?? "",
 			tiers: model.tiers ?? [],
+			// Note: supportedFeatures is preserved as custom property but not part of OpenRouterModelInfo proto
 		}
 	}
 
@@ -172,19 +167,10 @@ export async function refreshBasetenModels(
 }
 
 /**
- * Ensures the cache directory exists and returns its path
- */
-async function ensureCacheDirectoryExists(controller: Controller): Promise<string> {
-	const cacheDir = path.join(controller.context.globalStorageUri.fsPath, "cache")
-	await fs.mkdir(cacheDir, { recursive: true })
-	return cacheDir
-}
-
-/**
  * Reads cached Baseten models from disk
  */
-async function readBasetenModels(controller: Controller): Promise<Record<string, Partial<OpenRouterModelInfo>> | undefined> {
-	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(controller), GlobalFileNames.basetenModels)
+async function readBasetenModels(): Promise<Record<string, Partial<OpenRouterModelInfo>> | undefined> {
+	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.basetenModels)
 	const fileExists = await fileExistsAtPath(basetenModelsFilePath)
 	if (fileExists) {
 		try {
@@ -219,14 +205,47 @@ function isValidChatModel(rawModel: any): boolean {
  * Generates a descriptive name for the model
  */
 function generateModelDescription(rawModel: any, staticModelInfo?: any): string {
-	// Use static description if available
+	// Use static description if available and preferred
 	if (staticModelInfo?.description) {
 		return staticModelInfo.description
 	}
 
-	// Generate description based on model characteristics
-	const modelId = rawModel.id
-	const ownedBy = rawModel.owned_by || "Unknown"
+	// Use API description if available
+	if (rawModel.description) {
+		const contextWindow = rawModel.context_length
+		const quantization = rawModel.quantization
+		const features = rawModel.supported_features || []
 
-	return `${ownedBy} model: ${modelId}`
+		let description = rawModel.description
+
+		// Add technical details if available
+		const technicalDetails = []
+		if (contextWindow) {
+			technicalDetails.push(`${contextWindow.toLocaleString()} token context`)
+		}
+		if (quantization) {
+			technicalDetails.push(`${quantization} precision`)
+		}
+		if (features.length > 0) {
+			const featureList = features.join(", ")
+			technicalDetails.push(`supports ${featureList}`)
+		}
+
+		if (technicalDetails.length > 0) {
+			description += ` (${technicalDetails.join(", ")})`
+		}
+
+		return description
+	}
+
+	// Fallback: use name or model ID
+	const modelName = rawModel.name || rawModel.id
+	const contextWindow = rawModel.context_length
+	const ownedBy = rawModel.owned_by || "Baseten"
+
+	if (contextWindow) {
+		return `${ownedBy} ${modelName} with ${contextWindow.toLocaleString()} token context window`
+	}
+
+	return `${ownedBy} model: ${modelName}`
 }

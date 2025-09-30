@@ -1,8 +1,6 @@
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import * as chokidar from "chokidar"
 import * as fs from "fs/promises"
-import * as vscode from "vscode"
-import { featureFlagsService } from "@/services/feature-flags"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSay } from "../../../shared/ExtensionMessage"
 import { Mode } from "../../../shared/storage/types"
@@ -22,7 +20,6 @@ export interface FocusChainDependencies {
 	taskId: string
 	taskState: TaskState
 	mode: Mode
-	context: vscode.ExtensionContext
 	stateManager: StateManager
 	postStateToWebview: () => Promise<void>
 	say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
@@ -32,8 +29,6 @@ export interface FocusChainDependencies {
 export class FocusChainManager {
 	private taskId: string
 	private taskState: TaskState
-	private mode: Mode
-	private context: vscode.ExtensionContext
 	private stateManager: StateManager
 	private postStateToWebview: () => Promise<void>
 	private say: (
@@ -51,42 +46,10 @@ export class FocusChainManager {
 	constructor(dependencies: FocusChainDependencies) {
 		this.taskId = dependencies.taskId
 		this.taskState = dependencies.taskState
-		this.mode = dependencies.mode
-		this.context = dependencies.context
 		this.stateManager = dependencies.stateManager
 		this.postStateToWebview = dependencies.postStateToWebview
 		this.say = dependencies.say
 		this.focusChainSettings = dependencies.focusChainSettings
-
-		this.initializeRemoteFeatureFlags().catch((err) =>
-			console.error("Failed to initialize focus chain remote feature flags", err),
-		)
-	}
-
-	/**
-	 * Fetches and caches PostHog remote feature flag for focus chain.
-	 * Updates global state with the current feature flag value and refreshes the webview.
-	 * This method is called during FocusChainManager initialization.
-	 * @returns Promise<void> - Resolves when feature flag is updated, logs errors on failure
-	 */
-	private async initializeRemoteFeatureFlags(): Promise<void> {
-		try {
-			const enabled = await featureFlagsService.getFocusChainEnabled()
-			this.stateManager.setGlobalState("focusChainFeatureFlagEnabled", enabled)
-			await this.postStateToWebview()
-		} catch (error) {
-			console.error("Error initializing focus chain remote feature flags:", error)
-		}
-	}
-
-	/**
-	 * Updates the local mode state to reflect the current Plan/Act mode.
-	 * Called when the task switches between planning and execution modes.
-	 * @param mode - The new Mode value ("plan" or "act")
-	 * @returns void - No return value
-	 */
-	public updateMode(mode: Mode) {
-		this.mode = mode
 	}
 
 	/**
@@ -97,7 +60,7 @@ export class FocusChainManager {
 	 */
 	public async setupFocusChainFileWatcher() {
 		try {
-			const taskDir = await ensureTaskDirectoryExists(this.context, this.taskId)
+			const taskDir = await ensureTaskDirectoryExists(this.taskId)
 			const focusChainFilePath = getFocusChainFilePath(taskDir, this.taskId)
 
 			// Initialize chokidar watcher
@@ -310,7 +273,7 @@ ${this.taskState.currentFocusChainChecklist}
 		}
 
 		// When in plan mode, lists are optional. TODO - May want to improve this soft prompt approach in a future version
-		else if (this.mode === "plan") {
+		else if (this.stateManager.getGlobalSettingsKey("mode") === "plan") {
 			return `\n
 # Todo List (Optional - Plan Mode)\n
 \n
@@ -345,7 +308,7 @@ ${listInstrunctionsReminder}\n`
 	 */
 	private async readFocusChainFromDisk(): Promise<string | null> {
 		try {
-			const taskDir = await ensureTaskDirectoryExists(this.context, this.taskId)
+			const taskDir = await ensureTaskDirectoryExists(this.taskId)
 			const todoFilePath = getFocusChainFilePath(taskDir, this.taskId)
 			const markdownContent = await fs.readFile(todoFilePath, "utf8")
 			const todoList = extractFocusChainListFromText(markdownContent)
@@ -373,7 +336,7 @@ ${listInstrunctionsReminder}\n`
 	 */
 	private async writeFocusChainToDisk(todoList: string): Promise<void> {
 		try {
-			const taskDir = await ensureTaskDirectoryExists(this.context, this.taskId)
+			const taskDir = await ensureTaskDirectoryExists(this.taskId)
 			const todoFilePath = getFocusChainFilePath(taskDir, this.taskId)
 			const fileContent = createFocusChainMarkdownContent(this.taskId, todoList)
 			await writeFile(todoFilePath, fileContent, "utf8")
@@ -457,7 +420,7 @@ ${listInstrunctionsReminder}\n`
 	 */
 	public shouldIncludeFocusChainInstructions(): boolean {
 		// Always include when in Plan mode
-		const inPlanMode = this.mode === "plan"
+		const inPlanMode = this.stateManager.getGlobalSettingsKey("mode") === "plan"
 		// Always include when switching from Plan > Act
 		const justSwitchedFromPlanMode = this.taskState.didRespondToPlanAskBySwitchingMode
 		// Always include when user had edited the list manually

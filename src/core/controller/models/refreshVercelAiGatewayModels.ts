@@ -1,4 +1,4 @@
-import { GlobalFileNames } from "@core/storage/disk"
+import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import { fileExistsAtPath } from "@utils/fs"
@@ -14,13 +14,10 @@ import { Controller } from ".."
  * @returns Response containing Vercel AI Gateway models
  */
 export async function refreshVercelAiGatewayModels(
-	controller: Controller,
+	_controller: Controller,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
-	const vercelAiGatewayModelsFilePath = path.join(
-		await ensureCacheDirectoryExists(controller),
-		GlobalFileNames.vercelAiGatewayModels,
-	)
+	const vercelAiGatewayModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.vercelAiGatewayModels)
 
 	let models: Record<string, OpenRouterModelInfo> = {}
 
@@ -65,7 +62,7 @@ export async function refreshVercelAiGatewayModels(
 		console.error("Error fetching Vercel AI Gateway models:", error)
 
 		// If we failed to fetch models, try to read cached models
-		const cachedModels = await readVercelAiGatewayModels(controller)
+		const cachedModels = await readVercelAiGatewayModels()
 		if (cachedModels) {
 			models = cachedModels
 		}
@@ -77,11 +74,8 @@ export async function refreshVercelAiGatewayModels(
 /**
  * Reads cached Vercel AI Gateway models from disk
  */
-async function readVercelAiGatewayModels(controller: Controller): Promise<Record<string, OpenRouterModelInfo> | undefined> {
-	const vercelAiGatewayModelsFilePath = path.join(
-		await ensureCacheDirectoryExists(controller),
-		GlobalFileNames.vercelAiGatewayModels,
-	)
+async function readVercelAiGatewayModels(): Promise<Record<string, OpenRouterModelInfo> | undefined> {
+	const vercelAiGatewayModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.vercelAiGatewayModels)
 	const fileExists = await fileExistsAtPath(vercelAiGatewayModelsFilePath)
 	if (fileExists) {
 		try {
@@ -93,13 +87,4 @@ async function readVercelAiGatewayModels(controller: Controller): Promise<Record
 		}
 	}
 	return undefined
-}
-
-/**
- * Ensures the cache directory exists and returns its path
- */
-async function ensureCacheDirectoryExists(controller: Controller): Promise<string> {
-	const cacheDir = path.join(controller.context.globalStorageUri.fsPath, "cache")
-	await fs.mkdir(cacheDir, { recursive: true })
-	return cacheDir
 }

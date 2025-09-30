@@ -1,65 +1,254 @@
 ---
 title: "Installing Cline"
-description: "Cline is a VS Code extension that brings AI-powered coding assistance directly
-    to your editor. Install using one of these methods:"
+description: "Get Cline set up in your editor and start building projects with AI assistance."
 ---
 
-### Installation Options
+## Prerequisites
 
--   **VS Code Marketplace (Recommended):** Fastest method for standard VS Code and Cursor users.
--   **Open VSX Registry:** For VS Code-compatible editors like VSCodium.
+Before installing Cline, make sure you have the following:
 
-### VS Code Marketplace: Step-by-Step Setup
+### Create a Cline Account
 
-Follow these steps to get Cline up and running:
+Create a Cline account for the best experience. Creating a Cline account is completely free and you can [sign up here](https://app.cline.bot/signup). A Cline account provides:
+- Access to multiple AI models including stealth models
+- Seamless setup without needing to manage API keys
+- At times, we partner with model providers to offer inferencing at no cost through your Cline account
 
-1.  **Open VS Code:** Launch the VS Code application.
+### Compatible Editor
 
-    > **Note:** If VS Code shows "Running extensions might...", click "Allow".
+Cline works with the following IDEs:
+- **VS Code** - Microsoft's popular code editor
+- **Cursor** - AI-powered code editor based on VS Code
+- **JetBrains IDEs** - IntelliJ IDEA, PyCharm, WebStorm, DataSpell, PhpStorm, and other JetBrains products
+- **VSCodium** - Open-source version of VS Code
+- **Windsurf** - VS Code-compatible editor
 
-2.  **Open Your Cline Folder:** In VS Code, open the Cline folder you created in Documents.
-3.  **Navigate to Extensions:** Click on the Extensions icon in the Activity Bar on the side of VS Code (`Ctrl + Shift + X` or `Cmd + Shift + X`).
-4.  **Search for 'Cline':** In the Extensions search bar, type `Cline`.
+Make sure you have one of these editors installed before proceeding with the Cline installation.
 
-<Frame caption="VS Code marketplace with Cline extension ready to install">
-	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(20).png"
-		alt="VS Code marketplace showing Cline extension"
-	/>
-</Frame>
+## Choose Your Editor
 
-1. **Install the Extension:** Click the "Install" button next to the Cline extension.
-2. **Open Cline:**
-    - Click the Cline icon in the Activity Bar.
-    - Or, use the command palette (`Ctrl/Cmd + Shift + P`) and type "Cline: Open In New Tab" for a better view.
-3. **Troubleshooting:** If you don't see the Cline icon, try restarting VS Code.
+Cline works across multiple IDEs. Select your preferred editor below for installation instructions:
 
-> **Pro Tip:** You should see the Cline chat window appear in your VS Code editor!
+<Tabs>
+  <Tab title="VS Code/Cursor" icon="code">
+    ### Installation Steps
 
-### Open VSX Registry
+    1. **Open VS Code** and navigate to the Extensions view (`Ctrl/Cmd + Shift + X`)
+    2. **Search for "Cline"** in the Extensions marketplace
+    3. **Click Install** on the Cline extension
 
-For VS Code-compatible editors without Marketplace access (like VSCodium and Windsurf):
+    <Frame caption="VS Code marketplace with Cline extension ready to install">
+    	<img
+    		src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(20).png"
+    		alt="VS Code marketplace showing Cline extension"
+    	/>
+    </Frame>
 
-1. Open your editor.
-2. Access the Extensions view.
-3. Search for "Cline".
-4. Select "Cline" by saoudrizwan and click **Install**.
-5. Reload if prompted.
+    4. **Access Cline** after installation:
+       - Click the Cline icon in the Activity Bar, or
+       - Use Command Palette (`Ctrl/Cmd + Shift + P`) → "Cline: Open In New Tab"
 
-### Creating Your Cline Account
+    > **Note:** If VS Code shows "Running extensions might..." dialog, click "Allow". If you don't see the Cline icon, restart VS Code.
 
-Now that you have Cline installed, let's get you set up with your account:
+    <Accordion title="Troubleshooting">
 
-1. **Sign In to Cline:**
-    - Click the **Sign In** button in the Cline extension.
-    - You'll be taken to [app.cline.bot](https://app.cline.bot) to create your account.
-2. **Start with Free Credits:**
-    - No credit card needed!
-3. **Available AI Models:**
-    - Anthropic Claude 3.5-Sonnet (recommended for coding)
-    - DeepSeek Chat (cost-effective alternative)
-    - Google Gemini 2.0 Flash
-    - And more — all through your Cline account.
+    **Plugin Installation Issues**
+
+    If you can't find Cline in the marketplace:
+    - Make sure you're searching in the **Marketplace** tab (not Installed)
+    - Try searching for "Cline AI" or just "Cline"
+    - Check that your VS Code version is compatible
+
+    If installation fails:
+    - Restart your VS Code and try again
+    - Check your internet connection
+    - Try installing from VSIX file as an alternative
+
+    **Plugin Not Appearing**
+
+    If you don't see the Cline tool window after installation:
+    - Restart VS Code completely (File → Exit and reopen)
+    - Check **View** → **Command Palette** → "Cline: Open In New Tab"
+    - Verify the plugin is enabled in **Extensions** view
+    - Look for the Cline icon in your Activity Bar (usually on the left side)
+
+    **Common Issues**
+
+    Plugin appears to be installed but doesn't work:
+    - Ensure you've restarted VS Code after installation
+    - Check if there are any error messages in the Developer Console
+    - Try disabling and re-enabling the extension
+
+    Performance or compatibility issues:
+    - Make sure you're using a supported VS Code version
+    - Check for VS Code updates that might improve compatibility
+    - Consider closing other resource-intensive extensions if needed
+
+    Need help? Join our [Discord community](https://discord.gg/cline).
+
+    </Accordion>
+  </Tab>
+  
+  <Tab title="JetBrains IDEs" icon="brain">
+    <img
+    	src="https://storage.googleapis.com/cline_public_images/docs/assets/jetbrains-logo.svg"
+    	alt="JetBrains logo"
+    	style={{ width: "200px", height: "auto", margin: "0 auto 20px auto", display: "block" }}
+    />
+
+    Cline for JetBrains works almost identically to Cline in VSCode. All the core features work properly: diff editing, using tools, logging in with different providers, MCP servers, Cline rules and workflows, and more.
+
+
+    ### Installation Steps
+
+    **Method 1: From IDE (Recommended)**
+    1. Open your JetBrains IDE
+    2. Go to **Settings** (`Ctrl+Alt+S` on Windows/Linux, `Cmd+,` on macOS)
+    3. Navigate to **Plugins** → **Marketplace**
+    4. Search for "Cline" and click **Install**
+    5. Restart your IDE
+
+    <Frame>
+    	<img
+    		src="https://storage.googleapis.com/cline_public_images/docs/assets/cline-jetbrains-marketplace-search.png"
+    		alt="JetBrains marketplace showing Cline plugin search results"
+    	/>
+    </Frame>
+
+    **Method 2: Browser Install**
+    
+    Visit the [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/28247-cline) and click **Install to IDE**.
+
+    <Accordion title="Method 3: Manual Installation">
+
+    1. Download the plugin from the [marketplace page](https://plugins.jetbrains.com/plugin/28247-cline)
+    2. Go to **Settings** → **Plugins**
+    3. Click the gear icon → **Install Plugin from Disk**
+    4. Select the downloaded `.zip` file
+    5. Restart your IDE
+
+    </Accordion>
+
+    ### Using the Plugin
+
+    After installation, you’ll find Cline in your IDE. Look for the Cline tool window (usually on the right side) or go to View → Tool Windows → Cline.
+
+    ### Key Features
+
+    Cline for JetBrains includes all core features:
+    - Diff editing and file modifications
+    - Multiple API providers (Anthropic, OpenAI, local models)
+    - MCP servers and custom tools
+    - Cline rules and workflows
+    - @ mentions for files, folders, and problems
+    - Drag & drop support
+
+    > **Note:** Terminal output appears in collapsible sections rather than streaming directly to chat.
+
+    ### Key Differences from VSCode
+    The terminal integration works differently in JetBrains. Unlike VSCode where terminal output streams directly to the chat, JetBrains shows command output in a collapsible section. Commands still execute successfully - you just need to expand the Command Output section to see results.
+
+    <Accordion title="Troubleshooting">
+
+    **Plugin Installation Issues**
+
+    If you can't find Cline in the marketplace:
+    - Make sure you're searching in the **Marketplace** tab (not Installed)
+    - Try searching for "Cline AI" or just "Cline"
+    - Check that your IDE version is compatible (2023.1 or later recommended)
+
+    If installation fails:
+    - Restart your IDE and try again
+    - Check your internet connection
+    - Try installing from disk as an alternative
+
+    **Plugin Not Appearing**
+
+    If you don't see the Cline tool window after installation:
+    - Restart your IDE completely (File → Exit and reopen)
+    - Check **View** → **Tool Windows** → **Cline**
+    - Verify the plugin is enabled in **Settings** → **Plugins** → **Installed** tab
+    - Look for the Cline icon in your IDE's tool window bar (usually on the right side)
+
+    **Common Issues**
+
+    Plugin appears to be installed but doesn't work:
+    - Ensure you've restarted your IDE after installation
+    - Check if there are any error messages in the IDE's event log
+    - Try disabling and re-enabling the plugin in Settings
+
+    Performance or compatibility issues:
+    - Make sure you're using a supported JetBrains IDE version
+    - Check for IDE updates that might improve compatibility
+    - Consider allocating more memory to your IDE if needed
+
+    Need help? Join our [Discord community](https://discord.gg/cline).
+
+    </Accordion>
+  </Tab>
+  
+  <Tab title="VSCodium/Windsurf" icon="terminal">
+    ### Installation Steps
+
+    For VS Code-compatible editors using Open VSX Registry:
+
+    1. **Open your editor** (VSCodium, Windsurf, etc.)
+    2. **Navigate to Extensions view** (`Ctrl/Cmd + Shift + X`)
+    3. **Search for "Cline"** in the marketplace
+    4. **Select "Cline" by saoudrizwan** and click **Install**
+    5. **Reload** if prompted
+
+    > **Note:** These editors use the Open VSX Registry instead of the VS Code Marketplace.
+
+    <Accordion title="Troubleshooting">
+
+    **Plugin Installation Issues**
+
+    If you can't find Cline in the marketplace:
+    - Make sure you're searching in the **Marketplace** tab (not Installed)
+    - Try searching for "Cline AI" or just "Cline"
+    - Check that your editor version is compatible
+
+    If installation fails:
+    - Restart your editor and try again
+    - Check your internet connection
+    - Try installing from disk as an alternative
+
+    **Plugin Not Appearing**
+
+    If you don't see the Cline tool window after installation:
+    - Restart your editor completely (File → Exit and reopen)
+    - Check **View** → **Command Palette** → "Cline: Open In New Tab"
+    - Verify the plugin is enabled in **Extensions** view
+    - Look for the Cline icon in your Activity Bar (usually on the left side)
+
+    **Common Issues**
+
+    Plugin appears to be installed but doesn't work:
+    - Ensure you've restarted your editor after installation
+    - Check if there are any error messages in the Developer Console
+    - Try disabling and re-enabling the extension
+
+    Performance or compatibility issues:
+    - Make sure you're using a supported editor version
+    - Check for editor updates that might improve compatibility
+    - Consider closing other resource-intensive extensions if needed
+
+    Need help? Join our [Discord community](https://discord.gg/cline).
+
+    </Accordion>
+  </Tab>
+</Tabs>
+
+### Sign In to Your Cline Account
+
+Now that you have Cline installed, sign in to access your account:
+
+1. **Open Cline** in your editor (click the Cline icon in the Activity Bar or Tool Windows)
+2. **Click "Sign In"** - you'll see this button in the Cline interface
+3. **Complete authentication** - you'll be redirected to [app.cline.bot](https://app.cline.bot) to sign in
+4. **Return to your editor** - once signed in, you'll be automatically redirected back
+
 
 ### Your First Interaction with Cline
 
@@ -80,4 +269,4 @@ Hey Cline! Could you help me create a new project folder called "hello-world" in
 
 ### Still Struggling?
 
-Join our Discord community and engage with our team and other Cline users directly.
+Join our [Discord community](https://discord.gg/cline) and engage with our team and other Cline users directly.

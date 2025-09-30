@@ -1,4 +1,4 @@
-import { bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_4_1M_SUFFIX } from "@shared/api"
+import { bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
@@ -21,7 +21,7 @@ interface BedrockProviderProps {
 
 export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: BedrockProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleFieldsChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
 
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
@@ -108,7 +108,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					{/* The user will have to choose a region that supports the model they use, but this shouldn't be a problem since they'd have to request access for it in that region in the first place. */}
 					<VSCodeOption value="us-east-1">us-east-1</VSCodeOption>
 					<VSCodeOption value="us-east-2">us-east-2</VSCodeOption>
-					{/* <VSCodeOption value="us-west-1">us-west-1</VSCodeOption> */}
+					<VSCodeOption value="us-west-1">us-west-1</VSCodeOption>
 					<VSCodeOption value="us-west-2">us-west-2</VSCodeOption>
 					{/* <VSCodeOption value="af-south-1">af-south-1</VSCodeOption> */}
 					{/* <VSCodeOption value="ap-east-1">ap-east-1</VSCodeOption> */}
@@ -304,7 +304,9 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 
 					{(selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0" ||
 						selectedModelId === "anthropic.claude-sonnet-4-20250514-v1:0" ||
-						selectedModelId === `anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_4_1M_SUFFIX}` ||
+						selectedModelId === "anthropic.claude-sonnet-4-5-20250929-v1:0" ||
+						selectedModelId === `anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_1M_SUFFIX}` ||
+						selectedModelId === `anthropic.claude-sonnet-4-5-20250929-v1:0${CLAUDE_SONNET_1M_SUFFIX}` ||
 						selectedModelId === "anthropic.claude-opus-4-1-20250805-v1:0" ||
 						selectedModelId === "anthropic.claude-opus-4-20250514-v1:0" ||
 						(modeFields.awsBedrockCustomSelected &&
@@ -312,8 +314,13 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						(modeFields.awsBedrockCustomSelected &&
 							modeFields.awsBedrockCustomModelBaseId === "anthropic.claude-sonnet-4-20250514-v1:0") ||
 						(modeFields.awsBedrockCustomSelected &&
+							modeFields.awsBedrockCustomModelBaseId === "anthropic.claude-sonnet-4-5-20250929-v1:0") ||
+						(modeFields.awsBedrockCustomSelected &&
 							modeFields.awsBedrockCustomModelBaseId ===
-								`anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_4_1M_SUFFIX}`) ||
+								`anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_1M_SUFFIX}`) ||
+						(modeFields.awsBedrockCustomSelected &&
+							modeFields.awsBedrockCustomModelBaseId ===
+								`anthropic.claude-sonnet-4-5-20250929-v1:0${CLAUDE_SONNET_1M_SUFFIX}`) ||
 						(modeFields.awsBedrockCustomSelected &&
 							modeFields.awsBedrockCustomModelBaseId === "anthropic.claude-opus-4-1-20250805-v1:0") ||
 						(modeFields.awsBedrockCustomSelected &&

@@ -1,3 +1,5 @@
+import { getShell } from "@utils/shell"
+
 export const newTaskToolResponse = () =>
 	`<explicit_instructions type="new_task">
 The user has explicitly asked you to help them create a new task with preloaded context, which you will generate. The user may have provided instructions or additional information for you to consider when summarizing existing work and creating the context for the new task.
@@ -198,8 +200,16 @@ Below is the user's input when they indicated that they wanted to submit a Githu
 `
 
 export const deepPlanningToolResponse = (focusChainSettings?: { enabled: boolean }) => {
-	const detectedShell = require("@utils/shell").getShell()
-	const isPowerShell = detectedShell.toLowerCase().includes("powershell") || detectedShell.toLowerCase().includes("pwsh")
+	const detectedShell = getShell()
+
+	// FIXME: detectedShell returns a non-string value on some Windows machines
+	let isPowerShell = false
+	try {
+		isPowerShell =
+			detectedShell != null &&
+			typeof detectedShell === "string" &&
+			(detectedShell.toLowerCase().includes("powershell") || detectedShell.toLowerCase().includes("pwsh"))
+	} catch {}
 
 	return `<explicit_instructions type="deep-planning">
 Your task is to create a comprehensive implementation plan before writing any code. This process has four distinct steps that must be completed in order.

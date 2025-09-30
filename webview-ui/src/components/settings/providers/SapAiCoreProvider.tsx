@@ -194,7 +194,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 					<div className="flex items-center gap-2">
 						<VSCodeCheckbox
 							aria-label="Orchestration Mode"
-							checked={apiConfiguration?.sapAiCoreUseOrchestrationMode ?? true}
+							checked={apiConfiguration?.sapAiCoreUseOrchestrationMode}
 							onChange={(e) => handleOrchestrationChange((e.target as HTMLInputElement).checked)}
 						/>
 						<span className="font-medium">Orchestration Mode</span>
@@ -243,7 +243,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 										]
 									}
 									selectedModelId={selectedModelId || ""}
-									useOrchestrationMode={apiConfiguration?.sapAiCoreUseOrchestrationMode ?? true}
+									useOrchestrationMode={apiConfiguration?.sapAiCoreUseOrchestrationMode}
 								/>
 							</>
 						) : (

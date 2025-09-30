@@ -117,7 +117,7 @@ export class ClineDataMock {
 	public getUserByToken(token?: string): UserResponse {
 		// Use default personal token if none provided
 		const actualToken = token || ClineDataMock.getDefaultToken("personal") || "test-personal-token"
-		const currentUser = this._getUserByToken(actualToken)
+		const currentUser = this._getUserByToken(actualToken.replace("_access", "")) // Remove _access suffix if present
 		this.setCurrentUser(currentUser)
 		return currentUser
 	}
@@ -169,8 +169,8 @@ export class ClineDataMock {
 		const firstUsage = orgId ? 6000 : 1000
 
 		for (let i = 0; i < max; i++) {
-			const completionTokens = Math.floor(Math.random() * 100) + 50 // 50-150 tokens
-			const randomCost = i === 0 ? firstUsage : Math.random() * 0.1 + 0.01 // $0.01-$0.11
+			const completionTokens = 50 + i * 10 // 50, 60, ...
+			const randomCost = i === 0 ? firstUsage : 0.01 + i * 0.02 // $0.01, $0.03, ...
 
 			usages.push({
 				id: `usage-${i + 1}`,
@@ -203,8 +203,8 @@ export class ClineDataMock {
 		const currentTime = new Date().toISOString()
 
 		for (let i = 0; i < max; i++) {
-			const amountCents = Math.floor(Math.random() * 10000) + 1000 // $10.00-$110.00
-			const credits = Math.random() * 100 + 10 // 10-110 credits
+			const amountCents = 1000 + i * 1000 // $10.00, $20.00, $30.00, ...
+			const credits = 10 + i * 20 // 10, 30, 50 ...
 
 			transactions.push({
 				paidAt: currentTime,
