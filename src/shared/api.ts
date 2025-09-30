@@ -3480,11 +3480,23 @@ export type BasetenModelId = keyof typeof basetenModels
 export const basetenDefaultModelId = "moonshotai/Kimi-K2-Instruct" satisfies BasetenModelId
 
 // Z AI
-// https://docs.z.ai/guides/llm/glm-4.5
+// https://docs.z.ai/guides/llm/glm-4.6
 // https://docs.z.ai/guides/overview/pricing
 export type internationalZAiModelId = keyof typeof internationalZAiModels
-export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.5"
+export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.6"
 export const internationalZAiModels = {
+	"glm-4.6": {
+		maxTokens: 98_304,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.11,
+		description:
+			"GLM-4.6 is Zhipu's latest SOTA models for reasoning, code, and agentsUpgraded across 8 authoritative benchmarks. With a 355B-parameter MoE architecture and 200K context, it surpasses GLM-4.5 in coding, reasoning, search, writing, and agent applications.",
+	},
 	"glm-4.5": {
 		maxTokens: 98_304,
 		contextWindow: 131_072,
@@ -3495,7 +3507,7 @@ export const internationalZAiModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.11,
 		description:
-			"GLM-4.5 is Zhipu's latest featured model. Its comprehensive capabilities in reasoning, coding, and agent reach the state-of-the-art (SOTA) level among open-source models, with a context length of up to 128k.",
+			"GLM-4.5 is Zhipu's previous flagship model. Its comprehensive capabilities in reasoning, coding, and agent are excellent among open-source models, with a context length of up to 128k.",
 	},
 	"glm-4.5-air": {
 		maxTokens: 98304, // Quantization: fp8
@@ -3512,8 +3524,40 @@ export const internationalZAiModels = {
 } as const satisfies Record<string, ModelInfo>
 
 export type mainlandZAiModelId = keyof typeof mainlandZAiModels
-export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.5"
+export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.6"
 export const mainlandZAiModels = {
+	"glm-4.6": {
+		maxTokens: 98_304,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.29,
+		outputPrice: 1.14,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0.057,
+		description:
+			"GLM-4.6 is Zhipu's latest SOTA models for reasoning, code, and agentsUpgraded across 8 authoritative benchmarks. With a 355B-parameter MoE architecture and 200K context, it surpasses GLM-4.5 in coding, reasoning, search, writing, and agent applications.",
+		tiers: [
+			{
+				contextWindow: 32_000,
+				inputPrice: 0.21,
+				outputPrice: 1.0,
+				cacheReadsPrice: 0.043,
+			},
+			{
+				contextWindow: 128_000,
+				inputPrice: 0.29,
+				outputPrice: 1.14,
+				cacheReadsPrice: 0.057,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.29,
+				outputPrice: 1.14,
+				cacheReadsPrice: 0.057,
+			},
+		],
+	},
 	"glm-4.5": {
 		maxTokens: 98_304,
 		contextWindow: 131_072,
@@ -3524,7 +3568,7 @@ export const mainlandZAiModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0.057,
 		description:
-			"GLM-4.5 is Zhipu's latest featured model. Its comprehensive capabilities in reasoning, coding, and agent reach the state-of-the-art (SOTA) level among open-source models, with a context length of up to 128k.",
+			"GLM-4.5 is Zhipu's previous flagship model. Its comprehensive capabilities in reasoning, coding, and agent are excellent among open-source models, with a context length of up to 128k.",
 		tiers: [
 			{
 				contextWindow: 32_000,
