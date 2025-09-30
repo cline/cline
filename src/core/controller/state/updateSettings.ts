@@ -43,7 +43,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setApiConfiguration(convertedApiConfigurationFromProto)
 
 			if (controller.task) {
-				const currentMode = await controller.getCurrentMode()
+				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
 				const apiConfigForHandler = {
 					...convertedApiConfigurationFromProto,
 					ulid: controller.task.ulid,
@@ -285,6 +285,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		if (request.autoCondenseThreshold !== undefined) {
 			const threshold = Math.min(1, Math.max(0, request.autoCondenseThreshold)) // Clamp to 0-1 range
 			controller.stateManager.setGlobalState("autoCondenseThreshold", threshold)
+		}
+
+		if (request.multiRootEnabled !== undefined) {
+			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
 		}
 
 		// Post updated state to webview

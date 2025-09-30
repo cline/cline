@@ -116,12 +116,9 @@ export const AutoCondenseMarker: React.FC<{
 				}}>
 				{(isContextWindowHoverOpen || isAnimating || showPercentageAfterAnimation) && (
 					<div
-						className={cn(
-							"absolute -top-4 -left-1 text-button-background font-mono text-xs transition-opacity duration-300",
-							{
-								"opacity-0": isFadingOut,
-							},
-						)}>
+						className={cn("absolute -top-4 -left-1 text-button-background font-mono text-xs", {
+							"opacity-0": isFadingOut,
+						})}>
 						{marker.label}%
 					</div>
 				)}

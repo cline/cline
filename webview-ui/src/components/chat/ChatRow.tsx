@@ -586,7 +586,8 @@ export const ChatRowContent = memo(
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
-									Cline wants to search this directory for <code>{tool.regex}</code>:
+									Cline wants to search this directory for{" "}
+									<code style={{ wordBreak: "break-all" }}>{tool.regex}</code>:
 								</span>
 							</div>
 							<SearchResultsDisplay
@@ -1125,7 +1126,7 @@ export const ChatRowContent = memo(
 									}}>
 									{icon}
 									{title}
-									<TaskFeedbackButtons
+									{/* <TaskFeedbackButtons
 										isFromHistory={
 											!isLast ||
 											lastModifiedMessage?.ask === "resume_completed_task" ||
@@ -1135,7 +1136,7 @@ export const ChatRowContent = memo(
 										style={{
 											marginLeft: "auto",
 										}}
-									/>
+									/> */}
 								</div>
 								<WithCopyButton
 									onMouseUp={handleMouseUp}

@@ -120,7 +120,7 @@ export class AuthService {
 	 */
 	async getAuthToken(): Promise<string | null> {
 		try {
-			const clineAccountAuthToken = this._clineAuthInfo?.idToken
+			let clineAccountAuthToken = this._clineAuthInfo?.idToken
 			if (!this._clineAuthInfo || !clineAccountAuthToken) {
 				// Not authenticated
 				return null
@@ -133,12 +133,14 @@ export class AuthService {
 				if (updatedAuthInfo) {
 					this._clineAuthInfo = updatedAuthInfo
 					this._authenticated = true
+					clineAccountAuthToken = updatedAuthInfo.idToken
 				} else {
 					this._clineAuthInfo = null
 					this._authenticated = false
 				}
 				await this.sendAuthStatusUpdate()
 			}
+
 			// IMPORTANT: Prefix with 'workos:' so backend can route verification to WorkOS provider
 			const prefix = this._provider?.name === "cline" ? "workos:" : ""
 			return clineAccountAuthToken ? `${prefix}${clineAccountAuthToken}` : null
@@ -339,12 +341,13 @@ export class AuthService {
 		await Promise.all(streamSends)
 
 		// Identify the user in telemetry if available
-		// Fetch the feature flags for the user
 		if (this._clineAuthInfo?.userInfo?.id) {
 			telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
+			// Reset feature flags to ensure they are fetched for the new/logged in user
 			featureFlagsService.reset()
-			await featureFlagsService.poll()
 		}
+		// Poll feature flags to ensure they are up to date for all users
+		await featureFlagsService.poll()
 
 		// Update state in webviews once per unique controller
 		await Promise.all(Array.from(uniqueControllers).map((c) => c.postStateToWebview()))
