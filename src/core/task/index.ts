@@ -2369,7 +2369,7 @@ export class Task {
 			section += `\n- ${name}: ${root.path}${vcs}`
 		}
 
-		// Add primary workspace information
+		// Add primary workspace i
 		const primary = this.workspaceManager!.getPrimaryRoot()
 		const primaryName = this.getPrimaryWorkspaceName(primary)
 		section += `\n\nPrimary workspace: ${primaryName}`
