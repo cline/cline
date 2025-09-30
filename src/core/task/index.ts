@@ -31,6 +31,7 @@ import {
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 } from "@core/storage/disk"
+import { VcsType } from "@core/workspace"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkpoints/factory"
 import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializer"
@@ -2548,9 +2549,33 @@ export class Task {
 			}
 
 			// Add git remote URLs section
-			const gitRemotes = await getGitRemoteUrls(this.cwd)
-			if (gitRemotes.length > 0) {
-				details += `\n\n# Git Remote URLs\n${gitRemotes.join("\n")}`
+			const isMultiRootEnabled = featureFlagsService.getMultiRootEnabled()
+			const workspaceRoots = this.workspaceManager?.getRoots() ?? []
+
+			if (isMultiRootEnabled && workspaceRoots.length > 1) {
+				const remoteSections: string[] = []
+				for (const root of workspaceRoots) {
+					if (root.vcs !== VcsType.Git) {
+						continue
+					}
+
+					const gitRemotes = await getGitRemoteUrls(root.path)
+					if (gitRemotes.length === 0) {
+						continue
+					}
+
+					const rootLabel = root.name || path.basename(root.path)
+					remoteSections.push(`## ${rootLabel}\n${gitRemotes.join("\n")}`)
+				}
+
+				if (remoteSections.length > 0) {
+					details += `\n\n# Git Remote URLs\n${remoteSections.join("\n\n")}`
+				}
+			} else {
+				const gitRemotes = await getGitRemoteUrls(this.cwd)
+				if (gitRemotes.length > 0) {
+					details += `\n\n# Git Remote URLs\n${gitRemotes.join("\n")}`
+				}
 			}
 
 			const latestGitHash = await getLatestGitCommitHash(this.cwd)
