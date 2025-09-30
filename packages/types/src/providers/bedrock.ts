@@ -457,7 +457,6 @@ export const BEDROCK_REGIONS = [
 	{ value: "us-gov-west-1", label: "us-gov-west-1" },
 ].sort((a, b) => a.value.localeCompare(b.value))
 
-export const BEDROCK_CLAUDE_SONNET_4_MODEL_ID = "anthropic.claude-sonnet-4-20250514-v1:0"
 export const BEDROCK_1M_CONTEXT_MODEL_IDS = [
 	"anthropic.claude-sonnet-4-20250514-v1:0",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",

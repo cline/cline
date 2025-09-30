@@ -21,7 +21,6 @@ import {
 	BEDROCK_MAX_TOKENS,
 	BEDROCK_DEFAULT_CONTEXT,
 	AWS_INFERENCE_PROFILE_MAPPING,
-	BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
 	BEDROCK_1M_CONTEXT_MODEL_IDS,
 } from "@roo-code/types"
 
@@ -373,7 +372,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			maxTokens: modelConfig.maxTokens || (modelConfig.info.maxTokens as number),
 			temperature: modelConfig.temperature ?? (this.options.modelTemperature as number),
 		}
-	
+
 		// Check if 1M context is enabled for Claude Sonnet 4
 		// Use parseBaseModelId to handle cross-region inference prefixes
 		const baseModelId = this.parseBaseModelId(modelConfig.id)

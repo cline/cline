@@ -25,7 +25,7 @@ vi.mock("@aws-sdk/client-bedrock-runtime", () => {
 
 import { AwsBedrockHandler } from "../bedrock"
 import { ConverseStreamCommand, BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime"
-import { BEDROCK_CLAUDE_SONNET_4_MODEL_ID } from "@roo-code/types"
+import { BEDROCK_1M_CONTEXT_MODEL_IDS } from "@roo-code/types"
 
 import type { Anthropic } from "@anthropic-ai/sdk"
 
@@ -569,7 +569,7 @@ describe("AwsBedrockHandler", () => {
 	describe("1M context beta feature", () => {
 		it("should enable 1M context window when awsBedrock1MContext is true for Claude Sonnet 4", () => {
 			const handler = new AwsBedrockHandler({
-				apiModelId: BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+				apiModelId: BEDROCK_1M_CONTEXT_MODEL_IDS[0],
 				awsAccessKey: "test",
 				awsSecretKey: "test",
 				awsRegion: "us-east-1",
@@ -584,7 +584,7 @@ describe("AwsBedrockHandler", () => {
 
 		it("should use default context window when awsBedrock1MContext is false for Claude Sonnet 4", () => {
 			const handler = new AwsBedrockHandler({
-				apiModelId: BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+				apiModelId: BEDROCK_1M_CONTEXT_MODEL_IDS[0],
 				awsAccessKey: "test",
 				awsSecretKey: "test",
 				awsRegion: "us-east-1",
@@ -614,7 +614,7 @@ describe("AwsBedrockHandler", () => {
 
 		it("should include anthropic_beta parameter when 1M context is enabled", async () => {
 			const handler = new AwsBedrockHandler({
-				apiModelId: BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+				apiModelId: BEDROCK_1M_CONTEXT_MODEL_IDS[0],
 				awsAccessKey: "test",
 				awsSecretKey: "test",
 				awsRegion: "us-east-1",
@@ -644,7 +644,7 @@ describe("AwsBedrockHandler", () => {
 
 		it("should not include anthropic_beta parameter when 1M context is disabled", async () => {
 			const handler = new AwsBedrockHandler({
-				apiModelId: BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+				apiModelId: BEDROCK_1M_CONTEXT_MODEL_IDS[0],
 				awsAccessKey: "test",
 				awsSecretKey: "test",
 				awsRegion: "us-east-1",
@@ -698,7 +698,7 @@ describe("AwsBedrockHandler", () => {
 
 		it("should enable 1M context window with cross-region inference for Claude Sonnet 4", () => {
 			const handler = new AwsBedrockHandler({
-				apiModelId: BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+				apiModelId: BEDROCK_1M_CONTEXT_MODEL_IDS[0],
 				awsAccessKey: "test",
 				awsSecretKey: "test",
 				awsRegion: "us-east-1",
@@ -711,12 +711,12 @@ describe("AwsBedrockHandler", () => {
 			// Should have 1M context window even with cross-region prefix
 			expect(model.info.contextWindow).toBe(1_000_000)
 			// Model ID should have cross-region prefix
-			expect(model.id).toBe(`us.${BEDROCK_CLAUDE_SONNET_4_MODEL_ID}`)
+			expect(model.id).toBe(`us.${BEDROCK_1M_CONTEXT_MODEL_IDS[0]}`)
 		})
 
 		it("should include anthropic_beta parameter with cross-region inference for Claude Sonnet 4", async () => {
 			const handler = new AwsBedrockHandler({
-				apiModelId: BEDROCK_CLAUDE_SONNET_4_MODEL_ID,
+				apiModelId: BEDROCK_1M_CONTEXT_MODEL_IDS[0],
 				awsAccessKey: "test",
 				awsSecretKey: "test",
 				awsRegion: "us-east-1",
@@ -746,7 +746,7 @@ describe("AwsBedrockHandler", () => {
 			// Should not include anthropic_version since thinking is not enabled
 			expect(commandArg.additionalModelRequestFields.anthropic_version).toBeUndefined()
 			// Model ID should have cross-region prefix
-			expect(commandArg.modelId).toBe(`us.${BEDROCK_CLAUDE_SONNET_4_MODEL_ID}`)
+			expect(commandArg.modelId).toBe(`us.${BEDROCK_1M_CONTEXT_MODEL_IDS[0]}`)
 		})
 	})
 })
