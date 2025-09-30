@@ -85,6 +85,26 @@ import { detectAvailableCliTools, updateApiReqMsg } from "./utils"
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
 
+type TaskParams = {
+	controller: Controller
+	mcpHub: McpHub
+	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
+	postStateToWebview: () => Promise<void>
+	reinitExistingTaskFromId: (taskId: string) => Promise<void>
+	cancelTask: () => Promise<void>
+	shellIntegrationTimeout: number
+	terminalReuseEnabled: boolean
+	terminalOutputLineLimit: number
+	defaultTerminalProfile: string
+	cwd: string
+	stateManager: StateManager
+	workspaceManager?: WorkspaceRootManager
+	task?: string
+	images?: string[]
+	files?: string[]
+	historyItem?: HistoryItem
+}
+
 export class Task {
 	// Core task variables
 	readonly taskId: string
@@ -132,25 +152,27 @@ export class Task {
 	// Workspace manager
 	workspaceManager?: WorkspaceRootManager
 
-	constructor(
-		controller: Controller,
-		mcpHub: McpHub,
-		updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>,
-		postStateToWebview: () => Promise<void>,
-		reinitExistingTaskFromId: (taskId: string) => Promise<void>,
-		cancelTask: () => Promise<void>,
-		shellIntegrationTimeout: number,
-		terminalReuseEnabled: boolean,
-		terminalOutputLineLimit: number,
-		defaultTerminalProfile: string,
-		cwd: string,
-		stateManager: StateManager,
-		workspaceManager?: WorkspaceRootManager,
-		task?: string,
-		images?: string[],
-		files?: string[],
-		historyItem?: HistoryItem,
-	) {
+	constructor(params: TaskParams) {
+		const {
+			controller,
+			mcpHub,
+			updateTaskHistory,
+			postStateToWebview,
+			reinitExistingTaskFromId,
+			cancelTask,
+			shellIntegrationTimeout,
+			terminalReuseEnabled,
+			terminalOutputLineLimit,
+			defaultTerminalProfile,
+			cwd,
+			stateManager,
+			workspaceManager,
+			task,
+			images,
+			files,
+			historyItem,
+		} = params
+
 		this.taskInitializationStartTime = performance.now()
 		this.taskState = new TaskState()
 		this.controller = controller
