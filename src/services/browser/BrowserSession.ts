@@ -36,7 +36,6 @@ function splitArgs(str?: string | null): string[] {
 }
 
 export class BrowserSession {
-	private context: vscode.ExtensionContext
 	private browser?: Browser
 	private page?: Page
 	private currentMousePosition?: string
@@ -51,8 +50,7 @@ export class BrowserSession {
 	private ulid?: string
 	private stateManager: StateManager
 
-	constructor(context: vscode.ExtensionContext, stateManager: StateManager, useWebp: boolean = true) {
-		this.context = context
+	constructor(stateManager: StateManager, useWebp: boolean = true) {
 		this.stateManager = stateManager
 		this.useWebp = useWebp
 	}

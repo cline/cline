@@ -9,7 +9,6 @@ import { getCommitInfo, getWorkingState } from "@utils/git"
 import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
 import * as path from "path"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { DiagnosticSeverity } from "@/shared/proto/index.cline"
@@ -38,7 +37,7 @@ export async function openMention(mention?: string): Promise<void> {
 	} else if (mention === "problems") {
 		await HostProvider.workspace.openProblemsPanel({})
 	} else if (mention === "terminal") {
-		vscode.commands.executeCommand("workbench.action.terminal.focus")
+		await HostProvider.workspace.openTerminalPanel({})
 	} else if (mention.startsWith("http")) {
 		await openExternal(mention)
 	}

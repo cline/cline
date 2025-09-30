@@ -32,7 +32,8 @@ function createHealthClient(address: string) {
 	const healthDef = protoLoader.loadSync(health.protoPath)
 	const grpcObj = grpc.loadPackageDefinition(healthDef) as unknown as any
 	const Health = grpcObj.grpc.health.v1.Health
-	return new Health(address, grpc.credentials.createInsecure())
+	const opts: grpc.ChannelOptions = { "grpc.enable_http_proxy": 0 }
+	return new Health(address, grpc.credentials.createInsecure(), opts)
 }
 
 async function checkHealthOnce(client: any): Promise<boolean> {

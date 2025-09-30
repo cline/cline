@@ -215,6 +215,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoCondenseThreshold: undefined,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
+		lastDismissedModelBannerVersion: 0,
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
