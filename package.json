@@ -205,6 +205,11 @@
 				"command": "cline.reconstructTaskHistory",
 				"title": "Reconstruct Task History",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.addToContext",
+				"title": "Add to Cline Context",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [
@@ -327,6 +332,22 @@
 				{
 					"command": "cline.abortGitCommitMessage",
 					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
+				},
+				{
+					"command": "cline.addToContext",
+					"when": "false"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "cline.addToContext",
+					"group": "cline"
+				}
+			],
+			"editor/title/context": [
+				{
+					"command": "cline.addToContext",
+					"group": "cline"
 				}
 			]
 		},
