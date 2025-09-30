@@ -81,6 +81,7 @@ export interface ExtensionState {
 	isMultiRootWorkspace: boolean
 	multiRootSetting: ClineFeatureSetting
 	lastDismissedInfoBannerVersion: number
+	lastDismissedModelBannerVersion: number
 }
 
 export interface ClineMessage {

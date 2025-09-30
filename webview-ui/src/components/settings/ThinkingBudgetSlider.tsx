@@ -1,4 +1,4 @@
-import { anthropicModels, geminiDefaultModelId, geminiModels } from "@shared/api"
+import { ANTHROPIC_MIN_THINKING_BUDGET, anthropicModels, geminiDefaultModelId, geminiModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
@@ -8,7 +8,6 @@ import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 // Constants
-const DEFAULT_MIN_VALID_TOKENS = 1024
 const MAX_PERCENTAGE = 0.8
 const THUMB_SIZE = 16
 
@@ -16,26 +15,8 @@ const THUMB_SIZE = 16
 const Container = styled.div`
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
-`
-
-const LabelContainer = styled.div`
-	display: flex;
-	justify-content: space-between;
-	flex-wrap: wrap;
-	gap: 12px;
-`
-
-const Label = styled.label`
-	font-weight: 500;
-	display: block;
-	margin-right: auto;
-`
-const Description = styled.p`
-	font-size: 12px;
-	margin-top: 0px;
-	margin-bottom: 0px;
-	color: var(--vscode-descriptionForeground);
+	margin-top: 5px;
+	margin-bottom: 10px;
 `
 
 const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
@@ -130,7 +111,8 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
-		setLocalValue(value)
+		const clampedValue = Math.max(value, ANTHROPIC_MIN_THINKING_BUDGET)
+		setLocalValue(clampedValue)
 	}, [])
 
 	const handleSliderComplete = () => {
@@ -143,7 +125,7 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 
 	const handleToggleChange = (event: any) => {
 		const isChecked = (event.target as HTMLInputElement).checked
-		const newThinkingBudgetValue = isChecked ? DEFAULT_MIN_VALID_TOKENS : 0
+		const newThinkingBudgetValue = isChecked ? ANTHROPIC_MIN_THINKING_BUDGET : 0
 		setIsEnabled(isChecked)
 		setLocalValue(newThinkingBudgetValue)
 
@@ -155,30 +137,25 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 	}
 
 	return (
-		<Container>
+		<>
 			<VSCodeCheckbox checked={isEnabled} onClick={handleToggleChange}>
-				Enable extended thinking
+				Enable thinking{localValue && localValue > 0 ? ` (${localValue.toLocaleString()} tokens)` : ""}
 			</VSCodeCheckbox>
 
 			{isEnabled && (
-				<>
-					<LabelContainer>
-						<Label htmlFor="thinking-budget-slider">
-							<strong>Budget:</strong> {localValue.toLocaleString()} tokens
-						</Label>
-					</LabelContainer>
+				<Container>
 					<RangeInput
 						$max={maxSliderValue}
-						$min={DEFAULT_MIN_VALID_TOKENS}
+						$min={0}
 						$value={localValue}
 						aria-describedby="thinking-budget-description"
 						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
 						aria-valuemax={maxSliderValue}
-						aria-valuemin={DEFAULT_MIN_VALID_TOKENS}
+						aria-valuemin={ANTHROPIC_MIN_THINKING_BUDGET}
 						aria-valuenow={localValue}
 						id="thinking-budget-slider"
 						max={maxSliderValue}
-						min={DEFAULT_MIN_VALID_TOKENS}
+						min={0}
 						onChange={handleSliderChange}
 						onMouseUp={handleSliderComplete}
 						onTouchEnd={handleSliderComplete}
@@ -186,13 +163,9 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 						type="range"
 						value={localValue}
 					/>
-
-					<Description id="thinking-budget-description">
-						Higher budgets may allow you to achieve more comprehensive and nuanced reasoning
-					</Description>
-				</>
+				</Container>
 			)}
-		</Container>
+		</>
 	)
 }
 

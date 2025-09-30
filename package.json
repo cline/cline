@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.31.1",
+	"version": "3.32.5",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -134,11 +134,6 @@
 				"icon": "$(history)"
 			},
 			{
-				"command": "cline.popoutButtonClicked",
-				"title": "Open in Editor",
-				"icon": "$(link-external)"
-			},
-			{
 				"command": "cline.accountButtonClicked",
 				"title": "Account",
 				"icon": "$(account)"
@@ -147,11 +142,6 @@
 				"command": "cline.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
-			},
-			{
-				"command": "cline.openInNewTab",
-				"title": "Open In New Tab",
-				"category": "Cline"
 			},
 			{
 				"command": "cline.dev.createTestTasks",
@@ -247,11 +237,6 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
-					"command": "cline.popoutButtonClicked",
-					"group": "navigation@4",
-					"when": "view == claude-dev.SidebarProvider"
-				},
-				{
 					"command": "cline.accountButtonClicked",
 					"group": "navigation@5",
 					"when": "view == claude-dev.SidebarProvider"
@@ -260,38 +245,6 @@
 					"command": "cline.settingsButtonClicked",
 					"group": "navigation@6",
 					"when": "view == claude-dev.SidebarProvider"
-				}
-			],
-			"editor/title": [
-				{
-					"command": "cline.plusButtonClicked",
-					"group": "navigation@1",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
-				},
-				{
-					"command": "cline.mcpButtonClicked",
-					"group": "navigation@2",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
-				},
-				{
-					"command": "cline.historyButtonClicked",
-					"group": "navigation@3",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
-				},
-				{
-					"command": "cline.popoutButtonClicked",
-					"group": "navigation@4",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
-				},
-				{
-					"command": "cline.accountButtonClicked",
-					"group": "navigation@5",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
-				},
-				{
-					"command": "cline.settingsButtonClicked",
-					"group": "navigation@6",
-					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				}
 			],
 			"editor/context": [
@@ -356,9 +309,10 @@
 		"format": "biome format --changed --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error",
 		"format:fix": "biome check --changed --no-errors-on-unmatched --files-ignore-unknown=true --write",
 		"fix:all": "biome check --no-errors-on-unmatched --files-ignore-unknown=true --write --diagnostic-level=error --unsafe",
+		"ci:check-all": "npm-run-all -p check-types lint format",
+		"ci:build": "npm run protos && npm run build:webview && node esbuild.mjs && npm run compile-tests",
 		"pretest": "npm run compile && npm run compile-tests && npm run compile-standalone && npm run lint",
 		"test": "npm-run-all test:unit test:integration",
-		"test:ci": "node scripts/test-ci.js",
 		"test:integration": "vscode-test",
 		"test:unit": "TS_NODE_PROJECT='./tsconfig.unit-test.json' mocha",
 		"test:coverage": "vscode-test --coverage",
@@ -418,6 +372,7 @@
 		"lint-staged": "^16.1.0",
 		"minimatch": "^3.0.3",
 		"npm-run-all": "^4.1.5",
+		"nyc": "^17.1.0",
 		"prebuild-install": "^7.1.3",
 		"protoc-gen-ts": "^0.8.7",
 		"proxyquire": "^2.1.3",

@@ -102,7 +102,7 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 						<span>
 							{" "}
 							<a
-								href="https://vercel.com/"
+								href="https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai"
 								style={{
 									color: "var(--vscode-textLink-foreground)",
 									textDecoration: "none",
@@ -171,16 +171,6 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 					)}
 				</>
 			)}
-
-			<p
-				style={{
-					fontSize: "12px",
-					marginTop: "15px",
-					color: "var(--vscode-descriptionForeground)",
-					fontStyle: "italic",
-				}}>
-				Note: Free tier users will see $0 costs as these requests are provided at no charge by Vercel AI Gateway.
-			</p>
 		</div>
 	)
 }
