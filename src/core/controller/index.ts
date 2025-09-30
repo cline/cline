@@ -26,6 +26,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
+import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -41,7 +42,9 @@ import {
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
+import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
 import { sendStateUpdate } from "./state/subscribeToState"
+import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -50,7 +53,6 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class Controller {
-	readonly id: string
 	task?: Task
 
 	mcpHub: McpHub
@@ -62,11 +64,7 @@ export class Controller {
 	// NEW: Add workspace manager (optional initially)
 	private workspaceManager?: WorkspaceRootManager
 
-	constructor(
-		readonly context: vscode.ExtensionContext,
-		id: string,
-	) {
-		this.id = id
+	constructor(readonly context: vscode.ExtensionContext) {
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.stateManager = new StateManager(context)
@@ -116,19 +114,15 @@ export class Controller {
 
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
-			() => ensureSettingsDirectoryExists(this.context),
+			() => ensureSettingsDirectoryExists(),
 			ExtensionRegistryInfo.version,
 			telemetryService,
 		)
 
 		// Clean up legacy checkpoints
-		cleanupLegacyCheckpoints(this.context.globalStorageUri.fsPath).catch((error) => {
+		cleanupLegacyCheckpoints().catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
-	}
-
-	async getCurrentMode(): Promise<Mode> {
-		return this.stateManager.getGlobalSettingsKey("mode")
 	}
 
 	/*
@@ -175,7 +169,7 @@ export class Controller {
 	// Oca Auth methods
 	async handleOcaSignOut() {
 		try {
-			this.ocaAuthService.handleDeauth()
+			await this.ocaAuthService.handleDeauth()
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
@@ -196,23 +190,13 @@ export class Controller {
 	async initTask(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
-		const apiConfiguration = this.stateManager.getApiConfiguration()
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
-		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
-		const preferredLanguage = this.stateManager.getGlobalSettingsKey("preferredLanguage")
-		const openaiReasoningEffort = this.stateManager.getGlobalSettingsKey("openaiReasoningEffort")
-		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
 		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
-		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
-		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
-		const yoloModeToggled = this.stateManager.getGlobalSettingsKey("yoloModeToggled")
-		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
@@ -229,18 +213,6 @@ export class Controller {
 			}
 			this.stateManager.setGlobalState("autoApprovalSettings", updatedAutoApprovalSettings)
 		}
-		// Apply remote feature flag gate to focus chain settings. Respect if user has disabled it.
-		let focusChainEnabled: boolean
-		if (focusChainSettings?.enabled === false) {
-			focusChainEnabled = false
-		} else {
-			focusChainEnabled = Boolean(focusChainSettings?.enabled)
-		}
-
-		const effectiveFocusChainSettings = {
-			...(focusChainSettings || { enabled: true, remindClineInterval: 6 }),
-			enabled: focusChainEnabled,
-		}
 
 		// Initialize and persist the workspace manager (multi-root or single-root) with telemetry + fallback
 		this.workspaceManager = await setupWorkspaceManager({
@@ -250,36 +222,25 @@ export class Controller {
 
 		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
 
-		this.task = new Task(
-			this,
-			this.mcpHub,
-			(historyItem) => this.updateTaskHistory(historyItem),
-			() => this.postStateToWebview(),
-			(taskId) => this.reinitExistingTaskFromId(taskId),
-			() => this.cancelTask(),
-			apiConfiguration,
-			autoApprovalSettings,
-			browserSettings,
-			effectiveFocusChainSettings,
-			preferredLanguage,
-			openaiReasoningEffort,
-			mode,
-			strictPlanModeEnabled ?? true,
-			yoloModeToggled,
-			useAutoCondense ?? false,
+		this.task = new Task({
+			controller: this,
+			mcpHub: this.mcpHub,
+			updateTaskHistory: (historyItem) => this.updateTaskHistory(historyItem),
+			postStateToWebview: () => this.postStateToWebview(),
+			reinitExistingTaskFromId: (taskId) => this.reinitExistingTaskFromId(taskId),
+			cancelTask: () => this.cancelTask(),
 			shellIntegrationTimeout,
-			terminalReuseEnabled ?? true,
-			terminalOutputLineLimit ?? 500,
-			defaultTerminalProfile ?? "default",
-			enableCheckpointsSetting ?? true,
+			terminalReuseEnabled: terminalReuseEnabled ?? true,
+			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
+			defaultTerminalProfile: defaultTerminalProfile ?? "default",
 			cwd,
-			this.stateManager,
-			this.workspaceManager,
+			stateManager: this.stateManager,
+			workspaceManager: this.workspaceManager,
 			task,
 			images,
 			files,
 			historyItem,
-		)
+		})
 
 		// Load task settings after task creation
 		if (this.task.taskId) {
@@ -317,7 +278,6 @@ export class Controller {
 
 		// Additional safety
 		if (this.task) {
-			this.task.updateMode(modeToSwitchTo)
 			return true
 		}
 		return false
@@ -341,7 +301,6 @@ export class Controller {
 		await this.postStateToWebview()
 
 		if (this.task) {
-			this.task.updateMode(modeToSwitchTo)
 			if (this.task.taskState.isAwaitingPlanResponse && didSwitchToActMode) {
 				this.task.taskState.didRespondToPlanAskBySwitchingMode = true
 				// Use chatContent if provided, otherwise use default message
@@ -401,7 +360,7 @@ export class Controller {
 			// Get current settings to determine how to update providers
 			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 
-			const currentMode = await this.getCurrentMode()
+			const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 
 			// Get current API configuration from cache
 			const currentApiConfiguration = this.stateManager.getApiConfiguration()
@@ -452,7 +411,7 @@ export class Controller {
 			// Get current settings to determine how to update providers
 			const planActSeparateModelsSetting = this.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 
-			const currentMode = await this.getCurrentMode()
+			const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 
 			// Get current API configuration from cache
 			const currentApiConfiguration = this.stateManager.getApiConfiguration()
@@ -492,6 +451,11 @@ export class Controller {
 			// Even on login failure, we preserve any existing tokens
 			// Only clear tokens on explicit logout
 		}
+	}
+
+	async handleTaskCreation(prompt: string) {
+		await sendChatButtonClickedEvent()
+		await this.initTask(prompt)
 	}
 
 	// MCP Marketplace
@@ -609,7 +573,7 @@ export class Controller {
 		}
 
 		const openrouter: ApiProvider = "openrouter"
-		const currentMode = await this.getCurrentMode()
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
 
 		// Update API configuration through cache service
 		const currentApiConfiguration = this.stateManager.getApiConfiguration()
@@ -631,10 +595,15 @@ export class Controller {
 	// Read OpenRouter models from disk cache
 	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
 		const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
-		const fileExists = await fileExistsAtPath(openRouterModelsFilePath)
-		if (fileExists) {
-			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
-			return JSON.parse(fileContents)
+		try {
+			if (await fileExistsAtPath(openRouterModelsFilePath)) {
+				const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
+				const models = JSON.parse(fileContents)
+				// Append stealth models
+				return appendClineStealthModels(models)
+			}
+		} catch (error) {
+			console.error("Error reading cached OpenRouter models:", error)
 		}
 		return undefined
 	}
@@ -708,7 +677,7 @@ export class Controller {
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		await sendStateUpdate(this.id, state)
+		await sendStateUpdate(state)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
@@ -719,10 +688,12 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
+		const dictationSettings = this.stateManager.getGlobalSettingsKey("dictationSettings")
 		const preferredLanguage = this.stateManager.getGlobalSettingsKey("preferredLanguage")
 		const openaiReasoningEffort = this.stateManager.getGlobalSettingsKey("openaiReasoningEffort")
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		const strictPlanModeEnabled = this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
+		const yoloModeToggled = this.stateManager.getGlobalSettingsKey("yoloModeToggled")
 		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
 		const userInfo = this.stateManager.getGlobalStateKey("userInfo")
 		const mcpMarketplaceEnabled = this.stateManager.getGlobalStateKey("mcpMarketplaceEnabled")
@@ -743,11 +714,14 @@ export class Controller {
 		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
 		const favoritedModelIds = this.stateManager.getGlobalStateKey("favoritedModelIds")
+		const lastDismissedInfoBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
+		const lastDismissedModelBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
 		const localCursorRulesToggles = this.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
 		const workflowToggles = this.stateManager.getWorkspaceStateKey("workflowToggles")
+		const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold")
 
 		const currentTaskItem = this.task?.taskId ? (taskHistory || []).find((item) => item.id === this.task?.taskId) : undefined
 		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
@@ -764,6 +738,12 @@ export class Controller {
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
 
+		// Set feature flag in dictation settings based on platform
+		const updatedDictationSettings = {
+			...dictationSettings,
+			featureEnabled: process.platform === "darwin", // Enable dictation only on macOS
+		}
+
 		return {
 			version,
 			apiConfiguration,
@@ -774,10 +754,12 @@ export class Controller {
 			autoApprovalSettings,
 			browserSettings,
 			focusChainSettings,
+			dictationSettings: updatedDictationSettings,
 			preferredLanguage,
 			openaiReasoningEffort,
 			mode,
 			strictPlanModeEnabled,
+			yoloModeToggled,
 			useAutoCondense,
 			userInfo,
 			mcpMarketplaceEnabled,
@@ -804,10 +786,17 @@ export class Controller {
 			platform,
 			shouldShowAnnouncement,
 			favoritedModelIds,
+			autoCondenseThreshold,
 			// NEW: Add workspace information
 			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
 			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
 			isMultiRootWorkspace: (this.workspaceManager?.getRoots().length ?? 0) > 1,
+			multiRootSetting: {
+				user: this.stateManager.getGlobalStateKey("multiRootEnabled"),
+				featureFlag: featureFlagsService.getMultiRootEnabled(),
+			},
+			lastDismissedInfoBannerVersion,
+			lastDismissedModelBannerVersion,
 		}
 	}
 

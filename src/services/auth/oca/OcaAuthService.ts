@@ -17,6 +17,7 @@ export class OcaAuthService {
 	protected _provider: OcaAuthProvider | null = null
 	protected _controller: Controller | null = null
 	protected _refreshInFlight: Promise<void> | null = null
+	protected _interactiveLoginPending: boolean = false
 	protected _activeAuthStatusUpdateSubscriptions = new Set<{
 		controller: Controller
 		responseStream: StreamingResponseHandler<OcaAuthState>
@@ -136,7 +137,9 @@ export class OcaAuthService {
 			throw new Error("IDCS URI is not configured")
 		}
 		// Start the auth handler
-		const callbackUrl = `${await AuthHandler.getInstance().getCallbackUrl()}\auth\oca`
+		const authHandler = AuthHandler.getInstance()
+		authHandler.setEnabled(true)
+		const callbackUrl = `${await authHandler.getCallbackUrl()}/auth/oca`
 		const authUrl = this.requireProvider().getAuthUrl(callbackUrl!)
 		const authUrlString = authUrl?.toString() || ""
 		if (!authUrlString) {
@@ -147,7 +150,6 @@ export class OcaAuthService {
 	}
 
 	async handleDeauth(): Promise<void> {
-		const ctrl = this.requireController()
 		try {
 			this.clearAuth()
 			this._ocaAuthState = null
@@ -174,6 +176,9 @@ export class OcaAuthService {
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
 			throw error
+		} finally {
+			const authHandler = AuthHandler.getInstance()
+			authHandler.setEnabled(false)
 		}
 	}
 
@@ -185,15 +190,45 @@ export class OcaAuthService {
 			if (this._ocaAuthState) {
 				this._authenticated = true
 				await this.sendAuthStatusUpdate()
-			} else {
-				console.warn("No user found after restoring auth token")
-				this._authenticated = false
-				this._ocaAuthState = null
+				return
 			}
+			console.warn("No user found after restoring auth token")
+			await this.kickstartInteractiveLoginAsFallback()
 		} catch (error) {
 			console.error("Error restoring auth token:", error)
-			this._authenticated = false
-			this._ocaAuthState = null
+			await this.kickstartInteractiveLoginAsFallback(error)
+		}
+	}
+
+	private async kickstartInteractiveLoginAsFallback(_err?: unknown): Promise<void> {
+		// Clear any stale secrets and broadcast unauthenticated state
+		this.clearAuth()
+		this._authenticated = false
+		this._ocaAuthState = null
+		await this.sendAuthStatusUpdate()
+
+		// Avoid repeated/looping login attempts
+		if (this._interactiveLoginPending) {
+			return
+		}
+		this._interactiveLoginPending = true
+		try {
+			// Kickstart interactive login (opens browser)
+			await this.createAuthRequest()
+			// Wait up to 60 seconds for user to complete login
+			const timeoutMs = 60_000
+			const pollMs = 250
+			const start = Date.now()
+			while (!this._authenticated && Date.now() - start < timeoutMs) {
+				await new Promise((r) => setTimeout(r, pollMs))
+			}
+			if (!this._authenticated) {
+				console.warn("Interactive OCA login timed out after 120 seconds")
+			}
+		} catch (e) {
+			console.error("Failed to initiate interactive OCA login:", e)
+		} finally {
+			this._interactiveLoginPending = false
 		}
 	}
 

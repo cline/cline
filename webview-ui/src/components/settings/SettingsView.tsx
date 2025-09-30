@@ -1,8 +1,17 @@
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import debounce from "lodash/debounce"
-import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
+import debounce from "debounce"
+import {
+	CheckCheck,
+	FlaskConical,
+	Info,
+	LucideIcon,
+	SlidersHorizontal,
+	SquareMousePointer,
+	SquareTerminal,
+	Wrench,
+} from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import HeroTooltip from "@/components/common/HeroTooltip"
@@ -45,14 +54,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		name: "API Configuration",
 		tooltipText: "API Configuration",
 		headerText: "API Configuration",
-		icon: Webhook,
-	},
-	{
-		id: "general",
-		name: "General",
-		tooltipText: "General Settings",
-		headerText: "General Settings",
-		icon: Settings,
+		icon: SlidersHorizontal,
 	},
 	{
 		id: "features",
@@ -83,6 +85,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		headerText: "Debug",
 		icon: FlaskConical,
 		hidden: !IS_DEV,
+	},
+	{
+		id: "general",
+		name: "General",
+		tooltipText: "General Settings",
+		headerText: "General Settings",
+		icon: Wrench,
 	},
 	{
 		id: "about",
@@ -130,16 +139,13 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		[],
 	) // Empty deps - these imports never change
 
-	const { version, telemetrySetting } = useExtensionState()
+	const { version } = useExtensionState()
 
 	// Initialize active tab with memoized calculation
-	const initialTab = useMemo(
-		() => targetSection || (telemetrySetting === "unset" ? "general" : SETTINGS_TABS[0].id),
-		[targetSection, telemetrySetting],
-	)
+	const initialTab = useMemo(() => targetSection || SETTINGS_TABS[0].id, [targetSection])
 
 	const [activeTab, setActiveTab] = useState<string>(initialTab)
-	const [isCompactMode, setIsCompactMode] = useState(false)
+	const [isCompactMode, setIsCompactMode] = useState(true)
 	const containerRef = useRef<HTMLDivElement>(null)
 
 	// Optimized message handler with early returns
@@ -293,7 +299,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		<Tab>
 			<TabHeader className="flex justify-between items-center gap-2">
 				<div className="flex items-center gap-1">
-					<h3 className="text-[var(--vscode-foreground)] m-0">Settings</h3>
+					<h3 className="text-foreground m-0">Settings</h3>
 				</div>
 				<div className="flex gap-2">
 					<VSCodeButton onClick={onDone}>Done</VSCodeButton>

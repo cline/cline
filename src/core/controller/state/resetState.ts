@@ -39,7 +39,7 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 		})
 		await controller.postStateToWebview()
 
-		await sendChatButtonClickedEvent(controller.id)
+		await sendChatButtonClickedEvent()
 
 		return Empty.create()
 	} catch (error) {

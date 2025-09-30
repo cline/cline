@@ -6,6 +6,7 @@ import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from
 import { useInterval } from "react-use"
 import styled from "styled-components"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
@@ -30,6 +31,7 @@ import { LMStudioProvider } from "./providers/LMStudioProvider"
 import { MistralProvider } from "./providers/MistralProvider"
 import { MoonshotProvider } from "./providers/MoonshotProvider"
 import { NebiusProvider } from "./providers/NebiusProvider"
+import { OcaProvider } from "./providers/OcaProvider"
 import { OllamaProvider } from "./providers/OllamaProvider"
 import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
@@ -122,8 +124,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
-	const providerOptions = useMemo(
-		() => [
+	const providerOptions = useMemo(() => {
+		const providers = [
 			{ value: "cline", label: "Cline" },
 			{ value: "openrouter", label: "OpenRouter" },
 			{ value: "gemini", label: "Google Gemini" },
@@ -159,9 +161,16 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "sambanova", label: "SambaNova" },
 			{ value: "huawei-cloud-maas", label: "Huawei Cloud MaaS" },
 			{ value: "dify", label: "Dify.ai" },
-		],
-		[],
-	)
+			{ value: "oca", label: "Oracle Code Assist" },
+		]
+
+		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
+			// Don't include VS Code LM API for non-VSCode platforms
+			return providers.filter((option) => option.value !== "vscode-lm")
+		}
+
+		return providers
+	}, [])
 
 	const currentProviderLabel = useMemo(() => {
 		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
@@ -481,6 +490,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{apiConfiguration && selectedProvider === "zai" && (
 				<ZAiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
+
+			{apiConfiguration && selectedProvider === "oca" && <OcaProvider currentMode={currentMode} isPopup={isPopup} />}
 
 			{apiErrorMessage && (
 				<p

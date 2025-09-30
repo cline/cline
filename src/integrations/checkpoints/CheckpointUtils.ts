@@ -25,6 +25,50 @@ export async function getShadowGitPath(cwdHash: string): Promise<string> {
 }
 
 /**
+ * Validates that a workspace path is safe for checkpoints.
+ * Checks that checkpoints are not being used in protected directories
+ * like home, Desktop, Documents, or Downloads. Also confirms that the workspace
+ * is accessible and that we will not encounter breaking permissions issues when
+ * creating checkpoints.
+ *
+ * Protected directories:
+ * - User's home directory
+ * - Desktop
+ * - Documents
+ * - Downloads
+ *
+ * @param workspacePath - The absolute path to the workspace directory to validate
+ * @returns Promise<void> Resolves if the path is valid
+ * @throws Error if the path is in a protected directory or if no read access
+ */
+export async function validateWorkspacePath(workspacePath: string): Promise<void> {
+	// Check if directory exists and we have read permissions
+	try {
+		await access(workspacePath, constants.R_OK)
+	} catch (error) {
+		throw new Error(
+			`Cannot access workspace directory. Please ensure VS Code has permission to access your workspace. Error: ${error instanceof Error ? error.message : String(error)}`,
+		)
+	}
+
+	const homedir = os.homedir()
+	const desktopPath = getDesktopDir()
+	const documentsPath = path.join(homedir, "Documents")
+	const downloadsPath = path.join(homedir, "Downloads")
+
+	switch (workspacePath) {
+		case homedir:
+			throw new Error("Cannot use checkpoints in home directory")
+		case desktopPath:
+			throw new Error("Cannot use checkpoints in Desktop directory")
+		case documentsPath:
+			throw new Error("Cannot use checkpoints in Documents directory")
+		case downloadsPath:
+			throw new Error("Cannot use checkpoints in Downloads directory")
+	}
+}
+
+/**
  * Gets the current working directory from the VS Code workspace.
  * Validates that checkpoints are not being used in protected directories
  * like home, Desktop, Documents, or Downloads. Checks to confirm that the workspace
@@ -46,32 +90,8 @@ export async function getWorkingDirectory(): Promise<string> {
 		throw new Error("No workspace detected. Please open Cline in a workspace to use checkpoints.")
 	}
 
-	// Check if directory exists and we have read permissions
-	try {
-		await access(cwd, constants.R_OK)
-	} catch (error) {
-		throw new Error(
-			`Cannot access workspace directory. Please ensure VS Code has permission to access your workspace. Error: ${error instanceof Error ? error.message : String(error)}`,
-		)
-	}
-
-	const homedir = os.homedir()
-	const desktopPath = getDesktopDir()
-	const documentsPath = path.join(homedir, "Documents")
-	const downloadsPath = path.join(homedir, "Downloads")
-
-	switch (cwd) {
-		case homedir:
-			throw new Error("Cannot use checkpoints in home directory")
-		case desktopPath:
-			throw new Error("Cannot use checkpoints in Desktop directory")
-		case documentsPath:
-			throw new Error("Cannot use checkpoints in Documents directory")
-		case downloadsPath:
-			throw new Error("Cannot use checkpoints in Downloads directory")
-		default:
-			return cwd
-	}
+	await validateWorkspacePath(cwd)
+	return cwd
 }
 
 /**
