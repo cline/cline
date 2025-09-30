@@ -1,3 +1,4 @@
+import { isGPT5ModelFamily } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -15,6 +16,10 @@ export const config = createVariant(ModelFamily.GPT_5)
 		production: 1,
 		advanced: 1,
 		tool_functions: 1,
+	})
+	.matcher((providerInfo) => {
+		// Match GPT-5 models from the Cline providers
+		return providerInfo.providerId === "cline" && isGPT5ModelFamily(providerInfo.model.id)
 	})
 	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
 	.components(

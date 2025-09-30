@@ -1,7 +1,6 @@
 import { expect } from "chai"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { ModelFamily } from "@/shared/prompts"
-import { getModelFamily } from ".."
 import { PromptRegistry } from "../registry/PromptRegistry"
 import type { SystemPromptContext } from "../types"
 import { mockProviderInfo } from "./integration.test"
@@ -50,6 +49,7 @@ describe("PromptRegistry", () => {
 
 	describe("getModelFamily", () => {
 		it("should extract correct model families", () => {
+			const registry = PromptRegistry.getInstance()
 			const testCases = [
 				{ id: "claude-3-5-sonnet", expected: ModelFamily.GENERIC },
 				{ id: "gpt-4-turbo", expected: ModelFamily.GENERIC },
@@ -59,8 +59,8 @@ describe("PromptRegistry", () => {
 				{ id: "openai/gpt-4", expected: ModelFamily.GENERIC },
 				{ id: "google/gemini", expected: ModelFamily.GENERIC },
 				{ id: "claude-sonnet-4", expected: ModelFamily.NEXT_GEN },
-				{ id: "gpt-5", expected: ModelFamily.GPT_5 },
-				{ id: "openai/gpt-5", expected: ModelFamily.GPT_5 },
+				{ id: "gpt-5", provider: "cline", expected: ModelFamily.GPT_5 },
+				{ id: "openai/gpt-5", expected: ModelFamily.NEXT_GEN },
 				{ id: "unknown-model", expected: ModelFamily.GENERIC },
 			]
 
@@ -68,7 +68,7 @@ describe("PromptRegistry", () => {
 				const providerId = provider ?? "random"
 				const customPrompt = provider === "lmstudio" ? "compact" : undefined
 				const providerInfo = { ...mockProviderInfo, providerId, model: { ...mockProviderInfo.model, id }, customPrompt }
-				const result = getModelFamily(providerInfo)
+				const result = registry.getModelFamily(providerInfo)
 				expect(result).to.equal(expected)
 			}
 		})

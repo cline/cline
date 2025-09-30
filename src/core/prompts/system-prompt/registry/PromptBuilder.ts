@@ -1,7 +1,6 @@
 import type { ClineDefaultTool } from "@/shared/tools"
-import { getModelFamily } from "../"
 import { ClineToolSet } from "../registry/ClineToolSet"
-import { type ClineToolSpec, toolSpecFunctionDefinition } from "../spec"
+import { type ClineToolSpec } from "../spec"
 import { STANDARD_PLACEHOLDERS } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
@@ -62,7 +61,7 @@ export class PromptBuilder {
 		// Add standard system placeholders
 		placeholders[STANDARD_PLACEHOLDERS.CWD] = this.context.cwd || process.cwd()
 		placeholders[STANDARD_PLACEHOLDERS.SUPPORTS_BROWSER] = this.context.supportsBrowserUse || false
-		placeholders[STANDARD_PLACEHOLDERS.MODEL_FAMILY] = getModelFamily(this.context.providerInfo)
+		placeholders[STANDARD_PLACEHOLDERS.MODEL_FAMILY] = this.variant.family
 		placeholders[STANDARD_PLACEHOLDERS.CURRENT_DATE] = new Date().toISOString().split("T")[0]
 
 		// Add all component sections
@@ -125,18 +124,6 @@ export class PromptBuilder {
 			componentsUsed: [...this.variant.componentOrder],
 			placeholdersResolved: this.templateEngine.extractPlaceholders(this.variant.baseTemplate),
 		}
-	}
-
-	public static getNativeTools(variant: PromptVariant, context: SystemPromptContext) {
-		// Only return tool functions if the variant explicitly enables them
-		// via the "tool_functions" label set to 1
-		// This avoids exposing tools to models that don't support them
-		// or variants that aren't designed for tool use
-		if (variant.labels["tool_functions"] !== 1) {
-			return undefined
-		}
-		const enabledTools = PromptBuilder.getEnabledTools(variant, context)
-		return enabledTools.map((tool) => toolSpecFunctionDefinition(tool.config, context))
 	}
 
 	private static getEnabledTools(variant: PromptVariant, context: SystemPromptContext) {

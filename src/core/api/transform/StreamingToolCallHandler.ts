@@ -1,6 +1,4 @@
-/**
- * Shared utilities for handling streaming function calls and converting them to XML format
- */
+import { JSONParser } from "@streamparser/json"
 
 export interface PendingToolCall {
 	name?: string
@@ -8,6 +6,8 @@ export interface PendingToolCall {
 	yieldedText: string
 	isHeaderYielded: boolean
 	hasYieldedParams: boolean
+	jsonParser?: JSONParser
+	parsedArgs?: any
 }
 
 export interface ToolCallDelta {
@@ -22,6 +22,9 @@ export interface ToolCallDelta {
 
 const IS_DEV = process.env.IS_DEV === "true"
 
+/**
+ * Shared utilities for handling streaming function calls and converting them to XML format
+ */
 export class StreamingToolCallHandler {
 	private pendingToolCalls: Map<string, PendingToolCall> = new Map()
 	private lastPendingToolCallId: string | undefined
@@ -43,12 +46,39 @@ export class StreamingToolCallHandler {
 				console.log("Creating new pending tool call for ID:", callId)
 			}
 			this.lastPendingToolCallId = callId
+
+			// Create a new JSON parser for this tool call
+			const jsonParser = new JSONParser()
+
+			jsonParser.onValue = (parsedElementInfo: any) => {
+				// Only capture top-level objects (complete JSON objects)
+				if (
+					parsedElementInfo.stack.length === 0 &&
+					parsedElementInfo.value &&
+					typeof parsedElementInfo.value === "object"
+				) {
+					const pendingCall = this.pendingToolCalls.get(callId!)
+					if (pendingCall) {
+						pendingCall.parsedArgs = parsedElementInfo.value
+					}
+				}
+			}
+
+			jsonParser.onError = () => {
+				// Ignore errors for incomplete JSON - this is expected during streaming
+				if (this.debug) {
+					console.log("JSON parser error (expected during streaming)")
+				}
+			}
+
 			this.pendingToolCalls.set(callId, {
 				name: toolCallDelta?.function?.name,
 				arguments: "",
 				yieldedText: "",
 				isHeaderYielded: false,
 				hasYieldedParams: false,
+				jsonParser,
+				parsedArgs: null,
 			})
 		} else if (!callId && this.lastPendingToolCallId) {
 			// Use the last pending tool call ID if no ID is provided
@@ -78,6 +108,18 @@ export class StreamingToolCallHandler {
 					console.log("Adding arguments:", toolCallDelta.function.arguments)
 				}
 				pendingCall.arguments += toolCallDelta.function.arguments
+
+				// Feed the new arguments to the JSON parser
+				if (pendingCall.jsonParser) {
+					try {
+						pendingCall.jsonParser.write(toolCallDelta.function.arguments)
+					} catch (error) {
+						if (this.debug) {
+							console.log("JSON parser write error (expected during streaming):", (error as Error).message)
+						}
+					}
+				}
+
 				if (this.debug) {
 					console.log("Total arguments now:", pendingCall.arguments)
 				}
@@ -140,114 +182,56 @@ export class StreamingToolCallHandler {
 			pendingCall.hasYieldedParams = true // Set this to true so we start yielding content
 		}
 
-		// Try to extract and yield new parameter content as arguments stream in
-		if (pendingCall.arguments) {
+		// Use the parsed arguments from the streaming JSON parser
+		if (pendingCall.parsedArgs) {
 			if (this.debug) {
-				console.log("Current arguments:", pendingCall.arguments)
+				console.log("Using parsed args from streaming parser:", pendingCall.parsedArgs)
 				console.log("Previously yielded text:", pendingCall.yieldedText)
 			}
 
-			try {
-				// Try to parse the current arguments as JSON
-				const parsedArgs = JSON.parse(pendingCall.arguments)
-				if (this.debug) {
-					console.log("Successfully parsed JSON:", parsedArgs)
-				}
-
-				// Generate the complete XML content for parameters
-				let fullParamsXml = ""
-				for (const [key, value] of Object.entries(parsedArgs)) {
-					if (value !== undefined && value !== null) {
-						// Unescape JSON string values to convert \n to actual newlines, etc.
-						const unescapedValue = typeof value === "string" ? JSON.parse(`"${value}"`) : value
-						fullParamsXml += `<${key}>${unescapedValue}</${key}>\n`
-					}
-				}
-
-				// Only yield the new part that hasn't been yielded yet
-				if (fullParamsXml !== pendingCall.yieldedText) {
-					const alreadyYieldedContent = pendingCall.yieldedText
-					if (fullParamsXml.startsWith(alreadyYieldedContent)) {
-						const newContent = fullParamsXml.slice(alreadyYieldedContent.length)
-						if (newContent) {
-							newText += newContent
-							if (this.debug) {
-								console.log("Yielding new JSON-parsed content:", newContent)
-							}
-						}
-					} else {
-						// If the content doesn't match what we've yielded exactly, check if we should still yield
-						// This can happen due to JSON escaping differences (e.g., \\n vs \n)
-						// Only yield if we haven't yielded any content for this parameter set yet
-						if (!alreadyYieldedContent || alreadyYieldedContent.trim() === "") {
-							newText += fullParamsXml
-							if (this.debug) {
-								console.log("Yielding complete JSON-parsed content (first time):", fullParamsXml)
-							}
-						} else if (this.debug) {
-							console.log(
-								"Skipping duplicate content due to formatting differences. Already yielded:",
-								alreadyYieldedContent.length,
-								"chars, new content:",
-								fullParamsXml.length,
-								"chars",
-							)
-						}
-					}
-					pendingCall.yieldedText = fullParamsXml
-				}
-			} catch (error) {
-				if (this.debug) {
-					console.log("JSON parse failed, trying partial content extraction:", (error as Error).message)
-				}
-				// If JSON is incomplete, try to stream partial content
-				const currentArgs = pendingCall.arguments
-
-				// Look for complete key-value pairs that we haven't yielded yet
-				const partialMatches = currentArgs.match(/"(\w+)"\s*:\s*"([^"]*)"/g) || []
-				if (this.debug) {
-					console.log("Found partial matches:", partialMatches)
-				}
-
-				let partialXmlContent = ""
-				for (const match of partialMatches) {
-					const keyValueMatch = match.match(/"(\w+)"\s*:\s*"([^"]*)"/)
-					if (keyValueMatch) {
-						const [, key, value] = keyValueMatch
-						// Unescape JSON string values to convert \n to actual newlines, etc.
-						const unescapedValue = JSON.parse(`"${value}"`)
-						partialXmlContent += `<${key}>${unescapedValue}</${key}>\n`
-					}
-				}
-
-				if (this.debug) {
-					console.log("Generated partial XML content:", partialXmlContent)
-				}
-
-				// Only yield new parameter content
-				if (partialXmlContent && partialXmlContent !== pendingCall.yieldedText) {
-					if (partialXmlContent.startsWith(pendingCall.yieldedText)) {
-						const newContent = partialXmlContent.slice(pendingCall.yieldedText.length)
-						if (newContent) {
-							newText += newContent
-							if (this.debug) {
-								console.log("Yielding new partial content:", newContent)
-							}
-						}
-					} else {
-						// Only yield if we haven't yielded any content for this parameter set yet
-						if (!pendingCall.yieldedText || pendingCall.yieldedText.trim() === "") {
-							newText += partialXmlContent
-							if (this.debug) {
-								console.log("Yielding complete partial content (first time):", partialXmlContent)
-							}
-						} else if (this.debug) {
-							console.log("Skipping duplicate partial content due to formatting differences")
-						}
-					}
-					pendingCall.yieldedText = partialXmlContent
+			// Generate the complete XML content for parameters
+			let fullParamsXml = ""
+			for (const [key, value] of Object.entries(pendingCall.parsedArgs)) {
+				if (value !== undefined && value !== null) {
+					// Handle string values that might contain special characters
+					const stringValue = typeof value === "string" ? value : String(value)
+					fullParamsXml += `<${key}>${stringValue}</${key}>\n`
 				}
 			}
+
+			// Only yield the new part that hasn't been yielded yet
+			if (fullParamsXml !== pendingCall.yieldedText) {
+				const alreadyYieldedContent = pendingCall.yieldedText
+				if (fullParamsXml.startsWith(alreadyYieldedContent)) {
+					const newContent = fullParamsXml.slice(alreadyYieldedContent.length)
+					if (newContent) {
+						newText += newContent
+						if (this.debug) {
+							console.log("Yielding new parsed content:", newContent)
+						}
+					}
+				} else {
+					// If the content doesn't match what we've yielded exactly, check if we should still yield
+					// Only yield if we haven't yielded any content for this parameter set yet
+					if (!alreadyYieldedContent || alreadyYieldedContent.trim() === "") {
+						newText += fullParamsXml
+						if (this.debug) {
+							console.log("Yielding complete parsed content (first time):", fullParamsXml)
+						}
+					} else if (this.debug) {
+						console.log(
+							"Skipping duplicate content due to formatting differences. Already yielded:",
+							alreadyYieldedContent.length,
+							"chars, new content:",
+							fullParamsXml.length,
+							"chars",
+						)
+					}
+				}
+				pendingCall.yieldedText = fullParamsXml
+			}
+		} else if (this.debug) {
+			console.log("No parsed args available yet from streaming parser")
 		}
 
 		// Return the new content to yield
@@ -260,6 +244,7 @@ export class StreamingToolCallHandler {
 			console.log("Final arguments:", pendingCall.arguments)
 			console.log("Final yielded text:", pendingCall.yieldedText)
 			console.log("Has yielded params:", pendingCall.hasYieldedParams)
+			console.log("Final parsed args:", pendingCall.parsedArgs)
 		}
 
 		if (!pendingCall.name || !pendingCall.hasYieldedParams) {
@@ -269,37 +254,25 @@ export class StreamingToolCallHandler {
 			return ""
 		}
 
-		// Try to parse the final JSON and yield any remaining parameters
-		if (pendingCall.arguments) {
-			try {
-				const parsedArgs = JSON.parse(pendingCall.arguments)
-				if (this.debug) {
-					console.log("Final JSON parse successful:", parsedArgs)
+		// Try to get any final parsed arguments and yield any remaining parameters
+		if (pendingCall.parsedArgs) {
+			// Generate the complete XML content for parameters
+			let fullParamsXml = ""
+			for (const [key, value] of Object.entries(pendingCall.parsedArgs)) {
+				if (value !== undefined && value !== null) {
+					const stringValue = typeof value === "string" ? value : String(value)
+					fullParamsXml += `<${key}>${stringValue}</${key}>\n`
 				}
+			}
 
-				// Generate the complete XML content for parameters
-				let fullParamsXml = ""
-				for (const [key, value] of Object.entries(parsedArgs)) {
-					if (value !== undefined && value !== null) {
-						// Unescape JSON string values to convert \n to actual newlines, etc.
-						const unescapedValue = typeof value === "string" ? JSON.parse(`"${value}"`) : value
-						fullParamsXml += `<${key}>${unescapedValue}</${key}>\n`
+			// If we have more content than what was yielded, yield the remaining
+			if (fullParamsXml !== pendingCall.yieldedText && fullParamsXml.startsWith(pendingCall.yieldedText)) {
+				const remainingContent = fullParamsXml.slice(pendingCall.yieldedText.length)
+				if (remainingContent) {
+					if (this.debug) {
+						console.log("Yielding remaining content in finalize:", remainingContent)
 					}
-				}
-
-				// If we have more content than what was yielded, yield the remaining
-				if (fullParamsXml !== pendingCall.yieldedText && fullParamsXml.startsWith(pendingCall.yieldedText)) {
-					const remainingContent = fullParamsXml.slice(pendingCall.yieldedText.length)
-					if (remainingContent) {
-						if (this.debug) {
-							console.log("Yielding remaining content in finalize:", remainingContent)
-						}
-						return remainingContent + `</${pendingCall.name}>`
-					}
-				}
-			} catch (error) {
-				if (this.debug) {
-					console.log("Final JSON parse failed:", (error as Error).message)
+					return remainingContent + `</${pendingCall.name}>`
 				}
 			}
 		}

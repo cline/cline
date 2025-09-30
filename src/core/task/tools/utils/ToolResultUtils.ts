@@ -59,14 +59,22 @@ export class ToolResultUtils {
 		images?: string[],
 		fileContentString?: string,
 	): void {
-		if (!feedback && (!images || images.length === 0) && !fileContentString) {
+		// Check if we have any meaningful content to add
+		const hasMeaningfulFeedback = feedback && feedback.trim() !== ""
+		const hasImages = images && images.length > 0
+		const hasMeaningfulFileContent = fileContentString && fileContentString.trim() !== ""
+
+		// Only proceed if we have at least one meaningful piece of content
+		if (!hasMeaningfulFeedback && !hasImages && !hasMeaningfulFileContent) {
 			return
 		}
-		const content = formatResponse.toolResult(
-			`The user provided the following feedback:\n<feedback>\n${feedback}\n</feedback>`,
-			images,
-			fileContentString,
-		)
+
+		// Build the feedback text only if we have meaningful feedback
+		const feedbackText = hasMeaningfulFeedback
+			? `The user provided the following feedback:\n<feedback>\n${feedback}\n</feedback>`
+			: "The user provided additional content:"
+
+		const content = formatResponse.toolResult(feedbackText, images, hasMeaningfulFileContent ? fileContentString : undefined)
 		if (typeof content === "string") {
 			userMessageContent.push({
 				type: "text",

@@ -1,6 +1,7 @@
-import { ChatCompletionTool } from "openai/resources/chat/completions.mjs"
+import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions.mjs"
+import { ApiProviderInfo } from "@/core/api"
 import { ModelFamily } from "@/shared/prompts"
-import { getModelFamily } from ".."
+import { ClineToolSet } from ".."
 import { getSystemPromptComponents } from "../components"
 import { registerClineToolSets } from "../tools"
 import type { ComponentFunction, ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
@@ -13,7 +14,7 @@ export class PromptRegistry {
 	private variants: Map<string, PromptVariant> = new Map()
 	private components: ComponentRegistry = {}
 	private loaded: boolean = false
-	public nativeTools: ChatCompletionTool[] | undefined = undefined
+	public nativeTools: OpenAITool[] | undefined = undefined
 
 	private constructor() {
 		registerClineToolSets()
@@ -67,27 +68,39 @@ export class PromptRegistry {
 		)
 	}
 
+	getModelFamily(providerInfo: ApiProviderInfo) {
+		// Loop through all registered variants to find the first one that matches
+		for (const [id, v] of this.variants.entries()) {
+			try {
+				if (v.matcher(providerInfo)) {
+					return v.family
+				}
+			} catch (error) {
+				console.warn(`Matcher function error for variant '${id}':`, error)
+				// Continue to next variant if matcher throws
+			}
+		}
+
+		return ModelFamily.GENERIC
+	}
 	/**
-	 * Get prompt by model ID with fallback to generic
+	 * Get prompt by matching against all registered variants
 	 */
 	async get(context: SystemPromptContext): Promise<string> {
 		await this.load()
 
-		// Try model family fallback (e.g., "claude-4" -> "claude")
-		const modelFamily = getModelFamily(context.providerInfo)
-		let variant = this.variants.get(modelFamily ?? ModelFamily.GENERIC)
+		// Loop through all registered variants to find the first one that matches
+		const family = this.getModelFamily(context.providerInfo)
 
-		// If no variant found for the detected family, explicitly try generic
-		if (!variant && modelFamily !== ModelFamily.GENERIC) {
-			variant = this.variants.get(ModelFamily.GENERIC)
-		}
+		// Fallback to generic variant if no match found
+
+		const variant = this.variants.get(family)
 
 		if (!variant) {
 			// Enhanced error with debugging information
 			const availableVariants = Array.from(this.variants.keys())
 			const errorDetails = {
 				requestedModel: context.providerInfo.model.id,
-				detectedFamily: modelFamily,
 				availableVariants,
 				variantsCount: this.variants.size,
 				componentsCount: Object.keys(this.components).length,
@@ -97,16 +110,16 @@ export class PromptRegistry {
 			console.error("Prompt variant lookup failed:", errorDetails)
 
 			throw new Error(
-				`No prompt variant found for model '${context.providerInfo.model.id}' (family: ${modelFamily}) and no generic fallback available. ` +
+				`No prompt variant found for model '${context.providerInfo.model.id}' and no generic fallback available. ` +
 					`Available variants: [${availableVariants.join(", ")}]. ` +
 					`Registry state: loaded=${this.loaded}, variants=${this.variants.size}, components=${Object.keys(this.components).length}`,
 			)
 		}
 
-		const builder = new PromptBuilder(variant, context, this.components)
 		// Hacky way to get native tools for the current variant - it's bad and ugly
-		// TODO: Move getNativeTools to ClineToolSet
-		this.nativeTools = PromptBuilder.getNativeTools(variant, context)
+		this.nativeTools = ClineToolSet.getNativeTools(variant, context)
+
+		const builder = new PromptBuilder(variant, context, this.components)
 		return await builder.build()
 	}
 

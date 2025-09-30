@@ -1,3 +1,4 @@
+import { isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -12,6 +13,15 @@ export const config = createVariant(ModelFamily.GENERIC)
 	.labels({
 		stable: 1,
 		fallback: 1,
+	})
+	.matcher((providerInfo) => {
+		// Generic matcher - fallback for everything that doesn't match other variants
+		// This will match anything that doesn't match the other specific variants
+		return (
+			!isGPT5ModelFamily(providerInfo.model.id) &&
+			!isNextGenModelFamily(providerInfo.model.id) &&
+			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo))
+		)
 	})
 	.template(baseTemplate)
 	.components(

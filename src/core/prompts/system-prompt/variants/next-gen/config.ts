@@ -1,3 +1,4 @@
+import { isGPT5ModelFamily, isNextGenModelFamily } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -14,6 +15,10 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		stable: 1,
 		production: 1,
 		advanced: 1,
+	})
+	.matcher((providerInfo) => {
+		// Match next-gen models
+		return !isGPT5ModelFamily(providerInfo.model.id) && isNextGenModelFamily(providerInfo.model.id)
 	})
 	.template(baseTemplate)
 	.components(

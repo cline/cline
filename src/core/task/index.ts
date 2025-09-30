@@ -2353,13 +2353,15 @@ export class Task {
 			clinerulesError = await ensureLocalClineDirExists(this.cwd, GlobalFileNames.clineRules)
 		}
 
-		// Add focu chain list instructions if needed
+		// Add focus chain list instructions if needed
 		if (!useCompactPrompt && this.FocusChainManager?.shouldIncludeFocusChainInstructions()) {
 			const focusChainInstructions = this.FocusChainManager.generateFocusChainInstructions()
-			processedUserContent.push({
-				type: "text",
-				text: focusChainInstructions,
-			})
+			if (focusChainInstructions.trim()) {
+				processedUserContent.push({
+					type: "text",
+					text: focusChainInstructions,
+				})
+			}
 
 			this.taskState.apiRequestsSinceLastTodoUpdate = 0
 			this.taskState.todoListWasUpdatedByUser = false

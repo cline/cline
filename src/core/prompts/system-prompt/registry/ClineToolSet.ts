@@ -1,5 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
-import type { ClineToolSpec } from "../spec"
+import { type ClineToolSpec, toolSpecFunctionDefinition } from "../spec"
+import { PromptVariant, SystemPromptContext } from "../types"
 
 export class ClineToolSet {
 	// A list of tools mapped by model group
@@ -78,5 +79,41 @@ export class ClineToolSet {
 			}
 		}
 		return resolved
+	}
+
+	public static getEnabledTools(variant: PromptVariant, context: SystemPromptContext): ClineToolSet[] {
+		const resolved: ClineToolSet[] = []
+		const requestedIds = variant.tools ? [...variant.tools] : []
+		for (const id of requestedIds) {
+			const tool = ClineToolSet.getToolByNameWithFallback(id, variant.family)
+			if (tool) {
+				// Avoid duplicates by id
+				if (!resolved.some((t) => t.config.id === tool.config.id)) {
+					resolved.push(tool)
+				}
+			}
+		}
+
+		// Filter by context requirements
+		const enabledTools = resolved.filter(
+			(tool) => !tool.config.contextRequirements || tool.config.contextRequirements(context),
+		)
+
+		return enabledTools
+	}
+	public static getNativeTools(variant: PromptVariant, context: SystemPromptContext) {
+		// Only return tool functions if the variant explicitly enables them
+		// via the "tool_functions" label set to 1
+		// This avoids exposing tools to models that don't support them
+		// or variants that aren't designed for tool use
+		if (variant.labels["tool_functions"] !== 1) {
+			return undefined
+		}
+		const enabledTools = ClineToolSet.getEnabledTools(variant, context)
+		// if (variant.family === ModelFamily.CLAUDE) {
+		// 	// Map Claude tools to their function definitions
+		// 	return enabledTools.map((tool) => toolSpecInputSchema(tool.config, context))
+		// }
+		return enabledTools.map((tool) => toolSpecFunctionDefinition(tool.config, context))
 	}
 }

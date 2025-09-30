@@ -1,3 +1,4 @@
+import { ApiProviderInfo } from "@/core/api"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../templates/placeholders"
@@ -65,6 +66,17 @@ export class VariantBuilder {
 		this.variant = {
 			...this.variant,
 			labels: { ...this.variant.labels, ...labels },
+		}
+		return this
+	}
+
+	/**
+	 * Set the matcher function to determine if this variant should be used for a given providerInfo
+	 */
+	matcher(matcherFn: (providerInfo: ApiProviderInfo) => boolean): this {
+		this.variant = {
+			...this.variant,
+			matcher: matcherFn,
 		}
 		return this
 	}
@@ -161,6 +173,9 @@ export class VariantBuilder {
 		}
 		if (!this.variant.description) {
 			throw new Error("Description is required")
+		}
+		if (!this.variant.matcher) {
+			throw new Error("Matcher function is required")
 		}
 
 		// Auto-generate baseTemplate from componentOrder if not provided

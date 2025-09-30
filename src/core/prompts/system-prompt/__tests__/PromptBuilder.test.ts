@@ -44,6 +44,7 @@ describe("PromptBuilder", () => {
 	const baseVariant: PromptVariant = {
 		id: "test-model",
 		family: ModelFamily.GENERIC,
+		matcher: (info) => info.model.id === "test-model",
 		version: 1,
 		description: "A test model",
 		tags: ["test"],
