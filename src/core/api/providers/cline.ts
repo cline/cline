@@ -117,7 +117,13 @@ export class ClineHandler implements ApiHandler {
 				this.options.reasoningEffort,
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
-				tools,
+				tools
+					? {
+							tools,
+							tool_choice: "auto",
+							parallel_tool_calls: true,
+						}
+					: undefined,
 			)
 
 			for await (const chunk of stream) {

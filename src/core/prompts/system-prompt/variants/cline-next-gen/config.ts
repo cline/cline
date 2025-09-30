@@ -8,7 +8,7 @@ import { GPT_5_TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
 export const config = createVariant(ModelFamily.CLINE_NEXT_GEN)
-	.description("")
+	.description("Cline next gen models with native tool calling")
 	.version(1)
 	.tags("advanced", "production", "native_tools")
 	.labels({
@@ -75,15 +75,15 @@ export const config = createVariant(ModelFamily.CLINE_NEXT_GEN)
 	.build()
 
 // Compile-time validation
-const validationResult = validateVariant({ ...config, id: "gpt-5" }, { strict: true })
+const validationResult = validateVariant({ ...config, id: "cline-next-gen" }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("GPT-5 variant configuration validation failed:", validationResult.errors)
-	throw new Error(`Invalid GPT-5 variant configuration: ${validationResult.errors.join(", ")}`)
+	console.error("Cline Next Gen variant configuration validation failed:", validationResult.errors)
+	throw new Error(`Invalid Cline Next Gen variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("GPT-5 variant configuration warnings:", validationResult.warnings)
+	console.warn("Cline Next Gen variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support
-export type GPT5VariantConfig = typeof config
+export type ClineNextGenVariantConfig = typeof config
