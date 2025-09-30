@@ -28,116 +28,52 @@ const IS_DEV = process.env.IS_DEV === "true"
 export class StreamingToolCallHandler {
 	private pendingToolCalls: Map<string, PendingToolCall> = new Map()
 	private lastPendingToolCallId: string | undefined
-	private debug: boolean = IS_DEV
+	private readonly debug: boolean = IS_DEV
 
 	/**
 	 * Process a streaming tool call delta and return any XML content to yield
 	 */
 	processToolCallDelta(toolCallDelta: ToolCallDelta): string | null {
-		if (this.debug) {
-			console.log("toolCallDelta received:", JSON.stringify(toolCallDelta, null, 2))
+		this.log("toolCallDelta received:", toolCallDelta)
+
+		const callId = toolCallDelta.id || this.lastPendingToolCallId
+		if (!callId) {
+			this.log("No call ID available")
+			return null
 		}
 
-		let callId = toolCallDelta.id || this.lastPendingToolCallId
-
-		// Initialize or update the pending tool call
-		if (callId && !this.pendingToolCalls.has(callId)) {
-			if (this.debug) {
-				console.log("Creating new pending tool call for ID:", callId)
-			}
+		// Get or create pending call
+		let pendingCall = this.pendingToolCalls.get(callId)
+		if (!pendingCall) {
+			this.log("Creating new pending tool call for ID:", callId)
 			this.lastPendingToolCallId = callId
-
-			// Create a new JSON parser for this tool call
-			const jsonParser = new JSONParser()
-
-			jsonParser.onValue = (parsedElementInfo: any) => {
-				// Only capture top-level objects (complete JSON objects)
-				if (
-					parsedElementInfo.stack.length === 0 &&
-					parsedElementInfo.value &&
-					typeof parsedElementInfo.value === "object"
-				) {
-					const pendingCall = this.pendingToolCalls.get(callId!)
-					if (pendingCall) {
-						pendingCall.parsedArgs = parsedElementInfo.value
-					}
-				}
-			}
-
-			jsonParser.onError = () => {
-				// Ignore errors for incomplete JSON - this is expected during streaming
-				if (this.debug) {
-					console.log("JSON parser error (expected during streaming)")
-				}
-			}
-
-			this.pendingToolCalls.set(callId, {
-				name: toolCallDelta?.function?.name,
-				arguments: "",
-				yieldedText: "",
-				isHeaderYielded: false,
-				hasYieldedParams: false,
-				jsonParser,
-				parsedArgs: null,
-			})
-		} else if (!callId && this.lastPendingToolCallId) {
-			// Use the last pending tool call ID if no ID is provided
-			callId = this.lastPendingToolCallId
-			if (this.debug) {
-				console.log("Using last pending tool call ID:", callId)
-			}
+			pendingCall = this.createPendingCall(callId, toolCallDelta.function?.name)
 		}
 
-		const pendingCall = this.pendingToolCalls.get(callId || "")
-		if (this.debug) {
-			console.log("Current pending call state:", pendingCall)
+		this.log("Current pending call state:", pendingCall)
+
+		// Update function name if provided
+		const funcName = toolCallDelta.function?.name
+		if (funcName) {
+			this.log("Updating function name to:", funcName)
+			pendingCall.name = funcName
 		}
 
-		if (pendingCall) {
-			// Update function name if provided
-			if (toolCallDelta.function?.name) {
-				if (this.debug) {
-					console.log("Updating function name to:", toolCallDelta.function.name)
-				}
-				pendingCall.name = toolCallDelta.function.name
-			}
-
-			// Accumulate arguments
-			if (toolCallDelta.function?.arguments) {
-				if (this.debug) {
-					console.log("Adding arguments:", toolCallDelta.function.arguments)
-				}
-				pendingCall.arguments += toolCallDelta.function.arguments
-
-				// Feed the new arguments to the JSON parser
-				if (pendingCall.jsonParser) {
-					try {
-						pendingCall.jsonParser.write(toolCallDelta.function.arguments)
-					} catch (error) {
-						if (this.debug) {
-							console.log("JSON parser write error (expected during streaming):", (error as Error).message)
-						}
-					}
-				}
-
-				if (this.debug) {
-					console.log("Total arguments now:", pendingCall.arguments)
-				}
-			}
-
-			// Generate and return streaming XML content as it arrives
-			const streamingXml = this.generateStreamingToolXml(pendingCall)
-			if (streamingXml && this.debug) {
-				console.log("Generated streaming tool XML:", streamingXml)
-			}
-			return streamingXml
-		} else {
-			if (this.debug) {
-				console.log("No pending call found for ID:", callId)
-			}
+		// Accumulate and parse arguments
+		const funcArgs = toolCallDelta.function?.arguments
+		if (funcArgs) {
+			this.log("Adding arguments:", funcArgs)
+			pendingCall.arguments += funcArgs
+			this.feedJsonParser(pendingCall, funcArgs)
+			this.log("Total arguments now:", pendingCall.arguments)
 		}
 
-		return null
+		// Generate and return streaming XML
+		const streamingXml = this.generateStreamingToolXml(pendingCall)
+		if (streamingXml) {
+			this.log("Generated streaming tool XML:", streamingXml)
+		}
+		return streamingXml
 	}
 
 	/**
@@ -145,173 +81,208 @@ export class StreamingToolCallHandler {
 	 */
 	finalizePendingToolCalls(): string[] {
 		const results: string[] = []
-
-		for (const [, pendingCall] of this.pendingToolCalls.entries()) {
+		for (const pendingCall of this.pendingToolCalls.values()) {
 			const finalXml = this.finalizeToolXml(pendingCall)
 			if (finalXml) {
-				if (this.debug) {
-					console.log("Yielding finalized tool XML:", finalXml)
-				}
+				this.log("Yielding finalized tool XML:", finalXml)
 				results.push(finalXml)
 			}
 		}
-
 		return results
 	}
 
 	/**
 	 * Reset all pending tool calls (call this at the start of a new request)
 	 */
-	reset() {
+	reset(): void {
 		this.pendingToolCalls.clear()
 		this.lastPendingToolCallId = undefined
 	}
 
-	private generateStreamingToolXml(pendingCall: PendingToolCall): string {
-		let newText = ""
+	private createPendingCall(callId: string, name?: string): PendingToolCall {
+		const jsonParser = new JSONParser()
+		const pendingCall: PendingToolCall = {
+			name,
+			arguments: "",
+			yieldedText: "",
+			isHeaderYielded: false,
+			hasYieldedParams: false,
+			jsonParser,
+			parsedArgs: null,
+		}
 
-		// Only proceed if we have a tool name
+		jsonParser.onValue = (parsedElementInfo: any) => {
+			// Only capture top-level complete objects
+			if (parsedElementInfo.stack.length === 0 && parsedElementInfo.value && typeof parsedElementInfo.value === "object") {
+				pendingCall.parsedArgs = parsedElementInfo.value
+			}
+		}
+
+		jsonParser.onError = () => {
+			// Ignore errors for incomplete JSON during streaming
+			this.log("JSON parser error (expected during streaming)")
+		}
+
+		this.pendingToolCalls.set(callId, pendingCall)
+		return pendingCall
+	}
+
+	private feedJsonParser(pendingCall: PendingToolCall, args: string): void {
+		if (!pendingCall.jsonParser) {
+			return
+		}
+		try {
+			pendingCall.jsonParser.write(args)
+		} catch (error) {
+			this.log("JSON parser write error (expected during streaming):", (error as Error).message)
+		}
+	}
+
+	private generateStreamingToolXml(pendingCall: PendingToolCall): string {
 		if (!pendingCall.name) {
 			return ""
 		}
 
-		// Yield opening tag when we first get the tool name
+		const parts: string[] = []
+
+		// Yield opening tag on first call
 		if (!pendingCall.isHeaderYielded) {
-			newText += `<${pendingCall.name}>\n`
+			parts.push(`<${pendingCall.name}>\n`)
 			pendingCall.isHeaderYielded = true
-			pendingCall.hasYieldedParams = true // Set this to true so we start yielding content
+			pendingCall.hasYieldedParams = true
 		}
 
-		// Use the parsed arguments from the streaming JSON parser
+		// Generate XML from parsed arguments
 		if (pendingCall.parsedArgs) {
-			if (this.debug) {
-				console.log("Using parsed args from streaming parser:", pendingCall.parsedArgs)
-				console.log("Previously yielded text:", pendingCall.yieldedText)
-			}
+			this.log("Using parsed args from streaming parser:", pendingCall.parsedArgs)
+			this.log("Previously yielded text:", pendingCall.yieldedText)
 
-			// Generate the complete XML content for parameters
-			let fullParamsXml = ""
-			for (const [key, value] of Object.entries(pendingCall.parsedArgs)) {
-				if (value !== undefined && value !== null) {
-					// Handle string values that might contain special characters
-					const stringValue = typeof value === "string" ? value : String(value)
-					fullParamsXml += `<${key}>${stringValue}</${key}>\n`
-				}
-			}
+			const fullParamsXml = this.buildParamsXml(pendingCall.parsedArgs)
 
-			// Only yield the new part that hasn't been yielded yet
+			// Only yield new content
 			if (fullParamsXml !== pendingCall.yieldedText) {
-				const alreadyYieldedContent = pendingCall.yieldedText
-				if (fullParamsXml.startsWith(alreadyYieldedContent)) {
-					const newContent = fullParamsXml.slice(alreadyYieldedContent.length)
-					if (newContent) {
-						newText += newContent
-						if (this.debug) {
-							console.log("Yielding new parsed content:", newContent)
-						}
-					}
-				} else {
-					// If the content doesn't match what we've yielded exactly, check if we should still yield
-					// Only yield if we haven't yielded any content for this parameter set yet
-					if (!alreadyYieldedContent || alreadyYieldedContent.trim() === "") {
-						newText += fullParamsXml
-						if (this.debug) {
-							console.log("Yielding complete parsed content (first time):", fullParamsXml)
-						}
-					} else if (this.debug) {
-						console.log(
-							"Skipping duplicate content due to formatting differences. Already yielded:",
-							alreadyYieldedContent.length,
-							"chars, new content:",
-							fullParamsXml.length,
-							"chars",
-						)
-					}
+				const newContent = this.extractNewContent(fullParamsXml, pendingCall.yieldedText)
+				if (newContent) {
+					parts.push(newContent)
+					this.log("Yielding new parsed content:", newContent)
 				}
 				pendingCall.yieldedText = fullParamsXml
 			}
-		} else if (this.debug) {
-			console.log("No parsed args available yet from streaming parser")
+		} else {
+			this.log("No parsed args available yet from streaming parser")
 		}
 
-		// Return the new content to yield
-		return newText
+		return parts.join("")
+	}
+
+	private buildParamsXml(parsedArgs: any): string {
+		const parts: string[] = []
+		for (const [key, value] of Object.entries(parsedArgs)) {
+			if (value !== undefined && value !== null) {
+				const stringValue = typeof value === "string" ? value : String(value)
+				parts.push(`<${key}>${stringValue}</${key}>\n`)
+			}
+		}
+		return parts.join("")
+	}
+
+	private extractNewContent(fullContent: string, yieldedContent: string): string {
+		if (fullContent.startsWith(yieldedContent)) {
+			return fullContent.slice(yieldedContent.length)
+		}
+		// Only yield if nothing has been yielded yet
+		if (!yieldedContent || !yieldedContent.trim()) {
+			this.log("Yielding complete parsed content (first time):", fullContent)
+			return fullContent
+		}
+		this.log(
+			"Skipping duplicate content due to formatting differences. Already yielded:",
+			yieldedContent.length,
+			"chars, new content:",
+			fullContent.length,
+			"chars",
+		)
+		return ""
 	}
 
 	private finalizeToolXml(pendingCall: PendingToolCall): string {
-		if (this.debug) {
-			console.log("Finalizing tool XML for:", pendingCall.name)
-			console.log("Final arguments:", pendingCall.arguments)
-			console.log("Final yielded text:", pendingCall.yieldedText)
-			console.log("Has yielded params:", pendingCall.hasYieldedParams)
-			console.log("Final parsed args:", pendingCall.parsedArgs)
-		}
+		this.log("Finalizing tool XML for:", pendingCall.name)
+		this.log("Final arguments:", pendingCall.arguments)
+		this.log("Final yielded text:", pendingCall.yieldedText)
+		this.log("Has yielded params:", pendingCall.hasYieldedParams)
+		this.log("Final parsed args:", pendingCall.parsedArgs)
 
 		if (!pendingCall.name || !pendingCall.hasYieldedParams) {
-			if (this.debug) {
-				console.log("Skipping finalization - no name or no yielded params")
-			}
+			this.log("Skipping finalization - no name or no yielded params")
 			return ""
 		}
 
-		// Try to get any final parsed arguments and yield any remaining parameters
+		// Yield any remaining parsed content
 		if (pendingCall.parsedArgs) {
-			// Generate the complete XML content for parameters
-			let fullParamsXml = ""
-			for (const [key, value] of Object.entries(pendingCall.parsedArgs)) {
-				if (value !== undefined && value !== null) {
-					const stringValue = typeof value === "string" ? value : String(value)
-					fullParamsXml += `<${key}>${stringValue}</${key}>\n`
-				}
-			}
-
-			// If we have more content than what was yielded, yield the remaining
+			const fullParamsXml = this.buildParamsXml(pendingCall.parsedArgs)
 			if (fullParamsXml !== pendingCall.yieldedText && fullParamsXml.startsWith(pendingCall.yieldedText)) {
 				const remainingContent = fullParamsXml.slice(pendingCall.yieldedText.length)
 				if (remainingContent) {
-					if (this.debug) {
-						console.log("Yielding remaining content in finalize:", remainingContent)
-					}
-					return remainingContent + `</${pendingCall.name}>`
+					this.log("Yielding remaining content in finalize:", remainingContent)
+					return `${remainingContent}</${pendingCall.name}>`
 				}
 			}
 		}
 
-		// Only yield closing tag if we've yielded the header and haven't already closed the tool
+		// Close any unclosed tags
 		if (pendingCall.isHeaderYielded && !pendingCall.yieldedText.includes(`</${pendingCall.name}>`)) {
-			// Ensure any incomplete parameter tags are properly closed before closing the tool
-			let finalContent = ""
+			const parts: string[] = []
+			const unclosedParams = this.findUnclosedParams(pendingCall)
 
-			// Check if we have any unclosed parameter tags in the yielded text
-			const openTags = (pendingCall.yieldedText.match(/<(\w+)>/g) || []).map((tag) => tag.slice(1, -1))
-			const closeTags = (pendingCall.yieldedText.match(/<\/(\w+)>/g) || []).map((tag) => tag.slice(2, -1))
+			this.log("Unclosed params:", unclosedParams)
 
-			// Find parameters that are opened but not closed (excluding the main tool name)
-			const unclosedParams = openTags.filter((tag) => tag !== pendingCall.name && !closeTags.includes(tag))
-
-			if (this.debug) {
-				console.log("Open tags:", openTags)
-				console.log("Close tags:", closeTags)
-				console.log("Unclosed params:", unclosedParams)
-			}
-
-			// Close any unclosed parameter tags
+			// Close unclosed parameter tags
 			for (const param of unclosedParams) {
-				finalContent += `</${param}>\n`
+				parts.push(`</${param}>\n`)
 			}
 
-			// Add the main tool closing tag
-			finalContent += `</${pendingCall.name}>`
+			// Add main tool closing tag
+			parts.push(`</${pendingCall.name}>`)
 
-			if (this.debug) {
-				console.log("Final content to yield:", finalContent)
-			}
+			const finalContent = parts.join("")
+			this.log("Final content to yield:", finalContent)
 			return finalContent
 		}
 
-		if (this.debug) {
-			console.log("No finalization needed")
-		}
+		this.log("No finalization needed")
 		return ""
+	}
+
+	private findUnclosedParams(pendingCall: PendingToolCall): string[] {
+		const text = pendingCall.yieldedText
+		const openTagRegex = /<(\w+)>/g
+		const closeTagRegex = /<\/(\w+)>/g
+
+		const openTags: string[] = []
+		const closeTags: string[] = []
+
+		let match: RegExpExecArray | null
+		match = openTagRegex.exec(text)
+		while (match !== null) {
+			openTags.push(match[1])
+			match = openTagRegex.exec(text)
+		}
+		match = closeTagRegex.exec(text)
+		while (match !== null) {
+			closeTags.push(match[1])
+			match = closeTagRegex.exec(text)
+		}
+
+		this.log("Open tags:", openTags)
+		this.log("Close tags:", closeTags)
+
+		// Find tags that are opened but not closed (excluding the main tool name)
+		return openTags.filter((tag) => tag !== pendingCall.name && !closeTags.includes(tag))
+	}
+
+	private log(...args: any[]): void {
+		if (this.debug) {
+			console.log(...args)
+		}
 	}
 }
