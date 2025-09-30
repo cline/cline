@@ -32,7 +32,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 	const MOCK_METADATA = {
 		extension_version: "1.2.3",
 		platform: "Test-IDE",
-		ide_id: "Test-IDE",
 		platform_version: "9.8.7-abc",
 		os_type: "win32",
 		os_version: "Windows 10 Pro",
