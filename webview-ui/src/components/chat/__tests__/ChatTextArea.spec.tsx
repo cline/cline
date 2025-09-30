@@ -1057,4 +1057,86 @@ describe("ChatTextArea", () => {
 			expect(apiConfigDropdown).toHaveAttribute("disabled")
 		})
 	})
+
+	describe("send button visibility", () => {
+		it("should show send button when there are images but no text", () => {
+			const { container } = render(
+				<ChatTextArea
+					{...defaultProps}
+					inputValue=""
+					selectedImages={["data:image/png;base64,test1", "data:image/png;base64,test2"]}
+				/>,
+			)
+
+			// Find the send button by looking for the button with SendHorizontal icon
+			const buttons = container.querySelectorAll("button")
+			const sendButton = Array.from(buttons).find(
+				(button) => button.querySelector(".lucide-send-horizontal") !== null,
+			)
+
+			expect(sendButton).toBeInTheDocument()
+
+			// Check that the button is visible (has opacity-100 class when content exists)
+			expect(sendButton).toHaveClass("opacity-100")
+			expect(sendButton).toHaveClass("pointer-events-auto")
+			expect(sendButton).not.toHaveClass("opacity-0")
+			expect(sendButton).not.toHaveClass("pointer-events-none")
+		})
+
+		it("should hide send button when there is no text and no images", () => {
+			const { container } = render(<ChatTextArea {...defaultProps} inputValue="" selectedImages={[]} />)
+
+			// Find the send button by looking for the button with SendHorizontal icon
+			const buttons = container.querySelectorAll("button")
+			const sendButton = Array.from(buttons).find(
+				(button) => button.querySelector(".lucide-send-horizontal") !== null,
+			)
+
+			expect(sendButton).toBeInTheDocument()
+
+			// Check that the button is hidden (has opacity-0 class when no content)
+			expect(sendButton).toHaveClass("opacity-0")
+			expect(sendButton).toHaveClass("pointer-events-none")
+			expect(sendButton).not.toHaveClass("opacity-100")
+			expect(sendButton).not.toHaveClass("pointer-events-auto")
+		})
+
+		it("should show send button when there is text but no images", () => {
+			const { container } = render(<ChatTextArea {...defaultProps} inputValue="Some text" selectedImages={[]} />)
+
+			// Find the send button by looking for the button with SendHorizontal icon
+			const buttons = container.querySelectorAll("button")
+			const sendButton = Array.from(buttons).find(
+				(button) => button.querySelector(".lucide-send-horizontal") !== null,
+			)
+
+			expect(sendButton).toBeInTheDocument()
+
+			// Check that the button is visible
+			expect(sendButton).toHaveClass("opacity-100")
+			expect(sendButton).toHaveClass("pointer-events-auto")
+		})
+
+		it("should show send button when there is both text and images", () => {
+			const { container } = render(
+				<ChatTextArea
+					{...defaultProps}
+					inputValue="Some text"
+					selectedImages={["data:image/png;base64,test1"]}
+				/>,
+			)
+
+			// Find the send button by looking for the button with SendHorizontal icon
+			const buttons = container.querySelectorAll("button")
+			const sendButton = Array.from(buttons).find(
+				(button) => button.querySelector(".lucide-send-horizontal") !== null,
+			)
+
+			expect(sendButton).toBeInTheDocument()
+
+			// Check that the button is visible
+			expect(sendButton).toHaveClass("opacity-100")
+			expect(sendButton).toHaveClass("pointer-events-auto")
+		})
+	})
 })
