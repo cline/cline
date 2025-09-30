@@ -1,4 +1,4 @@
-import { openRouterDefaultModelId } from "@shared/api"
+import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -11,6 +11,7 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
+import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
@@ -227,24 +228,6 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		)
 	}, [selectedModelId])
 
-	// Check if the current model is Claude Sonnet 4.5 and determine the alternate variant
-	const claudeSonnet45Variant = useMemo(() => {
-		if (selectedModelId === "anthropic/claude-sonnet-4.5") {
-			return {
-				current: "anthropic/claude-sonnet-4.5",
-				alternate: "anthropic/claude-sonnet-4.5:1m",
-				linkText: "Switch to 1M context window model",
-			}
-		} else if (selectedModelId === "anthropic/claude-sonnet-4.5:1m") {
-			return {
-				current: "anthropic/claude-sonnet-4.5:1m",
-				alternate: "anthropic/claude-sonnet-4.5",
-				linkText: "Switch to 200K context window model",
-			}
-		}
-		return null
-	}, [selectedModelId])
-
 	return (
 		<div style={{ width: "100%" }}>
 			<style>
@@ -345,19 +328,21 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 					)}
 				</DropdownWrapper>
 
-				{claudeSonnet45Variant && (
-					<div style={{ marginBottom: 2 }}>
-						<VSCodeLink
-							onClick={() => handleModelChange(claudeSonnet45Variant.alternate)}
-							style={{
-								display: "inline",
-								fontSize: "10.5px",
-								color: "var(--vscode-textLink-foreground)",
-							}}>
-							{claudeSonnet45Variant.linkText}
-						</VSCodeLink>
-					</div>
-				)}
+				{/* Context window switcher for Claude Sonnet 4.5 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-sonnet-4.5"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
+				{/* Context window switcher for Claude Sonnet 4 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-sonnet-4"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
 			</div>
 
 			{hasInfo ? (
