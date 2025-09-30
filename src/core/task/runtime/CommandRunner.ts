@@ -90,7 +90,7 @@ export class CommandRunner {
 
 		const terminalInfo = await this.terminalManager.getOrCreateTerminal(this.cwd)
 		terminalInfo.terminal.show()
-		const process = this.terminalManager.runCommand(terminalInfo, command)
+		const terminalProcess = this.terminalManager.runCommand(terminalInfo, command)
 
 		let userFeedback: { text?: string; images?: string[]; files?: string[] } | undefined
 		let didContinue = false
@@ -137,7 +137,7 @@ export class CommandRunner {
 					userFeedback = { text, images, files }
 				}
 				didContinue = true
-				process.continue()
+				terminalProcess.continue()
 			} catch {
 				Logger.error("Error while asking for command output")
 			} finally {
@@ -160,7 +160,7 @@ export class CommandRunner {
 		}
 
 		const outputLines: string[] = []
-		process.on("line", async (line) => {
+		terminalProcess.on("line", async (line) => {
 			outputLines.push(line)
 
 			if (!didContinue) {
@@ -187,7 +187,7 @@ export class CommandRunner {
 			}
 		}, COMPLETION_TIMEOUT_MS)
 
-		process.once("completed", async () => {
+		terminalProcess.once("completed", async () => {
 			completed = true
 			if (completionTimer) {
 				clearTimeout(completionTimer)
@@ -202,7 +202,7 @@ export class CommandRunner {
 			}
 		})
 
-		process.once("no_shell_integration", async () => {
+		terminalProcess.once("no_shell_integration", async () => {
 			await this.say("shell_integration_warning")
 		})
 
@@ -214,10 +214,10 @@ export class CommandRunner {
 			})
 
 			try {
-				await Promise.race([process, timeoutPromise])
+				await Promise.race([terminalProcess, timeoutPromise])
 			} catch (error) {
 				didContinue = true
-				process.continue()
+				terminalProcess.continue()
 
 				if (chunkTimer) {
 					clearTimeout(chunkTimer)
@@ -243,7 +243,7 @@ export class CommandRunner {
 				throw error
 			}
 		} else {
-			await process
+			await terminalProcess
 		}
 
 		if (completionTimer) {
