@@ -57,7 +57,6 @@ export class Controller {
 
 	mcpHub: McpHub
 	accountService: ClineAccountService
-	authService: AuthService
 	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
 
@@ -68,7 +67,6 @@ export class Controller {
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.stateManager = new StateManager(context)
-		this.authService = AuthService.getInstance(this)
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
 
@@ -76,7 +74,8 @@ export class Controller {
 		this.stateManager
 			.initialize()
 			.then(() => {
-				this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
+				const authService = AuthService.getInstance(this)
+				authService.restoreRefreshTokenAndRetrieveAuthInfo()
 			})
 			.catch((error) => {
 				console.error(
@@ -353,7 +352,8 @@ export class Controller {
 
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
 		try {
-			await this.authService.handleAuthCallback(customToken, provider ? provider : "google")
+			const authService = AuthService.getInstance(this)
+			await authService.handleAuthCallback(customToken, provider ? provider : "google")
 
 			const clineProvider: ApiProvider = "cline"
 
@@ -681,6 +681,7 @@ export class Controller {
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
+		const authService = AuthService.getInstance(this)
 		// Get API configuration from cache for immediate access
 		const apiConfiguration = this.stateManager.getApiConfiguration()
 		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
@@ -708,7 +709,7 @@ export class Controller {
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const welcomeViewCompleted = Boolean(
-			this.stateManager.getGlobalStateKey("welcomeViewCompleted") || this.authService.getInfo()?.user?.uid,
+			this.stateManager.getGlobalStateKey("welcomeViewCompleted") || authService.getInfo()?.user?.uid,
 		)
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
 		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")

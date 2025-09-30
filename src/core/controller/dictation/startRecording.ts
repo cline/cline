@@ -1,6 +1,7 @@
 import { RecordingResult } from "@shared/proto/cline/dictation"
 import * as os from "os"
 import { HostProvider } from "@/hosts/host-provider"
+import { AuthService } from "@/services/auth/AuthService"
 import { audioRecordingService } from "@/services/dictation/AudioRecordingService"
 import { telemetryService } from "@/services/telemetry"
 import { AUDIO_PROGRAM_CONFIG } from "@/shared/audioProgramConstants"
@@ -68,7 +69,7 @@ async function handleMissingDependency(
 /**
  * Handles sign-in errors for dictation
  */
-async function handleSignInError(controller: Controller, errorMessage: string): Promise<void> {
+async function handleSignInError(errorMessage: string): Promise<void> {
 	const signInAction = "Sign in to Cline"
 	const action = await HostProvider.window.showMessage({
 		type: ShowMessageType.ERROR,
@@ -77,7 +78,7 @@ async function handleSignInError(controller: Controller, errorMessage: string): 
 	})
 
 	if (action.selectedOption === signInAction) {
-		await controller.authService.createAuthRequest()
+		await AuthService.getInstance().createAuthRequest()
 	}
 }
 
@@ -112,7 +113,7 @@ export const startRecording = async (controller: Controller): Promise<RecordingR
 
 	try {
 		// Verify user authentication
-		const userInfo = controller.authService.getInfo()
+		const userInfo = AuthService.getInstance().getInfo()
 		if (!userInfo?.user?.uid) {
 			throw new Error("Please sign in to your Cline Account to use Dictation.")
 		}
@@ -149,7 +150,7 @@ export const startRecording = async (controller: Controller): Promise<RecordingR
 		// Handle different error types
 		if (errorMessage.includes("sign in")) {
 			// Don't await - show dialog asynchronously so frontend gets immediate response
-			handleSignInError(controller, errorMessage)
+			handleSignInError(errorMessage)
 		} else {
 			// Don't await - show dialog asynchronously so frontend gets immediate response
 			showGenericError(errorMessage)

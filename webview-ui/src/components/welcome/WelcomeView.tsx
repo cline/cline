@@ -3,16 +3,28 @@ import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import ApiOptions from "@/components/settings/ApiOptions"
+import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { validateApiConfiguration } from "@/utils/validate"
 
 const WelcomeView = memo(() => {
-	const { apiConfiguration, mode } = useExtensionState()
+	const { apiConfiguration, mode, welcomeViewCompleted } = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [showApiOptions, setShowApiOptions] = useState(false)
+	const { clineUser } = useClineAuth()
 
 	const disableLetsGoButton = apiErrorMessage != null
+
+	useEffect(() => {
+		if (clineUser?.uid && !welcomeViewCompleted) {
+			try {
+				StateServiceClient.setWelcomeViewCompleted(BooleanRequest.create({ value: true }))
+			} catch (error) {
+				console.error("Failed to update API configuration or complete welcome view:", error)
+			}
+		}
+	}, [clineUser])
 
 	const handleLogin = () => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
