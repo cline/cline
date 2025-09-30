@@ -18,7 +18,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
-// Domain objects
+// Domain types
 enum ActionType {
 	ADD = "add",
 	DELETE = "delete",
@@ -36,15 +36,6 @@ interface Commit {
 	changes: Record<string, FileChange>
 }
 
-// Exceptions
-class DiffError extends Error {
-	constructor(message: string) {
-		super(message)
-		this.name = "DiffError"
-	}
-}
-
-// Helper classes for parsing
 interface Chunk {
 	origIndex: number
 	delLines: string[]
@@ -62,6 +53,27 @@ interface Patch {
 	actions: Record<string, PatchAction>
 }
 
+class DiffError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = "DiffError"
+	}
+}
+
+// Patch format constants
+const PATCH_MARKERS = {
+	BEGIN: "*** Begin Patch",
+	END: "*** End Patch",
+	ADD: "*** Add File: ",
+	UPDATE: "*** Update File: ",
+	DELETE: "*** Delete File: ",
+	MOVE: "*** Move to: ",
+	SECTION: "@@",
+	END_FILE: "*** End of File",
+} as const
+
+const BASH_WRAPPERS = ["%%bash", "apply_patch", "EOF", "```"] as const
+
 export class ApplyPatchHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.APPLY_PATCH
 
@@ -73,51 +85,42 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const rawInput = block.params.input
-
-		// Early return if we don't have enough data yet
 		if (!rawInput) {
 			return
 		}
 
 		try {
-			// Extract information from the patch for UI display
-			const allFilesInPatch = this.identifyAllFilesInPatch(rawInput)
-
-			if (allFilesInPatch.length === 0) {
-				// Not enough patch data yet, wait for more
+			const allFiles = this.extractAllFiles(rawInput)
+			if (allFiles.length === 0) {
 				return
 			}
 
-			// Create summary of what the patch will do
-			const patchSummary = this.createPatchSummary(rawInput)
-			const primaryFilePath = allFilesInPatch[0] || ""
+			const summary = this.createPatchSummary(rawInput)
+			const primaryFile = allFiles[0]
+			const isInWorkspace = primaryFile ? await isLocatedInWorkspace(primaryFile) : true
 
-			// Create shared message props for patch application
-			const sharedMessageProps: ClineSayTool = {
+			const message: ClineSayTool = {
 				tool: "editedExistingFile",
-				content: patchSummary,
-				operationIsLocatedInWorkspace: primaryFilePath ? await isLocatedInWorkspace(primaryFilePath) : true,
+				content: summary,
+				operationIsLocatedInWorkspace: isInWorkspace,
 			}
-			const partialMessage = JSON.stringify(sharedMessageProps)
 
-			// Handle auto-approval vs manual approval for partial
-			if (await uiHelpers.shouldAutoApproveToolWithPath(block.name, primaryFilePath)) {
-				await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool") // in case the user changes auto-approval settings mid stream
-				await uiHelpers.say("tool", partialMessage, undefined, undefined, block.partial)
+			const shouldAutoApprove = await uiHelpers.shouldAutoApproveToolWithPath(block.name, primaryFile)
+			if (shouldAutoApprove) {
+				await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
+				await uiHelpers.say("tool", JSON.stringify(message), undefined, undefined, block.partial)
 			} else {
 				await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "tool")
-				await uiHelpers.ask("tool", partialMessage, block.partial).catch(() => {})
+				await uiHelpers.ask("tool", JSON.stringify(message), block.partial).catch(() => {})
 			}
 		} catch {
-			// If we can't parse the partial patch yet, just wait for more data
-			return
+			// Wait for more data if parsing fails
 		}
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		const rawInput = block.params.input
 
-		// Validate required parameters
 		if (!rawInput) {
 			config.taskState.consecutiveMistakeCount++
 			return await config.callbacks.sayAndCreateMissingParamError(block.name, "input")
@@ -126,262 +129,122 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		config.taskState.consecutiveMistakeCount = 0
 
 		try {
-			// Parse the patch text
-			const patch = this.parsePatchText(rawInput)
+			const patch = this.parsePatch(rawInput)
+			const allFiles = this.extractAllFiles(rawInput)
 
-			// Check that we have at least one file operation
-			const allFilesInPatch = this.identifyAllFilesInPatch(rawInput)
-			if (allFilesInPatch.length === 0) {
+			if (allFiles.length === 0) {
 				throw new DiffError(
 					"No files found in patch - patch must contain at least one *** Update File:, *** Delete File:, or *** Add File: directive",
 				)
 			}
 
-			// Get files that need to be loaded (only Update and Delete operations)
-			const filesToLoad = this.identifyFilesNeeded(rawInput)
-			const currentFiles: Record<string, string> = {}
+			// Load existing files for update/delete operations
+			const filesToLoad = this.extractFilesForOperations(rawInput, [PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE])
+			const currentFiles = await this.loadFiles(config, filesToLoad)
 
-			// Load existing files
-			for (const filePath of filesToLoad) {
-				const pathResult = resolveWorkspacePath(config, filePath, "ApplyPatchHandler.execute")
-				const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
-				const resolvedPath = typeof pathResult === "string" ? filePath : pathResult.resolvedPath
-
-				// Check clineignore access
-				const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
-				if (!accessValidation.ok) {
-					await config.callbacks.say("clineignore_error", resolvedPath)
-					const errorResponse = formatResponse.toolError(formatResponse.clineIgnoreError(resolvedPath))
-					ToolResultUtils.pushToolResult(
-						errorResponse,
-						block,
-						config.taskState.userMessageContent,
-						ToolDisplayUtils.getToolDescription,
-						config.api,
-						() => {
-							config.taskState.didAlreadyUseTool = true
-						},
-						config.coordinator,
-					)
-					return ""
-				}
-
-				if (await fileExistsAtPath(absolutePath)) {
-					currentFiles[filePath] = await fs.readFile(absolutePath, "utf-8")
-				} else {
-					throw new DiffError(`File not found: ${filePath}`)
-				}
-			}
-
-			// Convert patch to commit
+			// Convert patch to commit and apply
 			const commit = this.patchToCommit(patch, currentFiles)
-
-			// Apply the commit
 			await this.applyCommit(config, commit)
 
-			// Create summary of changes
+			// Generate summary
 			const changedFiles = Object.keys(commit.changes)
-			const summary = changedFiles
-				.map((file) => {
-					const change = commit.changes[file]
-					switch (change.type) {
-						case ActionType.ADD:
-							return `Added: ${file}`
-						case ActionType.DELETE:
-							return `Deleted: ${file}`
-						case ActionType.UPDATE:
-							return `Updated: ${file}${change.movePath ? ` (moved to ${change.movePath})` : ""}`
-						default:
-							return `Modified: ${file}`
-					}
-				})
-				.join("\n")
+			const summary = this.generateChangeSummary(commit.changes)
+			const primaryFile = allFiles[0]
+			const isInWorkspace = primaryFile ? await isLocatedInWorkspace(primaryFile) : true
 
-			const primaryFilePath = allFilesInPatch[0] || ""
-
-			// Create shared message props for patch application
-			const sharedMessageProps: ClineSayTool = {
+			const message: ClineSayTool = {
 				tool: "editedExistingFile",
 				content: `Applied patch to ${changedFiles.length} file(s):\n${summary}`,
-				operationIsLocatedInWorkspace: primaryFilePath ? await isLocatedInWorkspace(primaryFilePath) : true,
+				operationIsLocatedInWorkspace: isInWorkspace,
 			}
 
-			const completeMessage = JSON.stringify(sharedMessageProps)
-
-			if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, changedFiles[0] || "")) {
-				// Auto-approval flow
-				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-				config.taskState.consecutiveAutoApprovedRequestsCount++
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
-			} else {
-				// Manual approval flow
-				const notificationMessage = `Cline wants to apply a patch to ${changedFiles.length} file(s)`
-
-				showNotificationForApprovalIfAutoApprovalEnabled(
-					notificationMessage,
-					config.autoApprovalSettings.enabled,
-					config.autoApprovalSettings.enableNotifications,
-				)
-
-				const { response, text, images, files } = await config.callbacks.ask("tool", completeMessage, false)
-
-				if (response !== "yesButtonClicked") {
-					// Handle rejection
-					if (text || (images && images.length > 0) || (files && files.length > 0)) {
-						let fileContentString = ""
-						if (files && files.length > 0) {
-							fileContentString = await processFilesIntoText(files)
-						}
-
-						ToolResultUtils.pushAdditionalToolFeedback(
-							config.taskState.userMessageContent,
-							text,
-							images,
-							fileContentString,
-						)
-						await config.callbacks.say("user_feedback", text, images, files)
-					}
-
-					config.taskState.didRejectTool = true
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
-
-					return "The user denied this patch operation."
-				} else {
-					// User approved
-					if (text || (images && images.length > 0) || (files && files.length > 0)) {
-						let fileContentString = ""
-						if (files && files.length > 0) {
-							fileContentString = await processFilesIntoText(files)
-						}
-
-						ToolResultUtils.pushAdditionalToolFeedback(
-							config.taskState.userMessageContent,
-							text,
-							images,
-							fileContentString,
-						)
-						await config.callbacks.say("user_feedback", text, images, files)
-					}
-
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
-				}
+			// Handle approval flow
+			const approved = await this.handleApproval(config, block, message, changedFiles[0] || "")
+			if (!approved) {
+				return "The user denied this patch operation."
 			}
 
-			// Mark files as edited
+			// Track file edits
 			for (const filePath of changedFiles) {
 				config.services.fileContextTracker.markFileAsEditedByCline(filePath)
 				await config.services.fileContextTracker.trackFileContext(filePath, "cline_edited")
 			}
 
 			config.taskState.didEditFile = true
-
 			return formatResponse.toolResult(`Successfully applied patch to ${changedFiles.length} file(s):\n${summary}`)
 		} catch (error) {
 			throw error
 		}
 	}
 
-	// Patch parsing methods
-	private parsePatchText(text: string): Patch {
-		let lines = text.split("\n")
-		let startIndex = 0
+	// Core parsing logic
+	private parsePatch(text: string): Patch {
+		const lines = this.preprocessLines(text)
+		const parser = new PatchParser(lines)
+		return parser.parse()
+	}
 
-		// Log the original input for debugging
-		console.log("Original patch input:", text.substring(0, 500) + (text.length > 500 ? "..." : ""))
-
-		// Remove bash command wrapper if present
+	private preprocessLines(text: string): string[] {
+		let lines = text.split("\n").map((line) => line.replace(/\r$/, ""))
 		lines = this.stripBashWrapper(lines)
 
-		// Log the filtered lines for debugging
-		console.log("Filtered lines:", lines.slice(0, 10).join("\n") + (lines.length > 10 ? "\n..." : ""))
+		const hasBegin = lines.length > 0 && lines[0].startsWith(PATCH_MARKERS.BEGIN)
+		const hasEnd = lines.length > 0 && lines[lines.length - 1] === PATCH_MARKERS.END
 
-		// Check if the input has sentinels, if not, add them
-		const hasBeginSentinel = lines.length > 0 && this.norm(lines[0]).startsWith("*** Begin Patch")
-		const hasEndSentinel = lines.length > 0 && this.norm(lines[lines.length - 1]) === "*** End Patch"
-
-		if (!hasBeginSentinel && !hasEndSentinel) {
-			// Input doesn't have sentinels, wrap it
-			lines = ["*** Begin Patch", ...lines, "*** End Patch"]
-			startIndex = 1
-		} else if (hasBeginSentinel && hasEndSentinel) {
-			// Input has both sentinels, use as-is
-			startIndex = 1
-		} else {
-			// Input has only one sentinel, which is invalid
-			throw new DiffError("Invalid patch text - incomplete sentinels (missing either Begin or End)")
+		if (!hasBegin && !hasEnd) {
+			return [PATCH_MARKERS.BEGIN, ...lines, PATCH_MARKERS.END]
 		}
-
-		const parser = new PatchParser(lines, startIndex)
-		parser.parse()
-		return parser.patch
+		if (hasBegin && hasEnd) {
+			return lines
+		}
+		throw new DiffError("Invalid patch text - incomplete sentinels (missing either Begin or End)")
 	}
 
 	private stripBashWrapper(lines: string[]): string[] {
-		const filteredLines: string[] = []
+		const result: string[] = []
 		let insidePatch = false
-		let foundBeginPatch = false
-		let foundAnyPatchContent = false
+		let foundBegin = false
+		let foundContent = false
 
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i]
-			const normalizedLine = this.norm(line)
-
-			// Skip bash-related lines but only if they're not part of patch content
-			if (
-				!insidePatch &&
-				(normalizedLine.startsWith("%%bash") ||
-					normalizedLine.startsWith("apply_patch") ||
-					normalizedLine === "EOF" ||
-					normalizedLine.startsWith("```"))
-			) {
+		for (const line of lines) {
+			// Skip bash wrappers outside patch
+			if (!insidePatch && BASH_WRAPPERS.some((wrapper) => line.startsWith(wrapper))) {
 				continue
 			}
 
-			// Check for patch boundaries
-			if (normalizedLine.startsWith("*** Begin Patch")) {
+			if (line.startsWith(PATCH_MARKERS.BEGIN)) {
 				insidePatch = true
-				foundBeginPatch = true
-				filteredLines.push(line)
+				foundBegin = true
+				result.push(line)
 				continue
 			}
 
-			if (normalizedLine === "*** End Patch") {
+			if (line === PATCH_MARKERS.END) {
 				insidePatch = false
-				filteredLines.push(line)
+				result.push(line)
 				continue
 			}
 
-			// Check if this looks like patch content
-			const isPatchContent = this.looksLikePatchContent(normalizedLine)
+			const isPatchContent = this.isPatchLine(line)
 			if (isPatchContent) {
-				foundAnyPatchContent = true
+				foundContent = true
 			}
 
-			// Include the line if:
-			// 1. We're inside a patch block, or
-			// 2. We haven't found the begin patch yet but this looks like patch content, or
-			// 3. It's an empty line and we've found some patch content (to preserve formatting)
-			if (insidePatch || (!foundBeginPatch && isPatchContent) || (normalizedLine === "" && foundAnyPatchContent)) {
-				filteredLines.push(line)
+			if (insidePatch || (!foundBegin && isPatchContent) || (line === "" && foundContent)) {
+				result.push(line)
 			}
 		}
 
-		// If no structured patch content was found, return the original lines
-		// This handles cases where the input might be a simple diff without our custom format
-		if (!foundBeginPatch && !foundAnyPatchContent) {
-			return lines
-		}
-
-		return filteredLines
+		return !foundBegin && !foundContent ? lines : result
 	}
 
-	private looksLikePatchContent(line: string): boolean {
+	private isPatchLine(line: string): boolean {
 		return (
-			line.startsWith("*** Add File:") ||
-			line.startsWith("*** Update File:") ||
-			line.startsWith("*** Delete File:") ||
-			line.startsWith("*** Move to:") ||
-			line.startsWith("@@") ||
+			line.startsWith(PATCH_MARKERS.ADD) ||
+			line.startsWith(PATCH_MARKERS.UPDATE) ||
+			line.startsWith(PATCH_MARKERS.DELETE) ||
+			line.startsWith(PATCH_MARKERS.MOVE) ||
+			line.startsWith(PATCH_MARKERS.SECTION) ||
 			line.startsWith("+") ||
 			line.startsWith("-") ||
 			line.startsWith(" ") ||
@@ -389,147 +252,139 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		)
 	}
 
-	private identifyFilesNeeded(text: string): string[] {
-		// First try to strip bash wrapper like we do in parsing
-		let lines = text.split("\n")
-		lines = this.stripBashWrapper(lines)
+	// File extraction utilities
+	private extractFilesForOperations(text: string, markers: readonly string[]): string[] {
+		const lines = this.stripBashWrapper(text.split("\n"))
+		const files: string[] = []
 
-		// Only files that need to be loaded (Update and Delete operations)
-		// Add operations don't need existing files to be loaded
-		const files = [
-			...lines
-				.filter((line) => this.norm(line).startsWith("*** Update File: "))
-				.map((line) => this.norm(line).substring("*** Update File: ".length).trim()),
-			...lines
-				.filter((line) => this.norm(line).startsWith("*** Delete File: "))
-				.map((line) => this.norm(line).substring("*** Delete File: ".length).trim()),
-		]
-
-		// Log for debugging
-		console.log("Files that need to be loaded (Update/Delete only):", files)
+		for (const line of lines) {
+			for (const marker of markers) {
+				if (line.startsWith(marker)) {
+					files.push(line.substring(marker.length).trim())
+					break
+				}
+			}
+		}
 
 		return files
 	}
 
-	private identifyAllFilesInPatch(text: string): string[] {
-		// Get all files mentioned in the patch (Add, Update, Delete)
-		let lines = text.split("\n")
-		lines = this.stripBashWrapper(lines)
-
-		const files = [
-			...lines
-				.filter((line) => this.norm(line).startsWith("*** Add File: "))
-				.map((line) => this.norm(line).substring("*** Add File: ".length).trim()),
-			...lines
-				.filter((line) => this.norm(line).startsWith("*** Update File: "))
-				.map((line) => this.norm(line).substring("*** Update File: ".length).trim()),
-			...lines
-				.filter((line) => this.norm(line).startsWith("*** Delete File: "))
-				.map((line) => this.norm(line).substring("*** Delete File: ".length).trim()),
-		]
-
-		// Log for debugging
-		console.log("All files in patch:", files)
-
-		return files
+	private extractAllFiles(text: string): string[] {
+		return this.extractFilesForOperations(text, [PATCH_MARKERS.ADD, PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE])
 	}
 
 	private createPatchSummary(text: string): string {
-		let lines = text.split("\n")
-		lines = this.stripBashWrapper(lines)
-
-		const addFiles = lines
-			.filter((line) => this.norm(line).startsWith("*** Add File: "))
-			.map((line) => this.norm(line).substring("*** Add File: ".length).trim())
-
-		const updateFiles = lines
-			.filter((line) => this.norm(line).startsWith("*** Update File: "))
-			.map((line) => this.norm(line).substring("*** Update File: ".length).trim())
-
-		const deleteFiles = lines
-			.filter((line) => this.norm(line).startsWith("*** Delete File: "))
-			.map((line) => this.norm(line).substring("*** Delete File: ".length).trim())
-
-		const operations: string[] = []
-
-		if (addFiles.length > 0) {
-			operations.push(`Adding ${addFiles.length} file(s): ${addFiles.join(", ")}`)
+		const lines = this.stripBashWrapper(text.split("\n"))
+		const operations = {
+			add: this.extractFilesFromLines(lines, PATCH_MARKERS.ADD),
+			update: this.extractFilesFromLines(lines, PATCH_MARKERS.UPDATE),
+			delete: this.extractFilesFromLines(lines, PATCH_MARKERS.DELETE),
 		}
 
-		if (updateFiles.length > 0) {
-			operations.push(`Updating ${updateFiles.length} file(s): ${updateFiles.join(", ")}`)
+		const parts: string[] = []
+		if (operations.add.length > 0) {
+			parts.push(`Adding ${operations.add.length} file(s): ${operations.add.join(", ")}`)
+		}
+		if (operations.update.length > 0) {
+			parts.push(`Updating ${operations.update.length} file(s): ${operations.update.join(", ")}`)
+		}
+		if (operations.delete.length > 0) {
+			parts.push(`Deleting ${operations.delete.length} file(s): ${operations.delete.join(", ")}`)
 		}
 
-		if (deleteFiles.length > 0) {
-			operations.push(`Deleting ${deleteFiles.length} file(s): ${deleteFiles.join(", ")}`)
-		}
-
-		const totalFiles = addFiles.length + updateFiles.length + deleteFiles.length
-		const summary =
-			operations.length > 0
-				? `Applying patch to ${totalFiles} file(s):\n${operations.join("\n")}`
-				: "Preparing to apply patch..."
-
-		return summary
+		const total = operations.add.length + operations.update.length + operations.delete.length
+		return parts.length > 0 ? `Applying patch to ${total} file(s):\n${parts.join("\n")}` : "Preparing to apply patch..."
 	}
 
-	private patchToCommit(patch: Patch, orig: Record<string, string>): Commit {
-		const commit: Commit = { changes: {} }
+	private extractFilesFromLines(lines: string[], marker: string): string[] {
+		return lines.filter((line) => line.startsWith(marker)).map((line) => line.substring(marker.length).trim())
+	}
+
+	// File operations
+	private async loadFiles(config: TaskConfig, filePaths: string[]): Promise<Record<string, string>> {
+		const files: Record<string, string> = {}
+
+		for (const filePath of filePaths) {
+			const pathResult = resolveWorkspacePath(config, filePath, "ApplyPatchHandler.loadFiles")
+			const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
+			const resolvedPath = typeof pathResult === "string" ? filePath : pathResult.resolvedPath
+
+			const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
+			if (!accessValidation.ok) {
+				await config.callbacks.say("clineignore_error", resolvedPath)
+				const errorResponse = formatResponse.toolError(formatResponse.clineIgnoreError(resolvedPath))
+				ToolResultUtils.pushToolResult(
+					errorResponse,
+					{ name: this.name } as ToolUse,
+					config.taskState.userMessageContent,
+					ToolDisplayUtils.getToolDescription,
+					config.api,
+					() => {
+						config.taskState.didAlreadyUseTool = true
+					},
+					config.coordinator,
+				)
+				throw new DiffError(`Access denied: ${resolvedPath}`)
+			}
+
+			if (!(await fileExistsAtPath(absolutePath))) {
+				throw new DiffError(`File not found: ${filePath}`)
+			}
+
+			files[filePath] = await fs.readFile(absolutePath, "utf-8")
+		}
+
+		return files
+	}
+
+	private patchToCommit(patch: Patch, originalFiles: Record<string, string>): Commit {
+		const changes: Record<string, FileChange> = {}
 
 		for (const [path, action] of Object.entries(patch.actions)) {
-			if (action.type === ActionType.DELETE) {
-				commit.changes[path] = {
-					type: ActionType.DELETE,
-					oldContent: orig[path],
-				}
-			} else if (action.type === ActionType.ADD) {
-				if (!action.newFile) {
-					throw new DiffError("ADD action without file content")
-				}
-				commit.changes[path] = {
-					type: ActionType.ADD,
-					newContent: action.newFile,
-				}
-			} else if (action.type === ActionType.UPDATE) {
-				const newContent = this.getUpdatedFile(orig[path], action, path)
-				commit.changes[path] = {
-					type: ActionType.UPDATE,
-					oldContent: orig[path],
-					newContent: newContent,
-					movePath: action.movePath,
-				}
+			switch (action.type) {
+				case ActionType.DELETE:
+					changes[path] = { type: ActionType.DELETE, oldContent: originalFiles[path] }
+					break
+				case ActionType.ADD:
+					if (!action.newFile) {
+						throw new DiffError("ADD action without file content")
+					}
+					changes[path] = { type: ActionType.ADD, newContent: action.newFile }
+					break
+				case ActionType.UPDATE:
+					changes[path] = {
+						type: ActionType.UPDATE,
+						oldContent: originalFiles[path],
+						newContent: this.applyChunks(originalFiles[path], action.chunks, path),
+						movePath: action.movePath,
+					}
+					break
 			}
 		}
 
-		return commit
+		return { changes }
 	}
 
-	private getUpdatedFile(text: string, action: PatchAction, path: string): string {
-		if (action.type !== ActionType.UPDATE) {
-			throw new DiffError("_getUpdatedFile called with non-update action")
-		}
+	private applyChunks(content: string, chunks: Chunk[], path: string): string {
+		const lines = content.split("\n")
+		const result: string[] = []
+		let currentIndex = 0
 
-		const origLines = text.split("\n")
-		const destLines: string[] = []
-		let origIndex = 0
-
-		for (const chunk of action.chunks) {
-			if (chunk.origIndex > origLines.length) {
+		for (const chunk of chunks) {
+			if (chunk.origIndex > lines.length) {
 				throw new DiffError(`${path}: chunk.origIndex ${chunk.origIndex} exceeds file length`)
 			}
-			if (origIndex > chunk.origIndex) {
-				throw new DiffError(`${path}: overlapping chunks at ${origIndex} > ${chunk.origIndex}`)
+			if (currentIndex > chunk.origIndex) {
+				throw new DiffError(`${path}: overlapping chunks at ${currentIndex} > ${chunk.origIndex}`)
 			}
 
-			destLines.push(...origLines.slice(origIndex, chunk.origIndex))
-			origIndex = chunk.origIndex
-
-			destLines.push(...chunk.insLines)
-			origIndex += chunk.delLines.length
+			result.push(...lines.slice(currentIndex, chunk.origIndex))
+			result.push(...chunk.insLines)
+			currentIndex = chunk.origIndex + chunk.delLines.length
 		}
 
-		destLines.push(...origLines.slice(origIndex))
-		return destLines.join("\n")
+		result.push(...lines.slice(currentIndex))
+		return result.join("\n")
 	}
 
 	private async applyCommit(config: TaskConfig, commit: Commit): Promise<void> {
@@ -537,249 +392,259 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			const pathResult = resolveWorkspacePath(config, path, "ApplyPatchHandler.applyCommit")
 			const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
 
-			if (change.type === ActionType.DELETE) {
-				await fs.unlink(absolutePath).catch(() => {}) // ignore if file doesn't exist
-			} else if (change.type === ActionType.ADD) {
-				if (!change.newContent) {
-					throw new DiffError(`ADD change for ${path} has no content`)
-				}
-				await fs.mkdir(dirname(absolutePath), { recursive: true })
-				await fs.writeFile(absolutePath, change.newContent, "utf-8")
-			} else if (change.type === ActionType.UPDATE) {
-				if (!change.newContent) {
-					throw new DiffError(`UPDATE change for ${path} has no new content`)
-				}
-				const targetPath = change.movePath
-					? typeof resolveWorkspacePath(config, change.movePath, "ApplyPatchHandler.applyCommit.move") === "string"
-						? (resolveWorkspacePath(config, change.movePath, "ApplyPatchHandler.applyCommit.move") as string)
-						: (resolveWorkspacePath(config, change.movePath, "ApplyPatchHandler.applyCommit.move") as any)
-								.absolutePath
-					: absolutePath
-
-				await fs.mkdir(dirname(targetPath), { recursive: true })
-				await fs.writeFile(targetPath, change.newContent, "utf-8")
-
-				if (change.movePath) {
-					await fs.unlink(absolutePath).catch(() => {}) // ignore if original file doesn't exist
-				}
+			switch (change.type) {
+				case ActionType.DELETE:
+					await fs.unlink(absolutePath).catch(() => {})
+					break
+				case ActionType.ADD:
+					if (!change.newContent) {
+						throw new DiffError(`ADD change for ${path} has no content`)
+					}
+					await fs.mkdir(dirname(absolutePath), { recursive: true })
+					await fs.writeFile(absolutePath, change.newContent, "utf-8")
+					break
+				case ActionType.UPDATE:
+					if (!change.newContent) {
+						throw new DiffError(`UPDATE change for ${path} has no new content`)
+					}
+					const targetPath = change.movePath ? this.resolveAbsolutePath(config, change.movePath) : absolutePath
+					await fs.mkdir(dirname(targetPath), { recursive: true })
+					await fs.writeFile(targetPath, change.newContent, "utf-8")
+					if (change.movePath) {
+						await fs.unlink(absolutePath).catch(() => {})
+					}
+					break
 			}
 		}
 	}
 
-	private norm(line: string): string {
-		return line.replace(/\r$/, "")
+	private resolveAbsolutePath(config: TaskConfig, path: string): string {
+		const result = resolveWorkspacePath(config, path, "ApplyPatchHandler.resolveAbsolutePath")
+		return typeof result === "string" ? result : result.absolutePath
+	}
+
+	private generateChangeSummary(changes: Record<string, FileChange>): string {
+		return Object.entries(changes)
+			.map(([file, change]) => {
+				switch (change.type) {
+					case ActionType.ADD:
+						return `Added: ${file}`
+					case ActionType.DELETE:
+						return `Deleted: ${file}`
+					case ActionType.UPDATE:
+						return `Updated: ${file}${change.movePath ? ` (moved to ${change.movePath})` : ""}`
+					default:
+						return `Modified: ${file}`
+				}
+			})
+			.join("\n")
+	}
+
+	// Approval handling
+	private async handleApproval(
+		config: TaskConfig,
+		block: ToolUse,
+		message: ClineSayTool,
+		primaryFile: string,
+	): Promise<boolean> {
+		const messageStr = JSON.stringify(message)
+		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, primaryFile)
+
+		if (shouldAutoApprove) {
+			await config.callbacks.say("tool", messageStr, undefined, undefined, false)
+			config.taskState.consecutiveAutoApprovedRequestsCount++
+			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
+			return true
+		}
+
+		const fileCount = Object.keys(JSON.parse(messageStr).content.match(/\d+/)?.[0] || "0").length
+		showNotificationForApprovalIfAutoApprovalEnabled(
+			`Cline wants to apply a patch to ${fileCount} file(s)`,
+			config.autoApprovalSettings.enabled,
+			config.autoApprovalSettings.enableNotifications,
+		)
+
+		const { response, text, images, files } = await config.callbacks.ask("tool", messageStr, false)
+
+		if (text || images?.length || files?.length) {
+			const fileContent = files?.length ? await processFilesIntoText(files) : ""
+			ToolResultUtils.pushAdditionalToolFeedback(config.taskState.userMessageContent, text, images, fileContent)
+			await config.callbacks.say("user_feedback", text, images, files)
+		}
+
+		const approved = response === "yesButtonClicked"
+		config.taskState.didRejectTool = !approved
+		telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, approved)
+
+		return approved
 	}
 }
 
-// Patch parser class
+// Optimized parser
 class PatchParser {
-	public patch: Patch = { actions: {} }
-	private index: number
+	private patch: Patch = { actions: {} }
+	private index = 0
 
-	constructor(
-		private lines: string[],
-		startIndex: number,
-	) {
-		this.index = startIndex
-	}
+	constructor(private lines: string[]) {}
 
-	private curLine(): string {
-		if (this.index >= this.lines.length) {
-			throw new DiffError("Unexpected end of input while parsing patch")
-		}
-		return this.lines[this.index]
-	}
-
-	private norm(line: string): string {
-		return line.replace(/\r$/, "")
-	}
-
-	private isDone(prefixes?: string[]): boolean {
-		if (this.index >= this.lines.length) {
-			return true
-		}
-		if (prefixes && prefixes.length > 0 && prefixes.some((prefix) => this.norm(this.curLine()).startsWith(prefix))) {
-			return true
-		}
-		return false
-	}
-
-	private startsWith(prefix: string | string[]): boolean {
-		const prefixes = Array.isArray(prefix) ? prefix : [prefix]
-		return prefixes.some((p) => this.norm(this.curLine()).startsWith(p))
-	}
-
-	private readStr(prefix: string): string {
-		if (prefix === "") {
-			throw new Error("readStr() requires a non-empty prefix")
-		}
-		if (this.norm(this.curLine()).startsWith(prefix)) {
-			const text = this.curLine().substring(prefix.length)
+	parse(): Patch {
+		// Skip begin sentinel
+		if (this.lines[this.index]?.startsWith(PATCH_MARKERS.BEGIN)) {
 			this.index++
-			return text
 		}
-		return ""
+
+		while (this.index < this.lines.length && !this.lines[this.index].startsWith(PATCH_MARKERS.END)) {
+			const line = this.lines[this.index]
+
+			if (line.startsWith(PATCH_MARKERS.UPDATE)) {
+				this.parseUpdate(line.substring(PATCH_MARKERS.UPDATE.length).trim())
+			} else if (line.startsWith(PATCH_MARKERS.DELETE)) {
+				this.parseDelete(line.substring(PATCH_MARKERS.DELETE.length).trim())
+			} else if (line.startsWith(PATCH_MARKERS.ADD)) {
+				this.parseAdd(line.substring(PATCH_MARKERS.ADD.length).trim())
+			} else {
+				throw new DiffError(`Unknown line while parsing: ${line}`)
+			}
+		}
+
+		return this.patch
 	}
 
-	private readLine(): string {
-		const line = this.curLine()
+	private parseUpdate(path: string): void {
+		if (path in this.patch.actions) {
+			throw new DiffError(`Duplicate update for file: ${path}`)
+		}
+
 		this.index++
-		return line
-	}
+		const movePath = this.lines[this.index]?.startsWith(PATCH_MARKERS.MOVE)
+			? this.lines[this.index++].substring(PATCH_MARKERS.MOVE.length).trim()
+			: undefined
 
-	public parse(): void {
-		while (!this.isDone(["*** End Patch"])) {
-			// UPDATE
-			const updatePath = this.readStr("*** Update File: ")
-			if (updatePath) {
-				if (updatePath in this.patch.actions) {
-					throw new DiffError(`Duplicate update for file: ${updatePath}`)
-				}
-				const moveTo = this.readStr("*** Move to: ")
-				const action = this.parseUpdateFile()
-				action.movePath = moveTo || undefined
-				this.patch.actions[updatePath] = action
-				continue
+		const chunks: Chunk[] = []
+		while (
+			this.index < this.lines.length &&
+			!this.lines[this.index].startsWith(PATCH_MARKERS.END) &&
+			!this.lines[this.index].startsWith(PATCH_MARKERS.UPDATE) &&
+			!this.lines[this.index].startsWith(PATCH_MARKERS.DELETE) &&
+			!this.lines[this.index].startsWith(PATCH_MARKERS.ADD)
+		) {
+			if (this.lines[this.index].startsWith(PATCH_MARKERS.SECTION) || this.lines[this.index] === PATCH_MARKERS.SECTION) {
+				this.index++
 			}
-
-			// DELETE
-			const deletePath = this.readStr("*** Delete File: ")
-			if (deletePath) {
-				if (deletePath in this.patch.actions) {
-					throw new DiffError(`Duplicate delete for file: ${deletePath}`)
-				}
-				this.patch.actions[deletePath] = { type: ActionType.DELETE, chunks: [] }
-				continue
-			}
-
-			// ADD
-			const addPath = this.readStr("*** Add File: ")
-			if (addPath) {
-				if (addPath in this.patch.actions) {
-					throw new DiffError(`Duplicate add for file: ${addPath}`)
-				}
-				this.patch.actions[addPath] = this.parseAddFile()
-				continue
-			}
-
-			throw new DiffError(`Unknown line while parsing: ${this.curLine()}`)
+			chunks.push(...this.parseChunks())
 		}
 
-		if (!this.startsWith("*** End Patch")) {
-			throw new DiffError("Missing *** End Patch sentinel")
-		}
-		this.index++ // consume sentinel
+		this.patch.actions[path] = { type: ActionType.UPDATE, chunks, movePath }
 	}
 
-	private parseUpdateFile(): PatchAction {
-		const action: PatchAction = { type: ActionType.UPDATE, chunks: [] }
-
-		while (!this.isDone(["*** End Patch", "*** Update File:", "*** Delete File:", "*** Add File:", "*** End of File"])) {
-			const defStr = this.readStr("@@ ")
-			const sectionStr = this.norm(this.curLine()) === "@@" ? this.readLine() : ""
-
-			if (!defStr && !sectionStr && this.index !== 0) {
-				throw new DiffError(`Invalid line in update section:\n${this.curLine()}`)
-			}
-
-			const [, chunks, endIdx] = this.peekNextSection()
-			action.chunks.push(...chunks)
-			this.index = endIdx
+	private parseDelete(path: string): void {
+		if (path in this.patch.actions) {
+			throw new DiffError(`Duplicate delete for file: ${path}`)
 		}
-
-		return action
+		this.patch.actions[path] = { type: ActionType.DELETE, chunks: [] }
+		this.index++
 	}
 
-	private parseAddFile(): PatchAction {
+	private parseAdd(path: string): void {
+		if (path in this.patch.actions) {
+			throw new DiffError(`Duplicate add for file: ${path}`)
+		}
+
+		this.index++
 		const lines: string[] = []
 
-		while (!this.isDone(["*** End Patch", "*** Update File:", "*** Delete File:", "*** Add File:"])) {
-			const s = this.readLine()
-			if (!s.startsWith("+")) {
-				throw new DiffError(`Invalid Add File line (missing '+'): ${s}`)
+		while (
+			this.index < this.lines.length &&
+			!this.lines[this.index].startsWith(PATCH_MARKERS.END) &&
+			!this.lines[this.index].startsWith(PATCH_MARKERS.UPDATE) &&
+			!this.lines[this.index].startsWith(PATCH_MARKERS.DELETE) &&
+			!this.lines[this.index].startsWith(PATCH_MARKERS.ADD)
+		) {
+			const line = this.lines[this.index++]
+			if (!line.startsWith("+")) {
+				throw new DiffError(`Invalid Add File line (missing '+'): ${line}`)
 			}
-			lines.push(s.substring(1)) // strip leading '+'
+			lines.push(line.substring(1))
 		}
 
-		return { type: ActionType.ADD, newFile: lines.join("\n"), chunks: [] }
+		this.patch.actions[path] = { type: ActionType.ADD, newFile: lines.join("\n"), chunks: [] }
 	}
 
-	private peekNextSection(): [string[], Chunk[], number, boolean] {
-		const old: string[] = []
+	private parseChunks(): Chunk[] {
+		const chunks: Chunk[] = []
+		const originalLines: string[] = []
 		let delLines: string[] = []
 		let insLines: string[] = []
-		const chunks: Chunk[] = []
-		let mode = "keep"
-		let index = this.index
+		let mode: "keep" | "add" | "delete" = "keep"
 
-		while (index < this.lines.length) {
-			const s = this.lines[index]
+		while (this.index < this.lines.length) {
+			const line = this.lines[this.index]
+
 			if (
-				s.startsWith("@@") ||
-				s.startsWith("*** End Patch") ||
-				s.startsWith("*** Update File:") ||
-				s.startsWith("*** Delete File:") ||
-				s.startsWith("*** Add File:") ||
-				s.startsWith("*** End of File")
+				line.startsWith(PATCH_MARKERS.SECTION) ||
+				line.startsWith(PATCH_MARKERS.END) ||
+				line.startsWith(PATCH_MARKERS.UPDATE) ||
+				line.startsWith(PATCH_MARKERS.DELETE) ||
+				line.startsWith(PATCH_MARKERS.ADD) ||
+				line.startsWith(PATCH_MARKERS.END_FILE) ||
+				line === "***"
 			) {
 				break
 			}
-			if (s === "***") {
-				break
+
+			if (line.startsWith("***")) {
+				throw new DiffError(`Invalid Line: ${line}`)
 			}
-			if (s.startsWith("***")) {
-				throw new DiffError(`Invalid Line: ${s}`)
-			}
-			index++
+
+			this.index++
+			const content = line === "" ? " " : line
+			const firstChar = content[0]
 
 			const lastMode = mode
-			let line = s === "" ? " " : s
-			if (line[0] === "+") {
+			if (firstChar === "+") {
 				mode = "add"
-			} else if (line[0] === "-") {
+			} else if (firstChar === "-") {
 				mode = "delete"
-			} else if (line[0] === " ") {
+			} else if (firstChar === " ") {
 				mode = "keep"
 			} else {
-				throw new DiffError(`Invalid Line: ${s}`)
+				throw new DiffError(`Invalid Line: ${line}`)
 			}
-			line = line.substring(1)
 
-			if (mode === "keep" && lastMode !== mode) {
-				if (insLines.length > 0 || delLines.length > 0) {
-					chunks.push({
-						origIndex: old.length - delLines.length,
-						delLines: delLines,
-						insLines: insLines,
-					})
-				}
+			const lineContent = content.substring(1)
+
+			if (mode === "keep" && lastMode !== "keep" && (insLines.length > 0 || delLines.length > 0)) {
+				chunks.push({
+					origIndex: originalLines.length - delLines.length,
+					delLines,
+					insLines,
+				})
 				delLines = []
 				insLines = []
 			}
 
 			if (mode === "delete") {
-				delLines.push(line)
-				old.push(line)
+				delLines.push(lineContent)
+				originalLines.push(lineContent)
 			} else if (mode === "add") {
-				insLines.push(line)
-			} else if (mode === "keep") {
-				old.push(line)
+				insLines.push(lineContent)
+			} else {
+				originalLines.push(lineContent)
 			}
 		}
 
 		if (insLines.length > 0 || delLines.length > 0) {
 			chunks.push({
-				origIndex: old.length - delLines.length,
-				delLines: delLines,
-				insLines: insLines,
+				origIndex: originalLines.length - delLines.length,
+				delLines,
+				insLines,
 			})
 		}
 
-		if (index < this.lines.length && this.lines[index] === "*** End of File") {
-			index++
-			return [old, chunks, index, true]
+		if (this.index < this.lines.length && this.lines[this.index] === PATCH_MARKERS.END_FILE) {
+			this.index++
 		}
 
-		return [old, chunks, index, false]
+		return chunks
 	}
 }
