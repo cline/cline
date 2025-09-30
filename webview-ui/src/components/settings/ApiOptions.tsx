@@ -49,56 +49,14 @@ import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
 
 // OpenAI-compatible provider presets (kept scoped to ApiOptions)
-type OpenAICompatiblePreset = {
-	provider: "openai"
-	defaults?: { openAiBaseUrl?: string }
-	apiKeyLabel?: string
-}
 
-const OPENAI_COMPATIBLE_PRESETS: Readonly<Record<string, OpenAICompatiblePreset>> = {
-	portkey: {
-		provider: "openai",
-		defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" },
-		apiKeyLabel: "Your Portkey",
-	},
-}
-
-// Determine which preset matches a given OpenAI-compatible base URL
+// Determine which preset matches a given OpenAI-compatible base URL (minimal heuristic)
 function matchPresetFromBaseUrl(openAiBaseUrl?: string): string | null {
-	const base = (openAiBaseUrl || "").trim()
+	const base = (openAiBaseUrl || "").toLowerCase()
 	if (!base) {
 		return null
 	}
-	try {
-		const input = new URL(base)
-		const inputHost = input.hostname.toLowerCase()
-		const inputPath = input.pathname || "/"
-
-		for (const [key, preset] of Object.entries(OPENAI_COMPATIBLE_PRESETS)) {
-			const presetUrl = preset.defaults?.openAiBaseUrl
-			if (!presetUrl) {
-				continue
-			}
-			try {
-				const presetParsed = new URL(presetUrl)
-				const presetHost = presetParsed.hostname.toLowerCase()
-				const presetPath = presetParsed.pathname || "/"
-
-				const isSameHost = inputHost === presetHost
-				const isSubdomain = inputHost.endsWith(`.${presetHost}`)
-				const isPathCompatible = presetPath === "/" || inputPath.startsWith(presetPath)
-
-				if ((isSameHost || isSubdomain) && isPathCompatible) {
-					return key
-				}
-			} catch {
-				// ignore invalid preset URL
-			}
-		}
-	} catch {
-		// ignore invalid input URL
-	}
-	return null
+	return base.includes("portkey.ai") ? "portkey" : null
 }
 
 // Render highlighted label without using dangerouslySetInnerHTML
@@ -147,9 +105,8 @@ function mapOptionToProviderAndDefaults(optionValue: string): {
 	provider: string
 	defaults?: { openAiBaseUrl?: string }
 } {
-	const preset = OPENAI_COMPATIBLE_PRESETS[optionValue]
-	if (preset) {
-		return { provider: preset.provider, defaults: preset.defaults }
+	if (optionValue === "portkey") {
+		return { provider: "openai", defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" } }
 	}
 	return { provider: optionValue }
 }
