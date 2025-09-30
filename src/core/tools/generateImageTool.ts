@@ -11,7 +11,7 @@ import { EXPERIMENT_IDS, experiments } from "../../shared/experiments"
 import { OpenRouterHandler } from "../../api/providers/openrouter"
 
 // Hardcoded list of image generation models for now
-const IMAGE_GENERATION_MODELS = ["google/gemini-2.5-flash-image-preview", "google/gemini-2.5-flash-image-preview:free"]
+const IMAGE_GENERATION_MODELS = ["google/gemini-2.5-flash-image-preview"]
 
 export async function generateImageTool(
 	cline: Task,

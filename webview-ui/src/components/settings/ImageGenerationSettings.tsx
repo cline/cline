@@ -14,7 +14,6 @@ interface ImageGenerationSettingsProps {
 // Hardcoded list of image generation models
 const IMAGE_GENERATION_MODELS = [
 	{ value: "google/gemini-2.5-flash-image-preview", label: "Gemini 2.5 Flash Image Preview" },
-	{ value: "google/gemini-2.5-flash-image-preview:free", label: "Gemini 2.5 Flash Image Preview (Free)" },
 	// Add more models as they become available
 ]
 
