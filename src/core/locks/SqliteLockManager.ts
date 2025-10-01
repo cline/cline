@@ -1,8 +1,8 @@
 import Database from "better-sqlite3"
+import * as fs from "fs"
 import { existsSync, mkdirSync, unlinkSync } from "fs"
 import * as path from "path"
 import type { SqliteLockManagerOptions } from "./types"
-
 export class SqliteLockManager {
 	private db!: Database.Database
 	private instanceAddress: string
@@ -38,7 +38,6 @@ export class SqliteLockManager {
 
 		try {
 			// Try to acquire exclusive file lock for database creation
-			const fs = require("fs")
 			let fd: number | null = null
 
 			try {
@@ -92,8 +91,6 @@ export class SqliteLockManager {
 			if (!existsSync(lockFile)) {
 				return // Lock file doesn't exist, nothing to clean up
 			}
-
-			const fs = require("fs")
 
 			try {
 				const timestampStr = fs.readFileSync(lockFile, "utf8").trim()
