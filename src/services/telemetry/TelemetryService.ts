@@ -265,20 +265,16 @@ export class TelemetryService {
 		})
 	}
 
-	private addProperties(properties: any): any {
-		return {
-			...properties,
-			...this.telemetryMetadata,
-		}
-	}
-
 	/**
 	 * Captures a telemetry event if telemetry is enabled
 	 * @param event The event to capture with its properties
 	 */
-	public capture(event: { event: string; properties?: unknown }): void {
-		const propertiesWithVersion = this.addProperties(event.properties)
-		this.captureToProviders(event.event, propertiesWithVersion, false)
+	public capture(event: { event: string; properties?: TelemetryProperties }): void {
+		const propertiesWithMetadata: TelemetryProperties = {
+			...(event.properties || {}),
+			...this.telemetryMetadata,
+		}
+		this.captureToProviders(event.event, propertiesWithMetadata, false)
 	}
 
 	/**
@@ -286,9 +282,12 @@ export class TelemetryService {
 	 * @param event The event name to capture
 	 * @param properties Optional properties to attach to the event
 	 */
-	public captureRequired(event: string, properties?: Record<string, unknown>): void {
-		const propertiesWithVersion = this.addProperties(properties)
-		this.captureToProviders(event, propertiesWithVersion, true)
+	public captureRequired(event: string, properties?: TelemetryProperties): void {
+		const propertiesWithMetadata: TelemetryProperties = {
+			...(properties || {}),
+			...this.telemetryMetadata,
+		}
+		this.captureToProviders(event, propertiesWithMetadata, true)
 	}
 
 	/**
@@ -320,12 +319,14 @@ export class TelemetryService {
 	 * @param userInfo The user's information
 	 */
 	public identifyAccount(userInfo: ClineAccountUserInfo) {
-		const propertiesWithVersion = this.addProperties({})
+		const propertiesWithMetadata: TelemetryProperties = {
+			...this.telemetryMetadata,
+		}
 
 		// Update all providers with error isolation
 		this.providers.forEach((provider) => {
 			try {
-				provider.identifyUser(userInfo, propertiesWithVersion)
+				provider.identifyUser(userInfo, propertiesWithMetadata)
 			} catch (error) {
 				console.error(`[TelemetryService] Provider failed for user identification:`, error)
 			}
@@ -518,18 +519,16 @@ export class TelemetryService {
 			return
 		}
 
-		const properties: Record<string, unknown> = {
-			ulid,
-			provider,
-			model,
-			source,
-			timestamp: new Date().toISOString(), // Add timestamp for message sequencing
-			...tokenUsage,
-		}
-
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.CONVERSATION_TURN,
-			properties,
+			properties: {
+				ulid,
+				provider,
+				model,
+				source,
+				timestamp: new Date().toISOString(), // Add timestamp for message sequencing
+				...tokenUsage,
+			},
 		})
 	}
 
@@ -784,7 +783,6 @@ export class TelemetryService {
 			action?: string
 			url?: string
 			isRemote?: boolean
-			[key: string]: unknown
 		},
 	) {
 		if (!this.isCategoryEnabled("browser")) {
@@ -797,7 +795,7 @@ export class TelemetryService {
 				ulid,
 				errorType,
 				errorMessage,
-				context,
+				...(context && { context }),
 				timestamp: new Date().toISOString(),
 			},
 		})
