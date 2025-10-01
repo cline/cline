@@ -232,14 +232,9 @@ export class WorkspaceRootManager {
 			const gitRemotes = await getGitRemoteUrls(root.path)
 			const gitCommitHash = await getLatestGitCommitHash(root.path)
 
-			const remoteUrls = gitRemotes.map((remote: string) => {
-				const colonIndex = remote.indexOf(": ")
-				return colonIndex !== -1 ? remote.substring(colonIndex + 2) : remote
-			})
-
 			workspaces[root.path] = {
 				hint,
-				...(remoteUrls.length > 0 && { associatedRemoteUrls: remoteUrls }),
+				...(gitRemotes.length > 0 && { associatedRemoteUrls: gitRemotes }),
 				...(gitCommitHash && { latestGitCommitHash: gitCommitHash }),
 			}
 		}
