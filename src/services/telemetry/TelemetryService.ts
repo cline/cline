@@ -8,6 +8,11 @@ import { Setting } from "@/shared/proto/index.host"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
+import { BrowserEvents } from "./events/BrowserEvents"
+import { DictationEvents } from "./events/DictationEvents"
+import { TaskEvents } from "./events/TaskEvents"
+import { UIEvents } from "./events/UIEvents"
+import { WorkspaceEvents } from "./events/WorkspaceEvents"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
 import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
 
@@ -346,15 +351,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("dictation")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.DICTATION.RECORDING_STARTED,
-			properties: {
-				taskId,
-				platform: platform ?? process.platform,
-				timestamp: new Date().toISOString(),
-			},
-		})
+		DictationEvents.captureVoiceRecordingStarted(this, taskId, platform)
 	}
 
 	/**
@@ -368,17 +365,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("dictation")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.DICTATION.RECORDING_STOPPED,
-			properties: {
-				taskId,
-				durationMs,
-				success,
-				platform: platform ?? process.platform,
-				timestamp: new Date().toISOString(),
-			},
-		})
+		DictationEvents.captureVoiceRecordingStopped(this, taskId, durationMs, success, platform)
 	}
 
 	/**
@@ -390,15 +377,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("dictation")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.DICTATION.TRANSCRIPTION_STARTED,
-			properties: {
-				taskId,
-				language,
-				timestamp: new Date().toISOString(),
-			},
-		})
+		DictationEvents.captureVoiceTranscriptionStarted(this, taskId, language)
 	}
 
 	/**
@@ -419,18 +398,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("dictation")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.DICTATION.TRANSCRIPTION_COMPLETED,
-			properties: {
-				taskId,
-				transcriptionLength,
-				durationMs,
-				language,
-				accountType: isOrgAccount ? "organization" : "personal",
-				timestamp: new Date().toISOString(),
-			},
-		})
+		DictationEvents.captureVoiceTranscriptionCompleted(this, taskId, transcriptionLength, durationMs, language, isOrgAccount)
 	}
 
 	/**
@@ -444,17 +412,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("dictation")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.DICTATION.TRANSCRIPTION_ERROR,
-			properties: {
-				taskId,
-				errorType,
-				errorMessage,
-				durationMs,
-				timestamp: new Date().toISOString(),
-			},
-		})
+		DictationEvents.captureVoiceTranscriptionError(this, taskId, errorType, errorMessage, durationMs)
 	}
 	// Task events
 	/**
@@ -463,10 +421,7 @@ export class TelemetryService {
 	 * @param apiProvider Optional API provider
 	 */
 	public captureTaskCreated(ulid: string, apiProvider?: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.CREATED,
-			properties: { ulid, apiProvider },
-		})
+		TaskEvents.captureTaskCreated(this, ulid, apiProvider)
 	}
 
 	/**
@@ -475,10 +430,7 @@ export class TelemetryService {
 	 * @param apiProvider Optional API provider
 	 */
 	public captureTaskRestarted(ulid: string, apiProvider?: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.RESTARTED,
-			properties: { ulid, apiProvider },
-		})
+		TaskEvents.captureTaskRestarted(this, ulid, apiProvider)
 	}
 
 	/**
@@ -486,10 +438,7 @@ export class TelemetryService {
 	 * @param ulid Unique identifier for the task
 	 */
 	public captureTaskCompleted(ulid: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.COMPLETED,
-			properties: { ulid },
-		})
+		TaskEvents.captureTaskCompleted(this, ulid)
 	}
 
 	/**
@@ -513,23 +462,7 @@ export class TelemetryService {
 			totalCost?: number
 		} = {},
 	) {
-		// Ensure required parameters are provided
-		if (!ulid || !provider || !model || !source) {
-			console.warn("TelemetryService: Missing required parameters for message capture")
-			return
-		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.CONVERSATION_TURN,
-			properties: {
-				ulid,
-				provider,
-				model,
-				source,
-				timestamp: new Date().toISOString(), // Add timestamp for message sequencing
-				...tokenUsage,
-			},
-		})
+		TaskEvents.captureConversationTurnEvent(this, ulid, provider, model, source, tokenUsage)
 	}
 
 	/**
@@ -540,15 +473,7 @@ export class TelemetryService {
 	 * @param model The model used for token calculation
 	 */
 	public captureTokenUsage(ulid: string, tokensIn: number, tokensOut: number, model: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.TOKEN_USAGE,
-			properties: {
-				ulid,
-				tokensIn,
-				tokensOut,
-				model,
-			},
-		})
+		TaskEvents.captureTokenUsage(this, ulid, tokensIn, tokensOut, model)
 	}
 
 	/**
@@ -557,13 +482,7 @@ export class TelemetryService {
 	 * @param mode The mode being switched to (plan or act)
 	 */
 	public captureModeSwitch(ulid: string, mode: Mode) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.MODE_SWITCH,
-			properties: {
-				ulid,
-				mode,
-			},
-		})
+		TaskEvents.captureModeSwitch(this, ulid, mode)
 	}
 
 	/**
@@ -574,15 +493,7 @@ export class TelemetryService {
 	 * @param maxContextWindow Maximum context window size for the model
 	 */
 	public captureSummarizeTask(ulid: string, modelId: string, currentTokens: number, maxContextWindow: number) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.AUTO_COMPACT,
-			properties: {
-				ulid,
-				modelId,
-				currentTokens,
-				maxContextWindow,
-			},
-		})
+		TaskEvents.captureSummarizeTask(this, ulid, modelId, currentTokens, maxContextWindow)
 	}
 
 	/**
@@ -591,17 +502,7 @@ export class TelemetryService {
 	 * @param feedbackType The type of feedback ("thumbs_up" or "thumbs_down")
 	 */
 	public captureTaskFeedback(ulid: string, feedbackType: TaskFeedbackType) {
-		console.info("TelemetryService: Capturing task feedback", {
-			ulid,
-			feedbackType,
-		})
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.FEEDBACK,
-			properties: {
-				ulid,
-				feedbackType,
-			},
-		})
+		TaskEvents.captureTaskFeedback(this, ulid, feedbackType)
 	}
 
 	// Tool events
@@ -613,16 +514,7 @@ export class TelemetryService {
 	 * @param success Whether the tool execution was successful
 	 */
 	public captureToolUsage(ulid: string, tool: string, modelId: string, autoApproved: boolean, success: boolean) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.TOOL_USED,
-			properties: {
-				ulid,
-				tool,
-				autoApproved,
-				success,
-				modelId,
-			},
-		})
+		TaskEvents.captureToolUsage(this, ulid, tool, modelId, autoApproved, success)
 	}
 
 	/**
@@ -646,17 +538,7 @@ export class TelemetryService {
 		errorMessage?: string,
 		argumentKeys?: string[],
 	) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.MCP_TOOL_CALLED,
-			properties: {
-				ulid,
-				serverName,
-				toolName,
-				status,
-				errorMessage,
-				argumentKeys,
-			},
-		})
+		TaskEvents.captureMcpToolCall(this, ulid, serverName, toolName, status, errorMessage, argumentKeys)
 	}
 
 	/**
@@ -673,15 +555,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("checkpoints")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.CHECKPOINT_USED,
-			properties: {
-				ulid,
-				action,
-				durationMs,
-			},
-		})
+		TaskEvents.captureCheckpointUsage(this, ulid, action, durationMs)
 	}
 
 	/**
@@ -690,14 +564,7 @@ export class TelemetryService {
 	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
 	 */
 	public captureDiffEditFailure(ulid: string, modelId: string, errorType?: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.DIFF_EDIT_FAILED,
-			properties: {
-				ulid,
-				errorType,
-				modelId,
-			},
-		})
+		TaskEvents.captureDiffEditFailure(this, ulid, modelId, errorType)
 	}
 
 	/**
@@ -707,14 +574,7 @@ export class TelemetryService {
 	 * @param ulid Optional task identifier if model was selected during a task
 	 */
 	public captureModelSelected(model: string, provider: string, ulid?: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.UI.MODEL_SELECTED,
-			properties: {
-				model,
-				provider,
-				ulid,
-			},
-		})
+		UIEvents.captureModelSelected(this, model, provider, ulid)
 	}
 
 	/**
@@ -726,17 +586,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("browser")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.BROWSER_TOOL_START,
-			properties: {
-				ulid,
-				viewport: browserSettings.viewport,
-				isRemote: !!browserSettings.remoteBrowserEnabled,
-				remoteBrowserHost: browserSettings.remoteBrowserHost,
-				timestamp: new Date().toISOString(),
-			},
-		})
+		BrowserEvents.captureBrowserToolStart(this, ulid, browserSettings)
 	}
 
 	/**
@@ -755,17 +605,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("browser")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.BROWSER_TOOL_END,
-			properties: {
-				ulid,
-				actionCount: stats.actionCount,
-				duration: stats.duration,
-				actions: stats.actions,
-				timestamp: new Date().toISOString(),
-			},
-		})
+		BrowserEvents.captureBrowserToolEnd(this, ulid, stats)
 	}
 
 	/**
@@ -783,22 +623,15 @@ export class TelemetryService {
 			action?: string
 			url?: string
 			isRemote?: boolean
+			remoteBrowserHost?: string
+			endpoint?: string
+			[key: string]: string | number | boolean | undefined
 		},
 	) {
 		if (!this.isCategoryEnabled("browser")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.BROWSER_ERROR,
-			properties: {
-				ulid,
-				errorType,
-				errorMessage,
-				...(context && { context }),
-				timestamp: new Date().toISOString(),
-			},
-		})
+		BrowserEvents.captureBrowserError(this, ulid, errorType, errorMessage, context)
 	}
 
 	/**
@@ -808,14 +641,7 @@ export class TelemetryService {
 	 * @param mode The mode in which the option was selected ("plan" or "act")
 	 */
 	public captureOptionSelected(ulid: string, qty: number, mode: Mode) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.OPTION_SELECTED,
-			properties: {
-				ulid,
-				qty,
-				mode,
-			},
-		})
+		TaskEvents.captureOptionSelected(this, ulid, qty, mode)
 	}
 
 	/**
@@ -825,14 +651,7 @@ export class TelemetryService {
 	 * @param mode The mode in which the custom response was provided ("plan" or "act")
 	 */
 	public captureOptionsIgnored(ulid: string, qty: number, mode: Mode) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.OPTIONS_IGNORED,
-			properties: {
-				ulid,
-				qty,
-				mode,
-			},
-		})
+		TaskEvents.captureOptionsIgnored(this, ulid, qty, mode)
 	}
 
 	/**
@@ -857,14 +676,7 @@ export class TelemetryService {
 			throughputTokensPerSec?: number
 		},
 	) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.GEMINI_API_PERFORMANCE,
-			properties: {
-				ulid,
-				modelId,
-				...data,
-			},
-		})
+		TaskEvents.captureGeminiApiPerformance(this, ulid, modelId, data)
 	}
 
 	/**
@@ -873,23 +685,11 @@ export class TelemetryService {
 	 * @param isFavorited Whether the model is being favorited (true) or unfavorited (false)
 	 */
 	public captureModelFavoritesUsage(model: string, isFavorited: boolean) {
-		this.capture({
-			event: TelemetryService.EVENTS.UI.MODEL_FAVORITE_TOGGLED,
-			properties: {
-				model,
-				isFavorited,
-			},
-		})
+		UIEvents.captureModelFavoritesUsage(this, model, isFavorited)
 	}
 
 	public captureButtonClick(button: string, ulid?: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.UI.BUTTON_CLICKED,
-			properties: {
-				button,
-				ulid,
-			},
-		})
+		UIEvents.captureButtonClick(this, button, ulid)
 	}
 
 	/**
@@ -909,14 +709,7 @@ export class TelemetryService {
 		errorStatus?: number | undefined
 		requestId?: string | undefined
 	}) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.PROVIDER_API_ERROR,
-			properties: {
-				...args,
-				errorMessage: args.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH), // Truncate long error messages
-				timestamp: new Date().toISOString(),
-			},
-		})
+		TaskEvents.captureProviderApiError(this, args)
 	}
 
 	/**
@@ -927,13 +720,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("focus_chain")) {
 			return
 		}
-
-		this.capture({
-			event: enabled ? TelemetryService.EVENTS.TASK.FOCUS_CHAIN_ENABLED : TelemetryService.EVENTS.TASK.FOCUS_CHAIN_DISABLED,
-			properties: {
-				enabled,
-			},
-		})
+		TaskEvents.captureFocusChainToggle(this, enabled)
 	}
 
 	/**
@@ -945,14 +732,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("focus_chain")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_PROGRESS_FIRST,
-			properties: {
-				ulid,
-				totalItems,
-			},
-		})
+		TaskEvents.captureFocusChainProgressFirst(this, ulid, totalItems)
 	}
 
 	/**
@@ -965,16 +745,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("focus_chain")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_PROGRESS_UPDATE,
-			properties: {
-				ulid,
-				totalItems,
-				completedItems,
-				completionPercentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
-			},
-		})
+		TaskEvents.captureFocusChainProgressUpdate(this, ulid, totalItems, completedItems)
 	}
 
 	/**
@@ -993,17 +764,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("focus_chain")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_INCOMPLETE_ON_COMPLETION,
-			properties: {
-				ulid,
-				totalItems,
-				completedItems,
-				incompleteItems,
-				completionPercentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
-			},
-		})
+		TaskEvents.captureFocusChainIncompleteOnCompletion(this, ulid, totalItems, completedItems, incompleteItems)
 	}
 
 	/**
@@ -1014,13 +775,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("focus_chain")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_LIST_OPENED,
-			properties: {
-				ulid,
-			},
-		})
+		TaskEvents.captureFocusChainListOpened(this, ulid)
 	}
 
 	/**
@@ -1031,13 +786,7 @@ export class TelemetryService {
 		if (!this.isCategoryEnabled("focus_chain")) {
 			return
 		}
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.FOCUS_CHAIN_LIST_WRITTEN,
-			properties: {
-				ulid,
-			},
-		})
+		TaskEvents.captureFocusChainListWritten(this, ulid)
 	}
 
 	/**
@@ -1047,14 +796,7 @@ export class TelemetryService {
 	 * @param commandType Whether it's a built-in command or custom workflow
 	 */
 	public captureSlashCommandUsed(ulid: string, commandName: string, commandType: "builtin" | "workflow") {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.SLASH_COMMAND_USED,
-			properties: {
-				ulid,
-				commandName,
-				commandType,
-			},
-		})
+		TaskEvents.captureSlashCommandUsed(this, ulid, commandName, commandType)
 	}
 
 	/**
@@ -1065,18 +807,7 @@ export class TelemetryService {
 	 * @param isGlobal Whether this is a global rule or workspace-specific rule
 	 */
 	public captureClineRuleToggled(ulid: string, ruleFileName: string, enabled: boolean, isGlobal: boolean) {
-		// Sanitize filename to remove any path information for privacy
-		const sanitizedFileName = ruleFileName.split("/").pop() || ruleFileName.split("\\").pop() || ruleFileName
-
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.RULE_TOGGLED,
-			properties: {
-				ulid,
-				ruleFileName: sanitizedFileName,
-				enabled,
-				isGlobal,
-			},
-		})
+		TaskEvents.captureClineRuleToggled(this, ulid, ruleFileName, enabled, isGlobal)
 	}
 
 	/**
@@ -1086,14 +817,7 @@ export class TelemetryService {
 	 * @param modelId The model ID being used when the toggle occurred
 	 */
 	public captureAutoCondenseToggle(ulid: string, enabled: boolean, modelId: string) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.AUTO_CONDENSE_TOGGLED,
-			properties: {
-				ulid,
-				enabled,
-				modelId,
-			},
-		})
+		TaskEvents.captureAutoCondenseToggle(this, ulid, enabled, modelId)
 	}
 
 	/**
@@ -1102,13 +826,7 @@ export class TelemetryService {
 	 * @param enabled Whether yolo mode was enabled (true) or disabled (false)
 	 */
 	public captureYoloModeToggle(ulid: string, enabled: boolean) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.YOLO_MODE_TOGGLED,
-			properties: {
-				ulid,
-				enabled,
-			},
-		})
+		TaskEvents.captureYoloModeToggle(this, ulid, enabled)
 	}
 
 	/**
@@ -1119,25 +837,14 @@ export class TelemetryService {
 	 * @param hasCheckpoints Whether checkpoints are enabled for this task
 	 */
 	public captureTaskInitialization(ulid: string, taskId: string, durationMs: number, hasCheckpoints: boolean) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.INITIALIZATION,
-			properties: {
-				ulid,
-				taskId,
-				durationMs,
-				hasCheckpoints,
-			},
-		})
+		TaskEvents.captureTaskInitialization(this, ulid, taskId, durationMs, hasCheckpoints)
 	}
 
 	/**
 	 * Records when the rules menu button is clicked to open the rules/workflows modal
 	 */
 	public captureRulesMenuOpened() {
-		this.capture({
-			event: TelemetryService.EVENTS.UI.RULES_MENU_OPENED,
-			properties: {},
-		})
+		UIEvents.captureRulesMenuOpened(this)
 	}
 
 	// Terminal telemetry methods
@@ -1148,13 +855,7 @@ export class TelemetryService {
 	 * @param method The method used to capture output ("shell_integration" | "clipboard" | "none")
 	 */
 	public captureTerminalExecution(success: boolean, method: "shell_integration" | "clipboard" | "none") {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.TERMINAL_EXECUTION,
-			properties: {
-				success,
-				method,
-			},
-		})
+		TaskEvents.captureTerminalExecution(this, success, method)
 	}
 
 	/**
@@ -1162,12 +863,7 @@ export class TelemetryService {
 	 * @param reason The reason for failure
 	 */
 	public captureTerminalOutputFailure(reason: TerminalOutputFailureReason) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.TERMINAL_OUTPUT_FAILURE,
-			properties: {
-				reason,
-			},
-		})
+		TaskEvents.captureTerminalOutputFailure(this, reason)
 	}
 
 	/**
@@ -1175,12 +871,7 @@ export class TelemetryService {
 	 * @param action The user action
 	 */
 	public captureTerminalUserIntervention(action: TerminalUserInterventionAction) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.TERMINAL_USER_INTERVENTION,
-			properties: {
-				action,
-			},
-		})
+		TaskEvents.captureTerminalUserIntervention(this, action)
 	}
 
 	/**
@@ -1188,12 +879,7 @@ export class TelemetryService {
 	 * @param stage Where the hang occurred
 	 */
 	public captureTerminalHang(stage: TerminalHangStage) {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.TERMINAL_HANG,
-			properties: {
-				stage,
-			},
-		})
+		TaskEvents.captureTerminalHang(this, stage)
 	}
 
 	// Workspace telemetry methods
@@ -1211,18 +897,7 @@ export class TelemetryService {
 		initDurationMs?: number,
 		featureFlagEnabled?: boolean,
 	) {
-		this.capture({
-			event: TelemetryService.EVENTS.WORKSPACE.INITIALIZED,
-			properties: {
-				root_count: rootCount,
-				vcs_types: vcsTypes,
-				is_multi_root: rootCount > 1,
-				has_git: vcsTypes.includes("Git"),
-				has_mercurial: vcsTypes.includes("Mercurial"),
-				init_duration_ms: initDurationMs,
-				feature_flag_enabled: featureFlagEnabled,
-			},
-		})
+		WorkspaceEvents.captureWorkspaceInitialized(this, rootCount, vcsTypes, initDurationMs, featureFlagEnabled)
 	}
 
 	/**
@@ -1232,15 +907,7 @@ export class TelemetryService {
 	 * @param workspaceCount Number of workspace folders detected
 	 */
 	public captureWorkspaceInitError(error: Error, fallbackMode: boolean, workspaceCount?: number) {
-		this.capture({
-			event: TelemetryService.EVENTS.WORKSPACE.INIT_ERROR,
-			properties: {
-				error_type: error.constructor.name,
-				error_message: error.message.substring(0, MAX_ERROR_MESSAGE_LENGTH),
-				fallback_to_single_root: fallbackMode,
-				workspace_count: workspaceCount ?? 0,
-			},
-		})
+		WorkspaceEvents.captureWorkspaceInitError(this, error, fallbackMode, workspaceCount)
 	}
 
 	/**
@@ -1260,18 +927,7 @@ export class TelemetryService {
 		failureCount: number,
 		durationMs?: number,
 	) {
-		this.capture({
-			event: TelemetryService.EVENTS.WORKSPACE.MULTI_ROOT_CHECKPOINT,
-			properties: {
-				ulid,
-				action,
-				root_count: rootCount,
-				success_count: successCount,
-				failure_count: failureCount,
-				success_rate: rootCount > 0 ? successCount / rootCount : 0,
-				duration_ms: durationMs,
-			},
-		})
+		WorkspaceEvents.captureMultiRootCheckpoint(this, ulid, action, rootCount, successCount, failureCount, durationMs)
 	}
 
 	/**
