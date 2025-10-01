@@ -1,6 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { AnthropicModelId, anthropicDefaultModelId, anthropicModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
+import { ChatCompletionTool } from "openai/resources/chat/completions.mjs"
+import { openAIToolToAnthropic } from "@/core/prompts/system-prompt/spec"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
@@ -38,7 +40,11 @@ export class AnthropicHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		tools?: ChatCompletionTool[],
+	): ApiStream {
 		const client = this.ensureClient()
 
 		const model = this.getModel()
@@ -118,9 +124,13 @@ export class AnthropicHandler implements ApiHandler {
 							return message
 						}),
 						// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
-						// tool_choice: { type: "auto" },
-						// tools: tools,
 						stream: true,
+						tools: tools ? tools.map((t) => openAIToolToAnthropic(t)) : undefined,
+						// tool_choice options:
+						// - none: disables tool use, even if tools are provided. Claude will not call any tools.
+						// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
+						// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
+						tool_choice: tools ? { type: "any" } : undefined,
 					},
 					(() => {
 						// 1m context window beta header

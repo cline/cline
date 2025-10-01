@@ -39,22 +39,31 @@ export class ToolResultUtils {
 			const toolUseId = toolUseIdMap?.get(block.name) || "cline"
 
 			// Create ToolResultBlockParam with description and result
-			userMessageContent.push({
-				type: "tool_result",
-				tool_use_id: toolUseId,
-				content: `${description} Result:\n${resultText}`,
-			})
+			userMessageContent.push(ToolResultUtils.createToolResultBlock(`${description} Result:\n${resultText}`, toolUseId))
 		} else {
 			// For complex content (arrays), we still need to wrap it in ToolResultBlockParam
 			const toolUseId = toolUseIdMap?.get(block.name) || "cline"
-			userMessageContent.push({
-				type: "tool_result",
-				tool_use_id: toolUseId,
-				content: content,
-			})
+			userMessageContent.push(ToolResultUtils.createToolResultBlock(content, toolUseId))
 		}
 		// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
 		markToolAsUsed()
+	}
+
+	private static createToolResultBlock(content: ToolResponse, id?: string) {
+		// If id is "cline", we treat it as a plain text result for backward compatibility
+		// as we cannot find any existing tool call that matches this id.
+		if (id === "cline") {
+			return {
+				type: "text",
+				text: typeof content === "string" ? content : JSON.stringify(content, null, 2),
+			}
+		}
+
+		return {
+			type: "tool_result",
+			tool_use_id: id,
+			content,
+		}
 	}
 
 	/**
