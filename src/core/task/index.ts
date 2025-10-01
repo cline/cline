@@ -49,7 +49,14 @@ import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import {
+	ClineApiReqCancelReason,
+	ClineApiReqInfo,
+	ClineAsk,
+	ClineMessage,
+	ClineSay,
+	COMMAND_CANCEL_TOKEN,
+} from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
@@ -1035,6 +1042,7 @@ export class Task {
 
 		let userFeedback: { text?: string; images?: string[]; files?: string[] } | undefined
 		let didContinue = false
+		let didCancelViaUi = false
 
 		// Chunked terminal output buffering
 		const CHUNK_LINE_COUNT = 20
@@ -1072,12 +1080,33 @@ export class Task {
 			try {
 				const { response, text, images, files } = await this.ask("command_output", chunk)
 				if (response === "yesButtonClicked") {
-					// Track when user clicks "Process while Running"
 					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.PROCESS_WHILE_RUNNING)
-					// proceed while running - but still capture user feedback if provided
 					if (text || (images && images.length > 0) || (files && files.length > 0)) {
 						userFeedback = { text, images, files }
 					}
+				} else if (response === "noButtonClicked" && text === COMMAND_CANCEL_TOKEN) {
+					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.CANCELLED)
+					didCancelViaUi = true
+					didContinue = true
+					userFeedback = undefined
+					if (typeof (process as any).terminate === "function") {
+						try {
+							;(process as any).terminate()
+						} catch (error) {
+							Logger.warn("Failed to terminate background terminal process", error)
+						}
+					}
+					try {
+						terminalInfo.terminal.sendText("\u0003", false)
+					} catch (error) {
+						Logger.warn("Failed to send Ctrl+C to terminal during cancellation", error)
+					}
+					await this.say(
+						"command_output",
+						"Command cancelled. It will keep running in the terminal if you need to monitor it manually.",
+					)
+					outputBuffer = []
+					outputBufferSize = 0
 				} else {
 					userFeedback = { text, images, files }
 				}
@@ -1086,14 +1115,12 @@ export class Task {
 			} catch {
 				Logger.error("Error while asking for command output")
 			} finally {
-				// Clear the stuck timer
 				if (bufferStuckTimer) {
 					clearTimeout(bufferStuckTimer)
 					bufferStuckTimer = null
 				}
 				chunkEnroute = false
-				// If more output accumulated while chunkEnroute, flush again
-				if (outputBuffer.length > 0) {
+				if (!didCancelViaUi && outputBuffer.length > 0) {
 					await flushBuffer()
 				}
 			}
@@ -1108,6 +1135,9 @@ export class Task {
 
 		const outputLines: string[] = []
 		process.on("line", async (line) => {
+			if (didCancelViaUi) {
+				return
+			}
 			outputLines.push(line)
 
 			if (!didContinue) {
