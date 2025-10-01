@@ -9,10 +9,6 @@ import { getCwd } from "@/utils/path"
 /**
  * Git commit message generator module
  */
-export const GitCommitGenerator = {
-	generate,
-	abort,
-}
 
 let commitGenerationAbortController: AbortController | undefined
 
@@ -28,9 +24,9 @@ The commit message should:
 4. Be clear and informative`,
 }
 
-async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceControl) {
+export async function generateCommitMessage(stateManager: StateManager, scm?: vscode.SourceControl) {
 	const cwd = await getCwd()
-	if (!context || !cwd) {
+	if (!cwd) {
 		HostProvider.window.showMessage({
 			type: ShowMessageType.ERROR,
 			message: "No workspace folder open",
@@ -55,7 +51,7 @@ async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceCon
 				title: "Generating commit message...",
 				cancellable: true,
 			},
-			() => performCommitGeneration(context, gitDiff, inputBox),
+			() => performCommitGeneration(stateManager, gitDiff, inputBox),
 		)
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : String(error)
@@ -66,7 +62,7 @@ async function generate(context: vscode.ExtensionContext, scm?: vscode.SourceCon
 	}
 }
 
-async function performCommitGeneration(context: vscode.ExtensionContext, gitDiff: string, inputBox: any) {
+async function performCommitGeneration(stateManager: StateManager, gitDiff: string, inputBox: any) {
 	try {
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
 
@@ -82,11 +78,7 @@ async function performCommitGeneration(context: vscode.ExtensionContext, gitDiff
 		const prompt = prompts.join("\n\n")
 
 		// Get the current API configuration
-		const stateManager = new StateManager(context)
-		await stateManager.initialize()
-
 		// Set to use Act mode for now by default
-		// TODO: A new mode for commit generation
 		const apiConfiguration = stateManager.getApiConfiguration()
 		const currentMode = "act"
 
@@ -125,7 +117,7 @@ async function performCommitGeneration(context: vscode.ExtensionContext, gitDiff
 	}
 }
 
-function abort() {
+export function abortCommitGeneration() {
 	commitGenerationAbortController?.abort()
 	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
 }
@@ -135,7 +127,7 @@ function abort() {
  * @param str String containing the AI response
  * @returns The extracted commit message
  */
-export function extractCommitMessage(str: string): string {
+function extractCommitMessage(str: string): string {
 	// Remove any markdown formatting or extra text
 	return str
 		.trim()

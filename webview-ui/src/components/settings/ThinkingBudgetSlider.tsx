@@ -1,17 +1,14 @@
-import { ANTHROPIC_MIN_THINKING_BUDGET, anthropicModels, geminiDefaultModelId, geminiModels } from "@shared/api"
+import { ANTHROPIC_MAX_THINKING_BUDGET, ANTHROPIC_MIN_THINKING_BUDGET } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { memo, useCallback, useEffect, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
-// Constants
-const MAX_PERCENTAGE = 0.8
 const THUMB_SIZE = 16
 
-// Styled Components
 const Container = styled.div`
 	display: flex;
 	flex-direction: column;
@@ -69,7 +66,7 @@ interface ThinkingBudgetSliderProps {
 	currentMode: Mode
 }
 
-const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderProps) => {
+const ThinkingBudgetSlider = ({ currentMode }: ThinkingBudgetSliderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -92,22 +89,6 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 			setIsEnabled(newIsEnabled)
 		}
 	}, [modeFields.thinkingBudgetTokens])
-
-	const maxTokens = useMemo(
-		() =>
-			modeFields.apiProvider === "gemini"
-				? geminiModels[geminiDefaultModelId].maxTokens
-				: anthropicModels["claude-3-7-sonnet-20250219"].maxTokens,
-		[modeFields.apiProvider],
-	)
-
-	// use maxBudget prop if provided, otherwise apply the percentage cap to maxTokens
-	const maxSliderValue = useMemo(() => {
-		if (maxBudget !== undefined) {
-			return maxBudget
-		}
-		return Math.floor(maxTokens * MAX_PERCENTAGE)
-	}, [maxBudget, maxTokens])
 
 	const handleSliderChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
@@ -145,16 +126,16 @@ const ThinkingBudgetSlider = ({ maxBudget, currentMode }: ThinkingBudgetSliderPr
 			{isEnabled && (
 				<Container>
 					<RangeInput
-						$max={maxSliderValue}
+						$max={ANTHROPIC_MAX_THINKING_BUDGET}
 						$min={0}
 						$value={localValue}
 						aria-describedby="thinking-budget-description"
 						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
-						aria-valuemax={maxSliderValue}
+						aria-valuemax={ANTHROPIC_MAX_THINKING_BUDGET}
 						aria-valuemin={ANTHROPIC_MIN_THINKING_BUDGET}
 						aria-valuenow={localValue}
 						id="thinking-budget-slider"
-						max={maxSliderValue}
+						max={ANTHROPIC_MAX_THINKING_BUDGET}
 						min={0}
 						onChange={handleSliderChange}
 						onMouseUp={handleSliderComplete}
