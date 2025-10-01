@@ -182,18 +182,27 @@ export async function ensureCacheDirectoryExists(): Promise<string> {
 }
 
 export async function readMcpMarketplaceCatalogFromCache(): Promise<McpMarketplaceCatalog | undefined> {
-	const mcpMarketplaceCatalogFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.mcpMarketplaceCatalog)
-	const fileExists = await fileExistsAtPath(mcpMarketplaceCatalogFilePath)
-	if (fileExists) {
-		const fileContents = await fs.readFile(mcpMarketplaceCatalogFilePath, "utf8")
-		return JSON.parse(fileContents)
+	try {
+		const mcpMarketplaceCatalogFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.mcpMarketplaceCatalog)
+		const fileExists = await fileExistsAtPath(mcpMarketplaceCatalogFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(mcpMarketplaceCatalogFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	} catch (error) {
+		console.error("Failed to read MCP marketplace catalog from cache:", error)
+		return undefined
 	}
-	return undefined
 }
 
 export async function writeMcpMarketplaceCatalogToCache(catalog: McpMarketplaceCatalog): Promise<void> {
-	const mcpMarketplaceCatalogFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.mcpMarketplaceCatalog)
-	await fs.writeFile(mcpMarketplaceCatalogFilePath, JSON.stringify(catalog))
+	try {
+		const mcpMarketplaceCatalogFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.mcpMarketplaceCatalog)
+		await fs.writeFile(mcpMarketplaceCatalogFilePath, JSON.stringify(catalog))
+	} catch (error) {
+		console.error("Failed to write MCP marketplace catalog to cache:", error)
+	}
 }
 
 async function getGlobalStorageDir(...subdirs: string[]) {
