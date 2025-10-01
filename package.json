@@ -442,7 +442,6 @@
 		"@google/genai": "^1.11.0",
 		"@grpc/grpc-js": "^1.9.15",
 		"@grpc/reflection": "^1.0.4",
-		"@jitsu/js": "^1.10.4",
 		"@mistralai/mistralai": "^1.5.0",
 		"@modelcontextprotocol/sdk": "^1.11.1",
 		"@opentelemetry/api": "^1.4.1",

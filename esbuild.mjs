@@ -144,15 +144,6 @@ if (process.env.ERROR_SERVICE_API_KEY) {
 	buildEnvVars["process.env.ERROR_SERVICE_API_KEY"] = JSON.stringify(process.env.ERROR_SERVICE_API_KEY)
 }
 
-if (process.env.JITSU_WRITE_KEY) {
-	buildEnvVars["process.env.JITSU_WRITE_KEY"] = JSON.stringify(process.env.JITSU_WRITE_KEY)
-}
-if (process.env.JITSU_HOST) {
-	buildEnvVars["process.env.JITSU_HOST"] = JSON.stringify(process.env.JITSU_HOST)
-}
-if (process.env.JITSU_ENABLED) {
-	buildEnvVars["process.env.JITSU_ENABLED"] = JSON.stringify(process.env.JITSU_ENABLED)
-}
 if (process.env.POSTHOG_TELEMETRY_ENABLED) {
 	buildEnvVars["process.env.POSTHOG_TELEMETRY_ENABLED"] = JSON.stringify(process.env.POSTHOG_TELEMETRY_ENABLED)
 }

@@ -1,15 +1,13 @@
-import { isJitsuConfigValid, jitsuConfig, telemetryProvidersConfig } from "@/shared/services/config/jitsu-config"
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "../logging/Logger"
 import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
-import { JitsuTelemetryProvider } from "./providers/JitsuTelemetryProvider"
 import { PostHogClientProvider } from "./providers/PostHogClientProvider"
 import { PostHogTelemetryProvider } from "./providers/PostHogTelemetryProvider"
 
 /**
  * Supported telemetry provider types
  */
-export type TelemetryProviderType = "posthog" | "jitsu" | "no-op"
+export type TelemetryProviderType = "posthog" | "no-op"
 
 /**
  * Configuration for telemetry providers
@@ -31,19 +29,8 @@ export class TelemetryProviderFactory {
 	public static async createProviders(): Promise<ITelemetryProvider[]> {
 		const providers: ITelemetryProvider[] = []
 
-		// Add Jitsu if enabled and configured
-		if (telemetryProvidersConfig.jitsu && isJitsuConfigValid(jitsuConfig)) {
-			try {
-				const jitsuProvider = await new JitsuTelemetryProvider(jitsuConfig).initialize()
-				providers.push(jitsuProvider)
-				Logger.info("TelemetryProviderFactory: Jitsu provider initialized")
-			} catch (error) {
-				console.error("TelemetryProviderFactory: Failed to initialize Jitsu provider:", error)
-			}
-		}
-
 		// Add PostHog if enabled and configured
-		if (telemetryProvidersConfig.posthog && isPostHogConfigValid(posthogConfig)) {
+		if (isPostHogConfigValid(posthogConfig)) {
 			try {
 				const sharedClient = PostHogClientProvider.getClient()
 				if (sharedClient) {
@@ -73,12 +60,6 @@ export class TelemetryProviderFactory {
 	 */
 	public static async createProvider(config: TelemetryProviderConfig): Promise<ITelemetryProvider> {
 		switch (config.type) {
-			case "jitsu": {
-				if (isJitsuConfigValid(jitsuConfig)) {
-					return await new JitsuTelemetryProvider(jitsuConfig).initialize()
-				}
-				return new NoOpTelemetryProvider()
-			}
 			case "posthog": {
 				const sharedClient = PostHogClientProvider.getClient()
 				if (sharedClient) {
@@ -97,11 +78,7 @@ export class TelemetryProviderFactory {
 	 * @returns Default configuration using available providers
 	 */
 	public static getDefaultConfig(): TelemetryProviderConfig {
-		// Prefer Jitsu if available, fallback to PostHog
-		if (telemetryProvidersConfig.jitsu && isJitsuConfigValid(jitsuConfig)) {
-			return { type: "jitsu" }
-		}
-		if (telemetryProvidersConfig.posthog && isPostHogConfigValid(posthogConfig)) {
+		if (isPostHogConfigValid(posthogConfig)) {
 			return { type: "posthog" }
 		}
 		return { type: "no-op" }
