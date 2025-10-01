@@ -1,8 +1,8 @@
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "../logging/Logger"
 import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
-import { PostHogClientProvider } from "./providers/PostHogClientProvider"
-import { PostHogTelemetryProvider } from "./providers/PostHogTelemetryProvider"
+import { PostHogClientProvider } from "./providers/posthog/PostHogClientProvider"
+import { PostHogTelemetryProvider } from "./providers/posthog/PostHogTelemetryProvider"
 
 /**
  * Supported telemetry provider types

@@ -3,9 +3,9 @@ import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { Setting } from "@/shared/proto/index.host"
-import { posthogConfig } from "../../../shared/services/config/posthog-config"
-import type { ClineAccountUserInfo } from "../../auth/AuthService"
-import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "./ITelemetryProvider"
+import { posthogConfig } from "../../../../shared/services/config/posthog-config"
+import type { ClineAccountUserInfo } from "../../../auth/AuthService"
+import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../ITelemetryProvider"
 /**
  * PostHog implementation of the telemetry provider interface
  * Handles PostHog-specific analytics tracking

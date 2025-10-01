@@ -297,8 +297,8 @@ export class TelemetryService {
 	 * @param properties Event properties (must be JSON-serializable)
 	 * @param required Whether this is a required event
 	 */
-	private async captureToProviders(event: string, properties: TelemetryProperties, required: boolean): Promise<void> {
-		const promises = this.providers.map(async (provider) => {
+	private captureToProviders(event: string, properties: TelemetryProperties, required: boolean): void {
+		this.providers.forEach((provider) => {
 			try {
 				if (required) {
 					provider.logRequired(event, properties)
@@ -309,9 +309,6 @@ export class TelemetryService {
 				console.error(`[TelemetryService] Provider failed for event ${event}:`, error)
 			}
 		})
-
-		// Execute all provider calls concurrently with error isolation
-		await Promise.allSettled(promises)
 	}
 
 	public captureExtensionActivated() {
