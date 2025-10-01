@@ -168,7 +168,10 @@
 				"command": "cline.generateGitCommitMessage",
 				"title": "Generate Commit Message with Cline",
 				"category": "Cline",
-				"icon": "$(robot)"
+				"icon": {
+					"light": "assets/icons/robot_panel_light.png",
+					"dark": "assets/icons/robot_panel_dark.png"
+				}
 			},
 			{
 				"command": "cline.abortGitCommitMessage",

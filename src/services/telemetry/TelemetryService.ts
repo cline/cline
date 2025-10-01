@@ -191,6 +191,8 @@ export class TelemetryService {
 			MENTION_USED: "task.mention_used",
 			MENTION_FAILED: "task.mention_failed",
 			MENTION_SEARCH_RESULTS: "task.mention_search_results",
+			// Multi-workspace search pattern tracking
+			WORKSPACE_SEARCH_PATTERN: "task.workspace_search_pattern",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -580,10 +582,24 @@ export class TelemetryService {
 	 * Records when a tool is used during task execution
 	 * @param ulid Unique identifier for the task
 	 * @param tool Name of the tool being used
+	 * @param modelId The model ID being used
 	 * @param autoApproved Whether the tool was auto-approved based on settings
 	 * @param success Whether the tool execution was successful
+	 * @param workspaceContext Optional workspace context for multi-root workspace tracking
 	 */
-	public captureToolUsage(ulid: string, tool: string, modelId: string, autoApproved: boolean, success: boolean) {
+	public captureToolUsage(
+		ulid: string,
+		tool: string,
+		modelId: string,
+		autoApproved: boolean,
+		success: boolean,
+		workspaceContext?: {
+			isMultiRootEnabled: boolean
+			usedWorkspaceHint: boolean
+			resolvedToNonPrimary: boolean
+			resolutionMethod: "hint" | "primary_fallback" | "path_detection"
+		},
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TOOL_USED,
 			properties: {
@@ -592,6 +608,13 @@ export class TelemetryService {
 				autoApproved,
 				success,
 				modelId,
+				// Workspace context (optional)
+				...(workspaceContext && {
+					workspace_multi_root_enabled: workspaceContext.isMultiRootEnabled,
+					workspace_hint_used: workspaceContext.usedWorkspaceHint,
+					workspace_resolved_non_primary: workspaceContext.resolvedToNonPrimary,
+					workspace_resolution_method: workspaceContext.resolutionMethod,
+				}),
 			},
 		})
 	}
@@ -1242,6 +1265,69 @@ export class TelemetryService {
 				failure_count: failureCount,
 				success_rate: rootCount > 0 ? successCount / rootCount : 0,
 				duration_ms: durationMs,
+			},
+		})
+	}
+
+	/**
+	 * Records workspace path resolution events
+	 * @param ulid Unique identifier for the task
+	 * @param context The component/handler where resolution occurred
+	 * @param resolutionType Type of resolution performed
+	 * @param hintType Type of workspace hint provided (if any)
+	 * @param resolutionSuccess Whether the resolution was successful
+	 * @param targetWorkspaceIndex Index of the resolved workspace (0=primary, 1=secondary, etc.)
+	 * @param isMultiRootEnabled Whether multi-root mode is enabled
+	 */
+	public captureWorkspacePathResolved(
+		ulid: string,
+		context: string,
+		resolutionType: "hint_provided" | "fallback_to_primary" | "cross_workspace_search",
+		hintType?: "workspace_name" | "workspace_path" | "invalid",
+		resolutionSuccess?: boolean,
+		targetWorkspaceIndex?: number,
+		isMultiRootEnabled?: boolean,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKSPACE.PATH_RESOLVED,
+			properties: {
+				ulid,
+				context,
+				resolution_type: resolutionType,
+				hint_type: hintType,
+				resolution_success: resolutionSuccess,
+				target_workspace_index: targetWorkspaceIndex,
+				is_multi_root_enabled: isMultiRootEnabled,
+			},
+		})
+	}
+
+	/**
+	 * Records multi-workspace search patterns and performance
+	 * @param ulid Unique identifier for the task
+	 * @param searchType Type of search performed
+	 * @param workspaceCount Number of workspaces searched
+	 * @param hintProvided Whether a workspace hint was provided
+	 * @param resultsFound Whether search results were found
+	 * @param searchDurationMs Optional search duration in milliseconds
+	 */
+	public captureWorkspaceSearchPattern(
+		ulid: string,
+		searchType: "targeted" | "cross_workspace" | "primary_only",
+		workspaceCount: number,
+		hintProvided: boolean,
+		resultsFound: boolean,
+		searchDurationMs?: number,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.WORKSPACE_SEARCH_PATTERN,
+			properties: {
+				ulid,
+				search_type: searchType,
+				workspace_count: workspaceCount,
+				hint_provided: hintProvided,
+				results_found: resultsFound,
+				search_duration_ms: searchDurationMs,
 			},
 		})
 	}
