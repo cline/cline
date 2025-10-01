@@ -42,7 +42,7 @@ export class StateManager {
 
 	// Debounced persistence state
 	private pendingGlobalState = new Set<GlobalStateAndSettingsKey>()
-	private pendingTaskState = new Set<SettingsKey>()
+	private pendingTaskState = new Map<string, Set<SettingsKey>>()
 	private pendingSecrets = new Set<SecretKey>()
 	private pendingWorkspaceState = new Set<LocalStateKey>()
 	private persistenceTimeout: NodeJS.Timeout | null = null
@@ -132,8 +132,11 @@ export class StateManager {
 		this.taskStateCache[key] = value
 
 		// Add to pending persistence set and schedule debounced write
-		this.pendingTaskState.add(key)
-		this.scheduleDebouncedPersistence(taskId)
+		if (!this.pendingTaskState.has(taskId)) {
+			this.pendingTaskState.set(taskId, new Set())
+		}
+		this.pendingTaskState.get(taskId)!.add(key)
+		this.scheduleDebouncedPersistence()
 	}
 
 	/**
@@ -148,12 +151,15 @@ export class StateManager {
 		Object.assign(this.taskStateCache, updates)
 
 		// Then track the keys for persistence
+		if (!this.pendingTaskState.has(taskId)) {
+			this.pendingTaskState.set(taskId, new Set())
+		}
 		Object.keys(updates).forEach((key) => {
-			this.pendingTaskState.add(key as SettingsKey)
+			this.pendingTaskState.get(taskId)!.add(key as SettingsKey)
 		})
 
 		// Schedule debounced persistence
-		this.scheduleDebouncedPersistence(taskId)
+		this.scheduleDebouncedPersistence()
 	}
 
 	/**
@@ -182,12 +188,12 @@ export class StateManager {
 	/**
 	 * Clear task settings cache - ensures pending changes are persisted first
 	 */
-	async clearTaskSettings(taskId?: string): Promise<void> {
+	async clearTaskSettings(): Promise<void> {
 		// If there are pending task settings, persist them first
-		if (this.pendingTaskState.size > 0 && taskId) {
+		if (this.pendingTaskState.size > 0) {
 			try {
 				// Persist pending task state immediately
-				await this.persistTaskStateBatch(this.pendingTaskState, taskId)
+				await this.persistTaskStateBatch(this.pendingTaskState)
 				// Clear pending set after successful persistence
 				this.pendingTaskState.clear()
 			} catch (error) {
@@ -723,7 +729,7 @@ export class StateManager {
 	/**
 	 * Schedule debounced persistence - simple timeout-based persistence
 	 */
-	private scheduleDebouncedPersistence(taskId?: string): void {
+	private scheduleDebouncedPersistence(): void {
 		// Clear existing timeout if one is pending
 		if (this.persistenceTimeout) {
 			clearTimeout(this.persistenceTimeout)
@@ -736,7 +742,7 @@ export class StateManager {
 					this.persistGlobalStateBatch(this.pendingGlobalState),
 					this.persistSecretsBatch(this.pendingSecrets),
 					this.persistWorkspaceStateBatch(this.pendingWorkspaceState),
-					this.persistTaskStateBatch(this.pendingTaskState, taskId),
+					this.persistTaskStateBatch(this.pendingTaskState),
 				])
 
 				// Clear pending sets on successful persistence
@@ -776,16 +782,27 @@ export class StateManager {
 	}
 
 	/**
-	 * Private method to batch persist task state keys with Promise.all
+	 * Private method to batch persist task state keys with a single write operation
 	 */
-	private async persistTaskStateBatch(keys: Set<SettingsKey>, taskId: string | undefined): Promise<void> {
-		if (!taskId) {
+	private async persistTaskStateBatch(pendingTaskStates: Map<string, Set<SettingsKey>>): Promise<void> {
+		if (pendingTaskStates.size === 0) {
 			return
 		}
 		try {
+			// Persist each task's settings
 			await Promise.all(
-				Array.from(keys).map((key) => {
-					return writeTaskSettingsToStorage(taskId, { [key]: this.taskStateCache[key] })
+				Array.from(pendingTaskStates.entries()).map(([taskId, keys]) => {
+					if (keys.size === 0) {
+						return Promise.resolve()
+					}
+					const settingsToWrite: Record<string, any> = {}
+					for (const key of keys) {
+						const value = this.taskStateCache[key]
+						if (value !== undefined) {
+							settingsToWrite[key] = value
+						}
+					}
+					return writeTaskSettingsToStorage(taskId, settingsToWrite)
 				}),
 			)
 		} catch (error) {
