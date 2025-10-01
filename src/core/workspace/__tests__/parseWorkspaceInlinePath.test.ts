@@ -50,6 +50,14 @@ describe("parseWorkspaceInlinePath", () => {
 			})
 		})
 
+		it("should treat bare workspace hint as root path", () => {
+			const result = parseWorkspaceInlinePath("@backend:")
+			expect(result).to.deep.equal({
+				workspaceHint: "backend",
+				relPath: "",
+			})
+		})
+
 		it("should trim whitespace", () => {
 			const result = parseWorkspaceInlinePath("@ frontend : src/index.ts ")
 			expect(result).to.deep.equal({
