@@ -14,6 +14,7 @@ import {
 } from "@/components/homepage"
 import { EXTERNAL_LINKS } from "@/lib/constants"
 import { ArrowRight } from "lucide-react"
+import { StructuredData } from "@/components/structured-data"
 
 // Invalidate cache when a request comes in, at most once every hour.
 export const revalidate = 3600
@@ -23,6 +24,7 @@ export default async function Home() {
 
 	return (
 		<>
+			<StructuredData />
 			<section className="relative flex h-[calc(125vh-theme(spacing.12))] items-center overflow-hidden md:h-[calc(80svh-theme(spacing.12))]">
 				<AnimatedBackground />
 				<div className="container relative flex items-center h-full z-10 mx-auto px-4 sm:px-6 lg:px-8">

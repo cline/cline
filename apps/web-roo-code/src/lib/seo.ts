@@ -3,7 +3,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://roocode.com"
 export const SEO = {
 	url: SITE_URL,
 	name: "Roo Code",
-	title: "Roo Code – Your AI-Powered Dev Team in VS Code and Beyond",
+	title: "Roo Code – The AI dev team that gets things done",
 	description:
 		"Roo Code puts an entire AI dev team right in your editor, outpacing closed tools with deep project-wide context, multi-step agentic coding, and unmatched developer-centric flexibility.",
 	locale: "en_US",
