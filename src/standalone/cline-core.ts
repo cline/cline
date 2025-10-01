@@ -253,8 +253,8 @@ Options:
   -h, --help                     Show this help message
 
 Environment Variables:
-  PROTOBUS_PORT              Override the main service address (format: host:port)
-  HOSTBRIDGE_ADDRESS            Override the host bridge address (format: host:port)
+  PROTOBUS_ADDRESS              Override the main service address (format: host:port)
+  HOST_BRIDGE_ADDRESS            Override the host bridge address (format: host:port)
 `)
 }
 
