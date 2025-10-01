@@ -78,6 +78,13 @@ async function main() {
 		await shutdownGracefully(globalLockManager)
 		process.exit(1)
 	}
+
+	// Mark instance healthy after services are up
+	try {
+		globalLockManager?.touchInstance()
+	} catch {
+		log("Warning: Failed to mark instance healthy")
+	}
 }
 
 function setupHostProvider(extensionContext: any, extensionDir: string, dataDir: string) {
