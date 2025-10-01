@@ -1,6 +1,7 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
+import { TASK_PROGRESS_PARAMETER } from "../types"
 
 const id = ClineDefaultTool.FILE_READ
 
@@ -14,16 +15,10 @@ const generic: ClineToolSpec = {
 		{
 			name: "path",
 			required: true,
-			instruction: `The path of the file to read (relative to the current working directory {{CWD}})`,
+			instruction: `The path of the file to read (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}`,
 			usage: "File path here",
 		},
-		{
-			name: "task_progress",
-			required: false,
-			instruction: `A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)`,
-			usage: "Checklist here (optional)",
-			dependencies: [ClineDefaultTool.TODO],
-		},
+		TASK_PROGRESS_PARAMETER,
 	],
 }
 

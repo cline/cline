@@ -24,6 +24,7 @@ IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user th
 				"A CLI command to execute to show a live demo of the result to the user. For example, use \`open index.html\` to display a created html website, or \`open localhost:3000\` to display a locally running development server. But DO NOT use commands like \`echo\` or \`cat\` that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions",
 			usage: "Your command here (optional)",
 		},
+		// Different than the vanilla ASK_PROGRESS_PARAMETER
 		{
 			name: "task_progress",
 			required: false,

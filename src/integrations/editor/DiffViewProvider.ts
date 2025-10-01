@@ -1,10 +1,10 @@
 import { formatResponse } from "@core/prompts/responses"
+import { workspaceResolver } from "@core/workspace"
 import { createDirectoriesForFile } from "@utils/fs"
 import { getCwd } from "@utils/path"
 import * as diff from "diff"
 import * as fs from "fs/promises"
 import * as iconv from "iconv-lite"
-import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
 import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
@@ -26,10 +26,12 @@ export abstract class DiffViewProvider {
 
 	constructor() {}
 
-	public async open(relPath: string): Promise<void> {
+	public async open(relPath: string, options?: { displayPath?: string }): Promise<void> {
 		this.isEditing = true
-		this.relPath = relPath
-		this.absolutePath = path.resolve(await getCwd(), relPath)
+		const cwd = await getCwd()
+		const absolutePathResolved = workspaceResolver.resolveWorkspacePath(cwd, relPath, "DiffViewProvider.open.absolutePath")
+		this.absolutePath = typeof absolutePathResolved === "string" ? absolutePathResolved : absolutePathResolved.absolutePath
+		this.relPath = options?.displayPath ?? relPath
 		const fileExists = this.editType === "modify"
 
 		// if the file is already open, ensure it's not dirty before getting its contents
@@ -316,12 +318,17 @@ export abstract class DiffViewProvider {
 			await this.saveDocument()
 			await this.closeAllDiffViews()
 			await fs.rm(this.absolutePath, { force: true })
+			console.log(`File ${this.absolutePath} has been deleted.`)
+
 			// Remove only the directories we created, in reverse order
 			for (let i = this.createdDirs.length - 1; i >= 0; i--) {
-				await fs.rmdir(this.createdDirs[i])
-				console.log(`Directory ${this.createdDirs[i]} has been deleted.`)
+				try {
+					await fs.rmdir(this.createdDirs[i])
+					console.log(`Directory ${this.createdDirs[i]} has been deleted.`)
+				} catch (error) {
+					console.log(`Could not delete directory ${this.createdDirs[i]}`, error)
+				}
 			}
-			console.log(`File ${this.absolutePath} has been deleted.`)
 		} else {
 			// revert document
 			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of

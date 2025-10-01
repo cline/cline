@@ -1,5 +1,143 @@
 # Changelog
 
+## [3.32.5]
+
+- Improve thinking budget slider UI to take up less space
+- Fix Vercel provider cost note and sign-up url
+- Fix repeated API error 400 in SAP AI Core provider
+- Add us-west-1 to Amazon Bedrock regions
+- Fix OCA provider refresh logic
+
+## [3.32.4]
+
+- Add 1m context window support to Claude Sonnet 4.5
+- Add Claude Sonnet 4.5 to GCP Vertex
+- Add prompt caching support for OpenRouter accidental `anthropic/claude-4.5-sonnet` model ID
+
+## [3.32.3]
+
+- Add Claude Sonnet 4.5 to Bedrock provider
+- Add Alert banner for new Claude Sonnet 4.5 model
+
+## [3.32.2]
+
+- Add Claude Sonnet 4.5 to Cline/OpenRouter/Anthropic providers
+- Add /task deep link handler
+
+## [3.32.1]
+
+- Preserve reasoning traces for Cline/OpenRouter/Anthropic providers to maintain conversation integrity
+- Add automatically retry on rate limit errors with SAP AI Core provider
+- Fix Cline accounts using stale id token at refresh response
+- Minor UI improvements to Settings and Task Header
+
+## [3.32.0]
+
+- Added the new code-supernova-1-million stealth model, available for free and delivering a 1 million token context window
+- Changes to inform Cline about commands that are available on your system
+
+## [3.31.1]
+
+- Version bump
+
+## [3.31.0]
+
+- UI Improvements: New task header and focus chain design to take up less space for a cleaner experience
+- Voice Mode: Experimental feature that must be enabled in settings for hands-free coding
+- YOLO Mode: Enable in settings to let Cline approve all actions and automatically switch between plan/act mode
+- Fix Oracle Code Assist provider issues
+
+## [3.30.3]
+
+- Add Oracle Code Assist provider
+
+## [3.30.2]
+
+- Fix UI tests
+
+## [3.30.1]
+
+- Fix model list not being updated in time for user to use shortcut button to update model to stealth model
+- Fix flicker issue when switching modes
+- Fix Sticky header in settings view overlaping with content on scroll
+- Add experimental yolo mode feature that disables all user approvals and automatically executes a task and navigates through plan to act mode until the task is complete
+
+## [3.30.0]
+
+- Add code-supernova stealth model
+
+## [3.29.2]
+
+- Fix: Reverted change that caused formatting issues
+- Fix: Moonshot - Pass max_tokens value to provider
+
+## [3.29.1]
+
+- Changeset bump + Announcement banner update
+
+## [3.29.0]
+
+- Updated Baseten provider to fetch models from server
+- Fix: Updated insufficient balance URL for easy Cline balance top-ups
+- Accessibility: Improvements to screen readers in MCP, Cline Rules, workflows, and history views.
+
+## [3.28.4]
+
+- Fix bug where some Windows machines had API request hanging
+- Fix bug where 'Proceed while running' action button would be disabled after running an interactive command
+- Fix prompt cache info not being displayed in History
+
+## [3.28.3]
+
+- Fixed issue with start new task button
+- Feature to generate commit message for staged changes, with unstaged as fallback
+
+## [3.28.2]
+
+- Fix for focus chain settings
+
+## [3.28.1]
+
+- Requesty: use base URL to get models and API keys
+- Removed focus chain feature flag
+
+## [3.28.0]
+
+- Synchronized Task History: Real-time task history synchronization across all Cline instances
+- Optimized GPT-5 Integration: Fine-tuned system prompts for improved performance with GPT-5 model family
+- Deep Planning Improvements: Optimized prompts for Windows/PowerShell environments and dependency exclusion
+- Streamlined UI Experience: ESC key navigation, cleaner approve/reject buttons, and improved editor panel focus
+- Smart Provider Search: Improved search functionality in API provider dropdown for faster model selection
+- Added per-provider thinking tokens configurability
+- Added Ollama custom prompt options
+- Enhanced SAP AI Core Provider: Orchestration mode support and improved model visibility
+- Added Dify.ai API Integration
+- SambaNova Updates: Added DeepSeek-V3.1 model
+- Better Gemini rate limit handling
+- OpenAI Reasoning Effort: Minimal reasoning effort configuration for OpenAI models
+- Fixed LiteLLM Caching: Anthropic caching compatibility when using LiteLLM
+- Fixed Ollama default endpoint connections
+- Fixed AutoApprove menu overflow
+- Fixed extended thinking token issue with Anthropic models
+- Fixed issue with slash commands removing text from prompt
+
+## [3.27.2]
+
+- Remove `grok-code-fast-1` promotion deadline
+
+## [3.27.1]
+
+- Add new Kimi K2 model to groq and moonshot providers
+
+## [3.27.0]
+
+- Fix `grok-code-fast-1` model information
+- Add call to action for trying free `grok-code-fast-1` in Announcement banner
+
+## [3.26.7]
+
+- Add 200k context window variant for Claude Sonnet 4 to OpenRouter and Cline providers
+
 ## [3.26.6]
 
 - Add free Grok Coder model to Cline provider for users looking for a fast, free coding model option

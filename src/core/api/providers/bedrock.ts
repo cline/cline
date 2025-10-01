@@ -9,14 +9,14 @@ import {
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
-import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_4_1M_SUFFIX, ModelInfo } from "@shared/api"
+import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 
-interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
+export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
 	awsAccessKey?: string
 	awsSecretKey?: string
@@ -30,7 +30,7 @@ interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	awsProfile?: string
 	awsBedrockEndpoint?: string
 	awsBedrockCustomSelected?: boolean
-	awsBedrockCustomModelBaseId?: BedrockModelId
+	awsBedrockCustomModelBaseId?: string
 	thinkingBudgetTokens?: number
 }
 
@@ -119,11 +119,11 @@ export class AwsBedrockHandler implements ApiHandler {
 		// cross region inference requires prefixing the model id with the region
 		const rawModelId = await this.getModelId()
 
-		const modelId = rawModelId.endsWith(CLAUDE_SONNET_4_1M_SUFFIX)
-			? rawModelId.slice(0, -CLAUDE_SONNET_4_1M_SUFFIX.length)
+		const modelId = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
+			? rawModelId.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
 			: rawModelId
 
-		const enable1mContextWindow = rawModelId.endsWith(CLAUDE_SONNET_4_1M_SUFFIX)
+		const enable1mContextWindow = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
 
 		const model = this.getModel()
 
@@ -170,7 +170,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			if (baseModel && baseModel in bedrockModels) {
 				return {
 					id: modelId,
-					info: bedrockModels[baseModel],
+					info: bedrockModels[baseModel as BedrockModelId],
 				}
 			}
 			// For custom models without valid base model in bedrock model list, use default model's capabilities
@@ -741,7 +741,10 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private shouldEnableReasoning(baseModelId: string, budgetTokens: number): boolean {
 		return (
-			(baseModelId.includes("3-7") || baseModelId.includes("sonnet-4") || baseModelId.includes("opus-4")) &&
+			(baseModelId.includes("3-7") ||
+				baseModelId.includes("sonnet-4") ||
+				baseModelId.includes("opus-4") ||
+				baseModelId.includes("sonnet-4-5")) &&
 			budgetTokens !== 0
 		)
 	}

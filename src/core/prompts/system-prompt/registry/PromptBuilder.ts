@@ -23,7 +23,7 @@ export class PromptBuilder {
 	async build(): Promise<string> {
 		const componentSections = await this.buildComponents()
 		const placeholderValues = this.preparePlaceholders(componentSections)
-		const prompt = this.templateEngine.resolve(this.variant.baseTemplate, placeholderValues)
+		const prompt = this.templateEngine.resolve(this.variant.baseTemplate, this.context, placeholderValues)
 		return this.postProcess(prompt)
 	}
 
@@ -94,8 +94,23 @@ export class PromptBuilder {
 			.trim() // Remove leading/trailing whitespace
 			.replace(/====+\s*$/, "") // Remove trailing ==== after trim
 			.replace(/\n====+\s*\n+\s*====+\n/g, "\n====\n") // Remove empty sections between separators
-			.replace(/====\n([^\n])/g, "====\n\n$1") // Ensure proper section separation
-			.replace(/([^\n])\n====/g, "$1\n\n====")
+			.replace(/====+\n(?!\n)([^\n])/g, (match, nextChar, offset, string) => {
+				// Add extra newline after ====+ if not already followed by a newline
+				// Exception: preserve single newlines when ====+ appears to be part of diff-like content
+				// Look for patterns like "SEARCH\n=======\n" or ";\n=======\n" (diff markers)
+				const beforeContext = string.substring(Math.max(0, offset - 50), offset)
+				const afterContext = string.substring(offset, Math.min(string.length, offset + 50))
+				const isDiffLike = /SEARCH|REPLACE|\+\+\+\+\+\+\+|-------/.test(beforeContext + afterContext)
+				return isDiffLike ? match : match.replace(/\n/, "\n\n")
+			})
+			.replace(/([^\n])\n(?!\n)====+/g, (match, prevChar, offset, string) => {
+				// Add extra newline before ====+ if not already preceded by a newline
+				// Exception: preserve single newlines when ====+ appears to be part of diff-like content
+				const beforeContext = string.substring(Math.max(0, offset - 50), offset)
+				const afterContext = string.substring(offset, Math.min(string.length, offset + 50))
+				const isDiffLike = /SEARCH|REPLACE|\+\+\+\+\+\+\+|-------/.test(beforeContext + afterContext)
+				return isDiffLike ? match : prevChar + "\n\n" + match.substring(1).replace(/\n/, "")
+			})
 	}
 
 	getBuildMetadata(): {
@@ -137,10 +152,10 @@ export class PromptBuilder {
 		)
 
 		const ids = enabledTools.map((tool) => tool.config.id)
-		return Promise.all(enabledTools.map((tool) => PromptBuilder.tool(tool.config, ids)))
+		return Promise.all(enabledTools.map((tool) => PromptBuilder.tool(tool.config, ids, context)))
 	}
 
-	public static tool(config: ClineToolSpec, registry: ClineDefaultTool[]): string {
+	public static tool(config: ClineToolSpec, registry: ClineDefaultTool[], context: SystemPromptContext): string {
 		// Skip tools without parameters or description - those are placeholder tools
 		if (!config.parameters?.length && !config.description?.length) {
 			return ""
@@ -149,18 +164,27 @@ export class PromptBuilder {
 		const description = [`Description: ${config.description}`]
 
 		if (!config.parameters?.length) {
-			return [title, description.join("\n")].join("\n")
+			config.parameters = []
 		}
 
 		// Clone parameters to avoid mutating original
 		const params = [...config.parameters]
 
-		// Filter parameters based on dependencies FIRST, before collecting descriptions
+		// Filter parameters based on dependencies and contextRequirements
 		const filteredParams = params.filter((p) => {
-			if (!p.dependencies?.length) {
-				return true
+			// Check dependencies first (existing behavior)
+			if (p.dependencies?.length) {
+				if (!p.dependencies.every((d) => registry.includes(d))) {
+					return false
+				}
 			}
-			return p.dependencies.every((d) => registry.includes(d))
+
+			// Check contextRequirements (new behavior)
+			if (p.contextRequirements) {
+				return p.contextRequirements(context)
+			}
+
+			return true
 		})
 
 		// Collect additional descriptions only from filtered parameters
@@ -182,7 +206,7 @@ export class PromptBuilder {
 
 	private static buildParametersSection(params: any[]): string {
 		if (!params.length) {
-			return ""
+			return "Parameters: None"
 		}
 
 		const paramList = params.map((p) => {

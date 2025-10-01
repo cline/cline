@@ -11,12 +11,15 @@ export const addSelectedCodeToClineWebview = async (_page: Page) => {
 	await _page.locator("div:nth-child(4) > span > span").first().click()
 	await _page.getByRole("textbox", { name: "The editor is not accessible" }).press("ControlOrMeta+a")
 
-	await _page.getByRole("listbox", { name: /Show Code Actions / }).click()
+	// Open Code Actions via keyboard for cross-platform reliability
+	await _page.keyboard.press("ControlOrMeta+.")
+	// Wait for the Code Actions UI to appear (listbox or menu depending on platform/version)
+	try {
+		await _page.getByRole("listbox").first().waitFor({ state: "visible", timeout: 5000 })
+	} catch {
+		await _page.getByRole("menu").first().waitFor({ state: "visible", timeout: 5000 })
+	}
 	await _page.keyboard.press("Enter", { delay: 100 }) // First action - "Add to Cline"
-}
-
-export const getClineEditorWebviewFrame = async (_page: Page) => {
-	return _page.frameLocator("iframe.webview").last().frameLocator("iframe")
 }
 
 export const toggleNotifications = async (_page: Page) => {

@@ -1,4 +1,3 @@
-import * as ripgrep from "@services/ripgrep"
 import * as fileSearch from "@services/search/file-search"
 import * as childProcess from "child_process"
 import * as fs from "fs"
@@ -7,7 +6,7 @@ import { describe, it } from "mocha"
 import should from "should"
 import sinon from "sinon"
 import { Readable } from "stream"
-import * as vscode from "vscode"
+import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
 describe("File Search", () => {
 	let sandbox: sinon.SinonSandbox
@@ -21,10 +20,14 @@ describe("File Search", () => {
 		const spawnWrapper: typeof childProcess.spawn = (command, options) => spawnStub(command, options)
 
 		sandbox.stub(fileSearch, "getSpawnFunction").returns(spawnWrapper)
-		// Use replaceGetter instead of stub().value() for non-configurable properties
-		sandbox.replaceGetter(vscode.env, "appRoot", () => "mock/app/root")
 		sandbox.stub(fs.promises, "lstat").resolves({ isDirectory: () => false } as fs.Stats)
-		sandbox.stub(ripgrep, "getBinPath").resolves("mock/ripgrep/path")
+
+		// Mock fs.access to return true for both Unix and Windows ripgrep binary paths
+		const accessStub = sandbox.stub(fs.promises, "access")
+		accessStub.withArgs("/mock/path/rg").resolves()
+		accessStub.withArgs("/mock/path/rg.exe").resolves()
+
+		setVscodeHostProviderMock()
 	})
 
 	afterEach(() => {
@@ -68,7 +71,7 @@ describe("File Search", () => {
 			// Create a new stub for executeRipgrepForFiles
 			sandbox.stub(fileSearch, "executeRipgrepForFiles").resolves(expectedResult)
 
-			const result = await fileSearch.executeRipgrepForFiles("mock/path", "/workspace", 5000)
+			const result = await fileSearch.executeRipgrepForFiles("/workspace", 5000)
 
 			should(result).be.an.Array()
 			// Don't assert on the exact length as it may vary
@@ -120,7 +123,7 @@ describe("File Search", () => {
 				},
 			} as unknown as childProcess.ChildProcess)
 
-			await should(fileSearch.executeRipgrepForFiles("mock/path", "/workspace", 5000)).be.rejectedWith(
+			await should(fileSearch.executeRipgrepForFiles("/workspace", 5000)).be.rejectedWith(
 				`ripgrep process error: ${mockError}`,
 			)
 		})

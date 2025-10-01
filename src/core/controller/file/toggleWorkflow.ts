@@ -21,7 +21,7 @@ export async function toggleWorkflow(controller: Controller, request: ToggleWork
 	// Update the toggles based on isGlobal flag
 	if (isGlobal) {
 		// Global workflows
-		const toggles = controller.stateManager.getGlobalStateKey("globalWorkflowToggles")
+		const toggles = controller.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
 		toggles[workflowPath] = enabled
 		controller.stateManager.setGlobalState("globalWorkflowToggles", toggles)
 		await controller.postStateToWebview()

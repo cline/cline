@@ -1,6 +1,7 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
+import { TASK_PROGRESS_PARAMETER } from "../types"
 
 const id = ClineDefaultTool.FILE_EDIT
 
@@ -46,13 +47,7 @@ const generic: ClineToolSpec = {
      * To delete code: Use empty REPLACE section`,
 			usage: "Search and replace blocks here",
 		},
-		{
-			name: "task_progress",
-			required: false,
-			instruction: `A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)`,
-			usage: "Checklist here (optional)",
-			dependencies: [ClineDefaultTool.TODO],
-		},
+		TASK_PROGRESS_PARAMETER,
 	],
 }
 

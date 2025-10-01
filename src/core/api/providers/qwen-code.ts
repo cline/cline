@@ -4,7 +4,7 @@ import { ModelInfo, QwenCodeModelId, qwenCodeDefaultModelId, qwenCodeModels } fr
 import OpenAI from "openai"
 import * as os from "os"
 import * as path from "path"
-import { ApiHandler } from "../"
+import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
@@ -24,7 +24,7 @@ interface QwenOAuthCredentials {
 	resource_url?: string
 }
 
-interface QwenCodeHandlerOptions {
+interface QwenCodeHandlerOptions extends CommonApiHandlerOptions {
 	qwenCodeOauthPath?: string
 	apiModelId?: string
 }

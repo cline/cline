@@ -1,0 +1,39 @@
+{
+	"compilerOptions": {
+		"target": "es2021",
+		"module": "commonjs",
+		"outDir": "./dist",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"moduleResolution": "node",
+		"resolveJsonModule": true,
+		"allowSyntheticDefaultImports": true,
+		"baseUrl": "./",
+		"paths": {
+			"@grpc/grpc-js": [
+				"../node_modules/@grpc/grpc-js"
+			],
+			"@generated/*": [
+				"../src/generated/*"
+			],
+			"@cline-grpc/*": [
+				"../src/generated/grpc-js/cline/*"
+			],
+			"@harness/*": [
+				"harness/*"
+			],
+			"@adapters/*": [
+				"adapters/*"
+			]
+		}
+	},
+	"include": [
+		"**/*.ts",
+		"../src/generated/grpc-js/**/*.ts"
+	],
+	"exclude": [
+		"node_modules",
+		"dist"
+	]
+}

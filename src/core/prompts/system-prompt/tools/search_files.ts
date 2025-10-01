@@ -1,6 +1,7 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
+import { TASK_PROGRESS_PARAMETER } from "../types"
 
 /**
  * ## search_files
@@ -29,7 +30,7 @@ const generic: ClineToolSpec = {
 		{
 			name: "path",
 			required: true,
-			instruction: `The path of the directory to search in (relative to the current working directory {{CWD}}). This directory will be recursively searched.`,
+			instruction: `The path of the directory to search in (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}. This directory will be recursively searched.`,
 			usage: "Directory path here",
 		},
 		{
@@ -45,6 +46,7 @@ const generic: ClineToolSpec = {
 				"Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).",
 			usage: "file pattern here (optional)",
 		},
+		TASK_PROGRESS_PARAMETER,
 	],
 }
 

@@ -1,3 +1,5 @@
+import { getShell } from "@utils/shell"
+
 export const newTaskToolResponse = () =>
 	`<explicit_instructions type="new_task">
 The user has explicitly asked you to help them create a new task with preloaded context, which you will generate. The user may have provided instructions or additional information for you to consider when summarizing existing work and creating the context for the new task.
@@ -198,8 +200,16 @@ Below is the user's input when they indicated that they wanted to submit a Githu
 `
 
 export const deepPlanningToolResponse = (focusChainSettings?: { enabled: boolean }) => {
-	const detectedShell = require("@utils/shell").getShell()
-	const isPowerShell = detectedShell.toLowerCase().includes("powershell") || detectedShell.toLowerCase().includes("pwsh")
+	const detectedShell = getShell()
+
+	// FIXME: detectedShell returns a non-string value on some Windows machines
+	let isPowerShell = false
+	try {
+		isPowerShell =
+			detectedShell != null &&
+			typeof detectedShell === "string" &&
+			(detectedShell.toLowerCase().includes("powershell") || detectedShell.toLowerCase().includes("pwsh"))
+	} catch {}
 
 	return `<explicit_instructions type="deep-planning">
 Your task is to create a comprehensive implementation plan before writing any code. This process has four distinct steps that must be completed in order.
@@ -218,7 +228,7 @@ Perform your research without commentary or narration. Execute commands and read
 You must use the read_file tool to examine relevant source files, configuration files, and documentation. You must use terminal commands to gather information about the codebase structure and patterns. All terminal output must be piped to cat for visibility.
 
 ### Essential Terminal Commands
-Execute these commands to build your understanding. You must tailor them to the codebase and ensure the output is not overly verbose. These are only examples, the exact commands will differ depending on the codebase.
+First, determine the language(s) used in the codebase, then execute these commands to build your understanding. You must tailor them to the codebase and ensure the output is not overly verbose. For example, you should exclude dependency folders such as node_modules, venv or php vendor, etc. These are only examples, the exact commands will differ depending on the codebase.
 
 ${
 	isPowerShell

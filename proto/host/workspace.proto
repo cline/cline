@@ -18,14 +18,18 @@ service WorkspaceService {
 
   // Get diagnostics from the workspace.
   rpc getDiagnostics(GetDiagnosticsRequest) returns (GetDiagnosticsResponse);
-  // Returns workspace items (files/folders) matching a query for mention autocomplete
-  rpc searchWorkspaceItems(SearchWorkspaceItemsRequest) returns (SearchWorkspaceItemsResponse);
 
   // Makes the problems panel/pane visible in the IDE and focuses it.
   rpc openProblemsPanel(OpenProblemsPanelRequest) returns (OpenProblemsPanelResponse);
 
   // Opens the IDE file explorer panel and selects a file or directory.
   rpc openInFileExplorerPanel(OpenInFileExplorerPanelRequest) returns (OpenInFileExplorerPanelResponse); 
+
+  // Opens and focuses the Cline sidebar panel in the host IDE.
+  rpc openClineSidebarPanel(OpenClineSidebarPanelRequest) returns (OpenClineSidebarPanelResponse);
+
+  // Opens and focuses the terminal panel.
+  rpc openTerminalPanel(OpenTerminalRequest) returns (OpenTerminalResponse);
 }
 
 message GetWorkspacePathsRequest {
@@ -81,8 +85,11 @@ message SearchWorkspaceItemsResponse {
 
 message OpenProblemsPanelRequest {}
 message OpenProblemsPanelResponse {}
-
 message OpenInFileExplorerPanelRequest {
   string path = 1;
 }
 message OpenInFileExplorerPanelResponse {}
+message OpenClineSidebarPanelRequest {}
+message OpenClineSidebarPanelResponse {}
+message OpenTerminalRequest {}
+message OpenTerminalResponse {}

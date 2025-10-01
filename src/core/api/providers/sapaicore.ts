@@ -9,6 +9,7 @@ import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels }
 import axios from "axios"
 import OpenAI from "openai"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
+import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
@@ -21,6 +22,7 @@ interface SapAiCoreHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
 	sapAiCoreUseOrchestrationMode?: boolean
 	thinkingBudgetTokens?: number
+	deploymentId?: string
 	reasoningEffort?: string
 }
 
@@ -28,6 +30,7 @@ interface Deployment {
 	id: string
 	name: string
 }
+
 interface Token {
 	access_token: string
 	expires_in: number
@@ -394,11 +397,8 @@ export class SapAiCoreHandler implements ApiHandler {
 		return this.token.access_token
 	}
 
+	// TODO: these fallback fetching deployment id methods can be removed in future version if decided that users migration to fetching deployment id in design-time (open SAP AI Core provider UI) considered as completed.
 	private async getAiCoreDeployments(): Promise<Deployment[]> {
-		if (this.options.sapAiCoreClientSecret === "") {
-			return [{ id: "notconfigured", name: "ai-core-not-configured" }]
-		}
-
 		const token = await this.getToken()
 		const headers = {
 			Authorization: `Bearer ${token}`,
@@ -455,8 +455,9 @@ export class SapAiCoreHandler implements ApiHandler {
 		return this.deployments?.some((d) => d.name.split(":")[0].toLowerCase() === modelId.split(":")[0].toLowerCase()) ?? false
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
-		if (this.options.sapAiCoreUseOrchestrationMode ?? true) {
+		if (this.options.sapAiCoreUseOrchestrationMode) {
 			yield* this.createMessageWithOrchestration(systemPrompt, messages)
 		} else {
 			yield* this.createMessageWithDeployments(systemPrompt, messages)
@@ -496,7 +497,6 @@ export class SapAiCoreHandler implements ApiHandler {
 			// Define the LLM to be used by the Orchestration pipeline
 			const llm: LlmModuleConfig = {
 				model_name: model.id,
-				model_params: { max_tokens: model.info.maxTokens },
 			}
 
 			const templating: TemplatingModuleConfig = {
@@ -546,7 +546,13 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 
 		const model = this.getModel()
-		const deploymentId = await this.getDeploymentForModel(model.id)
+		let deploymentId = this.options.deploymentId
+
+		if (!deploymentId) {
+			// Fallback to runtime deployment id fetching for users who haven't opened the SAP provider UI
+			console.log(`No pre-configured deployment ID found for model ${model.id}, falling back to runtime fetching`)
+			deploymentId = await this.getDeploymentForModel(model.id)
+		}
 
 		const anthropicModels = [
 			"anthropic--claude-4-sonnet",
@@ -819,16 +825,13 @@ export class SapAiCoreHandler implements ApiHandler {
 
 							// Handle metadata (token usage)
 							if (data.metadata?.usage) {
+								// inputTokens does not include cached write/read tokens
 								let inputTokens = data.metadata.usage.inputTokens || 0
 								const outputTokens = data.metadata.usage.outputTokens || 0
 
-								// calibrate input token
-								const totalTokens = data.metadata.usage.totalTokens || 0
 								const cacheReadInputTokens = data.metadata.usage.cacheReadInputTokens || 0
-								const cacheWriteOutputTokens = data.metadata.usage.cacheWriteOutputTokens || 0
-								if (inputTokens + outputTokens + cacheReadInputTokens + cacheWriteOutputTokens !== totalTokens) {
-									inputTokens = totalTokens - outputTokens - cacheReadInputTokens - cacheWriteOutputTokens
-								}
+								const cacheWriteInputTokens = data.metadata.usage.cacheWriteInputTokens || 0
+								inputTokens = inputTokens + cacheReadInputTokens + cacheWriteInputTokens
 
 								yield {
 									type: "usage",

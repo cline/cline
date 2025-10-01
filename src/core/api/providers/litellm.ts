@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
+import { isAnthropicModelId } from "@/utils/model-utils"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -16,7 +17,7 @@ interface LiteLlmHandlerOptions extends CommonApiHandlerOptions {
 	ulid?: string
 }
 
-interface LiteLlmModelInfoResponse {
+export interface LiteLlmModelInfoResponse {
 	data: Array<{
 		model_name: string
 		litellm_params: {
@@ -28,6 +29,7 @@ interface LiteLlmModelInfoResponse {
 			output_cost_per_token: number
 			cache_creation_input_token_cost?: number
 			cache_read_input_token_cost?: number
+			supports_prompt_caching?: boolean
 			[key: string]: any
 		}
 	}>
@@ -61,7 +63,17 @@ export class LiteLlmHandler implements ApiHandler {
 		return this.client
 	}
 
-	private async fetchModelInfo(): Promise<LiteLlmModelInfoResponse | undefined> {
+	private async modelInfo(publicModelName: string): Promise<LiteLlmModelInfoResponse["data"][number] | undefined> {
+		const modelInfo = await this.fetchModelsInfo()
+
+		if (!modelInfo?.data) {
+			return undefined
+		}
+
+		return modelInfo.data.find((model) => model.model_name === publicModelName)
+	}
+
+	private async fetchModelsInfo(): Promise<LiteLlmModelInfoResponse | undefined> {
 		// Check if cache is still valid
 		const now = Date.now()
 		if (this.modelInfoCache && now - this.modelInfoCacheTimestamp < this.modelInfoCacheTTL) {
@@ -121,19 +133,14 @@ export class LiteLlmHandler implements ApiHandler {
 		cacheReadCostPerToken?: number
 	}> {
 		try {
-			const modelInfo = await this.fetchModelInfo()
+			const matchingModel = await this.modelInfo(publicModelName)
 
-			if (modelInfo?.data) {
-				// Find the model by public name
-				const matchingModel = modelInfo.data.find((model) => model.model_name === publicModelName)
-
-				if (matchingModel?.model_info) {
-					return {
-						inputCostPerToken: matchingModel.model_info.input_cost_per_token || 0,
-						outputCostPerToken: matchingModel.model_info.output_cost_per_token || 0,
-						cacheCreationCostPerToken: matchingModel.model_info.cache_creation_input_token_cost,
-						cacheReadCostPerToken: matchingModel.model_info.cache_read_input_token_cost,
-					}
+			if (matchingModel) {
+				return {
+					inputCostPerToken: matchingModel.model_info.input_cost_per_token || 0,
+					outputCostPerToken: matchingModel.model_info.output_cost_per_token || 0,
+					cacheCreationCostPerToken: matchingModel.model_info.cache_creation_input_token_cost,
+					cacheReadCostPerToken: matchingModel.model_info.cache_read_input_token_cost,
 				}
 			}
 		} catch (error) {
@@ -177,7 +184,7 @@ export class LiteLlmHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const client = this.ensureClient()
 		const formattedMessages = convertToOpenAiMessages(messages)
-		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
+		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam | Anthropic.Messages.TextBlockParam = {
 			role: "system",
 			content: systemPrompt,
 		}
@@ -191,17 +198,26 @@ export class LiteLlmHandler implements ApiHandler {
 
 		let temperature: number | undefined = this.options.liteLlmModelInfo?.temperature ?? 0
 
-		if (isOminiModel && reasoningOn) {
-			temperature = undefined // Thinking mode doesn't support temperature
+		if ((isOminiModel || isAnthropicModelId(modelId)) && reasoningOn) {
+			temperature = undefined // OAI omni and Anthropic extended thinking mode doesn't support temperature
 		}
 
-		// Define cache control object if prompt caching is enabled
-		const cacheControl = this.options.liteLlmUsePromptCache ? { cache_control: { type: "ephemeral" } } : undefined
+		const modelInfo = await this.modelInfo(modelId)
+		const cacheControl =
+			this.options.liteLlmUsePromptCache && Boolean(modelInfo?.model_info.supports_prompt_caching)
+				? { cache_control: { type: "ephemeral" } }
+				: undefined
 
-		// Add cache_control to system message if enabled
-		const enhancedSystemMessage = {
-			...systemMessage,
-			...(cacheControl && cacheControl),
+		if (cacheControl) {
+			// Add cache_control to system message if enabled
+			// https://docs.litellm.ai/docs/providers/anthropic#caching---large-context-caching
+			systemMessage.content = [
+				{
+					text: systemPrompt,
+					type: "text",
+					...cacheControl,
+				},
+			] as Anthropic.Messages.TextBlockParam[]
 		}
 
 		// Find the last two user messages to apply caching
@@ -213,19 +229,49 @@ export class LiteLlmHandler implements ApiHandler {
 		const secondLastUserMsgIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
 		// Apply cache_control to the last two user messages if enabled
-		const enhancedMessages = formattedMessages.map((message, index) => {
-			if ((index === lastUserMsgIndex || index === secondLastUserMsgIndex) && cacheControl) {
-				return {
-					...message,
-					...cacheControl,
+		// https://docs.litellm.ai/docs/providers/anthropic#caching---large-context-caching
+		const enhancedMessages: OpenAI.Chat.ChatCompletionMessageParam[] = formattedMessages.map(
+			(message, index): OpenAI.Chat.ChatCompletionMessageParam => {
+				if ((index === lastUserMsgIndex || index === secondLastUserMsgIndex) && cacheControl) {
+					// Handle both string and array content types
+					if (typeof message.content === "string") {
+						return {
+							...message,
+							content: [
+								{
+									type: "text",
+									text: message.content,
+									...cacheControl,
+								},
+							] as any,
+						}
+					} else if (Array.isArray(message.content)) {
+						// Apply cache control to the last content item in the array
+						return {
+							...message,
+							content: message.content.map((item, contentIndex) =>
+								contentIndex === (message.content?.length || 0) - 1
+									? {
+											...item,
+											...cacheControl,
+										}
+									: item,
+							) as any,
+						}
+					}
+
+					return {
+						...message,
+						...cacheControl,
+					}
 				}
-			}
-			return message
-		})
+				return message
+			},
+		)
 
 		const stream = await client.chat.completions.create({
 			model: this.options.liteLlmModelId || liteLlmDefaultModelId,
-			messages: [enhancedSystemMessage, ...enhancedMessages],
+			messages: [systemMessage, ...enhancedMessages],
 			temperature,
 			stream: true,
 			stream_options: { include_usage: true },
@@ -244,16 +290,16 @@ export class LiteLlmHandler implements ApiHandler {
 				}
 			}
 
-			// Handle reasoning events (thinking)
-			// Thinking is not in the standard types but may be in the response
+			// Handle reasoning events
+			// This is not in the standard types but may be in the response
 			interface ThinkingDelta {
-				thinking?: string
+				reasoning_content?: string
 			}
 
-			if ((delta as ThinkingDelta)?.thinking) {
+			if ((delta as ThinkingDelta)?.reasoning_content) {
 				yield {
 					type: "reasoning",
-					reasoning: (delta as ThinkingDelta).thinking || "",
+					reasoning: (delta as ThinkingDelta).reasoning_content || "",
 				}
 			}
 

@@ -17,4 +17,12 @@ export enum ClineDefaultTool {
 	PLAN_MODE = "plan_mode_respond",
 	TODO = "focus_chain",
 	WEB_FETCH = "web_fetch",
+	CONDENSE = "condense",
+	SUMMARIZE_TASK = "summarize_task",
+	REPORT_BUG = "report_bug",
+	NEW_RULE = "new_rule",
 }
+
+// Array of all tool names for compatibility
+// Automatically generated from the enum values
+export const toolUseNames = Object.values(ClineDefaultTool) as ClineDefaultTool[]

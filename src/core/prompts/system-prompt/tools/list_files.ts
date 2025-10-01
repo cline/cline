@@ -1,6 +1,7 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
+import { TASK_PROGRESS_PARAMETER } from "../types"
 
 const id = ClineDefaultTool.LIST_FILES
 
@@ -14,7 +15,8 @@ const generic: ClineToolSpec = {
 		{
 			name: "path",
 			required: true,
-			instruction: "The path of the directory to list contents for (relative to the current working directory {{CWD}})",
+			instruction:
+				"The path of the directory to list contents for (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}",
 			usage: "Directory path here",
 		},
 		{
@@ -23,6 +25,7 @@ const generic: ClineToolSpec = {
 			instruction: "Whether to list files recursively. Use true for recursive listing, false or omit for top-level only.",
 			usage: "true or false (optional)",
 		},
+		TASK_PROGRESS_PARAMETER,
 	],
 }
 

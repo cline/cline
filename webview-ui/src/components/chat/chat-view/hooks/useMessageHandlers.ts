@@ -40,7 +40,13 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				if (messages.length === 0) {
-					await TaskServiceClient.newTask(NewTaskRequest.create({ text: messageToSend, images, files }))
+					await TaskServiceClient.newTask(
+						NewTaskRequest.create({
+							text: messageToSend,
+							images,
+							files,
+						}),
+					)
 				} else if (clineAsk) {
 					switch (clineAsk) {
 						case "followup":
@@ -118,6 +124,15 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			const hasContent = trimmedInput || (images && images.length > 0) || (files && files.length > 0)
 
 			switch (actionType) {
+				case "retry":
+					// For API retry (api_req_failed), always send simple approval without content
+					await TaskServiceClient.askResponse(
+						AskResponseRequest.create({
+							responseType: "yesButtonClicked",
+						}),
+					)
+					clearInputState()
+					break
 				case "approve":
 					if (hasContent) {
 						await TaskServiceClient.askResponse(
@@ -134,8 +149,8 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								responseType: "yesButtonClicked",
 							}),
 						)
-						clearInputState()
 					}
+					clearInputState()
 					break
 
 				case "reject":
@@ -160,7 +175,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 				case "proceed":
 					if (hasContent) {
-						await handleSendMessage(trimmedInput || "", images || [], files || [])
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "yesButtonClicked",
+								text: trimmedInput,
+								images: images,
+								files: files,
+							}),
+						)
 					} else {
 						await TaskServiceClient.askResponse(
 							AskResponseRequest.create({
@@ -173,12 +195,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 				case "new_task":
 					if (clineAsk === "new_task") {
-						console.info("new task button clicked!", {
-							lastMessage,
-							messages,
-							clineAsk,
-							text,
-						})
 						await TaskServiceClient.newTask(
 							NewTaskRequest.create({
 								text: lastMessage?.text,
@@ -218,50 +234,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		[clineAsk, lastMessage, messages, clearInputState, handleSendMessage, startNewTask, chatState],
 	)
 
-	// Unified button click handler that takes action directly
-	const handleButtonClick = useCallback(
-		async (action: string, text?: string, images?: string[], files?: string[]) => {
-			// Map action strings to ButtonActionType
-			let actionType: ButtonActionType
-
-			switch (action) {
-				case "Approve":
-				case "Save":
-				case "Run Command":
-				case "Retry":
-				case "Switch to Act Mode":
-					actionType = "approve"
-					break
-				case "Reject":
-					actionType = "reject"
-					break
-				case "Proceed":
-				case "Proceed Anyways":
-				case "Proceed While Running":
-				case "Resume Task":
-					actionType = "proceed"
-					break
-				case "Start New Task":
-				case "Start New Task with Context":
-					actionType = "new_task"
-					break
-				case "Cancel":
-					actionType = "cancel"
-					break
-				case "Condense Conversation":
-				case "Report GitHub issue":
-					actionType = "utility"
-					break
-				default:
-					console.warn(`Unknown action: ${action}`)
-					return
-			}
-
-			await executeButtonAction(actionType, text, images, files)
-		},
-		[executeButtonAction],
-	)
-
 	// Handle task close button click
 	const handleTaskCloseButtonClick = useCallback(() => {
 		startNewTask()
@@ -269,7 +241,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 	return {
 		handleSendMessage,
-		handleButtonClick,
+		executeButtonAction,
 		handleTaskCloseButtonClick,
 		startNewTask,
 	}
