@@ -78,7 +78,7 @@ async function main() {
 	}
 
 	// Initialize context with optional custom directory from CLI
-	const { extensionContext, CLINE_DIR, DATA_DIR, EXTENSION_DIR } = initializeContext(args.config)
+	const { extensionContext, DATA_DIR, EXTENSION_DIR } = initializeContext(args.config)
 
 	// Configure ports - CLI args override everything
 	if (args.port) {
@@ -112,7 +112,7 @@ async function main() {
 	// Initialize SQLite lock manager for instance registration
 	// This happens AFTER protobus service has been started, if it fails to connect we should
 	// handle that in global error handlers (do we even have to?)
-	const dbPath = `${CLINE_DIR}/${DATA_DIR}/locks.db`
+	const dbPath = `${DATA_DIR}/locks.db`
 
 	let lockManager: SqliteLockManager | undefined
 

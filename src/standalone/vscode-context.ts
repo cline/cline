@@ -69,7 +69,6 @@ export function initializeContext(clineDir?: string) {
 
 	return {
 		extensionContext,
-		CLINE_DIR,
 		DATA_DIR,
 		EXTENSION_DIR,
 	}
