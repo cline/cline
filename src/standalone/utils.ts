@@ -3,9 +3,6 @@ import * as fs from "fs"
 import * as health from "grpc-health-check"
 import { StreamingCallbacks } from "@/hosts/host-provider-types"
 
-// WE WILL HAVE TO MIGRATE THIS FROM DATA TO v1 LATER
-const SETTINGS_SUBFOLDER = "data"
-
 const log = (...args: unknown[]) => {
 	const now = new Date()
 	const year = now.getFullYear()
@@ -54,4 +51,4 @@ async function asyncIteratorToCallbacks<T>(stream: AsyncIterable<T>, callbacks: 
 	}
 }
 
-export { getPackageDefinition, log, asyncIteratorToCallbacks, SETTINGS_SUBFOLDER }
+export { getPackageDefinition, log, asyncIteratorToCallbacks }

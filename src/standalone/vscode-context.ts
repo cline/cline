@@ -5,11 +5,14 @@ import type { Extension, ExtensionContext } from "vscode"
 import { ExtensionKind, ExtensionMode } from "vscode"
 import { URI } from "vscode-uri"
 import { ExtensionRegistryInfo } from "@/registry"
-import { log, SETTINGS_SUBFOLDER } from "./utils"
+import { log } from "./utils"
 import { EnvironmentVariableCollection, MementoStore, readJson, SecretStore } from "./vscode-context-utils"
 
 log("Running standalone cline", ExtensionRegistryInfo.version)
 log(`CLINE_ENVIRONMENT: ${process.env.CLINE_ENVIRONMENT}`)
+
+// WE WILL HAVE TO MIGRATE THIS FROM DATA TO v1 LATER
+const SETTINGS_SUBFOLDER = "data"
 
 export function initializeContext(clineDir?: string) {
 	const CLINE_DIR = clineDir || process.env.CLINE_DIR || `${os.homedir()}/.cline`
