@@ -22,6 +22,7 @@ export class ToolResultUtils {
 		_api: ApiHandler,
 		markToolAsUsed: () => void,
 		coordinator?: ToolExecutorCoordinator,
+		toolUseIdMap?: Map<string, string>,
 	): void {
 		if (typeof content === "string") {
 			const resultText = content || "(tool did not return anything)"
@@ -34,17 +35,23 @@ export class ToolResultUtils {
 					})()
 				: toolDescription(block)
 
-			// Non-Claude 4: Use traditional format with header
+			// Get tool_use_id from map, or use "cline" as fallback for backward compatibility
+			const toolUseId = toolUseIdMap?.get(block.name) || "cline"
+
+			// Create ToolResultBlockParam with description and result
 			userMessageContent.push({
-				type: "text",
-				text: `${description} Result:`,
-			})
-			userMessageContent.push({
-				type: "text",
-				text: resultText,
+				type: "tool_result",
+				tool_use_id: toolUseId,
+				content: `${description} Result:\n${resultText}`,
 			})
 		} else {
-			userMessageContent.push(...content)
+			// For complex content (arrays), we still need to wrap it in ToolResultBlockParam
+			const toolUseId = toolUseIdMap?.get(block.name) || "cline"
+			userMessageContent.push({
+				type: "tool_result",
+				tool_use_id: toolUseId,
+				content: content,
+			})
 		}
 		// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
 		markToolAsUsed()

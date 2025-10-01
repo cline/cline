@@ -45,7 +45,7 @@ export function convertToOpenAiMessages(
 
 					if (typeof toolMessage.content === "string") {
 						content = toolMessage.content
-					} else {
+					} else if (Array.isArray(toolMessage.content)) {
 						content =
 							toolMessage.content
 								?.map((part) => {
@@ -56,6 +56,9 @@ export function convertToOpenAiMessages(
 									return part.text
 								})
 								.join("\n") ?? ""
+					} else {
+						// Handle undefined content
+						content = ""
 					}
 					openAiMessages.push({
 						role: "tool",

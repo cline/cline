@@ -207,6 +207,20 @@ export class AnthropicHandler implements ApiHandler {
 								data: chunk.content_block.data,
 							}
 							break
+						case "tool_use":
+							// Convert Anthropic tool_use to OpenAI-compatible format
+							yield {
+								type: "tool_calls",
+								tool_call: {
+									id: chunk.content_block.id,
+									type: "function",
+									function: {
+										name: chunk.content_block.name,
+										arguments: JSON.stringify(chunk.content_block.input),
+									},
+								},
+							}
+							break
 						case "text":
 							// we may receive multiple text blocks, in which case just insert a line break between them
 							if (chunk.index > 0) {

@@ -323,6 +323,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 						config.taskState.didAlreadyUseTool = true
 					},
 					config.coordinator,
+					config.taskState.toolUseIdMap,
 				)
 				throw new DiffError(`Access denied: ${resolvedPath}`)
 			}

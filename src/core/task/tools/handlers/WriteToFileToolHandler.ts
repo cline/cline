@@ -325,6 +325,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					config.taskState.didAlreadyUseTool = true
 				},
 				config.coordinator,
+				config.taskState.toolUseIdMap,
 			)
 			return
 		}
@@ -390,6 +391,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						config.taskState.didAlreadyUseTool = true
 					},
 					config.coordinator,
+					config.taskState.toolUseIdMap,
 				)
 
 				// Revert changes and reset diff view

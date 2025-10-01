@@ -252,6 +252,7 @@ export class ToolExecutor {
 				this.taskState.didAlreadyUseTool = true
 			},
 			this.coordinator,
+			this.taskState.toolUseIdMap,
 		)
 	}
 
