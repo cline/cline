@@ -1,6 +1,6 @@
-import { McpMarketplaceCatalog } from "@shared/mcp"
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { readMcpMarketplaceCatalogFromCache } from "@/core/storage/disk"
 import { telemetryService } from "@/services/telemetry"
 import type { Controller } from "../index"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
@@ -213,7 +213,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		// Prefetch marketplace and OpenRouter models
 
 		// Send stored MCP marketplace catalog if available
-		const mcpMarketplaceCatalog = await controller.readMcpMarketplaceCatalog()
+		const mcpMarketplaceCatalog = await readMcpMarketplaceCatalogFromCache()
 
 		if (mcpMarketplaceCatalog) {
 			sendMcpMarketplaceCatalogEvent(mcpMarketplaceCatalog)
