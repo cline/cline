@@ -48,7 +48,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		}
 
 		try {
-			const { relPath, fileExists, diff, content, newContent } = result
+			const { relPath, absolutePath, fileExists, diff, content, newContent } = result
 
 			// Create and show partial UI message
 			const sharedMessageProps: ClineSayTool = {
@@ -71,7 +71,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			// CRITICAL: Open editor and stream content in real-time (from original code)
 			if (!config.services.diffViewProvider.isEditing) {
 				// Open the editor and prepare to stream content in
-				await config.services.diffViewProvider.open(relPath)
+				await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
 			}
 			// Editor is open, stream content in real-time (false = don't finalize yet)
 			await config.services.diffViewProvider.update(newContent, false)
@@ -121,7 +121,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				return "" // can only happen if the sharedLogic adds an error to userMessages
 			}
 
-			const { relPath, fileExists, diff, content, newContent } = result
+			const { relPath, absolutePath, fileExists, diff, content, newContent } = result
 
 			// Handle approval flow
 			const sharedMessageProps: ClineSayTool = {
@@ -137,7 +137,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// show gui message before showing edit animation
 				const partialMessage = JSON.stringify(sharedMessageProps)
 				await config.callbacks.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
-				await config.services.diffViewProvider.open(relPath)
+				await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
 			}
 			await config.services.diffViewProvider.update(newContent, true)
 			await setTimeoutPromise(300) // wait for diff view to update
@@ -350,7 +350,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			// open the editor if not done already.  This is to fix diff error when model provides correct search-replace text but Cline throws error
 			// because file is not open.
 			if (!config.services.diffViewProvider.isEditing) {
-				await config.services.diffViewProvider.open(relPath)
+				await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
 			}
 
 			try {
@@ -420,6 +420,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
 
-		return { relPath, fileExists, diff, content, newContent }
+		return { relPath, absolutePath, fileExists, diff, content, newContent }
 	}
 }
