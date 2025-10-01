@@ -552,7 +552,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			defaultTerminalProfile: defaultTerminalProfile ?? "default",
 			globalWorkflowToggles: globalWorkflowToggles || {},
-				qwenCodeOauthPath,
+			qwenCodeOauthPath,
 			customPrompt,
 			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
