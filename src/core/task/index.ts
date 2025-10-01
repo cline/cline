@@ -55,7 +55,6 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@sha
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import { getGitRemoteUrls, getLatestGitCommitHash } from "@utils/git"
 import { isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import cloneDeep from "clone-deep"
@@ -2569,15 +2568,12 @@ export class Task {
 				details += result
 			}
 
-			// Add git remote URLs section
-			const gitRemotes = await getGitRemoteUrls(this.cwd)
-			if (gitRemotes.length > 0) {
-				details += `\n\n# Git Remote URLs\n${gitRemotes.join("\n")}`
-			}
-
-			const latestGitHash = await getLatestGitCommitHash(this.cwd)
-			if (latestGitHash) {
-				details += `\n\n# Latest Git Commit Hash\n${latestGitHash}`
+			// Add workspace information in JSON format
+			if (this.workspaceManager) {
+				const workspacesJson = await this.workspaceManager.buildWorkspacesJson()
+				if (workspacesJson) {
+					details += `\n\n# Workspace Configuration\n${workspacesJson}`
+				}
 			}
 
 			// Add detected CLI tools
