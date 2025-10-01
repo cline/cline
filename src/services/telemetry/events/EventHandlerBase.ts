@@ -1,3 +1,4 @@
+import type { TelemetryObject } from "../providers/ITelemetryProvider"
 import type { TelemetryService } from "../TelemetryService"
 
 /**
@@ -18,7 +19,7 @@ export abstract class EventHandlerBase {
 	protected static capture(
 		service: TelemetryService,
 		event: string,
-		properties?: Record<string, unknown>,
+		properties?: TelemetryObject,
 		required: boolean = false,
 	): void {
 		if (required) {
@@ -34,7 +35,7 @@ export abstract class EventHandlerBase {
 	 * @param event The full event name
 	 * @param properties Event properties
 	 */
-	protected static captureRequired(service: TelemetryService, event: string, properties?: Record<string, unknown>): void {
+	protected static captureRequired(service: TelemetryService, event: string, properties?: TelemetryObject): void {
 		service.captureRequired(event, properties)
 	}
 

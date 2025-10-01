@@ -812,6 +812,8 @@ export class TelemetryService {
 			action?: string
 			url?: string
 			isRemote?: boolean
+			remoteBrowserHost?: string
+			endpoint?: string
 		},
 	) {
 		if (!this.isCategoryEnabled("browser")) {
