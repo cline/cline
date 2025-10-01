@@ -1,6 +1,7 @@
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
+import { retryOperation } from "@utils/retry"
 import * as path from "path"
 import { initialize, tearDown } from "@/common"
 import { SqliteLockManager } from "@/core/locks/SqliteLockManager"
@@ -13,59 +14,7 @@ import { PROTOBUS_PORT, startProtobusService } from "./protobus-service"
 import { log } from "./utils"
 import { initializeContext } from "./vscode-context"
 
-// Parse command line arguments
-interface CliArgs {
-	port?: number
-	hostBridgePort?: number
-	config?: string
-	help?: boolean
-}
-
-function parseArgs(): CliArgs {
-	const args: CliArgs = {}
-	const argv = process.argv.slice(2)
-
-	for (let i = 0; i < argv.length; i++) {
-		const arg = argv[i]
-		switch (arg) {
-			case "--port":
-			case "-p":
-				args.port = parseInt(argv[++i], 10)
-				break
-			case "--host-bridge-port":
-				args.hostBridgePort = parseInt(argv[++i], 10)
-				break
-			case "--config":
-			case "-c":
-				args.config = argv[++i]
-				break
-			case "--help":
-			case "-h":
-				args.help = true
-				break
-		}
-	}
-
-	return args
-}
-
-function showHelp() {
-	console.log(`
-Cline Core - Standalone Server
-
-Usage: node cline-core.js [options]
-
-Options:
-  -p, --port <port>              Port for the main gRPC service (default: ${PROTOBUS_PORT})
-  --host-bridge-port <port>      Port for the host bridge service (default: ${HOSTBRIDGE_PORT})
-  -c, --config <path>            Directory for Cline data storage (default: ~/.cline)
-  -h, --help                     Show this help message
-
-Environment Variables:
-  PROTOBUS_PORT              Override the main service address (format: host:port)
-  HOSTBRIDGE_ADDRESS            Override the host bridge address (format: host:port)
-`)
-}
+let globalLockManager: SqliteLockManager | undefined
 
 async function main() {
 	// Parse command line arguments
@@ -114,26 +63,19 @@ async function main() {
 	// handle that in global error handlers (do we even have to?)
 	const dbPath = `${DATA_DIR}/locks.db`
 
-	let lockManager: SqliteLockManager | undefined
-
 	try {
-		lockManager = new SqliteLockManager({
+		globalLockManager = new SqliteLockManager({
 			dbPath,
 			instanceAddress: protobusAddress,
 		})
 
-		await lockManager.registerInstance({
+		await globalLockManager.registerInstance({
 			hostAddress,
 		})
 		log(`Registered instance in SQLite locks: ${protobusAddress}`)
 	} catch (err) {
-		log(`CRITICAL ERROR: Failed to register instance in SQLite locks: ${String(err)}`)
-		log(`This is a fatal error - cline-core cannot start without proper instance registration`)
-		if (lockManager) {
-			try {
-				lockManager.close()
-			} catch {}
-		}
+		log(`CRITICAL ERROR: Failed to register instance: ${String(err)}`)
+		await shutdownGracefully(globalLockManager)
 		process.exit(1)
 	}
 }
@@ -192,15 +134,128 @@ function setupGlobalErrorHandlers() {
 	// Graceful shutdown handlers
 	process.on("SIGINT", () => {
 		log("Received SIGINT, shutting down gracefully...")
-		process.exit(0)
+		shutdownGracefully(globalLockManager)
 	})
 
 	process.on("SIGTERM", () => {
 		log("Received SIGTERM, shutting down gracefully...")
-		tearDown()
-
-		process.exit(0)
+		shutdownGracefully(globalLockManager)
 	})
+}
+
+/**
+ * Request host bridge shutdown with retry logic and timeout handling.
+ * Uses best-effort approach - logs failures but doesn't block shutdown.
+ */
+async function requestHostBridgeShutdown(): Promise<void> {
+	try {
+		await retryOperation(3, 2000, async () => {
+			await HostProvider.env.shutdown({})
+		})
+		log("Host bridge shutdown requested successfully")
+	} catch (error) {
+		log(`Warning: Failed to request host bridge shutdown: ${error}`)
+		log("Proceeding with cleanup")
+	}
+}
+
+/**
+ * Gracefully shutdown the cline-core process by:
+ * 1. Calling shutdown RPC on the paired host bridge
+ * 2. Cleaning up the lock manager entry
+ * 3. Tearing down services
+ * 4. Exiting the process
+ */
+async function shutdownGracefully(lockManager?: SqliteLockManager) {
+	try {
+		// Step 1: Tell the paired host bridge to shut down
+		log("Requesting host bridge shutdown...")
+		if (HostProvider.isInitialized()) {
+			await requestHostBridgeShutdown()
+		} else {
+			log("Warning: HostProvider not initialized, cannot request shutdown")
+		}
+
+		// Step 2: Clean up lock manager entry
+		log("Cleaning up lock manager entry...")
+		try {
+			lockManager?.unregisterInstance()
+			lockManager?.close()
+			log("Lock manager entry cleaned up successfully")
+		} catch (error) {
+			log(`Warning: Failed to clean up lock manager: ${error}`)
+		}
+
+		// Step 3: Tear down services
+		log("Tearing down services...")
+		try {
+			tearDown()
+			log("Services torn down successfully")
+		} catch (error) {
+			log(`Warning: Failed to tear down services: ${error}`)
+		}
+
+		log("Graceful shutdown completed")
+	} catch (error) {
+		log(`Error during graceful shutdown: ${error}`)
+	} finally {
+		// Step 4: Exit the process
+		process.exit(0)
+	}
+}
+
+// Parse command line arguments
+interface CliArgs {
+	port?: number
+	hostBridgePort?: number
+	config?: string
+	help?: boolean
+}
+
+function parseArgs(): CliArgs {
+	const args: CliArgs = {}
+	const argv = process.argv.slice(2)
+
+	for (let i = 0; i < argv.length; i++) {
+		const arg = argv[i]
+		switch (arg) {
+			case "--port":
+			case "-p":
+				args.port = parseInt(argv[++i], 10)
+				break
+			case "--host-bridge-port":
+				args.hostBridgePort = parseInt(argv[++i], 10)
+				break
+			case "--config":
+			case "-c":
+				args.config = argv[++i]
+				break
+			case "--help":
+			case "-h":
+				args.help = true
+				break
+		}
+	}
+
+	return args
+}
+
+function showHelp() {
+	console.log(`
+Cline Core - Standalone Server
+
+Usage: node cline-core.js [options]
+
+Options:
+  -p, --port <port>              Port for the main gRPC service (default: ${PROTOBUS_PORT})
+  --host-bridge-port <port>      Port for the host bridge service (default: ${HOSTBRIDGE_PORT})
+  -c, --config <path>            Directory for Cline data storage (default: ~/.cline)
+  -h, --help                     Show this help message
+
+Environment Variables:
+  PROTOBUS_PORT              Override the main service address (format: host:port)
+  HOSTBRIDGE_ADDRESS            Override the host bridge address (format: host:port)
+`)
 }
 
 main()
