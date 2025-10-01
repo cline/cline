@@ -63,6 +63,18 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 						selectedModelId={selectedModelId}
 					/>
 
+					{(selectedModelId === "sonnet" || selectedModelId === "opus") && (
+						<p
+							style={{
+								fontSize: "12px",
+								marginBottom: 2,
+								marginTop: 2,
+								color: "var(--vscode-descriptionForeground)",
+							}}>
+							Use the latest version of {selectedModelId} by default.
+						</p>
+					)}
+
 					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					)}
