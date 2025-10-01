@@ -1,5 +1,5 @@
 import { EventMessage, PostHog } from "posthog-node"
-import { posthogConfig } from "../../shared/services/config/posthog-config"
+import { posthogConfig } from "@/shared/services/config/posthog-config"
 
 export class PostHogClientProvider {
 	private static _instance: PostHogClientProvider | null = null
