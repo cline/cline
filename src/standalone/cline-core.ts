@@ -41,29 +41,27 @@ async function main() {
 		process.env.HOST_BRIDGE_ADDRESS = `127.0.0.1:${args.hostBridgePort}`
 	}
 
-	log("\n\n\nStarting cline-core service...\n\n\n")
-
-	const hostAddress = await waitForHostBridgeReady()
-
-	// The host bridge should be available before creating the host provider because it depends on the host bridge.
-	setupHostProvider(extensionContext, EXTENSION_DIR, DATA_DIR)
-
-	// Set up global error handlers to prevent process crashes
-	setupGlobalErrorHandlers()
-
-	const webviewProvider = await initialize(extensionContext)
-
-	// Enable the localhost HTTP server that handles auth redirects.
-	AuthHandler.getInstance().setEnabled(true)
-
-	const protobusAddress = startProtobusService(webviewProvider.controller)
-
-	// Initialize SQLite lock manager for instance registration
-	// This happens AFTER protobus service has been started, if it fails to connect we should
-	// handle that in global error handlers (do we even have to?)
-	const dbPath = `${DATA_DIR}/locks.db`
-
 	try {
+		log("\n\n\nStarting cline-core service...\n\n\n")
+
+		// Set up error handlers FIRST (before any service starts)
+		setupGlobalErrorHandlers()
+
+		const hostAddress = await waitForHostBridgeReady()
+
+		// The host bridge should be available before creating the host provider because it depends on the host bridge.
+		setupHostProvider(extensionContext, EXTENSION_DIR, DATA_DIR)
+
+		const webviewProvider = await initialize(extensionContext)
+
+		// Enable the localhost HTTP server that handles auth redirects.
+		AuthHandler.getInstance().setEnabled(true)
+
+		// Now this will throw instead of exit if binding fails
+		const protobusAddress = await startProtobusService(webviewProvider.controller)
+
+		// Initialize SQLite lock manager for instance registration
+		const dbPath = `${DATA_DIR}/locks.db`
 		globalLockManager = new SqliteLockManager({
 			dbPath,
 			instanceAddress: protobusAddress,
@@ -73,17 +71,16 @@ async function main() {
 			hostAddress,
 		})
 		log(`Registered instance in SQLite locks: ${protobusAddress}`)
+
+		// Mark instance healthy after services are up
+		globalLockManager.touchInstance()
+
+		log("✅ All services started successfully")
 	} catch (err) {
-		log(`CRITICAL ERROR: Failed to register instance: ${String(err)}`)
+		log(`FATAL ERROR during startup: ${err}`)
+		log(`Cleaning up and shutting down...`)
 		await shutdownGracefully(globalLockManager)
 		process.exit(1)
-	}
-
-	// Mark instance healthy after services are up
-	try {
-		globalLockManager?.touchInstance()
-	} catch {
-		log("Warning: Failed to mark instance healthy")
 	}
 }
 
@@ -141,12 +138,18 @@ function setupGlobalErrorHandlers() {
 	// Graceful shutdown handlers
 	process.on("SIGINT", () => {
 		log("Received SIGINT, shutting down gracefully...")
-		shutdownGracefully(globalLockManager)
+		shutdownGracefully(globalLockManager).catch((err) => {
+			log(`Error during SIGINT shutdown: ${err}`)
+			process.exit(1)
+		})
 	})
 
 	process.on("SIGTERM", () => {
 		log("Received SIGTERM, shutting down gracefully...")
-		shutdownGracefully(globalLockManager)
+		shutdownGracefully(globalLockManager).catch((err) => {
+			log(`Error during SIGTERM shutdown: ${err}`)
+			process.exit(1)
+		})
 	})
 }
 

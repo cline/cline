@@ -22,8 +22,7 @@ export async function waitForHostBridgeReady(timeoutMs = 60000, intervalMs = 500
 	} finally {
 		client.close()
 	}
-	log("HostBridge health check timed out")
-	process.exit(1)
+	throw new Error(`HostBridge health check timed out after ${timeoutMs}ms`)
 }
 
 // Client-side health check for the hostbridge service (kept at bottom for clarity)
