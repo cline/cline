@@ -187,6 +187,12 @@ export class TelemetryService {
 			TERMINAL_OUTPUT_FAILURE: "task.terminal_output_failure",
 			TERMINAL_USER_INTERVENTION: "task.terminal_user_intervention",
 			TERMINAL_HANG: "task.terminal_hang",
+			// Mention telemetry events
+			MENTION_USED: "task.mention_used",
+			MENTION_FAILED: "task.mention_failed",
+			MENTION_SEARCH_RESULTS: "task.mention_search_results",
+			// Multi-workspace search pattern tracking
+			WORKSPACE_SEARCH_PATTERN: "task.workspace_search_pattern",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -336,6 +342,7 @@ export class TelemetryService {
 			setDistinctId(userInfo.id)
 		}
 	}
+
 	// Dictation events
 	/**
 	 * Records when voice recording is started
@@ -456,6 +463,7 @@ export class TelemetryService {
 			},
 		})
 	}
+
 	// Task events
 	/**
 	 * Records when a new task/conversation is started
@@ -609,10 +617,24 @@ export class TelemetryService {
 	 * Records when a tool is used during task execution
 	 * @param ulid Unique identifier for the task
 	 * @param tool Name of the tool being used
+	 * @param modelId The model ID being used
 	 * @param autoApproved Whether the tool was auto-approved based on settings
 	 * @param success Whether the tool execution was successful
+	 * @param workspaceContext Optional workspace context for multi-root workspace tracking
 	 */
-	public captureToolUsage(ulid: string, tool: string, modelId: string, autoApproved: boolean, success: boolean) {
+	public captureToolUsage(
+		ulid: string,
+		tool: string,
+		modelId: string,
+		autoApproved: boolean,
+		success: boolean,
+		workspaceContext?: {
+			isMultiRootEnabled: boolean
+			usedWorkspaceHint: boolean
+			resolvedToNonPrimary: boolean
+			resolutionMethod: "hint" | "primary_fallback" | "path_detection"
+		},
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TOOL_USED,
 			properties: {
@@ -621,6 +643,13 @@ export class TelemetryService {
 				autoApproved,
 				success,
 				modelId,
+				// Workspace context (optional)
+				...(workspaceContext && {
+					workspace_multi_root_enabled: workspaceContext.isMultiRootEnabled,
+					workspace_hint_used: workspaceContext.usedWorkspaceHint,
+					workspace_resolved_non_primary: workspaceContext.resolvedToNonPrimary,
+					workspace_resolution_method: workspaceContext.resolutionMethod,
+				}),
 			},
 		})
 	}
@@ -1275,6 +1304,69 @@ export class TelemetryService {
 	}
 
 	/**
+	 * Records workspace path resolution events
+	 * @param ulid Unique identifier for the task
+	 * @param context The component/handler where resolution occurred
+	 * @param resolutionType Type of resolution performed
+	 * @param hintType Type of workspace hint provided (if any)
+	 * @param resolutionSuccess Whether the resolution was successful
+	 * @param targetWorkspaceIndex Index of the resolved workspace (0=primary, 1=secondary, etc.)
+	 * @param isMultiRootEnabled Whether multi-root mode is enabled
+	 */
+	public captureWorkspacePathResolved(
+		ulid: string,
+		context: string,
+		resolutionType: "hint_provided" | "fallback_to_primary" | "cross_workspace_search",
+		hintType?: "workspace_name" | "workspace_path" | "invalid",
+		resolutionSuccess?: boolean,
+		targetWorkspaceIndex?: number,
+		isMultiRootEnabled?: boolean,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKSPACE.PATH_RESOLVED,
+			properties: {
+				ulid,
+				context,
+				resolution_type: resolutionType,
+				hint_type: hintType,
+				resolution_success: resolutionSuccess,
+				target_workspace_index: targetWorkspaceIndex,
+				is_multi_root_enabled: isMultiRootEnabled,
+			},
+		})
+	}
+
+	/**
+	 * Records multi-workspace search patterns and performance
+	 * @param ulid Unique identifier for the task
+	 * @param searchType Type of search performed
+	 * @param workspaceCount Number of workspaces searched
+	 * @param hintProvided Whether a workspace hint was provided
+	 * @param resultsFound Whether search results were found
+	 * @param searchDurationMs Optional search duration in milliseconds
+	 */
+	public captureWorkspaceSearchPattern(
+		ulid: string,
+		searchType: "targeted" | "cross_workspace" | "primary_only",
+		workspaceCount: number,
+		hintProvided: boolean,
+		resultsFound: boolean,
+		searchDurationMs?: number,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.WORKSPACE_SEARCH_PATTERN,
+			properties: {
+				ulid,
+				search_type: searchType,
+				workspace_count: workspaceCount,
+				hint_provided: hintProvided,
+				results_found: resultsFound,
+				search_duration_ms: searchDurationMs,
+			},
+		})
+	}
+
+	/**
 	 * Checks if a specific telemetry category is enabled
 	 * @param category The telemetry category to check
 	 * @returns Boolean indicating whether the specified telemetry category is enabled
@@ -1312,6 +1404,72 @@ export class TelemetryService {
 					hostEnabled: false,
 					level: "off" as const,
 				}
+	}
+
+	/**
+	 * Records when a mention is successfully used and content is retrieved
+	 * @param mentionType Type of mention (file, folder, url, problems, terminal, git-changes, commit)
+	 * @param contentLength Optional length of content retrieved (for size tracking)
+	 */
+	public captureMentionUsed(
+		mentionType: "file" | "folder" | "url" | "problems" | "terminal" | "git-changes" | "commit",
+		contentLength?: number,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MENTION_USED,
+			properties: {
+				mentionType,
+				contentLength,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when a mention fails to retrieve content
+	 * @param mentionType Type of mention that failed
+	 * @param errorType Category of error (not_found, permission_denied, network_error, parse_error)
+	 * @param errorMessage Optional error message for debugging (will be truncated)
+	 */
+	public captureMentionFailed(
+		mentionType: "file" | "folder" | "url" | "problems" | "terminal" | "git-changes" | "commit",
+		errorType: "not_found" | "permission_denied" | "network_error" | "parse_error" | "unknown",
+		errorMessage?: string,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MENTION_FAILED,
+			properties: {
+				mentionType,
+				errorType,
+				errorMessage: errorMessage?.substring(0, MAX_ERROR_MESSAGE_LENGTH),
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records search results when user searches for files/folders in mention dropdown
+	 * @param query The search query entered by user
+	 * @param resultCount Number of results returned
+	 * @param searchType Type of search (file, folder, or all)
+	 * @param isEmpty Whether the search returned no results
+	 */
+	public captureMentionSearchResults(
+		query: string,
+		resultCount: number,
+		searchType: "file" | "folder" | "all",
+		isEmpty: boolean,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MENTION_SEARCH_RESULTS,
+			properties: {
+				queryLength: query.length,
+				resultCount,
+				searchType,
+				isEmpty,
+				timestamp: new Date().toISOString(),
+			},
+		})
 	}
 
 	/**

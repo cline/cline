@@ -27,6 +27,9 @@ service WorkspaceService {
 
   // Opens and focuses the Cline sidebar panel in the host IDE.
   rpc openClineSidebarPanel(OpenClineSidebarPanelRequest) returns (OpenClineSidebarPanelResponse);
+
+  // Opens and focuses the terminal panel.
+  rpc openTerminalPanel(OpenTerminalRequest) returns (OpenTerminalResponse);
 }
 
 message GetWorkspacePathsRequest {
@@ -82,12 +85,11 @@ message SearchWorkspaceItemsResponse {
 
 message OpenProblemsPanelRequest {}
 message OpenProblemsPanelResponse {}
-
 message OpenInFileExplorerPanelRequest {
   string path = 1;
 }
 message OpenInFileExplorerPanelResponse {}
-
-// Request/response for opening the Cline sidebar
 message OpenClineSidebarPanelRequest {}
 message OpenClineSidebarPanelResponse {}
+message OpenTerminalRequest {}
+message OpenTerminalResponse {}

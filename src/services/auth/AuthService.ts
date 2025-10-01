@@ -120,7 +120,7 @@ export class AuthService {
 	 */
 	async getAuthToken(): Promise<string | null> {
 		try {
-			const clineAccountAuthToken = this._clineAuthInfo?.idToken
+			let clineAccountAuthToken = this._clineAuthInfo?.idToken
 			if (!this._clineAuthInfo || !clineAccountAuthToken) {
 				// Not authenticated
 				return null
@@ -133,12 +133,14 @@ export class AuthService {
 				if (updatedAuthInfo) {
 					this._clineAuthInfo = updatedAuthInfo
 					this._authenticated = true
+					clineAccountAuthToken = updatedAuthInfo.idToken
 				} else {
 					this._clineAuthInfo = null
 					this._authenticated = false
 				}
 				await this.sendAuthStatusUpdate()
 			}
+
 			// IMPORTANT: Prefix with 'workos:' so backend can route verification to WorkOS provider
 			const prefix = this._provider?.name === "cline" ? "workos:" : ""
 			return clineAccountAuthToken ? `${prefix}${clineAccountAuthToken}` : null

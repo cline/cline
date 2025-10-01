@@ -3,13 +3,13 @@ import { extractTextFromFile } from "@integrations/misc/extract-text"
 import { openFile } from "@integrations/misc/open-file"
 import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-output"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { telemetryService } from "@services/telemetry"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import { openExternal } from "@utils/env"
 import { getCommitInfo, getWorkingState } from "@utils/git"
 import fs from "fs/promises"
 import { isBinaryFile } from "isbinaryfile"
 import * as path from "path"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { DiagnosticSeverity } from "@/shared/proto/index.cline"
@@ -38,7 +38,7 @@ export async function openMention(mention?: string): Promise<void> {
 	} else if (mention === "problems") {
 		await HostProvider.workspace.openProblemsPanel({})
 	} else if (mention === "terminal") {
-		vscode.commands.executeCommand("workbench.action.terminal.focus")
+		await HostProvider.workspace.openTerminalPanel({})
 	} else if (mention.startsWith("http")) {
 		await openExternal(mention)
 	}
@@ -111,21 +111,28 @@ export async function parseMentions(
 			let result: string
 			if (launchBrowserError) {
 				result = `Error fetching content: ${launchBrowserError.message}`
+				// Track failed URL mention
+				telemetryService.captureMentionFailed("url", "network_error", launchBrowserError?.message || "")
 			} else {
 				try {
 					const markdown = await urlContentFetcher.urlToMarkdown(mention)
 					result = markdown
+					// Track successful URL mention
+					telemetryService.captureMentionUsed("url", markdown.length)
 				} catch (error) {
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
 						message: `Error fetching content for ${mention}: ${error.message}`,
 					})
 					result = `Error fetching content: ${error.message}`
+					// Track failed URL mention
+					telemetryService.captureMentionFailed("url", "network_error", error.message)
 				}
 			}
 			parsedText += `\n\n<url_content url="${mention}">\n${result}\n</url_content>`
 		} else if (isFileMention(mention)) {
 			const mentionPath = getFilePathFromMention(mention)
+			const mentionType = mention.endsWith("/") ? "folder" : "file"
 			try {
 				const content = await getFileOrFolderContent(mentionPath, cwd)
 				if (mention.endsWith("/")) {
@@ -137,40 +144,67 @@ export async function parseMentions(
 						await fileContextTracker.trackFileContext(mentionPath, "file_mentioned")
 					}
 				}
+				// Track successful file/folder mention
+				telemetryService.captureMentionUsed(mentionType, content.length)
 			} catch (error) {
 				if (mention.endsWith("/")) {
 					parsedText += `\n\n<folder_content path="${mentionPath}">\nError fetching content: ${error.message}\n</folder_content>`
 				} else {
 					parsedText += `\n\n<file_content path="${mentionPath}">\nError fetching content: ${error.message}\n</file_content>`
 				}
+				// Track failed file/folder mention
+				// Map file access errors to appropriate error types
+				let errorType: "not_found" | "permission_denied" | "unknown" = "unknown"
+				if (error.message.includes("ENOENT") || error.message.includes("Failed to access")) {
+					errorType = "not_found"
+				} else if (error.message.includes("EACCES") || error.message.includes("permission")) {
+					errorType = "permission_denied"
+				}
+				telemetryService.captureMentionFailed(mentionType, errorType, error.message)
 			}
 		} else if (mention === "problems") {
 			try {
 				const problems = await getWorkspaceProblems()
 				parsedText += `\n\n<workspace_diagnostics>\n${problems}\n</workspace_diagnostics>`
+				// Track successful problems mention
+				telemetryService.captureMentionUsed("problems", problems.length)
 			} catch (error) {
 				parsedText += `\n\n<workspace_diagnostics>\nError fetching diagnostics: ${error.message}\n</workspace_diagnostics>`
+				// Track failed problems mention
+				telemetryService.captureMentionFailed("problems", "unknown", error.message)
 			}
 		} else if (mention === "terminal") {
 			try {
 				const terminalOutput = await getLatestTerminalOutput()
 				parsedText += `\n\n<terminal_output>\n${terminalOutput}\n</terminal_output>`
+				// Track successful terminal mention
+				telemetryService.captureMentionUsed("terminal", terminalOutput.length)
 			} catch (error) {
 				parsedText += `\n\n<terminal_output>\nError fetching terminal output: ${error.message}\n</terminal_output>`
+				// Track failed terminal mention
+				telemetryService.captureMentionFailed("terminal", "unknown", error.message)
 			}
 		} else if (mention === "git-changes") {
 			try {
 				const workingState = await getWorkingState(cwd)
 				parsedText += `\n\n<git_working_state>\n${workingState}\n</git_working_state>`
+				// Track successful git-changes mention
+				telemetryService.captureMentionUsed("git-changes", workingState.length)
 			} catch (error) {
 				parsedText += `\n\n<git_working_state>\nError fetching working state: ${error.message}\n</git_working_state>`
+				// Track failed git-changes mention
+				telemetryService.captureMentionFailed("git-changes", "unknown", error.message)
 			}
 		} else if (/^[a-f0-9]{7,40}$/.test(mention)) {
 			try {
 				const commitInfo = await getCommitInfo(mention, cwd)
 				parsedText += `\n\n<git_commit hash="${mention}">\n${commitInfo}\n</git_commit>`
+				// Track successful commit mention
+				telemetryService.captureMentionUsed("commit", commitInfo.length)
 			} catch (error) {
 				parsedText += `\n\n<git_commit hash="${mention}">\nError fetching commit info: ${error.message}\n</git_commit>`
+				// Track failed commit mention
+				telemetryService.captureMentionFailed("commit", "unknown", error.message)
 			}
 		}
 	}

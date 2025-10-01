@@ -19,6 +19,7 @@ service StateService {
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
   rpc updateInfoBannerVersion(Int64Request) returns (Empty);
+  rpc updateModelBannerVersion(Int64Request) returns (Empty);
 }
 message DictationSettings {
   bool feature_enabled = 1;
