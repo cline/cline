@@ -631,10 +631,7 @@ export class Controller {
 
 	// Read MCP marketplace catalog from disk cache
 	async readMcpMarketplaceCatalog(): Promise<McpMarketplaceCatalog | undefined> {
-		const mcpMarketplaceCatalogFilePath = path.join(
-			await this.ensureCacheDirectoryExists(),
-			GlobalFileNames.mcpMarketplaceCatalog,
-		)
+		const mcpMarketplaceCatalogFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.mcpMarketplaceCatalog)
 		const fileExists = await fileExistsAtPath(mcpMarketplaceCatalogFilePath)
 		if (fileExists) {
 			const fileContents = await fs.readFile(mcpMarketplaceCatalogFilePath, "utf8")
@@ -645,10 +642,7 @@ export class Controller {
 
 	// Write MCP marketplace catalog to disk cache
 	async writeMcpMarketplaceCatalog(catalog: McpMarketplaceCatalog): Promise<void> {
-		const mcpMarketplaceCatalogFilePath = path.join(
-			await this.ensureCacheDirectoryExists(),
-			GlobalFileNames.mcpMarketplaceCatalog,
-		)
+		const mcpMarketplaceCatalogFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.mcpMarketplaceCatalog)
 		await fs.writeFile(mcpMarketplaceCatalogFilePath, JSON.stringify(catalog))
 	}
 
