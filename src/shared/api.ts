@@ -3496,6 +3496,14 @@ export const basetenDefaultModelId = "moonshotai/Kimi-K2-Instruct" satisfies Bas
 export type internationalZAiModelId = keyof typeof internationalZAiModels
 export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.5"
 export const internationalZAiModels = {
+	"glm-4.6": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
 	"glm-4.5": {
 		maxTokens: 98_304,
 		contextWindow: 131_072,
@@ -3525,6 +3533,14 @@ export const internationalZAiModels = {
 export type mainlandZAiModelId = keyof typeof mainlandZAiModels
 export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.5"
 export const mainlandZAiModels = {
+	"glm-4.6": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
 	"glm-4.5": {
 		maxTokens: 98_304,
 		contextWindow: 131_072,
