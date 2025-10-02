@@ -34,7 +34,7 @@ async function main() {
 		process.env.PROTOBUS_ADDRESS = `127.0.0.1:${args.port}`
 		// Auto-calculate hostbridge port if not specified
 		if (!args.hostBridgePort) {
-			process.env.HOST_BRIDGE_ADDRESS = `127.0.0.1:${args.port + 1000}`
+			process.env.HOST_BRIDGE_ADDRESS = `127.0.0.1:${HOSTBRIDGE_PORT}`
 		}
 	}
 	if (args.hostBridgePort) {
