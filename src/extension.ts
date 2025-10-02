@@ -27,7 +27,6 @@ import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
-import { StateManager } from "./core/storage/StateManager"
 import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMessage } from "./hosts/vscode/commit-message-generator"
@@ -52,16 +51,6 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 // Your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
 	setupHostProvider(context)
-
-	try {
-		await StateManager.initialize(context)
-	} catch (error) {
-		console.error("[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:", error)
-		HostProvider.window.showMessage({
-			type: ShowMessageType.ERROR,
-			message: "Failed to initialize Cline's application state. Please restart the extension.",
-		})
-	}
 
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
