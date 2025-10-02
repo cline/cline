@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.32.5",
+	"version": "3.32.6",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -168,7 +168,10 @@
 				"command": "cline.generateGitCommitMessage",
 				"title": "Generate Commit Message with Cline",
 				"category": "Cline",
-				"icon": "$(robot)"
+				"icon": {
+					"light": "assets/icons/robot_panel_light.png",
+					"dark": "assets/icons/robot_panel_dark.png"
+				}
 			},
 			{
 				"command": "cline.abortGitCommitMessage",

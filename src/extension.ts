@@ -29,9 +29,9 @@ import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
+import { abortCommitGeneration, generateCommitMessage } from "./hosts/vscode/commit-message-generator"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
-import { GitCommitGenerator } from "./integrations/git/commit-message-generator"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
 import { telemetryService } from "./services/telemetry"
@@ -365,10 +365,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.GenerateCommit, async (scm) => {
-			await GitCommitGenerator?.generate?.(context, scm)
+			generateCommitMessage(webview.controller.stateManager, scm)
 		}),
 		vscode.commands.registerCommand(commands.AbortCommit, () => {
-			GitCommitGenerator?.abort?.()
+			abortCommitGeneration()
 		}),
 	)
 
