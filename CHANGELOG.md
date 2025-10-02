@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.32.6]
+
+- Add experimental support for VSCode multi root workspaces
+- Add Claude Sonnet 4.5 to Claude Code provider
+- Add Glm 4.6 to Z AI provider 
+
 ## [3.32.5]
 
 - Improve thinking budget slider UI to take up less space

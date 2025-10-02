@@ -17,6 +17,9 @@ import { initializeContext } from "./vscode-context"
 let globalLockManager: SqliteLockManager | undefined
 
 async function main() {
+	log("\n\n\nStarting cline-core service...\n\n\n")
+	log(`Environment variables: ${JSON.stringify(process.env)}`)
+
 	// Parse command line arguments
 	const args = parseArgs()
 
