@@ -8,7 +8,7 @@ import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
-import { GlobalState } from "./state-keys"
+import { GlobalState, Settings } from "./state-keys"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -242,7 +242,7 @@ export async function readTaskSettingsFromStorage(taskId: string): Promise<Parti
 	}
 }
 
-export async function writeTaskSettingsToStorage(taskId: string, settings: Partial<GlobalState>) {
+export async function writeTaskSettingsToStorage(taskId: string, settings: Partial<Settings>) {
 	try {
 		const taskDirectoryFilePath = await ensureTaskDirectoryExists(taskId)
 		const settingsFilePath = path.join(taskDirectoryFilePath, "settings.json")
