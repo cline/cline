@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.32.6]
+
+- Add experimental support for VSCode multi root workspaces
+- Add Claude Sonnet 4.5 to Claude Code provider
+- Add Glm 4.6 to Z AI provider 
+
+## [3.32.5]
+
+- Improve thinking budget slider UI to take up less space
+- Fix Vercel provider cost note and sign-up url
+- Fix repeated API error 400 in SAP AI Core provider
+- Add us-west-1 to Amazon Bedrock regions
+- Fix OCA provider refresh logic
+
 ## [3.32.4]
 
 - Add 1m context window support to Claude Sonnet 4.5

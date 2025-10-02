@@ -1,7 +1,6 @@
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
-import { WebviewProviderType } from "@shared/webview/types"
 import * as path from "path"
 import { initialize, tearDown } from "@/common"
 import { WebviewProvider } from "@/core/webview"
@@ -15,6 +14,7 @@ import { DATA_DIR, EXTENSION_DIR, extensionContext } from "./vscode-context"
 
 async function main() {
 	log("\n\n\nStarting cline-core service...\n\n\n")
+	log(`Environment variables: ${JSON.stringify(process.env)}`)
 
 	await waitForHostBridgeReady()
 
@@ -33,8 +33,8 @@ async function main() {
 }
 
 function setupHostProvider() {
-	const createWebview = (_: WebviewProviderType): WebviewProvider => {
-		return new ExternalWebviewProvider(extensionContext, WebviewProviderType.SIDEBAR)
+	const createWebview = (): WebviewProvider => {
+		return new ExternalWebviewProvider(extensionContext)
 	}
 	const createDiffView = (): DiffViewProvider => {
 		return new ExternalDiffViewProvider()

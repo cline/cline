@@ -15,7 +15,4 @@ export class ExternalWebviewProvider extends WebviewProvider {
 	override isVisible() {
 		return true
 	}
-	protected override isActive(): boolean {
-		return true
-	}
 }

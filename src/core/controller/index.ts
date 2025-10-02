@@ -40,6 +40,7 @@ import {
 	GlobalFileNames,
 } from "../storage/disk"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
+import { Settings } from "../storage/state-keys"
 import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
@@ -53,7 +54,6 @@ https://github.com/KumarVariable/vscode-extension-sidebar-html/blob/master/src/c
 */
 
 export class Controller {
-	readonly id: string
 	task?: Task
 
 	mcpHub: McpHub
@@ -65,11 +65,7 @@ export class Controller {
 	// NEW: Add workspace manager (optional initially)
 	private workspaceManager?: WorkspaceRootManager
 
-	constructor(
-		readonly context: vscode.ExtensionContext,
-		id: string,
-	) {
-		this.id = id
+	constructor(readonly context: vscode.ExtensionContext) {
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.stateManager = new StateManager(context)
@@ -192,7 +188,13 @@ export class Controller {
 		this.stateManager.setGlobalState("userInfo", info)
 	}
 
-	async initTask(task?: string, images?: string[], files?: string[], historyItem?: HistoryItem) {
+	async initTask(
+		task?: string,
+		images?: string[],
+		files?: string[],
+		historyItem?: HistoryItem,
+		taskSettings?: Partial<Settings>,
+	) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
@@ -227,30 +229,33 @@ export class Controller {
 
 		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
 
-		this.task = new Task(
-			this,
-			this.mcpHub,
-			(historyItem) => this.updateTaskHistory(historyItem),
-			() => this.postStateToWebview(),
-			(taskId) => this.reinitExistingTaskFromId(taskId),
-			() => this.cancelTask(),
+		const taskId = historyItem?.id || Date.now().toString()
+
+		await this.stateManager.loadTaskSettings(taskId)
+		if (taskSettings) {
+			this.stateManager.setTaskSettingsBatch(taskId, taskSettings)
+		}
+
+		this.task = new Task({
+			controller: this,
+			mcpHub: this.mcpHub,
+			updateTaskHistory: (historyItem) => this.updateTaskHistory(historyItem),
+			postStateToWebview: () => this.postStateToWebview(),
+			reinitExistingTaskFromId: (taskId) => this.reinitExistingTaskFromId(taskId),
+			cancelTask: () => this.cancelTask(),
 			shellIntegrationTimeout,
-			terminalReuseEnabled ?? true,
-			terminalOutputLineLimit ?? 500,
-			defaultTerminalProfile ?? "default",
+			terminalReuseEnabled: terminalReuseEnabled ?? true,
+			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
+			defaultTerminalProfile: defaultTerminalProfile ?? "default",
 			cwd,
-			this.stateManager,
-			this.workspaceManager,
+			stateManager: this.stateManager,
+			workspaceManager: this.workspaceManager,
 			task,
 			images,
 			files,
 			historyItem,
-		)
-
-		// Load task settings after task creation
-		if (this.task.taskId) {
-			await this.stateManager.loadTaskSettings(this.task.taskId)
-		}
+			taskId,
+		})
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {
@@ -459,7 +464,7 @@ export class Controller {
 	}
 
 	async handleTaskCreation(prompt: string) {
-		await sendChatButtonClickedEvent(this.id)
+		await sendChatButtonClickedEvent()
 		await this.initTask(prompt)
 	}
 
@@ -682,7 +687,7 @@ export class Controller {
 
 	async postStateToWebview() {
 		const state = await this.getStateToPostToWebview()
-		await sendStateUpdate(this.id, state)
+		await sendStateUpdate(state)
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
@@ -720,6 +725,7 @@ export class Controller {
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
 		const favoritedModelIds = this.stateManager.getGlobalStateKey("favoritedModelIds")
 		const lastDismissedInfoBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
+		const lastDismissedModelBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -800,13 +806,14 @@ export class Controller {
 				featureFlag: featureFlagsService.getMultiRootEnabled(),
 			},
 			lastDismissedInfoBannerVersion,
+			lastDismissedModelBannerVersion,
 		}
 	}
 
 	async clearTask() {
 		if (this.task) {
 			// Clear task settings cache when task ends
-			await this.stateManager.clearTaskSettings(this.task.taskId)
+			await this.stateManager.clearTaskSettings()
 		}
 		await this.task?.abortTask()
 		this.task = undefined // removes reference to it, so once promises end it will be garbage collected

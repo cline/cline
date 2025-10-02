@@ -10,7 +10,7 @@ export function createClineAPI(sidebarController: Controller): ClineAPI {
 			await sidebarController.clearTask()
 			await sidebarController.postStateToWebview()
 
-			await sendChatButtonClickedEvent(sidebarController.id)
+			await sendChatButtonClickedEvent()
 			await sidebarController.initTask(task, images)
 			HostProvider.get().logToChannel(
 				`Task started with message: ${task ? `"${task}"` : "undefined"} and ${images?.length || 0} image(s)`,
