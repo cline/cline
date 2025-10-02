@@ -56,15 +56,7 @@ jobs:
 
     test:
         needs: quality-checks
-        strategy:
-            fail-fast: false
-            matrix:
-                os: [ubuntu-latest, windows-latest]
-        runs-on: ${{ matrix.os }}
-        name: ${{ matrix.os == 'ubuntu-latest' && 'test' || format('test ({0})', matrix.os) }}
-        defaults:
-            run:
-                shell: bash
+        runs-on: ubuntu-latest
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -95,11 +87,6 @@ jobs:
             - name: Install webview-ui dependencies
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
-
-            - name: Set up NPM on Windows
-              if: runner.os == 'Windows'
-              run: |
-                  npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
 
             # Build the extension and tests (without redundant checks)
             - name: Build Tests and Extension
