@@ -8,7 +8,6 @@ import { useSize } from "react-use"
 import styled from "styled-components"
 import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
 import { ChatRowContent, ProgressIndicator } from "@/components/chat/ChatRow"
-import { CheckpointControls } from "@/components/common/CheckpointControls"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -630,10 +629,6 @@ const BrowserCursor: React.FC<{ style?: CSSProperties }> = ({ style }) => {
 const BrowserSessionRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
 	position: relative;
-
-	&:hover ${CheckpointControls} {
-		opacity: 1;
-	}
 `
 
 export default BrowserSessionRow

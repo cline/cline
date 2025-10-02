@@ -297,17 +297,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					}
 				`}
 			</style>
-			<div
-				style={{
-					position: "fixed",
-					top: 0,
-					left: 0,
-					right: 0,
-					bottom: 0,
-					display: "flex",
-					flexDirection: "column",
-					overflow: "hidden",
-				}}>
+			<div className="fixed overflow-hidden inset-0 flex flex-col">
 				<div
 					style={{
 						display: "flex",
@@ -325,12 +315,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					<VSCodeButton onClick={() => onDone()}>Done</VSCodeButton>
 				</div>
 				<div style={{ padding: "5px 17px 6px 17px" }}>
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							gap: "6px",
-						}}>
+					<div className="flex flex-col gap-3">
 						<VSCodeTextField
 							onInput={(e) => {
 								const newValue = (e.target as HTMLInputElement)?.value
@@ -367,8 +352,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							)}
 						</VSCodeTextField>
 						<VSCodeRadioGroup
+							className="flex flex-wrap"
 							onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}
-							style={{ display: "flex", flexWrap: "wrap" }}
 							value={sortOption}>
 							<VSCodeRadio value="newest">Newest</VSCodeRadio>
 							<VSCodeRadio value="oldest">Oldest</VSCodeRadio>

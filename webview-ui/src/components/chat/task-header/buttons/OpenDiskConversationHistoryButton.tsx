@@ -28,7 +28,7 @@ const OpenDiskConversationHistoryButton: React.FC<{
 					onClick={() => handleOpenDiskConversationHistory()}
 					size="xs"
 					variant="icon">
-					<ArrowDownToLineIcon strokeWidth={1.5} />
+					<ArrowDownToLineIcon />
 				</Button>
 			</TooltipTrigger>
 		</Tooltip>

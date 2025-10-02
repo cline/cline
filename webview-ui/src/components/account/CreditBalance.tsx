@@ -17,7 +17,7 @@ export const CreditBalance = ({ balance, fetchCreditBalance, creditUrl, lastFetc
 			title={`Last updated: ${new Date(lastFetchTime).toLocaleTimeString()}`}>
 			<div className="text-sm text-(--vscode-descriptionForeground) mb-3 font-azeret-mono font-light">CURRENT BALANCE</div>
 
-			<div className="text-4xl font-bold text-(--vscode-foreground) mb-6 flex items-center gap-2">
+			<div className="font-bold text-2xl mb-6 flex items-center gap-2">
 				{balance === null ? <span>----</span> : <StyledCreditDisplay balance={balance} />}
 				<VSCodeButton
 					appearance="icon"

@@ -27,7 +27,6 @@ import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
-import { CheckpointControls } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
@@ -45,10 +44,6 @@ const _cancelledColor = "var(--vscode-descriptionForeground)"
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
 	position: relative;
-
-	&:hover ${CheckpointControls} {
-		opacity: 1;
-	}
 `
 
 interface ChatRowProps {
@@ -1341,7 +1336,7 @@ export const ChatRowContent = memo(
 						}
 
 						return (
-							<>
+							<div>
 								{title && (
 									<div style={headerStyle}>
 										{icon}
@@ -1349,10 +1344,10 @@ export const ChatRowContent = memo(
 									</div>
 								)}
 								<WithCopyButton
+									className="pt-2.5"
 									onMouseUp={handleMouseUp}
 									position="bottom-right"
 									ref={contentRef}
-									style={{ paddingTop: 10 }}
 									textToCopy={question}>
 									<Markdown markdown={question} />
 									<OptionsButtons
@@ -1374,7 +1369,7 @@ export const ChatRowContent = memo(
 										/>
 									)}
 								</WithCopyButton>
-							</>
+							</div>
 						)
 					case "new_task":
 						return (

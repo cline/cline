@@ -3,7 +3,7 @@ import { handleSignIn } from "@/context/ClineAuthContext"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 
 export const AccountWelcomeView = () => (
-	<div className="flex flex-col items-center pr-3">
+	<div className="flex flex-col items-center pr-3 gap-2.5">
 		<ClineLogoWhite className="size-16 mb-4" />
 
 		<p>
@@ -11,7 +11,7 @@ export const AccountWelcomeView = () => (
 			upcoming features.
 		</p>
 
-		<VSCodeButton className="w-full mb-4" onClick={() => handleSignIn()}>
+		<VSCodeButton className="w-full my-4" onClick={() => handleSignIn()}>
 			Sign up with Cline
 		</VSCodeButton>
 

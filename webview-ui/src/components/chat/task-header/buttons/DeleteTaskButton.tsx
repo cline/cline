@@ -20,7 +20,7 @@ const DeleteTaskButton: React.FC<{
 				onClick={() => taskId && TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [taskId] }))}
 				size="xs"
 				variant="icon">
-				<TrashIcon strokeWidth={1.5} />
+				<TrashIcon />
 			</Button>
 		</TooltipTrigger>
 	</Tooltip>

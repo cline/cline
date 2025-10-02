@@ -20,7 +20,7 @@ const NewTaskButton: React.FC<{
 					}}
 					size="icon"
 					variant="icon">
-					<XIcon strokeWidth={1.5} />
+					<XIcon />
 				</Button>
 			</TooltipTrigger>
 		</Tooltip>
