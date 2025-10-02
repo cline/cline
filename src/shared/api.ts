@@ -263,6 +263,7 @@ export const CLAUDE_SONNET_1M_TIERS = [
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-5-20250929"
 export const ANTHROPIC_MIN_THINKING_BUDGET = 1_024
+export const ANTHROPIC_MAX_THINKING_BUDGET = 6_000
 export const anthropicModels = {
 	"claude-sonnet-4-5-20250929": {
 		maxTokens: 8192,
@@ -382,8 +383,23 @@ export const anthropicModels = {
 
 // Claude Code
 export type ClaudeCodeModelId = keyof typeof claudeCodeModels
-export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-4-20250514"
+export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-4-5-20250929"
 export const claudeCodeModels = {
+	sonnet: {
+		...anthropicModels["claude-sonnet-4-5-20250929"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	opus: {
+		...anthropicModels["claude-opus-4-1-20250805"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
+	"claude-sonnet-4-5-20250929": {
+		...anthropicModels["claude-sonnet-4-5-20250929"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	"claude-sonnet-4-20250514": {
 		...anthropicModels["claude-sonnet-4-20250514"],
 		supportsImages: false,
@@ -401,11 +417,6 @@ export const claudeCodeModels = {
 	},
 	"claude-3-7-sonnet-20250219": {
 		...anthropicModels["claude-3-7-sonnet-20250219"],
-		supportsImages: false,
-		supportsPromptCache: false,
-	},
-	"claude-3-5-sonnet-20241022": {
-		...anthropicModels["claude-3-5-sonnet-20241022"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -3485,6 +3496,14 @@ export const basetenDefaultModelId = "moonshotai/Kimi-K2-Instruct" satisfies Bas
 export type internationalZAiModelId = keyof typeof internationalZAiModels
 export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.5"
 export const internationalZAiModels = {
+	"glm-4.6": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
 	"glm-4.5": {
 		maxTokens: 98_304,
 		contextWindow: 131_072,
@@ -3514,6 +3533,14 @@ export const internationalZAiModels = {
 export type mainlandZAiModelId = keyof typeof mainlandZAiModels
 export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.5"
 export const mainlandZAiModels = {
+	"glm-4.6": {
+		maxTokens: 128_000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+	},
 	"glm-4.5": {
 		maxTokens: 98_304,
 		contextWindow: 131_072,
