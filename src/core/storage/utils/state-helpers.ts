@@ -163,6 +163,11 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const awsProfile = context.globalState.get<GlobalStateAndSettings["awsProfile"]>("awsProfile")
 		const awsUseProfile = context.globalState.get<GlobalStateAndSettings["awsUseProfile"]>("awsUseProfile")
 		const awsAuthentication = context.globalState.get<GlobalStateAndSettings["awsAuthentication"]>("awsAuthentication")
+
+		// Bedrock Global Cross-Region
+		const awsUseGlobalCrossRegion =
+			context.globalState.get<GlobalStateAndSettings["awsUseGlobalCrossRegion"]>("awsUseGlobalCrossRegion")
+
 		const vertexProjectId = context.globalState.get<GlobalStateAndSettings["vertexProjectId"]>("vertexProjectId")
 		const vertexRegion = context.globalState.get<GlobalStateAndSettings["vertexRegion"]>("vertexRegion")
 		const openAiBaseUrl = context.globalState.get<GlobalStateAndSettings["openAiBaseUrl"]>("openAiBaseUrl")
@@ -380,6 +385,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		>("actModeVercelAiGatewayModelInfo")
 		const actModeOcaModelId = context.globalState.get("actModeOcaModelId") as string | undefined
 		const actModeOcaModelInfo = context.globalState.get("actModeOcaModelInfo") as OcaModelInfo | undefined
+
 		const sapAiCoreUseOrchestrationMode =
 			context.globalState.get<GlobalStateAndSettings["sapAiCoreUseOrchestrationMode"]>("sapAiCoreUseOrchestrationMode")
 
@@ -427,6 +433,10 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			awsProfile,
 			awsUseProfile,
 			awsAuthentication,
+
+			// Bedrock Global Cross-Region
+			awsUseGlobalCrossRegion,
+
 			vertexProjectId,
 			vertexRegion,
 			openAiBaseUrl,

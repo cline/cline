@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
+import { ApiConfiguration, getGlobalProfileIdForModel, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
@@ -91,10 +91,15 @@ function createHandlerForProvider(
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})
-		case "bedrock":
+		case "bedrock": {
+			const modelId = mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId
+
+			// Auto-generate Global Profile ID from model if enabled
+			const globalProfileId = options.awsUseGlobalCrossRegion ? getGlobalProfileIdForModel(modelId) : undefined
+
 			return new AwsBedrockHandler({
 				onRetryAttempt: options.onRetryAttempt,
-				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				apiModelId: modelId,
 				awsAccessKey: options.awsAccessKey,
 				awsSecretKey: options.awsSecretKey,
 				awsSessionToken: options.awsSessionToken,
@@ -110,9 +115,11 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeAwsBedrockCustomSelected : options.actModeAwsBedrockCustomSelected,
 				awsBedrockCustomModelBaseId:
 					mode === "plan" ? options.planModeAwsBedrockCustomModelBaseId : options.actModeAwsBedrockCustomModelBaseId,
+				awsGlobalProfileArn: globalProfileId,
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})
+		}
 		case "vertex":
 			return new VertexHandler({
 				onRetryAttempt: options.onRetryAttempt,

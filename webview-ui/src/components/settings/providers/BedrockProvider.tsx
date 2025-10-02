@@ -162,10 +162,19 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					checked={apiConfiguration?.awsUseCrossRegionInference || false}
 					onChange={(e: any) => {
 						const isChecked = e.target.checked === true
-
 						handleFieldChange("awsUseCrossRegionInference", isChecked)
 					}}>
 					Use cross-region inference
+				</VSCodeCheckbox>
+
+				{/* Global Cross-Region Inference Option */}
+				<VSCodeCheckbox
+					checked={apiConfiguration?.awsUseGlobalCrossRegion || false}
+					onChange={(e: any) => {
+						const isChecked = e.target.checked === true
+						handleFieldChange("awsUseGlobalCrossRegion", isChecked)
+					}}>
+					Use global cross-region inference
 				</VSCodeCheckbox>
 
 				{selectedModelInfo.supportsPromptCache && (

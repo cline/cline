@@ -417,6 +417,10 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		awsProfile: config.awsProfile,
 		awsBedrockApiKey: config.awsBedrockApiKey,
 		awsBedrockEndpoint: config.awsBedrockEndpoint,
+
+		// Bedrock Global Cross-Region
+		awsUseGlobalCrossRegion: config.awsUseGlobalCrossRegion,
+
 		claudeCodePath: config.claudeCodePath,
 		vertexProjectId: config.vertexProjectId,
 		vertexRegion: config.vertexRegion,
@@ -566,6 +570,10 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		awsProfile: protoConfig.awsProfile,
 		awsBedrockApiKey: protoConfig.awsBedrockApiKey,
 		awsBedrockEndpoint: protoConfig.awsBedrockEndpoint,
+
+		// Bedrock Global Cross-Region
+		awsUseGlobalCrossRegion: protoConfig.awsUseGlobalCrossRegion,
+
 		claudeCodePath: protoConfig.claudeCodePath,
 		vertexProjectId: protoConfig.vertexProjectId,
 		vertexRegion: protoConfig.vertexRegion,
