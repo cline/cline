@@ -102,6 +102,7 @@ function createHandlerForProvider(
 				awsAuthentication: options.awsAuthentication,
 				awsBedrockApiKey: options.awsBedrockApiKey,
 				awsUseCrossRegionInference: options.awsUseCrossRegionInference,
+				awsInferenceStrategy: options.awsInferenceStrategy,
 				awsBedrockUsePromptCache: options.awsBedrockUsePromptCache,
 				awsUseProfile: options.awsUseProfile,
 				awsProfile: options.awsProfile,

@@ -2,6 +2,7 @@ import { bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX } from "@
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
+import HeroTooltip from "@/components/common/HeroTooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -158,15 +159,68 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					/>
 				)}
 
-				<VSCodeCheckbox
-					checked={apiConfiguration?.awsUseCrossRegionInference || false}
-					onChange={(e: any) => {
-						const isChecked = e.target.checked === true
-
-						handleFieldChange("awsUseCrossRegionInference", isChecked)
-					}}>
-					Use cross-region inference
-				</VSCodeCheckbox>
+				<div style={{ display: "flex", flexDirection: "column", marginTop: "10px" }}>
+					<label>
+						<span style={{ fontWeight: 500 }}>
+							Inference Strategy
+							<HeroTooltip
+								className="max-w-[300px]"
+								content={
+									"See supported regions & models at https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html"
+								}
+								placement="right">
+								<span className="codicon codicon-info ml-1 cursor-pointer text-link text-sm" />
+							</HeroTooltip>
+						</span>
+					</label>
+					<VSCodeRadioGroup
+						onChange={(e) => {
+							const value = (e.target as HTMLInputElement)?.value
+							handleFieldChange("awsInferenceStrategy", value)
+							if (apiConfiguration?.awsUseCrossRegionInference !== undefined) {
+								handleFieldChange("awsUseCrossRegionInference", undefined)
+							}
+						}}
+						value={
+							apiConfiguration?.awsInferenceStrategy ??
+							(apiConfiguration?.awsUseCrossRegionInference ? "regional" : "none")
+						}>
+						<VSCodeRadio value="none">
+							None
+							<div
+								style={{
+									fontSize: "12px",
+									color: "var(--vscode-descriptionForeground)",
+									marginTop: 2,
+								}}>
+								Only use the model in the selected region
+							</div>
+						</VSCodeRadio>
+						<VSCodeRadio value="regional">
+							Regional Inference
+							<div
+								style={{
+									fontSize: "12px",
+									color: "var(--vscode-descriptionForeground)",
+									marginTop: 2,
+								}}>
+								Route requests across inference region (e.g. US, EU, APAC)
+							</div>
+						</VSCodeRadio>
+						{/* Only show global option for supported models */}
+						<VSCodeRadio value="global">
+							Global Inference Profile
+							<div
+								style={{
+									fontSize: "12px",
+									color: "var(--vscode-descriptionForeground)",
+									marginTop: 2,
+								}}>
+								Route requests globally
+							</div>
+						</VSCodeRadio>
+					</VSCodeRadioGroup>
+				</div>
 
 				{selectedModelInfo.supportsPromptCache && (
 					<VSCodeCheckbox
@@ -204,7 +258,10 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 
 								handleModeFieldsChange(
 									{
-										apiModelId: { plan: "planModeApiModelId", act: "actModeApiModelId" },
+										apiModelId: {
+											plan: "planModeApiModelId",
+											act: "actModeApiModelId",
+										},
 										awsBedrockCustomSelected: {
 											plan: "planModeAwsBedrockCustomSelected",
 											act: "actModeAwsBedrockCustomSelected",

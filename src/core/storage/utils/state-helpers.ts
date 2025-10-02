@@ -157,6 +157,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const awsRegion = context.globalState.get<GlobalStateAndSettings["awsRegion"]>("awsRegion")
 		const awsUseCrossRegionInference =
 			context.globalState.get<GlobalStateAndSettings["awsUseCrossRegionInference"]>("awsUseCrossRegionInference")
+		const awsInferenceStrategy =
+			context.globalState.get<GlobalStateAndSettings["awsInferenceStrategy"]>("awsInferenceStrategy")
 		const awsBedrockUsePromptCache =
 			context.globalState.get<GlobalStateAndSettings["awsBedrockUsePromptCache"]>("awsBedrockUsePromptCache")
 		const awsBedrockEndpoint = context.globalState.get<GlobalStateAndSettings["awsBedrockEndpoint"]>("awsBedrockEndpoint")
@@ -422,6 +424,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			claudeCodePath,
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsInferenceStrategy,
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
 			awsProfile,

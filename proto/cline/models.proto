@@ -263,7 +263,7 @@ message ModelsApiConfiguration {
   optional string aws_secret_key = 12;
   optional string aws_session_token = 13;
   optional string aws_region = 14;
-  optional bool aws_use_cross_region_inference = 15;
+  optional bool aws_use_cross_region_inference = 15; // Deprecated: use aws_inference_strategy instead
   optional bool aws_bedrock_use_prompt_cache = 16;
   optional bool aws_use_profile = 17;
   optional string aws_profile = 18;
@@ -324,6 +324,7 @@ message ModelsApiConfiguration {
   optional string oca_base_url = 73;
   optional string oca_api_key = 74;
   optional string oca_refresh_token = 75;
+  optional string aws_inference_strategy = 76; // New field for inference strategy
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -352,7 +353,7 @@ message ModelsApiConfiguration {
   optional string plan_mode_hugging_face_model_id = 123;
   optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 124;
   optional string plan_mode_huawei_cloud_maas_model_id = 125;
-  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 126; 
+  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 126;
   optional string plan_mode_baseten_model_id = 127;
   optional OpenRouterModelInfo plan_mode_baseten_model_info = 128;
   optional string plan_mode_vercel_ai_gateway_model_id = 129;

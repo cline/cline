@@ -15,6 +15,7 @@ import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
+import { InferenceProfileResolver } from "./inference-profiles"
 
 export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
@@ -24,7 +25,8 @@ export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	awsRegion?: string
 	awsAuthentication?: string
 	awsBedrockApiKey?: string
-	awsUseCrossRegionInference?: boolean
+	awsUseCrossRegionInference?: boolean // Deprecated: use awsInferenceStrategy instead
+	awsInferenceStrategy?: string
 	awsBedrockUsePromptCache?: boolean
 	awsUseProfile?: boolean
 	awsProfile?: string
@@ -266,25 +268,25 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	/**
-	 * Gets the appropriate model ID, accounting for cross-region inference if enabled.
-	 * For custom models, returns the raw model ID without any encoding.
+	 * Gets the appropriate model ID using inference profiles.
+	 * Supports none, regional, and global inference strategies.
+	 * For custom models, returns the raw model ID without any inference profile.
 	 */
 	async getModelId(): Promise<string> {
-		if (!this.options.awsBedrockCustomSelected && this.options.awsUseCrossRegionInference) {
-			const regionPrefix = this.getRegion().slice(0, 3)
-			switch (regionPrefix) {
-				case "us-":
-					return `us.${this.getModel().id}`
-				case "eu-":
-					return `eu.${this.getModel().id}`
-				case "ap-":
-					return `apac.${this.getModel().id}`
-				default:
-					// cross region inference is not supported in this region, falling back to default model
-					return this.getModel().id
-			}
-		}
-		return this.getModel().id
+		const baseModelId = this.getModel().id
+		const region = this.getRegion()
+		const customSelected = this.options.awsBedrockCustomSelected || false
+
+		// Get inference profile mode (with backwards compatibility)
+		const inferenceProfileMode = InferenceProfileResolver.getInferenceProfileMode(
+			this.options.awsInferenceStrategy,
+			this.options.awsUseCrossRegionInference,
+		)
+
+		// Resolve the model ID using the inference profile system
+		const resolution = InferenceProfileResolver.resolveModelId(baseModelId, region, inferenceProfileMode, customSelected)
+
+		return resolution.modelId
 	}
 
 	private static async withTempEnv<R>(updateEnv: () => void, fn: () => Promise<R>): Promise<R> {

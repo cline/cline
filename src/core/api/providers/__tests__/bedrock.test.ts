@@ -612,102 +612,214 @@ describe("AwsBedrockHandler", () => {
 		})
 	})
 
-	// TODO: Re-enable or remove these tests.
-	// describe("getModelId", () => {
-	// 	it("should return raw model ID for custom models", async () => {
-	// 		const customOptions: ApiHandlerOptions = {
-	// 			...mockOptions,
-	// 			actModeAwsBedrockCustomSelected: true,
-	// 			actModeApiModelId:
-	// 				"arn:aws:bedrock:us-west-2:123456789012:custom-model/anthropic.claude-3-5-sonnet-20241022-v2:0/Qk8MMyLmRd",
-	// 		}
-	// 		const customHandler = new AwsBedrockHandler(customOptions)
+	describe("getModelId", () => {
+		describe("custom models", () => {
+			it("should return raw model ID for custom models", async () => {
+				const customOptions: AwsBedrockHandlerOptions = {
+					...mockOptions,
+					awsBedrockCustomSelected: true,
+					apiModelId:
+						"arn:aws:bedrock:us-west-2:123456789012:custom-model/anthropic.claude-3-5-sonnet-20241022-v2:0/Qk8MMyLmRd",
+				}
+				const customHandler = new AwsBedrockHandler(customOptions)
 
-	// 		const modelId = await customHandler.getModelId()
-	// 		modelId.should.equal(
-	// 			"arn:aws:bedrock:us-west-2:123456789012:custom-model/anthropic.claude-3-5-sonnet-20241022-v2:0/Qk8MMyLmRd",
-	// 		)
-	// 	})
+				const modelId = await customHandler.getModelId()
+				modelId.should.equal(
+					"arn:aws:bedrock:us-west-2:123456789012:custom-model/anthropic.claude-3-5-sonnet-20241022-v2:0/Qk8MMyLmRd",
+				)
+			})
 
-	// 	it("should not encode custom model IDs with slashes", async () => {
-	// 		const customOptions: ApiHandlerOptions = {
-	// 			...mockOptions,
-	// 			actModeAwsBedrockCustomSelected: true,
-	// 			actModeApiModelId: "my-namespace/my-custom-model",
-	// 		}
-	// 		const customHandler = new AwsBedrockHandler(customOptions)
+			it("should not encode custom model IDs with slashes", async () => {
+				const customOptions: AwsBedrockHandlerOptions = {
+					...mockOptions,
+					awsBedrockCustomSelected: true,
+					apiModelId: "my-namespace/my-custom-model",
+				}
+				const customHandler = new AwsBedrockHandler(customOptions)
 
-	// 		const modelId = await customHandler.getModelId()
-	// 		modelId.should.equal("my-namespace/my-custom-model")
-	// 		modelId.should.not.match(/%2F/)
-	// 	})
+				const modelId = await customHandler.getModelId()
+				modelId.should.equal("my-namespace/my-custom-model")
+				modelId.should.not.match(/%2F/)
+			})
 
-	// 	it("should apply cross-region prefix for non-custom models when enabled", async () => {
-	// 		const crossRegionOptions: ApiHandlerOptions = {
-	// 			...mockOptions,
-	// 			awsUseCrossRegionInference: true,
-	// 			awsRegion: "us-west-2",
-	// 		}
-	// 		const crossRegionHandler = new AwsBedrockHandler(crossRegionOptions)
+			it("should not apply inference profiles for custom models even when enabled", async () => {
+				const customCrossRegionOptions: AwsBedrockHandlerOptions = {
+					...mockOptions,
+					awsBedrockCustomSelected: true,
+					apiModelId: "arn:aws:bedrock:us-west-2:123456789012:custom-model/my-model",
+					awsInferenceStrategy: "regional",
+				}
+				const customCrossRegionHandler = new AwsBedrockHandler(customCrossRegionOptions)
 
-	// 		const modelId = await crossRegionHandler.getModelId()
-	// 		modelId.should.equal("us.anthropic.claude-3-7-sonnet-20250219-v1:0")
-	// 	})
+				const modelId = await customCrossRegionHandler.getModelId()
+				modelId.should.equal("arn:aws:bedrock:us-west-2:123456789012:custom-model/my-model")
+			})
 
-	// 	it("should apply EU cross-region prefix", async () => {
-	// 		const euOptions: ApiHandlerOptions = {
-	// 			...mockOptions,
-	// 			awsUseCrossRegionInference: true,
-	// 			awsRegion: "eu-central-1",
-	// 		}
-	// 		const euHandler = new AwsBedrockHandler(euOptions)
+			it("should handle UltraThink model ARN correctly", async () => {
+				const ultraThinkOptions: AwsBedrockHandlerOptions = {
+					...mockOptions,
+					awsBedrockCustomSelected: true,
+					apiModelId:
+						"arn:aws:bedrock:us-west-2:123456789012:custom-model/anthropic.claude-3-5-sonnet-20241022-v2:0/Qk8MMyLmRd",
+					awsBedrockCustomModelBaseId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				}
+				const ultraThinkHandler = new AwsBedrockHandler(ultraThinkOptions)
 
-	// 		const modelId = await euHandler.getModelId()
-	// 		modelId.should.equal("eu.anthropic.claude-3-7-sonnet-20250219-v1:0")
-	// 	})
+				const modelId = await ultraThinkHandler.getModelId()
+				// Should return the raw ARN without any encoding
+				modelId.should.equal(
+					"arn:aws:bedrock:us-west-2:123456789012:custom-model/anthropic.claude-3-5-sonnet-20241022-v2:0/Qk8MMyLmRd",
+				)
+				modelId.should.not.match(/%2F/)
+				modelId.should.not.match(/%3A/)
+			})
+		})
 
-	// 	it("should apply APAC cross-region prefix", async () => {
-	// 		const apacOptions: ApiHandlerOptions = {
-	// 			...mockOptions,
-	// 			awsUseCrossRegionInference: true,
-	// 			awsRegion: "ap-northeast-1",
-	// 		}
-	// 		const apacHandler = new AwsBedrockHandler(apacOptions)
+		describe("inference profiles", () => {
+			describe("none mode", () => {
+				it("should return base model ID for none mode", async () => {
+					const onDemandOptions: AwsBedrockHandlerOptions = {
+						...mockOptions,
+						awsInferenceStrategy: "none",
+						awsRegion: "us-west-2",
+					}
+					const onDemandHandler = new AwsBedrockHandler(onDemandOptions)
 
-	// 		const modelId = await apacHandler.getModelId()
-	// 		modelId.should.equal("apac.anthropic.claude-3-7-sonnet-20250219-v1:0")
-	// 	})
+					const modelId = await onDemandHandler.getModelId()
+					modelId.should.equal("anthropic.claude-3-7-sonnet-20250219-v1:0")
+				})
+			})
 
-	// 	it("should not apply cross-region prefix for custom models even when enabled", async () => {
-	// 		const customCrossRegionOptions: ApiHandlerOptions = {
-	// 			...mockOptions,
-	// 			actModeAwsBedrockCustomSelected: true,
-	// 			actModeApiModelId: "arn:aws:bedrock:us-west-2:123456789012:custom-model/my-model",
-	// 			awsUseCrossRegionInference: true,
-	// 		}
-	// 		const customCrossRegionHandler = new AwsBedrockHandler(customCrossRegionOptions)
+			describe("regional mode", () => {
+				it("should apply US prefix for US regions", async () => {
+					const crossRegionOptions: AwsBedrockHandlerOptions = {
+						...mockOptions,
+						awsInferenceStrategy: "regional",
+						awsRegion: "us-west-2",
+					}
+					const crossRegionHandler = new AwsBedrockHandler(crossRegionOptions)
 
-	// 		const modelId = await customCrossRegionHandler.getModelId()
-	// 		modelId.should.equal("arn:aws:bedrock:us-west-2:123456789012:custom-model/my-model")
-	// 	})
+					const modelId = await crossRegionHandler.getModelId()
+					modelId.should.equal("us.anthropic.claude-3-7-sonnet-20250219-v1:0")
+				})
 
-	// 	it("should handle UltraThink model ARN correctly", async () => {
-	// 		const ultraThinkOptions: ApiHandlerOptions = {
-	// 			...mockOptions,
-	// 			actModeAwsBedrockCustomSelected: true,
-	// 			actModeApiModelId:
-	// 				"arn:aws:bedrock:us-west-2:123456789012:custom-model/anthropic.claude-3-5-sonnet-20241022-v2:0/Qk8MMyLmRd",
-	// 			actModeAwsBedrockCustomModelBaseId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-	// 		}
-	// 		const ultraThinkHandler = new AwsBedrockHandler(ultraThinkOptions)
+				it("should apply EU regional prefix", async () => {
+					const euOptions: AwsBedrockHandlerOptions = {
+						...mockOptions,
+						awsInferenceStrategy: "regional",
+						awsRegion: "eu-central-1",
+					}
+					const euHandler = new AwsBedrockHandler(euOptions)
 
-	// 		const modelId = await ultraThinkHandler.getModelId()
-	// 		// Should return the raw ARN without any encoding
-	// 		modelId.should.equal(
-	// 			"arn:aws:bedrock:us-west-2:123456789012:custom-model/anthropic.claude-3-5-sonnet-20241022-v2:0/Qk8MMyLmRd",
-	// 		)
-	// 		modelId.should.not.match(/%2F/)
-	// 		modelId.should.not.match(/%3A/)
-	// 	})
-	// })
+					const modelId = await euHandler.getModelId()
+					modelId.should.equal("eu.anthropic.claude-3-7-sonnet-20250219-v1:0")
+				})
+
+				it("should apply APAC regional prefix", async () => {
+					const apacOptions: AwsBedrockHandlerOptions = {
+						...mockOptions,
+						awsInferenceStrategy: "regional",
+						awsRegion: "ap-northeast-1",
+					}
+					const apacHandler = new AwsBedrockHandler(apacOptions)
+
+					const modelId = await apacHandler.getModelId()
+					modelId.should.equal("apac.anthropic.claude-3-7-sonnet-20250219-v1:0")
+				})
+
+				it("should apply JP prefix for Sonnet 4.5 in Japan regions", async () => {
+					const jpOptions: AwsBedrockHandlerOptions = {
+						...mockOptions,
+						apiModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+						awsInferenceStrategy: "regional",
+						awsRegion: "ap-northeast-1",
+					}
+					const jpHandler = new AwsBedrockHandler(jpOptions)
+
+					const modelId = await jpHandler.getModelId()
+					modelId.should.equal("jp.anthropic.claude-sonnet-4-5-20250929-v1:0")
+				})
+			})
+
+			describe("global mode", () => {
+				it("should apply global prefix for Sonnet 4 models", async () => {
+					const globalOptions: AwsBedrockHandlerOptions = {
+						...mockOptions,
+						apiModelId: "anthropic.claude-sonnet-4-20250514-v1:0",
+						awsInferenceStrategy: "global",
+						awsRegion: "us-east-1",
+					}
+					const globalHandler = new AwsBedrockHandler(globalOptions)
+
+					const modelId = await globalHandler.getModelId()
+					modelId.should.equal("global.anthropic.claude-sonnet-4-20250514-v1:0")
+				})
+
+				it("should apply global prefix for Sonnet 4.5 models", async () => {
+					const globalOptions: AwsBedrockHandlerOptions = {
+						...mockOptions,
+						apiModelId: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+						awsInferenceStrategy: "global",
+						awsRegion: "eu-central-1",
+					}
+					const globalHandler = new AwsBedrockHandler(globalOptions)
+
+					const modelId = await globalHandler.getModelId()
+					modelId.should.equal("global.anthropic.claude-sonnet-4-5-20250929-v1:0")
+				})
+
+				it("should return base model ID for unsupported models in global mode", async () => {
+					const globalOptions: AwsBedrockHandlerOptions = {
+						...mockOptions,
+						awsInferenceStrategy: "global",
+						awsRegion: "us-east-1",
+					}
+					const globalHandler = new AwsBedrockHandler(globalOptions)
+
+					const modelId = await globalHandler.getModelId()
+					modelId.should.equal("anthropic.claude-3-7-sonnet-20250219-v1:0")
+				})
+			})
+
+			describe("backwards compatibility", () => {
+				it("should apply regional prefix for legacy awsUseCrossRegionInference=true", async () => {
+					const legacyOptions: AwsBedrockHandlerOptions = {
+						...mockOptions,
+						awsUseCrossRegionInference: true,
+						awsRegion: "us-west-2",
+						awsInferenceStrategy: undefined,
+					}
+					const legacyHandler = new AwsBedrockHandler(legacyOptions)
+
+					const modelId = await legacyHandler.getModelId()
+					modelId.should.equal("us.anthropic.claude-3-7-sonnet-20250219-v1:0")
+				})
+
+				it("should use none for legacy awsUseCrossRegionInference=false", async () => {
+					const legacyOptions: AwsBedrockHandlerOptions = {
+						...mockOptions,
+						awsUseCrossRegionInference: false,
+						awsRegion: "us-west-2",
+					}
+					const legacyHandler = new AwsBedrockHandler(legacyOptions)
+
+					const modelId = await legacyHandler.getModelId()
+					modelId.should.equal("anthropic.claude-3-7-sonnet-20250219-v1:0")
+				})
+
+				it("should prioritize new field over legacy field", async () => {
+					const mixedOptions: AwsBedrockHandlerOptions = {
+						...mockOptions,
+						awsInferenceStrategy: "none",
+						awsUseCrossRegionInference: true, // This should be ignored
+						awsRegion: "us-west-2",
+					}
+					const mixedHandler = new AwsBedrockHandler(mixedOptions)
+
+					const modelId = await mixedHandler.getModelId()
+					modelId.should.equal("anthropic.claude-3-7-sonnet-20250219-v1:0")
+				})
+			})
+		})
+	})
 })
