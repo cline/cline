@@ -72,7 +72,8 @@ export class AuthService {
 	 */
 	protected constructor(controller: Controller) {
 		// Default to firebase for now
-		this._setProvider("firebase")
+		const providerName = featureFlagsService.getWorkOsAuthEnabled() ? "cline" : "firebase"
+		this._setProvider(providerName)
 		this._controller = controller
 	}
 
@@ -193,7 +194,9 @@ export class AuthService {
 		}
 
 		if (!this._provider) {
-			return String.create({ value: "Authentication provider is not configured" })
+			return String.create({
+				value: "Authentication provider is not configured",
+			})
 		}
 
 		const callbackHost = await HostProvider.get().getCallbackUrl()
