@@ -238,8 +238,17 @@ export function getContextMenuOptions(
 
 	// If we have dynamic search results, prioritize those
 	if (dynamicSearchResults.length > 0) {
-		// Only show suggestions and dynamic results
-		const allItems = [...suggestions, ...searchResultItems]
+		// Filter by selectedType if provided
+		let filteredDynamic: ContextMenuQueryItem[]
+		if (selectedType === ContextMenuOptionType.Folder) {
+			filteredDynamic = searchResultItems.filter((item) => item.type === ContextMenuOptionType.Folder)
+		} else if (selectedType === ContextMenuOptionType.File) {
+			filteredDynamic = searchResultItems.filter((item) => item.type === ContextMenuOptionType.File)
+		} else {
+			filteredDynamic = searchResultItems
+		}
+
+		const allItems = [...suggestions, ...filteredDynamic]
 		return allItems.length > 0 ? allItems : [{ type: ContextMenuOptionType.NoResults }]
 	}
 

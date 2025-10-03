@@ -5,18 +5,6 @@ import "cline/common.proto";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 
-// Enum for webview provider types
-enum WebviewProviderType {
-  SIDEBAR = 0;
-  TAB = 1;
-}
-
-// Define a new message type for webview provider info
-message WebviewProviderTypeRequest {
-  Metadata metadata = 1;
-  WebviewProviderType provider_type = 2;
-}
-
 // Enum for ClineMessage type
 enum ClineMessageType {
   ASK = 0;
@@ -229,13 +217,13 @@ service UiService {
   rpc onDidShowAnnouncement(EmptyRequest) returns (Boolean);
   
   // Subscribe to addToInput events (when user adds content via context menu)
-  rpc subscribeToAddToInput(StringRequest) returns (stream String);
+  rpc subscribeToAddToInput(EmptyRequest) returns (stream String);
   
   // Subscribe to MCP button clicked events
-  rpc subscribeToMcpButtonClicked(WebviewProviderTypeRequest) returns (stream Empty);
+  rpc subscribeToMcpButtonClicked(EmptyRequest) returns (stream Empty);
   
   // Subscribe to history button click events
-  rpc subscribeToHistoryButtonClicked(WebviewProviderTypeRequest) returns (stream Empty);
+  rpc subscribeToHistoryButtonClicked(EmptyRequest) returns (stream Empty);
   
   // Subscribe to chat button clicked events (when the chat button is clicked in VSCode)
   rpc subscribeToChatButtonClicked(EmptyRequest) returns (stream Empty);
@@ -244,7 +232,7 @@ service UiService {
   rpc subscribeToAccountButtonClicked(EmptyRequest) returns (stream Empty);
   
   // Subscribe to settings button clicked events
-  rpc subscribeToSettingsButtonClicked(WebviewProviderTypeRequest) returns (stream Empty);
+  rpc subscribeToSettingsButtonClicked(EmptyRequest) returns (stream Empty);
   
   // Subscribe to partial message updates (streaming Cline messages as they're built)
   rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);
@@ -255,8 +243,8 @@ service UiService {
   // Subscribe to relinquish control events
   rpc subscribeToRelinquishControl(EmptyRequest) returns (stream Empty);
   
-  // Subscribe to focus chat input events with client ID
-  rpc subscribeToFocusChatInput(StringRequest) returns (stream Empty);
+  // Subscribe to focus chat input events
+  rpc subscribeToFocusChatInput(EmptyRequest) returns (stream Empty);
   
   // Subscribe to webview visibility change events
   rpc subscribeToDidBecomeVisible(EmptyRequest) returns (stream Empty);
