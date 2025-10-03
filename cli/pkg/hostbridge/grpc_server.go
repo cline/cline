@@ -66,7 +66,6 @@ func (s *GrpcServer) Start(ctx context.Context) error {
 		log.Printf("Registered HealthService")
 		log.Printf("Registered WorkspaceService")
 		log.Printf("Registered WindowService")
-		log.Printf("Registered WatchService")
 		log.Printf("Registered DiffService")
 		log.Printf("Registered EnvService")
 	}
