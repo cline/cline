@@ -38,6 +38,7 @@ export const rooModels = {
 		outputPrice: 0,
 		description:
 			"Grok 4 Fast is xAI's latest multimodal model with SOTA cost-efficiency and a 2M token context window. (Note: prompts and completions are logged by xAI and used to improve the model.)",
+		deprecated: true,
 	},
 	"deepseek/deepseek-chat-v3.1": {
 		maxTokens: 16_384,

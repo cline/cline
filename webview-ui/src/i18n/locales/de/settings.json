@@ -824,6 +824,7 @@
 			"regionMismatch": "Warnung: Die Region in deiner ARN ({{arnRegion}}) stimmt nicht mit deiner ausgewählten Region ({{region}}) überein. Dies kann zu Zugriffsproblemen führen. Der Anbieter wird die Region aus der ARN verwenden."
 		},
 		"modelAvailability": "Die von dir angegebene Modell-ID ({{modelId}}) ist nicht verfügbar. Bitte wähle ein anderes Modell.",
+		"modelDeprecated": "Dieses Modell ist nicht mehr verfügbar. Bitte wähle ein anderes Modell.",
 		"providerNotAllowed": "Anbieter '{{provider}}' ist von deiner Organisation nicht erlaubt",
 		"modelNotAllowed": "Modell '{{model}}' ist für Anbieter '{{provider}}' von deiner Organisation nicht erlaubt",
 		"profileInvalid": "Dieses Profil enthält einen Anbieter oder ein Modell, das von deiner Organisation nicht erlaubt ist",

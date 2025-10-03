@@ -854,6 +854,7 @@
 			"regionMismatch": "Peringatan: Region di ARN kamu ({{arnRegion}}) tidak cocok dengan region yang kamu pilih ({{region}}). Ini dapat menyebabkan masalah akses. Provider akan menggunakan region dari ARN."
 		},
 		"modelAvailability": "Model ID ({{modelId}}) yang kamu berikan tidak tersedia. Silakan pilih model yang berbeda.",
+		"modelDeprecated": "Model ini tidak lagi tersedia. Silakan pilih model yang berbeda.",
 		"providerNotAllowed": "Provider '{{provider}}' tidak diizinkan oleh organisasi kamu",
 		"modelNotAllowed": "Model '{{model}}' tidak diizinkan untuk provider '{{provider}}' oleh organisasi kamu",
 		"profileInvalid": "Profil ini berisi provider atau model yang tidak diizinkan oleh organisasi kamu",
