@@ -13,8 +13,8 @@ export const CURRENT_MODEL_BANNER_VERSION = 1
 
 export const NewModelBanner: React.FC = () => {
 	const { clineUser } = useClineAuth()
-	const { apiConfiguration, openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
-	const user = apiConfiguration?.clineAccountId ? clineUser : undefined
+	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
+	const user = clineUser || undefined
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	// Need to get latest model list in case user hits shortcut button to set model
