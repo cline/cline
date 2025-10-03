@@ -2124,7 +2124,9 @@ export class Task {
 			}
 
 			let dontCheckForToolUse = false
-			if (assistantMessage.length === 0 && reasoningMessage) {
+			const allowPartial = this.stateManager.getGlobalSettingsKey("autoApprovalSettings").actions.executePartialToolCalls
+
+			if (assistantMessage.length === 0 && reasoningMessage && allowPartial) {
 				// Check if reasoning contains tool usage that should be parsed
 				const reasoningContentBlocks = parseAssistantMessageV2(reasoningMessage)
 				for (const b of reasoningContentBlocks) {
