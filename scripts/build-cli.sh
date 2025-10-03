@@ -4,7 +4,7 @@ set -eux
 npm run protos
 npm run protos-go
 
-mkdir dist-standalone/extension || true
+mkdir -p dist-standalone/extension
 cp package.json dist-standalone/extension 
 
 cd cli
