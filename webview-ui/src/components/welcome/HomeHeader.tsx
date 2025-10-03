@@ -1,7 +1,7 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { InfoIcon } from "lucide-react"
 import ClineLogoVariable from "@/assets/ClineLogoVariable"
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { UiServiceClient } from "@/services/grpc-client"
 
 interface HomeHeaderProps {
@@ -23,18 +23,18 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 				<ClineLogoVariable className="size-16" />
 			</div>
 			<div className="text-center flex items-center justify-center">
-				<h2 className="m-0 text-md font-bold">What can I do for you?</h2>
-				<HoverCard>
-					<HoverCardContent className="h-full wrap-break-word">
-						<div className="space-y-1 text-description text-xs break-words">
+				<h1 className="m-0 font-bold">What can I do for you?</h1>
+				<Tooltip>
+					<TooltipContent className="w-full" side="bottom">
+						<span className="wrap-break-word text-base">
 							I can develop software step-by-step by editing files, exploring projects, running commands, and using
 							browsers. I can even extend my capabilities with MCP tools to assist beyond basic code completion.
-						</div>
-					</HoverCardContent>
-					<HoverCardTrigger asChild>
-						<InfoIcon className="ml-2 cursor-pointer text-link text-sm size-3" />
-					</HoverCardTrigger>
-				</HoverCard>
+						</span>
+					</TooltipContent>
+					<TooltipTrigger asChild>
+						<InfoIcon className="ml-2 cursor-pointer text-link text-sm size-2" />
+					</TooltipTrigger>
+				</Tooltip>
 			</div>
 			{shouldShowQuickWins && (
 				<div className="mt-4">

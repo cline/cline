@@ -50,7 +50,7 @@
 	--text-lg: calc(1.5 * var(--vscode-font-size));
 	--text-md: calc(1.25 * var(--vscode-font-size));
 	--text-base: var(--vscode-font-size);
-	--text-sm: var(--vscode-font-size);
+	--text-sm: calc(0.9 * var(--vscode-font-size));
 	--text-xs: calc(0.75 * var(--vscode-font-size));
 	--text-xxs: calc(0.5 * var(--vscode-font-size));
 }

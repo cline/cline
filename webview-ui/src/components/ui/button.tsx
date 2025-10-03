@@ -5,7 +5,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-	"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-2 [&_svg]:shrink-0 cursor-pointer",
+	"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 cursor-pointer [&_svg]:size-2",
 	{
 		variants: {
 			variant: {
@@ -14,16 +14,16 @@ const buttonVariants = cva(
 				outline: "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
 				secondary:
 					"bg-button-secondary-background text-button-secondary-foreground shadow-sm hover:bg-button-secondary-background-hover",
-				ghost: "hover:bg-accent hover:text-accent-foreground",
+				ghost: "hover:bg-accent/10 m-0 p-0",
 				link: "text-primary underline-offset-4 hover:underline",
 				icon: "bg-transparent hover:opacity-80 p-0 h-auto m-0 border-0 cursor-pointer hover:bg-transparent hover:shadow-none focus:ring-0 focus:ring-offset-0",
 			},
 			size: {
 				default: "h-5 px-4 py-2",
-				sm: "h-3 rounded-md px-3 text-xs",
+				sm: "h-3 rounded-md px-3 text-sm",
 				xs: "h-1 rounded-xs px-1 text-xs",
 				lg: "h-8 rounded-md px-8",
-				icon: "p-0 m-0",
+				icon: "px-0.5 m-0 [&_svg]:size-2",
 			},
 		},
 		defaultVariants: {

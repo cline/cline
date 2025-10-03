@@ -1743,7 +1743,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										role="button"
 										tabIndex={0}
 										title="Select Model / API Provider">
-										<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
+										<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
 									</ModelDisplayButton>
 								</ModelButtonWrapper>
 								{showModelSelector && (

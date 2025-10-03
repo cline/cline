@@ -1,7 +1,8 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import React from "react"
 import styled from "styled-components"
+import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { ActionMetadata } from "./types"
 
 interface AutoApproveMenuItemProps {
@@ -13,46 +14,6 @@ interface AutoApproveMenuItemProps {
 	condensed?: boolean
 	showIcon?: boolean
 }
-
-const CheckboxContainer = styled.div.withConfig({
-	shouldForwardProp: (prop) => !["isFavorited"].includes(prop),
-})<{ isFavorited?: boolean; onClick?: (e: MouseEvent) => void; onMouseDown?: (e: React.MouseEvent) => void }>`
-	display: flex;
-	align-items: center;
-	justify-content: space-between; /* Push content to edges */
-	padding-left: 4px;
-	padding-right: 1px;
-	border-radius: 4px;
-	cursor: pointer;
-	transition: all 0.2s ease;
-
-	&:hover {
-		background-color: var(--vscode-textBlockQuote-background);
-	}
-
-	.left-content {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-
-	.icon {
-		color: var(--vscode-foreground);
-		font-size: 14px;
-	}
-
-	.label {
-		color: var(--vscode-foreground);
-		font-size: 12px;
-		font-weight: 500;
-	}
-
-	.star {
-		color: ${(props) => (props.isFavorited ? "var(--vscode-terminal-ansiYellow)" : "var(--vscode-descriptionForeground)")};
-		opacity: ${(props) => (props.isFavorited ? 1 : 0.6)};
-		font-size: 14px;
-	}
-`
 
 const SubOptionAnimateIn = styled.div<{ show: boolean }>`
 	position: relative;
@@ -87,40 +48,42 @@ const AutoApproveMenuItem = ({
 	}
 
 	const content = (
-		<>
-			<ActionButtonContainer>
+		<div className="w-full">
+			<ActionButtonContainer className="w-full">
 				<Tooltip>
 					<TooltipContent>{action.description}</TooltipContent>
-					<TooltipTrigger>
-						<CheckboxContainer isFavorited={favorited} onClick={onChange}>
-							<div className="left-content">
-								{onToggleFavorite && !condensed && (
-									<Tooltip>
-										<TooltipContent>
-											{favorited ? "Remove from quick-access menu" : "Add to quick-access menu"}
-										</TooltipContent>
-										<TooltipTrigger>
-											<span
-												className={`p-0.5 codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
-												onClick={async (e) => {
-													e.stopPropagation()
-													if (action.id === "enableAll") {
-														return
-													}
-													await onToggleFavorite?.(action.id)
-												}}
-												style={{
-													cursor: "pointer",
-												}}
-											/>
-										</TooltipTrigger>
-									</Tooltip>
-								)}
-								<VSCodeCheckbox checked={checked} />
-								{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
-								<span className="label">{condensed ? action.shortName : action.label}</span>
-							</div>
-						</CheckboxContainer>
+					<TooltipTrigger asChild>
+						<Button
+							className={cn("w-full flex text-sm items-center justify-start text-foreground gap-2")}
+							onClick={(e) => onChange(e as unknown as Event)}
+							size="icon"
+							variant="icon">
+							{onToggleFavorite && !condensed && (
+								<Tooltip>
+									<TooltipContent>
+										{favorited ? "Remove from quick-access menu" : "Add to quick-access menu"}
+									</TooltipContent>
+									<TooltipTrigger asChild>
+										<span
+											className={cn("p-0.5 codicon", {
+												"codicon-star-full text-(--vscode-terminal-ansiYellow)": favorited,
+												"codicon-star-empty text-description opacity-60": !favorited,
+											})}
+											onClick={async (e) => {
+												e.stopPropagation()
+												if (action.id === "enableAll") {
+													return
+												}
+												await onToggleFavorite?.(action.id)
+											}}
+										/>
+									</TooltipTrigger>
+								</Tooltip>
+							)}
+							<VSCodeCheckbox checked={checked} />
+							{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
+							<span className="label">{condensed ? action.shortName : action.label}</span>
+						</Button>
 					</TooltipTrigger>
 				</Tooltip>
 			</ActionButtonContainer>
@@ -135,7 +98,7 @@ const AutoApproveMenuItem = ({
 					/>
 				</SubOptionAnimateIn>
 			)}
-		</>
+		</div>
 	)
 
 	return content

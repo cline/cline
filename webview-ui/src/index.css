@@ -43,7 +43,8 @@
 	ul {
 		@apply list-disc pl-6;
 	}
-	[role="radio"] {
+	[role="radio"],
+	[role="checkbox"] {
 		margin: calc(var(--design-unit) * 1px) 0;
 	}
 }
