@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
-
+    "strconv"
 	"github.com/cline/grpc-go/cline"
 )
 
@@ -156,7 +156,7 @@ func (m *ClineMessage) IsSay() bool {
 
 // GetMessageKey returns a unique key for this message based on timestamp
 func (m *ClineMessage) GetMessageKey() string {
-	return string(rune(m.Timestamp))
+	return strconv.FormatInt(m.Timestamp, 10)
 }
 
 // ExtractMessagesFromStateJSON parses the state JSON and extracts messages
