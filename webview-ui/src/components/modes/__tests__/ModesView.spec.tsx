@@ -223,12 +223,13 @@ describe("PromptsView", () => {
 		const changeEvent = new Event("change", { bubbles: true })
 		fireEvent(textarea, changeEvent)
 
-		// The component calls setCustomInstructions with value || undefined
-		// Since empty string is falsy, it should be undefined
-		expect(setCustomInstructions).toHaveBeenCalledWith(undefined)
+		// The component calls setCustomInstructions with value ?? undefined
+		// With nullish coalescing, empty string is preserved (not treated as nullish)
+		expect(setCustomInstructions).toHaveBeenCalledWith("")
+		// The postMessage call will have multiple calls, we need to check the right one
 		expect(vscode.postMessage).toHaveBeenCalledWith({
 			type: "customInstructions",
-			text: undefined,
+			text: "", // empty string is now preserved with ?? operator
 		})
 	})
 
