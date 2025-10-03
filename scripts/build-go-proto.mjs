@@ -19,6 +19,8 @@ const GO_PROTO_DIR = path.join(ROOT_DIR, "src", "generated", "grpc-go")
 const GO_CLIENT_DIR = path.join(GO_PROTO_DIR, "client")
 const GO_SERVICE_CLIENT_DIR = path.join(GO_CLIENT_DIR, "services")
 
+const COMMON_TYPES = ["StringRequest", "EmptyRequest", "Empty", "String", "Int64Request", "KeyValuePair"]
+
 // Check if Go is installed
 function checkGoInstallation() {
 	try {
