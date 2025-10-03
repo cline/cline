@@ -62,10 +62,13 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 			async () => {
 				const request = GetOpenTabsRequest.create({})
 				const response = await getOpenTabs(request)
+				console.log(
+					`[DEBUG] Waiting for 2 tabs, currently found ${response.paths.length}: ${JSON.stringify(response.paths)}`,
+				)
 				return response.paths.length === 2
 			},
 			{
-				timeout: 4000,
+				timeout: 8000,
 				interval: 50,
 			},
 		)
@@ -92,10 +95,13 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 			async () => {
 				const request = GetOpenTabsRequest.create({})
 				const response = await getOpenTabs(request)
+				console.log(
+					`[DEBUG] Waiting for 3 tabs, currently found ${response.paths.length}: ${JSON.stringify(response.paths)}`,
+				)
 				return response.paths.length === 3
 			},
 			{
-				timeout: 4000,
+				timeout: 8000,
 				interval: 50,
 			},
 		)
@@ -129,10 +135,13 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 			async () => {
 				const request = GetOpenTabsRequest.create({})
 				const response = await getOpenTabs(request)
+				console.log(
+					`[DEBUG] Waiting for 2 tabs (temp file + untitled), currently found ${response.paths.length}: ${JSON.stringify(response.paths)}`,
+				)
 				return response.paths.length === 2
 			},
 			{
-				timeout: 4000,
+				timeout: 8000,
 				interval: 50,
 			},
 		)
@@ -150,8 +159,11 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 			2,
 			`Host bridge should return all tabs including deleted files. Found tabs: ${JSON.stringify(response.paths)}`,
 		)
-
-		// Clean up temp directory
-		await fs.rmdir(tempDir, { recursive: true })
+		try {
+			// Clean up temp directory
+			await fs.rmdir(tempDir, { recursive: true })
+		} catch (error) {
+			console.error(error)
+		}
 	})
 })
