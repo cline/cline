@@ -267,6 +267,8 @@ export class Task {
 			this.taskState.checkpointManagerErrorMessage = "Checkpoints are not currently supported in multi-root workspaces."
 		}
 
+		const enableCheckpoints = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
+
 		// Initialize checkpoint manager based on workspace configuration
 		if (!isMultiRootWorkspace) {
 			try {
@@ -291,7 +293,7 @@ export class Task {
 				if (
 					shouldUseMultiRoot({
 						workspaceManager: this.workspaceManager,
-						enableCheckpoints: this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting"),
+						enableCheckpoints: enableCheckpoints,
 						isMultiRootEnabled: featureFlagsService.getMultiRootEnabled(),
 					})
 				) {
@@ -302,7 +304,7 @@ export class Task {
 				}
 			} catch (error) {
 				console.error("Failed to initialize checkpoint manager:", error)
-				if (this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")) {
+				if (enableCheckpoints) {
 					const errorMessage = error instanceof Error ? error.message : "Unknown error"
 					HostProvider.window.showMessage({
 						type: ShowMessageType.ERROR,
@@ -1751,10 +1753,12 @@ export class Task {
 			}),
 		)
 
+		const enableCheckpoints = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
+
 		// Initialize checkpointManager first if enabled and it's the first request
 		if (
 			isFirstRequest &&
-			this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") &&
+			enableCheckpoints &&
 			this.checkpointManager && // TODO REVIEW: may be able to implement a replacement for the 15s timer
 			!this.taskState.checkpointManagerErrorMessage
 		) {
@@ -1773,7 +1777,7 @@ export class Task {
 
 		// Now, if it's the first request AND checkpoints are enabled AND tracker was successfully initialized,
 		// then say "checkpoint_created" and perform the commit.
-		if (isFirstRequest && this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") && this.checkpointManager) {
+		if (isFirstRequest && enableCheckpoints && this.checkpointManager) {
 			await this.say("checkpoint_created") // Now this is conditional
 			const lastCheckpointMessageIndex = findLastIndex(
 				this.messageStateHandler.getClineMessages(),
@@ -1801,7 +1805,7 @@ export class Task {
 			}
 		} else if (
 			isFirstRequest &&
-			this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting") &&
+			enableCheckpoints &&
 			!this.checkpointManager &&
 			this.taskState.checkpointManagerErrorMessage
 		) {
@@ -1930,12 +1934,7 @@ export class Task {
 		// Capture task initialization timing telemetry for the first API request
 		if (isFirstRequest) {
 			const durationMs = Math.round(performance.now() - this.taskInitializationStartTime)
-			telemetryService.captureTaskInitialization(
-				this.ulid,
-				this.taskId,
-				durationMs,
-				this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting"),
-			)
+			telemetryService.captureTaskInitialization(this.ulid, this.taskId, durationMs, enableCheckpoints)
 		}
 
 		// since we sent off a placeholder api_req_started message to update the webview while waiting to actually start the API request (to load potential details for example), we need to update the text of that message
