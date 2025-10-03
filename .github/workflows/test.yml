@@ -107,48 +107,32 @@ jobs:
 
             - name: Unit Tests with coverage - Linux
               id: unit_tests_linux
-              continue-on-error: true
               if: runner.os == 'Linux'
               run: |
                   npx nyc --nycrc-path .nycrc.unit.json --reporter=lcov npm run test:unit
 
             - name: Unit Tests - Non-Linux
               id: unit_tests_non_linux
-              continue-on-error: true
-              if: runner.os != 'Linux'
+              if: ${{ always() && runner.os != 'Linux' }}
               run: |
                   npm run test:unit
 
             - name: Extension Integration Tests - Linux
               id: integration_tests_linux
-              continue-on-error: true
-              if: runner.os == 'Linux'
+              if: ${{ always() && runner.os == 'Linux' }}
               run: xvfb-run -a npm run test:coverage
 
             - name: Extension Integration Tests - Non-Linux
               id: integration_tests_non_linux
-              continue-on-error: true
-              if: runner.os != 'Linux'
+              if: ${{ always() && runner.os != 'Linux' }}
               run: npm run test:integration
 
             - name: Webview Tests with Coverage
               id: webview_tests
-              continue-on-error: true
+              if: always()
               run: |
                   cd webview-ui
                   npm run test:coverage
-
-            - name: Check Test Results
-              if: always()
-              run: |
-                  failed=""
-                  [[ "${{ steps.unit_tests_linux.outcome }}" == "failure" && "${{ runner.os }}" == "Linux" ]] && failed="$failed unit_tests_linux"
-                  [[ "${{ steps.unit_tests_non_linux.outcome }}" == "failure" && "${{ runner.os }}" != "Linux" ]] && failed="$failed unit_tests_non_linux"
-                  [[ "${{ steps.integration_tests_linux.outcome }}" == "failure" && "${{ runner.os }}" == "Linux" ]] && failed="$failed integration_tests_linux"
-                  [[ "${{ steps.integration_tests_non_linux.outcome }}" == "failure" && "${{ runner.os }}" != "Linux" ]] && failed="$failed integration_tests_non_linux"
-                  [[ "${{ steps.webview_tests.outcome }}" == "failure" ]] && failed="$failed webview_tests"
-                  [[ -n "$failed" ]] && { echo "❌ The following test suites failed:$failed"; exit 1; }
-                  echo "✅ All tests passed"
 
             - name: Save Coverage Reports
               uses: actions/upload-artifact@v4
