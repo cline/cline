@@ -491,11 +491,10 @@ async function generateGoServiceClients() {
 				const responseTypeName = method.responseType.split(".").pop()
 
 				// Common types like StringRequest, Empty, etc. are in the cline package
-				const commonTypes = ["StringRequest", "EmptyRequest", "Empty", "String", "Int64Request", "KeyValuePair"]
-				const requestType = commonTypes.includes(requestTypeName)
+				const requestType = COMMON_TYPES.includes(requestTypeName)
 					? `*cline.${requestTypeName}`
 					: `*proto.${requestTypeName}`
-				const responseType = commonTypes.includes(responseTypeName)
+				const responseType = COMMON_TYPES.includes(responseTypeName)
 					? `*cline.${responseTypeName}`
 					: `*proto.${responseTypeName}`
 
