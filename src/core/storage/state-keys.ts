@@ -47,6 +47,7 @@ export interface GlobalState {
 export interface Settings {
 	awsRegion: string | undefined
 	awsUseCrossRegionInference: boolean | undefined
+	awsUseGlobalInference: boolean | undefined
 	awsBedrockUsePromptCache: boolean | undefined
 	awsBedrockEndpoint: string | undefined
 	awsProfile: string | undefined
