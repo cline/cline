@@ -150,8 +150,11 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 			2,
 			`Host bridge should return all tabs including deleted files. Found tabs: ${JSON.stringify(response.paths)}`,
 		)
-
-		// Clean up temp directory
-		await fs.rmdir(tempDir, { recursive: true })
+		try {
+			// Clean up temp directory
+			await fs.rmdir(tempDir, { recursive: true })
+		} catch (error) {
+			console.error(error)
+		}
 	})
 })
