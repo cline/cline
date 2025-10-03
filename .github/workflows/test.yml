@@ -108,7 +108,7 @@ jobs:
 
             - name: Unit Tests with coverage - Linux
               id: unit_tests_linux
-              if: ${{ steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
               run: |
                   npx nyc --nycrc-path .nycrc.unit.json --reporter=lcov npm run test:unit
 
