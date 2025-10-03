@@ -14,7 +14,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 	const [
 		apiKey,
 		openRouterApiKey,
-		clineAccountIdLegacy,
+		firebaseClineAccountId,
 		clineAccountId,
 		awsAccessKey,
 		awsSecretKey,
@@ -95,7 +95,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		authNonce,
 		apiKey,
 		openRouterApiKey,
-		clineAccountId: clineAccountIdLegacy,
+		clineAccountId: firebaseClineAccountId,
 		"cline:clineAccountId": clineAccountId,
 		huggingFaceApiKey,
 		huaweiCloudMaasApiKey,
