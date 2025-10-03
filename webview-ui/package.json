@@ -100,7 +100,7 @@
 		"identity-obj-proxy": "^3.0.0",
 		"jsdom": "^26.0.0",
 		"typescript": "5.8.3",
-		"vite": "6.3.5",
+		"vite": "6.3.6",
 		"vitest": "^3.2.3"
 	}
 }
