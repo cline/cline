@@ -299,15 +299,18 @@ func (s *DiffService) CloseAllDiffs(ctx context.Context, req *proto.CloseAllDiff
 		log.Printf("CloseAllDiffs called")
 	}
 
-	// Count sessions before clearing
-	count := 0
-	s.sessions.Range(func(key, value interface{}) bool {
-		count++
+	var count int64
+
+	s.sessions.Range(func(key, value any) bool {
+		// Optional: attempt to close if the value supports it
+		if c, ok := value.(interface{ Close() error }); ok {
+			_ = c.Close() // best-effort; ignore error
+		}
+
+		s.sessions.Delete(key)
+		atomic.AddInt64(&count, 1)
 		return true
 	})
-
-	// Clear all sessions
-	s.sessions = &sync.Map{}
 
 	if s.verbose {
 		log.Printf("Closed %d diff sessions", count)
