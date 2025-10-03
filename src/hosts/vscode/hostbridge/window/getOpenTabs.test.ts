@@ -62,6 +62,9 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 			async () => {
 				const request = GetOpenTabsRequest.create({})
 				const response = await getOpenTabs(request)
+				console.log(
+					`[DEBUG] Waiting for 2 tabs, currently found ${response.paths.length}: ${JSON.stringify(response.paths)}`,
+				)
 				return response.paths.length === 2
 			},
 			{
@@ -92,6 +95,9 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 			async () => {
 				const request = GetOpenTabsRequest.create({})
 				const response = await getOpenTabs(request)
+				console.log(
+					`[DEBUG] Waiting for 3 tabs, currently found ${response.paths.length}: ${JSON.stringify(response.paths)}`,
+				)
 				return response.paths.length === 3
 			},
 			{
@@ -129,6 +135,9 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 			async () => {
 				const request = GetOpenTabsRequest.create({})
 				const response = await getOpenTabs(request)
+				console.log(
+					`[DEBUG] Waiting for 2 tabs (temp file + untitled), currently found ${response.paths.length}: ${JSON.stringify(response.paths)}`,
+				)
 				return response.paths.length === 2
 			},
 			{
