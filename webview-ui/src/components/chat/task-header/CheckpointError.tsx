@@ -15,7 +15,9 @@ export const CheckpointError: React.FC<CheckpointErrorProps> = ({
 
 	const messages = useMemo(() => {
 		const message = checkpointManagerErrorMessage?.replace(/disabling checkpoints\.$/, "")
-		const showDisableButton = checkpointManagerErrorMessage?.endsWith("disabling checkpoints.")
+		const showDisableButton =
+			checkpointManagerErrorMessage?.endsWith("disabling checkpoints.") ||
+			checkpointManagerErrorMessage?.includes("multi-root workspaces")
 		const showGitInstructions = checkpointManagerErrorMessage?.includes("Git must be installed to use checkpoints.")
 		return { message, showDisableButton, showGitInstructions }
 	}, [checkpointManagerErrorMessage])

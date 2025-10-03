@@ -258,45 +258,57 @@ export class Task {
 			})
 		}
 
-		// Initialize checkpoint manager based on workspace configuration
-		try {
-			this.checkpointManager = buildCheckpointManager({
-				taskId: this.taskId,
-				messageStateHandler: this.messageStateHandler,
-				fileContextTracker: this.fileContextTracker,
-				diffViewProvider: this.diffViewProvider,
-				taskState: this.taskState,
-				workspaceManager: this.workspaceManager,
-				updateTaskHistory: this.updateTaskHistory,
-				say: this.say.bind(this),
-				cancelTask: this.cancelTask,
-				postStateToWebview: this.postStateToWebview,
-				initialConversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
-				initialCheckpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
-				stateManager: this.stateManager,
-			})
+		// Check for multiroot workspace and warn about checkpoints
+		const isMultiRootWorkspace = this.workspaceManager && this.workspaceManager.getRoots().length > 1
+		const checkpointsEnabled = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 
-			// If multi-root, kick off non-blocking initialization
-			if (
-				shouldUseMultiRoot({
+		if (isMultiRootWorkspace && checkpointsEnabled) {
+			// Set checkpoint manager error message to display warning in TaskHeader
+			this.taskState.checkpointManagerErrorMessage = "Checkpoints are not currently supported in multi-root workspaces."
+		}
+
+		// Initialize checkpoint manager based on workspace configuration
+		if (!isMultiRootWorkspace) {
+			try {
+				this.checkpointManager = buildCheckpointManager({
+					taskId: this.taskId,
+					messageStateHandler: this.messageStateHandler,
+					fileContextTracker: this.fileContextTracker,
+					diffViewProvider: this.diffViewProvider,
+					taskState: this.taskState,
 					workspaceManager: this.workspaceManager,
-					enableCheckpoints: this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting"),
-					isMultiRootEnabled: featureFlagsService.getMultiRootEnabled(),
+					updateTaskHistory: this.updateTaskHistory,
+					say: this.say.bind(this),
+					cancelTask: this.cancelTask,
+					postStateToWebview: this.postStateToWebview,
+					initialConversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+					initialCheckpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
+					stateManager: this.stateManager,
 				})
-			) {
-				this.checkpointManager.initialize?.().catch((error: Error) => {
-					console.error("Failed to initialize multi-root checkpoint manager:", error)
-					this.taskState.checkpointManagerErrorMessage = error?.message || String(error)
-				})
-			}
-		} catch (error) {
-			console.error("Failed to initialize checkpoint manager:", error)
-			if (this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")) {
-				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: `Failed to initialize checkpoint manager: ${errorMessage}`,
-				})
+
+				// If multi-root, kick off non-blocking initialization
+				// Unreachable for now, leaving in for future multi-root checkpoint support
+				if (
+					shouldUseMultiRoot({
+						workspaceManager: this.workspaceManager,
+						enableCheckpoints: this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting"),
+						isMultiRootEnabled: featureFlagsService.getMultiRootEnabled(),
+					})
+				) {
+					this.checkpointManager.initialize?.().catch((error: Error) => {
+						console.error("Failed to initialize multi-root checkpoint manager:", error)
+						this.taskState.checkpointManagerErrorMessage = error?.message || String(error)
+					})
+				}
+			} catch (error) {
+				console.error("Failed to initialize checkpoint manager:", error)
+				if (this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")) {
+					const errorMessage = error instanceof Error ? error.message : "Unknown error"
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `Failed to initialize checkpoint manager: ${errorMessage}`,
+					})
+				}
 			}
 		}
 
