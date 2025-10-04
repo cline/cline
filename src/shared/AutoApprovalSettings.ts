@@ -9,7 +9,7 @@ export interface AutoApprovalSettings {
 		readFilesExternally?: boolean // Read files and directories outside of the working directory
 		editFiles: boolean // Edit files in the working directory
 		editFilesExternally?: boolean // Edit files outside of the working directory
-		executeSafeCommands?: boolean // Execute safe commands,
+		executeSafeCommands?: boolean // Execute safe commands
 		executePartialToolCalls?: boolean // Execute partial tool calls
 		executeAllCommands?: boolean // Execute all commands
 		useBrowser: boolean // Use browser
