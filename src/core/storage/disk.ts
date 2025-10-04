@@ -4,6 +4,7 @@ import { execa } from "@packages/execa"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { fileExistsAtPath } from "@utils/fs"
+import { randomUUID } from "crypto"
 import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
@@ -26,6 +27,26 @@ export const GlobalFileNames = {
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",
 	taskMetadata: "task_metadata.json",
+}
+
+/**
+ * Atomic write: Write to temp file, then rename
+ * Prevents corruption from partial writes and concurrent access
+ */
+async function atomicWriteFile(filePath: string, content: string): Promise<void> {
+	const tempPath = `${filePath}.${randomUUID()}.tmp`
+	try {
+		// Write to temp file
+		await fs.writeFile(tempPath, content, "utf8")
+		// Atomic rename (overwrites target if exists)
+		await fs.rename(tempPath, filePath)
+	} catch (error) {
+		// Clean up temp file if it exists
+		try {
+			await fs.unlink(tempPath)
+		} catch {}
+		throw error
+	}
 }
 
 export async function getDocumentsPath(): Promise<string> {
@@ -156,7 +177,7 @@ export async function saveClineMessages(context: vscode.ExtensionContext, taskId
 	try {
 		const taskDir = await ensureTaskDirectoryExists(context, taskId)
 		const filePath = path.join(taskDir, GlobalFileNames.uiMessages)
-		await fs.writeFile(filePath, JSON.stringify(uiMessages))
+		await atomicWriteFile(filePath, JSON.stringify(uiMessages))
 	} catch (error) {
 		console.error("Failed to save ui messages:", error)
 	}
@@ -178,7 +199,7 @@ export async function saveTaskMetadata(context: vscode.ExtensionContext, taskId:
 	try {
 		const taskDir = await ensureTaskDirectoryExists(context, taskId)
 		const filePath = path.join(taskDir, GlobalFileNames.taskMetadata)
-		await fs.writeFile(filePath, JSON.stringify(metadata, null, 2))
+		await atomicWriteFile(filePath, JSON.stringify(metadata, null, 2))
 	} catch (error) {
 		console.error("Failed to save task metadata:", error)
 	}
@@ -270,7 +291,7 @@ export async function writeTaskSettingsToStorage(
 		}
 
 		const updatedSettings = { ...existingSettings, ...settings }
-		await fs.writeFile(settingsFilePath, JSON.stringify(updatedSettings, null, 2))
+		await atomicWriteFile(settingsFilePath, JSON.stringify(updatedSettings, null, 2))
 	} catch (error) {
 		console.error("[Disk] Failed to write task settings:", error)
 		throw error
