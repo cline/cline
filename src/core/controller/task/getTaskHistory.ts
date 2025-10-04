@@ -1,5 +1,6 @@
 import { GetTaskHistoryRequest, TaskHistoryArray } from "@shared/proto/cline/task"
 import { arePathsEqual, getWorkspacePath } from "../../../utils/path"
+import { readTaskHistoryFromState } from "../../storage/disk"
 import { Controller } from ".."
 
 /**
@@ -12,8 +13,16 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 	try {
 		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
 
-		// Get task history from global state
-		const taskHistory = controller.stateManager.getWorkspaceStateKey("taskHistory") || []
+		// Get task history - from workspace state if filtering by current workspace,
+		// otherwise from global aggregated history to support cross-workspace view
+		let taskHistory
+		if (currentWorkspaceOnly) {
+			// Only show current workspace tasks
+			taskHistory = controller.stateManager.getWorkspaceStateKey("taskHistory") || []
+		} else {
+			// Show all workspaces - read from global aggregated history
+			taskHistory = await readTaskHistoryFromState()
+		}
 		const workspacePath = await getWorkspacePath()
 
 		// Apply filters
