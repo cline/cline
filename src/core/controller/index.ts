@@ -68,50 +68,34 @@ export class Controller {
 	constructor(readonly context: vscode.ExtensionContext) {
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
-		this.stateManager = new StateManager(context)
+		this.stateManager = StateManager.get()
 		this.authService = AuthService.getInstance(this)
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
+		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
-		// Initialize cache service asynchronously - critical for extension functionality
-		this.stateManager
-			.initialize()
-			.then(() => {
-				this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
-			})
-			.catch((error) => {
-				console.error(
-					"[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:",
-					error,
-				)
-				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: "Failed to initialize Cline's application state. Please restart the extension.",
-				})
-			})
-
-		// Set up persistence error recovery
-		this.stateManager.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
-			console.error("[Controller] Cache persistence failed, recovering:", error)
-			try {
-				await this.stateManager.reInitialize(this.task?.taskId)
+		StateManager.get().registerCallbacks({
+			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
+				console.error("[Controller] Cache persistence failed, recovering:", error)
+				try {
+					await StateManager.get().reInitialize(this.task?.taskId)
+					await this.postStateToWebview()
+					HostProvider.window.showMessage({
+						type: ShowMessageType.WARNING,
+						message: "Saving settings to storage failed.",
+					})
+				} catch (recoveryError) {
+					console.error("[Controller] Cache recovery failed:", recoveryError)
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: "Failed to save settings. Please restart the extension.",
+					})
+				}
+			},
+			onSyncExternalChange: async () => {
 				await this.postStateToWebview()
-				HostProvider.window.showMessage({
-					type: ShowMessageType.WARNING,
-					message: "Saving settings to storage failed.",
-				})
-			} catch (recoveryError) {
-				console.error("[Controller] Cache recovery failed:", recoveryError)
-				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: "Failed to save settings. Please restart the extension.",
-				})
-			}
-		}
-
-		this.stateManager.onSyncExternalChange = async () => {
-			await this.postStateToWebview()
-		}
+			},
+		})
 
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
@@ -203,12 +187,12 @@ export class Controller {
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
-		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
+		const taskHistory = this.stateManager.getWorkspaceStateKey("taskHistory") || []
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
 		// Check if the user has completed enough tasks to no longer be considered a "new user"
-		if (isNewUser && !historyItem && taskHistory && taskHistory.length >= NEW_USER_TASK_COUNT_THRESHOLD) {
+		if (isNewUser && !historyItem && taskHistory.length >= NEW_USER_TASK_COUNT_THRESHOLD) {
 			this.stateManager.setGlobalState("isNewUser", false)
 			await this.postStateToWebview()
 		}
@@ -256,6 +240,8 @@ export class Controller {
 			historyItem,
 			taskId,
 		})
+
+		return this.task.taskId
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {
@@ -640,7 +626,7 @@ export class Controller {
 		taskMetadataFilePath: string
 		apiConversationHistory: Anthropic.MessageParam[]
 	}> {
-		const history = this.stateManager.getGlobalStateKey("taskHistory")
+		const history = this.stateManager.getWorkspaceStateKey("taskHistory") || []
 		const historyItem = history.find((item) => item.id === id)
 		if (historyItem) {
 			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks", id)
@@ -675,9 +661,9 @@ export class Controller {
 
 	async deleteTaskFromState(id: string) {
 		// Remove the task from history
-		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
+		const taskHistory = this.stateManager.getWorkspaceStateKey("taskHistory") || []
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
-		this.stateManager.setGlobalState("taskHistory", updatedTaskHistory)
+		this.stateManager.setWorkspaceState("taskHistory", updatedTaskHistory)
 
 		// Notify the webview that the task has been deleted
 		await this.postStateToWebview()
@@ -694,7 +680,7 @@ export class Controller {
 		// Get API configuration from cache for immediate access
 		const apiConfiguration = this.stateManager.getApiConfiguration()
 		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
-		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
+		const taskHistory = this.stateManager.getWorkspaceStateKey("taskHistory") || []
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
@@ -838,14 +824,14 @@ export class Controller {
 	*/
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
-		const history = this.stateManager.getGlobalStateKey("taskHistory")
+		const history = this.stateManager.getWorkspaceStateKey("taskHistory") || []
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
 			history[existingItemIndex] = item
 		} else {
 			history.push(item)
 		}
-		this.stateManager.setGlobalState("taskHistory", history)
+		this.stateManager.setWorkspaceState("taskHistory", history)
 		return history
 	}
 }
