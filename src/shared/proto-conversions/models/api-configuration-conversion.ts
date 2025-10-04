@@ -433,6 +433,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		lmStudioMaxTokens: config.lmStudioMaxTokens,
 		geminiApiKey: config.geminiApiKey,
 		geminiBaseUrl: config.geminiBaseUrl,
+		geminiCliOauthPath: config.geminiCliOAuthPath,
+		geminiCliProjectId: config.geminiCliProjectId,
 		openAiNativeApiKey: config.openAiNativeApiKey,
 		deepSeekApiKey: config.deepSeekApiKey,
 		requestyApiKey: config.requestyApiKey,
@@ -542,8 +544,6 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
 		actModeOcaModelId: config.actModeOcaModelId,
 		actModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.actModeOcaModelInfo),
-		geminiCliOauthPath: config.geminiCliOAuthPath,
-		geminiCliProjectId: config.geminiCliProjectId,
 	}
 }
 
@@ -584,6 +584,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		lmStudioMaxTokens: protoConfig.lmStudioMaxTokens,
 		geminiApiKey: protoConfig.geminiApiKey,
 		geminiBaseUrl: protoConfig.geminiBaseUrl,
+		geminiCliOAuthPath: protoConfig.geminiCliOauthPath,
+		geminiCliProjectId: protoConfig.geminiCliProjectId,
 		openAiNativeApiKey: protoConfig.openAiNativeApiKey,
 		deepSeekApiKey: protoConfig.deepSeekApiKey,
 		requestyApiKey: protoConfig.requestyApiKey,
@@ -697,7 +699,5 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
 		actModeOcaModelId: protoConfig.actModeOcaModelId,
 		actModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.actModeOcaModelInfo),
-		geminiCliOAuthPath: protoConfig.geminiCliOauthPath,
-		geminiCliProjectId: protoConfig.geminiCliProjectId,
 	}
 }

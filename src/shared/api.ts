@@ -10,6 +10,7 @@ export type ApiProvider =
 	| "ollama"
 	| "lmstudio"
 	| "gemini"
+	| "gemini-cli"
 	| "openai-native"
 	| "requesty"
 	| "together"
@@ -102,6 +103,8 @@ export interface ApiHandlerOptions {
 	lmStudioModelId?: string
 	lmStudioMaxTokens?: string
 	geminiBaseUrl?: string
+	geminiCliOAuthPath?: string
+	geminiCliProjectId?: string
 	requestyBaseUrl?: string
 	fireworksModelMaxCompletionTokens?: number
 	fireworksModelMaxTokens?: number
@@ -263,7 +266,7 @@ export const CLAUDE_SONNET_1M_TIERS = [
 export type AnthropicModelId = keyof typeof anthropicModels
 export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-5-20250929"
 export const ANTHROPIC_MIN_THINKING_BUDGET = 1_024
-export const ANTHROPIC_MAX_THINKING_BUDGET = 6_000
+export const ANTHROPIC_MAX_THINKING_BUDGET = 36_000
 export const anthropicModels = {
 	"claude-sonnet-4-5-20250929": {
 		maxTokens: 8192,
@@ -1160,6 +1163,95 @@ export const geminiModels = {
 	"gemini-1.5-pro-exp-0827": {
 		maxTokens: 8192,
 		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-exp-1206": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Gemini CLI
+export type GeminiCliModelId = keyof typeof geminiCliModels
+export const geminiCliDefaultModelId: GeminiCliModelId = "gemini-2.5-pro"
+export const geminiCliModels = {
+	"gemini-2.5-pro": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0, // Free tier via OAuth
+		outputPrice: 0, // Free tier via OAuth
+		description: "Google's Gemini 2.5 Pro model via OAuth (free tier)",
+	},
+	"gemini-2.5-flash": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0, // Free tier via OAuth
+		outputPrice: 0, // Free tier via OAuth
+		description: "Google's Gemini 2.5 Flash model via OAuth (free tier)",
+	},
+	"gemini-2.0-flash-001": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0, // Free tier via OAuth
+		outputPrice: 0, // Free tier via OAuth
+		description: "Google's Gemini 2.0 Flash model via OAuth (free tier)",
+	},
+	"gemini-1.5-flash-002": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.15, // Default price (highest tier)
+		outputPrice: 0.6, // Default price (highest tier)
+		cacheReadsPrice: 0.0375,
+		cacheWritesPrice: 1.0,
+		tiers: [
+			{
+				contextWindow: 128000,
+				inputPrice: 0.075,
+				outputPrice: 0.3,
+				cacheReadsPrice: 0.01875,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 0.15,
+				outputPrice: 0.6,
+				cacheReadsPrice: 0.0375,
+			},
+		],
+	},
+	"gemini-1.5-pro-002": {
+		maxTokens: 8192,
+		contextWindow: 2_097_152,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 1.25,
+		outputPrice: 5,
+	},
+	"gemini-1.5-flash-exp-0827": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-1.5-flash-8b-exp-0827": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
 		supportsImages: true,
 		supportsPromptCache: false,
 		inputPrice: 0,
