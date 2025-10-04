@@ -304,6 +304,7 @@
 		"package": "npm run check-types && npm run build:webview && npm run lint && node esbuild.mjs --production",
 		"protos": "node scripts/build-proto.mjs",
 		"protos-go": "node scripts/build-go-proto.mjs",
+		"cli-providers": "node scripts/cli-providers.mjs",
 		"postprotos": "biome format src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --no-errors-on-unmatched",
 		"clean:build": "rimraf dist dist-standalone webview-ui/build src/generated out/",
 		"clean:deps": "rimraf node_modules webview-ui/node_modules",
