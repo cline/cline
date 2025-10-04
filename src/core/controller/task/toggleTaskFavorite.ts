@@ -12,7 +12,7 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 	try {
 		// Update in-memory state only
 		try {
-			const history = controller.stateManager.getGlobalStateKey("taskHistory")
+			const history = controller.stateManager.getWorkspaceStateKey("taskHistory") || []
 
 			const taskIndex = history.findIndex((item) => item.id === request.taskId)
 
@@ -28,9 +28,9 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 
 				// Update global state and wait for it to complete
 				try {
-					controller.stateManager.setGlobalState("taskHistory", updatedHistory)
+					controller.stateManager.setWorkspaceState("taskHistory", updatedHistory)
 				} catch (stateErr) {
-					console.error("Error updating global state:", stateErr)
+					console.error("Error updating workspace state:", stateErr)
 				}
 			}
 		} catch (historyErr) {
