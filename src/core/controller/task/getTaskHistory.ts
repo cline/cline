@@ -11,19 +11,34 @@ import { Controller } from ".."
  */
 export async function getTaskHistory(controller: Controller, request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
 	try {
-		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
+		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy, filterByWorkspaceId } = request
 
 		// Get task history - from workspace state if filtering by current workspace,
 		// otherwise from global aggregated history to support cross-workspace view
 		let taskHistory
+		const workspacePath = await getWorkspacePath()
+
 		if (currentWorkspaceOnly) {
 			// Only show current workspace tasks
 			taskHistory = controller.stateManager.getWorkspaceStateKey("taskHistory") || []
+		} else if (filterByWorkspaceId) {
+			// Filter by specific workspace ID
+			const allTasks = await readTaskHistoryFromState()
+			taskHistory = allTasks.filter((item) => {
+				if (!item.workspaceIds || item.workspaceIds.length === 0) {
+					// Legacy tasks without workspaceIds - check old fields
+					return (
+						(item.cwdOnTaskInitialization && arePathsEqual(item.cwdOnTaskInitialization, filterByWorkspaceId)) ||
+						(item.shadowGitConfigWorkTree && arePathsEqual(item.shadowGitConfigWorkTree, filterByWorkspaceId))
+					)
+				}
+				// Check if workspace is in task's workspaceIds
+				return item.workspaceIds.some((wsPath) => arePathsEqual(wsPath, filterByWorkspaceId))
+			})
 		} else {
 			// Show all workspaces - read from global aggregated history
 			taskHistory = await readTaskHistoryFromState()
 		}
-		const workspacePath = await getWorkspacePath()
 
 		// Apply filters
 		let filteredTasks = taskHistory.filter((item) => {
@@ -100,19 +115,44 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 			filteredTasks.sort((a, b) => b.ts - a.ts)
 		}
 
+		// Get workspace metadata for display names
+		const workspaceMetadata = controller.stateManager.getGlobalStateKey("workspaceMetadata") || {}
+
 		// Map to response format
-		const tasks = filteredTasks.map((item) => ({
-			id: item.id,
-			task: item.task,
-			ts: item.ts,
-			isFavorited: item.isFavorited || false,
-			size: item.size || 0,
-			totalCost: item.totalCost || 0,
-			tokensIn: item.tokensIn || 0,
-			tokensOut: item.tokensOut || 0,
-			cacheWrites: item.cacheWrites || 0,
-			cacheReads: item.cacheReads || 0,
-		}))
+		const tasks = filteredTasks.map((item) => {
+			// Determine workspace IDs (use legacy fields if workspaceIds not present)
+			let workspaceIds = item.workspaceIds || []
+			if (workspaceIds.length === 0 && (item.cwdOnTaskInitialization || item.shadowGitConfigWorkTree)) {
+				// Legacy task - use the path from cwdOnTaskInitialization or shadowGitConfigWorkTree
+				const legacyPath = item.cwdOnTaskInitialization || item.shadowGitConfigWorkTree
+				if (legacyPath) {
+					workspaceIds = [legacyPath]
+				}
+			}
+
+			// Get primary workspace name (first workspace in list)
+			let workspaceName = ""
+			if (workspaceIds.length > 0) {
+				const primaryWorkspacePath = workspaceIds[0]
+				const metadata = workspaceMetadata[primaryWorkspacePath]
+				workspaceName = metadata?.name || primaryWorkspacePath.split("/").pop() || ""
+			}
+
+			return {
+				id: item.id,
+				task: item.task,
+				ts: item.ts,
+				isFavorited: item.isFavorited || false,
+				size: item.size || 0,
+				totalCost: item.totalCost || 0,
+				tokensIn: item.tokensIn || 0,
+				tokensOut: item.tokensOut || 0,
+				cacheWrites: item.cacheWrites || 0,
+				cacheReads: item.cacheReads || 0,
+				workspaceIds,
+				workspaceName,
+			}
+		})
 
 		return TaskHistoryArray.create({
 			tasks,

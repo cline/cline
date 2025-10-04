@@ -15,4 +15,8 @@ export type HistoryItem = {
 	conversationHistoryDeletedRange?: [number, number]
 	isFavorited?: boolean
 	checkpointManagerErrorMessage?: string
+
+	// Multi-workspace support
+	workspaceIds?: string[] // Array of workspace paths this task belongs to
+	workspaceName?: string // Display name for primary workspace
 }
