@@ -59,6 +59,10 @@ service TaskService {
   rpc executeQuickWin(ExecuteQuickWinRequest) returns (Empty);
   // Deletes all task history
   rpc deleteAllTaskHistory(EmptyRequest) returns (DeleteAllTaskHistoryCount);
+  // Gets list of known workspaces
+  rpc getKnownWorkspaces(EmptyRequest) returns (WorkspaceListResponse);
+  // Associates a task with a workspace
+  rpc associateTaskWithWorkspace(AssociateTaskWithWorkspaceRequest) returns (Empty);
 }
 
 // Task-specific settings
@@ -214,6 +218,7 @@ message TaskResponse {
   int32 tokens_out = 8;
   int32 cache_writes = 9;
   int32 cache_reads = 10;
+  bool is_cross_workspace = 11; // True if task is from another workspace
 }
 
 // Request for getting task history with filtering
@@ -223,6 +228,7 @@ message GetTaskHistoryRequest {
   string search_query = 3;
   string sort_by = 4;
   bool current_workspace_only = 5;
+  string filter_by_workspace_id = 6; // Filter by specific workspace path
 }
 
 // Response for task history
@@ -243,6 +249,8 @@ message TaskItem {
   int32 tokens_out = 8;
   int32 cache_writes = 9;
   int32 cache_reads = 10;
+  repeated string workspace_ids = 11; // Workspaces this task belongs to
+  string workspace_name = 12; // Primary workspace display name
 }
 
 // Request for ask response operation
@@ -264,4 +272,23 @@ message ExecuteQuickWinRequest {
 // Results returned when deleting all task history
 message DeleteAllTaskHistoryCount {
   int32 tasks_deleted = 1;
+}
+
+// Workspace metadata
+message WorkspaceInfo {
+  string path = 1;
+  string name = 2;
+  int64 last_opened = 3;
+}
+
+// Response containing list of known workspaces
+message WorkspaceListResponse {
+  repeated WorkspaceInfo workspaces = 1;
+}
+
+// Request to associate task with workspace
+message AssociateTaskWithWorkspaceRequest {
+  Metadata metadata = 1;
+  string task_id = 2;
+  string workspace_path = 3;
 }

@@ -172,6 +172,21 @@ export class Controller {
 		this.stateManager.setGlobalState("userInfo", info)
 	}
 
+	/**
+	 * Updates workspace metadata for tracking workspace opens
+	 */
+	private async updateWorkspaceMetadata(workspacePath: string, workspaceName: string) {
+		const workspaceMetadata = this.stateManager.getGlobalStateKey("workspaceMetadata") || {}
+
+		workspaceMetadata[workspacePath] = {
+			path: workspacePath,
+			name: workspaceName,
+			lastOpened: Date.now(),
+		}
+
+		this.stateManager.setGlobalState("workspaceMetadata", workspaceMetadata)
+	}
+
 	async initTask(
 		task?: string,
 		images?: string[],
@@ -212,6 +227,13 @@ export class Controller {
 		})
 
 		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
+
+		// Track workspace open in metadata
+		const primaryRoot = this.workspaceManager?.getPrimaryRoot()
+		if (primaryRoot) {
+			const workspaceName = primaryRoot.name || primaryRoot.path.split("/").pop() || "workspace"
+			await this.updateWorkspaceMetadata(primaryRoot.path, workspaceName)
+		}
 
 		const taskId = historyItem?.id || Date.now().toString()
 

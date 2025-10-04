@@ -12,6 +12,16 @@ import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
+
+/**
+ * Metadata for a workspace that has been opened
+ */
+export interface WorkspaceMetadata {
+	path: string
+	name: string
+	lastOpened: number
+}
+
 export type SecretKey = keyof Secrets
 
 export type GlobalStateKey = keyof GlobalState
@@ -28,6 +38,8 @@ export interface GlobalState {
 	lastShownAnnouncementId: string | undefined
 	// taskHistory moved to LocalState for workspace isolation
 	userInfo: UserInfo | undefined
+	// Workspace metadata for multi-workspace support
+	workspaceMetadata: Record<string, WorkspaceMetadata> | undefined
 	mcpMarketplaceCatalog: McpMarketplaceCatalog | undefined
 	favoritedModelIds: string[]
 	mcpMarketplaceEnabled: boolean
