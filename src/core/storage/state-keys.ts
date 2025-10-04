@@ -26,7 +26,7 @@ export type GlobalStateAndSettings = GlobalState & Settings
 
 export interface GlobalState {
 	lastShownAnnouncementId: string | undefined
-	taskHistory: HistoryItem[]
+	// taskHistory moved to LocalState for workspace isolation
 	userInfo: UserInfo | undefined
 	mcpMarketplaceCatalog: McpMarketplaceCatalog | undefined
 	favoritedModelIds: string[]
@@ -214,6 +214,7 @@ export interface Secrets {
 }
 
 export interface LocalState {
+	taskHistory: HistoryItem[] // Workspace-specific task history for proper isolation
 	localClineRulesToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
