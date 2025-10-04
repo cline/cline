@@ -50,7 +50,7 @@ func ensureTaskManager(ctx context.Context, address string) error {
 			instanceAddress = address
 		} else {
 			// Ensure default instance exists
-			if err := ensureDefaultInstance(ctx); err != nil {
+			if err := global.EnsureDefaultInstance(ctx); err != nil {
 				return fmt.Errorf("failed to ensure default instance: %w", err)
 			}
 			taskManager, err = task.NewManagerForDefault(ctx)
@@ -79,30 +79,6 @@ func ensureInstanceAtAddress(ctx context.Context, address string) error {
 		return fmt.Errorf("global clients not initialized")
 	}
 	return global.Clients.EnsureInstanceAtAddress(ctx, address)
-}
-
-// ensureDefaultInstance ensures a default instance exists
-func ensureDefaultInstance(ctx context.Context) error {
-	if global.Clients == nil {
-		return fmt.Errorf("global clients not initialized")
-	}
-
-	// Check if we have any instances in the registry
-	registry := global.Clients.GetRegistry()
-	if registry.GetDefaultInstance() == "" {
-		// No default instance, start a new one
-		instance, err := global.Clients.StartNewInstance(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to start new default instance: %w", err)
-		}
-
-		// Set the new instance as default
-		if err := registry.SetDefaultInstance(instance.Address); err != nil {
-			return fmt.Errorf("failed to set default instance: %w", err)
-		}
-	}
-
-	return nil
 }
 
 func newTaskNewCommand() *cobra.Command {
