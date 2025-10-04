@@ -137,6 +137,7 @@ export async function readWorkspaceStateFromDisk(context: ExtensionContext): Pro
 	const localWorkflowToggles = context.workspaceState.get("workflowToggles") as ClineRulesToggles | undefined
 
 	return {
+		taskHistory: [], // Initialize empty, will be populated from workspace state
 		localClineRulesToggles: localClineRulesToggles || {},
 		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 		localCursorRulesToggles: localCursorRulesToggles || {},
@@ -538,7 +539,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			isNewUser: isNewUser ?? true,
 			welcomeViewCompleted,
 			lastShownAnnouncementId,
-			taskHistory: taskHistory || [],
 			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
