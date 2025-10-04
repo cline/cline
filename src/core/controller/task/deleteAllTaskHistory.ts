@@ -18,7 +18,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		await controller.clearTask()
 
 		// Get existing task history
-		const taskHistory = controller.stateManager.getGlobalStateKey("taskHistory")
+		const taskHistory = controller.stateManager.getWorkspaceStateKey("taskHistory") || []
 		const totalTasks = taskHistory.length
 
 		const userChoice = (
@@ -47,7 +47,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 
 			// If there are favorited tasks, update state
 			if (favoritedTasks.length > 0) {
-				controller.stateManager.setGlobalState("taskHistory", favoritedTasks)
+				controller.stateManager.setWorkspaceState("taskHistory", favoritedTasks)
 
 				// Delete non-favorited task directories
 				const preserveTaskIds = favoritedTasks.map((task) => task.id)
@@ -87,7 +87,7 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		}
 
 		// Delete everything (not preserving favorites)
-		controller.stateManager.setGlobalState("taskHistory", [])
+		controller.stateManager.setWorkspaceState("taskHistory", [])
 
 		try {
 			// Remove all contents of tasks directory
