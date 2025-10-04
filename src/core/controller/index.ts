@@ -240,6 +240,8 @@ export class Controller {
 			historyItem,
 			taskId,
 		})
+
+		return this.task.taskId
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {
