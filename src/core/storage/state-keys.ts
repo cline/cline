@@ -6,7 +6,6 @@ import { AutoApprovalSettings } from "@/shared/AutoApprovalSettings"
 import { BrowserSettings } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
 import { DictationSettings } from "@/shared/DictationSettings"
-import { HistoryItem } from "@/shared/HistoryItem"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
@@ -226,7 +225,8 @@ export interface Secrets {
 }
 
 export interface LocalState {
-	taskHistory: HistoryItem[] // Workspace-specific task history for proper isolation
+	// taskHistory removed - now stored ONLY in global taskHistory.json file
+	// This prevents VSCode workspace state bloat (was causing 1358KB warnings)
 	localClineRulesToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles

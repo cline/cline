@@ -4,6 +4,7 @@ import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageRequest, ShowMessageType } from "@/shared/proto/host/window"
 import { fileExistsAtPath } from "../../../utils/fs"
+import { readTaskHistoryFromState, writeTaskHistoryToState } from "../../storage/disk"
 import { Controller } from ".."
 
 /**
@@ -17,8 +18,8 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		// Clear current task first
 		await controller.clearTask()
 
-		// Get existing task history
-		const taskHistory = controller.stateManager.getWorkspaceStateKey("taskHistory") || []
+		// Get existing task history from global file
+		const taskHistory = await readTaskHistoryFromState()
 		const totalTasks = taskHistory.length
 
 		const userChoice = (
@@ -45,9 +46,9 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 		if (userChoice === "Delete All Except Favorites") {
 			const favoritedTasks = taskHistory.filter((task) => task.isFavorited === true)
 
-			// If there are favorited tasks, update state
+			// If there are favorited tasks, update global file
 			if (favoritedTasks.length > 0) {
-				controller.stateManager.setWorkspaceState("taskHistory", favoritedTasks)
+				await writeTaskHistoryToState(favoritedTasks)
 
 				// Delete non-favorited task directories
 				const preserveTaskIds = favoritedTasks.map((task) => task.id)
@@ -86,8 +87,8 @@ export async function deleteAllTaskHistory(controller: Controller): Promise<Dele
 			}
 		}
 
-		// Delete everything (not preserving favorites)
-		controller.stateManager.setWorkspaceState("taskHistory", [])
+		// Delete everything (not preserving favorites) - write empty array to global file
+		await writeTaskHistoryToState([])
 
 		try {
 			// Remove all contents of tasks directory
