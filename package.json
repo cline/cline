@@ -296,7 +296,6 @@
 		"compile": "npm run check-types && npm run lint && node esbuild.mjs",
 		"compile-standalone": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
 		"compile-cli": "scripts/build-cli.sh",
-		"dev:cli": "npm run compile-standalone && npm run compile-cli && ./cli/bin/cline instance kill --all && ./cli/bin/cline instance new",
 		"dev:cli:watch": "node scripts/dev-cli-watch.mjs",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",
 		"watch": "npm-run-all -p watch:*",
