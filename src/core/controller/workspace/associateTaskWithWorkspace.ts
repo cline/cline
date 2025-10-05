@@ -40,18 +40,9 @@ export async function associateTaskWithWorkspace(
 			// Add workspace to task's workspaceIds
 			task.workspaceIds.push(workspacePath)
 
-			// Update global task history
+			// Update global task history (single source of truth)
 			globalTaskHistory[taskIndex] = task
 			await writeTaskHistoryToState(globalTaskHistory)
-
-			// Also add to current workspace's local task history
-			const workspaceTaskHistory = controller.stateManager.getWorkspaceStateKey("taskHistory") || []
-			const existsInWorkspaceHistory = workspaceTaskHistory.some((item) => item.id === taskId)
-
-			if (!existsInWorkspaceHistory) {
-				workspaceTaskHistory.unshift(task) // Add to beginning
-				controller.stateManager.setWorkspaceState("taskHistory", workspaceTaskHistory)
-			}
 
 			console.log(`[associateTaskWithWorkspace] Associated task ${taskId} with workspace ${workspacePath}`)
 		}

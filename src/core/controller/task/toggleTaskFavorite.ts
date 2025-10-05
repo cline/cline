@@ -1,5 +1,6 @@
 import { Empty } from "@shared/proto/cline/common"
 import { TaskFavoriteRequest } from "@shared/proto/cline/task"
+import { readTaskHistoryFromState, writeTaskHistoryToState } from "../../storage/disk"
 import { Controller } from "../"
 
 export async function toggleTaskFavorite(controller: Controller, request: TaskFavoriteRequest): Promise<Empty> {
@@ -10,9 +11,9 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 	}
 
 	try {
-		// Update in-memory state only
+		// Update global taskHistory.json file
 		try {
-			const history = controller.stateManager.getWorkspaceStateKey("taskHistory") || []
+			const history = await readTaskHistoryFromState()
 
 			const taskIndex = history.findIndex((item) => item.id === request.taskId)
 
@@ -26,11 +27,11 @@ export async function toggleTaskFavorite(controller: Controller, request: TaskFa
 					isFavorited: request.isFavorited,
 				}
 
-				// Update global state and wait for it to complete
+				// Update global taskHistory.json file
 				try {
-					controller.stateManager.setWorkspaceState("taskHistory", updatedHistory)
+					await writeTaskHistoryToState(updatedHistory)
 				} catch (stateErr) {
-					console.error("Error updating workspace state:", stateErr)
+					console.error("Error updating task history file:", stateErr)
 				}
 			}
 		} catch (historyErr) {
