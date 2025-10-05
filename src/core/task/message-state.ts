@@ -65,13 +65,21 @@ export class MessageStateHandler {
 			// combined as they are in ChatView
 			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
 			const taskMessage = this.clineMessages[0] // first message is always the task say
+
+			// Find the last relevant message, excluding resume messages
+			const lastRelevantMessageIndex = findLastIndex(
+				this.clineMessages,
+				(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
+			)
+
+			// Handle case where no relevant message is found (empty or only resume messages)
 			const lastRelevantMessage =
-				this.clineMessages[
-					findLastIndex(
-						this.clineMessages,
-						(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
-					)
-				]
+				lastRelevantMessageIndex >= 0 ? this.clineMessages[lastRelevantMessageIndex] : this.clineMessages[0] // Fallback to first message
+
+			if (!lastRelevantMessage) {
+				console.error("No messages found in task, cannot save history")
+				return
+			}
 			const taskDir = await ensureTaskDirectoryExists(this.taskId)
 			let taskDirSize = 0
 			try {
