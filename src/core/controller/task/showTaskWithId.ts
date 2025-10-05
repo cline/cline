@@ -15,16 +15,9 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 	try {
 		const id = request.value
 
-		// First check if task exists in current workspace state for faster access
-		const workspaceTaskHistory = controller.stateManager.getWorkspaceStateKey("taskHistory") || []
-		let historyItem = workspaceTaskHistory.find((item) => item.id === id)
-
-		// If not in workspace state, check global aggregated history
-		// (This handles cross-workspace tasks shown when "All Workspaces" filter is active)
-		if (!historyItem) {
-			const globalTaskHistory = await readTaskHistoryFromState()
-			historyItem = globalTaskHistory.find((item) => item.id === id)
-		}
+		// Read from global task history (single source of truth)
+		const globalTaskHistory = await readTaskHistoryFromState()
+		const historyItem = globalTaskHistory.find((item) => item.id === id)
 
 		// We need to initialize the task before returning data
 		if (historyItem) {
@@ -43,7 +36,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 				}
 			}
 
-			// Always initialize the task with the history item
+			// Initialize the task with the history item
 			await controller.initTask(undefined, undefined, undefined, historyItem)
 
 			// Send UI update to show the chat view

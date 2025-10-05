@@ -205,14 +205,18 @@ export class Controller {
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const enableCheckpointsSetting = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
-		const taskHistory = this.stateManager.getWorkspaceStateKey("taskHistory") || []
 
 		const NEW_USER_TASK_COUNT_THRESHOLD = 10
 
 		// Check if the user has completed enough tasks to no longer be considered a "new user"
-		if (isNewUser && !historyItem && taskHistory.length >= NEW_USER_TASK_COUNT_THRESHOLD) {
-			this.stateManager.setGlobalState("isNewUser", false)
-			await this.postStateToWebview()
+		if (isNewUser && !historyItem) {
+			// Read from global file to check task count
+			const { readTaskHistoryFromState } = await import("../storage/disk")
+			const taskHistory = await readTaskHistoryFromState()
+			if (taskHistory.length >= NEW_USER_TASK_COUNT_THRESHOLD) {
+				this.stateManager.setGlobalState("isNewUser", false)
+				await this.postStateToWebview()
+			}
 		}
 
 		if (autoApprovalSettings) {
@@ -635,7 +639,9 @@ export class Controller {
 		taskMetadataFilePath: string
 		apiConversationHistory: Anthropic.MessageParam[]
 	}> {
-		const history = this.stateManager.getWorkspaceStateKey("taskHistory") || []
+		// Read from global file (single source of truth)
+		const { readTaskHistoryFromState } = await import("../storage/disk")
+		const history = await readTaskHistoryFromState()
 		const historyItem = history.find((item) => item.id === id)
 		if (historyItem) {
 			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks", id)
@@ -669,10 +675,11 @@ export class Controller {
 	}
 
 	async deleteTaskFromState(id: string) {
-		// Remove the task from history
-		const taskHistory = this.stateManager.getWorkspaceStateKey("taskHistory") || []
+		// Remove the task from global file (single source of truth)
+		const { readTaskHistoryFromState, writeTaskHistoryToState } = await import("../storage/disk")
+		const taskHistory = await readTaskHistoryFromState()
 		const updatedTaskHistory = taskHistory.filter((task) => task.id !== id)
-		this.stateManager.setWorkspaceState("taskHistory", updatedTaskHistory)
+		await writeTaskHistoryToState(updatedTaskHistory)
 
 		// Notify the webview that the task has been deleted
 		await this.postStateToWebview()
@@ -689,7 +696,9 @@ export class Controller {
 		// Get API configuration from cache for immediate access
 		const apiConfiguration = this.stateManager.getApiConfiguration()
 		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
-		const taskHistory = this.stateManager.getWorkspaceStateKey("taskHistory") || []
+		// Read from global file (single source of truth)
+		const { readTaskHistoryFromState } = await import("../storage/disk")
+		const taskHistory = await readTaskHistoryFromState()
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
@@ -831,14 +840,17 @@ export class Controller {
 	*/
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
-		const history = this.stateManager.getWorkspaceStateKey("taskHistory") || []
+		// Read from global file (single source of truth)
+		const { readTaskHistoryFromState, writeTaskHistoryToState } = await import("../storage/disk")
+		const history = await readTaskHistoryFromState()
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
 			history[existingItemIndex] = item
 		} else {
 			history.push(item)
 		}
-		this.stateManager.setWorkspaceState("taskHistory", history)
+		// Write back to global file
+		await writeTaskHistoryToState(history)
 		return history
 	}
 }

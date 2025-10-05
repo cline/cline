@@ -18,12 +18,21 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 		let taskHistory
 		const workspacePath = await getWorkspacePath()
 
+		// Read from global task history (single source of truth)
+		const allTasks = await readTaskHistoryFromState()
+
 		if (currentWorkspaceOnly) {
 			// Only show current workspace tasks
-			taskHistory = controller.stateManager.getWorkspaceStateKey("taskHistory") || []
+			taskHistory = allTasks.filter((item) => {
+				if (item.workspaceIds && item.workspaceIds.length > 0) {
+					return item.workspaceIds.some((wsPath) => arePathsEqual(wsPath, workspacePath))
+				}
+				// Legacy tasks - check old fields
+				const taskWorkspacePath = item.cwdOnTaskInitialization || item.shadowGitConfigWorkTree
+				return taskWorkspacePath ? arePathsEqual(taskWorkspacePath, workspacePath) : false
+			})
 		} else if (filterByWorkspaceId) {
 			// Filter by specific workspace ID
-			const allTasks = await readTaskHistoryFromState()
 			taskHistory = allTasks.filter((item) => {
 				if (!item.workspaceIds || item.workspaceIds.length === 0) {
 					// Legacy tasks without workspaceIds - check old fields
@@ -36,20 +45,8 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 				return item.workspaceIds.some((wsPath) => arePathsEqual(wsPath, filterByWorkspaceId))
 			})
 		} else {
-			// Show all workspaces - merge global aggregated history with current workspace
-			const globalTasks = await readTaskHistoryFromState()
-			const currentWorkspaceTasks = controller.stateManager.getWorkspaceStateKey("taskHistory") || []
-
-			// Merge and deduplicate by task ID
-			const taskMap = new Map<string, any>()
-
-			// Add global tasks first
-			globalTasks.forEach((task) => taskMap.set(task.id, task))
-
-			// Add/update with current workspace tasks (they may be more recent)
-			currentWorkspaceTasks.forEach((task) => taskMap.set(task.id, task))
-
-			taskHistory = Array.from(taskMap.values())
+			// Show all workspaces
+			taskHistory = allTasks
 		}
 
 		// Apply filters
