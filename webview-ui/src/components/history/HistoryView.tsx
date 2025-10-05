@@ -67,6 +67,13 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	// Workspace filter and modal state
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
 	const [knownWorkspaces, setKnownWorkspaces] = useState<any[]>([])
+
+	// Handle workspace selection changes
+	const handleWorkspaceChange = useCallback((workspaceId: string | null) => {
+		setSelectedWorkspaceId(workspaceId)
+		// Update showCurrentWorkspaceOnly based on selection
+		setShowCurrentWorkspaceOnly(workspaceId === "")
+	}, [])
 	const [crossWorkspaceModal, setCrossWorkspaceModal] = useState({
 		open: false,
 		taskId: "",
@@ -80,6 +87,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			const response = await TaskServiceClient.getTaskHistory(
 				GetTaskHistoryRequest.create({
 					favoritesOnly: showFavoritesOnly,
+					currentWorkspaceOnly: showCurrentWorkspaceOnly,
 					searchQuery: searchQuery || undefined,
 					sortBy: sortOption,
 					filterByWorkspaceId: selectedWorkspaceId ?? undefined,
@@ -89,7 +97,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		} catch (error) {
 			console.error("Error loading task history:", error)
 		}
-	}, [showFavoritesOnly, selectedWorkspaceId, searchQuery, sortOption])
+	}, [showFavoritesOnly, showCurrentWorkspaceOnly, selectedWorkspaceId, searchQuery, sortOption])
 
 	// Load when filters change
 	useEffect(() => {
@@ -455,7 +463,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 										filterByWorkspaceId: selectedWorkspaceId ?? undefined,
 									})}
 									onFilterChange={loadTaskHistory}
-									onWorkspaceChange={setSelectedWorkspaceId}
+									onWorkspaceChange={handleWorkspaceChange}
 									selectedWorkspaceId={selectedWorkspaceId}
 								/>
 								<CustomFilterRadio
