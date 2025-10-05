@@ -83,7 +83,19 @@ const WorkspaceFilterDropdown = ({
 	}, [searchableItems])
 
 	const workspaceSearchResults = useMemo(() => {
-		return searchTerm ? highlight(fuse.search(searchTerm), "workspace-filter-item-highlight") : searchableItems
+		if (!searchTerm) {
+			return searchableItems
+		}
+
+		const fuseResults = fuse.search(searchTerm)
+
+		// If no results, return empty array so dropdown shows "no results" state
+		if (fuseResults.length === 0) {
+			return []
+		}
+
+		// Highlight matching text in results
+		return highlight(fuseResults, "workspace-filter-item-highlight")
 	}, [searchableItems, searchTerm, fuse])
 
 	const currentDisplayName = useMemo(() => {
@@ -210,36 +222,42 @@ const WorkspaceFilterDropdown = ({
 						/>
 					)}
 				</VSCodeTextField>
-				{isDropdownVisible && workspaceSearchResults.length > 0 && (
+				{isDropdownVisible && (
 					<DropdownList ref={dropdownListRef}>
-						{workspaceSearchResults.map((item, index) => (
-							<DropdownItem
-								isSelected={index === selectedIndex}
-								key={`${item.id}-${item.name}`}
-								onClick={() => handleWorkspaceSelect(item.id)}
-								onMouseEnter={() => setSelectedIndex(index)}
-								ref={(el) => (itemRefs.current[index] = el)}>
-								<div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-									<span
-										className={`codicon ${item.isSpecial ? "codicon-globe" : "codicon-folder"}`}
-										style={{ fontSize: "14px", opacity: 0.8 }}
-									/>
-									<span dangerouslySetInnerHTML={{ __html: item.html }} />
-								</div>
-								{!item.isSpecial && item.path && (
-									<div
-										style={{
-											fontSize: "11px",
-											opacity: 0.6,
-											marginTop: "2px",
-											marginLeft: "20px",
-											wordBreak: "break-all",
-										}}>
-										{item.path}
-									</div>
-								)}
+						{workspaceSearchResults.length === 0 && searchTerm ? (
+							<DropdownItem isSelected={false}>
+								<div style={{ opacity: 0.6, fontStyle: "italic" }}>No matching workspaces found</div>
 							</DropdownItem>
-						))}
+						) : (
+							workspaceSearchResults.map((item, index) => (
+								<DropdownItem
+									isSelected={index === selectedIndex}
+									key={`${item.id}-${item.name}`}
+									onClick={() => handleWorkspaceSelect(item.id)}
+									onMouseEnter={() => setSelectedIndex(index)}
+									ref={(el) => (itemRefs.current[index] = el)}>
+									<div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+										<span
+											className={`codicon ${item.isSpecial ? "codicon-globe" : "codicon-folder"}`}
+											style={{ fontSize: "14px", opacity: 0.8 }}
+										/>
+										<span dangerouslySetInnerHTML={{ __html: item.html }} />
+									</div>
+									{!item.isSpecial && item.path && (
+										<div
+											style={{
+												fontSize: "11px",
+												opacity: 0.6,
+												marginTop: "2px",
+												marginLeft: "20px",
+												wordBreak: "break-all",
+											}}>
+											{item.path}
+										</div>
+									)}
+								</DropdownItem>
+							))
+						)}
 					</DropdownList>
 				)}
 			</DropdownWrapper>

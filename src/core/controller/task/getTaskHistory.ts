@@ -36,8 +36,20 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 				return item.workspaceIds.some((wsPath) => arePathsEqual(wsPath, filterByWorkspaceId))
 			})
 		} else {
-			// Show all workspaces - read from global aggregated history
-			taskHistory = await readTaskHistoryFromState()
+			// Show all workspaces - merge global aggregated history with current workspace
+			const globalTasks = await readTaskHistoryFromState()
+			const currentWorkspaceTasks = controller.stateManager.getWorkspaceStateKey("taskHistory") || []
+
+			// Merge and deduplicate by task ID
+			const taskMap = new Map<string, any>()
+
+			// Add global tasks first
+			globalTasks.forEach((task) => taskMap.set(task.id, task))
+
+			// Add/update with current workspace tasks (they may be more recent)
+			currentWorkspaceTasks.forEach((task) => taskMap.set(task.id, task))
+
+			taskHistory = Array.from(taskMap.values())
 		}
 
 		// Apply filters
@@ -53,28 +65,8 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 				return false
 			}
 
-			// Apply current workspace filter if requested
-			if (currentWorkspaceOnly) {
-				let isInWorkspace = false
-
-				// First check the cwdOnTaskInitialization property - Only present on tasks from this change forward
-				if (item.cwdOnTaskInitialization) {
-					if (arePathsEqual(item.cwdOnTaskInitialization, workspacePath)) {
-						isInWorkspace = true
-					}
-				}
-
-				// For tasks without cwdOnTaskInitialization, check the older shadowGitConfigWorkTree property
-				if (!isInWorkspace && item.shadowGitConfigWorkTree) {
-					if (arePathsEqual(item.shadowGitConfigWorkTree, workspacePath)) {
-						isInWorkspace = true
-					}
-				}
-
-				if (!isInWorkspace) {
-					return false
-				}
-			}
+			// Note: currentWorkspaceOnly filtering is already handled in the initial fetch logic above
+			// No need for redundant filtering here
 
 			return true
 		})
