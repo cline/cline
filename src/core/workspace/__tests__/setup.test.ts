@@ -98,7 +98,7 @@ describe("setupWorkspaceManager", () => {
 		const stateManager = makeStateManager({ multiRootEnabled: true })
 		const detectRoots = sandbox.stub().resolves(defaultRoots)
 
-		// Stub featureFlagsService to return true for multi-root
+		// Stub featureFlagsService to return true for multi-root (both feature flag and user setting)
 		sandbox.stub(featureFlags, "featureFlagsService").value({
 			getMultiRootEnabled: () => true,
 		})
@@ -168,7 +168,7 @@ describe("setupWorkspaceManager", () => {
 		const stateManager = makeStateManager({ multiRootEnabled: true })
 		const detectRoots = sandbox.stub().rejects(new Error("boom"))
 
-		// Stub featureFlagsService to return true for multi-root
+		// Stub featureFlagsService to return true for multi-root (both feature flag and user setting)
 		sandbox.stub(featureFlags, "featureFlagsService").value({
 			getMultiRootEnabled: () => true,
 		})
