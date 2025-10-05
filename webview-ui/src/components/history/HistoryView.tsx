@@ -1,5 +1,5 @@
 import { BooleanRequest, EmptyRequest, StringArrayRequest, StringRequest } from "@shared/proto/cline/common"
-import { GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/cline/task"
+import { AssociateTaskWithWorkspaceRequest, GetTaskHistoryRequest, TaskFavoriteRequest } from "@shared/proto/cline/task"
 import { VSCodeButton, VSCodeCheckbox, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse, { FuseResult } from "fuse.js"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
@@ -8,6 +8,9 @@ import DangerButton from "@/components/common/DangerButton"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { formatLargeNumber, formatSize } from "@/utils/format"
+import CrossWorkspaceWarningModal from "./CrossWorkspaceWarningModal"
+import WorkspaceBadge from "./WorkspaceBadge"
+import WorkspaceFilterDropdown from "./WorkspaceFilterDropdown"
 
 type HistoryViewProps = {
 	onDone: () => void
@@ -61,6 +64,16 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	// Load filtered task history with gRPC
 	const [tasks, setTasks] = useState<any[]>([])
 
+	// Workspace filter and modal state
+	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null)
+	const [knownWorkspaces, setKnownWorkspaces] = useState<any[]>([])
+	const [crossWorkspaceModal, setCrossWorkspaceModal] = useState({
+		open: false,
+		taskId: "",
+		taskName: "",
+		workspaceName: "",
+	})
+
 	// Load and refresh task history
 	const loadTaskHistory = useCallback(async () => {
 		try {
@@ -69,24 +82,19 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					favoritesOnly: showFavoritesOnly,
 					searchQuery: searchQuery || undefined,
 					sortBy: sortOption,
-					currentWorkspaceOnly: showCurrentWorkspaceOnly,
+					filterByWorkspaceId: selectedWorkspaceId ?? undefined,
 				}),
 			)
 			setTasks(response.tasks || [])
 		} catch (error) {
 			console.error("Error loading task history:", error)
 		}
-	}, [showFavoritesOnly, showCurrentWorkspaceOnly, searchQuery, sortOption, taskHistory])
+	}, [showFavoritesOnly, selectedWorkspaceId, searchQuery, sortOption])
 
 	// Load when filters change
 	useEffect(() => {
-		// Force a complete refresh when both filters are active
-		// to ensure proper combined filtering
-		if (showFavoritesOnly && showCurrentWorkspaceOnly) {
-			setTasks([])
-		}
 		loadTaskHistory()
-	}, [loadTaskHistory, showFavoritesOnly, showCurrentWorkspaceOnly])
+	}, [loadTaskHistory])
 
 	const toggleFavorite = useCallback(
 		async (taskId: string, currentValue: boolean) => {
@@ -152,6 +160,19 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		fetchTotalTasksSize()
 	}, [fetchTotalTasksSize])
 
+	// Load known workspaces on mount
+	useEffect(() => {
+		const loadWorkspaces = async () => {
+			try {
+				const response = await TaskServiceClient.getKnownWorkspaces(EmptyRequest.create({}))
+				setKnownWorkspaces(response.workspaces || [])
+			} catch (error) {
+				console.error("Error loading workspaces:", error)
+			}
+		}
+		loadWorkspaces()
+	}, [])
+
 	useEffect(() => {
 		if (searchQuery && sortOption !== "mostRelevant" && !lastNonRelevantSort) {
 			setLastNonRelevantSort(sortOption)
@@ -162,11 +183,45 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 		}
 	}, [searchQuery, sortOption, lastNonRelevantSort])
 
-	const handleShowTaskWithId = useCallback((id: string) => {
-		TaskServiceClient.showTaskWithId(StringRequest.create({ value: id })).catch((error) =>
-			console.error("Error showing task:", error),
-		)
-	}, [])
+	const handleShowTaskWithId = useCallback(
+		async (id: string) => {
+			try {
+				const response = await TaskServiceClient.showTaskWithId(StringRequest.create({ value: id }))
+				if (response.isCrossWorkspace) {
+					const task = tasks.find((t) => t.id === id)
+					setCrossWorkspaceModal({
+						open: true,
+						taskId: response.id,
+						taskName: response.task,
+						workspaceName: task?.workspaceName || "Unknown Workspace",
+					})
+				}
+			} catch (error) {
+				console.error("Error showing task:", error)
+			}
+		},
+		[tasks],
+	)
+
+	const handleModalConfirm = useCallback(async () => {
+		try {
+			const currentWorkspacePath = extensionStateContext.workspaceRoots[extensionStateContext.primaryRootIndex].path
+			await TaskServiceClient.associateTaskWithWorkspace(
+				AssociateTaskWithWorkspaceRequest.create({
+					taskId: crossWorkspaceModal.taskId,
+					workspacePath: currentWorkspacePath,
+				}),
+			)
+			setCrossWorkspaceModal({ ...crossWorkspaceModal, open: false })
+			await TaskServiceClient.showTaskWithId(StringRequest.create({ value: crossWorkspaceModal.taskId }))
+		} catch (error) {
+			console.error("Error associating task with workspace:", error)
+		}
+	}, [crossWorkspaceModal, extensionStateContext.workspaceRoots, extensionStateContext.primaryRootIndex])
+
+	const handleModalCancel = useCallback(() => {
+		setCrossWorkspaceModal({ ...crossWorkspaceModal, open: false })
+	}, [crossWorkspaceModal])
 
 	const handleHistorySelect = useCallback((itemId: string, checked: boolean) => {
 		setSelectedItems((prev) => {
@@ -277,6 +332,15 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	return (
 		<>
+			<CrossWorkspaceWarningModal
+				currentWorkspacePath={extensionStateContext.workspaceRoots[extensionStateContext.primaryRootIndex]?.path || ""}
+				onCancel={handleModalCancel}
+				onContinue={handleModalConfirm}
+				open={crossWorkspaceModal.open}
+				originalWorkspaceName={crossWorkspaceModal.workspaceName}
+				taskId={crossWorkspaceModal.taskId}
+				taskName={crossWorkspaceModal.taskName}
+			/>
 			<style>
 				{`
 					.history-item:hover {
@@ -366,30 +430,42 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 								/>
 							)}
 						</VSCodeTextField>
-						<VSCodeRadioGroup
-							onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}
-							style={{ display: "flex", flexWrap: "wrap" }}
-							value={sortOption}>
-							<VSCodeRadio value="newest">Newest</VSCodeRadio>
-							<VSCodeRadio value="oldest">Oldest</VSCodeRadio>
-							<VSCodeRadio value="mostExpensive">Most Expensive</VSCodeRadio>
-							<VSCodeRadio value="mostTokens">Most Tokens</VSCodeRadio>
-							<VSCodeRadio disabled={!searchQuery} style={{ opacity: searchQuery ? 1 : 0.5 }} value="mostRelevant">
-								Most Relevant
-							</VSCodeRadio>
-							<CustomFilterRadio
-								checked={showCurrentWorkspaceOnly}
-								icon="workspace"
-								label="Workspace"
-								onChange={() => setShowCurrentWorkspaceOnly(!showCurrentWorkspaceOnly)}
-							/>
-							<CustomFilterRadio
-								checked={showFavoritesOnly}
-								icon="star-full"
-								label="Favorites"
-								onChange={() => setShowFavoritesOnly(!showFavoritesOnly)}
-							/>
-						</VSCodeRadioGroup>
+						<div className="flex flex-wrap items-center gap-x-4">
+							<VSCodeRadioGroup
+								onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}
+								style={{ display: "flex", flexWrap: "wrap" }}
+								value={sortOption}>
+								<VSCodeRadio value="newest">Newest</VSCodeRadio>
+								<VSCodeRadio value="oldest">Oldest</VSCodeRadio>
+								<VSCodeRadio value="mostExpensive">Most Expensive</VSCodeRadio>
+								<VSCodeRadio value="mostTokens">Most Tokens</VSCodeRadio>
+								<VSCodeRadio
+									disabled={!searchQuery}
+									style={{ opacity: searchQuery ? 1 : 0.5 }}
+									value="mostRelevant">
+									Most Relevant
+								</VSCodeRadio>
+							</VSCodeRadioGroup>
+							<div className="flex items-center gap-x-4">
+								<WorkspaceFilterDropdown
+									currentFilters={GetTaskHistoryRequest.create({
+										favoritesOnly: showFavoritesOnly,
+										searchQuery: searchQuery || undefined,
+										sortBy: sortOption,
+										filterByWorkspaceId: selectedWorkspaceId ?? undefined,
+									})}
+									onFilterChange={loadTaskHistory}
+									onWorkspaceChange={setSelectedWorkspaceId}
+									selectedWorkspaceId={selectedWorkspaceId}
+								/>
+								<CustomFilterRadio
+									checked={showFavoritesOnly}
+									icon="star-full"
+									label="Favorites"
+									onChange={() => setShowFavoritesOnly(!showFavoritesOnly)}
+								/>
+							</div>
+						</div>
 
 						<div className="flex justify-end gap-2.5">
 							<VSCodeButton onClick={() => handleBatchHistorySelect(true)}>Select All</VSCodeButton>
@@ -436,15 +512,18 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 											justifyContent: "space-between",
 											alignItems: "center",
 										}}>
-										<span
-											style={{
-												color: "var(--vscode-descriptionForeground)",
-												fontWeight: 500,
-												fontSize: "0.85em",
-												textTransform: "uppercase",
-											}}>
-											{formatDate(item.ts)}
-										</span>
+										<div className="flex items-center gap-2">
+											<span
+												style={{
+													color: "var(--vscode-descriptionForeground)",
+													fontWeight: 500,
+													fontSize: "0.85em",
+													textTransform: "uppercase",
+												}}>
+												{formatDate(item.ts)}
+											</span>
+											<WorkspaceBadge workspaceIds={item.workspaceIds} workspaceName={item.workspaceName} />
+										</div>
 										<div style={{ display: "flex", gap: "4px" }}>
 											{/* only show delete button if task not favorited */}
 											{!(pendingFavoriteToggles[item.id] ?? item.isFavorited) && (

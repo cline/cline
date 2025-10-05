@@ -12,7 +12,7 @@ import { ensureRulesDirectoryExists, readTaskHistoryFromState, writeTaskHistoryT
 import { StateManager } from "./StateManager"
 
 const MIGRATION_VERSION_KEY = "taskHistoryMigrationVersion"
-const CURRENT_MIGRATION_VERSION = 1
+const CURRENT_MIGRATION_VERSION = 2
 
 /**
  * Validate that task history data is well-formed
@@ -118,6 +118,10 @@ async function performPreMigrationCheck(context: ExtensionContext): Promise<{
  */
 export async function migrateTaskHistoryToWorkspaceState(context: ExtensionContext): Promise<void> {
 	const migrationVersion = context.globalState.get<number>(MIGRATION_VERSION_KEY, 0)
+
+	if (migrationVersion < 2) {
+		await populateWorkspaceIds()
+	}
 
 	if (migrationVersion >= CURRENT_MIGRATION_VERSION) {
 		// Already migrated
