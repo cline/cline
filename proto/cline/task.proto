@@ -59,9 +59,9 @@ service TaskService {
   rpc executeQuickWin(ExecuteQuickWinRequest) returns (Empty);
   // Deletes all task history
   rpc deleteAllTaskHistory(EmptyRequest) returns (DeleteAllTaskHistoryCount);
-  // Gets list of known workspaces
+  // Get list of known workspaces sorted by most recently opened
   rpc getKnownWorkspaces(EmptyRequest) returns (WorkspaceListResponse);
-  // Associates a task with a workspace
+  // Associate a task with the current workspace
   rpc associateTaskWithWorkspace(AssociateTaskWithWorkspaceRequest) returns (Empty);
 }
 

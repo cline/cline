@@ -8,7 +8,6 @@ export type HistoryItem = {
 	cacheWrites?: number
 	cacheReads?: number
 	totalCost: number
-
 	size?: number
 	shadowGitConfigWorkTree?: string
 	cwdOnTaskInitialization?: string

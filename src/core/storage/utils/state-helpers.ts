@@ -567,6 +567,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			// Feature flag - defaults to false
 			// For now, always return false to disable multi-root support by default
 			multiRootEnabled: !!multiRootEnabled,
+			// Workspace metadata for multi-workspace task support
+			workspaceMetadata: undefined,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)
