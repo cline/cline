@@ -1,4 +1,4 @@
-import { ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
+import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
@@ -238,6 +238,9 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["mcpMarketplaceCatalog"]>("mcpMarketplaceCatalog")
 		const lastDismissedInfoBannerVersion =
 			context.globalState.get<GlobalStateAndSettings["lastDismissedInfoBannerVersion"]>("lastDismissedInfoBannerVersion")
+		const lastDismissedModelBannerVersion = context.globalState.get<
+			GlobalStateAndSettings["lastDismissedModelBannerVersion"]
+		>("lastDismissedModelBannerVersion")
 		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
 		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
 		const autoCondenseThreshold =
@@ -396,13 +399,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		if (planActSeparateModelsSettingRaw === true || planActSeparateModelsSettingRaw === false) {
 			planActSeparateModelsSetting = planActSeparateModelsSettingRaw
 		} else {
-			// default to true for existing users
-			if (planModeApiProvider) {
-				planActSeparateModelsSetting = true
-			} else {
-				// default to false for new users
-				planActSeparateModelsSetting = false
-			}
+			// default to false
+			planActSeparateModelsSetting = false
 		}
 
 		const taskHistory = await readTaskHistoryFromState()
@@ -461,7 +459,9 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
-			planModeThinkingBudgetTokens,
+			// undefined means it was never modified, 0 means it was turned off
+			// (having this on by default ensures that <thinking> text does not pollute the user's chat and is instead rendered as reasoning)
+			planModeThinkingBudgetTokens: planModeThinkingBudgetTokens ?? ANTHROPIC_MIN_THINKING_BUDGET,
 			planModeReasoningEffort,
 			planModeVsCodeLmModelSelector,
 			planModeAwsBedrockCustomSelected,
@@ -495,7 +495,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
-			actModeThinkingBudgetTokens,
+			actModeThinkingBudgetTokens: actModeThinkingBudgetTokens ?? ANTHROPIC_MIN_THINKING_BUDGET,
 			actModeReasoningEffort,
 			actModeVsCodeLmModelSelector,
 			actModeAwsBedrockCustomSelected,
@@ -560,6 +560,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			customPrompt,
 			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
+			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			// Multi-root workspace support
 			workspaceRoots,
 			primaryRootIndex: primaryRootIndex ?? 0,

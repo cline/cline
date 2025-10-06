@@ -41,6 +41,7 @@ export interface GlobalState {
 	primaryRootIndex: number
 	multiRootEnabled: boolean
 	lastDismissedInfoBannerVersion: number
+	lastDismissedModelBannerVersion: number
 }
 
 export interface Settings {

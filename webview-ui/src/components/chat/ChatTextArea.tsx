@@ -786,7 +786,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					setSearchQuery(query)
 					currentSearchQueryRef.current = query
 
-					if (query.length > 0 && !selectedType) {
+					if (query.length > 0) {
 						setSelectedMenuIndex(0)
 
 						// Clear any existing timeout
@@ -796,13 +796,20 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 						setSearchLoading(true)
 
+						const searchType =
+							selectedType === ContextMenuOptionType.File
+								? FileSearchType.FILE
+								: selectedType === ContextMenuOptionType.Folder
+									? FileSearchType.FOLDER
+									: undefined
+
 						// Set a timeout to debounce the search requests
 						searchTimeoutRef.current = setTimeout(() => {
 							FileServiceClient.searchFiles(
 								FileSearchRequest.create({
 									query: query,
 									mentionsRequestId: query,
-									selectedType: undefined, // No type filter for general search
+									selectedType: searchType,
 								}),
 							)
 								.then((results) => {

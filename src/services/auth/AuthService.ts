@@ -72,7 +72,8 @@ export class AuthService {
 	 */
 	protected constructor(controller: Controller) {
 		// Default to firebase for now
-		this._setProvider("firebase")
+		const providerName = featureFlagsService.getWorkOsAuthEnabled() ? "cline" : "firebase"
+		this._setProvider(providerName)
 		this._controller = controller
 	}
 
@@ -120,7 +121,7 @@ export class AuthService {
 	 */
 	async getAuthToken(): Promise<string | null> {
 		try {
-			const clineAccountAuthToken = this._clineAuthInfo?.idToken
+			let clineAccountAuthToken = this._clineAuthInfo?.idToken
 			if (!this._clineAuthInfo || !clineAccountAuthToken) {
 				// Not authenticated
 				return null
@@ -133,12 +134,14 @@ export class AuthService {
 				if (updatedAuthInfo) {
 					this._clineAuthInfo = updatedAuthInfo
 					this._authenticated = true
+					clineAccountAuthToken = updatedAuthInfo.idToken
 				} else {
 					this._clineAuthInfo = null
 					this._authenticated = false
 				}
 				await this.sendAuthStatusUpdate()
 			}
+
 			// IMPORTANT: Prefix with 'workos:' so backend can route verification to WorkOS provider
 			const prefix = this._provider?.name === "cline" ? "workos:" : ""
 			return clineAccountAuthToken ? `${prefix}${clineAccountAuthToken}` : null
@@ -191,7 +194,9 @@ export class AuthService {
 		}
 
 		if (!this._provider) {
-			return String.create({ value: "Authentication provider is not configured" })
+			return String.create({
+				value: "Authentication provider is not configured",
+			})
 		}
 
 		const callbackHost = await HostProvider.get().getCallbackUrl()
