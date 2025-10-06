@@ -47,6 +47,7 @@ export class TelemetryProviderFactory {
 	 * @param config Configuration for the telemetry provider
 	 * @returns ITelemetryProvider instance
 	 * @deprecated Use createProviders() for multi-provider support
+	 * @deprecated Use createProviders() for multi-provider support
 	 */
 	private static async createProvider(config: TelemetryProviderConfig): Promise<ITelemetryProvider> {
 		switch (config.type) {
@@ -74,6 +75,7 @@ export class TelemetryProviderFactory {
 
 	/**
 	 * Gets the default telemetry provider configuration
+	 * @returns Default configuration using available providers
 	 * @returns Default configuration using available providers
 	 */
 	public static getDefaultConfigs(): TelemetryProviderConfig[] {

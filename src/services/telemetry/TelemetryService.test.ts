@@ -2,6 +2,9 @@
  * Tests for the abstracted multi-provider telemetry system
  * This demonstrates the multi-provider architecture that supports dual tracking,
  * validates provider switching capabilities, and ensures NoOpTelemetryProvider functionality
+ * Tests for the abstracted multi-provider telemetry system
+ * This demonstrates the multi-provider architecture that supports dual tracking,
+ * validates provider switching capabilities, and ensures NoOpTelemetryProvider functionality
  */
 
 import * as assert from "assert"
