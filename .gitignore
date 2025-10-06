@@ -35,6 +35,3 @@ webview-ui/src/services/grpc-client.ts
 
 # E2E Tests
 test-results
-
-## CLI pre-release  ##
-/cli
