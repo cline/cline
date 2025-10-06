@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package cline;
 import "cline/common.proto";
+option go_package = "github.com/cline/grpc-go/cline";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 
@@ -50,7 +51,7 @@ service FileService {
   rpc refreshRules(EmptyRequest) returns (RefreshedRules);
 
   // Opens a task's conversation history file on disk
-  rpc openTaskHistory(StringRequest) returns (Empty);
+  rpc openDiskConversationHistory(StringRequest) returns (Empty);
   
   // Toggles a workflow on or off
   rpc toggleWorkflow(ToggleWorkflowRequest) returns (ClineRulesToggles);

@@ -2,6 +2,7 @@ syntax = "proto3";
 package cline;
 import "cline/common.proto";
 import "cline/models.proto";
+option go_package = "github.com/cline/grpc-go/cline";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 
@@ -18,8 +19,15 @@ service StateService {
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
+  rpc updateInfoBannerVersion(Int64Request) returns (Empty);
+  rpc updateModelBannerVersion(Int64Request) returns (Empty);
+  rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
 }
-
+message DictationSettings {
+  bool feature_enabled = 1;
+  bool dictation_enabled = 2;
+  string dictation_language = 3;
+}
 message State {
   string state_json = 1;
 }
@@ -140,6 +148,9 @@ message UpdateSettingsRequest {
   optional BrowserSettingsUpdate browser_settings = 20;
   optional string default_terminal_profile = 21;
   optional bool yolo_mode_toggled = 22;
+  optional DictationSettings dictation_settings = 23;
+  optional int32 auto_condense_threshold = 24;
+  optional bool multi_root_enabled = 25;
 }
 
 // Complete API Configuration message
@@ -293,4 +304,11 @@ message Viewport {
 
 message UpdateTerminalConnectionTimeoutResponse {
   optional int32 timeout_ms = 1;
+}
+
+
+message ProcessInfo {
+  int32 process_id = 1;
+  optional string version = 2;
+  optional int64 uptime_ms = 3;
 }

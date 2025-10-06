@@ -14,68 +14,84 @@ import { DelegatingSecretStore, EnvironmentVariableCollection, MementoStore, rea
 
 log("Running standalone cline", ExtensionRegistryInfo.version)
 log(`CLINE_ENVIRONMENT: ${process.env.CLINE_ENVIRONMENT}`)
+// WE WILL HAVE TO MIGRATE THIS FROM DATA TO v1 LATER
+const SETTINGS_SUBFOLDER = "data"
 
-export const CLINE_DIR = process.env.CLINE_DIR || `${os.homedir()}/.cline`
-export const DATA_DIR = path.join(CLINE_DIR, "data")
-const INSTALL_DIR = process.env.INSTALL_DIR || __dirname
-const SECRETS_FILE = path.join(DATA_DIR, "secrets.json")
-const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || path.join(DATA_DIR, "workspace")
-
-mkdirSync(DATA_DIR, { recursive: true })
-mkdirSync(WORKSPACE_STORAGE_DIR, { recursive: true })
-log("Using settings dir:", DATA_DIR)
-
-// If OS keychain deps are missing, we populate a warning to show non-blocking in the host
+// Module-level vars used by migration/helpers
 let STANDALONE_DEPS_WARNING: string | undefined
+let SECRETS_FILE: string
+let standaloneBackend: SecretStores | null = null
 
-// Initialize the unified secret storage backend for standalone
-const standaloneBackend = selectStandaloneSecrets(DATA_DIR)
-secretStorage.init(standaloneBackend)
+export function initializeContext(clineDir?: string) {
+	const CLINE_DIR = clineDir || process.env.CLINE_DIR || `${os.homedir()}/.cline`
+	const DATA_DIR = path.join(CLINE_DIR, SETTINGS_SUBFOLDER)
+	const INSTALL_DIR = process.env.INSTALL_DIR || __dirname
+	const WORKSPACE_STORAGE_DIR = process.env.WORKSPACE_STORAGE_DIR || path.join(DATA_DIR, "workspace")
 
-export const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
-const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
+	mkdirSync(DATA_DIR, { recursive: true })
+	mkdirSync(WORKSPACE_STORAGE_DIR, { recursive: true })
+	log("Using settings dir:", DATA_DIR)
 
-const extension: Extension<void> = {
-	id: ExtensionRegistryInfo.id,
-	isActive: true,
-	extensionPath: EXTENSION_DIR,
-	extensionUri: URI.file(EXTENSION_DIR),
-	packageJSON: readJson(path.join(EXTENSION_DIR, "package.json")),
-	exports: undefined, // There are no API exports in the standalone version.
-	activate: async () => {},
-	extensionKind: ExtensionKind.UI,
-}
+	// Initialize the unified secret storage backend for standalone
+	SECRETS_FILE = path.join(DATA_DIR, "secrets.json")
+	standaloneBackend = selectStandaloneSecrets(DATA_DIR)
+	secretStorage.init(standaloneBackend)
 
-const extensionContext: ExtensionContext = {
-	extension: extension,
-	extensionMode: EXTENSION_MODE,
+	const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
+	const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
-	// Set up KV stores.
-	globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
-	// Note: core reads/writes secrets via the singleton; context.secrets remains for compatibility
-	secrets:
-		standaloneBackend instanceof CredentialStorage ? new DelegatingSecretStore(secretStorage) : new SecretStore(SECRETS_FILE),
+	const extension: Extension<void> = {
+		id: ExtensionRegistryInfo.id,
+		isActive: true,
+		extensionPath: EXTENSION_DIR,
+		extensionUri: URI.file(EXTENSION_DIR),
+		packageJSON: readJson(path.join(EXTENSION_DIR, "package.json")),
+		exports: undefined, // There are no API exports in the standalone version.
+		activate: async () => {},
+		extensionKind: ExtensionKind.UI,
+	}
 
-	// Set up URIs.
-	storageUri: URI.file(WORKSPACE_STORAGE_DIR),
-	storagePath: WORKSPACE_STORAGE_DIR, // Deprecated, not used in cline.
-	globalStorageUri: URI.file(DATA_DIR),
-	globalStoragePath: DATA_DIR, // Deprecated, not used in cline.
+	const extensionContext: ExtensionContext = {
+		extension: extension,
+		extensionMode: EXTENSION_MODE,
 
-	// Logs are global per extension, not per workspace.
-	logUri: URI.file(DATA_DIR),
-	logPath: DATA_DIR, // Deprecated, not used in cline.
+		// Set up KV stores.
+		globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
+		// Note: core reads/writes secrets via the singleton; context.secrets remains for compatibility
+		secrets:
+			standaloneBackend instanceof CredentialStorage
+				? new DelegatingSecretStore(secretStorage)
+				: new SecretStore(SECRETS_FILE),
 
-	extensionUri: URI.file(EXTENSION_DIR),
-	extensionPath: EXTENSION_DIR, // Deprecated, not used in cline.
-	asAbsolutePath: (relPath: string) => path.join(EXTENSION_DIR, relPath),
+		// Set up URIs.
+		storageUri: URI.file(WORKSPACE_STORAGE_DIR),
+		storagePath: WORKSPACE_STORAGE_DIR, // Deprecated, not used in cline.
+		globalStorageUri: URI.file(DATA_DIR),
+		globalStoragePath: DATA_DIR, // Deprecated, not used in cline.
 
-	subscriptions: [], // These need to be destroyed when the extension is deactivated.
+		// Logs are global per extension, not per workspace.
+		logUri: URI.file(DATA_DIR),
+		logPath: DATA_DIR, // Deprecated, not used in cline.
 
-	environmentVariableCollection: new EnvironmentVariableCollection(),
+		extensionUri: URI.file(EXTENSION_DIR),
+		extensionPath: EXTENSION_DIR, // Deprecated, not used in cline.
+		asAbsolutePath: (relPath: string) => path.join(EXTENSION_DIR, relPath),
 
-	// Workspace state is per project/workspace when WORKSPACE_STORAGE_DIR is provided by the host.
-	workspaceState: new MementoStore(path.join(WORKSPACE_STORAGE_DIR, "workspaceState.json")),
+		subscriptions: [], // These need to be destroyed when the extension is deactivated.
+
+		environmentVariableCollection: new EnvironmentVariableCollection(),
+
+		// Workspace state is per project/workspace when WORKSPACE_STORAGE_DIR is provided by the host.
+		workspaceState: new MementoStore(path.join(WORKSPACE_STORAGE_DIR, "workspaceState.json")),
+	}
+
+	log("Finished loading vscode context...")
+
+	return {
+		extensionContext,
+		DATA_DIR,
+		EXTENSION_DIR,
+	}
 }
 
 // Select the best standalone secret storage backend (OS keychain when available, else file)
@@ -203,10 +219,6 @@ export async function runLegacySecretsMigrationIfNeeded(): Promise<void> {
 		log(`Legacy secrets migration error: ${String(error)}`)
 	}
 }
-
-console.log("Finished loading vscode context...")
-
-export { extensionContext }
 
 // Expose any dependency warning to be shown by the host after initialization
 export function getStandaloneDepsWarning(): string | undefined {

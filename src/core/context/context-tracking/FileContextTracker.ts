@@ -90,7 +90,7 @@ export class FileContextTracker {
 			}
 
 			// Add file to metadata
-			await this.addFileToFileContextTracker(this.controller.context, this.taskId, filePath, operation)
+			await this.addFileToFileContextTracker(this.taskId, filePath, operation)
 
 			// Set up file watcher for this file
 			await this.setupFileWatcher(filePath)
@@ -104,14 +104,9 @@ export class FileContextTracker {
 	 * This handles the business logic of determining if the file is new, stale, or active.
 	 * It also updates the metadata with the latest read/edit dates.
 	 */
-	async addFileToFileContextTracker(
-		context: vscode.ExtensionContext,
-		taskId: string,
-		filePath: string,
-		source: FileMetadataEntry["record_source"],
-	) {
+	async addFileToFileContextTracker(taskId: string, filePath: string, source: FileMetadataEntry["record_source"]) {
 		try {
-			const metadata = await getTaskMetadata(context, taskId)
+			const metadata = await getTaskMetadata(taskId)
 			const now = Date.now()
 
 			// Mark existing entries for this file as stale
@@ -160,7 +155,7 @@ export class FileContextTracker {
 			}
 
 			metadata.files_in_context.push(newEntry)
-			await saveTaskMetadata(context, taskId, metadata)
+			await saveTaskMetadata(taskId, metadata)
 		} catch (error) {
 			console.error("Failed to add file to metadata:", error)
 		}
@@ -200,7 +195,7 @@ export class FileContextTracker {
 
 		try {
 			// Check task metadata for files that were edited by Cline or users after the message timestamp
-			const taskMetadata = await getTaskMetadata(this.controller.context, this.taskId)
+			const taskMetadata = await getTaskMetadata(this.taskId)
 
 			if (taskMetadata?.files_in_context) {
 				for (const fileEntry of taskMetadata.files_in_context) {
@@ -285,7 +280,7 @@ export class FileContextTracker {
 	static async cleanupOrphanedWarnings(context: vscode.ExtensionContext): Promise<void> {
 		const startTime = Date.now()
 		try {
-			const taskHistory = await readTaskHistoryFromState(context)
+			const taskHistory = await readTaskHistoryFromState()
 			const existingTaskIds = new Set(taskHistory.map((task) => task.id))
 			const allStateKeys = context.workspaceState.keys()
 			const pendingWarningKeys = allStateKeys.filter((key) => key.startsWith("pendingFileContextWarning_"))

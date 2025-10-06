@@ -117,7 +117,7 @@ export class ClineDataMock {
 	public getUserByToken(token?: string): UserResponse {
 		// Use default personal token if none provided
 		const actualToken = token || ClineDataMock.getDefaultToken("personal") || "test-personal-token"
-		const currentUser = this._getUserByToken(actualToken)
+		const currentUser = this._getUserByToken(actualToken.replace("_access", "")) // Remove _access suffix if present
 		this.setCurrentUser(currentUser)
 		return currentUser
 	}
