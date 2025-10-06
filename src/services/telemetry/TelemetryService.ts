@@ -88,6 +88,10 @@ export class TelemetryService {
 			OPT_OUT: "user.opt_out",
 			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
+			AUTH_STARTED: "user.auth_started",
+			AUTH_SUCCEEDED: "user.auth_succeeded",
+			AUTH_FAILED: "user.auth_failed",
+			AUTH_LOGGED_OUT: "user.auth_logged_out",
 		},
 		DICTATION: {
 			// Tracks when voice recording is started
@@ -291,6 +295,60 @@ export class TelemetryService {
 	public captureExtensionActivated() {
 		// Use provider's log method for the activation event
 		this.provider.log(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED)
+	}
+
+	/**
+	 * Records when authentication flow is started
+	 * @param provider The authentication provider being used
+	 */
+	public captureAuthStarted(provider?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.USER.AUTH_STARTED,
+			properties: {
+				provider,
+			},
+		})
+	}
+
+	/**
+	 * Records when authentication flow succeeds
+	 * @param provider The authentication provider that was used
+	 */
+	public captureAuthSucceeded(provider?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.USER.AUTH_SUCCEEDED,
+			properties: {
+				provider,
+			},
+		})
+	}
+
+	/**
+	 * Records when authentication flow fails
+	 * @param provider The authentication provider that was used
+	 */
+	public captureAuthFailed(provider?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.USER.AUTH_FAILED,
+			properties: {
+				provider,
+			},
+		})
+	}
+
+	/**
+	 * Records when user logs out of their account
+	 * @param provider The authentication provider that was used
+	 * @param reason The reason for logout (user action, cross-window sync, error, etc.)
+	 */
+	public captureAuthLoggedOut(provider?: string, reason?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.USER.AUTH_LOGGED_OUT,
+			properties: {
+				provider,
+				reason,
+			},
+		})
 	}
 
 	/**
