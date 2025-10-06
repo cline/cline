@@ -21,6 +21,27 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 		// Read from global task history (single source of truth)
 		const allTasks = await readTaskHistoryFromState()
 
+		// PHASE 1: Comprehensive Diagnostics
+		console.log("[TaskHistory] Loading task history", {
+			totalTasksInGlobalFile: allTasks.length,
+			currentWorkspaceOnly,
+			filterByWorkspaceId,
+			favoritesOnly,
+			workspacePath,
+		})
+
+		// Log data quality statistics
+		const dataQuality = {
+			totalTasks: allTasks.length,
+			tasksWithWorkspaceIds: allTasks.filter((t) => t.workspaceIds && t.workspaceIds.length > 0).length,
+			tasksWithoutWorkspaceIds: allTasks.filter((t) => !t.workspaceIds || t.workspaceIds.length === 0).length,
+			tasksWithCwdOnTaskInit: allTasks.filter((t) => t.cwdOnTaskInitialization).length,
+			tasksWithShadowGit: allTasks.filter((t) => t.shadowGitConfigWorkTree).length,
+			tasksMissingTs: allTasks.filter((t) => !t.ts || t.ts === 0).length,
+			tasksMissingTask: allTasks.filter((t) => !t.task || t.task === "").length,
+		}
+		console.log("[TaskHistory] Data quality statistics:", dataQuality)
+
 		if (currentWorkspaceOnly) {
 			// Only show current workspace tasks
 			taskHistory = allTasks.filter((item) => {
@@ -30,6 +51,10 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 				// Legacy tasks - check old fields
 				const taskWorkspacePath = item.cwdOnTaskInitialization || item.shadowGitConfigWorkTree
 				return taskWorkspacePath ? arePathsEqual(taskWorkspacePath, workspacePath) : false
+			})
+			console.log("[TaskHistory] After workspace filtering (currentWorkspaceOnly):", {
+				filteredCount: taskHistory.length,
+				workspacePath,
 			})
 		} else if (filterByWorkspaceId) {
 			// Filter by specific workspace ID
@@ -44,16 +69,34 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 				// Check if workspace is in task's workspaceIds
 				return item.workspaceIds.some((wsPath) => arePathsEqual(wsPath, filterByWorkspaceId))
 			})
+			console.log("[TaskHistory] After workspace filtering (filterByWorkspaceId):", {
+				filteredCount: taskHistory.length,
+				filterByWorkspaceId,
+			})
 		} else {
 			// Show all workspaces
 			taskHistory = allTasks
+			console.log("[TaskHistory] No workspace filtering (All Workspaces mode):", {
+				taskCount: taskHistory.length,
+			})
 		}
 
 		// Apply filters
 		let filteredTasks = taskHistory.filter((item) => {
-			// Basic filter: must have timestamp and task content
-			const hasRequiredFields = item.ts && item.task
-			if (!hasRequiredFields) {
+			// PHASE 2: Basic filter with comprehensive logging
+			// Check for required fields (lenient - only truly invalid data)
+			const hasValidTs = item.ts !== null && item.ts !== undefined && typeof item.ts === "number"
+			const hasValidTask =
+				item.task !== null && item.task !== undefined && typeof item.task === "string" && item.task.length > 0
+
+			if (!hasValidTs || !hasValidTask) {
+				console.warn("[TaskHistory] Task filtered out due to missing required fields:", {
+					id: item.id,
+					hasValidTs,
+					hasValidTask,
+					ts: item.ts,
+					taskPreview: item.task?.substring(0, 50),
+				})
 				return false
 			}
 
@@ -68,15 +111,31 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 			return true
 		})
 
+		console.log("[TaskHistory] After basic filter:", {
+			filteredCount: filteredTasks.length,
+			removedByBasicFilter: taskHistory.length - filteredTasks.length,
+		})
+
 		// Apply search if provided
 		if (searchQuery) {
 			// Simple search implementation
 			const query = searchQuery.toLowerCase()
+			const beforeSearchCount = filteredTasks.length
 			filteredTasks = filteredTasks.filter((item) => item.task.toLowerCase().includes(query))
+			console.log("[TaskHistory] After search filter:", {
+				searchQuery,
+				beforeCount: beforeSearchCount,
+				afterCount: filteredTasks.length,
+			})
 		}
 
 		// Calculate total count before sorting
 		const totalCount = filteredTasks.length
+
+		console.log("[TaskHistory] Final result:", {
+			totalCount,
+			sortBy: sortBy || "newest (default)",
+		})
 
 		// Apply sorting
 		if (sortBy) {

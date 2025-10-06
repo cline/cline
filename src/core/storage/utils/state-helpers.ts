@@ -137,7 +137,6 @@ export async function readWorkspaceStateFromDisk(context: ExtensionContext): Pro
 	const localWorkflowToggles = context.workspaceState.get("workflowToggles") as ClineRulesToggles | undefined
 
 	return {
-		taskHistory: [], // Initialize empty, will be populated from workspace state
 		localClineRulesToggles: localClineRulesToggles || {},
 		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 		localCursorRulesToggles: localCursorRulesToggles || {},
