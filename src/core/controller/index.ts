@@ -860,7 +860,12 @@ export class Controller {
 		const history = await readTaskHistoryFromState()
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
-			history[existingItemIndex] = item
+			// Merge new data with existing to preserve fields like workspaceIds
+			// This prevents data loss when partial updates are made
+			history[existingItemIndex] = {
+				...history[existingItemIndex], // Keep existing fields
+				...item, // Overwrite with new data
+			}
 		} else {
 			history.push(item)
 		}
