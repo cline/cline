@@ -63,22 +63,54 @@ export interface OpenTelemetryClientValidConfig extends OpenTelemetryClientConfi
 const isTestEnv = process.env.E2E_TEST === "true" || process.env.IS_TEST === "true"
 
 /**
- * OpenTelemetry configuration based on standard OTEL environment variables.
- * Supports multiple exporters and protocols for flexible telemetry collection.
+ * Cached OpenTelemetry configuration.
+ * Lazily initialized on first access to avoid race conditions with environment variable loading.
  */
-const otelConfig: OpenTelemetryClientConfig = {
-	enabled: process.env.OTEL_TELEMETRY_ENABLED === "1",
-	metricsExporter: process.env.OTEL_METRICS_EXPORTER,
-	logsExporter: process.env.OTEL_LOGS_EXPORTER,
-	otlpProtocol: process.env.OTEL_EXPORTER_OTLP_PROTOCOL,
-	otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
-	otlpMetricsProtocol: process.env.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL,
-	otlpMetricsEndpoint: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,
-	otlpLogsProtocol: process.env.OTEL_EXPORTER_OTLP_LOGS_PROTOCOL,
-	otlpLogsEndpoint: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
-	metricExportInterval: process.env.OTEL_METRIC_EXPORT_INTERVAL
-		? parseInt(process.env.OTEL_METRIC_EXPORT_INTERVAL, 10)
-		: undefined,
+let otelConfig: OpenTelemetryClientConfig | null = null
+
+/**
+ * Gets or creates the OpenTelemetry configuration from environment variables.
+ * Configuration is cached after first access for performance.
+ * 
+ * Configuration Sources:
+ * - **Production Build**: Environment variables injected by esbuild at build time
+ *   via .github/workflows/publish.yml
+ * - **Development**: Environment variables from .env file loaded by VSCode
+ * 
+ * Supported Environment Variables:
+ * - OTEL_TELEMETRY_ENABLED: "1" to enable OpenTelemetry (default: off)
+ * - OTEL_METRICS_EXPORTER: Comma-separated list: "console", "otlp", "prometheus"
+ * - OTEL_LOGS_EXPORTER: Comma-separated list: "console", "otlp"
+ * - OTEL_EXPORTER_OTLP_PROTOCOL: "grpc", "http/json", or "http/protobuf"
+ * - OTEL_EXPORTER_OTLP_ENDPOINT: OTLP collector endpoint (if not using specific endpoints)
+ * - OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: Metrics-specific protocol override
+ * - OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: Metrics-specific endpoint override
+ * - OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: Logs-specific protocol override
+ * - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: Logs-specific endpoint override
+ * - OTEL_METRIC_EXPORT_INTERVAL: Milliseconds between metric exports (default: 60000)
+ * 
+ * @private
+ * @see .env.example for development setup
+ * @see .github/workflows/publish.yml for production environment variable injection
+ */
+function getOtelConfig(): OpenTelemetryClientConfig {
+	if (!otelConfig) {
+		otelConfig = {
+			enabled: process.env.OTEL_TELEMETRY_ENABLED === "1",
+			metricsExporter: process.env.OTEL_METRICS_EXPORTER,
+			logsExporter: process.env.OTEL_LOGS_EXPORTER,
+			otlpProtocol: process.env.OTEL_EXPORTER_OTLP_PROTOCOL,
+			otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+			otlpMetricsProtocol: process.env.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL,
+			otlpMetricsEndpoint: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,
+			otlpLogsProtocol: process.env.OTEL_EXPORTER_OTLP_LOGS_PROTOCOL,
+			otlpLogsEndpoint: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
+			metricExportInterval: process.env.OTEL_METRIC_EXPORT_INTERVAL
+				? parseInt(process.env.OTEL_METRIC_EXPORT_INTERVAL, 10)
+				: undefined,
+		}
+	}
+	return otelConfig
 }
 
 export function isOpenTelemetryConfigValid(config: OpenTelemetryClientConfig): config is OpenTelemetryClientValidConfig {
@@ -96,6 +128,16 @@ export function isOpenTelemetryConfigValid(config: OpenTelemetryClientConfig): c
 	return !!(config.metricsExporter || config.logsExporter)
 }
 
+/**
+ * Gets validated OpenTelemetry configuration if available.
+ * Returns null if configuration is invalid or disabled.
+ * 
+ * Configuration does not change at runtime - requires VSCode reload to pick up new values.
+ * 
+ * @returns Valid OpenTelemetry configuration or null if disabled/invalid
+ * @see .env.example for configuration options
+ */
 export function getValidOpenTelemetryConfig(): OpenTelemetryClientValidConfig | null {
-	return isOpenTelemetryConfigValid(otelConfig) ? (otelConfig as OpenTelemetryClientValidConfig) : null
+	const config = getOtelConfig()
+	return isOpenTelemetryConfigValid(config) ? config : null
 }

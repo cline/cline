@@ -71,9 +71,10 @@ export class OpenTelemetryClientProvider {
 			switch (exporterType) {
 				case "console": {
 					const exporter = new ConsoleMetricExporter()
+					const interval = this.config!.metricExportInterval || 60000
 					const reader = new PeriodicExportingMetricReader({
 						exporter,
-						exportIntervalMillis: this.config!.metricExportInterval || 60000,
+						exportIntervalMillis: interval,
 					})
 					readers.push(reader)
 					break
@@ -81,9 +82,11 @@ export class OpenTelemetryClientProvider {
 				case "otlp": {
 					const exporter = this.createOTLPMetricExporter()
 					if (exporter) {
+						const interval = this.config!.metricExportInterval || 60000
 						const reader = new PeriodicExportingMetricReader({
 							exporter,
-							exportIntervalMillis: this.config!.metricExportInterval || 60000,
+							exportIntervalMillis: interval,
+							exportTimeoutMillis: 30000, // 30 second timeout
 						})
 						readers.push(reader)
 					}
@@ -91,13 +94,13 @@ export class OpenTelemetryClientProvider {
 				}
 				case "prometheus": {
 					const exporter = new PrometheusExporter({}, () => {
-						console.log("Prometheus scrape endpoint ready")
+						console.log("[OTEL DEBUG] Prometheus scrape endpoint ready")
 					})
 					readers.push(exporter)
 					break
 				}
 				default:
-					console.warn(`Unknown metrics exporter type: ${exporterType}`)
+					console.warn(`[OTEL DEBUG] Unknown metrics exporter type: ${exporterType}`)
 			}
 		}
 
@@ -146,20 +149,28 @@ export class OpenTelemetryClientProvider {
 		const endpoint = this.config!.otlpMetricsEndpoint || this.config!.otlpEndpoint
 
 		if (!endpoint) {
-			console.warn("OTLP metrics exporter requires an endpoint")
+			console.warn("[OTEL DEBUG] OTLP metrics exporter requires an endpoint")
 			return null
 		}
 
-		switch (protocol) {
-			case "grpc":
-				return new OTLPMetricExporterGRPC({ url: endpoint })
-			case "http/json":
-				return new OTLPMetricExporterHTTP({ url: endpoint })
-			case "http/protobuf":
-				return new OTLPMetricExporterProto({ url: endpoint })
-			default:
-				console.warn(`Unknown OTLP protocol: ${protocol}`)
-				return null
+		try {
+			switch (protocol) {
+				case "grpc":
+					// For gRPC, strip http:// or https:// prefix if present
+					// gRPC endpoints should be in format "localhost:4317" not "http://localhost:4317"
+					const grpcEndpoint = endpoint.replace(/^https?:\/\//, '')
+					return new OTLPMetricExporterGRPC({ url: grpcEndpoint })
+				case "http/json":
+					return new OTLPMetricExporterHTTP({ url: endpoint })
+				case "http/protobuf":
+					return new OTLPMetricExporterProto({ url: endpoint })
+				default:
+					console.warn(`[OTEL DEBUG] Unknown OTLP protocol: ${protocol}`)
+					return null
+			}
+		} catch (error) {
+			console.error("Error creating OTLP metrics exporter:", error)
+			return null
 		}
 	}
 
