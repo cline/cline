@@ -457,7 +457,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			difyBaseUrl,
 			sapAiCoreUseOrchestrationMode: sapAiCoreUseOrchestrationMode ?? true,
 			ocaBaseUrl,
-			ocaMode,
+			ocaMode: ocaMode || "internal",
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,

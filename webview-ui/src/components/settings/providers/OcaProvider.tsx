@@ -233,7 +233,7 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 	const { user: ocaUser, isAuthenticated, ready, login, logout } = useOcaAuth()
 
 	const ocaBaseUrl = apiConfiguration?.ocaBaseUrl || ""
-	const ocaMode = apiConfiguration?.ocaMode || "internal"
+	const ocaMode = apiConfiguration?.ocaMode
 
 	const handleToggleMode = (nextMode: "internal" | "external") => {
 		handleFieldChange("ocaMode", nextMode)
