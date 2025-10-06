@@ -3720,6 +3720,16 @@ export const minimaxModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 	},
+	"MiniMax-M2-mini": {
+		maxTokens: 12_288,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.7,
+		outputPrice: 1.3,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
 	"MiniMax-M1": {
 		maxTokens: 12_288,
 		contextWindow: 256_000,
