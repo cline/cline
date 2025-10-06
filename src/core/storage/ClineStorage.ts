@@ -1,6 +1,11 @@
-import { Disposable } from "vscode"
 import { Logger } from "@/services/logging/Logger"
 import { StorageEventListener } from "./utils/types"
+
+// Lightweight Disposable compatible with vscode.Disposable without importing vscode,
+// to keep this module host-agnostic (JetBrains/core runtimes don't have 'vscode').
+export interface Disposable {
+	dispose(): void
+}
 
 /**
  * An abstract storage class that provides a template for storage operations.

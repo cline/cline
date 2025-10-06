@@ -16,11 +16,8 @@ function hasCommand(cmd: string): boolean {
 	return result.status === 0
 }
 
-// Skip on Windows (validated via E2E using the shell), and skip if required tools missing on macOS/Linux
-const shouldSkip =
-	platform === "win32" ||
-	(platform === "darwin" && !hasCommand("security")) ||
-	(platform === "linux" && !hasCommand("secret-tool"))
+// Only run on macOS for now; skip Windows/Linux
+const shouldSkip = platform !== "darwin" || !hasCommand("security")
 
 describe("CredentialStorage", () => {
 	if (shouldSkip) {

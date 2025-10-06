@@ -10,18 +10,14 @@ function hasCommand(cmd: string): boolean {
 	return result.status === 0
 }
 
-test("Standalone migration moves secrets.json to OS keychain and removes file", async () => {
+test("Standalone migration moves secrets.json to OS keychain and removes file (macOS only)", async () => {
 	const platform = os.platform()
-	if (platform === "win32") {
-		test.skip(true, "Skip on Windows; covered by shell/E2E elsewhere")
+	if (platform !== "darwin") {
+		test.skip(true, "Only macOS migration is supported at this time")
 		return
 	}
-	if (platform === "darwin" && !hasCommand("security")) {
+	if (!hasCommand("security")) {
 		test.skip(true, "security CLI not available on macOS runner")
-		return
-	}
-	if (platform === "linux" && !hasCommand("secret-tool")) {
-		test.skip(true, "secret-tool not available on Linux runner")
 		return
 	}
 
@@ -35,11 +31,7 @@ test("Standalone migration moves secrets.json to OS keychain and removes file", 
 	// Ensure no preexisting key in OS keychain
 	const service = "Cline: openRouterApiKey"
 	const account = "cline_openRouterApiKey"
-	if (platform === "darwin") {
-		spawnSync("security", ["delete-generic-password", "-s", service, "-a", account], { stdio: "ignore" })
-	} else if (platform === "linux") {
-		spawnSync("secret-tool", ["clear", "service", service, "account", account], { stdio: "ignore" })
-	}
+	spawnSync("security", ["delete-generic-password", "-s", service, "-a", account], { stdio: "ignore" })
 
 	// Start the standalone core service via helper script
 	const procEnv = {
@@ -93,10 +85,9 @@ test("Standalone migration moves secrets.json to OS keychain and removes file", 
 	let present = false
 	const checkStart = Date.now()
 	while (Date.now() - checkStart < 5000) {
-		const status =
-			platform === "darwin"
-				? spawnSync("security", ["find-generic-password", "-s", service, "-a", account, "-w"], { stdio: "ignore" }).status
-				: spawnSync("secret-tool", ["lookup", "service", service, "account", account], { stdio: "ignore" }).status
+		const status = spawnSync("security", ["find-generic-password", "-s", service, "-a", account, "-w"], {
+			stdio: "ignore",
+		}).status
 		if (status === 0) {
 			present = true
 			break
@@ -104,6 +95,26 @@ test("Standalone migration moves secrets.json to OS keychain and removes file", 
 		await new Promise((r) => setTimeout(r, 250))
 	}
 	expect(present).toBeTruthy()
+
+	// Second run: ensure no re-migration and legacy file is not recreated
+	const server2: ChildProcess = spawn(
+		process.platform === "win32" ? "npx.cmd" : "npx",
+		["tsx", "scripts/test-standalone-core-api-server.ts"],
+		{ stdio: "pipe", env: procEnv },
+	)
+
+	let outputSecond = ""
+	server2.stdout?.on("data", (d) => (outputSecond += String(d)))
+	server2.stderr?.on("data", (d) => (outputSecond += String(d)))
+
+	// Give it a short window to initialize
+	await new Promise((r) => setTimeout(r, 4000))
+	try {
+		server2.kill("SIGINT")
+	} catch {}
+
+	// secrets.json should not have been recreated
+	expect(fs.existsSync(secretsPath)).toBeFalsy()
 })
 
 test("Standalone deps warning emitted when deps missing (best-effort)", async () => {

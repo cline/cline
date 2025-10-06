@@ -2,7 +2,7 @@ import type { SecretStorage as VSCodeSecretStorage } from "vscode"
 import { Logger } from "@/services/logging/Logger"
 import { ClineStorage } from "./ClineStorage"
 
-type SecretStores = VSCodeSecretStorage | ClineStorage
+export type SecretStores = VSCodeSecretStorage | ClineStorage
 
 /**
  * Wrapper around VSCode Secret Storage or any other storage type for managing secrets.

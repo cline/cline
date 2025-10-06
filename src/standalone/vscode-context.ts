@@ -5,6 +5,7 @@ import path from "path"
 import type { Extension, ExtensionContext } from "vscode"
 import { ExtensionKind, ExtensionMode } from "vscode"
 import { URI } from "vscode-uri"
+import { ClineStorage } from "@/core/storage/ClineStorage"
 import { CredentialStorage } from "@/core/storage/credential"
 import { FileBasedStorage } from "@/core/storage/file"
 import { secretStorage } from "@/core/storage/secrets"
@@ -20,7 +21,7 @@ const SETTINGS_SUBFOLDER = "data"
 // Module-level vars used by migration/helpers
 let STANDALONE_DEPS_WARNING: string | undefined
 let SECRETS_FILE: string
-let standaloneBackend: SecretStores | null = null
+let standaloneBackend: ClineStorage | null = null
 
 export function initializeContext(clineDir?: string) {
 	const CLINE_DIR = clineDir || process.env.CLINE_DIR || `${os.homedir()}/.cline`
@@ -94,58 +95,29 @@ export function initializeContext(clineDir?: string) {
 	}
 }
 
-// Select the best standalone secret storage backend (OS keychain when available, else file)
+// Select the best standalone secret storage backend
+// For now: macOS -> OS keychain; Linux/Windows -> legacy file-based storage
 function selectStandaloneSecrets(dataDir: string) {
 	try {
-		if (isMacSecurityAvailable()) {
-			return new CredentialStorage()
-		}
-
-		if (isLinuxSecretToolAvailable()) {
-			return new CredentialStorage()
-		} else if (process.platform === "linux") {
-			STANDALONE_DEPS_WARNING =
-				"OS keychain tools not found (secret-tool/libsecret). Falling back to file storage. Install: sudo apt-get install -y libsecret-1-0 libsecret-tools dbus gnome-keyring"
-		}
-
-		if (isWindowsCredentialManagerReady()) {
-			return new CredentialStorage()
-		} else if (process.platform === "win32") {
-			STANDALONE_DEPS_WARNING =
-				"Windows CredentialManager PowerShell module not available. Falling back to file storage. Install in PowerShell: Install-Module -Name CredentialManager -Scope CurrentUser; then restart Cline"
+		if (process.platform === "darwin") {
+			if (hasCommand("security")) {
+				return new CredentialStorage()
+			} else {
+				STANDALONE_DEPS_WARNING = "macOS 'security' tool not available; using file-based secrets"
+				return new FileBasedStorage(path.join(dataDir, "secrets.json"))
+			}
 		}
 	} catch (error) {
 		log(`Credential backend selection error; falling back to file store: ${String(error)}`)
 	}
+	// Default: legacy file-based storage on non-macOS
 	return new FileBasedStorage(path.join(dataDir, "secrets.json"))
 }
 
-function isMacSecurityAvailable(): boolean {
-	return process.platform === "darwin" && hasCommand("security")
-}
-
-function isLinuxSecretToolAvailable(): boolean {
-	return process.platform === "linux" && hasCommand("secret-tool")
-}
-
-function isWindowsCredentialManagerReady(): boolean {
-	if (process.platform !== "win32") return false
-	try {
-		const result = spawnSync("powershell.exe", [
-			"-NoProfile",
-			"-ExecutionPolicy",
-			"Bypass",
-			"-Command",
-			"if (Get-Module -ListAvailable -Name CredentialManager) { exit 0 } else { exit 1 }",
-		])
-		return result.status === 0
-	} catch {
-		return false
-	}
-}
-
 function hasCommand(cmd: string): boolean {
-	if (process.platform === "win32") return true
+	if (process.platform === "win32") {
+		return true
+	}
 	const result = spawnSync("sh", ["-c", `command -v ${cmd}`], { stdio: "ignore" })
 	return result.status === 0
 }
@@ -154,11 +126,15 @@ function hasCommand(cmd: string): boolean {
 async function migrateFileSecretsToOS(filePath: string): Promise<void> {
 	try {
 		const fs = await import("fs")
-		if (!fs.existsSync(filePath)) return
+		if (!fs.existsSync(filePath)) {
+			return
+		}
 		const raw = fs.readFileSync(filePath, "utf-8")
 		const data = raw ? (JSON.parse(raw) as Record<string, string>) : {}
 		const entries = Object.entries(data).filter(([, v]) => typeof v === "string" && v.length > 0)
-		if (entries.length === 0) return fs.unlinkSync(filePath)
+		if (entries.length === 0) {
+			return fs.unlinkSync(filePath)
+		}
 
 		// Parallel pre-check: determine which entries already exist in OS storage
 		const existingValues = await Promise.all(entries.map(([key]) => secretStorage.get(key)))
@@ -207,7 +183,7 @@ async function migrateFileSecretsToOS(filePath: string): Promise<void> {
 
 export async function runLegacySecretsMigrationIfNeeded(): Promise<void> {
 	try {
-		if (standaloneBackend instanceof CredentialStorage) {
+		if (process.platform === "darwin" && standaloneBackend instanceof CredentialStorage) {
 			log("Starting legacy secrets migration to OS keychain...")
 			await migrateFileSecretsToOS(SECRETS_FILE)
 			log("Legacy secrets migration completed.")
@@ -219,6 +195,9 @@ export async function runLegacySecretsMigrationIfNeeded(): Promise<void> {
 		log(`Legacy secrets migration error: ${String(error)}`)
 	}
 }
+
+// Test-only export to directly invoke migration logic without starting services
+export const __test_migrateFileSecretsToOS = migrateFileSecretsToOS
 
 // Expose any dependency warning to be shown by the host after initialization
 export function getStandaloneDepsWarning(): string | undefined {
