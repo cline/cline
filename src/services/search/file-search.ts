@@ -3,10 +3,10 @@ import * as fs from "fs"
 import type { FzfResultItem } from "fzf"
 import * as path from "path"
 import * as readline from "readline"
+import type { WorkspaceRoot, WorkspaceRootManager } from "@/core/workspace"
 import { HostProvider } from "@/hosts/host-provider"
 import { GetOpenTabsRequest } from "@/shared/proto/host/window"
 import { getBinaryLocation } from "@/utils/fs"
-import { asRelativePath, isLocatedInWorkspace } from "@/utils/path"
 
 // Wrapper function for childProcess.spawn
 export type SpawnFunction = typeof childProcess.spawn
@@ -107,16 +107,17 @@ export async function searchWorkspaceFiles(
 	workspacePath: string,
 	limit: number = 20,
 	selectedType?: "file" | "folder",
-): Promise<{ path: string; type: "file" | "folder"; label?: string }[]> {
+	workspaceName?: string,
+): Promise<{ path: string; type: "file" | "folder"; label?: string; workspaceName?: string }[]> {
 	try {
 		// Get currently active files and convert to search format
 		const activeFilePaths = await getActiveFiles()
 		const activeFiles: { path: string; type: "file" | "folder"; label?: string }[] = []
 
 		for (const filePath of activeFilePaths) {
-			if (await isLocatedInWorkspace(filePath)) {
-				const relativePath = await asRelativePath(filePath)
-				const normalizedPath = relativePath.toPosix()
+			if (filePath.startsWith(workspacePath + path.sep) || filePath.startsWith(workspacePath + "/")) {
+				const relativePath = path.relative(workspacePath, filePath)
+				const normalizedPath = relativePath.replace(/\\/g, "/")
 				activeFiles.push({
 					path: normalizedPath,
 					type: "file",
@@ -138,12 +139,15 @@ export async function searchWorkspaceFiles(
 
 		// If no query, return the combined items
 		if (!query.trim()) {
+			const addWorkspaceName = (items: typeof combinedItems) =>
+				workspaceName ? items.map((item) => ({ ...item, workspaceName })) : items
+
 			if (selectedType === "file") {
-				return combinedItems.filter((item) => item.type === "file").slice(0, limit)
+				return addWorkspaceName(combinedItems.filter((item) => item.type === "file").slice(0, limit))
 			} else if (selectedType === "folder") {
-				return combinedItems.filter((item) => item.type === "folder").slice(0, limit)
+				return addWorkspaceName(combinedItems.filter((item) => item.type === "folder").slice(0, limit))
 			}
-			return combinedItems.slice(0, limit)
+			return addWorkspaceName(combinedItems.slice(0, limit))
 		}
 
 		// Match Scoring - Prioritize the label (filename) by including it twice in the search string
@@ -171,7 +175,7 @@ export async function searchWorkspaceFiles(
 					// Keep original type if path doesn't exist
 				}
 
-				return { ...item, type }
+				return workspaceName ? { ...item, type, workspaceName } : { ...item, type }
 			},
 		)
 
@@ -198,4 +202,90 @@ export const OrderbyMatchScore = (a: FzfResultItem<any>, b: FzfResultItem<any>) 
 	}
 
 	return countGaps(a.positions) - countGaps(b.positions)
+}
+
+/**
+ * Search for files across multiple workspace roots or a specific workspace
+ * Similar to searchWorkspaceFiles but supports multiroot workspaces
+ */
+export async function searchWorkspaceFilesMultiroot(
+	query: string,
+	workspaceManager: WorkspaceRootManager,
+	limit: number = 20,
+	selectedType?: "file" | "folder",
+	workspaceHint?: string,
+): Promise<{ path: string; type: "file" | "folder"; label?: string; workspaceName?: string }[]> {
+	try {
+		const workspaceRoots = workspaceManager?.getRoots?.() || []
+
+		if (workspaceRoots.length === 0) {
+			return []
+		}
+
+		let workspacesToSearch: WorkspaceRoot[] = []
+
+		// Search only the user-specified workspace (Ex input: @frontend:/query)
+		if (workspaceHint) {
+			const targetWorkspace = workspaceRoots.find((root: WorkspaceRoot) => root.name === workspaceHint)
+			if (targetWorkspace) {
+				workspacesToSearch = [targetWorkspace]
+			} else {
+				return []
+			}
+		} else {
+			// Search all workspaces if no hint provided
+			workspacesToSearch = workspaceRoots
+		}
+
+		// Execute parallel searches across workspaces
+		const searchPromises = workspacesToSearch.map(async (workspace) => {
+			try {
+				const results = await searchWorkspaceFiles(query, workspace.path, limit, selectedType, workspace.name)
+				return results
+			} catch (error) {
+				console.error(`[searchWorkspaceFilesMultiroot] Error searching workspace ${workspace.name}:`, error)
+				return []
+			}
+		})
+
+		// Wait for all searches to finish, fatten, add workspace prefixes if needed
+		const allResults = await Promise.all(searchPromises)
+		let flatResults = allResults.flat()
+		if (workspacesToSearch.length > 1) {
+			const pathCounts = new Map<string, number>()
+			for (const result of flatResults) {
+				pathCounts.set(result.path, (pathCounts.get(result.path) || 0) + 1)
+			}
+
+			flatResults = flatResults.map((result) => {
+				if (pathCounts.get(result.path)! > 1 && result.workspaceName) {
+					return {
+						...result,
+						label: `${result.workspaceName}:/${result.path}`,
+					}
+				}
+				return result
+			})
+		}
+
+		// Apply fuzzy matching across all results if needed
+		if (query.trim() && flatResults.length > limit) {
+			const fzfModule = await import("fzf")
+			const fzf = new fzfModule.Fzf(flatResults, {
+				selector: (item: { label?: string; path: string }) => `${item.label || ""} ${item.label || ""} ${item.path}`,
+				tiebreakers: [OrderbyMatchScore, fzfModule.byLengthAsc],
+			})
+			flatResults = fzf
+				.find(query)
+				.slice(0, limit)
+				.map((result) => result.item)
+		} else {
+			flatResults = flatResults.slice(0, limit)
+		}
+
+		return flatResults
+	} catch (error) {
+		console.error("[searchWorkspaceFilesMultiroot] Error in multiroot search:", error)
+		return []
+	}
 }
