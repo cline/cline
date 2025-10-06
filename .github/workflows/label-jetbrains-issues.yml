@@ -18,7 +18,7 @@ jobs:
             
             // Check if JetBrains Plugin is selected
             if (body.match(/###\s*Plugin Type\s*\n+JetBrains Plugin/i)) {
-              if (!labels.includes('jetbrains')) {
+              if (!labels.includes('JetBrains')) {
                 await github.rest.issues.addLabels({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
