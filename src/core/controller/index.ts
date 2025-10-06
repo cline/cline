@@ -26,6 +26,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
+import { LogoutReason } from "@/services/auth/types"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
@@ -125,8 +126,7 @@ export class Controller {
 	// Auth methods
 	async handleSignOut() {
 		try {
-			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
-			this.stateManager.setSecret("clineAccountId", undefined)
+			// AuthService now handles its own storage cleanup in handleDeauth()
 			this.stateManager.setGlobalState("userInfo", undefined)
 
 			// Update API providers through cache service
@@ -154,7 +154,7 @@ export class Controller {
 	// Oca Auth methods
 	async handleOcaSignOut() {
 		try {
-			await this.ocaAuthService.handleDeauth()
+			await this.ocaAuthService.handleDeauth(LogoutReason.USER_INITIATED)
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
