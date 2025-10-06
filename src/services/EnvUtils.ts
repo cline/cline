@@ -5,11 +5,17 @@ import { EmptyRequest } from "@/shared/proto/cline/common"
 
 // Canonical header names for extra client/host context
 export const ClineHeaders = {
+	// Platform name, e.g. "Jetbrains IDEA ULtimate"
 	PLATFORM: "X-PLATFORM",
+	// Version of IDE
 	PLATFORM_VERSION: "X-PLATFORM-VERSION",
+	// E.G. Version of Extension, Plugin, or CLI
 	CLIENT_VERSION: "X-CLIENT-VERSION",
+	// Type of client, e.g. "CLI", "Jetbrains", "VS Code"
 	CLIENT_TYPE: "X-CLIENT-TYPE",
+	// Version of Cline Core
 	CORE_VERSION: "X-CORE-VERSION",
+	// Whether this is a multiroot workspace
 	IS_MULTIROOT: "X-IS-MULTIROOT",
 } as const
 export type ClineHeaderName = (typeof ClineHeaders)[keyof typeof ClineHeaders]
