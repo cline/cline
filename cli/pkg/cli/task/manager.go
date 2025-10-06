@@ -130,9 +130,9 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 
 	// Create task request
 	req := &cline.NewTaskRequest{
-		Text:           prompt,
-		Images:         images,
-		Files:          files,
+		Text:   prompt,
+		Images: images,
+		Files:  files,
 	}
 
 	resp, err := m.client.Task.NewTask(ctx, req)
@@ -184,7 +184,7 @@ func (m *Manager) cancelExistingTaskIfNeeded(ctx context.Context) error {
 				fmt.Println("Cancelled existing task to start new one")
 			}
 		}
-	} 
+	}
 
 	return nil
 }
@@ -445,6 +445,30 @@ func (m *Manager) ResumeTask(ctx context.Context, taskID string) error {
 	}
 
 	fmt.Printf("Task %s resumed successfully\n", taskID)
+
+	return nil
+}
+
+// RestoreCheckpoint restores the task to a specific checkpoint
+func (m *Manager) RestoreCheckpoint(ctx context.Context, checkpointID int64, restoreType string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if global.Config.Verbose {
+		m.renderer.RenderDebug("Restoring checkpoint: %d (type: %s)", checkpointID, restoreType)
+	}
+
+	// Create the checkpoint restore request
+	req := &cline.CheckpointRestoreRequest{
+		Metadata:    &cline.Metadata{},
+		Number:      checkpointID,
+		RestoreType: restoreType,
+	}
+
+	_, err := m.client.Checkpoints.CheckpointRestore(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to restore checkpoint %d: %w", checkpointID, err)
+	}
 
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/cline/cli/pkg/cli/global"
@@ -27,6 +28,7 @@ func NewTaskCommand() *cobra.Command {
 	cmd.AddCommand(newTaskViewCommand())
 	cmd.AddCommand(newTaskListCommand())
 	cmd.AddCommand(newTaskResumeCommand())
+	cmd.AddCommand(newTaskRestoreCommand())
 
 	return cmd
 }
@@ -399,6 +401,50 @@ func newTaskResumeCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
+	return cmd
+}
+
+func newTaskRestoreCommand() *cobra.Command {
+	var (
+		restoreType string
+		address     string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "restore <checkpoint-id>",
+		Short: "Restore task to a specific checkpoint",
+		Long:  `Restore the current task to a specific checkpoint by checkpoint ID (timestamp) and by type.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			checkpointID := args[0]
+
+			// Convert checkpoint ID string to int64
+			id, err := strconv.ParseInt(checkpointID, 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid checkpoint ID '%s': must be a valid number", checkpointID)
+			}
+
+			// Ensure task manager is initialized
+			if err := ensureTaskManager(ctx, address); err != nil {
+				return err
+			}
+
+			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
+			fmt.Printf("Restoring to checkpoint %d (type: %s)\n", id, restoreType)
+
+			if err := taskManager.RestoreCheckpoint(ctx, id, restoreType); err != nil {
+				return fmt.Errorf("failed to restore checkpoint: %w", err)
+			}
+
+			fmt.Println("Checkpoint restored successfully")
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&restoreType, "type", "t", "task", "Restore type (task, workspace, taskAndWorkspace)")
+	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
+
 	return cmd
 }
 
