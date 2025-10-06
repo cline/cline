@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -423,6 +424,11 @@ func newTaskRestoreCommand() *cobra.Command {
 			id, err := strconv.ParseInt(checkpointID, 10, 64)
 			if err != nil {
 				return fmt.Errorf("invalid checkpoint ID '%s': must be a valid number", checkpointID)
+			}
+
+			validTypes := []string{"task", "workspace", "taskAndWorkspace"}
+			if !slices.Contains(validTypes, restoreType) {
+				return fmt.Errorf("invalid restore type '%s': must be one of [task, workspace, taskAndWorkspace]", restoreType)
 			}
 
 			// Ensure task manager is initialized
