@@ -23,7 +23,7 @@ func NewTaskCommand() *cobra.Command {
 	cmd.AddCommand(newTaskNewCommand())
 	cmd.AddCommand(newTaskCancelCommand())
 	cmd.AddCommand(newTaskFollowCommand())
-	cmd.AddCommand(newTaskSendCommand())
+	cmd.AddCommand(NewTaskSendCommand())
 	cmd.AddCommand(newTaskViewCommand())
 	cmd.AddCommand(newTaskListCommand())
 	cmd.AddCommand(newTaskResumeCommand())
@@ -202,7 +202,7 @@ func newTaskCancelCommand() *cobra.Command {
 	return cmd
 }
 
-func newTaskSendCommand() *cobra.Command {
+func NewTaskSendCommand() *cobra.Command {
 	var (
 		images  []string
 		files   []string
