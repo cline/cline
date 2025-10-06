@@ -112,6 +112,7 @@ export type AppProperties = z.infer<typeof appPropertiesSchema>
 
 export const taskPropertiesSchema = z.object({
 	taskId: z.string().optional(),
+	parentTaskId: z.string().optional(),
 	apiProvider: z.enum(providerNames).optional(),
 	modelId: z.string().optional(),
 	diffStrategy: z.string().optional(),
