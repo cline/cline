@@ -451,6 +451,7 @@ export class StateManager {
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 			minimaxApiKey,
+			minimaxApiLine,
 			requestTimeoutMs,
 			ocaBaseUrl,
 			// Plan mode configurations
@@ -633,6 +634,7 @@ export class StateManager {
 			difyBaseUrl,
 			qwenCodeOauthPath,
 			ocaBaseUrl,
+			minimaxApiLine,
 		})
 
 		// Batch update secrets
@@ -983,6 +985,7 @@ export class StateManager {
 			qwenCodeOauthPath: this.taskStateCache["qwenCodeOauthPath"] || this.globalStateCache["qwenCodeOauthPath"],
 			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
 			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
+			minimaxApiLine: this.taskStateCache["minimaxApiLine"] || this.globalStateCache["minimaxApiLine"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.taskStateCache["planModeApiProvider"] || this.globalStateCache["planModeApiProvider"],

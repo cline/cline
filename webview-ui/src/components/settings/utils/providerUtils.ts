@@ -644,6 +644,7 @@ export async function syncModeConfigurations(
 		case "cerebras":
 		case "sapaicore":
 		case "zai":
+		case "minimax":
 		default:
 			updates.planModeApiModelId = sourceFields.apiModelId
 			updates.actModeApiModelId = sourceFields.apiModelId
