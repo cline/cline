@@ -860,11 +860,19 @@ export class Controller {
 		const history = await readTaskHistoryFromState()
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
+			const existing = history[existingItemIndex]
+
 			// Merge new data with existing to preserve fields like workspaceIds
-			// This prevents data loss when partial updates are made
+			// Smart merge: don't overwrite existing values with placeholders/empty values
 			history[existingItemIndex] = {
-				...history[existingItemIndex], // Keep existing fields
-				...item, // Overwrite with new data
+				...existing, // Keep existing fields
+				...item, // Apply updates
+				// Preserve existing task description if update contains placeholder/empty value
+				task: item.task === "[No task description]" || !item.task ? existing.task : item.task,
+				// Preserve existing workspaceIds if update doesn't have them
+				workspaceIds: item.workspaceIds && item.workspaceIds.length > 0 ? item.workspaceIds : existing.workspaceIds,
+				// Preserve existing workspaceName if update doesn't have it
+				workspaceName: item.workspaceName || existing.workspaceName,
 			}
 		} else {
 			history.push(item)
