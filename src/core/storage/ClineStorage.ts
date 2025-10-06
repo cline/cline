@@ -1,12 +1,6 @@
 import { Logger } from "@/services/logging/Logger"
 import { StorageEventListener } from "./utils/types"
 
-// Lightweight Disposable compatible with vscode.Disposable without importing vscode,
-// to keep this module host-agnostic (JetBrains/core runtimes don't have 'vscode').
-export interface Disposable {
-	dispose(): void
-}
-
 /**
  * An abstract storage class that provides a template for storage operations.
  * Subclasses must implement the protected abstract methods to define their storage logic.
@@ -25,12 +19,12 @@ export abstract class ClineStorage {
 	/**
 	 * Subscribe to storage change events.
 	 */
-	public onDidChange(callback: StorageEventListener): Disposable {
+	public onDidChange(callback: StorageEventListener): () => void {
 		this.subscribers.push(callback)
-		return new Disposable(() => {
+		return () => {
 			const callbackIndex = this.subscribers.indexOf(callback)
 			this.subscribers.splice(callbackIndex, 1)
-		})
+		}
 	}
 
 	/**

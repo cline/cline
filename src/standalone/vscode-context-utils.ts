@@ -32,18 +32,19 @@ export class SecretStore implements vscode.SecretStorage {
 // (e.g., the cline secretStorage singleton backed by OS keychain).
 export class DelegatingSecretStore implements vscode.SecretStorage {
 	private readonly _onDidChange = new EventEmitter<vscode.SecretStorageChangeEvent>()
-	private unsubscribe: { dispose(): void } | null = null
 
 	constructor(
 		private readonly delegate: {
 			get(key: string): Promise<string | undefined>
 			store(key: string, value: string): Promise<void>
 			delete(key: string): Promise<void>
-			onDidChange?: (listener: (e: { key: string }) => any) => { dispose(): void }
+			onDidChange?: (listener: (e: { key: string }) => any) => { dispose(): void } | (() => void)
 		},
 	) {
 		if (this.delegate.onDidChange) {
-			this.unsubscribe = this.delegate.onDidChange(({ key }) => this._onDidChange.fire({ key }))
+			const sub = this.delegate.onDidChange(({ key }) => this._onDidChange.fire({ key }))
+			// No instance-level storage required; delegate owns lifecycle.
+			void (typeof sub === "function" ? { dispose: sub } : sub)
 		}
 	}
 

@@ -75,17 +75,8 @@ async function main() {
 		}
 
 		// Mirror VS Code behavior: react to clineAccountId secret changes (login/logout)
-		secretStorage.onDidChange(async ({ key }) => {
-			if (key !== "clineAccountId") return
-			const value = await secretStorage.get("clineAccountId")
-			const controller = webviewProvider.controller
-			const authService = AuthService.getInstance(controller)
-			if (value) {
-				authService?.restoreRefreshTokenAndRetrieveAuthInfo()
-			} else {
-				authService?.handleDeauth()
-			}
-		})
+		const authService = AuthService.getInstance(webviewProvider.controller)
+		authService.startSecretSync(secretStorage)
 
 		// Initialize SQLite lock manager for instance registration
 		const dbPath = `${DATA_DIR}/locks.db`
@@ -211,6 +202,11 @@ async function shutdownGracefully(lockManager?: SqliteLockManager) {
 		} else {
 			log("Warning: HostProvider not initialized, cannot request shutdown")
 		}
+
+		// Stop secret sync listener
+		try {
+			AuthService.getInstance().stopSecretSync()
+		} catch {}
 
 		// Step 2: Clean up lock manager entry
 		log("Cleaning up lock manager entry...")

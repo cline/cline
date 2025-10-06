@@ -65,6 +65,7 @@ export class AuthService {
 	protected _activeAuthStatusUpdateHandlers = new Set<StreamingResponseHandler<AuthState>>()
 	protected _handlerToController = new Map<StreamingResponseHandler<AuthState>, Controller>()
 	protected _controller: Controller
+	private _secretUnsubscribe: (() => void) | undefined
 
 	/**
 	 * Creates an instance of AuthService.
@@ -273,6 +274,44 @@ export class AuthService {
 			this._clineAuthInfo = null
 			return
 		}
+	}
+
+	/**
+	 * Start listening to secret changes and keep auth in sync (standalone/host-agnostic).
+	 * Expects a secret storage-like object with onDidChange and get.
+	 */
+	startSecretSync(secretStorage: {
+		onDidChange: (listener: (e: { key: string }) => any) => (() => void) | { dispose(): void }
+		get: (key: string) => Promise<string | undefined>
+	}): () => void {
+		// Clean any existing subscription first
+		try {
+			this._secretUnsubscribe?.()
+		} catch {}
+		this._secretUnsubscribe = undefined
+
+		const sub = secretStorage.onDidChange(async ({ key }) => {
+			if (key !== "clineAccountId") {
+				return
+			}
+			const value = await secretStorage.get("clineAccountId")
+			const authService = AuthService.getInstance(this._controller)
+			if (value) {
+				authService?.restoreRefreshTokenAndRetrieveAuthInfo()
+			} else {
+				authService?.handleDeauth()
+			}
+		})
+		this._secretUnsubscribe = typeof sub === "function" ? sub : () => sub.dispose()
+		return this._secretUnsubscribe
+	}
+
+	/** Stop listening to secret changes */
+	stopSecretSync(): void {
+		try {
+			this._secretUnsubscribe?.()
+		} catch {}
+		this._secretUnsubscribe = undefined
 	}
 
 	/**

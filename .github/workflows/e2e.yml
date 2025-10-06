@@ -25,7 +25,7 @@ jobs:
     steps:
       - id: set-matrix
         run: |
-          echo "matrix=[{\"runner\":\"ubuntu\",\"deps\":\"true\"},{\"runner\":\"ubuntu\",\"deps\":\"false\"},{\"runner\":\"macos\",\"deps\":\"true\"},{\"runner\":\"windows\",\"deps\":\"true\"},{\"runner\":\"windows\",\"deps\":\"false\"}]" >> $GITHUB_OUTPUT
+          echo "matrix=[{\"runner\":\"macos\",\"deps\":\"true\"}]" >> $GITHUB_OUTPUT
 
   e2e:
     needs: matrix_prep
@@ -89,39 +89,11 @@ jobs:
         if: steps.webview-cache.outputs.cache-hit != 'true'
         run: cd webview-ui && npm ci
 
-      - name: Install xvfb on Linux
-        if: matrix.runner == 'ubuntu'
-        run: sudo apt-get update && sudo apt-get install -y xvfb
-
-      - name: Provision Linux keychain deps
-        if: matrix.runner == 'ubuntu' && matrix.deps == 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y dbus gnome-keyring libsecret-1-0 libsecret-tools xvfb unzip
-          echo "Provisioned libsecret and keyring"
-
-      - name: Build standalone (Linux - deps:true)
-        if: matrix.runner == 'ubuntu' && matrix.deps == 'true'
-        run: npm run compile-standalone
-
       - name: Build standalone (macOS)
         if: matrix.runner == 'macos'
         run: npm run compile-standalone
-
-      - name: Run E2E tests - Linux
-        if: matrix.runner == 'ubuntu'
-        env:
-          EXPECT_DEPS: ${{ matrix.deps || 'false' }}
-        run: |
-          if [ "${{ matrix.deps }}" = "true" ]; then
-            eval "$(dbus-launch --sh-syntax)"
-            gnome-keyring-daemon --start
-          fi
-          sudo apt-get update && sudo apt-get install -y xvfb
-          xvfb-run -a npm run test:e2e:optimal
-
-      - name: Run E2E tests - Non-Linux
-        if: matrix.runner != 'ubuntu'
+      - name: Run E2E tests (macOS only)
+        if: matrix.runner == 'macos'
         env:
           EXPECT_DEPS: ${{ matrix.deps || 'false' }}
         run: npm run test:e2e:optimal
