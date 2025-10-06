@@ -5,6 +5,7 @@ import "cline/common.proto";
 import "cline/state.proto";
 import "cline/models.proto";
 import "cline/browser.proto";
+option go_package = "github.com/cline/grpc-go/cline";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 
@@ -39,7 +40,7 @@ service TaskService {
   // Deletes multiple tasks with the given IDs
   rpc deleteTasksWithIds(StringArrayRequest) returns (Empty);
   // Creates a new task with the given text and optional images
-  rpc newTask(NewTaskRequest) returns (Empty);
+  rpc newTask(NewTaskRequest) returns (String);
   // Shows a task with the specified ID
   rpc showTaskWithId(StringRequest) returns (TaskResponse);
   // Exports a task with the given ID to markdown
@@ -73,7 +74,7 @@ message TaskSettings {
    string vertex_region = 9;
    string requesty_base_url = 10;
    string open_ai_base_url = 11;
-  map<string, string> open_ai_headers = 12;
+  // map<string, string> open_ai_headers = 12;
    string ollama_base_url = 13;
    string ollama_api_options_ctx_num = 14;
    string lm_studio_base_url = 15;
