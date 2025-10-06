@@ -3,9 +3,9 @@ import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { getDistinctId, setDistinctId } from "@/services/logging/distinctId"
 import { Setting } from "@/shared/proto/index.host"
-import { posthogConfig } from "../../../shared/services/config/posthog-config"
-import type { ClineAccountUserInfo } from "../../auth/AuthService"
-import type { ITelemetryProvider, TelemetrySettings } from "./ITelemetryProvider"
+import { posthogConfig } from "../../../../shared/services/config/posthog-config"
+import type { ClineAccountUserInfo } from "../../../auth/AuthService"
+import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../ITelemetryProvider"
 /**
  * PostHog implementation of the telemetry provider interface
  * Handles PostHog-specific analytics tracking
@@ -60,7 +60,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		return this
 	}
 
-	public log(event: string, properties?: Record<string, unknown>): void {
+	public log(event: string, properties?: TelemetryProperties): void {
 		if (!this.isEnabled() || this.telemetrySettings.level === "off") {
 			return
 		}
@@ -79,7 +79,18 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		})
 	}
 
-	public identifyUser(userInfo: ClineAccountUserInfo, properties: Record<string, unknown> = {}): void {
+	public logRequired(event: string, properties?: TelemetryProperties): void {
+		this.client.capture({
+			distinctId: getDistinctId(),
+			event,
+			properties: {
+				...properties,
+				_required: true, // Mark as required event
+			},
+		})
+	}
+
+	public identifyUser(userInfo: ClineAccountUserInfo, properties: TelemetryProperties = {}): void {
 		const distinctId = getDistinctId()
 		// Only identify user if telemetry is enabled and user ID is different than the currently set distinct ID
 		if (this.isEnabled() && userInfo && userInfo?.id !== distinctId) {

@@ -2329,6 +2329,7 @@ export class Task {
 								this.cwd,
 								this.urlContentFetcher,
 								this.fileContextTracker,
+								this.workspaceManager,
 							)
 
 							// when parsing slash commands, we still want to allow the user to provide their desired context

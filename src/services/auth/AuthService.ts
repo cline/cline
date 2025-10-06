@@ -10,6 +10,7 @@ import { featureFlagsService } from "../feature-flags"
 import { ClineAuthProvider } from "./providers/ClineAuthProvider"
 import { FirebaseAuthProvider } from "./providers/FirebaseAuthProvider"
 import { IAuthProvider } from "./providers/IAuthProvider"
+import { LogoutReason } from "./types"
 
 export type ServiceConfig = {
 	URI?: string
@@ -138,6 +139,7 @@ export class AuthService {
 				} else {
 					this._clineAuthInfo = null
 					this._authenticated = false
+					telemetryService.captureAuthLoggedOut(this._provider?.name, LogoutReason.ERROR_RECOVERY)
 				}
 				await this.sendAuthStatusUpdate()
 			}
@@ -206,17 +208,20 @@ export class AuthService {
 		const authUrlString = authUrl.toString()
 
 		await openExternal(authUrlString)
+		telemetryService.captureAuthStarted(this._provider.name)
 		return String.create({ value: authUrlString })
 	}
 
-	async handleDeauth(): Promise<void> {
+	async handleDeauth(reason: LogoutReason = LogoutReason.UNKNOWN): Promise<void> {
 		if (!this._provider) {
 			throw new Error("Auth provider is not set")
 		}
 
 		try {
+			telemetryService.captureAuthLoggedOut(this._provider.name, reason)
 			this._clineAuthInfo = null
 			this._authenticated = false
+			this._controller.stateManager.setSecret("clineAccountId", undefined)
 			this.sendAuthStatusUpdate()
 		} catch (error) {
 			console.error("Error signing out:", error)
@@ -233,14 +238,17 @@ export class AuthService {
 			this._clineAuthInfo = await this._provider.signIn(this._controller, authorizationCode, provider)
 			this._authenticated = this._clineAuthInfo?.idToken !== undefined
 
+			telemetryService.captureAuthSucceeded(this._provider.name)
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
+			telemetryService.captureAuthFailed(this._provider.name)
 			throw error
 		}
 	}
 
 	/**
+	 * @deprecated Use handleDeauth() instead. Storage clearing is now handled consistently within the auth domain.
 	 * Clear the authentication token from the extension's storage.
 	 * This is typically called when the user logs out.
 	 */
@@ -266,11 +274,13 @@ export class AuthService {
 				console.warn("No user found after restoring auth token")
 				this._authenticated = false
 				this._clineAuthInfo = null
+				telemetryService.captureAuthLoggedOut(this._provider?.name, LogoutReason.ERROR_RECOVERY)
 			}
 		} catch (error) {
 			console.error("Error restoring auth token:", error)
 			this._authenticated = false
 			this._clineAuthInfo = null
+			telemetryService.captureAuthLoggedOut(this._provider?.name, LogoutReason.ERROR_RECOVERY)
 			return
 		}
 	}
