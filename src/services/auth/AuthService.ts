@@ -73,7 +73,7 @@ export class AuthService {
 	 */
 	protected constructor(controller: Controller) {
 		// Default to firebase for now
-		const providerName = featureFlagsService.getWorkOsAuthEnabled() ? "cline" : "firebase"
+		const providerName = "cline"
 		this._setProvider(providerName)
 		this._controller = controller
 	}
