@@ -55,6 +55,11 @@ export class CredentialStorage extends ClineStorage {
 			const result = await this.exec(this.commands.get({ service, account, target }))
 			return result || undefined
 		} catch (error) {
+			// Return undefined if the key doesn't exist (expected behavior)
+			// "The specified item could not be found" is not an error, just means key doesn't exist
+			if (error instanceof Error && error.message.includes("could not be found")) {
+				return undefined
+			}
 			throw error
 		}
 	}
@@ -111,18 +116,38 @@ export class CredentialStorage extends ClineStorage {
 
 const PLATFORM_COMMANDS: PlatformCommands = {
 	[PLATFORM_OS.MacOS]: {
-		get: ({ service, account }) => ({
-			command: "security",
-			args: ["find-generic-password", "-s", service, "-a", account, "-w"],
-		}),
-		store: ({ service, account, value }) => ({
-			command: "security",
-			args: ["add-generic-password", "-s", service, "-a", account, "-w", value],
-		}),
-		delete: ({ service, account }) => ({
-			command: "security",
-			args: ["delete-generic-password", "-s", service, "-a", account],
-		}),
+		get: ({ service, account }) => {
+			const keychain = process.env.CLINE_KEYCHAIN
+			const args = ["find-generic-password", "-s", service, "-a", account, "-w"]
+			// Note: find-generic-password doesn't support -k flag
+			// If using a custom keychain, specify it at the end as a positional argument
+			if (keychain && keychain.length > 0) {
+				args.push(keychain)
+			}
+			return { command: "security", args }
+		},
+		store: ({ service, account, value }) => {
+			const keychain = process.env.CLINE_KEYCHAIN
+			const args = ["add-generic-password", "-s", service, "-a", account]
+			// For test keychains, allow all apps to access (makes it manageable in Keychain Access)
+			if (keychain && keychain.length > 0) {
+				args.push("-A")
+			}
+			args.push("-w", value)
+			// Keychain must be specified as positional argument at the end
+			if (keychain && keychain.length > 0) {
+				args.push(keychain)
+			}
+			return { command: "security", args }
+		},
+		delete: ({ service, account }) => {
+			const keychain = process.env.CLINE_KEYCHAIN
+			const args = ["delete-generic-password", "-s", service, "-a", account]
+			if (keychain && keychain.length > 0) {
+				args.push("-k", keychain)
+			}
+			return { command: "security", args }
+		},
 	},
 	[PLATFORM_OS.Linux]: {
 		get: ({ service, account }) => ({

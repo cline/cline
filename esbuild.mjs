@@ -197,6 +197,19 @@ async function main() {
 	} else {
 		await extensionCtx.rebuild()
 		await extensionCtx.dispose()
+
+		// Also build the migration test utility for E2E tests when building standalone
+		if (standalone) {
+			const migrationConfig = {
+				...baseConfig,
+				entryPoints: ["src/test/e2e/utils/migrate-secrets.ts"],
+				outfile: `${destDir}/migrate-secrets.js`,
+				external: ["vscode", "@grpc/reflection", "grpc-health-check", "better-sqlite3"],
+			}
+			const migrationCtx = await esbuild.context(migrationConfig)
+			await migrationCtx.rebuild()
+			await migrationCtx.dispose()
+		}
 	}
 }
 

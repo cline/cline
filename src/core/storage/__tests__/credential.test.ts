@@ -4,7 +4,7 @@ import { expect } from "chai"
 import * as sinon from "sinon"
 import { ErrorService } from "@/services/error"
 import { Logger } from "@/services/logging/Logger"
-import { CredentialStorage } from "./credential"
+import { CredentialStorage } from "../credential"
 
 const platform = os.platform()
 

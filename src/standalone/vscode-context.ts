@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process"
-import { mkdirSync } from "fs"
+import { existsSync, mkdirSync } from "fs"
 import os from "os"
 import path from "path"
 import type { Extension, ExtensionContext } from "vscode"
@@ -41,12 +41,22 @@ export function initializeContext(clineDir?: string) {
 	const EXTENSION_DIR = path.join(INSTALL_DIR, "extension")
 	const EXTENSION_MODE = process.env.IS_DEV === "true" ? ExtensionMode.Development : ExtensionMode.Production
 
+	// In minimal contexts (e.g., migration tests), the packaged extension assets may not exist.
+	// Read package.json best-effort to avoid crashing during migrate-only runs.
+	let extensionPackageJson: any
+	try {
+		const pkgPath = path.join(EXTENSION_DIR, "package.json")
+		extensionPackageJson = existsSync(pkgPath) ? readJson(pkgPath) : { name: "cline-standalone", version: "0.0.0" }
+	} catch {
+		extensionPackageJson = { name: "cline-standalone", version: "0.0.0" }
+	}
+
 	const extension: Extension<void> = {
 		id: ExtensionRegistryInfo.id,
 		isActive: true,
 		extensionPath: EXTENSION_DIR,
 		extensionUri: URI.file(EXTENSION_DIR),
-		packageJSON: readJson(path.join(EXTENSION_DIR, "package.json")),
+		packageJSON: extensionPackageJson,
 		exports: undefined, // There are no API exports in the standalone version.
 		activate: async () => {},
 		extensionKind: ExtensionKind.UI,
