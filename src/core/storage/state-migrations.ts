@@ -119,7 +119,24 @@ async function performPreMigrationCheck(context: ExtensionContext): Promise<{
 export async function migrateTaskHistoryToWorkspaceState(context: ExtensionContext): Promise<void> {
 	const migrationVersion = context.globalState.get<number>(MIGRATION_VERSION_KEY, 0)
 
-	if (migrationVersion < 2) {
+	// Always check if workspaceIds need to be populated, regardless of version
+	// This ensures migration completes even if version was set but data wasn't migrated
+	try {
+		const taskHistory = await readTaskHistoryFromState()
+		const tasksWithoutWorkspaceIds = taskHistory.filter((t) => !t.workspaceIds || t.workspaceIds.length === 0)
+
+		if (tasksWithoutWorkspaceIds.length > 0) {
+			console.log(
+				`[Migration] Found ${tasksWithoutWorkspaceIds.length} tasks without workspaceIds, running populateWorkspaceIds migration...`,
+			)
+			await populateWorkspaceIds()
+		} else {
+			console.log("[Migration] All tasks have workspaceIds, skipping populateWorkspaceIds migration")
+		}
+	} catch (error) {
+		console.error("[Migration] Failed to check workspaceIds status:", error)
+		// Fall back to running migration if check fails
+		console.log("[Migration] Running populateWorkspaceIds migration due to check failure...")
 		await populateWorkspaceIds()
 	}
 
