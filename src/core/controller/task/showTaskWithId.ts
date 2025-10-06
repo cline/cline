@@ -1,10 +1,7 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { TaskResponse } from "@shared/proto/cline/task"
-import * as path from "path"
-import { HostProvider } from "@/hosts/host-provider"
-import { fileExistsAtPath } from "@/utils/fs"
 import { arePathsEqual, getWorkspacePath } from "@/utils/path"
-import { GlobalFileNames, readTaskHistoryFromState } from "../../storage/disk"
+import { readTaskHistoryFromState } from "../../storage/disk"
 import { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
@@ -24,17 +21,6 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 
 		// We need to initialize the task before returning data
 		if (historyItem) {
-			// VALIDATE: Check if message files exist before trying to load task
-			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks", id)
-			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
-			const messagesExist = await fileExistsAtPath(uiMessagesFilePath)
-
-			if (!messagesExist) {
-				// Task metadata exists but message files are missing - this is an orphaned task
-				console.error(`[showTaskWithId] Task ${id} has no message files - cannot load`)
-				throw new Error(`Task messages not found. This task may be corrupted or was deleted. Task ID: ${id}`)
-			}
-
 			// Check if task is from another workspace
 			const currentWorkspacePath = await getWorkspacePath()
 			let isCrossWorkspace = false
