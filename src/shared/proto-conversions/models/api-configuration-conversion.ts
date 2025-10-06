@@ -468,6 +468,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		difyApiKey: config.difyApiKey,
 		difyBaseUrl: config.difyBaseUrl,
 		ocaBaseUrl: config.ocaBaseUrl,
+		minimaxApiKey: config.minimaxApiKey,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,

@@ -211,6 +211,7 @@ export interface Secrets {
 	difyApiKey: string | undefined
 	ocaApiKey: string | undefined
 	ocaRefreshToken: string | undefined
+	minimaxApiKey: string | undefined
 }
 
 export interface LocalState {

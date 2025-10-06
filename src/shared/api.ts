@@ -37,6 +37,7 @@ export type ApiProvider =
 	| "vercel-ai-gateway"
 	| "zai"
 	| "oca"
+	| "minimax"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -75,6 +76,7 @@ export interface ApiHandlerSecrets {
 	basetenApiKey?: string
 	vercelAiGatewayApiKey?: string
 	difyApiKey?: string
+	minimaxApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -119,6 +121,7 @@ export interface ApiHandlerOptions {
 	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
+	minimaxApiLine?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -3700,3 +3703,31 @@ export const qwenCodeModels = {
 } as const satisfies Record<string, ModelInfo>
 export type QwenCodeModelId = keyof typeof qwenCodeModels
 export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
+
+// Minimax
+// https://www.minimax.io/platform/document/text_api_intro
+// https://www.minimax.io/platform/document/pricing
+export type MinimaxModelId = keyof typeof minimaxModels
+export const minimaxDefaultModelId: MinimaxModelId = "minimax-m2-mini"
+export const minimaxModels = {
+	"minimax-m2-mini": {
+		maxTokens: 12_288,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.7,
+		outputPrice: 1.3,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+	"minimax-m1": {
+		maxTokens: 12_288,
+		contextWindow: 256_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.7,
+		outputPrice: 1.3,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>

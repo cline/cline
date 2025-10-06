@@ -184,6 +184,7 @@ message TaskSettings {
    OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 121;
    string act_mode_oca_model_id = 122;
    OcaModelInfo act_mode_oca_model_info = 123;
+   string minimax_api_line = 124;
 }
 
 // Request message for creating a new task

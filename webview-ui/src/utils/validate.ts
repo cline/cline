@@ -157,6 +157,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "minimax":
+				if (!apiConfiguration.minimaxApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 		}
 	}
 	return undefined

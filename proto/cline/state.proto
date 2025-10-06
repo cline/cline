@@ -224,6 +224,8 @@ message ApiConfiguration {
   optional string oca_base_url = 66;
   optional string oca_api_key = 67;
   optional string oca_refresh_token = 68;
+  optional string minimax_api_key = 69;
+  optional string minimax_api_line = 70;
   
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

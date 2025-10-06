@@ -210,6 +210,7 @@ enum ApiProvider {
   QWEN_CODE = 33;
   DIFY = 34;
   OCA = 35;
+  MiniMax = 36;
 }
 
 // Model info for OpenAI-compatible models
@@ -325,6 +326,9 @@ message ModelsApiConfiguration {
   optional string oca_base_url = 73;
   optional string oca_api_key = 74;
   optional string oca_refresh_token = 75;
+  optional string minimax_api_key = 76;
+  optional string minimax_api_line = 77;
+
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

@@ -49,6 +49,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		authNonce,
 		ocaApiKey,
 		ocaRefreshToken,
+		minimaxApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -87,6 +88,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("authNonce") as Promise<Secrets["authNonce"]>,
 		context.secrets.get("ocaApiKey") as Promise<string | undefined>,
 		context.secrets.get("ocaRefreshToken") as Promise<string | undefined>,
+		context.secrets.get("minimaxApiKey") as Promise<Secrets["minimaxApiKey"]>,
 	])
 
 	return {
@@ -127,6 +129,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		awsSessionToken,
 		ocaApiKey,
 		ocaRefreshToken,
+		minimaxApiKey,
 	}
 }
 
@@ -621,6 +624,7 @@ export async function resetGlobalState(controller: Controller) {
 		"difyApiKey",
 		"ocaApiKey",
 		"ocaRefreshToken",
+		"minimaxApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()

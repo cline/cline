@@ -450,6 +450,7 @@ export class StateManager {
 			difyBaseUrl,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
+			minimaxApiKey,
 			requestTimeoutMs,
 			ocaBaseUrl,
 			// Plan mode configurations
@@ -670,6 +671,7 @@ export class StateManager {
 			difyApiKey,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
+			minimaxApiKey,
 		})
 	}
 
@@ -933,6 +935,7 @@ export class StateManager {
 			difyApiKey: this.secretsCache["difyApiKey"],
 			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
 			zaiApiKey: this.secretsCache["zaiApiKey"],
+			minimaxApiKey: this.secretsCache["minimaxApiKey"],
 
 			// Global state
 			awsRegion: this.taskStateCache["awsRegion"] || this.globalStateCache["awsRegion"],
