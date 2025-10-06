@@ -91,8 +91,7 @@ const ENABLED_PROVIDERS = [
 	"openrouter", // OpenRouter meta-provider
 	"xai", // X AI (Grok)
 	"bedrock", // AWS Bedrock
-	"cerebras", // Cerebras inference
-	"groq", // Groq high-speed inference
+	"gemini", // Google Gemini
 	"ollama", // Ollama local models
 ]
 

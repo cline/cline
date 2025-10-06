@@ -140,10 +140,9 @@ const (
 	BEDROCK = "bedrock"
 	OPENAI = "openai"
 	OLLAMA = "ollama"
+	GEMINI = "gemini"
 	OPENAI_NATIVE = "openai-native"
 	XAI = "xai"
-	CEREBRAS = "cerebras"
-	GROQ = "groq"
 )
 
 // AllProviders returns a slice of enabled provider IDs for the CLI build.
@@ -155,10 +154,9 @@ var AllProviders = []string{
 	"bedrock",
 	"openai",
 	"ollama",
+	"gemini",
 	"openai-native",
 	"xai",
-	"cerebras",
-	"groq",
 }
 
 // ConfigField represents a configuration field requirement
@@ -263,6 +261,15 @@ var rawConfigFields = `	[
 	    "placeholder": "Enter your API key"
 	  },
 	  {
+	    "name": "geminiApiKey",
+	    "type": "string",
+	    "comment": "",
+	    "category": "gemini",
+	    "required": true,
+	    "fieldType": "password",
+	    "placeholder": "Enter your API key"
+	  },
+	  {
 	    "name": "openAiNativeApiKey",
 	    "type": "string",
 	    "comment": "",
@@ -294,24 +301,6 @@ var rawConfigFields = `	[
 	    "type": "string",
 	    "comment": "",
 	    "category": "xai",
-	    "required": true,
-	    "fieldType": "password",
-	    "placeholder": "Enter your API key"
-	  },
-	  {
-	    "name": "cerebrasApiKey",
-	    "type": "string",
-	    "comment": "",
-	    "category": "cerebras",
-	    "required": true,
-	    "fieldType": "password",
-	    "placeholder": "Enter your API key"
-	  },
-	  {
-	    "name": "groqApiKey",
-	    "type": "string",
-	    "comment": "",
-	    "category": "groq",
 	    "required": true,
 	    "fieldType": "password",
 	    "placeholder": "Enter your API key"
@@ -378,6 +367,15 @@ var rawConfigFields = `	[
 	    "required": false,
 	    "fieldType": "string",
 	    "placeholder": ""
+	  },
+	  {
+	    "name": "geminiBaseUrl",
+	    "type": "string",
+	    "comment": "",
+	    "category": "gemini",
+	    "required": false,
+	    "fieldType": "url",
+	    "placeholder": "https://api.example.com"
 	  },
 	  {
 	    "name": "azureApiVersion",
@@ -728,6 +726,136 @@ var rawModelDefinitions = `	{
 	      "description": "A compact 20B open-weight Mixture-of-Experts language model designed for strong reasoning and tool use, ideal for edge devices and local inference."
 	    }
 	  },
+	  "gemini": {
+	    "gemini-2.5-pro": {
+	      "maxTokens": 65536,
+	      "contextWindow": 1048576,
+	      "inputPrice": 2,
+	      "outputPrice": 15,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gemini-2.5-flash-lite-preview-06-17": {
+	      "maxTokens": 64000,
+	      "contextWindow": 1000000,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true,
+	      "description": "Preview version - may not be available in all regions"
+	    },
+	    "gemini-2.5-flash": {
+	      "maxTokens": 65536,
+	      "contextWindow": 1048576,
+	      "inputPrice": 0,
+	      "outputPrice": 2,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gemini-2.0-flash-001": {
+	      "maxTokens": 8192,
+	      "contextWindow": 1048576,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "cacheWritesPrice": 1,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gemini-2.0-flash-lite-preview-02-05": {
+	      "maxTokens": 8192,
+	      "contextWindow": 1048576,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gemini-2.0-pro-exp-02-05": {
+	      "maxTokens": 8192,
+	      "contextWindow": 2097152,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gemini-2.0-flash-thinking-exp-01-21": {
+	      "maxTokens": 65536,
+	      "contextWindow": 1048576,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gemini-2.0-flash-thinking-exp-1219": {
+	      "maxTokens": 8192,
+	      "contextWindow": 32767,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gemini-2.0-flash-exp": {
+	      "maxTokens": 8192,
+	      "contextWindow": 1048576,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gemini-1.5-flash-002": {
+	      "maxTokens": 8192,
+	      "contextWindow": 1048576,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "cacheWritesPrice": 1,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "gemini-1.5-flash-exp-0827": {
+	      "maxTokens": 8192,
+	      "contextWindow": 1048576,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gemini-1.5-flash-8b-exp-0827": {
+	      "maxTokens": 8192,
+	      "contextWindow": 1048576,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gemini-1.5-pro-002": {
+	      "maxTokens": 8192,
+	      "contextWindow": 2097152,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gemini-1.5-pro-exp-0827": {
+	      "maxTokens": 8192,
+	      "contextWindow": 2097152,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    },
+	    "gemini-exp-1206": {
+	      "maxTokens": 8192,
+	      "contextWindow": 2097152,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": false
+	    }
+	  },
 	  "openai-native": {
 	    "gpt-5-2025-08-07": {
 	      "maxTokens": 8192,
@@ -1019,174 +1147,6 @@ var rawModelDefinitions = `	{
 	      "supportsPromptCache": false,
 	      "description": "X AI's Grok Beta model (legacy) with 131K context window"
 	    }
-	  },
-	  "cerebras": {
-	    "gpt-oss-120b": {
-	      "maxTokens": 65536,
-	      "contextWindow": 128000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "Intelligent general purpose model with 3,000 tokens/s"
-	    },
-	    "qwen-3-coder-480b-free": {
-	      "maxTokens": 40000,
-	      "contextWindow": 64000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "SOTA coding model with ~2000 tokens/s ($0 free tier)\\n\\n• Use this if you don't have a Cerebras subscription\\n• 64K context window\\n• Rate limits: 150K TPM, 1M TPH/TPD, 10 RPM, 100 RPH/RPD\\n\\nUpgrade for higher limits: [https://cloud.cerebras.ai/?utm=cline](https://cloud.cerebras.ai/?utm=cline)"
-	    },
-	    "qwen-3-coder-480b": {
-	      "maxTokens": 40000,
-	      "contextWindow": 128000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "SOTA coding model with ~2000 tokens/s ($50/$250 paid tiers)\\n\\n• Use this if you have a Cerebras subscription\\n• 131K context window with higher rate limits"
-	    },
-	    "qwen-3-235b-a22b-instruct-2507": {
-	      "maxTokens": 64000,
-	      "contextWindow": 64000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "Intelligent model with ~1400 tokens/s"
-	    },
-	    "llama-3.3-70b": {
-	      "maxTokens": 64000,
-	      "contextWindow": 64000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "Powerful model with ~2600 tokens/s"
-	    },
-	    "qwen-3-32b": {
-	      "maxTokens": 64000,
-	      "contextWindow": 64000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "SOTA coding performance with ~2500 tokens/s"
-	    },
-	    "qwen-3-235b-a22b-thinking-2507": {
-	      "maxTokens": 32000,
-	      "contextWindow": 65000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "SOTA performance with ~1500 tokens/s"
-	    }
-	  },
-	  "groq": {
-	    "openai/gpt-oss-120b": {
-	      "maxTokens": 32766,
-	      "contextWindow": 131072,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "A state-of-the-art 120B open-weight Mixture-of-Experts language model optimized for strong reasoning, tool use, and efficient deployment on large GPUs"
-	    },
-	    "openai/gpt-oss-20b": {
-	      "maxTokens": 32766,
-	      "contextWindow": 131072,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "A compact 20B open-weight Mixture-of-Experts language model designed for strong reasoning and tool use, ideal for edge devices and local inference."
-	    },
-	    "compound-beta": {
-	      "maxTokens": 8192,
-	      "contextWindow": 128000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "Compound model using Llama 4 Scout for core reasoning with Llama 3.3 70B for routing and tool use. Excellent for plan/act workflows."
-	    },
-	    "compound-beta-mini": {
-	      "maxTokens": 8192,
-	      "contextWindow": 128000,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "Lightweight compound model for faster inference while maintaining tool use capabilities."
-	    },
-	    "deepseek-r1-distill-llama-70b": {
-	      "maxTokens": 131072,
-	      "contextWindow": 131072,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "DeepSeek R1 reasoning capabilities distilled into Llama 70B architecture. Excellent for complex problem-solving and planning."
-	    },
-	    "meta-llama/llama-4-maverick-17b-128e-instruct": {
-	      "maxTokens": 8192,
-	      "contextWindow": 131072,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": true,
-	      "supportsPromptCache": false,
-	      "description": "Meta's Llama 4 Maverick 17B model with 128 experts, supports vision and multimodal tasks."
-	    },
-	    "meta-llama/llama-4-scout-17b-16e-instruct": {
-	      "maxTokens": 8192,
-	      "contextWindow": 131072,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": true,
-	      "supportsPromptCache": false,
-	      "description": "Meta's Llama 4 Scout 17B model with 16 experts, optimized for fast inference and general tasks."
-	    },
-	    "llama-3.3-70b-versatile": {
-	      "maxTokens": 32768,
-	      "contextWindow": 131072,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "Meta's latest Llama 3.3 70B model optimized for versatile use cases with excellent performance and speed."
-	    },
-	    "llama-3.1-8b-instant": {
-	      "maxTokens": 131072,
-	      "contextWindow": 131072,
-	      "inputPrice": 0,
-	      "outputPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": false,
-	      "description": "Fast and efficient Llama 3.1 8B model optimized for speed, low latency, and reliable tool execution."
-	    },
-	    "moonshotai/kimi-k2-instruct": {
-	      "maxTokens": 16384,
-	      "contextWindow": 131072,
-	      "inputPrice": 1,
-	      "outputPrice": 3,
-	      "cacheReadsPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": true,
-	      "description": "Kimi K2 is Moonshot AI's state-of-the-art Mixture-of-Experts (MoE) language model with 1 trillion total parameters and 32 billion activated parameters."
-	    },
-	    "moonshotai/kimi-k2-instruct-0905": {
-	      "maxTokens": 16384,
-	      "contextWindow": 262144,
-	      "inputPrice": 0,
-	      "outputPrice": 2,
-	      "cacheReadsPrice": 0,
-	      "supportsImages": false,
-	      "supportsPromptCache": true,
-	      "description": "Kimi K2 model gets a new version update: Agentic coding: more accurate, better generalization across scaffolds. Frontend coding: improved aesthetics and functionalities on web, 3d, and other tasks. Context length: extended from 128k to 256k, providing better long-horizon support."
-	    }
 	  }
 	}`
 
@@ -1297,6 +1257,18 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		SetupInstructions: `Install Ollama locally and ensure it's running on the specified port`,
 	}
 
+	// Google Gemini
+	definitions["gemini"] = ProviderDefinition{
+		ID:              "gemini",
+		Name:            "Google Gemini",
+		RequiredFields:  getFieldsByProvider("gemini", configFields, true),
+		OptionalFields:  getFieldsByProvider("gemini", configFields, false),
+		Models:          modelDefinitions["gemini"],
+		DefaultModelID:  "gemini-2.5-pro",
+		HasDynamicModels: false,
+		SetupInstructions: `Get your API key from https://makersuite.google.com/app/apikey`,
+	}
+
 	// OpenAI
 	definitions["openai-native"] = ProviderDefinition{
 		ID:              "openai-native",
@@ -1320,30 +1292,6 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		HasDynamicModels: false,
 		SetupInstructions: `Get your API key from https://console.x.ai/`,
 	}
-
-	// Cerebras
-	definitions["cerebras"] = ProviderDefinition{
-		ID:              "cerebras",
-		Name:            "Cerebras",
-		RequiredFields:  getFieldsByProvider("cerebras", configFields, true),
-		OptionalFields:  getFieldsByProvider("cerebras", configFields, false),
-		Models:          modelDefinitions["cerebras"],
-		DefaultModelID:  "qwen-3-coder-480b-free",
-		HasDynamicModels: false,
-		SetupInstructions: `Get your API key from https://cloud.cerebras.ai/`,
-	}
-
-	// Groq
-	definitions["groq"] = ProviderDefinition{
-		ID:              "groq",
-		Name:            "Groq",
-		RequiredFields:  getFieldsByProvider("groq", configFields, true),
-		OptionalFields:  getFieldsByProvider("groq", configFields, false),
-		Models:          modelDefinitions["groq"],
-		DefaultModelID:  "moonshotai/kimi-k2-instruct-0905",
-		HasDynamicModels: true,
-		SetupInstructions: `Get your API key from https://console.groq.com/keys`,
-	}
 	
 	return definitions, nil
 }
@@ -1366,10 +1314,9 @@ func GetProviderDisplayName(providerID string) string {
 		"bedrock": "AWS Bedrock",
 		"openai": "OpenAI Compatible",
 		"ollama": "Ollama",
+		"gemini": "Google Gemini",
 		"openai-native": "OpenAI",
 		"xai": "X AI (Grok)",
-		"cerebras": "Cerebras",
-		"groq": "Groq",
 	}
 	
 	if name, exists := displayNames[providerID]; exists {
