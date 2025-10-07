@@ -69,6 +69,8 @@ func (pw *ProviderWizard) Run() error {
 			if err := pw.handleAddProvider(); err != nil {
 				return err
 			}
+		case "select":
+			fmt.Println("Provider selection is currently stubbed - not yet implemented.")
 		case "remove":
 			fmt.Println("Provider removal is currently stubbed - not yet implemented.")
 		case "list":
@@ -98,7 +100,8 @@ func (pw *ProviderWizard) showMainMenu() (string, error) {
 			huh.NewSelect[string]().
 				Title("What would you like to do?").
 				Options(
-					huh.NewOption("Add a new provider", "add"),
+					huh.NewOption("Configure a new provider", "add"),
+					huh.NewOption("Select an existing provider", "select"),
 					huh.NewOption("Remove a provider", "remove"),
 					huh.NewOption("List configured providers", "list"),
 					huh.NewOption("Test provider connections", "test"),
