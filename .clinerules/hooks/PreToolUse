@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-
+# Example PreToolUse hook for testing context modification
 set -eu
 
+# Read input from stdin
+input=$(cat)
+
+# Extract tool name
+tool=$(echo "$input" | jq -r '.preToolUse.toolName // "unknown"')
+
+# Always allow execution but add context about what tool is being used
 cat <<EOF
 {
-  "shouldContinue": false,
-  "errorMessage": "The pre tool use hook is running"
+  "shouldContinue": true,
+  "contextModification": "Tool being executed: ${tool}\nWorkspace context: This is an example hook demonstrating context injection."
 }
 EOF

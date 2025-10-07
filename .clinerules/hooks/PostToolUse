@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Example PostToolUse hook for testing context modification
+set -eu
+
+# Read input from stdin
+input=$(cat)
+
+# Extract tool information
+tool=$(echo "$input" | jq -r '.postToolUse.toolName // "unknown"')
+success=$(echo "$input" | jq -r '.postToolUse.success // false')
+execution_time=$(echo "$input" | jq -r '.postToolUse.executionTimeMs // 0')
+
+# Always allow continuation, but provide context about execution
+cat <<EOF
+{
+  "shouldContinue": true,
+  "contextModification": "Tool '${tool}' completed with success=${success} in ${execution_time}ms.\nThis context was added by the PostToolUse hook."
+}
+EOF

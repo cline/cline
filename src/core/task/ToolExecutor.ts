@@ -395,9 +395,15 @@ export class ToolExecutor {
 					return
 				}
 
-				// Add context modification to the tool result if provided
+				// Add context modification to the conversation if provided by the hook
 				if (preToolUseResult.contextModification) {
-					// TODO: Modify the context
+					const contextText = preToolUseResult.contextModification.trim()
+					if (contextText) {
+						this.taskState.userMessageContent.push({
+							type: "text",
+							text: `[Hook Context - PreToolUse]\n${contextText}`,
+						})
+					}
 				}
 			} catch (hookError) {
 				const errorMessage = `PreToolUse hook failed: ${hookError.toString()}`
@@ -435,9 +441,15 @@ export class ToolExecutor {
 					},
 				})
 
+				// Add context modification to the conversation if provided by the hook
 				if (postToolUseResult.contextModification) {
-					// Handle context modification from PostToolUse hook
-					// TODO: Implement context modification
+					const contextText = postToolUseResult.contextModification.trim()
+					if (contextText) {
+						this.taskState.userMessageContent.push({
+							type: "text",
+							text: `[Hook Context - PostToolUse]\n${contextText}`,
+						})
+					}
 				}
 
 				// Log any error messages from the hook
