@@ -223,15 +223,15 @@ func (r *ClientRegistry) ListInstancesCleaned(ctx context.Context) ([]*common.Co
 	instances := r.ListInstances()
 
 	// 3. Ensure default is set if instances exist
-	if err := r.ensureDefaultInstance(instances); err != nil {
+	if err := r.EnsureDefaultInstance(instances); err != nil {
 		fmt.Printf("Warning: Failed to ensure default instance: %v\n", err)
 	}
 
 	return instances, nil
 }
 
-// ensureDefaultInstance ensures a default instance is set if instances exist but no default is configured
-func (r *ClientRegistry) ensureDefaultInstance(instances []*common.CoreInstanceInfo) error {
+// EnsureDefaultInstance ensures a default instance is set if instances exist but no default is configured
+func (r *ClientRegistry) EnsureDefaultInstance(instances []*common.CoreInstanceInfo) error {
 	currentDefault := r.GetDefaultInstance()
 
 	// If we have no instances, clear any stale default and remove settings file
