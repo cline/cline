@@ -32,6 +32,8 @@ export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	awsBedrockCustomSelected?: boolean
 	awsBedrockCustomModelBaseId?: string
 	thinkingBudgetTokens?: number
+	// Global Cross-Region
+	awsGlobalProfileArn?: string
 }
 
 // Extend AWS SDK types to include additionalModelResponseFields
@@ -267,9 +269,16 @@ export class AwsBedrockHandler implements ApiHandler {
 
 	/**
 	 * Gets the appropriate model ID, accounting for cross-region inference if enabled.
+	 * For Global Cross-Region, returns the Profile ARN.
 	 * For custom models, returns the raw model ID without any encoding.
 	 */
 	async getModelId(): Promise<string> {
+		// Global Cross-Region: use Profile ARN as model ID
+		if (this.options.awsGlobalProfileArn) {
+			return this.options.awsGlobalProfileArn
+		}
+
+		// Standard Cross-Region: add region prefix
 		if (!this.options.awsBedrockCustomSelected && this.options.awsUseCrossRegionInference) {
 			const regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {
@@ -284,6 +293,7 @@ export class AwsBedrockHandler implements ApiHandler {
 					return this.getModel().id
 			}
 		}
+
 		return this.getModel().id
 	}
 
@@ -520,9 +530,6 @@ export class AwsBedrockHandler implements ApiHandler {
 				const blockTypes = new Map<number, "reasoning" | "text">()
 
 				for await (const chunk of response.stream) {
-					// Debug logging to see actual response structure
-					// console.log("Bedrock chunk:", JSON.stringify(chunk, null, 2))
-
 					// Handle thinking response in additionalModelResponseFields (LangChain format)
 					const metadata = chunk.metadata as ExtendedMetadata | undefined
 					if (metadata?.additionalModelResponseFields?.thinkingResponse) {

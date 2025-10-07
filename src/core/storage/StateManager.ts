@@ -394,6 +394,10 @@ export class StateManager {
 			awsProfile,
 			awsUseProfile,
 			awsAuthentication,
+
+			// Bedrock Global Cross-Region
+			awsUseGlobalCrossRegion,
+
 			vertexProjectId,
 			vertexRegion,
 			openAiBaseUrl,
@@ -558,7 +562,6 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
-
 			// Act mode configuration updates
 			actModeApiProvider,
 			actModeApiModelId,
@@ -602,6 +605,10 @@ export class StateManager {
 			awsProfile,
 			awsUseProfile,
 			awsAuthentication,
+
+			// Bedrock Global Cross-Region
+			awsUseGlobalCrossRegion,
+
 			vertexProjectId,
 			vertexRegion,
 			requestyBaseUrl,
@@ -944,6 +951,11 @@ export class StateManager {
 			awsProfile: this.taskStateCache["awsProfile"] || this.globalStateCache["awsProfile"],
 			awsUseProfile: this.taskStateCache["awsUseProfile"] || this.globalStateCache["awsUseProfile"],
 			awsAuthentication: this.taskStateCache["awsAuthentication"] || this.globalStateCache["awsAuthentication"],
+
+			// Bedrock Global Cross-Region
+			awsUseGlobalCrossRegion:
+				this.taskStateCache["awsUseGlobalCrossRegion"] || this.globalStateCache["awsUseGlobalCrossRegion"],
+
 			vertexProjectId: this.taskStateCache["vertexProjectId"] || this.globalStateCache["vertexProjectId"],
 			vertexRegion: this.taskStateCache["vertexRegion"] || this.globalStateCache["vertexRegion"],
 			requestyBaseUrl: this.taskStateCache["requestyBaseUrl"] || this.globalStateCache["requestyBaseUrl"],
@@ -1044,7 +1056,6 @@ export class StateManager {
 				this.globalStateCache["planModeVercelAiGatewayModelInfo"],
 			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
 			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
-
 			// Act mode configurations
 			actModeApiProvider: this.taskStateCache["actModeApiProvider"] || this.globalStateCache["actModeApiProvider"],
 			actModeApiModelId: this.taskStateCache["actModeApiModelId"] || this.globalStateCache["actModeApiModelId"],

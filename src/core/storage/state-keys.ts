@@ -52,6 +52,9 @@ export interface Settings {
 	awsProfile: string | undefined
 	awsAuthentication: string | undefined
 	awsUseProfile: boolean | undefined
+
+	// Bedrock Global Cross-Region
+	awsUseGlobalCrossRegion: boolean | undefined
 	vertexProjectId: string | undefined
 	vertexRegion: string | undefined
 	requestyBaseUrl: string | undefined

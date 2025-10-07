@@ -92,6 +92,9 @@ export interface ApiHandlerOptions {
 	awsUseProfile?: boolean
 	awsProfile?: string
 	awsBedrockEndpoint?: string
+
+	// Bedrock Global Cross-Region 配置
+	awsUseGlobalCrossRegion?: boolean
 	claudeCodePath?: string
 	vertexProjectId?: string
 	vertexRegion?: string
@@ -153,8 +156,6 @@ export interface ApiHandlerOptions {
 	planModeVercelAiGatewayModelInfo?: ModelInfo
 	planModeOcaModelId?: string
 	planModeOcaModelInfo?: OcaModelInfo
-	// Act mode configurations
-
 	// Act mode configurations
 	actModeApiModelId?: string
 	actModeThinkingBudgetTokens?: number
@@ -629,6 +630,24 @@ export const bedrockModels = {
 			"A compact 20B open-weight Mixture-of-Experts language model designed for strong reasoning and tool use, ideal for edge devices and local inference.",
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// AWS Bedrock Global Cross-Region
+// 模型 ID 到 Global Profile ID 的映射
+// 根据选择的 Bedrock 模型自动生成对应的 Global Profile ID
+export const BEDROCK_GLOBAL_PROFILE_MAPPING: Record<string, string> = {
+	"anthropic.claude-sonnet-4-5-20250929-v1:0": "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+	"anthropic.claude-sonnet-4-20250514-v1:0": "global.anthropic.claude-sonnet-4-20250514-v1:0",
+	"anthropic.claude-opus-4-1-20250805-v1:0": "global.anthropic.claude-opus-4-1-20250805-v1:0",
+	"anthropic.claude-opus-4-20250514-v1:0": "global.anthropic.claude-opus-4-20250514-v1:0",
+}
+
+// 辅助函数：根据模型 ID 获取 Global Profile ID
+export function getGlobalProfileIdForModel(modelId: string | undefined): string | undefined {
+	if (!modelId) return undefined
+	// 移除 :1m 后缀（如果有）
+	const baseModelId = modelId.replace(CLAUDE_SONNET_1M_SUFFIX, "")
+	return BEDROCK_GLOBAL_PROFILE_MAPPING[baseModelId]
+}
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
