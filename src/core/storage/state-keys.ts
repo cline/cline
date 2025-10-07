@@ -47,6 +47,7 @@ export interface GlobalState {
 export interface Settings {
 	awsRegion: string | undefined
 	awsUseCrossRegionInference: boolean | undefined
+	awsUseGlobalInference: boolean | undefined
 	awsBedrockUsePromptCache: boolean | undefined
 	awsBedrockEndpoint: string | undefined
 	awsProfile: string | undefined
@@ -102,6 +103,7 @@ export interface Settings {
 	difyBaseUrl: string | undefined
 	autoCondenseThreshold: number | undefined // number from 0 to 1
 	ocaBaseUrl: string | undefined
+	ocaMode: string | undefined
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider

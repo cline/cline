@@ -4,10 +4,12 @@ import { type JwtPayload, jwtDecode } from "jwt-decode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import {
-	DEFAULT_IDCS_CLIENT_ID,
-	DEFAULT_IDCS_PORT_CANDIDATES,
-	DEFAULT_IDCS_URL,
-	DEFAULT_IDSC_SCOPES,
+	DEFAULT_EXTERNAL_IDCS_CLIENT_ID,
+	DEFAULT_EXTERNAL_IDCS_URL,
+	DEFAULT_EXTERNAL_IDSC_SCOPES,
+	DEFAULT_INTERNAL_IDCS_CLIENT_ID,
+	DEFAULT_INTERNAL_IDCS_URL,
+	DEFAULT_INTERNAL_IDSC_SCOPES,
 	OCA_CONFIG_PATH,
 } from "../utils/constants"
 import type { OcaConfig } from "./types"
@@ -37,10 +39,16 @@ export const getOcaConfig = (): OcaConfig => {
 	// Overlay user-provided values onto defaults. For each field, prefer the file
 	// value if it is defined; otherwise, use the default constant.
 	const ocaConfig: OcaConfig = {
-		client_id: cfg.client_id ?? DEFAULT_IDCS_CLIENT_ID,
-		idcs_url: cfg.idcs_url ?? DEFAULT_IDCS_URL,
-		scopes: cfg.scopes ?? DEFAULT_IDSC_SCOPES,
-		ports: cfg.ports ?? DEFAULT_IDCS_PORT_CANDIDATES,
+		internal: {
+			client_id: cfg.internal_client_id ?? DEFAULT_INTERNAL_IDCS_CLIENT_ID,
+			idcs_url: cfg.internal_idcs_url ?? DEFAULT_INTERNAL_IDCS_URL,
+			scopes: cfg.internal_scopes ?? DEFAULT_INTERNAL_IDSC_SCOPES,
+		},
+		external: {
+			client_id: cfg.external_client_id ?? DEFAULT_EXTERNAL_IDCS_CLIENT_ID,
+			idcs_url: cfg.external_idcs_url ?? DEFAULT_EXTERNAL_IDCS_URL,
+			scopes: cfg.external_scopes ?? DEFAULT_EXTERNAL_IDSC_SCOPES,
+		},
 	}
 	return ocaConfig
 }

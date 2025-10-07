@@ -17,8 +17,8 @@ import { audioRecordingService } from "./services/dictation/AudioRecordingServic
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
 import { initializeDistinctId } from "./services/logging/distinctId"
-import { PostHogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { telemetryService } from "./services/telemetry"
+import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { getLatestAnnouncementId } from "./utils/announcements"
 /**

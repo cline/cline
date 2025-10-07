@@ -388,6 +388,7 @@ export class StateManager {
 			awsSessionToken,
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsUseGlobalInference,
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
 			awsBedrockApiKey,
@@ -452,6 +453,7 @@ export class StateManager {
 			zaiApiKey,
 			requestTimeoutMs,
 			ocaBaseUrl,
+			ocaMode,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -597,6 +599,7 @@ export class StateManager {
 			// Global state updates
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsUseGlobalInference,
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
 			awsProfile,
@@ -632,6 +635,7 @@ export class StateManager {
 			difyBaseUrl,
 			qwenCodeOauthPath,
 			ocaBaseUrl,
+			ocaMode,
 		})
 
 		// Batch update secrets
@@ -938,6 +942,7 @@ export class StateManager {
 			awsRegion: this.taskStateCache["awsRegion"] || this.globalStateCache["awsRegion"],
 			awsUseCrossRegionInference:
 				this.taskStateCache["awsUseCrossRegionInference"] || this.globalStateCache["awsUseCrossRegionInference"],
+			awsUseGlobalInference: this.taskStateCache["awsUseGlobalInference"] || this.globalStateCache["awsUseGlobalInference"],
 			awsBedrockUsePromptCache:
 				this.taskStateCache["awsBedrockUsePromptCache"] || this.globalStateCache["awsBedrockUsePromptCache"],
 			awsBedrockEndpoint: this.taskStateCache["awsBedrockEndpoint"] || this.globalStateCache["awsBedrockEndpoint"],
@@ -980,6 +985,7 @@ export class StateManager {
 			qwenCodeOauthPath: this.taskStateCache["qwenCodeOauthPath"] || this.globalStateCache["qwenCodeOauthPath"],
 			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
 			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
+			ocaMode: this.globalStateCache["ocaMode"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.taskStateCache["planModeApiProvider"] || this.globalStateCache["planModeApiProvider"],

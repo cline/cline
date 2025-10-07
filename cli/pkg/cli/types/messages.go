@@ -3,22 +3,25 @@ package types
 import (
 	"encoding/json"
 	"fmt"
-	"time"
-    "strconv"
 	"github.com/cline/grpc-go/cline"
+	"strconv"
+	"time"
 )
 
 // ClineMessage represents a conversation message in the CLI
 type ClineMessage struct {
-	Type      MessageType `json:"type"`
-	Text      string      `json:"text"`
-	Timestamp int64       `json:"ts"`
-	Reasoning string      `json:"reasoning,omitempty"`
-	Say       string      `json:"say,omitempty"`
-	Ask       string      `json:"ask,omitempty"`
-	Partial   bool        `json:"partial,omitempty"`
-	Images    []string    `json:"images,omitempty"`
-	Files     []string    `json:"files,omitempty"`
+	Type                        MessageType `json:"type"`
+	Text                        string      `json:"text"`
+	Timestamp                   int64       `json:"ts"`
+	Reasoning                   string      `json:"reasoning,omitempty"`
+	Say                         string      `json:"say,omitempty"`
+	Ask                         string      `json:"ask,omitempty"`
+	Partial                     bool        `json:"partial,omitempty"`
+	Images                      []string    `json:"images,omitempty"`
+	Files                       []string    `json:"files,omitempty"`
+	LastCheckpointHash          string      `json:"lastCheckpointHash,omitempty"`
+	IsCheckpointCheckedOut      bool        `json:"isCheckpointCheckedOut,omitempty"`
+	IsOperationOutsideWorkspace bool        `json:"isOperationOutsideWorkspace,omitempty"`
 }
 
 // MessageType represents the type of message
@@ -206,13 +209,16 @@ func ConvertProtoToMessage(protoMsg *cline.ClineMessage) *ClineMessage {
 	}
 
 	return &ClineMessage{
-		Type:      msgType,
-		Text:      protoMsg.Text,
-		Timestamp: protoMsg.Ts,
-		Reasoning: protoMsg.Reasoning,
-		Say:       say,
-		Ask:       ask,
-		Partial:   protoMsg.Partial,
+		Type:                        msgType,
+		Text:                        protoMsg.Text,
+		Timestamp:                   protoMsg.Ts,
+		Reasoning:                   protoMsg.Reasoning,
+		Say:                         say,
+		Ask:                         ask,
+		Partial:                     protoMsg.Partial,
+		LastCheckpointHash:          protoMsg.LastCheckpointHash,
+		IsCheckpointCheckedOut:      protoMsg.IsCheckpointCheckedOut,
+		IsOperationOutsideWorkspace: protoMsg.IsOperationOutsideWorkspace,
 	}
 }
 

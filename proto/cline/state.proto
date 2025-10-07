@@ -224,6 +224,8 @@ message ApiConfiguration {
   optional string oca_base_url = 66;
   optional string oca_api_key = 67;
   optional string oca_refresh_token = 68;
+  optional string oca_mode = 69;
+  optional bool aws_use_global_inference = 70;
   
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
