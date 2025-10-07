@@ -50,6 +50,13 @@ export interface OpenTelemetryClientConfig {
 	 * Metric export interval in milliseconds (for console exporter)
 	 */
 	metricExportInterval?: number
+
+	/**
+	 * Whether to use insecure (non-TLS) connections for gRPC OTLP exporters
+	 * Set to "true" for local development without TLS
+	 * Default: false (uses TLS)
+	 */
+	otlpInsecure?: boolean
 }
 
 /**
@@ -71,12 +78,12 @@ let otelConfig: OpenTelemetryClientConfig | null = null
 /**
  * Gets or creates the OpenTelemetry configuration from environment variables.
  * Configuration is cached after first access for performance.
- * 
+ *
  * Configuration Sources:
  * - **Production Build**: Environment variables injected by esbuild at build time
  *   via .github/workflows/publish.yml
  * - **Development**: Environment variables from .env file loaded by VSCode
- * 
+ *
  * Supported Environment Variables:
  * - OTEL_TELEMETRY_ENABLED: "1" to enable OpenTelemetry (default: off)
  * - OTEL_METRICS_EXPORTER: Comma-separated list: "console", "otlp", "prometheus"
@@ -88,7 +95,8 @@ let otelConfig: OpenTelemetryClientConfig | null = null
  * - OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: Logs-specific protocol override
  * - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: Logs-specific endpoint override
  * - OTEL_METRIC_EXPORT_INTERVAL: Milliseconds between metric exports (default: 60000)
- * 
+ * - OTEL_EXPORTER_OTLP_INSECURE: "true" to disable TLS for gRPC (for local development)
+ *
  * @private
  * @see .env.example for development setup
  * @see .github/workflows/publish.yml for production environment variable injection
@@ -108,6 +116,7 @@ function getOtelConfig(): OpenTelemetryClientConfig {
 			metricExportInterval: process.env.OTEL_METRIC_EXPORT_INTERVAL
 				? parseInt(process.env.OTEL_METRIC_EXPORT_INTERVAL, 10)
 				: undefined,
+			otlpInsecure: process.env.OTEL_EXPORTER_OTLP_INSECURE === "true",
 		}
 	}
 	return otelConfig
@@ -131,9 +140,9 @@ export function isOpenTelemetryConfigValid(config: OpenTelemetryClientConfig): c
 /**
  * Gets validated OpenTelemetry configuration if available.
  * Returns null if configuration is invalid or disabled.
- * 
+ *
  * Configuration does not change at runtime - requires VSCode reload to pick up new values.
- * 
+ *
  * @returns Valid OpenTelemetry configuration or null if disabled/invalid
  * @see .env.example for configuration options
  */

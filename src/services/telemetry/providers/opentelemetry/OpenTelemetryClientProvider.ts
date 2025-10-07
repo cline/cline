@@ -1,3 +1,4 @@
+import { credentials as grpcCredentials } from "@grpc/grpc-js"
 import { metrics } from "@opentelemetry/api"
 import { logs } from "@opentelemetry/api-logs"
 import { OTLPLogExporter as OTLPLogExporterGRPC } from "@opentelemetry/exporter-logs-otlp-grpc"
@@ -149,19 +150,34 @@ export class OpenTelemetryClientProvider {
 	private createOTLPMetricExporter() {
 		const protocol = this.config!.otlpMetricsProtocol || this.config!.otlpProtocol || "grpc"
 		const endpoint = this.config!.otlpMetricsEndpoint || this.config!.otlpEndpoint
+		const useInsecure = this.config!.otlpInsecure || false
 
 		if (!endpoint) {
 			console.warn("[OTEL DEBUG] OTLP metrics exporter requires an endpoint")
 			return null
 		}
 
+		console.log(
+			`[OTEL DEBUG] Creating OTLP metrics exporter: protocol=${protocol}, endpoint=${endpoint}, insecure=${useInsecure}`,
+		)
+
 		try {
 			switch (protocol) {
-				case "grpc":
+				case "grpc": {
 					// For gRPC, strip http:// or https:// prefix if present
 					// gRPC endpoints should be in format "localhost:4317" not "http://localhost:4317"
 					const grpcEndpoint = endpoint.replace(/^https?:\/\//, "")
-					return new OTLPMetricExporterGRPC({ url: grpcEndpoint })
+
+					// Configure credentials based on insecure flag
+					const credentials = useInsecure ? grpcCredentials.createInsecure() : grpcCredentials.createSsl()
+
+					console.log(`[OTEL DEBUG] Using ${useInsecure ? "INSECURE" : "SECURE"} gRPC connection to ${grpcEndpoint}`)
+
+					return new OTLPMetricExporterGRPC({
+						url: grpcEndpoint,
+						credentials: credentials,
+					})
+				}
 				case "http/json":
 					return new OTLPMetricExporterHTTP({ url: endpoint })
 				case "http/protobuf":
@@ -171,7 +187,7 @@ export class OpenTelemetryClientProvider {
 					return null
 			}
 		} catch (error) {
-			console.error("Error creating OTLP metrics exporter:", error)
+			console.error("[OTEL DEBUG] Error creating OTLP metrics exporter:", error)
 			return null
 		}
 	}
@@ -179,22 +195,43 @@ export class OpenTelemetryClientProvider {
 	private createOTLPLogExporter(): LogRecordExporter | null {
 		const protocol = this.config!.otlpLogsProtocol || this.config!.otlpProtocol || "grpc"
 		const endpoint = this.config!.otlpLogsEndpoint || this.config!.otlpEndpoint
+		const useInsecure = this.config!.otlpInsecure || false
 
 		if (!endpoint) {
-			console.warn("OTLP logs exporter requires an endpoint")
+			console.warn("[OTEL DEBUG] OTLP logs exporter requires an endpoint")
 			return null
 		}
 
-		switch (protocol) {
-			case "grpc":
-				return new OTLPLogExporterGRPC({ url: endpoint })
-			case "http/json":
-				return new OTLPLogExporterHTTP({ url: endpoint })
-			case "http/protobuf":
-				return new OTLPLogExporterProto({ url: endpoint })
-			default:
-				console.warn(`Unknown OTLP protocol: ${protocol}`)
-				return null
+		console.log(
+			`[OTEL DEBUG] Creating OTLP logs exporter: protocol=${protocol}, endpoint=${endpoint}, insecure=${useInsecure}`,
+		)
+
+		try {
+			switch (protocol) {
+				case "grpc": {
+					const grpcEndpoint = endpoint.replace(/^https?:\/\//, "")
+					const credentials = useInsecure ? grpcCredentials.createInsecure() : grpcCredentials.createSsl()
+
+					console.log(
+						`[OTEL DEBUG] Using ${useInsecure ? "INSECURE" : "SECURE"} gRPC connection for logs to ${grpcEndpoint}`,
+					)
+
+					return new OTLPLogExporterGRPC({
+						url: grpcEndpoint,
+						credentials: credentials,
+					})
+				}
+				case "http/json":
+					return new OTLPLogExporterHTTP({ url: endpoint })
+				case "http/protobuf":
+					return new OTLPLogExporterProto({ url: endpoint })
+				default:
+					console.warn(`[OTEL DEBUG] Unknown OTLP protocol: ${protocol}`)
+					return null
+			}
+		} catch (error) {
+			console.error("[OTEL DEBUG] Error creating OTLP logs exporter:", error)
+			return null
 		}
 	}
 
