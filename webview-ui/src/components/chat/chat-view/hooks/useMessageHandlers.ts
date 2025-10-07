@@ -1,7 +1,9 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
+import { COMMAND_CANCEL_TOKEN } from "@shared/ExtensionMessage"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
 import { useCallback } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { SlashServiceClient, TaskServiceClient } from "@/services/grpc-client"
 import type { ButtonActionType } from "../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../types/chatTypes"
@@ -11,6 +13,7 @@ import type { ChatState, MessageHandlers } from "../types/chatTypes"
  * Handles sending messages, button clicks, and task management
  */
 export function useMessageHandlers(messages: ClineMessage[], chatState: ChatState): MessageHandlers {
+	const { backgroundCommandRunning } = useExtensionState()
 	const {
 		setInputValue,
 		activeQuote,
@@ -208,8 +211,18 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					break
 
 				case "cancel":
-					await TaskServiceClient.cancelTask(EmptyRequest.create({}))
-					return // Don't disable buttons for cancel
+					if (backgroundCommandRunning) {
+						await TaskServiceClient.cancelBackgroundCommand(EmptyRequest.create({}))
+					} else {
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "noButtonClicked",
+								text: COMMAND_CANCEL_TOKEN,
+							}),
+						)
+					}
+					clearInputState()
+					break
 
 				case "utility":
 					switch (clineAsk) {
@@ -231,7 +244,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				;(chatState as any).disableAutoScrollRef.current = false
 			}
 		},
-		[clineAsk, lastMessage, messages, clearInputState, handleSendMessage, startNewTask, chatState],
+		[clineAsk, lastMessage, messages, clearInputState, handleSendMessage, startNewTask, chatState, backgroundCommandRunning],
 	)
 
 	// Handle task close button click

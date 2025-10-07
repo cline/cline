@@ -41,6 +41,7 @@ import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
 import { TerminalManager } from "@integrations/terminal/TerminalManager"
+import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { listFiles } from "@services/glob/list-files"
@@ -50,7 +51,14 @@ import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import {
+	ClineApiReqCancelReason,
+	ClineApiReqInfo,
+	ClineAsk,
+	ClineMessage,
+	ClineSay,
+	COMMAND_CANCEL_TOKEN,
+} from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
@@ -96,6 +104,7 @@ type TaskParams = {
 	terminalReuseEnabled: boolean
 	terminalOutputLineLimit: number
 	defaultTerminalProfile: string
+	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	cwd: string
 	stateManager: StateManager
 	workspaceManager?: WorkspaceRootManager
@@ -131,6 +140,14 @@ export class Task {
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
 
+	private terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
+	private activeBackgroundCommand?: {
+		process: TerminalProcessResultPromise & {
+			terminate?: () => void
+		}
+		command: string
+	}
+
 	// Metadata tracking
 	private fileContextTracker: FileContextTracker
 	private modelContextTracker: ModelContextTracker
@@ -165,6 +182,7 @@ export class Task {
 			terminalReuseEnabled,
 			terminalOutputLineLimit,
 			defaultTerminalProfile,
+			vscodeTerminalExecutionMode,
 			cwd,
 			stateManager,
 			workspaceManager,
@@ -190,7 +208,28 @@ export class Task {
 		// standaloneTerminalManager is defined in the vscode-impls and injected
 		// during compilation of the standalone manager only, so this variable only
 		// exists in that case
-		if ((global as any).standaloneTerminalManager) {
+		const terminalExecutionMode = vscodeTerminalExecutionMode ?? "vscodeTerminal"
+		this.terminalExecutionMode = terminalExecutionMode
+
+		if (terminalExecutionMode === "backgroundExec") {
+			try {
+				const modulePath = path.join(__dirname, "../standalone/runtime-files/vscode/enhanced-terminal.js")
+				// eslint-disable-next-line @typescript-eslint/no-var-requires
+				const { StandaloneTerminalManager } = require(modulePath) as {
+					StandaloneTerminalManager?: new () => TerminalManager
+				}
+				if (StandaloneTerminalManager) {
+					console.log("[DEBUG] Using standalone terminal manager via execution mode setting")
+					this.terminalManager = new StandaloneTerminalManager()
+				} else {
+					console.warn("[DEBUG] Standalone terminal manager module missing StandaloneTerminalManager export")
+					this.terminalManager = new TerminalManager()
+				}
+			} catch (error) {
+				console.error("[DEBUG] Failed to load standalone terminal manager", error)
+				this.terminalManager = new TerminalManager()
+			}
+		} else if ((global as any).standaloneTerminalManager) {
 			console.log("[DEBUG] Using vscode-impls.js terminal manager")
 			this.terminalManager = (global as any).standaloneTerminalManager
 		} else {
@@ -1048,8 +1087,51 @@ export class Task {
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
 		const process = this.terminalManager.runCommand(terminalInfo, command)
 
+		// Track command execution for both terminal modes
+		this.controller.updateBackgroundCommandState(true, this.taskId)
+
+		if (this.terminalExecutionMode === "backgroundExec") {
+			this.activeBackgroundCommand = { process: process as any, command }
+			console.log(`[Task] Background command started`, JSON.stringify({ taskId: this.taskId, command }))
+		}
+
+		const clearCommandState = async () => {
+			if (this.terminalExecutionMode === "backgroundExec") {
+				if (this.activeBackgroundCommand?.process !== process) {
+					return
+				}
+				this.activeBackgroundCommand = undefined
+				console.log(`[Task] Background command cleared`, JSON.stringify({ taskId: this.taskId }))
+			}
+			this.controller.updateBackgroundCommandState(false, this.taskId)
+
+			// Mark the command message as completed
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const lastCommandIndex = findLastIndex(clineMessages, (m) => m.ask === "command" || m.say === "command")
+			if (lastCommandIndex !== -1) {
+				await this.messageStateHandler.updateClineMessage(lastCommandIndex, {
+					commandCompleted: true,
+				})
+			}
+		}
+
+		const processEmitter = process as unknown as {
+			on?: (event: string, listener: (...args: any[]) => void) => void
+			once?: (event: string, listener: (...args: any[]) => void) => void
+			finally?: (listener: () => void) => Promise<void>
+		}
+		processEmitter.once?.("completed", clearCommandState)
+		processEmitter.once?.("error", clearCommandState)
+		const processFinally = (process as Promise<void>).finally?.(() => {
+			clearCommandState()
+		})
+		processFinally?.catch(() => {
+			clearCommandState()
+		})
+
 		let userFeedback: { text?: string; images?: string[]; files?: string[] } | undefined
 		let didContinue = false
+		let didCancelViaUi = false
 
 		// Chunked terminal output buffering
 		const CHUNK_LINE_COUNT = 20
@@ -1091,14 +1173,27 @@ export class Task {
 					if (text || (images && images.length > 0) || (files && files.length > 0)) {
 						userFeedback = { text, images, files }
 					}
+				} else if (response === "noButtonClicked" && text === COMMAND_CANCEL_TOKEN) {
+					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.CANCELLED)
+					didCancelViaUi = true
+					userFeedback = undefined
 				} else {
 					userFeedback = { text, images, files }
 				}
 				didContinue = true
 				process.continue()
 
+				if (didCancelViaUi) {
+					outputBuffer = []
+					outputBufferSize = 0
+					await this.say(
+						"command_output",
+						"Command cancelled. It will keep running in the terminal if you want to monitor it manually.",
+					)
+				}
+
 				// If more output accumulated, flush again
-				if (outputBuffer.length > 0) {
+				if (!didCancelViaUi && outputBuffer.length > 0) {
 					await flushBuffer()
 				}
 			} catch {
@@ -1123,8 +1218,12 @@ export class Task {
 
 		const outputLines: string[] = []
 		process.on("line", async (line) => {
+			if (didCancelViaUi) {
+				return
+			}
 			outputLines.push(line)
 
+			// Apply buffered streaming for both vscodeTerminal and backgroundExec modes
 			if (!didContinue) {
 				outputBuffer.push(line)
 				outputBufferSize += Buffer.byteLength(line, "utf8")
@@ -1135,6 +1234,8 @@ export class Task {
 					scheduleFlush()
 				}
 			} else {
+				// For backgroundExec mode, stream output directly to UI after user continues
+				// For vscodeTerminal mode, this maintains existing behavior
 				this.say("command_output", line)
 			}
 		})
@@ -1153,6 +1254,7 @@ export class Task {
 
 		process.once("completed", async () => {
 			completed = true
+			//await this.say("shell_integration_warning_with_suggestion")
 			// Clear the completion timer
 			if (completionTimer) {
 				clearTimeout(completionTimer)
@@ -1169,26 +1271,61 @@ export class Task {
 		})
 
 		process.once("no_shell_integration", async () => {
-			await this.say("shell_integration_warning")
+			const shouldShowSuggestion = this.controller.shouldShowBackgroundTerminalSuggestion()
+
+			if (shouldShowSuggestion) {
+				await this.say("shell_integration_warning_with_suggestion")
+			} else {
+				await this.say("shell_integration_warning")
+			}
 		})
 
 		//await process
 
-		if (timeoutSeconds) {
-			const timeoutPromise = new Promise<never>((_, reject) => {
-				setTimeout(() => {
-					reject(new Error("COMMAND_TIMEOUT"))
-				}, timeoutSeconds * 1000)
-			})
+		if (!didCancelViaUi) {
+			if (!didCancelViaUi) {
+				if (timeoutSeconds) {
+					const timeoutPromise = new Promise<never>((_, reject) => {
+						setTimeout(() => {
+							reject(new Error("COMMAND_TIMEOUT"))
+						}, timeoutSeconds * 1000)
+					})
 
-			try {
-				await Promise.race([process, timeoutPromise])
-			} catch (error) {
-				// This will continue running the command in the background
-				didContinue = true
-				process.continue()
+					try {
+						await Promise.race([process, timeoutPromise])
+					} catch (error) {
+						// This will continue running the command in the background
+						didContinue = true
+						process.continue()
 
-				// Clear all our timers
+						// Clear all our timers
+						if (chunkTimer) {
+							clearTimeout(chunkTimer)
+							chunkTimer = null
+						}
+						if (completionTimer) {
+							clearTimeout(completionTimer)
+							completionTimer = null
+						}
+
+						// Process any output we captured before timeout
+						await setTimeoutPromise(50)
+						const result = this.terminalManager.processOutput(outputLines)
+
+						if (error.message === "COMMAND_TIMEOUT") {
+							return [
+								false,
+								`Command execution timed out after ${timeoutSeconds} seconds. The command may still be running in the terminal.${result.length > 0 ? `\nOutput so far:\n${result}` : ""}`,
+							]
+						}
+
+						// Re-throw other errors
+						throw error
+					}
+				} else {
+					await process
+				}
+			} else {
 				if (chunkTimer) {
 					clearTimeout(chunkTimer)
 					chunkTimer = null
@@ -1197,23 +1334,7 @@ export class Task {
 					clearTimeout(completionTimer)
 					completionTimer = null
 				}
-
-				// Process any output we captured before timeout
-				await setTimeoutPromise(50)
-				const result = this.terminalManager.processOutput(outputLines)
-
-				if (error.message === "COMMAND_TIMEOUT") {
-					return [
-						false,
-						`Command execution timed out after ${timeoutSeconds} seconds. The command may still be running in the terminal.${result.length > 0 ? `\nOutput so far:\n${result}` : ""}`,
-					]
-				}
-
-				// Re-throw other errors
-				throw error
 			}
-		} else {
-			await process
 		}
 
 		// Clear timer if process completes normally
@@ -1227,9 +1348,22 @@ export class Task {
 		// for their associated messages to be sent to the webview, maintaining
 		// the correct order of messages (although the webview is smart about
 		// grouping command_output messages despite any gaps anyways)
-		await setTimeoutPromise(50)
+		if (!didCancelViaUi) {
+			await setTimeoutPromise(50)
+		}
 
 		const result = this.terminalManager.processOutput(outputLines)
+
+		if (didCancelViaUi) {
+			return [
+				true,
+				formatResponse.toolResult(
+					`Command cancelled. It will continue running in the terminal.${
+						result.length > 0 ? `\nOutput captured before cancellation:\n${result}` : ""
+					}`,
+				),
+			]
+		}
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)
@@ -1261,6 +1395,34 @@ export class Task {
 				}\n\nYou will be updated on the terminal status and new output in the future.`,
 			]
 		}
+	}
+
+	public async cancelBackgroundCommand(): Promise<boolean> {
+		if (this.terminalExecutionMode !== "backgroundExec") {
+			return false
+		}
+		if (!this.activeBackgroundCommand) {
+			return false
+		}
+		const { process, command } = this.activeBackgroundCommand
+		this.activeBackgroundCommand = undefined
+		this.controller.updateBackgroundCommandState(false, this.taskId)
+		try {
+			if (typeof (process as any).terminate === "function") {
+				;(process as any).terminate()
+			} else {
+				;(process as any).continue?.()
+			}
+		} catch (error) {
+			Logger.error("Failed to terminate background command", error)
+		}
+		try {
+			console.log(`[Task] Background command cancelled via API`, JSON.stringify({ taskId: this.taskId, command }))
+			await this.say("command_output", "Command cancelled. Background execution has been terminated.")
+		} catch (error) {
+			Logger.error("Failed to notify command cancellation", error)
+		}
+		return true
 	}
 
 	/**
