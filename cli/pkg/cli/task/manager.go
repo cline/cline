@@ -106,7 +106,7 @@ func (m *Manager) GetCurrentInstance() string {
 }
 
 // CreateTask creates a new task
-func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files []string, workspacePaths []string) (string, error) {
+func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files []string, workspacePaths []string, settingsFlags []string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -121,6 +121,9 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 		if len(workspacePaths) > 0 {
 			m.renderer.RenderDebug("Workspaces: %v", workspacePaths)
 		}
+		if len(settingsFlags) > 0 {
+			m.renderer.RenderDebug("Settings: %v", settingsFlags)
+		}
 	}
 
 	// Check if there's an active task and cancel it first
@@ -128,11 +131,22 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 		return "", fmt.Errorf("failed to cancel existing task: %w", err)
 	}
 
+	// Parse task settings if provided
+	var taskSettings *cline.TaskSettings
+	if len(settingsFlags) > 0 {
+		var err error
+		taskSettings, err = ParseTaskSettings(settingsFlags)
+		if err != nil {
+			return "", fmt.Errorf("failed to parse task settings: %w", err)
+		}
+	}
+
 	// Create task request
 	req := &cline.NewTaskRequest{
-		Text:   prompt,
-		Images: images,
-		Files:  files,
+		Text:         prompt,
+		Images:       images,
+		Files:        files,
+		TaskSettings: taskSettings,
 	}
 
 	resp, err := m.client.Task.NewTask(ctx, req)
