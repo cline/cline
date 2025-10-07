@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/grpc-go/cline"
@@ -33,6 +34,44 @@ func (r *Renderer) RenderMessage(timestamp, prefix, text string) error {
 
 	r.typewriter.PrintMessageLine(timestamp, prefix, cleanText)
 	return nil
+}
+
+// RenderTextWithMarkdown renders text with markdown styling in rich mode, plain text otherwise
+func (r *Renderer) RenderTextWithMarkdown(timestamp, text string) error {
+	if text == "" {
+		return nil
+	}
+
+	cleanText := r.sanitizeText(text)
+	if cleanText == "" {
+		return nil
+	}
+
+	// Check if we're in rich mode
+	if global.Config.OutputFormat == "rich" {
+		// Render markdown using Glamour
+		renderer, err := glamour.NewTermRenderer(
+			glamour.WithStylePath("dark"),
+			glamour.WithWordWrap(80),
+		)
+		if err != nil {
+			// Fallback to plain rendering if Glamour fails
+			return r.RenderMessage(timestamp, "🤖", cleanText)
+		}
+
+		rendered, err := renderer.Render(cleanText)
+		if err != nil {
+			// Fallback to plain rendering if rendering fails
+			return r.RenderMessage(timestamp, "🤖", cleanText)
+		}
+
+		// Print timestamp and then the rendered markdown
+		fmt.Printf("[%s] 🤖:\n%s\n", timestamp, rendered)
+		return nil
+	}
+
+	// Fall back to plain text rendering
+	return r.RenderMessage(timestamp, "ASST TEXT", cleanText)
 }
 
 // RenderCommand renders a command execution

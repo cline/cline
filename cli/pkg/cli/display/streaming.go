@@ -6,24 +6,36 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/types"
+	"github.com/cline/cli/pkg/markdown"
 )
 
 // StreamingDisplay manages streaming message display with deduplication
 type StreamingDisplay struct {
-	mu       sync.RWMutex
-	state    *types.ConversationState
-	renderer *Renderer
-	dedupe   *MessageDeduplicator
+	mu               sync.RWMutex
+	state            *types.ConversationState
+	renderer         *Renderer
+	dedupe           *MessageDeduplicator
+	markdownRenderer *markdown.StreamRenderer
 }
 
 // NewStreamingDisplay creates a new streaming display manager
 func NewStreamingDisplay(state *types.ConversationState, renderer *Renderer) *StreamingDisplay {
-	return &StreamingDisplay{
+	sd := &StreamingDisplay{
 		state:    state,
 		renderer: renderer,
 		dedupe:   NewMessageDeduplicator(),
 	}
+	
+	// Initialize markdown renderer if in rich mode
+	if global.Config != nil && global.Config.OutputFormat == "rich" {
+		if mdRenderer, err := markdown.NewStreamRenderer(); err == nil {
+			sd.markdownRenderer = mdRenderer
+		}
+	}
+	
+	return sd
 }
 
 // HandlePartialMessage processes partial messages with streaming support
@@ -83,7 +95,7 @@ func (s *StreamingDisplay) handleStreamingAsk(msg *types.ClineMessage, messageKe
 // handleStreamingSay handles streaming SAY messages
 func (s *StreamingDisplay) handleStreamingSay(msg *types.ClineMessage, messageKey, timestamp string, streamingMsg *types.StreamingMessage) error {
 	switch msg.Say {
-	case string(types.SayTypeText), string(types.SayTypeCompletionResult):
+	case string(types.SayTypeText), string(types.SayTypeCompletionResult), string(types.SayTypeReasoning):
 		return s.handleStreamingText(msg, messageKey, timestamp, streamingMsg)
 	case string(types.SayTypeCommand):
 		return s.handleStreamingCommand(msg, messageKey, timestamp, streamingMsg)
@@ -111,6 +123,57 @@ func (s *StreamingDisplay) handleStreamingText(msg *types.ClineMessage, messageK
 		return nil // Duplicate - ignore it
 	}
 
+	// Rich mode: use markdown streaming
+	if s.markdownRenderer != nil {
+		return s.handleMarkdownText(msg, messageKey, cleanText, streamingMsg)
+	}
+
+	// Plain mode: use typewriter
+	return s.handlePlainText(msg, messageKey, timestamp, cleanText, streamingMsg)
+}
+
+// handleMarkdownText handles text messages in rich mode with markdown rendering
+func (s *StreamingDisplay) handleMarkdownText(msg *types.ClineMessage, messageKey, cleanText string, streamingMsg *types.StreamingMessage) error {
+	// Check if this is an update to the same message
+	if streamingMsg.CurrentKey == messageKey {
+		// Incremental update
+		if len(cleanText) > len(streamingMsg.LastText) && strings.HasPrefix(cleanText, streamingMsg.LastText) {
+			newChars := cleanText[len(streamingMsg.LastText):]
+			if err := s.markdownRenderer.WriteIncremental(newChars); err != nil {
+				return fmt.Errorf("failed to write incremental markdown: %w", err)
+			}
+			s.state.SetStreamingMessage(messageKey, cleanText)
+		} else {
+			// Non-incremental change - this shouldn't happen often in streaming
+			// Flush and start new
+			s.finishCurrentStream()
+			if err := s.markdownRenderer.WriteIncremental(cleanText); err != nil {
+				return fmt.Errorf("failed to write markdown: %w", err)
+			}
+			s.state.SetStreamingMessage(messageKey, cleanText)
+		}
+	} else {
+		// New message - flush previous and start new
+		s.finishCurrentStream()
+		if err := s.markdownRenderer.WriteIncremental(cleanText); err != nil {
+			return fmt.Errorf("failed to write markdown: %w", err)
+		}
+		s.state.SetStreamingMessage(messageKey, cleanText)
+	}
+
+	// If message is complete, flush the markdown
+	if !msg.Partial {
+		if err := s.markdownRenderer.FlushMessage(); err != nil {
+			return fmt.Errorf("failed to flush markdown: %w", err)
+		}
+		s.state.SetStreamingMessage("", "")
+	}
+
+	return nil
+}
+
+// handlePlainText handles text messages in plain mode with typewriter
+func (s *StreamingDisplay) handlePlainText(msg *types.ClineMessage, messageKey, timestamp, cleanText string, streamingMsg *types.StreamingMessage) error {
 	// Check if this is an update to the same message
 	if streamingMsg.CurrentKey == messageKey {
 		// Show incremental changes
@@ -445,5 +508,8 @@ func (s *StreamingDisplay) parseJSON(text string, v interface{}) error {
 func (s *StreamingDisplay) Cleanup() {
 	if s.dedupe != nil {
 		s.dedupe.Stop()
+	}
+	if s.markdownRenderer != nil {
+		s.markdownRenderer.Close()
 	}
 }

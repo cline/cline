@@ -146,13 +146,13 @@ func (h *SayHandler) handleText(msg *types.ClineMessage, dc *DisplayContext, tim
 		return nil
 	}
 
-	// Special case for the user's task input
-	prefix := "ASST TEXT"
+	// Special case for the user's task input (no markdown rendering)
 	if dc.MessageIndex == 0 {
-		prefix = "USER"
+		return dc.Renderer.RenderMessage(timestamp, "USER", msg.Text)
 	}
 
-	return dc.Renderer.RenderMessage(timestamp, prefix, msg.Text)
+	// For rich mode, render markdown. For other modes, use plain text
+	return dc.Renderer.RenderTextWithMarkdown(timestamp, msg.Text)
 }
 
 // handleReasoning handles reasoning messages
@@ -161,7 +161,8 @@ func (h *SayHandler) handleReasoning(msg *types.ClineMessage, dc *DisplayContext
 		return nil
 	}
 
-	return dc.Renderer.RenderMessage(timestamp, "THINKING", msg.Text)
+	// Render reasoning/thinking messages with markdown in rich mode
+	return dc.Renderer.RenderTextWithMarkdown(timestamp, msg.Text)
 }
 
 func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
@@ -171,7 +172,8 @@ func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *Display
 		text = strings.TrimSuffix(text, "HAS_CHANGES")
 	}
 
-	return dc.Renderer.RenderMessage(timestamp, "RESULT", text)
+	// Render completion results with markdown in rich mode
+	return dc.Renderer.RenderTextWithMarkdown(timestamp, text)
 }
 
 // handleUserFeedback handles user feedback messages
