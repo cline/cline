@@ -392,7 +392,7 @@ function createHandlerForProvider(
 			return new MinimaxHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				minimaxApiKey: options.minimaxApiKey,
-				minimaxApiLine: options.minimaxApiKey,
+				minimaxApiLine: options.minimaxApiLine,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		default:
