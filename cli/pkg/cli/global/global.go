@@ -65,3 +65,27 @@ func GetDefaultClient(ctx context.Context) (*client.ClineClient, error) {
 func GetClientForAddress(ctx context.Context, address string) (*client.ClineClient, error) {
 	return Clients.GetRegistry().GetClient(ctx, address)
 }
+
+// EnsureDefaultInstance ensures a default instance exists
+func EnsureDefaultInstance(ctx context.Context) error {
+	if Clients == nil {
+		return fmt.Errorf("global clients not initialized")
+	}
+
+	// Check if we have any instances in the registry
+	registry := Clients.GetRegistry()
+	if registry.GetDefaultInstance() == "" {
+		// No default instance, start a new one
+		instance, err := Clients.StartNewInstance(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to start new default instance: %w", err)
+		}
+
+		// Set the new instance as default
+		if err := registry.SetDefaultInstance(instance.Address); err != nil {
+			return fmt.Errorf("failed to set default instance: %w", err)
+		}
+	}
+
+	return nil
+}

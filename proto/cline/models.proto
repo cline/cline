@@ -326,6 +326,7 @@ message ModelsApiConfiguration {
   optional string oca_api_key = 74;
   optional string oca_refresh_token = 75;
   optional string oca_mode = 76;
+  optional bool aws_use_global_inference = 77;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
