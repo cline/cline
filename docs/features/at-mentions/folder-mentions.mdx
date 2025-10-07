@@ -56,3 +56,19 @@ When you use a folder mention in your message, here's what happens behind the sc
 8. The AI can now "see" both the directory structure and the content of files within that directory
 
 This process happens automatically whenever you use a folder mention, giving the AI a comprehensive view of your project structure and file contents.
+
+## Multiroot Workspace Support
+
+If you're working with [multiroot workspaces](/features/multiroot-workspaces), you can use workspace-prefixed folder mentions to reference directories in specific workspace folders.
+
+Use the syntax `@workspace:/path/` (with trailing slash) to target a specific workspace:
+
+```
+Compare the component structures:
+@frontend:/src/components/
+@backend:/src/controllers/
+```
+
+This is particularly useful when you have similar folder structures across different workspaces. Instead of Cline showing you results from all workspaces, you can be explicit about which one you want to examine.
+
+When you search for a folder in a multiroot workspace without specifying a workspace prefix, Cline will show you results from all workspaces with workspace labels so you can choose the right one.

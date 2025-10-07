@@ -1,0 +1,225 @@
+---
+title: "Multiroot Workspaces"
+sidebarTitle: "Multiroot Workspaces"
+---
+
+Multiroot workspaces let Cline work seamlessly across multiple project folders open in VSCode at the same time. Instead of treating everything as one big workspace, Cline understands each folder as a separate workspace and can target specific ones when reading, writing, or searching files.
+
+<Frame>
+	<img src="[PLACEHOLDER: Screenshot showing VSCode with multiple workspace folders in the sidebar and Cline working across them]" alt="Multiroot workspace support in Cline" />
+</Frame>
+
+This is particularly useful for monorepos, microservices architectures, or any project where you work with multiple related codebases simultaneously.
+
+## Enabling Multiroot Support
+
+Multiroot workspace support requires two things to be enabled:
+
+1. **Feature flag** - Controlled by the Cline team (currently rolling out)
+2. **User setting** - Toggle in your Cline settings
+
+To enable it:
+
+1. Open Cline Settings (gear icon in the sidebar)
+2. Navigate to the "Features" section
+3. Check "Enable Multiroot Workspace Support"
+
+Once enabled, Cline automatically detects when you have multiple workspace folders open and adjusts his behavior accordingly.
+
+## Using Multiroot Workspaces
+
+### Basic File Operations
+
+When you have multiple workspaces open, Cline can read and write files across all of them. He automatically detects which workspace a file belongs to based on the path.
+
+```
+Read the config file in my frontend workspace
+```
+
+Cline will search for config files in the frontend workspace and show you what he finds.
+
+### Workspace-Specific @ Mentions
+
+The real power comes from workspace-prefixed @ mentions. Use the syntax `@workspace:/path` to reference files in specific workspaces:
+
+```
+Compare these two implementations:
+@frontend:/src/api/users.ts
+@backend:/src/routes/users.js
+```
+
+This tells Cline exactly which workspace each file is in, eliminating any ambiguity when the same filename exists in multiple places.
+
+<Tip>
+	When a file exists in multiple workspaces, Cline will show you all instances with workspace labels so you can choose the right one.
+</Tip>
+
+### How File Search Works
+
+When you type `@` and start searching for a file:
+
+**In a single-root workspace:**
+- Cline searches your workspace normally
+- Results show relative paths from the workspace root
+
+**In a multiroot workspace:**
+- Cline searches across all workspace folders in parallel
+- Results are annotated with workspace names when files exist in multiple places
+- You can use `@workspace:/path` syntax to target a specific workspace
+
+<Frame>
+	<img src="[PLACEHOLDER: Screenshot showing file search results with workspace annotations like 'frontend:/src/config.json' and 'backend:/src/config.json']" alt="File search with workspace annotations" />
+</Frame>
+
+### Writing and Editing Files
+
+When Cline needs to create or modify files, he uses the workspace context to determine the correct location:
+
+```
+Create a new API endpoint in the backend workspace for user authentication
+```
+
+Cline will create the file in the backend workspace, not the frontend or any other workspace you have open.
+
+If you're working with files that exist in multiple workspaces, be explicit about which one you want:
+
+```
+Update the error handling in @backend:/src/utils/errors.js
+```
+
+This ensures Cline modifies the right file, even if `errors.js` exists in other workspaces too.
+
+## Auto-Approve with Multiroot Workspaces
+
+Auto-approve permissions work across all your workspaces. When you enable "Read project files" or "Edit project files," those permissions apply to all workspace folders.
+
+If you want to restrict Cline's access to specific workspaces, you'll need to:
+- Close the workspaces you don't want him accessing
+- Or use the "Read all files" / "Edit all files" permissions more carefully
+
+I personally keep auto-approve for reading enabled across all my workspaces since it speeds up Cline's ability to gather context. For editing, I review each change regardless of which workspace it's in.
+
+## Best Practices
+
+### Organizing Your Workspaces
+
+When working with multiroot workspaces, clear naming helps Cline understand your project structure:
+
+- Use descriptive workspace names: `frontend`, `backend`, `shared` instead of `app1`, `app2`, `lib`
+- Keep related projects together in the same VSCode workspace
+- Close workspaces you're not actively working on to reduce noise
+
+### Being Explicit in Your Requests
+
+The more specific you are about which workspace you're targeting, the better Cline can help:
+
+**Vague:**
+```
+Fix the authentication bug
+```
+
+**Better:**
+```
+Fix the authentication bug in the backend workspace
+```
+
+**Best:**
+```
+Fix the authentication bug in @backend:/src/auth/login.js
+```
+
+### Handling Duplicate Files
+
+When you have files with the same name in multiple workspaces, always use workspace-prefixed mentions:
+
+```
+I need to update the README in both workspaces:
+@frontend:/README.md should mention the new component library
+@backend:/README.md should document the new API endpoints
+```
+
+This prevents Cline from getting confused about which file you're referring to.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Workspace names not showing in autocomplete">
+    Currently, when you type `@` in a multiroot workspace, the autocomplete menu doesn't show available workspace names. You need to manually type the workspace prefix like `@frontend:/path`.
+    
+    This is a known limitation that will be addressed in a future update. For now, you can:
+    - Check your VSCode sidebar to see your workspace names
+    - Type the workspace prefix manually
+    - Use the file search without a workspace prefix and Cline will show you which workspace each result is from
+  </Accordion>
+  
+  <Accordion title="Cline can't find files in my workspace">
+    If Cline is having trouble finding files:
+    - Verify the workspace is actually open in VSCode (check the sidebar)
+    - Make sure multiroot support is enabled in Cline settings
+    - Try using the full workspace-prefixed path: `@workspace:/full/path/to/file`
+    - Restart VSCode if you just added a new workspace folder
+  </Accordion>
+  
+  <Accordion title="Wrong workspace being modified">
+    If Cline is modifying files in the wrong workspace:
+    - Always use workspace-prefixed @ mentions for files that exist in multiple places
+    - Be explicit in your requests about which workspace you're targeting
+    - Check that your workspace names are clear and descriptive
+  </Accordion>
+  
+  <Accordion title="Auto-approve not working as expected">
+    Auto-approve permissions apply to all workspaces equally. If you need different permissions for different workspaces:
+    - Close workspaces you don't want Cline accessing
+    - Use manual approval for sensitive operations
+    - Consider using separate VSCode windows for projects with different security requirements
+  </Accordion>
+</AccordionGroup>
+
+Still having issues? Use the [/reportbug](/features/slash-commands/report-bug) command to get help.
+
+## Technical Details
+
+<AccordionGroup>
+  <Accordion title="Workspace Detection">
+    When you open VSCode with multiple workspace folders, Cline:
+    - Detects all workspace roots through VSCode's workspace API
+    - Stores workspace metadata (name, path) for each folder
+    - Uses this information to resolve file paths and search queries
+    - Falls back to single-workspace behavior if only one folder is open
+  </Accordion>
+  
+  <Accordion title="File Search Implementation">
+    In multiroot mode, file searches work differently:
+    - Searches run in parallel across all workspace folders
+    - Results are merged and deduplicated
+    - When the same path exists in multiple workspaces, each instance is returned with workspace annotations
+    - Workspace hints (`@workspace:/path`) filter searches to specific folders
+  </Accordion>
+  
+  <Accordion title="Path Resolution">
+    Cline resolves file paths using this logic:
+    1. If a workspace prefix is provided (`@workspace:/path`), use that workspace
+    2. If the file exists in only one workspace, use that one
+    3. If the file exists in multiple workspaces, show all instances with workspace labels
+    4. For new files, use context from the conversation to determine the target workspace
+  </Accordion>
+  
+  <Accordion title="Backward Compatibility">
+    Multiroot support is fully backward compatible:
+    - Single-workspace projects work exactly as before
+    - All existing @ mention syntax continues to work
+    - The feature only activates when multiple workspace folders are detected
+    - Disabling the setting reverts to single-workspace behavior
+  </Accordion>
+</AccordionGroup>
+
+## Related Features
+
+Multiroot workspace support integrates with several other Cline features:
+
+- [@ Mentions](/features/at-mentions/overview) - Use workspace-prefixed syntax for precise file references
+- [Auto-Approve](/features/auto-approve) - Permissions apply across all workspaces
+- [Cline Rules](/features/cline-rules) - Rules can be workspace-specific or global
+- [Checkpoints](/features/checkpoints) - Git checkpoints work per-workspace
+
+Multiroot workspace support makes Cline significantly more powerful for complex projects. Give it a try on your next monorepo or microservices project!

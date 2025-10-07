@@ -43,3 +43,19 @@ When you use a file mention in your message, here's what happens behind the scen
 7. The AI can now "see" the complete file content as if you had copied and pasted it
 
 This seamless process happens automatically whenever you use a file mention, giving the AI full context without you having to manually copy anything.
+
+## Multiroot Workspace Support
+
+If you're working with [multiroot workspaces](/features/multiroot-workspaces), you can use workspace-prefixed file mentions to reference files in specific workspace folders.
+
+Use the syntax `@workspace:/path` to target a specific workspace:
+
+```
+Compare the authentication logic:
+@frontend:/src/auth/login.ts
+@backend:/src/routes/auth.js
+```
+
+This is especially useful when you have files with the same name in different workspaces. Instead of Cline showing you all instances and asking which one you meant, you can be explicit from the start.
+
+When you search for a file in a multiroot workspace without specifying a workspace prefix, Cline will show you results from all workspaces with workspace labels so you can choose the right one.
