@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/cline/cli/pkg/cli/global"
@@ -23,10 +25,11 @@ func NewTaskCommand() *cobra.Command {
 	cmd.AddCommand(newTaskNewCommand())
 	cmd.AddCommand(newTaskCancelCommand())
 	cmd.AddCommand(newTaskFollowCommand())
-	cmd.AddCommand(newTaskSendCommand())
+	cmd.AddCommand(NewTaskSendCommand())
 	cmd.AddCommand(newTaskViewCommand())
 	cmd.AddCommand(newTaskListCommand())
 	cmd.AddCommand(newTaskResumeCommand())
+	cmd.AddCommand(newTaskRestoreCommand())
 
 	return cmd
 }
@@ -202,7 +205,7 @@ func newTaskCancelCommand() *cobra.Command {
 	return cmd
 }
 
-func newTaskSendCommand() *cobra.Command {
+func NewTaskSendCommand() *cobra.Command {
 	var (
 		images  []string
 		files   []string
@@ -399,6 +402,60 @@ func newTaskResumeCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
+	return cmd
+}
+
+func newTaskRestoreCommand() *cobra.Command {
+	var (
+		restoreType string
+		address     string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "restore <checkpoint-id>",
+		Short: "Restore task to a specific checkpoint",
+		Long:  `Restore the current task to a specific checkpoint by checkpoint ID (timestamp) and by type.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			checkpointID := args[0]
+
+			// Convert checkpoint ID string to int64
+			id, err := strconv.ParseInt(checkpointID, 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid checkpoint ID '%s': must be a valid number", checkpointID)
+			}
+
+			validTypes := []string{"task", "workspace", "taskAndWorkspace"}
+			if !slices.Contains(validTypes, restoreType) {
+				return fmt.Errorf("invalid restore type '%s': must be one of [task, workspace, taskAndWorkspace]", restoreType)
+			}
+
+			// Ensure task manager is initialized
+			if err := ensureTaskManager(ctx, address); err != nil {
+				return err
+			}
+
+			// Validate checkpoint exists before attempting restore
+			if err := taskManager.ValidateCheckpointExists(ctx, id); err != nil {
+				return err
+			}
+
+			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
+			fmt.Printf("Restoring to checkpoint %d (type: %s)\n", id, restoreType)
+
+			if err := taskManager.RestoreCheckpoint(ctx, id, restoreType); err != nil {
+				return fmt.Errorf("failed to restore checkpoint: %w", err)
+			}
+
+			fmt.Println("Checkpoint restored successfully")
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&restoreType, "type", "t", "task", "Restore type (task, workspace, taskAndWorkspace)")
+	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
+
 	return cmd
 }
 

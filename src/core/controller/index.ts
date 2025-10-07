@@ -66,6 +66,26 @@ export class Controller {
 	// NEW: Add workspace manager (optional initially)
 	private workspaceManager?: WorkspaceRootManager
 
+	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
+	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
+		if (!this.workspaceManager) {
+			try {
+				this.workspaceManager = await setupWorkspaceManager({
+					stateManager: this.stateManager,
+					detectRoots: detectWorkspaceRoots,
+				})
+			} catch (error) {
+				console.error("[Controller] Failed to initialize workspace manager:", error)
+			}
+		}
+		return this.workspaceManager
+	}
+
+	// Synchronous getter for workspace manager
+	getWorkspaceManager(): WorkspaceRootManager | undefined {
+		return this.workspaceManager
+	}
+
 	constructor(readonly context: vscode.ExtensionContext) {
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")

@@ -130,9 +130,9 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 
 	// Create task request
 	req := &cline.NewTaskRequest{
-		Text:           prompt,
-		Images:         images,
-		Files:          files,
+		Text:   prompt,
+		Images: images,
+		Files:  files,
 	}
 
 	resp, err := m.client.Task.NewTask(ctx, req)
@@ -184,9 +184,36 @@ func (m *Manager) cancelExistingTaskIfNeeded(ctx context.Context) error {
 				fmt.Println("Cancelled existing task to start new one")
 			}
 		}
-	} 
+	}
 
 	return nil
+}
+
+// ValidateCheckpointExists checks if a checkpoint ID is valid
+func (m *Manager) ValidateCheckpointExists(ctx context.Context, checkpointID int64) error {
+	// Get current state
+	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return fmt.Errorf("failed to get state: %w", err)
+	}
+
+	// Extract messages
+	messages, err := m.extractMessagesFromState(state.StateJson)
+	if err != nil {
+		return fmt.Errorf("failed to extract messages: %w", err)
+	}
+
+	// Find and validate the checkpoint message
+	for _, msg := range messages {
+		if msg.Timestamp == checkpointID {
+			if msg.Say != string(types.SayTypeCheckpointCreated) {
+				return fmt.Errorf("timestamp %d is not a checkpoint (type: %s)", checkpointID, msg.Type)
+			}
+			return nil // Valid checkpoint
+		}
+	}
+
+	return fmt.Errorf("checkpoint ID %d not found in task history", checkpointID)
 }
 
 // CheckSendDisabled determines if we can send a message to the current task
@@ -445,6 +472,27 @@ func (m *Manager) ResumeTask(ctx context.Context, taskID string) error {
 	}
 
 	fmt.Printf("Task %s resumed successfully\n", taskID)
+
+	return nil
+}
+
+// RestoreCheckpoint restores the task to a specific checkpoint
+func (m *Manager) RestoreCheckpoint(ctx context.Context, checkpointID int64, restoreType string) error {
+	if global.Config.Verbose {
+		m.renderer.RenderDebug("Restoring checkpoint: %d (type: %s)", checkpointID, restoreType)
+	}
+
+	// Create the checkpoint restore request
+	req := &cline.CheckpointRestoreRequest{
+		Metadata:    &cline.Metadata{},
+		Number:      checkpointID,
+		RestoreType: restoreType,
+	}
+
+	_, err := m.client.Checkpoints.CheckpointRestore(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to restore checkpoint %d: %w", checkpointID, err)
+	}
 
 	return nil
 }
