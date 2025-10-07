@@ -4,6 +4,7 @@ import type { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { openExternal } from "@/utils/env"
+import { LogoutReason } from "../types"
 import { OcaAuthProvider } from "./providers/OcaAuthProvider"
 import type { OcaConfig } from "./utils/types"
 import { getOcaConfig } from "./utils/utils"
@@ -151,7 +152,7 @@ export class OcaAuthService {
 		return ProtoString.create({ value: authUrlString })
 	}
 
-	async handleDeauth(): Promise<void> {
+	async handleDeauth(_: LogoutReason = LogoutReason.UNKNOWN): Promise<void> {
 		try {
 			this.clearAuth()
 			this._ocaAuthState = null
