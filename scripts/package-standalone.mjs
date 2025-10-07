@@ -57,10 +57,13 @@ async function main() {
 	// Step 3: Copy CLI binaries
 	await copyCliBinaries()
 
-	// Step 4: Create VERSION file
+	// Step 4: Copy launcher script
+	await copyLauncherScript()
+
+	// Step 5: Create VERSION file
 	await createVersionFile()
 
-	// Step 5: Package platform-specific binary modules
+	// Step 6: Package platform-specific binary modules
 	if (UNIVERSAL_BUILD) {
 		console.log("\nBuilding universal package for all platforms...")
 		await packageAllBinaryDeps()
@@ -68,7 +71,7 @@ async function main() {
 		console.log(`\nBuilding package for ${os.platform()}-${os.arch()}...`)
 	}
 
-	// Step 6: Create final package
+	// Step 7: Create final package
 	console.log("\n📦 Creating final package...")
 	await zipDistribution()
 
@@ -150,6 +153,30 @@ async function copyCliBinaries() {
 
 		console.log(`✓ ${binary} copied to ${dest}`)
 	}
+}
+
+/**
+ * Copy and set up the launcher script
+ */
+async function copyLauncherScript() {
+	console.log("Setting up launcher script...")
+
+	const launcherSource = path.join(RUNTIME_DEPS_DIR, "bin", "cline")
+	const launcherDest = path.join(BUILD_DIR, "bin", "cline")
+
+	// Check if launcher script exists
+	if (!fs.existsSync(launcherSource)) {
+		console.error(`Error: Launcher script not found at ${launcherSource}`)
+		process.exit(1)
+	}
+
+	// Copy launcher script
+	await cpr(launcherSource, launcherDest)
+
+	// Make it executable
+	fs.chmodSync(launcherDest, 0o755)
+
+	console.log(`✓ Launcher script copied to ${launcherDest}`)
 }
 
 /**

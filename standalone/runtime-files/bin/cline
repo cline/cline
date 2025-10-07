@@ -1,0 +1,51 @@
+#!/bin/bash
+# Cline CLI Launcher Script
+# This script automatically starts cline-host and cline-core services,
+# then runs the cline-cli command with the provided arguments.
+
+set -e
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLINE_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Set up paths
+NODE_BIN="$SCRIPT_DIR/node"
+CLINE_CLI="$SCRIPT_DIR/cline-cli"
+CLINE_HOST="$SCRIPT_DIR/cline-host"
+CLINE_CORE="$CLINE_ROOT/core/cline-core.js"
+
+# Export environment variables
+export CLINE_CORE_PATH="$CLINE_ROOT/core"
+export NODE_PATH="$CLINE_ROOT/core/node_modules"
+
+# Function to check if a process is running
+is_running() {
+    local process_name="$1"
+    pgrep -f "$process_name" > /dev/null 2>&1
+}
+
+# Function to start cline-host if not running
+start_host() {
+    if ! is_running "cline-host"; then
+        echo "Starting cline-host..."
+        "$CLINE_HOST" --port 51052 > /dev/null 2>&1 &
+        sleep 1
+    fi
+}
+
+# Function to start cline-core if not running
+start_core() {
+    if ! is_running "cline-core.js"; then
+        echo "Starting cline-core..."
+        "$NODE_BIN" "$CLINE_CORE" --port 51051 --host-bridge-port 51052 > /dev/null 2>&1 &
+        sleep 2
+    fi
+}
+
+# Start services
+start_host
+start_core
+
+# Run the CLI command with all arguments
+exec "$CLINE_CLI" "$@"
