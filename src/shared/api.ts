@@ -120,6 +120,7 @@ export interface ApiHandlerOptions {
 	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
+	ocaMode?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string

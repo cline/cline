@@ -453,6 +453,7 @@ export class StateManager {
 			zaiApiKey,
 			requestTimeoutMs,
 			ocaBaseUrl,
+			ocaMode,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -634,6 +635,7 @@ export class StateManager {
 			difyBaseUrl,
 			qwenCodeOauthPath,
 			ocaBaseUrl,
+			ocaMode,
 		})
 
 		// Batch update secrets
@@ -983,6 +985,7 @@ export class StateManager {
 			qwenCodeOauthPath: this.taskStateCache["qwenCodeOauthPath"] || this.globalStateCache["qwenCodeOauthPath"],
 			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
 			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
+			ocaMode: this.globalStateCache["ocaMode"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.taskStateCache["planModeApiProvider"] || this.globalStateCache["planModeApiProvider"],

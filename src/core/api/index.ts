@@ -377,6 +377,7 @@ function createHandlerForProvider(
 			})
 		case "oca":
 			return new OcaHandler({
+				ocaMode: options.ocaMode || "internal",
 				ocaBaseUrl: options.ocaBaseUrl,
 				ocaModelId: mode === "plan" ? options.planModeOcaModelId : options.actModeOcaModelId,
 				ocaModelInfo: mode === "plan" ? options.planModeOcaModelInfo : options.actModeOcaModelInfo,

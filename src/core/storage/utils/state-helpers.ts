@@ -228,6 +228,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const claudeCodePath = context.globalState.get<GlobalStateAndSettings["claudeCodePath"]>("claudeCodePath")
 		const difyBaseUrl = context.globalState.get<GlobalStateAndSettings["difyBaseUrl"]>("difyBaseUrl")
 		const ocaBaseUrl = context.globalState.get("ocaBaseUrl") as string | undefined
+		const ocaMode = context.globalState.get("ocaMode") as string | undefined
 		const openaiReasoningEffort =
 			context.globalState.get<GlobalStateAndSettings["openaiReasoningEffort"]>("openaiReasoningEffort")
 		const preferredLanguage = context.globalState.get<GlobalStateAndSettings["preferredLanguage"]>("preferredLanguage")
@@ -459,6 +460,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			difyBaseUrl,
 			sapAiCoreUseOrchestrationMode: sapAiCoreUseOrchestrationMode ?? true,
 			ocaBaseUrl,
+			ocaMode: ocaMode || "internal",
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
