@@ -388,6 +388,7 @@ export class StateManager {
 			awsSessionToken,
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsUseGlobalInference,
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
 			awsBedrockApiKey,
@@ -598,6 +599,7 @@ export class StateManager {
 			// Global state updates
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsUseGlobalInference,
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
 			awsProfile,
@@ -940,6 +942,7 @@ export class StateManager {
 			awsRegion: this.taskStateCache["awsRegion"] || this.globalStateCache["awsRegion"],
 			awsUseCrossRegionInference:
 				this.taskStateCache["awsUseCrossRegionInference"] || this.globalStateCache["awsUseCrossRegionInference"],
+			awsUseGlobalInference: this.taskStateCache["awsUseGlobalInference"] || this.globalStateCache["awsUseGlobalInference"],
 			awsBedrockUsePromptCache:
 				this.taskStateCache["awsBedrockUsePromptCache"] || this.globalStateCache["awsBedrockUsePromptCache"],
 			awsBedrockEndpoint: this.taskStateCache["awsBedrockEndpoint"] || this.globalStateCache["awsBedrockEndpoint"],
