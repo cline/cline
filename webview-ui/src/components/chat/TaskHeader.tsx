@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next"
 import { useCloudUpsell } from "@src/hooks/useCloudUpsell"
 import { CloudUpsellDialog } from "@src/components/cloud/CloudUpsellDialog"
 import DismissibleUpsell from "@src/components/common/DismissibleUpsell"
-import { FoldVertical, ChevronUp, ChevronDown } from "lucide-react"
+import { FoldVertical, ChevronUp, ChevronDown, ChartColumn } from "lucide-react"
 import prettyBytes from "pretty-bytes"
 
 import type { ClineMessage } from "@roo-code/types"
@@ -11,7 +11,7 @@ import type { ClineMessage } from "@roo-code/types"
 import { getModelMaxOutputTokens } from "@roo/api"
 import { findLastIndex } from "@roo/array"
 
-import { formatLargeNumber } from "@src/utils/format"
+import { formatCost, formatLargeNumber } from "@src/utils/format"
 import { cn } from "@src/lib/utils"
 import { StandardTooltip } from "@src/components/ui"
 import { useExtensionState } from "@src/context/ExtensionStateContext"
@@ -23,6 +23,8 @@ import { TaskActions } from "./TaskActions"
 import { ContextWindowProgress } from "./ContextWindowProgress"
 import { Mention } from "./Mention"
 import { TodoListDisplay } from "./TodoListDisplay"
+
+import { vscode } from "@src/utils/vscode"
 
 export interface TaskHeaderProps {
 	task: ClineMessage
@@ -301,7 +303,19 @@ const TaskHeader = ({
 												{t("chat:task.apiCost")}
 											</th>
 											<td className="align-top">
-												<span>${totalCost?.toFixed(2)}</span>
+												<span>{formatCost(totalCost)}</span>
+												<StandardTooltip content={t("chat:apiRequest.viewTokenUsage")}>
+													<ChartColumn
+														className="inline size-3.5 -mt-0.5 ml-2 text-vscode-textLink-foreground cursor-pointer hover:text-vscode-textLink-activeForeground transition-colors"
+														onClick={(e) => {
+															e.stopPropagation()
+															vscode.postMessage({
+																type: "switchTab",
+																tab: "cloud",
+															})
+														}}
+													/>
+												</StandardTooltip>
 											</td>
 										</tr>
 									)}

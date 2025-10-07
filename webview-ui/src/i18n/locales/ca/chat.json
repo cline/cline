@@ -141,7 +141,8 @@
 		"failed": "Sol·licitud API ha fallat",
 		"streaming": "Sol·licitud API...",
 		"cancelled": "Sol·licitud API cancel·lada",
-		"streamingFailed": "Transmissió API ha fallat"
+		"streamingFailed": "Transmissió API ha fallat",
+		"viewTokenUsage": "Veure les estadístiques d'ús de fitxes"
 	},
 	"checkpoint": {
 		"regular": "Punt de control",

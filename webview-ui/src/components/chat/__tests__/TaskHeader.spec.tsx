@@ -88,6 +88,15 @@ vi.mock("@roo/array", () => ({
 	},
 }))
 
+// Mock the format utilities
+vi.mock("@/utils/format", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/utils/format")>()
+	return {
+		...actual,
+		formatCost: (cost: number) => `$${cost.toFixed(2)}`,
+	}
+})
+
 describe("TaskHeader", () => {
 	const defaultProps: TaskHeaderProps = {
 		task: { type: "say", ts: Date.now(), text: "Test task", images: [] },

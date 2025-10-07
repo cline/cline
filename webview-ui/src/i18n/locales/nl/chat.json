@@ -136,7 +136,8 @@
 		"failed": "API-verzoek mislukt",
 		"streaming": "API-verzoek...",
 		"cancelled": "API-verzoek geannuleerd",
-		"streamingFailed": "API-streaming mislukt"
+		"streamingFailed": "API-streaming mislukt",
+		"viewTokenUsage": "Bekijk tokengebruikstatistieken"
 	},
 	"checkpoint": {
 		"regular": "Checkpoint",

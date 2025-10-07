@@ -8,6 +8,7 @@ import TaskHeader from "@src/components/chat/TaskHeader"
 // Mock formatLargeNumber function
 vi.mock("@/utils/format", () => ({
 	formatLargeNumber: vi.fn((num) => num.toString()),
+	formatCost: (cost: number) => `$${cost.toFixed(2)}`,
 }))
 
 // Mock VSCodeBadge component for all tests
@@ -128,12 +129,7 @@ describe("ContextWindowProgress", () => {
 		expect(windowSize).toBeInTheDocument()
 		expect(windowSize).toHaveTextContent("4000")
 
-		// The progress bar is now wrapped in tooltips, but we can verify the structure exists
-		// by checking for the progress bar container
-		const progressBarContainer = screen.getByTestId("context-tokens-count").parentElement
+		const progressBarContainer = screen.getByTestId("context-progress-bar-container").parentElement
 		expect(progressBarContainer).toBeInTheDocument()
-
-		// Verify the flex container has the expected structure
-		expect(progressBarContainer?.querySelector(".flex-1.relative")).toBeInTheDocument()
 	})
 })

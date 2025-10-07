@@ -26,6 +26,17 @@
 	"switchAccount": "切换 Roo Code Cloud 账户",
 	"createTeamAccount": "创建团队账户",
 	"cloudUrlPillLabel": "Roo Code Cloud URL",
+	"usagePreview": {
+		"costPastDays": "过去 {{count}} 天的每日费用",
+		"seeMoreStats": "在 Roo Code Cloud 中查看更多统计信息",
+		"invalidDataFormat": "收到的数据格式无效",
+		"failedToLoad": "无法加载使用数据",
+		"couldNotLoadChart": "无法加载图表：",
+		"clickToRetry": "点击重试",
+		"tasks_one": "{{count}} 个任务",
+		"tasks_other": "{{count}} 个任务",
+		"tokens": "{{count}} 令牌"
+	},
 	"upsell": {
 		"autoApprovePowerUser": "给 Roo 一些独立性？使用 Roo Code Cloud 从任何地方控制它。 <learnMoreLink>了解更多</learnMoreLink>。",
 		"longRunningTask": "这可能需要一段时间。使用 Cloud 从任何地方继续。",

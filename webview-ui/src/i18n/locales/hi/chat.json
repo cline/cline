@@ -141,7 +141,8 @@
 		"failed": "API अनुरोध विफल हुआ",
 		"streaming": "API अनुरोध...",
 		"cancelled": "API अनुरोध रद्द किया गया",
-		"streamingFailed": "API स्ट्रीमिंग विफल हुई"
+		"streamingFailed": "API स्ट्रीमिंग विफल हुई",
+		"viewTokenUsage": "टोकन उपयोग आँकड़े देखें"
 	},
 	"checkpoint": {
 		"regular": "चेकपॉइंट",

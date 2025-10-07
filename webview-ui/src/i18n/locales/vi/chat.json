@@ -141,7 +141,8 @@
 		"failed": "Yêu cầu API thất bại",
 		"streaming": "Yêu cầu API...",
 		"cancelled": "Yêu cầu API đã hủy",
-		"streamingFailed": "Streaming API thất bại"
+		"streamingFailed": "Streaming API thất bại",
+		"viewTokenUsage": "Xem thống kê sử dụng token"
 	},
 	"checkpoint": {
 		"regular": "Điểm kiểm tra",

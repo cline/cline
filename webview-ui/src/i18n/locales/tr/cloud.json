@@ -26,6 +26,17 @@
 	"switchAccount": "Roo Code Cloud Hesabını Değiştir",
 	"createTeamAccount": "Takım Hesabı Oluştur",
 	"cloudUrlPillLabel": "Roo Code Cloud URL'si",
+	"usagePreview": {
+		"costPastDays": "Son {{count}} günün günlük maliyeti",
+		"seeMoreStats": "Roo Code Cloud'da daha fazla istatistik görün",
+		"invalidDataFormat": "Geçersiz veri formatı alındı",
+		"failedToLoad": "Kullanım verileri yüklenemedi",
+		"couldNotLoadChart": "Grafik yüklenemedi:",
+		"clickToRetry": "Yeniden denemek için tıklayın",
+		"tasks_one": "{{count}} görev",
+		"tasks_other": "{{count}} görev",
+		"tokens": "{{count}} token"
+	},
 	"upsell": {
 		"autoApprovePowerUser": "Roo'ya biraz bağımsızlık mı veriyorsunuz? Roo Code Cloud ile onu her yerden kontrol edin. <learnMoreLink>Daha fazla bilgi edinin</learnMoreLink>.",
 		"longRunningTask": "Bu biraz zaman alabilir. Bulut ile her yerden devam edin.",

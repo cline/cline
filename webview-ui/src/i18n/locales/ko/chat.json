@@ -141,7 +141,8 @@
 		"failed": "API 요청 실패",
 		"streaming": "API 요청...",
 		"cancelled": "API 요청 취소됨",
-		"streamingFailed": "API 스트리밍 실패"
+		"streamingFailed": "API 스트리밍 실패",
+		"viewTokenUsage": "토큰 사용 통계 보기"
 	},
 	"checkpoint": {
 		"regular": "체크포인트",

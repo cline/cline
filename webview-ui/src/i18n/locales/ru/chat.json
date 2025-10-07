@@ -136,7 +136,8 @@
 		"failed": "API-запрос не выполнен",
 		"streaming": "API-запрос...",
 		"cancelled": "API-запрос отменен",
-		"streamingFailed": "Ошибка потокового API-запроса"
+		"streamingFailed": "Ошибка потокового API-запроса",
+		"viewTokenUsage": "Посмотреть статистику использования токенов"
 	},
 	"checkpoint": {
 		"regular": "Точка сохранения",

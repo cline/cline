@@ -60,7 +60,9 @@ export const ContextWindowProgress = ({ contextWindow, contextTokens, maxTokens 
 				<StandardTooltip content={tooltipContent} side="top" sideOffset={8}>
 					<div className="flex-1 relative">
 						{/* Main progress bar container */}
-						<div className="flex items-center h-1 rounded-[2px] overflow-hidden w-full bg-[color-mix(in_srgb,var(--vscode-foreground)_20%,transparent)]">
+						<div
+							data-testid="context-progress-bar-container"
+							className="flex items-center h-1 rounded-[2px] overflow-hidden w-full bg-[color-mix(in_srgb,var(--vscode-foreground)_20%,transparent)]">
 							{/* Current tokens container */}
 							<div
 								className="relative h-full"

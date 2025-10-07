@@ -26,6 +26,17 @@
 	"switchAccount": "Wissel van Roo Code Cloud Account",
 	"createTeamAccount": "Teamaccount aanmaken",
 	"cloudUrlPillLabel": "Roo Code Cloud URL",
+	"usagePreview": {
+		"costPastDays": "Dagelijkse kosten afgelopen {{count}} dagen",
+		"seeMoreStats": "Bekijk meer statistieken in Roo Code Cloud",
+		"invalidDataFormat": "Ongeldig dataformaat ontvangen",
+		"failedToLoad": "Laden van gebruiksgegevens mislukt",
+		"couldNotLoadChart": "Grafiek kon niet geladen worden:",
+		"clickToRetry": "Klik om opnieuw te proberen",
+		"tasks_one": "{{count}} taak",
+		"tasks_other": "{{count}} taken",
+		"tokens": "{{count}} tokens"
+	},
 	"upsell": {
 		"autoApprovePowerUser": "Roo wat onafhankelijkheid geven? Bedien het overal met Roo Code Cloud. <learnMoreLink>Meer informatie</learnMoreLink>.",
 		"longRunningTask": "Dit kan even duren. Ga overal verder met de Cloud.",

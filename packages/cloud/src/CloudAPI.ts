@@ -1,6 +1,13 @@
 import { z } from "zod"
 
-import { type AuthService, type ShareVisibility, type ShareResponse, shareResponseSchema } from "@roo-code/types"
+import {
+	type AuthService,
+	type ShareVisibility,
+	type ShareResponse,
+	shareResponseSchema,
+	type UsageStats,
+	usageStatsSchema,
+} from "@roo-code/types"
 
 import { getRooCodeApiUrl } from "./config.js"
 import { getUserAgent } from "./utils.js"
@@ -53,9 +60,11 @@ export class CloudAPI {
 			})
 
 			if (!response.ok) {
+				this.log(`[CloudAPI] Request to ${endpoint} failed with status ${response.status}`)
 				await this.handleErrorResponse(response, endpoint)
 			}
 
+			// Log before attempting to read the body
 			const data = await response.json()
 
 			if (parseResponse) {
@@ -86,9 +95,15 @@ export class CloudAPI {
 		let responseBody: unknown
 
 		try {
-			responseBody = await response.json()
-		} catch {
-			responseBody = await response.text()
+			const bodyText = await response.text()
+
+			try {
+				responseBody = JSON.parse(bodyText)
+			} catch {
+				responseBody = bodyText
+			}
+		} catch (_error) {
+			responseBody = "Failed to read error response"
 		}
 
 		switch (response.status) {
@@ -109,15 +124,12 @@ export class CloudAPI {
 	}
 
 	async shareTask(taskId: string, visibility: ShareVisibility = "organization"): Promise<ShareResponse> {
-		this.log(`[CloudAPI] Sharing task ${taskId} with visibility: ${visibility}`)
-
 		const response = await this.request("/api/extension/share", {
 			method: "POST",
 			body: JSON.stringify({ taskId, visibility }),
 			parseResponse: (data) => shareResponseSchema.parse(data),
 		})
 
-		this.log("[CloudAPI] Share response:", response)
 		return response
 	}
 
@@ -133,5 +145,15 @@ export class CloudAPI {
 					})
 					.parse(data),
 		})
+	}
+
+	async getUsagePreview(): Promise<UsageStats> {
+		const response = await this.request("/api/analytics/usage/daily?period=7", {
+			method: "GET",
+			parseResponse: (data) => {
+				return usageStatsSchema.parse(data)
+			},
+		})
+		return response
 	}
 }

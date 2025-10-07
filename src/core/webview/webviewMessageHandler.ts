@@ -3110,5 +3110,68 @@ export const webviewMessageHandler = async (
 			})
 			break
 		}
+		case "getUsagePreview": {
+			try {
+				// Get the CloudAPI instance and fetch usage preview
+				const cloudApi = CloudService.instance.cloudAPI
+				if (!cloudApi) {
+					// User is not authenticated
+					provider.log("[webviewMessageHandler] User not authenticated for usage preview")
+					await provider.postMessageToWebview({
+						type: "usagePreviewData",
+						error: "Authentication required",
+						data: null,
+					})
+					break
+				}
+
+				// Fetch usage preview data
+				const rawUsageData = await cloudApi.getUsagePreview()
+
+				// Transform the data to match UI expectations
+				// The API returns data with separate arrays, but UI expects an array of day objects
+				const dates = rawUsageData.data?.dates ?? []
+				const tasks = rawUsageData.data?.tasks ?? []
+				const tokens = rawUsageData.data?.tokens ?? []
+				const costs = rawUsageData.data?.costs ?? []
+				const len = Math.min(dates.length, tasks.length, tokens.length, costs.length)
+
+				const transformedData = {
+					days: Array.from({ length: len }).map((_, index) => ({
+						date: dates[index] ?? "",
+						taskCount: tasks[index] ?? 0,
+						tokenCount: tokens[index] ?? 0,
+						cost: costs[index] ?? 0,
+					})),
+					totals: rawUsageData.data?.totals || {
+						tasks: 0,
+						tokens: 0,
+						cost: 0,
+					},
+				}
+
+				// Send the transformed data back to the webview
+				await provider.postMessageToWebview({
+					type: "usagePreviewData",
+					data: transformedData,
+					error: undefined,
+				})
+			} catch (error) {
+				provider.log(
+					`[webviewMessageHandler] Failed to fetch usage preview: ${error instanceof Error ? error.message : String(error)}`,
+				)
+				provider.log(
+					`[webviewMessageHandler] Error stack trace: ${error instanceof Error ? error.stack : "No stack trace"}`,
+				)
+
+				// Send error back to webview
+				await provider.postMessageToWebview({
+					type: "usagePreviewData",
+					error: error instanceof Error ? error.message : "Failed to load usage data",
+					data: null,
+				})
+			}
+			break
+		}
 	}
 }

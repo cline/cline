@@ -26,6 +26,17 @@
 	"switchAccount": "切換 Roo Code Cloud 帳戶",
 	"createTeamAccount": "創建團隊帳戶",
 	"cloudUrlPillLabel": "Roo Code Cloud URL",
+	"usagePreview": {
+		"costPastDays": "過去 {{count}} 天的每日費用",
+		"seeMoreStats": "在 Roo Code Cloud 中查看更多統計訊息",
+		"invalidDataFormat": "收到的資料格式無效",
+		"failedToLoad": "無法載入使用資料",
+		"couldNotLoadChart": "無法載入圖表：",
+		"clickToRetry": "點擊重試",
+		"tasks_one": "{{count}} 個任務",
+		"tasks_other": "{{count}} 個任務",
+		"tokens": "{{count}} 個 token"
+	},
 	"upsell": {
 		"autoApprovePowerUser": "給 Roo 一點獨立性？使用 Roo Code Cloud 隨時隨地控制它。<learnMoreLink>了解更多</learnMoreLink>。",
 		"longRunningTask": "這可能需要一些時間。使用雲端隨時隨地繼續。",
