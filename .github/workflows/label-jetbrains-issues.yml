@@ -30,7 +30,7 @@ jobs:
 
             // Check if VSCode Extension is selected
             if (body.match(/###\s*Plugin Type\s*\n+VSCode Extension/i)) {
-              if (!labels.includes('VSCode')) {
+              if (!labels.includes('VS Code')) {
                 await github.rest.issues.addLabels({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
