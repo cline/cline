@@ -8,11 +8,7 @@ import (
 	"github.com/cline/grpc-go/cline"
 )
 
-// ParseTaskSettings parses CLI settings flags into a TaskSettings protobuf message
-// Supports formats like:
-//   - Simple: "aws-region=us-west-2"
-//   - Nested: "auto-approval-settings.enabled=true"
-//   - Enums: "mode=act"
+
 func ParseTaskSettings(settingsFlags []string) (*cline.TaskSettings, error) {
 	if len(settingsFlags) == 0 {
 		return nil, nil
