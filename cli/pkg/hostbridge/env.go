@@ -68,19 +68,6 @@ func (s *EnvService) ClipboardReadText(ctx context.Context, req *cline.EmptyRequ
 	}, nil
 }
 
-// GetMachineId returns a stable machine identifier for telemetry distinctId purposes
-func (s *EnvService) GetMachineId(ctx context.Context, req *cline.EmptyRequest) (*cline.String, error) {
-	if s.verbose {
-		log.Printf("GetMachineId called")
-	}
-
-	// TODO: Implement actual machine ID functionality
-	// For now, return empty string
-	return &cline.String{
-		Value: "",
-	}, nil
-}
-
 // GetHostVersion returns the host platform name and version
 func (s *EnvService) GetHostVersion(ctx context.Context, req *cline.EmptyRequest) (*host.GetHostVersionResponse, error) {
 	if s.verbose {
