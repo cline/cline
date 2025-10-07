@@ -83,10 +83,12 @@ export class OpenTelemetryClientProvider {
 					const exporter = this.createOTLPMetricExporter()
 					if (exporter) {
 						const interval = this.config!.metricExportInterval || 60000
+						// Ensure timeout is always less than interval (use 80% of interval, capped at 30 seconds)
+						const timeout = Math.min(Math.floor(interval * 0.8), 30000)
 						const reader = new PeriodicExportingMetricReader({
 							exporter,
 							exportIntervalMillis: interval,
-							exportTimeoutMillis: 30000, // 30 second timeout
+							exportTimeoutMillis: timeout,
 						})
 						readers.push(reader)
 					}
@@ -158,7 +160,7 @@ export class OpenTelemetryClientProvider {
 				case "grpc":
 					// For gRPC, strip http:// or https:// prefix if present
 					// gRPC endpoints should be in format "localhost:4317" not "http://localhost:4317"
-					const grpcEndpoint = endpoint.replace(/^https?:\/\//, '')
+					const grpcEndpoint = endpoint.replace(/^https?:\/\//, "")
 					return new OTLPMetricExporterGRPC({ url: grpcEndpoint })
 				case "http/json":
 					return new OTLPMetricExporterHTTP({ url: endpoint })
