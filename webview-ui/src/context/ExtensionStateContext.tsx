@@ -200,6 +200,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		globalWorkflowToggles: {},
 		shellIntegrationTimeout: 4000,
 		terminalReuseEnabled: true,
+		vscodeTerminalExecutionMode: "vscodeTerminal",
 		terminalOutputLineLimit: 500,
 		defaultTerminalProfile: "default",
 		isNewUser: false,
@@ -214,6 +215,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
 		remoteConfigSettings: {},
+		backgroundCommandRunning: false,
+		backgroundCommandTaskId: undefined,
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],

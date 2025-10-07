@@ -8,7 +8,7 @@ import {
 	ClineSayTool,
 	COMPLETION_RESULT_CHANGES_FLAG,
 } from "@shared/ExtensionMessage"
-import { Int64Request, StringRequest } from "@shared/proto/cline/common"
+import { BooleanRequest, Int64Request, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeBadge, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import React, { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -61,6 +61,7 @@ interface ChatRowProps {
 	inputValue?: string
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 	onSetQuote: (text: string) => void
+	onCancelCommand?: () => void
 }
 
 interface QuoteButtonState {
@@ -101,6 +102,93 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 		</div>
 	)
 })
+
+const CommandOutput = memo(
+	({
+		output,
+		isOutputFullyExpanded,
+		onToggle,
+		isContainerExpanded,
+	}: {
+		output: string
+		isOutputFullyExpanded: boolean
+		onToggle: () => void
+		isContainerExpanded: boolean
+	}) => {
+		const outputLines = output.split("\n")
+		const lineCount = outputLines.length
+		const shouldAutoShow = lineCount <= 5
+		const outputRef = useRef<HTMLDivElement>(null)
+
+		// Auto-scroll to bottom when output changes (only when showing limited output)
+		useEffect(() => {
+			if (!isOutputFullyExpanded && outputRef.current) {
+				outputRef.current.scrollTop = outputRef.current.scrollHeight
+			}
+		}, [output, isOutputFullyExpanded])
+
+		// Don't render anything if container is collapsed
+		if (!isContainerExpanded) {
+			return null
+		}
+
+		return (
+			<div
+				style={{
+					width: "100%",
+					position: "relative",
+					paddingBottom: lineCount > 5 ? "16px" : "0",
+					overflow: "visible",
+					borderTop: "1px solid rgba(255,255,255,.07)",
+				}}>
+				<div
+					ref={outputRef}
+					style={{
+						color: "#FFFFFF",
+						maxHeight: shouldAutoShow ? "none" : isOutputFullyExpanded ? "200px" : "75px",
+						overflowY: shouldAutoShow ? "visible" : "auto",
+						scrollBehavior: "smooth",
+					}}>
+					<CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
+				</div>
+				{/* Show notch only if there's more than 5 lines */}
+				{lineCount > 5 && (
+					<div
+						onClick={onToggle}
+						onMouseEnter={(e) => {
+							e.currentTarget.style.opacity = "0.8"
+						}}
+						onMouseLeave={(e) => {
+							e.currentTarget.style.opacity = "1"
+						}}
+						style={{
+							position: "absolute",
+							bottom: "-10px",
+							left: "50%",
+							transform: "translateX(-50%)",
+							display: "flex",
+							justifyContent: "center",
+							alignItems: "center",
+							padding: "1px 14px",
+							cursor: "pointer",
+							backgroundColor: "var(--vscode-descriptionForeground)",
+							borderRadius: "3px 3px 6px 6px",
+							transition: "opacity 0.1s ease",
+							border: "1px solid rgba(0, 0, 0, 0.1)",
+						}}>
+						<span
+							className={`codicon codicon-triangle-${isOutputFullyExpanded ? "up" : "down"}`}
+							style={{
+								fontSize: "11px",
+								color: "var(--vscode-editor-background)",
+							}}
+						/>
+					</div>
+				)}
+			</div>
+		)
+	},
+)
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
@@ -147,8 +235,10 @@ export const ChatRowContent = memo(
 		inputValue,
 		sendMessageFromChatRow,
 		onSetQuote,
+		onCancelCommand,
 	}: ChatRowContentProps) => {
-		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl } = useExtensionState()
+		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode, backgroundCommandRunning } =
+			useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
@@ -157,6 +247,10 @@ export const ChatRowContent = memo(
 			selectedText: "",
 		})
 		const contentRef = useRef<HTMLDivElement>(null)
+
+		// Command output expansion state (for all messages, but only used by command messages)
+		const [isOutputFullyExpanded, setIsOutputFullyExpanded] = useState(false)
+		const commandStartTimeRef = useRef<number | null>(null)
 		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
 				const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -171,10 +265,10 @@ export const ChatRowContent = memo(
 				? lastModifiedMessage?.text
 				: undefined
 
-		const isCommandExecuting =
-			isLast &&
-			(lastModifiedMessage?.ask === "command" || lastModifiedMessage?.say === "command") &&
-			lastModifiedMessage?.text?.includes(COMMAND_OUTPUT_STRING)
+		const isCommandMessage = message.ask === "command" || message.say === "command"
+		// Simplified: A command is executing if it's a command message that hasn't completed yet and is the last message
+		const isCommandExecuting = isCommandMessage && isLast && !message.commandCompleted
+		const isCommandCompleted = isCommandMessage && message.commandCompleted === true
 
 		const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
 
@@ -296,16 +390,12 @@ export const ChatRowContent = memo(
 					]
 				case "command":
 					return [
-						isCommandExecuting ? (
-							<ProgressIndicator />
-						) : (
-							<span
-								className="codicon codicon-terminal"
-								style={{
-									color: normalColor,
-									marginBottom: "-1.5px",
-								}}></span>
-						),
+						<span
+							className="codicon codicon-terminal"
+							style={{
+								color: normalColor,
+								marginBottom: "-1.5px",
+							}}></span>,
 						<span style={{ color: normalColor, fontWeight: "bold" }}>Cline wants to execute this command:</span>,
 					]
 				case "use_mcp_server":
@@ -734,6 +824,54 @@ export const ChatRowContent = memo(
 			}
 		}
 
+		// Track when command starts executing (only for command messages)
+		useEffect(() => {
+			if (isCommandMessage && isCommandExecuting && commandStartTimeRef.current === null) {
+				commandStartTimeRef.current = Date.now()
+			}
+		}, [isCommandMessage, isCommandExecuting])
+
+		// Reset output expansion state when command completes
+		useEffect(() => {
+			if (isCommandMessage && isCommandCompleted && !isCommandExecuting) {
+				setIsOutputFullyExpanded(false)
+			}
+		}, [isCommandMessage, isCommandCompleted, isCommandExecuting])
+
+		// Auto-expand when command starts executing (only if running > 500ms)
+		useEffect(() => {
+			if (isCommandMessage && isCommandExecuting && !isExpanded) {
+				// Wait 500ms before auto-expanding to avoid animating fast commands
+				const timer = setTimeout(() => {
+					// Expand after 500ms
+					onToggleExpand(message.ts)
+				}, 500)
+
+				return () => clearTimeout(timer)
+			}
+			// Note: We intentionally don't include isCommandExecuting in dependencies
+			// to prevent the effect from re-running when the command completes
+			// eslint-disable-next-line react-hooks/exhaustive-deps
+		}, [isCommandMessage, isExpanded, onToggleExpand, message.ts])
+
+		// Auto-collapse when command completes (only if it ran > 500ms)
+		useEffect(() => {
+			if (isCommandMessage && isCommandCompleted && !isCommandExecuting && isExpanded) {
+				// Calculate how long the command ran
+				const duration = commandStartTimeRef.current ? Date.now() - commandStartTimeRef.current : 0
+
+				// Only auto-collapse if command ran for more than 500ms
+				if (duration > 500) {
+					// Wait 1.5 seconds before auto-collapsing to let user see the completion
+					const timer = setTimeout(() => {
+						onToggleExpand(message.ts)
+					}, 1500)
+
+					return () => clearTimeout(timer)
+				}
+			}
+		}, [isCommandMessage, isCommandCompleted, isCommandExecuting, isExpanded, onToggleExpand, message.ts])
+
 		if (message.ask === "command" || message.say === "command") {
 			const splitMessage = (text: string) => {
 				const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
@@ -768,39 +906,138 @@ export const ChatRowContent = memo(
 
 			const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
 			const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
+			const showCancelButton =
+				isCommandExecuting && typeof onCancelCommand === "function" && vscodeTerminalExecutionMode === "backgroundExec"
+
+			const commandHeader = (
+				<div style={headerStyle}>
+					{icon}
+					{title}
+				</div>
+			)
 
 			return (
 				<>
-					<div style={headerStyle}>
-						{icon}
-						{title}
-					</div>
+					{commandHeader}
 					<div
 						style={{
-							borderRadius: 3,
+							borderRadius: 6,
 							border: "1px solid var(--vscode-editorGroup-border)",
-							overflow: "hidden",
+							overflow: "visible",
 							backgroundColor: CODE_BLOCK_BG_COLOR,
+							transition: "all 0.3s ease-in-out",
 						}}>
-						<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
-						{output.length > 0 && (
-							<div style={{ width: "100%" }}>
-								<div
-									onClick={handleToggle}
-									style={{
-										display: "flex",
-										alignItems: "center",
-										gap: "4px",
-										width: "100%",
-										justifyContent: "flex-start",
-										cursor: "pointer",
-										padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
-									}}>
-									<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
-									<span style={{ fontSize: "0.8em" }}>Command Output</span>
+						{(isCommandExecuting || isCommandCompleted) && (
+							<div
+								onClick={handleToggle}
+								style={{
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "space-between",
+									padding: "8px 10px",
+									backgroundColor: "#151515",
+									borderBottom: isExpanded ? "1px solid var(--vscode-editorGroup-border)" : "none",
+									borderTopLeftRadius: "6px",
+									borderTopRightRadius: "6px",
+									borderBottomLeftRadius: isExpanded ? "0" : "6px",
+									borderBottomRightRadius: isExpanded ? "0" : "6px",
+									cursor: "pointer",
+								}}>
+								<div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0 }}>
+									<div
+										style={{
+											width: "8px",
+											height: "8px",
+											borderRadius: "50%",
+											backgroundColor: isCommandExecuting
+												? successColor
+												: "var(--vscode-descriptionForeground)",
+											animation: isCommandExecuting ? "pulse 2s ease-in-out infinite" : "none",
+											flexShrink: 0,
+										}}
+									/>
+									{isExpanded ? (
+										<span
+											style={{
+												color: isCommandExecuting ? successColor : "var(--vscode-descriptionForeground)",
+												fontWeight: 500,
+												fontSize: "13px",
+												flexShrink: 0,
+											}}>
+											{isCommandExecuting ? "Running" : "Completed"}
+										</span>
+									) : (
+										<span
+											className="ph-no-capture"
+											style={{
+												color: "var(--vscode-foreground)",
+												fontSize: "13px",
+												opacity: 0.8,
+												whiteSpace: "nowrap",
+												overflow: "hidden",
+												textOverflow: "ellipsis",
+												fontFamily: "var(--vscode-editor-font-family)",
+											}}>
+											{command}
+										</span>
+									)}
 								</div>
-								{isExpanded && <CodeBlock source={`${"```"}shell\n${output}\n${"```"}`} />}
+								<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+									{showCancelButton && (
+										<button
+											onClick={(e) => {
+												e.stopPropagation()
+												if (vscodeTerminalExecutionMode === "backgroundExec") {
+													onCancelCommand?.()
+												} else {
+													// For regular terminal mode, show a message
+													alert(
+														"This command is running in the VSCode terminal. You can manually stop it using Ctrl+C in the terminal, or switch to Background Execution mode in settings for cancellable commands.",
+													)
+												}
+											}}
+											onMouseEnter={(e) => {
+												e.currentTarget.style.background = "var(--vscode-button-secondaryHoverBackground)"
+											}}
+											onMouseLeave={(e) => {
+												e.currentTarget.style.background = "var(--vscode-button-secondaryBackground)"
+											}}
+											style={{
+												background: "var(--vscode-button-secondaryBackground)",
+												color: "var(--vscode-button-secondaryForeground)",
+												border: "none",
+												borderRadius: "2px",
+												padding: "4px 10px",
+												fontSize: "12px",
+												cursor: "pointer",
+												fontFamily: "inherit",
+											}}>
+											{vscodeTerminalExecutionMode === "backgroundExec" ? "cancel" : "stop"}
+										</button>
+									)}
+									<span
+										className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}
+										style={{
+											fontSize: "16px",
+											color: "var(--vscode-descriptionForeground)",
+											padding: "2px",
+										}}
+									/>
+								</div>
 							</div>
+						)}
+						{isExpanded && (
+							<div style={{ opacity: 0.6 }}>
+								<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
+							</div>
+						)}
+						{output.length > 0 && (
+							<CommandOutput
+								isContainerExpanded={isExpanded}
+								isOutputFullyExpanded={isOutputFullyExpanded}
+								onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
+								output={output}
+							/>
 						)}
 					</div>
 					{requestsApproval && (
@@ -1289,6 +1526,86 @@ export const ChatRowContent = memo(
 								</div>
 							)
 						}
+					case "shell_integration_warning_with_suggestion":
+						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"
+						return (
+							<div
+								style={{
+									padding: 8,
+									backgroundColor: "rgba(0, 122, 204, 0.1)",
+									borderRadius: 3,
+									border: "1px solid rgba(0, 122, 204, 0.3)",
+								}}>
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										marginBottom: 4,
+									}}>
+									<i
+										className="codicon codicon-lightbulb"
+										style={{
+											marginRight: 6,
+											fontSize: 14,
+											color: "var(--vscode-textLink-foreground)",
+										}}></i>
+									<span
+										style={{
+											fontWeight: 500,
+											color: "var(--vscode-foreground)",
+										}}>
+										Shell integration issues
+									</span>
+								</div>
+								<div style={{ color: "var(--vscode-foreground)", opacity: 0.9, marginBottom: 8 }}>
+									Since you're experiencing repeated shell integration issues, we recommend switching to
+									Background Terminal mode for better reliability.
+								</div>
+								<button
+									disabled={isBackgroundModeEnabled}
+									onClick={async () => {
+										try {
+											// Enable background terminal execution mode
+											await UiServiceClient.setTerminalExecutionMode(BooleanRequest.create({ value: true }))
+										} catch (error) {
+											console.error("Failed to enable background terminal:", error)
+										}
+									}}
+									onMouseEnter={(e) => {
+										if (!isBackgroundModeEnabled) {
+											e.currentTarget.style.background = "var(--vscode-button-hoverBackground)"
+										}
+									}}
+									onMouseLeave={(e) => {
+										if (!isBackgroundModeEnabled) {
+											e.currentTarget.style.background = isBackgroundModeEnabled
+												? "var(--vscode-charts-green)"
+												: "var(--vscode-button-background)"
+										}
+									}}
+									style={{
+										background: isBackgroundModeEnabled
+											? "var(--vscode-charts-green)"
+											: "var(--vscode-button-background)",
+										color: "var(--vscode-button-foreground)",
+										border: "none",
+										borderRadius: 2,
+										padding: "6px 12px",
+										fontSize: 12,
+										cursor: isBackgroundModeEnabled ? "default" : "pointer",
+										fontFamily: "inherit",
+										display: "flex",
+										alignItems: "center",
+										gap: 6,
+										opacity: isBackgroundModeEnabled ? 0.8 : 1,
+									}}>
+									<i className="codicon codicon-settings-gear"></i>
+									{isBackgroundModeEnabled
+										? "Background Terminal Enabled"
+										: "Enable Background Terminal (Recommended)"}
+								</button>
+							</div>
+						)
 					case "task_progress":
 						return null // task_progress messages should be displayed in TaskHeader only, not in chat
 					default:

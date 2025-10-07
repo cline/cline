@@ -87,9 +87,9 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		sendingDisabled: false,
 		enableButtons: true,
 		primaryText: "Proceed While Running",
-		secondaryText: undefined,
+		secondaryText: "Cancel",
 		primaryAction: "proceed",
-		secondaryAction: undefined,
+		secondaryAction: "cancel",
 	},
 
 	// Browser and external tool states
