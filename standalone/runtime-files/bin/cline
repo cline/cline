@@ -13,11 +13,11 @@ CLINE_ROOT="$(dirname "$SCRIPT_DIR")"
 NODE_BIN="$SCRIPT_DIR/node"
 CLINE_CLI="$SCRIPT_DIR/cline-cli"
 CLINE_HOST="$SCRIPT_DIR/cline-host"
-CLINE_CORE="$CLINE_ROOT/core/cline-core.js"
+CLINE_CORE="$CLINE_ROOT/cline-core.js"
 
 # Export environment variables
-export CLINE_CORE_PATH="$CLINE_ROOT/core"
-export NODE_PATH="$CLINE_ROOT/core/node_modules"
+export CLINE_CORE_PATH="$CLINE_ROOT"
+export NODE_PATH="$CLINE_ROOT/node_modules"
 
 # Function to check if a process is running
 is_running() {
