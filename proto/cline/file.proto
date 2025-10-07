@@ -107,6 +107,7 @@ message FileSearchRequest {
   optional string mentions_request_id = 3;  // Optional request ID for tracking requests
   optional int32 limit = 4;          // Optional limit for results (default: 20)
   optional FileSearchType selected_type = 5;  // Optional selected type filter
+  optional string workspace_hint = 6;  // Optional workspace name to search in
 }
 
 // Result for file search operations
@@ -120,6 +121,7 @@ message FileInfo {
   string path = 1;                   // Relative path from workspace root
   string type = 2;                   // "file" or "folder"
   optional string label = 3;         // Display name (usually basename)
+  optional string workspace_name = 4;  // Workspace this result came from
 }
 
 // Response for searchCommits

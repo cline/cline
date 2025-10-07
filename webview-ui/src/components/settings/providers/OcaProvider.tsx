@@ -2,7 +2,7 @@ import type { OcaModelInfo } from "@shared/api"
 import type { OcaAuthState, OcaUserInfo } from "@shared/proto/index.cline"
 import { EmptyRequest, StringRequest } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
-import { VSCodeButton, VSCodeLink, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient, OcaAccountServiceClient } from "@/services/grpc-client"
@@ -28,7 +28,7 @@ interface OcaProviderProps {
 function InfoCard({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
 	return (
 		<div
-			className={`mt-2 flex items-start gap-3 rounded-none px-5 py-4 pb-8 border shadow-sm min-w-[40%] max-w-[90%] w-full box-border
+			className={`mt-2 mb-2 flex items-start gap-3 rounded-none px-5 py-4 pb-8 border shadow-sm min-w-[40%] max-w-[90%] w-full box-border
                  bg-[var(${VSC_INPUT_BACKGROUND})] border-[var(${VSC_INPUT_BORDER})]`}>
 			<div className="min-w-[22px] h-[22px] flex items-center justify-center shrink-0 mt-2">{icon}</div>
 			<div className="flex-1">{children}</div>
@@ -233,7 +233,11 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 	const { user: ocaUser, isAuthenticated, ready, login, logout } = useOcaAuth()
 
 	const ocaBaseUrl = apiConfiguration?.ocaBaseUrl || ""
-	const isOracle = (ocaUser?.email || "").toLowerCase().endsWith("@oracle.com")
+	const ocaMode = apiConfiguration?.ocaMode
+
+	const handleToggleMode = (nextMode: "internal" | "external") => {
+		handleFieldChange("ocaMode", nextMode)
+	}
 
 	const {
 		models: ocaModels,
@@ -273,6 +277,21 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 				</div>
 			) : !isAuthenticated ? (
 				<div>
+					<div
+						aria-label="Oracle employment"
+						style={{
+							marginTop: 12,
+							marginBottom: 4,
+						}}>
+						<VSCodeCheckbox
+							checked={ocaMode !== "external"}
+							onChange={(e: any) => {
+								const checked = (e?.target as HTMLInputElement)?.checked
+								handleToggleMode(checked ? "internal" : "external")
+							}}>
+							I’m an Oracle Employee
+						</VSCodeCheckbox>
+					</div>
 					<VSCodeButton
 						onClick={async () => {
 							await login()
@@ -296,7 +315,6 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 							target="_blank">
 							quickstart guide
 						</VSCodeLink>
-						.
 					</p>
 				</div>
 			) : (
@@ -310,18 +328,6 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 								<span className="font-semibold opacity-95 mt-2">{ocaUser.uid}</span>
 							) : (
 								<span className="font-semibold opacity-95 mt-2">Unknown User</span>
-							)}
-							{isOracle && (
-								<p className="text-xs mt-0 font-normal text-[var(--vscode-descriptionForeground)]">
-									Oracle Employees, please see the{" "}
-									<VSCodeLink
-										href="https://confluence.oraclecorp.com/confluence/display/AICODE/Oracle+Code+Assist+via+Cline"
-										rel="noopener noreferrer"
-										target="_blank">
-										quickstart guide
-									</VSCodeLink>
-									.
-								</p>
 							)}
 						</div>
 						<VSCodeButton
@@ -435,9 +441,19 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 								Have an idea for Oracle Code Assist?
 							</div>
 						</div>
-						<div style={{ width: "100%", display: "flex", justifyContent: "center", marginTop: 8 }}>
+						<div
+							style={{
+								width: "100%",
+								display: "flex",
+								justifyContent: "center",
+								marginTop: 8,
+							}}>
 							<a
-								href="https://apexsurveys.oracle.com/ords/surveys/t/oca-nps/survey?k=oracle-code-assist-internal-link-share&sc=SMM1BNSNUI"
+								href={
+									ocaMode === "internal"
+										? "https://apexsurveys.oracle.com/ords/surveys/t/oca-nps/survey?k=oracle-code-assist-internal-link-share&sc=SMM1BNSNUI"
+										: "https://customersurveys.oracle.com/ords/surveys/t/aicode/survey?k=oracle-code-assist&sc=SUDN1ZXYQ5"
+								}
 								rel="noopener noreferrer"
 								style={{
 									fontSize: 14,

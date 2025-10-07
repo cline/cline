@@ -4,8 +4,11 @@ import (
 	"context"
 	"log"
 
+	"github.com/atotto/clipboard"
+	"github.com/cline/cli/pkg/cli"
 	"github.com/cline/grpc-go/cline"
 	"github.com/cline/grpc-go/host"
+	"google.golang.org/protobuf/proto"
 )
 
 // Global shutdown channel - simple approach
@@ -31,11 +34,17 @@ func NewEnvService(verbose bool) *EnvService {
 // ClipboardWriteText writes text to the system clipboard
 func (s *EnvService) ClipboardWriteText(ctx context.Context, req *cline.StringRequest) (*cline.Empty, error) {
 	if s.verbose {
-		log.Printf("ClipboardWriteText called with: %s", req.GetValue())
+		log.Printf("ClipboardWriteText called with text length: %d", len(req.GetValue()))
 	}
 
-	// TODO: Implement actual clipboard functionality
-	// For now, just return success
+	err := clipboard.WriteAll(req.GetValue())
+	if err != nil {
+		if s.verbose {
+			log.Printf("Failed to write to clipboard: %v", err)
+		}
+		// Don't fail if clipboard is not available (e.g., headless environment)
+	}
+
 	return &cline.Empty{}, nil
 }
 
@@ -45,23 +54,17 @@ func (s *EnvService) ClipboardReadText(ctx context.Context, req *cline.EmptyRequ
 		log.Printf("ClipboardReadText called")
 	}
 
-	// TODO: Implement actual clipboard functionality
-	// For now, return empty string
-	return &cline.String{
-		Value: "",
-	}, nil
-}
-
-// GetMachineId returns a stable machine identifier for telemetry distinctId purposes
-func (s *EnvService) GetMachineId(ctx context.Context, req *cline.EmptyRequest) (*cline.String, error) {
-	if s.verbose {
-		log.Printf("GetMachineId called")
+	text, err := clipboard.ReadAll()
+	if err != nil {
+		if s.verbose {
+			log.Printf("Failed to read from clipboard: %v", err)
+		}
+		// Return empty string if clipboard is not available
+		text = ""
 	}
 
-	// TODO: Implement actual machine ID functionality
-	// For now, return empty string
 	return &cline.String{
-		Value: "",
+		Value: text,
 	}, nil
 }
 
@@ -71,9 +74,12 @@ func (s *EnvService) GetHostVersion(ctx context.Context, req *cline.EmptyRequest
 		log.Printf("GetHostVersion called")
 	}
 
-	// TODO: Implement actual host version functionality
-	// For now, return empty response
-	return &host.GetHostVersionResponse{}, nil
+	return &host.GetHostVersionResponse{
+		Platform:     proto.String("Cline CLI"),
+		Version:      proto.String(""),
+		ClineType:    proto.String("CLI"),
+		ClineVersion: proto.String(cli.Version),
+	}, nil
 }
 
 // Shutdown initiates a graceful shutdown of the host bridge service

@@ -87,6 +87,7 @@ export interface ApiHandlerOptions {
 	openRouterProviderSorting?: string
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
+	awsUseGlobalInference?: boolean
 	awsBedrockUsePromptCache?: boolean
 	awsAuthentication?: string
 	awsUseProfile?: boolean
@@ -119,6 +120,7 @@ export interface ApiHandlerOptions {
 	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
+	ocaMode?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -437,6 +439,7 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -447,6 +450,7 @@ export const bedrockModels = {
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -458,6 +462,7 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -468,6 +473,7 @@ export const bedrockModels = {
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
