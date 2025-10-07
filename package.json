@@ -445,6 +445,7 @@
 		"jwt-decode": "^4.0.0",
 		"mammoth": "^1.8.0",
 		"nice-grpc": "^2.1.12",
+		"node-machine-id": "^1.1.12",
 		"ollama": "^0.5.13",
 		"open": "^10.1.2",
 		"open-graph-scraper": "^6.9.0",
