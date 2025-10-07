@@ -314,7 +314,7 @@ func setSimpleField(settings *cline.TaskSettings, key, value string) error {
 			return err
 		}
 		settings.FireworksModelMaxCompletionTokens = int32Ptr(val)
-	case "fireworks_model_max_tokenz":
+	case "fireworks_model_max_tokens":
 		val, err := parseInt32(value)
 		if err != nil {
 			return err
