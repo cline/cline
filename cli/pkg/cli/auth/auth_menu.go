@@ -42,7 +42,7 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 	switch action {
 	case AuthActionClineLogin:
 		return HandleClineAuth(ctx)
-	case AuthActionProviderSetup:
+	case AuthActionBYOSetup:
 		return HandleAPIProviderSetup()
 	default:
 		return fmt.Errorf("invalid action")
