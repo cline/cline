@@ -34,6 +34,7 @@ import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
+import { ClineAuthProvider } from "./services/auth/providers/ClineAuthProvider"
 import { LogoutReason } from "./services/auth/types"
 import { telemetryService } from "./services/telemetry"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
@@ -375,7 +376,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		context.secrets.onDidChange(async (event) => {
-			if (event.key === "clineAccountId" || event.key === "cline:clineAccountId") {
+			if (event.key === "clineAccountId" || event.key === ClineAuthProvider.secretKeyId) {
 				// Check if the secret was removed (logout) or added/updated (login)
 				const secretValue = await context.secrets.get(event.key)
 				const activeWebview = WebviewProvider.getVisibleInstance()

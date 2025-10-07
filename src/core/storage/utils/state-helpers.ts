@@ -1,6 +1,7 @@
 import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
+import { ClineAuthProvider } from "@/services/auth/providers/ClineAuthProvider"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
@@ -54,7 +55,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
 		context.secrets.get("clineAccountId") as Promise<Secrets["clineAccountId"]>,
-		context.secrets.get("cline:clineAccountId") as Promise<Secrets["cline:clineAccountId"]>,
+		context.secrets.get(ClineAuthProvider.secretKeyId) as Promise<Secrets["cline:clineAccountId"]>,
 		context.secrets.get("awsAccessKey") as Promise<Secrets["awsAccessKey"]>,
 		context.secrets.get("awsSecretKey") as Promise<Secrets["awsSecretKey"]>,
 		context.secrets.get("awsSessionToken") as Promise<Secrets["awsSessionToken"]>,
@@ -96,7 +97,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		apiKey,
 		openRouterApiKey,
 		clineAccountId: firebaseClineAccountId,
-		"cline:clineAccountId": clineAccountId,
+		[ClineAuthProvider.secretKeyId]: clineAccountId,
 		huggingFaceApiKey,
 		huaweiCloudMaasApiKey,
 		basetenApiKey,
