@@ -1,7 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import getFolderSize from "get-folder-size"
-import * as vscode from "vscode"
 import { findLastIndex } from "@/shared/array"
 import { combineApiRequests } from "@/shared/combineApiRequests"
 import { combineCommandSequences } from "@/shared/combineCommandSequences"
@@ -13,7 +12,6 @@ import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessage
 import { TaskState } from "./TaskState"
 
 interface MessageStateHandlerParams {
-	context: vscode.ExtensionContext
 	taskId: string
 	ulid: string
 	taskIsFavorited?: boolean
@@ -27,21 +25,17 @@ export class MessageStateHandler {
 	private clineMessages: ClineMessage[] = []
 	private taskIsFavorited: boolean
 	private checkpointTracker: CheckpointTracker | undefined
-	private checkpointManagerErrorMessage: string | undefined
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
-	private context: vscode.ExtensionContext
 	private taskId: string
 	private ulid: string
 	private taskState: TaskState
 
 	constructor(params: MessageStateHandlerParams) {
-		this.context = params.context
 		this.taskId = params.taskId
 		this.ulid = params.ulid
 		this.taskState = params.taskState
 		this.taskIsFavorited = params.taskIsFavorited ?? false
 		this.updateTaskHistory = params.updateTaskHistory
-		this.checkpointManagerErrorMessage = this.taskState.checkpointManagerErrorMessage
 	}
 
 	setCheckpointTracker(tracker: CheckpointTracker | undefined) {
@@ -66,7 +60,7 @@ export class MessageStateHandler {
 
 	async saveClineMessagesAndUpdateHistory(): Promise<void> {
 		try {
-			await saveClineMessages(this.context, this.taskId, this.clineMessages)
+			await saveClineMessages(this.taskId, this.clineMessages)
 
 			// combined as they are in ChatView
 			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
@@ -86,7 +80,7 @@ export class MessageStateHandler {
 						(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
 					)
 				]
-			const taskDir = await ensureTaskDirectoryExists(this.context, this.taskId)
+			const taskDir = await ensureTaskDirectoryExists(this.taskId)
 			let taskDirSize = 0
 			try {
 				// getFolderSize.loose silently ignores errors
@@ -151,12 +145,12 @@ export class MessageStateHandler {
 
 	async addToApiConversationHistory(message: Anthropic.MessageParam) {
 		this.apiConversationHistory.push(message)
-		await saveApiConversationHistory(this.context, this.taskId, this.apiConversationHistory)
+		await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
 	}
 
 	async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]): Promise<void> {
 		this.apiConversationHistory = newHistory
-		await saveApiConversationHistory(this.context, this.taskId, this.apiConversationHistory)
+		await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
 	}
 
 	async addToClineMessages(message: ClineMessage) {

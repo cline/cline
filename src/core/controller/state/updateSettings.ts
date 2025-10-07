@@ -43,7 +43,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setApiConfiguration(convertedApiConfigurationFromProto)
 
 			if (controller.task) {
-				const currentMode = await controller.getCurrentMode()
+				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
 				const apiConfigForHandler = {
 					...convertedApiConfigurationFromProto,
 					ulid: controller.task.ulid,

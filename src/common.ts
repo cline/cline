@@ -1,18 +1,18 @@
 import * as vscode from "vscode"
 import { WebviewProvider } from "./core/webview"
 import { Logger } from "./services/logging/Logger"
-import { WebviewProviderType } from "./shared/webview/types"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 
 import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
+import { StateManager } from "./core/storage/StateManager"
 import { ExtensionRegistryInfo } from "./registry"
 import { audioRecordingService } from "./services/dictation/AudioRecordingService"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
 import { initializeDistinctId } from "./services/logging/distinctId"
-import { PostHogClientProvider } from "./services/posthog/PostHogClientProvider"
 import { telemetryService } from "./services/telemetry"
+import { PostHogClientProvider } from "./services/telemetry/providers/posthog/PostHogClientProvider"
 import { ShowMessageType } from "./shared/proto/host/window"
 import { getLatestAnnouncementId } from "./utils/announcements"
 /**
@@ -22,6 +22,16 @@ import { getLatestAnnouncementId } from "./utils/announcements"
  * @returns The webview provider
  */
 export async function initialize(context: vscode.ExtensionContext): Promise<WebviewProvider> {
+	try {
+		await StateManager.initialize(context)
+	} catch (error) {
+		console.error("[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:", error)
+		HostProvider.window.showMessage({
+			type: ShowMessageType.ERROR,
+			message: "Failed to initialize Cline's application state. Please restart the extension.",
+		})
+	}
+
 	// Set the distinct ID for logging and telemetry
 	await initializeDistinctId(context)
 
@@ -35,13 +45,13 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
 
-	const sidebarWebview = HostProvider.get().createWebviewProvider(WebviewProviderType.SIDEBAR)
+	const webview = HostProvider.get().createWebviewProvider()
 
 	await showVersionUpdateAnnouncement(context)
 
 	telemetryService.captureExtensionActivated()
 
-	return sidebarWebview
+	return webview
 }
 
 async function showVersionUpdateAnnouncement(context: vscode.ExtensionContext) {
