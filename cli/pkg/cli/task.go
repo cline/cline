@@ -436,6 +436,11 @@ func newTaskRestoreCommand() *cobra.Command {
 				return err
 			}
 
+			// Validate checkpoint exists before attempting restore
+			if err := taskManager.ValidateCheckpointExists(ctx, id); err != nil {
+				return err
+			}
+
 			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
 			fmt.Printf("Restoring to checkpoint %d (type: %s)\n", id, restoreType)
 

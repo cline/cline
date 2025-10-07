@@ -189,6 +189,33 @@ func (m *Manager) cancelExistingTaskIfNeeded(ctx context.Context) error {
 	return nil
 }
 
+// ValidateCheckpointExists checks if a checkpoint ID is valid
+func (m *Manager) ValidateCheckpointExists(ctx context.Context, checkpointID int64) error {
+	// Get current state
+	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return fmt.Errorf("failed to get state: %w", err)
+	}
+
+	// Extract messages
+	messages, err := m.extractMessagesFromState(state.StateJson)
+	if err != nil {
+		return fmt.Errorf("failed to extract messages: %w", err)
+	}
+
+	// Find and validate the checkpoint message
+	for _, msg := range messages {
+		if msg.Timestamp == checkpointID {
+			if msg.Say != string(types.SayTypeCheckpointCreated) {
+				return fmt.Errorf("timestamp %d is not a checkpoint (type: %s)", checkpointID, msg.Type)
+			}
+			return nil // Valid checkpoint
+		}
+	}
+
+	return fmt.Errorf("checkpoint ID %d not found in task history", checkpointID)
+}
+
 // CheckSendDisabled determines if we can send a message to the current task
 // We duplicate the logic from buttonConfig::getButtonConfig
 func (m *Manager) CheckSendDisabled(ctx context.Context) (bool, error) {
@@ -451,9 +478,6 @@ func (m *Manager) ResumeTask(ctx context.Context, taskID string) error {
 
 // RestoreCheckpoint restores the task to a specific checkpoint
 func (m *Manager) RestoreCheckpoint(ctx context.Context, checkpointID int64, restoreType string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	if global.Config.Verbose {
 		m.renderer.RenderDebug("Restoring checkpoint: %d (type: %s)", checkpointID, restoreType)
 	}
