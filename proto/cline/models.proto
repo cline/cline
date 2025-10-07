@@ -325,6 +325,7 @@ message ModelsApiConfiguration {
   optional string oca_base_url = 73;
   optional string oca_api_key = 74;
   optional string oca_refresh_token = 75;
+  optional string oca_mode = 76;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

@@ -1,6 +1,12 @@
 export interface OcaConfig {
-	client_id: string
-	idcs_url: string
-	scopes: string
-	ports: number[]
+	internal: {
+		client_id: string
+		idcs_url: string
+		scopes: string
+	}
+	external: {
+		client_id: string
+		idcs_url: string
+		scopes: string
+	}
 }
