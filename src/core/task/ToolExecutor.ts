@@ -4,6 +4,7 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { featureFlagsService } from "@services/feature-flags"
 import { McpHub } from "@services/mcp/McpHub"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineDefaultTool } from "@shared/tools"
@@ -366,8 +367,10 @@ export class ToolExecutor {
 	 * Handle complete block execution
 	 */
 	private async handleCompleteBlock(block: ToolUse, config: any): Promise<void> {
-		// Check if hooks are enabled
-		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		// Check if hooks are enabled (both feature flag and user setting must be true)
+		const featureFlagEnabled = featureFlagsService.getHooksEnabled()
+		const userEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		const hooksEnabled = featureFlagEnabled && userEnabled
 
 		let executionSuccess = true
 		let toolResult: any = null

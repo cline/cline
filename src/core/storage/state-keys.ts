@@ -103,8 +103,6 @@ export interface Settings {
 	ocaBaseUrl: string | undefined
 	ocaMode: string | undefined
 	hooksEnabled: boolean
-	ocaMode: string | undefined
-	hooksEnabled: boolean
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
