@@ -404,12 +404,6 @@ func setNestedField(settings *cline.TaskSettings, parentField string, childField
 func setAutoApprovalSettings(settings *cline.AutoApprovalSettings, fields map[string]string) error {
 	for key, value := range fields {
 		switch key {
-		case "version":
-			val, err := parseInt32(value)
-			if err != nil {
-				return err
-			}
-			settings.Version = val
 		case "enabled":
 			val, err := parseBool(value)
 			if err != nil {
