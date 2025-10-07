@@ -110,6 +110,7 @@ func newTaskNewCommand() *cobra.Command {
 		workspaces []string
 		address    string
 		mode       string
+		settings   []string
 	)
 
 	cmd := &cobra.Command{
@@ -146,7 +147,7 @@ func newTaskNewCommand() *cobra.Command {
 			}
 
 			// Create the task
-			taskID, err := taskManager.CreateTask(ctx, prompt, images, files, workspaces)
+			taskID, err := taskManager.CreateTask(ctx, prompt, images, files, workspaces, settings)
 			if err != nil {
 				return fmt.Errorf("failed to create task: %w", err)
 			}
@@ -170,6 +171,7 @@ func newTaskNewCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&workspaces, "workdir", "w", nil, "workdir directory paths")
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
+	cmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format, e.g., -s aws-region=us-west-2 -s mode=act)")
 
 	return cmd
 }
