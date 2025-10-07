@@ -3,7 +3,7 @@ import { OcaCompatibleModelInfo, OcaModelInfo } from "@shared/proto/cline/models
 import axios from "axios"
 import { HostProvider } from "@/hosts/host-provider"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
-import { DEFAULT_OCA_BASE_URL } from "@/services/auth/oca/utils/constants"
+import { DEFAULT_EXTERNAL_OCA_BASE_URL, DEFAULT_INTERNAL_OCA_BASE_URL } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders, getAxiosSettings } from "@/services/auth/oca/utils/utils"
 import { Logger } from "@/services/logging/Logger"
 import { ShowMessageType } from "@/shared/proto/index.host"
@@ -32,7 +32,8 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 		})
 		return OcaCompatibleModelInfo.create({ error: "Not authenticated with OCA" })
 	}
-	const baseUrl = request.value || DEFAULT_OCA_BASE_URL
+	const ocaMode = controller.stateManager.getGlobalSettingsKey("ocaMode") || "internal"
+	const baseUrl = request.value || (ocaMode === "internal" ? DEFAULT_INTERNAL_OCA_BASE_URL : DEFAULT_EXTERNAL_OCA_BASE_URL)
 	const modelsUrl = `${baseUrl}/v1/model/info`
 	const headers = await createOcaHeaders(ocaAccessToken!, "models-refresh")
 	try {
