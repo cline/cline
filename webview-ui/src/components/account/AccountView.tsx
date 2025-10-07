@@ -37,10 +37,10 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 	return (
 		<div className="fixed inset-0 flex flex-col overflow-hidden pt-[10px] pl-[20px]">
 			<div className="flex justify-between items-center mb-[17px] pr-[17px]">
-				<h3 className="text-[var(--vscode-foreground)] m-0">Account</h3>
+				<h3 className="text-(--vscode-foreground) m-0">Account</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
-			<div className="flex-grow overflow-hidden pr-[8px] flex flex-col">
+			<div className="grow overflow-hidden pr-[8px] flex flex-col">
 				<div className="h-full mb-1.5">
 					{clineUser?.uid ? (
 						<ClineAccountView
@@ -297,17 +297,15 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 						{/* {user.photoUrl ? (
 								<img src={user.photoUrl} alt="Profile" className="size-16 rounded-full mr-4" />
 							) : ( */}
-						<div className="size-16 rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-2xl text-[var(--vscode-button-foreground)] mr-4">
+						<div className="size-16 rounded-full bg-(--vscode-button-background) flex items-center justify-center text-2xl text-(--vscode-button-foreground) mr-4">
 							{displayName?.[0] || email?.[0] || "?"}
 						</div>
 						{/* )} */}
 
 						<div className="flex flex-col">
-							{displayName && (
-								<h2 className="text-[var(--vscode-foreground)] m-0 text-lg font-medium">{displayName}</h2>
-							)}
+							{displayName && <h2 className="text-(--vscode-foreground) m-0 text-lg font-medium">{displayName}</h2>}
 
-							{email && <div className="text-sm text-[var(--vscode-descriptionForeground)]">{email}</div>}
+							{email && <div className="text-sm text-(--vscode-descriptionForeground)">{email}</div>}
 
 							<div className="flex gap-2 items-center mt-1">
 								<VSCodeDropdown
@@ -357,7 +355,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 
 				<VSCodeDivider className="mt-6 mb-3 w-full" />
 
-				<div className="flex-grow flex flex-col min-h-0 pb-[0px]">
+				<div className="grow flex flex-col min-h-0 pb-[0px]">
 					<CreditsHistoryTable
 						isLoading={isLoading}
 						paymentsData={paymentsData}

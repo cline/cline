@@ -41,7 +41,7 @@ const PreferredLanguageSetting: React.FC = () => {
 				<VSCodeOption value="Traditional Chinese - 繁體中文">Traditional Chinese - 繁體中文</VSCodeOption>
 				<VSCodeOption value="Turkish - Türkçe">Turkish - Türkçe</VSCodeOption>
 			</VSCodeDropdown>
-			<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
+			<p className="text-xs text-(--vscode-descriptionForeground) mt-1">
 				The language that Cline should use for communication.
 			</p>
 		</div>

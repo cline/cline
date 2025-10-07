@@ -3,7 +3,7 @@ import { handleSignIn } from "@/context/ClineAuthContext"
 import ClineLogoWhite from "../../assets/ClineLogoWhite"
 
 export const AccountWelcomeView = () => (
-	<div className="flex flex-col items-center pr-3">
+	<div className="flex flex-col items-center pr-3 gap-2.5">
 		<ClineLogoWhite className="size-16 mb-4" />
 
 		<p>
@@ -11,11 +11,11 @@ export const AccountWelcomeView = () => (
 			upcoming features.
 		</p>
 
-		<VSCodeButton className="w-full mb-4" onClick={() => handleSignIn()}>
+		<VSCodeButton className="w-full my-4" onClick={() => handleSignIn()}>
 			Sign up with Cline
 		</VSCodeButton>
 
-		<p className="text-[var(--vscode-descriptionForeground)] text-xs text-center m-0">
+		<p className="text-(--vscode-descriptionForeground) text-xs text-center m-0">
 			By continuing, you agree to the <VSCodeLink href="https://cline.bot/tos">Terms of Service</VSCodeLink> and{" "}
 			<VSCodeLink href="https://cline.bot/privacy">Privacy Policy.</VSCodeLink>
 		</p>

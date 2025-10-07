@@ -154,7 +154,7 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 	return (
 		<Tooltip
 			classNames={{
-				base: "bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)] border-[var(--vscode-widget-border)] py-1 rounded-[3px] max-w-[calc(100dvw-2rem)] text-xs",
+				base: "bg-(--vscode-editor-background) text-(--vscode-editor-foreground) border-(--vscode-widget-border) py-1 rounded-[3px] max-w-[calc(100dvw-2rem)] text-xs",
 			}}
 			closeDelay={100}
 			content={
