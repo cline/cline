@@ -421,6 +421,15 @@ var rawConfigFields = `	[
 	    "required": false,
 	    "fieldType": "url",
 	    "placeholder": "https://api.example.com"
+	  },
+	  {
+	    "name": "ocaMode",
+	    "type": "string",
+	    "comment": "",
+	    "category": "general",
+	    "required": false,
+	    "fieldType": "string",
+	    "placeholder": ""
 	  }
 	]`
 
