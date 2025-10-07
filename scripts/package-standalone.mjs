@@ -13,6 +13,8 @@ import { rmrf } from "./file-utils.mjs"
 const BUILD_DIR = "dist-standalone"
 const BINARIES_DIR = `${BUILD_DIR}/binaries`
 const RUNTIME_DEPS_DIR = "standalone/runtime-files"
+const NODE_BINARIES_DIR = `${BUILD_DIR}/node-binaries`
+const CLI_BINARIES_DIR = "cli/bin"
 const IS_DEBUG_BUILD = process.env.IS_DEBUG_BUILD === "true"
 
 // This should match the node version packaged with the JetBrains plugin.
@@ -28,15 +30,49 @@ const SUPPORTED_BINARY_MODULES = ["better-sqlite3"]
 const UNIVERSAL_BUILD = !process.argv.includes("-s")
 const IS_VERBOSE = process.argv.includes("-v") || process.argv.includes("--verbose")
 
+// Detect current platform
+function getCurrentPlatform() {
+	const platform = os.platform()
+	const arch = os.arch()
+
+	if (platform === "darwin") {
+		return arch === "arm64" ? "darwin-arm64" : "darwin-x64"
+	} else if (platform === "linux") {
+		return "linux-x64"
+	} else if (platform === "win32") {
+		return "win-x64"
+	}
+	throw new Error(`Unsupported platform: ${platform}-${arch}`)
+}
+
 async function main() {
+	console.log("🚀 Building Cline Standalone Package\n")
+
+	// Step 1: Install Node.js dependencies
 	await installNodeDependencies()
+
+	// Step 2: Copy Node.js binary
+	await copyNodeBinary()
+
+	// Step 3: Copy CLI binaries
+	await copyCliBinaries()
+
+	// Step 4: Create VERSION file
+	await createVersionFile()
+
+	// Step 5: Package platform-specific binary modules
 	if (UNIVERSAL_BUILD) {
-		console.log("Building universal package for all platforms...")
+		console.log("\nBuilding universal package for all platforms...")
 		await packageAllBinaryDeps()
 	} else {
-		console.log(`Building package for ${os.platform()}-${os.arch()}...`)
+		console.log(`\nBuilding package for ${os.platform()}-${os.arch()}...`)
 	}
+
+	// Step 6: Create final package
+	console.log("\n📦 Creating final package...")
 	await zipDistribution()
+
+	console.log("\n✅ Build complete!")
 }
 
 async function installNodeDependencies() {
@@ -52,6 +88,90 @@ async function installNodeDependencies() {
 	// Move the vscode directory into node_modules.
 	// It can't be installed using npm because it will create a symlink which cannot be unzipped correctly on windows.
 	fs.renameSync(`${BUILD_DIR}/vscode`, `${BUILD_DIR}/node_modules/vscode`)
+}
+
+/**
+ * Copy Node.js binary for the current platform
+ */
+async function copyNodeBinary() {
+	const currentPlatform = getCurrentPlatform()
+	const nodeBinarySource = path.join(NODE_BINARIES_DIR, currentPlatform, "bin", "node")
+	const nodeBinaryDest = path.join(BUILD_DIR, "bin", "node")
+
+	console.log(`Copying Node.js binary for ${currentPlatform}...`)
+
+	// Check if Node.js binaries exist
+	if (!fs.existsSync(nodeBinarySource)) {
+		console.error(`Error: Node.js binary not found at ${nodeBinarySource}`)
+		console.error(`Please run: npm run download-node`)
+		process.exit(1)
+	}
+
+	// Create bin directory
+	fs.mkdirSync(path.join(BUILD_DIR, "bin"), { recursive: true })
+
+	// Copy Node.js binary
+	await cpr(nodeBinarySource, nodeBinaryDest)
+
+	// Make it executable
+	fs.chmodSync(nodeBinaryDest, 0o755)
+
+	console.log(`✓ Node.js binary copied to ${nodeBinaryDest}`)
+}
+
+/**
+ * Copy CLI binaries (cline-cli and cline-host)
+ */
+async function copyCliBinaries() {
+	console.log("Copying CLI binaries...")
+
+	const binaries = ["cline", "cline-host"]
+	const binDir = path.join(BUILD_DIR, "bin")
+
+	// Create bin directory
+	fs.mkdirSync(binDir, { recursive: true })
+
+	for (const binary of binaries) {
+		const source = path.join(CLI_BINARIES_DIR, binary)
+		const dest = path.join(binDir, binary === "cline" ? "cline-cli" : binary)
+
+		// Check if binary exists
+		if (!fs.existsSync(source)) {
+			console.error(`Error: CLI binary not found at ${source}`)
+			console.error(`Please run: npm run compile-cli`)
+			process.exit(1)
+		}
+
+		// Copy binary
+		await cpr(source, dest)
+
+		// Make it executable
+		fs.chmodSync(dest, 0o755)
+
+		console.log(`✓ ${binary} copied to ${dest}`)
+	}
+}
+
+/**
+ * Create a VERSION file with build metadata
+ */
+async function createVersionFile() {
+	const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8"))
+	const version = packageJson.version
+	const platform = getCurrentPlatform()
+	const buildDate = new Date().toISOString()
+
+	const versionInfo = {
+		version,
+		platform,
+		buildDate,
+		nodeVersion: TARGET_NODE_VERSION,
+	}
+
+	const versionPath = path.join(BUILD_DIR, "VERSION")
+	fs.writeFileSync(versionPath, JSON.stringify(versionInfo, null, 2))
+
+	console.log(`✓ VERSION file created: ${version} (${platform})`)
 }
 
 /**
