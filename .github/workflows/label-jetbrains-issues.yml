@@ -26,4 +26,28 @@ jobs:
                   labels: ['JetBrains']
                 });
               }
-            } 
+            }
+
+            // Check if VSCode Extension is selected
+            if (body.match(/###\s*Plugin Type\s*\n+VSCode Extension/i)) {
+              if (!labels.includes('VSCode')) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  labels: ['VS Code']
+                });
+              }
+            }
+
+            // Check if CLI is selected
+            if (body.match(/###\s*Plugin Type\s*\n+CLI/i)) {
+              if (!labels.includes('CLI')) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  labels: ['CLI']
+                });
+              }
+            }
