@@ -12,6 +12,36 @@ function hasCommand(cmd: string): boolean {
 	return result.status === 0
 }
 
+function setupTestKeychain(): { keychainPath: string; keychainPwd: string; cleanup: () => void } {
+	const keychainPath = path.join(os.tmpdir(), `cline-tests-${Date.now()}-${Math.random().toString(36).slice(2)}.keychain-db`)
+	const keychainPwd = "cline-test-pass"
+
+	// Save original keychain search list to restore later (prevents system prompts)
+	const originalKeychains = spawnSync("security", ["list-keychains", "-d", "user"], { encoding: "utf8" }).stdout
+
+	// Create and configure test keychain
+	spawnSync("security", ["create-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
+	spawnSync("security", ["set-keychain-settings", "-lut", "3600", keychainPath], { stdio: "ignore" })
+	spawnSync("security", ["unlock-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
+
+	// Remove test keychain from search list to prevent system processes from accessing it
+	const keychainList = originalKeychains
+		.split("\n")
+		.map((line) => line.trim().replace(/^"|"$/g, ""))
+		.filter((line) => line.length > 0)
+	if (keychainList.length > 0) {
+		spawnSync("security", ["list-keychains", "-d", "user", "-s", ...keychainList], { stdio: "ignore" })
+	}
+
+	return {
+		keychainPath,
+		keychainPwd,
+		cleanup: () => {
+			spawnSync("security", ["delete-keychain", keychainPath], { stdio: "ignore" })
+		},
+	}
+}
+
 test.setTimeout(90000)
 
 test("Standalone migration moves secrets.json to OS keychain and removes file (macOS only)", async () => {
@@ -33,13 +63,8 @@ test("Standalone migration moves secrets.json to OS keychain and removes file (m
 	fs.writeFileSync(secretsPath, JSON.stringify({ openRouterApiKey: "migrate-me" }, null, 2))
 
 	// Ephemeral, unlocked test keychain to avoid GUI prompts
-	const keychainPath = path.join(os.tmpdir(), `cline-tests-${Date.now()}-${Math.random().toString(36).slice(2)}.keychain-db`)
-	const keychainPwd = "cline-test-pass"
+	const { keychainPath, cleanup } = setupTestKeychain()
 	try {
-		spawnSync("security", ["create-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
-		spawnSync("security", ["set-keychain-settings", "-lut", "3600", keychainPath], { stdio: "ignore" })
-		spawnSync("security", ["unlock-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
-
 		// Ensure no preexisting key in test keychain
 		const service = "Cline: openRouterApiKey"
 		const account = "cline_openRouterApiKey"
@@ -110,8 +135,7 @@ test("Standalone migration moves secrets.json to OS keychain and removes file (m
 		}
 		expect(present).toBeTruthy()
 	} finally {
-		// Clean up test keychain
-		spawnSync("security", ["delete-keychain", keychainPath], { stdio: "ignore" })
+		cleanup()
 	}
 })
 
@@ -132,13 +156,8 @@ test("Migration handles empty secrets.json gracefully (macOS only)", async () =>
 	const secretsPath = path.join(dataDir, "secrets.json")
 	fs.writeFileSync(secretsPath, JSON.stringify({}, null, 2))
 
-	const keychainPath = path.join(os.tmpdir(), `cline-tests-${Date.now()}-${Math.random().toString(36).slice(2)}.keychain-db`)
-	const keychainPwd = "cline-test-pass"
+	const { keychainPath, cleanup } = setupTestKeychain()
 	try {
-		spawnSync("security", ["create-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
-		spawnSync("security", ["set-keychain-settings", "-lut", "3600", keychainPath], { stdio: "ignore" })
-		spawnSync("security", ["unlock-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
-
 		const procEnv = { ...process.env, CLINE_DIR: userDataDir, CLINE_KEYCHAIN: keychainPath }
 		const migrationScript = path.join(process.cwd(), "dist-standalone", "migrate-secrets.js")
 		if (!fs.existsSync(migrationScript)) {
@@ -172,7 +191,7 @@ test("Migration handles empty secrets.json gracefully (macOS only)", async () =>
 		// Empty secrets should not cause errors
 		expect(/MIGRATION_FAILED|error/i.test(output)).toBeFalsy()
 	} finally {
-		spawnSync("security", ["delete-keychain", keychainPath], { stdio: "ignore" })
+		cleanup()
 	}
 })
 
@@ -198,13 +217,8 @@ test("Migration handles multiple secrets correctly (macOS only)", async () => {
 	}
 	fs.writeFileSync(secretsPath, JSON.stringify(testSecrets, null, 2))
 
-	const keychainPath = path.join(os.tmpdir(), `cline-tests-${Date.now()}-${Math.random().toString(36).slice(2)}.keychain-db`)
-	const keychainPwd = "cline-test-pass"
+	const { keychainPath, cleanup } = setupTestKeychain()
 	try {
-		spawnSync("security", ["create-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
-		spawnSync("security", ["set-keychain-settings", "-lut", "3600", keychainPath], { stdio: "ignore" })
-		spawnSync("security", ["unlock-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
-
 		// Clean up any pre-existing test keys
 		for (const key of Object.keys(testSecrets)) {
 			const service = `Cline: ${key}`
@@ -250,7 +264,7 @@ test("Migration handles multiple secrets correctly (macOS only)", async () => {
 			expect(result.stdout.trim()).toBe(expectedValue)
 		}
 	} finally {
-		spawnSync("security", ["delete-keychain", keychainPath], { stdio: "ignore" })
+		cleanup()
 	}
 })
 
@@ -273,13 +287,8 @@ test("Migration preserves special characters in secret values (macOS only)", asy
 	const specialValue = "sk-test_ABC123+/=xyz!@#$%"
 	fs.writeFileSync(secretsPath, JSON.stringify({ openRouterApiKey: specialValue }, null, 2))
 
-	const keychainPath = path.join(os.tmpdir(), `cline-tests-${Date.now()}-${Math.random().toString(36).slice(2)}.keychain-db`)
-	const keychainPwd = "cline-test-pass"
+	const { keychainPath, cleanup } = setupTestKeychain()
 	try {
-		spawnSync("security", ["create-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
-		spawnSync("security", ["set-keychain-settings", "-lut", "3600", keychainPath], { stdio: "ignore" })
-		spawnSync("security", ["unlock-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
-
 		const service = "Cline: openRouterApiKey"
 		const account = "cline_openRouterApiKey"
 		spawnSync("security", ["delete-generic-password", "-s", service, "-a", account, "-k", keychainPath], { stdio: "ignore" })
@@ -315,7 +324,7 @@ test("Migration preserves special characters in secret values (macOS only)", asy
 		expect(result.status).toBe(0)
 		expect(result.stdout.trim()).toBe(specialValue)
 	} finally {
-		spawnSync("security", ["delete-keychain", keychainPath], { stdio: "ignore" })
+		cleanup()
 	}
 })
 
@@ -337,13 +346,8 @@ test("Migration is idempotent - running twice is safe (macOS only)", async () =>
 	const testValue = "idempotent-test-key"
 	fs.writeFileSync(secretsPath, JSON.stringify({ openRouterApiKey: testValue }, null, 2))
 
-	const keychainPath = path.join(os.tmpdir(), `cline-tests-${Date.now()}-${Math.random().toString(36).slice(2)}.keychain-db`)
-	const keychainPwd = "cline-test-pass"
+	const { keychainPath, cleanup } = setupTestKeychain()
 	try {
-		spawnSync("security", ["create-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
-		spawnSync("security", ["set-keychain-settings", "-lut", "3600", keychainPath], { stdio: "ignore" })
-		spawnSync("security", ["unlock-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
-
 		const service = "Cline: openRouterApiKey"
 		const account = "cline_openRouterApiKey"
 		spawnSync("security", ["delete-generic-password", "-s", service, "-a", account, "-k", keychainPath], { stdio: "ignore" })
@@ -411,7 +415,7 @@ test("Migration is idempotent - running twice is safe (macOS only)", async () =>
 		expect(result.status).toBe(0)
 		expect(result.stdout.trim().length).toBeGreaterThan(0)
 	} finally {
-		spawnSync("security", ["delete-keychain", keychainPath], { stdio: "ignore" })
+		cleanup()
 	}
 })
 
@@ -431,13 +435,8 @@ test("Migration skips when secrets.json doesn't exist (macOS only)", async () =>
 	fs.mkdirSync(dataDir, { recursive: true })
 	// Don't create secrets.json
 
-	const keychainPath = path.join(os.tmpdir(), `cline-tests-${Date.now()}-${Math.random().toString(36).slice(2)}.keychain-db`)
-	const keychainPwd = "cline-test-pass"
+	const { keychainPath, cleanup } = setupTestKeychain()
 	try {
-		spawnSync("security", ["create-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
-		spawnSync("security", ["set-keychain-settings", "-lut", "3600", keychainPath], { stdio: "ignore" })
-		spawnSync("security", ["unlock-keychain", "-p", keychainPwd, keychainPath], { stdio: "ignore" })
-
 		const procEnv = { ...process.env, CLINE_DIR: userDataDir, CLINE_KEYCHAIN: keychainPath }
 		const migrationScript = path.join(process.cwd(), "dist-standalone", "migrate-secrets.js")
 		if (!fs.existsSync(migrationScript)) {
@@ -471,6 +470,6 @@ test("Migration skips when secrets.json doesn't exist (macOS only)", async () =>
 		// Should not error when file doesn't exist
 		expect(/MIGRATION_FAILED|error/i.test(output)).toBeFalsy()
 	} finally {
-		spawnSync("security", ["delete-keychain", keychainPath], { stdio: "ignore" })
+		cleanup()
 	}
 })
