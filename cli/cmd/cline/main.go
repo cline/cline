@@ -51,7 +51,6 @@ monitoring capabilities from the terminal.`,
 	rootCmd.AddCommand(cli.NewAuthCommand())
 
 	if err := rootCmd.ExecuteContext(context.Background()); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
