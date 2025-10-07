@@ -1,17 +1,58 @@
 #!/usr/bin/env bash
-# Example PreToolUse hook for testing context modification
+# PreToolUse Hook: Inject workspace-specific context for file operations
+# This hook detects project type and provides relevant coding standards
 set -eu
 
-# Read input from stdin
 input=$(cat)
-
-# Extract tool name
 tool=$(echo "$input" | jq -r '.preToolUse.toolName // "unknown"')
 
-# Always allow execution but add context about what tool is being used
-cat <<EOF
-{
-  "shouldContinue": true,
-  "contextModification": "Tool being executed: ${tool}\nWorkspace context: This is an example hook demonstrating context injection."
-}
-EOF
+# Only inject context for file modification tools
+if [[ "$tool" =~ ^(write_to_file|replace_in_file)$ ]]; then
+    context=""
+    
+    # Detect Node.js/JavaScript/TypeScript projects
+    if [ -f "package.json" ]; then
+        context="This is a Node.js project. "
+        
+        # Check for TypeScript
+        if [ -f "tsconfig.json" ]; then
+            context+="TypeScript is enabled - use proper type annotations. "
+        fi
+        
+        # Check for React
+        if grep -q '"react"' package.json 2>/dev/null; then
+            context+="React project - prefer functional components with hooks. "
+        fi
+        
+        # Check for Vue
+        if grep -q '"vue"' package.json 2>/dev/null; then
+            context+="Vue project - follow Vue 3 composition API patterns. "
+        fi
+    fi
+    
+    # Detect Python projects
+    if [ -f "requirements.txt" ] || [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
+        context+="Python project - follow PEP 8 style guidelines. Use type hints. "
+    fi
+    
+    # Detect Go projects
+    if [ -f "go.mod" ]; then
+        context+="Go project - follow standard Go conventions and use gofmt formatting. "
+    fi
+    
+    # Check for project-specific coding standards
+    if [ -f ".clinerules/coding-standards.md" ]; then
+        context+="Project has custom coding standards in .clinerules/coding-standards.md. "
+    fi
+    
+    # If we detected context, return it with WORKSPACE_RULES type
+    if [ -n "$context" ]; then
+        echo "{\"shouldContinue\": true, \"contextModification\": \"WORKSPACE_RULES: $context\"}"
+    else
+        # No context to inject
+        echo '{"shouldContinue": true}'
+    fi
+else
+    # For non-file operations, no context needed
+    echo '{"shouldContinue": true}'
+fi

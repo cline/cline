@@ -402,9 +402,23 @@ export class ToolExecutor {
 				if (preToolUseResult.contextModification) {
 					const contextText = preToolUseResult.contextModification.trim()
 					if (contextText) {
+						// Extract context type from first line if specified (e.g., "WORKSPACE_RULES: ...")
+						const lines = contextText.split("\n")
+						const firstLine = lines[0]
+						let contextType = "general"
+						let content = contextText
+
+						// Check if first line specifies a type: "TYPE: content"
+						const typeMatch = firstLine.match(/^([A-Z_]+):\s*(.*)/)
+						if (typeMatch) {
+							contextType = typeMatch[1].toLowerCase()
+							const remainingLines = lines.slice(1).filter((l: string) => l.trim())
+							content = typeMatch[2] ? [typeMatch[2], ...remainingLines].join("\n") : remainingLines.join("\n")
+						}
+
 						this.taskState.userMessageContent.push({
 							type: "text",
-							text: `[Hook Context - PreToolUse]\n${contextText}`,
+							text: `<hook_context source="PreToolUse" type="${contextType}">\n${content}\n</hook_context>`,
 						})
 					}
 				}
@@ -448,9 +462,23 @@ export class ToolExecutor {
 				if (postToolUseResult.contextModification) {
 					const contextText = postToolUseResult.contextModification.trim()
 					if (contextText) {
+						// Extract context type from first line if specified (e.g., "FILE_OPERATIONS: ...")
+						const lines = contextText.split("\n")
+						const firstLine = lines[0]
+						let contextType = "general"
+						let content = contextText
+
+						// Check if first line specifies a type: "TYPE: content"
+						const typeMatch = firstLine.match(/^([A-Z_]+):\s*(.*)/)
+						if (typeMatch) {
+							contextType = typeMatch[1].toLowerCase()
+							const remainingLines = lines.slice(1).filter((l: string) => l.trim())
+							content = typeMatch[2] ? [typeMatch[2], ...remainingLines].join("\n") : remainingLines.join("\n")
+						}
+
 						this.taskState.userMessageContent.push({
 							type: "text",
-							text: `[Hook Context - PostToolUse]\n${contextText}`,
+							text: `<hook_context source="PostToolUse" type="${contextType}">\n${content}\n</hook_context>`,
 						})
 					}
 				}

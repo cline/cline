@@ -1,19 +1,38 @@
 #!/usr/bin/env bash
-# Example PostToolUse hook for testing context modification
+# PostToolUse Hook: Track file operations and provide development context
+# This hook logs file modifications and reminds about testing
 set -eu
 
-# Read input from stdin
 input=$(cat)
-
-# Extract tool information
 tool=$(echo "$input" | jq -r '.postToolUse.toolName // "unknown"')
 success=$(echo "$input" | jq -r '.postToolUse.success // false')
 execution_time=$(echo "$input" | jq -r '.postToolUse.executionTimeMs // 0')
 
-# Always allow continuation, but provide context about execution
-cat <<EOF
-{
-  "shouldContinue": true,
-  "contextModification": "Tool '${tool}' completed with success=${success} in ${execution_time}ms.\nThis context was added by the PostToolUse hook."
-}
-EOF
+# Track file operations
+if [[ "$tool" =~ ^(write_to_file|replace_in_file)$ ]] && [ "$success" = "true" ]; then
+    params=$(echo "$input" | jq -r '.postToolUse.parameters // {}')
+    path=$(echo "$params" | jq -r '.path // "unknown"')
+    
+    # Get current git branch if in a git repo
+    branch="unknown"
+    if git rev-parse --git-dir > /dev/null 2>&1; then
+        branch=$(git branch --show-current 2>/dev/null || echo "detached")
+    fi
+    
+    context="Modified $path on branch '$branch'. "
+    context+="Remember to test these changes before committing."
+    
+    echo "{\"shouldContinue\": true, \"contextModification\": \"FILE_OPERATIONS: $context\"}"
+elif [ "$tool" = "execute_command" ] && [ "$success" = "true" ]; then
+    # Provide context about command execution
+    if [ "$execution_time" -gt 5000 ]; then
+        context="Command completed in ${execution_time}ms (>5s). "
+        context+="Consider if this impacts development workflow."
+        echo "{\"shouldContinue\": true, \"contextModification\": \"PERFORMANCE: $context\"}"
+    else
+        echo '{"shouldContinue": true}'
+    fi
+else
+    # For other tools or failed operations, minimal context
+    echo '{"shouldContinue": true}'
+fi
