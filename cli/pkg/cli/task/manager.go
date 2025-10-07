@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cline/cli/pkg/cli/config"
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/handlers"
@@ -123,6 +124,33 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 		}
 		if len(settingsFlags) > 0 {
 			m.renderer.RenderDebug("Settings: %v", settingsFlags)
+		}
+
+		// Log current API configuration
+		state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+		if err != nil {
+			m.renderer.RenderDebug("Could not retrieve state to log provider config: %v", err)
+		} else {
+			var stateMap map[string]interface{}
+			if err := json.Unmarshal([]byte(state.StateJson), &stateMap); err != nil {
+				m.renderer.RenderDebug("Could not parse state JSON: %v", err)
+			} else {
+				if apiConfig, ok := stateMap["apiConfiguration"].(map[string]interface{}); ok {
+					provider := "unknown"
+					modelId := "unknown"
+					
+					if p, ok := apiConfig["planModeApiProvider"].(float64); ok {
+						provider = cline.ApiProvider(p).String()
+					}
+					if m, ok := apiConfig["planModeApiModelId"].(string); ok {
+						modelId = m
+					}
+					
+					m.renderer.RenderDebug("Task will use provider: %s, model: %s", provider, modelId)
+				} else {
+					m.renderer.RenderDebug("No apiConfiguration found in state")
+				}
+			}
 		}
 	}
 
@@ -997,6 +1025,70 @@ func (m *Manager) extractMessagesFromState(stateJson string) ([]*types.ClineMess
 // GetState returns the current conversation state
 func (m *Manager) GetState() *types.ConversationState {
 	return m.state
+}
+
+// GetLatestStateJSON retrieves the latest state JSON from Cline Core
+func (m *Manager) GetLatestStateJSON(ctx context.Context) (string, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get state: %w", err)
+	}
+
+	return state.StateJson, nil
+}
+
+// UpdateSettings updates Cline Core settings via gRPC.
+// This method provides a convenient way to update settings through the task manager,
+// with built-in verbose logging support. It wraps the config.UpdateSettings function.
+//
+// Settings are persisted to Cline Core's storage:
+//   - API keys: ~/.cline/data/secrets.json
+//   - Other settings: ~/.cline/data/globalState.json
+//
+// This method is intended to be called by a future configuration wizard before task
+// creation to ensure the correct API provider and model settings are in place.
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeouts
+//   - request: Complete settings update request with all configurations
+//
+// Returns:
+//   - error: Non-nil if the settings update fails
+//
+func (m *Manager) UpdateSettings(ctx context.Context, request *cline.UpdateSettingsRequest) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if global.Config.Verbose {
+		m.renderer.RenderDebug("Updating Cline Core settings")
+		if request.ApiConfiguration != nil {
+			apiConfig := request.ApiConfiguration
+			if apiConfig.PlanModeApiProvider != nil {
+				m.renderer.RenderDebug("Plan mode provider: %s", *apiConfig.PlanModeApiProvider)
+			}
+			if apiConfig.ActModeApiProvider != nil {
+				m.renderer.RenderDebug("Act mode provider: %s", *apiConfig.ActModeApiProvider)
+			}
+		}
+		if request.PlanActSeparateModelsSetting != nil {
+			m.renderer.RenderDebug("Plan/Act separate models: %v", *request.PlanActSeparateModelsSetting)
+		}
+	}
+
+	// Call the config package function to update settings
+	err := config.UpdateSettings(ctx, m.client, request)
+	if err != nil {
+		return fmt.Errorf("failed to update settings: %w", err)
+	}
+
+	if global.Config.Verbose {
+		m.renderer.RenderDebug("Settings updated successfully")
+	}
+
+	return nil
 }
 
 // Cleanup cleans up resources

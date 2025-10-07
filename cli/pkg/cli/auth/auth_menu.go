@@ -43,7 +43,7 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 	case AuthActionClineLogin:
 		return HandleClineAuth(ctx)
 	case AuthActionBYOSetup:
-		return HandleAPIProviderSetup()
+		return HandleAPIProviderSetup(ctx)
 	default:
 		return fmt.Errorf("invalid action")
 	}
@@ -72,8 +72,8 @@ func ShowAuthMenuNoArgs() (AuthAction, error) {
 }
 
 // HandleProviderSetup launches the API provider configuration wizard
-func HandleAPIProviderSetup() error {
-	wizard, err := NewProviderWizard()
+func HandleAPIProviderSetup(ctx context.Context) error {
+	wizard, err := NewProviderWizard(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create provider wizard: %w", err)
 	}
