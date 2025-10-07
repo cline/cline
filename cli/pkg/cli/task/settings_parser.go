@@ -647,9 +647,8 @@ func parseApiProvider(value string) (cline.ApiProvider, error) {
 	}
 }
 
-// Note: Complex nested message types are not supported via -s flags:
+// Note: message types not supported via -s flags:
 // - OpenRouterModelInfo, OpenAiCompatibleModelInfo, LiteLLMModelInfo, OcaModelInfo
 // - LanguageModelChatSelector
-// - DictationSettings (complex nested structure)
-// - FocusChainSettings (complex nested structure)
-// These would require JSON input or more sophisticated parsing.
+// - DictationSettings
+// - FocusChainSettings
