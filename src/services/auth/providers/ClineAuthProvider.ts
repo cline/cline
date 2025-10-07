@@ -198,6 +198,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					appBaseUrl: this._config.appBaseUrl,
 					subject: data.data.userInfo.subject || "",
 				},
+				provider: this.name,
 			}
 		} catch (error: any) {
 			throw error
@@ -300,6 +301,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					organizations: [],
 				},
 				expiresAt: new Date(tokenData.expiresAt).getTime() / 1000, // "2025-09-17T04:32:24.842636548Z"
+				provider: this.name,
 			}
 
 			controller.stateManager.setSecret(ClineAuthProvider.secretKeyId, JSON.stringify(clineAuthInfo))

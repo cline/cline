@@ -32,6 +32,7 @@ export interface ClineAuthInfo {
 	 */
 	expiresAt?: number
 	userInfo: ClineAccountUserInfo
+	provider: string
 }
 
 export interface ClineAccountUserInfo {
@@ -130,7 +131,7 @@ export class AuthService {
 	private async internalGetAuthToken(provider: IAuthProvider): Promise<string | null> {
 		try {
 			let clineAccountAuthToken = this._clineAuthInfo?.idToken
-			if (!this._clineAuthInfo || !clineAccountAuthToken) {
+			if (!this._clineAuthInfo || !clineAccountAuthToken || this._clineAuthInfo.provider !== provider.name) {
 				// Not authenticated
 				return null
 			}
@@ -161,12 +162,12 @@ export class AuthService {
 	}
 
 	private shouldClearAuthInfo(provider: IAuthProvider) {
-		return !this._fallbackProvider || provider === this._fallbackProvider
+		return this._clineAuthInfo?.provider === provider.name
 	}
 
 	protected _setProvider(providerName: string): void {
 		// Only ClineAuthProvider is supported going forward
-		// Keeping the providerName param for forward compatibility/telemetrye
+		// Keeping the providerName param for forward compatibility/telemetry
 		switch (providerName) {
 			case "cline":
 				this._provider = new ClineAuthProvider(clineEnvConfig)
