@@ -5,9 +5,11 @@ sidebarTitle: "Multiroot Workspaces"
 
 Multiroot workspaces let Cline work seamlessly across multiple project folders open in VS Code at the same time. Instead of treating everything as one big workspace, Cline understands each folder as a separate workspace and can target specific ones when reading, writing, or searching files.
 
+
 <Frame>
-	<img src="[PLACEHOLDER: Screenshot-2 showing VS Code with multiple workspace folders in the sidebar and Cline working across them]" alt="Multiroot workspace support in Cline" />
+	<img src="https://storage.googleapis.com/cline_public_images/multi-root-ss2.png" alt="Where to enable Multiroot Workspaces" />
 </Frame>
+
 
 This is particularly useful for monorepos, microservices architectures, or any project where you work with multiple related codebases simultaneously.
 
@@ -25,7 +27,7 @@ To enable it:
 3. Check "Enable Multiroot Workspace Support"
 
 <Frame>
-	<img src="[PLACEHOLDER: Screenshot-1 showing where in settings to enable the feature]" alt="Where to enable Multiroot Workspaces" />
+	<img src="https://storage.googleapis.com/cline_public_images/multi-root-ss1.png" alt="Multiroot workspace support in Cline" />
 </Frame>
 
 Once enabled, Cline automatically detects when you have multiple workspace folders open and adjusts his behavior accordingly.
@@ -71,12 +73,13 @@ When you type `@` and start searching for a file:
 
 **In a multiroot workspace:**
 - Cline searches across all workspace folders in parallel
+<Frame>
+	<img src="https://storage.googleapis.com/cline_public_images/multi-root-ss3.png" alt="File search with workspace annotations" />
+</Frame>
+
 - Results are annotated with workspace names when files exist in multiple places
 - You can use `@workspace:/path` syntax to target a specific workspace
 
-<Frame>
-	<img src="[PLACEHOLDER: Screenshot-3 showing file search results with workspace annotations like 'frontend:/src/config.json' and 'backend:/src/config.json']" alt="File search with workspace annotations" />
-</Frame>
 
 ### Writing and Editing Files
 
