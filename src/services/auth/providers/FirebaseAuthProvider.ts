@@ -70,7 +70,7 @@ export class FirebaseAuthProvider implements IAuthProvider {
 			// Store user data
 			const userInfo: ClineAccountUserInfo = userResponse.data.data
 
-			return { idToken, userInfo }
+			return { idToken, userInfo, provider: this.name }
 		} catch (error) {
 			ErrorService.get().logException(error)
 			throw error
