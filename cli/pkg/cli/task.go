@@ -90,6 +90,7 @@ func newTaskNewCommand() *cobra.Command {
 		address    string
 		mode       string
 		settings   []string
+		yolo       bool
 	)
 
 	cmd := &cobra.Command{
@@ -125,6 +126,14 @@ func newTaskNewCommand() *cobra.Command {
 				fmt.Printf("Mode set to: %s\n", mode)
 			}
 
+			// Inject yolo_mode_toggled setting if --yolo flag is set
+
+			// Will append to the -s settings to be parsed by the settings parser logic.
+			// If the yoloMode is also set in the settings, this will override that, since it will be set last.
+			if yolo {
+				settings = append(settings, "yolo_mode_toggled=true")
+			}
+
 			// Create the task
 			taskID, err := taskManager.CreateTask(ctx, prompt, images, files, workspaces, settings)
 			if err != nil {
@@ -151,6 +160,7 @@ func newTaskNewCommand() *cobra.Command {
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
 	cmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format, e.g., -s aws-region=us-west-2 -s mode=act)")
+	cmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
 
 	return cmd
 }
