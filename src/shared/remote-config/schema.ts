@@ -1,3 +1,16 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * ⚠️  CRITICAL WARNING ⚠️
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * THE API SERVER MUST BE RE-DEPLOYED WHENEVER THIS SCHEMA IS UPDATED!
+ *
+ * This schema is used by both the extension and the API server for validation.
+ * Any changes here require a coordinated deployment to avoid validation errors.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
 import { z } from "zod"
 
 export const ModelInfoSchema = z.object({
