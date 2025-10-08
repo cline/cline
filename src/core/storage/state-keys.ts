@@ -8,7 +8,6 @@ import { ClineRulesToggles } from "@/shared/cline-rules"
 import { DictationSettings } from "@/shared/DictationSettings"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
-import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
@@ -28,7 +27,6 @@ export interface GlobalState {
 	lastShownAnnouncementId: string | undefined
 	taskHistory: HistoryItem[]
 	userInfo: UserInfo | undefined
-	mcpMarketplaceCatalog: McpMarketplaceCatalog | undefined
 	favoritedModelIds: string[]
 	mcpMarketplaceEnabled: boolean
 	mcpResponsesCollapsed: boolean

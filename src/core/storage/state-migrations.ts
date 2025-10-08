@@ -638,3 +638,22 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 		// Continue execution - migration failure shouldn't break extension startup
 	}
 }
+
+export async function cleanupMcpMarketplaceCatalogFromGlobalState(context: vscode.ExtensionContext) {
+	try {
+		// Check if mcpMarketplaceCatalog exists in global state
+		const mcpMarketplaceCatalog = await context.globalState.get("mcpMarketplaceCatalog")
+
+		if (mcpMarketplaceCatalog !== undefined) {
+			console.log("Cleaning up mcpMarketplaceCatalog from global state...")
+
+			// Delete it from global state
+			await context.globalState.update("mcpMarketplaceCatalog", undefined)
+
+			console.log("Successfully removed mcpMarketplaceCatalog from global state")
+		}
+	} catch (error) {
+		console.error("Failed to cleanup mcpMarketplaceCatalog from global state:", error)
+		// Continue execution - cleanup failure shouldn't break extension startup
+	}
+}
