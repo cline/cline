@@ -120,7 +120,7 @@ func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayC
 		return nil
 	}
 
-	markdown := fmt.Sprintf("### Cline (Plan Mode)\n\n%s", response)
+	markdown := fmt.Sprintf("### Cline has a plan\n\n%s", response)
 	rendered := dc.Renderer.RenderMarkdown(markdown)
 	fmt.Printf("\n%s\n", rendered)
 
