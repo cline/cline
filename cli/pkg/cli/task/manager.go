@@ -649,7 +649,7 @@ func (m *Manager) FollowConversation(ctx context.Context) error {
 
 // FollowConversationUntilCompletion streams conversation updates until task completion
 func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
-	fmt.Println("Streaming conversation until completion... (Press Ctrl+C to exit)")
+	fmt.Println("Following task conversation until completion... (Press Ctrl+C to exit)")
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -657,13 +657,15 @@ func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
 	// Create stream coordinator
 	coordinator := NewStreamCoordinator()
 
-	// Get current message count without displaying history
-	totalMessageCount, err := m.getCurrentMessageCount(ctx)
+	// Load history first
+	totalMessageCount, err := m.loadAndDisplayRecentHistory(ctx)
 	if err != nil {
-		m.renderer.RenderDebug("Warning: Failed to get current message count: %v", err)
+		m.renderer.RenderDebug("Warning: Failed to load conversation history: %v", err)
 		totalMessageCount = 0
 	}
 	coordinator.SetConversationTurnStartIndex(totalMessageCount)
+
+	fmt.Println("\n--- Live updates ---")
 
 	// Start both streams concurrently
 	errChan := make(chan error, 2)
@@ -965,21 +967,6 @@ func (m *Manager) outputMessageAsJSON(msg *types.ClineMessage) error {
 
 	fmt.Println(string(jsonBytes))
 	return nil
-}
-
-// getCurrentMessageCount gets the current message count without displaying messages
-func (m *Manager) getCurrentMessageCount(ctx context.Context) (int, error) {
-	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
-	if err != nil {
-		return 0, fmt.Errorf("failed to get state: %w", err)
-	}
-
-	messages, err := m.extractMessagesFromState(state.StateJson)
-	if err != nil {
-		return 0, fmt.Errorf("failed to extract messages: %w", err)
-	}
-
-	return len(messages), nil
 }
 
 // loadAndDisplayRecentHistory loads and displays recent conversation history and returns the total number of existing messages
