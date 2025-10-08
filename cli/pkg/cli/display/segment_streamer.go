@@ -82,21 +82,34 @@ func (ss *StreamingSegment) Render() error {
 		rendered = ss.prefix + ": " + currentBuffer
 	}
 
-	// Clear previous render if exists
+	// Calculate new line count
+	newLineCount := ss.mdRenderer.CountLines(rendered)
+	if !strings.HasSuffix(rendered, "\n") {
+		newLineCount++
+	}
+
+	// LIVE markdown rendering
+	// Add blank line before first render
+	if ss.lastLineCount == 0 {
+		fmt.Println()
+	}
+	
+	// Clear previous render
 	if ss.lastLineCount > 0 {
 		ClearLines(ss.lastLineCount)
 	}
 
-	// Print new render and track actual printed lines
+	// Print live markdown
+	fmt.Print(rendered)
 	if !strings.HasSuffix(rendered, "\n") {
-		fmt.Print(rendered)
 		fmt.Println()
-		// Track: rendered lines + the newline we just added
-		ss.lastLineCount = ss.mdRenderer.CountLines(rendered) + 1
-	} else {
-		fmt.Print(rendered)
-		// Track: just the rendered lines (already includes newline)
-		ss.lastLineCount = ss.mdRenderer.CountLines(rendered)
+	}
+
+	// Update line count - use actual printed lines, not calculated
+	// Count newlines in what we just printed
+	ss.lastLineCount = strings.Count(rendered, "\n")
+	if !strings.HasSuffix(rendered, "\n") {
+		ss.lastLineCount++ // Add the blank line we printed
 	}
 
 	// Update state
