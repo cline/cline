@@ -28,6 +28,7 @@ import {
 	ensureRulesDirectoryExists,
 	ensureTaskDirectoryExists,
 	GlobalFileNames,
+	getAttachmentsRoot,
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 } from "@core/storage/disk"
@@ -56,6 +57,7 @@ import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@sha
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
+import { reassignPathsBetweenRoots } from "@utils/fs"
 import { isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
@@ -70,6 +72,7 @@ import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { ErrorService } from "@/services/error"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
+import { DEFAULT_ATTACHMENTS_TASK_ID } from "@/shared/attachments"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
@@ -561,10 +564,16 @@ export class Task {
 	}
 
 	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[], files?: string[]) {
+		// Normalize any files that may still point to the 'default' attachment root
+		let normalizedFiles = files
+		if (files && files.length > 0) {
+			normalizedFiles = await this.reassignDefaultAttachmentsToThisTask(files)
+		}
+
 		this.taskState.askResponse = askResponse
 		this.taskState.askResponseText = text
 		this.taskState.askResponseImages = images
-		this.taskState.askResponseFiles = files
+		this.taskState.askResponseFiles = normalizedFiles
 	}
 
 	async say(
@@ -684,6 +693,22 @@ export class Task {
 	private async switchToActModeCallback(): Promise<boolean> {
 		return await this.controller.toggleActModeForYoloMode()
 	}
+	/**
+	 * Ensures any file paths that are under the global 'default' attachments root
+	 * are reassigned into this task's attachment root, returning the updated list.
+	 * If anything fails, returns the original list to avoid blocking the flow.
+	 */
+	private async reassignDefaultAttachmentsToThisTask(files?: string[]): Promise<string[] | undefined> {
+		if (!files || files.length === 0) return files
+		try {
+			const defaultRoot = await getAttachmentsRoot(this.controller.context, DEFAULT_ATTACHMENTS_TASK_ID)
+			const destRoot = await getAttachmentsRoot(this.controller.context, this.taskId)
+			return await reassignPathsBetweenRoots(files, defaultRoot, destRoot)
+		} catch (err) {
+			Logger.error("[Task] Failed to reassign default attachments to task:", err)
+			return files
+		}
+	}
 
 	// Task lifecycle
 
@@ -700,6 +725,11 @@ export class Task {
 		this.messageStateHandler.setApiConversationHistory([])
 
 		await this.postStateToWebview()
+
+		// Ensure any pre-uploaded files under 'default' are reassigned to this task before recording the message
+		if (files && files.length > 0) {
+			files = await this.reassignDefaultAttachmentsToThisTask(files)
+		}
 
 		await this.say("text", task, images, files)
 
@@ -2640,4 +2670,6 @@ export class Task {
 
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
 	}
+
+	// injectAttachmentContents removed: we now rely on explicit `files` list and relocation to task attachments
 }

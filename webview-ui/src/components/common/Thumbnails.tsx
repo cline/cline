@@ -1,5 +1,7 @@
+import { isAttachmentPath } from "@shared/attachments"
 import { cn } from "@heroui/react"
 import { StringRequest } from "@shared/proto/cline/common"
+import { DeleteUploadedFilesRequest } from "@shared/proto/cline/file"
 import React, { memo, useLayoutEffect, useRef, useState } from "react"
 import { useWindowSize } from "react-use"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -36,7 +38,21 @@ const Thumbnails = ({ images, files, style, setImages, setFiles, onHeightChange,
 	}
 
 	const handleDeleteFiles = (index: number) => {
-		setFiles?.((prevFiles) => prevFiles.filter((_, i) => i !== index))
+		setFiles?.((prevFiles) => {
+			const path = prevFiles[index]
+			const next = prevFiles.filter((_, i) => i !== index)
+			// Only delete uploaded blobs under the extension's attachments directory
+			if (path && isAttachmentPath(path)) {
+				FileServiceClient.deleteUploadedFiles(DeleteUploadedFilesRequest.create({ paths: [path] }))
+					.then((resp) => {
+						if (resp?.failedPaths?.length) {
+							console.warn("Failed to delete attachment:", resp.failedPaths)
+						}
+					})
+					.catch((err) => console.error("Failed to delete uploaded attachment:", err))
+			}
+			return next
+		})
 	}
 
 	const isDeletableImages = setImages !== undefined
