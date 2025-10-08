@@ -20,7 +20,6 @@ func NewRenderer() *Renderer {
 	}
 }
 
-// RenderMessage renders a message with prefix
 func (r *Renderer) RenderMessage(prefix, text string) error {
 	if text == "" {
 		return nil
@@ -31,12 +30,10 @@ func (r *Renderer) RenderMessage(prefix, text string) error {
 		return nil
 	}
 
-	// Print without timestamp
 	fmt.Printf("%s: %s\n", prefix, cleanText)
 	return nil
 }
 
-// RenderMessageWithTimestamp renders a message with timestamp and prefix (only for checkpoints)
 func (r *Renderer) RenderMessageWithTimestamp(timestamp, prefix, text string) error {
 	if text == "" {
 		return nil
@@ -47,7 +44,6 @@ func (r *Renderer) RenderMessageWithTimestamp(timestamp, prefix, text string) er
 		return nil
 	}
 
-	// Print with timestamp
 	fmt.Printf("[%s] %s: %s\n", timestamp, prefix, cleanText)
 	return nil
 }

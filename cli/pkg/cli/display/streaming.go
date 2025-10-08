@@ -71,12 +71,8 @@ func (s *StreamingDisplay) handleStreamingAsk(msg *types.ClineMessage, messageKe
 			s.state.SetStreamingMessage(messageKey, cleanText)
 		}
 	} else {
-		// This is a new ASK message
 		s.finishCurrentStream()
-
-		// Add blank line for visual separation
 		fmt.Println()
-
 		s.streamAskMessage(cleanText, timestamp, true)
 		s.state.SetStreamingMessage(messageKey, cleanText)
 	}
@@ -124,11 +120,9 @@ func (s *StreamingDisplay) handleStreamingText(msg *types.ClineMessage, messageK
 			s.typewriterPrint(newChars)
 			s.state.SetStreamingMessage(messageKey, cleanText)
 		} else {
-			// Text changed in a non-incremental way - replace the line
 			s.renderer.ClearLine()
 			prefix := s.getMessagePrefix(msg.Say)
 
-			// For reasoning, text, and result messages, don't show timestamp
 			if msg.Say == string(types.SayTypeReasoning) || msg.Say == string(types.SayTypeText) || msg.Say == string(types.SayTypeCompletionResult) {
 				s.renderer.typewriter.PrintfInstant("%s: ", prefix)
 			} else {
@@ -138,22 +132,17 @@ func (s *StreamingDisplay) handleStreamingText(msg *types.ClineMessage, messageK
 			s.state.SetStreamingMessage(messageKey, cleanText)
 		}
 	} else {
-		// This is a new message
 		s.finishCurrentStream()
-
-		// Add blank line for visual separation between messages
 		fmt.Println()
 
 		prefix := s.getMessagePrefix(msg.Say)
 
-		// For reasoning, text, and result messages, don't show timestamp - just the prefix
 		if msg.Say == string(types.SayTypeReasoning) || msg.Say == string(types.SayTypeText) || msg.Say == string(types.SayTypeCompletionResult) {
 			s.renderer.typewriter.PrintfInstant("%s: ", prefix)
 		} else {
 			s.renderer.typewriter.PrintfInstant("[%s] %s: ", timestamp, prefix)
 		}
 
-		// Add typewriter animation for new messages
 		s.typewriterPrint(cleanText)
 
 		s.state.SetStreamingMessage(messageKey, cleanText)
@@ -175,12 +164,8 @@ func (s *StreamingDisplay) handleStreamingCommand(msg *types.ClineMessage, messa
 		return nil
 	}
 
-	// Show command being executed with typewriter effect
 	s.finishCurrentStream()
-
-	// Add blank line for visual separation
 	fmt.Println()
-
 	s.renderer.typewriter.PrintfInstant("[%s] CMD: ", timestamp)
 	s.typewriterPrint(cleanText)
 	fmt.Println()
@@ -215,12 +200,8 @@ func (s *StreamingDisplay) handleStreamingCommandOutput(msg *types.ClineMessage,
 			s.state.SetStreamingMessage(messageKey, cleanText)
 		}
 	} else {
-		// New command output message
 		s.finishCurrentStream()
-
-		// Add blank line for visual separation
 		fmt.Println()
-
 		s.renderer.typewriter.PrintfInstant("[%s] OUT: ", timestamp)
 		s.typewriterPrint(cleanText)
 		s.state.SetStreamingMessage(messageKey, cleanText)
@@ -242,12 +223,8 @@ func (s *StreamingDisplay) handleShellIntegrationWarning(msg *types.ClineMessage
 		return nil
 	}
 
-	// Show a more concise shell integration warning
 	s.finishCurrentStream()
-
-	// Add blank line for visual separation
 	fmt.Println()
-
 	s.renderer.typewriter.PrintfInstant("[%s] NOTE: ", timestamp)
 	s.typewriterPrint("Command executed (output not streamed due to shell integration)")
 	fmt.Println()
@@ -271,15 +248,11 @@ func (s *StreamingDisplay) handleStreamingTool(msg *types.ClineMessage, messageK
 
 	// Check if this is a very similar tool message
 	if streamingMsg.LastToolMessage != "" && s.isSimilarToolMessage(streamingMsg.LastToolMessage, formattedTool) {
-		return nil // Similar duplicate - ignore it
+		return nil
 	}
 
-	// This is a genuinely new/different tool message
 	s.finishCurrentStream()
-
-	// Add blank line for visual separation
 	fmt.Println()
-
 	fmt.Printf("TOOL: %s\n", formattedTool)
 
 	// Store the formatted tool message for deduplication
@@ -293,7 +266,6 @@ func (s *StreamingDisplay) streamAskMessage(text, timestamp string, isNew bool) 
 	// Try to parse as JSON
 	var askData types.AskData
 	if err := s.parseJSON(text, &askData); err != nil {
-		// Display as text but sanitized (no timestamp for cleaner output)
 		fmt.Printf("ASK: %s", text)
 		return
 	}
@@ -360,7 +332,7 @@ func (s *StreamingDisplay) typewriterPrint(text string) {
 func (s *StreamingDisplay) finishCurrentStream() {
 	streamingMsg := s.state.GetStreamingMessage()
 	if streamingMsg.CurrentKey != "" {
-		fmt.Println() // Add newline to finish the current streaming message
+		fmt.Println()
 		s.state.SetStreamingMessage("", "")
 	}
 }
