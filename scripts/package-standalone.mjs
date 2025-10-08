@@ -57,10 +57,7 @@ async function main() {
 	// Step 3: Copy CLI binaries
 	await copyCliBinaries()
 
-	// Step 4: Copy launcher script
-	await copyLauncherScript()
-
-	// Step 5: Create VERSION file
+	// Step 4: Create VERSION file
 	await createVersionFile()
 
 	// Step 6: Package platform-specific binary modules
@@ -123,60 +120,40 @@ async function copyNodeBinary() {
 }
 
 /**
- * Copy CLI binaries (cline-cli and cline-host)
+ * Copy CLI binaries (cline and cline-host)
+ * The Go binary is named 'cline' and includes service management
  */
 async function copyCliBinaries() {
 	console.log("Copying CLI binaries...")
 
-	const binaries = ["cline", "cline-host"]
+	const binaries = [
+		{ source: "cline", dest: "cline" },
+		{ source: "cline-host", dest: "cline-host" },
+	]
 	const binDir = path.join(BUILD_DIR, "bin")
 
 	// Create bin directory
 	fs.mkdirSync(binDir, { recursive: true })
 
-	for (const binary of binaries) {
-		const source = path.join(CLI_BINARIES_DIR, binary)
-		const dest = path.join(binDir, binary === "cline" ? "cline-cli" : binary)
+	for (const { source, dest } of binaries) {
+		const sourcePath = path.join(CLI_BINARIES_DIR, source)
+		const destPath = path.join(binDir, dest)
 
 		// Check if binary exists
-		if (!fs.existsSync(source)) {
-			console.error(`Error: CLI binary not found at ${source}`)
+		if (!fs.existsSync(sourcePath)) {
+			console.error(`Error: CLI binary not found at ${sourcePath}`)
 			console.error(`Please run: npm run compile-cli`)
 			process.exit(1)
 		}
 
 		// Copy binary
-		await cpr(source, dest)
+		await cpr(sourcePath, destPath)
 
 		// Make it executable
-		fs.chmodSync(dest, 0o755)
+		fs.chmodSync(destPath, 0o755)
 
-		console.log(`✓ ${binary} copied to ${dest}`)
+		console.log(`✓ ${source} copied to ${destPath}`)
 	}
-}
-
-/**
- * Copy and set up the launcher script
- */
-async function copyLauncherScript() {
-	console.log("Setting up launcher script...")
-
-	const launcherSource = path.join(RUNTIME_DEPS_DIR, "bin", "cline")
-	const launcherDest = path.join(BUILD_DIR, "bin", "cline")
-
-	// Check if launcher script exists
-	if (!fs.existsSync(launcherSource)) {
-		console.error(`Error: Launcher script not found at ${launcherSource}`)
-		process.exit(1)
-	}
-
-	// Copy launcher script
-	await cpr(launcherSource, launcherDest)
-
-	// Make it executable
-	fs.chmodSync(launcherDest, 0o755)
-
-	console.log(`✓ Launcher script copied to ${launcherDest}`)
 }
 
 /**

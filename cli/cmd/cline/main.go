@@ -8,6 +8,7 @@ import (
 	"github.com/cline/cli/pkg/cli"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/common"
+	"github.com/cline/cli/pkg/services"
 	"github.com/spf13/cobra"
 )
 
@@ -18,6 +19,18 @@ var (
 )
 
 func main() {
+	// Ensure services are running before executing any command
+	serviceManager, err := services.NewServiceManager()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error initializing service manager: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := serviceManager.EnsureServicesRunning(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error starting services: %v\n", err)
+		os.Exit(1)
+	}
+
 	rootCmd := &cobra.Command{
 		Use:   "cline",
 		Short: "Cline CLI - AI-powered coding assistant",

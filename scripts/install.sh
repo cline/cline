@@ -192,7 +192,7 @@ verify_installation() {
         error_exit "Installation verification failed: cline binary not executable"
     fi
     
-    # Check version
+    # Check version (the binary now handles service management internally)
     local version_output=$("$cline_bin" version 2>&1 || true)
     if [ -z "$version_output" ]; then
         error_exit "Installation verification failed: could not get version"
