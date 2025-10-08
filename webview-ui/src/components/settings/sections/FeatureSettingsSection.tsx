@@ -25,6 +25,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		useAutoCondense,
 		focusChainSettings,
 		multiRootSetting,
+		hooksEnabled,
 	} = useExtensionState()
 
 	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
@@ -264,6 +265,19 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</p>
 						</div>
 					)}
+					<div style={{ marginTop: 10 }}>
+						<VSCodeCheckbox
+							checked={hooksEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("hooksEnabled", checked)
+							}}>
+							Enable Hooks
+						</VSCodeCheckbox>
+						<p className="text-xs text-[var(--vscode-errorForeground)]">
+							EXPERIMENTAL: Allows execution of hooks from .clinerules/hooks/ directory.
+						</p>
+					</div>
 					<div style={{ marginTop: 10 }}>
 						<VSCodeCheckbox
 							checked={yoloModeToggled}
