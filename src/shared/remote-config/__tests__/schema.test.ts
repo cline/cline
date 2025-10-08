@@ -141,18 +141,19 @@ describe("Remote Config Schema", () => {
 		it("should accept valid complete remote config", () => {
 			const validConfig: RemoteConfig = {
 				version: "v1",
-				providers: ["OpenAiCompatible", "AwsBedrock"],
 				telemetryEnabled: true,
 				mcpMarketplaceEnabled: true,
 				yoloModeAllowed: false,
-				openAiCompatible: {
-					modelIds: ["gpt-4"],
-					openAiBaseUrl: "https://api.openai.com/v1",
-					openAiHeaders: {},
-				},
-				awsBedrockSettings: {
-					modelIds: ["anthropic.claude-v2"],
-					awsRegion: "us-west-2",
+				providerSettings: {
+					OpenAiCompatible: {
+						modelIds: ["gpt-4"],
+						openAiBaseUrl: "https://api.openai.com/v1",
+						openAiHeaders: {},
+					},
+					AwsBedrock: {
+						modelIds: ["anthropic.claude-v2"],
+						awsRegion: "us-west-2",
+					},
 				},
 			}
 			const result = RemoteConfigSchema.parse(validConfig)
@@ -160,15 +161,8 @@ describe("Remote Config Schema", () => {
 		})
 
 		it("should require version field", () => {
-			const configWithoutVersion = {
-				providers: [],
-			}
+			const configWithoutVersion = {}
 			expect(() => RemoteConfigSchema.parse(configWithoutVersion)).to.throw()
-		})
-
-		it("should apply default empty array for providers", () => {
-			const result = RemoteConfigSchema.parse({ version: "v1" })
-			expect(result.providers).to.deep.equal([])
 		})
 
 		it("should accept minimal valid config", () => {
@@ -181,7 +175,6 @@ describe("Remote Config Schema", () => {
 		it("should accept config with general settings only", () => {
 			const configWithGeneralSettings = {
 				version: "v1",
-				providers: [],
 				telemetryEnabled: false,
 				mcpMarketplaceEnabled: false,
 				yoloModeAllowed: true,
@@ -195,10 +188,11 @@ describe("Remote Config Schema", () => {
 		it("should accept config with OpenAI compatible provider only", () => {
 			const config = {
 				version: "v1",
-				providers: ["OpenAiCompatible"],
-				openAiCompatible: {
-					modelIds: ["gpt-4", "gpt-3.5-turbo"],
-					openAiBaseUrl: "https://api.openai.com/v1",
+				providerSettings: {
+					OpenAiCompatible: {
+						modelIds: ["gpt-4", "gpt-3.5-turbo"],
+						openAiBaseUrl: "https://api.openai.com/v1",
+					},
 				},
 			}
 			expect(() => RemoteConfigSchema.parse(config)).to.not.throw()
@@ -207,10 +201,11 @@ describe("Remote Config Schema", () => {
 		it("should accept config with AWS Bedrock provider only", () => {
 			const config = {
 				version: "v1",
-				providers: ["AwsBedrock"],
-				awsBedrockSettings: {
-					modelIds: ["anthropic.claude-v2"],
-					awsRegion: "us-east-1",
+				providerSettings: {
+					AwsBedrock: {
+						modelIds: ["anthropic.claude-v2"],
+						awsRegion: "us-east-1",
+					},
 				},
 			}
 			expect(() => RemoteConfigSchema.parse(config)).to.not.throw()
@@ -219,33 +214,22 @@ describe("Remote Config Schema", () => {
 		it("should accept config with multiple providers", () => {
 			const config = {
 				version: "v1",
-				providers: ["OpenAiCompatible", "AwsBedrock"],
-				openAiCompatible: {
-					modelIds: ["gpt-4"],
-				},
-				awsBedrockSettings: {
-					modelIds: ["anthropic.claude-v2"],
+				providerSettings: {
+					OpenAiCompatible: {
+						modelIds: ["gpt-4"],
+					},
+					AwsBedrock: {
+						modelIds: ["anthropic.claude-v2"],
+					},
 				},
 			}
 			const result = RemoteConfigSchema.parse(config)
-			expect(result.providers).to.have.lengthOf(2)
+			expect(result.providerSettings).to.have.property("OpenAiCompatible")
+			expect(result.providerSettings).to.have.property("AwsBedrock")
 		})
 
 		it("should reject invalid version type", () => {
 			expect(() => RemoteConfigSchema.parse({ version: 123 })).to.throw()
-		})
-
-		it("should reject invalid providers array", () => {
-			expect(() => RemoteConfigSchema.parse({ version: "v1", providers: "OpenAiCompatible" })).to.throw()
-		})
-
-		it("should reject invalid provider in array", () => {
-			expect(() =>
-				RemoteConfigSchema.parse({
-					version: "v1",
-					providers: ["InvalidProvider"],
-				}),
-			).to.throw()
 		})
 
 		it("should reject invalid telemetry setting type", () => {
@@ -260,8 +244,7 @@ describe("Remote Config Schema", () => {
 		it("should allow undefined optional provider settings", () => {
 			const config = {
 				version: "v1",
-				providers: ["OpenAiCompatible"],
-				// openAiCompatible is undefined
+				// providerSettings is undefined
 			}
 			expect(() => RemoteConfigSchema.parse(config)).to.not.throw()
 		})
@@ -269,34 +252,34 @@ describe("Remote Config Schema", () => {
 		it("should handle complex nested validation", () => {
 			const config = {
 				version: "v1",
-				providers: ["OpenAiCompatible", "AwsBedrock"],
 				telemetryEnabled: true,
 				mcpMarketplaceEnabled: false,
 				yoloModeAllowed: true,
-				openAiCompatible: {
-					modelIds: ["model1", "model2", "model3"],
-					openAiBaseUrl: "https://custom.openai.api/v1",
-					openAiHeaders: {
-						"X-API-Key": "secret",
-						"X-Custom": "value",
+				providerSettings: {
+					OpenAiCompatible: {
+						modelIds: ["model1", "model2", "model3"],
+						openAiBaseUrl: "https://custom.openai.api/v1",
+						openAiHeaders: {
+							"X-API-Key": "secret",
+							"X-Custom": "value",
+						},
+						azureApiVersion: "2024-02-15-preview",
 					},
-					azureApiVersion: "2024-02-15-preview",
-				},
-				awsBedrockSettings: {
-					modelIds: ["bedrock1", "bedrock2"],
-					awsBedrockCustomSelected: true,
-					awsBedrockCustomModelBaseId: "my-custom-model",
-					awsRegion: "eu-west-1",
-					awsUseCrossRegionInference: false,
-					awsBedrockUsePromptCache: true,
-					awsBedrockEndpoint: "https://custom-bedrock.endpoint",
+					AwsBedrock: {
+						modelIds: ["bedrock1", "bedrock2"],
+						awsBedrockCustomSelected: true,
+						awsBedrockCustomModelBaseId: "my-custom-model",
+						awsRegion: "eu-west-1",
+						awsUseCrossRegionInference: false,
+						awsBedrockUsePromptCache: true,
+						awsBedrockEndpoint: "https://custom-bedrock.endpoint",
+					},
 				},
 			}
 			const result = RemoteConfigSchema.parse(config)
 			expect(result.version).to.equal("v1")
-			expect(result.providers).to.have.lengthOf(2)
-			expect(result.openAiCompatible?.modelIds).to.have.lengthOf(3)
-			expect(result.awsBedrockSettings?.modelIds).to.have.lengthOf(2)
+			expect(result.providerSettings?.OpenAiCompatible?.modelIds).to.have.lengthOf(3)
+			expect(result.providerSettings?.AwsBedrock?.modelIds).to.have.lengthOf(2)
 		})
 	})
 
@@ -304,22 +287,19 @@ describe("Remote Config Schema", () => {
 		it("should properly infer RemoteConfig type", () => {
 			const config: RemoteConfig = {
 				version: "v1",
-				providers: ["OpenAiCompatible"],
 				telemetryEnabled: true,
 			}
 			// TypeScript compilation will fail if type inference is wrong
 			expect(config.version).to.be.a("string")
-			expect(config.providers).to.be.an("array")
 		})
 
 		it("should allow optional fields to be undefined", () => {
 			const config: RemoteConfig = {
 				version: "v1",
-				providers: [],
 				// All other fields are optional and can be undefined
 			}
 			expect(config.telemetryEnabled).to.be.undefined
-			expect(config.openAiCompatible).to.be.undefined
+			expect(config.providerSettings).to.be.undefined
 		})
 	})
 })

@@ -1,16 +1,11 @@
 import { z } from "zod"
 
-// The supported providers:
-// More providers will be added later
-export const ProviderSchema = z.enum(["OpenAiCompatible", "AwsBedrock"])
-
 export const ModelInfoSchema = z.object({
 	maxTokens: z.number().optional(),
 	contextWindow: z.number().optional(),
 	inputPrice: z.number().optional(),
 	outputPrice: z.number().optional(),
 	supportsImages: z.boolean().optional(),
-	// supportsBrowser: TBD
 })
 
 export const OpenAiModelInfoSchema = z.object({
@@ -41,13 +36,26 @@ export const AwsBedrockSettingsSchema = z.object({
 	awsBedrockEndpoint: z.string().optional(),
 })
 
+// Map of provider names to their schemas
+// To add a new provider, simply add it to this map
+const providerSchemasMap = {
+	OpenAiCompatible: OpenAiCompatibleSchema,
+	AwsBedrock: AwsBedrockSettingsSchema,
+} as const
+
+// Generate ProviderSettingsSchema from the map
+// Each provider becomes an optional field
+const ProviderSettingsSchema = z.object(
+	Object.fromEntries(Object.entries(providerSchemasMap).map(([key, schema]) => [key, schema.optional()])),
+)
+
+// The supported providers (derived from the map keys)
+export const ProviderSchema = z.enum(Object.keys(providerSchemasMap) as [string, ...string[]])
+
 export const RemoteConfigSchema = z.object({
 	// The version of the remote config settings, e.g. v1
 	// This field is for internal use only, and won't be visible to the administrator in the UI.
 	version: z.string(),
-
-	// The providers available to the users.
-	providers: z.array(ProviderSchema).default([]),
 
 	// General settings not specific to any provider
 	telemetryEnabled: z.boolean().optional(),
@@ -57,10 +65,9 @@ export const RemoteConfigSchema = z.object({
 	yoloModeAllowed: z.boolean().optional(),
 	// Other top-level settings can be added here later.
 
-	// Provider specific settings. Settings must be included for each of the providers configured above.
-	openAiCompatible: OpenAiCompatibleSchema.optional(),
-	awsBedrockSettings: AwsBedrockSettingsSchema.optional(),
-	// More providers can be added later
+	// Provider specific settings
+	// Each provider in providerSchemasMap is automatically available as an optional field
+	providerSettings: ProviderSettingsSchema.optional(),
 })
 
 // Type inference from schemas
@@ -69,4 +76,5 @@ export type ModelInfo = z.infer<typeof ModelInfoSchema>
 export type OpenAiModelInfo = z.infer<typeof OpenAiModelInfoSchema>
 export type OpenAiCompatible = z.infer<typeof OpenAiCompatibleSchema>
 export type AwsBedrockSettings = z.infer<typeof AwsBedrockSettingsSchema>
+export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
 export type RemoteConfig = z.infer<typeof RemoteConfigSchema>
