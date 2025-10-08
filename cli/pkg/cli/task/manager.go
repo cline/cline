@@ -29,7 +29,7 @@ type Manager struct {
 // NewManager creates a new task manager
 func NewManager(client *client.ClineClient) *Manager {
 	state := types.NewConversationState()
-	renderer := display.NewRenderer()
+	renderer := display.NewRenderer(global.Config.OutputFormat)
 	streamingDisplay := display.NewStreamingDisplay(state, renderer)
 
 	// Create handler registry and register handlers
@@ -609,7 +609,13 @@ func (m *Manager) ShowConversation(ctx context.Context) error {
 }
 
 func (m *Manager) FollowConversation(ctx context.Context) error {
-	fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
+	if global.Config.OutputFormat != "plain" {
+        markdown := "*Task conversation — Press Ctrl+C to exit*"
+        rendered := m.renderer.RenderMarkdown(markdown)
+        fmt.Printf("%s", rendered)
+    } else {
+        fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
+    }
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -1008,12 +1014,27 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 	totalMessages := len(messages)
 	startIndex := 0
 
+
 	if totalMessages > maxHistoryMessages {
 		startIndex = totalMessages - maxHistoryMessages
-		fmt.Printf("--- Conversation history (%d of %d messages) ---\n", maxHistoryMessages, totalMessages)
+		if global.Config.OutputFormat != "plain" {
+			markdown := fmt.Sprintf("*Conversation history (%d of %d messages)*", maxHistoryMessages, totalMessages)
+			rendered := m.renderer.RenderMarkdown(markdown)
+			fmt.Printf("\n%s\n", rendered)
+		} else {
+			fmt.Printf("--- Conversation history (%d of %d messages) ---\n", maxHistoryMessages, totalMessages)
+		}
 	} else {
-		fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
+		if global.Config.OutputFormat != "plain" {
+			markdown := fmt.Sprintf("*Conversation history (%d messages)*", totalMessages)
+			rendered := m.renderer.RenderMarkdown(markdown)
+			fmt.Printf("\n%s\n", rendered)
+		} else {
+			fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
+		}
 	}
+
+
 
 	for i := startIndex; i < len(messages); i++ {
 		msg := messages[i]

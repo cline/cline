@@ -61,20 +61,22 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 	}
 
 	// Segment-based markdown streaming
-	msgType := s.getMessageType(msg)
+	sayType := msg.Say
+	if msg.Type == types.MessageTypeAsk {
+		sayType = "ask"
+	}
 
 	// Detect segment boundary
-	if s.activeSegment != nil && s.activeSegment.messageType != msgType {
+	if s.activeSegment != nil && s.activeSegment.sayType != sayType {
 		s.activeSegment.Freeze()
 		s.activeSegment = nil
 	}
 
 	// Start new segment if needed
 	if s.activeSegment == nil {
-		shouldMd := s.shouldRenderMarkdown(msgType)
-		prefix := s.getPrefix(msgType)
-		s.activeSegment = NewStreamingSegment(msgType, prefix, s.mdRenderer, shouldMd)
-		fmt.Println()
+		shouldMd := s.shouldRenderMarkdown(sayType)
+		prefix := s.getPrefix(sayType)
+		s.activeSegment = NewStreamingSegment(sayType, prefix, s.mdRenderer, shouldMd, msg, s.renderer.outputFormat)
 	}
 
 	// Append text to active segment
@@ -128,8 +130,6 @@ func (s *StreamingDisplay) handleStreamingSay(msg *types.ClineMessage, messageKe
 		return s.handleStreamingCommand(msg, messageKey, timestamp, streamingMsg)
 	case string(types.SayTypeCommandOutput):
 		return s.handleStreamingCommandOutput(msg, messageKey, timestamp, streamingMsg)
-	case string(types.SayTypeTool):
-		return s.handleStreamingTool(msg, messageKey, timestamp, streamingMsg)
 	case string(types.SayTypeShellIntegrationWarning):
 		return s.handleShellIntegrationWarning(msg, messageKey, timestamp, streamingMsg)
 	default:
@@ -277,7 +277,19 @@ func (s *StreamingDisplay) handleStreamingTool(msg *types.ClineMessage, messageK
 		return nil
 	}
 
-	formattedTool := s.formatToolMessage(cleanText)
+	// Parse the tool JSON to extract structured information
+	var toolData types.ToolMessage
+	if err := json.Unmarshal([]byte(cleanText), &toolData); err != nil {
+		// If parsing fails, just show generic tool message
+		s.finishCurrentStream()
+		fmt.Println()
+		fmt.Printf("TOOL: %s\n", cleanText)
+		s.state.StreamingMessage.LastToolMessage = cleanText
+		return nil
+	}
+
+	// Format the tool message nicely
+	formattedTool := s.formatStructuredToolMessage(&toolData)
 
 	// Check if this is the exact same tool message we just displayed
 	if streamingMsg.LastToolMessage == formattedTool {
@@ -389,7 +401,7 @@ func (s *StreamingDisplay) getMessagePrefix(say string) string {
 	}
 }
 
-// formatToolMessage formats tool call messages for better readability
+// formatToolMessage formats tool call messages for better readability (legacy, keep for compatibility)
 func (s *StreamingDisplay) formatToolMessage(text string) string {
 	var toolCall map[string]interface{}
 	if err := s.parseJSON(text, &toolCall); err == nil {
@@ -417,6 +429,29 @@ func (s *StreamingDisplay) formatToolMessage(text string) string {
 		return text[:100] + "..."
 	}
 	return text
+}
+
+// formatStructuredToolMessage formats a parsed ToolMessage for display
+func (s *StreamingDisplay) formatStructuredToolMessage(tool *types.ToolMessage) string {
+	parts := []string{tool.Tool}
+
+	if tool.Path != "" {
+		parts = append(parts, fmt.Sprintf("path=%s", tool.Path))
+	}
+
+	if tool.Content != "" {
+		if len(tool.Content) > 50 {
+			parts = append(parts, fmt.Sprintf("content=%s...", tool.Content[:50]))
+		} else {
+			parts = append(parts, fmt.Sprintf("content=%s", tool.Content))
+		}
+	}
+
+	if tool.Regex != "" {
+		parts = append(parts, fmt.Sprintf("regex=%s", tool.Regex))
+	}
+
+	return strings.Join(parts, " ")
 }
 
 // isSimilarToolMessage checks if two tool messages are similar enough to be considered duplicates
@@ -508,29 +543,29 @@ func (s *StreamingDisplay) getMessageType(msg *types.ClineMessage) string {
 	}
 }
 
-func (s *StreamingDisplay) shouldRenderMarkdown(msgType string) bool {
-	switch msgType {
-	case "THINKING", "CLINE", "RESULT", "ASK", "CMD":
+func (s *StreamingDisplay) shouldRenderMarkdown(sayType string) bool {
+	switch sayType {
+	case string(types.SayTypeReasoning), string(types.SayTypeText), string(types.SayTypeCompletionResult), string(types.SayTypeTool), "ask":
 		return true
 	default:
 		return false
 	}
 }
 
-func (s *StreamingDisplay) getPrefix(msgType string) string {
-	switch msgType {
-	case "THINKING":
+func (s *StreamingDisplay) getPrefix(sayType string) string {
+	switch sayType {
+	case string(types.SayTypeReasoning):
 		return "THINKING"
-	case "CLINE":
+	case string(types.SayTypeText):
 		return "CLINE"
-	case "RESULT":
+	case string(types.SayTypeCompletionResult):
 		return "RESULT"
-	case "ASK":
+	case "ask":
 		return "ASK"
-	case "CMD":
+	case string(types.SayTypeCommand):
 		return "TERMINAL"
 	default:
-		return msgType
+		return strings.ToUpper(sayType)
 	}
 }
 

@@ -10,19 +10,21 @@ import (
 )
 
 type Renderer struct {
-	typewriter *TypewriterPrinter
-	mdRenderer *MarkdownRenderer
+	typewriter   *TypewriterPrinter
+	mdRenderer   *MarkdownRenderer
+	outputFormat string
 }
 
-func NewRenderer() *Renderer {
+func NewRenderer(outputFormat string) *Renderer {
 	mdRenderer, err := NewMarkdownRenderer()
 	if err != nil {
 		mdRenderer = nil
 	}
 	
 	return &Renderer{
-		typewriter: NewTypewriterPrinter(DefaultTypewriterConfig()),
-		mdRenderer: mdRenderer,
+		typewriter:   NewTypewriterPrinter(DefaultTypewriterConfig()),
+		mdRenderer:   mdRenderer,
+		outputFormat: outputFormat,
 	}
 }
 
@@ -46,7 +48,7 @@ func (r *Renderer) RenderMessage(prefix, text string, newline bool) error {
 
 
 func (r *Renderer) RenderCheckpointMessage(timestamp, prefix string, id int64) error {
-	markdown := fmt.Sprintf("## [%s] Checkpoint created **%d**", timestamp, id)
+	markdown := fmt.Sprintf("## [%s] Checkpoint created `%d`", timestamp, id)
 	rendered := r.RenderMarkdown(markdown)
 	fmt.Printf(rendered)
 	return nil
@@ -84,10 +86,15 @@ func (r *Renderer) formatUsageInfo(tokensIn, tokensOut, cacheReads, cacheWrites 
 
 func (r *Renderer) RenderAPI(status string, apiInfo *types.APIRequestInfo) error {
 	if apiInfo.Cost >= 0 {
-		message := fmt.Sprintf("%s %s", status, r.formatUsageInfo(apiInfo.TokensIn, apiInfo.TokensOut, apiInfo.CacheReads, apiInfo.CacheWrites, apiInfo.Cost))
-		r.typewriter.PrintMessageLine("API INFO", message)
+		usageInfo := r.formatUsageInfo(apiInfo.TokensIn, apiInfo.TokensOut, apiInfo.CacheReads, apiInfo.CacheWrites, apiInfo.Cost)
+		markdown := fmt.Sprintf("## API %s `%s`", status, usageInfo)
+		rendered := r.RenderMarkdown(markdown)
+		fmt.Printf("\n%s\n", rendered)
 	} else {
-		r.typewriter.PrintMessageLine("API INFO", status)
+		// honestly i see no point in showing "### API processing request" here...
+		// markdown := fmt.Sprintf("## API %s", status)
+		// rendered := r.RenderMarkdown(markdown)
+		// fmt.Printf("\n%s\n", rendered)
 	}
 	return nil
 }
@@ -190,7 +197,13 @@ func (r *Renderer) GetTypewriter() *TypewriterPrinter {
 
 // RenderMarkdown renders markdown text to terminal format with ANSI codes
 // Falls back to plaintext if markdown rendering is unavailable or fails
+// Respects output format - skips rendering in plain mode
 func (r *Renderer) RenderMarkdown(markdown string) string {
+	// Skip markdown rendering in plain mode
+	if r.outputFormat == "plain" {
+		return markdown
+	}
+	
 	if r.mdRenderer == nil {
 		return markdown
 	}

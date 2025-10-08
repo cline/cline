@@ -1,15 +1,18 @@
 package display
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/cline/cli/pkg/cli/types"
 )
 
 type StreamingSegment struct {
 	mu              sync.Mutex
-	messageType     string
+	sayType         string
 	prefix          string
 	buffer          strings.Builder
 	lastRendered    string
@@ -20,15 +23,29 @@ type StreamingSegment struct {
 	frozen          bool
 	mdRenderer      *MarkdownRenderer
 	shouldMarkdown  bool
+	outputFormat    string
+	msg             *types.ClineMessage
 }
 
-func NewStreamingSegment(messageType, prefix string, mdRenderer *MarkdownRenderer, shouldMarkdown bool) *StreamingSegment {
-	return &StreamingSegment{
-		messageType:    messageType,
+func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, shouldMarkdown bool, msg *types.ClineMessage, outputFormat string) *StreamingSegment {
+	ss := &StreamingSegment{
+		sayType:        sayType,
 		prefix:         prefix,
 		mdRenderer:     mdRenderer,
 		shouldMarkdown: shouldMarkdown,
+		outputFormat:   outputFormat,
+		msg:            msg,
 	}
+	
+	// Render rich header immediately when creating segment (if in rich mode)
+	if shouldMarkdown && outputFormat != "plain" {
+		header := ss.generateRichHeader()
+		rendered, _ := mdRenderer.Render(header)
+		fmt.Println()
+		fmt.Print(rendered)
+	}
+	
+	return ss
 }
 
 func (ss *StreamingSegment) AppendText(text string) {
@@ -65,14 +82,38 @@ func (ss *StreamingSegment) Render() error {
 		return nil
 	}
 
+	// For tools, parse JSON and decide what to show
 	text := currentBuffer
+	if ss.sayType == string(types.SayTypeTool) {
+		var tool types.ToolMessage
+		if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
+			// Tools that show no body - header is sufficient
+			switch tool.Tool {
+			case "readFile", "listFilesTopLevel", "listFilesRecursive", 
+			     "listCodeDefinitionNames", "searchFiles", "webFetch":
+				return nil  // Skip body rendering, header already shown
+			
+			case "editedExistingFile":
+				// Show the diff (stored in Content field)
+				if tool.Content != "" {
+					text = "```diff\n" + tool.Content + "\n```"
+				} else {
+					return nil  // No diff yet, just show header
+				}
+			
+			default:
+				// Other tools: suppress JSON body for now
+				return nil
+			}
+		}
+	}
 
-	if ss.messageType == "CMD" {
+	if ss.sayType == string(types.SayTypeCommand) {
 		text = "```shell\n" + text + "\n```"
 	}
 
 	var rendered string
-	if ss.shouldMarkdown {
+	if ss.shouldMarkdown && ss.outputFormat != "plain" {
 		var err error
 		rendered, err = ss.mdRenderer.Render(text)
 		if err != nil {
@@ -147,14 +188,39 @@ func (ss *StreamingSegment) renderFinal(currentBuffer string) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 
+	// For tools, parse JSON and decide what to show
 	text := currentBuffer
+	if ss.sayType == string(types.SayTypeTool) {
+		var tool types.ToolMessage
+		if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
+			// Tools that show no body - header is sufficient
+			switch tool.Tool {
+			case "readFile", "listFilesTopLevel", "listFilesRecursive",
+			     "listCodeDefinitionNames", "searchFiles", "webFetch":
+				// No final render needed, header already shown
+				return
+			
+			case "editedExistingFile":
+				// Show the diff (stored in Content field)
+				if tool.Content != "" {
+					text = "```diff\n" + tool.Content + "\n```"
+				} else {
+					return  // No diff, just header
+				}
+			
+			default:
+				// Other tools: suppress JSON body for now
+				return
+			}
+		}
+	}
 
-	if ss.messageType == "CMD" {
+	if ss.sayType == string(types.SayTypeCommand) {
 		text = "```shell\n" + text + "\n```"
 	}
 
 	var rendered string
-	if ss.shouldMarkdown {
+	if ss.shouldMarkdown && ss.outputFormat != "plain" {
 		var err error
 		rendered, err = ss.mdRenderer.Render(text)
 		if err != nil {
@@ -184,4 +250,56 @@ func (ss *StreamingSegment) renderFinal(currentBuffer string) {
 
 func (ss *StreamingSegment) clearPrevious() {
 	ClearLines(ss.lastLineCount)
+}
+
+// generateRichHeader generates a contextual header for the segment
+func (ss *StreamingSegment) generateRichHeader() string {
+	switch ss.sayType {
+	case string(types.SayTypeReasoning):
+		return "### Cline is thinking\n"
+		
+	case string(types.SayTypeText):
+		return "### Cline responds\n"
+		
+	case string(types.SayTypeCompletionResult):
+		return "### Task completed\n"
+		
+	case string(types.SayTypeTool):
+		return ss.generateToolHeader()
+		
+	default:
+		return fmt.Sprintf("### %s\n", ss.prefix)
+	}
+}
+
+// generateToolHeader generates a contextual header for tool operations
+func (ss *StreamingSegment) generateToolHeader() string {
+	// Parse tool JSON from message text
+	var tool types.ToolMessage
+	if err := json.Unmarshal([]byte(ss.msg.Text), &tool); err != nil {
+		return "### Tool operation\n"
+	}
+	
+	switch tool.Tool {
+	case "readFile":
+		if tool.Path != "" {
+			return fmt.Sprintf("### Cline is reading `%s`\n", tool.Path)
+		}
+		return "### Cline is reading a file\n"
+		
+	case "writeFile", "newFileCreated":
+		if tool.Path != "" {
+			return fmt.Sprintf("### Cline is writing `%s`\n", tool.Path)
+		}
+		return "### Cline is writing a file\n"
+		
+	case "editedExistingFile":
+		if tool.Path != "" {
+			return fmt.Sprintf("### Cline is editing `%s`\n", tool.Path)
+		}
+		return "### Cline is editing a file\n"
+		
+	default:
+		return fmt.Sprintf("### Tool: %s\n", tool.Tool)
+	}
 }

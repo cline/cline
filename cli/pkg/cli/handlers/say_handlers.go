@@ -120,7 +120,7 @@ func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayCon
 	}
 
 	if apiInfo.Cost >= 0 {
-		return dc.Renderer.RenderAPI("Request completed", &apiInfo)
+		return dc.Renderer.RenderAPI("request completed", &apiInfo)
 	}
 
 	// Check for retry status
@@ -131,7 +131,7 @@ func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayCon
 			apiInfo.RetryStatus.DelaySec)
 	}
 
-	return dc.Renderer.RenderAPI("Processing request", &apiInfo)
+	return dc.Renderer.RenderAPI("processing request", &apiInfo)
 }
 
 // handleAPIReqFinished handles API request finished messages
@@ -147,12 +147,19 @@ func (h *SayHandler) handleText(msg *types.ClineMessage, dc *DisplayContext) err
 	}
 
 	// Special case for the user's task input
-	prefix := "CLINE"
 	if dc.MessageIndex == 0 {
-		prefix = "USER"
+		markdown := formatUserMessage(msg.Text)
+		rendered := dc.Renderer.RenderMarkdown(markdown)
+		fmt.Printf("%s", rendered)
+		fmt.Printf("\n")
+		return nil
 	}
 
-	return dc.Renderer.RenderMessage(prefix, msg.Text, true)
+	// Regular Cline text response
+	markdown := fmt.Sprintf("### Cline responds\n\n%s", msg.Text)
+	rendered := dc.Renderer.RenderMarkdown(markdown)
+	fmt.Printf("\n%s\n", rendered)
+	return nil
 }
 
 // handleReasoning handles reasoning messages
@@ -161,7 +168,10 @@ func (h *SayHandler) handleReasoning(msg *types.ClineMessage, dc *DisplayContext
 		return nil
 	}
 
-	return dc.Renderer.RenderMessage("THINKING", msg.Text, true)
+	markdown := fmt.Sprintf("### Cline is thinking\n\n%s", msg.Text)
+	rendered := dc.Renderer.RenderMarkdown(markdown)
+	fmt.Printf("\n%s\n", rendered)
+	return nil
 }
 
 func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *DisplayContext) error {
@@ -171,13 +181,33 @@ func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *Display
 		text = strings.TrimSuffix(text, "HAS_CHANGES")
 	}
 
-	return dc.Renderer.RenderMessage("RESULT", text, true)
+	markdown := fmt.Sprintf("### Task completed\n\n%s", text)
+	rendered := dc.Renderer.RenderMarkdown(markdown)
+	fmt.Printf("\n%s\n", rendered)
+	return nil
 }
+
+func formatUserMessage(text string) string {
+    lines := strings.Split(text, "\n")
+    
+    // Wrap each line in backticks
+    for i, line := range lines {
+        if line != "" {
+            lines[i] = fmt.Sprintf("`%s`", line)
+        }
+    }
+    
+    return strings.Join(lines, "\n")
+}
+
 
 // handleUserFeedback handles user feedback messages
 func (h *SayHandler) handleUserFeedback(msg *types.ClineMessage, dc *DisplayContext) error {
 	if msg.Text != "" {
-		return dc.Renderer.RenderMessage("USER", msg.Text, true)
+		markdown := formatUserMessage(msg.Text)
+		rendered := dc.Renderer.RenderMarkdown(markdown)
+		fmt.Printf("%s", rendered)
+		return nil
 	} else {
 		return dc.Renderer.RenderMessage("USER", "[Provided feedback without text]", true)
 	}
@@ -210,7 +240,7 @@ func (h *SayHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) 
 
 	command := strings.TrimSpace(msg.Text)
 
-	markdown := fmt.Sprintf("EXECUTE_COMMAND: `%s`", command)
+	markdown := fmt.Sprintf("### Cline wants to run a command: `%s`", command)
 	rendered := dc.Renderer.RenderMarkdown(markdown)
 
 	// Render markdown with syntax highlighting
@@ -235,35 +265,48 @@ func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 }
 
 func (h *SayHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayContext) error {
+	var markdown string
+	
 	switch tool.Tool {
 	case string(types.ToolTypeEditedExistingFile):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline edited file: %s", tool.Path), true)
+		markdown = fmt.Sprintf("### Cline edited `%s`", tool.Path)
 	case string(types.ToolTypeNewFileCreated):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline created file: %s", tool.Path), true)
+		markdown = fmt.Sprintf("### Cline created `%s`", tool.Path)
 	case string(types.ToolTypeReadFile):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline read file: %s", tool.Path), true)
+		markdown = fmt.Sprintf("### Cline read `%s`", tool.Path)
 	case string(types.ToolTypeListFilesTopLevel):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline listed files in: %s", tool.Path), true)
+		markdown = fmt.Sprintf("### Cline listed files in `%s`", tool.Path)
 	case string(types.ToolTypeListFilesRecursive):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline recursively listed files in: %s", tool.Path), true)
+		markdown = fmt.Sprintf("### Cline recursively listed files in `%s`", tool.Path)
 	case string(types.ToolTypeSearchFiles):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline searched for '%s' in: %s", tool.Regex, tool.Path), true)
+		markdown = fmt.Sprintf("### Cline searched for '%s' in `%s`", tool.Regex, tool.Path)
 	case string(types.ToolTypeWebFetch):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline fetched URL: %s", tool.Path), true)
+		markdown = fmt.Sprintf("### Cline fetched `%s`", tool.Path)
 	case string(types.ToolTypeListCodeDefinitionNames):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline listed code definitions for: %s", tool.Path), true)
+		markdown = fmt.Sprintf("### Cline listed code definitions in `%s`", tool.Path)
 	case string(types.ToolTypeSummarizeTask):
-		dc.Renderer.RenderMessage("TOOL", "Cline condensed the conversation", true)
+		markdown = "### Cline condensed the conversation"
 	default:
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline executed tool: %s", tool.Tool), true)
+		markdown = fmt.Sprintf("### Tool: %s", tool.Tool)
 	}
+	
+	rendered := dc.Renderer.RenderMarkdown(markdown)
+	fmt.Printf("\n%s\n", rendered)
 
 	// Skip content preview for readFile and webFetch tools
 	if tool.Tool == string(types.ToolTypeReadFile) || tool.Tool == string(types.ToolTypeWebFetch) {
 		return nil
 	}
 
-	// Show content preview, truncating if necessary
+	// For edited files, show the diff if available
+	if tool.Tool == string(types.ToolTypeEditedExistingFile) && tool.Content != "" {
+		diffMarkdown := fmt.Sprintf("```diff\n%s\n```", tool.Content)
+		diffRendered := dc.Renderer.RenderMarkdown(diffMarkdown)
+		fmt.Printf("\n%s\n", diffRendered)
+		return nil
+	}
+
+	// Show content preview for other tools, truncating if necessary
 	preview := tool.Content
 	if preview != "" {
 		preview = strings.TrimSpace(tool.Content)
@@ -407,7 +450,10 @@ func (h *SayHandler) handleTaskProgress(msg *types.ClineMessage, dc *DisplayCont
 		return nil
 	}
 
-	return dc.Renderer.RenderMessage("PROGRESS", fmt.Sprintf("Task Checklist: %s", msg.Text), true)
+	markdown := fmt.Sprintf("### Progress\n\n%s", msg.Text)
+	rendered := dc.Renderer.RenderMarkdown(markdown)
+	fmt.Printf("\n%s\n", rendered)
+	return nil
 }
 
 // handleDefault handles unknown SAY message types
