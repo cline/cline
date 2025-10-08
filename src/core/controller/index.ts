@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
 import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { setupWorkspaceManager } from "@core/workspace/setup"
+import { VcsType, WorkspaceRoot } from "@core/workspace/WorkspaceRoot"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { downloadTask } from "@integrations/misc/export-markdown"
@@ -32,6 +33,7 @@ import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { getLatestAnnouncementId } from "@/utils/announcements"
+import { getLatestGitCommitHash } from "@/utils/git"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
@@ -85,6 +87,76 @@ export class Controller {
 	// Synchronous getter for workspace manager
 	getWorkspaceManager(): WorkspaceRootManager | undefined {
 		return this.workspaceManager
+	}
+
+	/**
+	 * Initialize WorkspaceRootManager from provided workspace paths (for CLI usage)
+	 * @param workspacePaths Array of workspace directory paths
+	 * @returns Initialized WorkspaceRootManager
+	 */
+	private async initializeWorkspaceManagerFromPaths(workspacePaths: string[]): Promise<WorkspaceRootManager> {
+		const startTime = performance.now()
+		const cwd = await getCwd(getDesktopDir())
+
+		try {
+			const roots: WorkspaceRoot[] = []
+
+			for (const workspacePath of workspacePaths) {
+				// Resolve to absolute path
+				const absolutePath = path.resolve(workspacePath)
+
+				// Detect VCS for this workspace (using detection module's public function)
+				const vcs = await detectWorkspaceRoots()
+					.then((roots) => roots.find((r) => r.path === absolutePath)?.vcs ?? VcsType.None)
+					.catch(() => VcsType.None)
+
+				// Get commit hash if Git repo (handle null return)
+				const gitHash = vcs === VcsType.Git ? await getLatestGitCommitHash(absolutePath) : null
+				const commitHash = gitHash === null ? undefined : gitHash
+
+				roots.push({
+					path: absolutePath,
+					name: path.basename(absolutePath),
+					vcs,
+					commitHash,
+				})
+			}
+
+			// First path is primary workspace
+			const manager = new WorkspaceRootManager(roots, 0)
+
+			console.log(`[WorkspaceManager] Initialized from CLI with ${roots.length} workspace(s)`)
+
+			// Telemetry
+			telemetryService.captureWorkspaceInitialized(
+				roots.length,
+				roots.map((r) => r.vcs.toString()),
+				performance.now() - startTime,
+				true,
+			)
+
+			// Persist
+			this.stateManager.setGlobalState("workspaceRoots", manager.getRoots())
+			this.stateManager.setGlobalState("primaryRootIndex", manager.getPrimaryIndex())
+
+			return manager
+		} catch (error) {
+			// Fallback to single-root from cwd on error
+			console.error("[WorkspaceManager] Failed to initialize from paths:", error)
+			telemetryService.captureWorkspaceInitError(error as Error, true, workspacePaths.length)
+
+			const manager = await WorkspaceRootManager.fromLegacyCwd(cwd)
+			const roots = manager.getRoots()
+			this.stateManager.setGlobalState("workspaceRoots", roots)
+			this.stateManager.setGlobalState("primaryRootIndex", manager.getPrimaryIndex())
+
+			HostProvider.window.showMessage({
+				type: ShowMessageType.WARNING,
+				message: "Failed to initialize workspaces from provided paths. Using current directory.",
+			})
+
+			return manager
+		}
 	}
 
 	constructor(readonly context: vscode.ExtensionContext) {
@@ -199,6 +271,7 @@ export class Controller {
 		files?: string[],
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
+		workspacePaths?: string[],
 	) {
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
@@ -227,10 +300,15 @@ export class Controller {
 		}
 
 		// Initialize and persist the workspace manager (multi-root or single-root) with telemetry + fallback
-		this.workspaceManager = await setupWorkspaceManager({
-			stateManager: this.stateManager,
-			detectRoots: detectWorkspaceRoots,
-		})
+		// If workspace paths are provided from CLI, use them; otherwise detect from VSCode
+		if (workspacePaths && workspacePaths.length > 0) {
+			this.workspaceManager = await this.initializeWorkspaceManagerFromPaths(workspacePaths)
+		} else {
+			this.workspaceManager = await setupWorkspaceManager({
+				stateManager: this.stateManager,
+				detectRoots: detectWorkspaceRoots,
+			})
+		}
 
 		const cwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
 

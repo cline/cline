@@ -144,10 +144,11 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 
 	// Create task request
 	req := &cline.NewTaskRequest{
-		Text:         prompt,
-		Images:       images,
-		Files:        files,
-		TaskSettings: taskSettings,
+		Text:           prompt,
+		Images:         images,
+		Files:          files,
+		TaskSettings:   taskSettings,
+		WorkspacePaths: workspacePaths,
 	}
 
 	resp, err := m.client.Task.NewTask(ctx, req)
