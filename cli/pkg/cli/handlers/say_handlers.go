@@ -210,12 +210,11 @@ func (h *SayHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) 
 
 	command := strings.TrimSpace(msg.Text)
 
-	err := dc.Renderer.RenderMessage("TERMINAL", "Running command:")
-	if err != nil {
-		return fmt.Errorf("failed to render handleCommand: %w", err)
-	}
+	markdown := fmt.Sprintf("EXECUTE_COMMAND: `%s`", command)
+	rendered := dc.Renderer.RenderMarkdown(markdown)
 
-	fmt.Printf("\n```shell\n%s\n```\n", command)
+	// Render markdown with syntax highlighting
+	fmt.Printf("%s\n", rendered)
 
 	return nil
 }

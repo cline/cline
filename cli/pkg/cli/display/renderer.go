@@ -11,11 +11,18 @@ import (
 
 type Renderer struct {
 	typewriter *TypewriterPrinter
+	mdRenderer *MarkdownRenderer
 }
 
 func NewRenderer() *Renderer {
+	mdRenderer, err := NewMarkdownRenderer()
+	if err != nil {
+		mdRenderer = nil
+	}
+	
 	return &Renderer{
 		typewriter: NewTypewriterPrinter(DefaultTypewriterConfig()),
+		mdRenderer: mdRenderer,
 	}
 }
 
@@ -181,4 +188,19 @@ func (r *Renderer) SetTypewriterSpeed(multiplier float64) {
 
 func (r *Renderer) GetTypewriter() *TypewriterPrinter {
 	return r.typewriter
+}
+
+// RenderMarkdown renders markdown text to terminal format with ANSI codes
+// Falls back to plaintext if markdown rendering is unavailable or fails
+func (r *Renderer) RenderMarkdown(markdown string) string {
+	if r.mdRenderer == nil {
+		return markdown
+	}
+	
+	rendered, err := r.mdRenderer.Render(markdown)
+	if err != nil {
+		return markdown
+	}
+	
+	return rendered
 }

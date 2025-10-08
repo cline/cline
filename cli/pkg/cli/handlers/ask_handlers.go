@@ -155,7 +155,10 @@ func (h *AskHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) 
 		return fmt.Errorf("failed to render handleCommand: %w", err)
 	}
 
-	fmt.Printf("\n```shell\n%s\n```\n", strings.TrimSpace(command))
+	// Render markdown with syntax highlighting
+	markdown := fmt.Sprintf("```shell\n%s\n```", strings.TrimSpace(command))
+	rendered := dc.Renderer.RenderMarkdown(markdown)
+	fmt.Printf("\n%s\n", rendered)
 
 	if hasAutoApprovalConflict {
 		fmt.Printf("\nThe model has determined this command requires explicit approval.\n")
@@ -174,10 +177,11 @@ func (h *AskHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayCon
 
 	commandOutput := msg.Text
 
-	err := dc.Renderer.RenderMessage("TERMINAL", fmt.Sprintf("Current terminal output: %s", commandOutput))
-	if err != nil {
-		return fmt.Errorf("failed to render handleCommandOutput: %w", err)
-	}
+	markdown := fmt.Sprintf("```\n%s\n```", commandOutput)
+	rendered := dc.Renderer.RenderMarkdown(markdown)
+
+	fmt.Printf("%s", rendered)
+
 
 	fmt.Println("")
 
