@@ -799,13 +799,19 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			foundCompletion = true
 		}
 
-		// Currently handling a subset of message types for displaying
 		switch {
 		case msg.Say == string(types.SayTypeUserFeedback):
 			if !coordinator.IsProcessedInCurrentTurn("user_msg") {
 				fmt.Println()
 				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn("user_msg")
+			}
+
+		case msg.Say == string(types.SayTypeCommand):
+			if !coordinator.IsProcessedInCurrentTurn("command") {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn("command")
 			}
 
 		case msg.Say == string(types.SayTypeCheckpointCreated):

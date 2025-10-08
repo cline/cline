@@ -166,7 +166,7 @@ func (s *StreamingDisplay) handleStreamingCommand(msg *types.ClineMessage, messa
 
 	s.finishCurrentStream()
 	fmt.Println()
-	s.renderer.typewriter.PrintfInstant("[%s] CMD: ", timestamp)
+	s.renderer.typewriter.PrintfInstant("CMD: ")
 	s.typewriterPrint(cleanText)
 	fmt.Println()
 
@@ -193,16 +193,15 @@ func (s *StreamingDisplay) handleStreamingCommandOutput(msg *types.ClineMessage,
 			s.typewriterPrint(newChars)
 			s.state.SetStreamingMessage(messageKey, cleanText)
 		} else {
-			// Non-incremental change - replace the line
 			s.renderer.ClearLine()
-			s.renderer.typewriter.PrintfInstant("[%s] OUT: ", timestamp)
+			s.renderer.typewriter.PrintfInstant("OUT: ")
 			s.typewriterPrint(cleanText)
 			s.state.SetStreamingMessage(messageKey, cleanText)
 		}
 	} else {
 		s.finishCurrentStream()
 		fmt.Println()
-		s.renderer.typewriter.PrintfInstant("[%s] OUT: ", timestamp)
+		s.renderer.typewriter.PrintfInstant("OUT: ")
 		s.typewriterPrint(cleanText)
 		s.state.SetStreamingMessage(messageKey, cleanText)
 	}
@@ -225,7 +224,7 @@ func (s *StreamingDisplay) handleShellIntegrationWarning(msg *types.ClineMessage
 
 	s.finishCurrentStream()
 	fmt.Println()
-	s.renderer.typewriter.PrintfInstant("[%s] NOTE: ", timestamp)
+	s.renderer.typewriter.PrintfInstant("NOTE: ")
 	s.typewriterPrint("Command executed (output not streamed due to shell integration)")
 	fmt.Println()
 
