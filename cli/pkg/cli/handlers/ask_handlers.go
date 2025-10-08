@@ -84,7 +84,7 @@ func (h *AskHandler) handleFollowup(msg *types.ClineMessage, dc *DisplayContext,
 		return nil
 	}
 
-	err := dc.Renderer.RenderMessage(timestamp, "QUESTION", question)
+	err := dc.Renderer.RenderMessage("QUESTION", question)
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayC
 		return nil
 	}
 
-	err := dc.Renderer.RenderMessage(timestamp, "ASST PLAN", response)
+	err := dc.Renderer.RenderMessage("ASST PLAN", response)
 	if err != nil {
 		return err
 	}
@@ -153,7 +153,7 @@ func (h *AskHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext, 
 		command = strings.TrimSuffix(command, "REQ_APP")
 	}
 
-	err := dc.Renderer.RenderMessage(timestamp, "TERMINAL", "Cline wants to execute this command:")
+	err := dc.Renderer.RenderMessage("TERMINAL", "Cline wants to execute this command:")
 	if err != nil {
 		return fmt.Errorf("failed to render handleCommand: %w", err)
 	}
@@ -177,7 +177,7 @@ func (h *AskHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayCon
 
 	commandOutput := msg.Text
 
-	err := dc.Renderer.RenderMessage(timestamp, "TERMINAL", fmt.Sprintf("Current terminal output: %s", commandOutput))
+	err := dc.Renderer.RenderMessage("TERMINAL", fmt.Sprintf("Current terminal output: %s", commandOutput))
 	if err != nil {
 		return fmt.Errorf("failed to render handleCommandOutput: %w", err)
 	}
@@ -198,7 +198,7 @@ func (h *AskHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext, tim
 	var tool types.ToolMessage
 	if err := json.Unmarshal([]byte(msg.Text), &tool); err != nil {
 		// Fallback to simple display
-		return dc.Renderer.RenderMessage(timestamp, "TOOL", msg.Text)
+		return dc.Renderer.RenderMessage("TOOL", msg.Text)
 	}
 
 	return h.renderToolMessage(&tool, dc, timestamp)
@@ -208,23 +208,23 @@ func (h *AskHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext, tim
 func (h *AskHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayContext, timestamp string) error {
 	switch tool.Tool {
 	case string(types.ToolTypeEditedExistingFile):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline wants to edit file: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to edit file: %s", tool.Path))
 	case string(types.ToolTypeNewFileCreated):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline wants to create file: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to create file: %s", tool.Path))
 	case string(types.ToolTypeReadFile):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline wants to read file: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to read file: %s", tool.Path))
 	case string(types.ToolTypeListFilesTopLevel):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline wants to list files in: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to list files in: %s", tool.Path))
 	case string(types.ToolTypeListFilesRecursive):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline wants to recursively list files in: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to recursively list files in: %s", tool.Path))
 	case string(types.ToolTypeSearchFiles):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline wants to search for '%s' in: %s", tool.Regex, tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to search for '%s' in: %s", tool.Regex, tool.Path))
 	case string(types.ToolTypeWebFetch):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline wants to fetch URL: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to fetch URL: %s", tool.Path))
 	case string(types.ToolTypeListCodeDefinitionNames):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline wants to list code definitions for: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to list code definitions for: %s", tool.Path))
 	default:
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline wants to use tool: %s", tool.Tool))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to use tool: %s", tool.Tool))
 	}
 
 	// Skip content preview for readFile and webFetch tools
@@ -250,33 +250,33 @@ func (h *AskHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayConte
 
 // handleAPIReqFailed handles API request failures
 func (h *AskHandler) handleAPIReqFailed(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "ERROR", fmt.Sprintf("API Request Failed: %s. Approve to retry request.", msg.Text))
+	return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("API Request Failed: %s. Approve to retry request.", msg.Text))
 }
 
 // handleResumeTask handles resume task requests
 func (h *AskHandler) handleResumeTask(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "GEN INFO", "Resuming interrupted task.")
+	return dc.Renderer.RenderMessage("GEN INFO", "Resuming interrupted task.")
 }
 
 // handleResumeCompletedTask handles resume completed task requests
 func (h *AskHandler) handleResumeCompletedTask(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "GEN INFO", "Resuming completed task.")
+	return dc.Renderer.RenderMessage("GEN INFO", "Resuming completed task.")
 }
 
 // handleMistakeLimitReached handles mistake limit reached
 func (h *AskHandler) handleMistakeLimitReached(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "ERROR", fmt.Sprintf("Mistake Limit Reached: %s. Approval required.", msg.Text))
+	return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("Mistake Limit Reached: %s. Approval required.", msg.Text))
 }
 
 // handleAutoApprovalMaxReached handles auto-approval max reached
 func (h *AskHandler) handleAutoApprovalMaxReached(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "WARNING", fmt.Sprintf("Auto-approval limit reached: %s. Approval required.", msg.Text))
+	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Auto-approval limit reached: %s. Approval required.", msg.Text))
 }
 
 // handleBrowserActionLaunch handles browser action launch requests
 func (h *AskHandler) handleBrowserActionLaunch(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
 	url := strings.TrimSpace(msg.Text)
-	return dc.Renderer.RenderMessage(timestamp, "BROWSER", fmt.Sprintf("Cline wants to launch browser and navigate to: %s. Approval required.", url))
+	return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Cline wants to launch browser and navigate to: %s. Approval required.", url))
 }
 
 // handleUseMcpServer handles MCP server usage requests
@@ -292,7 +292,7 @@ func (h *AskHandler) handleUseMcpServer(msg *types.ClineMessage, dc *DisplayCont
 
 	var mcpReq McpServerRequest
 	if err := json.Unmarshal([]byte(msg.Text), &mcpReq); err != nil {
-		return dc.Renderer.RenderMessage(timestamp, "MCP", msg.Text)
+		return dc.Renderer.RenderMessage("MCP", msg.Text)
 	}
 
 	var operation string
@@ -305,18 +305,18 @@ func (h *AskHandler) handleUseMcpServer(msg *types.ClineMessage, dc *DisplayCont
 		}
 	}
 
-	return dc.Renderer.RenderMessage(timestamp, "MCP",
+	return dc.Renderer.RenderMessage("MCP",
 		fmt.Sprintf("Cline wants to %s on the %s MCP server", operation, mcpReq.ServerName))
 }
 
 // handleNewTask handles new task creation requests
 func (h *AskHandler) handleNewTask(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "NEW TASK", fmt.Sprintf("Cline wants to start a new task: %s. Approval required.", msg.Text))
+	return dc.Renderer.RenderMessage("NEW TASK", fmt.Sprintf("Cline wants to start a new task: %s. Approval required.", msg.Text))
 }
 
 // handleCondense handles conversation condensing requests
 func (h *AskHandler) handleCondense(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "CONDENSE", fmt.Sprintf("Cline wants to condense the conversation: %s. Approval required.", msg.Text))
+	return dc.Renderer.RenderMessage("CONDENSE", fmt.Sprintf("Cline wants to condense the conversation: %s. Approval required.", msg.Text))
 }
 
 // handleReportBug handles bug report requests
@@ -330,10 +330,10 @@ func (h *AskHandler) handleReportBug(msg *types.ClineMessage, dc *DisplayContext
 	}
 
 	if err := json.Unmarshal([]byte(msg.Text), &bugData); err != nil {
-		return dc.Renderer.RenderMessage(timestamp, "BUG REPORT", fmt.Sprintf("Cline wants to create a GitHub issue: %s. Approval required.", msg.Text))
+		return dc.Renderer.RenderMessage("BUG REPORT", fmt.Sprintf("Cline wants to create a GitHub issue: %s. Approval required.", msg.Text))
 	}
 
-	err := dc.Renderer.RenderMessage(timestamp, "BUG REPORT", "Cline wants to create a GitHub issue:")
+	err := dc.Renderer.RenderMessage("BUG REPORT", "Cline wants to create a GitHub issue:")
 	if err != nil {
 		return fmt.Errorf("failed to render handleReportBug: %w", err)
 	}
@@ -350,5 +350,5 @@ func (h *AskHandler) handleReportBug(msg *types.ClineMessage, dc *DisplayContext
 
 // handleDefault handles unknown ASK message types
 func (h *AskHandler) handleDefault(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "ASK", msg.Text)
+	return dc.Renderer.RenderMessage("ASK", msg.Text)
 }

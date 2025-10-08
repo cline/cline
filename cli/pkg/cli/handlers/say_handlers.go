@@ -98,7 +98,7 @@ func (h *SayHandler) handleTask(msg *types.ClineMessage, dc *DisplayContext, tim
 
 // handleError handles error messages
 func (h *SayHandler) handleError(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "ERROR", msg.Text)
+	return dc.Renderer.RenderMessage("ERROR", msg.Text)
 }
 
 // handleAPIReqStarted handles API request started messages
@@ -106,17 +106,17 @@ func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayCon
 	// Parse API request info
 	apiInfo := types.APIRequestInfo{Cost: -1}
 	if err := json.Unmarshal([]byte(msg.Text), &apiInfo); err != nil {
-		return dc.Renderer.RenderMessage(timestamp, "API INFO", msg.Text)
+		return dc.Renderer.RenderMessage("API INFO", msg.Text)
 	}
 
 	// Handle different API request states
 	if apiInfo.CancelReason != "" {
 		if apiInfo.CancelReason == "user_cancelled" {
-			return dc.Renderer.RenderMessage(timestamp, "API INFO", "Request Cancelled")
+			return dc.Renderer.RenderMessage("API INFO", "Request Cancelled")
 		} else if apiInfo.CancelReason == "retries_exhausted" {
-			return dc.Renderer.RenderMessage(timestamp, "API INFO", "Request Failed (Retries Exhausted)")
+			return dc.Renderer.RenderMessage("API INFO", "Request Failed (Retries Exhausted)")
 		}
-		return dc.Renderer.RenderMessage(timestamp, "API INFO", "Streaming Failed")
+		return dc.Renderer.RenderMessage("API INFO", "Streaming Failed")
 	}
 
 	if apiInfo.Cost >= 0 {
@@ -152,12 +152,7 @@ func (h *SayHandler) handleText(msg *types.ClineMessage, dc *DisplayContext, tim
 		prefix = "USER"
 	}
 
-	// Render Cline text without timestamp for cleaner output
-	if prefix == "CLINE" {
-		return dc.Renderer.RenderMessageNoTimestamp(prefix, msg.Text)
-	}
-
-	return dc.Renderer.RenderMessage(timestamp, prefix, msg.Text)
+	return dc.Renderer.RenderMessage(prefix, msg.Text)
 }
 
 // handleReasoning handles reasoning messages
@@ -166,8 +161,7 @@ func (h *SayHandler) handleReasoning(msg *types.ClineMessage, dc *DisplayContext
 		return nil
 	}
 
-	// Render reasoning without timestamp for cleaner output
-	return dc.Renderer.RenderMessageNoTimestamp("THINKING", msg.Text)
+	return dc.Renderer.RenderMessage("THINKING", msg.Text)
 }
 
 func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
@@ -177,16 +171,15 @@ func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *Display
 		text = strings.TrimSuffix(text, "HAS_CHANGES")
 	}
 
-	// Render result without timestamp for cleaner output
-	return dc.Renderer.RenderMessageNoTimestamp("RESULT", text)
+	return dc.Renderer.RenderMessage("RESULT", text)
 }
 
 // handleUserFeedback handles user feedback messages
 func (h *SayHandler) handleUserFeedback(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
 	if msg.Text != "" {
-		return dc.Renderer.RenderMessage(timestamp, "USER", msg.Text)
+		return dc.Renderer.RenderMessage("USER", msg.Text)
 	} else {
-		return dc.Renderer.RenderMessage(timestamp, "USER", "[Provided feedback without text]")
+		return dc.Renderer.RenderMessage("USER", "[Provided feedback without text]")
 	}
 }
 
@@ -194,19 +187,19 @@ func (h *SayHandler) handleUserFeedback(msg *types.ClineMessage, dc *DisplayCont
 func (h *SayHandler) handleUserFeedbackDiff(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
 	var toolMsg types.ToolMessage
 	if err := json.Unmarshal([]byte(msg.Text), &toolMsg); err != nil {
-		return dc.Renderer.RenderMessage(timestamp, "USER DIFF", msg.Text)
+		return dc.Renderer.RenderMessage("USER DIFF", msg.Text)
 	}
 
 	message := fmt.Sprintf("User manually edited: %s\n\nDiff:\n%s",
 		toolMsg.Path,
 		toolMsg.Diff)
 
-	return dc.Renderer.RenderMessage(timestamp, "USER DIFF", message)
+	return dc.Renderer.RenderMessage("USER DIFF", message)
 }
 
 // handleAPIReqRetried handles API request retry messages
 func (h *SayHandler) handleAPIReqRetried(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "API INFO", "Retrying request")
+	return dc.Renderer.RenderMessage("API INFO", "Retrying request")
 }
 
 // handleCommand handles command execution announcements
@@ -217,7 +210,7 @@ func (h *SayHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext, 
 
 	command := strings.TrimSpace(msg.Text)
 
-	err := dc.Renderer.RenderMessage(timestamp, "TERMINAL", "Running command:")
+	err := dc.Renderer.RenderMessage("TERMINAL", "Running command:")
 	if err != nil {
 		return fmt.Errorf("failed to render handleCommand: %w", err)
 	}
@@ -230,13 +223,13 @@ func (h *SayHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext, 
 // handleCommandOutput handles command output messages
 func (h *SayHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
 	commandOutput := msg.Text
-	return dc.Renderer.RenderMessage(timestamp, "TERMINAL", fmt.Sprintf("Current terminal output: %s", commandOutput))
+	return dc.Renderer.RenderMessage("TERMINAL", fmt.Sprintf("Current terminal output: %s", commandOutput))
 }
 
 func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
 	var tool types.ToolMessage
 	if err := json.Unmarshal([]byte(msg.Text), &tool); err != nil {
-		return dc.Renderer.RenderMessageNoTimestamp("TOOL", msg.Text)
+		return dc.Renderer.RenderMessage("TOOL", msg.Text)
 	}
 
 	return h.renderToolMessage(&tool, dc, timestamp)
@@ -245,25 +238,25 @@ func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext, tim
 func (h *SayHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayContext, timestamp string) error {
 	switch tool.Tool {
 	case string(types.ToolTypeEditedExistingFile):
-		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline edited file: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline edited file: %s", tool.Path))
 	case string(types.ToolTypeNewFileCreated):
-		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline created file: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline created file: %s", tool.Path))
 	case string(types.ToolTypeReadFile):
-		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline read file: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline read file: %s", tool.Path))
 	case string(types.ToolTypeListFilesTopLevel):
-		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline listed files in: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline listed files in: %s", tool.Path))
 	case string(types.ToolTypeListFilesRecursive):
-		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline recursively listed files in: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline recursively listed files in: %s", tool.Path))
 	case string(types.ToolTypeSearchFiles):
-		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline searched for '%s' in: %s", tool.Regex, tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline searched for '%s' in: %s", tool.Regex, tool.Path))
 	case string(types.ToolTypeWebFetch):
-		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline fetched URL: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline fetched URL: %s", tool.Path))
 	case string(types.ToolTypeListCodeDefinitionNames):
-		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline listed code definitions for: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline listed code definitions for: %s", tool.Path))
 	case string(types.ToolTypeSummarizeTask):
-		dc.Renderer.RenderMessageNoTimestamp("TOOL", "Cline condensed the conversation")
+		dc.Renderer.RenderMessage("TOOL", "Cline condensed the conversation")
 	default:
-		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline executed tool: %s", tool.Tool))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline executed tool: %s", tool.Tool))
 	}
 
 	// Skip content preview for readFile and webFetch tools
@@ -286,7 +279,7 @@ func (h *SayHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayConte
 
 // handleShellIntegrationWarning handles shell integration warning messages
 func (h *SayHandler) handleShellIntegrationWarning(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "WARNING", "Shell Integration Unavailable - Cline won't be able to view the command's output.")
+	return dc.Renderer.RenderMessage("WARNING", "Shell Integration Unavailable - Cline won't be able to view the command's output.")
 }
 
 // handleBrowserActionLaunch handles browser action launch messages
@@ -296,7 +289,7 @@ func (h *SayHandler) handleBrowserActionLaunch(msg *types.ClineMessage, dc *Disp
 		return nil
 	}
 
-	return dc.Renderer.RenderMessage(timestamp, "BROWSER", fmt.Sprintf("Launching browser at: %s", url))
+	return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Launching browser at: %s", url))
 }
 
 // handleBrowserAction handles browser action messages
@@ -313,23 +306,23 @@ func (h *SayHandler) handleBrowserAction(msg *types.ClineMessage, dc *DisplayCon
 
 	var actionData BrowserActionData
 	if err := json.Unmarshal([]byte(msg.Text), &actionData); err != nil {
-		return dc.Renderer.RenderMessage(timestamp, "BROWSER", msg.Text)
+		return dc.Renderer.RenderMessage("BROWSER", msg.Text)
 	}
 
 	// Special handling for type action
 	if actionData.Action == "type" && actionData.Text != "" {
 		actionText := fmt.Sprintf("type '%s'", actionData.Text)
-		return dc.Renderer.RenderMessage(timestamp, "BROWSER", fmt.Sprintf("Next action: %s", actionText))
+		return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Next action: %s", actionText))
 	}
 
 	// Special handling for click action
 	if actionData.Action == "click" && actionData.Coordinate != "" {
 		actionText := fmt.Sprintf("click (%s)", actionData.Coordinate)
-		return dc.Renderer.RenderMessage(timestamp, "BROWSER", fmt.Sprintf("Next action: %s", actionText))
+		return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Next action: %s", actionText))
 	}
 
 	// Generic handling for all other actions
-	return dc.Renderer.RenderMessage(timestamp, "BROWSER", fmt.Sprintf("Next action: %s", actionData.Action))
+	return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Next action: %s", actionData.Action))
 }
 
 // handleBrowserActionResult handles browser action result messages
@@ -347,63 +340,63 @@ func (h *SayHandler) handleBrowserActionResult(msg *types.ClineMessage, dc *Disp
 
 	var result BrowserActionResult
 	if err := json.Unmarshal([]byte(msg.Text), &result); err != nil {
-		return dc.Renderer.RenderMessage(timestamp, "BROWSER", "Action completed")
+		return dc.Renderer.RenderMessage("BROWSER", "Action completed")
 	}
 
 	// If we have logs, include them in the message
 	if result.Logs != "" {
-		return dc.Renderer.RenderMessage(timestamp, "BROWSER", fmt.Sprintf("Action completed with logs: '%s'", result.Logs))
+		return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Action completed with logs: '%s'", result.Logs))
 	}
 
 	// Default case
-	return dc.Renderer.RenderMessage(timestamp, "BROWSER", "Action completed")
+	return dc.Renderer.RenderMessage("BROWSER", "Action completed")
 }
 
 // handleMcpServerRequestStarted handles MCP server request started messages
 func (h *SayHandler) handleMcpServerRequestStarted(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "MCP", "Sending request to server")
+	return dc.Renderer.RenderMessage("MCP", "Sending request to server")
 }
 
 // handleMcpServerResponse handles MCP server response messages
 func (h *SayHandler) handleMcpServerResponse(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "MCP", fmt.Sprintf("Server response: %s", msg.Text))
+	return dc.Renderer.RenderMessage("MCP", fmt.Sprintf("Server response: %s", msg.Text))
 }
 
 // handleMcpNotification handles MCP notification messages
 func (h *SayHandler) handleMcpNotification(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "MCP", fmt.Sprintf("Server notification: %s", msg.Text))
+	return dc.Renderer.RenderMessage("MCP", fmt.Sprintf("Server notification: %s", msg.Text))
 }
 
 // handleUseMcpServer handles MCP server usage messages
 func (h *SayHandler) handleUseMcpServer(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "MCP", "Server operation approved")
+	return dc.Renderer.RenderMessage("MCP", "Server operation approved")
 }
 
 // handleDiffError handles diff error messages
 func (h *SayHandler) handleDiffError(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "WARNING", "Diff Edit Failure - The model used an invalid diff edit format or used search patterns that don't match anything in the file.")
+	return dc.Renderer.RenderMessage("WARNING", "Diff Edit Failure - The model used an invalid diff edit format or used search patterns that don't match anything in the file.")
 }
 
 // handleDeletedAPIReqs handles deleted API requests messages
 func (h *SayHandler) handleDeletedAPIReqs(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
 	// This message includes api metrics of deleted messages, which we do not log
-	return dc.Renderer.RenderMessage(timestamp, "GEN INFO", "Checkpoint restored")
+	return dc.Renderer.RenderMessage("GEN INFO", "Checkpoint restored")
 }
 
 // handleClineignoreError handles .clineignore error messages
 func (h *SayHandler) handleClineignoreError(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "WARNING", fmt.Sprintf("Access Denied - Cline tried to access %s which is blocked by the .clineignore file", msg.Text))
+	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Access Denied - Cline tried to access %s which is blocked by the .clineignore file", msg.Text))
 }
 
 // handleCheckpointCreated handles checkpoint created messages
 func (h *SayHandler) handleCheckpointCreated(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
 	message := fmt.Sprintf("Checkpoint created (ID: %d)", msg.Timestamp)
-	return dc.Renderer.RenderMessage(timestamp, "GEN INFO", message)
+	return dc.Renderer.RenderMessage("GEN INFO", message)
 }
 
 // handleLoadMcpDocumentation handles load MCP documentation messages
 func (h *SayHandler) handleLoadMcpDocumentation(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "GEN INFO", "Loading MCP documentation")
+	return dc.Renderer.RenderMessage("GEN INFO", "Loading MCP documentation")
 }
 
 // handleInfo handles info messages
@@ -417,10 +410,10 @@ func (h *SayHandler) handleTaskProgress(msg *types.ClineMessage, dc *DisplayCont
 		return nil
 	}
 
-	return dc.Renderer.RenderMessage(timestamp, "PROGRESS", fmt.Sprintf("Task Checklist: %s", msg.Text))
+	return dc.Renderer.RenderMessage("PROGRESS", fmt.Sprintf("Task Checklist: %s", msg.Text))
 }
 
 // handleDefault handles unknown SAY message types
 func (h *SayHandler) handleDefault(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderMessage(timestamp, "SAY", msg.Text)
+	return dc.Renderer.RenderMessage("SAY", msg.Text)
 }

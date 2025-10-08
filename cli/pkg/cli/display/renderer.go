@@ -20,23 +20,8 @@ func NewRenderer() *Renderer {
 	}
 }
 
-// RenderMessage renders a message with timestamp and prefix
-func (r *Renderer) RenderMessage(timestamp, prefix, text string) error {
-	if text == "" {
-		return nil
-	}
-
-	cleanText := r.sanitizeText(text)
-	if cleanText == "" {
-		return nil
-	}
-
-	r.typewriter.PrintMessageLine(timestamp, prefix, cleanText)
-	return nil
-}
-
-// RenderMessageNoTimestamp renders a message with only prefix (no timestamp)
-func (r *Renderer) RenderMessageNoTimestamp(prefix, text string) error {
+// RenderMessage renders a message with prefix
+func (r *Renderer) RenderMessage(prefix, text string) error {
 	if text == "" {
 		return nil
 	}
