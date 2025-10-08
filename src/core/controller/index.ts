@@ -26,6 +26,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
+import { LogoutReason } from "@/services/auth/types"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
@@ -65,53 +66,57 @@ export class Controller {
 	// NEW: Add workspace manager (optional initially)
 	private workspaceManager?: WorkspaceRootManager
 
+	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
+	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
+		if (!this.workspaceManager) {
+			try {
+				this.workspaceManager = await setupWorkspaceManager({
+					stateManager: this.stateManager,
+					detectRoots: detectWorkspaceRoots,
+				})
+			} catch (error) {
+				console.error("[Controller] Failed to initialize workspace manager:", error)
+			}
+		}
+		return this.workspaceManager
+	}
+
+	// Synchronous getter for workspace manager
+	getWorkspaceManager(): WorkspaceRootManager | undefined {
+		return this.workspaceManager
+	}
+
 	constructor(readonly context: vscode.ExtensionContext) {
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
-		this.stateManager = new StateManager(context)
+		this.stateManager = StateManager.get()
 		this.authService = AuthService.getInstance(this)
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
+		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
-		// Initialize cache service asynchronously - critical for extension functionality
-		this.stateManager
-			.initialize()
-			.then(() => {
-				this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
-			})
-			.catch((error) => {
-				console.error(
-					"[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:",
-					error,
-				)
-				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: "Failed to initialize Cline's application state. Please restart the extension.",
-				})
-			})
-
-		// Set up persistence error recovery
-		this.stateManager.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
-			console.error("[Controller] Cache persistence failed, recovering:", error)
-			try {
-				await this.stateManager.reInitialize(this.task?.taskId)
+		StateManager.get().registerCallbacks({
+			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
+				console.error("[Controller] Cache persistence failed, recovering:", error)
+				try {
+					await StateManager.get().reInitialize(this.task?.taskId)
+					await this.postStateToWebview()
+					HostProvider.window.showMessage({
+						type: ShowMessageType.WARNING,
+						message: "Saving settings to storage failed.",
+					})
+				} catch (recoveryError) {
+					console.error("[Controller] Cache recovery failed:", recoveryError)
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: "Failed to save settings. Please restart the extension.",
+					})
+				}
+			},
+			onSyncExternalChange: async () => {
 				await this.postStateToWebview()
-				HostProvider.window.showMessage({
-					type: ShowMessageType.WARNING,
-					message: "Saving settings to storage failed.",
-				})
-			} catch (recoveryError) {
-				console.error("[Controller] Cache recovery failed:", recoveryError)
-				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: "Failed to save settings. Please restart the extension.",
-				})
-			}
-		}
-
-		this.stateManager.onSyncExternalChange = async () => {
-			await this.postStateToWebview()
-		}
+			},
+		})
 
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
@@ -141,8 +146,7 @@ export class Controller {
 	// Auth methods
 	async handleSignOut() {
 		try {
-			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
-			this.stateManager.setSecret("clineAccountId", undefined)
+			// AuthService now handles its own storage cleanup in handleDeauth()
 			this.stateManager.setGlobalState("userInfo", undefined)
 
 			// Update API providers through cache service
@@ -170,7 +174,7 @@ export class Controller {
 	// Oca Auth methods
 	async handleOcaSignOut() {
 		try {
-			await this.ocaAuthService.handleDeauth()
+			await this.ocaAuthService.handleDeauth(LogoutReason.USER_INITIATED)
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
@@ -256,6 +260,8 @@ export class Controller {
 			historyItem,
 			taskId,
 		})
+
+		return this.task.taskId
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {

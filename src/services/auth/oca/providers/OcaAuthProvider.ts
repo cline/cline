@@ -3,7 +3,7 @@ import axios from "axios"
 import { jwtDecode } from "jwt-decode"
 import { Controller } from "@/core/controller"
 import { getAxiosSettings } from "@/services/auth/oca/utils/utils"
-
+import type { OcaConfig } from "../utils/types"
 import { generateCodeVerifier, generateRandomString, pkceChallengeFromVerifier } from "../utils/utils"
 
 type PkceState = {
@@ -32,17 +32,17 @@ export class OcaAuthProvider {
 	// Map state -> { code_verifier, nonce, createdAt }
 	private static pkceStateMap: Map<string, PkceState> = new Map()
 
-	protected _config: any
+	protected _config: OcaConfig
 
-	constructor(config: any) {
+	constructor(config: OcaConfig) {
 		this._config = config || {}
 	}
 
-	get config(): any {
+	get config(): OcaConfig {
 		return this._config
 	}
 
-	set config(value: any) {
+	set config(value: OcaConfig) {
 		this._config = value
 	}
 
@@ -92,7 +92,11 @@ export class OcaAuthProvider {
 			return null
 		}
 		try {
-			const { idcs_url, client_id } = this._config
+			const ocaMode = controller.stateManager.getGlobalSettingsKey("ocaMode") || "internal"
+			const { idcs_url, client_id } = ocaMode === "internal" ? this._config.internal : this._config.external
+			if (!idcs_url || !client_id) {
+				throw new Error("IDCS URL or Client ID are not configured")
+			}
 			const discovery = await axios.get(`${idcs_url}/.well-known/openid-configuration`, { ...getAxiosSettings() })
 			const tokenEndpoint = discovery.data.token_endpoint
 			const params: any = {
@@ -122,8 +126,11 @@ export class OcaAuthProvider {
 	}
 
 	// Launch authentication flow: returns URL
-	getAuthUrl(callbackUrl: string): URL {
-		const { idcs_url, client_id, scopes } = this._config
+	getAuthUrl(callbackUrl: string, ocaMode: string): URL {
+		const { idcs_url, client_id, scopes } = ocaMode === "internal" ? this._config.internal : this._config.external
+		if (!idcs_url || !client_id || !scopes) {
+			throw new Error("IDCS URL, Client ID, or Scopes are not configured")
+		}
 		const code_verifier = generateCodeVerifier()
 		const code_challenge = pkceChallengeFromVerifier(code_verifier)
 		const state = generateRandomString(32)
@@ -152,7 +159,11 @@ export class OcaAuthProvider {
 	// signIn expects code and state from the callback!
 	async signIn(controller: Controller, code: string, state: string): Promise<OcaAuthState | null> {
 		try {
-			const { idcs_url, client_id } = this._config
+			const ocaMode = controller.stateManager.getGlobalSettingsKey("ocaMode") || "internal"
+			const { idcs_url, client_id } = ocaMode === "internal" ? this._config.internal : this._config.external
+			if (!idcs_url || !client_id) {
+				throw new Error("IDCS URL or Client ID are not configured")
+			}
 			const entry = OcaAuthProvider.pkceStateMap.get(state)
 			if (!entry) {
 				throw new Error("No PKCE verifier found for this state (possibly expired or flow not initiated)")

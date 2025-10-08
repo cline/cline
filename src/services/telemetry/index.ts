@@ -2,7 +2,7 @@ export type {
 	ITelemetryProvider,
 	TelemetrySettings,
 } from "./providers/ITelemetryProvider"
-export { PostHogTelemetryProvider } from "./providers/PostHogTelemetryProvider"
+export { PostHogTelemetryProvider } from "./providers/posthog/PostHogTelemetryProvider"
 export {
 	type TelemetryProviderConfig,
 	TelemetryProviderFactory,

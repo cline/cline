@@ -2,108 +2,153 @@
 title: "Read Me First"
 ---
 
-## Running Local Models with Cline: What You Need to Know 🤖
+## Running Local Models with Cline
 
-Cline is a powerful AI coding assistant that uses tool-calling to help you write, analyze, and modify code. While running models locally can save on API costs, there's an important trade-off: local models are significantly less reliable at using these essential tools.
+Local models have reached a turning point. For the first time, you can run Cline completely offline with genuinely capable models. No API costs, no data leaving your machine, no internet dependency.
 
-## Why Local Models Are Different 🔬
+The key is choosing the right model for your hardware and configuring it properly.
 
-When you run a "local version" of a model, you're actually running a drastically simplified copy of the original. This process, called distillation, is like trying to compress a professional chef's knowledge into a basic cookbook – you keep the simple recipes but lose the complex techniques and intuition.
+## What You Need to Know
 
-Local models are created by training a smaller model to imitate a larger one, but they typically only retain 1-26% of the original model's capacity. This massive reduction means:
+### Hardware Requirements
 
--   Less ability to understand complex contexts
--   Reduced capability for multi-step reasoning
--   Limited tool-use abilities
--   Simplified decision-making process
+Your RAM determines which models you can run:
 
-Think of it like running your development environment on a calculator instead of a computer – it might handle basic tasks, but complex operations become unreliable or impossible.
+| RAM Tier | Recommended Model | Quantization | What You Get |
+| --- | --- | --- | --- |
+| 32GB | Qwen3 Coder 30B | 4-bit | Entry-level local coding |
+| 64GB | Qwen3 Coder 30B | 8-bit | Full Cline features |
+| 128GB+ | GLM-4.5-Air | 4-bit | Cloud-competitive performance |
 
-<Frame>
-	<img
-		src="https://storage.googleapis.com/cline_public_images/docs/assets/image%20(4).png"
-		alt="Local model comparison diagram"
-	/>
-</Frame>
+### The Model That Works: Qwen3 Coder 30B
 
-### What Actually Happens
+After extensive testing, **Qwen3 Coder 30B** is the only model under 70B parameters that reliably works with Cline. It brings:
 
-When you run a local model with Cline:
+- 256K native context window
+- Strong tool-use capabilities
+- Repository-scale understanding
+- Reliable command execution
 
-#### Performance Impact 📉
+Most smaller models (7B-20B) fail with Cline. They produce broken outputs, refuse to execute commands, or can't handle tool use properly.
 
--   Responses are 5-10x slower than cloud services
--   System resources (CPU, GPU, RAM) get heavily utilized
--   Your computer may become less responsive for other tasks
+### Critical Configuration
 
-#### Tool Reliability Issues 🛠️
+Getting local models to work requires specific settings:
 
--   Code analysis becomes less accurate
--   File operations may be unreliable
--   Browser automation capabilities are reduced
--   Terminal commands might fail more often
--   Complex multi-step tasks often break down
+**For LM Studio:**
+1. Context Length: 262,144 (maximum)
+2. KV Cache Quantization: OFF (critical)
+3. Flash Attention: ON (if available)
 
-### Hardware Requirements 💻
+**For All Local Models:**
+- Enable "Use Compact Prompt" in Cline settings
+- This reduces prompt size by 90% while maintaining core functionality
+- Essential for local inference performance
 
-You'll need at minimum:
+### Quantization Explained
 
--   Modern GPU with 8GB+ VRAM (RTX 3070 or better)
--   32GB+ system RAM
--   Fast SSD storage
--   Good cooling solution
+Quantization reduces model precision to fit on consumer hardware. Think of it as compression:
 
-Even with this hardware, you'll be running smaller, less capable versions of models:
+- **4-bit**: ~75% size reduction. Completely usable for coding tasks.
+- **8-bit**: ~50% size reduction. Better quality, more nuanced responses.
+- **16-bit**: Full precision. Matches cloud APIs but requires 4x the memory.
 
-| Model Size | What You Get                                            |
-| ---------- | ------------------------------------------------------- |
-| 7B models  | Basic coding, limited tool use                          |
-| 14B models | Better coding, unstable tool use                        |
-| 32B models | Good coding, inconsistent tool use                      |
-| 70B models | Best local performance, but requires expensive hardware |
+For Qwen3 Coder 30B:
+- 4-bit: ~17GB download
+- 8-bit: ~32GB download
+- 16-bit: ~60GB download
 
-Put simply, the cloud (API) versions of these models are the full-bore version of the model. The full version of DeepSeek-R1 is 671B. These distilled models are essentially "watered-down" versions of the cloud model.
+### Model Format
 
-### Practical Recommendations 💡
+Choose based on your platform:
 
-#### Consider This Approach
+**MLX (Mac only)**
+- Optimized for Apple Silicon
+- Leverages Metal and AMX acceleration
+- Faster inference on M1/M2/M3 chips
 
-1. Use cloud models for:
-    - Complex development tasks
-    - When tool reliability is crucial
-    - Multi-step operations
-    - Critical code changes
-2. Use local models for:
-    - Simple code completion
-    - Basic documentation
-    - When privacy is paramount
-    - Learning and experimentation
+**GGUF (Universal)**
+- Works on Windows, Linux, and Mac
+- Extensive quantization options
+- Broader tool compatibility
 
-#### If You Must Go Local
+## Performance Characteristics
 
--   Start with smaller models
--   Keep tasks simple and focused
--   Save work frequently
--   Be prepared to switch to cloud models for complex operations
--   Monitor system resources
+Local models perform differently than cloud APIs:
 
-### Common Issues 🚨
+**Expect:**
+- Warmup time when first loading (normal, happens once)
+- Slower inference than cloud models
+- Context ingestion slows with very large repositories
 
--   **"Tool execution failed":** Local models often struggle with complex tool chains. Simplify your prompt.
--   **"No connection could be made because the target machine actively refused it":** This usually means that the Ollama or LM Studio server isn't running, or is running on a different port/address than Cline is configured to use. Double-check the Base URL address in your API Provider settings.
--   **"Cline is having trouble...":** Increase your model's context length to its maximum size.
--   **Slow or incomplete responses:** Local models can be slower than cloud-based models, especially on less powerful hardware. If performance is an issue, try using a smaller model. Expect significantly longer processing times.
--   **System stability:** Watch for high GPU/CPU usage and temperature
--   **Context limitations:** Local models often have smaller context windows than cloud models. Break tasks down into smaller pieces.
+**Don't Expect:**
+- Instant responses like cloud APIs
+- Unlimited context processing speed
+- Zero configuration
 
-### Looking Ahead 🔮
+## When Local Models Excel
 
-Local model capabilities are improving, but they're not yet a complete replacement for cloud services, especially for Cline's tool-based functionality. Consider your specific needs and hardware capabilities carefully before committing to a local-only approach.
+Use local models for:
 
-### Need Help? 🤝
+- Offline development where internet is unreliable
+- Privacy-sensitive projects where code can't leave your environment
+- Cost-conscious development where API usage would be prohibitive
+- Learning and experimentation with unlimited usage
 
--   Join our [Discord](https://discord.gg/cline) community and [r/cline](https://www.reddit.com/r/CLine/)
--   Check the latest compatibility guides
--   Share your experiences with other developers
+## When to Use Cloud Models
 
-Remember: When in doubt, prioritize reliability over cost savings for important development work.
+Cloud models still have advantages for:
+
+- Very large repositories exceeding local context limits
+- Multi-hour refactoring sessions needing maximum context
+- Teams requiring consistent performance across different hardware
+- Tasks requiring the absolute latest model capabilities
+
+## Common Issues
+
+**"Shell integration unavailable" or command execution fails**
+
+Switch to a simpler shell in Cline settings. Go to Cline Settings → Terminal → Default Terminal Profile and select "bash". This resolves 90% of terminal integration problems.
+
+**"No connection could be made"**
+
+Your local server (Ollama or LM Studio) isn't running, or is running on a different port. Check that:
+- The server is actually running
+- The Base URL in Cline settings matches your server's address
+- No firewall is blocking the connection
+
+**Slow or incomplete responses**
+
+This is normal for local models. They're significantly slower than cloud APIs. If it's too slow:
+- Try a smaller quantization (4-bit instead of 8-bit)
+- Reduce context window size
+- Enable compact prompts if you haven't already
+
+**Model seems confused or makes errors**
+
+Ensure you have:
+- Compact prompts enabled
+- KV Cache Quantization disabled (LM Studio)
+- Context length set to maximum
+- Sufficient RAM for your chosen quantization
+
+## Getting Started
+
+1. **Choose your runtime**: [LM Studio](/running-models-locally/lm-studio) or [Ollama](/running-models-locally/ollama)
+2. **Download Qwen3 Coder 30B** in the appropriate quantization for your RAM
+3. **Configure critical settings** as outlined above
+4. **Enable compact prompts** in Cline settings
+5. **Start coding** offline
+
+## The Reality of Local Models
+
+Local models are now genuinely useful for coding tasks, but they're not magic. You're trading some convenience and speed for privacy and cost savings. The setup requires attention to detail, and performance won't match top-tier cloud APIs.
+
+But for the first time, you can run a capable coding agent entirely on your laptop. That's a significant milestone.
+
+## Need Help?
+
+- Join our [Discord](https://discord.gg/cline) community
+- Visit [r/cline](https://www.reddit.com/r/CLine/) on Reddit
+- Check the [LM Studio guide](/running-models-locally/lm-studio) for detailed setup
+- See the [Ollama guide](/running-models-locally/ollama) for alternative setup
