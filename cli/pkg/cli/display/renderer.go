@@ -3,7 +3,6 @@ package display
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/types"
@@ -20,8 +19,7 @@ func NewRenderer() *Renderer {
 	}
 }
 
-// RenderMessage renders a message with timestamp and prefix
-func (r *Renderer) RenderMessage(timestamp, prefix, text string) error {
+func (r *Renderer) RenderMessage(prefix, text string) error {
 	if text == "" {
 		return nil
 	}
@@ -31,16 +29,29 @@ func (r *Renderer) RenderMessage(timestamp, prefix, text string) error {
 		return nil
 	}
 
-	r.typewriter.PrintMessageLine(timestamp, prefix, cleanText)
+	fmt.Printf("%s: %s\n", prefix, cleanText)
 	return nil
 }
 
-// RenderCommand renders a command execution
-func (r *Renderer) RenderCommand(timestamp, command string, isExecuting bool) error {
+func (r *Renderer) RenderMessageWithTimestamp(timestamp, prefix, text string) error {
+	if text == "" {
+		return nil
+	}
+
+	cleanText := r.sanitizeText(text)
+	if cleanText == "" {
+		return nil
+	}
+
+	fmt.Printf("[%s] %s: %s\n", timestamp, prefix, cleanText)
+	return nil
+}
+
+func (r *Renderer) RenderCommand(command string, isExecuting bool) error {
 	if isExecuting {
-		r.typewriter.PrintMessageLine(timestamp, "EXEC", command)
+		r.typewriter.PrintMessageLine("EXEC", command)
 	} else {
-		r.typewriter.PrintMessageLine(timestamp, "CMD", command)
+		r.typewriter.PrintMessageLine("CMD", command)
 	}
 	return nil
 }
@@ -66,25 +77,23 @@ func (r *Renderer) formatUsageInfo(tokensIn, tokensOut, cacheReads, cacheWrites 
 	return fmt.Sprintf("%s ($%.4f)", tokenDetails, cost)
 }
 
-// RenderAPI renders API request information
-func (r *Renderer) RenderAPI(timestamp, status string, apiInfo *types.APIRequestInfo) error {
+func (r *Renderer) RenderAPI(status string, apiInfo *types.APIRequestInfo) error {
 	if apiInfo.Cost >= 0 {
 		message := fmt.Sprintf("%s %s", status, r.formatUsageInfo(apiInfo.TokensIn, apiInfo.TokensOut, apiInfo.CacheReads, apiInfo.CacheWrites, apiInfo.Cost))
-		r.typewriter.PrintMessageLine(timestamp, "API INFO", message)
+		r.typewriter.PrintMessageLine("API INFO", message)
 	} else {
-		r.typewriter.PrintMessageLine(timestamp, "API INFO", status)
+		r.typewriter.PrintMessageLine("API INFO", status)
 	}
 	return nil
 }
 
-// RenderRetry renders retry information
-func (r *Renderer) RenderRetry(timestamp string, attempt, maxAttempts, delaySec int) error {
+func (r *Renderer) RenderRetry(attempt, maxAttempts, delaySec int) error {
 	message := fmt.Sprintf("Retrying failed attempt %d/%d", attempt, maxAttempts)
 	if delaySec > 0 {
 		message += fmt.Sprintf(" in %d seconds", delaySec)
 	}
 	message += "..."
-	r.typewriter.PrintMessageLine(timestamp, "API INFO", message)
+	r.typewriter.PrintMessageLine("API INFO", message)
 	return nil
 }
 
@@ -124,9 +133,8 @@ func (r *Renderer) RenderTaskList(tasks []*cline.TaskItem) error {
 
 func (r *Renderer) RenderDebug(format string, args ...interface{}) error {
 	if global.Config.Verbose {
-		timestamp := time.Now().Format("15:04:05")
 		message := fmt.Sprintf(format, args...)
-		r.typewriter.PrintMessageLine(timestamp, "[DEBUG]", message)
+		r.typewriter.PrintMessageLine("[DEBUG]", message)
 	}
 	return nil
 }

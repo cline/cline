@@ -23,6 +23,7 @@ func NewTaskCommand() *cobra.Command {
 	}
 
 	cmd.AddCommand(newTaskNewCommand())
+	cmd.AddCommand(newTaskOneshotCommand())
 	cmd.AddCommand(newTaskCancelCommand())
 	cmd.AddCommand(newTaskFollowCommand())
 	cmd.AddCommand(NewTaskSendCommand())
@@ -89,6 +90,8 @@ func newTaskNewCommand() *cobra.Command {
 		workspaces []string
 		address    string
 		mode       string
+		settings   []string
+		yolo       bool
 	)
 
 	cmd := &cobra.Command{
@@ -124,8 +127,16 @@ func newTaskNewCommand() *cobra.Command {
 				fmt.Printf("Mode set to: %s\n", mode)
 			}
 
+			// Inject yolo_mode_toggled setting if --yolo flag is set
+
+			// Will append to the -s settings to be parsed by the settings parser logic.
+			// If the yoloMode is also set in the settings, this will override that, since it will be set last.
+			if yolo {
+				settings = append(settings, "yolo_mode_toggled=true")
+			}
+
 			// Create the task
-			taskID, err := taskManager.CreateTask(ctx, prompt, images, files, workspaces)
+			taskID, err := taskManager.CreateTask(ctx, prompt, images, files, workspaces, settings)
 			if err != nil {
 				return fmt.Errorf("failed to create task: %w", err)
 			}
@@ -149,6 +160,73 @@ func newTaskNewCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&workspaces, "workdir", "w", nil, "workdir directory paths")
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
+	cmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format, e.g., -s aws-region=us-west-2 -s mode=act)")
+	cmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
+
+	return cmd
+}
+
+func newTaskOneshotCommand() *cobra.Command {
+	var (
+		images     []string
+		files      []string
+		workspaces []string
+		address    string
+		settings   []string
+	)
+
+	cmd := &cobra.Command{
+		Use:     "oneshot <prompt>",
+		Aliases: []string{"o"},
+		Short:   "Create a task in yolo+plan mode and view until completion",
+		Long:    `Creates a new task in yolo mode (non-interactive) and plan mode, then streams the conversation until completion.`,
+		Args:    cobra.MinimumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+
+			// Get prompt from args/stdin
+			prompt, err := getContentFromStdinAndArgs(args)
+			if err != nil {
+				return fmt.Errorf("failed to read prompt: %w", err)
+			}
+
+			if prompt == "" {
+				return fmt.Errorf("prompt required: provide as argument or pipe via stdin")
+			}
+
+			// Ensure task manager
+			if err := ensureTaskManager(ctx, address); err != nil {
+				return err
+			}
+
+			// Set mode to plan
+			if err := taskManager.SetMode(ctx, "plan", nil, nil, nil); err != nil {
+				return fmt.Errorf("failed to set plan mode: %w", err)
+			}
+			fmt.Println("Mode set to: plan")
+
+			// Inject yolo mode into settings
+			settings = append(settings, "yolo_mode_toggled=true")
+
+			// Create task
+			taskID, err := taskManager.CreateTask(ctx, prompt, images, files, workspaces, settings)
+			if err != nil {
+				return fmt.Errorf("failed to create task: %w", err)
+			}
+
+			fmt.Printf("Task created in yolo+plan mode (ID: %s)\n", taskID)
+			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
+
+			// Follow until completion
+			return taskManager.FollowConversationUntilCompletion(ctx)
+		},
+	}
+
+	cmd.Flags().StringSliceVarP(&images, "image", "i", nil, "attach image files")
+	cmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
+	cmd.Flags().StringSliceVarP(&workspaces, "workdir", "w", nil, "workdir directory paths")
+	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
+	cmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format, e.g., -s model=claude)")
 
 	return cmd
 }
