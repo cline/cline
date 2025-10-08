@@ -26,17 +26,6 @@
 	"personalAccount": "Personal Account",
 	"switchAccount": "Switch Roo Code Cloud Account",
 	"createTeamAccount": "Create Team Account",
-	"usagePreview": {
-		"costPastDays": "Daily cost past {{count}} days",
-		"seeMoreStats": "See more stats in Roo Code Cloud",
-		"invalidDataFormat": "Invalid data format received",
-		"failedToLoad": "Failed to load usage data",
-		"couldNotLoadChart": "Couldn't load chart:",
-		"clickToRetry": "Click to retry",
-		"tasks_one": "{{count}} task",
-		"tasks_other": "{{count}} tasks",
-		"tokens": "{{count}} tokens"
-	},
 	"upsell": {
 		"autoApprovePowerUser": "Giving Roo some independence? Control it from anywhere with Roo Code Cloud. <learnMoreLink>Learn more</learnMoreLink>.",
 		"longRunningTask": "This might take a while. Continue from anywhere with Cloud.",

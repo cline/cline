@@ -132,8 +132,7 @@ export const ChatRowContent = ({
 }: ChatRowContentProps) => {
 	const { t } = useTranslation()
 
-	const { mcpServers, alwaysAllowMcp, currentCheckpoint, mode, apiConfiguration, cloudIsAuthenticated } =
-		useExtensionState()
+	const { mcpServers, alwaysAllowMcp, currentCheckpoint, mode, apiConfiguration } = useExtensionState()
 	const { info: model } = useSelectedModel(apiConfiguration)
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedContent, setEditedContent] = useState("")
@@ -1075,17 +1074,8 @@ export const ChatRowContent = ({
 									{title}
 								</div>
 								<div
-									className={cn(
-										"text-xs text-vscode-dropdown-foreground border-vscode-dropdown-border/50 border px-1.5 py-0.5 rounded-lg",
-										cloudIsAuthenticated &&
-											"cursor-pointer hover:bg-vscode-dropdown-background hover:border-vscode-dropdown-border transition-colors",
-									)}
-									style={{ opacity: cost !== null && cost !== undefined && cost > 0 ? 1 : 0 }}
-									onClick={(e) => {
-										e.stopPropagation() // Prevent parent onClick from firing
-										vscode.postMessage({ type: "switchTab", tab: "cloud" })
-									}}
-									title={t("chat:apiRequest.viewTokenUsage")}>
+									className="text-xs text-vscode-dropdown-foreground border-vscode-dropdown-border/50 border px-1.5 py-0.5 rounded-lg"
+									style={{ opacity: cost !== null && cost !== undefined && cost > 0 ? 1 : 0 }}>
 									${Number(cost || 0)?.toFixed(4)}
 								</div>
 							</div>

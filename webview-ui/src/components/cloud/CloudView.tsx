@@ -9,13 +9,12 @@ import { vscode } from "@src/utils/vscode"
 import { telemetryClient } from "@src/utils/TelemetryClient"
 import { ToggleSwitch } from "@/components/ui/toggle-switch"
 import { renderCloudBenefitsContent } from "./CloudUpsellDialog"
-import { CircleAlert, Lock, TriangleAlert } from "lucide-react"
+import { CircleAlert, Info, Lock, TriangleAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Tab, TabContent, TabHeader } from "../common/Tab"
 import { Button } from "@/components/ui/button"
 import { OrganizationSwitcher } from "./OrganizationSwitcher"
 import { StandardTooltip } from "../ui"
-import { UsagePreview } from "./UsagePreview"
 
 // Define the production URL constant locally to avoid importing from cloud package in tests
 const PRODUCTION_ROO_CODE_API_URL = "https://app.roocode.com"
@@ -146,14 +145,6 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone, orga
 		}
 	}
 
-	const handleViewUsageStats = () => {
-		const baseUrl = cloudApiUrl || PRODUCTION_ROO_CODE_API_URL
-		vscode.postMessage({
-			type: "openExternal",
-			url: `${baseUrl}/usage?utm_source=extension&utm_medium=stats_preview&utm_campaign=stats_preview`,
-		})
-	}
-
 	const handleRemoteControlToggle = () => {
 		const newValue = !remoteControlEnabled
 		setRemoteControlEnabled(newValue)
@@ -173,128 +164,119 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone, orga
 				<Button onClick={onDone}>{t("settings:common.done")}</Button>
 			</TabHeader>
 
-			<TabContent className="flex flex-col justify-between min-h-full">
+			<TabContent className="pt-10">
 				{isAuthenticated ? (
-					<div className="flex flex-col h-full">
-						{/* Content that scrolls */}
-						<div className="">
-							{userInfo && (
-								<div className="flex items-start gap-4 ml-4 mb-6 flex-col min-[300px]:flex-row">
-									{/* Avatar */}
-									<div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-										{userInfo?.picture ? (
-											<img
-												src={userInfo.picture}
-												alt={t("cloud:profilePicture")}
-												className="w-full h-full object-cover"
-											/>
-										) : (
-											<div className="w-full h-full flex items-center justify-center bg-vscode-button-background text-vscode-button-foreground text-xl">
-												{userInfo?.name?.charAt(0) || userInfo?.email?.charAt(0) || "?"}
+					<>
+						{userInfo && (
+							<div className="flex flex-col items-start ml-4 mb-6">
+								<div className="w-16 h-16 mb-3 rounded-full overflow-hidden">
+									{userInfo?.picture ? (
+										<img
+											src={userInfo.picture}
+											alt={t("cloud:profilePicture")}
+											className="w-full h-full object-cover"
+										/>
+									) : (
+										<div className="w-full h-full flex items-center justify-center bg-vscode-button-background text-vscode-button-foreground text-xl">
+											{userInfo?.name?.charAt(0) || userInfo?.email?.charAt(0) || "?"}
+										</div>
+									)}
+								</div>
+								{userInfo.name && (
+									<h2 className="text-lg font-medium text-vscode-foreground my-0">{userInfo.name}</h2>
+								)}
+								{userInfo?.email && (
+									<p className="text-sm text-vscode-descriptionForeground my-0">{userInfo?.email}</p>
+								)}
+
+								{/* Organization Switcher - moved below email */}
+								<div className="w-full max-w-60 mt-4">
+									<OrganizationSwitcher
+										userInfo={userInfo}
+										organizations={organizations}
+										cloudApiUrl={cloudApiUrl}
+									/>
+								</div>
+							</div>
+						)}
+
+						{/* Task Sync Toggle - Always shown when authenticated */}
+						<div className="mt-4 p-4 border-b border-t border-vscode-widget-border pl-4 max-w-140">
+							<div className="flex items-center gap-3 mb-2">
+								<ToggleSwitch
+									checked={taskSyncEnabled}
+									onChange={handleTaskSyncToggle}
+									size="medium"
+									aria-label={t("cloud:taskSync")}
+									data-testid="task-sync-toggle"
+									disabled={!!userInfo?.organizationId}
+								/>
+								<span className="font-medium text-vscode-foreground flex items-center">
+									{t("cloud:taskSync")}
+									{userInfo?.organizationId && (
+										<StandardTooltip content={t("cloud:taskSyncManagedByOrganization")}>
+											<div className="bg-vscode-badge-background text-vscode-badge-foreground/80 p-1.5 ml-2 -mb-2 relative -top-1 rounded-full inline-block cursor-help">
+												<Lock className="size-3 block" />
+											</div>
+										</StandardTooltip>
+									)}
+								</span>
+							</div>
+							<div className="text-vscode-descriptionForeground text-sm mt-1 ml-8">
+								{t("cloud:taskSyncDescription")}
+							</div>
+
+							{/* Remote Control Toggle - Only shown when both extensionBridgeEnabled and featureRoomoteControlEnabled are true */}
+							{userInfo?.extensionBridgeEnabled && featureRoomoteControlEnabled && (
+								<>
+									<div className="flex items-center gap-3 mt-4 mb-2">
+										<ToggleSwitch
+											checked={remoteControlEnabled}
+											onChange={handleRemoteControlToggle}
+											size="medium"
+											aria-label={t("cloud:remoteControl")}
+											data-testid="remote-control-toggle"
+											disabled={!taskSyncEnabled}
+										/>
+										<span className="font-medium text-vscode-foreground">
+											{t("cloud:remoteControl")}
+										</span>
+									</div>
+									<div className="text-vscode-descriptionForeground text-sm mt-1 mb-2 ml-8">
+										{t("cloud:remoteControlDescription")}
+										{!taskSyncEnabled && (
+											<div className="text-vscode-editorWarning-foreground mt-2">
+												<CircleAlert className="inline size-3 mr-1 mb-0.5 text-vscode-editorWarning-foreground" />
+												{t("cloud:remoteControlRequiresTaskSync")}
 											</div>
 										)}
 									</div>
-
-									{/* Name, email and org switcher */}
-									<div className="flex flex-col">
-										{userInfo.name && (
-											<h2 className="text-lg font-medium text-vscode-foreground my-0">
-												{userInfo.name}
-											</h2>
-										)}
-										{userInfo?.email && (
-											<p className="text-sm text-vscode-descriptionForeground my-0 mb-2">
-												{userInfo?.email}
-											</p>
-										)}
-
-										{/* Organization Switcher */}
-										<div className="max-w-60">
-											<OrganizationSwitcher
-												userInfo={userInfo}
-												organizations={organizations}
-												cloudApiUrl={cloudApiUrl}
-											/>
-										</div>
-									</div>
-								</div>
+								</>
 							)}
-
-							{/* Task Sync Toggle - Always shown when authenticated */}
-							<div className="mt-4 p-4 border-b border-t border-vscode-panel-border pl-4 max-w-140">
-								<div className="flex items-center gap-3">
-									<ToggleSwitch
-										checked={taskSyncEnabled}
-										onChange={handleTaskSyncToggle}
-										size="medium"
-										aria-label={t("cloud:taskSync")}
-										data-testid="task-sync-toggle"
-										disabled={!!userInfo?.organizationId}
-									/>
-									<span className="font-medium text-vscode-foreground flex items-center">
-										{t("cloud:taskSync")}
-										{userInfo?.organizationId && (
-											<StandardTooltip content={t("cloud:taskSyncManagedByOrganization")}>
-												<div className="bg-vscode-badge-background text-vscode-badge-foreground/80 p-1.5 ml-2 -mb-2 relative -top-1 rounded-full inline-block cursor-help">
-													<Lock className="size-3 block" />
-												</div>
-											</StandardTooltip>
-										)}
-									</span>
-								</div>
-								<div className="text-vscode-descriptionForeground text-sm mt-1 ml-8">
-									{t("cloud:taskSyncDescription")}
-								</div>
-
-								{/* Remote Control Toggle - Only shown when both extensionBridgeEnabled and featureRoomoteControlEnabled are true */}
-								{userInfo?.extensionBridgeEnabled && featureRoomoteControlEnabled && (
-									<>
-										<div className="flex items-center gap-3 mt-4">
-											<ToggleSwitch
-												checked={remoteControlEnabled}
-												onChange={handleRemoteControlToggle}
-												size="medium"
-												aria-label={t("cloud:remoteControl")}
-												data-testid="remote-control-toggle"
-												disabled={!taskSyncEnabled}
-											/>
-											<span className="font-medium text-vscode-foreground">
-												{t("cloud:remoteControl")}
-											</span>
-										</div>
-										<div className="text-vscode-descriptionForeground text-sm mt-1 mb-2 ml-8">
-											{t("cloud:remoteControlDescription")}
-											{!taskSyncEnabled && (
-												<div className="text-vscode-editorWarning-foreground mt-2">
-													<CircleAlert className="inline size-3 mr-1 mb-0.5 text-vscode-editorWarning-foreground" />
-													{t("cloud:remoteControlRequiresTaskSync")}
-												</div>
-											)}
-										</div>
-									</>
-								)}
-							</div>
-
-							{/* Usage Stats Chart Section */}
-							<div className="mt-4 mb-4 px-4">
-								<UsagePreview onViewDetails={handleViewUsageStats} />
-							</div>
-
-							<div className="flex flex-col gap-2 mt-4 px-4">
-								<VSCodeButton
-									appearance="secondary"
-									onClick={handleVisitCloudWebsite}
-									className="w-full">
-									{t("cloud:visitCloudWebsite")}
-								</VSCodeButton>
-								<VSCodeButton appearance="secondary" onClick={handleLogoutClick} className="w-full">
-									{t("cloud:logOut")}
-								</VSCodeButton>
-							</div>
 						</div>
-					</div>
+
+						<div className="text-vscode-descriptionForeground text-sm mt-4 mb-8 pl-4">
+							<Info className="inline size-3 mr-1 mb-0.5 text-vscode-descriptionForeground" />
+							{t("cloud:usageMetricsAlwaysReported")}
+						</div>
+
+						<div className="flex flex-col gap-2 mt-4 pl-4">
+							<VSCodeButton
+								appearance="secondary"
+								onClick={handleVisitCloudWebsite}
+								className="w-full max-w-80">
+								{t("cloud:visitCloudWebsite")}
+							</VSCodeButton>
+							<VSCodeButton
+								appearance="secondary"
+								onClick={handleLogoutClick}
+								className="w-full max-w-80">
+								{t("cloud:logOut")}
+							</VSCodeButton>
+						</div>
+					</>
 				) : (
-					<div>
+					<>
 						<div className="flex flex-col items-start gap-4 px-8 max-w-100">
 							<div className={cn(authInProgress && "opacity-50")}>{renderCloudBenefitsContent(t)}</div>
 
@@ -347,7 +329,7 @@ export const CloudView = ({ userInfo, isAuthenticated, cloudApiUrl, onDone, orga
 								</div>
 							)}
 						</div>
-					</div>
+					</>
 				)}
 				{cloudApiUrl && cloudApiUrl !== PRODUCTION_ROO_CODE_API_URL && (
 					<div className="ml-4 mt-6 flex">

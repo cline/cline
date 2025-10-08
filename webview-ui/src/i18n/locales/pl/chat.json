@@ -141,8 +141,7 @@
 		"failed": "Zapytanie API nie powiodło się",
 		"streaming": "Zapytanie API...",
 		"cancelled": "Zapytanie API anulowane",
-		"streamingFailed": "Strumieniowanie API nie powiodło się",
-		"viewTokenUsage": "Wyświetl statystyki użycia tokenów"
+		"streamingFailed": "Strumieniowanie API nie powiodło się"
 	},
 	"checkpoint": {
 		"regular": "Punkt kontrolny",

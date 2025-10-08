@@ -26,17 +26,6 @@
 	"switchAccount": "Roo Code Cloud アカウントを切り替え",
 	"createTeamAccount": "チームアカウントを作成",
 	"cloudUrlPillLabel": "Roo Code Cloud URL",
-	"usagePreview": {
-		"costPastDays": "過去{{count}}日間の日次コスト",
-		"seeMoreStats": "Roo Code Cloudでさらに統計を見る",
-		"invalidDataFormat": "無効なデータ形式を受信しました",
-		"failedToLoad": "使用状況データの読み込みに失敗しました",
-		"couldNotLoadChart": "チャートを読み込めませんでした：",
-		"clickToRetry": "クリックして再試行",
-		"tasks_one": "{{count}}タスク",
-		"tasks_other": "{{count}}タスク",
-		"tokens": "{{count}}トークン"
-	},
 	"upsell": {
 		"autoApprovePowerUser": "Rooに少し独立性を与えませんか？Roo Code Cloudでどこからでもコントロールできます。<learnMoreLink>詳細</learnMoreLink>。",
 		"longRunningTask": "これには時間がかかるかもしれません。Cloudを使えばどこからでも続けられます。",

@@ -141,8 +141,7 @@
 		"failed": "API İsteği Başarısız",
 		"streaming": "API İsteği...",
 		"cancelled": "API İsteği İptal Edildi",
-		"streamingFailed": "API Akışı Başarısız",
-		"viewTokenUsage": "Token kullanım istatistiklerini görüntüle"
+		"streamingFailed": "API Akışı Başarısız"
 	},
 	"checkpoint": {
 		"regular": "Kontrol Noktası",

@@ -141,8 +141,7 @@
 		"failed": "API请求失败",
 		"streaming": "API请求...",
 		"cancelled": "API请求已取消",
-		"streamingFailed": "API流式传输失败",
-		"viewTokenUsage": "查看 Token 使用情况统计"
+		"streamingFailed": "API流式传输失败"
 	},
 	"checkpoint": {
 		"regular": "检查点",

@@ -26,17 +26,6 @@
 	"personalAccount": "Compte Personal",
 	"createTeamAccount": "Crear Compte d'Equip",
 	"switchAccount": "Canviar Compte de Roo Code Cloud",
-	"usagePreview": {
-		"costPastDays": "Cost diari dels darrers {{count}} dies",
-		"seeMoreStats": "Consulta més estadístiques a Roo Code Cloud",
-		"invalidDataFormat": "S'ha rebut un format de dades no vàlid",
-		"failedToLoad": "No s'han pogut carregar les dades d'ús",
-		"couldNotLoadChart": "No s'ha pogut carregar el gràfic:",
-		"clickToRetry": "Fes clic per tornar a intentar-ho",
-		"tasks_one": "{{count}} tasca",
-		"tasks_other": "{{count}} tasques",
-		"tokens": "{{count}} tokens"
-	},
 	"upsell": {
 		"autoApprovePowerUser": "Donant-li una mica d'independència a Roo? Controla'l des de qualsevol lloc amb Roo Code Cloud. <learnMoreLink>Més informació</learnMoreLink>.",
 		"longRunningTask": "Això pot trigar una estona. Continua des de qualsevol lloc amb Cloud.",

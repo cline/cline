@@ -26,17 +26,6 @@
 	"switchAccount": "Chuyển Tài Khoản Roo Code Cloud",
 	"createTeamAccount": "Tạo Tài Khoản Nhóm",
 	"cloudUrlPillLabel": "URL Roo Code Cloud",
-	"usagePreview": {
-		"costPastDays": "Chi phí hàng ngày trong {{count}} ngày qua",
-		"seeMoreStats": "Xem thêm số liệu thống kê trong Roo Code Cloud",
-		"invalidDataFormat": "Định dạng dữ liệu nhận được không hợp lệ",
-		"failedToLoad": "Không thể tải dữ liệu sử dụng",
-		"couldNotLoadChart": "Không thể tải biểu đồ:",
-		"clickToRetry": "Nhấp để thử lại",
-		"tasks_one": "{{count}} nhiệm vụ",
-		"tasks_other": "{{count}} nhiệm vụ",
-		"tokens": "{{count}} token"
-	},
 	"upsell": {
 		"autoApprovePowerUser": "Trao cho Roo một chút độc lập? Kiểm soát nó từ mọi nơi với Roo Code Cloud. <learnMoreLink>Tìm hiểu thêm</learnMoreLink>.",
 		"longRunningTask": "Việc này có thể mất một lúc. Tiếp tục từ mọi nơi với Cloud.",

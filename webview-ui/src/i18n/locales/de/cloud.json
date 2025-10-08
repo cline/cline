@@ -26,17 +26,6 @@
 	"switchAccount": "Roo Code Cloud Konto wechseln",
 	"createTeamAccount": "Team-Konto erstellen",
 	"cloudUrlPillLabel": "Roo Code Cloud URL",
-	"usagePreview": {
-		"costPastDays": "Tägliche Kosten der letzten {{count}} Tage",
-		"seeMoreStats": "Weitere Statistiken in Roo Code Cloud anzeigen",
-		"invalidDataFormat": "Ungültiges Datenformat empfangen",
-		"failedToLoad": "Nutzungsdaten konnten nicht geladen werden",
-		"couldNotLoadChart": "Diagramm konnte nicht geladen werden:",
-		"clickToRetry": "Klicken, um es erneut zu versuchen",
-		"tasks_one": "{{count}} Aufgabe",
-		"tasks_other": "{{count}} Aufgaben",
-		"tokens": "{{count}} Tokens"
-	},
 	"upsell": {
 		"autoApprovePowerUser": "Roo etwas Unabhängigkeit geben? Kontrolliere es von überall mit Roo Code Cloud. <learnMoreLink>Mehr erfahren</learnMoreLink>.",
 		"longRunningTask": "Das könnte eine Weile dauern. Mit Cloud von überall weitermachen.",

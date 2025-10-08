@@ -147,8 +147,7 @@
 		"failed": "API 請求失敗",
 		"streaming": "正在處理 API 請求...",
 		"cancelled": "API 請求已取消",
-		"streamingFailed": "API 串流處理失敗",
-		"viewTokenUsage": "檢視權杖使用情況統計"
+		"streamingFailed": "API 串流處理失敗"
 	},
 	"checkpoint": {
 		"regular": "檢查點",

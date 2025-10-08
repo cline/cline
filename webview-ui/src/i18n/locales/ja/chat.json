@@ -141,8 +141,7 @@
 		"failed": "APIリクエスト失敗",
 		"streaming": "APIリクエスト...",
 		"cancelled": "APIリクエストキャンセル",
-		"streamingFailed": "APIストリーミング失敗",
-		"viewTokenUsage": "トークン使用状況の統計を表示"
+		"streamingFailed": "APIストリーミング失敗"
 	},
 	"checkpoint": {
 		"regular": "チェックポイント",

@@ -26,17 +26,6 @@
 	"switchAccount": "Roo Code Cloud खाता बदलें",
 	"createTeamAccount": "टीम खाता बनाएं",
 	"cloudUrlPillLabel": "Roo Code Cloud URL",
-	"usagePreview": {
-		"costPastDays": "पिछले {{count}} दिनों की दैनिक लागत",
-		"seeMoreStats": "रू कोड क्लाउड में और आँकड़े देखें",
-		"invalidDataFormat": "अमान्य डेटा प्रारूप प्राप्त हुआ",
-		"failedToLoad": "उपयोग डेटा लोड करने में विफल",
-		"couldNotLoadChart": "चार्ट लोड नहीं हो सका:",
-		"clickToRetry": "पुनः प्रयास करने के लिए क्लिक करें",
-		"tasks_one": "{{count}} कार्य",
-		"tasks_other": "{{count}} कार्य",
-		"tokens": "{{count}} टोकन"
-	},
 	"upsell": {
 		"autoApprovePowerUser": "रू को थोड़ी स्वतंत्रता दे रहे हैं? रू कोड क्लाउड के साथ इसे कहीं से भी नियंत्रित करें। <learnMoreLink>और जानें</learnMoreLink>।",
 		"longRunningTask": "इसमें थोड़ा समय लग सकता है। क्लाउड के साथ कहीं से भी जारी रखें।",

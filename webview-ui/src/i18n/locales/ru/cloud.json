@@ -26,17 +26,6 @@
 	"switchAccount": "Переключить аккаунт Roo Code Cloud",
 	"createTeamAccount": "Создать командный аккаунт",
 	"cloudUrlPillLabel": "URL Roo Code Cloud",
-	"usagePreview": {
-		"costPastDays": "Ежедневная стоимость за последние {{count}} дней",
-		"seeMoreStats": "Смотреть больше статистики в Roo Code Cloud",
-		"invalidDataFormat": "Получен неверный формат данных",
-		"failedToLoad": "Не удалось загрузить данные об использовании",
-		"couldNotLoadChart": "Не удалось загрузить диаграмму:",
-		"clickToRetry": "Нажмите, чтобы повторить попытку",
-		"tasks_one": "{{count}} задача",
-		"tasks_other": "{{count}} задачи",
-		"tokens": "{{count}} токенов"
-	},
 	"upsell": {
 		"autoApprovePowerUser": "Предоставить Roo немного независимости? Управляйте им из любого места с помощью Roo Code Cloud. <learnMoreLink>Узнать больше</learnMoreLink>.",
 		"longRunningTask": "Это может занять некоторое время. Продолжайте из любого места с помощью Облака.",

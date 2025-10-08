@@ -147,8 +147,7 @@
 		"failed": "API Request Failed",
 		"streaming": "API Request...",
 		"cancelled": "API Request Cancelled",
-		"streamingFailed": "API Streaming Failed",
-		"viewTokenUsage": "View token usage stats"
+		"streamingFailed": "API Streaming Failed"
 	},
 	"checkpoint": {
 		"regular": "Checkpoint",

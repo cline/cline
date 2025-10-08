@@ -150,8 +150,7 @@
 		"failed": "Permintaan API Gagal",
 		"streaming": "Permintaan API...",
 		"cancelled": "Permintaan API Dibatalkan",
-		"streamingFailed": "Streaming API Gagal",
-		"viewTokenUsage": "Lihat statistik penggunaan token"
+		"streamingFailed": "Streaming API Gagal"
 	},
 	"checkpoint": {
 		"regular": "Checkpoint",

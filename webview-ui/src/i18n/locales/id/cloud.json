@@ -26,17 +26,6 @@
 	"switchAccount": "Ganti Akun Roo Code Cloud",
 	"createTeamAccount": "Buat Akun Tim",
 	"cloudUrlPillLabel": "URL Roo Code Cloud",
-	"usagePreview": {
-		"costPastDays": "Biaya harian {{count}} hari terakhir",
-		"seeMoreStats": "Lihat statistik lainnya di Roo Code Cloud",
-		"invalidDataFormat": "Format data yang diterima tidak valid",
-		"failedToLoad": "Gagal memuat data penggunaan",
-		"couldNotLoadChart": "Tidak dapat memuat bagan:",
-		"clickToRetry": "Klik untuk mencoba lagi",
-		"tasks_one": "{{count}} tugas",
-		"tasks_other": "{{count}} tugas",
-		"tokens": "{{count}} token"
-	},
 	"upsell": {
 		"autoApprovePowerUser": "Memberi Roo sedikit kebebasan? Kendalikan dari mana saja dengan Roo Code Cloud. <learnMoreLink>Pelajari lebih lanjut</learnMoreLink>.",
 		"longRunningTask": "Ini mungkin akan memakan waktu cukup lama. Lanjutkan dari mana saja dengan Cloud.",

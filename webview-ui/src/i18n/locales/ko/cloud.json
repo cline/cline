@@ -26,17 +26,6 @@
 	"switchAccount": "Roo Code Cloud 계정 전환",
 	"createTeamAccount": "팀 계정 만들기",
 	"cloudUrlPillLabel": "Roo Code Cloud URL",
-	"usagePreview": {
-		"costPastDays": "지난 {{count}}일간의 일일 비용",
-		"seeMoreStats": "Roo Code Cloud에서 더 많은 통계 보기",
-		"invalidDataFormat": "잘못된 데이터 형식을 받았습니다",
-		"failedToLoad": "사용 데이터를 로드하지 못했습니다",
-		"couldNotLoadChart": "차트를 로드할 수 없습니다:",
-		"clickToRetry": "클릭하여 다시 시도",
-		"tasks_one": "{{count}}개 작업",
-		"tasks_other": "{{count}}개 작업",
-		"tokens": "{{count}}개 토큰"
-	},
 	"upsell": {
 		"autoApprovePowerUser": "Roo에게 약간의 독립성을 부여하시겠습니까? Roo Code Cloud로 어디서든 제어하세요. <learnMoreLink>더 알아보기</learnMoreLink>.",
 		"longRunningTask": "시간이 좀 걸릴 수 있습니다. Cloud로 어디서든 계속하세요.",
