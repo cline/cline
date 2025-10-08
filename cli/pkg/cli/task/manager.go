@@ -598,8 +598,10 @@ func (m *Manager) ShowConversation(ctx context.Context) error {
 		return nil
 	}
 
-	// Display messages
 	for i, msg := range messages {
+		if msg.Partial {
+			continue
+		}
 		m.displayMessage(msg, false, false, i)
 	}
 
@@ -811,16 +813,44 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			foundCompletion = true
 		}
 
-		// Currently handling a subset of message types for displaying
 		switch {
 		case msg.Say == string(types.SayTypeUserFeedback):
 			if !coordinator.IsProcessedInCurrentTurn("user_msg") {
+				fmt.Println()
 				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn("user_msg")
 			}
 
+		case msg.Say == string(types.SayTypeCommand):
+			if !coordinator.IsProcessedInCurrentTurn("command") {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn("command")
+			}
+
+		case msg.Say == string(types.SayTypeCommandOutput):
+			if !coordinator.IsProcessedInCurrentTurn("command_output") {
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn("command_output")
+			}
+
+		case msg.Say == string(types.SayTypeBrowserActionLaunch):
+			if !coordinator.IsProcessedInCurrentTurn("browser_launch") {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn("browser_launch")
+			}
+
+		case msg.Say == string(types.SayTypeMcpServerRequestStarted):
+			if !coordinator.IsProcessedInCurrentTurn("mcp_request") {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn("mcp_request")
+			}
+
 		case msg.Say == string(types.SayTypeCheckpointCreated):
 			if !coordinator.IsProcessedInCurrentTurn("checkpoint") {
+				fmt.Println()
 				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn("checkpoint")
 			}
@@ -832,6 +862,12 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				m.displayMessage(msg, false, false, i)
 				coordinator.CompleteTurn(len(messages))
 				displayedUsage = true
+			}
+
+		case msg.Ask == string(types.AskTypeCommandOutput):
+			if !coordinator.IsProcessedInCurrentTurn("ask_command_output") {
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn("ask_command_output")
 			}
 		}
 	}
@@ -977,11 +1013,13 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 		fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
 	}
 
-	// Display recent messages
 	for i := startIndex; i < len(messages); i++ {
 		msg := messages[i]
 
-		// Display the message
+		if msg.Partial {
+			continue
+		}
+
 		m.displayMessage(msg, false, false, i)
 	}
 

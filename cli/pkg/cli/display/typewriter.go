@@ -160,11 +160,8 @@ func (tp *TypewriterPrinter) SetSpeed(multiplier float64) {
 	tp.config.PauseDelay = time.Duration(float64(150*time.Millisecond) / multiplier)
 }
 
-// PrintMessageLine prints a complete message line with typewriter effect
-func (tp *TypewriterPrinter) PrintMessageLine(timestamp, prefix, text string) {
-	// Print the timestamp and prefix with 10-char padding
-	tp.PrintfInstant("[%s] %-10s: ", timestamp, prefix)
-	// Print the message text with typewriter effect
+func (tp *TypewriterPrinter) PrintMessageLine(prefix, text string) {
+	tp.PrintfInstant("%s: ", prefix)
 	tp.Println(text)
 }
 
@@ -193,9 +190,8 @@ func TypewriterPrintfLn(format string, args ...interface{}) {
 	globalTypewriter.PrintfLn(format, args...)
 }
 
-// TypewriterPrintMessageLine prints a message line with typewriter effect using the global instance
-func TypewriterPrintMessageLine(timestamp, prefix, text string) {
-	globalTypewriter.PrintMessageLine(timestamp, prefix, text)
+func TypewriterPrintMessageLine(prefix, text string) {
+	globalTypewriter.PrintMessageLine(prefix, text)
 }
 
 // SetGlobalTypewriterEnabled enables or disables the global typewriter effect
