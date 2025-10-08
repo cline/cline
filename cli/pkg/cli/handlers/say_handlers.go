@@ -391,7 +391,7 @@ func (h *SayHandler) handleClineignoreError(msg *types.ClineMessage, dc *Display
 // handleCheckpointCreated handles checkpoint created messages
 func (h *SayHandler) handleCheckpointCreated(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
 	message := fmt.Sprintf("Checkpoint created (ID: %d)", msg.Timestamp)
-	return dc.Renderer.RenderMessage("GEN INFO", message)
+	return dc.Renderer.RenderMessageWithTimestamp(timestamp, "GEN INFO", message)
 }
 
 // handleLoadMcpDocumentation handles load MCP documentation messages

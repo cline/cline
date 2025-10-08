@@ -36,6 +36,22 @@ func (r *Renderer) RenderMessage(prefix, text string) error {
 	return nil
 }
 
+// RenderMessageWithTimestamp renders a message with timestamp and prefix (only for checkpoints)
+func (r *Renderer) RenderMessageWithTimestamp(timestamp, prefix, text string) error {
+	if text == "" {
+		return nil
+	}
+
+	cleanText := r.sanitizeText(text)
+	if cleanText == "" {
+		return nil
+	}
+
+	// Print with timestamp
+	fmt.Printf("[%s] %s: %s\n", timestamp, prefix, cleanText)
+	return nil
+}
+
 // RenderCommand renders a command execution
 func (r *Renderer) RenderCommand(timestamp, command string, isExecuting bool) error {
 	if isExecuting {
