@@ -89,28 +89,28 @@ func (ss *StreamingSegment) Render() error {
 	}
 
 	// LIVE markdown rendering
-	// Add blank line before first render
-	if ss.lastLineCount == 0 {
-		fmt.Println()
-	}
-	
-	// Clear previous render
+	// Clear previous render (if any)
 	if ss.lastLineCount > 0 {
 		ClearLines(ss.lastLineCount)
+	} else {
+		// First render - add blank line before segment
+		fmt.Println()
 	}
 
 	// Print live markdown
 	fmt.Print(rendered)
+	
+	// Track how many lines we actually printed (not including any trailing newline we might add)
+	actualLines := strings.Count(rendered, "\n")
+	
+	// Add final newline if needed
 	if !strings.HasSuffix(rendered, "\n") {
 		fmt.Println()
+		actualLines++ // Count the newline we just added
 	}
-
-	// Update line count - use actual printed lines, not calculated
-	// Count newlines in what we just printed
-	ss.lastLineCount = strings.Count(rendered, "\n")
-	if !strings.HasSuffix(rendered, "\n") {
-		ss.lastLineCount++ // Add the blank line we printed
-	}
+	
+	// Save this for next clear
+	ss.lastLineCount = actualLines
 
 	// Update state
 	ss.lastRendered = rendered
