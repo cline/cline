@@ -888,6 +888,10 @@ func (m *Manager) handlePartialMessageStream(ctx context.Context, coordinator *S
 		return
 	}
 
+	defer func() {
+		m.streamingDisplay.FreezeActiveSegment()
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():

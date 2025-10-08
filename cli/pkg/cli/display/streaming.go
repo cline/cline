@@ -11,18 +11,26 @@ import (
 
 // StreamingDisplay manages streaming message display with deduplication
 type StreamingDisplay struct {
-	mu       sync.RWMutex
-	state    *types.ConversationState
-	renderer *Renderer
-	dedupe   *MessageDeduplicator
+	mu            sync.RWMutex
+	state         *types.ConversationState
+	renderer      *Renderer
+	dedupe        *MessageDeduplicator
+	activeSegment *StreamingSegment
+	mdRenderer    *MarkdownRenderer
 }
 
 // NewStreamingDisplay creates a new streaming display manager
 func NewStreamingDisplay(state *types.ConversationState, renderer *Renderer) *StreamingDisplay {
+	mdRenderer, err := NewMarkdownRenderer()
+	if err != nil {
+		mdRenderer = nil
+	}
+
 	return &StreamingDisplay{
-		state:    state,
-		renderer: renderer,
-		dedupe:   NewMessageDeduplicator(),
+		state:      state,
+		renderer:   renderer,
+		dedupe:     NewMessageDeduplicator(),
+		mdRenderer: mdRenderer,
 	}
 }
 
@@ -31,25 +39,56 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	messageKey := fmt.Sprintf("%d", msg.Timestamp)
-	timestamp := msg.GetTimestamp()
-
 	// Check for deduplication
 	if s.dedupe.IsDuplicate(msg) {
 		return nil
 	}
 
-	// Get current streaming state
-	streamingMsg := s.state.GetStreamingMessage()
+	// Skip if markdown renderer not available, fall back to old behavior
+	if s.mdRenderer == nil {
+		messageKey := fmt.Sprintf("%d", msg.Timestamp)
+		timestamp := msg.GetTimestamp()
+		streamingMsg := s.state.GetStreamingMessage()
 
-	switch msg.Type {
-	case types.MessageTypeAsk:
-		return s.handleStreamingAsk(msg, messageKey, timestamp, streamingMsg)
-	case types.MessageTypeSay:
-		return s.handleStreamingSay(msg, messageKey, timestamp, streamingMsg)
-	default:
-		return s.renderer.RenderMessage("CLINE", msg.Text)
+		switch msg.Type {
+		case types.MessageTypeAsk:
+			return s.handleStreamingAsk(msg, messageKey, timestamp, streamingMsg)
+		case types.MessageTypeSay:
+			return s.handleStreamingSay(msg, messageKey, timestamp, streamingMsg)
+		default:
+			return s.renderer.RenderMessage("CLINE", msg.Text)
+		}
 	}
+
+	// Segment-based markdown streaming
+	msgType := s.getMessageType(msg)
+
+	// Detect segment boundary
+	if s.activeSegment != nil && s.activeSegment.messageType != msgType {
+		s.activeSegment.Freeze()
+		s.activeSegment = nil
+	}
+
+	// Start new segment if needed
+	if s.activeSegment == nil {
+		shouldMd := s.shouldRenderMarkdown(msgType)
+		prefix := s.getPrefix(msgType)
+		s.activeSegment = NewStreamingSegment(msgType, prefix, s.mdRenderer, shouldMd)
+		fmt.Println()
+	}
+
+	// Append text to active segment
+	if msg.Text != "" {
+		s.activeSegment.AppendText(msg.Text)
+	}
+
+	// If message is complete, freeze segment
+	if !msg.Partial {
+		s.activeSegment.Freeze()
+		s.activeSegment = nil
+	}
+
+	return nil
 }
 
 // handleStreamingAsk handles streaming ASK messages
@@ -450,8 +489,64 @@ func (s *StreamingDisplay) parseJSON(text string, v interface{}) error {
 	return json.Unmarshal([]byte(text), v)
 }
 
+func (s *StreamingDisplay) getMessageType(msg *types.ClineMessage) string {
+	if msg.Type == types.MessageTypeAsk {
+		return "ASK"
+	}
+
+	switch msg.Say {
+	case string(types.SayTypeText):
+		return "CLINE"
+	case string(types.SayTypeReasoning):
+		return "THINKING"
+	case string(types.SayTypeCompletionResult):
+		return "RESULT"
+	case string(types.SayTypeCommand):
+		return "CMD"
+	default:
+		return msg.Say
+	}
+}
+
+func (s *StreamingDisplay) shouldRenderMarkdown(msgType string) bool {
+	switch msgType {
+	case "THINKING", "CLINE", "RESULT", "ASK", "CMD":
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *StreamingDisplay) getPrefix(msgType string) string {
+	switch msgType {
+	case "THINKING":
+		return "THINKING"
+	case "CLINE":
+		return "CLINE"
+	case "RESULT":
+		return "RESULT"
+	case "ASK":
+		return "ASK"
+	case "CMD":
+		return "TERMINAL"
+	default:
+		return msgType
+	}
+}
+
+func (s *StreamingDisplay) FreezeActiveSegment() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.activeSegment != nil {
+		s.activeSegment.Freeze()
+		s.activeSegment = nil
+	}
+}
+
 // Cleanup cleans up streaming display resources
 func (s *StreamingDisplay) Cleanup() {
+	s.FreezeActiveSegment()
 	if s.dedupe != nil {
 		s.dedupe.Stop()
 	}
