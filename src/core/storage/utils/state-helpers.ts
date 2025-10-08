@@ -541,7 +541,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			isNewUser: isNewUser ?? true,
 			welcomeViewCompleted,
 			lastShownAnnouncementId,
-			taskHistory: taskHistory || [],
 			autoApprovalSettings: autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS, // default value can be 0 or empty string
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
@@ -572,6 +571,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			// Feature flag - defaults to false
 			// For now, always return false to disable multi-root support by default
 			multiRootEnabled: !!multiRootEnabled,
+			// Workspace metadata for multi-workspace task support
+			workspaceMetadata: undefined,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)

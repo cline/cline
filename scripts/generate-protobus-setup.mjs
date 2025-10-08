@@ -115,11 +115,17 @@ async function generateVscodeProtobusServers(protobusServices) {
 	const serviceMap = []
 	for (const [serviceName, def] of Object.entries(protobusServices)) {
 		const domain = getDomainName(serviceName)
-		const dir = getDirName(serviceName)
 		imports.push(`// ${domain} Service`)
 		servers.push(`const ${serviceName}Handlers: serviceTypes.${serviceName}Handlers = {`)
 		for (const [rpcName, _rpc] of Object.entries(def.service)) {
-			imports.push(`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`)
+			const dir = getDirName(serviceName, rpcName)
+			let importPath
+			if (dir === "workspace") {
+				importPath = `@core/controller/workspace/${rpcName}`
+			} else {
+				importPath = `@core/controller/${dir}/${rpcName}`
+			}
+			imports.push(`import { ${rpcName} } from "${importPath}"`)
 			servers.push(`    ${rpcName}: ${rpcName},`)
 		}
 		servers.push(`} \n`)
@@ -151,12 +157,18 @@ async function generateStandaloneProtobusServiceSetup(protobusServices) {
 
 	for (const [name, def] of Object.entries(protobusServices)) {
 		const domain = getDomainName(name)
-		const dir = getDirName(name)
 		imports.push(`// ${domain} Service`)
 		handlerSetup.push(`    // ${domain} Service`)
 		handlerSetup.push(`    server.addService(cline.${name}Service, {`)
 		for (const [rpcName, rpc] of Object.entries(def.service)) {
-			imports.push(`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`)
+			const dir = getDirName(name, rpcName)
+			let importPath
+			if (dir === "workspace") {
+				importPath = `@core/controller/workspace/${rpcName}`
+			} else {
+				importPath = `@core/controller/${dir}/${rpcName}`
+			}
+			imports.push(`import { ${rpcName} } from "${importPath}"`)
 			const requestType = "cline." + rpc.requestType.type.name
 			const responseType = "cline." + rpc.responseType.type.name
 			if (rpc.requestStream) {
@@ -200,9 +212,17 @@ ${handlerSetup.join("\n")}
 function getDomainName(serviceName) {
 	return serviceName.replace(/Service$/, "")
 }
-function getDirName(serviceName) {
+function getDirName(serviceName, rpcName) {
 	const domain = getDomainName(serviceName)
-	return domain.charAt(0).toLowerCase() + domain.slice(1)
+	const baseDir = domain.charAt(0).toLowerCase() + domain.slice(1)
+
+	if (serviceName === "TaskService") {
+		if (rpcName === "getKnownWorkspaces" || rpcName === "associateTaskWithWorkspace") {
+			return "workspace"
+		}
+	}
+
+	return baseDir
 }
 
 // Only run main if this script is executed directly

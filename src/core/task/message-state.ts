@@ -65,6 +65,14 @@ export class MessageStateHandler {
 			// combined as they are in ChatView
 			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
 			const taskMessage = this.clineMessages[0] // first message is always the task say
+
+			// Find the last relevant message, excluding resume messages
+			const lastRelevantMessageIndex = findLastIndex(
+				this.clineMessages,
+				(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
+			)
+
+			// Handle case where no relevant message is found (empty or only resume messages)
 			const lastRelevantMessage =
 				this.clineMessages[
 					findLastIndex(
@@ -82,11 +90,42 @@ export class MessageStateHandler {
 				console.error("Failed to get task directory size:", taskDir, error)
 			}
 			const cwd = await getCwd(getDesktopDir())
+
+			// PHASE 2: Data Validation - Ensure valid ts and task values
+			const ts = lastRelevantMessage.ts
+			const taskText = taskMessage.text ?? ""
+
+			// Validate timestamp
+			let validTs: number
+			if (typeof ts === "number" && ts > 0) {
+				validTs = ts
+			} else {
+				validTs = Date.now()
+				console.warn("[TaskHistory] Invalid timestamp detected, using current time:", {
+					taskId: this.taskId,
+					invalidTs: ts,
+					fallbackTs: validTs,
+				})
+			}
+
+			// Validate task text
+			let validTask: string
+			if (typeof taskText === "string" && taskText.length > 0) {
+				validTask = taskText
+			} else {
+				validTask = "[No task description]"
+				console.warn("[TaskHistory] Empty task text detected, using placeholder:", {
+					taskId: this.taskId,
+					invalidTask: taskText,
+					fallbackTask: validTask,
+				})
+			}
+
 			await this.updateTaskHistory({
 				id: this.taskId,
 				ulid: this.ulid,
-				ts: lastRelevantMessage.ts,
-				task: taskMessage.text ?? "",
+				ts: validTs,
+				task: validTask,
 				tokensIn: apiMetrics.totalTokensIn,
 				tokensOut: apiMetrics.totalTokensOut,
 				cacheWrites: apiMetrics.totalCacheWrites,

@@ -1,10 +1,4 @@
 import * as vscode from "vscode"
-import {
-	migrateCustomInstructionsToGlobalRules,
-	migrateTaskHistoryToFile,
-	migrateWelcomeViewCompleted,
-	migrateWorkspaceToGlobalStorage,
-} from "./core/storage/state-migrations"
 import { WebviewProvider } from "./core/webview"
 import { Logger } from "./services/logging/Logger"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
@@ -47,18 +41,6 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Setup the external services
 	await ErrorService.initialize()
 	await featureFlagsService.poll()
-
-	// Migrate custom instructions to global Cline rules (one-time cleanup)
-	await migrateCustomInstructionsToGlobalRules(context)
-
-	// Migrate welcomeViewCompleted setting based on existing API keys (one-time cleanup)
-	await migrateWelcomeViewCompleted(context)
-
-	// Migrate workspace storage values back to global storage (reverting previous migration)
-	await migrateWorkspaceToGlobalStorage(context)
-
-	// Ensure taskHistory.json exists and migrate legacy state (runs once)
-	await migrateTaskHistoryToFile(context)
 
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
