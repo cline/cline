@@ -120,10 +120,9 @@ func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayC
 		return nil
 	}
 
-	err := dc.Renderer.RenderMessage("ASST PLAN", response, true)
-	if err != nil {
-		return err
-	}
+	markdown := fmt.Sprintf("### Cline (Plan Mode)\n\n%s", response)
+	rendered := dc.Renderer.RenderMarkdown(markdown)
+	fmt.Printf("\n%s\n", rendered)
 
 	// Display options if available
 	if len(options) > 0 {
