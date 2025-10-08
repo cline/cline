@@ -210,21 +210,6 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					</VSCodeCheckbox>
 
 					<VSCodeCheckbox
-						checked={!!openAiModelInfo?.supportsImages}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							const modelInfo = openAiModelInfo ? openAiModelInfo : { ...openAiModelInfoSaneDefaults }
-							modelInfo.supportsImages = isChecked
-							handleModeFieldChange(
-								{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
-								modelInfo,
-								currentMode,
-							)
-						}}>
-						Supports browser use
-					</VSCodeCheckbox>
-
-					<VSCodeCheckbox
 						checked={!!openAiModelInfo?.isR1FormatRequired}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
