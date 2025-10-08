@@ -3,9 +3,10 @@ package types
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cline/grpc-go/cline"
 	"strconv"
 	"time"
+
+	"github.com/cline/grpc-go/cline"
 )
 
 // ClineMessage represents a conversation message in the CLI

@@ -100,7 +100,7 @@ func (r *HandlerRegistry) handleDefault(msg *types.ClineMessage, dc *DisplayCont
 
 	prefix := "RESPONSE:"
 
-	return dc.Renderer.RenderMessage(prefix, msg.Text)
+	return dc.Renderer.RenderMessage(prefix, msg.Text, true)
 }
 
 // GetHandlers returns all registered handlers

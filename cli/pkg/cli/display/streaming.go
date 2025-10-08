@@ -56,7 +56,7 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 		case types.MessageTypeSay:
 			return s.handleStreamingSay(msg, messageKey, timestamp, streamingMsg)
 		default:
-			return s.renderer.RenderMessage("CLINE", msg.Text)
+			return s.renderer.RenderMessage("CLINE", msg.Text, true)
 		}
 	}
 
@@ -134,7 +134,7 @@ func (s *StreamingDisplay) handleStreamingSay(msg *types.ClineMessage, messageKe
 		return s.handleShellIntegrationWarning(msg, messageKey, timestamp, streamingMsg)
 	default:
 		// For non-streaming message types, use regular display
-		return s.renderer.RenderMessage(s.getMessagePrefix(msg.Say), msg.Text)
+		return s.renderer.RenderMessage(s.getMessagePrefix(msg.Say), msg.Text, true)
 	}
 }
 

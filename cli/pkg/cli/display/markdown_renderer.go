@@ -17,7 +17,7 @@ func NewMarkdownRenderer() (*MarkdownRenderer, error) {
 	width := getTerminalWidth()
 
 	r, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamour.WithStandardStyle("tokyo-night"),
 		glamour.WithWordWrap(width),
 		glamour.WithPreservedNewLines(),
 	)

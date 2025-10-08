@@ -625,8 +625,6 @@ func (m *Manager) FollowConversation(ctx context.Context) error {
 	}
 	coordinator.SetConversationTurnStartIndex(totalMessageCount)
 
-	fmt.Println("\n--- Live updates ---")
-
 	// Start both streams concurrently
 	errChan := make(chan error, 2)
 

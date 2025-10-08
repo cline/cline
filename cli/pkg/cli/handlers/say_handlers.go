@@ -98,7 +98,7 @@ func (h *SayHandler) handleTask(msg *types.ClineMessage, dc *DisplayContext) err
 
 // handleError handles error messages
 func (h *SayHandler) handleError(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("ERROR", msg.Text)
+	return dc.Renderer.RenderMessage("ERROR", msg.Text, true)
 }
 
 // handleAPIReqStarted handles API request started messages
@@ -106,17 +106,17 @@ func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayCon
 	// Parse API request info
 	apiInfo := types.APIRequestInfo{Cost: -1}
 	if err := json.Unmarshal([]byte(msg.Text), &apiInfo); err != nil {
-		return dc.Renderer.RenderMessage("API INFO", msg.Text)
+		return dc.Renderer.RenderMessage("API INFO", msg.Text, true)
 	}
 
 	// Handle different API request states
 	if apiInfo.CancelReason != "" {
 		if apiInfo.CancelReason == "user_cancelled" {
-			return dc.Renderer.RenderMessage("API INFO", "Request Cancelled")
+			return dc.Renderer.RenderMessage("API INFO", "Request Cancelled", true)
 		} else if apiInfo.CancelReason == "retries_exhausted" {
-			return dc.Renderer.RenderMessage("API INFO", "Request Failed (Retries Exhausted)")
+			return dc.Renderer.RenderMessage("API INFO", "Request Failed (Retries Exhausted)", true)
 		}
-		return dc.Renderer.RenderMessage("API INFO", "Streaming Failed")
+		return dc.Renderer.RenderMessage("API INFO", "Streaming Failed", true)
 	}
 
 	if apiInfo.Cost >= 0 {
@@ -152,7 +152,7 @@ func (h *SayHandler) handleText(msg *types.ClineMessage, dc *DisplayContext) err
 		prefix = "USER"
 	}
 
-	return dc.Renderer.RenderMessage(prefix, msg.Text)
+	return dc.Renderer.RenderMessage(prefix, msg.Text, true)
 }
 
 // handleReasoning handles reasoning messages
@@ -161,7 +161,7 @@ func (h *SayHandler) handleReasoning(msg *types.ClineMessage, dc *DisplayContext
 		return nil
 	}
 
-	return dc.Renderer.RenderMessage("THINKING", msg.Text)
+	return dc.Renderer.RenderMessage("THINKING", msg.Text, true)
 }
 
 func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *DisplayContext) error {
@@ -171,15 +171,15 @@ func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *Display
 		text = strings.TrimSuffix(text, "HAS_CHANGES")
 	}
 
-	return dc.Renderer.RenderMessage("RESULT", text)
+	return dc.Renderer.RenderMessage("RESULT", text, true)
 }
 
 // handleUserFeedback handles user feedback messages
 func (h *SayHandler) handleUserFeedback(msg *types.ClineMessage, dc *DisplayContext) error {
 	if msg.Text != "" {
-		return dc.Renderer.RenderMessage("USER", msg.Text)
+		return dc.Renderer.RenderMessage("USER", msg.Text, true)
 	} else {
-		return dc.Renderer.RenderMessage("USER", "[Provided feedback without text]")
+		return dc.Renderer.RenderMessage("USER", "[Provided feedback without text]", true)
 	}
 }
 
@@ -187,19 +187,19 @@ func (h *SayHandler) handleUserFeedback(msg *types.ClineMessage, dc *DisplayCont
 func (h *SayHandler) handleUserFeedbackDiff(msg *types.ClineMessage, dc *DisplayContext) error {
 	var toolMsg types.ToolMessage
 	if err := json.Unmarshal([]byte(msg.Text), &toolMsg); err != nil {
-		return dc.Renderer.RenderMessage("USER DIFF", msg.Text)
+		return dc.Renderer.RenderMessage("USER DIFF", msg.Text, true)
 	}
 
 	message := fmt.Sprintf("User manually edited: %s\n\nDiff:\n%s",
 		toolMsg.Path,
 		toolMsg.Diff)
 
-	return dc.Renderer.RenderMessage("USER DIFF", message)
+	return dc.Renderer.RenderMessage("USER DIFF", message, true)
 }
 
 // handleAPIReqRetried handles API request retry messages
 func (h *SayHandler) handleAPIReqRetried(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("API INFO", "Retrying request")
+	return dc.Renderer.RenderMessage("API INFO", "Retrying request", true)
 }
 
 // handleCommand handles command execution announcements
@@ -222,13 +222,13 @@ func (h *SayHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) 
 // handleCommandOutput handles command output messages
 func (h *SayHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayContext) error {
 	commandOutput := msg.Text
-	return dc.Renderer.RenderMessage("TERMINAL", fmt.Sprintf("Current terminal output: %s", commandOutput))
+	return dc.Renderer.RenderMessage("TERMINAL", fmt.Sprintf("Current terminal output: %s", commandOutput), true)
 }
 
 func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) error {
 	var tool types.ToolMessage
 	if err := json.Unmarshal([]byte(msg.Text), &tool); err != nil {
-		return dc.Renderer.RenderMessage("TOOL", msg.Text)
+		return dc.Renderer.RenderMessage("TOOL", msg.Text, true)
 	}
 
 	return h.renderToolMessage(&tool, dc)
@@ -237,25 +237,25 @@ func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 func (h *SayHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayContext) error {
 	switch tool.Tool {
 	case string(types.ToolTypeEditedExistingFile):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline edited file: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline edited file: %s", tool.Path), true)
 	case string(types.ToolTypeNewFileCreated):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline created file: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline created file: %s", tool.Path), true)
 	case string(types.ToolTypeReadFile):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline read file: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline read file: %s", tool.Path), true)
 	case string(types.ToolTypeListFilesTopLevel):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline listed files in: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline listed files in: %s", tool.Path), true)
 	case string(types.ToolTypeListFilesRecursive):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline recursively listed files in: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline recursively listed files in: %s", tool.Path), true)
 	case string(types.ToolTypeSearchFiles):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline searched for '%s' in: %s", tool.Regex, tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline searched for '%s' in: %s", tool.Regex, tool.Path), true)
 	case string(types.ToolTypeWebFetch):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline fetched URL: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline fetched URL: %s", tool.Path), true)
 	case string(types.ToolTypeListCodeDefinitionNames):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline listed code definitions for: %s", tool.Path))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline listed code definitions for: %s", tool.Path), true)
 	case string(types.ToolTypeSummarizeTask):
-		dc.Renderer.RenderMessage("TOOL", "Cline condensed the conversation")
+		dc.Renderer.RenderMessage("TOOL", "Cline condensed the conversation", true)
 	default:
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline executed tool: %s", tool.Tool))
+		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline executed tool: %s", tool.Tool), true)
 	}
 
 	// Skip content preview for readFile and webFetch tools
@@ -278,7 +278,7 @@ func (h *SayHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayConte
 
 // handleShellIntegrationWarning handles shell integration warning messages
 func (h *SayHandler) handleShellIntegrationWarning(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("WARNING", "Shell Integration Unavailable - Cline won't be able to view the command's output.")
+	return dc.Renderer.RenderMessage("WARNING", "Shell Integration Unavailable - Cline won't be able to view the command's output.", true)
 }
 
 // handleBrowserActionLaunch handles browser action launch messages
@@ -288,7 +288,7 @@ func (h *SayHandler) handleBrowserActionLaunch(msg *types.ClineMessage, dc *Disp
 		return nil
 	}
 
-	return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Launching browser at: %s", url))
+	return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Launching browser at: %s", url), true)
 }
 
 // handleBrowserAction handles browser action messages
@@ -305,23 +305,23 @@ func (h *SayHandler) handleBrowserAction(msg *types.ClineMessage, dc *DisplayCon
 
 	var actionData BrowserActionData
 	if err := json.Unmarshal([]byte(msg.Text), &actionData); err != nil {
-		return dc.Renderer.RenderMessage("BROWSER", msg.Text)
+		return dc.Renderer.RenderMessage("BROWSER", msg.Text, true)
 	}
 
 	// Special handling for type action
 	if actionData.Action == "type" && actionData.Text != "" {
 		actionText := fmt.Sprintf("type '%s'", actionData.Text)
-		return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Next action: %s", actionText))
+		return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Next action: %s", actionText), true)
 	}
 
 	// Special handling for click action
 	if actionData.Action == "click" && actionData.Coordinate != "" {
 		actionText := fmt.Sprintf("click (%s)", actionData.Coordinate)
-		return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Next action: %s", actionText))
+		return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Next action: %s", actionText), true)
 	}
 
 	// Generic handling for all other actions
-	return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Next action: %s", actionData.Action))
+	return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Next action: %s", actionData.Action), true)
 }
 
 // handleBrowserActionResult handles browser action result messages
@@ -339,62 +339,61 @@ func (h *SayHandler) handleBrowserActionResult(msg *types.ClineMessage, dc *Disp
 
 	var result BrowserActionResult
 	if err := json.Unmarshal([]byte(msg.Text), &result); err != nil {
-		return dc.Renderer.RenderMessage("BROWSER", "Action completed")
+		return dc.Renderer.RenderMessage("BROWSER", "Action completed", true)
 	}
 
 	// If we have logs, include them in the message
 	if result.Logs != "" {
-		return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Action completed with logs: '%s'", result.Logs))
+		return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Action completed with logs: '%s'", result.Logs), true)
 	}
 
 	// Default case
-	return dc.Renderer.RenderMessage("BROWSER", "Action completed")
+	return dc.Renderer.RenderMessage("BROWSER", "Action completed", true)
 }
 
 // handleMcpServerRequestStarted handles MCP server request started messages
 func (h *SayHandler) handleMcpServerRequestStarted(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("MCP", "Sending request to server")
+	return dc.Renderer.RenderMessage("MCP", "Sending request to server", true)
 }
 
 // handleMcpServerResponse handles MCP server response messages
 func (h *SayHandler) handleMcpServerResponse(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("MCP", fmt.Sprintf("Server response: %s", msg.Text))
+	return dc.Renderer.RenderMessage("MCP", fmt.Sprintf("Server response: %s", msg.Text), true)
 }
 
 // handleMcpNotification handles MCP notification messages
 func (h *SayHandler) handleMcpNotification(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("MCP", fmt.Sprintf("Server notification: %s", msg.Text))
+	return dc.Renderer.RenderMessage("MCP", fmt.Sprintf("Server notification: %s", msg.Text), true)
 }
 
 // handleUseMcpServer handles MCP server usage messages
 func (h *SayHandler) handleUseMcpServer(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("MCP", "Server operation approved")
+	return dc.Renderer.RenderMessage("MCP", "Server operation approved", true)
 }
 
 // handleDiffError handles diff error messages
 func (h *SayHandler) handleDiffError(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("WARNING", "Diff Edit Failure - The model used an invalid diff edit format or used search patterns that don't match anything in the file.")
+	return dc.Renderer.RenderMessage("WARNING", "Diff Edit Failure - The model used an invalid diff edit format or used search patterns that don't match anything in the file.", true)
 }
 
 // handleDeletedAPIReqs handles deleted API requests messages
 func (h *SayHandler) handleDeletedAPIReqs(msg *types.ClineMessage, dc *DisplayContext) error {
 	// This message includes api metrics of deleted messages, which we do not log
-	return dc.Renderer.RenderMessage("GEN INFO", "Checkpoint restored")
+	return dc.Renderer.RenderMessage("GEN INFO", "Checkpoint restored", true)
 }
 
 // handleClineignoreError handles .clineignore error messages
 func (h *SayHandler) handleClineignoreError(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Access Denied - Cline tried to access %s which is blocked by the .clineignore file", msg.Text))
+	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Access Denied - Cline tried to access %s which is blocked by the .clineignore file", msg.Text), true)
 }
 
 func (h *SayHandler) handleCheckpointCreated(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	message := fmt.Sprintf("Checkpoint created (ID: %d)", msg.Timestamp)
-	return dc.Renderer.RenderMessageWithTimestamp(timestamp, "GEN INFO", message)
+	return dc.Renderer.RenderCheckpointMessage(timestamp, "GEN INFO", msg.Timestamp)
 }
 
 // handleLoadMcpDocumentation handles load MCP documentation messages
 func (h *SayHandler) handleLoadMcpDocumentation(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("GEN INFO", "Loading MCP documentation")
+	return dc.Renderer.RenderMessage("GEN INFO", "Loading MCP documentation", true)
 }
 
 // handleInfo handles info messages
@@ -408,10 +407,10 @@ func (h *SayHandler) handleTaskProgress(msg *types.ClineMessage, dc *DisplayCont
 		return nil
 	}
 
-	return dc.Renderer.RenderMessage("PROGRESS", fmt.Sprintf("Task Checklist: %s", msg.Text))
+	return dc.Renderer.RenderMessage("PROGRESS", fmt.Sprintf("Task Checklist: %s", msg.Text), true)
 }
 
 // handleDefault handles unknown SAY message types
 func (h *SayHandler) handleDefault(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("SAY", msg.Text)
+	return dc.Renderer.RenderMessage("SAY", msg.Text, true)
 }

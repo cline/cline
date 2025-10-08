@@ -26,31 +26,29 @@ func NewRenderer() *Renderer {
 	}
 }
 
-func (r *Renderer) RenderMessage(prefix, text string) error {
+func (r *Renderer) RenderMessage(prefix, text string, newline bool) error {
 	if text == "" {
 		return nil
 	}
 
-	cleanText := r.sanitizeText(text)
-	if cleanText == "" {
+	clean := r.sanitizeText(text)
+	if clean == "" {
 		return nil
 	}
 
-	fmt.Printf("%s: %s\n", prefix, cleanText)
+	if newline {
+		fmt.Printf("%s: %s\n", prefix, clean)
+	} else {
+		fmt.Printf("%s: %s", prefix, clean)
+	}
 	return nil
 }
 
-func (r *Renderer) RenderMessageWithTimestamp(timestamp, prefix, text string) error {
-	if text == "" {
-		return nil
-	}
 
-	cleanText := r.sanitizeText(text)
-	if cleanText == "" {
-		return nil
-	}
-
-	fmt.Printf("[%s] %s: %s\n", timestamp, prefix, cleanText)
+func (r *Renderer) RenderCheckpointMessage(timestamp, prefix string, id int64) error {
+	markdown := fmt.Sprintf("## [%s] Checkpoint created **%d**", timestamp, id)
+	rendered := r.RenderMarkdown(markdown)
+	fmt.Printf(rendered)
 	return nil
 }
 
