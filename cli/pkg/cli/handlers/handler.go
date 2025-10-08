@@ -94,15 +94,13 @@ func (r *HandlerRegistry) Handle(msg *types.ClineMessage, dc *DisplayContext) er
 
 // handleDefault provides default handling for unrecognized messages
 func (r *HandlerRegistry) handleDefault(msg *types.ClineMessage, dc *DisplayContext) error {
-	timestamp := msg.GetTimestamp()
-
 	if msg.Text == "" {
 		return nil
 	}
 
 	prefix := "RESPONSE:"
 
-	return dc.Renderer.RenderMessage(timestamp, prefix, msg.Text)
+	return dc.Renderer.RenderMessage(prefix, msg.Text)
 }
 
 // GetHandlers returns all registered handlers
