@@ -608,12 +608,14 @@ func (m *Manager) ShowConversation(ctx context.Context) error {
 	return nil
 }
 
-func (m *Manager) FollowConversation(ctx context.Context) error {
+func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string) error {
+	
 	if global.Config.OutputFormat != "plain" {
-        markdown := "*Task conversation — Press Ctrl+C to exit*"
+        markdown := fmt.Sprintf("*Using instance: %s*\n*Press Ctrl+C to exit*", instanceAddress)
         rendered := m.renderer.RenderMarkdown(markdown)
         fmt.Printf("%s", rendered)
     } else {
+		fmt.Printf("Using instance: %s\n", instanceAddress)
         fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
     }
 
