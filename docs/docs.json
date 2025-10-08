@@ -117,6 +117,7 @@
 					"features/drag-and-drop",
 					"features/editing-messages",
 					"features/focus-chain",
+					"features/multiroot-workspace",
 					"features/plan-and-act",
 					{
 						"group": "Slash Commands",
