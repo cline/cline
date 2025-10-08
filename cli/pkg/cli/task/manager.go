@@ -814,6 +814,26 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				coordinator.MarkProcessedInCurrentTurn("command")
 			}
 
+		case msg.Say == string(types.SayTypeCommandOutput):
+			if !coordinator.IsProcessedInCurrentTurn("command_output") {
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn("command_output")
+			}
+
+		case msg.Say == string(types.SayTypeBrowserActionLaunch):
+			if !coordinator.IsProcessedInCurrentTurn("browser_launch") {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn("browser_launch")
+			}
+
+		case msg.Say == string(types.SayTypeMcpServerRequestStarted):
+			if !coordinator.IsProcessedInCurrentTurn("mcp_request") {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn("mcp_request")
+			}
+
 		case msg.Say == string(types.SayTypeCheckpointCreated):
 			if !coordinator.IsProcessedInCurrentTurn("checkpoint") {
 				fmt.Println()
@@ -828,6 +848,12 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				m.displayMessage(msg, false, false, i)
 				coordinator.CompleteTurn(len(messages))
 				displayedUsage = true
+			}
+
+		case msg.Ask == string(types.AskTypeCommandOutput):
+			if !coordinator.IsProcessedInCurrentTurn("ask_command_output") {
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn("ask_command_output")
 			}
 		}
 	}

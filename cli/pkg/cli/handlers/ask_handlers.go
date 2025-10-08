@@ -182,7 +182,7 @@ func (h *AskHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayCon
 		return fmt.Errorf("failed to render handleCommandOutput: %w", err)
 	}
 
-	fmt.Printf("\nApprove to proceed while this command runs in the background.\n")
+	fmt.Println("")
 
 	return nil
 }
