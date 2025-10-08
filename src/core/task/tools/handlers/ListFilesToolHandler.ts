@@ -1,9 +1,8 @@
-import path from "node:path"
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { listFiles } from "@services/glob/list-files"
-import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -13,6 +12,8 @@ import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
+
+const LIST_FILES_TEMPLATE_ARTIFACT_REGEX = /<|>|-\s*\[|\btask_progress\b|\battempt_completion\b/i
 
 export class ListFilesToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.LIST_FILES
@@ -63,21 +64,19 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
+		if (relDirPath && (LIST_FILES_TEMPLATE_ARTIFACT_REGEX.test(relDirPath) || /\r|\n/.test(relDirPath))) {
+			config.taskState.consecutiveMistakeCount++
+			return formatResponse.toolError(
+				"Directory path contains template or checklist text. Provide a simple relative path like '.' or 'src/'.",
+			)
+		}
+
 		config.taskState.consecutiveMistakeCount = 0
 
 		// Resolve the absolute path based on multi-workspace configuration
 		const pathResult = resolveWorkspacePath(config, relDirPath!, "ListFilesToolHandler.execute")
 		const { absolutePath, displayPath } =
 			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult
-
-		// Determine workspace context for telemetry
-		const fallbackAbsolutePath = path.resolve(config.cwd, relDirPath ?? "")
-		const workspaceContext = {
-			isMultiRootEnabled: config.isMultiRootEnabled || false,
-			usedWorkspaceHint: typeof pathResult !== "string", // multi-root path result indicates hint usage
-			resolvedToNonPrimary: !arePathsEqual(absolutePath, fallbackAbsolutePath),
-			resolutionMethod: (typeof pathResult !== "string" ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
-		}
 
 		// Execute the actual list files operation
 		const [files, didHitLimit] = await listFiles(absolutePath, recursive, 200)
@@ -101,7 +100,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 			config.taskState.consecutiveAutoApprovedRequestsCount++
 
 			// Capture telemetry
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
+			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 		} else {
 			// Manual approval flow
 			const notificationMessage = `Cline wants to view directory ${getWorkspaceBasename(absolutePath, "ListFilesToolHandler.notification")}/`
@@ -117,24 +116,10 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 
 			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
 			if (!didApprove) {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					false,
-					false,
-					workspaceContext,
-				)
+				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
 				return formatResponse.toolDenied()
 			} else {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					false,
-					true,
-					workspaceContext,
-				)
+				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}
 		}
 

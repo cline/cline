@@ -25,26 +25,6 @@ unp $ZIP_FILE > /dev/null
 
 pkill -f cline-core.js || true
 
-# Detect platform name using the same logic as ClineDirs.kt in the plugin.
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
-
-if [[ "$OS" == "darwin" && "$ARCH" == "x86_64" ]]; then
-    PLATFORM_NAME="darwin-x64"
-elif [[ "$OS" == "darwin" && "$ARCH" == "arm64" ]]; then
-    PLATFORM_NAME="darwin-arm64"
-elif [[ "$OS" == *"mingw"* || "$OS" == *"cygwin"* || "$OS" == *"msys"* ]] && [[ "$ARCH" == "x86_64" || "$ARCH" == "amd64" ]]; then
-    # Note: This script requires a bash-compatible environment on Windows (Git Bash, MSYS2, Cygwin)
-    PLATFORM_NAME="win-x64"
-elif [[ "$OS" == "linux" && ("$ARCH" == "x86_64" || "$ARCH" == "amd64") ]]; then
-    PLATFORM_NAME="linux-x64"
-else
-    echo "Unsupported platform: $OS $ARCH"
-    exit 1
-fi
-
-BINARY_MODULES_DIR="./binaries/$PLATFORM_NAME/node_modules"
-
 echo pwd: $(pwd)
 set -x
-NODE_PATH=$BINARY_MODULES_DIR:./node_modules DEV_WORKSPACE_FOLDER=/tmp/ node cline-core.js 2>&1 | tee $LOG_FILE
+NODE_PATH=./node_modules DEV_WORKSPACE_FOLDER=/tmp/ node cline-core.js 2>&1 | tee $LOG_FILE

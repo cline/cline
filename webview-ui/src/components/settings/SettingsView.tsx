@@ -2,16 +2,7 @@ import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import debounce from "debounce"
-import {
-	CheckCheck,
-	FlaskConical,
-	Info,
-	LucideIcon,
-	SlidersHorizontal,
-	SquareMousePointer,
-	SquareTerminal,
-	Wrench,
-} from "lucide-react"
+import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import HeroTooltip from "@/components/common/HeroTooltip"
@@ -54,7 +45,14 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		name: "API Configuration",
 		tooltipText: "API Configuration",
 		headerText: "API Configuration",
-		icon: SlidersHorizontal,
+		icon: Webhook,
+	},
+	{
+		id: "general",
+		name: "General",
+		tooltipText: "General Settings",
+		headerText: "General Settings",
+		icon: Settings,
 	},
 	{
 		id: "features",
@@ -85,13 +83,6 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		headerText: "Debug",
 		icon: FlaskConical,
 		hidden: !IS_DEV,
-	},
-	{
-		id: "general",
-		name: "General",
-		tooltipText: "General Settings",
-		headerText: "General Settings",
-		icon: Wrench,
 	},
 	{
 		id: "about",
@@ -139,10 +130,13 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		[],
 	) // Empty deps - these imports never change
 
-	const { version } = useExtensionState()
+	const { version, telemetrySetting } = useExtensionState()
 
 	// Initialize active tab with memoized calculation
-	const initialTab = useMemo(() => targetSection || SETTINGS_TABS[0].id, [targetSection])
+	const initialTab = useMemo(
+		() => targetSection || (telemetrySetting === "unset" ? "general" : SETTINGS_TABS[0].id),
+		[targetSection, telemetrySetting],
+	)
 
 	const [activeTab, setActiveTab] = useState<string>(initialTab)
 	const [isCompactMode, setIsCompactMode] = useState(true)

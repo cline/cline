@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test"
-import { addSelectedCodeToClineWebview, openTab, toggleNotifications } from "./utils/common"
+import { addSelectedCodeToClineWebview, getClineEditorWebviewFrame, openTab, toggleNotifications } from "./utils/common"
 import { E2E_WORKSPACE_TYPES, e2e } from "./utils/helpers"
 
 e2e.describe("Code Actions and Editor Panel", () => {
@@ -23,6 +23,20 @@ e2e.describe("Code Actions and Editor Panel", () => {
 			await addSelectedCodeToClineWebview(page)
 			await expect(sidebarInput).not.toBeEmpty()
 			await expect(sidebarInput).toBeFocused()
+
+			await page.getByRole("button", { name: "Open in Editor" }).click()
+			await page.waitForLoadState("load")
+			const clineEditorTab = page.getByRole("tab", { name: "Cline, Editor Group" })
+			await expect(clineEditorTab).toBeVisible()
+
+			// Editor Panel
+			const clineEditorWebview = await getClineEditorWebviewFrame(page)
+
+			await clineEditorWebview.getByTestId("chat-input").click()
+			await expect(clineEditorWebview.getByTestId("chat-input")).toBeEmpty()
+			await addSelectedCodeToClineWebview(page)
+			await expect(clineEditorWebview.getByTestId("chat-input")).not.toBeEmpty()
+			await page.close()
 		})
 	})
 })

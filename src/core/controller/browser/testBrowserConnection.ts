@@ -12,7 +12,7 @@ import { Controller } from "../index"
  */
 export async function testBrowserConnection(controller: Controller, request: StringRequest): Promise<BrowserConnection> {
 	try {
-		const browserSession = new BrowserSession(controller.stateManager)
+		const browserSession = new BrowserSession(controller.context, controller.stateManager)
 		const text = request.value || ""
 
 		// If no text is provided, try auto-discovery

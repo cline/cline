@@ -40,7 +40,7 @@ export function parseWorkspaceInlinePath(value: string): ParsedWorkspacePath {
 	// Captures:
 	// - Group 1: workspace name (anything except colon)
 	// - Group 2: the path after the colon
-	const match = value.match(/^@([^:]+):(.*)$/)
+	const match = value.match(/^@([^:]+):(.+)$/)
 
 	if (match) {
 		const [, workspaceHint, relPath] = match

@@ -609,9 +609,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							selectedOption.type !== ContextMenuOptionType.URL &&
 							selectedOption.type !== ContextMenuOptionType.NoResults
 						) {
-							// Use label if it contains workspace prefix, otherwise use value
-							const mentionValue = selectedOption.label?.includes(":") ? selectedOption.label : selectedOption.value
-							handleMentionSelect(selectedOption.type, mentionValue)
+							handleMentionSelect(selectedOption.type, selectedOption.value)
 						}
 						return
 					}
@@ -781,7 +779,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					setSearchQuery(query)
 					currentSearchQueryRef.current = query
 
-					if (query.length > 0) {
+					if (query.length > 0 && !selectedType) {
 						setSelectedMenuIndex(0)
 
 						// Clear any existing timeout
@@ -791,30 +789,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 						setSearchLoading(true)
 
-						const searchType =
-							selectedType === ContextMenuOptionType.File
-								? FileSearchType.FILE
-								: selectedType === ContextMenuOptionType.Folder
-									? FileSearchType.FOLDER
-									: undefined
-
-						// Parse workspace hint from query (e.g., "@frontend:/filename")
-						let workspaceHint: string | undefined
-						let searchQuery = query
-						const workspaceHintMatch = query.match(/^([\w-]+):\/(.*)$/)
-						if (workspaceHintMatch) {
-							workspaceHint = workspaceHintMatch[1]
-							searchQuery = workspaceHintMatch[2]
-						}
-
 						// Set a timeout to debounce the search requests
 						searchTimeoutRef.current = setTimeout(() => {
 							FileServiceClient.searchFiles(
 								FileSearchRequest.create({
-									query: searchQuery,
+									query: query,
 									mentionsRequestId: query,
-									selectedType: searchType,
-									workspaceHint: workspaceHint,
+									selectedType: undefined, // No type filter for general search
 								}),
 							)
 								.then((results) => {

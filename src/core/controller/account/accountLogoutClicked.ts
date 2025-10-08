@@ -1,7 +1,6 @@
 import type { EmptyRequest } from "@shared/proto/cline/common"
 import { Empty } from "@shared/proto/cline/common"
 import { AuthService } from "@/services/auth/AuthService"
-import { LogoutReason } from "@/services/auth/types"
 import type { Controller } from "../index"
 
 /**
@@ -12,6 +11,6 @@ import type { Controller } from "../index"
  */
 export async function accountLogoutClicked(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	await controller.handleSignOut()
-	await AuthService.getInstance().handleDeauth(LogoutReason.USER_INITIATED)
+	await AuthService.getInstance().handleDeauth()
 	return Empty.create({})
 }

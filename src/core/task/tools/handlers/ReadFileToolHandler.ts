@@ -1,9 +1,8 @@
-import path from "node:path"
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
-import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -66,21 +65,22 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			return formatResponse.toolError(formatResponse.clineIgnoreError(relPath!))
 		}
 
+		// Guard: prevent reading on-disk todo files; todo is managed via task_progress, not persisted
+		{
+			const norm = (relPath || "").replace(/\\/g, "/").toLowerCase()
+			if (/(^|\/)todo(\.md|\.txt)?$/.test(norm)) {
+				return formatResponse.toolError(
+					"Reading a todo file is blocked. The task_progress checklist is internal; use read_file for project source files instead.",
+				)
+			}
+		}
+
 		config.taskState.consecutiveMistakeCount = 0
 
 		// Resolve the absolute path based on multi-workspace configuration
 		const pathResult = resolveWorkspacePath(config, relPath!, "ReadFileToolHandler.execute")
 		const { absolutePath, displayPath } =
 			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relPath! } : pathResult
-
-		// Determine workspace context for telemetry
-		const fallbackAbsolutePath = path.resolve(config.cwd, relPath ?? "")
-		const workspaceContext = {
-			isMultiRootEnabled: config.isMultiRootEnabled || false,
-			usedWorkspaceHint: typeof pathResult !== "string", // multi-root path result indicates hint usage
-			resolvedToNonPrimary: !arePathsEqual(absolutePath, fallbackAbsolutePath),
-			resolutionMethod: (typeof pathResult !== "string" ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
-		}
 
 		// Handle approval flow
 		const sharedMessageProps = {
@@ -99,7 +99,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			config.taskState.consecutiveAutoApprovedRequestsCount++
 
 			// Capture telemetry
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
+			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 		} else {
 			// Manual approval flow
 			const notificationMessage = `Cline wants to read ${getWorkspaceBasename(absolutePath, "ReadFileToolHandler.notification")}`
@@ -115,24 +115,10 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 
 			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
 			if (!didApprove) {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					false,
-					false,
-					workspaceContext,
-				)
+				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
 				return formatResponse.toolDenied()
 			} else {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					false,
-					true,
-					workspaceContext,
-				)
+				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}
 		}
 
@@ -142,6 +128,8 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 
 		// Track file read operation
 		await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")
+		config.taskState.didReadProjectFile = true
+		config.taskState.didReadProjectFileThisResponse = true
 
 		// Handle image blocks separately - they need to be pushed to userMessageContent
 		if (fileContent.imageBlock) {

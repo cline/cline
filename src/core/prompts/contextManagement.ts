@@ -35,7 +35,9 @@ Your summary should include the following sections:
 ${
 	focusChainSettings?.enabled
 		? `Updating task progress:
-There is an optional task_progress parameter which you should use to provide an updated checklist to keep the user informed of the latest state of the progress for this task. You should always return the most up to date version of the checklist if there is already an existing checklist. If no task_progress list was included in the previous context, you should NOT create a new task_progress list - do not return a new task_progress list if one does not already exist.`
+The summarize_task tool supports an optional task_progress parameter which you can use to provide an updated checklist to keep the user informed of the latest state of the progress for this task. You should always return the most up to date version of the checklist if there is already an existing checklist. If no task_progress list was included in the previous context, you should NOT create a new task_progress list - do not return a new task_progress list if one does not already exist.
+
+NOTE: task_progress is supported by summarize_task, plan_mode_respond, attempt_completion, AND any work tools (read_file, write_to_file, replace_in_file, execute_command, list_files, etc.). You can include task_progress with ANY tool call.`
 		: ""
 }
 

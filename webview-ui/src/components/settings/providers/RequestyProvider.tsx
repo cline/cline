@@ -27,7 +27,7 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 	const [requestyEndpointSelected, setRequestyEndpointSelected] = useState(!!apiConfiguration?.requestyBaseUrl)
 
 	const resolvedUrl = toRequestyServiceUrl(apiConfiguration?.requestyBaseUrl, "app")
-	const apiKeyUrl = resolvedUrl != null ? new URL("api-keys", resolvedUrl).toString() : undefined
+	const apiKeyUrl = new URL("api-keys", resolvedUrl).toString()
 
 	return (
 		<div>

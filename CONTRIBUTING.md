@@ -74,6 +74,7 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 4. Testing
     - Run `npm run test` to run tests locally. 
     - Before submitting PR, run `npm run format:fix` to format your code
+    - Run `npm run test:ci` to run tests locally
 
 ### Extension
 

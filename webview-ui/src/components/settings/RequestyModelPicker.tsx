@@ -35,7 +35,7 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const resolvedUrl = toRequestyServiceUrl(baseUrl)
-	const requestyModelListUrl = resolvedUrl != null ? new URL("models", resolvedUrl) : undefined
+	const requestyModelListUrl = new URL("models", resolvedUrl)
 
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
@@ -261,7 +261,7 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 					}}>
 					<>
 						The extension automatically fetches the latest list of models available on{" "}
-						<VSCodeLink href={requestyModelListUrl?.toString()} style={{ display: "inline", fontSize: "inherit" }}>
+						<VSCodeLink href={requestyModelListUrl.toString()} style={{ display: "inline", fontSize: "inherit" }}>
 							Requesty.
 						</VSCodeLink>
 						If you're unsure which model to choose, Cline works best with{" "}

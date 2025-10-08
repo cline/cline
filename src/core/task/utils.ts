@@ -5,6 +5,39 @@ import { ClineApiReqCancelReason, ClineApiReqInfo } from "@/shared/ExtensionMess
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { MessageStateHandler } from "./message-state"
 
+type IdleResponseEvaluationInput = {
+	performedRealWork: boolean
+	currentCount: number
+	mode: string
+	maxCount: number
+}
+
+type IdleResponseEvaluationResult = {
+	nextCount: number
+	shouldHalt: boolean
+}
+
+export const evaluateIdleResponseState = ({
+	performedRealWork,
+	currentCount,
+	mode,
+	maxCount,
+}: IdleResponseEvaluationInput): IdleResponseEvaluationResult => {
+	if (performedRealWork) {
+		return { nextCount: 0, shouldHalt: false }
+	}
+
+	if (mode !== "act") {
+		return { nextCount: 0, shouldHalt: false }
+	}
+
+	const nextCount = currentCount + 1
+	return {
+		nextCount,
+		shouldHalt: nextCount >= maxCount,
+	}
+}
+
 export const showNotificationForApprovalIfAutoApprovalEnabled = (
 	message: string,
 	autoApprovalSettingsEnabled: boolean,
@@ -125,7 +158,7 @@ export async function detectAvailableCliTools(): Promise<string[]> {
 				timeout: 1000, // 1 second timeout to avoid hanging
 			})
 			availableCommands.push(command)
-		} catch (error) {
+		} catch (_error) {
 			// Command not found, skip it
 		}
 	}

@@ -240,8 +240,8 @@ export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
 	surveyContent?: string
 }
 
-export const CLAUDE_SONNET_1M_SUFFIX = ":1m"
-export const CLAUDE_SONNET_1M_TIERS = [
+export const CLAUDE_SONNET_4_1M_SUFFIX = ":1m"
+export const CLAUDE_SONNET_4_1M_TIERS = [
 	{
 		contextWindow: 200000,
 		inputPrice: 3.0,
@@ -261,41 +261,8 @@ export const CLAUDE_SONNET_1M_TIERS = [
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels
-export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-5-20250929"
-export const ANTHROPIC_MIN_THINKING_BUDGET = 1_024
-export const ANTHROPIC_MAX_THINKING_BUDGET = 6_000
+export const anthropicDefaultModelId: AnthropicModelId = "claude-sonnet-4-20250514"
 export const anthropicModels = {
-	"claude-sonnet-4-5-20250929": {
-		maxTokens: 8192,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-	},
-	"claude-sonnet-4-5-20250929:1m": {
-		maxTokens: 8192,
-		contextWindow: 1_000_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-		tiers: CLAUDE_SONNET_1M_TIERS,
-	},
-	"claude-sonnet-4-20250514": {
-		maxTokens: 8192,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-	},
 	"claude-sonnet-4-20250514:1m": {
 		maxTokens: 8192,
 		contextWindow: 1_000_000,
@@ -305,7 +272,18 @@ export const anthropicModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
-		tiers: CLAUDE_SONNET_1M_TIERS,
+		tiers: CLAUDE_SONNET_4_1M_TIERS,
+	},
+	"claude-sonnet-4-20250514": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
 	},
 	"claude-opus-4-1-20250805": {
 		maxTokens: 8192,
@@ -383,23 +361,8 @@ export const anthropicModels = {
 
 // Claude Code
 export type ClaudeCodeModelId = keyof typeof claudeCodeModels
-export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-4-5-20250929"
+export const claudeCodeDefaultModelId: ClaudeCodeModelId = "claude-sonnet-4-20250514"
 export const claudeCodeModels = {
-	sonnet: {
-		...anthropicModels["claude-sonnet-4-5-20250929"],
-		supportsImages: false,
-		supportsPromptCache: false,
-	},
-	opus: {
-		...anthropicModels["claude-opus-4-1-20250805"],
-		supportsImages: false,
-		supportsPromptCache: false,
-	},
-	"claude-sonnet-4-5-20250929": {
-		...anthropicModels["claude-sonnet-4-5-20250929"],
-		supportsImages: false,
-		supportsPromptCache: false,
-	},
 	"claude-sonnet-4-20250514": {
 		...anthropicModels["claude-sonnet-4-20250514"],
 		supportsImages: false,
@@ -420,6 +383,11 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"claude-3-5-sonnet-20241022": {
+		...anthropicModels["claude-3-5-sonnet-20241022"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	"claude-3-5-haiku-20241022": {
 		...anthropicModels["claude-3-5-haiku-20241022"],
 		supportsImages: false,
@@ -430,19 +398,9 @@ export const claudeCodeModels = {
 // AWS Bedrock
 // https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference.html
 export type BedrockModelId = keyof typeof bedrockModels
-export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-20250514-v1:0" // TODO: update to 4-5
+export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
 export const bedrockModels = {
-	"anthropic.claude-sonnet-4-5-20250929-v1:0": {
-		maxTokens: 8192,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-	},
-	"anthropic.claude-sonnet-4-5-20250929-v1:0:1m": {
+	"anthropic.claude-sonnet-4-20250514-v1:0:1m": {
 		maxTokens: 8192,
 		contextWindow: 1_000_000,
 		supportsImages: true,
@@ -451,7 +409,7 @@ export const bedrockModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
-		tiers: CLAUDE_SONNET_1M_TIERS,
+		tiers: CLAUDE_SONNET_4_1M_TIERS,
 	},
 	"anthropic.claude-sonnet-4-20250514-v1:0": {
 		maxTokens: 8192,
@@ -462,17 +420,6 @@ export const bedrockModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
-	},
-	"anthropic.claude-sonnet-4-20250514-v1:0:1m": {
-		maxTokens: 8192,
-		contextWindow: 1_000_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"anthropic.claude-opus-4-20250514-v1:0": {
 		maxTokens: 8192,
@@ -632,9 +579,8 @@ export const bedrockModels = {
 
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
-export const openRouterDefaultModelId = "anthropic/claude-sonnet-4.5" // will always exist in openRouterModels
-export const openRouterClaudeSonnet41mModelId = `anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`
-export const openRouterClaudeSonnet451mModelId = `anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`
+export const openRouterDefaultModelId = "anthropic/claude-sonnet-4" // will always exist in openRouterModels
+export const openRouterClaudeSonnet41mModelId = `anthropic/claude-sonnet-4${CLAUDE_SONNET_4_1M_SUFFIX}`
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 8192,
 	contextWindow: 200_000,
@@ -645,12 +591,12 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
 	description:
-		"Claude Sonnet 4.5 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
+		"Claude Sonnet 4 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
 
 // Cline custom model - code-supernova
 export const clineCodeSupernovaModelInfo: ModelInfo = {
-	contextWindow: 1000000,
+	contextWindow: 200000,
 	supportsImages: true,
 	supportsPromptCache: true,
 	inputPrice: 0,
@@ -663,18 +609,8 @@ export const clineCodeSupernovaModelInfo: ModelInfo = {
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 // https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models
 export type VertexModelId = keyof typeof vertexModels
-export const vertexDefaultModelId: VertexModelId = "claude-sonnet-4@20250514" // TODO: update to 4-5
+export const vertexDefaultModelId: VertexModelId = "claude-sonnet-4@20250514"
 export const vertexModels = {
-	"claude-sonnet-4-5@20250929": {
-		maxTokens: 8192,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-	},
 	"claude-sonnet-4@20250514": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -2573,16 +2509,6 @@ export const nebiusDefaultModelId = "Qwen/Qwen2.5-32B-Instruct-fast" satisfies N
 export type XAIModelId = keyof typeof xaiModels
 export const xaiDefaultModelId: XAIModelId = "grok-4"
 export const xaiModels = {
-	"grok-4-fast-reasoning": {
-		maxTokens: 30000,
-		contextWindow: 2000000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		inputPrice: 0.2,
-		cacheReadsPrice: 0.05,
-		outputPrice: 0.5,
-		description: "xAI's Grok 4 Fast (free) multimodal model with 2M context.",
-	},
 	"grok-4": {
 		maxTokens: 8192,
 		contextWindow: 262144,
@@ -3496,14 +3422,6 @@ export const basetenDefaultModelId = "moonshotai/Kimi-K2-Instruct" satisfies Bas
 export type internationalZAiModelId = keyof typeof internationalZAiModels
 export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-4.5"
 export const internationalZAiModels = {
-	"glm-4.6": {
-		maxTokens: 128_000,
-		contextWindow: 200_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		inputPrice: 0.6,
-		outputPrice: 2.2,
-	},
 	"glm-4.5": {
 		maxTokens: 98_304,
 		contextWindow: 131_072,
@@ -3533,14 +3451,6 @@ export const internationalZAiModels = {
 export type mainlandZAiModelId = keyof typeof mainlandZAiModels
 export const mainlandZAiDefaultModelId: mainlandZAiModelId = "glm-4.5"
 export const mainlandZAiModels = {
-	"glm-4.6": {
-		maxTokens: 128_000,
-		contextWindow: 200_000,
-		supportsImages: false,
-		supportsPromptCache: true,
-		inputPrice: 0.6,
-		outputPrice: 2.2,
-	},
 	"glm-4.5": {
 		maxTokens: 98_304,
 		contextWindow: 131_072,

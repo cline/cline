@@ -1,9 +1,10 @@
 import { getFileMentionFromPath } from "@/core/mentions"
+import { WebviewProvider } from "@/core/webview"
 import { singleFileDiagnosticsToProblemsString } from "@/integrations/diagnostics"
 import { telemetryService } from "@/services/telemetry"
 import { CommandContext, Empty } from "@/shared/proto/index.cline"
 import { Controller } from "../index"
-import { sendAddToInputEvent } from "../ui/subscribeToAddToInput"
+import { sendAddToInputEventToClient } from "../ui/subscribeToAddToInput"
 
 // 'Add to Cline' context menu in editor and code action
 // Inserts the selected code into the chat.
@@ -21,7 +22,10 @@ export async function addToCline(controller: Controller, request: CommandContext
 		input += `\nProblems:\n${problemsString}`
 	}
 
-	await sendAddToInputEvent(input)
+	const lastActiveWebview = WebviewProvider.getLastActiveInstance()
+	if (lastActiveWebview) {
+		await sendAddToInputEventToClient(lastActiveWebview.getClientId(), input)
+	}
 
 	console.log("addToCline", request.selectedText, filePath, request.language)
 	telemetryService.captureButtonClick("codeAction_addToChat", controller.task?.ulid)

@@ -1,6 +1,7 @@
 import { FocusChainSettings } from "@shared/FocusChainSettings"
 import * as chokidar from "chokidar"
 import * as fs from "fs/promises"
+import * as vscode from "vscode"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSay } from "../../../shared/ExtensionMessage"
 import { Mode } from "../../../shared/storage/types"
@@ -9,10 +10,10 @@ import { ensureTaskDirectoryExists } from "../../storage/disk"
 import { StateManager } from "../../storage/StateManager"
 import { TaskState } from "../TaskState"
 import {
-	createFocusChainMarkdownContent,
-	extractFocusChainItemsFromText,
-	extractFocusChainListFromText,
-	getFocusChainFilePath,
+    createFocusChainMarkdownContent,
+    extractFocusChainItemsFromText,
+    extractFocusChainListFromText,
+    getFocusChainFilePath,
 } from "./file-utils"
 import { parseFocusChainListCounts } from "./utils"
 
@@ -20,6 +21,7 @@ export interface FocusChainDependencies {
 	taskId: string
 	taskState: TaskState
 	mode: Mode
+	context: vscode.ExtensionContext
 	stateManager: StateManager
 	postStateToWebview: () => Promise<void>
 	say: (type: ClineSay, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
@@ -29,6 +31,7 @@ export interface FocusChainDependencies {
 export class FocusChainManager {
 	private taskId: string
 	private taskState: TaskState
+	private context: vscode.ExtensionContext
 	private stateManager: StateManager
 	private postStateToWebview: () => Promise<void>
 	private say: (
@@ -46,6 +49,7 @@ export class FocusChainManager {
 	constructor(dependencies: FocusChainDependencies) {
 		this.taskId = dependencies.taskId
 		this.taskState = dependencies.taskState
+		this.context = dependencies.context
 		this.stateManager = dependencies.stateManager
 		this.postStateToWebview = dependencies.postStateToWebview
 		this.say = dependencies.say
@@ -60,7 +64,7 @@ export class FocusChainManager {
 	 */
 	public async setupFocusChainFileWatcher() {
 		try {
-			const taskDir = await ensureTaskDirectoryExists(this.taskId)
+			const taskDir = await ensureTaskDirectoryExists(this.context, this.taskId)
 			const focusChainFilePath = getFocusChainFilePath(taskDir, this.taskId)
 
 			// Initialize chokidar watcher
@@ -170,25 +174,27 @@ export class FocusChainManager {
 
 		// For when recommending but not requiring a list
 		const listInstructionsRecommended = `\n
-1. Include the task_progress parameter in your next tool call\n
-2. Create a comprehensive checklist of all steps needed\n
-3. Use markdown format: - [ ] for incomplete, - [x] for complete\n
+🚨 DO NOT USE new_task! Add task_progress to your WORK tools instead:\n
 \n
-**Benefits of creating a todo list now:**\n
-	- Clear roadmap for implementation\n
-	- Progress tracking throughout the task\n
-	- Nothing gets forgotten or missed\n
-	- Users can see, monitor, and edit the plan\n
+1. Add task_progress parameter to your NEXT work tool (list_files, read_file, write_to_file, etc.)\n
+2. Inside task_progress, create a comprehensive checklist using markdown:\n
+   - Use: - [ ] for incomplete items\n
+   - Use: - [x] for complete items\n
 \n
-**Example structure:**\n\`\`\`\n
+**Example - Adding task_progress to list_files:**\n
+\`\`\`xml\n
+<list_files>\n
+<path>src</path>\n
+<task_progress>\n
 - [ ] Analyze requirements\n
-- [ ] Set up necessary files\n
-- [ ] Implement main functionality\n
-- [ ] Handle edge cases\n
-- [ ] Test the implementation\n
-- [ ] Verify results\n\`\`\`\n
+- [ ] Read existing files\n
+- [ ] Write improvements\n
+- [ ] Test results\n
+</task_progress>\n
+</list_files>\n
+\`\`\`\n
 \n
-Keeping the todo list updated helps track progress and ensures nothing is missed.`
+DO NOT call new_task! Just add task_progress to your next work tool.`
 
 		// Prompt for reminders to update the list periodically
 		const listInstrunctionsReminder = `\n
@@ -211,8 +217,8 @@ Keeping the todo list updated helps track progress and ensures nothing is missed
 			const percentComplete = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0
 
 			const introUpdateRequired =
-				"# TODO LIST UPDATE REQUIRED - You MUST include the task_progress parameter in your NEXT tool call."
-			const listCurrentProgress = `**Current Progress: ${completedItems}/${totalItems} items completed (${percentComplete}%)**`
+				"📋 Current todo list:"
+			const listCurrentProgress = `**Progress: ${completedItems}/${totalItems} items completed (${percentComplete}%)**`
 			const userHasUpdatedList =
 				"**CRITICAL INFORMATION:** The user has modified this todo list - review ALL changes carefully"
 
@@ -233,7 +239,7 @@ Keeping the todo list updated helps track progress and ensures nothing is missed
 				// If there are items on the list, but none have been completed yet, remind the model to update the list when appropriate
 				if (completedItems === 0 && totalItems > 0) {
 					progressBasedMessageStub =
-						"\n\n**Note:** No items are marked complete yet. As you work through the task, remember to mark items as complete when finished."
+						"\n\nContinue your work. Update task_progress when you complete items."
 				} else if (percentComplete >= 25 && percentComplete < 50) {
 					progressBasedMessageStub = `\n\n**Note:** ${percentComplete}% of items are complete.`
 				} else if (percentComplete >= 50 && percentComplete < 75) {
@@ -308,7 +314,7 @@ ${listInstrunctionsReminder}\n`
 	 */
 	private async readFocusChainFromDisk(): Promise<string | null> {
 		try {
-			const taskDir = await ensureTaskDirectoryExists(this.taskId)
+			const taskDir = await ensureTaskDirectoryExists(this.context, this.taskId)
 			const todoFilePath = getFocusChainFilePath(taskDir, this.taskId)
 			const markdownContent = await fs.readFile(todoFilePath, "utf8")
 			const todoList = extractFocusChainListFromText(markdownContent)
@@ -336,7 +342,7 @@ ${listInstrunctionsReminder}\n`
 	 */
 	private async writeFocusChainToDisk(todoList: string): Promise<void> {
 		try {
-			const taskDir = await ensureTaskDirectoryExists(this.taskId)
+			const taskDir = await ensureTaskDirectoryExists(this.context, this.taskId)
 			const todoFilePath = getFocusChainFilePath(taskDir, this.taskId)
 			const fileContent = createFocusChainMarkdownContent(this.taskId, todoList)
 			await writeFile(todoFilePath, fileContent, "utf8")

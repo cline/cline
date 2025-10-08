@@ -60,8 +60,7 @@ export abstract class BaseGrpcClient<TClient> {
 
 	protected getClient(): TClient {
 		if (!this.client || !this.channel) {
-			const channelOptions = { "grpc.enable_http_proxy": 0 }
-			this.channel = createChannel(this.address, undefined, channelOptions)
+			this.channel = createChannel(this.address)
 			this.client = this.createClient(this.channel)
 		}
 		return this.client

@@ -56,7 +56,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			await config.messageState.saveClineMessagesAndUpdateHistory()
 			await config.services.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 				Date.now(),
-				await ensureTaskDirectoryExists(config.taskId),
+				await ensureTaskDirectoryExists(config.context, config.taskId),
 				apiConversationHistory,
 			)
 

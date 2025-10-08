@@ -2,7 +2,6 @@ syntax = "proto3";
 package cline;
 import "cline/common.proto";
 import "cline/models.proto";
-option go_package = "github.com/cline/grpc-go/cline";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 
@@ -20,8 +19,6 @@ service StateService {
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
   rpc updateInfoBannerVersion(Int64Request) returns (Empty);
-  rpc updateModelBannerVersion(Int64Request) returns (Empty);
-  rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
 }
 message DictationSettings {
   bool feature_enabled = 1;
@@ -304,11 +301,4 @@ message Viewport {
 
 message UpdateTerminalConnectionTimeoutResponse {
   optional int32 timeout_ms = 1;
-}
-
-
-message ProcessInfo {
-  int32 process_id = 1;
-  optional string version = 2;
-  optional int64 uptime_ms = 3;
 }

@@ -2,9 +2,11 @@ import { PromptVariant, SystemPromptContext, SystemPromptSection, TemplateEngine
 
 const UPDATING_TASK_PROGRESS = `UPDATING TASK PROGRESS
 
-Every tool use supports an optional task_progress parameter that allows you to provide an updated checklist to keep the user informed of your overall progress on the task. This should be used regularly throughout the task to keep the user informed of completed and remaining steps. Before using the attempt_completion tool, ensure the final checklist item is checked off to indicate task completion.
+IMPORTANT: The task_progress parameter is supported by plan_mode_respond, attempt_completion, AND any work tools (read_file, write_to_file, replace_in_file, execute_command, list_files, etc.). You can include task_progress with ANY tool call to update the todo list.
 
-- You probably wouldn't use this while in PLAN mode until the user has approved your plan and switched you to ACT mode.
+The task_progress parameter allows you to provide an updated checklist to keep the user informed of your overall progress on the task. This should be used regularly throughout the task to keep the user informed of completed and remaining steps. Before using the attempt_completion tool, ensure the final checklist item is checked off to indicate task completion.
+
+- You would only use task_progress with plan_mode_respond in PLAN mode, or with attempt_completion when completing the task in ACT mode.
 - Use standard Markdown checklist format: "- [ ]" for incomplete items and "- [x]" for completed items
 - Provide the whole checklist of steps you intend to complete in the task, and keep the checkboxes updated as you make progress. It's okay to rewrite this checklist as needed if it becomes invalid due to scope changes or new information.
 - Keep items focused on meaningful progress milestones rather than minor technical details. The checklist should not be so granular that minor implementation details clutter the progress tracking.

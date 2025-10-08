@@ -1,3 +1,4 @@
+import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import { ExtensionRegistryInfo } from "@/registry"
 import { CommandContext } from "@/shared/proto/index.cline"
@@ -22,7 +23,10 @@ export async function getContextForCommand(
 	  }
 > {
 	const activeWebview = await focusChatInput()
-	// Use the controller from the active instance
+	if (!activeWebview) {
+		return
+	}
+	// Use the controller from the last active instance
 	const controller = activeWebview.controller
 
 	const editor = vscode.window.activeTextEditor
@@ -46,9 +50,16 @@ export async function getContextForCommand(
 	return { controller, commandContext }
 }
 
-export async function focusChatInput(): Promise<WebviewProvider> {
+export async function focusChatInput(): Promise<WebviewProvider | undefined> {
 	await vscode.commands.executeCommand(ExtensionRegistryInfo.commands.FocusChatInput)
 
-	// At this point, the instance is guaranteed to exist due to the FocusChatInput command
-	return WebviewProvider.getInstance()
+	// Wait for a webview instance to become available after focusing
+	await pWaitFor(() => !!WebviewProvider.getLastActiveInstance())
+	const activeWebview = WebviewProvider.getLastActiveInstance()
+	if (!activeWebview) {
+		console.error("No active webview to receive command")
+		return
+	}
+
+	return activeWebview
 }

@@ -12,7 +12,8 @@ import { main as generateHostBridgeClient } from "./generate-host-bridge-client.
 import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 
 const require = createRequire(import.meta.url)
-const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
+const PROTO_BIN = path.join(require.resolve("grpc-tools"), "../bin")
+const PROTOC = process.platform === "win32" ? path.join(PROTO_BIN, "protoc.exe") : path.join(PROTO_BIN, "protoc")
 
 const PROTO_DIR = path.resolve("proto")
 const TS_OUT_DIR = path.resolve("src/shared/proto")
@@ -55,26 +56,38 @@ async function compileProtos() {
 	const protoFiles = await globby("**/*.proto", { cwd: PROTO_DIR, realpath: true })
 	console.log(chalk.cyan(`Processing ${protoFiles.length} proto files from`), PROTO_DIR)
 
-	tsProtoc(TS_OUT_DIR, protoFiles, TS_PROTO_OPTIONS)
-	// grpc-js is used to generate service impls for the ProtoBus service.
-	tsProtoc(GRPC_JS_OUT_DIR, protoFiles, ["outputServices=grpc-js", ...TS_PROTO_OPTIONS])
-	// nice-js is used for the Host Bridge client impls because it uses promises.
-	tsProtoc(NICE_JS_OUT_DIR, protoFiles, ["outputServices=nice-grpc,useExactTypes=false", ...TS_PROTO_OPTIONS])
+	let didTsProtoc = true
+	try {
+		await tsProtoc(TS_OUT_DIR, protoFiles, TS_PROTO_OPTIONS)
+		// grpc-js is used to generate service impls for the ProtoBus service.
+		await tsProtoc(GRPC_JS_OUT_DIR, protoFiles, ["outputServices=grpc-js", ...TS_PROTO_OPTIONS])
+		// nice-js is used for the Host Bridge client impls because it uses promises.
+		await tsProtoc(NICE_JS_OUT_DIR, protoFiles, ["outputServices=nice-grpc,useExactTypes=false", ...TS_PROTO_OPTIONS])
+	} catch (error) {
+		console.warn(chalk.yellow("ts-proto via grpc-tools protoc failed. Falling back to buf generate..."))
+		await bufGenerate()
+		didTsProtoc = false
+	}
 
 	const descriptorFile = path.join(DESCRIPTOR_OUT_DIR, "descriptor_set.pb")
-	const descriptorProtocCommand = [
-		PROTOC,
-		`--proto_path="${PROTO_DIR}"`,
-		`--descriptor_set_out="${descriptorFile}"`,
-		"--include_imports",
-		...protoFiles,
-	].join(" ")
-	try {
-		log_verbose(chalk.cyan("Generating descriptor set..."))
-		execSync(descriptorProtocCommand, { stdio: "inherit" })
-	} catch (error) {
-		console.error(chalk.red("Error generating descriptor set for proto file:"), error)
-		process.exit(1)
+	if (!didTsProtoc) {
+		// If protoc crashed earlier, generate the descriptor with buf instead of protoc
+		await bufBuildDescriptor(descriptorFile)
+	} else {
+		const descriptorProtocCommand = [
+			PROTOC,
+			`--proto_path="${PROTO_DIR}"`,
+			`--descriptor_set_out="${descriptorFile}"`,
+			"--include_imports",
+			...protoFiles,
+		].join(" ")
+		try {
+			log_verbose(chalk.cyan("Generating descriptor set..."))
+			execSync(descriptorProtocCommand, { stdio: "inherit" })
+		} catch (error) {
+			console.error(chalk.red("Error generating descriptor set for proto file:"), error)
+			process.exit(1)
+		}
 	}
 
 	log_verbose(chalk.green("Protocol Buffer code generation completed successfully."))
@@ -82,22 +95,86 @@ async function compileProtos() {
 }
 
 async function tsProtoc(outDir, protoFiles, protoOptions) {
-	// Build the protoc command with proper path handling for cross-platform
-	const command = [
-		PROTOC,
+	// Build the protoc command; on Windows, rely on PATH to resolve protoc-gen-ts_proto from node_modules/.bin
+	const args = [
 		`--proto_path="${PROTO_DIR}"`,
-		`--plugin=protoc-gen-ts_proto="${TS_PROTO_PLUGIN}"`,
 		`--ts_proto_out="${outDir}"`,
-		`--ts_proto_opt=${protoOptions.join(",")} `,
+		`--ts_proto_opt=${protoOptions.join(",")}`,
 		...protoFiles.map((s) => `"${s}"`),
-	].join(" ")
+	]
+	// Only add explicit plugin path on non-Windows
+	if (process.platform !== "win32") {
+		args.unshift(`--plugin=protoc-gen-ts_proto="${TS_PROTO_PLUGIN}"`)
+	}
+	const command = [PROTOC, ...args].join(" ")
+
 	try {
 		log_verbose(chalk.cyan(`Generating TypeScript code in ${outDir} for:\n${protoFiles.join("\n")}...`))
 		log_verbose(command)
-		execSync(command, { stdio: "inherit" })
+		// Ensure node_modules/.bin is on PATH so protoc can find plugins on Windows without quoting issues
+		const binPath = path.resolve("node_modules/.bin")
+		const mergedEnv =
+			process.platform === "win32"
+				? { ...process.env, PATH: `${binPath};${process.env.PATH || ""}` }
+				: { ...process.env, PATH: `${binPath}:${process.env.PATH || ""}` }
+
+		execSync(command, { stdio: "inherit", env: mergedEnv })
 	} catch (error) {
 		console.error(chalk.red("Error generating TypeScript for proto files:"), error)
-		process.exit(1)
+		throw error
+	}
+}
+
+async function bufBuildDescriptor(outPath) {
+	log_verbose(chalk.cyan(`Running buf build to create descriptor at ${outPath}`))
+	// buf produces an image; we use binary image format (binpb) which is compatible with descriptor sets for most usages.
+	execSync(`npx buf build proto -o "${outPath}"`, { stdio: "inherit" })
+}
+
+async function bufGenerate() {
+	// Generate TypeScript from proto using buf + remote ts-proto plugin (Windows friendly)
+	const templatePath = path.resolve("buf.gen.tsproto.yaml")
+	const template = `version: v2
+plugins:
+  - remote: buf.build/community/stephenh-ts-proto
+    out: ${TS_OUT_DIR.replace(/\\/g, "/")}
+    opt:
+      - env=node
+      - esModuleInterop=true
+      - outputServices=generic-definitions
+      - outputIndex=true
+      - useOptionals=none
+      - useDate=false
+  - remote: buf.build/community/stephenh-ts-proto
+    out: ${GRPC_JS_OUT_DIR.replace(/\\/g, "/")}
+    opt:
+      - env=node
+      - esModuleInterop=true
+      - outputServices=grpc-js
+      - outputClientImpl=grpc-js
+      - outputIndex=true
+      - useOptionals=none
+      - useDate=false
+  - remote: buf.build/community/stephenh-ts-proto
+    out: ${NICE_JS_OUT_DIR.replace(/\\/g, "/")}
+    opt:
+      - env=node
+      - esModuleInterop=true
+      - outputServices=nice-grpc,useExactTypes=false
+      - outputClientImpl=nice-grpc
+      - outputIndex=true
+      - useOptionals=none
+      - useDate=false
+`
+	try {
+		await fs.writeFile(templatePath, template, "utf8")
+		log_verbose(chalk.cyan(`Running buf generate with template ${templatePath}`))
+		// For buf v2, pass the module path directly as input ("proto") instead of --path
+		execSync(`npx buf generate proto --template "${templatePath}"`, { stdio: "inherit" })
+	} finally {
+		try {
+			await fs.unlink(templatePath)
+		} catch {}
 	}
 }
 

@@ -90,7 +90,7 @@ export class FileContextTracker {
 			}
 
 			// Add file to metadata
-			await this.addFileToFileContextTracker(this.taskId, filePath, operation)
+			await this.addFileToFileContextTracker(this.controller.context, this.taskId, filePath, operation)
 
 			// Set up file watcher for this file
 			await this.setupFileWatcher(filePath)
@@ -104,9 +104,14 @@ export class FileContextTracker {
 	 * This handles the business logic of determining if the file is new, stale, or active.
 	 * It also updates the metadata with the latest read/edit dates.
 	 */
-	async addFileToFileContextTracker(taskId: string, filePath: string, source: FileMetadataEntry["record_source"]) {
+	async addFileToFileContextTracker(
+		context: vscode.ExtensionContext,
+		taskId: string,
+		filePath: string,
+		source: FileMetadataEntry["record_source"],
+	) {
 		try {
-			const metadata = await getTaskMetadata(taskId)
+			const metadata = await getTaskMetadata(context, taskId)
 			const now = Date.now()
 
 			// Mark existing entries for this file as stale
@@ -155,7 +160,7 @@ export class FileContextTracker {
 			}
 
 			metadata.files_in_context.push(newEntry)
-			await saveTaskMetadata(taskId, metadata)
+			await saveTaskMetadata(context, taskId, metadata)
 		} catch (error) {
 			console.error("Failed to add file to metadata:", error)
 		}
@@ -178,6 +183,25 @@ export class FileContextTracker {
 	}
 
 	/**
+	 * Returns true if this task has already seen this file in context via a read/mention/edit.
+	 * Used to enforce "read before edit" guardrails in write/replace handlers.
+	 */
+	async hasSeenFileBeforeEdit(filePath: string): Promise<boolean> {
+		try {
+			const metadata = await getTaskMetadata(this.controller.context, this.taskId)
+			return metadata?.files_in_context?.some(
+				(entry) =>
+					entry.path === filePath &&
+					(entry.record_source === "read_tool" ||
+						entry.record_source === "file_mentioned" ||
+						entry.record_source === "cline_edited"),
+			) === true
+		} catch {
+			return false
+		}
+	}
+
+	/**
 	 * Disposes all file watchers
 	 */
 	async dispose(): Promise<void> {
@@ -195,7 +219,7 @@ export class FileContextTracker {
 
 		try {
 			// Check task metadata for files that were edited by Cline or users after the message timestamp
-			const taskMetadata = await getTaskMetadata(this.taskId)
+			const taskMetadata = await getTaskMetadata(this.controller.context, this.taskId)
 
 			if (taskMetadata?.files_in_context) {
 				for (const fileEntry of taskMetadata.files_in_context) {

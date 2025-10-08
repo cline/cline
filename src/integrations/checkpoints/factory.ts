@@ -1,13 +1,13 @@
 import type { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import type { MessageStateHandler } from "@core/task/message-state"
 import type { TaskState } from "@core/task/TaskState"
-import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { createTaskCheckpointManager } from "@integrations/checkpoints"
 import { MultiRootCheckpointManager } from "@integrations/checkpoints/MultiRootCheckpointManager"
 import type { ICheckpointManager } from "@integrations/checkpoints/types"
 import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
-import { StateManager } from "@/core/storage/StateManager"
+import type * as vscode from "vscode"
+import { featureFlagsService } from "@/services/feature-flags"
 
 /**
  * Simple predicate abstracting our multi-root decision.
@@ -15,26 +15,26 @@ import { StateManager } from "@/core/storage/StateManager"
 export function shouldUseMultiRoot({
 	workspaceManager,
 	enableCheckpoints,
-	stateManager,
-	multiRootEnabledOverride,
+	isMultiRootEnabled,
 }: {
 	workspaceManager?: WorkspaceRootManager
 	enableCheckpoints: boolean
-	stateManager: StateManager
-	multiRootEnabledOverride?: boolean
+	isMultiRootEnabled?: boolean
 }): boolean {
-	const multiRootEnabled = multiRootEnabledOverride ?? isMultiRootEnabled(stateManager)
-	return Boolean(multiRootEnabled && enableCheckpoints && workspaceManager && workspaceManager.getRoots().length > 1)
+	const hasFeatureFlag = isMultiRootEnabled === undefined ? featureFlagsService.getMultiRootEnabled() : isMultiRootEnabled
+	return Boolean(hasFeatureFlag && enableCheckpoints && workspaceManager && workspaceManager.getRoots().length > 1)
 }
 
 type BuildArgs = {
 	// common
 	taskId: string
+	enableCheckpoints: boolean
 	messageStateHandler: MessageStateHandler
 	// single-root deps
 	fileContextTracker: FileContextTracker
 	diffViewProvider: DiffViewProvider
 	taskState: TaskState
+	context: vscode.ExtensionContext
 	// multi-root deps
 	workspaceManager?: WorkspaceRootManager
 
@@ -47,8 +47,6 @@ type BuildArgs = {
 	// initial state for single-root
 	initialConversationHistoryDeletedRange?: [number, number]
 	initialCheckpointManagerErrorMessage?: string
-
-	stateManager: StateManager
 }
 
 /**
@@ -59,10 +57,12 @@ type BuildArgs = {
 export function buildCheckpointManager(args: BuildArgs): ICheckpointManager {
 	const {
 		taskId,
+		enableCheckpoints,
 		messageStateHandler,
 		fileContextTracker,
 		diffViewProvider,
 		taskState,
+		context,
 		workspaceManager,
 		updateTaskHistory,
 		say,
@@ -70,12 +70,9 @@ export function buildCheckpointManager(args: BuildArgs): ICheckpointManager {
 		postStateToWebview,
 		initialConversationHistoryDeletedRange,
 		initialCheckpointManagerErrorMessage,
-		stateManager,
 	} = args
 
-	const enableCheckpoints = stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
-
-	if (shouldUseMultiRoot({ workspaceManager, enableCheckpoints, stateManager })) {
+	if (shouldUseMultiRoot({ workspaceManager, enableCheckpoints })) {
 		// Multi-root manager (init should be kicked off externally, non-blocking)
 		return new MultiRootCheckpointManager(workspaceManager!, taskId, enableCheckpoints, messageStateHandler)
 	}
@@ -85,6 +82,7 @@ export function buildCheckpointManager(args: BuildArgs): ICheckpointManager {
 		{ taskId },
 		{ enableCheckpoints },
 		{
+			context,
 			diffViewProvider,
 			messageStateHandler,
 			fileContextTracker,

@@ -82,10 +82,6 @@ export class FeatureFlagsService {
 		return this.getBooleanFlagEnabled(FeatureFlag.MULTI_ROOT_WORKSPACE, false)
 	}
 
-	public getWorkOsAuthEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.WORKOS_AUTH, false)
-	}
-
 	/**
 	 * Get the feature flag payload for advanced use cases
 	 * @param flagName The feature flag key

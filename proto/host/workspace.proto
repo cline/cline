@@ -1,7 +1,6 @@
 syntax = "proto3";
 
 package host;
-option go_package = "github.com/cline/grpc-go/host";
 option java_package = "bot.cline.host.proto";
 option java_multiple_files = true;
 
@@ -28,9 +27,6 @@ service WorkspaceService {
 
   // Opens and focuses the Cline sidebar panel in the host IDE.
   rpc openClineSidebarPanel(OpenClineSidebarPanelRequest) returns (OpenClineSidebarPanelResponse);
-
-  // Opens and focuses the terminal panel.
-  rpc openTerminalPanel(OpenTerminalRequest) returns (OpenTerminalResponse);
 }
 
 message GetWorkspacePathsRequest {
@@ -86,11 +82,12 @@ message SearchWorkspaceItemsResponse {
 
 message OpenProblemsPanelRequest {}
 message OpenProblemsPanelResponse {}
+
 message OpenInFileExplorerPanelRequest {
   string path = 1;
 }
 message OpenInFileExplorerPanelResponse {}
+
+// Request/response for opening the Cline sidebar
 message OpenClineSidebarPanelRequest {}
 message OpenClineSidebarPanelResponse {}
-message OpenTerminalRequest {}
-message OpenTerminalResponse {}

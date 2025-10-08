@@ -80,7 +80,7 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 
 			// Which mode(s) to update?
 			const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
-			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
+			const currentMode = (await controller.getCurrentMode?.()) ?? "plan"
 			const planModeSelectedModelId =
 				apiConfiguration?.planModeOcaModelId && models[apiConfiguration.planModeOcaModelId]
 					? apiConfiguration.planModeOcaModelId

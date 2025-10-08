@@ -1,4 +1,10 @@
-import { getSavedClineMessages, getTaskMetadata, readTaskHistoryFromState, writeTaskHistoryToState } from "@core/storage/disk"
+import {
+	ensureTaskDirectoryExists,
+	getSavedClineMessages,
+	getTaskMetadata,
+	readTaskHistoryFromState,
+	writeTaskHistoryToState,
+} from "@core/storage/disk"
 import { HostProvider } from "@hosts/host-provider"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
@@ -6,6 +12,7 @@ import { ShowMessageType } from "@shared/proto/host/window"
 import { fileExistsAtPath } from "@utils/fs"
 import * as path from "path"
 import { ulid } from "ulid"
+import * as vscode from "vscode"
 
 interface TaskReconstructionResult {
 	totalTasks: number
@@ -17,7 +24,7 @@ interface TaskReconstructionResult {
 /**
  * Reconstructs task history from existing task folders
  */
-export async function reconstructTaskHistory(): Promise<void> {
+export async function reconstructTaskHistory(context: vscode.ExtensionContext): Promise<void> {
 	try {
 		// Show confirmation dialog using HostProvider
 		const proceed = await HostProvider.window.showMessage({
@@ -39,7 +46,7 @@ export async function reconstructTaskHistory(): Promise<void> {
 			message: "Reconstructing task history...",
 		})
 
-		const result = await performTaskHistoryReconstruction()
+		const result = await performTaskHistoryReconstruction(context)
 
 		// Show results
 		if (result.errors.length > 0) {
@@ -64,7 +71,7 @@ export async function reconstructTaskHistory(): Promise<void> {
 	}
 }
 
-async function performTaskHistoryReconstruction(): Promise<TaskReconstructionResult> {
+async function performTaskHistoryReconstruction(context: vscode.ExtensionContext): Promise<TaskReconstructionResult> {
 	const result: TaskReconstructionResult = {
 		totalTasks: 0,
 		reconstructedTasks: 0,
@@ -73,10 +80,11 @@ async function performTaskHistoryReconstruction(): Promise<TaskReconstructionRes
 	}
 
 	// Backup existing task history
-	await backupExistingTaskHistory()
+	await backupExistingTaskHistory(context)
 
 	// Get tasks directory
-	const tasksDir = path.join(HostProvider.get().globalStorageFsPath, "tasks")
+	const globalStoragePath = context.globalStorageUri.fsPath
+	const tasksDir = path.join(globalStoragePath, "tasks")
 
 	// Check if tasks directory exists
 	if (!(await fileExistsAtPath(tasksDir))) {
@@ -96,7 +104,7 @@ async function performTaskHistoryReconstruction(): Promise<TaskReconstructionRes
 
 	for (const taskId of taskIds) {
 		try {
-			const historyItem = await reconstructTaskHistoryItem(taskId)
+			const historyItem = await reconstructTaskHistoryItem(context, taskId)
 			if (historyItem) {
 				reconstructedItems.push(historyItem)
 				result.reconstructedTasks++
@@ -119,11 +127,11 @@ async function performTaskHistoryReconstruction(): Promise<TaskReconstructionRes
 	return result
 }
 
-async function backupExistingTaskHistory(): Promise<void> {
+async function backupExistingTaskHistory(context: vscode.ExtensionContext): Promise<void> {
 	try {
 		const existingHistory = await readTaskHistoryFromState()
 		if (existingHistory.length > 0) {
-			const backupPath = path.join(HostProvider.get().globalStorageFsPath, "state", `taskHistory.backup.${Date.now()}.json`)
+			const backupPath = path.join(context.globalStorageUri.fsPath, "state", `taskHistory.backup.${Date.now()}.json`)
 
 			// Ensure state directory exists
 			const fs = await import("fs/promises")
@@ -150,16 +158,19 @@ async function scanTaskDirectories(tasksDir: string): Promise<string[]> {
 	}
 }
 
-async function reconstructTaskHistoryItem(taskId: string): Promise<HistoryItem | null> {
+async function reconstructTaskHistoryItem(context: vscode.ExtensionContext, taskId: string): Promise<HistoryItem | null> {
 	try {
+		// Get task directory
+		const taskDir = await ensureTaskDirectoryExists(context, taskId)
+
 		// Load UI messages to extract task info
-		const clineMessages = await getSavedClineMessages(taskId)
+		const clineMessages = await getSavedClineMessages(context, taskId)
 		if (clineMessages.length === 0) {
 			return null // Skip empty tasks
 		}
 
 		// Load task metadata for token usage
-		const metadata = await getTaskMetadata(taskId)
+		const metadata = await getTaskMetadata(context, taskId)
 
 		// Extract task information
 		const taskInfo = extractTaskInformation(clineMessages, metadata)

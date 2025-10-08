@@ -1,7 +1,6 @@
 import platformConfigs from "./platform-configs.json"
 
 export interface PlatformConfig {
-	type: PlatformType
 	messageEncoding: MessageEncoding
 	showNavbar: boolean
 	postMessage: PostMessageFunction
@@ -9,24 +8,6 @@ export interface PlatformConfig {
 	decodeMessage: MessageDecoder
 	togglePlanActKeys: string
 	supportsTerminalMentions: boolean
-}
-
-export enum PlatformType {
-	VSCODE = 0,
-	STANDALONE = 1,
-}
-
-function stringToPlatformType(name: string): PlatformType {
-	const mapping: Record<string, PlatformType> = {
-		vscode: PlatformType.VSCODE,
-		standalone: PlatformType.STANDALONE,
-	}
-	if (name in mapping) {
-		return mapping[name]
-	}
-	console.error("Unknown platform:", name)
-	// Default to VSCode for unknown types
-	return PlatformType.VSCODE
 }
 
 // Internal type for JSON structure (not exported)
@@ -95,9 +76,7 @@ const selectedConfig = configs[__PLATFORM__]
 console.log("[PLATFORM_CONFIG] Build platform:", __PLATFORM__)
 
 // Build the platform config with injected functions
-// Callers should use this in the situations where the react component is not available.
 export const PLATFORM_CONFIG: PlatformConfig = {
-	type: stringToPlatformType(__PLATFORM__),
 	messageEncoding: selectedConfig.messageEncoding,
 	showNavbar: selectedConfig.showNavbar,
 	postMessage: postMessageStrategies[selectedConfig.postMessageHandler],

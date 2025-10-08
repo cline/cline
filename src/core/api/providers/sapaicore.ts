@@ -9,7 +9,6 @@ import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels }
 import axios from "axios"
 import OpenAI from "openai"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
-import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
@@ -455,7 +454,6 @@ export class SapAiCoreHandler implements ApiHandler {
 		return this.deployments?.some((d) => d.name.split(":")[0].toLowerCase() === modelId.split(":")[0].toLowerCase()) ?? false
 	}
 
-	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		if (this.options.sapAiCoreUseOrchestrationMode) {
 			yield* this.createMessageWithOrchestration(systemPrompt, messages)

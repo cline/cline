@@ -57,7 +57,7 @@ export class E2ETestHelper {
 		return `${baseName}${projectSuffix}`
 	}
 
-	public static async waitUntil(predicate: () => boolean | Promise<boolean>, maxDelay = 10000): Promise<void> {
+	public static async waitUntil(predicate: () => boolean | Promise<boolean>, maxDelay = 5000): Promise<void> {
 		let delay = 10
 		const start = Date.now()
 

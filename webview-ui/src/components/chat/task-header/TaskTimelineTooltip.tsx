@@ -167,7 +167,7 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 									height: "10px",
 									minWidth: "10px", // Ensure fixed width
 									minHeight: "10px", // Ensure fixed height
-									borderRadius: 1.5,
+									borderRadius: "50%",
 									backgroundColor: getColor(message),
 									marginRight: "8px",
 									display: "inline-block",

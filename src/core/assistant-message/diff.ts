@@ -320,6 +320,10 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 							"- Use '------- SEARCH' (7+ dashes + space + SEARCH)\n",
 					)
 				}
+			} else if (originalContent.length === 0) {
+				// Treat non-empty search blocks as full replacements when creating a new file
+				searchMatchIndex = 0
+				searchEndIndex = 0
 			} else {
 				// Add check for inefficient full-file search
 				// if (currentSearchContent.trim() === originalContent.trim()) {
@@ -590,21 +594,27 @@ class NewFileContentConstructor {
 			}
 			if (this.hasPendingNonStandardLines(pendingNonStandardLineLimit)) {
 				this.tryFixSearchReplaceBlock(pendingNonStandardLineLimit)
-				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
+				if (canWritependingNonStandardLines) {
+					this.pendingNonStandardLines.length = 0
+				}
 			}
 			this.activateSearchState()
 		} else if (isSearchBlockEnd(line)) {
 			// 校验非标内容
 			if (!this.isSearchingActive()) {
 				this.tryFixSearchBlock(pendingNonStandardLineLimit)
-				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
+				if (canWritependingNonStandardLines) {
+					this.pendingNonStandardLines.length = 0
+				}
 			}
 			this.activateReplaceState()
 			this.beforeReplace()
 		} else if (isReplaceBlockEnd(line)) {
 			if (!this.isReplacingActive()) {
 				this.tryFixReplaceBlock(pendingNonStandardLineLimit)
-				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
+				if (canWritependingNonStandardLines) {
+					this.pendingNonStandardLines.length = 0
+				}
 			}
 			this.lastProcessedIndex = this.searchEndIndex
 			this.resetForNextBlock()
@@ -650,6 +660,10 @@ class NewFileContentConstructor {
 				this.searchMatchIndex = 0
 				this.searchEndIndex = this.originalContent.length
 			}
+		} else if (this.originalContent.length === 0) {
+			// Treat non-empty search blocks as full replacements when creating a new file
+			this.searchMatchIndex = 0
+			this.searchEndIndex = 0
 		} else {
 			// Add check for inefficient full-file search
 			// if (currentSearchContent.trim() === originalContent.trim()) {

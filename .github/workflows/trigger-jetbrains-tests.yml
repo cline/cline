@@ -30,19 +30,17 @@ jobs:
             -H "User-Agent: cline-pr-trigger" \
             -H "Content-Type: application/json" \
             https://api.github.com/repos/cline/intellij-plugin/dispatches \
-            -d @- <<EOF
-          {
-            "event_type": "cline-pr-check",
-            "client_payload": {
-              "pr_number": "${{ github.event.number }}",
-              "branch_name": "${{ github.head_ref }}",
-              "action": "${{ github.event.action }}",
-              "sha": "${{ github.event.pull_request.head.sha }}",
-              "pr_title": ${{ toJSON(github.event.pull_request.title) }},
-              "pr_url": "${{ github.event.pull_request.html_url }}"
-            }
-          }
-          EOF
+            -d '{
+              "event_type": "cline-pr-check",
+              "client_payload": {
+                "pr_number": "${{ github.event.number }}",
+                "branch_name": "${{ github.head_ref }}",
+                "action": "${{ github.event.action }}",
+                "sha": "${{ github.event.pull_request.head.sha }}",
+                "pr_title": "${{ github.event.pull_request.title }}",
+                "pr_url": "${{ github.event.pull_request.html_url }}"
+              }
+            }'
 
       - name: Log trigger details
         run: |

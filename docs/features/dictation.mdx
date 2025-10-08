@@ -1,149 +1,60 @@
 ---
-title: "Dictation"
-description: "Communicate with Cline using your voice for faster, more natural AI collaboration"
+title: Dictation
+description:
 ---
 
-Dictation transforms how you work with AI. Instead of typing out complex thoughts, you speak naturally and share your complete intent. This isn't just about speed - though voice is faster - it's about unlocking the kind of fluid collaboration that typing can't match.
+Cline lets you transcribe speech to text in an easy, built-in service
 
-## Why Voice Changes Everything
+## Get Started
 
-When you type, you edit yourself. You simplify complex ideas, skip context, and lose nuance. When you speak, you share everything on your mind - the full problem, the constraints, the edge cases you're worried about.
+1. **Enable Dictation** in Feature Settings.
+2. **Click the microphone** in the chat input area.
+3. **Speak** - the button turns red while recording.
+4. **Click Stop Recording** when done.
+5. **Wait for transcription** - "[Transcribing...]" will appear and then the finished transcription will appear.
 
-Use Dictation constantly in [Plan mode](/features/plan-and-act) for rapid back-and-forth discussions. Instead of typing careful, structured prompts, think about a problem. Cline asks clarifying questions, respond immediately, and iterate until having a solid plan.
+## Settings
 
-The friction of typing was holding back real collaboration. Voice removes that friction.
+Enable or disable dictation in Feature Settings by toggling "Enable Dictation." You can also change the transcription language to one of the supported languages.
 
-## Getting Started
+## Requirements
 
-**Enable Dictation:**
-1. Go to Settings → Features → Dictation
-2. Toggle "Enable Dictation" on
-3. Sign into your Cline account when prompted
-4. Install FFmpeg if you haven't already (Cline will guide you)
+Cline uses FFmpeg to capture your voice across all platforms:
 
-Once enabled, you'll see a microphone button in the chat input area.
-
-**Using Dictation:**
-- Click the microphone button to start recording
-- Speak naturally
-- Click again to stop recording
-- Wait for transcription to appear in the chat
-
-<Tip>
-Dictation works with any AI model you've configured. The transcription happens through Cline's service, but your conversation continues with whatever model you're using.
-</Tip>
-
-## System Requirements
-
-Dictation uses FFmpeg to capture your voice across all platforms:
-
-- **macOS**: FFmpeg (via Homebrew: `brew install ffmpeg`)
-- **Linux**: FFmpeg (via apt: `sudo apt-get install ffmpeg`)
-- **Windows**: FFmpeg (via winget: `winget install Gyan.FFmpeg`)
+-   **macOS**: FFmpeg (via Homebrew: `brew install ffmpeg`)
+-   **Linux**: FFmpeg (via apt: `sudo apt-get install ffmpeg`)
+-   **Windows**: FFmpeg (via winget: `winget install Gyan.FFmpeg`)
 
 If you don't have FFmpeg installed, Cline will automatically detect this and prompt you to install it with a single click.
 
-## Where Dictation Shines
+## Technical Details
 
-### Plan Mode Conversations
+### Independent from Chat Provider
 
-Dictation is perfect for [Plan mode](/features/plan-and-act) discussions. Instead of carefully crafting prompts, you can:
+The voice transcription feature works completely independently from whatever chat provider you're using. You can use Claude, GPT-4, or any other model for your conversations, and voice transcription will always use Cline's own transcription service. As long as you have a valid Cline account with enough credits, dictation will work regardless of your chat model choice.
 
-- Dictate your entire problem context in one go
-- Respond to Cline's questions immediately
-- Iterate on ideas without typing friction
-- Think out loud while Cline listens
+### Audio Format
 
-Start a planning session by speaking for 2-3 minutes straight, explaining the full context of what you're trying to build, the constraints you're working with, and the specific challenges you're facing.
+Voice recordings are captured in WebM format using the Opus codec for optimal compression. The system records in mono (single channel) at a 16kHz sample rate, which is specifically optimized for voice recognition. The bitrate is set to 32kbps to keep file sizes efficient while maintaining good audio quality.
 
-### Complex Problem Explanation
+### Privacy & Security
 
-Some problems are hard to type out. When you're dealing with:
-- Multi-step workflows with edge cases
-- Integration challenges across multiple systems  
-- Performance issues with specific reproduction steps
-- UI/UX problems that need detailed context
-
-Speaking lets you explain the full situation naturally, including all the "oh, and also..." details that matter.
-
-### Code Review and Debugging
-
-When reviewing code or explaining bugs, voice lets you walk through your thought process:
-- "This function looks fine, but I'm worried about what happens when..."
-- "The issue might be in this section, or possibly this other area..."
-- "I tried X and Y, but neither worked because..."
-
-You can share your complete debugging journey instead of just the final question.
-
-## Technical Requirements
-
-**System Requirements:**
-- FFmpeg installed on your system
-- Active internet connection
-- Cline account with transcription credits
-
-**Audio Quality:**
-- Records in WebM format with Opus codec
-- Mono audio at 16kHz sample rate
-- Optimized for voice recognition
-
-**Privacy:**
-- Audio recorded locally on your machine
-- Only audio files sent for transcription
-- No audio stored after transcription
-- Temporary files automatically cleaned up
-
-## Cost and Credits
-
-Voice transcription costs $0.006 per minute through your Cline account. For most users, this works out to pennies per session.
-
-A typical 5-minute planning conversation costs about 3 cents. Even heavy voice users rarely spend more than a few dollars per month.
-
-<Note>
-Pricing is experimental and may change as we refine the service.
-</Note>
-
-## Best Practices
-
-**Speak Naturally**
-Don't try to speak like you type. Use your normal conversational tone and don't worry about perfect grammar.
-
-**Give Context First**
-Start with the big picture, then drill down into specifics. "I'm building a React app that needs to handle real-time data, and I'm running into performance issues with the WebSocket connection..."
-
-**Use Voice for Exploration**
-Dictation is perfect for exploratory conversations where you're not sure exactly what you need. Start talking through the problem and let the conversation evolve.
-
-**Combine with Text**
-You don't have to use voice for everything. Use voice for complex explanations and context, then switch to text for quick follow-ups or code snippets.
+Your audio is recorded locally on your machine and only the audio file itself is sent to Cline's transcription service for processing. No audio is stored anywhere after transcription is complete, and all temporary files are automatically cleaned up to protect your privacy.
 
 ## Troubleshooting
 
-**Microphone Not Working**
-- Check your IDE permissions for microphone access
-- Ensure FFmpeg is properly installed
-- Try refreshing VSCode/your editor
+`Failed to start recording` - Audio recording tools aren't installed. Cline will prompt you to install FFmpeg - just follow the chat instructions.
 
-**Poor Transcription Quality**
-- Speak clearly and at normal volume
-- Reduce background noise if possible
-- Check your microphone settings
+`Invalid audio format or request data` - Usually an audio recording issue. Make sure FFmpeg is properly installed and working.
 
-**Connection Issues**
-- Verify internet connection
-- Check if firewall is blocking Cline's servers
-- Try signing out and back into your Cline account
+`Authentication failed` - You need to reauthenticate your Cline account. Sign out and back in, then check your internet connection.
 
-**Authentication Issues**
-- Sign out and back into your Cline account if you see authentication errors
-- Check that your account has sufficient transcription credits
-- Verify your internet connection is stable
+`Insufficient credits for transcription service` - Your Cline account doesn't have enough credits. Check your balance and purchase more if needed.
 
-**Audio Recording Issues**
-- Ensure FFmpeg is properly installed and accessible
-- Check that your browser/IDE has microphone permissions
-- Try restarting your editor if audio capture fails
+`Cannot connect to transcription service` - Connection issue. Check your internet connection and firewall settings aren't blocking Cline's servers.
 
-## The Future of AI Collaboration
+## API Usage
 
-When you can speak your thoughts as fast as you think them, you stop self-editing. You share the full context, the edge cases, the "what if" scenarios that matter. This leads to better solutions and fewer back-and-forth clarifications.
+Voice transcription uses Cline's transcription service, which requires credits from your Cline account. Currently, voice transcription is billed at $0.006 per minute of audio.
+
+**Note:** We are still experimenting with this feature and pricing may change in the future.

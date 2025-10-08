@@ -21,6 +21,7 @@ interface TaskTimelineProps {
 const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) => {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const scrollableRef = useRef<HTMLDivElement>(null)
+	const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null)
 
 	const { taskTimelinePropsMessages, messageIndexMap } = useMemo(() => {
 		if (messages.length <= 1) {
@@ -42,8 +43,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 					msg.say === "deleted_api_reqs" ||
 					msg.say === "checkpoint_created" ||
 					msg.say === "task_progress" ||
-					msg.say === "text" ||
-					msg.say === "reasoning")
+					(msg.say === "text" && (!msg.text || msg.text.trim() === "")))
 			) {
 				return false
 			}
@@ -105,11 +105,22 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 				}
 			}
 
+			const handleMouseEnter = () => {
+				setHoveredIndex(index)
+			}
+
+			const handleMouseLeave = () => {
+				setHoveredIndex(null)
+			}
+
+			const isHovered = hoveredIndex === index
+
 			return (
 				<TaskTimelineTooltip message={message}>
 					<div
-						className="hover:brightness-120"
 						onClick={handleClick}
+						onMouseEnter={handleMouseEnter}
+						onMouseLeave={handleMouseLeave}
 						style={{
 							width: BLOCK_WIDTH,
 							height: BLOCK_WIDTH,
@@ -117,13 +128,15 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 							flexShrink: 0,
 							cursor: "pointer",
 							marginRight: BLOCK_GAP,
-							borderRadius: 1.5,
+							opacity: isHovered ? 0.7 : 1,
+							transition: "opacity 0.2s ease",
+							borderRadius: "50%",
 						}}
 					/>
 				</TaskTimelineTooltip>
 			)
 		},
-		[taskTimelinePropsMessages, messageIndexMap, onBlockClick],
+		[taskTimelinePropsMessages, messageIndexMap, onBlockClick, hoveredIndex],
 	)
 
 	// Scroll to the end when messages change

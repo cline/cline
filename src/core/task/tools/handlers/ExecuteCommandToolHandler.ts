@@ -4,7 +4,6 @@ import { WorkspacePathAdapter } from "@core/workspace/WorkspacePathAdapter"
 import { showSystemNotification } from "@integrations/notifications"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { ClineAsk } from "@shared/ExtensionMessage"
-import { arePathsEqual } from "@utils/path"
 import { fixModelHtmlEscaping } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -82,17 +81,13 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		let executionDir: string = config.cwd
 		let actualCommand: string = command
 
-		let workspaceHintUsed = false
-		let workspaceHint: string | undefined
-
 		if (config.isMultiRootEnabled && config.workspaceManager) {
 			// Check if command has a workspace hint prefix
 			// e.g., "@backend:npm install" or just "npm install"
 			const commandMatch = command.match(/^@(\w+):(.+)$/)
 
 			if (commandMatch) {
-				workspaceHintUsed = true
-				workspaceHint = commandMatch[1]
+				const workspaceHint = commandMatch[1]
 				actualCommand = commandMatch[2].trim()
 
 				// Find the workspace root for this hint
@@ -127,35 +122,13 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			? autoApproveResult
 			: [autoApproveResult, false]
 
-		// Determine workspace context for telemetry
-		const resolvedToNonPrimary = !arePathsEqual(executionDir, config.cwd)
-		const workspaceContext = {
-			isMultiRootEnabled: config.isMultiRootEnabled || false,
-			usedWorkspaceHint: workspaceHintUsed,
-			resolvedToNonPrimary,
-			resolutionMethod: (workspaceHintUsed ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
-		}
-
-		// Capture workspace path resolution telemetry
-		if (config.isMultiRootEnabled && config.workspaceManager) {
-			telemetryService.captureWorkspacePathResolved(
-				config.ulid,
-				"ExecuteCommandToolHandler",
-				workspaceHintUsed ? "hint_provided" : "fallback_to_primary",
-				workspaceHintUsed ? "workspace_name" : undefined,
-				resolvedToNonPrimary, // resolution success = resolved to different workspace
-				undefined, // TODO: could calculate workspace index if needed
-				true,
-			)
-		}
-
 		if ((!requiresApprovalPerLLM && autoApproveSafe) || (requiresApprovalPerLLM && autoApproveSafe && autoApproveAll)) {
 			// Auto-approve flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
 			await config.callbacks.say("command", actualCommand, undefined, undefined, false)
 			config.taskState.consecutiveAutoApprovedRequestsCount++
 			didAutoApprove = true
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
+			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 		} else {
 			// Manual approval flow
 			showNotificationForApprovalIfAutoApprovalEnabled(
@@ -170,17 +143,10 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				config,
 			)
 			if (!didApprove) {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					false,
-					false,
-					workspaceContext,
-				)
+				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
 				return formatResponse.toolDenied()
 			}
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true, workspaceContext)
+			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 		}
 
 		// Setup timeout notification for long-running auto-approved commands
@@ -211,6 +177,10 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		if (userRejected) {
 			config.taskState.didRejectTool = true
+		} else {
+			// Mark that a real command was executed this task (used by attempt_completion gating)
+			config.taskState.didRunCommand = true
+			config.taskState.didRunCommandThisResponse = true
 		}
 
 		return result

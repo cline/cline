@@ -12,7 +12,7 @@ describe("ClaudeCodeHandler", () => {
 		sandbox = sinon.createSandbox()
 		handler = new ClaudeCodeHandler({
 			claudeCodePath: "/mock/path",
-			apiModelId: "claude-opus-4-1-20250805",
+			apiModelId: "claude-3-5-sonnet-20241022",
 		})
 	})
 
@@ -229,11 +229,11 @@ describe("ClaudeCodeHandler", () => {
 	describe("getModel", () => {
 		it("should return the correct model when specified", () => {
 			const handler = new ClaudeCodeHandler({
-				apiModelId: "claude-sonnet-4-5-20250929",
+				apiModelId: "claude-3-5-sonnet-20241022",
 			})
 
 			const model = handler.getModel()
-			model.id.should.equal("claude-sonnet-4-5-20250929")
+			model.id.should.equal("claude-3-5-sonnet-20241022")
 		})
 
 		it("should return default model when not specified", () => {

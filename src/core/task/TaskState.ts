@@ -36,6 +36,11 @@ export class TaskState {
 	didRejectTool = false
 	didAlreadyUseTool = false
 	didEditFile: boolean = false
+	didReadProjectFile: boolean = false
+	didRunCommand: boolean = false
+	didEditFileThisResponse: boolean = false
+	didReadProjectFileThisResponse: boolean = false
+	didRunCommandThisResponse: boolean = false
 
 	// Consecutive request tracking
 	consecutiveAutoApprovedRequestsCount: number = 0
@@ -45,8 +50,12 @@ export class TaskState {
 	didAutomaticallyRetryFailedApiRequest = false
 	checkpointManagerErrorMessage?: string
 
+	// Idle response tracking
+	consecutiveNoWorkResponses: number = 0
+
 	// Task Initialization
 	isInitialized = false
+	latestReasoningMessage?: string
 
 	// Focus Chain / Todo List Management
 	apiRequestCount: number = 0

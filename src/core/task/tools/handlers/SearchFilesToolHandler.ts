@@ -1,6 +1,6 @@
 import type { ToolUse } from "@core/assistant-message"
 import { regexSearchFiles } from "@services/ripgrep"
-import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import * as path from "path"
 import { formatResponse } from "@/core/prompts/responses"
 import { parseWorkspaceInlinePath } from "@/core/workspace/utils/parseWorkspaceInlinePath"
@@ -227,67 +227,16 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		// Determine which paths to search
 		const searchPaths = this.determineSearchPaths(config, parsedPath, workspaceHint, relDirPath!)
 
-		// Determine workspace context for telemetry
-		const primaryWorkspaceRoot = searchPaths[0]?.workspaceRoot
-		const resolvedToNonPrimary =
-			searchPaths.length === 0
-				? true
-				: searchPaths.length > 1 || (primaryWorkspaceRoot ? !arePathsEqual(primaryWorkspaceRoot, config.cwd) : true)
-		const workspaceContext = {
-			isMultiRootEnabled: config.isMultiRootEnabled || false,
-			usedWorkspaceHint: !!workspaceHint,
-			resolvedToNonPrimary,
-			resolutionMethod: (workspaceHint ? "hint" : searchPaths.length > 1 ? "path_detection" : "primary_fallback") as
-				| "hint"
-				| "primary_fallback"
-				| "path_detection",
-		}
-
-		// Capture workspace path resolution telemetry
-		if (config.isMultiRootEnabled && config.workspaceManager) {
-			const resolutionType = workspaceHint
-				? "hint_provided"
-				: searchPaths.length > 1
-					? "cross_workspace_search"
-					: "fallback_to_primary"
-			telemetryService.captureWorkspacePathResolved(
-				config.ulid,
-				"SearchFilesToolHandler",
-				resolutionType,
-				workspaceHint ? "workspace_name" : undefined,
-				searchPaths.length > 0, // resolution success = found paths to search
-				undefined, // TODO: could calculate primary workspace index
-				true,
-			)
-		}
-
 		// Execute searches in all relevant workspaces in parallel
 		const searchPromises = searchPaths.map(({ absolutePath, workspaceName, workspaceRoot }) =>
 			this.executeSearch(config, absolutePath, workspaceName, workspaceRoot, regex, filePattern),
 		)
 
 		// Wait for all searches to complete
-		const searchStartTime = performance.now()
 		const searchResults = await Promise.all(searchPromises)
-		const searchDurationMs = performance.now() - searchStartTime
 
 		// Format and combine results
 		const results = this.formatSearchResults(config, searchResults, searchPaths)
-
-		// Capture workspace search pattern telemetry
-		if (config.isMultiRootEnabled && config.workspaceManager) {
-			const searchType = workspaceHint ? "targeted" : searchPaths.length > 1 ? "cross_workspace" : "primary_only"
-			const resultsFound = searchResults.some((result) => result.resultCount > 0)
-
-			telemetryService.captureWorkspaceSearchPattern(
-				config.ulid,
-				searchType,
-				searchPaths.length,
-				!!workspaceHint,
-				resultsFound,
-				searchDurationMs,
-			)
-		}
 
 		const sharedMessageProps = {
 			tool: "searchFiles",
@@ -307,7 +256,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			config.taskState.consecutiveAutoApprovedRequestsCount++
 
 			// Capture telemetry
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
+			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 		} else {
 			// Manual approval flow
 			const notificationMessage = `Cline wants to search files for ${regex}`
@@ -323,24 +272,10 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 
 			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
 			if (!didApprove) {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					false,
-					false,
-					workspaceContext,
-				)
+				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
 				return formatResponse.toolDenied()
 			} else {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					false,
-					true,
-					workspaceContext,
-				)
+				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
 			}
 		}
 

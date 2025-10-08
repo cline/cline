@@ -1,12 +1,12 @@
 import { mentionRegex } from "@shared/context-mentions"
 import { Fzf } from "fzf"
+import * as path from "path"
 import { PLATFORM_CONFIG } from "@/config/platform.config"
 
 export interface SearchResult {
 	path: string
 	type: "file" | "folder"
 	label?: string
-	workspaceName?: string
 }
 
 export function insertMention(
@@ -26,6 +26,7 @@ export function insertMention(
 	if (value.startsWith("/") && value.includes(" ")) {
 		formattedValue = `"${value}"`
 	}
+
 	let newValue: string
 	let mentionIndex: number
 
@@ -94,7 +95,6 @@ export interface ContextMenuQueryItem {
 	value?: string
 	label?: string
 	description?: string
-	workspaceName?: string
 }
 
 function getContextMenuEntries(): ContextMenuOptionType[] {
@@ -133,9 +133,8 @@ export function getContextMenuOptions(
 		const item = {
 			type: result.type === "folder" ? ContextMenuOptionType.Folder : ContextMenuOptionType.File,
 			value: formattedPath,
-			label: result.label,
+			label: result.label || path.basename(result.path),
 			description: formattedPath,
-			workspaceName: result.workspaceName,
 		}
 		return item
 	})
@@ -149,7 +148,6 @@ export function getContextMenuOptions(
 					value: item.value,
 					label: item.label,
 					description: item.description,
-					workspaceName: item.workspaceName,
 				}))
 			return files.length > 0 ? files : [{ type: ContextMenuOptionType.NoResults }]
 		}
@@ -162,7 +160,6 @@ export function getContextMenuOptions(
 					value: item.value,
 					label: item.label,
 					description: item.description,
-					workspaceName: item.workspaceName,
 				}))
 			return folders.length > 0 ? folders : [{ type: ContextMenuOptionType.NoResults }]
 		}
@@ -241,17 +238,8 @@ export function getContextMenuOptions(
 
 	// If we have dynamic search results, prioritize those
 	if (dynamicSearchResults.length > 0) {
-		// Filter by selectedType if provided
-		let filteredDynamic: ContextMenuQueryItem[]
-		if (selectedType === ContextMenuOptionType.Folder) {
-			filteredDynamic = searchResultItems.filter((item) => item.type === ContextMenuOptionType.Folder)
-		} else if (selectedType === ContextMenuOptionType.File) {
-			filteredDynamic = searchResultItems.filter((item) => item.type === ContextMenuOptionType.File)
-		} else {
-			filteredDynamic = searchResultItems
-		}
-
-		const allItems = [...suggestions, ...filteredDynamic]
+		// Only show suggestions and dynamic results
+		const allItems = [...suggestions, ...searchResultItems]
 		return allItems.length > 0 ? allItems : [{ type: ContextMenuOptionType.NoResults }]
 	}
 

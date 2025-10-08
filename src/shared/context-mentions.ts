@@ -51,9 +51,7 @@ Mention regex:
 */
 export const mentionRegex = new RegExp(
 	`@(` +
-		`[\\w-]+:/[^\\s]*?` + // Workspace-prefixed file paths: @workspace:name/path
-		`|[\\w-]+:"\\/[^"]*?"` + // Workspace-prefixed quoted file paths
-		`|/[^\\s]*?` + // Simple file paths (can't contain)
+		`/[^\\s]*?` + // Simple file paths (can't contain)
 		`|"\\/[^"]*?"` + // Quoted file paths which can contain spaces
 		`|(?:\\w+:\\/\\/)[^\\s]+?` + // URLs
 		`|[a-f0-9]{7,40}\\b` + // Git commit hashes

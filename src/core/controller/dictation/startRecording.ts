@@ -31,7 +31,9 @@ async function handleInstallWithCline(
  * Handles copying the installation command to clipboard
  */
 async function handleCopyCommand(installCommand: string): Promise<void> {
-	await HostProvider.env.clipboardWriteText({ value: installCommand })
+	const vscode = await import("vscode")
+	await vscode.env.clipboard.writeText(installCommand)
+
 	await HostProvider.window.showMessage({
 		type: ShowMessageType.INFORMATION,
 		message: `Installation command copied to clipboard: ${installCommand}`,

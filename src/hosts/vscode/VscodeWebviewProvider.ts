@@ -6,6 +6,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { WebviewMessage } from "@/shared/WebviewMessage"
+import type { WebviewProviderType } from "@/shared/webview/types"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -16,9 +17,14 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	// Used in package.json as the view's id. This value cannot be changed due to how vscode caches
 	// views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly SIDEBAR_ID = ExtensionRegistryInfo.views.Sidebar
+	public static readonly TAB_PANEL_ID = ExtensionRegistryInfo.views.TabPanel
 
-	private webview?: vscode.WebviewView
+	private webview?: vscode.WebviewView | vscode.WebviewPanel
 	private disposables: vscode.Disposable[] = []
+
+	constructor(context: vscode.ExtensionContext, providerType: WebviewProviderType) {
+		super(context, providerType)
+	}
 
 	override getWebviewUrl(path: string) {
 		if (!this.webview) {
@@ -35,21 +41,28 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		return this.webview.webview.cspSource
 	}
 
+	protected isActive() {
+		if (this.webview && this.webview.viewType === VscodeWebviewProvider.TAB_PANEL_ID && "active" in this.webview) {
+			return this.webview.active === true
+		}
+		return false
+	}
+
 	override isVisible() {
 		return this.webview?.visible || false
 	}
 
-	public getWebview(): vscode.WebviewView | undefined {
+	public getWebview(): vscode.WebviewView | vscode.WebviewPanel | undefined {
 		return this.webview
 	}
 
 	/**
 	 * Initializes and sets up the webview when it's first created.
 	 *
-	 * @param webviewView - The sidebar webview view instance to be resolved
+	 * @param webviewView - The webview view or panel instance to be resolved
 	 * @returns A promise that resolves when the webview has been fully initialized
 	 */
-	public async resolveWebviewView(webviewView: vscode.WebviewView): Promise<void> {
+	public async resolveWebviewView(webviewView: vscode.WebviewView | vscode.WebviewPanel): Promise<void> {
 		this.webview = webviewView
 
 		webviewView.webview.options = {
@@ -70,26 +83,43 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// Logs show up in bottom panel > Debug Console
 		//console.log("registering listener")
 
-		// Listen for when the sidebar becomes visible
+		// Listen for when the panel becomes visible
 		// https://github.com/microsoft/vscode-discussions/discussions/840
-
-		// onDidChangeVisibility is only available on the sidebar webview
-		// Otherwise WebviewView and WebviewPanel have all the same properties except for this visibility listener
-		// WebviewPanel is not currently used in the extension
-		webviewView.onDidChangeVisibility(
-			async () => {
-				if (this.webview?.visible) {
-					await sendDidBecomeVisibleEvent()
-				}
-			},
-			null,
-			this.disposables,
-		)
+		if ("onDidChangeViewState" in webviewView) {
+			// WebviewView and WebviewPanel have all the same properties except for this visibility listener
+			// panel
+			webviewView.onDidChangeViewState(
+				async (e) => {
+					if (e?.webviewPanel?.visible && e.webviewPanel?.active) {
+						WebviewProvider.setLastActiveControllerId(this.controller.id)
+						//  Only send the event if the webview is active (focused)
+						await sendDidBecomeVisibleEvent(this.controller.id)
+					}
+				},
+				null,
+				this.disposables,
+			)
+		} else if ("onDidChangeVisibility" in webviewView) {
+			// sidebar
+			webviewView.onDidChangeVisibility(
+				async () => {
+					if (this.webview?.visible) {
+						WebviewProvider.setLastActiveControllerId(this.controller.id)
+						await sendDidBecomeVisibleEvent(this.controller.id)
+					}
+				},
+				null,
+				this.disposables,
+			)
+		}
 
 		// Listen for when the view is disposed
 		// This happens when the user closes the view or when the view is closed programmatically
 		webviewView.onDidDispose(
 			async () => {
+				if (WebviewProvider.getLastActiveControllerId() === this.controller.id) {
+					WebviewProvider.setLastActiveControllerId(null)
+				}
 				await this.dispose()
 			},
 			null,
@@ -189,8 +219,9 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	}
 
 	override async dispose() {
-		// WebviewView doesn't have a dispose method, it's managed by VSCode
-		// We just need to clean up our disposables
+		if (this.webview && "dispose" in this.webview) {
+			this.webview.dispose()
+		}
 		while (this.disposables.length) {
 			const x = this.disposables.pop()
 			if (x) {

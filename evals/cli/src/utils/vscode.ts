@@ -148,6 +148,11 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 			command: "workbench.view.extension.saoudrizwan.claude-dev-ActivityBar",
 			when: "viewContainer.workbench.view.extension.saoudrizwan.claude-dev-ActivityBar.enabled",
 		},
+		{
+			key: "alt+shift+c",
+			command: "cline.openInNewTab",
+			when: "viewContainer.workbench.view.extension.saoudrizwan.claude-dev-ActivityBar.enabled",
+		},
 	]
 	fs.writeFileSync(keybindingsPath, JSON.stringify(keybindings, null, 2))
 	console.log(`Created keybindings.json to help with Cline activation`)
@@ -182,6 +187,11 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 		setTimeout(() => {
 			// Try to open Cline in the sidebar
 			require('vscode').commands.executeCommand('workbench.view.extension.saoudrizwan.claude-dev-ActivityBar');
+			
+			// Also try to open Cline in a tab as a fallback
+			setTimeout(() => {
+				require('vscode').commands.executeCommand('cline.openInNewTab');
+			}, 5000);
 		}, 5000);
 	`
 	fs.writeFileSync(startupScriptPath, startupScript)
@@ -276,6 +286,13 @@ export async function spawnVSCode(workspacePath: string, vsixPath?: string): Pro
 						await vscode.commands.executeCommand('workbench.view.extension.saoudrizwan.claude-dev-ActivityBar');
 						
 						// Wait a moment for the sidebar to initialize
+						await new Promise(resolve => setTimeout(resolve, 2000));
+						
+						// Also open Cline in a tab as a fallback
+						console.log('Opening Cline in a tab...');
+						await vscode.commands.executeCommand('cline.openInNewTab');
+						
+						// Wait a moment for the tab to initialize
 						await new Promise(resolve => setTimeout(resolve, 2000));
 						
 						// Create the test server if it doesn't exist

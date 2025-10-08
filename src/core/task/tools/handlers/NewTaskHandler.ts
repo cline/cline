@@ -7,6 +7,7 @@ import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { containsNewTaskTemplateContent } from "./PlanModeRespondHandler"
 
 export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.NEW_TASK
@@ -35,6 +36,31 @@ export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 
 		config.taskState.consecutiveMistakeCount = 0
 
+		// Runtime gate: block new_task in ACT MODE unless explicitly requested by the user
+		if (config.mode === "act") {
+			return formatResponse.toolError(
+				"New task creation is blocked in ACT MODE. Use read_file/list_files to inspect the workspace, apply changes with replace_in_file/write_to_file, and run commands with execute_command to complete the current task. Only use new_task when the user explicitly asks to start a new task."
+			)
+		}
+
+		const hasMeaningfulProgress =
+			Boolean(config.taskState.currentFocusChainChecklist) ||
+			config.taskState.didReadProjectFile ||
+			config.taskState.didEditFile ||
+			config.taskState.didRunCommand
+
+		if (hasMeaningfulProgress) {
+			return formatResponse.toolError(
+				"You're already in the middle of this task with a live checklist or recent tool use. Keep iterating with plan_mode_respond and follow up with read_file/write_to_file/execute_command instead of starting a new task.",
+			)
+		}
+
+		if (containsNewTaskTemplateContent(context)) {
+			return formatResponse.toolError(
+				"The new_task context still contains template boilerplate. Replace the bracketed instructions with real progress and continue the existing task using plan_mode_respond and task_progress.",
+			)
+		}
+
 		// Show notification if auto-approval is enabled
 		if (config.autoApprovalSettings.enabled && config.autoApprovalSettings.enableNotifications) {
 			showSystemNotification({
@@ -44,6 +70,12 @@ export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 		}
 
 		// Ask user for response
+		console.log("[NewTaskHandler] Final new_task context", {
+			taskId: config.taskId,
+			mode: config.mode,
+			context,
+			reasoning: config.taskState.latestReasoningMessage ?? null,
+		})
 		const { text, images, files: newTaskFiles } = await config.callbacks.ask(this.name, context, false)
 
 		// If the user provided a response, treat it as feedback

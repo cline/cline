@@ -3,7 +3,7 @@ title: "MCP Server Development Protocol"
 description: "This protocol is designed to streamline the development process of building MCP servers with Cline."
 ---
 
-> **Build and share your MCP servers with the world.** Once you've created a great MCP server, submit it to the [Cline MCP Marketplace](https://github.com/cline/mcp-marketplace) to make it discoverable and one-click installable by thousands of developers.
+> 🚀 **Build and share your MCP servers with the world.** Once you've created a great MCP server, submit it to the [Cline MCP Marketplace](https://github.com/cline/mcp-marketplace) to make it discoverable and one-click installable by thousands of developers.
 
 ## What Are MCP Servers?
 
@@ -35,7 +35,7 @@ Here's the complete MCP Server Development Protocol that should be placed in you
 ````markdown
 # MCP Server Development Protocol
 
-CRITICAL: DO NOT USE attempt_completion BEFORE TESTING
+⚠️ CRITICAL: DO NOT USE attempt_completion BEFORE TESTING ⚠️
 
 ## Step 1: Planning (PLAN MODE)
 
@@ -141,7 +141,7 @@ If ANY answer is "no", I MUST NOT use attempt_completion.
 1. Test Each Tool (REQUIRED)
    □ Test each tool with valid inputs
    □ Verify output format is correct
-   DO NOT PROCEED UNTIL ALL TOOLS TESTED
+   ⚠️ DO NOT PROCEED UNTIL ALL TOOLS TESTED
 
 ## Step 4: Completion
 
@@ -157,7 +157,7 @@ Only after ALL tools have been tested can attempt_completion be used.
 -   ✓ Must have comprehensive logging
 -   ✓ Must test each tool individually
 -   ✓ Must handle errors gracefully
--   NEVER skip testing before completion
+-   ⛔️ NEVER skip testing before completion
 ````
 
 When this `.clinerules` file is present in your working directory, Cline will:
@@ -171,7 +171,7 @@ When this `.clinerules` file is present in your working directory, Cline will:
 
 Creating an MCP server requires just a few simple steps to get started:
 
-### 1. Create a `.clinerules` file (IMPORTANT)
+### 1. Create a `.clinerules` file (🚨 IMPORTANT)
 
 First, add a `.clinerules` file to the root of your MCP working directory using the protocol above. This file configures Cline to use the MCP development protocol when working in this folder.
 

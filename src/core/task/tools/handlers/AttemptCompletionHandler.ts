@@ -8,10 +8,19 @@ import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
+import type { TaskState } from "../../TaskState"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
+
+export function hasPerformedRealWorkThisResponse(taskState: TaskState): boolean {
+	return (
+		taskState.didReadProjectFileThisResponse === true ||
+		taskState.didEditFileThisResponse === true ||
+		taskState.didRunCommandThisResponse === true
+	)
+}
 
 export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.ATTEMPT
@@ -51,6 +60,22 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
+
+		// Runtime gate: require actual work before completion (read a project file OR edited a file OR ran a command)
+		if (!hasPerformedRealWorkThisResponse(config.taskState)) {
+			return formatResponse.toolError(
+				"Attempt completion blocked: you must perform real work in this response — read a project file with read_file, edit a file with replace_in_file/write_to_file, or run a command with execute_command — before declaring completion.",
+			)
+		}
+
+		console.log("[AttemptCompletionHandler] Final attempt_completion result", {
+			taskId: config.taskId,
+			mode: config.mode,
+			result,
+			command,
+			containsCommand: !!command,
+			reasoning: config.taskState.latestReasoningMessage ?? null,
+		})
 
 		// Show notification if auto-approval is enabled
 		if (config.autoApprovalSettings.enabled && config.autoApprovalSettings.enableNotifications) {

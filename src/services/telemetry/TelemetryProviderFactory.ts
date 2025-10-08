@@ -1,8 +1,8 @@
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "../logging/Logger"
+import { PostHogClientProvider } from "../posthog/PostHogClientProvider"
 import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
-import { PostHogClientProvider } from "./providers/posthog/PostHogClientProvider"
-import { PostHogTelemetryProvider } from "./providers/posthog/PostHogTelemetryProvider"
+import { PostHogTelemetryProvider } from "./providers/PostHogTelemetryProvider"
 
 /**
  * Supported telemetry provider types
@@ -22,45 +22,15 @@ export interface TelemetryProviderConfig {
  */
 export class TelemetryProviderFactory {
 	/**
-	 * Creates multiple telemetry providers based on configuration
-	 * Supports dual tracking during transition period
-	 * @returns Array of ITelemetryProvider instances
-	 */
-	public static async createProviders(): Promise<ITelemetryProvider[]> {
-		const providers: ITelemetryProvider[] = []
-
-		// Add PostHog if enabled and configured
-		if (isPostHogConfigValid(posthogConfig)) {
-			try {
-				const sharedClient = PostHogClientProvider.getClient()
-				if (sharedClient) {
-					const posthogProvider = await new PostHogTelemetryProvider(sharedClient).initialize()
-					providers.push(posthogProvider)
-					Logger.info("TelemetryProviderFactory: PostHog provider initialized")
-				}
-			} catch (error) {
-				console.error("TelemetryProviderFactory: Failed to initialize PostHog provider:", error)
-			}
-		}
-
-		// Fallback to no-op if no providers available
-		if (providers.length === 0) {
-			providers.push(new NoOpTelemetryProvider())
-			Logger.info("TelemetryProviderFactory: Using NoOp provider (no valid configs)")
-		}
-
-		return providers
-	}
-
-	/**
-	 * Creates a single telemetry provider based on the provided configuration
+	 * Creates a telemetry provider based on the provided configuration
 	 * @param config Configuration for the telemetry provider
 	 * @returns ITelemetryProvider instance
-	 * @deprecated Use createProviders() for multi-provider support
 	 */
 	public static async createProvider(config: TelemetryProviderConfig): Promise<ITelemetryProvider> {
+		// Get the shared PostHog client from PostHogClientProvider
 		switch (config.type) {
 			case "posthog": {
+				// Get the shared PostHog client from PostHogClientProvider
 				const sharedClient = PostHogClientProvider.getClient()
 				if (sharedClient) {
 					return await new PostHogTelemetryProvider(sharedClient).initialize()
@@ -75,13 +45,13 @@ export class TelemetryProviderFactory {
 
 	/**
 	 * Gets the default telemetry provider configuration
-	 * @returns Default configuration using available providers
+	 * @returns Default configuration using PostHog
 	 */
 	public static getDefaultConfig(): TelemetryProviderConfig {
-		if (isPostHogConfigValid(posthogConfig)) {
-			return { type: "posthog" }
+		const hasValidConfig = isPostHogConfigValid(posthogConfig)
+		return {
+			type: hasValidConfig ? "posthog" : "no-op",
 		}
-		return { type: "no-op" }
 	}
 }
 
@@ -94,10 +64,6 @@ export class NoOpTelemetryProvider implements ITelemetryProvider {
 
 	public log(event: string, properties?: Record<string, unknown>): void {
 		Logger.log(`[NoOpTelemetryProvider] ${event}: ${JSON.stringify(properties)}`)
-	}
-
-	public logRequired(event: string, properties?: Record<string, unknown>): void {
-		Logger.log(`[NoOpTelemetryProvider] REQUIRED ${event}: ${JSON.stringify(properties)}`)
 	}
 
 	public identifyUser(userInfo: any, properties?: Record<string, unknown>): void {

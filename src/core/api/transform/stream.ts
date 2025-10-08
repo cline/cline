@@ -1,11 +1,5 @@
 export type ApiStream = AsyncGenerator<ApiStreamChunk>
-export type ApiStreamChunk =
-	| ApiStreamTextChunk
-	| ApiStreamReasoningChunk
-	| ApiStreamReasoningDetailsChunk
-	| ApiStreamAnthropicThinkingChunk
-	| ApiStreamAnthropicRedactedThinkingChunk
-	| ApiStreamUsageChunk
+export type ApiStreamChunk = ApiStreamTextChunk | ApiStreamReasoningChunk | ApiStreamUsageChunk
 
 export interface ApiStreamTextChunk {
 	type: "text"
@@ -15,22 +9,6 @@ export interface ApiStreamTextChunk {
 export interface ApiStreamReasoningChunk {
 	type: "reasoning"
 	reasoning: string
-}
-
-export interface ApiStreamReasoningDetailsChunk {
-	type: "reasoning_details"
-	reasoning_details: any // openrouter has various properties that we can pass back unmodified in api requests to preserve reasoning traces
-}
-
-export interface ApiStreamAnthropicThinkingChunk {
-	type: "ant_thinking"
-	thinking: string
-	signature: string
-}
-
-export interface ApiStreamAnthropicRedactedThinkingChunk {
-	type: "ant_redacted_thinking"
-	data: string
 }
 
 export interface ApiStreamUsageChunk {

@@ -47,7 +47,7 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  * @param context The VSCode extension context
  * @param controller The webview provider instance
  */
-async function updateAutoApprovalSettings(controller?: Controller) {
+async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, controller?: Controller) {
 	try {
 		const autoApprovalSettings = controller?.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 
@@ -85,7 +85,7 @@ async function updateAutoApprovalSettings(controller?: Controller) {
  * @param webviewProvider The webview provider instance to use for message catching
  * @returns The created HTTP server instance
  */
-export async function createTestServer(controller: Controller): Promise<http.Server> {
+export function createTestServer(controller: Controller): http.Server {
 	// Try to show the Cline sidebar
 	Logger.log("[createTestServer] Opening Cline in sidebar...")
 	vscode.commands.executeCommand(`workbench.view.${ExtensionRegistryInfo.name}-ActivityBar`)
@@ -94,7 +94,7 @@ export async function createTestServer(controller: Controller): Promise<http.Ser
 	vscode.commands.executeCommand(`${ExtensionRegistryInfo.views.Sidebar}.focus`)
 
 	// Update auto approval settings is available
-	await updateAutoApprovalSettings(controller)
+	updateAutoApprovalSettings(controller.context, controller)
 
 	const PORT = 9876
 
@@ -305,7 +305,7 @@ export async function createTestServer(controller: Controller): Promise<http.Ser
 						let apiConversationHistory: any[] = []
 						try {
 							if (typeof taskId === "string") {
-								messages = await getSavedClineMessages(taskId)
+								messages = await getSavedClineMessages(visibleWebview.controller.context, taskId)
 							}
 						} catch (error) {
 							Logger.log(`Error getting saved Cline messages: ${error}`)
@@ -313,7 +313,10 @@ export async function createTestServer(controller: Controller): Promise<http.Ser
 
 						try {
 							if (typeof taskId === "string") {
-								apiConversationHistory = await getSavedApiConversationHistory(taskId)
+								apiConversationHistory = await getSavedApiConversationHistory(
+									visibleWebview.controller.context,
+									taskId,
+								)
 							}
 						} catch (error) {
 							Logger.log(`Error getting saved API conversation history: ${error}`)

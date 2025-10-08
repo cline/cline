@@ -50,6 +50,7 @@ export class ServiceRegistry {
 		}
 
 		this.methodMetadata[methodName] = { isStreaming, ...metadata }
+		console.log(`Registered ${this.serviceName} method: ${methodName}${isStreaming ? " (streaming)" : ""}`)
 	}
 
 	/**

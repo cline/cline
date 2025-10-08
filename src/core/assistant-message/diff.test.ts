@@ -19,6 +19,19 @@ new content
 			isFinal: true,
 		},
 		{
+			name: "new file replacement with non-empty search block",
+			original: "",
+			diff: `------- SEARCH
+<!doctype html>
+=======
+<!doctype html>
+<html>
+</html>
+++++++ REPLACE`,
+			expected: "<!doctype html>\n<html>\n</html>\n",
+			isFinal: true,
+		},
+		{
 			name: "malformed search - mixed symbols",
 			original: "line1\nline2\nline3",
 			diff: `<<-- SEARCH

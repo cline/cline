@@ -1,8 +1,8 @@
 import { resolveWorkspacePath } from "@core/workspace"
-import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { ClineDefaultTool } from "@shared/tools"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
+import { featureFlagsService } from "@/services/feature-flags"
 import { getCwd, getDesktopDir, isLocatedInPath, isLocatedInWorkspace } from "@/utils/path"
 
 export class AutoApprove {
@@ -28,7 +28,7 @@ export class AutoApprove {
 		if (this.workspacePathsCache === null || this.isMultiRootScenarioCache === null) {
 			// First time - fetch and cache for the lifetime of this task
 			this.workspacePathsCache = await HostProvider.workspace.getWorkspacePaths({})
-			this.isMultiRootScenarioCache = isMultiRootEnabled(this.stateManager) && this.workspacePathsCache.paths.length > 1
+			this.isMultiRootScenarioCache = featureFlagsService.getMultiRootEnabled() && this.workspacePathsCache.paths.length > 1
 		}
 
 		return {
