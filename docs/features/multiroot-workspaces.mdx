@@ -3,10 +3,10 @@ title: "Multiroot Workspaces"
 sidebarTitle: "Multiroot Workspaces"
 ---
 
-Multiroot workspaces let Cline work seamlessly across multiple project folders open in VSCode at the same time. Instead of treating everything as one big workspace, Cline understands each folder as a separate workspace and can target specific ones when reading, writing, or searching files.
+Multiroot workspaces let Cline work seamlessly across multiple project folders open in VS Code at the same time. Instead of treating everything as one big workspace, Cline understands each folder as a separate workspace and can target specific ones when reading, writing, or searching files.
 
 <Frame>
-	<img src="[PLACEHOLDER: Screenshot showing VSCode with multiple workspace folders in the sidebar and Cline working across them]" alt="Multiroot workspace support in Cline" />
+	<img src="[PLACEHOLDER: Screenshot-2 showing VS Code with multiple workspace folders in the sidebar and Cline working across them]" alt="Multiroot workspace support in Cline" />
 </Frame>
 
 This is particularly useful for monorepos, microservices architectures, or any project where you work with multiple related codebases simultaneously.
@@ -24,7 +24,12 @@ To enable it:
 2. Navigate to the "Features" section
 3. Check "Enable Multiroot Workspace Support"
 
+<Frame>
+	<img src="[PLACEHOLDER: Screenshot-1 showing where in settings to enable the feature]" alt="Where to enable Multiroot Workspaces" />
+</Frame>
+
 Once enabled, Cline automatically detects when you have multiple workspace folders open and adjusts his behavior accordingly.
+
 
 ## Using Multiroot Workspaces
 
@@ -32,6 +37,7 @@ Once enabled, Cline automatically detects when you have multiple workspace folde
 
 When you have multiple workspaces open, Cline can read and write files across all of them. He automatically detects which workspace a file belongs to based on the path.
 
+For example:
 ```
 Read the config file in my frontend workspace
 ```
@@ -42,6 +48,7 @@ Cline will search for config files in the frontend workspace and show you what h
 
 The real power comes from workspace-prefixed @ mentions. Use the syntax `@workspace:/path` to reference files in specific workspaces:
 
+Using syntax such as:
 ```
 Compare these two implementations:
 @frontend:/src/api/users.ts
@@ -68,7 +75,7 @@ When you type `@` and start searching for a file:
 - You can use `@workspace:/path` syntax to target a specific workspace
 
 <Frame>
-	<img src="[PLACEHOLDER: Screenshot showing file search results with workspace annotations like 'frontend:/src/config.json' and 'backend:/src/config.json']" alt="File search with workspace annotations" />
+	<img src="[PLACEHOLDER: Screenshot-3 showing file search results with workspace annotations like 'frontend:/src/config.json' and 'backend:/src/config.json']" alt="File search with workspace annotations" />
 </Frame>
 
 ### Writing and Editing Files
@@ -81,7 +88,7 @@ Create a new API endpoint in the backend workspace for user authentication
 
 Cline will create the file in the backend workspace, not the frontend or any other workspace you have open.
 
-If you're working with files that exist in multiple workspaces, be explicit about which one you want:
+If you're working with files that exist in multiple workspaces, be explicit about which one you want. For example:
 
 ```
 Update the error handling in @backend:/src/utils/errors.js
@@ -97,7 +104,9 @@ If you want to restrict Cline's access to specific workspaces, you'll need to:
 - Close the workspaces you don't want him accessing
 - Or use the "Read all files" / "Edit all files" permissions more carefully
 
-I personally keep auto-approve for reading enabled across all my workspaces since it speeds up Cline's ability to gather context. For editing, I review each change regardless of which workspace it's in.
+<Tip>
+	I personally keep auto-approve for reading enabled across all my workspaces since it speeds up Cline's ability to gather context. For editing, I review each change regardless of which workspace it's in.
+</Tip>
 
 ## Best Practices
 
@@ -106,7 +115,7 @@ I personally keep auto-approve for reading enabled across all my workspaces sinc
 When working with multiroot workspaces, clear naming helps Cline understand your project structure:
 
 - Use descriptive workspace names: `frontend`, `backend`, `shared` instead of `app1`, `app2`, `lib`
-- Keep related projects together in the same VSCode workspace
+- Keep related projects together in the same VS Code workspace
 - Close workspaces you're not actively working on to reduce noise
 
 ### Being Explicit in Your Requests
@@ -147,17 +156,17 @@ This prevents Cline from getting confused about which file you're referring to.
     Currently, when you type `@` in a multiroot workspace, the autocomplete menu doesn't show available workspace names. You need to manually type the workspace prefix like `@frontend:/path`.
     
     This is a known limitation that will be addressed in a future update. For now, you can:
-    - Check your VSCode sidebar to see your workspace names
+    - Check your VS Code sidebar to see your workspace names
     - Type the workspace prefix manually
     - Use the file search without a workspace prefix and Cline will show you which workspace each result is from
   </Accordion>
   
   <Accordion title="Cline can't find files in my workspace">
     If Cline is having trouble finding files:
-    - Verify the workspace is actually open in VSCode (check the sidebar)
+    - Verify the workspace is actually open in VS Code (check the sidebar)
     - Make sure multiroot support is enabled in Cline settings
     - Try using the full workspace-prefixed path: `@workspace:/full/path/to/file`
-    - Restart VSCode if you just added a new workspace folder
+    - Restart VS Code if you just added a new workspace folder
   </Accordion>
   
   <Accordion title="Wrong workspace being modified">
@@ -171,7 +180,7 @@ This prevents Cline from getting confused about which file you're referring to.
     Auto-approve permissions apply to all workspaces equally. If you need different permissions for different workspaces:
     - Close workspaces you don't want Cline accessing
     - Use manual approval for sensitive operations
-    - Consider using separate VSCode windows for projects with different security requirements
+    - Consider using separate VS Code windows for projects with different security requirements
   </Accordion>
 </AccordionGroup>
 
@@ -181,8 +190,8 @@ Still having issues? Use the [/reportbug](/features/slash-commands/report-bug) c
 
 <AccordionGroup>
   <Accordion title="Workspace Detection">
-    When you open VSCode with multiple workspace folders, Cline:
-    - Detects all workspace roots through VSCode's workspace API
+    When you open VS Code with multiple workspace folders, Cline:
+    - Detects all workspace roots through VS Code's workspace API
     - Stores workspace metadata (name, path) for each folder
     - Uses this information to resolve file paths and search queries
     - Falls back to single-workspace behavior if only one folder is open
