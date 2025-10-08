@@ -92,7 +92,7 @@ func (c *ClineClients) StartNewInstance(ctx context.Context) (*common.CoreInstan
 		return nil, fmt.Errorf("failed to start instance: %w", err)
 	}
 
-	fmt.Println("✅ Services started and registered successfully!")
+	fmt.Println("Services started and registered successfully!")
 	fmt.Printf("  Address: %s\n", instance.Address)
 	fmt.Printf("  Core Port: %d\n", instance.CorePort())
 	fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
@@ -164,7 +164,7 @@ func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int)
 		return nil, fmt.Errorf("failed to start instance at port %d: %w", corePort, err)
 	}
 
-	fmt.Println("✅ Services started and registered successfully!")
+	fmt.Println("Services started and registered successfully!")
 	fmt.Printf("  Address: %s\n", instance.Address)
 	fmt.Printf("  Core Port: %d\n", instance.CorePort())
 	fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())

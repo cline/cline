@@ -584,8 +584,12 @@ func (m *Manager) ShowConversation(ctx context.Context) error {
 		return nil
 	}
 
-	// Display messages
+	// Display messages (only completed, non-partial messages)
 	for i, msg := range messages {
+		// Skip partial messages - they're only relevant during live streaming
+		if msg.Partial {
+			continue
+		}
 		m.displayMessage(msg, false, false, i)
 	}
 
@@ -801,12 +805,14 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 		switch {
 		case msg.Say == string(types.SayTypeUserFeedback):
 			if !coordinator.IsProcessedInCurrentTurn("user_msg") {
+				fmt.Println() // adds a separator before user feedback message
 				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn("user_msg")
 			}
 
 		case msg.Say == string(types.SayTypeCheckpointCreated):
 			if !coordinator.IsProcessedInCurrentTurn("checkpoint") {
+				fmt.Println() // adds a separator before checkpoint message
 				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn("checkpoint")
 			}
@@ -963,9 +969,14 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 		fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
 	}
 
-	// Display recent messages
+	// Display recent messages (only completed, non-partial messages)
 	for i := startIndex; i < len(messages); i++ {
 		msg := messages[i]
+
+		// Skip partial messages in history - they'll be shown in live updates
+		if msg.Partial {
+			continue
+		}
 
 		// Display the message
 		m.displayMessage(msg, false, false, i)

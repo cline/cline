@@ -48,7 +48,7 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 	case types.MessageTypeSay:
 		return s.handleStreamingSay(msg, messageKey, timestamp, streamingMsg)
 	default:
-		return s.renderer.RenderMessage(timestamp, "🤖", msg.Text)
+		return s.renderer.RenderMessage(timestamp, "CLINE", msg.Text)
 	}
 }
 
@@ -73,6 +73,10 @@ func (s *StreamingDisplay) handleStreamingAsk(msg *types.ClineMessage, messageKe
 	} else {
 		// This is a new ASK message
 		s.finishCurrentStream()
+
+		// Add blank line for visual separation
+		fmt.Println()
+
 		s.streamAskMessage(cleanText, timestamp, true)
 		s.state.SetStreamingMessage(messageKey, cleanText)
 	}
@@ -83,7 +87,7 @@ func (s *StreamingDisplay) handleStreamingAsk(msg *types.ClineMessage, messageKe
 // handleStreamingSay handles streaming SAY messages
 func (s *StreamingDisplay) handleStreamingSay(msg *types.ClineMessage, messageKey, timestamp string, streamingMsg *types.StreamingMessage) error {
 	switch msg.Say {
-	case string(types.SayTypeText), string(types.SayTypeCompletionResult):
+	case string(types.SayTypeText), string(types.SayTypeCompletionResult), string(types.SayTypeReasoning):
 		return s.handleStreamingText(msg, messageKey, timestamp, streamingMsg)
 	case string(types.SayTypeCommand):
 		return s.handleStreamingCommand(msg, messageKey, timestamp, streamingMsg)
@@ -123,15 +127,31 @@ func (s *StreamingDisplay) handleStreamingText(msg *types.ClineMessage, messageK
 			// Text changed in a non-incremental way - replace the line
 			s.renderer.ClearLine()
 			prefix := s.getMessagePrefix(msg.Say)
-			s.renderer.typewriter.PrintfInstant("[%s] %s: ", timestamp, prefix)
+
+			// For reasoning, text, and result messages, don't show timestamp
+			if msg.Say == string(types.SayTypeReasoning) || msg.Say == string(types.SayTypeText) || msg.Say == string(types.SayTypeCompletionResult) {
+				s.renderer.typewriter.PrintfInstant("%s: ", prefix)
+			} else {
+				s.renderer.typewriter.PrintfInstant("[%s] %s: ", timestamp, prefix)
+			}
 			s.typewriterPrint(cleanText)
 			s.state.SetStreamingMessage(messageKey, cleanText)
 		}
 	} else {
 		// This is a new message
 		s.finishCurrentStream()
+
+		// Add blank line for visual separation between messages
+		fmt.Println()
+
 		prefix := s.getMessagePrefix(msg.Say)
-		s.renderer.typewriter.PrintfInstant("[%s] %s: ", timestamp, prefix)
+
+		// For reasoning, text, and result messages, don't show timestamp - just the prefix
+		if msg.Say == string(types.SayTypeReasoning) || msg.Say == string(types.SayTypeText) || msg.Say == string(types.SayTypeCompletionResult) {
+			s.renderer.typewriter.PrintfInstant("%s: ", prefix)
+		} else {
+			s.renderer.typewriter.PrintfInstant("[%s] %s: ", timestamp, prefix)
+		}
 
 		// Add typewriter animation for new messages
 		s.typewriterPrint(cleanText)
@@ -157,7 +177,11 @@ func (s *StreamingDisplay) handleStreamingCommand(msg *types.ClineMessage, messa
 
 	// Show command being executed with typewriter effect
 	s.finishCurrentStream()
-	s.renderer.typewriter.PrintfInstant("[%s] 🖥️  CMD: ", timestamp)
+
+	// Add blank line for visual separation
+	fmt.Println()
+
+	s.renderer.typewriter.PrintfInstant("[%s] CMD: ", timestamp)
 	s.typewriterPrint(cleanText)
 	fmt.Println()
 
@@ -186,14 +210,18 @@ func (s *StreamingDisplay) handleStreamingCommandOutput(msg *types.ClineMessage,
 		} else {
 			// Non-incremental change - replace the line
 			s.renderer.ClearLine()
-			s.renderer.typewriter.PrintfInstant("[%s] 🖥️  OUT: ", timestamp)
+			s.renderer.typewriter.PrintfInstant("[%s] OUT: ", timestamp)
 			s.typewriterPrint(cleanText)
 			s.state.SetStreamingMessage(messageKey, cleanText)
 		}
 	} else {
 		// New command output message
 		s.finishCurrentStream()
-		s.renderer.typewriter.PrintfInstant("[%s] 🖥️  OUT: ", timestamp)
+
+		// Add blank line for visual separation
+		fmt.Println()
+
+		s.renderer.typewriter.PrintfInstant("[%s] OUT: ", timestamp)
 		s.typewriterPrint(cleanText)
 		s.state.SetStreamingMessage(messageKey, cleanText)
 	}
@@ -216,7 +244,11 @@ func (s *StreamingDisplay) handleShellIntegrationWarning(msg *types.ClineMessage
 
 	// Show a more concise shell integration warning
 	s.finishCurrentStream()
-	s.renderer.typewriter.PrintfInstant("[%s] ℹ️  NOTE: ", timestamp)
+
+	// Add blank line for visual separation
+	fmt.Println()
+
+	s.renderer.typewriter.PrintfInstant("[%s] NOTE: ", timestamp)
 	s.typewriterPrint("Command executed (output not streamed due to shell integration)")
 	fmt.Println()
 
@@ -244,7 +276,11 @@ func (s *StreamingDisplay) handleStreamingTool(msg *types.ClineMessage, messageK
 
 	// This is a genuinely new/different tool message
 	s.finishCurrentStream()
-	fmt.Printf("[%s] 🔧 TOOL: %s\n", timestamp, formattedTool)
+
+	// Add blank line for visual separation
+	fmt.Println()
+
+	fmt.Printf("TOOL: %s\n", formattedTool)
 
 	// Store the formatted tool message for deduplication
 	s.state.StreamingMessage.LastToolMessage = formattedTool
@@ -257,12 +293,12 @@ func (s *StreamingDisplay) streamAskMessage(text, timestamp string, isNew bool) 
 	// Try to parse as JSON
 	var askData types.AskData
 	if err := s.parseJSON(text, &askData); err != nil {
-		// Display as text but sanitized
-		fmt.Printf("[%s] 🤖 ASK: %s", timestamp, text)
+		// Display as text but sanitized (no timestamp for cleaner output)
+		fmt.Printf("ASK: %s", text)
 		return
 	}
 
-	fmt.Printf("[%s] 🤖 ASK: %s", timestamp, askData.Response)
+	fmt.Printf("ASK: %s", askData.Response)
 
 	// Display options if available
 	if len(askData.Options) > 0 {
@@ -288,7 +324,7 @@ func (s *StreamingDisplay) streamAskMessageUpdate(newText, oldText, timestamp st
 		} else {
 			// Non-incremental change - clear line and reprint everything
 			s.renderer.ClearLine()
-			fmt.Printf("[%s] 🤖 ASK: %s", timestamp, newText)
+			fmt.Printf("ASK: %s", newText)
 		}
 		return
 	}
@@ -299,7 +335,7 @@ func (s *StreamingDisplay) streamAskMessageUpdate(newText, oldText, timestamp st
 		fmt.Print(newChars)
 	} else if oldAskData.Response != newAskData.Response {
 		s.renderer.ClearLine()
-		fmt.Printf("[%s] 🤖 ASK: %s", timestamp, newAskData.Response)
+		fmt.Printf("ASK: %s", newAskData.Response)
 	}
 
 	// Handle options changes
@@ -324,7 +360,7 @@ func (s *StreamingDisplay) typewriterPrint(text string) {
 func (s *StreamingDisplay) finishCurrentStream() {
 	streamingMsg := s.state.GetStreamingMessage()
 	if streamingMsg.CurrentKey != "" {
-		//fmt.Println() // Add newline to finish the current streaming message
+		fmt.Println() // Add newline to finish the current streaming message
 		s.state.SetStreamingMessage("", "")
 	}
 }
@@ -333,11 +369,13 @@ func (s *StreamingDisplay) finishCurrentStream() {
 func (s *StreamingDisplay) getMessagePrefix(say string) string {
 	switch say {
 	case string(types.SayTypeCompletionResult):
-		return "✅ RESULT"
+		return "RESULT"
 	case string(types.SayTypeText):
-		return "🤖"
+		return "CLINE"
+	case string(types.SayTypeReasoning):
+		return "THINKING"
 	default:
-		return "🤖"
+		return "CLINE"
 	}
 }
 

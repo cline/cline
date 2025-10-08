@@ -162,8 +162,8 @@ func (tp *TypewriterPrinter) SetSpeed(multiplier float64) {
 
 // PrintMessageLine prints a complete message line with typewriter effect
 func (tp *TypewriterPrinter) PrintMessageLine(timestamp, prefix, text string) {
-	// Print the timestamp and prefix with 10-char padding
-	tp.PrintfInstant("[%s] %-10s: ", timestamp, prefix)
+	// Print the prefix without padding for consistent spacing
+	tp.PrintfInstant("%s: ", prefix)
 	// Print the message text with typewriter effect
 	tp.Println(text)
 }

@@ -35,6 +35,22 @@ func (r *Renderer) RenderMessage(timestamp, prefix, text string) error {
 	return nil
 }
 
+// RenderMessageNoTimestamp renders a message with only prefix (no timestamp)
+func (r *Renderer) RenderMessageNoTimestamp(prefix, text string) error {
+	if text == "" {
+		return nil
+	}
+
+	cleanText := r.sanitizeText(text)
+	if cleanText == "" {
+		return nil
+	}
+
+	// Print without timestamp
+	fmt.Printf("%s: %s\n", prefix, cleanText)
+	return nil
+}
+
 // RenderCommand renders a command execution
 func (r *Renderer) RenderCommand(timestamp, command string, isExecuting bool) error {
 	if isExecuting {

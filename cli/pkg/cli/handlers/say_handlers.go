@@ -147,9 +147,14 @@ func (h *SayHandler) handleText(msg *types.ClineMessage, dc *DisplayContext, tim
 	}
 
 	// Special case for the user's task input
-	prefix := "ASST TEXT"
+	prefix := "CLINE"
 	if dc.MessageIndex == 0 {
 		prefix = "USER"
+	}
+
+	// Render Cline text without timestamp for cleaner output
+	if prefix == "CLINE" {
+		return dc.Renderer.RenderMessageNoTimestamp(prefix, msg.Text)
 	}
 
 	return dc.Renderer.RenderMessage(timestamp, prefix, msg.Text)
@@ -161,7 +166,8 @@ func (h *SayHandler) handleReasoning(msg *types.ClineMessage, dc *DisplayContext
 		return nil
 	}
 
-	return dc.Renderer.RenderMessage(timestamp, "THINKING", msg.Text)
+	// Render reasoning without timestamp for cleaner output
+	return dc.Renderer.RenderMessageNoTimestamp("THINKING", msg.Text)
 }
 
 func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
@@ -171,7 +177,8 @@ func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *Display
 		text = strings.TrimSuffix(text, "HAS_CHANGES")
 	}
 
-	return dc.Renderer.RenderMessage(timestamp, "RESULT", text)
+	// Render result without timestamp for cleaner output
+	return dc.Renderer.RenderMessageNoTimestamp("RESULT", text)
 }
 
 // handleUserFeedback handles user feedback messages
@@ -229,7 +236,7 @@ func (h *SayHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayCon
 func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
 	var tool types.ToolMessage
 	if err := json.Unmarshal([]byte(msg.Text), &tool); err != nil {
-		return dc.Renderer.RenderMessage(timestamp, "TOOL", msg.Text)
+		return dc.Renderer.RenderMessageNoTimestamp("TOOL", msg.Text)
 	}
 
 	return h.renderToolMessage(&tool, dc, timestamp)
@@ -238,25 +245,25 @@ func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext, tim
 func (h *SayHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayContext, timestamp string) error {
 	switch tool.Tool {
 	case string(types.ToolTypeEditedExistingFile):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline edited file: %s", tool.Path))
+		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline edited file: %s", tool.Path))
 	case string(types.ToolTypeNewFileCreated):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline created file: %s", tool.Path))
+		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline created file: %s", tool.Path))
 	case string(types.ToolTypeReadFile):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline read file: %s", tool.Path))
+		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline read file: %s", tool.Path))
 	case string(types.ToolTypeListFilesTopLevel):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline listed files in: %s", tool.Path))
+		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline listed files in: %s", tool.Path))
 	case string(types.ToolTypeListFilesRecursive):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline recursively listed files in: %s", tool.Path))
+		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline recursively listed files in: %s", tool.Path))
 	case string(types.ToolTypeSearchFiles):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline searched for '%s' in: %s", tool.Regex, tool.Path))
+		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline searched for '%s' in: %s", tool.Regex, tool.Path))
 	case string(types.ToolTypeWebFetch):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline fetched URL: %s", tool.Path))
+		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline fetched URL: %s", tool.Path))
 	case string(types.ToolTypeListCodeDefinitionNames):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline listed code definitions for: %s", tool.Path))
+		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline listed code definitions for: %s", tool.Path))
 	case string(types.ToolTypeSummarizeTask):
-		dc.Renderer.RenderMessage(timestamp, "TOOL", "Cline condensed the conversation")
+		dc.Renderer.RenderMessageNoTimestamp("TOOL", "Cline condensed the conversation")
 	default:
-		dc.Renderer.RenderMessage(timestamp, "TOOL", fmt.Sprintf("Cline executed tool: %s", tool.Tool))
+		dc.Renderer.RenderMessageNoTimestamp("TOOL", fmt.Sprintf("Cline executed tool: %s", tool.Tool))
 	}
 
 	// Skip content preview for readFile and webFetch tools
