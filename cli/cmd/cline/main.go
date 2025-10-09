@@ -44,6 +44,7 @@ monitoring capabilities from the terminal.`,
 
 	rootCmd.AddCommand(cli.NewTaskCommand())
 	rootCmd.AddCommand(cli.NewInstanceCommand())
+	rootCmd.AddCommand(cli.NewConfigCommand())
 	rootCmd.AddCommand(cli.NewVersionCommand())
 	rootCmd.AddCommand(cli.NewAuthCommand())
 	rootCmd.AddCommand(cli.NewTaskSendCommand())
