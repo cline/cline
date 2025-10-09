@@ -37,6 +37,7 @@ export type ApiProvider =
 	| "vercel-ai-gateway"
 	| "zai"
 	| "oca"
+	| "aistupidlevel"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -75,6 +76,7 @@ export interface ApiHandlerSecrets {
 	basetenApiKey?: string
 	vercelAiGatewayApiKey?: string
 	difyApiKey?: string
+	aiStupidLevelApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -3675,6 +3677,73 @@ export const fireworksModels = {
 		outputPrice: 0.9,
 		description:
 			"A strong Mixture-of-Experts (MoE) language model with 671B total parameters with 37B activated for each token from Deepseek. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// AI Stupid Level
+// https://aistupidlevel.info
+export type AIStupidLevelModelId = keyof typeof aiStupidLevelModels
+export const aiStupidLevelDefaultModelId: AIStupidLevelModelId = "auto-coding"
+export const aiStupidLevelModels = {
+	auto: {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Automatically selects the best overall model based on real-time benchmarks. Your router intelligently chooses between Claude, GPT, Gemini, and xAI models for optimal performance.",
+	},
+	"auto-coding": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Optimized for coding tasks. Automatically selects the best-performing model for code generation, debugging, and software development based on continuous benchmarks.",
+	},
+	"auto-reasoning": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Optimized for complex reasoning and problem-solving. Selects models that excel at logical thinking, analysis, and multi-step reasoning tasks.",
+	},
+	"auto-creative": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Optimized for creative tasks. Selects models that excel at creative writing, brainstorming, and generating innovative ideas.",
+	},
+	"auto-fastest": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Prioritizes speed. Automatically selects the fastest-responding model while maintaining good quality for time-sensitive tasks.",
+	},
+	"auto-cheapest": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		description:
+			"Optimizes for cost. Selects the most cost-effective model that still delivers quality results, perfect for budget-conscious usage.",
 	},
 } as const satisfies Record<string, ModelInfo>
 
