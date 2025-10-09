@@ -9,12 +9,12 @@ import (
 )
 
 
-func ParseTaskSettings(settingsFlags []string) (*cline.TaskSettings, error) {
+func ParseTaskSettings(settingsFlags []string) (*cline.Settings, error) {
 	if len(settingsFlags) == 0 {
 		return nil, nil
 	}
 
-	settings := &cline.TaskSettings{}
+	settings := &cline.Settings{}
 	nestedSettings := make(map[string]map[string]string)
 
 	for _, flag := range settingsFlags {
@@ -70,8 +70,8 @@ func int32Ptr(i int32) *int32       { return &i }
 func int64Ptr(i int64) *int64       { return &i }
 func float64Ptr(f float64) *float64 { return &f }
 
-// setSimpleField sets a simple (non-nested) field on TaskSettings
-func setSimpleField(settings *cline.TaskSettings, key, value string) error {
+// setSimpleField sets a simple (non-nested) field on Settings
+func setSimpleField(settings *cline.Settings, key, value string) error {
 	switch key {
 	// String fields
 	case "aws_region":
@@ -379,9 +379,9 @@ func setSimpleField(settings *cline.TaskSettings, key, value string) error {
 	return nil
 }
 
-// setNestedField sets a nested field on TaskSettings
+// setNestedField sets a nested field on Settings
 // Currently supports: auto_approval_settings, browser_settings
-func setNestedField(settings *cline.TaskSettings, parentField string, childFields map[string]string) error {
+func setNestedField(settings *cline.Settings, parentField string, childFields map[string]string) error {
 	switch parentField {
 	case "auto_approval_settings":
 		if settings.AutoApprovalSettings == nil {
@@ -496,6 +496,24 @@ func setBrowserSettings(settings *cline.BrowserSettings, fields map[string]strin
 				settings.Viewport = &cline.Viewport{}
 			}
 			settings.Viewport.Height = val
+		case "remote_browser_host":
+			settings.RemoteBrowserHost = strPtr(value)
+		case "remote_browser_enabled":
+			val, err := parseBool(value)
+			if err != nil {
+				return err
+			}
+			settings.RemoteBrowserEnabled = boolPtr(val)
+		case "chrome_executable_path":
+			settings.ChromeExecutablePath = strPtr(value)
+		case "disable_tool_use":
+			val, err := parseBool(value)
+			if err != nil {
+				return err
+			}
+			settings.DisableToolUse = boolPtr(val)
+		case "custom_args":
+			settings.CustomArgs = strPtr(value)
 		default:
 			return fmt.Errorf("unsupported browser_settings field '%s'", key)
 		}

@@ -132,7 +132,7 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 	}
 
 	// Parse task settings if provided
-	var taskSettings *cline.TaskSettings
+	var taskSettings *cline.Settings
 	if len(settingsFlags) > 0 {
 		var err error
 		taskSettings, err = ParseTaskSettings(settingsFlags)
