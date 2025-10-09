@@ -135,7 +135,7 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 	var taskSettings *cline.Settings
 	if len(settingsFlags) > 0 {
 		var err error
-		taskSettings, err = ParseTaskSettings(settingsFlags)
+		taskSettings, _, err = ParseTaskSettings(settingsFlags)
 		if err != nil {
 			return "", fmt.Errorf("failed to parse task settings: %w", err)
 		}
