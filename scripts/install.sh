@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-INSTALL_DIR="${CLINE_INSTALL_DIR:-$HOME/.cline}"
+INSTALL_DIR="${CLINE_INSTALL_DIR:-$HOME/.cline/standalone}"
 GITHUB_REPO="cline/cline"
 RELEASE_TAG="${CLINE_VERSION:-latest}"
 
