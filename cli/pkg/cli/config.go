@@ -3,6 +3,9 @@ package cli
 import (
 	"fmt"
 
+	"github.com/cline/cli/pkg/cli/config"
+	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/task"
 	"github.com/spf13/cobra"
 )
 
@@ -10,12 +13,13 @@ func NewConfigCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "config",
 		Aliases: []string{"c"},
-		Short:   "View and manage Cline configurations",
-		Long:    `View and manage Cline configurations`,
+		Short:   "Manage Cline configuration",
+		Long:    `Set and manage global Cline configuration variables.`,
 	}
 
 	cmd.AddCommand(newConfigListCommand())
 	cmd.AddCommand(newConfigGetCommand())
+	cmd.AddCommand(setCommand())
 
 	return cmd
 }
@@ -48,5 +52,49 @@ func newConfigListCommand() *cobra.Command {
 		},
 	}
 
+	return cmd
+}
+
+func setCommand() *cobra.Command {
+	var address string
+
+	cmd := &cobra.Command{
+		Use:     "set <key=value> [key=value...]",
+		Aliases: []string{"s"},
+		Short:   "Set configuration variables",
+		Long:    `Set one or more global configuration variables using key=value format.`,
+		Args:    cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+
+			// Parse using existing task parser
+			settings, err := task.ParseTaskSettings(args)
+			if err != nil {
+				return fmt.Errorf("failed to parse settings: %w", err)
+			}
+
+			// Ensure default instance if no address specified
+			if address == "" {
+				if err := global.EnsureDefaultInstance(ctx); err != nil {
+					return fmt.Errorf("failed to ensure default instance: %w", err)
+				}
+			} else {
+				if err := ensureInstanceAtAddress(ctx, address); err != nil {
+					return fmt.Errorf("failed to ensure instance at address %s: %w", address, err)
+				}
+			}
+
+			// Create manager
+			manager, err := config.NewManager(ctx, address)
+			if err != nil {
+				return err
+			}
+
+			// Update settings
+			return manager.UpdateSettings(ctx, settings)
+		},
+	}
+
+	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	return cmd
 }
