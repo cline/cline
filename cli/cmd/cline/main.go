@@ -8,7 +8,6 @@ import (
 	"github.com/cline/cli/pkg/cli"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/common"
-	"github.com/cline/cli/pkg/services"
 	"github.com/spf13/cobra"
 )
 
@@ -19,17 +18,7 @@ var (
 )
 
 func main() {
-	// Ensure services are running before executing any command
-	serviceManager, err := services.NewServiceManager()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing service manager: %v\n", err)
-		os.Exit(1)
-	}
-
-	if err := serviceManager.EnsureServicesRunning(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error starting services: %v\n", err)
-		os.Exit(1)
-	}
+	ctx := context.Background()
 
 	rootCmd := &cobra.Command{
 		Use:   "cline",
@@ -43,11 +32,28 @@ monitoring capabilities from the terminal.`,
 				return fmt.Errorf("invalid output format '%s': must be one of 'rich', 'json', or 'plain'", outputFormat)
 			}
 
-			return global.InitializeGlobalConfig(&global.GlobalConfig{
+			// Initialize global config first
+			if err := global.InitializeGlobalConfig(&global.GlobalConfig{
 				Verbose:      verbose,
 				OutputFormat: outputFormat,
 				CoreAddress:  coreAddress,
-			})
+			}); err != nil {
+				return err
+			}
+
+			// Use existing ClineClients to manage service orchestration
+			clients := global.NewClineClients(global.Config.ConfigPath)
+			if err := clients.Initialize(ctx); err != nil {
+				return fmt.Errorf("failed to initialize clients: %w", err)
+			}
+
+			// Ensure a default instance exists at the configured address
+			// This will start one with dynamic ports if it doesn't exist
+			if err := clients.EnsureInstanceAtAddress(ctx, coreAddress); err != nil {
+				return fmt.Errorf("failed to ensure instance: %w", err)
+			}
+
+			return nil
 		},
 	}
 
