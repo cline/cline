@@ -82,8 +82,25 @@ func (ss *StreamingSegment) Render() error {
 		return nil
 	}
 
-	// For tools, parse JSON and decide what to show
+	// For ASK messages, parse JSON and extract response field
 	text := currentBuffer
+	if ss.sayType == "ask" {
+		var askData types.AskData
+		if err := json.Unmarshal([]byte(currentBuffer), &askData); err == nil {
+			// Use the response field as the text to render
+			text = askData.Response
+			
+			// Add options if available
+			if len(askData.Options) > 0 {
+				text += "\n\nOptions:\n"
+				for i, option := range askData.Options {
+					text += fmt.Sprintf("%d. %s\n", i+1, option)
+				}
+			}
+		}
+	}
+	
+	// For tools, parse JSON and decide what to show
 	if ss.sayType == string(types.SayTypeTool) {
 		var tool types.ToolMessage
 		if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
@@ -188,8 +205,25 @@ func (ss *StreamingSegment) renderFinal(currentBuffer string) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 
-	// For tools, parse JSON and decide what to show
+	// For ASK messages, parse JSON and extract response field
 	text := currentBuffer
+	if ss.sayType == "ask" {
+		var askData types.AskData
+		if err := json.Unmarshal([]byte(currentBuffer), &askData); err == nil {
+			// Use the response field as the text to render
+			text = askData.Response
+			
+			// Add options if available
+			if len(askData.Options) > 0 {
+				text += "\n\nOptions:\n"
+				for i, option := range askData.Options {
+					text += fmt.Sprintf("%d. %s\n", i+1, option)
+				}
+			}
+		}
+	}
+	
+	// For tools, parse JSON and decide what to show
 	if ss.sayType == string(types.SayTypeTool) {
 		var tool types.ToolMessage
 		if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
@@ -266,6 +300,9 @@ func (ss *StreamingSegment) generateRichHeader() string {
 		
 	case string(types.SayTypeTool):
 		return ss.generateToolHeader()
+		
+	case "ask":
+		return "### Cline has a plan\n"
 		
 	default:
 		return fmt.Sprintf("### %s\n", ss.prefix)
