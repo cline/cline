@@ -82,63 +82,14 @@ func (ss *StreamingSegment) Render() error {
 		return nil
 	}
 
-	// For ASK messages, parse JSON and extract response field
-	text := currentBuffer
-	if ss.sayType == "ask" {
-		var askData types.AskData
-		if err := json.Unmarshal([]byte(currentBuffer), &askData); err == nil {
-			// Use the response field as the text to render
-			text = askData.Response
-			
-			// Add options if available
-			if len(askData.Options) > 0 {
-				text += "\n\nOptions:\n"
-				for i, option := range askData.Options {
-					text += fmt.Sprintf("%d. %s\n", i+1, option)
-				}
-			}
-		}
-	}
-	
-	// For tools, parse JSON and decide what to show
-	if ss.sayType == string(types.SayTypeTool) {
-		var tool types.ToolMessage
-		if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
-			// Tools that show no body - header is sufficient
-			switch tool.Tool {
-			case "readFile", "listFilesTopLevel", "listFilesRecursive", 
-			     "listCodeDefinitionNames", "searchFiles", "webFetch":
-				return nil  // Skip body rendering, header already shown
-			
-			case "editedExistingFile":
-				// Show the diff (stored in Content field)
-				if tool.Content != "" {
-					text = "```diff\n" + tool.Content + "\n```"
-				} else {
-					return nil  // No diff yet, just show header
-				}
-			
-			default:
-				// Other tools: suppress JSON body for now
-				return nil
-			}
-		}
+	// Prepare text for rendering
+	text, shouldSkip := ss.prepareTextForRender(currentBuffer)
+	if shouldSkip {
+		return nil
 	}
 
-	if ss.sayType == string(types.SayTypeCommand) {
-		text = "```shell\n" + text + "\n```"
-	}
-
-	var rendered string
-	if ss.shouldMarkdown && ss.outputFormat != "plain" {
-		var err error
-		rendered, err = ss.mdRenderer.Render(text)
-		if err != nil {
-			rendered = ss.prefix + ": " + currentBuffer
-		}
-	} else {
-		rendered = ss.prefix + ": " + currentBuffer
-	}
+	// Render text to markdown or plain text
+	rendered := ss.renderMarkdown(text, currentBuffer)
 
 	// Calculate new line count
 	newLineCount := ss.mdRenderer.CountLines(rendered)
@@ -205,8 +156,43 @@ func (ss *StreamingSegment) renderFinal(currentBuffer string) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 
-	// For ASK messages, parse JSON and extract response field
+	// Prepare text for rendering
+	text, shouldSkip := ss.prepareTextForRender(currentBuffer)
+	if shouldSkip {
+		return
+	}
+
+	// Render text to markdown or plain text
+	rendered := ss.renderMarkdown(text, currentBuffer)
+
+	if ss.lastLineCount > 0 {
+		ss.clearPrevious()
+	}
+
+	// Print final render (frozen segments stay permanent)
+	if !strings.HasSuffix(rendered, "\n") {
+		fmt.Print(rendered)
+		fmt.Println()
+	} else {
+		fmt.Print(rendered)
+	}
+
+	ss.lastRendered = rendered
+	ss.lastBuffer = currentBuffer
+	// No need to track line count after freeze - segment is permanent
+	ss.lastLineCount = 0
+}
+
+func (ss *StreamingSegment) clearPrevious() {
+	ClearLines(ss.lastLineCount)
+}
+
+// prepareTextForRender transforms raw buffer text into display-ready text.
+// Returns the prepared text and a boolean indicating whether rendering should be skipped.
+func (ss *StreamingSegment) prepareTextForRender(currentBuffer string) (string, bool) {
 	text := currentBuffer
+
+	// For ASK messages, parse JSON and extract response field
 	if ss.sayType == "ask" {
 		var askData types.AskData
 		if err := json.Unmarshal([]byte(currentBuffer), &askData); err == nil {
@@ -231,59 +217,42 @@ func (ss *StreamingSegment) renderFinal(currentBuffer string) {
 			switch tool.Tool {
 			case "readFile", "listFilesTopLevel", "listFilesRecursive",
 			     "listCodeDefinitionNames", "searchFiles", "webFetch":
-				// No final render needed, header already shown
-				return
+				return "", true // Skip body rendering, header already shown
 			
 			case "editedExistingFile":
 				// Show the diff (stored in Content field)
 				if tool.Content != "" {
 					text = "```diff\n" + tool.Content + "\n```"
 				} else {
-					return  // No diff, just header
+					return "", true // No diff yet, just show header
 				}
 			
 			default:
 				// Other tools: suppress JSON body for now
-				return
+				return "", true
 			}
 		}
 	}
 
+	// Wrap command text in shell code block
 	if ss.sayType == string(types.SayTypeCommand) {
 		text = "```shell\n" + text + "\n```"
 	}
 
-	var rendered string
-	if ss.shouldMarkdown && ss.outputFormat != "plain" {
-		var err error
-		rendered, err = ss.mdRenderer.Render(text)
-		if err != nil {
-			rendered = ss.prefix + ": " + currentBuffer
-		}
-	} else {
-		rendered = ss.prefix + ": " + currentBuffer
-	}
-
-	if ss.lastLineCount > 0 {
-		ss.clearPrevious()
-	}
-
-	// Print final render (frozen segments stay permanent)
-	if !strings.HasSuffix(rendered, "\n") {
-		fmt.Print(rendered)
-		fmt.Println()
-	} else {
-		fmt.Print(rendered)
-	}
-
-	ss.lastRendered = rendered
-	ss.lastBuffer = currentBuffer
-	// No need to track line count after freeze - segment is permanent
-	ss.lastLineCount = 0
+	return text, false
 }
 
-func (ss *StreamingSegment) clearPrevious() {
-	ClearLines(ss.lastLineCount)
+// renderMarkdown converts prepared text to rendered markdown or plain text.
+// Falls back to plain text with prefix if markdown rendering fails.
+func (ss *StreamingSegment) renderMarkdown(text string, fallbackBuffer string) string {
+	if ss.shouldMarkdown && ss.outputFormat != "plain" {
+		rendered, err := ss.mdRenderer.Render(text)
+		if err != nil {
+			return ss.prefix + ": " + fallbackBuffer
+		}
+		return rendered
+	}
+	return ss.prefix + ": " + fallbackBuffer
 }
 
 // generateRichHeader generates a contextual header for the segment
