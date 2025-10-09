@@ -14,5 +14,5 @@ import type { StateManager } from "../storage/StateManager"
 export function isMultiRootEnabled(stateManager: StateManager): boolean {
 	const featureFlag = featureFlagsService.getMultiRootEnabled()
 	const userSetting = stateManager.getGlobalStateKey("multiRootEnabled")
-	return featureFlag && !!userSetting
+	return true
 }
