@@ -95,6 +95,7 @@ describe("ExtensionChannel", () => {
 			appProperties,
 			userId,
 			provider: mockProvider,
+			isCloudAgent: false,
 		})
 	})
 
@@ -176,6 +177,7 @@ describe("ExtensionChannel", () => {
 				appProperties,
 				userId,
 				provider: mockProvider,
+				isCloudAgent: false,
 			})
 
 			// Each event should have exactly 2 listeners (one from each channel)

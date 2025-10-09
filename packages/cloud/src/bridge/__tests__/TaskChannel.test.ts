@@ -88,6 +88,7 @@ describe("TaskChannel", () => {
 		taskChannel = new TaskChannel({
 			instanceId,
 			appProperties,
+			isCloudAgent: false,
 		})
 	})
 

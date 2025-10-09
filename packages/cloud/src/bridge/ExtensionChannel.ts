@@ -41,6 +41,7 @@ export class ExtensionChannel extends BaseChannel<
 			instanceId: options.instanceId,
 			appProperties: options.appProperties,
 			gitProperties: options.gitProperties,
+			isCloudAgent: options.isCloudAgent,
 		})
 
 		this.userId = options.userId
@@ -55,6 +56,7 @@ export class ExtensionChannel extends BaseChannel<
 			lastHeartbeat: Date.now(),
 			task: { taskId: "", taskStatus: TaskStatus.None },
 			taskHistory: [],
+			isCloudAgent: this.isCloudAgent,
 		}
 
 		this.setupListeners()

@@ -7,6 +7,7 @@ export interface BaseChannelOptions {
 	instanceId: string
 	appProperties: StaticAppProperties
 	gitProperties?: GitProperties
+	isCloudAgent: boolean
 }
 
 /**
@@ -22,11 +23,13 @@ export abstract class BaseChannel<TCommand = unknown, TEventName extends string 
 	protected readonly instanceId: string
 	protected readonly appProperties: StaticAppProperties
 	protected readonly gitProperties?: GitProperties
+	protected readonly isCloudAgent: boolean
 
 	constructor(options: BaseChannelOptions) {
 		this.instanceId = options.instanceId
 		this.appProperties = options.appProperties
 		this.gitProperties = options.gitProperties
+		this.isCloudAgent = options.isCloudAgent
 	}
 
 	/**

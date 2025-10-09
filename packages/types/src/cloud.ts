@@ -411,6 +411,7 @@ export const extensionInstanceSchema = z.object({
 	modes: z.array(z.object({ slug: z.string(), name: z.string() })).optional(),
 	providerProfile: z.string().optional(),
 	providerProfiles: z.array(z.object({ name: z.string(), provider: z.string().optional() })).optional(),
+	isCloudAgent: z.boolean().optional(),
 })
 
 export type ExtensionInstance = z.infer<typeof extensionInstanceSchema>
