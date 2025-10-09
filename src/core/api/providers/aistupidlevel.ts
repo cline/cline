@@ -93,7 +93,7 @@ export class AIStupidLevelHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL: "https://aistupidlevel.info:4000/v1",
+					baseURL: "https://aistupidlevel.info/v1",
 					apiKey: this.options.aiStupidLevelApiKey,
 				})
 			} catch (error: any) {
