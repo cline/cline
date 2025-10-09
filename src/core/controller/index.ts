@@ -95,6 +95,7 @@ export class Controller {
 	 * @returns Initialized WorkspaceRootManager
 	 */
 	private async initializeWorkspaceManagerFromPaths(workspacePaths: string[]): Promise<WorkspaceRootManager> {
+		console.log("[DEBUG] initializeWorkspaceManagerFromPaths called with:", workspacePaths)
 		const startTime = performance.now()
 		const cwd = await getCwd(getDesktopDir())
 
@@ -104,6 +105,7 @@ export class Controller {
 			for (const workspacePath of workspacePaths) {
 				// Resolve to absolute path
 				const absolutePath = path.resolve(workspacePath)
+				console.log("[DEBUG] Resolving workspace path:", workspacePath, "->", absolutePath)
 
 				// Detect VCS for this workspace (using detection module's public function)
 				const vcs = await detectWorkspaceRoots()
@@ -125,6 +127,8 @@ export class Controller {
 			// First path is primary workspace
 			const manager = new WorkspaceRootManager(roots, 0)
 
+			console.log(`[DEBUG] WorkspaceManager created with roots:`, roots)
+			console.log(`[DEBUG] Primary workspace:`, roots[0])
 			console.log(`[WorkspaceManager] Initialized from CLI with ${roots.length} workspace(s)`)
 
 			// Telemetry
@@ -273,6 +277,7 @@ export class Controller {
 		taskSettings?: Partial<Settings>,
 		workspacePaths?: string[],
 	) {
+		console.log("[DEBUG] Controller.initTask called with workspacePaths:", workspacePaths)
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
