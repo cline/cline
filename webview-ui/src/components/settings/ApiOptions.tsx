@@ -19,6 +19,7 @@ import { BedrockProvider } from "./providers/BedrockProvider"
 import { CerebrasProvider } from "./providers/CerebrasProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { ClineProvider } from "./providers/ClineProvider"
+import { CortecsProvider } from "./providers/CortecsProvider"
 import { DeepSeekProvider } from "./providers/DeepSeekProvider"
 import { DifyProvider } from "./providers/DifyProvider"
 import { DoubaoProvider } from "./providers/DoubaoProvider"
@@ -163,6 +164,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "huawei-cloud-maas", label: "Huawei Cloud MaaS" },
 			{ value: "dify", label: "Dify.ai" },
 			{ value: "oca", label: "Oracle Code Assist" },
+			{ value: "cortecs", label: "cortecs" },
 		]
 
 		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
@@ -505,6 +507,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{apiConfiguration && selectedProvider === "oca" && <OcaProvider currentMode={currentMode} isPopup={isPopup} />}
+
+			{apiConfiguration && selectedProvider === "cortecs" && (
+				<CortecsProvider currentMode={currentMode} isPopup={isPopup} />
+			)}
 
 			{apiErrorMessage && (
 				<p

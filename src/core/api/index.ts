@@ -8,6 +8,7 @@ import { AwsBedrockHandler } from "./providers/bedrock"
 import { CerebrasHandler } from "./providers/cerebras"
 import { ClaudeCodeHandler } from "./providers/claude-code"
 import { ClineHandler } from "./providers/cline"
+import { CortecsHandler } from "./providers/cortecs"
 import { DeepSeekHandler } from "./providers/deepseek"
 import { DifyHandler } from "./providers/dify"
 import { DoubaoHandler } from "./providers/doubao"
@@ -388,6 +389,15 @@ function createHandlerForProvider(
 						? options.planModeOcaModelInfo?.supportsPromptCache
 						: options.actModeOcaModelInfo?.supportsPromptCache,
 				taskId: options.ulid,
+			})
+		case "cortecs":
+			return new CortecsHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				cortecsBaseUrl: options.cortecsBaseUrl,
+				cortecsApiKey: options.cortecsApiKey,
+				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				cortecsModelId: mode === "plan" ? options.planModeCortecsModelId : options.actModeCortecsModelId,
+				cortecsModelInfo: mode === "plan" ? options.planModeCortecsModelInfo : options.actModeCortecsModelInfo,
 			})
 		default:
 			return new AnthropicHandler({

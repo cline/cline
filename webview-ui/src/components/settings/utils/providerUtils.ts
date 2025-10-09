@@ -13,6 +13,8 @@ import {
 	cerebrasModels,
 	claudeCodeDefaultModelId,
 	claudeCodeModels,
+	cortecsDefaultModelId,
+	cortecsDefaultModelInfo,
 	deepSeekDefaultModelId,
 	deepSeekModels,
 	doubaoDefaultModelId,
@@ -357,6 +359,16 @@ export function normalizeApiConfiguration(
 				selectedModelId: ocaModelId || "",
 				selectedModelInfo: ocaModelInfo || liteLlmModelInfoSaneDefaults,
 			}
+		case "cortecs":
+			const cortecsModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeCortecsModelId : apiConfiguration?.actModeCortecsModelId
+			const cortecsModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeCortecsModelInfo : apiConfiguration?.actModeCortecsModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: cortecsModelId || cortecsDefaultModelId,
+				selectedModelInfo: cortecsModelInfo || cortecsDefaultModelInfo,
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -389,6 +401,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			huggingFaceModelId: undefined,
 			huaweiCloudMaasModelId: undefined,
 			vercelAiGatewayModelId: undefined,
+			cortecsModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
@@ -400,6 +413,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			huggingFaceModelInfo: undefined,
 			vercelAiGatewayModelInfo: undefined,
 			vsCodeLmModelSelector: undefined,
+			cortecsModelInfo: undefined,
 
 			// AWS Bedrock fields
 			awsBedrockCustomSelected: undefined,
@@ -438,6 +452,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		vercelAiGatewayModelId:
 			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelId : apiConfiguration.actModeVercelAiGatewayModelId,
 		ocaModelId: mode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
+		cortecsModelId: mode === "plan" ? apiConfiguration.planModeCortecsModelId : apiConfiguration.actModeCortecsModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -456,6 +471,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 				: apiConfiguration.actModeVercelAiGatewayModelInfo,
 		vsCodeLmModelSelector:
 			mode === "plan" ? apiConfiguration.planModeVsCodeLmModelSelector : apiConfiguration.actModeVsCodeLmModelSelector,
+		cortecsModelInfo: mode === "plan" ? apiConfiguration.planModeCortecsModelInfo : apiConfiguration.actModeCortecsModelInfo,
 
 		// AWS Bedrock fields
 		awsBedrockCustomSelected:
@@ -621,6 +637,12 @@ export async function syncModeConfigurations(
 			updates.actModeOcaModelId = sourceFields.ocaModelId
 			updates.planModeOcaModelInfo = sourceFields.ocaModelInfo
 			updates.actModeOcaModelInfo = sourceFields.ocaModelInfo
+			break
+		case "cortecs":
+			updates.planModeCortecsModelId = sourceFields.cortecsModelId
+			updates.actModeCortecsModelId = sourceFields.cortecsModelId
+			updates.planModeCortecsModelInfo = sourceFields.cortecsModelInfo
+			updates.actModeCortecsModelInfo = sourceFields.cortecsModelInfo
 			break
 
 		// Providers that use apiProvider + apiModelId fields

@@ -39,6 +39,8 @@ service ModelsService {
   rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (SapAiCoreModelsResponse);
   // Fetches available models from OCA
   rpc refreshOcaModels(StringRequest) returns (OcaCompatibleModelInfo);
+  // Refreshes and returns Cortecs models
+  rpc refreshCortecsModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -228,6 +230,7 @@ enum ApiProvider {
   QWEN_CODE = 33;
   DIFY = 34;
   OCA = 35;
+  CORTECS = 36;
 }
 
 // Model info for OpenAI-compatible models
@@ -345,6 +348,8 @@ message ModelsApiConfiguration {
   optional string oca_refresh_token = 75;
   optional string oca_mode = 76;
   optional bool aws_use_global_inference = 77;
+  optional string cortecs_api_key = 78;
+  optional string cortecs_base_url = 79;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -380,6 +385,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 130;
   optional string plan_mode_oca_model_id = 131;
   optional OcaModelInfo plan_mode_oca_model_info = 132;
+  optional string plan_mode_cortecs_model_id = 133;
+  optional OpenRouterModelInfo plan_mode_cortecs_model_info = 134;
 
 
   // Act mode configurations
@@ -416,4 +423,6 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
   optional string act_mode_oca_model_id = 231;
   optional OcaModelInfo act_mode_oca_model_info = 232;
+  optional string act_mode_cortecs_model_id = 233;
+  optional OpenRouterModelInfo act_mode_cortecs_model_info = 234;
 }

@@ -18,6 +18,8 @@ import { Environment } from "../../../src/config"
 import {
 	basetenDefaultModelId,
 	basetenModels,
+	cortecsDefaultModelId,
+	cortecsDefaultModelInfo,
 	groqDefaultModelId,
 	groqModels,
 	type ModelInfo,
@@ -41,6 +43,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	basetenModels: Record<string, ModelInfo>
 	huggingFaceModels: Record<string, ModelInfo>
 	vercelAiGatewayModels: Record<string, ModelInfo>
+    cortecsModels: Record<string, ModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	totalTasksSize: number | null
@@ -70,6 +73,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setBasetenModels: (value: Record<string, ModelInfo>) => void
 	setHuggingFaceModels: (value: Record<string, ModelInfo>) => void
 	setVercelAiGatewayModels: (value: Record<string, ModelInfo>) => void
+    setCortecsModels: (value: Record<string, ModelInfo>) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
@@ -254,6 +258,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [vercelAiGatewayModels, setVercelAiGatewayModels] = useState<Record<string, ModelInfo>>({
 		[vercelAiGatewayDefaultModelId]: vercelAiGatewayDefaultModelInfo,
+	})
+	const [cortecsModels, setCortecsModels] = useState<Record<string, ModelInfo>>({
+		[cortecsDefaultModelId]: cortecsDefaultModelInfo,
 	})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
@@ -641,6 +648,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		basetenModels: basetenModelsState,
 		huggingFaceModels,
 		vercelAiGatewayModels,
+		cortecsModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
 		totalTasksSize,
@@ -687,6 +695,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setBasetenModels: (models: Record<string, ModelInfo>) => setBasetenModels(models),
 		setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),
 		setVercelAiGatewayModels: (models: Record<string, ModelInfo>) => setVercelAiGatewayModels(models),
+		setCortecsModels: (models: Record<string, ModelInfo>) => setCortecsModels(models),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
 		closeMcpView,
