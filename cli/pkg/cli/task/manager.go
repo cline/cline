@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -120,6 +121,16 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Resolve workspace paths to absolute paths
+	absoluteWorkspacePaths := make([]string, len(workspacePaths))
+	for i, workspacePath := range workspacePaths {
+		absPath, err := filepath.Abs(workspacePath)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve workspace path '%s': %w", workspacePath, err)
+		}
+		absoluteWorkspacePaths[i] = absPath
+	}
+
 	if global.Config.Verbose {
 		m.renderer.RenderDebug("Creating task: %s", prompt)
 		if len(files) > 0 {
@@ -129,7 +140,8 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 			m.renderer.RenderDebug("Images: %v", images)
 		}
 		if len(workspacePaths) > 0 {
-			m.renderer.RenderDebug("Workspaces: %v", workspacePaths)
+			m.renderer.RenderDebug("Workspaces (original): %v", workspacePaths)
+			m.renderer.RenderDebug("Workspaces (absolute): %v", absoluteWorkspacePaths)
 		}
 		if len(settingsFlags) > 0 {
 			m.renderer.RenderDebug("Settings: %v", settingsFlags)
@@ -157,7 +169,7 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 		Images:         images,
 		Files:          files,
 		TaskSettings:   taskSettings,
-		WorkspacePaths: workspacePaths,
+		WorkspacePaths: absoluteWorkspacePaths,
 	}
 
 	resp, err := m.client.Task.NewTask(ctx, req)
