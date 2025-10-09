@@ -187,6 +187,9 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
+            - name: Download Node.js binaries
+              run: npm run download-node
+
             - name: Compile standalone
               run: npm run compile-standalone
 
