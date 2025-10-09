@@ -187,8 +187,17 @@ jobs:
               if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
 
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: '1.24'
+                  cache-dependency-path: cli/go.sum
+
             - name: Download Node.js binaries
               run: npm run download-node
+
+            - name: Build CLI binaries
+              run: npm run compile-cli
 
             - name: Compile standalone
               run: npm run compile-standalone
