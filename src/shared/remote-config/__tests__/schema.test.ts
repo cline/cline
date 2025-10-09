@@ -1,27 +1,8 @@
 import { expect } from "chai"
 import { describe, it } from "mocha"
-import {
-	AwsBedrockSettingsSchema,
-	OpenAiCompatibleSchema,
-	ProviderSchema,
-	type RemoteConfig,
-	RemoteConfigSchema,
-} from "../schema"
+import { AwsBedrockSettingsSchema, OpenAiCompatibleSchema, type RemoteConfig, RemoteConfigSchema } from "../schema"
 
 describe("Remote Config Schema", () => {
-	describe("ProviderSchema", () => {
-		it("should accept valid provider names", () => {
-			expect(() => ProviderSchema.parse("OpenAiCompatible")).to.not.throw()
-			expect(() => ProviderSchema.parse("AwsBedrock")).to.not.throw()
-		})
-
-		it("should reject invalid provider names", () => {
-			expect(() => ProviderSchema.parse("InvalidProvider")).to.throw()
-			expect(() => ProviderSchema.parse("")).to.throw()
-			expect(() => ProviderSchema.parse(123)).to.throw()
-		})
-	})
-
 	describe("OpenAiCompatibleSchema", () => {
 		it("should accept valid OpenAI compatible settings", () => {
 			const validSettings = {

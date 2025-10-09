@@ -68,9 +68,6 @@ const ProviderSettingsSchema = z.object({
 	AwsBedrock: AwsBedrockSettingsSchema.optional(),
 })
 
-// The supported providers
-export const ProviderSchema = z.enum(["OpenAiCompatible", "AwsBedrock"])
-
 export const RemoteConfigSchema = z.object({
 	// The version of the remote config settings, e.g. v1
 	// This field is for internal use only, and won't be visible to the administrator in the UI.
@@ -90,7 +87,6 @@ export const RemoteConfigSchema = z.object({
 })
 
 // Type inference from schemas
-export type Provider = z.infer<typeof ProviderSchema>
 export type OpenAiCompatibleModel = z.infer<typeof OpenAiCompatibleModelSchema>
 export type OpenAiCompatible = z.infer<typeof OpenAiCompatibleSchema>
 export type AwsBedrockModel = z.infer<typeof AwsBedrockModelSchema>
