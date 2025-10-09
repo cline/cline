@@ -48,6 +48,15 @@ export const claudeCodeModels = {
 		supportsReasoningBudget: false,
 		requiredReasoningBudget: false,
 	},
+	"claude-sonnet-4-5-20250929[1m]": {
+		...anthropicModels["claude-sonnet-4-5"],
+		contextWindow: 1_000_000, // 1M token context window (requires [1m] suffix)
+		supportsImages: false,
+		supportsPromptCache: true, // Claude Code does report cache tokens
+		supportsReasoningEffort: false,
+		supportsReasoningBudget: false,
+		requiredReasoningBudget: false,
+	},
 	"claude-sonnet-4-20250514": {
 		...anthropicModels["claude-sonnet-4-20250514"],
 		supportsImages: false,
