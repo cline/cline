@@ -329,7 +329,7 @@ export function generateApiKeyDisplayName(fieldName) {
 		sapAiCoreClientId: "SAP AI Core Client ID",
 		sapAiCoreClientSecret: "SAP AI Core Client Secret",
 		huaweiCloudMaasApiKey: "Huawei Cloud MaaS API Key",
-		cortecsApiKey: "cortecs API Key",
+		cortecsApiKey: "Cortecs API Key",
 	}
 
 	if (specialCases[fieldName]) {
