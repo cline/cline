@@ -267,7 +267,7 @@ export class AuthService {
 	 */
 	async clearAuthToken(): Promise<void> {
 		this._controller.stateManager.setSecret("clineAccountId", undefined)
-		this._controller.stateManager.setSecret(ClineAuthProvider.secretKeyId, undefined)
+		this._controller.stateManager.setSecret("cline:clineAccountId", undefined)
 	}
 
 	/**
