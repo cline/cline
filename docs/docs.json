@@ -18,8 +18,8 @@
 	},
 	"background": {
 		"color": {
-			"light": "#F0E6FF",
-			"dark": "#000000"
+			"light": "#fafaf9",
+			"dark": "#0f0f0f"
 		},
 		"decoration": "gradient"
 	},
