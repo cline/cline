@@ -1,0 +1,52 @@
+---
+title: TrueFoundry AI Gateway
+---
+
+TrueFoundry provides an enterprise-ready [AI Gateway](https://www.truefoundry.com/ai-gateway) which can integrate with coding assistants like Cline and provide observability for your teams. TrueFoundry AI Gateway serves as a unified interface for LLM access, providing:
+
+- **Unified API Access**: Connect to 250+ LLMs (OpenAI, Claude, Gemini, Groq, Mistral) through one API
+- **Low Latency**: Sub-3ms internal latency with intelligent routing and load balancing  
+- **Enterprise Security**: SOC 2, HIPAA, GDPR compliance with RBAC and audit logging
+- **Quota and cost management**: Token-based quotas, rate limiting, and comprehensive usage tracking
+- **Observability**: Full request/response logging, metrics, and traces with customizable retention
+
+## Prerequisites
+
+Before integrating Cline with TrueFoundry, ensure you have:
+
+- **TrueFoundry Account**: Create a Truefoundry account and follow the instructions in our [Gateway Quick Start](https://docs.truefoundry.com/gateway/quick-start)
+- **VS Code**: Install Cline or in whichever IDE you prefer
+- **Cline Extension**: Install the Cline extension from the VS Code marketplace
+
+## Setup Process
+
+### 1. Configure Cline Settings
+
+Open Cline settings in VS Code:
+
+1. Open VS Code with Cline installed
+2. Press `Cmd/Ctrl + Shift + P` to open the command palette
+3. Search for **Cline: Open in new tab**
+4. Click on the settings gear icon ⚙️ in the Cline tab
+
+### 2. Configure API Settings
+
+In the Cline settings, configure the API connection:
+
+Set the following values:
+- **API Provider**: Select `OpenAI Compatible`
+- **Base URL**: `your-truefoundry-gateway-url`
+- **API Key**: `your-truefoundry-api-key`
+- **Model ID**: `openai-main/gpt-4o` (or your preferred TrueFoundry model)
+
+## Usage Examples
+
+Once configured, you can start using Cline for various coding tasks:
+
+- **Ask Cline to create a new file**: "Create a Python function to calculate Fibonacci numbers"
+- **Request code modifications**: "Add error handling to this function"
+- **Get explanations**: "Explain what this code does"
+- **Debug assistance**: "Help me fix this error"
+
+That's it! You're now ready to use Cline with TrueFoundry Gateway for enhanced AI-powered development with enterprise-grade controls and monitoring.
+
