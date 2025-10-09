@@ -13,7 +13,11 @@
 
 import { z } from "zod"
 
-export const ModelInfoSchema = z.object({
+// OpenAI Compatible model schema with per-model settings
+export const OpenAiCompatibleModelSchema = z.object({
+	id: z.string(), // The model ID is required
+	temperature: z.number().optional(),
+	isR1FormatRequired: z.boolean().optional(),
 	maxTokens: z.number().optional(),
 	contextWindow: z.number().optional(),
 	inputPrice: z.number().optional(),
@@ -21,49 +25,48 @@ export const ModelInfoSchema = z.object({
 	supportsImages: z.boolean().optional(),
 })
 
-export const OpenAiModelInfoSchema = z.object({
-	temperature: z.number().optional(),
-	isR1FormatRequired: z.boolean().optional(),
-})
-
 // OpenAiCompatible specific settings
 export const OpenAiCompatibleSchema = z.object({
-	// A list of the allowed models.
-	modelIds: z.array(z.string()).default([]),
+	// A list of the allowed models with their settings
+	models: z.array(OpenAiCompatibleModelSchema).default([]),
 	// OpenAiCompatible specific settings:
 	openAiBaseUrl: z.string().optional(),
 	openAiHeaders: z.record(z.string(), z.string()).default({}),
 	azureApiVersion: z.string().optional(),
 })
 
+// AWS Bedrock model schema with per-model settings
+export const AwsBedrockModelSchema = z.object({
+	id: z.string(), // The model ID is required
+	thinkingBudgetTokens: z.number().optional(),
+})
+
+// AWS Bedrock custom model schema (separate from regular models)
+export const AwsBedrockCustomModelSchema = z.object({
+	name: z.string(), // The model name is required
+	baseModelId: z.string(), // The base model ID is required
+	thinkingBudgetTokens: z.number().optional(),
+})
+
 // AWS Bedrock specific settings
 export const AwsBedrockSettingsSchema = z.object({
-	// A list of the allowed models.
-	modelIds: z.array(z.string()).default([]),
+	// A list of the allowed models with their settings
+	models: z.array(AwsBedrockModelSchema).default([]),
+	// Custom models
+	customModels: z.array(AwsBedrockCustomModelSchema).optional(),
 	// AWS Bedrock specific settings:
-	awsBedrockCustomSelected: z.boolean().optional(),
-	awsBedrockCustomModelBaseId: z.string().optional(),
 	awsRegion: z.string().optional(),
 	awsUseCrossRegionInference: z.boolean().optional(),
 	awsBedrockUsePromptCache: z.boolean().optional(),
 	awsBedrockEndpoint: z.string().optional(),
 })
 
-// Map of provider names to their schemas
-// To add a new provider, simply add it to this map
-const providerSchemasMap = {
-	OpenAiCompatible: OpenAiCompatibleSchema,
-	AwsBedrock: AwsBedrockSettingsSchema,
-} as const
-
-// Generate ProviderSettingsSchema from the map
+// Provider settings schema
 // Each provider becomes an optional field
-const ProviderSettingsSchema = z.object(
-	Object.fromEntries(Object.entries(providerSchemasMap).map(([key, schema]) => [key, schema.optional()])),
-)
-
-// The supported providers (derived from the map keys)
-export const ProviderSchema = z.enum(Object.keys(providerSchemasMap) as [string, ...string[]])
+const ProviderSettingsSchema = z.object({
+	OpenAiCompatible: OpenAiCompatibleSchema.optional(),
+	AwsBedrock: AwsBedrockSettingsSchema.optional(),
+})
 
 export const RemoteConfigSchema = z.object({
 	// The version of the remote config settings, e.g. v1
@@ -84,10 +87,10 @@ export const RemoteConfigSchema = z.object({
 })
 
 // Type inference from schemas
-export type Provider = z.infer<typeof ProviderSchema>
-export type ModelInfo = z.infer<typeof ModelInfoSchema>
-export type OpenAiModelInfo = z.infer<typeof OpenAiModelInfoSchema>
+export type OpenAiCompatibleModel = z.infer<typeof OpenAiCompatibleModelSchema>
 export type OpenAiCompatible = z.infer<typeof OpenAiCompatibleSchema>
+export type AwsBedrockModel = z.infer<typeof AwsBedrockModelSchema>
+export type AwsBedrockCustomModel = z.infer<typeof AwsBedrockCustomModelSchema>
 export type AwsBedrockSettings = z.infer<typeof AwsBedrockSettingsSchema>
 export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
 export type RemoteConfig = z.infer<typeof RemoteConfigSchema>
