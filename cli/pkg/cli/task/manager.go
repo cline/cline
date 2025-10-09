@@ -877,6 +877,13 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn("ask_command_output")
 			}
+
+		case msg.Ask == string(types.AskTypePlanModeRespond):
+			if !coordinator.IsProcessedInCurrentTurn("plan_mode_respond") {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn("plan_mode_respond")
+			}
 		}
 	}
 

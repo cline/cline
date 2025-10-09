@@ -61,8 +61,24 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 		// Store the number of options for telemetry
 		const options = parsePartialArrayString(optionsRaw || "[]")
 
+		const sharedMessage = {
+			response: response,
+			options: options,
+		}
+
 		// Auto-switch to Act mode while in yolo mode
 		if (config.mode === "plan" && config.yoloModeToggled && !needsMoreExploration) {
+			// Complete the partial message by finding and updating it to partial:false
+			const clineMessages = config.messageState.getClineMessages()
+			const lastMessageIndex = clineMessages.length - 1
+			const lastMessage = clineMessages[lastMessageIndex]
+
+			if (lastMessage && lastMessage.partial && lastMessage.ask === this.name) {
+				await config.messageState.updateClineMessage(lastMessageIndex, {
+					partial: false,
+				})
+			}
+
 			// Trigger automatic mode switch
 			const switchSuccessful = await config.callbacks.switchToActMode()
 
@@ -76,11 +92,6 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 
 		// Set awaiting plan response state
 		config.taskState.isAwaitingPlanResponse = true
-
-		const sharedMessage = {
-			response: response,
-			options: options,
-		}
 
 		// Ask for user response
 		let {
