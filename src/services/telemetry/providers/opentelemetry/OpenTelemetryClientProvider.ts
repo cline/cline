@@ -206,15 +206,20 @@ export class OpenTelemetryClientProvider {
 		const useInsecure = this.config!.otlpInsecure || false
 
 		if (!endpoint) {
-			console.warn("[OTEL DEBUG] OTLP metrics exporter requires an endpoint")
+			console.warn("[OTEL METRICS] ❌ OTLP metrics exporter requires an endpoint")
 			return null
 		}
 
-		console.log(
-			`[OTEL DEBUG] Creating OTLP metrics exporter: protocol=${protocol}, endpoint=${endpoint}, insecure=${useInsecure}`,
-		)
+		console.log("[OTEL METRICS] ========== Metrics Exporter Configuration ==========")
+		console.log(`[OTEL METRICS] Protocol: ${protocol}`)
+		console.log(`[OTEL METRICS] Endpoint: ${endpoint}`)
+		console.log(`[OTEL METRICS] Insecure: ${useInsecure}`)
+		console.log(`[OTEL METRICS] Headers from env: ${process.env.OTEL_EXPORTER_OTLP_HEADERS ? "YES" : "NO"}`)
+		console.log("[OTEL METRICS] =======================================================")
 
 		try {
+			let exporter: any = null
+
 			switch (protocol) {
 				case "grpc": {
 					// For gRPC, strip http:// or https:// prefix if present
@@ -224,23 +229,137 @@ export class OpenTelemetryClientProvider {
 					// Configure credentials based on insecure flag
 					const credentials = useInsecure ? grpcCredentials.createInsecure() : grpcCredentials.createSsl()
 
-					console.log(`[OTEL DEBUG] Using ${useInsecure ? "INSECURE" : "SECURE"} gRPC connection to ${grpcEndpoint}`)
+					console.log(
+						`[OTEL METRICS] ✓ Using ${useInsecure ? "INSECURE" : "SECURE"} gRPC connection to ${grpcEndpoint}`,
+					)
 
-					return new OTLPMetricExporterGRPC({
+					// Check for stripped prefix and warn if found
+					if (endpoint !== grpcEndpoint) {
+						console.log(`[OTEL METRICS] ⚠️  Stripped HTTP(S) prefix from endpoint: "${endpoint}" -> "${grpcEndpoint}"`)
+					}
+
+					exporter = new OTLPMetricExporterGRPC({
 						url: grpcEndpoint,
 						credentials: credentials,
 					})
+
+					console.log("[OTEL METRICS] ✓ gRPC metrics exporter instance created successfully")
+					break
 				}
-				case "http/json":
-					return new OTLPMetricExporterHTTP({ url: endpoint })
-				case "http/protobuf":
-					return new OTLPMetricExporterProto({ url: endpoint })
+				case "http/json": {
+					// For HTTP exporters, we need to append the signal-specific path
+					// The SDK only auto-appends paths when using environment variables,
+					// not when passing url directly to constructor
+					const metricsUrl = endpoint.endsWith("/v1/metrics") ? endpoint : `${endpoint}/v1/metrics`
+					console.log(`[OTEL METRICS] ✓ Creating HTTP/JSON exporter for ${metricsUrl}`)
+					exporter = new OTLPMetricExporterHTTP({ url: metricsUrl })
+					console.log("[OTEL METRICS] ✓ HTTP/JSON metrics exporter instance created successfully")
+					break
+				}
+				case "http/protobuf": {
+					// For HTTP exporters, we need to append the signal-specific path
+					const metricsUrl = endpoint.endsWith("/v1/metrics") ? endpoint : `${endpoint}/v1/metrics`
+					console.log(`[OTEL METRICS] ✓ Creating HTTP/Protobuf exporter for ${metricsUrl}`)
+					exporter = new OTLPMetricExporterProto({ url: metricsUrl })
+					console.log("[OTEL METRICS] ✓ HTTP/Protobuf metrics exporter instance created successfully")
+					break
+				}
 				default:
-					console.warn(`[OTEL DEBUG] Unknown OTLP protocol: ${protocol}`)
+					console.warn(`[OTEL METRICS] ❌ Unknown OTLP protocol: ${protocol}`)
 					return null
 			}
+
+			// Wrap the exporter's export method to add logging
+			if (exporter && typeof exporter.export === "function") {
+				const originalExport = exporter.export.bind(exporter)
+				let exportAttemptCount = 0
+
+				exporter.export = (metrics: any, resultCallback: any) => {
+					exportAttemptCount++
+					const attemptId = exportAttemptCount
+
+					console.log(`[OTEL METRICS] 📤 Export attempt #${attemptId} starting...`)
+					console.log(`[OTEL METRICS]    → Target: ${protocol}://${endpoint}`)
+					console.log(
+						`[OTEL METRICS]    → Metrics count: ${metrics?.resourceMetrics?.[0]?.scopeMetrics?.[0]?.metrics?.length || "unknown"}`,
+					)
+
+					const wrappedCallback = (result: any) => {
+						if (result.code === 0) {
+							// SUCCESS
+							console.log(`[OTEL METRICS] ✅ Export attempt #${attemptId} SUCCEEDED`)
+							console.log(`[OTEL METRICS]    → Data successfully sent to ${endpoint}`)
+						} else {
+							// FAILURE
+							console.error(`[OTEL METRICS] ❌ Export attempt #${attemptId} FAILED`)
+							console.error(`[OTEL METRICS]    → Error code: ${result.code}`)
+							console.error(`[OTEL METRICS]    → Error message: ${result.error?.message || "unknown"}`)
+
+							// Log additional error details
+							if (result.error) {
+								console.error(`[OTEL METRICS]    → Error details:`, {
+									name: result.error.name,
+									message: result.error.message,
+									code: result.error.code,
+									details: result.error.details,
+									metadata: result.error.metadata,
+									stack: result.error.stack?.split("\n").slice(0, 3).join("\n"), // First 3 lines of stack
+								})
+							}
+
+							// Check for common connection issues
+							if (result.error?.message) {
+								const msg = result.error.message.toLowerCase()
+								if (msg.includes("econnrefused")) {
+									console.error(
+										`[OTEL METRICS]    → ⚠️  Connection refused - is the collector running at ${endpoint}?`,
+									)
+								} else if (msg.includes("timeout")) {
+									console.error(
+										`[OTEL METRICS]    → ⚠️  Connection timeout - check network connectivity and collector availability`,
+									)
+								} else if (
+									msg.includes("unauthorized") ||
+									msg.includes("authentication") ||
+									msg.includes("401")
+								) {
+									console.error(
+										`[OTEL METRICS]    → ⚠️  Authentication failed - check OTEL_EXPORTER_OTLP_HEADERS`,
+									)
+								} else if (msg.includes("403") || msg.includes("forbidden")) {
+									console.error(`[OTEL METRICS]    → ⚠️  Authorization failed - check API key/token permissions`)
+								} else if (msg.includes("dns") || msg.includes("enotfound")) {
+									console.error(`[OTEL METRICS]    → ⚠️  DNS resolution failed - check endpoint hostname`)
+								} else if (msg.includes("certificate") || msg.includes("tls") || msg.includes("ssl")) {
+									console.error(
+										`[OTEL METRICS]    → ⚠️  TLS/SSL error - check certificate validity or use insecure mode for testing`,
+									)
+								}
+							}
+						}
+
+						resultCallback(result)
+					}
+
+					try {
+						originalExport(metrics, wrappedCallback)
+					} catch (error) {
+						console.error(`[OTEL METRICS] ❌ Export attempt #${attemptId} threw exception:`, error)
+						throw error
+					}
+				}
+
+				console.log("[OTEL METRICS] ✓ Export method wrapped with diagnostic logging")
+			}
+
+			return exporter
 		} catch (error) {
-			console.error("[OTEL DEBUG] Error creating OTLP metrics exporter:", error)
+			console.error("[OTEL METRICS] ❌ FATAL: Error creating OTLP metrics exporter:", error)
+			console.error("[OTEL METRICS]    → Exception details:", {
+				name: error instanceof Error ? error.name : typeof error,
+				message: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack?.split("\n").slice(0, 5).join("\n") : undefined,
+			})
 			return null
 		}
 	}
@@ -251,39 +370,154 @@ export class OpenTelemetryClientProvider {
 		const useInsecure = this.config!.otlpInsecure || false
 
 		if (!endpoint) {
-			console.warn("[OTEL DEBUG] OTLP logs exporter requires an endpoint")
+			console.warn("[OTEL LOGS] ❌ OTLP logs exporter requires an endpoint")
 			return null
 		}
 
-		console.log(
-			`[OTEL DEBUG] Creating OTLP logs exporter: protocol=${protocol}, endpoint=${endpoint}, insecure=${useInsecure}`,
-		)
+		console.log("[OTEL LOGS] ========== Logs Exporter Configuration ==========")
+		console.log(`[OTEL LOGS] Protocol: ${protocol}`)
+		console.log(`[OTEL LOGS] Endpoint: ${endpoint}`)
+		console.log(`[OTEL LOGS] Insecure: ${useInsecure}`)
+		console.log(`[OTEL LOGS] Headers from env: ${process.env.OTEL_EXPORTER_OTLP_HEADERS ? "YES" : "NO"}`)
+		console.log("[OTEL LOGS] =======================================================")
 
 		try {
+			let exporter: any = null
+
 			switch (protocol) {
 				case "grpc": {
 					const grpcEndpoint = endpoint.replace(/^https?:\/\//, "")
 					const credentials = useInsecure ? grpcCredentials.createInsecure() : grpcCredentials.createSsl()
 
 					console.log(
-						`[OTEL DEBUG] Using ${useInsecure ? "INSECURE" : "SECURE"} gRPC connection for logs to ${grpcEndpoint}`,
+						`[OTEL LOGS] ✓ Using ${useInsecure ? "INSECURE" : "SECURE"} gRPC connection for logs to ${grpcEndpoint}`,
 					)
 
-					return new OTLPLogExporterGRPC({
+					// Check for stripped prefix and warn if found
+					if (endpoint !== grpcEndpoint) {
+						console.log(`[OTEL LOGS] ⚠️  Stripped HTTP(S) prefix from endpoint: "${endpoint}" -> "${grpcEndpoint}"`)
+					}
+
+					exporter = new OTLPLogExporterGRPC({
 						url: grpcEndpoint,
 						credentials: credentials,
 					})
+
+					console.log("[OTEL LOGS] ✓ gRPC logs exporter instance created successfully")
+					break
 				}
-				case "http/json":
-					return new OTLPLogExporterHTTP({ url: endpoint })
-				case "http/protobuf":
-					return new OTLPLogExporterProto({ url: endpoint })
+				case "http/json": {
+					// For HTTP exporters, we need to append the signal-specific path
+					// The SDK only auto-appends paths when using environment variables,
+					// not when passing url directly to constructor
+					const logsUrl = endpoint.endsWith("/v1/logs") ? endpoint : `${endpoint}/v1/logs`
+					console.log(`[OTEL LOGS] ✓ Creating HTTP/JSON exporter for ${logsUrl}`)
+					exporter = new OTLPLogExporterHTTP({ url: logsUrl })
+					console.log("[OTEL LOGS] ✓ HTTP/JSON logs exporter instance created successfully")
+					break
+				}
+				case "http/protobuf": {
+					// For HTTP exporters, we need to append the signal-specific path
+					const logsUrl = endpoint.endsWith("/v1/logs") ? endpoint : `${endpoint}/v1/logs`
+					console.log(`[OTEL LOGS] ✓ Creating HTTP/Protobuf exporter for ${logsUrl}`)
+					exporter = new OTLPLogExporterProto({ url: logsUrl })
+					console.log("[OTEL LOGS] ✓ HTTP/Protobuf logs exporter instance created successfully")
+					break
+				}
 				default:
-					console.warn(`[OTEL DEBUG] Unknown OTLP protocol: ${protocol}`)
+					console.warn(`[OTEL LOGS] ❌ Unknown OTLP protocol: ${protocol}`)
 					return null
 			}
+
+			// Wrap the exporter's export method to add logging
+			if (exporter && typeof exporter.export === "function") {
+				const originalExport = exporter.export.bind(exporter)
+				let exportAttemptCount = 0
+
+				exporter.export = (logs: any, resultCallback: any) => {
+					exportAttemptCount++
+					const attemptId = exportAttemptCount
+
+					console.log(`[OTEL LOGS] 📤 Export attempt #${attemptId} starting...`)
+					console.log(`[OTEL LOGS]    → Target: ${protocol}://${endpoint}`)
+					console.log(
+						`[OTEL LOGS]    → Logs count: ${logs?.resourceLogs?.[0]?.scopeLogs?.[0]?.logRecords?.length || "unknown"}`,
+					)
+
+					const wrappedCallback = (result: any) => {
+						if (result.code === 0) {
+							// SUCCESS
+							console.log(`[OTEL LOGS] ✅ Export attempt #${attemptId} SUCCEEDED`)
+							console.log(`[OTEL LOGS]    → Data successfully sent to ${endpoint}`)
+						} else {
+							// FAILURE
+							console.error(`[OTEL LOGS] ❌ Export attempt #${attemptId} FAILED`)
+							console.error(`[OTEL LOGS]    → Error code: ${result.code}`)
+							console.error(`[OTEL LOGS]    → Error message: ${result.error?.message || "unknown"}`)
+
+							// Log additional error details
+							if (result.error) {
+								console.error(`[OTEL LOGS]    → Error details:`, {
+									name: result.error.name,
+									message: result.error.message,
+									code: result.error.code,
+									details: result.error.details,
+									metadata: result.error.metadata,
+									stack: result.error.stack?.split("\n").slice(0, 3).join("\n"), // First 3 lines of stack
+								})
+							}
+
+							// Check for common connection issues
+							if (result.error?.message) {
+								const msg = result.error.message.toLowerCase()
+								if (msg.includes("econnrefused")) {
+									console.error(
+										`[OTEL LOGS]    → ⚠️  Connection refused - is the collector running at ${endpoint}?`,
+									)
+								} else if (msg.includes("timeout")) {
+									console.error(
+										`[OTEL LOGS]    → ⚠️  Connection timeout - check network connectivity and collector availability`,
+									)
+								} else if (
+									msg.includes("unauthorized") ||
+									msg.includes("authentication") ||
+									msg.includes("401")
+								) {
+									console.error(`[OTEL LOGS]    → ⚠️  Authentication failed - check OTEL_EXPORTER_OTLP_HEADERS`)
+								} else if (msg.includes("403") || msg.includes("forbidden")) {
+									console.error(`[OTEL LOGS]    → ⚠️  Authorization failed - check API key/token permissions`)
+								} else if (msg.includes("dns") || msg.includes("enotfound")) {
+									console.error(`[OTEL LOGS]    → ⚠️  DNS resolution failed - check endpoint hostname`)
+								} else if (msg.includes("certificate") || msg.includes("tls") || msg.includes("ssl")) {
+									console.error(
+										`[OTEL LOGS]    → ⚠️  TLS/SSL error - check certificate validity or use insecure mode for testing`,
+									)
+								}
+							}
+						}
+
+						resultCallback(result)
+					}
+
+					try {
+						originalExport(logs, wrappedCallback)
+					} catch (error) {
+						console.error(`[OTEL LOGS] ❌ Export attempt #${attemptId} threw exception:`, error)
+						throw error
+					}
+				}
+
+				console.log("[OTEL LOGS] ✓ Export method wrapped with diagnostic logging")
+			}
+
+			return exporter
 		} catch (error) {
-			console.error("[OTEL DEBUG] Error creating OTLP logs exporter:", error)
+			console.error("[OTEL LOGS] ❌ FATAL: Error creating OTLP logs exporter:", error)
+			console.error("[OTEL LOGS]    → Exception details:", {
+				name: error instanceof Error ? error.name : typeof error,
+				message: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack?.split("\n").slice(0, 5).join("\n") : undefined,
+			})
 			return null
 		}
 	}

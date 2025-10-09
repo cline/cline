@@ -69,7 +69,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		if (!this.isEnabled() || this.telemetrySettings.level === "off") {
 			return
 		}
-
+		console.log("[OTEL DEBUG] Logging event:", event, properties)
 		// Filter events based on telemetry level
 		if (this.telemetrySettings.level === "error") {
 			if (!event.includes("error")) {
