@@ -34,6 +34,8 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 		"groqModelInfo",
 		"huggingFaceModelId",
 		"huggingFaceModelInfo",
+		"cortecsModelId",
+		"cortecsModelInfo",
 
 		// Previous mode settings
 		"previousModeApiProvider",
@@ -229,6 +231,8 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 		const groqModelInfo = await context.globalState.get("groqModelInfo")
 		const huggingFaceModelId = await context.globalState.get("huggingFaceModelId")
 		const huggingFaceModelInfo = await context.globalState.get("huggingFaceModelInfo")
+		const cortecsModelId = await context.globalState.get("cortecsModelId")
+		const cortecsModelInfo = await context.globalState.get("cortecsModelInfo")
 
 		// Read previous mode values
 		const previousModeApiProvider = await context.globalState.get("previousModeApiProvider")
@@ -342,6 +346,14 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 				await context.globalState.update("planModeHuggingFaceModelInfo", huggingFaceModelInfo)
 				await context.globalState.update("actModeHuggingFaceModelInfo", huggingFaceModelInfo)
 			}
+			if (cortecsModelId !== undefined) {
+				await context.globalState.update("planModeCortecsModelId", cortecsModelId)
+				await context.globalState.update("actModeCortecsModelId", cortecsModelId)
+			}
+			if (cortecsModelInfo !== undefined) {
+				await context.globalState.update("planModeCortecsModelInfo", cortecsModelInfo)
+				await context.globalState.update("actModeCortecsModelInfo", cortecsModelInfo)
+			}
 		} else {
 			console.log("Migrating with separate models ENABLED - using current->plan, previous->act")
 
@@ -417,6 +429,12 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 			}
 			if (huggingFaceModelInfo !== undefined) {
 				await context.globalState.update("planModeHuggingFaceModelInfo", huggingFaceModelInfo)
+			}
+			if (cortecsModelId !== undefined) {
+				await context.globalState.update("planModeCortecsModelId", cortecsModelId)
+			}
+			if (cortecsModelInfo !== undefined) {
+				await context.globalState.update("planModeCortecsModelInfo", cortecsModelInfo)
 			}
 
 			// Use previous values for act mode (with fallback to current values)
@@ -512,6 +530,12 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 			if (huggingFaceModelInfo !== undefined) {
 				await context.globalState.update("actModeHuggingFaceModelInfo", huggingFaceModelInfo)
 			}
+			if (cortecsModelId !== undefined) {
+				await context.globalState.update("actModeCortecsModelId", cortecsModelId)
+			}
+			if (cortecsModelInfo !== undefined) {
+				await context.globalState.update("actModeCortecsModelInfo", cortecsModelInfo)
+			}
 		}
 
 		// Clean up legacy keys after successful migration
@@ -540,6 +564,8 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 		await context.globalState.update("groqModelInfo", undefined)
 		await context.globalState.update("huggingFaceModelId", undefined)
 		await context.globalState.update("huggingFaceModelInfo", undefined)
+		await context.globalState.update("cortecsModelId", undefined)
+		await context.globalState.update("cortecsModelInfo", undefined)
 		await context.globalState.update("previousModeApiProvider", undefined)
 		await context.globalState.update("previousModeModelId", undefined)
 		await context.globalState.update("previousModeModelInfo", undefined)
@@ -585,6 +611,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 			const sambanovaApiKey = await context.secrets.get("sambanovaApiKey")
 			const sapAiCoreClientId = await context.secrets.get("sapAiCoreClientId")
 			const difyApiKey = await context.secrets.get("difyApiKey")
+			const cortecsApiKey = await context.secrets.get("cortecsApiKey")
 
 			// Fetch configuration values from global state
 			const awsRegion = context.globalState.get("awsRegion")
@@ -626,6 +653,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 				sambanovaApiKey,
 				sapAiCoreClientId,
 				difyApiKey,
+				cortecsApiKey,
 			].some((key) => key !== undefined)
 
 			// Set welcomeViewCompleted based on whether user has keys

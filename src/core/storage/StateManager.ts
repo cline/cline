@@ -454,6 +454,8 @@ export class StateManager {
 			requestTimeoutMs,
 			ocaBaseUrl,
 			ocaMode,
+			cortecsApiKey,
+			cortecsBaseUrl,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -488,6 +490,8 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeCortecsModelId,
+			planModeCortecsModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -522,6 +526,8 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeCortecsModelId,
+			actModeCortecsModelInfo,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -560,6 +566,8 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeCortecsModelId,
+			planModeCortecsModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -595,6 +603,8 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeCortecsModelId,
+			actModeCortecsModelInfo,
 
 			// Global state updates
 			awsRegion,
@@ -636,6 +646,7 @@ export class StateManager {
 			qwenCodeOauthPath,
 			ocaBaseUrl,
 			ocaMode,
+			cortecsBaseUrl,
 		})
 
 		// Batch update secrets
@@ -674,6 +685,7 @@ export class StateManager {
 			difyApiKey,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
+			cortecsApiKey,
 		})
 	}
 
@@ -937,6 +949,7 @@ export class StateManager {
 			difyApiKey: this.secretsCache["difyApiKey"],
 			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
 			zaiApiKey: this.secretsCache["zaiApiKey"],
+			cortecsApiKey: this.secretsCache["cortecsApiKey"],
 
 			// Global state
 			awsRegion: this.taskStateCache["awsRegion"] || this.globalStateCache["awsRegion"],
@@ -986,6 +999,7 @@ export class StateManager {
 			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
 			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
 			ocaMode: this.globalStateCache["ocaMode"],
+			cortecsBaseUrl: this.taskStateCache["cortecsBaseUrl"] || this.globalStateCache["cortecsBaseUrl"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.taskStateCache["planModeApiProvider"] || this.globalStateCache["planModeApiProvider"],
@@ -1050,6 +1064,10 @@ export class StateManager {
 				this.globalStateCache["planModeVercelAiGatewayModelInfo"],
 			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
 			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
+			planModeCortecsModelId:
+				this.taskStateCache["planModeCortecsModelId"] || this.globalStateCache["planModeCortecsModelId"],
+			planModeCortecsModelInfo:
+				this.taskStateCache["planModeCortecsModelInfo"] || this.globalStateCache["planModeCortecsModelInfo"],
 
 			// Act mode configurations
 			actModeApiProvider: this.taskStateCache["actModeApiProvider"] || this.globalStateCache["actModeApiProvider"],
@@ -1112,6 +1130,9 @@ export class StateManager {
 				this.globalStateCache["actModeVercelAiGatewayModelInfo"],
 			actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
 			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
+			actModeCortecsModelId: this.taskStateCache["actModeCortecsModelId"] || this.globalStateCache["actModeCortecsModelId"],
+			actModeCortecsModelInfo:
+				this.taskStateCache["actModeCortecsModelInfo"] || this.globalStateCache["actModeCortecsModelInfo"],
 		}
 	}
 }

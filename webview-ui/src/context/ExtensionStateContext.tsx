@@ -16,6 +16,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import {
 	basetenDefaultModelId,
 	basetenModels,
+	cortecsDefaultModelId,
+	cortecsDefaultModelInfo,
 	groqDefaultModelId,
 	groqModels,
 	type ModelInfo,
@@ -42,6 +44,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	totalTasksSize: number | null
+	cortecsModels: Record<string, ModelInfo>
 
 	availableTerminalProfiles: TerminalProfile[]
 
@@ -75,6 +78,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
 	setExpandTaskHeader: (value: boolean) => void
+	setCortecsModels: (value: Record<string, ModelInfo>) => void
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
@@ -240,6 +244,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [vercelAiGatewayModels, setVercelAiGatewayModels] = useState<Record<string, ModelInfo>>({
 		[vercelAiGatewayDefaultModelId]: vercelAiGatewayDefaultModelInfo,
+	})
+	const [cortecsModels, setCortecsModels] = useState<Record<string, ModelInfo>>({
+		[cortecsDefaultModelId]: cortecsDefaultModelInfo,
 	})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
@@ -627,6 +634,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		basetenModels: basetenModelsState,
 		huggingFaceModels,
 		vercelAiGatewayModels,
+		cortecsModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
 		totalTasksSize,
@@ -673,6 +681,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setBasetenModels: (models: Record<string, ModelInfo>) => setBasetenModels(models),
 		setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),
 		setVercelAiGatewayModels: (models: Record<string, ModelInfo>) => setVercelAiGatewayModels(models),
+		setCortecsModels: (models: Record<string, ModelInfo>) => setCortecsModels(models),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
 		closeMcpView,
