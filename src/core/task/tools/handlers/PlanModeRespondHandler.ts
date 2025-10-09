@@ -68,21 +68,20 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 
 		// Auto-switch to Act mode while in yolo mode
 		if (config.mode === "plan" && config.yoloModeToggled && !needsMoreExploration) {
-			// Complete the partial message by finding and updating it to partial:false
-			const clineMessages = config.messageState.getClineMessages()
-			const lastMessageIndex = clineMessages.length - 1
-			const lastMessage = clineMessages[lastMessageIndex]
-
-			if (lastMessage && lastMessage.partial && lastMessage.ask === this.name) {
-				await config.messageState.updateClineMessage(lastMessageIndex, {
-					partial: false,
-				})
-			}
-
 			// Trigger automatic mode switch
 			const switchSuccessful = await config.callbacks.switchToActMode()
 
 			if (switchSuccessful) {
+				// Complete the plan mode response tool call (this is a unique case where we auto-respond to the user with an ask response)
+				const lastPlanMessage = findLast(config.messageState.getClineMessages(), (m: any) => m.ask === this.name)
+				if (lastPlanMessage) {
+					lastPlanMessage.text = JSON.stringify({
+						...sharedMessage,
+					} satisfies ClinePlanModeResponse)
+					lastPlanMessage.partial = false
+					await config.messageState.saveClineMessagesAndUpdateHistory()
+				}
+
 				// we dont need to process any text, options, files or other content here
 				return formatResponse.toolResult(`[The user has switched to ACT MODE, so you may now proceed with the task.]`)
 			} else {
