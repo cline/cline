@@ -82,7 +82,7 @@ export interface ExtensionState {
 	multiRootSetting: ClineFeatureSetting
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
-	hooksEnabled?: boolean
+	hooksEnabled?: ClineFeatureSetting
 }
 
 export interface ClineMessage {
