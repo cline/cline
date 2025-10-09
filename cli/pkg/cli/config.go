@@ -29,6 +29,7 @@ func newConfigGetCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key := args[0]
+			fmt.Printf("getting config for key: %s\n", key)
 			return nil
 		},
 	}
