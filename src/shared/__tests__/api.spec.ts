@@ -194,17 +194,18 @@ describe("getModelMaxOutputTokens", () => {
 		expect(result).toBe(20_000) // Should use model.maxTokens since it's exactly at 20%
 	})
 
-	test("should apply 20% cap for GPT-5 models like other models", () => {
+	test("should bypass 20% cap for GPT-5 models and use exact configured max tokens", () => {
 		const model: ModelInfo = {
 			contextWindow: 200_000,
 			supportsPromptCache: false,
-			maxTokens: 128_000, // 64% of context window, should be capped
+			maxTokens: 128_000, // 64% of context window, normally would be capped
 		}
 
 		const settings: ProviderSettings = {
 			apiProvider: "openai",
 		}
 
+		// Test various GPT-5 model IDs
 		const gpt5ModelIds = ["gpt-5", "gpt-5-turbo", "GPT-5", "openai/gpt-5-preview", "gpt-5-32k", "GPT-5-TURBO"]
 
 		gpt5ModelIds.forEach((modelId) => {
@@ -214,8 +215,8 @@ describe("getModelMaxOutputTokens", () => {
 				settings,
 				format: "openai",
 			})
-			// Should be capped to 20% of context window: 200_000 * 0.2 = 40_000
-			expect(result).toBe(40_000)
+			// Should use full 128k tokens, not capped to 20% (40k)
+			expect(result).toBe(128_000)
 		})
 	})
 
@@ -245,11 +246,23 @@ describe("getModelMaxOutputTokens", () => {
 		})
 	})
 
-	test("should cap GPT-5 models to min(model.maxTokens, 20% of contextWindow)", () => {
+	test("should handle GPT-5 models with various max token configurations", () => {
 		const testCases = [
-			{ maxTokens: 128_000, contextWindow: 200_000, expected: 40_000 },
-			{ maxTokens: 64_000, contextWindow: 200_000, expected: 40_000 },
-			{ maxTokens: 256_000, contextWindow: 400_000, expected: 80_000 },
+			{
+				maxTokens: 128_000,
+				contextWindow: 200_000,
+				expected: 128_000, // Uses full 128k
+			},
+			{
+				maxTokens: 64_000,
+				contextWindow: 200_000,
+				expected: 64_000, // Uses configured 64k
+			},
+			{
+				maxTokens: 256_000,
+				contextWindow: 400_000,
+				expected: 256_000, // Uses full 256k even though it's 64% of context
+			},
 		]
 
 		testCases.forEach(({ maxTokens, contextWindow, expected }) => {
