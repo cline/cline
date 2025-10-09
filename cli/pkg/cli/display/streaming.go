@@ -11,18 +11,26 @@ import (
 
 // StreamingDisplay manages streaming message display with deduplication
 type StreamingDisplay struct {
-	mu       sync.RWMutex
-	state    *types.ConversationState
-	renderer *Renderer
-	dedupe   *MessageDeduplicator
+	mu            sync.RWMutex
+	state         *types.ConversationState
+	renderer      *Renderer
+	dedupe        *MessageDeduplicator
+	activeSegment *StreamingSegment
+	mdRenderer    *MarkdownRenderer
 }
 
 // NewStreamingDisplay creates a new streaming display manager
 func NewStreamingDisplay(state *types.ConversationState, renderer *Renderer) *StreamingDisplay {
+	mdRenderer, err := NewMarkdownRenderer()
+	if err != nil {
+		mdRenderer = nil
+	}
+
 	return &StreamingDisplay{
-		state:    state,
-		renderer: renderer,
-		dedupe:   NewMessageDeduplicator(),
+		state:      state,
+		renderer:   renderer,
+		dedupe:     NewMessageDeduplicator(),
+		mdRenderer: mdRenderer,
 	}
 }
 
@@ -31,25 +39,58 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	messageKey := fmt.Sprintf("%d", msg.Timestamp)
-	timestamp := msg.GetTimestamp()
-
 	// Check for deduplication
 	if s.dedupe.IsDuplicate(msg) {
 		return nil
 	}
 
-	// Get current streaming state
-	streamingMsg := s.state.GetStreamingMessage()
+	// Skip if markdown renderer not available, fall back to old behavior
+	if s.mdRenderer == nil {
+		messageKey := fmt.Sprintf("%d", msg.Timestamp)
+		timestamp := msg.GetTimestamp()
+		streamingMsg := s.state.GetStreamingMessage()
 
-	switch msg.Type {
-	case types.MessageTypeAsk:
-		return s.handleStreamingAsk(msg, messageKey, timestamp, streamingMsg)
-	case types.MessageTypeSay:
-		return s.handleStreamingSay(msg, messageKey, timestamp, streamingMsg)
-	default:
-		return s.renderer.RenderMessage("CLINE", msg.Text)
+		switch msg.Type {
+		case types.MessageTypeAsk:
+			return s.handleStreamingAsk(msg, messageKey, timestamp, streamingMsg)
+		case types.MessageTypeSay:
+			return s.handleStreamingSay(msg, messageKey, timestamp, streamingMsg)
+		default:
+			return s.renderer.RenderMessage("CLINE", msg.Text, true)
+		}
 	}
+
+	// Segment-based markdown streaming
+	sayType := msg.Say
+	if msg.Type == types.MessageTypeAsk {
+		sayType = "ask"
+	}
+
+	// Detect segment boundary
+	if s.activeSegment != nil && s.activeSegment.sayType != sayType {
+		s.activeSegment.Freeze()
+		s.activeSegment = nil
+	}
+
+	// Start new segment if needed
+	if s.activeSegment == nil {
+		shouldMd := s.shouldRenderMarkdown(sayType)
+		prefix := s.getPrefix(sayType)
+		s.activeSegment = NewStreamingSegment(sayType, prefix, s.mdRenderer, shouldMd, msg, s.renderer.outputFormat)
+	}
+
+	// Append text to active segment
+	if msg.Text != "" {
+		s.activeSegment.AppendText(msg.Text)
+	}
+
+	// If message is complete, freeze segment
+	if !msg.Partial {
+		s.activeSegment.Freeze()
+		s.activeSegment = nil
+	}
+
+	return nil
 }
 
 // handleStreamingAsk handles streaming ASK messages
@@ -89,13 +130,11 @@ func (s *StreamingDisplay) handleStreamingSay(msg *types.ClineMessage, messageKe
 		return s.handleStreamingCommand(msg, messageKey, timestamp, streamingMsg)
 	case string(types.SayTypeCommandOutput):
 		return s.handleStreamingCommandOutput(msg, messageKey, timestamp, streamingMsg)
-	case string(types.SayTypeTool):
-		return s.handleStreamingTool(msg, messageKey, timestamp, streamingMsg)
 	case string(types.SayTypeShellIntegrationWarning):
 		return s.handleShellIntegrationWarning(msg, messageKey, timestamp, streamingMsg)
 	default:
 		// For non-streaming message types, use regular display
-		return s.renderer.RenderMessage(s.getMessagePrefix(msg.Say), msg.Text)
+		return s.renderer.RenderMessage(s.getMessagePrefix(msg.Say), msg.Text, true)
 	}
 }
 
@@ -238,7 +277,19 @@ func (s *StreamingDisplay) handleStreamingTool(msg *types.ClineMessage, messageK
 		return nil
 	}
 
-	formattedTool := s.formatToolMessage(cleanText)
+	// Parse the tool JSON to extract structured information
+	var toolData types.ToolMessage
+	if err := json.Unmarshal([]byte(cleanText), &toolData); err != nil {
+		// If parsing fails, just show generic tool message
+		s.finishCurrentStream()
+		fmt.Println()
+		fmt.Printf("TOOL: %s\n", cleanText)
+		s.state.StreamingMessage.LastToolMessage = cleanText
+		return nil
+	}
+
+	// Format the tool message nicely
+	formattedTool := s.formatStructuredToolMessage(&toolData)
 
 	// Check if this is the exact same tool message we just displayed
 	if streamingMsg.LastToolMessage == formattedTool {
@@ -350,7 +401,7 @@ func (s *StreamingDisplay) getMessagePrefix(say string) string {
 	}
 }
 
-// formatToolMessage formats tool call messages for better readability
+// formatToolMessage formats tool call messages for better readability (legacy, keep for compatibility)
 func (s *StreamingDisplay) formatToolMessage(text string) string {
 	var toolCall map[string]interface{}
 	if err := s.parseJSON(text, &toolCall); err == nil {
@@ -378,6 +429,29 @@ func (s *StreamingDisplay) formatToolMessage(text string) string {
 		return text[:100] + "..."
 	}
 	return text
+}
+
+// formatStructuredToolMessage formats a parsed ToolMessage for display
+func (s *StreamingDisplay) formatStructuredToolMessage(tool *types.ToolMessage) string {
+	parts := []string{tool.Tool}
+
+	if tool.Path != "" {
+		parts = append(parts, fmt.Sprintf("path=%s", tool.Path))
+	}
+
+	if tool.Content != "" {
+		if len(tool.Content) > 50 {
+			parts = append(parts, fmt.Sprintf("content=%s...", tool.Content[:50]))
+		} else {
+			parts = append(parts, fmt.Sprintf("content=%s", tool.Content))
+		}
+	}
+
+	if tool.Regex != "" {
+		parts = append(parts, fmt.Sprintf("regex=%s", tool.Regex))
+	}
+
+	return strings.Join(parts, " ")
 }
 
 // isSimilarToolMessage checks if two tool messages are similar enough to be considered duplicates
@@ -450,8 +524,64 @@ func (s *StreamingDisplay) parseJSON(text string, v interface{}) error {
 	return json.Unmarshal([]byte(text), v)
 }
 
+func (s *StreamingDisplay) getMessageType(msg *types.ClineMessage) string {
+	if msg.Type == types.MessageTypeAsk {
+		return "ASK"
+	}
+
+	switch msg.Say {
+	case string(types.SayTypeText):
+		return "CLINE"
+	case string(types.SayTypeReasoning):
+		return "THINKING"
+	case string(types.SayTypeCompletionResult):
+		return "RESULT"
+	case string(types.SayTypeCommand):
+		return "CMD"
+	default:
+		return msg.Say
+	}
+}
+
+func (s *StreamingDisplay) shouldRenderMarkdown(sayType string) bool {
+	switch sayType {
+	case string(types.SayTypeReasoning), string(types.SayTypeText), string(types.SayTypeCompletionResult), string(types.SayTypeTool), "ask":
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *StreamingDisplay) getPrefix(sayType string) string {
+	switch sayType {
+	case string(types.SayTypeReasoning):
+		return "THINKING"
+	case string(types.SayTypeText):
+		return "CLINE"
+	case string(types.SayTypeCompletionResult):
+		return "RESULT"
+	case "ask":
+		return "ASK"
+	case string(types.SayTypeCommand):
+		return "TERMINAL"
+	default:
+		return strings.ToUpper(sayType)
+	}
+}
+
+func (s *StreamingDisplay) FreezeActiveSegment() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.activeSegment != nil {
+		s.activeSegment.Freeze()
+		s.activeSegment = nil
+	}
+}
+
 // Cleanup cleans up streaming display resources
 func (s *StreamingDisplay) Cleanup() {
+	s.FreezeActiveSegment()
 	if s.dedupe != nil {
 		s.dedupe.Stop()
 	}

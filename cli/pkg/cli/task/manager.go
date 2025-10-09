@@ -29,7 +29,7 @@ type Manager struct {
 // NewManager creates a new task manager
 func NewManager(client *client.ClineClient) *Manager {
 	state := types.NewConversationState()
-	renderer := display.NewRenderer()
+	renderer := display.NewRenderer(global.Config.OutputFormat)
 	streamingDisplay := display.NewStreamingDisplay(state, renderer)
 
 	// Create handler registry and register handlers
@@ -608,8 +608,16 @@ func (m *Manager) ShowConversation(ctx context.Context) error {
 	return nil
 }
 
-func (m *Manager) FollowConversation(ctx context.Context) error {
-	fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
+func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string) error {
+	
+	if global.Config.OutputFormat != "plain" {
+        markdown := fmt.Sprintf("*Using instance: %s*\n*Press Ctrl+C to exit*", instanceAddress)
+        rendered := m.renderer.RenderMarkdown(markdown)
+        fmt.Printf("%s", rendered)
+    } else {
+		fmt.Printf("Using instance: %s\n", instanceAddress)
+        fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
+    }
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -624,8 +632,6 @@ func (m *Manager) FollowConversation(ctx context.Context) error {
 		totalMessageCount = 0
 	}
 	coordinator.SetConversationTurnStartIndex(totalMessageCount)
-
-	fmt.Println("\n--- Live updates ---")
 
 	// Start both streams concurrently
 	errChan := make(chan error, 2)
@@ -649,7 +655,7 @@ func (m *Manager) FollowConversation(ctx context.Context) error {
 
 // FollowConversationUntilCompletion streams conversation updates until task completion
 func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
-	fmt.Println("Streaming conversation until completion... (Press Ctrl+C to exit)")
+	fmt.Println("Following task conversation until completion... (Press Ctrl+C to exit)")
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -657,13 +663,15 @@ func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
 	// Create stream coordinator
 	coordinator := NewStreamCoordinator()
 
-	// Get current message count without displaying history
-	totalMessageCount, err := m.getCurrentMessageCount(ctx)
+	// Load history first
+	totalMessageCount, err := m.loadAndDisplayRecentHistory(ctx)
 	if err != nil {
-		m.renderer.RenderDebug("Warning: Failed to get current message count: %v", err)
+		m.renderer.RenderDebug("Warning: Failed to load conversation history: %v", err)
 		totalMessageCount = 0
 	}
 	coordinator.SetConversationTurnStartIndex(totalMessageCount)
+
+	fmt.Println("\n--- Live updates ---")
 
 	// Start both streams concurrently
 	errChan := make(chan error, 2)
@@ -888,6 +896,10 @@ func (m *Manager) handlePartialMessageStream(ctx context.Context, coordinator *S
 		return
 	}
 
+	defer func() {
+		m.streamingDisplay.FreezeActiveSegment()
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -967,21 +979,6 @@ func (m *Manager) outputMessageAsJSON(msg *types.ClineMessage) error {
 	return nil
 }
 
-// getCurrentMessageCount gets the current message count without displaying messages
-func (m *Manager) getCurrentMessageCount(ctx context.Context) (int, error) {
-	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
-	if err != nil {
-		return 0, fmt.Errorf("failed to get state: %w", err)
-	}
-
-	messages, err := m.extractMessagesFromState(state.StateJson)
-	if err != nil {
-		return 0, fmt.Errorf("failed to extract messages: %w", err)
-	}
-
-	return len(messages), nil
-}
-
 // loadAndDisplayRecentHistory loads and displays recent conversation history and returns the total number of existing messages
 func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) {
 	// Get the latest state which contains messages
@@ -1006,12 +1003,27 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 	totalMessages := len(messages)
 	startIndex := 0
 
+
 	if totalMessages > maxHistoryMessages {
 		startIndex = totalMessages - maxHistoryMessages
-		fmt.Printf("--- Conversation history (%d of %d messages) ---\n", maxHistoryMessages, totalMessages)
+		if global.Config.OutputFormat != "plain" {
+			markdown := fmt.Sprintf("*Conversation history (%d of %d messages)*", maxHistoryMessages, totalMessages)
+			rendered := m.renderer.RenderMarkdown(markdown)
+			fmt.Printf("\n%s\n", rendered)
+		} else {
+			fmt.Printf("--- Conversation history (%d of %d messages) ---\n", maxHistoryMessages, totalMessages)
+		}
 	} else {
-		fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
+		if global.Config.OutputFormat != "plain" {
+			markdown := fmt.Sprintf("*Conversation history (%d messages)*", totalMessages)
+			rendered := m.renderer.RenderMarkdown(markdown)
+			fmt.Printf("\n%s\n", rendered)
+		} else {
+			fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
+		}
 	}
+
+
 
 	for i := startIndex; i < len(messages); i++ {
 		msg := messages[i]

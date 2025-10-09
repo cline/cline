@@ -142,12 +142,10 @@ func newTaskNewCommand() *cobra.Command {
 			}
 
 			fmt.Printf("Task created successfully with ID: %s\n", taskID)
-			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
 
 			// Wait for completion if requested
 			if wait {
-				fmt.Println("Following task conversation...")
-				return taskManager.FollowConversation(ctx)
+				return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance())
 			}
 
 			return nil
@@ -353,10 +351,8 @@ func newTaskFollowCommand() *cobra.Command {
 			if err := ensureTaskManager(ctx, address); err != nil {
 				return err
 			}
-
-			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
-
-			return taskManager.FollowConversation(ctx)
+			
+			return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance())
 		},
 	}
 
