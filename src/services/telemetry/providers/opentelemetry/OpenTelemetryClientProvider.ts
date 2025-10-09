@@ -13,6 +13,7 @@ import { BatchLogRecordProcessor, ConsoleLogRecordExporter, LoggerProvider, LogR
 import { ConsoleMetricExporter, MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
 import { getValidOpenTelemetryConfig, OpenTelemetryClientValidConfig } from "@/shared/services/config/otel-config"
+import { wrapLogsExporterWithDiagnostics, wrapMetricsExporterWithDiagnostics } from "./otel-exporter-diagnostics"
 
 /**
  * Singleton provider for OpenTelemetry client instances.
@@ -269,88 +270,8 @@ export class OpenTelemetryClientProvider {
 					return null
 			}
 
-			// Wrap the exporter's export method to add logging
-			if (exporter && typeof exporter.export === "function") {
-				const originalExport = exporter.export.bind(exporter)
-				let exportAttemptCount = 0
-
-				exporter.export = (metrics: any, resultCallback: any) => {
-					exportAttemptCount++
-					const attemptId = exportAttemptCount
-
-					console.log(`[OTEL METRICS] 📤 Export attempt #${attemptId} starting...`)
-					console.log(`[OTEL METRICS]    → Target: ${protocol}://${endpoint}`)
-					console.log(
-						`[OTEL METRICS]    → Metrics count: ${metrics?.resourceMetrics?.[0]?.scopeMetrics?.[0]?.metrics?.length || "unknown"}`,
-					)
-
-					const wrappedCallback = (result: any) => {
-						if (result.code === 0) {
-							// SUCCESS
-							console.log(`[OTEL METRICS] ✅ Export attempt #${attemptId} SUCCEEDED`)
-							console.log(`[OTEL METRICS]    → Data successfully sent to ${endpoint}`)
-						} else {
-							// FAILURE
-							console.error(`[OTEL METRICS] ❌ Export attempt #${attemptId} FAILED`)
-							console.error(`[OTEL METRICS]    → Error code: ${result.code}`)
-							console.error(`[OTEL METRICS]    → Error message: ${result.error?.message || "unknown"}`)
-
-							// Log additional error details
-							if (result.error) {
-								console.error(`[OTEL METRICS]    → Error details:`, {
-									name: result.error.name,
-									message: result.error.message,
-									code: result.error.code,
-									details: result.error.details,
-									metadata: result.error.metadata,
-									stack: result.error.stack?.split("\n").slice(0, 3).join("\n"), // First 3 lines of stack
-								})
-							}
-
-							// Check for common connection issues
-							if (result.error?.message) {
-								const msg = result.error.message.toLowerCase()
-								if (msg.includes("econnrefused")) {
-									console.error(
-										`[OTEL METRICS]    → ⚠️  Connection refused - is the collector running at ${endpoint}?`,
-									)
-								} else if (msg.includes("timeout")) {
-									console.error(
-										`[OTEL METRICS]    → ⚠️  Connection timeout - check network connectivity and collector availability`,
-									)
-								} else if (
-									msg.includes("unauthorized") ||
-									msg.includes("authentication") ||
-									msg.includes("401")
-								) {
-									console.error(
-										`[OTEL METRICS]    → ⚠️  Authentication failed - check OTEL_EXPORTER_OTLP_HEADERS`,
-									)
-								} else if (msg.includes("403") || msg.includes("forbidden")) {
-									console.error(`[OTEL METRICS]    → ⚠️  Authorization failed - check API key/token permissions`)
-								} else if (msg.includes("dns") || msg.includes("enotfound")) {
-									console.error(`[OTEL METRICS]    → ⚠️  DNS resolution failed - check endpoint hostname`)
-								} else if (msg.includes("certificate") || msg.includes("tls") || msg.includes("ssl")) {
-									console.error(
-										`[OTEL METRICS]    → ⚠️  TLS/SSL error - check certificate validity or use insecure mode for testing`,
-									)
-								}
-							}
-						}
-
-						resultCallback(result)
-					}
-
-					try {
-						originalExport(metrics, wrappedCallback)
-					} catch (error) {
-						console.error(`[OTEL METRICS] ❌ Export attempt #${attemptId} threw exception:`, error)
-						throw error
-					}
-				}
-
-				console.log("[OTEL METRICS] ✓ Export method wrapped with diagnostic logging")
-			}
+			// Wrap the exporter with diagnostic logging using utility
+			wrapMetricsExporterWithDiagnostics(exporter, protocol, endpoint)
 
 			return exporter
 		} catch (error) {
@@ -429,86 +350,8 @@ export class OpenTelemetryClientProvider {
 					return null
 			}
 
-			// Wrap the exporter's export method to add logging
-			if (exporter && typeof exporter.export === "function") {
-				const originalExport = exporter.export.bind(exporter)
-				let exportAttemptCount = 0
-
-				exporter.export = (logs: any, resultCallback: any) => {
-					exportAttemptCount++
-					const attemptId = exportAttemptCount
-
-					console.log(`[OTEL LOGS] 📤 Export attempt #${attemptId} starting...`)
-					console.log(`[OTEL LOGS]    → Target: ${protocol}://${endpoint}`)
-					console.log(
-						`[OTEL LOGS]    → Logs count: ${logs?.resourceLogs?.[0]?.scopeLogs?.[0]?.logRecords?.length || "unknown"}`,
-					)
-
-					const wrappedCallback = (result: any) => {
-						if (result.code === 0) {
-							// SUCCESS
-							console.log(`[OTEL LOGS] ✅ Export attempt #${attemptId} SUCCEEDED`)
-							console.log(`[OTEL LOGS]    → Data successfully sent to ${endpoint}`)
-						} else {
-							// FAILURE
-							console.error(`[OTEL LOGS] ❌ Export attempt #${attemptId} FAILED`)
-							console.error(`[OTEL LOGS]    → Error code: ${result.code}`)
-							console.error(`[OTEL LOGS]    → Error message: ${result.error?.message || "unknown"}`)
-
-							// Log additional error details
-							if (result.error) {
-								console.error(`[OTEL LOGS]    → Error details:`, {
-									name: result.error.name,
-									message: result.error.message,
-									code: result.error.code,
-									details: result.error.details,
-									metadata: result.error.metadata,
-									stack: result.error.stack?.split("\n").slice(0, 3).join("\n"), // First 3 lines of stack
-								})
-							}
-
-							// Check for common connection issues
-							if (result.error?.message) {
-								const msg = result.error.message.toLowerCase()
-								if (msg.includes("econnrefused")) {
-									console.error(
-										`[OTEL LOGS]    → ⚠️  Connection refused - is the collector running at ${endpoint}?`,
-									)
-								} else if (msg.includes("timeout")) {
-									console.error(
-										`[OTEL LOGS]    → ⚠️  Connection timeout - check network connectivity and collector availability`,
-									)
-								} else if (
-									msg.includes("unauthorized") ||
-									msg.includes("authentication") ||
-									msg.includes("401")
-								) {
-									console.error(`[OTEL LOGS]    → ⚠️  Authentication failed - check OTEL_EXPORTER_OTLP_HEADERS`)
-								} else if (msg.includes("403") || msg.includes("forbidden")) {
-									console.error(`[OTEL LOGS]    → ⚠️  Authorization failed - check API key/token permissions`)
-								} else if (msg.includes("dns") || msg.includes("enotfound")) {
-									console.error(`[OTEL LOGS]    → ⚠️  DNS resolution failed - check endpoint hostname`)
-								} else if (msg.includes("certificate") || msg.includes("tls") || msg.includes("ssl")) {
-									console.error(
-										`[OTEL LOGS]    → ⚠️  TLS/SSL error - check certificate validity or use insecure mode for testing`,
-									)
-								}
-							}
-						}
-
-						resultCallback(result)
-					}
-
-					try {
-						originalExport(logs, wrappedCallback)
-					} catch (error) {
-						console.error(`[OTEL LOGS] ❌ Export attempt #${attemptId} threw exception:`, error)
-						throw error
-					}
-				}
-
-				console.log("[OTEL LOGS] ✓ Export method wrapped with diagnostic logging")
-			}
+			// Wrap the exporter with diagnostic logging using utility
+			wrapLogsExporterWithDiagnostics(exporter, protocol, endpoint)
 
 			return exporter
 		} catch (error) {
