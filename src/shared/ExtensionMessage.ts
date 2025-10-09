@@ -123,6 +123,7 @@ export type ClineAsk =
 export type ClineSay =
 	| "task"
 	| "error"
+	| "error_retry"
 	| "api_req_started"
 	| "api_req_finished"
 	| "text"
