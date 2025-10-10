@@ -36,7 +36,7 @@ func (mr *MarkdownRenderer) Render(markdown string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimRight(rendered, "\n"), nil
+	return strings.TrimLeft(strings.TrimRight(rendered, "\n"), "\n"), nil
 }
 
 

@@ -351,7 +351,7 @@ func (h *SayHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayConte
 		if tool.Content != "" {
 			diffMarkdown := fmt.Sprintf("```diff\n%s\n```", tool.Content)
 			diffRendered := dc.Renderer.RenderMarkdown(diffMarkdown)
-			fmt.Printf("\n%s\n", diffRendered)
+			fmt.Printf("%s", diffRendered)
 		}
 		return nil
 	

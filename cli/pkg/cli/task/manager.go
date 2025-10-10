@@ -1062,7 +1062,7 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 		if global.Config.OutputFormat != "plain" {
 			markdown := fmt.Sprintf("*Conversation history (%d of %d messages)*", maxHistoryMessages, totalMessages)
 			rendered := m.renderer.RenderMarkdown(markdown)
-			fmt.Printf("\n%s\n", rendered)
+			fmt.Printf("\n%s\n\n", rendered)
 		} else {
 			fmt.Printf("--- Conversation history (%d of %d messages) ---\n", maxHistoryMessages, totalMessages)
 		}
@@ -1070,7 +1070,7 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 		if global.Config.OutputFormat != "plain" {
 			markdown := fmt.Sprintf("*Conversation history (%d messages)*", totalMessages)
 			rendered := m.renderer.RenderMarkdown(markdown)
-			fmt.Printf("\n%s\n", rendered)
+			fmt.Printf("\n%s\n\n", rendered)
 		} else {
 			fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
 		}
