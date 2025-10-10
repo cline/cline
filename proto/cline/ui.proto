@@ -63,6 +63,7 @@ enum ClineSay {
   LOAD_MCP_DOCUMENTATION = 25;
   INFO = 26;
   TASK_PROGRESS = 27;
+  ERROR_RETRY = 28;
 }
 
 // Enum for ClineSayTool tool types

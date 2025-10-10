@@ -68,7 +68,7 @@ import * as vscode from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
-import { ErrorService } from "@/services/error"
+import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
@@ -1467,7 +1467,72 @@ export class Task {
 					// this.ask will trigger postStateToWebview, so this change should be picked up.
 				}
 
-				const { response } = await this.ask("api_req_failed", streamingFailedMessage)
+				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
+				const isClineProviderInsufficientCredits = (() => {
+					if (providerId !== "cline") {
+						return false
+					}
+					try {
+						const parsedError = ClineError.transform(error, model.id, providerId)
+						return parsedError.isErrorType(ClineErrorType.Balance)
+					} catch {
+						return false
+					}
+				})()
+
+				let response: ClineAskResponse
+				// Skip auto-retry for Cline provider insufficient credits errors
+				if (!isClineProviderInsufficientCredits && this.taskState.autoRetryAttempts < 3) {
+					// Auto-retry enabled with max 3 attempts: automatically approve the retry
+					this.taskState.autoRetryAttempts++
+
+					// Calculate delay: 2s, 4s, 8s
+					const delay = 2000 * 2 ** (this.taskState.autoRetryAttempts - 1)
+
+					await updateApiReqMsg({
+						messageStateHandler: this.messageStateHandler,
+						lastApiReqIndex: lastApiReqStartedIndex,
+						inputTokens: 0,
+						outputTokens: 0,
+						cacheWriteTokens: 0,
+						cacheReadTokens: 0,
+						totalCost: undefined,
+						api: this.api,
+						cancelReason: "streaming_failed",
+						streamingFailedMessage,
+					})
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					await this.postStateToWebview()
+
+					response = "yesButtonClicked"
+					await this.say(
+						"error_retry",
+						JSON.stringify({
+							attempt: this.taskState.autoRetryAttempts,
+							maxAttempts: 3,
+							delaySeconds: delay / 1000,
+						}),
+					)
+					await setTimeoutPromise(delay)
+				} else {
+					// Show error_retry with failed flag to indicate all retries exhausted (but not for insufficient credits)
+					if (!isClineProviderInsufficientCredits) {
+						await this.say(
+							"error_retry",
+							JSON.stringify({
+								attempt: 3,
+								maxAttempts: 3,
+								delaySeconds: 0,
+								failed: true, // Special flag to indicate retries exhausted
+							}),
+						)
+					}
+					const askResult = await this.ask("api_req_failed", streamingFailedMessage)
+					response = askResult.response
+					if (response === "yesButtonClicked") {
+						this.taskState.autoRetryAttempts = 0
+					}
+				}
 
 				if (response !== "yesButtonClicked") {
 					// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
@@ -1684,6 +1749,7 @@ export class Task {
 				userContent = feedbackUserContent
 			}
 			this.taskState.consecutiveMistakeCount = 0
+			this.taskState.autoRetryAttempts = 0 // need to reset this if the user chooses to manually retry after the mistake limit is reached
 		}
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
@@ -2120,9 +2186,49 @@ export class Task {
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.taskState.abandoned) {
-					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
 					const clineError = ErrorService.get().toClineError(error, this.api.getModel().id)
 					const errorMessage = clineError.serialize()
+					// Auto-retry for streaming failures (always enabled)
+					if (this.taskState.autoRetryAttempts < 3) {
+						this.taskState.autoRetryAttempts++
+
+						// Calculate exponential backoff for streaming failures: 2s, 4s, 8s
+						const delay = 2000 * 2 ** (this.taskState.autoRetryAttempts - 1)
+
+						// API Request component is updated to show error message, we then display retry information underneath that...
+						await this.say(
+							"error_retry",
+							JSON.stringify({
+								attempt: this.taskState.autoRetryAttempts,
+								maxAttempts: 3,
+								delaySeconds: delay / 1000,
+							}),
+						)
+
+						// Wait with exponential backoff before auto-resuming
+						setTimeoutPromise(delay).then(async () => {
+							// Programmatically click the resume button on the new task instance
+							if (this.controller.task) {
+								// Pass retry state to the new task instance
+								this.controller.task.taskState.autoRetryAttempts = this.taskState.autoRetryAttempts
+								await this.controller.task.handleWebviewAskResponse("yesButtonClicked", "", [])
+							}
+						})
+					} else if (this.taskState.autoRetryAttempts >= 3) {
+						// Show error_retry with failed flag to indicate all retries exhausted
+						await this.say(
+							"error_retry",
+							JSON.stringify({
+								attempt: 3,
+								maxAttempts: 3,
+								delaySeconds: 0,
+								failed: true, // Special flag to indicate retries exhausted
+							}),
+						)
+					}
+
+					// needs to happen after the say, otherwise the say would fail
+					this.abortTask() // if the stream failed, there's various states the task could be in (i.e. could have streamed some tools the user may have executed), so we just resort to replicating a cancel task
 
 					await abortStream("streaming_failed", errorMessage)
 					await this.reinitExistingTaskFromId(this.taskId)
@@ -2241,6 +2347,9 @@ export class Task {
 					this.taskState.consecutiveMistakeCount++
 				}
 
+				// Reset auto-retry counter for each new API request
+				this.taskState.autoRetryAttempts = 0
+
 				const recDidEndLoop = await this.recursivelyMakeClineRequests(this.taskState.userMessageContent)
 				didEndLoop = recDidEndLoop
 			} else {
@@ -2278,11 +2387,45 @@ export class Task {
 					],
 				})
 
-				// Offer the user a chance to retry this API request
-				const { response } = await this.ask(
-					"api_req_failed",
-					"No assistant message was received. Would you like to retry the request?",
-				)
+				let response: ClineAskResponse
+
+				if (this.taskState.autoRetryAttempts < 3) {
+					// Auto-retry enabled with max 3 attempts: automatically approve the retry
+					this.taskState.autoRetryAttempts++
+
+					// Calculate delay: 2s, 4s, 8s
+					const delay = 2000 * 2 ** (this.taskState.autoRetryAttempts - 1)
+					response = "yesButtonClicked"
+					await this.say(
+						"error_retry",
+						JSON.stringify({
+							attempt: this.taskState.autoRetryAttempts,
+							maxAttempts: 3,
+							delaySeconds: delay / 1000,
+						}),
+					)
+					await setTimeoutPromise(delay)
+				} else {
+					// Max retries exhausted (>= 3 attempts), ask user
+					await this.say(
+						"error_retry",
+						JSON.stringify({
+							attempt: 3,
+							maxAttempts: 3,
+							delaySeconds: 0,
+							failed: true, // Special flag to indicate retries exhausted
+						}),
+					)
+					const askResult = await this.ask(
+						"api_req_failed",
+						"No assistant message was received. Would you like to retry the request?",
+					)
+					response = askResult.response
+					// Reset retry counter if user chooses to manually retry
+					if (response === "yesButtonClicked") {
+						this.taskState.autoRetryAttempts = 0
+					}
+				}
 
 				if (response === "yesButtonClicked") {
 					// Signal the loop to continue (i.e., do not end), so it will attempt again

@@ -45,6 +45,9 @@ export class TaskState {
 	didAutomaticallyRetryFailedApiRequest = false
 	checkpointManagerErrorMessage?: string
 
+	// Retry tracking for auto-retry feature
+	autoRetryAttempts: number = 0
+
 	// Task Initialization
 	isInitialized = false
 

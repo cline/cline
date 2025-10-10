@@ -100,6 +100,7 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		load_mcp_documentation: ClineSay.LOAD_MCP_DOCUMENTATION,
 		info: ClineSay.INFO,
 		task_progress: ClineSay.TASK_PROGRESS,
+		error_retry: ClineSay.ERROR_RETRY,
 	}
 
 	const result = mapping[say]
@@ -145,6 +146,7 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.LOAD_MCP_DOCUMENTATION]: "load_mcp_documentation",
 		[ClineSay.INFO]: "info",
 		[ClineSay.TASK_PROGRESS]: "task_progress",
+		[ClineSay.ERROR_RETRY]: "error_retry",
 	}
 
 	return mapping[say]
