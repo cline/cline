@@ -59,17 +59,11 @@ async function main() {
 	await installNodeDependencies()
 
 	// Step 2: Copy Node.js binary (only for CLI builds)
-	if (IS_CLI_BUILD) {
-		await copyNodeBinary()
-	}
-
 	// Step 3: Copy CLI binaries (only for CLI builds)
-	if (IS_CLI_BUILD) {
-		await copyCliBinaries()
-	}
-
 	// Step 4: Create VERSION file (only for CLI builds)
 	if (IS_CLI_BUILD) {
+		await copyNodeBinary()
+		await copyCliBinaries()
 		await createVersionFile()
 	}
 
@@ -185,7 +179,7 @@ async function createVersionFile() {
 		nodeVersion: TARGET_NODE_VERSION,
 	}
 
-	const versionPath = path.join(BUILD_DIR, "VERSION")
+	const versionPath = path.join(BUILD_DIR, "VERSION.txt")
 	fs.writeFileSync(versionPath, JSON.stringify(versionInfo, null, 2))
 
 	console.log(`✓ VERSION file created: ${version} (${platform})`)
@@ -265,13 +259,20 @@ async function zipDistribution() {
 
 	archive.pipe(output)
 
-	// Build ignore list - exclude binaries for JetBrains (default) builds
+	// Build ignore lists for build directory and extension directory
 	const ignorePatterns = ["standalone.zip", "standalone-cli.zip"]
+	const extensionIgnores = ["dist/**"]
+
+	// For JetBrains (default) builds, exclude binaries from both directories
 	if (!IS_CLI_BUILD) {
-		// Default JetBrains build: exclude binaries (they provide their own Node.js)
+		// JetBrains provides their own Node.js, so exclude all binaries
 		ignorePatterns.push(
 			"bin/**", // Exclude entire bin directory
 			"node-binaries/**", // Exclude all platform-specific Node.js binaries
+		)
+		extensionIgnores.push(
+			"cli/bin/**", // Exclude CLI binaries from extension
+			"node-binaries/**", // Exclude node-binaries from extension
 		)
 		console.log("JetBrains build: Excluding Node.js and CLI binaries (JetBrains provides its own Node.js)")
 	}
@@ -283,17 +284,6 @@ async function zipDistribution() {
 	})
 
 	// Exclude the same files as the VCE vscode extension packager.
-	// Also ignore the dist directory, the build directory for the extension.
-	const extensionIgnores = ["dist/**"]
-
-	// For JetBrains (default) builds, also exclude binaries from the extension directory
-	if (!IS_CLI_BUILD) {
-		extensionIgnores.push(
-			"cli/bin/**", // Exclude CLI binaries from extension
-			"node-binaries/**", // Exclude node-binaries from extension
-		)
-	}
-
 	const isIgnored = createIsIgnored(extensionIgnores)
 
 	// Add the whole cline directory under "extension", except the for the ignored files.
