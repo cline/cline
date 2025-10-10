@@ -310,9 +310,11 @@ func (h *SayHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayConte
 		return nil
 		
 	case string(types.ToolTypeListFilesTopLevel), 
-	     string(types.ToolTypeListFilesRecursive), string(types.ToolTypeListCodeDefinitionNames),
-	     string(types.ToolTypeSearchFiles), string(types.ToolTypeWebFetch):
-		// Use enhanced parsing
+	     string(types.ToolTypeListFilesRecursive), 
+		 string(types.ToolTypeListCodeDefinitionNames),
+	     string(types.ToolTypeSearchFiles), 
+		 string(types.ToolTypeWebFetch):
+
 		if tool.Content != "" {
 			preview := toolParser.ParseToolResult(tool)
 			previewRendered := dc.Renderer.RenderMarkdown(preview)
