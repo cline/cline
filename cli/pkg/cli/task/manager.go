@@ -686,8 +686,6 @@ func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
 	}
 	coordinator.SetConversationTurnStartIndex(totalMessageCount)
 
-	fmt.Println("\n--- Live updates ---")
-
 	// Start both streams concurrently
 	errChan := make(chan error, 2)
 	completionChan := make(chan bool, 1)
@@ -885,12 +883,16 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			}
 
 		case msg.Say == string(types.SayTypeAPIReqStarted):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			apiInfo := types.APIRequestInfo{Cost: -1}
 			if err := json.Unmarshal([]byte(msg.Text), &apiInfo); err == nil && apiInfo.Cost >= 0 {
-				fmt.Println() // adds a separator between cline message and usage message
-				m.displayMessage(msg, false, false, i)
-				coordinator.CompleteTurn(len(messages))
-				displayedUsage = true
+				if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+					fmt.Println() // adds a separator between cline message and usage message
+					m.displayMessage(msg, false, false, i)
+					coordinator.MarkProcessedInCurrentTurn(msgKey)
+					coordinator.CompleteTurn(len(messages))
+					displayedUsage = true
+				}
 			}
 
 		case msg.Ask == string(types.AskTypeCommandOutput):

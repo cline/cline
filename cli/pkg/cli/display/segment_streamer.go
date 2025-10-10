@@ -165,7 +165,12 @@ func (ss *StreamingSegment) generateRichHeader() string {
 		return ss.generateToolHeader()
 		
 	case "ask":
-		return "### Cline has a plan\n"
+		// Check the specific ask type
+		if ss.msg.Ask == string(types.AskTypePlanModeRespond) {
+			return "### Cline has a plan\n"
+		}
+		// For other ask types (tool approvals, questions, etc.), show the ask type
+		return fmt.Sprintf("### Cline is asking (%s)\n", ss.msg.Ask)
 		
 	default:
 		return fmt.Sprintf("### %s\n", ss.prefix)
