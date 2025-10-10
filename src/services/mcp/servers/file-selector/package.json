@@ -1,0 +1,28 @@
+{
+	"name": "file-selector-mcp-server",
+	"version": "1.0.0",
+	"main": "build/index.js",
+	"type": "module",
+	"scripts": {
+		"build": "tsc && chmod +x build/index.js",
+		"start": "node build/index.js",
+		"dev": "tsc --watch"
+	},
+	"keywords": [
+		"mcp",
+		"file",
+		"selector",
+		"vscode"
+	],
+	"author": "Cline",
+	"license": "MIT",
+	"description": "MCP Server for selecting files in VS Code",
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.0.0",
+		"vscode": "^1.1.37"
+	},
+	"devDependencies": {
+		"@types/node": "^20.19.17",
+		"typescript": "^5.9.2"
+	}
+}

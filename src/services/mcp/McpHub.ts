@@ -36,8 +36,10 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { TelemetryService } from "../telemetry"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
+import { registerFileSelectorMcpServer } from "./register-file-selector"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig, Transport } from "./types"
+
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
@@ -163,6 +165,9 @@ export class McpHub {
 	}
 
 	private async initializeMcpServers(): Promise<void> {
+		// 自动注册文件选择MCP服务器
+		await registerFileSelectorMcpServer(this)
+
 		const settings = await this.readAndValidateMcpSettingsFile()
 		if (settings) {
 			await this.updateServerConnections(settings.mcpServers)

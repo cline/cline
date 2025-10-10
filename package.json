@@ -140,7 +140,6 @@
 				"title": "Open in Editor",
 				"icon": "$(link-external)"
 			},
-
 			{
 				"command": "cline.settingsButtonClicked",
 				"title": "设置",
@@ -383,6 +382,7 @@
 		"@types/clone-deep": "^4.0.4",
 		"@types/diff": "^5.2.1",
 		"@types/get-folder-size": "^3.0.4",
+		"@types/minio": "^7.1.1",
 		"@types/mocha": "^10.0.7",
 		"@types/node": "20.x",
 		"@types/pdf-parse": "^1.1.4",
@@ -417,8 +417,6 @@
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
 		"@aws-sdk/client-bedrock-runtime": "^3.840.0",
 		"@aws-sdk/credential-providers": "^3.840.0",
-		"@sap-ai-sdk/ai-api": "^1.17.0",
-		"@sap-ai-sdk/orchestration": "^1.17.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
 		"@google-cloud/vertexai": "^1.9.3",
@@ -434,6 +432,8 @@
 		"@opentelemetry/sdk-trace-node": "^1.30.1",
 		"@opentelemetry/semantic-conventions": "^1.30.0",
 		"@playwright/test": "^1.53.2",
+		"@sap-ai-sdk/ai-api": "^1.17.0",
+		"@sap-ai-sdk/orchestration": "^1.17.0",
 		"@sentry/browser": "^9.12.0",
 		"@streamparser/json": "^0.0.22",
 		"@types/uuid": "^10.0.0",
@@ -461,6 +461,7 @@
 		"jschardet": "^3.1.4",
 		"jwt-decode": "^4.0.0",
 		"mammoth": "^1.8.0",
+		"minio": "^8.0.6",
 		"nice-grpc": "^2.1.12",
 		"ollama": "^0.5.13",
 		"open": "^10.1.2",

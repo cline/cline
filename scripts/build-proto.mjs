@@ -90,7 +90,7 @@ async function tsProtoc(outDir, protoFiles, protoOptions) {
 		`--proto_path="${PROTO_DIR}"`,
 		`--plugin=protoc-gen-ts_proto="${TS_PROTO_PLUGIN}"`,
 		`--ts_proto_out="${outDir}"`,
-		`--ts_proto_opt=${protoOptions.join(",")} `,
+		`--ts_proto_opt=${protoOptions.join(",")}`,
 		...protoFiles.map((s) => `"${s}"`),
 	].join(" ")
 	try {

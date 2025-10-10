@@ -35,6 +35,21 @@ export async function loadProtoDescriptorSet() {
 }
 
 export async function loadServicesFromProtoDescriptor() {
+	const protoFiles = [
+		"cline/account.proto",
+		"cline/browser.proto",
+		"cline/checkpoints.proto",
+		"cline/commands.proto",
+		"cline/file.proto",
+		"cline/mcp.proto",
+		"cline/models.proto",
+		"cline/slash.proto",
+		"cline/state.proto",
+		"cline/task.proto",
+		"cline/ui.proto",
+		"cline/web.proto",
+		"cline/matrix.proto", // 添加新的 proto 文件
+	]
 	// Load service definitions from descriptor set
 	const proto = await loadProtoDescriptorSet()
 

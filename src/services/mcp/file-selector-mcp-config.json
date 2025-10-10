@@ -1,0 +1,14 @@
+{
+	"name": "file-selector",
+	"description": "File Selector MCP Server for VS Code integration",
+	"command": "node",
+	"args": [
+		"{MCP_SERVERS_PATH}/file-selector/build/index.js"
+	],
+	"env": {},
+	"autoApprove": [
+		"select_file"
+	],
+	"disabled": false,
+	"timeout": 60
+}

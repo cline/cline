@@ -108,14 +108,12 @@ const AppContent = () => {
 				/>
 			)}
 			{/* Do not conditionally load ChatView, it's expensive and there's state we don't want to lose (user input, disableInput, askResponse promise, etc.) */}
-			{shouldShowChatView && (
-				<ChatView
-					hideAnnouncement={hideAnnouncement}
-					isHidden={isOtherViewVisible}
-					showAnnouncement={showAnnouncement}
-					showHistoryView={navigateToHistory}
-				/>
-			)}
+			<ChatView
+				hideAnnouncement={hideAnnouncement}
+				isHidden={!shouldShowChatView}
+				showAnnouncement={showAnnouncement}
+				showHistoryView={navigateToHistory}
+			/>
 			<CanView isHidden={isOtherViewVisible || !showCanView} onSwitchToChat={() => setShowCanView(false)} />
 
 			{/* Ant Design 组件示例 - 仅用于测试 */}

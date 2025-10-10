@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+import "cline/mcp.proto";
+
+// Matrix service for processing CAN matrix files
+service MatrixService {
+  // Process a matrix file and return a URL to the processed file
+  rpc processMatrixFile(ProcessMatrixRequest) returns (ProcessMatrixResponse);
+  
+  // Get a matrix file from storage
+  rpc getMatrixFile(GetMatrixFileRequest) returns (GetMatrixFileResponse);
+}
+
+// Request message for processing a matrix file
+message ProcessMatrixRequest {
+  cline.Metadata metadata = 1;
+  string fileName = 2;
+  bytes fileContent = 3;
+  int64 fileSize = 4;
+}
+
+// Response message for processing a matrix file
+message ProcessMatrixResponse {
+  string fileUrl = 1;
+  string status = 2;  // "success" or "error"
+  string error = 3;   // Error message if status is "error"
+}
+
+// Request message for getting a matrix file
+message GetMatrixFileRequest {
+  cline.Metadata metadata = 1;
+  string fileName = 2;
+}
+
+// Response message for getting a matrix file
+message GetMatrixFileResponse {
+  bytes fileContent = 1;
+  string status = 2;  // "success" or "error"
+  string error = 3;   // Error message if status is "error"
+}
