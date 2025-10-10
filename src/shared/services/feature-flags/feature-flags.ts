@@ -6,6 +6,7 @@ export enum FeatureFlag {
 	MULTI_ROOT_WORKSPACE = "multi_root_workspace",
 	WORKOS_AUTH = "workos_auth",
 	DO_NOTHING = "do_nothing",
+	HOOKS = "hooks",
 }
 
 export const FEATURE_FLAGS = Object.values(FeatureFlag)

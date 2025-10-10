@@ -25,6 +25,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		useAutoCondense,
 		focusChainSettings,
 		multiRootSetting,
+		hooksEnabled,
 	} = useExtensionState()
 
 	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
@@ -261,6 +262,24 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							<p className="text-xs">
 								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
 								<span className="text-description">Allows cline to work across multiple workspaces.</span>
+							</p>
+						</div>
+					)}
+					{hooksEnabled?.featureFlag && (
+						<div className="mt-2.5">
+							<VSCodeCheckbox
+								checked={hooksEnabled.user}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("hooksEnabled", checked)
+								}}>
+								Enable Hooks
+							</VSCodeCheckbox>
+							<p className="text-xs">
+								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
+								<span className="text-description">
+									Allows execution of hooks from .clinerules/hooks/ directory.
+								</span>
 							</p>
 						</div>
 					)}
