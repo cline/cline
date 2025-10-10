@@ -11,6 +11,27 @@ describe("Hook System", () => {
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 
+	// Helper to get platform-appropriate hook filename
+	const getHookFilename = (hookName: string): string => {
+		return process.platform === "win32" ? `${hookName}.cmd` : hookName
+	}
+
+	// Helper to write hook script with platform-specific wrapper
+	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
+		if (process.platform === "win32") {
+			// On Windows, create a .cmd batch file that calls node with the script
+			// The @echo off prevents command echoing
+			// The node command uses process.stdin for input (fed via spawn's stdin)
+			const batchScript = `@echo off
+node -e "${nodeScript.replace(/"/g, '\\"').replace(/\n/g, " ")}"`
+			await fs.writeFile(hookPath, batchScript)
+		} else {
+			// On Unix, write the script directly with shebang
+			await fs.writeFile(hookPath, nodeScript)
+			await fs.chmod(hookPath, 0o755)
+		}
+	}
+
 	beforeEach(async () => {
 		sandbox = sinon.createSandbox()
 		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
@@ -56,7 +77,7 @@ describe("Hook System", () => {
 	describe("StdioHookRunner", () => {
 		it("should execute hook script and parse output", async () => {
 			// Create a test hook script
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
 			const hookScript = `#!/usr/bin/env node
 const input = require('fs').readFileSync(0, 'utf-8');
 console.log(JSON.stringify({
@@ -64,8 +85,7 @@ console.log(JSON.stringify({
   contextModification: "TEST_CONTEXT: Added by hook"
 }))`
 
-			await fs.writeFile(hookPath, hookScript)
-			await fs.chmod(hookPath, 0o755)
+			await writeHookScript(hookPath, hookScript)
 
 			// Test execution
 			const factory = new HookFactory()
@@ -84,15 +104,14 @@ console.log(JSON.stringify({
 		})
 
 		it("should handle script that blocks execution", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   shouldContinue: false,
   errorMessage: "Hook blocked execution"
 }))`
 
-			await fs.writeFile(hookPath, hookScript)
-			await fs.chmod(hookPath, 0o755)
+			await writeHookScript(hookPath, hookScript)
 
 			const factory = new HookFactory()
 			const runner = await factory.create("PreToolUse")
@@ -110,7 +129,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should truncate large context modifications", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
 			// Create context larger than 50KB
 			const largeContext = "x".repeat(60000)
 			const hookScript = `#!/usr/bin/env node
@@ -119,8 +138,7 @@ console.log(JSON.stringify({
   contextModification: "${largeContext}"
 }))`
 
-			await fs.writeFile(hookPath, hookScript)
-			await fs.chmod(hookPath, 0o755)
+			await writeHookScript(hookPath, hookScript)
 
 			const factory = new HookFactory()
 			const runner = await factory.create("PreToolUse")
@@ -138,12 +156,11 @@ console.log(JSON.stringify({
 		})
 
 		it("should handle script errors", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
 			const hookScript = `#!/usr/bin/env node
 process.exit(1)`
 
-			await fs.writeFile(hookPath, hookScript)
-			await fs.chmod(hookPath, 0o755)
+			await writeHookScript(hookPath, hookScript)
 
 			const factory = new HookFactory()
 			const runner = await factory.create("PreToolUse")
@@ -163,12 +180,11 @@ process.exit(1)`
 		})
 
 		it("should handle malformed JSON output", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
 			const hookScript = `#!/usr/bin/env node
 console.log("not valid json")`
 
-			await fs.writeFile(hookPath, hookScript)
-			await fs.chmod(hookPath, 0o755)
+			await writeHookScript(hookPath, hookScript)
 
 			const factory = new HookFactory()
 			const runner = await factory.create("PreToolUse")
@@ -188,7 +204,7 @@ console.log("not valid json")`
 		})
 
 		it("should pass hook input via stdin", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 console.log(JSON.stringify({
@@ -196,8 +212,7 @@ console.log(JSON.stringify({
   contextModification: "Received tool: " + input.preToolUse.toolName
 }))`
 
-			await fs.writeFile(hookPath, hookScript)
-			await fs.chmod(hookPath, 0o755)
+			await writeHookScript(hookPath, hookScript)
 
 			const factory = new HookFactory()
 			const runner = await factory.create("PreToolUse")
@@ -216,7 +231,7 @@ console.log(JSON.stringify({
 
 	describe("PostToolUse Hook", () => {
 		it("should receive execution results", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PostToolUse")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PostToolUse"))
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 console.log(JSON.stringify({
@@ -224,8 +239,7 @@ console.log(JSON.stringify({
   contextModification: "Tool succeeded: " + input.postToolUse.success
 }))`
 
-			await fs.writeFile(hookPath, hookScript)
-			await fs.chmod(hookPath, 0o755)
+			await writeHookScript(hookPath, hookScript)
 
 			const factory = new HookFactory()
 			const runner = await factory.create("PostToolUse")
@@ -342,7 +356,7 @@ console.log(JSON.stringify({ shouldContinue: true }))`
 		})
 
 		it("should handle hook input with all parameters", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasAllFields = input.clineVersion && input.hookName && input.timestamp && 
@@ -352,8 +366,7 @@ console.log(JSON.stringify({
   contextModification: hasAllFields ? "All fields present" : "Missing fields"
 }))`
 
-			await fs.writeFile(hookPath, hookScript)
-			await fs.chmod(hookPath, 0o755)
+			await writeHookScript(hookPath, hookScript)
 
 			const factory = new HookFactory()
 			const runner = await factory.create("PreToolUse")
