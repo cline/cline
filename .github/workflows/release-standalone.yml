@@ -174,3 +174,4 @@ jobs:
             - [GitHub Repository](https://github.com/cline/cline)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CLINE_ENVIRONMENT: production

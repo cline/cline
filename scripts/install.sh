@@ -137,7 +137,9 @@ install_cline() {
     # Copy platform-specific native modules to node_modules
     if [ -d "$INSTALL_DIR/binaries/$platform/node_modules" ]; then
         print_message "$BLUE" "Installing platform-specific native modules..."
-        cp -r "$INSTALL_DIR/binaries/$platform/node_modules/"* "$INSTALL_DIR/node_modules/" 2>/dev/null || true
+        if ! cp -r "$INSTALL_DIR/binaries/$platform/node_modules/"* "$INSTALL_DIR/node_modules/"; then
+            error_exit "Failed to install platform-specific native modules"
+        fi
         print_message "$GREEN" "✓ Native modules installed"
     fi
     print_message "$GREEN" "✓ Cline installed successfully"
