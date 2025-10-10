@@ -65,12 +65,9 @@ export class OpenTelemetryClientProvider {
 			console.log(`[OTEL DEBUG]   - OTLP Protocol: ${this.config.otlpProtocol || "grpc (default)"}`)
 
 			console.log(`[OTEL DEBUG]   - OTLP Endpoint: ${this.config.otlpEndpoint || "not set"}`)
-		} else {
-			console.log(`[OTEL DEBUG]   - OTLP Endpoint: ${this.config.otlpEndpoint ? "configured" : "not set"}`)
+			console.log(`[OTEL DEBUG]   - OTLP Insecure: ${this.config.otlpInsecure || false}`)
+			console.log(`[OTEL DEBUG]   - Metric Export Interval: ${this.config.metricExportInterval || 60000}ms`)
 		}
-
-		console.log(`[OTEL DEBUG]   - OTLP Insecure: ${this.config.otlpInsecure || false}`)
-		console.log(`[OTEL DEBUG]   - Metric Export Interval: ${this.config.metricExportInterval || 60000}ms`)
 
 		// Check for headers configuration (via environment variable)
 		const hasHeaders = !!process.env.OTEL_EXPORTER_OTLP_HEADERS
@@ -78,11 +75,8 @@ export class OpenTelemetryClientProvider {
 			// In debug mode, show that headers are configured and their total length
 			const headerLength = process.env.OTEL_EXPORTER_OTLP_HEADERS!.length
 			console.log(`[OTEL DEBUG]   - OTLP Headers: configured (length: ${headerLength})`)
-		} else {
-			console.log(`[OTEL DEBUG]   - OTLP Headers: ${hasHeaders ? "configured" : "not set"}`)
+			console.log("[OTEL DEBUG] ================================================")
 		}
-
-		console.log("[OTEL DEBUG] ================================================")
 
 		// Create resource with service information
 		const resource = new Resource({
