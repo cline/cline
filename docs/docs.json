@@ -9,8 +9,8 @@
 		"dark": "#000000"
 	},
 	"logo": {
-		"light": "/assets/robot_panel_light.png",
-		"dark": "/assets/robot_panel_dark.png"
+		"light": "/assets/Cline_Logo-complete_black.png",
+		"dark": "/assets/Cline_Logo-complete_white.png"
 	},
 	"favicon": {
 		"light": "/assets/robot_panel_light.png",
@@ -37,11 +37,18 @@
 	"navbar": {
 		"links": [
 			{
+				"label": "Docs",
+				"icon": "book",
+				"href": "https://docs.cline.bot/"
+			},
+			{
 				"label": "GitHub",
+				"icon": "github",
 				"href": "https://github.com/cline/cline"
 			},
 			{
 				"label": "Discord",
+				"icon": "discord",
 				"href": "https://discord.gg/cline"
 			}
 		],
@@ -52,169 +59,41 @@
 		}
 	},
 	"navigation": {
-		"groups": [
+		"tabs": [
 			{
-				"group": "Getting Started",
-				"pages": [
-					"getting-started/what-is-cline",
-					"getting-started/installing-cline",
-					"getting-started/model-selection-guide",
-					"getting-started/task-management",
-					"getting-started/understanding-context-management",
+				"tab": "Docs",
+				"icon": "square-terminal",
+				"menu": [
 					{
-						"group": "For New Coders",
+						"item": "Getting Started",
+						"icon": "rocket",
 						"pages": [
-							"getting-started/for-new-coders",
-							"getting-started/installing-dev-essentials"
+							"getting-started/what-is-cline",
+							"getting-started/installing-cline",
+							"getting-started/model-selection-guide",
+							"getting-started/task-management",
+							"getting-started/understanding-context-management",
+							{
+								"group": "For New Coders",
+								"icon": "graduation-cap",
+								"pages": [
+									"getting-started/for-new-coders",
+									"getting-started/installing-dev-essentials"
+								]
+							}
 						]
 					}
 				]
 			},
 			{
-				"group": "Improving Your Prompting Skills",
-				"pages": [
-					"prompting/prompt-engineering-guide",
-					"prompting/cline-memory-bank"
-				]
+				"tab": "Learn",
+				"icon": "code",
+				"pages": []
 			},
 			{
-				"group": "Features",
-				"pages": [
-					{
-						"group": "@ Mentions",
-						"pages": [
-							"features/at-mentions/overview",
-							"features/at-mentions/file-mentions",
-							"features/at-mentions/terminal-mentions",
-							"features/at-mentions/problem-mentions",
-							"features/at-mentions/git-mentions",
-							"features/at-mentions/url-mentions"
-						]
-					},
-					"features/auto-approve",
-					"features/auto-compact",
-					"features/checkpoints",
-					"features/cline-rules",
-					{
-						"group": "Commands & Shortcuts",
-						"pages": [
-							"features/commands-and-shortcuts/overview",
-							"features/commands-and-shortcuts/code-commands",
-							"features/commands-and-shortcuts/terminal-integration",
-							"features/commands-and-shortcuts/git-integration",
-							"features/commands-and-shortcuts/keyboard-shortcuts"
-						]
-					},
-					{
-						"group": "Customization",
-						"pages": [
-							"features/customization/opening-cline-in-sidebar",
-							"features/customization/disable-terminal-pagers"
-						]
-					},
-					"features/dictation",
-					"features/drag-and-drop",
-					"features/editing-messages",
-					"features/focus-chain",
-					"features/multiroot-workspace",
-					"features/plan-and-act",
-					{
-						"group": "Slash Commands",
-						"pages": [
-							"features/slash-commands/new-task",
-							"features/slash-commands/new-rule",
-							"features/slash-commands/smol",
-							"features/slash-commands/report-bug",
-							"features/slash-commands/deep-planning"
-						]
-					},
-					"features/slash-commands/workflows",
-					"features/yolo-mode"
-				]
-			},
-			{
-				"group": "Exploring Cline's Tools",
-				"pages": [
-					"exploring-clines-tools/cline-tools-guide",
-					"exploring-clines-tools/new-task-tool",
-					"exploring-clines-tools/remote-browser-support"
-				]
-			},
-			{
-				"group": "Enterprise Solutions",
-				"pages": [
-					"enterprise-solutions/cloud-provider-integration",
-					"enterprise-solutions/custom-instructions",
-					"enterprise-solutions/mcp-servers",
-					"enterprise-solutions/security-concerns"
-				]
-			},
-			{
-				"group": "MCP Servers",
-				"pages": [
-					"mcp/mcp-overview",
-					"mcp/adding-mcp-servers-from-github",
-					"mcp/configuring-mcp-servers",
-					"mcp/connecting-to-a-remote-server",
-					"mcp/mcp-marketplace",
-					"mcp/mcp-server-development-protocol",
-					"mcp/mcp-transport-mechanisms"
-				]
-			},
-			{
-				"group": "Provider Configuration",
-				"pages": [
-					"provider-config/anthropic",
-					"provider-config/claude-code",
-					{
-						"group": "AWS Bedrock",
-						"pages": [
-							"provider-config/aws-bedrock/api-key",
-							"provider-config/aws-bedrock/iam-credentials",
-							"provider-config/aws-bedrock/cli-profile"
-						]
-					},
-					"provider-config/gcp-vertex-ai",
-					"provider-config/litellm-and-cline-using-codestral",
-					"provider-config/vscode-language-model-api",
-					"provider-config/xai-grok",
-					"provider-config/mistral-ai",
-					"provider-config/deepseek",
-					"provider-config/groq",
-					"provider-config/cerebras",
-					"provider-config/doubao",
-					"provider-config/fireworks",
-					"provider-config/zai",
-					"provider-config/ollama",
-					"provider-config/openai",
-					"provider-config/openai-compatible",
-					"provider-config/openrouter",
-					"provider-config/sap-aicore",
-					"provider-config/vercel-ai-gateway",
-					"provider-config/requesty",
-					"provider-config/baseten"
-				]
-			},
-			{
-				"group": "Running Models Locally",
-				"pages": [
-					"running-models-locally/read-me-first",
-					"running-models-locally/lm-studio",
-					"running-models-locally/ollama"
-				]
-			},
-			{
-				"group": "Troubleshooting",
-				"pages": [
-					"troubleshooting/terminal-quick-fixes",
-					"troubleshooting/terminal-integration-guide"
-				]
-			},
-			{
-				"group": "More Info",
-				"pages": [
-					"more-info/telemetry"
-				]
+				"tab": "Blog",
+				"icon": "newspaper",
+				"href": "https://cline.bot/blog"
 			}
 		]
 	},
