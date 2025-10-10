@@ -4,6 +4,15 @@ import (
 	"fmt"
 )
 
+// formatValue formats a value for display, handling empty strings
+func formatValue(val interface{}) string {
+	// Handle empty strings specifically
+	if str, ok := val.(string); ok && str == "" {
+		return "''"
+	}
+	return fmt.Sprintf("%v", val)
+}
+
 // RenderField renders a single config field with proper formatting
 func RenderField(key string, value interface{}) error {
 	switch key {
@@ -25,9 +34,9 @@ func RenderField(key string, value interface{}) error {
 		"planActSeparateModelsSetting", "enableCheckpointsSetting",
 		"mcpMarketplaceEnabled", "terminalReuseEnabled",
 		"mcpResponsesCollapsed", "strictPlanModeEnabled",
-		"useAutoCondense", "yoloModeToggled","shellIntegrationTimeout",
-		"terminalOutputLineLimit","autoCondenseThreshold":
-		fmt.Printf("%s: %v\n", key, value)
+		"useAutoCondense", "yoloModeToggled", "shellIntegrationTimeout",
+		"terminalOutputLineLimit", "autoCondenseThreshold":
+		fmt.Printf("%s: %s\n", key, formatValue(value))
 		return nil
 
 	default:
@@ -46,7 +55,7 @@ func renderApiConfiguration(value interface{}) error {
 
 	// Print each field directly
 	for key, val := range configMap {
-		fmt.Printf("  %s: %v\n", key, val)
+		fmt.Printf("  %s: %s\n", key, formatValue(val))
 	}
 
 	return nil
@@ -65,14 +74,14 @@ func renderBrowserSettings(value interface{}) error {
 	if viewport, ok := settingsMap["viewport"].(map[string]interface{}); ok {
 		fmt.Println("  viewport:")
 		for key, val := range viewport {
-			fmt.Printf("    %s: %v\n", key, val)
+			fmt.Printf("    %s: %s\n", key, formatValue(val))
 		}
 	}
 
 	// Print other fields
 	for key, val := range settingsMap {
 		if key != "viewport" {
-			fmt.Printf("  %s: %v\n", key, val)
+			fmt.Printf("  %s: %s\n", key, formatValue(val))
 		}
 	}
 
@@ -89,7 +98,7 @@ func renderFocusChainSettings(value interface{}) error {
 	}
 
 	for key, val := range settingsMap {
-		fmt.Printf("  %s: %v\n", key, val)
+		fmt.Printf("  %s: %s\n", key, formatValue(val))
 	}
 
 	return nil
@@ -105,7 +114,7 @@ func renderDictationSettings(value interface{}) error {
 	}
 
 	for key, val := range settingsMap {
-		fmt.Printf("  %s: %v\n", key, val)
+		fmt.Printf("  %s: %s\n", key, formatValue(val))
 	}
 
 	return nil
@@ -131,12 +140,12 @@ func renderAutoApprovalSettings(value interface{}) error {
 			fmt.Println("  actions:")
 			if actionsMap, ok := val.(map[string]interface{}); ok {
 				for actionKey, actionVal := range actionsMap {
-					fmt.Printf("    %s: %v\n", actionKey, actionVal)
+					fmt.Printf("    %s: %s\n", actionKey, formatValue(actionVal))
 				}
 			}
 		} else {
 			// Print other fields normally (enabled, maxRequests, enableNotifications, favorites)
-			fmt.Printf("  %s: %v\n", key, val)
+			fmt.Printf("  %s: %s\n", key, formatValue(val))
 		}
 	}
 
