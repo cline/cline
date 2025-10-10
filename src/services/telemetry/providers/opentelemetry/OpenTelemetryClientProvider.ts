@@ -1,19 +1,16 @@
-import { credentials as grpcCredentials } from "@grpc/grpc-js"
 import { metrics } from "@opentelemetry/api"
 import { logs } from "@opentelemetry/api-logs"
-import { OTLPLogExporter as OTLPLogExporterGRPC } from "@opentelemetry/exporter-logs-otlp-grpc"
-import { OTLPLogExporter as OTLPLogExporterHTTP } from "@opentelemetry/exporter-logs-otlp-http"
-import { OTLPLogExporter as OTLPLogExporterProto } from "@opentelemetry/exporter-logs-otlp-proto"
-import { OTLPMetricExporter as OTLPMetricExporterGRPC } from "@opentelemetry/exporter-metrics-otlp-grpc"
-import { OTLPMetricExporter as OTLPMetricExporterHTTP } from "@opentelemetry/exporter-metrics-otlp-http"
-import { OTLPMetricExporter as OTLPMetricExporterProto } from "@opentelemetry/exporter-metrics-otlp-proto"
-import { PrometheusExporter } from "@opentelemetry/exporter-prometheus"
 import { Resource } from "@opentelemetry/resources"
-import { BatchLogRecordProcessor, ConsoleLogRecordExporter, LoggerProvider, LogRecordExporter } from "@opentelemetry/sdk-logs"
-import { ConsoleMetricExporter, MeterProvider, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics"
+import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs"
+import { MeterProvider } from "@opentelemetry/sdk-metrics"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
 import { getValidOpenTelemetryConfig, OpenTelemetryClientValidConfig } from "@/shared/services/config/otel-config"
-import { wrapLogsExporterWithDiagnostics, wrapMetricsExporterWithDiagnostics } from "./otel-exporter-diagnostics"
+import {
+	createConsoleLogExporter,
+	createConsoleMetricReader,
+	createOTLPLogExporter,
+	createOTLPMetricReader,
+} from "./OpenTelemetryExporterFactory"
 
 /**
  * Singleton provider for OpenTelemetry client instances.
@@ -94,59 +91,46 @@ export class OpenTelemetryClientProvider {
 	private createMeterProvider(resource: Resource): MeterProvider {
 		const exporters = this.config!.metricsExporter!.split(",").map((type) => type.trim())
 		const readers: any[] = []
+		const interval = this.config!.metricExportInterval || 60000
+		const timeout = Math.min(Math.floor(interval * 0.8), 30000)
 
-		console.log(`[OTEL DEBUG] Creating MeterProvider with exporters: ${exporters.join(", ")}`)
+		console.log(`[OTEL] Creating MeterProvider with exporters: ${exporters.join(", ")}`)
 
 		for (const exporterType of exporters) {
 			try {
 				switch (exporterType) {
 					case "console": {
-						const exporter = new ConsoleMetricExporter()
-						const interval = this.config!.metricExportInterval || 60000
-						const reader = new PeriodicExportingMetricReader({
-							exporter,
-							exportIntervalMillis: interval,
-						})
+						const reader = createConsoleMetricReader(interval, timeout)
 						readers.push(reader)
-						console.log(`[OTEL DEBUG] Console metrics exporter created (interval: ${interval}ms)`)
+						console.log(`[OTEL] Console metrics reader created (interval: ${interval}ms)`)
 						break
 					}
 					case "otlp": {
-						const exporter = this.createOTLPMetricExporter()
-						if (exporter) {
-							const interval = this.config!.metricExportInterval || 60000
-							// Ensure timeout is always less than interval (use 80% of interval, capped at 30 seconds)
-							const timeout = Math.min(Math.floor(interval * 0.8), 30000)
-							const reader = new PeriodicExportingMetricReader({
-								exporter,
-								exportIntervalMillis: interval,
-								exportTimeoutMillis: timeout,
-							})
-							readers.push(reader)
-							console.log(
-								`[OTEL DEBUG] OTLP metrics exporter created (interval: ${interval}ms, timeout: ${timeout}ms)`,
-							)
+						const protocol = this.config!.otlpMetricsProtocol || this.config!.otlpProtocol || "grpc"
+						const endpoint = this.config!.otlpMetricsEndpoint || this.config!.otlpEndpoint
+						const insecure = this.config!.otlpInsecure || false
+
+						if (endpoint) {
+							const reader = createOTLPMetricReader(protocol, endpoint, insecure, interval, timeout)
+							if (reader) {
+								readers.push(reader)
+								console.log(`[OTEL] OTLP metrics reader created (${protocol}, interval: ${interval}ms)`)
+							}
+						} else {
+							console.warn("[OTEL] OTLP metrics exporter requires an endpoint")
 						}
 						break
 					}
-					case "prometheus": {
-						const exporter = new PrometheusExporter({}, () => {
-							console.log("[OTEL DEBUG] Prometheus scrape endpoint ready")
-						})
-						readers.push(exporter)
-						console.log("[OTEL DEBUG] Prometheus metrics exporter created")
-						break
-					}
 					default:
-						console.warn(`[OTEL DEBUG] Unknown metrics exporter type: ${exporterType}`)
+						console.warn(`[OTEL] Unknown metrics exporter type: ${exporterType}`)
 				}
 			} catch (error) {
-				console.error(`[OTEL ERROR] Failed to create metrics exporter '${exporterType}':`, error)
+				console.error(`[OTEL] Failed to create metrics exporter '${exporterType}':`, error)
 			}
 		}
 
 		if (readers.length === 0) {
-			console.warn("[OTEL DEBUG] No metric readers were successfully created")
+			console.warn("[OTEL] No metric readers were successfully created")
 		}
 
 		const meterProvider = new MeterProvider({
@@ -156,7 +140,7 @@ export class OpenTelemetryClientProvider {
 
 		// Set as global meter provider
 		metrics.setGlobalMeterProvider(meterProvider)
-		console.log(`[OTEL DEBUG] MeterProvider initialized with ${readers.length} reader(s)`)
+		console.log(`[OTEL] MeterProvider initialized with ${readers.length} reader(s)`)
 
 		return meterProvider
 	}
@@ -165,204 +149,49 @@ export class OpenTelemetryClientProvider {
 		const exporters = this.config!.logsExporter!.split(",").map((type) => type.trim())
 		const loggerProvider = new LoggerProvider({ resource })
 
-		console.log(`[OTEL DEBUG] Creating LoggerProvider with exporters: ${exporters.join(", ")}`)
+		console.log(`[OTEL] Creating LoggerProvider with exporters: ${exporters.join(", ")}`)
 
 		for (const exporterType of exporters) {
 			try {
-				let exporter: LogRecordExporter | null = null
+				let exporter = null
 
 				switch (exporterType) {
 					case "console":
-						exporter = new ConsoleLogRecordExporter()
-						console.log("[OTEL DEBUG] Console logs exporter created")
+						exporter = createConsoleLogExporter()
+						console.log("[OTEL] Console logs exporter created")
 						break
-					case "otlp":
-						exporter = this.createOTLPLogExporter()
-						if (exporter) {
-							console.log("[OTEL DEBUG] OTLP logs exporter created")
+					case "otlp": {
+						const protocol = this.config!.otlpLogsProtocol || this.config!.otlpProtocol || "grpc"
+						const endpoint = this.config!.otlpLogsEndpoint || this.config!.otlpEndpoint
+						const insecure = this.config!.otlpInsecure || false
+
+						if (endpoint) {
+							exporter = createOTLPLogExporter(protocol, endpoint, insecure)
+							if (exporter) {
+								console.log(`[OTEL] OTLP logs exporter created (${protocol})`)
+							}
+						} else {
+							console.warn("[OTEL] OTLP logs exporter requires an endpoint")
 						}
 						break
+					}
 					default:
-						console.warn(`[OTEL DEBUG] Unknown logs exporter type: ${exporterType}`)
+						console.warn(`[OTEL] Unknown logs exporter type: ${exporterType}`)
 				}
 
 				if (exporter) {
 					loggerProvider.addLogRecordProcessor(new BatchLogRecordProcessor(exporter))
 				}
 			} catch (error) {
-				console.error(`[OTEL ERROR] Failed to create logs exporter '${exporterType}':`, error)
+				console.error(`[OTEL] Failed to create logs exporter '${exporterType}':`, error)
 			}
 		}
 
 		// Set as global logger provider
 		logs.setGlobalLoggerProvider(loggerProvider)
-		console.log("[OTEL DEBUG] LoggerProvider initialized")
+		console.log("[OTEL] LoggerProvider initialized")
 
 		return loggerProvider
-	}
-
-	private createOTLPMetricExporter() {
-		const protocol = this.config!.otlpMetricsProtocol || this.config!.otlpProtocol || "grpc"
-		const endpoint = this.config!.otlpMetricsEndpoint || this.config!.otlpEndpoint
-		const useInsecure = this.config!.otlpInsecure || false
-
-		if (!endpoint) {
-			console.warn("[OTEL METRICS] ❌ OTLP metrics exporter requires an endpoint")
-			return null
-		}
-
-		console.log("[OTEL METRICS] ========== Metrics Exporter Configuration ==========")
-		console.log(`[OTEL METRICS] Protocol: ${protocol}`)
-		console.log(`[OTEL METRICS] Endpoint: ${endpoint}`)
-		console.log(`[OTEL METRICS] Insecure: ${useInsecure}`)
-		console.log(`[OTEL METRICS] Headers from env: ${process.env.OTEL_EXPORTER_OTLP_HEADERS ? "YES" : "NO"}`)
-		console.log("[OTEL METRICS] =======================================================")
-
-		try {
-			let exporter: any = null
-
-			switch (protocol) {
-				case "grpc": {
-					// For gRPC, strip http:// or https:// prefix if present
-					// gRPC endpoints should be in format "localhost:4317" not "http://localhost:4317"
-					const grpcEndpoint = endpoint.replace(/^https?:\/\//, "")
-
-					// Configure credentials based on insecure flag
-					const credentials = useInsecure ? grpcCredentials.createInsecure() : grpcCredentials.createSsl()
-
-					console.log(
-						`[OTEL METRICS] ✓ Using ${useInsecure ? "INSECURE" : "SECURE"} gRPC connection to ${grpcEndpoint}`,
-					)
-
-					// Check for stripped prefix and warn if found
-					if (endpoint !== grpcEndpoint) {
-						console.log(`[OTEL METRICS] ⚠️  Stripped HTTP(S) prefix from endpoint: "${endpoint}" -> "${grpcEndpoint}"`)
-					}
-
-					exporter = new OTLPMetricExporterGRPC({
-						url: grpcEndpoint,
-						credentials: credentials,
-					})
-
-					console.log("[OTEL METRICS] ✓ gRPC metrics exporter instance created successfully")
-					break
-				}
-				case "http/json": {
-					// For HTTP exporters, we need to append the signal-specific path
-					// The SDK only auto-appends paths when using environment variables,
-					// not when passing url directly to constructor
-					const metricsUrl = endpoint.endsWith("/v1/metrics") ? endpoint : `${endpoint}/v1/metrics`
-					console.log(`[OTEL METRICS] ✓ Creating HTTP/JSON exporter for ${metricsUrl}`)
-					exporter = new OTLPMetricExporterHTTP({ url: metricsUrl })
-					console.log("[OTEL METRICS] ✓ HTTP/JSON metrics exporter instance created successfully")
-					break
-				}
-				case "http/protobuf": {
-					// For HTTP exporters, we need to append the signal-specific path
-					const metricsUrl = endpoint.endsWith("/v1/metrics") ? endpoint : `${endpoint}/v1/metrics`
-					console.log(`[OTEL METRICS] ✓ Creating HTTP/Protobuf exporter for ${metricsUrl}`)
-					exporter = new OTLPMetricExporterProto({ url: metricsUrl })
-					console.log("[OTEL METRICS] ✓ HTTP/Protobuf metrics exporter instance created successfully")
-					break
-				}
-				default:
-					console.warn(`[OTEL METRICS] ❌ Unknown OTLP protocol: ${protocol}`)
-					return null
-			}
-
-			// Wrap the exporter with diagnostic logging using utility
-			wrapMetricsExporterWithDiagnostics(exporter, protocol, endpoint)
-
-			return exporter
-		} catch (error) {
-			console.error("[OTEL METRICS] ❌ FATAL: Error creating OTLP metrics exporter:", error)
-			console.error("[OTEL METRICS]    → Exception details:", {
-				name: error instanceof Error ? error.name : typeof error,
-				message: error instanceof Error ? error.message : String(error),
-				stack: error instanceof Error ? error.stack?.split("\n").slice(0, 5).join("\n") : undefined,
-			})
-			return null
-		}
-	}
-
-	private createOTLPLogExporter(): LogRecordExporter | null {
-		const protocol = this.config!.otlpLogsProtocol || this.config!.otlpProtocol || "grpc"
-		const endpoint = this.config!.otlpLogsEndpoint || this.config!.otlpEndpoint
-		const useInsecure = this.config!.otlpInsecure || false
-
-		if (!endpoint) {
-			console.warn("[OTEL LOGS] ❌ OTLP logs exporter requires an endpoint")
-			return null
-		}
-
-		console.log("[OTEL LOGS] ========== Logs Exporter Configuration ==========")
-		console.log(`[OTEL LOGS] Protocol: ${protocol}`)
-		console.log(`[OTEL LOGS] Endpoint: ${endpoint}`)
-		console.log(`[OTEL LOGS] Insecure: ${useInsecure}`)
-		console.log(`[OTEL LOGS] Headers from env: ${process.env.OTEL_EXPORTER_OTLP_HEADERS ? "YES" : "NO"}`)
-		console.log("[OTEL LOGS] =======================================================")
-
-		try {
-			let exporter: any = null
-
-			switch (protocol) {
-				case "grpc": {
-					const grpcEndpoint = endpoint.replace(/^https?:\/\//, "")
-					const credentials = useInsecure ? grpcCredentials.createInsecure() : grpcCredentials.createSsl()
-
-					console.log(
-						`[OTEL LOGS] ✓ Using ${useInsecure ? "INSECURE" : "SECURE"} gRPC connection for logs to ${grpcEndpoint}`,
-					)
-
-					// Check for stripped prefix and warn if found
-					if (endpoint !== grpcEndpoint) {
-						console.log(`[OTEL LOGS] ⚠️  Stripped HTTP(S) prefix from endpoint: "${endpoint}" -> "${grpcEndpoint}"`)
-					}
-
-					exporter = new OTLPLogExporterGRPC({
-						url: grpcEndpoint,
-						credentials: credentials,
-					})
-
-					console.log("[OTEL LOGS] ✓ gRPC logs exporter instance created successfully")
-					break
-				}
-				case "http/json": {
-					// For HTTP exporters, we need to append the signal-specific path
-					// The SDK only auto-appends paths when using environment variables,
-					// not when passing url directly to constructor
-					const logsUrl = endpoint.endsWith("/v1/logs") ? endpoint : `${endpoint}/v1/logs`
-					console.log(`[OTEL LOGS] ✓ Creating HTTP/JSON exporter for ${logsUrl}`)
-					exporter = new OTLPLogExporterHTTP({ url: logsUrl })
-					console.log("[OTEL LOGS] ✓ HTTP/JSON logs exporter instance created successfully")
-					break
-				}
-				case "http/protobuf": {
-					// For HTTP exporters, we need to append the signal-specific path
-					const logsUrl = endpoint.endsWith("/v1/logs") ? endpoint : `${endpoint}/v1/logs`
-					console.log(`[OTEL LOGS] ✓ Creating HTTP/Protobuf exporter for ${logsUrl}`)
-					exporter = new OTLPLogExporterProto({ url: logsUrl })
-					console.log("[OTEL LOGS] ✓ HTTP/Protobuf logs exporter instance created successfully")
-					break
-				}
-				default:
-					console.warn(`[OTEL LOGS] ❌ Unknown OTLP protocol: ${protocol}`)
-					return null
-			}
-
-			// Wrap the exporter with diagnostic logging using utility
-			wrapLogsExporterWithDiagnostics(exporter, protocol, endpoint)
-
-			return exporter
-		} catch (error) {
-			console.error("[OTEL LOGS] ❌ FATAL: Error creating OTLP logs exporter:", error)
-			console.error("[OTEL LOGS]    → Exception details:", {
-				name: error instanceof Error ? error.name : typeof error,
-				message: error instanceof Error ? error.message : String(error),
-				stack: error instanceof Error ? error.stack?.split("\n").slice(0, 5).join("\n") : undefined,
-			})
-			return null
-		}
 	}
 
 	public async dispose(): Promise<void> {

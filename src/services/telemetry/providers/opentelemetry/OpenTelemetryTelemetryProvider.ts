@@ -16,8 +16,10 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	private meter: Meter | null = null
 	private logger: OTELLogger | null = null
 	private telemetrySettings: TelemetrySettings
-	private eventCounter: ReturnType<Meter["createCounter"]> | null = null
 	private userAttributes: Record<string, string> = {}
+	// Lazy instrument caches for metrics
+	private counters = new Map<string, ReturnType<Meter["createCounter"]>>()
+	private histograms = new Map<string, ReturnType<Meter["createHistogram"]>>()
 
 	constructor() {
 		// Initialize telemetry settings
@@ -33,13 +35,17 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 
 		if (meterProvider) {
 			this.meter = meterProvider.getMeter("cline")
-			this.eventCounter = this.meter.createCounter("cline.events", {
-				description: "Count of telemetry events",
-			})
 		}
 
 		if (loggerProvider) {
 			this.logger = loggerProvider.getLogger("cline")
+		}
+
+		// Log initialization status
+		const loggerReady = !!this.logger
+		const meterReady = !!this.meter
+		if (loggerReady || meterReady) {
+			console.log(`[OTEL] Provider initialized - Logger: ${loggerReady}, Meter: ${meterReady}`)
 		}
 	}
 
@@ -69,7 +75,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		if (!this.isEnabled() || this.telemetrySettings.level === "off") {
 			return
 		}
-		console.log("[OTEL DEBUG] Logging event:", event, properties)
+
 		// Filter events based on telemetry level
 		if (this.telemetrySettings.level === "error") {
 			if (!event.includes("error")) {
@@ -77,17 +83,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			}
 		}
 
-		// Record metric
-		if (this.eventCounter) {
-			this.eventCounter.add(1, {
-				event_name: event,
-				distinct_id: getDistinctId(),
-				...this.flattenProperties(properties),
-				...this.userAttributes,
-			})
-		}
-
-		// Record log event
+		// Record log event (primary path)
 		if (this.logger) {
 			this.logger.emit({
 				severityText: "INFO",
@@ -103,16 +99,6 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 
 	public logRequired(event: string, properties?: TelemetryProperties): void {
 		// Required events always go through regardless of settings
-		if (this.eventCounter) {
-			this.eventCounter.add(1, {
-				event_name: event,
-				distinct_id: getDistinctId(),
-				_required: "true",
-				...this.flattenProperties(properties),
-				...this.userAttributes,
-			})
-		}
-
 		if (this.logger) {
 			this.logger.emit({
 				severityText: "INFO",
@@ -167,6 +153,44 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 
 	public getSettings(): TelemetrySettings {
 		return { ...this.telemetrySettings }
+	}
+
+	/**
+	 * Increment a counter metric (lazy creation).
+	 * Only creates the counter on first use if meter is available.
+	 */
+	public incrementCounter(name: string, value: number = 1, attributes?: TelemetryProperties): void {
+		if (!this.meter) {
+			return
+		}
+
+		let counter = this.counters.get(name)
+		if (!counter) {
+			counter = this.meter.createCounter(name)
+			this.counters.set(name, counter)
+			console.log(`[OTEL] Created counter: ${name}`)
+		}
+
+		counter.add(value, this.flattenProperties(attributes))
+	}
+
+	/**
+	 * Record a histogram metric (lazy creation).
+	 * Only creates the histogram on first use if meter is available.
+	 */
+	public recordHistogram(name: string, value: number, attributes?: TelemetryProperties): void {
+		if (!this.meter) {
+			return
+		}
+
+		let histogram = this.histograms.get(name)
+		if (!histogram) {
+			histogram = this.meter.createHistogram(name)
+			this.histograms.set(name, histogram)
+			console.log(`[OTEL] Created histogram: ${name}`)
+		}
+
+		histogram.record(value, this.flattenProperties(attributes))
 	}
 
 	public async dispose(): Promise<void> {
