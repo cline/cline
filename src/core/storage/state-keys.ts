@@ -38,6 +38,7 @@ export interface GlobalState {
 	workspaceRoots: WorkspaceRoot[] | undefined
 	primaryRootIndex: number
 	multiRootEnabled: boolean
+	hooksEnabled: boolean
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 }
@@ -176,7 +177,7 @@ export interface Settings {
 export interface Secrets {
 	apiKey: string | undefined
 	clineAccountId: string | undefined
-	["cline:clineAccountId"]: string | undefined // Auth_Provider:AccountId
+	"cline:clineAccountId": string | undefined // Auth_Provider:AccountId
 	openRouterApiKey: string | undefined
 	awsAccessKey: string | undefined
 	awsSecretKey: string | undefined

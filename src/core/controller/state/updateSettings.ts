@@ -291,6 +291,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
 		}
 
+		if (request.hooksEnabled !== undefined) {
+			controller.stateManager.setGlobalState("hooksEnabled", !!request.hooksEnabled)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 

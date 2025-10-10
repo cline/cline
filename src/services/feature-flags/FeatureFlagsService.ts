@@ -94,6 +94,10 @@ export class FeatureFlagsService {
 		return this.getBooleanFlagEnabled(FeatureFlag.DO_NOTHING, false)
 	}
 
+	public getHooksEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.HOOKS, false)
+	}
+
 	/**
 	 * Get the feature flag payload for advanced use cases
 	 * @param flagName The feature flag key

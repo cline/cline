@@ -1,0 +1,53 @@
+name: Auto-label Issues
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body || '';
+            const labels = context.payload.issue.labels.map(l => l.name);
+            
+            // Check if JetBrains Plugin is selected
+            if (body.match(/###\s*Plugin Type\s*\n+JetBrains Plugin/i)) {
+              if (!labels.includes('JetBrains')) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  labels: ['JetBrains']
+                });
+              }
+            }
+
+            // Check if VSCode Extension is selected
+            if (body.match(/###\s*Plugin Type\s*\n+VSCode Extension/i)) {
+              if (!labels.includes('VS Code')) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  labels: ['VS Code']
+                });
+              }
+            }
+
+            // Check if CLI is selected
+            if (body.match(/###\s*Plugin Type\s*\n+CLI/i)) {
+              if (!labels.includes('CLI')) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  labels: ['CLI']
+                });
+              }
+            }

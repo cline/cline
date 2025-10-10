@@ -18,6 +18,7 @@ service StateService {
   rpc togglePlanActModeProto(TogglePlanActModeRequest) returns (Boolean);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
+  rpc updateSettingsCli(UpdateSettingsRequestCli) returns (Empty);
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
   rpc updateInfoBannerVersion(Int64Request) returns (Empty);
@@ -311,6 +312,12 @@ message BrowserSettingsUpdate {
   optional string custom_args = 6;
 }
 
+message UpdateSettingsRequestCli {
+  Metadata metadata = 1;
+  optional Settings settings = 2;
+  optional Secrets secrets = 3;
+}
+
 // Message for updating settings
 message UpdateSettingsRequest {
   Metadata metadata = 1;
@@ -335,8 +342,9 @@ message UpdateSettingsRequest {
   optional string default_terminal_profile = 21;
   optional bool yolo_mode_toggled = 22;
   optional DictationSettings dictation_settings = 23;
-  optional int32 auto_condense_threshold = 24;
+  optional double auto_condense_threshold = 24;
   optional bool multi_root_enabled = 25;
+  optional bool hooks_enabled = 26;
 }
 
 // Complete API Configuration message

@@ -1,7 +1,6 @@
 import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
-import { ClineAuthProvider } from "@/services/auth/providers/ClineAuthProvider"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
@@ -55,7 +54,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
 		context.secrets.get("clineAccountId") as Promise<Secrets["clineAccountId"]>,
-		context.secrets.get(ClineAuthProvider.secretKeyId) as Promise<Secrets["cline:clineAccountId"]>,
+		context.secrets.get("cline:clineAccountId") as Promise<Secrets["cline:clineAccountId"]>,
 		context.secrets.get("awsAccessKey") as Promise<Secrets["awsAccessKey"]>,
 		context.secrets.get("awsSecretKey") as Promise<Secrets["awsSecretKey"]>,
 		context.secrets.get("awsSessionToken") as Promise<Secrets["awsSessionToken"]>,
@@ -97,7 +96,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		apiKey,
 		openRouterApiKey,
 		clineAccountId: firebaseClineAccountId,
-		[ClineAuthProvider.secretKeyId]: clineAccountId,
+		"cline:clineAccountId": clineAccountId,
 		huggingFaceApiKey,
 		huaweiCloudMaasApiKey,
 		basetenApiKey,
@@ -249,6 +248,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
 		const autoCondenseThreshold =
 			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
+		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
 
@@ -564,6 +564,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			qwenCodeOauthPath,
 			customPrompt,
 			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
+			// Hooks require explicit user opt-in
+			hooksEnabled: hooksEnabled ?? false,
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			// Multi-root workspace support

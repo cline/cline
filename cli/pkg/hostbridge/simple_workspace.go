@@ -63,3 +63,23 @@ func (s *SimpleWorkspaceService) GetDiagnostics(ctx context.Context, req *host.G
 		FileDiagnostics: []*cline.FileDiagnostics{},
 	}, nil
 }
+
+// OpenProblemsPanel opens the problems panel - no-op for console implementation
+func (s *SimpleWorkspaceService) OpenProblemsPanel(ctx context.Context, req *host.OpenProblemsPanelRequest) (*host.OpenProblemsPanelResponse, error) {
+	return &host.OpenProblemsPanelResponse{}, nil
+}
+
+// OpenInFileExplorerPanel opens a file/folder in the file explorer - no-op for console implementation
+func (s *SimpleWorkspaceService) OpenInFileExplorerPanel(ctx context.Context, req *host.OpenInFileExplorerPanelRequest) (*host.OpenInFileExplorerPanelResponse, error) {
+	return &host.OpenInFileExplorerPanelResponse{}, nil
+}
+
+// OpenClineSidebarPanel opens the Cline sidebar panel - no-op for console implementation
+func (s *SimpleWorkspaceService) OpenClineSidebarPanel(ctx context.Context, req *host.OpenClineSidebarPanelRequest) (*host.OpenClineSidebarPanelResponse, error) {
+	return &host.OpenClineSidebarPanelResponse{}, nil
+}
+
+// OpenTerminalPanel opens the terminal panel - no-op for console implementation
+func (s *SimpleWorkspaceService) OpenTerminalPanel(ctx context.Context, req *host.OpenTerminalRequest) (*host.OpenTerminalResponse, error) {
+	return &host.OpenTerminalResponse{}, nil
+}
