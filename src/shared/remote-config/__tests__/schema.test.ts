@@ -322,6 +322,7 @@ describe("Remote Config Schema", () => {
 						],
 						awsRegion: "eu-west-1",
 						awsUseCrossRegionInference: false,
+						awsUseGlobalInference: true,
 						awsBedrockUsePromptCache: true,
 						awsBedrockEndpoint: "https://custom-bedrock.endpoint",
 					},
@@ -345,6 +346,7 @@ describe("Remote Config Schema", () => {
 			expect(result.providerSettings?.AwsBedrock?.customModels).to.have.lengthOf(2)
 			expect(result.providerSettings?.AwsBedrock?.awsRegion).to.equal("eu-west-1")
 			expect(result.providerSettings?.AwsBedrock?.awsUseCrossRegionInference).to.equal(false)
+			expect(result.providerSettings?.AwsBedrock?.awsUseGlobalInference).to.equal(true)
 			expect(result.providerSettings?.AwsBedrock?.awsBedrockUsePromptCache).to.equal(true)
 			expect(result.providerSettings?.AwsBedrock?.awsBedrockEndpoint).to.equal("https://custom-bedrock.endpoint")
 		})
