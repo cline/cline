@@ -20,6 +20,15 @@ import { getOpenAiResponsesTools } from "./openai-native-tools"
 
 const DEBUG_TOOLCALLS = process.env.CLINE_EVALS_DEBUG === "1" || process.env.CLINE_DEBUG_TOOLCALLS === "1"
 
+function escapeXml(value: string): string {
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&apos;")
+}
+
 function extractReasoningText(payload: unknown): string {
 	if (!payload) {
 		return ""
@@ -488,7 +497,10 @@ export class OpenAiNativeHandler implements ApiHandler {
 	}
 
 	private async *streamResponse(stream: AsyncIterable<ResponseStreamEvent>, modelInfo: ModelInfo): ApiStream {
-		const pendingFunctionCalls = new Map<string, { name: string; callId: string; arguments: string }>()
+		const pendingFunctionCalls = new Map<
+			string,
+			{ name: string; callId: string; arguments: string; streamedAsText?: boolean; lastResultLen?: number }
+		>()
 		let toolCallCount = 0
 		let textPreview = ""
 		let reasoningBuffer = ""
@@ -498,11 +510,20 @@ export class OpenAiNativeHandler implements ApiHandler {
 					const added = event as ResponseOutputItemAddedEvent
 					if (added.item.type === "function_call") {
 						const functionCall = added.item as ResponseFunctionToolCallItem
+						const callId = functionCall.call_id || functionCall.id
+						const name = functionCall.name
+						const streamedAsText = name === "attempt_completion"
 						pendingFunctionCalls.set(functionCall.id, {
-							name: functionCall.name,
-							callId: functionCall.call_id || functionCall.id,
+							name,
+							callId,
 							arguments: "",
+							streamedAsText,
+							lastResultLen: 0,
 						})
+						if (streamedAsText) {
+							// Begin a partial tool_use block for better UI streaming of Task Completed
+							yield { type: "text", text: `<${name}><result>` }
+						}
 					}
 					break
 				}
@@ -511,6 +532,25 @@ export class OpenAiNativeHandler implements ApiHandler {
 					const pending = pendingFunctionCalls.get(deltaEvent.item_id)
 					if (pending) {
 						pending.arguments += deltaEvent.delta
+						if (pending.streamedAsText) {
+							// Try to parse JSON to extract the result field for incremental streaming
+							try {
+								const parsed = JSON.parse(pending.arguments)
+								const result = typeof parsed?.result === "string" ? parsed.result : undefined
+								if (typeof result === "string") {
+									const already = pending.lastResultLen || 0
+									if (result.length > already) {
+										const append = result.slice(already)
+										if (append.length > 0) {
+											yield { type: "text", text: escapeXml(append) }
+											pending.lastResultLen = result.length
+										}
+									}
+								}
+							} catch {
+								// ignore until parsable
+							}
+						}
 					}
 					break
 				}
@@ -519,6 +559,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					const pending = pendingFunctionCalls.get(doneEvent.item_id)
 					const functionName = pending?.name || "function_call"
 					const args = doneEvent.arguments || pending?.arguments || ""
+					const streamedAsText = pending?.streamedAsText === true
 					let parsedArguments: Record<string, unknown> = {}
 					if (args) {
 						try {
@@ -528,50 +569,55 @@ export class OpenAiNativeHandler implements ApiHandler {
 							parsedArguments = {}
 						}
 					}
-					const baseArgs = this.normalizeToolArguments(parsedArguments)
-					let toolName = functionName
-					let toolArgs = baseArgs.args
-					let toolRawArgs = baseArgs.raw === "{}" && args ? args : baseArgs.raw
-					if (!toolRawArgs || toolRawArgs.length === 0) {
-						toolRawArgs = args
-					}
-					if (functionName === "call_tool") {
-						const maybeToolName = (parsedArguments as any)?.tool_name || (parsedArguments as any)?.toolName
-						const maybeArgs = (parsedArguments as any)?.arguments
-						if (typeof maybeToolName === "string" && maybeToolName.length > 0) {
-							toolName = maybeToolName
+					if (streamedAsText) {
+						// Close the partial XML block for attempt_completion
+						yield { type: "text", text: `</result></${functionName}>` }
+					} else {
+						const baseArgs = this.normalizeToolArguments(parsedArguments)
+						let toolName = functionName
+						let toolArgs = baseArgs.args
+						let toolRawArgs = baseArgs.raw === "{}" && args ? args : baseArgs.raw
+						if (!toolRawArgs || toolRawArgs.length === 0) {
+							toolRawArgs = args
 						}
-						const normalizedCallArgs = this.normalizeToolArguments(maybeArgs)
-						if (Object.keys(normalizedCallArgs.args).length > 0) {
-							toolArgs = normalizedCallArgs.args
-							toolRawArgs = normalizedCallArgs.raw
-						} else if (typeof maybeArgs === "string" && maybeArgs.trim().length > 0) {
-							toolRawArgs = maybeArgs
-							toolArgs = {}
-						} else {
-							toolArgs = {}
-							toolRawArgs = "{}"
+						if (functionName === "call_tool") {
+							const maybeToolName = (parsedArguments as any)?.tool_name || (parsedArguments as any)?.toolName
+							const maybeArgs = (parsedArguments as any)?.arguments
+							if (typeof maybeToolName === "string" && maybeToolName.length > 0) {
+								toolName = maybeToolName
+							}
+							const normalizedCallArgs = this.normalizeToolArguments(maybeArgs)
+							if (Object.keys(normalizedCallArgs.args).length > 0) {
+								toolArgs = normalizedCallArgs.args
+								toolRawArgs = normalizedCallArgs.raw
+							} else if (typeof maybeArgs === "string" && maybeArgs.trim().length > 0) {
+								toolRawArgs = maybeArgs
+								toolArgs = {}
+							} else {
+								toolArgs = {}
+								toolRawArgs = "{}"
+							}
 						}
-					}
-					toolArgs = this.sanitizeToolArguments(toolName, toolArgs)
-					try {
-						toolRawArgs = JSON.stringify(toolArgs)
-					} catch {
-						// keep previous raw string
-					}
-					yield {
-						type: "tool_call",
-						callId: pending?.callId || doneEvent.item_id,
-						name: toolName,
-						arguments: toolArgs,
-						rawArguments: toolRawArgs,
-					}
-					if (DEBUG_TOOLCALLS && toolName !== "replace_in_file") {
+						toolArgs = this.sanitizeToolArguments(toolName, toolArgs)
 						try {
-							console.warn("[OpenAI Responses][debug] stream: non-replace_in_file", { name: toolName })
-						} catch {}
+							toolRawArgs = JSON.stringify(toolArgs)
+						} catch {
+							// keep previous raw string
+						}
+						yield {
+							type: "tool_call",
+							callId: pending?.callId || doneEvent.item_id,
+							name: toolName,
+							arguments: toolArgs,
+							rawArguments: toolRawArgs,
+						}
+						if (DEBUG_TOOLCALLS && toolName !== "replace_in_file") {
+							try {
+								console.warn("[OpenAI Responses][debug] stream: non-replace_in_file", { name: toolName })
+							} catch {}
+						}
+						toolCallCount++
 					}
-					toolCallCount++
 					pendingFunctionCalls.delete(doneEvent.item_id)
 					break
 				}
