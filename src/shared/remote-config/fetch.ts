@@ -17,7 +17,6 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig> {
 
 	// Get the active organization ID
 	const organizationId = authService.getActiveOrganizationId()
-	console.log("[fetchRemoteConfig] Active organization ID:", organizationId)
 	if (!organizationId) {
 		throw new Error("No active organization found")
 	}
@@ -68,9 +67,6 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig> {
 			throw new Error(`No config data returned from ${endpoint}`)
 		}
 
-		// Log raw response for debugging
-		console.log("[fetchRemoteConfig] Raw API response:", JSON.stringify(configData, null, 2))
-
 		// Validate against schema
 		const validatedConfig = RemoteConfigSchema.parse(configData)
 
@@ -84,7 +80,6 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig> {
 		// Try to fall back to cached config
 		const cachedConfig = await readRemoteConfigFromCache(organizationId)
 		if (cachedConfig) {
-			console.log("Using cached remote config for organization:", organizationId)
 			// Validate cached config against schema
 			return RemoteConfigSchema.parse(cachedConfig)
 		}
