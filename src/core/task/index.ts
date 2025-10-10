@@ -2,6 +2,7 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
+import { formatToolCallXml } from "@core/api/transform/tool-call"
 import { parseAssistantMessageV2 } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
@@ -2060,6 +2061,7 @@ export class Task {
 			let didReceiveUsageChunk = false
 			try {
 				for await (const chunk of stream) {
+					console.warn("[Cline Task] stream chunk", chunk)
 					if (!chunk) {
 						continue
 					}
@@ -2080,6 +2082,19 @@ export class Task {
 								await this.say("reasoning", reasoningMessage, undefined, undefined, true)
 							}
 							break
+						case "tool_call": {
+							const xml = formatToolCallXml(chunk.name, chunk.rawArguments)
+							if (xml) {
+								assistantMessage += xml
+								const prevLength = this.taskState.assistantMessageContent.length
+								this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
+								if (this.taskState.assistantMessageContent.length > prevLength) {
+									this.taskState.userMessageContentReady = false
+								}
+								this.presentAssistantMessage()
+							}
+							break
+						}
 						case "text": {
 							if (reasoningMessage && assistantMessage.length === 0) {
 								// complete reasoning message

@@ -1,3 +1,4 @@
+import { ModelFamily } from "@/shared/prompts"
 import type { ClineDefaultTool } from "@/shared/tools"
 import { getModelFamily } from "../"
 import { ClineToolSet } from "../registry/ClineToolSet"
@@ -156,10 +157,10 @@ export class PromptBuilder {
 	}
 
 	public static tool(config: ClineToolSpec, registry: ClineDefaultTool[], context: SystemPromptContext): string {
-		// Skip tools without parameters or description - those are placeholder tools
 		if (!config.parameters?.length && !config.description?.length) {
 			return ""
 		}
+		const useJson = getModelFamily(context.providerInfo) === ModelFamily.GPT_5
 		const title = `## ${config.id}`
 		const description = [`Description: ${config.description}`]
 
@@ -193,12 +194,17 @@ export class PromptBuilder {
 			description.push(...additionalDesc)
 		}
 
-		// Build prompt sections efficiently
+		// For GPT-5 with function calling, avoid including parameters/usage formatting in the prompt
+		if (useJson) {
+			return [title, description.join("\n")].join("\n")
+		}
+
+		// Build prompt sections for legacy models
 		const sections = [
 			title,
 			description.join("\n"),
 			PromptBuilder.buildParametersSection(filteredParams),
-			PromptBuilder.buildUsageSection(config.id, filteredParams),
+			PromptBuilder.buildUsageSection(config.id, filteredParams, useJson),
 		]
 
 		return sections.filter(Boolean).join("\n")
@@ -217,16 +223,27 @@ export class PromptBuilder {
 		return ["Parameters:", ...paramList].join("\n")
 	}
 
-	private static buildUsageSection(toolId: string, params: any[]): string {
+	private static buildUsageSection(toolId: string, params: any[], useJson: boolean): string {
+		if (useJson) {
+			const argsObject: Record<string, string> = {}
+			for (const param of params) {
+				const usage = param.usage || (param.required ? `<${param.name} value>` : "")
+				if (usage) {
+					argsObject[param.name] = usage
+				}
+			}
+			const jsonArguments = JSON.stringify(argsObject, null, 2) || "{}"
+			return [`Usage:`, `Tool: ${toolId}`, `Arguments:`, jsonArguments].join("\n")
+		}
+
 		const usageSection = ["Usage:"]
 		const usageTag = `<${toolId}>`
 		const usageEndTag = `</${toolId}>`
 
 		usageSection.push(usageTag)
 
-		// Add parameter usage tags
 		for (const param of params) {
-			const usage = param.usage || ""
+			const usage = param.usage || (param.required ? "Value here" : "")
 			usageSection.push(`<${param.name}>${usage}</${param.name}>`)
 		}
 

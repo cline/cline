@@ -64,6 +64,7 @@ export type ConstructSystemPromptFn = (
 
 export interface TestResult {
 	success: boolean
+	filePath?: string
 	streamResult?: {
 		assistantMessage: string
 		reasoningMessage: string
@@ -91,6 +92,8 @@ export interface TestResult {
 export interface ExtractedToolCall {
 	name: ClineDefaultTool
 	input: Partial<Record<ToolParamName, string>>
+	callId?: string
+	rawArguments?: string
 }
 
 export interface TestInput {

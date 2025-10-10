@@ -188,22 +188,25 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 	}
 
 	if (openAiMessage.tool_calls && openAiMessage.tool_calls.length > 0) {
-		anthropicMessage.content.push(
-			...openAiMessage.tool_calls.map((toolCall): Anthropic.ToolUseBlock => {
-				let parsedInput = {}
-				try {
-					parsedInput = JSON.parse(toolCall.function.arguments || "{}")
-				} catch (error) {
-					console.error("Failed to parse tool arguments:", error)
-				}
-				return {
-					type: "tool_use",
-					id: toolCall.id,
-					name: toolCall.function.name,
-					input: parsedInput,
-				}
-			}),
-		)
+		const functionCalls = openAiMessage.tool_calls.filter((tc: any) => tc?.type === "function" && tc.function)
+		if (functionCalls.length > 0) {
+			anthropicMessage.content.push(
+				...functionCalls.map((toolCall: any): Anthropic.ToolUseBlock => {
+					let parsedInput = {}
+					try {
+						parsedInput = JSON.parse(toolCall.function?.arguments || "{}")
+					} catch (error) {
+						console.error("Failed to parse tool arguments:", error)
+					}
+					return {
+						type: "tool_use",
+						id: toolCall.id,
+						name: toolCall.function?.name || "",
+						input: parsedInput,
+					}
+				}),
+			)
+		}
 	}
 	return anthropicMessage
 }

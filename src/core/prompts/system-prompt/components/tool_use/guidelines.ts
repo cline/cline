@@ -1,3 +1,4 @@
+import { ModelFamily } from "@/shared/prompts"
 import { TemplateEngine } from "../../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../../types"
 
@@ -22,6 +23,19 @@ It is crucial to proceed step-by-step, waiting for the user's message after each
 
 By waiting for and carefully considering the user's response after each tool use, you can react accordingly and make informed decisions about how to proceed with the task. This iterative process helps ensure the overall success and accuracy of your work.`
 
-export async function getToolUseGuidelinesSection(_variant: PromptVariant, context: SystemPromptContext): Promise<string> {
-	return new TemplateEngine().resolve(TOOL_USE_GUIDELINES_TEMPLATE_TEXT, context, {})
+const GPT5_TOOL_USE_GUIDELINES_TEMPLATE_TEXT = `# Tool Use Guidelines
+
+1. Use <thinking> tags to reason about what you already know and what information you still need.
+2. Pick the tool that best advances the task. Prefer tools like list_files or search_files over ad-hoc shell commands when they provide richer structure.
+3. Call only one tool per message. Wait for the platform's response before deciding on the next step.
+4. Use the platform's function-calling interface for tools. Do not attempt to format tool invocations in text.
+5. The user will respond with the tool result (success, failure, errors, console output, etc.). Use that feedback to decide the next step.
+6. Always wait for confirmation after each tool call. Never assume success without explicit feedback.
+
+Progress is iterative: confirm each step, handle issues immediately, and adapt based on new information so each action builds on a confirmed foundation.`
+
+export async function getToolUseGuidelinesSection(variant: PromptVariant, context: SystemPromptContext): Promise<string> {
+	const template =
+		variant.family === ModelFamily.GPT_5 ? GPT5_TOOL_USE_GUIDELINES_TEMPLATE_TEXT : TOOL_USE_GUIDELINES_TEMPLATE_TEXT
+	return new TemplateEngine().resolve(template, context, {})
 }

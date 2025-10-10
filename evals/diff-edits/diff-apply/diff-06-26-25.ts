@@ -19,6 +19,60 @@ const LEGACY_REPLACE_BLOCK_END_REGEX = /^[>]{3,} REPLACE>?$/
 // Similarity thresholds for block anchor fallback matching
 const SINGLE_CANDIDATE_SIMILARITY_THRESHOLD = 0.0
 const MULTIPLE_CANDIDATES_SIMILARITY_THRESHOLD = 0.0
+// Minimal HTML entity decoding for SEARCH text produced by models
+function decodeHtmlEntities(value: string): string {
+    return value
+        .replace(/&quot;/g, '"')
+        .replace(/&#34;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'")
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+}
+
+export function normalizeJsonStringValue(value: string): string {
+	let candidate = value.trim()
+	if (!candidate) {
+		return ""
+	}
+	if (candidate.endsWith(",")) {
+		candidate = candidate.slice(0, -1).trimEnd()
+	}
+	if (candidate.startsWith('"') && candidate.endsWith('"')) {
+		try {
+			const parsed = JSON.parse(candidate)
+			candidate = typeof parsed === "string" ? parsed : candidate.slice(1, -1)
+		} catch {
+			candidate = candidate.slice(1, -1)
+		}
+	}
+	candidate = candidate.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "\r")
+	candidate = candidate.replace(/\\"/g, '"').replace(/\\\\/g, "\\")
+	if (candidate.endsWith("\n")) {
+		candidate = candidate.replace(/\n+$/g, "")
+	}
+	candidate = candidate.trimEnd()
+	return candidate
+}
+
+export function normalizeLineForComparison(line: string): string {
+	if (!line) {
+		return ""
+	}
+	return normalizeJsonStringValue(line.trim())
+}
+
+export function linesLooselyEqual(a: string, b: string): boolean {
+	if (a === b) {
+		return true
+	}
+	if (a.trim() === b.trim()) {
+		return true
+	}
+	return normalizeLineForComparison(a) === normalizeLineForComparison(b)
+}
+
 
 /**
  * Levenshtein distance algorithm implementation
@@ -86,10 +140,10 @@ function lineTrimmedFallbackMatch(originalContent: string, searchContent: string
 
 		// Try to match all search lines from this position
 		for (let j = 0; j < searchLines.length; j++) {
-			const originalTrimmed = originalLines[i + j].trim()
-			const searchTrimmed = searchLines[j].trim()
+			const originalLine = originalLines[i + j]
+			const searchLine = searchLines[j]
 
-			if (originalTrimmed !== searchTrimmed) {
+			if (!linesLooselyEqual(originalLine, searchLine)) {
 				matches = false
 				break
 			}
@@ -146,6 +200,7 @@ function lineTrimmedFallbackMatch(originalContent: string, searchContent: string
 function blockAnchorFallbackMatch(originalContent: string, searchContent: string, startIndex: number): [number, number, number] | false {
 	const originalLines = originalContent.split("\n")
 	const searchLines = searchContent.split("\n")
+	const normalizedSearchLines = searchLines.map(normalizeLineForComparison)
 
 	// Only use this approach for blocks of 3+ lines
 	if (searchLines.length < 3) {
@@ -155,10 +210,11 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 	// Trim trailing empty line if exists
 	if (searchLines[searchLines.length - 1] === "") {
 		searchLines.pop()
+		normalizedSearchLines.pop()
 	}
 
-	const firstLineSearch = searchLines[0].trim()
-	const lastLineSearch = searchLines[searchLines.length - 1].trim()
+	const firstLineSearch = searchLines[0]
+	const lastLineSearch = searchLines[searchLines.length - 1]
 	const searchBlockSize = searchLines.length
 
 	// Find the line number where startIndex falls
@@ -172,7 +228,9 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 	// Collect all candidate positions
 	const candidates: number[] = []
 	for (let i = startLineNum; i <= originalLines.length - searchBlockSize; i++) {
-		if (originalLines[i].trim() === firstLineSearch && originalLines[i + searchBlockSize - 1].trim() === lastLineSearch) {
+		const candidateFirst = originalLines[i]
+		const candidateLast = originalLines[i + searchBlockSize - 1]
+		if (linesLooselyEqual(candidateFirst, firstLineSearch) && linesLooselyEqual(candidateLast, lastLineSearch)) {
 			candidates.push(i)
 		}
 	}
@@ -185,24 +243,13 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 	// Handle single candidate scenario (using relaxed threshold)
 	if (candidates.length === 1) {
 		const i = candidates[0]
-		let similarity = 0
-		let linesToCheck = searchBlockSize - 2
-
-		for (let j = 1; j < searchBlockSize - 1; j++) {
-			const originalLine = originalLines[i + j].trim()
-			const searchLine = searchLines[j].trim()
-			const maxLen = Math.max(originalLine.length, searchLine.length)
-			if (maxLen === 0) {
-				continue
-			}
-			const distance = levenshtein(originalLine, searchLine)
-			similarity += (1 - distance / maxLen) / linesToCheck
-
-			// Exit early when threshold is reached
-			if (similarity >= SINGLE_CANDIDATE_SIMILARITY_THRESHOLD) {
-				break
-			}
-		}
+		const candidateBlock = originalLines
+			.slice(i, i + searchBlockSize)
+			.map(normalizeLineForComparison)
+			.join("\n")
+		const searchBlock = normalizedSearchLines.join("\n")
+		const blockMaxLen = Math.max(candidateBlock.length, searchBlock.length)
+		const similarity = blockMaxLen === 0 ? 1 : 1 - levenshtein(candidateBlock, searchBlock) / blockMaxLen
 
 		if (similarity >= SINGLE_CANDIDATE_SIMILARITY_THRESHOLD) {
 			let matchStartIndex = 0
@@ -221,20 +268,15 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 	// Calculate similarity for multiple candidates
 	let bestMatchIndex = -1
 	let maxSimilarity = -1
+	const searchBlock = normalizedSearchLines.join("\n")
 
 	for (const i of candidates) {
-		let similarity = 0
-		for (let j = 1; j < searchBlockSize - 1; j++) {
-			const originalLine = originalLines[i + j].trim()
-			const searchLine = searchLines[j].trim()
-			const maxLen = Math.max(originalLine.length, searchLine.length)
-			if (maxLen === 0) {
-				continue
-			}
-			const distance = levenshtein(originalLine, searchLine)
-			similarity += 1 - distance / maxLen
-		}
-		similarity /= searchBlockSize - 2 // Average similarity
+		const candidateBlock = originalLines
+			.slice(i, i + searchBlockSize)
+			.map(normalizeLineForComparison)
+			.join("\n")
+		const blockMaxLen = Math.max(candidateBlock.length, searchBlock.length)
+		const similarity = blockMaxLen === 0 ? 1 : 1 - levenshtein(candidateBlock, searchBlock) / blockMaxLen
 
 		if (similarity > maxSimilarity) {
 			maxSimilarity = similarity
@@ -243,7 +285,7 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 	}
 
 	// Threshold judgment
-	if (maxSimilarity >= MULTIPLE_CANDIDATES_SIMILARITY_THRESHOLD) {
+	if (maxSimilarity >= MULTIPLE_CANDIDATES_SIMILARITY_THRESHOLD && bestMatchIndex !== -1) {
 		const i = bestMatchIndex
 		let matchStartIndex = 0
 		for (let k = 0; k < i; k++) {
@@ -350,6 +392,8 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 		matchedText: string;
 	}>;
 }> {
+	diffContent = diffContent.replace(/\r\n/g, "\n")
+	originalContent = originalContent.replace(/\r\n/g, "\n")
 	let result = ""
 	let lastProcessedIndex = 0
 
@@ -438,31 +482,48 @@ async function constructNewFileContentV1(diffContent: string, originalContent: s
 				// 	)
 				// }
 
-				// Exact search match scenario
-				const exactIndex = originalContent.indexOf(currentSearchContent, lastProcessedIndex)
+				const decodedSearch = decodeHtmlEntities(currentSearchContent)
+				const searchVariants = Array.from(
+					new Set([
+						decodedSearch,
+						decodedSearch.replace(/\r\n/g, "\n"),
+						decodedSearch.replace(/\n/g, "\r\n"),
+					]),
+				)
+				let exactIndex = -1
+				let matchedVariant = ""
+				for (const variant of searchVariants) {
+					if (!variant) {
+						continue
+					}
+					const candidateIndex = originalContent.indexOf(variant, lastProcessedIndex)
+					if (candidateIndex !== -1) {
+						exactIndex = candidateIndex
+						matchedVariant = variant
+						break
+					}
+				}
+
 				if (exactIndex !== -1) {
 					searchMatchIndex = exactIndex
-					searchEndIndex = exactIndex + currentSearchContent.length
-					matchMethod = "exact_match"
+					searchEndIndex = exactIndex + matchedVariant.length
+					matchMethod = matchedVariant === decodedSearch ? "exact_match" : "exact_match_normalized"
 				} else {
-					// Attempt fallback line-trimmed matching
-					const lineMatch = lineTrimmedFallbackMatch(originalContent, currentSearchContent, lastProcessedIndex)
+					const fallbackSearch = decodedSearch.replace(/\r\n/g, "\n")
+					const lineMatch = lineTrimmedFallbackMatch(originalContent, fallbackSearch, lastProcessedIndex)
 					if (lineMatch) {
 						;[searchMatchIndex, searchEndIndex] = lineMatch
 						matchMethod = "line_trimmed_fallback"
 					} else {
-						// Try block anchor fallback for larger blocks
-						const blockMatch = blockAnchorFallbackMatch(originalContent, currentSearchContent, lastProcessedIndex)
+						const blockMatch = blockAnchorFallbackMatch(originalContent, fallbackSearch, lastProcessedIndex)
 						if (blockMatch) {
 							;[searchMatchIndex, searchEndIndex, similarityScore] = blockMatch
 							matchMethod = "block_anchor_fallback"
 						} else {
-							// Last resort: search the entire file from the beginning
-							const fullFileIndex = originalContent.indexOf(currentSearchContent, 0)
+							const fullFileIndex = originalContent.indexOf(fallbackSearch, 0)
 							if (fullFileIndex !== -1) {
-								// Found in the file - could be out of order
 								searchMatchIndex = fullFileIndex
-								searchEndIndex = fullFileIndex + currentSearchContent.length
+								searchEndIndex = fullFileIndex + fallbackSearch.length
 								matchMethod = "full_file_search"
 								if (searchMatchIndex < lastProcessedIndex) {
 									pendingOutOfOrderReplacement = true
@@ -791,27 +852,37 @@ class NewFileContentConstructor {
 			// 			"2. Make focused changes to specific parts of the file that need modification.",
 			// 	)
 			// }
-			// Exact search match scenario
-			const exactIndex = this.originalContent.indexOf(this.currentSearchContent, this.lastProcessedIndex)
+			const decodedSearch = decodeHtmlEntities(this.currentSearchContent)
+			const searchVariants = Array.from(
+				new Set([
+					decodedSearch,
+					decodedSearch.replace(/\r\n/g, "\n"),
+					decodedSearch.replace(/\n/g, "\r\n"),
+				]),
+			)
+			let exactIndex = -1
+			let matchedVariant = ""
+			for (const variant of searchVariants) {
+				if (!variant) {
+					continue
+				}
+				const candidateIndex = this.originalContent.indexOf(variant, this.lastProcessedIndex)
+				if (candidateIndex !== -1) {
+					exactIndex = candidateIndex
+					matchedVariant = variant
+					break
+				}
+			}
 			if (exactIndex !== -1) {
 				this.searchMatchIndex = exactIndex
-				this.searchEndIndex = exactIndex + this.currentSearchContent.length
+				this.searchEndIndex = exactIndex + matchedVariant.length
 			} else {
-				// Attempt fallback line-trimmed matching
-				const lineMatch = lineTrimmedFallbackMatch(
-					this.originalContent,
-					this.currentSearchContent,
-					this.lastProcessedIndex,
-				)
+				const fallbackSearch = decodedSearch.replace(/\r\n/g, "\n")
+				const lineMatch = lineTrimmedFallbackMatch(this.originalContent, fallbackSearch, this.lastProcessedIndex)
 				if (lineMatch) {
 					;[this.searchMatchIndex, this.searchEndIndex] = lineMatch
 				} else {
-					// Try block anchor fallback for larger blocks
-					const blockMatch = blockAnchorFallbackMatch(
-						this.originalContent,
-						this.currentSearchContent,
-						this.lastProcessedIndex,
-					)
+					const blockMatch = blockAnchorFallbackMatch(this.originalContent, fallbackSearch, this.lastProcessedIndex)
 					if (blockMatch) {
 						;[this.searchMatchIndex, this.searchEndIndex, /* ignore similarity */] = blockMatch
 					} else {
@@ -930,6 +1001,8 @@ class NewFileContentConstructor {
 }
 
 export async function constructNewFileContentV2(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
+	diffContent = diffContent.replace(/\r\n/g, "\n")
+	originalContent = originalContent.replace(/\r\n/g, "\n")
 	let newFileContentConstructor = new NewFileContentConstructor(originalContent, isFinal)
 
 	let lines = diffContent.split("\n")
