@@ -9,16 +9,16 @@ import { RemoteConfig, RemoteConfigSchema } from "./schema"
  * Fetches remote configuration for the active organization from the API.
  * Falls back to cached config if the request fails.
  *
- * @returns Promise resolving to the RemoteConfig object
- * @throws Error if no active organization exists or if both API fetch and cache retrieval fail
+ * @returns Promise resolving to the RemoteConfig object, or undefined if no active organization exists
+ * @throws Error if both API fetch and cache retrieval fail (when an organization exists)
  */
-export async function fetchRemoteConfig(): Promise<RemoteConfig> {
+export async function fetchRemoteConfig(): Promise<RemoteConfig | undefined> {
 	const authService = AuthService.getInstance()
 
 	// Get the active organization ID
 	const organizationId = authService.getActiveOrganizationId()
 	if (!organizationId) {
-		throw new Error("No active organization found")
+		return undefined
 	}
 
 	try {
@@ -40,7 +40,11 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig> {
 			},
 		}
 
-		const response: AxiosResponse<{ data?: RemoteConfig; error: string; success: boolean }> = await axios.request({
+		const response: AxiosResponse<{
+			data?: { Value: string; Enabled: boolean }
+			error: string
+			success: boolean
+		}> = await axios.request({
 			url,
 			method: "GET",
 			...requestConfig,
@@ -67,8 +71,16 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig> {
 			throw new Error(`No config data returned from ${endpoint}`)
 		}
 
+		// Check if config is enabled
+		if (!configData.Enabled) {
+			return undefined
+		}
+
+		// Parse the JSON-encoded Value field
+		const parsedConfig = JSON.parse(configData.Value)
+
 		// Validate against schema
-		const validatedConfig = RemoteConfigSchema.parse(configData)
+		const validatedConfig = RemoteConfigSchema.parse(parsedConfig)
 
 		// Write to cache
 		await writeRemoteConfigToCache(organizationId, validatedConfig)
