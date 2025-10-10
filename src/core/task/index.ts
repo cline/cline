@@ -31,6 +31,7 @@ import {
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 } from "@core/storage/disk"
+import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkpoints/factory"
 import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializer"
@@ -68,7 +69,6 @@ import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { ErrorService } from "@/services/error"
-import { featureFlagsService } from "@/services/feature-flags"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { isInTestMode } from "../../services/test/TestMode"
@@ -258,45 +258,57 @@ export class Task {
 			})
 		}
 
-		// Initialize checkpoint manager based on workspace configuration
-		try {
-			this.checkpointManager = buildCheckpointManager({
-				taskId: this.taskId,
-				messageStateHandler: this.messageStateHandler,
-				fileContextTracker: this.fileContextTracker,
-				diffViewProvider: this.diffViewProvider,
-				taskState: this.taskState,
-				workspaceManager: this.workspaceManager,
-				updateTaskHistory: this.updateTaskHistory,
-				say: this.say.bind(this),
-				cancelTask: this.cancelTask,
-				postStateToWebview: this.postStateToWebview,
-				initialConversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
-				initialCheckpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
-				stateManager: this.stateManager,
-			})
+		// Check for multiroot workspace and warn about checkpoints
+		const isMultiRootWorkspace = this.workspaceManager && this.workspaceManager.getRoots().length > 1
+		const checkpointsEnabled = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
 
-			// If multi-root, kick off non-blocking initialization
-			if (
-				shouldUseMultiRoot({
+		if (isMultiRootWorkspace && checkpointsEnabled) {
+			// Set checkpoint manager error message to display warning in TaskHeader
+			this.taskState.checkpointManagerErrorMessage = "Checkpoints are not currently supported in multi-root workspaces."
+		}
+
+		// Initialize checkpoint manager based on workspace configuration
+		if (!isMultiRootWorkspace) {
+			try {
+				this.checkpointManager = buildCheckpointManager({
+					taskId: this.taskId,
+					messageStateHandler: this.messageStateHandler,
+					fileContextTracker: this.fileContextTracker,
+					diffViewProvider: this.diffViewProvider,
+					taskState: this.taskState,
 					workspaceManager: this.workspaceManager,
-					enableCheckpoints: this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting"),
-					isMultiRootEnabled: featureFlagsService.getMultiRootEnabled(),
+					updateTaskHistory: this.updateTaskHistory,
+					say: this.say.bind(this),
+					cancelTask: this.cancelTask,
+					postStateToWebview: this.postStateToWebview,
+					initialConversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+					initialCheckpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
+					stateManager: this.stateManager,
 				})
-			) {
-				this.checkpointManager.initialize?.().catch((error: Error) => {
-					console.error("Failed to initialize multi-root checkpoint manager:", error)
-					this.taskState.checkpointManagerErrorMessage = error?.message || String(error)
-				})
-			}
-		} catch (error) {
-			console.error("Failed to initialize checkpoint manager:", error)
-			if (this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")) {
-				const errorMessage = error instanceof Error ? error.message : "Unknown error"
-				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: `Failed to initialize checkpoint manager: ${errorMessage}`,
-				})
+
+				// If multi-root, kick off non-blocking initialization
+				// Unreachable for now, leaving in for future multi-root checkpoint support
+				if (
+					shouldUseMultiRoot({
+						workspaceManager: this.workspaceManager,
+						enableCheckpoints: this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting"),
+						stateManager: this.stateManager,
+					})
+				) {
+					this.checkpointManager.initialize?.().catch((error: Error) => {
+						console.error("Failed to initialize multi-root checkpoint manager:", error)
+						this.taskState.checkpointManagerErrorMessage = error?.message || String(error)
+					})
+				}
+			} catch (error) {
+				console.error("Failed to initialize checkpoint manager:", error)
+				if (this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")) {
+					const errorMessage = error instanceof Error ? error.message : "Unknown error"
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `Failed to initialize checkpoint manager: ${errorMessage}`,
+					})
+				}
 			}
 		}
 
@@ -396,7 +408,7 @@ export class Task {
 			this.taskId,
 			this.ulid,
 			this.workspaceManager,
-			featureFlagsService.getMultiRootEnabled(),
+			isMultiRootEnabled(this.stateManager),
 			this.say.bind(this),
 			this.ask.bind(this),
 			this.saveCheckpointCallback.bind(this),
@@ -1346,8 +1358,8 @@ export class Task {
 
 		// Prepare multi-root workspace information if enabled
 		let workspaceRoots: Array<{ path: string; name: string; vcs?: string }> | undefined
-		const isMultiRootEnabled = featureFlagsService.getMultiRootEnabled()
-		if (isMultiRootEnabled && this.workspaceManager) {
+		const multiRootEnabled = isMultiRootEnabled(this.stateManager)
+		if (multiRootEnabled && this.workspaceManager) {
 			workspaceRoots = this.workspaceManager.getRoots().map((root) => ({
 				path: root.path,
 				name: root.name || path.basename(root.path), // Fallback to basename if name is undefined
@@ -1371,7 +1383,7 @@ export class Task {
 			preferredLanguageInstructions,
 			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
-			isMultiRootEnabled,
+			isMultiRootEnabled: multiRootEnabled,
 			workspaceRoots,
 		}
 
@@ -2317,6 +2329,7 @@ export class Task {
 								this.cwd,
 								this.urlContentFetcher,
 								this.fileContextTracker,
+								this.workspaceManager,
 							)
 
 							// when parsing slash commands, we still want to allow the user to provide their desired context
@@ -2375,12 +2388,12 @@ export class Task {
 	 * Format workspace roots section for multi-root workspaces
 	 */
 	private formatWorkspaceRootsSection(): string {
-		const isMultiRootEnabled = featureFlagsService.getMultiRootEnabled()
+		const multiRootEnabled = isMultiRootEnabled(this.stateManager)
 		const hasWorkspaceManager = !!this.workspaceManager
 		const roots = hasWorkspaceManager ? this.workspaceManager!.getRoots() : []
 
 		// Only show workspace roots if multi-root is enabled and there are multiple roots
-		if (!isMultiRootEnabled || roots.length <= 1) {
+		if (!multiRootEnabled || roots.length <= 1) {
 			return ""
 		}
 
@@ -2418,10 +2431,10 @@ export class Task {
 	 * Format the file details header based on workspace configuration
 	 */
 	private formatFileDetailsHeader(): string {
-		const isMultiRootEnabled = featureFlagsService.getMultiRootEnabled()
+		const multiRootEnabled = isMultiRootEnabled(this.stateManager)
 		const roots = this.workspaceManager?.getRoots() || []
 
-		if (isMultiRootEnabled && roots.length > 1) {
+		if (multiRootEnabled && roots.length > 1) {
 			const primary = this.workspaceManager?.getPrimaryRoot()
 			const primaryName = this.getPrimaryWorkspaceName(primary)
 			return `\n\n# Current Working Directory (Primary: ${primaryName}) Files\n`

@@ -116,20 +116,24 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 			case ContextMenuOptionType.File:
 			case ContextMenuOptionType.Folder:
 				if (option.value) {
+					// Use label if it differs from just the basename (indicates workspace prefix or custom label)
+					const displayText =
+						option.label && option.label !== option.value.split("/").pop() ? option.label : option.value
+
 					return (
 						<>
-							<span>/</span>
-							{option.value?.startsWith("/.") && <span>.</span>}
+							{!displayText.includes(":") && <span>/</span>}
+							{displayText.startsWith("/.") && <span>.</span>}
 							<span
 								className="ph-no-capture"
 								style={{
 									whiteSpace: "nowrap",
 									overflow: "hidden",
 									textOverflow: "ellipsis",
-									direction: "rtl",
+									direction: displayText.includes(":") ? "ltr" : "rtl",
 									textAlign: "left",
 								}}>
-								{cleanPathPrefix(option.value || "") + "\u200E"}
+								{displayText.includes(":") ? displayText : cleanPathPrefix(displayText) + "\u200E"}
 							</span>
 						</>
 					)
@@ -201,51 +205,77 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						<span>Searching...</span>
 					</div>
 				)}
-				{filteredOptions.map((option, index) => (
-					<div
-						key={`${option.type}-${option.value || index}`}
-						onClick={() => isOptionSelectable(option) && onSelect(option.type, option.value)}
-						onMouseEnter={() => isOptionSelectable(option) && setSelectedIndex(index)}
-						style={{
-							padding: "8px 12px",
-							cursor: isOptionSelectable(option) ? "pointer" : "default",
-							color:
-								index === selectedIndex && isOptionSelectable(option)
-									? "var(--vscode-quickInputList-focusForeground)"
-									: "",
-							borderBottom: "1px solid var(--vscode-editorGroup-border)",
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "space-between",
-							backgroundColor:
-								index === selectedIndex && isOptionSelectable(option)
-									? "var(--vscode-quickInputList-focusBackground)"
-									: "",
-						}}>
+				{filteredOptions.map((option, index) => {
+					// Include workspace name in key for files/folders to handle duplicates across workspaces
+					const workspacePrefix = option.workspaceName ? `${option.workspaceName}:` : ""
+					const generatedKey = `${option.type}-${workspacePrefix}${option.value || index}`
+
+					return (
 						<div
+							key={generatedKey}
+							onClick={() => {
+								if (isOptionSelectable(option)) {
+									// Use label if it contains workspace prefix, otherwise use value
+									const mentionValue = option.label?.includes(":") ? option.label : option.value
+									onSelect(option.type, mentionValue)
+								}
+							}}
+							onMouseEnter={() => isOptionSelectable(option) && setSelectedIndex(index)}
 							style={{
+								padding: "8px 12px",
+								cursor: isOptionSelectable(option) ? "pointer" : "default",
+								color:
+									index === selectedIndex && isOptionSelectable(option)
+										? "var(--vscode-quickInputList-focusForeground)"
+										: "",
+								borderBottom: "1px solid var(--vscode-editorGroup-border)",
 								display: "flex",
 								alignItems: "center",
-								flex: 1,
-								minWidth: 0,
-								overflow: "hidden",
+								justifyContent: "space-between",
+								backgroundColor:
+									index === selectedIndex && isOptionSelectable(option)
+										? "var(--vscode-quickInputList-focusBackground)"
+										: "",
 							}}>
-							<i
-								className={`codicon codicon-${getIconForOption(option)}`}
+							<div
 								style={{
-									marginRight: "8px",
-									flexShrink: 0,
-									fontSize: "14px",
-								}}
-							/>
-							{renderOptionContent(option)}
-						</div>
-						{(option.type === ContextMenuOptionType.File ||
-							option.type === ContextMenuOptionType.Folder ||
-							option.type === ContextMenuOptionType.Git) &&
-							!option.value && (
+									display: "flex",
+									alignItems: "center",
+									flex: 1,
+									minWidth: 0,
+									overflow: "hidden",
+								}}>
 								<i
-									className="codicon codicon-chevron-right"
+									className={`codicon codicon-${getIconForOption(option)}`}
+									style={{
+										marginRight: "8px",
+										flexShrink: 0,
+										fontSize: "14px",
+									}}
+								/>
+								{renderOptionContent(option)}
+							</div>
+							{(option.type === ContextMenuOptionType.File ||
+								option.type === ContextMenuOptionType.Folder ||
+								option.type === ContextMenuOptionType.Git) &&
+								!option.value && (
+									<i
+										className="codicon codicon-chevron-right"
+										style={{
+											fontSize: "14px",
+											flexShrink: 0,
+											marginLeft: 8,
+										}}
+									/>
+								)}
+							{(option.type === ContextMenuOptionType.Problems ||
+								option.type === ContextMenuOptionType.Terminal ||
+								((option.type === ContextMenuOptionType.File ||
+									option.type === ContextMenuOptionType.Folder ||
+									option.type === ContextMenuOptionType.Git) &&
+									option.value)) && (
+								<i
+									className="codicon codicon-add"
 									style={{
 										fontSize: "14px",
 										flexShrink: 0,
@@ -253,23 +283,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 									}}
 								/>
 							)}
-						{(option.type === ContextMenuOptionType.Problems ||
-							option.type === ContextMenuOptionType.Terminal ||
-							((option.type === ContextMenuOptionType.File ||
-								option.type === ContextMenuOptionType.Folder ||
-								option.type === ContextMenuOptionType.Git) &&
-								option.value)) && (
-							<i
-								className="codicon codicon-add"
-								style={{
-									fontSize: "14px",
-									flexShrink: 0,
-									marginLeft: 8,
-								}}
-							/>
-						)}
-					</div>
-				))}
+						</div>
+					)
+				})}
 			</div>
 		</div>
 	)

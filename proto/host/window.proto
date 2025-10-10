@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 package host;
+option go_package = "github.com/cline/grpc-go/host";
 option java_package = "bot.cline.host.proto";
 option java_multiple_files = true;
 

@@ -8,7 +8,6 @@ import { ClineRulesToggles } from "@/shared/cline-rules"
 import { DictationSettings } from "@/shared/DictationSettings"
 import { HistoryItem } from "@/shared/HistoryItem"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
-import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { TelemetrySetting } from "@/shared/TelemetrySetting"
 import { UserInfo } from "@/shared/UserInfo"
@@ -28,7 +27,6 @@ export interface GlobalState {
 	lastShownAnnouncementId: string | undefined
 	taskHistory: HistoryItem[]
 	userInfo: UserInfo | undefined
-	mcpMarketplaceCatalog: McpMarketplaceCatalog | undefined
 	favoritedModelIds: string[]
 	mcpMarketplaceEnabled: boolean
 	mcpResponsesCollapsed: boolean
@@ -40,6 +38,7 @@ export interface GlobalState {
 	workspaceRoots: WorkspaceRoot[] | undefined
 	primaryRootIndex: number
 	multiRootEnabled: boolean
+	hooksEnabled: boolean
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 }
@@ -47,6 +46,7 @@ export interface GlobalState {
 export interface Settings {
 	awsRegion: string | undefined
 	awsUseCrossRegionInference: boolean | undefined
+	awsUseGlobalInference: boolean | undefined
 	awsBedrockUsePromptCache: boolean | undefined
 	awsBedrockEndpoint: string | undefined
 	awsProfile: string | undefined
@@ -102,6 +102,7 @@ export interface Settings {
 	difyBaseUrl: string | undefined
 	autoCondenseThreshold: number | undefined // number from 0 to 1
 	ocaBaseUrl: string | undefined
+	ocaMode: string | undefined
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -176,6 +177,7 @@ export interface Settings {
 export interface Secrets {
 	apiKey: string | undefined
 	clineAccountId: string | undefined
+	"cline:clineAccountId": string | undefined // Auth_Provider:AccountId
 	openRouterApiKey: string | undefined
 	awsAccessKey: string | undefined
 	awsSecretKey: string | undefined

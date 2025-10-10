@@ -33,6 +33,8 @@ export interface PersistenceErrorEvent {
  * Provides immediate reads/writes with async disk persistence
  */
 export class StateManager {
+	private static instance: StateManager | null = null
+
 	private globalStateCache: GlobalStateAndSettings = {} as GlobalStateAndSettings
 	private taskStateCache: Partial<Settings> = {}
 	private secretsCache: Secrets = {} as Secrets
@@ -55,31 +57,63 @@ export class StateManager {
 	// Callback to sync external state changes with the UI client
 	onSyncExternalChange?: () => void | Promise<void>
 
-	constructor(context: ExtensionContext) {
+	private constructor(context: ExtensionContext) {
 		this.context = context
 	}
 
 	/**
 	 * Initialize the cache by loading data from disk
 	 */
-	async initialize(): Promise<void> {
+	public static async initialize(context: ExtensionContext): Promise<StateManager> {
+		if (!StateManager.instance) {
+			StateManager.instance = new StateManager(context)
+		}
+
+		if (StateManager.instance.isInitialized) {
+			throw new Error("StateManager has already been initialized.")
+		}
+
 		try {
 			// Load all extension state from disk
-			const globalState = await readGlobalStateFromDisk(this.context)
-			const secrets = await readSecretsFromDisk(this.context)
-			const workspaceState = await readWorkspaceStateFromDisk(this.context)
+			const globalState = await readGlobalStateFromDisk(StateManager.instance.context)
+			const secrets = await readSecretsFromDisk(StateManager.instance.context)
+			const workspaceState = await readWorkspaceStateFromDisk(StateManager.instance.context)
 
 			// Populate the cache with all extension state and secrets fields
 			// Use populate method to avoid triggering persistence during initialization
-			this.populateCache(globalState, secrets, workspaceState)
-
-			this.isInitialized = true
+			StateManager.instance.populateCache(globalState, secrets, workspaceState)
 
 			// Start watcher for taskHistory.json so external edits update cache (no persist loop)
-			await this.setupTaskHistoryWatcher()
+			await StateManager.instance.setupTaskHistoryWatcher()
+
+			StateManager.instance.isInitialized = true
 		} catch (error) {
 			console.error("[StateManager] Failed to initialize:", error)
 			throw error
+		}
+
+		return StateManager.instance
+	}
+
+	public static get(): StateManager {
+		if (!StateManager.instance) {
+			throw new Error("StateManager has not been initialized")
+		}
+		return StateManager.instance
+	}
+
+	/**
+	 * Register callbacks for state manager events
+	 */
+	public registerCallbacks(callbacks: {
+		onPersistenceError?: (event: PersistenceErrorEvent) => void | Promise<void>
+		onSyncExternalChange?: () => void | Promise<void>
+	}): void {
+		if (callbacks.onPersistenceError) {
+			this.onPersistenceError = callbacks.onPersistenceError
+		}
+		if (callbacks.onSyncExternalChange) {
+			this.onSyncExternalChange = callbacks.onSyncExternalChange
 		}
 	}
 
@@ -354,6 +388,7 @@ export class StateManager {
 			awsSessionToken,
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsUseGlobalInference,
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
 			awsBedrockApiKey,
@@ -418,6 +453,7 @@ export class StateManager {
 			zaiApiKey,
 			requestTimeoutMs,
 			ocaBaseUrl,
+			ocaMode,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -563,6 +599,7 @@ export class StateManager {
 			// Global state updates
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsUseGlobalInference,
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
 			awsProfile,
@@ -598,6 +635,7 @@ export class StateManager {
 			difyBaseUrl,
 			qwenCodeOauthPath,
 			ocaBaseUrl,
+			ocaMode,
 		})
 
 		// Batch update secrets
@@ -691,7 +729,7 @@ export class StateManager {
 		this.dispose()
 
 		// Reinitialize from disk
-		await this.initialize()
+		await StateManager.initialize(this.context)
 
 		// If there's an active task, reload its settings
 		if (currentTaskId) {
@@ -904,6 +942,7 @@ export class StateManager {
 			awsRegion: this.taskStateCache["awsRegion"] || this.globalStateCache["awsRegion"],
 			awsUseCrossRegionInference:
 				this.taskStateCache["awsUseCrossRegionInference"] || this.globalStateCache["awsUseCrossRegionInference"],
+			awsUseGlobalInference: this.taskStateCache["awsUseGlobalInference"] || this.globalStateCache["awsUseGlobalInference"],
 			awsBedrockUsePromptCache:
 				this.taskStateCache["awsBedrockUsePromptCache"] || this.globalStateCache["awsBedrockUsePromptCache"],
 			awsBedrockEndpoint: this.taskStateCache["awsBedrockEndpoint"] || this.globalStateCache["awsBedrockEndpoint"],
@@ -946,6 +985,7 @@ export class StateManager {
 			qwenCodeOauthPath: this.taskStateCache["qwenCodeOauthPath"] || this.globalStateCache["qwenCodeOauthPath"],
 			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
 			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
+			ocaMode: this.globalStateCache["ocaMode"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.taskStateCache["planModeApiProvider"] || this.globalStateCache["planModeApiProvider"],

@@ -1,4 +1,4 @@
-import { searchWorkspaceFiles } from "@services/search/file-search"
+import { searchWorkspaceFiles, searchWorkspaceFilesMultiroot } from "@services/search/file-search"
 import { telemetryService } from "@services/telemetry"
 import { FileSearchRequest, FileSearchResults, FileSearchType } from "@shared/proto/cline/file"
 import { convertSearchResultsToProtoFileInfos } from "@shared/proto-conversions/file/search-result-conversion"
@@ -8,22 +8,10 @@ import { Controller } from ".."
 /**
  * Searches for files in the workspace with fuzzy matching
  * @param controller The controller instance
- * @param request The request containing search query and optionally a mentionsRequestId
+ * @param request The request containing search query, and optionally a mentionsRequestId and workspace_hint
  * @returns Results containing matching files/folders
  */
-export async function searchFiles(_controller: Controller, request: FileSearchRequest): Promise<FileSearchResults> {
-	const workspacePath = await getWorkspacePath()
-
-	if (!workspacePath) {
-		// Handle case where workspace path is not available
-		console.error("Error in searchFiles: No workspace path available")
-
-		// Track as a specific failure type - no workspace available
-		await telemetryService.captureMentionFailed("folder", "not_found", "No workspace path available")
-
-		return { results: [], mentionsRequestId: request.mentionsRequestId }
-	}
-
+export async function searchFiles(controller: Controller, request: FileSearchRequest): Promise<FileSearchResults> {
 	try {
 		// Map enum to string for the search service
 		let selectedTypeString: "file" | "folder" | undefined
@@ -33,13 +21,39 @@ export async function searchFiles(_controller: Controller, request: FileSearchRe
 			selectedTypeString = "folder"
 		}
 
-		// Call file search service with query from request
-		const searchResults = await searchWorkspaceFiles(
-			request.query || "",
-			workspacePath,
-			request.limit || 20, // Use default limit of 20 if not specified
-			selectedTypeString,
-		)
+		// Extract hint, ensure workspaceManager is ready, check for multiroot
+		const workspaceHint = request.workspaceHint
+		const workspaceManager = await controller.ensureWorkspaceManager()
+		const hasMultirootSupport = workspaceManager && workspaceManager.getRoots()?.length > 0
+
+		let searchResults: Array<{ path: string; type: "file" | "folder"; label?: string; workspaceName?: string }>
+
+		if (hasMultirootSupport) {
+			searchResults = await searchWorkspaceFilesMultiroot(
+				request.query || "",
+				workspaceManager,
+				request.limit || 20,
+				selectedTypeString,
+				workspaceHint,
+			)
+		} else {
+			// Legacy single workspace search
+			const workspacePath = await getWorkspacePath()
+
+			if (!workspacePath) {
+				console.error("Error in searchFiles: No workspace path available")
+				await telemetryService.captureMentionFailed("folder", "not_found", "No workspace path available")
+				return { results: [], mentionsRequestId: request.mentionsRequestId }
+			}
+
+			// Call file search service with query from request
+			searchResults = await searchWorkspaceFiles(
+				request.query || "",
+				workspacePath,
+				request.limit || 20, // Use default limit of 20 if not specified
+				selectedTypeString,
+			)
+		}
 
 		// Convert search results to proto FileInfo objects using the conversion function
 		const protoResults = convertSearchResultsToProtoFileInfos(searchResults)

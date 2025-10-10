@@ -6,9 +6,9 @@ import { AccountServiceClient } from "@/services/grpc-client"
 
 export const ClineAccountInfoCard = () => {
 	const { clineUser } = useClineAuth()
-	const { apiConfiguration, navigateToAccount } = useExtensionState()
+	const { navigateToAccount } = useExtensionState()
 
-	const user = apiConfiguration?.clineAccountId ? clineUser : undefined
+	const user = clineUser || undefined
 
 	const handleLogin = () => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
