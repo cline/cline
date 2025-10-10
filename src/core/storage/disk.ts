@@ -27,6 +27,7 @@ export const GlobalFileNames = {
 	windsurfRules: ".windsurfrules",
 	taskMetadata: "task_metadata.json",
 	mcpMarketplaceCatalog: "mcp_marketplace_catalog.json",
+	remoteConfig: (orgId: string) => `remote_config_${orgId}.json`,
 }
 
 export async function getDocumentsPath(): Promise<string> {
@@ -284,5 +285,29 @@ export async function writeTaskSettingsToStorage(taskId: string, settings: Parti
 	} catch (error) {
 		console.error("[Disk] Failed to write task settings:", error)
 		throw error
+	}
+}
+
+export async function readRemoteConfigFromCache(organizationId: string): Promise<Record<string, any> | undefined> {
+	try {
+		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
+		const fileExists = await fileExistsAtPath(remoteConfigFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(remoteConfigFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	} catch (error) {
+		console.error("Failed to read remote config from cache:", error)
+		return undefined
+	}
+}
+
+export async function writeRemoteConfigToCache(organizationId: string, config: Record<string, any>): Promise<void> {
+	try {
+		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
+		await fs.writeFile(remoteConfigFilePath, JSON.stringify(config))
+	} catch (error) {
+		console.error("Failed to write remote config to cache:", error)
 	}
 }
