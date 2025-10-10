@@ -640,17 +640,11 @@ class NodeTestRunner {
 		const ipynbNote = testCase.file_path.endsWith(".ipynb")
 			? `\n- This file is a JSON notebook. Copy the exact strings from the \"source\" arrays (including quotes, commas, and escaped newlines like \\n).\n- Replace entire string entries rather than rewriting Markdown. Ensure array brackets and commas stay valid JSON.\n- When the task asks questions, fill in the Markdown answer cells by updating the string elements in those arrays (add extra strings for answers, separated by commas).\n  Example diff pattern:\n  ------- SEARCH\n  "**#1: Question?**"\n  =======\n  "**#1: Question?**",\n  "*Your answer here*"\n  +++++++ REPLACE\n- Use your FHIR knowledge to supply concise answers even if you cannot query the API; do not leave blanks.\n- Assume the provided notebook snippet is complete—craft the diff directly without extra tooling, and emit the replace_in_file output in the same response using the project-relative notebook path.`
 			: ""
-		const seedScriptNote = testCase.file_path.endsWith("seed.ts")
-			? `\n- Keep data definitions and seeding logic consistent. Copy existing inserts into SEARCH blocks verbatim before applying changes.\n- If lookups/auxiliary tables are needed, seed them first and reference them deterministically (e.g., by a code or id).\n- Ensure inserts reflect any new relationships and maintain referential integrity.`
-			: ""
 
-		const generalizedNotes = `\n- Copy the exact current lines into SEARCH blocks (preserve whitespace, quotes, and indentation).\n- Keep REPLACE minimal and scoped to the requested change; avoid unrelated refactors.\n- Do not add fallback defaults or new variables in SEARCH; if needed, add them only in REPLACE.\n- Ensure the \`path\` matches exactly and preserve the file's indentation style and line endings.\n- When replacing mock scaffolding with real services, keep the existing UI intact and only swap the data source wiring.\n- For environment/config code, read from existing env vars; introduce fallbacks/coercion only in REPLACE if truly required.`
-
+		let generalizedNotes = `\n- Copy the exact current lines into SEARCH blocks (preserve whitespace, quotes, and indentation).\n- Keep REPLACE minimal and scoped to the requested change; avoid unrelated refactors.\n- Do not add fallback defaults or new variables in SEARCH; if needed, add them only in REPLACE.\n- Ensure the \`path\` matches exactly and preserve the file's indentation style and line endings.\n- When replacing mock scaffolding with real services, keep the existing UI intact and only swap the data source wiring.\n- For environment/config code, read from existing env vars; introduce fallbacks/coercion only in REPLACE if truly required.\n- For seed scripts, keep data definitions and seeding logic consistent: copy existing inserts verbatim into SEARCH, seed lookup/aux tables first and reference them deterministically (e.g., by a code/id), and maintain referential integrity.\n- When adding Rust unit tests, place them under \`#[cfg(test)]\` at the bottom of the file; keep tests lightweight (small configs/devices, call the entry point) and import required helper types.`
+ 
 		const extraPathNote = generalizedNotes
-		const rustModelNote = testCase.file_path.endsWith("model.rs")
-			? `\n- Add Rust unit tests using \`#[cfg(test)]\` modules at the bottom of the file when requested. Keep tests lightweight (e.g., create a tiny config, device, and call the training entry point) and import any helper types you need.`
-			: ""
-		const customSystemPrompt = `${baseSystemPrompt}${targetFileReminder}${ipynbNote}${seedScriptNote}${rustModelNote}${extraPathNote}`
+		const customSystemPrompt = `${baseSystemPrompt}${targetFileReminder}${ipynbNote}${extraPathNote}`
 
 		// messages don't include system prompt and are everything up to the first replace_in_file tool call which results in a diff edit error
 		const input: TestInput = {
