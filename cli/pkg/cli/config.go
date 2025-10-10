@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/cline/cli/pkg/cli/config"
@@ -8,6 +9,45 @@ import (
 	"github.com/cline/cli/pkg/cli/task"
 	"github.com/spf13/cobra"
 )
+
+var configManager *config.Manager
+
+func ensureConfigManager(ctx context.Context, address string) error {
+	if configManager == nil || (address != "" && configManager.GetCurrentInstance() != address) {
+		var err error
+		var instanceAddress string
+
+		if address != "" {
+			// Ensure instance exists at the specified address
+			if err := ensureInstanceAtAddress(ctx, address); err != nil {
+				return fmt.Errorf("failed to ensure instance at address %s: %w", address, err)
+			}
+			configManager, err = config.NewManager(ctx, address)
+			instanceAddress = address
+		} else {
+			// Ensure default instance exists
+			if err := global.EnsureDefaultInstance(ctx); err != nil {
+				return fmt.Errorf("failed to ensure default instance: %w", err)
+			}
+			configManager, err = config.NewManager(ctx, "")
+			if err == nil {
+				instanceAddress = configManager.GetCurrentInstance()
+			}
+		}
+
+		if err != nil {
+			return fmt.Errorf("failed to create config manager: %w", err)
+		}
+
+		// Always set the instance we're using as the default
+		registry := global.Clients.GetRegistry()
+		if err := registry.SetDefaultInstance(instanceAddress); err != nil {
+			// Log warning but don't fail - this is not critical
+			fmt.Printf("Warning: failed to set default instance: %v\n", err)
+		}
+	}
+	return nil
+}
 
 func NewConfigCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -42,16 +82,27 @@ func newConfigGetCommand() *cobra.Command {
 }
 
 func newConfigListCommand() *cobra.Command {
+	var address string
+
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"l"},
 		Short:   "List all configuration settings",
 		Long:    `List all configuration settings from the Cline instance.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return nil
+			ctx := cmd.Context()
+
+			// Ensure config manager
+			if err := ensureConfigManager(ctx, address); err != nil {
+				return err
+			}
+
+			// List settings
+			return configManager.ListSettings(ctx)
 		},
 	}
 
+	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	return cmd
 }
 

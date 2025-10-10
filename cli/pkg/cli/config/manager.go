@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/cline/cli/pkg/cli/global"
@@ -40,6 +41,11 @@ func NewManager(ctx context.Context, address string) (*Manager, error) {
 	}, nil
 }
 
+// GetCurrentInstance returns the address of the current instance
+func (m *Manager) GetCurrentInstance() string {
+	return m.clientAddress
+}
+
 func (m *Manager) UpdateSettings(ctx context.Context, settings *cline.Settings, secrets *cline.Secrets) error {
 	request := &cline.UpdateSettingsRequestCli{
 		Metadata: &cline.Metadata{},
@@ -55,5 +61,66 @@ func (m *Manager) UpdateSettings(ctx context.Context, settings *cline.Settings, 
 
 	fmt.Println("Settings updated successfully")
 	fmt.Printf("Instance: %s\n", m.clientAddress)
+	return nil
+}
+
+func (m *Manager) GetState(ctx context.Context) (map[string]interface{}, error) {
+	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get state: %w", err)
+	}
+
+	var stateData map[string]interface{}
+	if err := json.Unmarshal([]byte(state.StateJson), &stateData); err != nil {
+		return nil, fmt.Errorf("failed to parse state: %w", err)
+	}
+
+	return stateData, nil
+}
+
+func (m *Manager) ListSettings(ctx context.Context) error {
+	// Get state
+	stateData, err := m.GetState(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Subset of fields we will print the values for
+	settingsFields := []string{
+		"apiConfiguration",
+		"telemetrySetting",
+		"planActSeparateModelsSetting",
+		"enableCheckpointsSetting",
+		"mcpMarketplaceEnabled",
+		"shellIntegrationTimeout",
+		"terminalReuseEnabled",
+		"mcpResponsesCollapsed",
+		"mcpDisplayMode",
+		"terminalOutputLineLimit",
+		"mode",
+		"preferredLanguage",
+		"openaiReasoningEffort",
+		"strictPlanModeEnabled",
+		"focusChainSettings",
+		"useAutoCondense",
+		"customPrompt",
+		"browserSettings",
+		"defaultTerminalProfile",
+		"yoloModeToggled",
+		"dictationSettings",
+		"autoCondenseThreshold",
+		"autoApprovalSettings",
+	}
+
+	// Render each field using the renderer
+	for _, field := range settingsFields {
+		if value, ok := stateData[field]; ok {
+			if err := RenderField(field, value); err != nil {
+				fmt.Printf("Error rendering %s: %v\n", field, err)
+			}
+			fmt.Println()
+		}
+	}
+
 	return nil
 }
