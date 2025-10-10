@@ -18,8 +18,6 @@ var (
 )
 
 func main() {
-	ctx := context.Background()
-
 	rootCmd := &cobra.Command{
 		Use:   "cline",
 		Short: "Cline CLI - AI-powered coding assistant",
@@ -32,28 +30,11 @@ monitoring capabilities from the terminal.`,
 				return fmt.Errorf("invalid output format '%s': must be one of 'rich', 'json', or 'plain'", outputFormat)
 			}
 
-			// Initialize global config first
-			if err := global.InitializeGlobalConfig(&global.GlobalConfig{
+			return global.InitializeGlobalConfig(&global.GlobalConfig{
 				Verbose:      verbose,
 				OutputFormat: outputFormat,
 				CoreAddress:  coreAddress,
-			}); err != nil {
-				return err
-			}
-
-			// Use existing ClineClients to manage service orchestration
-			clients := global.NewClineClients(global.Config.ConfigPath)
-			if err := clients.Initialize(ctx); err != nil {
-				return fmt.Errorf("failed to initialize clients: %w", err)
-			}
-
-			// Ensure a default instance exists at the configured address
-			// This will start one with dynamic ports if it doesn't exist
-			if err := clients.EnsureInstanceAtAddress(ctx, coreAddress); err != nil {
-				return fmt.Errorf("failed to ensure instance: %w", err)
-			}
-
-			return nil
+			})
 		},
 	}
 
