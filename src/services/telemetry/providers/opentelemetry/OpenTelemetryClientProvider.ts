@@ -38,6 +38,14 @@ export class OpenTelemetryClientProvider {
 	private readonly loggerProvider: LoggerProvider | null = null
 	private readonly config: OpenTelemetryClientValidConfig | null
 
+	/**
+	 * Check if debug diagnostics are enabled.
+	 * Only log sensitive information (endpoints, headers) when in debug mode.
+	 */
+	private isDebugEnabled(): boolean {
+		return process.env.TEL_DEBUG_DIAGNOSTICS === "true" || process.env.IS_DEV === "true"
+	}
+
 	private constructor() {
 		this.config = getValidOpenTelemetryConfig()
 
@@ -46,25 +54,32 @@ export class OpenTelemetryClientProvider {
 			return
 		}
 
-		console.log("[OTEL DEBUG] ========== OpenTelemetry Initialization ==========")
-		console.log(`[OTEL DEBUG] Configuration:`)
-		console.log(`[OTEL DEBUG]   - Metrics Exporter: ${this.config.metricsExporter || "none"}`)
-		console.log(`[OTEL DEBUG]   - Logs Exporter: ${this.config.logsExporter || "none"}`)
-		console.log(`[OTEL DEBUG]   - OTLP Protocol: ${this.config.otlpProtocol || "grpc (default)"}`)
-		console.log(`[OTEL DEBUG]   - OTLP Endpoint: ${this.config.otlpEndpoint || "not set"}`)
+		const isDebugMode = this.isDebugEnabled()
+
+		// Only log endpoint in debug mode (security: avoid exposing infrastructure details)
+		if (isDebugMode) {
+			console.log("[OTEL DEBUG] ========== OpenTelemetry Initialization ==========")
+			console.log(`[OTEL DEBUG] Configuration:`)
+			console.log(`[OTEL DEBUG]   - Metrics Exporter: ${this.config.metricsExporter || "none"}`)
+			console.log(`[OTEL DEBUG]   - Logs Exporter: ${this.config.logsExporter || "none"}`)
+			console.log(`[OTEL DEBUG]   - OTLP Protocol: ${this.config.otlpProtocol || "grpc (default)"}`)
+
+			console.log(`[OTEL DEBUG]   - OTLP Endpoint: ${this.config.otlpEndpoint || "not set"}`)
+		} else {
+			console.log(`[OTEL DEBUG]   - OTLP Endpoint: ${this.config.otlpEndpoint ? "configured" : "not set"}`)
+		}
+
 		console.log(`[OTEL DEBUG]   - OTLP Insecure: ${this.config.otlpInsecure || false}`)
 		console.log(`[OTEL DEBUG]   - Metric Export Interval: ${this.config.metricExportInterval || 60000}ms`)
 
 		// Check for headers configuration (via environment variable)
 		const hasHeaders = !!process.env.OTEL_EXPORTER_OTLP_HEADERS
-		console.log(`[OTEL DEBUG]   - OTLP Headers: ${hasHeaders ? "configured" : "not set"}`)
-		if (hasHeaders) {
-			// Log header keys only (not values for security)
-			const headerKeys = process.env
-				.OTEL_EXPORTER_OTLP_HEADERS!.split(",")
-				.map((pair) => pair.split("=")[0])
-				.join(", ")
-			console.log(`[OTEL DEBUG]   - Header Keys: ${headerKeys}`)
+		if (isDebugMode && hasHeaders) {
+			// In debug mode, show that headers are configured and their total length
+			const headerLength = process.env.OTEL_EXPORTER_OTLP_HEADERS!.length
+			console.log(`[OTEL DEBUG]   - OTLP Headers: configured (length: ${headerLength})`)
+		} else {
+			console.log(`[OTEL DEBUG]   - OTLP Headers: ${hasHeaders ? "configured" : "not set"}`)
 		}
 
 		console.log("[OTEL DEBUG] ================================================")
