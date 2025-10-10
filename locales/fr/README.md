@@ -30,7 +30,7 @@ Français | <a href="https://github.com/cline/cline/blob/main/locales/es/README.
 </table>
 </div>
 
-Découvrez Cline, un assistant IA qui peut utiliser votre interface en ligne de commande et votre environnement de développment (**CLI** a**N**d **E**ditor).
+Découvrez Cline, un assistant IA qui peut utiliser votre interface en ligne de commande et votre environnement de développement (**CLI** a**N**d **E**ditor).
 
 Grâce [aux capacités agentiques de Claude Sonnet](https://www.anthropic.com/claude/sonnet), Cline peut gérer des tâches de développement logiciel complexes étape par étape. Avec des outils qui lui permettent de créer et d'éditer des fichiers, d'explorer de grands projets, d'utiliser le navigateur et d'exécuter des commandes dans le terminal (après avoir obtenu votre autorisation), il peut vous aider de façons qui dépassent le complétion de code ou le support technique. Cline peut même utiliser le Model Context Protocol (MCP) pour créer de nouveaux outils et étendre ses propres capacités. Bien que les scripts IA autonomes fonctionnent traditionnellement dans des environnements sandboxés, cette extension fournit une interface graphique humaine pour approuver chaque modification de fichier et chaque commande de terminal, fournissant ainsi un moyen sûr et accessible pour explorer le potentiel de l'IA agente.
 
