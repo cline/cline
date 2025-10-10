@@ -1,7 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { APIError, OpenAIError } from "openai"
-import type { FinalRequestOptions, Headers as OpenAIHeaders } from "openai/core"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import { DEFAULT_OCA_BASE_URL, OCI_HEADER_OPC_REQUEST_ID } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
@@ -30,7 +29,7 @@ export class OcaHandler implements ApiHandler {
 
 	protected initializeClient(options: OcaHandlerOptions) {
 		return new (class OCIOpenAI extends OpenAI {
-			protected override async prepareOptions(opts: FinalRequestOptions<unknown>): Promise<void> {
+			protected override async prepareOptions(opts: any): Promise<void> {
 				const token = await OcaAuthService.getInstance().getAuthToken()
 				if (!token) {
 					throw new OpenAIError("Unable to handle auth, Oracle Code Assist (OCA) access token is not available")
@@ -43,12 +42,7 @@ export class OcaHandler implements ApiHandler {
 				return super.prepareOptions(opts)
 			}
 
-			protected override makeStatusError(
-				status: number | undefined,
-				error: Object | undefined,
-				message: string | undefined,
-				headers: OpenAIHeaders | undefined,
-			): APIError {
+			protected override makeStatusError(status: any, error: any, message: any, headers: any): APIError {
 				interface OciError {
 					code?: string
 					message?: string
@@ -67,7 +61,9 @@ export class OcaHandler implements ApiHandler {
 				if (opcRequestId) {
 					ociErrorMessage += `\n(${OCI_HEADER_OPC_REQUEST_ID}: ${opcRequestId})`
 				}
-				return super.makeStatusError(status, error, ociErrorMessage, headers)
+				// Coerce possibly-undefined values to the base class' expected types
+				const statusCode = typeof status === "number" ? status : 500
+				return super.makeStatusError(statusCode, error ?? {}, ociErrorMessage, headers)
 			}
 		})({
 			baseURL: options.ocaBaseUrl || DEFAULT_OCA_BASE_URL,
@@ -84,6 +80,9 @@ export class OcaHandler implements ApiHandler {
 				this.client = this.initializeClient(this.options)
 			} catch (error) {
 				throw new Error(`Error creating Oracle Code Assist (OCA) client: ${error.message}`)
+			}
+			if (!this.client) {
+				throw new Error("Error creating Oracle Code Assist (OCA) client: Unknown initialization failure")
 			}
 		}
 		return this.client
