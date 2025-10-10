@@ -59,8 +59,8 @@ jobs:
       - name: Build CLI binaries
         run: npm run compile-cli
       
-      - name: Build standalone package
-        run: npm run compile-standalone
+      - name: Build standalone CLI package
+        run: npm run compile-standalone-cli
         env:
           NODE_ENV: production
       
@@ -76,7 +76,7 @@ jobs:
       - name: Rename package
         run: |
           cd dist-standalone
-          mv standalone.zip cline-${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz
+          mv standalone-cli.zip cline-${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4

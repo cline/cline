@@ -199,8 +199,8 @@ jobs:
             - name: Build CLI binaries
               run: npm run compile-cli
 
-            - name: Compile standalone
-              run: npm run compile-standalone
+            - name: Compile standalone CLI
+              run: npm run compile-standalone-cli
 
             - name: Install testing platform dependencies
               if: steps.testing-platform-cache.outputs.cache-hit != 'true'
