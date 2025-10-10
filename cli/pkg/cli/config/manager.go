@@ -46,10 +46,11 @@ func (m *Manager) GetCurrentInstance() string {
 	return m.clientAddress
 }
 
-func (m *Manager) UpdateSettings(ctx context.Context, settings *cline.Settings) error {
+func (m *Manager) UpdateSettings(ctx context.Context, settings *cline.Settings, secrets *cline.Secrets) error {
 	request := &cline.UpdateSettingsRequestCli{
 		Metadata: &cline.Metadata{},
 		Settings: settings,
+		Secrets:  secrets,
 	}
 
 	// Call the updateSettingsCli RPC
