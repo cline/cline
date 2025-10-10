@@ -33,10 +33,11 @@ func SelectBYOProvider() (cline.ApiProvider, error) {
 	providers := GetBYOProviderList()
 	var selectedIndex int
 
-	options := make([]huh.Option[int], len(providers))
+	options := make([]huh.Option[int], len(providers)+1)
 	for i, provider := range providers {
 		options[i] = huh.NewOption(provider.Name, i)
 	}
+	options[len(providers)] = huh.NewOption("(Cancel)", -1)
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -51,6 +52,10 @@ func SelectBYOProvider() (cline.ApiProvider, error) {
 		return 0, fmt.Errorf("failed to select provider: %w", err)
 	}
 
+	if selectedIndex == -1 {
+		return 0, fmt.Errorf("provider selection cancelled")
+	}
+
 	return providers[selectedIndex].Provider, nil
 }
 
@@ -58,7 +63,6 @@ func SelectBYOProvider() (cline.ApiProvider, error) {
 // from a remote API, or if it has a static list of predefined models.
 // This is used to determine whether to show a model list before prompting for manual entry.
 func SupportsBYOModelFetching(provider cline.ApiProvider) bool {
-	// Check for remote/dynamic model fetching support
 	switch provider {
 	case cline.ApiProvider_OPENROUTER:
 		return true
@@ -68,7 +72,6 @@ func SupportsBYOModelFetching(provider cline.ApiProvider) bool {
 		return true
 	}
 
-	// Check for static model list support
 	return SupportsStaticModelList(provider)
 }
 
@@ -163,8 +166,7 @@ func PromptForAPIKey(provider cline.ApiProvider) (string, error) {
 			return "", fmt.Errorf("failed to get base URL: %w", err)
 		}
 
-		// Note: Base URL handling will be implemented in a future update
-		// For now, we just collect it but don't use it
+		// TODO - connect baseURL
 		_ = baseURL
 	}
 

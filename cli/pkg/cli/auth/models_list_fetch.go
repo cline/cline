@@ -59,7 +59,6 @@ func DisplayModelSelectionMenu(models []string, providerName string) (string, er
 		return "", fmt.Errorf("no models available for selection")
 	}
 
-	// Models are already sorted alphabetically by ConvertModelsMapToSlice
 	// Use model ID as the value (not index) to avoid positional coupling bugs
 	var selectedModel string
 	options := make([]huh.Option[string], len(models))
@@ -75,6 +74,7 @@ func DisplayModelSelectionMenu(models []string, providerName string) (string, er
 				Title(title).
 				Options(options...).
 				Height(calculateSelectHeight()).
+				Filtering(true).
 				Value(&selectedModel),
 		),
 	)

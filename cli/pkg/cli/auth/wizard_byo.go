@@ -47,7 +47,6 @@ func (pw *ProviderWizard) showMainMenu() (string, error) {
 					huh.NewOption("Change model for API provider", "change-model"),
 					huh.NewOption("Remove a provider", "remove"),
 					huh.NewOption("List configured providers", "list"),
-					huh.NewOption("Save configuration and exit", "save"),
 					huh.NewOption("Return to main auth menu", "back"),
 				).
 				Value(&action),
@@ -87,9 +86,6 @@ func (pw *ProviderWizard) Run() error {
 			if err := pw.handleListProviders(); err != nil {
 				return err
 			}
-		case "save":
-			fmt.Println("Configuration saved.")
-			return nil
 		case "back":
 			// Return to main auth menu
 			return HandleAuthMenuNoArgs(pw.ctx)
@@ -103,6 +99,9 @@ func (pw *ProviderWizard) handleAddProvider() error {
 	// Step 1: Select provider
 	provider, err := SelectBYOProvider()
 	if err != nil {
+		if strings.Contains(err.Error(), "cancelled") {
+			return nil
+		}
 		return fmt.Errorf("provider selection failed: %w", err)
 	}
 
@@ -137,11 +136,14 @@ func (pw *ProviderWizard) handleAddBedrockProvider() error {
 	// Step 1: Get Bedrock configuration (all credentials and optional fields)
 	config, err := PromptForBedrockConfig(pw.ctx, pw.manager)
 	if err != nil {
+		if strings.Contains(err.Error(), "user declined profile authentication") {
+			return nil
+		}
 		return fmt.Errorf("failed to get Bedrock configuration: %w", err)
 	}
 
 	// Step 2: Select model
-	modelID, modelInfo, err := pw.manualModelEntry(cline.ApiProvider_BEDROCK)
+	modelID, modelInfo, err := pw.selectModel(cline.ApiProvider_BEDROCK, "")
 	if err != nil {
 		return fmt.Errorf("model selection failed: %w", err)
 	}
@@ -292,6 +294,7 @@ func (pw *ProviderWizard) selectFromAvailableModels(models []string) (string, er
 				Title("Select a model").
 				Options(options...).
 				Height(calculateSelectHeight()).
+				Filtering(true).
 				Value(&selectedModel),
 		),
 	)
@@ -370,13 +373,14 @@ func (pw *ProviderWizard) handleChangeModel() error {
 
 	// Step 4: Let user select which provider to change the model for
 	var selectedIndex int
-	options := make([]huh.Option[int], len(configurableProviders))
+	options := make([]huh.Option[int], len(configurableProviders)+1)
 	for i, providerDisplay := range configurableProviders {
 		displayName := fmt.Sprintf("%s (current: %s)",
 			getProviderDisplayName(providerDisplay.Provider),
 			providerDisplay.ModelID)
 		options[i] = huh.NewOption(displayName, i)
 	}
+	options[len(configurableProviders)] = huh.NewOption("(Cancel)", -1)
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -389,6 +393,10 @@ func (pw *ProviderWizard) handleChangeModel() error {
 
 	if err := form.Run(); err != nil {
 		return fmt.Errorf("failed to select provider: %w", err)
+	}
+
+	if selectedIndex == -1 {
+		return nil
 	}
 
 	selectedProvider := configurableProviders[selectedIndex]

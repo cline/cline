@@ -14,84 +14,88 @@ import (
 
 // BedrockConfig holds all AWS Bedrock-specific configuration fields
 type BedrockConfig struct {
-	AccessKey               string // Required: AWS Access Key
-	SecretKey               string // Required: AWS Secret Key
-	SessionToken            string // Optional: For temporary credentials
-	Region                  string // Optional: AWS region
+	// Profile authentication fields
+	UseProfile              bool   // Always true for successful config
+	Profile                 string // Optional: AWS profile name (empty = default)
+	Region                  string // Required: AWS region
+	Endpoint                string // Optional: Custom VPC endpoint URL
+	
+	// Optional features
 	UseCrossRegionInference bool   // Optional: Enable cross-region inference
 	UseGlobalInference      bool   // Optional: Use global inference endpoint
 	UsePromptCache          bool   // Optional: Enable prompt caching
-	Authentication          string // Optional: Authentication method
-	UseProfile              bool   // Optional: Use AWS profile
-	Profile                 string // Optional: AWS profile name
-	Endpoint                string // Optional: Custom endpoint URL
+	
+	// Authentication method (always "profile")
+	Authentication          string // Always set to "profile"
+	
+	// Legacy fields (no longer used in profile-only flow)
+	AccessKey               string // No longer used
+	SecretKey               string // No longer used
+	SessionToken            string // No longer used
 }
 
-// PromptForBedrockConfig displays a multi-field form for Bedrock configuration
+// PromptForBedrockConfig displays a profile-first authentication form for Bedrock configuration
 func PromptForBedrockConfig(ctx context.Context, manager *task.Manager) (*BedrockConfig, error) {
 	config := &BedrockConfig{}
 
-	// First, prompt for required fields (access key and secret key)
-	requiredForm := huh.NewForm(
+	// First, ask if user wants to use AWS profile authentication
+	var useProfile bool
+	profileQuestion := huh.NewForm(
 		huh.NewGroup(
-			huh.NewInput().
-				Title("AWS Access Key").
-				Value(&config.AccessKey).
-				Validate(func(s string) error {
-					if strings.TrimSpace(s) == "" {
-						return fmt.Errorf("AWS Access Key cannot be empty")
-					}
-					return nil
-				}),
-
-			huh.NewInput().
-				Title("AWS Secret Key").
-				EchoMode(huh.EchoModePassword).
-				Value(&config.SecretKey).
-				Validate(func(s string) error {
-					if strings.TrimSpace(s) == "" {
-						return fmt.Errorf("AWS Secret Key cannot be empty")
-					}
-					return nil
-				}),
+			huh.NewConfirm().
+				Title("Do you want to use an AWS profile for authentication?").
+				Description("AWS profiles are managed via 'aws configure'").
+				Value(&useProfile).
+				Affirmative("Yes").
+				Negative("No").
+				Inline(true),
 		),
 	)
 
-	if err := requiredForm.Run(); err != nil {
-		return nil, fmt.Errorf("failed to get required Bedrock credentials: %w", err)
+	if err := profileQuestion.Run(); err != nil {
+		return nil, fmt.Errorf("failed to get authentication method: %w", err)
 	}
 
-	// Trim whitespace from required fields
-	config.AccessKey = strings.TrimSpace(config.AccessKey)
-	config.SecretKey = strings.TrimSpace(config.SecretKey)
+	// If user declines profile authentication, show message and return error
+	if !useProfile {
+		fmt.Println("\nAWS profile authentication is currently the only supported method in the CLI.")
+		fmt.Println("Please configure an AWS profile using 'aws configure' and try again.")
+		return nil, fmt.Errorf("user declined profile authentication")
+	}
 
-	// Now prompt for all optional fields in a single form
-	optionalForm := huh.NewForm(
+	// User wants profile auth - collect profile configuration
+	config.UseProfile = true
+	config.Authentication = "profile"
+
+	// Collect profile name, region, and optional settings
+	configForm := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
-				Title("Session Token (optional, for temporary credentials)").
-				Value(&config.SessionToken).
-				Description("Press Enter to skip"),
-
-			huh.NewInput().
-				Title("AWS Region (optional, e.g., us-east-1)").
-				Value(&config.Region).
-				Description("Press Enter to skip"),
-
-			huh.NewInput().
-				Title("Authentication Method (optional)").
-				Value(&config.Authentication).
-				Description("Press Enter to skip"),
-
-			huh.NewInput().
-				Title("AWS Profile Name (optional)").
+				Title("AWS Profile Name (optional, press Enter for default profile)").
 				Value(&config.Profile).
-				Description("Required if using AWS Profile, press Enter to skip otherwise"),
+				Description("Leave empty to use default AWS profile"),
 
 			huh.NewInput().
-				Title("Custom Endpoint URL (optional)").
+				Title("AWS Region (required, e.g., us-east-1)").
+				Value(&config.Region).
+				Validate(func(s string) error {
+					if strings.TrimSpace(s) == "" {
+						return fmt.Errorf("AWS Region is required")
+					}
+					return nil
+				}),
+
+			huh.NewInput().
+				Title("Custom VPC Endpoint URL (optional)").
 				Value(&config.Endpoint).
 				Description("Press Enter to skip"),
+
+			huh.NewConfirm().
+				Title("Enable Prompt Cache?             ").
+				Value(&config.UsePromptCache).
+				Affirmative("Yes").
+				Negative("No").
+				Inline(true),
 
 			huh.NewConfirm().
 				Title("Enable Cross-Region Inference?   ").
@@ -106,45 +110,25 @@ func PromptForBedrockConfig(ctx context.Context, manager *task.Manager) (*Bedroc
 				Affirmative("Yes").
 				Negative("No").
 				Inline(true),
-
-			huh.NewConfirm().
-				Title("Enable Prompt Cache?             ").
-				Value(&config.UsePromptCache).
-				Affirmative("Yes").
-				Negative("No").
-				Inline(true),
-
-			huh.NewConfirm().
-				Title("Use AWS Profile?                 ").
-				Value(&config.UseProfile).
-				Affirmative("Yes").
-				Negative("No").
-				Inline(true),
 		),
 	)
 
-	if err := optionalForm.Run(); err != nil {
-		return nil, fmt.Errorf("failed to get optional Bedrock configuration: %w", err)
+	if err := configForm.Run(); err != nil {
+		return nil, fmt.Errorf("failed to get Bedrock configuration: %w", err)
 	}
 
-	// Trim whitespace from optional string fields
-	config.SessionToken = strings.TrimSpace(config.SessionToken)
-	config.Region = strings.TrimSpace(config.Region)
-	config.Authentication = strings.TrimSpace(config.Authentication)
+	// Trim whitespace from string fields
 	config.Profile = strings.TrimSpace(config.Profile)
+	config.Region = strings.TrimSpace(config.Region)
 	config.Endpoint = strings.TrimSpace(config.Endpoint)
 
 	return config, nil
 }
 
-// ApplyBedrockConfig applies Bedrock configuration using partial updates
+// ApplyBedrockConfig applies Bedrock configuration using partial updates (profile-only)
 func ApplyBedrockConfig(ctx context.Context, manager *task.Manager, config *BedrockConfig, modelID string, modelInfo interface{}) error {
 	// Build the API configuration with all Bedrock fields
 	apiConfig := &cline.ModelsApiConfiguration{}
-
-	// Set required fields
-	apiConfig.AwsAccessKey = proto.String(config.AccessKey)
-	apiConfig.AwsSecretKey = proto.String(config.SecretKey)
 
 	// Set model ID fields
 	apiConfig.PlanModeApiModelId = proto.String(modelID)
@@ -152,67 +136,45 @@ func ApplyBedrockConfig(ctx context.Context, manager *task.Manager, config *Bedr
 	apiConfig.PlanModeAwsBedrockCustomModelBaseId = proto.String(modelID)
 	apiConfig.ActModeAwsBedrockCustomModelBaseId = proto.String(modelID)
 
-	// Set optional fields if provided
+	// Set profile authentication fields (always required)
 	optionalFields := &BedrockOptionalFields{}
-	hasOptionalFields := false
+	optionalFields.Authentication = proto.String("profile")
+	optionalFields.UseProfile = proto.Bool(true)
+	optionalFields.Region = proto.String(config.Region)
 
-	if config.SessionToken != "" {
-		optionalFields.SessionToken = proto.String(config.SessionToken)
-		hasOptionalFields = true
+	// Set profile name (can be empty for default profile)
+	if config.Profile != "" {
+		optionalFields.Profile = proto.String(config.Profile)
 	}
-	if config.Region != "" {
-		optionalFields.Region = proto.String(config.Region)
-		hasOptionalFields = true
+
+	// Set optional fields if provided
+	if config.Endpoint != "" {
+		optionalFields.Endpoint = proto.String(config.Endpoint)
 	}
 	if config.UseCrossRegionInference {
 		optionalFields.UseCrossRegionInference = proto.Bool(true)
-		hasOptionalFields = true
 	}
 	if config.UseGlobalInference {
 		optionalFields.UseGlobalInference = proto.Bool(true)
-		hasOptionalFields = true
 	}
 	if config.UsePromptCache {
 		optionalFields.UsePromptCache = proto.Bool(true)
-		hasOptionalFields = true
-	}
-	if config.Authentication != "" {
-		optionalFields.Authentication = proto.String(config.Authentication)
-		hasOptionalFields = true
-	}
-	if config.UseProfile {
-		optionalFields.UseProfile = proto.Bool(true)
-		hasOptionalFields = true
-	}
-	if config.Profile != "" {
-		optionalFields.Profile = proto.String(config.Profile)
-		hasOptionalFields = true
-	}
-	if config.Endpoint != "" {
-		optionalFields.Endpoint = proto.String(config.Endpoint)
-		hasOptionalFields = true
 	}
 
-	// Apply optional fields to the config
-	if hasOptionalFields {
-		setBedrockOptionalFields(apiConfig, optionalFields)
-	}
+	// Apply all fields to the config
+	setBedrockOptionalFields(apiConfig, optionalFields)
 
-	// Build field mask including all fields we're setting
+	// Build field mask including all fields we're setting (excluding access keys)
 	fieldPaths := []string{
-		"awsAccessKey",
-		"awsSecretKey",
 		"planModeApiModelId",
 		"actModeApiModelId",
 		"planModeAwsBedrockCustomModelBaseId",
 		"actModeAwsBedrockCustomModelBaseId",
 	}
 
-	// Add optional field paths
-	if hasOptionalFields {
-		optionalPaths := buildBedrockOptionalFieldMask(optionalFields)
-		fieldPaths = append(fieldPaths, optionalPaths...)
-	}
+	// Add profile authentication field paths
+	optionalPaths := buildBedrockOptionalFieldMask(optionalFields)
+	fieldPaths = append(fieldPaths, optionalPaths...)
 
 	// Create field mask
 	fieldMask := &fieldmaskpb.FieldMask{Paths: fieldPaths}

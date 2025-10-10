@@ -195,6 +195,8 @@ func HandleSelectProvider(ctx context.Context) error {
 		return HandleAuthMenuNoArgs(ctx)
 	}
 
+	providerOptions = append(providerOptions, huh.NewOption("(Cancel)", "cancel"))
+
 	// Show selection menu
 	var selected string
 	form := huh.NewForm(
@@ -208,6 +210,10 @@ func HandleSelectProvider(ctx context.Context) error {
 
 	if err := form.Run(); err != nil {
 		return fmt.Errorf("failed to select provider: %w", err)
+	}
+
+	if selected == "cancel" {
+		return HandleAuthMenuNoArgs(ctx)
 	}
 
 	// Get the selected provider
@@ -225,8 +231,6 @@ func HandleSelectProvider(ctx context.Context) error {
 
 // createTaskManager is a helper to create a task manager (avoids import cycles)
 func createTaskManager(ctx context.Context) (*task.Manager, error) {
-	// This will be implemented using the task package
-	// For now, we'll need to import task package at the top
 	return task.NewManagerForDefault(ctx)
 }
 
