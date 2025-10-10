@@ -195,6 +195,10 @@ func (r *Renderer) GetTypewriter() *TypewriterPrinter {
 	return r.typewriter
 }
 
+func (r *Renderer) GetMdRenderer() *MarkdownRenderer {
+	return r.mdRenderer
+}
+
 // RenderMarkdown renders markdown text to terminal format with ANSI codes
 // Falls back to plaintext if markdown rendering is unavailable or fails
 // Respects output format - skips rendering in plain mode
