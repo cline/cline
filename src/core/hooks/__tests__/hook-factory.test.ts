@@ -19,11 +19,14 @@ describe("Hook System", () => {
 	// Helper to write hook script with platform-specific wrapper
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
 		if (process.platform === "win32") {
-			// On Windows, create a .cmd batch file that calls node with the script
-			// The @echo off prevents command echoing
-			// The node command uses process.stdin for input (fed via spawn's stdin)
+			// On Windows, create both a .js file and a .cmd wrapper
+			// This avoids command line length limits and complex escaping issues
+			const jsPath = hookPath.replace(/\.cmd$/, ".js")
+			await fs.writeFile(jsPath, nodeScript)
+
+			// Create .cmd wrapper that calls the .js file
 			const batchScript = `@echo off
-node -e "${nodeScript.replace(/"/g, '\\"').replace(/\n/g, " ")}"`
+node "%~dp0${path.basename(jsPath)}"`
 			await fs.writeFile(hookPath, batchScript)
 		} else {
 			// On Unix, write the script directly with shebang
