@@ -211,54 +211,12 @@ func (p *ToolResultParser) formatFileMatches(file string, matches []string) stri
 
 // ParseCodeDefinitions formats listCodeDefinitionNames tool results
 func (p *ToolResultParser) ParseCodeDefinitions(content string) string {
-	if content == "" {
+	if content == "" || content == "No source code definitions found." {
 		return "*No code definitions found*"
 	}
 
-	lines := strings.Split(strings.TrimSpace(content), "\n")
-	if len(lines) == 0 {
-		return "*No code definitions found*"
-	}
-
-	// Count non-empty, non-file-path lines as definitions
-	definitions := []string{}
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		// Skip file path headers (end with :)
-		if strings.HasSuffix(line, ":") {
-			continue
-		}
-		definitions = append(definitions, line)
-	}
-
-	totalDefs := len(definitions)
-	if totalDefs == 0 {
-		return "*No code definitions found*"
-	}
-
-	var result strings.Builder
-	result.WriteString(fmt.Sprintf("*%d %s*\n\n", totalDefs, p.pluralize(totalDefs, "definition", "definitions")))
-
-	// Show first 2 definitions
-	maxShow := 2
-	if totalDefs < maxShow {
-		maxShow = totalDefs
-	}
-
-	for i := 0; i < maxShow; i++ {
-		result.WriteString(definitions[i])
-		result.WriteString("\n")
-	}
-
-	// Show summary for remaining
-	if totalDefs > maxShow {
-		result.WriteString(fmt.Sprintf("\n*...and %d more*", totalDefs-maxShow))
-	}
-
-	return result.String()
+	// Return the full content as-is
+	return content
 }
 
 // ParseWebFetch formats webFetch tool results with content preview
