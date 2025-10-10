@@ -25,6 +25,7 @@ type StreamingSegment struct {
 	shouldMarkdown  bool
 	outputFormat    string
 	msg             *types.ClineMessage
+	toolParser      *ToolResultParser
 }
 
 func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, shouldMarkdown bool, msg *types.ClineMessage, outputFormat string) *StreamingSegment {
@@ -35,6 +36,7 @@ func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, s
 		shouldMarkdown: shouldMarkdown,
 		outputFormat:   outputFormat,
 		msg:            msg,
+		toolParser:     NewToolResultParser(mdRenderer),
 	}
 	
 	// Render rich header immediately when creating segment (if in rich mode)
@@ -100,15 +102,20 @@ func (ss *StreamingSegment) Render() error {
 		}
 	}
 	
-	// For tools, parse JSON and decide what to show
+	// For tools, parse JSON and render with enhanced formatting
 	if ss.sayType == string(types.SayTypeTool) {
 		var tool types.ToolMessage
 		if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
-			// Tools that show no body - header is sufficient
+			// Use tool parser for enhanced rendering
 			switch tool.Tool {
-			case "readFile", "listFilesTopLevel", "listFilesRecursive", 
+			case "listFilesTopLevel", "listFilesRecursive", 
 			     "listCodeDefinitionNames", "searchFiles", "webFetch":
-				return nil  // Skip body rendering, header already shown
+				// Use enhanced tool result parser
+				text = ss.toolParser.ParseToolResult(&tool)
+			
+			case "readFile":
+				// readFile: show header only, no body
+				return nil
 			
 			case "editedExistingFile":
 				// Show the diff (stored in Content field)
@@ -223,15 +230,19 @@ func (ss *StreamingSegment) renderFinal(currentBuffer string) {
 		}
 	}
 	
-	// For tools, parse JSON and decide what to show
+	// For tools, parse JSON and render with enhanced formatting
 	if ss.sayType == string(types.SayTypeTool) {
 		var tool types.ToolMessage
 		if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
-			// Tools that show no body - header is sufficient
+			// Use tool parser for enhanced rendering
 			switch tool.Tool {
-			case "readFile", "listFilesTopLevel", "listFilesRecursive",
+			case "listFilesTopLevel", "listFilesRecursive",
 			     "listCodeDefinitionNames", "searchFiles", "webFetch":
-				// No final render needed, header already shown
+				// Use enhanced tool result parser for final render
+				text = ss.toolParser.ParseToolResult(&tool)
+			
+			case "readFile":
+				// readFile: show header only, no body
 				return
 			
 			case "editedExistingFile":
@@ -335,6 +346,38 @@ func (ss *StreamingSegment) generateToolHeader() string {
 			return fmt.Sprintf("### Cline is editing `%s`\n", tool.Path)
 		}
 		return "### Cline is editing a file\n"
+		
+	case "searchFiles":
+		if tool.Regex != "" && tool.Path != "" {
+			return fmt.Sprintf("### Cline is searching for `%s` in `%s`\n", tool.Regex, tool.Path)
+		} else if tool.Regex != "" {
+			return fmt.Sprintf("### Cline is searching for `%s`\n", tool.Regex)
+		}
+		return "### Cline is searching files\n"
+		
+	case "listFilesTopLevel":
+		if tool.Path != "" {
+			return fmt.Sprintf("### Cline is listing files in `%s`\n", tool.Path)
+		}
+		return "### Cline is listing files\n"
+		
+	case "listFilesRecursive":
+		if tool.Path != "" {
+			return fmt.Sprintf("### Cline is recursively listing files in `%s`\n", tool.Path)
+		}
+		return "### Cline is recursively listing files\n"
+		
+	case "listCodeDefinitionNames":
+		if tool.Path != "" {
+			return fmt.Sprintf("### Cline is listing code definitions in `%s`\n", tool.Path)
+		}
+		return "### Cline is listing code definitions\n"
+		
+	case "webFetch":
+		if tool.Path != "" {
+			return fmt.Sprintf("### Cline is fetching `%s`\n", tool.Path)
+		}
+		return "### Cline is fetching a URL\n"
 		
 	default:
 		return fmt.Sprintf("### Tool: %s\n", tool.Tool)
