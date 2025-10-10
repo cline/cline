@@ -34,8 +34,9 @@ func (sc *StreamCoordinator) IsProcessedInCurrentTurn(key string) bool {
 	return sc.processedInCurrentTurn[key]
 }
 
-// CompleteTurn resets the coordinator for the next conversation turn
+// CompleteTurn updates the start index for the next batch of messages
+// Note: Does NOT reset the processed map - that persists across state updates
 func (sc *StreamCoordinator) CompleteTurn(totalMessages int) {
 	sc.conversationTurnStartIndex = totalMessages
-	sc.processedInCurrentTurn = make(map[string]bool)
+	// Don't reset processedInCurrentTurn - it should persist across state updates
 }

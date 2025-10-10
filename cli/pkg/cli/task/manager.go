@@ -24,6 +24,7 @@ type Manager struct {
 	renderer         *display.Renderer
 	streamingDisplay *display.StreamingDisplay
 	handlerRegistry  *handlers.HandlerRegistry
+	isStreamingMode  bool
 }
 
 // NewManager creates a new task manager
@@ -578,6 +579,11 @@ func (m *Manager) GatherFinalSummary(ctx context.Context) error {
 
 // ShowConversation displays the current conversation
 func (m *Manager) ShowConversation(ctx context.Context) error {
+	// Disable streaming mode for static view
+	m.mu.Lock()
+	m.isStreamingMode = false
+	m.mu.Unlock()
+	
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -609,6 +615,10 @@ func (m *Manager) ShowConversation(ctx context.Context) error {
 }
 
 func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string) error {
+	// Enable streaming mode
+	m.mu.Lock()
+	m.isStreamingMode = true
+	m.mu.Unlock()
 	
 	if global.Config.OutputFormat != "plain" {
         markdown := fmt.Sprintf("*Using instance: %s*\n*Press Ctrl+C to exit*", instanceAddress)
@@ -655,6 +665,11 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 
 // FollowConversationUntilCompletion streams conversation updates until task completion
 func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
+	// Enable streaming mode
+	m.mu.Lock()
+	m.isStreamingMode = true
+	m.mu.Unlock()
+	
 	fmt.Println("Following task conversation until completion... (Press Ctrl+C to exit)")
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -670,8 +685,6 @@ func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
 		totalMessageCount = 0
 	}
 	coordinator.SetConversationTurnStartIndex(totalMessageCount)
-
-	fmt.Println("\n--- Live updates ---")
 
 	// Start both streams concurrently
 	errChan := make(chan error, 2)
@@ -823,66 +836,94 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 
 		switch {
 		case msg.Say == string(types.SayTypeUserFeedback):
-			if !coordinator.IsProcessedInCurrentTurn("user_msg") {
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
 				fmt.Println()
 				m.displayMessage(msg, false, false, i)
-				coordinator.MarkProcessedInCurrentTurn("user_msg")
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCommand):
-			if !coordinator.IsProcessedInCurrentTurn("command") {
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
 				fmt.Println()
 				m.displayMessage(msg, false, false, i)
-				coordinator.MarkProcessedInCurrentTurn("command")
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCommandOutput):
-			if !coordinator.IsProcessedInCurrentTurn("command_output") {
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
 				m.displayMessage(msg, false, false, i)
-				coordinator.MarkProcessedInCurrentTurn("command_output")
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeBrowserActionLaunch):
-			if !coordinator.IsProcessedInCurrentTurn("browser_launch") {
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
 				fmt.Println()
 				m.displayMessage(msg, false, false, i)
-				coordinator.MarkProcessedInCurrentTurn("browser_launch")
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeMcpServerRequestStarted):
-			if !coordinator.IsProcessedInCurrentTurn("mcp_request") {
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
 				fmt.Println()
 				m.displayMessage(msg, false, false, i)
-				coordinator.MarkProcessedInCurrentTurn("mcp_request")
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCheckpointCreated):
-			if !coordinator.IsProcessedInCurrentTurn("checkpoint") {
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
 				fmt.Println()
 				m.displayMessage(msg, false, false, i)
-				coordinator.MarkProcessedInCurrentTurn("checkpoint")
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeAPIReqStarted):
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			apiInfo := types.APIRequestInfo{Cost: -1}
 			if err := json.Unmarshal([]byte(msg.Text), &apiInfo); err == nil && apiInfo.Cost >= 0 {
-				fmt.Println() // adds a separator between cline message and usage message
-				m.displayMessage(msg, false, false, i)
-				coordinator.CompleteTurn(len(messages))
-				displayedUsage = true
+				if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+					fmt.Println() // adds a separator between cline message and usage message
+					m.displayMessage(msg, false, false, i)
+					coordinator.MarkProcessedInCurrentTurn(msgKey)
+					coordinator.CompleteTurn(len(messages))
+					displayedUsage = true
+				}
 			}
 
 		case msg.Ask == string(types.AskTypeCommandOutput):
-			if !coordinator.IsProcessedInCurrentTurn("ask_command_output") {
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
 				m.displayMessage(msg, false, false, i)
-				coordinator.MarkProcessedInCurrentTurn("ask_command_output")
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Ask == string(types.AskTypePlanModeRespond):
-			if !coordinator.IsProcessedInCurrentTurn("plan_mode_respond") {
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			// Only process when message is complete (partial=false)
+			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
 				fmt.Println()
 				m.displayMessage(msg, false, false, i)
-				coordinator.MarkProcessedInCurrentTurn("plan_mode_respond")
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			}
+		
+		case msg.Type == types.MessageTypeAsk:
+			msgKey := fmt.Sprintf("%d", msg.Timestamp)
+			// In streaming mode, partial stream handles headers for ask messages
+			// State stream should skip them to avoid duplication
+			if m.isStreamingMode {
+				// Skip - partial stream already handled this
+			} else {
+				// Non-streaming mode: render normally
+				if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+					fmt.Println()
+					m.displayMessage(msg, false, false, i)
+					coordinator.MarkProcessedInCurrentTurn(msgKey)
+				}
 			}
 		}
 	}
@@ -963,12 +1004,17 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 	if global.Config.OutputFormat == "json" {
 		return m.outputMessageAsJSON(msg)
 	} else {
+		m.mu.RLock()
+		isStreaming := m.isStreamingMode
+		m.mu.RUnlock()
+		
 		dc := &handlers.DisplayContext{
-			State:        m.state,
-			Renderer:     m.renderer,
-			IsLast:       isLast,
-			IsPartial:    isPartial,
-			MessageIndex: messageIndex,
+			State:           m.state,
+			Renderer:        m.renderer,
+			IsLast:          isLast,
+			IsPartial:       isPartial,
+			MessageIndex:    messageIndex,
+			IsStreamingMode: isStreaming,
 		}
 
 		return m.handlerRegistry.Handle(msg, dc)
@@ -1016,7 +1062,7 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 		if global.Config.OutputFormat != "plain" {
 			markdown := fmt.Sprintf("*Conversation history (%d of %d messages)*", maxHistoryMessages, totalMessages)
 			rendered := m.renderer.RenderMarkdown(markdown)
-			fmt.Printf("\n%s\n", rendered)
+			fmt.Printf("\n%s\n\n", rendered)
 		} else {
 			fmt.Printf("--- Conversation history (%d of %d messages) ---\n", maxHistoryMessages, totalMessages)
 		}
@@ -1024,7 +1070,7 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 		if global.Config.OutputFormat != "plain" {
 			markdown := fmt.Sprintf("*Conversation history (%d messages)*", totalMessages)
 			rendered := m.renderer.RenderMarkdown(markdown)
-			fmt.Printf("\n%s\n", rendered)
+			fmt.Printf("\n%s\n\n", rendered)
 		} else {
 			fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
 		}
