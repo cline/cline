@@ -85,7 +85,7 @@ get_download_url() {
         api_url="https://api.github.com/repos/$GITHUB_REPO/releases/tags/$RELEASE_TAG"
     fi
     
-    print_message "$BLUE" "Fetching release information..."
+    print_message "$BLUE" "Fetching release information..." >&2
     
     local release_data=$(curl -fsSL "$api_url")
     local download_url=$(echo "$release_data" | grep -o "\"browser_download_url\": \"[^\"]*${platform}[^\"]*\"" | head -1 | cut -d'"' -f4)
@@ -134,6 +134,12 @@ install_cline() {
     # Make binaries executable
     chmod +x "$INSTALL_DIR/bin/"*
     
+    # Copy platform-specific native modules to node_modules
+    if [ -d "$INSTALL_DIR/binaries/$platform/node_modules" ]; then
+        print_message "$BLUE" "Installing platform-specific native modules..."
+        cp -r "$INSTALL_DIR/binaries/$platform/node_modules/"* "$INSTALL_DIR/node_modules/" 2>/dev/null || true
+        print_message "$GREEN" "✓ Native modules installed"
+    fi
     print_message "$GREEN" "✓ Cline installed successfully"
 }
 
