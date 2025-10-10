@@ -30,7 +30,7 @@ Les mainteneurs de projet ont le droit et la responsabilité de supprimer, d'éd
 
 ## Portée
 
-Ce Code de Conduite s'applique à la fois dans les espaces de projet et dans les espaces publics lorsque qu'une personne représente le projet ou sa communauté. Les exemples de représentation d'un projet ou d'une communauté incluent l'utilisation d'un courriel officiel du projet, la publication via un compte officiel de média social, ou le fait d'agir en tant que représentant désigné lors d'un événement en ligne ou hors ligne. La représentation d'un projet peut être définie et clarifiée plus en détail par les mainteneurs du projet.
+Ce Code de Conduite s'applique à la fois dans les espaces de projet et dans les espaces publics lorsqu'une personne représente le projet ou sa communauté. Les exemples de représentation d'un projet ou d'une communauté incluent l'utilisation d'un courriel officiel du projet, la publication via un compte officiel de média social, ou le fait d'agir en tant que représentant désigné lors d'un événement en ligne ou hors ligne. La représentation d'un projet peut être définie et clarifiée plus en détail par les mainteneurs du projet.
 
 ## Application
 
