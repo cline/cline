@@ -124,25 +124,13 @@ func setCommand() *cobra.Command {
 				return fmt.Errorf("failed to parse settings: %w", err)
 			}
 
-			// Ensure default instance if no address specified
-			if address == "" {
-				if err := global.EnsureDefaultInstance(ctx); err != nil {
-					return fmt.Errorf("failed to ensure default instance: %w", err)
-				}
-			} else {
-				if err := ensureInstanceAtAddress(ctx, address); err != nil {
-					return fmt.Errorf("failed to ensure instance at address %s: %w", address, err)
-				}
-			}
-
-			// Create manager
-			manager, err := config.NewManager(ctx, address)
-			if err != nil {
+			// Ensure config manager
+			if err := ensureConfigManager(ctx, address); err != nil {
 				return err
 			}
 
 			// Update settings
-			return manager.UpdateSettings(ctx, settings, secrets)
+			return configManager.UpdateSettings(ctx, settings, secrets)
 		},
 	}
 
