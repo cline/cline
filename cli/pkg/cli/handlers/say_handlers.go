@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
@@ -267,23 +268,30 @@ func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 func (h *SayHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayContext) error {
 	var markdown string
 	
+	// Generate header with consistent phrasing
 	switch tool.Tool {
 	case string(types.ToolTypeEditedExistingFile):
-		markdown = fmt.Sprintf("### Cline edited `%s`", tool.Path)
+		markdown = fmt.Sprintf("### Cline is editing `%s`", tool.Path)
 	case string(types.ToolTypeNewFileCreated):
-		markdown = fmt.Sprintf("### Cline created `%s`", tool.Path)
+		markdown = fmt.Sprintf("### Cline is writing `%s`", tool.Path)
 	case string(types.ToolTypeReadFile):
-		markdown = fmt.Sprintf("### Cline read `%s`", tool.Path)
+		markdown = fmt.Sprintf("### Cline is reading `%s`", tool.Path)
 	case string(types.ToolTypeListFilesTopLevel):
-		markdown = fmt.Sprintf("### Cline listed files in `%s`", tool.Path)
+		markdown = fmt.Sprintf("### Cline is listing files in `%s`", tool.Path)
 	case string(types.ToolTypeListFilesRecursive):
-		markdown = fmt.Sprintf("### Cline recursively listed files in `%s`", tool.Path)
+		markdown = fmt.Sprintf("### Cline is recursively listing files in `%s`", tool.Path)
 	case string(types.ToolTypeSearchFiles):
-		markdown = fmt.Sprintf("### Cline searched for '%s' in `%s`", tool.Regex, tool.Path)
+		if tool.Regex != "" && tool.Path != "" {
+			markdown = fmt.Sprintf("### Cline is searching for `%s` in `%s`", tool.Regex, tool.Path)
+		} else if tool.Regex != "" {
+			markdown = fmt.Sprintf("### Cline is searching for `%s`", tool.Regex)
+		} else {
+			markdown = "### Cline is searching files"
+		}
 	case string(types.ToolTypeWebFetch):
-		markdown = fmt.Sprintf("### Cline fetched `%s`", tool.Path)
+		markdown = fmt.Sprintf("### Cline is fetching `%s`", tool.Path)
 	case string(types.ToolTypeListCodeDefinitionNames):
-		markdown = fmt.Sprintf("### Cline listed code definitions in `%s`", tool.Path)
+		markdown = fmt.Sprintf("### Cline is listing code definitions in `%s`", tool.Path)
 	case string(types.ToolTypeSummarizeTask):
 		markdown = "### Cline condensed the conversation"
 	default:
@@ -293,27 +301,46 @@ func (h *SayHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayConte
 	rendered := dc.Renderer.RenderMarkdown(markdown)
 	fmt.Printf("\n%s\n", rendered)
 
-	// Skip content preview for readFile and webFetch tools
-	if tool.Tool == string(types.ToolTypeReadFile) || tool.Tool == string(types.ToolTypeWebFetch) {
+	// Use enhanced tool result parser for supported tools
+	toolParser := display.NewToolResultParser(dc.Renderer.GetMdRenderer())
+	
+	switch tool.Tool {
+	case string(types.ToolTypeReadFile):
+		// readFile: show header only, no body
 		return nil
-	}
+		
+	case string(types.ToolTypeListFilesTopLevel), 
+	     string(types.ToolTypeListFilesRecursive), 
+		 string(types.ToolTypeListCodeDefinitionNames),
+	     string(types.ToolTypeSearchFiles), 
+		 string(types.ToolTypeWebFetch):
 
-	// For edited files, show the diff if available
-	if tool.Tool == string(types.ToolTypeEditedExistingFile) && tool.Content != "" {
-		diffMarkdown := fmt.Sprintf("```diff\n%s\n```", tool.Content)
-		diffRendered := dc.Renderer.RenderMarkdown(diffMarkdown)
-		fmt.Printf("\n%s\n", diffRendered)
-		return nil
-	}
-
-	// Show content preview for other tools, truncating if necessary
-	preview := tool.Content
-	if preview != "" {
-		preview = strings.TrimSpace(tool.Content)
-		if len(preview) > 1000 {
-			preview = preview[:1000] + "..."
+		if tool.Content != "" {
+			preview := toolParser.ParseToolResult(tool)
+			previewRendered := dc.Renderer.RenderMarkdown(preview)
+			fmt.Printf("\n%s\n", previewRendered)
 		}
-		fmt.Printf("Content: %s\n", preview)
+		return nil
+		
+	case string(types.ToolTypeEditedExistingFile):
+		// Show the diff if available
+		if tool.Content != "" {
+			diffMarkdown := fmt.Sprintf("```diff\n%s\n```", tool.Content)
+			diffRendered := dc.Renderer.RenderMarkdown(diffMarkdown)
+			fmt.Printf("\n%s\n", diffRendered)
+		}
+		return nil
+	
+	default:
+		// Show content preview for other tools, truncating if necessary
+		preview := tool.Content
+		if preview != "" {
+			preview = strings.TrimSpace(tool.Content)
+			if len(preview) > 1000 {
+				preview = preview[:1000] + "..."
+			}
+			fmt.Printf("Content: %s\n", preview)
+		}
 	}
 
 	return nil

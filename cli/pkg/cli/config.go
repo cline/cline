@@ -65,19 +65,29 @@ func NewConfigCommand() *cobra.Command {
 }
 
 func newConfigGetCommand() *cobra.Command {
+	var address string
+
 	cmd := &cobra.Command{
 		Use:     "get <key>",
 		Aliases: []string{"g"},
 		Short:   "Get a specific configuration value",
-		Long:    `Get the value of a specific configuration setting.`,
+		Long:    `Get the value of a specific configuration setting. Supports nested keys using dot notation (e.g., auto-approval-settings.actions.read-files).`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
 			key := args[0]
-			fmt.Printf("getting config for key: %s\n", key)
-			return nil
+
+			// Ensure config manager
+			if err := ensureConfigManager(ctx, address); err != nil {
+				return err
+			}
+
+			// Get the setting
+			return configManager.GetSetting(ctx, key)
 		},
 	}
 
+	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	return cmd
 }
 
