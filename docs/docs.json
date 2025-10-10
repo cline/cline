@@ -20,8 +20,7 @@
 		"color": {
 			"light": "#fafaf9",
 			"dark": "#0f0f0f"
-		},
-		"decoration": "gradient"
+		}
 	},
 	"styling": {
 		"eyebrows": "breadcrumbs",
