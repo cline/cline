@@ -213,30 +213,78 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	/**
 	 * Flatten nested properties into dot-notation strings for OpenTelemetry attributes.
 	 * OpenTelemetry attributes must be primitives (string, number, boolean).
+	 * Adds protection against circular references, prototype pollution, deep graphs,
+	 * and limits array sizes to avoid performance issues.
 	 */
-	private flattenProperties(properties?: TelemetryProperties, prefix = ""): Record<string, string | number | boolean> {
+	private flattenProperties(
+		properties?: TelemetryProperties,
+		prefix = "",
+		seen: WeakSet<object> = new WeakSet(),
+		depth = 0,
+	): Record<string, string | number | boolean> {
 		if (!properties) {
 			return {}
 		}
 
 		const flattened: Record<string, string | number | boolean> = {}
+		const MAX_ARRAY_SIZE = 100
+		const MAX_DEPTH = 10
 
 		for (const [key, value] of Object.entries(properties)) {
+			// Skip prototype pollution vectors
+			if (key === "__proto__" || key === "constructor" || key === "prototype") {
+				continue
+			}
+
 			const fullKey = prefix ? `${prefix}.${key}` : key
 
 			if (value === null || value === undefined) {
 				flattened[fullKey] = String(value)
-			} else if (typeof value === "object" && !Array.isArray(value)) {
-				// Recursively flatten nested objects
-				Object.assign(flattened, this.flattenProperties(value as TelemetryProperties, fullKey))
 			} else if (Array.isArray(value)) {
-				// Convert arrays to JSON strings
-				flattened[fullKey] = JSON.stringify(value)
+				// Limit array size to prevent performance issues
+				const limited = value.length > MAX_ARRAY_SIZE ? value.slice(0, MAX_ARRAY_SIZE) : value
+				try {
+					flattened[fullKey] = JSON.stringify(limited)
+				} catch {
+					flattened[fullKey] = "[UnserializableArray]"
+				}
+				if (value.length > MAX_ARRAY_SIZE) {
+					flattened[`${fullKey}_truncated`] = true
+					flattened[`${fullKey}_original_length`] = value.length
+				}
+			} else if (typeof value === "object") {
+				// Handle special objects
+				if (value instanceof Date) {
+					flattened[fullKey] = value.toISOString()
+					continue
+				}
+				if (value instanceof Error) {
+					flattened[fullKey] = value.message
+					continue
+				}
+
+				// Check for circular references
+				if (seen.has(value as object)) {
+					flattened[fullKey] = "[Circular]"
+					continue
+				}
+				// Depth guard
+				if (depth >= MAX_DEPTH) {
+					flattened[fullKey] = "[MaxDepthExceeded]"
+					continue
+				}
+
+				seen.add(value as object)
+				Object.assign(flattened, this.flattenProperties(value as TelemetryProperties, fullKey, seen, depth + 1))
 			} else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
 				flattened[fullKey] = value
 			} else {
 				// Fallback: stringify unknown types
-				flattened[fullKey] = JSON.stringify(value)
+				try {
+					flattened[fullKey] = JSON.stringify(value as unknown as object)
+				} catch {
+					flattened[fullKey] = String(value)
+				}
 			}
 		}
 
