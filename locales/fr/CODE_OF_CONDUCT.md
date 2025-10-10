@@ -16,7 +16,7 @@ Exemples de comportements qui contribuent à créer un environnement positif inc
 
 Exemples de comportements inacceptables par les participants incluent :
 
--   L'utilisation de langage ou d'images sexualisés et d'attentions ou avances sexuelles non souhaitées
+-   L'utilisation de langage ou d'images sexualisées et d'attentions ou avances sexuelles non souhaitées
 -   Le troll, les commentaires insultants ou dégradants, et les attaques personnelles ou politiques
 -   Le harcèlement public ou privé
 -   La publication d'informations privées d'autres personnes, telles qu'une adresse physique ou électronique, sans permission explicite
