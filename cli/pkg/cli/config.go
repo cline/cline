@@ -119,7 +119,7 @@ func setCommand() *cobra.Command {
 			ctx := cmd.Context()
 
 			// Parse using existing task parser
-			settings, err := task.ParseTaskSettings(args)
+			settings, secrets, err := task.ParseTaskSettings(args)
 			if err != nil {
 				return fmt.Errorf("failed to parse settings: %w", err)
 			}
@@ -142,7 +142,7 @@ func setCommand() *cobra.Command {
 			}
 
 			// Update settings
-			return manager.UpdateSettings(ctx, settings)
+			return manager.UpdateSettings(ctx, settings, secrets)
 		},
 	}
 
