@@ -256,11 +256,14 @@ jobs:
 
             - name: Download test platform integration core coverage artifact
               uses: actions/download-artifact@v4
+              continue-on-error: true
+              id: download-integration-coverage
               with:
                 name: test-platform-integration-core-coverage
                 path: integration-core-coverage-reports
 
             - name: Upload core integration tests coverage to Qlty
+              if: steps.download-integration-coverage.outcome == 'success'
               uses: qltysh/qlty-action/coverage@v2
               with:
                 token: ${{ secrets.QLTY_COVERAGE_TOKEN }}
