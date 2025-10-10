@@ -40,10 +40,11 @@ func NewManager(ctx context.Context, address string) (*Manager, error) {
 	}, nil
 }
 
-func (m *Manager) UpdateSettings(ctx context.Context, settings *cline.Settings) error {
+func (m *Manager) UpdateSettings(ctx context.Context, settings *cline.Settings, secrets *cline.Secrets) error {
 	request := &cline.UpdateSettingsRequestCli{
 		Metadata: &cline.Metadata{},
 		Settings: settings,
+		Secrets:  secrets,
 	}
 
 	// Call the updateSettingsCli RPC
