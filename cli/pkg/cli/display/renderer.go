@@ -3,7 +3,6 @@ package display
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/types"
@@ -11,36 +10,55 @@ import (
 )
 
 type Renderer struct {
-	typewriter *TypewriterPrinter
+	typewriter   *TypewriterPrinter
+	mdRenderer   *MarkdownRenderer
+	outputFormat string
 }
 
-func NewRenderer() *Renderer {
+func NewRenderer(outputFormat string) *Renderer {
+	mdRenderer, err := NewMarkdownRenderer()
+	if err != nil {
+		mdRenderer = nil
+	}
+	
 	return &Renderer{
-		typewriter: NewTypewriterPrinter(DefaultTypewriterConfig()),
+		typewriter:   NewTypewriterPrinter(DefaultTypewriterConfig()),
+		mdRenderer:   mdRenderer,
+		outputFormat: outputFormat,
 	}
 }
 
-// RenderMessage renders a message with timestamp and prefix
-func (r *Renderer) RenderMessage(timestamp, prefix, text string) error {
+func (r *Renderer) RenderMessage(prefix, text string, newline bool) error {
 	if text == "" {
 		return nil
 	}
 
-	cleanText := r.sanitizeText(text)
-	if cleanText == "" {
+	clean := r.sanitizeText(text)
+	if clean == "" {
 		return nil
 	}
 
-	r.typewriter.PrintMessageLine(timestamp, prefix, cleanText)
+	if newline {
+		fmt.Printf("%s: %s\n", prefix, clean)
+	} else {
+		fmt.Printf("%s: %s", prefix, clean)
+	}
 	return nil
 }
 
-// RenderCommand renders a command execution
-func (r *Renderer) RenderCommand(timestamp, command string, isExecuting bool) error {
+
+func (r *Renderer) RenderCheckpointMessage(timestamp, prefix string, id int64) error {
+	markdown := fmt.Sprintf("## [%s] Checkpoint created `%d`", timestamp, id)
+	rendered := r.RenderMarkdown(markdown)
+	fmt.Printf(rendered)
+	return nil
+}
+
+func (r *Renderer) RenderCommand(command string, isExecuting bool) error {
 	if isExecuting {
-		r.typewriter.PrintMessageLine(timestamp, "EXEC", command)
+		r.typewriter.PrintMessageLine("EXEC", command)
 	} else {
-		r.typewriter.PrintMessageLine(timestamp, "CMD", command)
+		r.typewriter.PrintMessageLine("CMD", command)
 	}
 	return nil
 }
@@ -66,25 +84,28 @@ func (r *Renderer) formatUsageInfo(tokensIn, tokensOut, cacheReads, cacheWrites 
 	return fmt.Sprintf("%s ($%.4f)", tokenDetails, cost)
 }
 
-// RenderAPI renders API request information
-func (r *Renderer) RenderAPI(timestamp, status string, apiInfo *types.APIRequestInfo) error {
+func (r *Renderer) RenderAPI(status string, apiInfo *types.APIRequestInfo) error {
 	if apiInfo.Cost >= 0 {
-		message := fmt.Sprintf("%s %s", status, r.formatUsageInfo(apiInfo.TokensIn, apiInfo.TokensOut, apiInfo.CacheReads, apiInfo.CacheWrites, apiInfo.Cost))
-		r.typewriter.PrintMessageLine(timestamp, "API INFO", message)
+		usageInfo := r.formatUsageInfo(apiInfo.TokensIn, apiInfo.TokensOut, apiInfo.CacheReads, apiInfo.CacheWrites, apiInfo.Cost)
+		markdown := fmt.Sprintf("## API %s `%s`", status, usageInfo)
+		rendered := r.RenderMarkdown(markdown)
+		fmt.Printf("\n%s\n", rendered)
 	} else {
-		r.typewriter.PrintMessageLine(timestamp, "API INFO", status)
+		// honestly i see no point in showing "### API processing request" here...
+		// markdown := fmt.Sprintf("## API %s", status)
+		// rendered := r.RenderMarkdown(markdown)
+		// fmt.Printf("\n%s\n", rendered)
 	}
 	return nil
 }
 
-// RenderRetry renders retry information
-func (r *Renderer) RenderRetry(timestamp string, attempt, maxAttempts, delaySec int) error {
+func (r *Renderer) RenderRetry(attempt, maxAttempts, delaySec int) error {
 	message := fmt.Sprintf("Retrying failed attempt %d/%d", attempt, maxAttempts)
 	if delaySec > 0 {
 		message += fmt.Sprintf(" in %d seconds", delaySec)
 	}
 	message += "..."
-	r.typewriter.PrintMessageLine(timestamp, "API INFO", message)
+	r.typewriter.PrintMessageLine("API INFO", message)
 	return nil
 }
 
@@ -124,9 +145,8 @@ func (r *Renderer) RenderTaskList(tasks []*cline.TaskItem) error {
 
 func (r *Renderer) RenderDebug(format string, args ...interface{}) error {
 	if global.Config.Verbose {
-		timestamp := time.Now().Format("15:04:05")
 		message := fmt.Sprintf(format, args...)
-		r.typewriter.PrintMessageLine(timestamp, "[DEBUG]", message)
+		r.typewriter.PrintMessageLine("[DEBUG]", message)
 	}
 	return nil
 }
@@ -173,4 +193,25 @@ func (r *Renderer) SetTypewriterSpeed(multiplier float64) {
 
 func (r *Renderer) GetTypewriter() *TypewriterPrinter {
 	return r.typewriter
+}
+
+// RenderMarkdown renders markdown text to terminal format with ANSI codes
+// Falls back to plaintext if markdown rendering is unavailable or fails
+// Respects output format - skips rendering in plain mode
+func (r *Renderer) RenderMarkdown(markdown string) string {
+	// Skip markdown rendering in plain mode
+	if r.outputFormat == "plain" {
+		return markdown
+	}
+	
+	if r.mdRenderer == nil {
+		return markdown
+	}
+	
+	rendered, err := r.mdRenderer.Render(markdown)
+	if err != nil {
+		return markdown
+	}
+	
+	return rendered
 }

@@ -14,6 +14,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 	const [
 		apiKey,
 		openRouterApiKey,
+		firebaseClineAccountId,
 		clineAccountId,
 		awsAccessKey,
 		awsSecretKey,
@@ -53,6 +54,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
 		context.secrets.get("clineAccountId") as Promise<Secrets["clineAccountId"]>,
+		context.secrets.get("cline:clineAccountId") as Promise<Secrets["cline:clineAccountId"]>,
 		context.secrets.get("awsAccessKey") as Promise<Secrets["awsAccessKey"]>,
 		context.secrets.get("awsSecretKey") as Promise<Secrets["awsSecretKey"]>,
 		context.secrets.get("awsSessionToken") as Promise<Secrets["awsSessionToken"]>,
@@ -93,7 +95,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		authNonce,
 		apiKey,
 		openRouterApiKey,
-		clineAccountId,
+		clineAccountId: firebaseClineAccountId,
+		"cline:clineAccountId": clineAccountId,
 		huggingFaceApiKey,
 		huaweiCloudMaasApiKey,
 		basetenApiKey,
@@ -157,6 +160,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const awsRegion = context.globalState.get<GlobalStateAndSettings["awsRegion"]>("awsRegion")
 		const awsUseCrossRegionInference =
 			context.globalState.get<GlobalStateAndSettings["awsUseCrossRegionInference"]>("awsUseCrossRegionInference")
+		const awsUseGlobalInference =
+			context.globalState.get<GlobalStateAndSettings["awsUseGlobalInference"]>("awsUseGlobalInference")
 		const awsBedrockUsePromptCache =
 			context.globalState.get<GlobalStateAndSettings["awsBedrockUsePromptCache"]>("awsBedrockUsePromptCache")
 		const awsBedrockEndpoint = context.globalState.get<GlobalStateAndSettings["awsBedrockEndpoint"]>("awsBedrockEndpoint")
@@ -226,6 +231,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const claudeCodePath = context.globalState.get<GlobalStateAndSettings["claudeCodePath"]>("claudeCodePath")
 		const difyBaseUrl = context.globalState.get<GlobalStateAndSettings["difyBaseUrl"]>("difyBaseUrl")
 		const ocaBaseUrl = context.globalState.get("ocaBaseUrl") as string | undefined
+		const ocaMode = context.globalState.get("ocaMode") as string | undefined
 		const openaiReasoningEffort =
 			context.globalState.get<GlobalStateAndSettings["openaiReasoningEffort"]>("openaiReasoningEffort")
 		const preferredLanguage = context.globalState.get<GlobalStateAndSettings["preferredLanguage"]>("preferredLanguage")
@@ -233,9 +239,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const dictationSettings = context.globalState.get<GlobalStateAndSettings["dictationSettings"]>("dictationSettings") as
 			| DictationSettings
 			| undefined
-
-		const mcpMarketplaceCatalog =
-			context.globalState.get<GlobalStateAndSettings["mcpMarketplaceCatalog"]>("mcpMarketplaceCatalog")
 		const lastDismissedInfoBannerVersion =
 			context.globalState.get<GlobalStateAndSettings["lastDismissedInfoBannerVersion"]>("lastDismissedInfoBannerVersion")
 		const lastDismissedModelBannerVersion = context.globalState.get<
@@ -422,6 +425,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			claudeCodePath,
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsUseGlobalInference,
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
 			awsProfile,
@@ -456,6 +460,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			difyBaseUrl,
 			sapAiCoreUseOrchestrationMode: sapAiCoreUseOrchestrationMode ?? true,
 			ocaBaseUrl,
+			ocaMode: ocaMode || "internal",
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -555,7 +560,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			defaultTerminalProfile: defaultTerminalProfile ?? "default",
 			globalWorkflowToggles: globalWorkflowToggles || {},
-			mcpMarketplaceCatalog,
 			qwenCodeOauthPath,
 			customPrompt,
 			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set

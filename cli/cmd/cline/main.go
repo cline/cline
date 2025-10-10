@@ -13,7 +13,6 @@ import (
 
 var (
 	coreAddress  string
-	cfgFile      string
 	verbose      bool
 	outputFormat string
 )
@@ -32,7 +31,6 @@ monitoring capabilities from the terminal.`,
 			}
 
 			return global.InitializeGlobalConfig(&global.GlobalConfig{
-				ConfigPath:   cfgFile,
 				Verbose:      verbose,
 				OutputFormat: outputFormat,
 				CoreAddress:  coreAddress,
@@ -41,18 +39,18 @@ monitoring capabilities from the terminal.`,
 	}
 
 	rootCmd.PersistentFlags().StringVar(&coreAddress, "address", fmt.Sprintf("localhost:%d", common.DEFAULT_CLINE_CORE_PORT), "Cline Core gRPC address")
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.cline/config.yaml)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output-format", "o", "rich", "output format (rich|json|plain)")
 
 	rootCmd.AddCommand(cli.NewTaskCommand())
 	rootCmd.AddCommand(cli.NewInstanceCommand())
+	rootCmd.AddCommand(cli.NewConfigCommand())
 	rootCmd.AddCommand(cli.NewVersionCommand())
 	rootCmd.AddCommand(cli.NewAuthCommand())
 	rootCmd.AddCommand(cli.NewTaskSendCommand())
+	rootCmd.AddCommand(cli.NewConfigCommand())
 
 	if err := rootCmd.ExecuteContext(context.Background()); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }

@@ -97,6 +97,7 @@ export class AuthServiceMock extends AuthService {
 					appBaseUrl: clineEnvConfig.appBaseUrl,
 					subject: authData.userInfo.subject,
 				},
+				provider: this._provider?.name || "mock",
 			}
 
 			console.log(`Successfully authenticated with mock server as ${authData.userInfo.name} (${authData.userInfo.email})`)

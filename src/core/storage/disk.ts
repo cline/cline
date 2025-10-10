@@ -8,6 +8,7 @@ import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { GlobalState, Settings } from "./state-keys"
 
 export const GlobalFileNames = {
@@ -25,6 +26,7 @@ export const GlobalFileNames = {
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",
 	taskMetadata: "task_metadata.json",
+	mcpMarketplaceCatalog: "mcp_marketplace_catalog.json",
 }
 
 export async function getDocumentsPath(): Promise<string> {
@@ -177,6 +179,30 @@ export async function ensureStateDirectoryExists(): Promise<string> {
 
 export async function ensureCacheDirectoryExists(): Promise<string> {
 	return getGlobalStorageDir("cache")
+}
+
+export async function readMcpMarketplaceCatalogFromCache(): Promise<McpMarketplaceCatalog | undefined> {
+	try {
+		const mcpMarketplaceCatalogFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.mcpMarketplaceCatalog)
+		const fileExists = await fileExistsAtPath(mcpMarketplaceCatalogFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(mcpMarketplaceCatalogFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	} catch (error) {
+		console.error("Failed to read MCP marketplace catalog from cache:", error)
+		return undefined
+	}
+}
+
+export async function writeMcpMarketplaceCatalogToCache(catalog: McpMarketplaceCatalog): Promise<void> {
+	try {
+		const mcpMarketplaceCatalogFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.mcpMarketplaceCatalog)
+		await fs.writeFile(mcpMarketplaceCatalogFilePath, JSON.stringify(catalog))
+	} catch (error) {
+		console.error("Failed to write MCP marketplace catalog to cache:", error)
+	}
 }
 
 async function getGlobalStorageDir(...subdirs: string[]) {
