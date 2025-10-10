@@ -57,6 +57,21 @@ export interface OpenTelemetryClientConfig {
 	 * Default: false (uses TLS)
 	 */
 	otlpInsecure?: boolean
+
+	/**
+	 * Maximum batch size for log records (default: 512)
+	 */
+	logBatchSize?: number
+
+	/**
+	 * Maximum time to wait before exporting logs in milliseconds (default: 5000)
+	 */
+	logBatchTimeout?: number
+
+	/**
+	 * Maximum queue size for log records (default: 2048)
+	 */
+	logMaxQueueSize?: number
 }
 
 /**
@@ -96,6 +111,9 @@ let otelConfig: OpenTelemetryClientConfig | null = null
  * - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: Logs-specific endpoint override
  * - OTEL_METRIC_EXPORT_INTERVAL: Milliseconds between metric exports (default: 60000)
  * - OTEL_EXPORTER_OTLP_INSECURE: "true" to disable TLS for gRPC (for local development)
+ * - OTEL_LOG_BATCH_SIZE: Maximum batch size for log records (default: 512)
+ * - OTEL_LOG_BATCH_TIMEOUT: Maximum time to wait before exporting logs in ms (default: 5000)
+ * - OTEL_LOG_MAX_QUEUE_SIZE: Maximum queue size for log records (default: 2048)
  *
  * @private
  * @see .env.example for development setup
@@ -117,6 +135,15 @@ function getOtelConfig(): OpenTelemetryClientConfig {
 				? parseInt(process.env.OTEL_METRIC_EXPORT_INTERVAL, 10)
 				: undefined,
 			otlpInsecure: process.env.OTEL_EXPORTER_OTLP_INSECURE === "true",
+			logBatchSize: process.env.OTEL_LOG_BATCH_SIZE
+				? Math.max(1, parseInt(process.env.OTEL_LOG_BATCH_SIZE, 10))
+				: undefined,
+			logBatchTimeout: process.env.OTEL_LOG_BATCH_TIMEOUT
+				? Math.max(1, parseInt(process.env.OTEL_LOG_BATCH_TIMEOUT, 10))
+				: undefined,
+			logMaxQueueSize: process.env.OTEL_LOG_MAX_QUEUE_SIZE
+				? Math.max(1, parseInt(process.env.OTEL_LOG_MAX_QUEUE_SIZE, 10))
+				: undefined,
 		}
 	}
 	return otelConfig

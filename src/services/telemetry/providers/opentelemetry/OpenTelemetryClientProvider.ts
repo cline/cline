@@ -189,7 +189,17 @@ export class OpenTelemetryClientProvider {
 				}
 
 				if (exporter) {
-					loggerProvider.addLogRecordProcessor(new BatchLogRecordProcessor(exporter))
+					const batchConfig = {
+						maxQueueSize: this.config!.logMaxQueueSize || 2048,
+						maxExportBatchSize: this.config!.logBatchSize || 512,
+						scheduledDelayMillis: this.config!.logBatchTimeout || 5000,
+					}
+
+					loggerProvider.addLogRecordProcessor(new BatchLogRecordProcessor(exporter, batchConfig))
+
+					console.log(
+						`[OTEL] Log batch processor configured: maxQueue=${batchConfig.maxQueueSize}, batchSize=${batchConfig.maxExportBatchSize}, timeout=${batchConfig.scheduledDelayMillis}ms`,
+					)
 				}
 			} catch (error) {
 				console.error(`[OTEL] Failed to create logs exporter '${exporterType}':`, error)
