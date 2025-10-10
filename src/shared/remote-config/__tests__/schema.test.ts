@@ -1,85 +1,32 @@
 import { expect } from "chai"
 import { describe, it } from "mocha"
-import {
-	AwsBedrockSettingsSchema,
-	ModelInfoSchema,
-	OpenAiCompatibleSchema,
-	OpenAiModelInfoSchema,
-	ProviderSchema,
-	type RemoteConfig,
-	RemoteConfigSchema,
-} from "../schema"
+import { AwsBedrockSettingsSchema, OpenAiCompatibleSchema, type RemoteConfig, RemoteConfigSchema } from "../schema"
 
 describe("Remote Config Schema", () => {
-	describe("ProviderSchema", () => {
-		it("should accept valid provider names", () => {
-			expect(() => ProviderSchema.parse("OpenAiCompatible")).to.not.throw()
-			expect(() => ProviderSchema.parse("AwsBedrock")).to.not.throw()
-		})
-
-		it("should reject invalid provider names", () => {
-			expect(() => ProviderSchema.parse("InvalidProvider")).to.throw()
-			expect(() => ProviderSchema.parse("")).to.throw()
-			expect(() => ProviderSchema.parse(123)).to.throw()
-		})
-	})
-
-	describe("ModelInfoSchema", () => {
-		it("should accept valid model info with all fields", () => {
-			const validModelInfo = {
-				maxTokens: 4096,
-				contextWindow: 128000,
-				inputPrice: 0.01,
-				outputPrice: 0.02,
-				supportsImages: true,
-			}
-			const result = ModelInfoSchema.parse(validModelInfo)
-			expect(result).to.deep.equal(validModelInfo)
-		})
-
-		it("should accept valid model info with optional fields missing", () => {
-			const minimalModelInfo = {}
-			expect(() => ModelInfoSchema.parse(minimalModelInfo)).to.not.throw()
-		})
-
-		it("should accept valid model info with partial fields", () => {
-			const partialModelInfo = {
-				maxTokens: 2048,
-				supportsImages: false,
-			}
-			expect(() => ModelInfoSchema.parse(partialModelInfo)).to.not.throw()
-		})
-
-		it("should reject invalid field types", () => {
-			expect(() => ModelInfoSchema.parse({ maxTokens: "4096" })).to.throw()
-			expect(() => ModelInfoSchema.parse({ supportsImages: "true" })).to.throw()
-		})
-	})
-
-	describe("OpenAiModelInfoSchema", () => {
-		it("should accept valid OpenAI model info", () => {
-			const validInfo = {
-				temperature: 0.7,
-				isR1FormatRequired: true,
-			}
-			const result = OpenAiModelInfoSchema.parse(validInfo)
-			expect(result).to.deep.equal(validInfo)
-		})
-
-		it("should accept empty object", () => {
-			expect(() => OpenAiModelInfoSchema.parse({})).to.not.throw()
-		})
-
-		it("should reject invalid types", () => {
-			expect(() => OpenAiModelInfoSchema.parse({ temperature: "hot" })).to.throw()
-			expect(() => OpenAiModelInfoSchema.parse({ isR1FormatRequired: 1 })).to.throw()
-		})
-	})
-
 	describe("OpenAiCompatibleSchema", () => {
 		it("should accept valid OpenAI compatible settings", () => {
 			const validSettings = {
-				modelIds: ["gpt-4", "gpt-3.5-turbo"],
+				models: [
+					{
+						id: "gpt-4",
+						temperature: 0.7,
+						isR1FormatRequired: true,
+						maxTokens: 4096,
+						contextWindow: 128000,
+						inputPrice: 0.03,
+						outputPrice: 0.06,
+						supportsImages: true,
+					},
+					{
+						id: "gpt-3.5-turbo",
+						temperature: 0.7,
+						maxTokens: 4096,
+						contextWindow: 16000,
+						inputPrice: 0.001,
+						outputPrice: 0.002,
+						supportsImages: false,
+					},
+				],
 				openAiBaseUrl: "https://api.openai.com/v1",
 				openAiHeaders: { "X-Custom-Header": "value" },
 				azureApiVersion: "2024-02-15-preview",
@@ -88,15 +35,30 @@ describe("Remote Config Schema", () => {
 			expect(result).to.deep.equal(validSettings)
 		})
 
-		it("should apply default empty array for modelIds", () => {
+		it("should apply default empty array for models", () => {
 			const result = OpenAiCompatibleSchema.parse({})
-			expect(result.modelIds).to.deep.equal([])
+			expect(result.models).to.deep.equal([])
 			expect(result.openAiHeaders).to.deep.equal({})
 		})
 
 		it("should reject invalid field types", () => {
-			expect(() => OpenAiCompatibleSchema.parse({ modelIds: "not-an-array" })).to.throw()
+			expect(() => OpenAiCompatibleSchema.parse({ models: "not-an-array" })).to.throw()
 			expect(() => OpenAiCompatibleSchema.parse({ openAiHeaders: "not-an-object" })).to.throw()
+		})
+
+		it("should reject models with missing id field", () => {
+			expect(() =>
+				OpenAiCompatibleSchema.parse({
+					models: [{ temperature: 0.7 }],
+				}),
+			).to.throw()
+		})
+
+		it("should accept models with only id field", () => {
+			const settings = {
+				models: [{ id: "gpt-4" }],
+			}
+			expect(() => OpenAiCompatibleSchema.parse(settings)).to.not.throw()
 		})
 
 		it("should accept headers as record of strings", () => {
@@ -114,9 +76,14 @@ describe("Remote Config Schema", () => {
 	describe("AwsBedrockSettingsSchema", () => {
 		it("should accept valid AWS Bedrock settings", () => {
 			const validSettings = {
-				modelIds: ["anthropic.claude-v2", "anthropic.claude-instant-v1"],
-				awsBedrockCustomSelected: true,
-				awsBedrockCustomModelBaseId: "custom-model",
+				models: [
+					{ id: "anthropic.claude-v2", thinkingBudgetTokens: 1600 },
+					{ id: "anthropic.claude-instant-v1", thinkingBudgetTokens: 800 },
+				],
+				customModels: [
+					{ name: "my-custom-model", baseModelId: "anthropic.claude-v2" },
+					{ name: "another-model", baseModelId: "anthropic.claude-instant-v1" },
+				],
 				awsRegion: "us-east-1",
 				awsUseCrossRegionInference: true,
 				awsBedrockUsePromptCache: true,
@@ -126,14 +93,64 @@ describe("Remote Config Schema", () => {
 			expect(result).to.deep.equal(validSettings)
 		})
 
-		it("should apply default empty array for modelIds", () => {
+		it("should apply default empty array for models", () => {
 			const result = AwsBedrockSettingsSchema.parse({})
-			expect(result.modelIds).to.deep.equal([])
+			expect(result.models).to.deep.equal([])
+		})
+
+		it("should accept models with only id field", () => {
+			const settings = {
+				models: [{ id: "anthropic.claude-v2" }],
+			}
+			expect(() => AwsBedrockSettingsSchema.parse(settings)).to.not.throw()
+		})
+
+		it("should accept models with thinkingBudgetTokens", () => {
+			const settings = {
+				models: [
+					{ id: "anthropic.claude-v2", thinkingBudgetTokens: 1600 },
+					{ id: "anthropic.claude-instant-v1", thinkingBudgetTokens: 800 },
+				],
+			}
+			const result = AwsBedrockSettingsSchema.parse(settings)
+			expect(result.models).to.have.lengthOf(2)
+			expect(result.models[0].thinkingBudgetTokens).to.equal(1600)
+		})
+
+		it("should accept custom models array", () => {
+			const settings = {
+				customModels: [
+					{ name: "custom-1", baseModelId: "base-model-1", thinkingBudgetTokens: 1600 },
+					{ name: "custom-2", baseModelId: "base-model-2" },
+				],
+			}
+			expect(() => AwsBedrockSettingsSchema.parse(settings)).to.not.throw()
 		})
 
 		it("should reject invalid field types", () => {
-			expect(() => AwsBedrockSettingsSchema.parse({ modelIds: "not-an-array" })).to.throw()
-			expect(() => AwsBedrockSettingsSchema.parse({ awsBedrockCustomSelected: "true" })).to.throw()
+			expect(() => AwsBedrockSettingsSchema.parse({ models: "not-an-array" })).to.throw()
+			expect(() => AwsBedrockSettingsSchema.parse({ customModels: "not-an-array" })).to.throw()
+		})
+
+		it("should reject models with missing id field", () => {
+			expect(() =>
+				AwsBedrockSettingsSchema.parse({
+					models: [{ thinkingBudgetTokens: 1600 }],
+				}),
+			).to.throw()
+		})
+
+		it("should reject custom models with missing fields", () => {
+			expect(() =>
+				AwsBedrockSettingsSchema.parse({
+					customModels: [{ name: "missing-base-model" }],
+				}),
+			).to.throw()
+			expect(() =>
+				AwsBedrockSettingsSchema.parse({
+					customModels: [{ baseModelId: "missing-name" }],
+				}),
+			).to.throw()
 		})
 	})
 
@@ -146,12 +163,12 @@ describe("Remote Config Schema", () => {
 				yoloModeAllowed: false,
 				providerSettings: {
 					OpenAiCompatible: {
-						modelIds: ["gpt-4"],
+						models: [{ id: "gpt-4" }],
 						openAiBaseUrl: "https://api.openai.com/v1",
 						openAiHeaders: {},
 					},
 					AwsBedrock: {
-						modelIds: ["anthropic.claude-v2"],
+						models: [{ id: "anthropic.claude-v2" }],
 						awsRegion: "us-west-2",
 					},
 				},
@@ -190,7 +207,7 @@ describe("Remote Config Schema", () => {
 				version: "v1",
 				providerSettings: {
 					OpenAiCompatible: {
-						modelIds: ["gpt-4", "gpt-3.5-turbo"],
+						models: [{ id: "gpt-4" }, { id: "gpt-3.5-turbo" }],
 						openAiBaseUrl: "https://api.openai.com/v1",
 					},
 				},
@@ -203,7 +220,7 @@ describe("Remote Config Schema", () => {
 				version: "v1",
 				providerSettings: {
 					AwsBedrock: {
-						modelIds: ["anthropic.claude-v2"],
+						models: [{ id: "anthropic.claude-v2" }],
 						awsRegion: "us-east-1",
 					},
 				},
@@ -216,10 +233,10 @@ describe("Remote Config Schema", () => {
 				version: "v1",
 				providerSettings: {
 					OpenAiCompatible: {
-						modelIds: ["gpt-4"],
+						models: [{ id: "gpt-4" }],
 					},
 					AwsBedrock: {
-						modelIds: ["anthropic.claude-v2"],
+						models: [{ id: "anthropic.claude-v2" }],
 					},
 				},
 			}
@@ -249,7 +266,7 @@ describe("Remote Config Schema", () => {
 			expect(() => RemoteConfigSchema.parse(config)).to.not.throw()
 		})
 
-		it("should handle complex nested validation", () => {
+		it("should handle complete config with all fields", () => {
 			const config = {
 				version: "v1",
 				telemetryEnabled: true,
@@ -257,18 +274,52 @@ describe("Remote Config Schema", () => {
 				yoloModeAllowed: true,
 				providerSettings: {
 					OpenAiCompatible: {
-						modelIds: ["model1", "model2", "model3"],
+						models: [
+							{
+								id: "gpt-4",
+								temperature: 0.7,
+								isR1FormatRequired: false,
+								maxTokens: 4096,
+								contextWindow: 128000,
+								inputPrice: 0.03,
+								outputPrice: 0.06,
+								supportsImages: true,
+							},
+							{
+								id: "gpt-3.5-turbo",
+								temperature: 0.8,
+								isR1FormatRequired: false,
+								maxTokens: 4096,
+								contextWindow: 16000,
+								inputPrice: 0.001,
+								outputPrice: 0.002,
+								supportsImages: false,
+							},
+						],
 						openAiBaseUrl: "https://custom.openai.api/v1",
 						openAiHeaders: {
-							"X-API-Key": "secret",
-							"X-Custom": "value",
+							"X-API-Key": "secret-key",
+							"X-Custom-Header": "custom-value",
 						},
 						azureApiVersion: "2024-02-15-preview",
 					},
 					AwsBedrock: {
-						modelIds: ["bedrock1", "bedrock2"],
-						awsBedrockCustomSelected: true,
-						awsBedrockCustomModelBaseId: "my-custom-model",
+						models: [
+							{ id: "anthropic.claude-v2", thinkingBudgetTokens: 1600 },
+							{ id: "anthropic.claude-instant-v1", thinkingBudgetTokens: 800 },
+						],
+						customModels: [
+							{
+								name: "my-custom-model",
+								baseModelId: "anthropic.claude-v2",
+								thinkingBudgetTokens: 2000,
+							},
+							{
+								name: "another-custom",
+								baseModelId: "anthropic.claude-instant-v1",
+								thinkingBudgetTokens: 1000,
+							},
+						],
 						awsRegion: "eu-west-1",
 						awsUseCrossRegionInference: false,
 						awsBedrockUsePromptCache: true,
@@ -277,9 +328,25 @@ describe("Remote Config Schema", () => {
 				},
 			}
 			const result = RemoteConfigSchema.parse(config)
+
+			// Verify all top-level fields
 			expect(result.version).to.equal("v1")
-			expect(result.providerSettings?.OpenAiCompatible?.modelIds).to.have.lengthOf(3)
-			expect(result.providerSettings?.AwsBedrock?.modelIds).to.have.lengthOf(2)
+			expect(result.telemetryEnabled).to.equal(true)
+			expect(result.mcpMarketplaceEnabled).to.equal(false)
+			expect(result.yoloModeAllowed).to.equal(true)
+
+			// Verify OpenAI Compatible settings
+			expect(result.providerSettings?.OpenAiCompatible?.models).to.have.lengthOf(2)
+			expect(result.providerSettings?.OpenAiCompatible?.openAiBaseUrl).to.equal("https://custom.openai.api/v1")
+			expect(result.providerSettings?.OpenAiCompatible?.azureApiVersion).to.equal("2024-02-15-preview")
+
+			// Verify AWS Bedrock settings
+			expect(result.providerSettings?.AwsBedrock?.models).to.have.lengthOf(2)
+			expect(result.providerSettings?.AwsBedrock?.customModels).to.have.lengthOf(2)
+			expect(result.providerSettings?.AwsBedrock?.awsRegion).to.equal("eu-west-1")
+			expect(result.providerSettings?.AwsBedrock?.awsUseCrossRegionInference).to.equal(false)
+			expect(result.providerSettings?.AwsBedrock?.awsBedrockUsePromptCache).to.equal(true)
+			expect(result.providerSettings?.AwsBedrock?.awsBedrockEndpoint).to.equal("https://custom-bedrock.endpoint")
 		})
 	})
 

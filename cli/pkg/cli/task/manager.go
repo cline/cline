@@ -132,10 +132,10 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 	}
 
 	// Parse task settings if provided
-	var taskSettings *cline.TaskSettings
+	var taskSettings *cline.Settings
 	if len(settingsFlags) > 0 {
 		var err error
-		taskSettings, err = ParseTaskSettings(settingsFlags)
+		taskSettings, _, err = ParseTaskSettings(settingsFlags)
 		if err != nil {
 			return "", fmt.Errorf("failed to parse task settings: %w", err)
 		}
@@ -876,6 +876,13 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			if !coordinator.IsProcessedInCurrentTurn("ask_command_output") {
 				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn("ask_command_output")
+			}
+
+		case msg.Ask == string(types.AskTypePlanModeRespond):
+			if !coordinator.IsProcessedInCurrentTurn("plan_mode_respond") {
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+				coordinator.MarkProcessedInCurrentTurn("plan_mode_respond")
 			}
 		}
 	}
