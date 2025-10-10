@@ -30,6 +30,11 @@ const SUPPORTED_BINARY_MODULES = ["better-sqlite3"]
 const UNIVERSAL_BUILD = !process.argv.includes("-s")
 const IS_VERBOSE = process.argv.includes("-v") || process.argv.includes("--verbose")
 
+// Parse --target flag (e.g., --target=jetbrains)
+const targetArg = process.argv.find((arg) => arg.startsWith("--target="))
+const BUILD_TARGET = targetArg ? targetArg.split("=")[1] : "standalone"
+const IS_JETBRAINS_BUILD = BUILD_TARGET === "jetbrains"
+
 // Detect current platform
 function getCurrentPlatform() {
 	const platform = os.platform()
@@ -46,19 +51,25 @@ function getCurrentPlatform() {
 }
 
 async function main() {
-	console.log("🚀 Building Cline Standalone Package\n")
+	console.log(`🚀 Building Cline ${BUILD_TARGET === "jetbrains" ? "JetBrains" : "Standalone"} Package\n`)
 
 	// Step 1: Install Node.js dependencies
 	await installNodeDependencies()
 
-	// Step 2: Copy Node.js binary
-	await copyNodeBinary()
+	// Step 2: Copy Node.js binary (skip for JetBrains - they provide their own)
+	if (!IS_JETBRAINS_BUILD) {
+		await copyNodeBinary()
+	}
 
-	// Step 3: Copy CLI binaries
-	await copyCliBinaries()
+	// Step 3: Copy CLI binaries (skip for JetBrains - they don't need them)
+	if (!IS_JETBRAINS_BUILD) {
+		await copyCliBinaries()
+	}
 
 	// Step 4: Create VERSION file
-	await createVersionFile()
+	if (!IS_JETBRAINS_BUILD) {
+		await createVersionFile()
+	}
 
 	// Step 6: Package platform-specific binary modules
 	if (UNIVERSAL_BUILD) {
@@ -230,8 +241,9 @@ async function packageAllBinaryDeps() {
 }
 
 async function zipDistribution() {
-	// Zip the build directory (excluding any pre-existing output zip).
-	const zipPath = path.join(BUILD_DIR, "standalone.zip")
+	// Use different filename for JetBrains builds
+	const zipFilename = IS_JETBRAINS_BUILD ? "standalone-jetbrains.zip" : "standalone.zip"
+	const zipPath = path.join(BUILD_DIR, zipFilename)
 	const output = fs.createWriteStream(zipPath)
 	const startTime = Date.now()
 	const archive = archiver("zip", { zlib: { level: 6 } })
@@ -249,15 +261,37 @@ async function zipDistribution() {
 	})
 
 	archive.pipe(output)
+
+	// Build ignore list - exclude binaries for JetBrains builds
+	const ignorePatterns = ["standalone.zip", "standalone-jetbrains.zip"]
+	if (IS_JETBRAINS_BUILD) {
+		// JetBrains already packages Node.js in their JAR, so exclude all Node.js and CLI binaries
+		ignorePatterns.push(
+			"bin/**", // Exclude entire bin directory (node, cline, cline-host)
+			"node-binaries/**", // Exclude all platform-specific Node.js binaries
+		)
+		console.log("JetBrains build: Excluding Node.js and CLI binaries (JetBrains provides its own Node.js)")
+	}
+
 	// Add all the files from the standalone build dir.
 	archive.glob("**/*", {
 		cwd: BUILD_DIR,
-		ignore: ["standalone.zip"],
+		ignore: ignorePatterns,
 	})
 
 	// Exclude the same files as the VCE vscode extension packager.
 	// Also ignore the dist directory, the build directory for the extension.
-	const isIgnored = createIsIgnored(["dist/**"])
+	const extensionIgnores = ["dist/**"]
+
+	// For JetBrains builds, also exclude CLI binaries and node-binaries from the extension directory
+	if (IS_JETBRAINS_BUILD) {
+		extensionIgnores.push(
+			"cli/bin/**", // Exclude CLI binaries from extension
+			"node-binaries/**", // Exclude node-binaries from extension (if present)
+		)
+	}
+
+	const isIgnored = createIsIgnored(extensionIgnores)
 
 	// Add the whole cline directory under "extension", except the for the ignored files.
 	archive.directory(process.cwd(), "extension", (entry) => {
