@@ -30,10 +30,12 @@ const SUPPORTED_BINARY_MODULES = ["better-sqlite3"]
 const UNIVERSAL_BUILD = !process.argv.includes("-s")
 const IS_VERBOSE = process.argv.includes("-v") || process.argv.includes("--verbose")
 
-// Parse --target flag (e.g., --target=jetbrains)
+// Parse --target flag (e.g., --target=cli)
+// Default behavior is JetBrains build (no binaries)
+// Use --target=cli for standalone CLI build (with binaries)
 const targetArg = process.argv.find((arg) => arg.startsWith("--target="))
-const BUILD_TARGET = targetArg ? targetArg.split("=")[1] : "standalone"
-const IS_JETBRAINS_BUILD = BUILD_TARGET === "jetbrains"
+const BUILD_TARGET = targetArg ? targetArg.split("=")[1] : "jetbrains"
+const IS_CLI_BUILD = BUILD_TARGET === "cli"
 
 // Detect current platform
 function getCurrentPlatform() {
@@ -51,23 +53,23 @@ function getCurrentPlatform() {
 }
 
 async function main() {
-	console.log(`🚀 Building Cline ${BUILD_TARGET === "jetbrains" ? "JetBrains" : "Standalone"} Package\n`)
+	console.log(`🚀 Building Cline ${IS_CLI_BUILD ? "Standalone CLI" : "JetBrains"} Package\n`)
 
 	// Step 1: Install Node.js dependencies
 	await installNodeDependencies()
 
-	// Step 2: Copy Node.js binary (skip for JetBrains - they provide their own)
-	if (!IS_JETBRAINS_BUILD) {
+	// Step 2: Copy Node.js binary (only for CLI builds)
+	if (IS_CLI_BUILD) {
 		await copyNodeBinary()
 	}
 
-	// Step 3: Copy CLI binaries (skip for JetBrains - they don't need them)
-	if (!IS_JETBRAINS_BUILD) {
+	// Step 3: Copy CLI binaries (only for CLI builds)
+	if (IS_CLI_BUILD) {
 		await copyCliBinaries()
 	}
 
-	// Step 4: Create VERSION file
-	if (!IS_JETBRAINS_BUILD) {
+	// Step 4: Create VERSION file (only for CLI builds)
+	if (IS_CLI_BUILD) {
 		await createVersionFile()
 	}
 
@@ -241,8 +243,9 @@ async function packageAllBinaryDeps() {
 }
 
 async function zipDistribution() {
-	// Use different filename for JetBrains builds
-	const zipFilename = IS_JETBRAINS_BUILD ? "standalone-jetbrains.zip" : "standalone.zip"
+	// Use different filename for CLI builds
+	// Default (JetBrains) = standalone.zip, CLI = standalone-cli.zip
+	const zipFilename = IS_CLI_BUILD ? "standalone-cli.zip" : "standalone.zip"
 	const zipPath = path.join(BUILD_DIR, zipFilename)
 	const output = fs.createWriteStream(zipPath)
 	const startTime = Date.now()
@@ -262,12 +265,12 @@ async function zipDistribution() {
 
 	archive.pipe(output)
 
-	// Build ignore list - exclude binaries for JetBrains builds
-	const ignorePatterns = ["standalone.zip", "standalone-jetbrains.zip"]
-	if (IS_JETBRAINS_BUILD) {
-		// JetBrains already packages Node.js in their JAR, so exclude all Node.js and CLI binaries
+	// Build ignore list - exclude binaries for JetBrains (default) builds
+	const ignorePatterns = ["standalone.zip", "standalone-cli.zip"]
+	if (!IS_CLI_BUILD) {
+		// Default JetBrains build: exclude binaries (they provide their own Node.js)
 		ignorePatterns.push(
-			"bin/**", // Exclude entire bin directory (node, cline, cline-host)
+			"bin/**", // Exclude entire bin directory
 			"node-binaries/**", // Exclude all platform-specific Node.js binaries
 		)
 		console.log("JetBrains build: Excluding Node.js and CLI binaries (JetBrains provides its own Node.js)")
@@ -283,11 +286,11 @@ async function zipDistribution() {
 	// Also ignore the dist directory, the build directory for the extension.
 	const extensionIgnores = ["dist/**"]
 
-	// For JetBrains builds, also exclude CLI binaries and node-binaries from the extension directory
-	if (IS_JETBRAINS_BUILD) {
+	// For JetBrains (default) builds, also exclude binaries from the extension directory
+	if (!IS_CLI_BUILD) {
 		extensionIgnores.push(
 			"cli/bin/**", // Exclude CLI binaries from extension
-			"node-binaries/**", // Exclude node-binaries from extension (if present)
+			"node-binaries/**", // Exclude node-binaries from extension
 		)
 	}
 
