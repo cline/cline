@@ -327,7 +327,6 @@ func (p *ToolResultParser) detectLanguage(ext string) string {
 		".scss": "scss",
 		".md":   "markdown",
 		".sql":  "sql",
-		".rust": "rust",
 		".rs":   "rust",
 	}
 
