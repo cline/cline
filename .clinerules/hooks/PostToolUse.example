@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# PostToolUse Hook: Minimal implementation that always allows execution
+
+# Default response - always allow execution (change to false to deny)
+echo '{"shouldContinue": true}'

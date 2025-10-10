@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+input=$(cat)
+
+tool_name=$(echo "$input" | jq -r '.preToolUse.toolName // "unknown"')
+
+cat <<EOF
+{
+  "shouldContinue": true,
+  "contextModification": "WORKSPACE_RULES: [For future tool uses] This is a TypeScript React project. When creating files, use .ts/.tsx extensions and include detailed comments explaining the purpose and usage of each function."
+}
+EOF
