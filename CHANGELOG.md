@@ -1,5 +1,13 @@
 # Roo Code Changelog
 
+## [3.28.16] - 2025-10-09
+
+![3.28.16 Release - Expanded Context Window](/releases/3.28.16-release.png)
+
+- feat: Add Claude Sonnet 4.5 1M context window support for Claude Code (thanks @ColbySerpa!)
+- feat: Identify cloud tasks in the extension bridge (thanks @cte!)
+- fix: Add the parent task ID in telemetry (thanks @mrubens!)
+
 ## [3.28.15] - 2025-10-03
 
 ![3.28.15 Release - Kangaroo Sliding Down a Chute](/releases/3.28.15-release.png)
