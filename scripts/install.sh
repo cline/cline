@@ -50,7 +50,7 @@ print_message() {
 
 # Print error and exit
 error_exit() {
-    print_message "$RED" "Error: $1"
+    print_message "$RED" "Error: $1" >&2
     exit 1
 }
 
@@ -77,21 +77,38 @@ check_prerequisites() {
 # Get download URL for the release
 get_download_url() {
     local platform=$1
-    local api_url
     
     if [ "$RELEASE_TAG" = "latest" ]; then
-        api_url="https://api.github.com/repos/$GITHUB_REPO/releases/latest"
+        # For latest, find the most recent release with -cli suffix
+        print_message "$BLUE" "Fetching latest CLI release..." >&2
+        
+        local releases_data=$(curl -fsSL "https://api.github.com/repos/$GITHUB_REPO/releases")
+        
+        # Extract the first tag ending in -cli
+        local cli_tag=$(echo "$releases_data" | grep -o '"tag_name": "[^"]*-cli"' | head -1 | cut -d'"' -f4)
+        
+        if [ -z "$cli_tag" ]; then
+            error_exit "No CLI releases found. Please specify a version: CLINE_VERSION=vX.X.X-cli"
+        fi
+        
+        print_message "$BLUE" "Found CLI release: $cli_tag" >&2
+        
+        # Get the download URL for this CLI release
+        local download_url=$(echo "$releases_data" | grep -A 20 "\"tag_name\": \"$cli_tag\"" | grep -o "\"browser_download_url\": \"[^\"]*${platform}[^\"]*\.tar\.gz\"" | head -1 | cut -d'"' -f4)
+        
+        if [ -z "$download_url" ]; then
+            error_exit "Could not find $platform package in release $cli_tag"
+        fi
     else
-        api_url="https://api.github.com/repos/$GITHUB_REPO/releases/tags/$RELEASE_TAG"
-    fi
-    
-    print_message "$BLUE" "Fetching release information..." >&2
-    
-    local release_data=$(curl -fsSL "$api_url")
-    local download_url=$(echo "$release_data" | grep -o "\"browser_download_url\": \"[^\"]*${platform}[^\"]*\"" | head -1 | cut -d'"' -f4)
-    
-    if [ -z "$download_url" ]; then
-        error_exit "Could not find download URL for platform: $platform"
+        # For specific version, use the provided tag
+        print_message "$BLUE" "Fetching release $RELEASE_TAG..." >&2
+        
+        local release_data=$(curl -fsSL "https://api.github.com/repos/$GITHUB_REPO/releases/tags/$RELEASE_TAG")
+        local download_url=$(echo "$release_data" | grep -o "\"browser_download_url\": \"[^\"]*${platform}[^\"]*\.tar\.gz\"" | head -1 | cut -d'"' -f4)
+        
+        if [ -z "$download_url" ]; then
+            error_exit "Could not find $platform package in release $RELEASE_TAG"
+        fi
     fi
     
     echo "$download_url"
