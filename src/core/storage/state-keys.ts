@@ -103,6 +103,7 @@ export interface Settings {
 	autoCondenseThreshold: number | undefined // number from 0 to 1
 	ocaBaseUrl: string | undefined
 	ocaMode: string | undefined
+	hooksEnabled: boolean
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
