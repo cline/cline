@@ -86,6 +86,7 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		command_output: ClineSay.COMMAND_OUTPUT_SAY,
 		tool: ClineSay.TOOL_SAY,
 		shell_integration_warning: ClineSay.SHELL_INTEGRATION_WARNING,
+		shell_integration_warning_with_suggestion: ClineSay.SHELL_INTEGRATION_WARNING,
 		browser_action_launch: ClineSay.BROWSER_ACTION_LAUNCH_SAY,
 		browser_action: ClineSay.BROWSER_ACTION,
 		browser_action_result: ClineSay.BROWSER_ACTION_RESULT,
