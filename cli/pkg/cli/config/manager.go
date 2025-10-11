@@ -149,7 +149,7 @@ func (m *Manager) GetSetting(ctx context.Context, key string) error {
 		return RenderField(rootField, value, false)
 	} else {
 		// Nested field: simple print
-		fmt.Printf("%s: %s\n", key, formatValue(value, "", false))
+		fmt.Printf("%s: %s\n", key, formatValue(value, rootField, true))
 	}
 
 	return nil
