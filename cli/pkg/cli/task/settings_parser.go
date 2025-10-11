@@ -9,19 +9,20 @@ import (
 )
 
 
-func ParseTaskSettings(settingsFlags []string) (*cline.Settings, error) {
+func ParseTaskSettings(settingsFlags []string) (*cline.Settings, *cline.Secrets, error) {
 	if len(settingsFlags) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	settings := &cline.Settings{}
+	secrets := &cline.Secrets{}
 	nestedSettings := make(map[string]map[string]string)
 
 	for _, flag := range settingsFlags {
 		// Parse key=value
 		parts := strings.SplitN(flag, "=", 2)
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid setting format '%s': expected key=value", flag)
+			return nil, nil, fmt.Errorf("invalid setting format '%s': expected key=value", flag)
 		}
 
 		key := strings.TrimSpace(parts[0])
@@ -41,9 +42,14 @@ func ParseTaskSettings(settingsFlags []string) (*cline.Settings, error) {
 			}
 			nestedSettings[parentField][childField] = value
 		} else {
-			// Simple field - set directly
+			// Check if it's a secret field first, then settings field
+			if err := setSecretField(secrets, key, value); err == nil {
+				// Successfully set as secret, continue
+				continue
+			}
+			// Not a secret, try as a settings field
 			if err := setSimpleField(settings, key, value); err != nil {
-				return nil, fmt.Errorf("error setting field '%s': %w", key, err)
+				return nil, nil, fmt.Errorf("error setting field '%s': %w", key, err)
 			}
 		}
 	}
@@ -51,11 +57,11 @@ func ParseTaskSettings(settingsFlags []string) (*cline.Settings, error) {
 	// Process nested settings
 	for parentField, childFields := range nestedSettings {
 		if err := setNestedField(settings, parentField, childFields); err != nil {
-			return nil, fmt.Errorf("error setting nested field '%s': %w", parentField, err)
+			return nil, nil, fmt.Errorf("error setting nested field '%s': %w", parentField, err)
 		}
 	}
 
-	return settings, nil
+	return settings, secrets, nil
 }
 
 // kebabToSnake converts kebab-case to snake_case
@@ -663,6 +669,90 @@ func parseApiProvider(value string) (cline.ApiProvider, error) {
 	default:
 		return cline.ApiProvider_ANTHROPIC, fmt.Errorf("invalid api_provider '%s'", value)
 	}
+}
+
+// setSecretField sets a secret field on Secrets
+// All secret fields are optional strings
+// Returns nil if field was successfully set, error otherwise
+func setSecretField(secrets *cline.Secrets, key, value string) error {
+	switch key {
+	case "api_key":
+		secrets.ApiKey = strPtr(value)
+	case "open_router_api_key":
+		secrets.OpenRouterApiKey = strPtr(value)
+	case "aws_access_key":
+		secrets.AwsAccessKey = strPtr(value)
+	case "aws_secret_key":
+		secrets.AwsSecretKey = strPtr(value)
+	case "aws_session_token":
+		secrets.AwsSessionToken = strPtr(value)
+	case "aws_bedrock_api_key":
+		secrets.AwsBedrockApiKey = strPtr(value)
+	case "open_ai_api_key":
+		secrets.OpenAiApiKey = strPtr(value)
+	case "gemini_api_key":
+		secrets.GeminiApiKey = strPtr(value)
+	case "open_ai_native_api_key":
+		secrets.OpenAiNativeApiKey = strPtr(value)
+	case "ollama_api_key":
+		secrets.OllamaApiKey = strPtr(value)
+	case "deep_seek_api_key":
+		secrets.DeepSeekApiKey = strPtr(value)
+	case "requesty_api_key":
+		secrets.RequestyApiKey = strPtr(value)
+	case "together_api_key":
+		secrets.TogetherApiKey = strPtr(value)
+	case "fireworks_api_key":
+		secrets.FireworksApiKey = strPtr(value)
+	case "qwen_api_key":
+		secrets.QwenApiKey = strPtr(value)
+	case "doubao_api_key":
+		secrets.DoubaoApiKey = strPtr(value)
+	case "mistral_api_key":
+		secrets.MistralApiKey = strPtr(value)
+	case "lite_llm_api_key":
+		secrets.LiteLlmApiKey = strPtr(value)
+	case "auth_nonce":
+		secrets.AuthNonce = strPtr(value)
+	case "asksage_api_key":
+		secrets.AsksageApiKey = strPtr(value)
+	case "xai_api_key":
+		secrets.XaiApiKey = strPtr(value)
+	case "moonshot_api_key":
+		secrets.MoonshotApiKey = strPtr(value)
+	case "zai_api_key":
+		secrets.ZaiApiKey = strPtr(value)
+	case "hugging_face_api_key":
+		secrets.HuggingFaceApiKey = strPtr(value)
+	case "nebius_api_key":
+		secrets.NebiusApiKey = strPtr(value)
+	case "sambanova_api_key":
+		secrets.SambanovaApiKey = strPtr(value)
+	case "cerebras_api_key":
+		secrets.CerebrasApiKey = strPtr(value)
+	case "sap_ai_core_client_id":
+		secrets.SapAiCoreClientId = strPtr(value)
+	case "sap_ai_core_client_secret":
+		secrets.SapAiCoreClientSecret = strPtr(value)
+	case "groq_api_key":
+		secrets.GroqApiKey = strPtr(value)
+	case "huawei_cloud_maas_api_key":
+		secrets.HuaweiCloudMaasApiKey = strPtr(value)
+	case "baseten_api_key":
+		secrets.BasetenApiKey = strPtr(value)
+	case "vercel_ai_gateway_api_key":
+		secrets.VercelAiGatewayApiKey = strPtr(value)
+	case "dify_api_key":
+		secrets.DifyApiKey = strPtr(value)
+	case "oca_api_key":
+		secrets.OcaApiKey = strPtr(value)
+	case "oca_refresh_token":
+		secrets.OcaRefreshToken = strPtr(value)
+	default:
+		return fmt.Errorf("unsupported secret field '%s'", key)
+	}
+
+	return nil
 }
 
 // Note: message types not supported via -s flags:

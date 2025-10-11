@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 	"text/tabwriter"
 	"time"
 
+	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/grpc-go/cline"
 	"github.com/spf13/cobra"
@@ -267,14 +269,21 @@ func newInstanceListCommand() *cobra.Command {
 				return nil
 			}
 
-			// Always output a table
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "ADDRESS\tSTATUS\tVERSION\tLAST SEEN\tPID\tDEFAULT")
+			// Build instance data
+			type instanceRow struct {
+				address  string
+				status   string
+				version  string
+				lastSeen string
+				pid      string
+				isDefault string
+			}
 
+			var rows []instanceRow
 			for _, instance := range instances {
 				isDefault := ""
 				if instance.Address == defaultInstance {
-					isDefault = "*"
+					isDefault = "✓"
 				}
 
 				lastSeen := instance.LastSeen.Format("15:04:05")
@@ -296,17 +305,74 @@ func newInstanceListCommand() *cobra.Command {
 					}
 				}
 
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-					instance.Address,
-					instance.Status,
-					instance.Version,
-					lastSeen,
-					pid,
-					isDefault,
-				)
+				rows = append(rows, instanceRow{
+					address:  instance.Address,
+					status:   instance.Status.String(),
+					version:  instance.Version,
+					lastSeen: lastSeen,
+					pid:      pid,
+					isDefault: isDefault,
+				})
 			}
 
-			w.Flush()
+			// Check output format
+			if global.Config.OutputFormat == "plain" {
+				// Use tabwriter for plain output
+				w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+				fmt.Fprintln(w, "ADDRESS\tSTATUS\tVERSION\tLAST SEEN\tPID\tDEFAULT")
+
+				for _, row := range rows {
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+						row.address,
+						row.status,
+						row.version,
+						row.lastSeen,
+						row.pid,
+						row.isDefault,
+					)
+				}
+
+				w.Flush()
+			} else {
+				// Use markdown table for rich output
+				var markdown strings.Builder
+				markdown.WriteString("| **ADDRESS (ID)** | **STATUS** | **VERSION** | **LAST SEEN** | **PID** | **DEFAULT** |\n")
+				markdown.WriteString("|---------|--------|---------|-----------|-----|---------|")
+
+				for _, row := range rows {
+					markdown.WriteString(fmt.Sprintf("\n| %s | %s | %s | %s | %s | %s |",
+						row.address,
+						row.status,
+						row.version,
+						row.lastSeen,
+						row.pid,
+						row.isDefault,
+					))
+				}
+
+				// Render the markdown table
+				renderer, err := display.NewMarkdownRenderer()
+				if err != nil {
+					// Fallback to plain table if markdown renderer fails
+					fmt.Println(markdown.String())
+				} else {
+					rendered, err := renderer.Render(markdown.String())
+					if err != nil {
+						fmt.Println(markdown.String())
+					} else {
+						// Post-process to colorize status values
+						rendered = strings.ReplaceAll(rendered, "SERVING", "\033[32mSERVING\033[0m")       		// Green
+						rendered = strings.ReplaceAll(rendered, "✓", "\033[32m✓\033[0m")       			   		// Green
+						rendered = strings.ReplaceAll(rendered, "NOT_SERVING", "\033[31mNOT_SERVING\033[0m") 	// Red
+						rendered = strings.ReplaceAll(rendered, "UNKNOWN", "\033[33mUNKNOWN\033[0m")      		// Yellow
+						
+						
+						fmt.Print(strings.TrimLeft(rendered, "\n"))
+					}
+					fmt.Println("\n")
+				}
+			}
+
 			return nil
 		},
 	}
