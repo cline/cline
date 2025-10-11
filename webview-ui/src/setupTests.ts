@@ -24,3 +24,6 @@ vi.stubGlobal("acquireVsCodeApi", () => ({
 	getState: vi.fn(),
 	setState: vi.fn(),
 }))
+
+// Provide a test client ID to silence missing clientId errors in CI
+vi.stubGlobal("clineClientId", "test-client")
