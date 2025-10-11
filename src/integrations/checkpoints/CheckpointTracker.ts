@@ -53,6 +53,43 @@ class CheckpointTracker {
 	}
 
 	/**
+	 * Send a checkpoint event to all subscribers.
+	 * Uses dynamic import to avoid circular dependencies.
+	 *
+	 * @param operation - The operation type (CHECKPOINT_INIT, CHECKPOINT_COMMIT, or CHECKPOINT_RESTORE)
+	 * @param isActive - true when operation starts, false when complete
+	 * @param commitHash - Optional commit hash for CHECKPOINT_COMMIT and CHECKPOINT_RESTORE operations
+	 */
+	private async sendEvent(
+		operation: "CHECKPOINT_INIT" | "CHECKPOINT_COMMIT" | "CHECKPOINT_RESTORE",
+		isActive: boolean,
+		commitHash?: string,
+	): Promise<void> {
+		try {
+			const { sendCheckpointEvent } = await import("@core/controller/checkpoints/subscribeToCheckpoints")
+			const { CheckpointEvent_OperationType } = await import("@shared/proto/cline/checkpoints")
+
+			// Create timestamp manually since toTimestamp is not exported
+			const now = new Date()
+			const seconds = Math.trunc(now.getTime() / 1_000)
+			const nanos = (now.getTime() % 1_000) * 1_000_000
+			const timestamp = { seconds, nanos }
+
+			await sendCheckpointEvent({
+				operation: CheckpointEvent_OperationType[operation],
+				cwdHash: this.cwdHash,
+				isActive,
+				timestamp,
+				taskId: this.taskId,
+				commitHash,
+			})
+		} catch (error) {
+			// Silently handle errors in event notifications - they shouldn't break the operation
+			console.debug("Failed to send checkpoint event:", error)
+		}
+	}
+
+	/**
 	 * Creates a new CheckpointTracker instance to manage checkpoints for a specific task.
 	 * The constructor is private - use the static create() method to instantiate.
 	 *
@@ -130,9 +167,11 @@ class CheckpointTracker {
 			console.debug(`Repository ID (cwdHash): ${cwdHash}`)
 
 			const newTracker = new CheckpointTracker(taskId, workingDir, cwdHash)
+			await newTracker.sendEvent("CHECKPOINT_INIT", true)
 
 			const gitPath = await getShadowGitPath(newTracker.cwdHash)
 			await newTracker.gitOperations.initShadowGit(gitPath, workingDir, taskId)
+			await newTracker.sendEvent("CHECKPOINT_INIT", false)
 
 			const durationMs = Math.round(performance.now() - startTime)
 			telemetryService.captureCheckpointUsage(taskId, "shadow_git_initialized", durationMs)
@@ -171,6 +210,7 @@ class CheckpointTracker {
 	 */
 	public async commit(): Promise<string | undefined> {
 		try {
+			await this.sendEvent("CHECKPOINT_COMMIT", true)
 			console.info(`Creating new checkpoint commit for task ${this.taskId}`)
 			const startTime = performance.now()
 
@@ -195,6 +235,7 @@ class CheckpointTracker {
 			console.warn(`Checkpoint commit created: `, commitHash)
 
 			const durationMs = Math.round(performance.now() - startTime)
+			await this.sendEvent("CHECKPOINT_COMMIT", false, commitHash)
 			telemetryService.captureCheckpointUsage(this.taskId, "commit_created", durationMs)
 
 			return commitHash
@@ -263,6 +304,7 @@ class CheckpointTracker {
 	public async resetHead(commitHash: string): Promise<void> {
 		console.info(`Resetting to checkpoint: ${commitHash}`)
 		const startTime = performance.now()
+		await this.sendEvent("CHECKPOINT_RESTORE", true, commitHash)
 
 		const gitPath = await getShadowGitPath(this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
@@ -271,6 +313,7 @@ class CheckpointTracker {
 		console.debug(`Successfully reset to checkpoint: ${commitHash}`)
 
 		const durationMs = Math.round(performance.now() - startTime)
+		await this.sendEvent("CHECKPOINT_RESTORE", false, commitHash)
 		telemetryService.captureCheckpointUsage(this.taskId, "restored", durationMs)
 	}
 
