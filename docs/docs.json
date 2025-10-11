@@ -301,10 +301,5 @@
 	],
 	"search": {
 		"prompt": "Search Cline documentation..."
-	},
-	"contextual": {
-		"options": [
-			"copy"
-		]
 	}
 }
