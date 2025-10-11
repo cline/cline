@@ -157,9 +157,17 @@ func (h *SayHandler) handleText(msg *types.ClineMessage, dc *DisplayContext) err
 	}
 
 	// Regular Cline text response
-	markdown := fmt.Sprintf("### Cline responds\n\n%s", msg.Text)
-	rendered := dc.Renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	var rendered string
+	if dc.IsStreamingMode {
+		// In streaming mode, header already shown by partial stream
+		rendered = dc.Renderer.RenderMarkdown(msg.Text)
+		fmt.Printf("%s\n", rendered)
+	} else {
+		// In non-streaming mode, render header + body together
+		markdown := fmt.Sprintf("### Cline responds\n\n%s", msg.Text)
+		rendered = dc.Renderer.RenderMarkdown(markdown)
+		fmt.Printf("\n%s\n", rendered)
+	}
 	return nil
 }
 
@@ -169,9 +177,17 @@ func (h *SayHandler) handleReasoning(msg *types.ClineMessage, dc *DisplayContext
 		return nil
 	}
 
-	markdown := fmt.Sprintf("### Cline is thinking\n\n%s", msg.Text)
-	rendered := dc.Renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	var rendered string
+	if dc.IsStreamingMode {
+		// In streaming mode, header already shown by partial stream
+		rendered = dc.Renderer.RenderMarkdown(msg.Text)
+		fmt.Printf("%s\n", rendered)
+	} else {
+		// In non-streaming mode, render header + body together
+		markdown := fmt.Sprintf("### Cline is thinking\n\n%s", msg.Text)
+		rendered = dc.Renderer.RenderMarkdown(markdown)
+		fmt.Printf("\n%s\n", rendered)
+	}
 	return nil
 }
 
@@ -182,9 +198,17 @@ func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *Display
 		text = strings.TrimSuffix(text, "HAS_CHANGES")
 	}
 
-	markdown := fmt.Sprintf("### Task completed\n\n%s", text)
-	rendered := dc.Renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	var rendered string
+	if dc.IsStreamingMode {
+		// In streaming mode, header already shown by partial stream
+		rendered = dc.Renderer.RenderMarkdown(text)
+		fmt.Printf("%s\n", rendered)
+	} else {
+		// In non-streaming mode, render header + body together
+		markdown := fmt.Sprintf("### Task completed\n\n%s", text)
+		rendered = dc.Renderer.RenderMarkdown(markdown)
+		fmt.Printf("\n%s\n", rendered)
+	}
 	return nil
 }
 
@@ -327,7 +351,7 @@ func (h *SayHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayConte
 		if tool.Content != "" {
 			diffMarkdown := fmt.Sprintf("```diff\n%s\n```", tool.Content)
 			diffRendered := dc.Renderer.RenderMarkdown(diffMarkdown)
-			fmt.Printf("\n%s\n", diffRendered)
+			fmt.Printf("%s", diffRendered)
 		}
 		return nil
 	
