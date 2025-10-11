@@ -18,6 +18,7 @@ tsconfig*.json
 eslint-rules/**
 .github/**
 .husky/**
+.env
 
 # Custom
 **/demo.gif

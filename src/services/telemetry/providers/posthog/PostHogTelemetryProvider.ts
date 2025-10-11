@@ -128,6 +128,17 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		return { ...this.telemetrySettings }
 	}
 
+	/**
+	 * Metrics are not supported in PostHog provider. These are intentional no-ops.
+	 */
+	public incrementCounter(name: string, value: number = 1, attributes?: TelemetryProperties): void {
+		// no-op
+	}
+
+	public recordHistogram(name: string, value: number, attributes?: TelemetryProperties): void {
+		// no-op
+	}
+
 	public async dispose(): Promise<void> {
 		// Only shut down the client if it's not shared (we own it)
 		if (!this.isSharedClient) {
