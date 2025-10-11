@@ -117,7 +117,7 @@ export class OpenAiHandler implements ApiHandler {
 				}
 			}
 
-			if (chunk.usage) {
+			if (chunk.usage && !chunk.choices[0]) {
 				yield {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
