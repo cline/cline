@@ -165,42 +165,71 @@ install_cline() {
 # Configure PATH
 configure_path() {
     local bin_dir="$INSTALL_DIR/bin"
-    local shell_rc=""
     
-    # Detect shell configuration file
-    if [ -n "$BASH_VERSION" ]; then
-        if [ -f "$HOME/.bashrc" ]; then
-            shell_rc="$HOME/.bashrc"
-        elif [ -f "$HOME/.bash_profile" ]; then
-            shell_rc="$HOME/.bash_profile"
-        fi
-    elif [ -n "$ZSH_VERSION" ]; then
-        shell_rc="$HOME/.zshrc"
-    fi
-    
-    if [ -z "$shell_rc" ]; then
-        print_message "$YELLOW" "⚠ Could not detect shell configuration file"
-        print_message "$YELLOW" "Please manually add the following to your shell configuration:"
-        print_message "$YELLOW" "  export PATH=\"$bin_dir:\$PATH\""
+    # Check if already in PATH
+    if [[ ":$PATH:" == *":$bin_dir:"* ]]; then
+        print_message "$GREEN" "✓ $bin_dir already in PATH"
         return
     fi
     
-    # Check if PATH is already configured
-    if grep -q "CLINE_INSTALL_DIR" "$shell_rc" 2>/dev/null; then
-        print_message "$GREEN" "✓ PATH already configured in $shell_rc"
+    # Detect shell and possible config files
+    local current_shell=$(basename "${SHELL:-bash}")
+    local config_files=""
+    local XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+    
+    case $current_shell in
+        zsh)
+            config_files="$HOME/.zshrc $HOME/.zshenv $XDG_CONFIG_HOME/zsh/.zshrc"
+            ;;
+        bash)
+            config_files="$HOME/.bashrc $HOME/.bash_profile $HOME/.profile"
+            ;;
+        fish)
+            config_files="$HOME/.config/fish/config.fish"
+            ;;
+        *)
+            config_files="$HOME/.profile"
+            ;;
+    esac
+    
+    # Find the first existing config file
+    local config_file=""
+    for file in $config_files; do
+        if [ -f "$file" ]; then
+            config_file="$file"
+            break
+        fi
+    done
+    
+    # If no config file exists, create the default one
+    if [ -z "$config_file" ]; then
+        case $current_shell in
+            zsh) config_file="$HOME/.zshrc" ;;
+            bash) config_file="$HOME/.bashrc" ;;
+            fish) config_file="$HOME/.config/fish/config.fish" ;;
+            *) config_file="$HOME/.profile" ;;
+        esac
+        print_message "$BLUE" "Creating $config_file..."
+        touch "$config_file"
+    fi
+    
+    # Check if PATH export already exists
+    local path_command="export PATH=\"$bin_dir:\$PATH\""
+    if grep -Fq "$bin_dir" "$config_file" 2>/dev/null; then
+        print_message "$GREEN" "✓ PATH already configured in $config_file"
         return
     fi
     
     # Add to PATH
-    print_message "$BLUE" "Configuring PATH in $shell_rc..."
-    cat >> "$shell_rc" << EOF
+    print_message "$BLUE" "Configuring PATH in $config_file..."
+    cat >> "$config_file" << EOF
 
 # Cline CLI
-export PATH="$bin_dir:\$PATH"
+$path_command
 EOF
     
-    print_message "$GREEN" "✓ PATH configured in $shell_rc"
-    print_message "$YELLOW" "⚠ Please restart your shell or run: source $shell_rc"
+    print_message "$GREEN" "✓ PATH configured in $config_file"
+    print_message "$YELLOW" "⚠ Please restart your shell or run: source $config_file"
 }
 
 # Verify installation
