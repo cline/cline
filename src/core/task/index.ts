@@ -1963,7 +1963,11 @@ export class Task {
 			if (shouldCompact) {
 				userContent.push({
 					type: "text",
-					text: summarizeTask(this.stateManager.getGlobalSettingsKey("focusChainSettings")),
+					text: summarizeTask(
+						this.stateManager.getGlobalSettingsKey("focusChainSettings"),
+						this.cwd,
+						isMultiRootEnabled(this.stateManager),
+					),
 				})
 			}
 		} else {

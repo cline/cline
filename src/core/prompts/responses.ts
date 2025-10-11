@@ -14,12 +14,19 @@ export const formatResponse = {
 	processFirstUserMessageForTruncation: (originalContent: string) => {
 		const MAX_CHARS = 400_000
 
+		const prependedContext =
+			"[[IMPORTANT] The conversation has been truncated. This initial task message is provided for historical context only. You MUST focus on responding to the user's most recent messages and instructions, not this initial message.]\n\n"
+
 		if (originalContent.length <= MAX_CHARS) {
-			return originalContent
+			return prependedContext + originalContent
 		}
 
 		const truncated = originalContent.substring(0, MAX_CHARS)
-		return truncated + "\n\n[[NOTE] This message was truncated past this point to preserve context window space.]"
+		return (
+			prependedContext +
+			truncated +
+			"\n\n[[NOTE] This message was truncated past this point to preserve context window space.]"
+		)
 	},
 
 	condense: () =>
