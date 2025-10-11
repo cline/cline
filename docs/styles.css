@@ -5,6 +5,25 @@ h1 {
 	font-weight: 500 !important;
 }
 
+/* Reduce normal text opacity for better section clarity */
+p,
+li,
+td,
+.prose {
+	opacity: 0.9;
+}
+
+/* Keep headings and images at full opacity */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+img {
+	opacity: 1 !important;
+}
+
 /* Also apply to any h1 elements within content areas */
 .content h1,
 .markdown h1,
