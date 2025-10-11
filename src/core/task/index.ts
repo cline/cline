@@ -209,13 +209,6 @@ export class Task {
 		this.cwd = cwd
 		this.stateManager = stateManager
 		this.workspaceManager = workspaceManager
-
-		console.log("[DEBUG] Task initialized with:")
-		console.log("[DEBUG] - cwd:", this.cwd)
-		console.log("[DEBUG] - workspaceManager roots:", this.workspaceManager?.getRoots())
-		console.log("[DEBUG] - workspaceManager primary:", this.workspaceManager?.getPrimaryRoot())
-		console.log("[DEBUG] - isMultiRootEnabled:", isMultiRootEnabled(this.stateManager))
-
 		// Set up MCP notification callback for real-time notifications
 		this.mcpHub.setNotificationCallback(async (serverName: string, _level: string, message: string) => {
 			// Display notification in chat immediately
