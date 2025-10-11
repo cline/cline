@@ -344,6 +344,7 @@ function parseConfigurationFields(optionsContent, providerApiKeyMap, apiSecretsF
 			"together",
 			"claudecode",
 			"cline",
+			"cortecs",
 		]
 
 		// If field name starts with or contains a provider prefix, categorize it as provider-specific
@@ -889,6 +890,7 @@ function getProviderDisplayName(providerId) {
 		baseten: "Baseten",
 		"vercel-ai-gateway": "Vercel AI Gateway",
 		zai: "Z AI",
+		cortecs: "cortecs",
 	}
 
 	return displayNames[providerId] || providerId.charAt(0).toUpperCase() + providerId.slice(1)
