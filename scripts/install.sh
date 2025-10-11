@@ -93,8 +93,9 @@ get_download_url() {
         
         print_message "$BLUE" "Found CLI release: $cli_tag" >&2
         
-        # Get the download URL for this CLI release
-        local download_url=$(echo "$releases_data" | grep -A 20 "\"tag_name\": \"$cli_tag\"" | grep -o "\"browser_download_url\": \"[^\"]*${platform}[^\"]*\.tar\.gz\"" | head -1 | cut -d'"' -f4)
+        # Fetch the specific release to get download URLs
+        local release_data=$(curl -fsSL "https://api.github.com/repos/$GITHUB_REPO/releases/tags/$cli_tag")
+        local download_url=$(echo "$release_data" | grep -o "\"browser_download_url\": \"[^\"]*${platform}[^\"]*\.tar\.gz\"" | head -1 | cut -d'"' -f4)
         
         if [ -z "$download_url" ]; then
             error_exit "Could not find $platform package in release $cli_tag"
