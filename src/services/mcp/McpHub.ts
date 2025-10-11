@@ -634,7 +634,9 @@ export class McpHub {
 	}
 
 	private removeAllFileWatchers() {
-		this.fileWatchers.forEach((watcher) => watcher.close())
+		this.fileWatchers.forEach((watcher) => {
+			watcher.close()
+		})
 		this.fileWatchers.clear()
 	}
 
@@ -870,9 +872,34 @@ export class McpHub {
 				toolArguments ? Object.keys(toolArguments) : undefined,
 			)
 
+			const normalizedContent = (result.content ?? [])
+				.map((item: any) => {
+					switch (item?.type) {
+						case "text":
+							return { type: "text", text: String(item.text ?? "") }
+						case "image":
+							return { type: "image", data: String(item.data ?? ""), mimeType: String(item.mimeType ?? "") }
+						case "audio":
+							return { type: "audio", data: String(item.data ?? ""), mimeType: String(item.mimeType ?? "") }
+						case "resource":
+							return {
+								type: "resource",
+								resource: {
+									uri: String(item.resource?.uri ?? item.uri ?? ""),
+									mimeType: item.resource?.mimeType ?? item.mimeType,
+									text: item.resource?.text ?? item.text,
+									blob: item.resource?.blob ?? item.blob,
+								},
+							}
+						default:
+							return null
+					}
+				})
+				.filter(Boolean) as McpToolCallResponse["content"]
+
 			return {
 				...result,
-				content: result.content ?? [],
+				content: normalizedContent,
 			}
 		} catch (error) {
 			this.telemetryService.captureMcpToolCall(
