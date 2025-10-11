@@ -7,6 +7,7 @@
 		"@grpc/reflection": "^1.0.4",
 		"better-sqlite3": "^12.2.0",
 		"grpc-health-check": "^2.0.2",
+		"keytar": "^7.9.0",
 		"open": "^10.1.2",
 		"vscode-uri": "^3.1.0"
 	}
