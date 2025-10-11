@@ -52,7 +52,7 @@ export class VertexHandler implements ApiHandler {
 				// Initialize Anthropic client for Claude models
 				this.clientAnthropic = new AnthropicVertex({
 					projectId: this.options.vertexProjectId,
-					// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
+					// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/claude/use-claude#use_the_anthropic_sdk
 					region: this.options.vertexRegion,
 				})
 			} catch (error: any) {

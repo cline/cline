@@ -400,7 +400,7 @@
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.37.0",
-		"@anthropic-ai/vertex-sdk": "^0.6.4",
+		"@anthropic-ai/vertex-sdk": "^0.14.0",
 		"@aws-sdk/client-bedrock-runtime": "^3.840.0",
 		"@aws-sdk/credential-providers": "^3.840.0",
 		"@bufbuild/protobuf": "^2.2.5",
