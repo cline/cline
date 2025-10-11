@@ -277,7 +277,6 @@ export class Controller {
 		taskSettings?: Partial<Settings>,
 		workspacePaths?: string[],
 	) {
-		console.log("[DEBUG] Controller.initTask called with workspacePaths:", workspacePaths)
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
