@@ -2,8 +2,6 @@
 
 ## 3.32.8
 
-### Patch Changes
-
 - 835204c: Added updateApiConfigurationPartial with FieldMask to allow for partial ApiProvider updates
 - 3b636e1: Add auto-retry with exponential backof for failed API requests
 - a670c1e: Add interactive provider configuration wizard with add/list capabilities, support for 8 API providers (Anthropic, OpenAI, OpenAI Native, OpenRouter, X AI, AWS Bedrock, Google Gemini, Ollama), and UpdateSettings gRPC implementation for persisting configurations to Cline Core state.
