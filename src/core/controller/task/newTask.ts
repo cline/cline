@@ -14,6 +14,8 @@ import { Controller } from ".."
  * @returns Empty response
  */
 export async function newTask(controller: Controller, request: NewTaskRequest): Promise<String> {
+	console.log("[DEBUG] newTask received request.workspacePaths:", request.workspacePaths)
+
 	const convertOpenaiReasoningEffort = (effort: ProtoOpenaiReasoningEffort): string => {
 		switch (effort) {
 			case ProtoOpenaiReasoningEffort.LOW:

@@ -18,21 +18,17 @@ echo ""
 echo -e "${MAGENTA}${BOLD}Installing Cline CLI from local build${NC}"
 echo ""
 
-# Check if binaries exist
-if [ ! -f "$PROJECT_ROOT/cli/bin/cline" ] || [ ! -f "$PROJECT_ROOT/cli/bin/cline-host" ]; then
-    echo -e "${YELLOW}Binaries not found. Building now...${NC}"
-    cd "$PROJECT_ROOT"
-    npm run compile-cli
-    echo ""
-fi
+# Always rebuild CLI to ensure latest changes
+echo -e "${CYAN}→${NC} ${DIM}Rebuilding CLI binaries...${NC}"
+cd "$PROJECT_ROOT"
+npm run compile-cli > /dev/null 2>&1
+echo -e "${GREEN}✓${NC} CLI binaries rebuilt"
 
-# Check if dist-standalone exists
-if [ ! -d "$PROJECT_ROOT/dist-standalone" ]; then
-    echo -e "${YELLOW}Standalone package not found. Building now...${NC}"
-    cd "$PROJECT_ROOT"
-    npm run compile-standalone
-    echo ""
-fi
+# Always rebuild standalone to ensure latest cline-core.js
+echo -e "${CYAN}→${NC} ${DIM}Rebuilding standalone package (this may take ~30 seconds)...${NC}"
+npm run compile-standalone > /dev/null 2>&1
+echo -e "${GREEN}✓${NC} Standalone package rebuilt"
+echo ""
 
 echo -e "${CYAN}→${NC} ${DIM}Installing to $INSTALL_DIR${NC}"
 

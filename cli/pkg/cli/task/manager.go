@@ -163,6 +163,10 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 		WorkspacePaths: absoluteWorkspacePaths,
 	}
 
+	// Debug: Log the request details (ALWAYS - for debugging)
+	fmt.Printf("[DEBUG-GRPC]: WorkspacePaths in struct: %v (len=%d)\n", req.WorkspacePaths, len(req.WorkspacePaths))
+	fmt.Printf("[DEBUG-GRPC]: absoluteWorkspacePaths var: %v (len=%d)\n", absoluteWorkspacePaths, len(absoluteWorkspacePaths))
+
 	resp, err := m.client.Task.NewTask(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("failed to create task: %w", err)

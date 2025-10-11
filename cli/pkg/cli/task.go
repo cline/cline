@@ -135,6 +135,11 @@ func newTaskNewCommand() *cobra.Command {
 				settings = append(settings, "yolo_mode_toggled=true")
 			}
 
+			// Debug: Log workspaces before creating task
+			if global.Config.Verbose {
+				fmt.Printf("[DEBUG]: Workspaces: %v\n", workspaces)
+			}
+
 			// Create the task
 			taskID, err := taskManager.CreateTask(ctx, prompt, images, files, workspaces, settings)
 			if err != nil {
