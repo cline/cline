@@ -1,6 +1,18 @@
-import { CheckpointEvent, CheckpointSubscriptionRequest } from "@shared/proto/cline/checkpoints"
+import { CheckpointEvent, CheckpointEvent_OperationType, CheckpointSubscriptionRequest } from "@shared/proto/cline/checkpoints"
+import { Timestamp } from "@shared/proto/google/protobuf/timestamp"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
+
+/**
+ * Parameters for creating a checkpoint event
+ */
+export interface CheckpointEventData {
+	operation: keyof typeof CheckpointEvent_OperationType
+	cwdHash: string
+	isActive: boolean
+	taskId?: string
+	commitHash?: string
+}
 
 /**
  * Track active checkpoint subscriptions per workspace.
@@ -34,7 +46,12 @@ export async function subscribeToCheckpoints(
 	if (!activeCheckpointSubscriptions.has(cwdHash)) {
 		activeCheckpointSubscriptions.set(cwdHash, new Set())
 	}
-	const subscriptions = activeCheckpointSubscriptions.get(cwdHash)!
+
+	const subscriptions = activeCheckpointSubscriptions.get(cwdHash)
+	if (!subscriptions) {
+		throw new Error(`Failed to retrieve subscriptions for cwdHash: ${cwdHash}`)
+	}
+
 	subscriptions.add(responseStream)
 
 	// Register cleanup when the connection is closed
@@ -46,21 +63,41 @@ export async function subscribeToCheckpoints(
 	}
 
 	if (requestId) {
-		getRequestRegistry().registerRequest(requestId, cleanup, { type: "checkpoint_subscription", cwdHash }, responseStream)
+		getRequestRegistry().registerRequest(
+			requestId,
+			cleanup,
+			{ type: "checkpoint_subscription" as const, cwdHash },
+			responseStream,
+		)
 	}
 }
 
 /**
  * Send a checkpoint event to all subscribers of the specified workspace.
  *
- * @param event The checkpoint event to send
+ * @param eventData The checkpoint event to send
  */
-export async function sendCheckpointEvent(event: CheckpointEvent): Promise<void> {
-	const { cwdHash } = event
+export async function sendCheckpointEvent(eventData: CheckpointEventData): Promise<void> {
+	const { cwdHash } = eventData
 
 	const subscriptions = activeCheckpointSubscriptions.get(cwdHash)
 	if (!subscriptions || subscriptions.size === 0) {
 		return
+	}
+
+	const now = new Date()
+	const timestamp: Timestamp = {
+		seconds: Math.trunc(now.getTime() / 1_000),
+		nanos: (now.getTime() % 1_000) * 1_000_000,
+	}
+
+	const event: CheckpointEvent = {
+		operation: CheckpointEvent_OperationType[eventData.operation],
+		cwdHash: eventData.cwdHash,
+		isActive: eventData.isActive,
+		timestamp,
+		taskId: eventData.taskId,
+		commitHash: eventData.commitHash,
 	}
 
 	// Send the event to all active subscribers for this workspace
