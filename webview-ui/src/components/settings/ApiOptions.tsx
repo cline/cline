@@ -47,6 +47,61 @@ import { VertexProvider } from "./providers/VertexProvider"
 import { VSCodeLmProvider } from "./providers/VSCodeLmProvider"
 import { XaiProvider } from "./providers/XaiProvider"
 import { ZAiProvider } from "./providers/ZAiProvider"
+
+// OpenAI-compatible provider presets (kept scoped to ApiOptions)
+
+// Render highlighted label without using dangerouslySetInnerHTML
+function renderHighlightedLabel(html: string): JSX.Element[] {
+	const OPEN = '<span class="provider-item-highlight">'
+	const CLOSE = "</span>"
+	const nodes: JSX.Element[] = []
+	let i = 0
+	let key = 0
+
+	while (i < html.length) {
+		const start = html.indexOf(OPEN, i)
+		if (start === -1) {
+			const text = html.slice(i)
+			if (text) {
+				nodes.push(<span key={`t-${key++}`}>{text}</span>)
+			}
+			break
+		}
+		const pre = html.slice(i, start)
+		if (pre) {
+			nodes.push(<span key={`t-${key++}`}>{pre}</span>)
+		}
+
+		const end = html.indexOf(CLOSE, start + OPEN.length)
+		if (end === -1) {
+			const rest = html.slice(start)
+			if (rest) {
+				nodes.push(<span key={`t-${key++}`}>{rest}</span>)
+			}
+			break
+		}
+		const highlighted = html.slice(start + OPEN.length, end)
+		nodes.push(
+			<span className="provider-item-highlight" key={`h-${key++}`}>
+				{highlighted}
+			</span>,
+		)
+		i = end + CLOSE.length
+	}
+
+	return nodes
+}
+
+function mapOptionToProviderAndDefaults(optionValue: string): {
+	provider: string
+	defaults?: { openAiBaseUrl?: string }
+} {
+	if (optionValue === "portkey") {
+		return { provider: "openai", defaults: { openAiBaseUrl: "https://api.portkey.ai/v1" } }
+	}
+	return { provider: optionValue }
+}
+
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
 interface ApiOptionsProps {
@@ -83,11 +138,11 @@ declare module "vscode" {
 
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup, currentMode }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, planActSeparateModelsSetting } = useExtensionState()
 
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
 
@@ -124,6 +179,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
+	const [lastChosenOption, setLastChosenOption] = useState<string | null>(null)
 	const providerOptions = useMemo(() => {
 		const providers = [
 			{ value: "cline", label: "Cline" },
@@ -137,6 +193,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "openai-native", label: "OpenAI" },
 			{ value: "ollama", label: "Ollama" },
 			{ value: "vertex", label: "GCP Vertex AI" },
+			{ value: "portkey", label: "Portkey" },
 			{ value: "litellm", label: "LiteLLM" },
 			{ value: "claude-code", label: "Claude Code" },
 			{ value: "sapaicore", label: "SAP AI Core" },
@@ -173,8 +230,19 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	}, [])
 
 	const currentProviderLabel = useMemo(() => {
-		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
-	}, [providerOptions, selectedProvider])
+		const optionValue = lastChosenOption ?? selectedProvider
+		return providerOptions.find((option) => option.value === optionValue)?.label || optionValue
+	}, [providerOptions, selectedProvider, lastChosenOption])
+
+	// Clear temporary override once config matches last chosen option
+	useEffect(() => {
+		if (!lastChosenOption) {
+			return
+		}
+		if (selectedProvider === lastChosenOption) {
+			setLastChosenOption(null)
+		}
+	}, [selectedProvider, lastChosenOption])
 
 	// Sync search term with current provider when not searching
 	useEffect(() => {
@@ -208,8 +276,36 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			: searchableItems
 	}, [searchableItems, searchTerm, fuse, currentProviderLabel])
 
-	const handleProviderChange = (newProvider: string) => {
-		handleModeFieldChange({ plan: "planModeApiProvider", act: "actModeApiProvider" }, newProvider as any, currentMode)
+	const handleProviderChange = (newOptionValue: string) => {
+		const { provider: mappedProvider, defaults } = mapOptionToProviderAndDefaults(newOptionValue)
+
+		// Apply provider and preset defaults in a single atomic update to avoid race conditions
+		const updates: any = {}
+		if (planActSeparateModelsSetting) {
+			if (currentMode === "plan") {
+				updates.planModeApiProvider = mappedProvider
+			} else {
+				updates.actModeApiProvider = mappedProvider
+			}
+		} else {
+			updates.planModeApiProvider = mappedProvider
+			updates.actModeApiProvider = mappedProvider
+		}
+
+		if (defaults?.openAiBaseUrl) {
+			// Apply preset default only if user doesn't have a URL already
+			if (!apiConfiguration?.openAiBaseUrl) {
+				updates.openAiBaseUrl = defaults.openAiBaseUrl
+			}
+		}
+
+		handleFieldsChange(updates)
+
+		// Immediately reflect the chosen option label to avoid flicker
+		setLastChosenOption(newOptionValue)
+		const chosenLabel = providerOptions.find((o) => o.value === newOptionValue)?.label || newOptionValue
+		setSearchTerm(chosenLabel)
+
 		setIsDropdownVisible(false)
 		setSelectedIndex(-1)
 	}
@@ -338,7 +434,20 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						)}
 					</VSCodeTextField>
 					{isDropdownVisible && (
-						<ProviderDropdownList ref={dropdownListRef}>
+						<ProviderDropdownList
+							onWheel={(e) => {
+								const el = e.currentTarget
+								const delta = e.deltaY
+								const atTop = el.scrollTop === 0
+								const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1
+								// When the list is at its boundaries, prevent default to avoid scroll chaining
+								if ((delta < 0 && atTop) || (delta > 0 && atBottom)) {
+									e.preventDefault()
+								}
+								// Always stop propagation so parent containers don't react to wheel
+								e.stopPropagation()
+							}}
+							ref={dropdownListRef}>
 							{providerSearchResults.map((item, index) => (
 								<ProviderDropdownItem
 									data-testid={`provider-option-${item.value}`}
@@ -346,8 +455,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									key={item.value}
 									onClick={() => handleProviderChange(item.value)}
 									onMouseEnter={() => setSelectedIndex(index)}
-									ref={(el) => (itemRefs.current[index] = el)}>
-									<span dangerouslySetInnerHTML={{ __html: item.html }} />
+									ref={(el) => {
+										itemRefs.current[index] = el
+									}}>
+									{renderHighlightedLabel(item.html)}
 								</ProviderDropdownItem>
 							))}
 						</ProviderDropdownList>
@@ -531,6 +642,7 @@ const ProviderDropdownList = styled.div`
 	width: calc(100% - 2px);
 	max-height: 200px;
 	overflow-y: auto;
+	overscroll-behavior: contain;
 	background-color: var(--vscode-dropdown-background);
 	border: 1px solid var(--vscode-list-activeSelectionBackground);
 	z-index: ${DROPDOWN_Z_INDEX - 1};

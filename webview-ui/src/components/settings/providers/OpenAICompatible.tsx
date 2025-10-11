@@ -1,7 +1,7 @@
 import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shared/api"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
-import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -10,6 +10,8 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { DropdownContainer } from "../common/ModelSelector"
+import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "../OpenRouterModelPicker"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
@@ -30,6 +32,10 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
+	const [modelSearchTerm, setModelSearchTerm] = useState("")
+	const [availableModels, setAvailableModels] = useState<string[]>([])
+	const [isLoadingModels, setIsLoadingModels] = useState(false)
+	const [modelFetchError, setModelFetchError] = useState<string | null>(null)
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -39,31 +45,76 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
 	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
-
-	useEffect(() => {
-		return () => {
-			if (debounceTimerRef.current) {
-				clearTimeout(debounceTimerRef.current)
-			}
-		}
-	}, [])
-
+	const lastFetchParamsRef = useRef<{ baseUrl: string; apiKey: string } | null>(null)
 	const debouncedRefreshOpenAiModels = useCallback((baseUrl?: string, apiKey?: string) => {
 		if (debounceTimerRef.current) {
 			clearTimeout(debounceTimerRef.current)
 		}
 
-		if (baseUrl && apiKey) {
+		const trimmedBaseUrl = (baseUrl ?? "").trim()
+		const normalizedBaseUrl = trimmedBaseUrl.replace(/\/+$/, "")
+
+		if (normalizedBaseUrl && apiKey) {
+			// Skip fetch if params haven't changed
+			if (
+				lastFetchParamsRef.current &&
+				lastFetchParamsRef.current.baseUrl === normalizedBaseUrl &&
+				lastFetchParamsRef.current.apiKey === apiKey
+			) {
+				return
+			}
+
+			lastFetchParamsRef.current = { baseUrl: normalizedBaseUrl, apiKey }
 			debounceTimerRef.current = setTimeout(() => {
+				setIsLoadingModels(true)
+				setModelFetchError(null)
 				ModelsServiceClient.refreshOpenAiModels(
 					OpenAiModelsRequest.create({
-						baseUrl,
+						baseUrl: trimmedBaseUrl,
 						apiKey,
 					}),
-				).catch((error) => {
-					console.error("Failed to refresh OpenAI models:", error)
-				})
+				)
+					.then((resp) => {
+						const fetched = resp?.values ?? []
+						setAvailableModels(fetched)
+						setModelFetchError(null)
+					})
+					.catch((error) => {
+						console.error("Failed to refresh OpenAI models:", error)
+						setAvailableModels([])
+						setModelFetchError(error?.message || "Failed to fetch models. Please check your base URL and API key.")
+						lastFetchParamsRef.current = null
+					})
+					.finally(() => {
+						setIsLoadingModels(false)
+					})
 			}, 500)
+		} else {
+			lastFetchParamsRef.current = null
+			setAvailableModels([])
+			setIsLoadingModels(false)
+			setModelFetchError(null)
+		}
+	}, [])
+
+	// Fetch models on initial mount if credentials exist
+	useEffect(() => {
+		if (apiConfiguration?.openAiBaseUrl && apiConfiguration?.openAiApiKey) {
+			debouncedRefreshOpenAiModels(apiConfiguration.openAiBaseUrl, apiConfiguration.openAiApiKey)
+		}
+	}, [apiConfiguration?.openAiBaseUrl, apiConfiguration?.openAiApiKey, debouncedRefreshOpenAiModels])
+
+	// Clear search term when mode changes
+	useEffect(() => {
+		setModelSearchTerm("")
+	}, [currentMode])
+
+	// Cleanup any pending debounce timer on unmount
+	useEffect(() => {
+		return () => {
+			if (debounceTimerRef.current) {
+				clearTimeout(debounceTimerRef.current)
+			}
 		}
 	}, [])
 
@@ -90,15 +141,72 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				providerName="OpenAI Compatible"
 			/>
 
-			<DebouncedTextField
-				initialValue={selectedModelId || ""}
-				onChange={(value) =>
-					handleModeFieldChange({ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" }, value, currentMode)
-				}
-				placeholder={"Enter Model ID..."}
-				style={{ width: "100%", marginBottom: 10 }}>
-				<span style={{ fontWeight: 500 }}>Model ID</span>
-			</DebouncedTextField>
+			{/* Model ID */}
+			<div style={{ width: "100%", marginBottom: 10 }}>
+				<label htmlFor="openai-compatible-model-id">
+					<span style={{ fontWeight: 500 }}>Model ID</span>
+				</label>
+				{(() => {
+					const trimmed = modelSearchTerm.trim()
+					const filteredModels = trimmed
+						? availableModels.filter((m) => m.toLowerCase().includes(trimmed.toLowerCase()))
+						: availableModels
+					// Show custom option when there's no exact match (even if there are partial matches)
+					const showCustomOption =
+						trimmed.length > 0 && !availableModels.some((m) => m.toLowerCase() === trimmed.toLowerCase())
+					// Include the selected model at the top ONLY when there is no active search
+					let displayModels = filteredModels
+					if (trimmed === "") {
+						const pin = selectedModelId || ""
+						if (pin && !displayModels.includes(pin)) {
+							displayModels = [pin, ...displayModels]
+						}
+					}
+					// During search, clear selection in the dropdown; otherwise bind to selectedModelId
+					const dropdownValue = trimmed === "" ? selectedModelId || "" : ""
+					return (
+						<DropdownContainer className="dropdown-container" zIndex={OPENROUTER_MODEL_PICKER_Z_INDEX + 3}>
+							<VSCodeTextField
+								onInput={(e) => {
+									setModelSearchTerm((e.target as HTMLInputElement).value || "")
+								}}
+								placeholder="Search models..."
+								style={{ width: "100%", marginBottom: 6 }}
+								value={modelSearchTerm}
+							/>
+							<VSCodeDropdown
+								id="openai-compatible-model-id"
+								key={selectedModelId || "empty"}
+								onChange={(e: any) => {
+									const value = e.target.value
+									// Clear search after selection to avoid stale filters
+									setModelSearchTerm("")
+									handleModeFieldChange(
+										{ plan: "planModeOpenAiModelId", act: "actModeOpenAiModelId" },
+										value,
+										currentMode,
+									)
+								}}
+								style={{ width: "100%", marginBottom: 10 }}
+								value={dropdownValue}>
+								<VSCodeOption value="">
+									{isLoadingModels ? "Loading models..." : "Select a model..."}
+								</VSCodeOption>
+								{displayModels.map((m) => (
+									<VSCodeOption key={m} value={m}>
+										{m}
+									</VSCodeOption>
+								))}
+								{showCustomOption && (
+									<VSCodeOption key={`__custom__${trimmed}`} value={trimmed}>
+										Add Custom Model "{trimmed}"
+									</VSCodeOption>
+								)}
+							</VSCodeDropdown>
+						</DropdownContainer>
+					)
+				})()}
+			</div>
 
 			{/* OpenAI Compatible Custom Headers */}
 			{(() => {
@@ -119,8 +227,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							</VSCodeButton>
 						</div>
 						<div>
-							{headerEntries.map(([key, value], index) => (
-								<div key={index} style={{ display: "flex", gap: 5, marginTop: 5 }}>
+							{headerEntries.map(([key, value]) => (
+								<div key={key} style={{ display: "flex", gap: 5, marginTop: 5 }}>
 									<DebouncedTextField
 										initialValue={key}
 										onChange={(newValue) => {
