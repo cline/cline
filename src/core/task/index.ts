@@ -2057,7 +2057,12 @@ export class Task {
 							break
 						// for cline/openrouter providers
 						case "reasoning_details":
-							reasoningDetails.push(chunk.reasoning_details)
+							// reasoning_details may be an array of 0 or 1 items depending on how openrouter returns it
+							if (Array.isArray(chunk.reasoning_details)) {
+								reasoningDetails.push(...chunk.reasoning_details)
+							} else {
+								reasoningDetails.push(chunk.reasoning_details)
+							}
 							break
 						// for anthropic providers
 						case "ant_thinking":

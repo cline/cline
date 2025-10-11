@@ -121,7 +121,15 @@ export function convertToOpenAiMessages(
 						// @ts-ignore-next-line
 						if (part.type === "text" && part.reasoning_details) {
 							// @ts-ignore-next-line
-							reasoningDetails.push(part.reasoning_details)
+							if (Array.isArray(part.reasoning_details)) {
+								// @ts-ignore-next-line
+								reasoningDetails.push(...part.reasoning_details)
+							} else {
+								// @ts-ignore-next-line
+								reasoningDetails.push(part.reasoning_details)
+							}
+							// @ts-ignore-next-line
+							// delete part.reasoning_details
 						}
 					})
 					content = nonToolMessages
@@ -151,13 +159,97 @@ export function convertToOpenAiMessages(
 					// Cannot be an empty array. API expects an array with minimum length 1, and will respond with an error if it's empty
 					tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
 					// @ts-ignore-next-line
-					reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
+					reasoning_details: reasoningDetails.length > 0 ? consolidateReasoningDetails(reasoningDetails) : undefined,
 				})
 			}
 		}
 	}
 
 	return openAiMessages
+}
+
+// Type for OpenRouter's reasoning detail elements
+// https://openrouter.ai/docs/use-cases/reasoning-tokens#streaming-response
+type ReasoningDetail = {
+	// https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning-detail-types
+	type: string // "reasoning.summary" | "reasoning.encrypted" | "reasoning.text"
+	text: string
+	signature?: string | null
+	id?: string | null // Unique identifier for the reasoning detail
+	/*
+	 The format of the reasoning detail, with possible values:
+	 	"unknown" - Format is not specified
+		"openai-responses-v1" - OpenAI responses format version 1
+		"anthropic-claude-v1" - Anthropic Claude format version 1 (default)
+	 */
+	format: string //"unknown" | "openai-responses-v1" | "anthropic-claude-v1" | "xai-responses-v1"
+	index?: number // Sequential index of the reasoning detail
+}
+
+// Helper function to convert reasoning_details array to the format OpenRouter API expects
+// Takes an array of reasoning detail objects and consolidates them by index
+function consolidateReasoningDetails(reasoningDetails: ReasoningDetail[]): ReasoningDetail[] {
+	if (!reasoningDetails || reasoningDetails.length === 0) {
+		return []
+	}
+
+	// Group by index
+	const groupedByIndex = new Map<number, ReasoningDetail[]>()
+
+	for (const detail of reasoningDetails) {
+		const index = detail.index ?? 0
+		if (!groupedByIndex.has(index)) {
+			groupedByIndex.set(index, [])
+		}
+		groupedByIndex.get(index)!.push(detail)
+	}
+
+	// Consolidate each group
+	const consolidated: ReasoningDetail[] = []
+
+	for (const [index, details] of groupedByIndex.entries()) {
+		// Concatenate all text parts
+		let concatenatedText = ""
+		let signature: string | undefined
+		let id: string | undefined
+		let format = "unknown"
+		let type = "reasoning.text"
+
+		for (const detail of details) {
+			if (detail.text) {
+				concatenatedText += detail.text
+			}
+			// Keep the signature from the last item that has one
+			if (detail.signature) {
+				signature = detail.signature
+			}
+			// Keep the id from the last item that has one
+			if (detail.id) {
+				id = detail.id
+			}
+			// Keep format and type from any item (they should all be the same)
+			if (detail.format) {
+				format = detail.format
+			}
+			if (detail.type) {
+				type = detail.type
+			}
+		}
+
+		// Create consolidated entry
+		const consolidatedEntry: ReasoningDetail = {
+			type: type,
+			text: concatenatedText,
+			signature: signature,
+			id: id,
+			format: format,
+			index: index,
+		}
+
+		consolidated.push(consolidatedEntry)
+	}
+
+	return consolidated
 }
 
 // Convert OpenAI response to Anthropic format
