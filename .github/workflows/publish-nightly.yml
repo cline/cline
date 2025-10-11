@@ -71,5 +71,5 @@ jobs:
                   OVSX_PAT: ${{ secrets.OVSX_PAT }}
                   TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
                   ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
-                  CLINE_ENVIRONMENT: production
+                  CLINE_ENVIRONMENT: staging
               run: npm run publish:marketplace:nightly
