@@ -1,0 +1,179 @@
+name: Release Standalone CLI
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v3.32.6)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-13
+            platform: darwin-x64
+            arch: x64
+          - os: macos-14
+            platform: darwin-arm64
+            arch: arm64
+          - os: ubuntu-latest
+            platform: linux-x64
+            arch: x64
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: cli/go.sum
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Install webview dependencies
+        run: cd webview-ui && npm ci
+      
+      - name: Download Node.js binaries
+        run: npm run download-node
+      
+      - name: Build CLI binaries
+        run: npm run compile-cli
+      
+      - name: Build standalone CLI package
+        run: npm run compile-standalone-cli
+        env:
+          NODE_ENV: production
+      
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Rename package
+        run: |
+          cd dist-standalone
+          mv standalone-cli.zip cline-${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cline-${{ matrix.platform }}
+          path: dist-standalone/cline-${{ steps.version.outputs.version }}-${{ matrix.platform }}.tar.gz
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    environment: publish
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Display structure
+        run: ls -R artifacts/
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Cline CLI ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            artifacts/cline-darwin-x64/cline-${{ steps.version.outputs.version }}-darwin-x64.tar.gz
+            artifacts/cline-darwin-arm64/cline-${{ steps.version.outputs.version }}-darwin-arm64.tar.gz
+            artifacts/cline-linux-x64/cline-${{ steps.version.outputs.version }}-linux-x64.tar.gz
+          body: |
+            ## Installation
+            
+            Install Cline CLI with a single command:
+            
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/cline/cline/main/scripts/install.sh | bash
+            ```
+            
+            ### Platform-Specific Downloads
+            
+            - **macOS (Intel)**: `cline-${{ steps.version.outputs.version }}-darwin-x64.tar.gz`
+            - **macOS (Apple Silicon)**: `cline-${{ steps.version.outputs.version }}-darwin-arm64.tar.gz`
+            - **Linux (x64)**: `cline-${{ steps.version.outputs.version }}-linux-x64.tar.gz`
+            
+            ### Manual Installation
+            
+            1. Download the appropriate package for your platform
+            2. Extract: `tar -xzf cline-*.tar.gz`
+            3. Move to installation directory: `mv cline-* ~/.cline`
+            4. Add to PATH: `export PATH="$HOME/.cline/bin:$PATH"`
+            
+            ### What's Included
+            
+            - ✅ Node.js v22.15.0 (bundled)
+            - ✅ Cline CLI binary
+            - ✅ Cline Host bridge
+            - ✅ Cline Core (TypeScript compiled)
+            - ✅ All dependencies
+            
+            ### Getting Started
+            
+            ```bash
+            # Verify installation
+            cline version
+            
+            # Sign in
+            cline auth login
+            
+            # Get help
+            cline --help
+            ```
+            
+            ### Documentation
+            
+            - [Installation Guide](https://docs.cline.bot/getting-started/installing-cline)
+            - [CLI Documentation](https://docs.cline.bot/exploring-clines-tools/cline-tools-guide)
+            - [GitHub Repository](https://github.com/cline/cline)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          CLINE_ENVIRONMENT: production
