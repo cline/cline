@@ -63,15 +63,26 @@ mkdir -p "$INSTALL_DIR/bin"
 cp "$PROJECT_ROOT/cli/bin/cline" "$INSTALL_DIR/bin/"
 cp "$PROJECT_ROOT/cli/bin/cline-host" "$INSTALL_DIR/bin/"
 
-# Copy Node.js binary from dist-standalone
-if [ -d "$PROJECT_ROOT/dist-standalone/bin" ]; then
-    cp -r "$PROJECT_ROOT/dist-standalone/bin/"* "$INSTALL_DIR/bin/" 2>/dev/null || true
+# Use system Node.js (symlink to avoid copying large binary)
+if command -v node >/dev/null 2>&1; then
+    ln -sf "$(which node)" "$INSTALL_DIR/bin/node"
+    echo -e "${GREEN}✓${NC} Linked to system Node.js: $(node --version)"
+else
+    echo -e "${YELLOW}⚠${NC}  Node.js not found in PATH. Please install Node.js."
+    exit 1
 fi
 
 # Make binaries executable
 chmod +x "$INSTALL_DIR/bin/cline"
 chmod +x "$INSTALL_DIR/bin/cline-host"
 chmod +x "$INSTALL_DIR/bin/node" 2>/dev/null || true
+
+# Rebuild better-sqlite3 for system Node.js version
+echo -e "${CYAN}→${NC} ${DIM}Rebuilding native modules for Node.js $(node --version)...${NC}"
+cd "$INSTALL_DIR"
+npm rebuild better-sqlite3 > /dev/null 2>&1
+cd "$PROJECT_ROOT"
+echo -e "${GREEN}✓${NC} Native modules rebuilt"
 
 echo -e "${GREEN}✓${NC} Installed to ${MAGENTA}${BOLD}$INSTALL_DIR${NC}"
 
