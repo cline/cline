@@ -45,6 +45,7 @@ message NewTaskRequest {
   repeated string images = 3;
   repeated string files = 4;
   optional Settings task_settings = 5;
+  repeated string workspace_paths = 6;
 }
 
 // Request message for toggling task favorite status
