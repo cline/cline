@@ -116,7 +116,7 @@ func (m *Manager) ListSettings(ctx context.Context) error {
 	// Render each field using the renderer
 	for _, field := range settingsFields {
 		if value, ok := stateData[field]; ok {
-			if err := RenderField(field, value); err != nil {
+			if err := RenderField(field, value, true); err != nil {
 				fmt.Printf("Error rendering %s: %v\n", field, err)
 			}
 			fmt.Println()
@@ -146,10 +146,10 @@ func (m *Manager) GetSetting(ctx context.Context, key string) error {
 	// Render the value
 	if len(parts) == 1 {
 		// Top-level field: use RenderField for nice formatting
-		return RenderField(rootField, value)
+		return RenderField(rootField, value, false)
 	} else {
 		// Nested field: simple print
-		fmt.Printf("%s: %s\n", key, formatValue(value))
+		fmt.Printf("%s: %s\n", key, formatValue(value, rootField, true))
 	}
 
 	return nil

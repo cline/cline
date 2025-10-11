@@ -2,7 +2,11 @@ package config
 
 import (
 	"fmt"
+	"strings"
 )
+
+// sensitiveKeywords defines field name patterns that should be censored
+var sensitiveKeywords = []string{"key", "secret", "password", "cline-account-id"}
 
 // camelToKebab converts camelCase to kebab-case
 // e.g., "autoApprovalSettings" -> "auto-approval-settings"
@@ -21,29 +25,53 @@ func camelToKebab(s string) string {
 	return string(result)
 }
 
-// formatValue formats a value for display, handling empty strings
-func formatValue(val interface{}) string {
+// isSensitiveField checks if a field name contains sensitive keywords
+func isSensitiveField(fieldName string) bool {
+	if fieldName == "" {
+		return false
+	}
+	
+	lowerName := strings.ToLower(fieldName)
+	for _, keyword := range sensitiveKeywords {
+		if strings.Contains(lowerName, keyword) {
+			return true
+		}
+	}
+	
+	return false
+}
+
+// formatValue formats a value for display, handling empty strings and censoring sensitive fields
+func formatValue(val interface{}, fieldName string, censor bool) string {
 	// Handle empty strings specifically
 	if str, ok := val.(string); ok && str == "" {
 		return "''"
 	}
+	
+	if censor && isSensitiveField(fieldName) {
+		valStr := fmt.Sprintf("%v", val)
+		if valStr != "" && valStr != "''" {
+			return "********"
+		}
+	}
+	
 	return fmt.Sprintf("%v", val)
 }
 
 // RenderField renders a single config field with proper formatting
-func RenderField(key string, value interface{}) error {
+func RenderField(key string, value interface{}, censor bool) error {
 	switch key {
 	// Nested objects - render with header + nested fields
 	case "apiConfiguration":
-		return renderApiConfiguration(value)
+		return renderApiConfiguration(value, censor)
 	case "browserSettings":
-		return renderBrowserSettings(value)
+		return renderBrowserSettings(value, censor)
 	case "focusChainSettings":
-		return renderFocusChainSettings(value)
+		return renderFocusChainSettings(value, censor)
 	case "dictationSettings":
-		return renderDictationSettings(value)
+		return renderDictationSettings(value, censor)
 	case "autoApprovalSettings":
-		return renderAutoApprovalSettings(value)
+		return renderAutoApprovalSettings(value, censor)
 
 	// Simple values - just print key: value
 	case "mode", "telemetrySetting", "preferredLanguage", "customPrompt",
@@ -53,7 +81,7 @@ func RenderField(key string, value interface{}) error {
 		"mcpResponsesCollapsed", "strictPlanModeEnabled",
 		"useAutoCondense", "yoloModeToggled", "shellIntegrationTimeout",
 		"terminalOutputLineLimit", "autoCondenseThreshold":
-		fmt.Printf("%s: %s\n", camelToKebab(key), formatValue(value))
+		fmt.Printf("%s: %s\n", camelToKebab(key), formatValue(value, key, censor))
 		return nil
 
 	default:
@@ -62,7 +90,7 @@ func RenderField(key string, value interface{}) error {
 }
 
 // renderApiConfiguration renders the API configuration object
-func renderApiConfiguration(value interface{}) error {
+func renderApiConfiguration(value interface{}, censor bool) error {
 	fmt.Println("api-configuration:")
 
 	configMap, ok := value.(map[string]interface{})
@@ -72,14 +100,14 @@ func renderApiConfiguration(value interface{}) error {
 
 	// Print each field directly
 	for key, val := range configMap {
-		fmt.Printf("  %s: %s\n", camelToKebab(key), formatValue(val))
+		fmt.Printf("  %s: %s\n", camelToKebab(key), formatValue(val, key, censor))
 	}
 
 	return nil
 }
 
 // renderBrowserSettings renders browser settings
-func renderBrowserSettings(value interface{}) error {
+func renderBrowserSettings(value interface{}, censor bool) error {
 	fmt.Println("browser-settings:")
 
 	settingsMap, ok := value.(map[string]interface{})
@@ -91,14 +119,14 @@ func renderBrowserSettings(value interface{}) error {
 	if viewport, ok := settingsMap["viewport"].(map[string]interface{}); ok {
 		fmt.Println("  viewport:")
 		for key, val := range viewport {
-			fmt.Printf("    %s: %s\n", camelToKebab(key), formatValue(val))
+			fmt.Printf("    %s: %s\n", camelToKebab(key), formatValue(val, key, censor))
 		}
 	}
 
 	// Print other fields
 	for key, val := range settingsMap {
 		if key != "viewport" {
-			fmt.Printf("  %s: %s\n", camelToKebab(key), formatValue(val))
+			fmt.Printf("  %s: %s\n", camelToKebab(key), formatValue(val, key, censor))
 		}
 	}
 
@@ -106,7 +134,7 @@ func renderBrowserSettings(value interface{}) error {
 }
 
 // renderFocusChainSettings renders focus chain settings
-func renderFocusChainSettings(value interface{}) error {
+func renderFocusChainSettings(value interface{}, censor bool) error {
 	fmt.Println("focus-chain-settings:")
 
 	settingsMap, ok := value.(map[string]interface{})
@@ -115,14 +143,14 @@ func renderFocusChainSettings(value interface{}) error {
 	}
 
 	for key, val := range settingsMap {
-		fmt.Printf("  %s: %s\n", camelToKebab(key), formatValue(val))
+		fmt.Printf("  %s: %s\n", camelToKebab(key), formatValue(val, key, censor))
 	}
 
 	return nil
 }
 
 // renderDictationSettings renders dictation settings
-func renderDictationSettings(value interface{}) error {
+func renderDictationSettings(value interface{}, censor bool) error {
 	fmt.Println("dictation-settings:")
 
 	settingsMap, ok := value.(map[string]interface{})
@@ -131,14 +159,14 @@ func renderDictationSettings(value interface{}) error {
 	}
 
 	for key, val := range settingsMap {
-		fmt.Printf("  %s: %s\n", camelToKebab(key), formatValue(val))
+		fmt.Printf("  %s: %s\n", camelToKebab(key), formatValue(val, key, censor))
 	}
 
 	return nil
 }
 
 // renderAutoApprovalSettings renders auto approval settings
-func renderAutoApprovalSettings(value interface{}) error {
+func renderAutoApprovalSettings(value interface{}, censor bool) error {
 	fmt.Println("auto-approval-settings:")
 
 	settingsMap, ok := value.(map[string]interface{})
@@ -157,12 +185,12 @@ func renderAutoApprovalSettings(value interface{}) error {
 			fmt.Println("  actions:")
 			if actionsMap, ok := val.(map[string]interface{}); ok {
 				for actionKey, actionVal := range actionsMap {
-					fmt.Printf("    %s: %s\n", camelToKebab(actionKey), formatValue(actionVal))
+					fmt.Printf("    %s: %s\n", camelToKebab(actionKey), formatValue(actionVal, actionKey, censor))
 				}
 			}
 		} else {
 			// Print other fields normally (enabled, maxRequests, enableNotifications, favorites)
-			fmt.Printf("  %s: %s\n", camelToKebab(key), formatValue(val))
+			fmt.Printf("  %s: %s\n", camelToKebab(key), formatValue(val, key, censor))
 		}
 	}
 
