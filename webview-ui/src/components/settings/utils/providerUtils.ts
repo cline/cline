@@ -333,9 +333,9 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: vercelAiGatewayModelInfo || vercelAiGatewayDefaultModelInfo,
 			}
 		case "zai":
-			const zaiModels = apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels
-			const zaiDefaultId =
-				apiConfiguration?.zaiApiLine === "china" ? mainlandZAiDefaultModelId : internationalZAiDefaultModelId
+			const isChinaZaiRegion = apiConfiguration?.zaiApiLine?.startsWith("china") ?? false
+			const zaiModels = isChinaZaiRegion ? mainlandZAiModels : internationalZAiModels
+			const zaiDefaultId = isChinaZaiRegion ? mainlandZAiDefaultModelId : internationalZAiDefaultModelId
 			return getProviderData(zaiModels, zaiDefaultId)
 		case "fireworks":
 			const fireworksModelId =
