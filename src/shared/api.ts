@@ -3731,7 +3731,7 @@ export const minimaxModels = {
 		cacheReadsPrice: 0,
 	},
 	"MiniMax-M1": {
-		maxTokens: 128_000,
+		maxTokens: 25_600,
 		contextWindow: 1_000_192,
 		supportsImages: false,
 		supportsPromptCache: false,
