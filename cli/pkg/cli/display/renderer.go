@@ -89,7 +89,7 @@ func (r *Renderer) RenderAPI(status string, apiInfo *types.APIRequestInfo) error
 		usageInfo := r.formatUsageInfo(apiInfo.TokensIn, apiInfo.TokensOut, apiInfo.CacheReads, apiInfo.CacheWrites, apiInfo.Cost)
 		markdown := fmt.Sprintf("## API %s `%s`", status, usageInfo)
 		rendered := r.RenderMarkdown(markdown)
-		fmt.Printf("\n%s\n", rendered)
+		fmt.Printf(rendered)
 	} else {
 		// honestly i see no point in showing "### API processing request" here...
 		// markdown := fmt.Sprintf("## API %s", status)

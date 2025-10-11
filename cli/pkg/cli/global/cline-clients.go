@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"time"
 
 	"github.com/cline/cli/pkg/common"
@@ -211,8 +212,16 @@ func (c *ClineClients) EnsureInstanceAtAddress(ctx context.Context, address stri
 func startClineHost(hostPort, corePort int) (*exec.Cmd, error) {
 	fmt.Printf("Starting cline-host on port %d\n", hostPort)
 
+	// Get the directory where the cline binary is located
+	execPath, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get executable path: %w", err)
+	}
+	binDir := path.Dir(execPath)
+	clineHostPath := path.Join(binDir, "cline-host")
+
 	// Start the cline-host process
-	cmd := exec.Command("./cli/bin/cline-host",
+	cmd := exec.Command(clineHostPath,
 		"--verbose",
 		"--port", fmt.Sprintf("%d", hostPort))
 
@@ -227,6 +236,16 @@ func startClineHost(hostPort, corePort int) (*exec.Cmd, error) {
 func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	fmt.Printf("Starting cline-core on port %d (with hostbridge on %d)\n", corePort, hostPort)
 
+	// Get paths relative to the cline binary location
+	execPath, err := os.Executable()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get executable path: %w", err)
+	}
+	binDir := path.Dir(execPath)
+	installDir := path.Dir(binDir)
+	nodePath := path.Join(binDir, "node")
+	clineCorePath := path.Join(installDir, "cline-core.js")
+
 	// Create port-tagged log file in OS temp directory with full address
 	logFileName := fmt.Sprintf("cline-core-debug-localhost-%d.log", corePort)
 	logFilePath := fmt.Sprintf("%s/%s", os.TempDir(), logFileName)
@@ -235,28 +254,29 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("failed to create log file: %w", err)
 	}
 
-	// Start the cline-core process with --config flag instead of CLINE_DIR env var
-	args := []string{"cline-core.js",
+	// Start the cline-core process with --config flag
+	args := []string{clineCorePath,
 		"--port", fmt.Sprintf("%d", corePort),
 		"--host-bridge-port", fmt.Sprintf("%d", hostPort),
 		"--config", Config.ConfigPath}
 
-	fmt.Printf("DEBUG: Starting cline-core with command: node %v\n", args)
-	fmt.Printf("DEBUG: Working directory: ./dist-standalone\n")
+	fmt.Printf("DEBUG: Starting cline-core with command: %s %v\n", nodePath, args)
+	fmt.Printf("DEBUG: Working directory: %s\n", installDir)
 	fmt.Printf("DEBUG: Config path: %s\n", Config.ConfigPath)
 
-	cmd := exec.Command("node", args...)
+	cmd := exec.Command(nodePath, args...)
 
-	// Set working directory to dist-standalone (relative to project root)
-	cmd.Dir = "./dist-standalone"
+	// Set working directory to installation root
+	cmd.Dir = installDir
 
 	// Redirect stdout and stderr to log file
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 
-	// Set environment variables (removed CLINE_DIR)
+	// Set environment variables with NODE_PATH for node_modules
 	env := os.Environ()
 	env = append(env,
+		fmt.Sprintf("NODE_PATH=%s", path.Join(installDir, "node_modules")),
 		"GRPC_TRACE=all",
 		"GRPC_VERBOSITY=DEBUG",
 		"NODE_ENV=development",

@@ -60,7 +60,8 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 		}
 	}
 
-	// Segment-based markdown streaming
+	// Segment-based header-only streaming
+	// Partial stream only shows headers immediately, state stream will handle content bodies
 	sayType := msg.Say
 	if msg.Type == types.MessageTypeAsk {
 		sayType = "ask"
@@ -68,27 +69,34 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 
 	// Detect segment boundary
 	if s.activeSegment != nil && s.activeSegment.sayType != sayType {
-		s.activeSegment.Freeze()
+		// Just cleanup, don't freeze (no body to print)
 		s.activeSegment = nil
 	}
 
-	// Start new segment if needed
-	if s.activeSegment == nil {
+	// On first partial message for a new segment type, create segment (prints header)
+	if s.activeSegment == nil && msg.Partial {
 		shouldMd := s.shouldRenderMarkdown(sayType)
 		prefix := s.getPrefix(sayType)
+		// NewStreamingSegment prints the header immediately
 		s.activeSegment = NewStreamingSegment(sayType, prefix, s.mdRenderer, shouldMd, msg, s.renderer.outputFormat)
+		// Header printed, done - don't append text or freeze
+		return nil
 	}
 
-	// Append text to active segment
-	if msg.Text != "" {
+	// For subsequent partial messages, do nothing (header already shown)
+	if msg.Partial {
+		return nil
+	}
+
+	// When message is complete (partial=false), render the content body
+	// Only if we have an active segment (header was shown earlier)
+	if s.activeSegment != nil {
+		// Append final text and freeze to render body
 		s.activeSegment.AppendText(msg.Text)
-	}
-
-	// If message is complete, freeze segment
-	if !msg.Partial {
 		s.activeSegment.Freeze()
 		s.activeSegment = nil
 	}
+	// If no active segment, partial stream never started - state stream will handle it
 
 	return nil
 }

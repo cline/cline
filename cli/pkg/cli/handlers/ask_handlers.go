@@ -120,9 +120,18 @@ func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayC
 		return nil
 	}
 
-	markdown := fmt.Sprintf("### Cline has a plan\n\n%s", response)
-	rendered := dc.Renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	var rendered string
+	if dc.IsStreamingMode {
+		// In streaming mode, header was already shown by partial stream
+		// Just render the body content
+		rendered = dc.Renderer.RenderMarkdown(response)
+		fmt.Printf("%s\n", rendered)
+	} else {
+		// In non-streaming mode, render header + body together
+		markdown := fmt.Sprintf("### Cline has a plan\n\n%s", response)
+		rendered = dc.Renderer.RenderMarkdown(markdown)
+		fmt.Printf("\n%s\n", rendered)
+	}
 
 	// Display options if available
 	if len(options) > 0 {
