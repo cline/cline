@@ -40,6 +40,7 @@ Or run with no arguments to enter interactive mode:
   cline
 
 This CLI also provides task management, configuration, and monitoring capabilities.`,
+		Args: cobra.ArbitraryArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if outputFormat != "rich" && outputFormat != "json" && outputFormat != "plain" {
 				return fmt.Errorf("invalid output format '%s': must be one of 'rich', 'json', or 'plain'", outputFormat)
