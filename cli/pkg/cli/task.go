@@ -86,7 +86,6 @@ func newTaskNewCommand() *cobra.Command {
 	var (
 		images     []string
 		files      []string
-		wait       bool
 		workspaces []string
 		address    string
 		mode       string
@@ -143,18 +142,12 @@ func newTaskNewCommand() *cobra.Command {
 
 			fmt.Printf("Task created successfully with ID: %s\n", taskID)
 
-			// Wait for completion if requested
-			if wait {
-				return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), true)
-			}
-
 			return nil
 		},
 	}
 
 	cmd.Flags().StringSliceVarP(&images, "image", "i", nil, "attach image files")
 	cmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
-	cmd.Flags().BoolVar(&wait, "wait", false, "wait for task completion (interactive input enabled)")
 	cmd.Flags().StringSliceVarP(&workspaces, "workdir", "w", nil, "workdir directory paths")
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")

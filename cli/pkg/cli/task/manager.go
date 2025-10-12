@@ -658,7 +658,7 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 
 		// Start input handler if interactive mode is enabled
 		if interactive {
-			inputHandler := NewInputHandler(m, coordinator)
+			inputHandler := NewInputHandler(m, coordinator, cancel)
 			go inputHandler.Start(ctx, errChan)
 		}
 	}
@@ -666,6 +666,11 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	// Wait for either stream to error or context cancellation
 	select {
 	case <-ctx.Done():
+		// Check if this was a user-initiated cancellation (Ctrl+C)
+		// Return nil for clean exit instead of context.Canceled error
+		if ctx.Err() == context.Canceled {
+			return nil
+		}
 		return ctx.Err()
 	case err := <-errChan:
 		cancel()

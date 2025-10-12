@@ -15,16 +15,18 @@ import (
 type InputHandler struct {
 	manager     *Manager
 	coordinator *StreamCoordinator
+	cancelFunc  context.CancelFunc
 	mu          sync.RWMutex
 	isRunning   bool
 	pollTicker  *time.Ticker
 }
 
 // NewInputHandler creates a new input handler
-func NewInputHandler(manager *Manager, coordinator *StreamCoordinator) *InputHandler {
+func NewInputHandler(manager *Manager, coordinator *StreamCoordinator, cancelFunc context.CancelFunc) *InputHandler {
 	return &InputHandler{
 		manager:     manager,
 		coordinator: coordinator,
+		cancelFunc:  cancelFunc,
 		isRunning:   false,
 		pollTicker:  time.NewTicker(500 * time.Millisecond),
 	}
@@ -64,6 +66,12 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 				// Show prompt and get input
 				message, shouldSend, err := ih.promptForInput(ctx)
 				if err != nil {
+					// Check if the error is due to interrupt (Ctrl+C) or context cancellation
+					if err == huh.ErrUserAborted || ctx.Err() != nil {
+						// User pressed Ctrl+C, cancel the context and exit cleanly
+						ih.cancelFunc()
+						return
+					}
 					if global.Config.Verbose {
 						fmt.Printf("\nDebug: Input prompt error: %v\n", err)
 					}
@@ -107,7 +115,7 @@ func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Cline is ready for your message").
-				Placeholder("Type your message or press Enter to continue watching...").
+				Placeholder("").
 				Value(&message),
 		),
 	)
