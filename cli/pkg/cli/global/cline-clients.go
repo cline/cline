@@ -300,6 +300,9 @@ func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, addres
 func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	fmt.Printf("Starting cline-core on port %d (with hostbridge on %d)\n", corePort, hostPort)
 
+	// Detect if running in development mode
+	isDevMode := IsDevMode()
+	
 	// Get paths relative to the cline binary location
 	execPath, err := os.Executable()
 	if err != nil {
@@ -307,8 +310,44 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	}
 	binDir := path.Dir(execPath)
 	installDir := path.Dir(binDir)
-	nodePath := path.Join(binDir, "node")
-	clineCorePath := path.Join(installDir, "cline-core.js")
+	
+	// Determine node path based on mode
+	var nodePath string
+	if isDevMode {
+		// In dev mode, use system node
+		nodePath = "node"
+		fmt.Println("DEBUG: Running in development mode - using system node")
+	} else {
+		// In production, use bundled node
+		nodePath = path.Join(binDir, "node")
+		// Fallback to system node if bundled version missing
+		if _, err := os.Stat(nodePath); os.IsNotExist(err) {
+			nodePath = "node"
+			fmt.Println("DEBUG: Bundled node not found, falling back to system node")
+		}
+	}
+	
+	// Determine cline-core.js path based on mode
+	var clineCorePath string
+	if isDevMode {
+		// In dev mode, use dist-standalone
+		projectRoot, err := GetProjectRoot()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get project root: %w", err)
+		}
+		clineCorePath = path.Join(projectRoot, "dist-standalone", "cline-core.js")
+		installDir = path.Join(projectRoot, "dist-standalone")
+		fmt.Printf("DEBUG: Using development paths\n")
+		fmt.Printf("DEBUG: Project root: %s\n", projectRoot)
+	} else {
+		// In production, use installation directory
+		clineCorePath = path.Join(installDir, "cline-core.js")
+	}
+	
+	// Verify cline-core.js exists
+	if _, err := os.Stat(clineCorePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("cline-core.js not found at %s", clineCorePath)
+	}
 
 	// Create port-tagged log file in OS temp directory with full address
 	logFileName := fmt.Sprintf("cline-core-debug-localhost-%d.log", corePort)

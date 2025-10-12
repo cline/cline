@@ -14,8 +14,6 @@ import { Controller } from ".."
  * @returns Empty response
  */
 export async function newTask(controller: Controller, request: NewTaskRequest): Promise<String> {
-	console.log("[DEBUG] newTask received request.workspacePaths:", request.workspacePaths)
-
 	const convertOpenaiReasoningEffort = (effort: ProtoOpenaiReasoningEffort): string => {
 		switch (effort) {
 			case ProtoOpenaiReasoningEffort.LOW:
@@ -72,13 +70,6 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 		}).filter(([_, value]) => value !== undefined),
 	)
 
-	const taskId = await controller.initTask(
-		request.text,
-		request.images,
-		request.files,
-		undefined,
-		filteredTaskSettings,
-		request.workspacePaths,
-	)
+	const taskId = await controller.initTask(request.text, request.images, request.files, undefined, filteredTaskSettings)
 	return String.create({ value: taskId || "" })
 }

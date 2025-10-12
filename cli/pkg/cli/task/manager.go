@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
@@ -121,16 +120,6 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Resolve workspace paths to absolute paths
-	absoluteWorkspacePaths := make([]string, len(workspacePaths))
-	for i, workspacePath := range workspacePaths {
-		absPath, err := filepath.Abs(workspacePath)
-		if err != nil {
-			return "", fmt.Errorf("failed to resolve workspace path '%s': %w", workspacePath, err)
-		}
-		absoluteWorkspacePaths[i] = absPath
-	}
-
 	if global.Config.Verbose {
 		m.renderer.RenderDebug("Creating task: %s", prompt)
 		if len(files) > 0 {
@@ -140,8 +129,7 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 			m.renderer.RenderDebug("Images: %v", images)
 		}
 		if len(workspacePaths) > 0 {
-			m.renderer.RenderDebug("Workspaces (original): %v", workspacePaths)
-			m.renderer.RenderDebug("Workspaces (absolute): %v", absoluteWorkspacePaths)
+			m.renderer.RenderDebug("Workspaces: %v", workspacePaths)
 		}
 		if len(settingsFlags) > 0 {
 			m.renderer.RenderDebug("Settings: %v", settingsFlags)
@@ -165,16 +153,11 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 
 	// Create task request
 	req := &cline.NewTaskRequest{
-		Text:           prompt,
-		Images:         images,
-		Files:          files,
-		TaskSettings:   taskSettings,
-		WorkspacePaths: absoluteWorkspacePaths,
+		Text:         prompt,
+		Images:       images,
+		Files:        files,
+		TaskSettings: taskSettings,
 	}
-
-	// Debug: Log the request details (ALWAYS - for debugging)
-	fmt.Printf("[DEBUG-GRPC]: WorkspacePaths in struct: %v (len=%d)\n", req.WorkspacePaths, len(req.WorkspacePaths))
-	fmt.Printf("[DEBUG-GRPC]: absoluteWorkspacePaths var: %v (len=%d)\n", absoluteWorkspacePaths, len(absoluteWorkspacePaths))
 
 	resp, err := m.client.Task.NewTask(ctx, req)
 	if err != nil {
