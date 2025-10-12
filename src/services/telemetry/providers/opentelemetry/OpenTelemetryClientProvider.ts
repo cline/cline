@@ -4,6 +4,7 @@ import { Resource } from "@opentelemetry/resources"
 import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs"
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
+import { ExtensionRegistryInfo } from "@/registry"
 import { getValidOpenTelemetryConfig, OpenTelemetryClientValidConfig } from "@/shared/services/config/otel-config"
 import {
 	createConsoleLogExporter,
@@ -81,7 +82,7 @@ export class OpenTelemetryClientProvider {
 		// Create resource with service information
 		const resource = new Resource({
 			[ATTR_SERVICE_NAME]: "cline",
-			[ATTR_SERVICE_VERSION]: process.env.npm_package_version || "unknown",
+			[ATTR_SERVICE_VERSION]: ExtensionRegistryInfo.version,
 		})
 
 		// Initialize metrics if configured
