@@ -9,6 +9,7 @@ option java_multiple_files = true;
 service CheckpointsService {
   rpc checkpointDiff(Int64Request) returns (Empty);
   rpc checkpointRestore(CheckpointRestoreRequest) returns (Empty);
+  rpc getCwdHash(StringArrayRequest) returns (PathHashMap);
 }
 
 message CheckpointRestoreRequest {
@@ -16,4 +17,8 @@ message CheckpointRestoreRequest {
   int64 number = 2;
   string restore_type = 3;
   optional int64 offset = 4;
+}
+
+message PathHashMap {
+  map<string, string> path_hash = 1;
 }
