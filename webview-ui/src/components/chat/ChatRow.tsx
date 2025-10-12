@@ -1281,7 +1281,7 @@ export const ChatRowContent = memo(
 									</div>
 								</div>
 							)
-						} catch (e) {
+						} catch (_) {
 							// Fallback if JSON parsing fails
 							return (
 								<div style={{ color: "var(--vscode-foreground)" }}>

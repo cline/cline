@@ -37,6 +37,7 @@ export type ApiProvider =
 	| "vercel-ai-gateway"
 	| "zai"
 	| "oca"
+	| "aihubmix"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -75,6 +76,7 @@ export interface ApiHandlerSecrets {
 	basetenApiKey?: string
 	vercelAiGatewayApiKey?: string
 	difyApiKey?: string
+	aihubmixApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -121,6 +123,8 @@ export interface ApiHandlerOptions {
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
 	ocaMode?: string
+	aihubmixBaseUrl?: string
+	aihubmixAppCode?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string

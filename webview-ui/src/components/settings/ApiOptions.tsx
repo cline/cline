@@ -11,6 +11,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
+import { AihubmixProvider } from "./providers/AihubmixProvider"
 import { AnthropicProvider } from "./providers/AnthropicProvider"
 import { AskSageProvider } from "./providers/AskSageProvider"
 import { BasetenProvider } from "./providers/BasetenProvider"
@@ -162,6 +163,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "huawei-cloud-maas", label: "Huawei Cloud MaaS" },
 			{ value: "dify", label: "Dify.ai" },
 			{ value: "oca", label: "Oracle Code Assist" },
+			{ value: "aihubmix", label: "Aihubmix" },
 		]
 
 		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
@@ -346,8 +348,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									key={item.value}
 									onClick={() => handleProviderChange(item.value)}
 									onMouseEnter={() => setSelectedIndex(index)}
-									ref={(el) => (itemRefs.current[index] = el)}>
-									<span dangerouslySetInnerHTML={{ __html: item.html }} />
+									ref={(el) => {
+										itemRefs.current[index] = el
+									}}>
+									<span>{item.label}</span>
 								</ProviderDropdownItem>
 							))}
 						</ProviderDropdownList>
@@ -492,6 +496,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{apiConfiguration && selectedProvider === "oca" && <OcaProvider currentMode={currentMode} isPopup={isPopup} />}
+
+			{apiConfiguration && selectedProvider === "aihubmix" && (
+				<AihubmixProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
 
 			{apiErrorMessage && (
 				<p

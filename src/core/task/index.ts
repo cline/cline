@@ -2317,8 +2317,7 @@ export class Task {
 							type: "text",
 							text: assistantMessage,
 							// reasoning_details only exists for cline/openrouter providers
-							// @ts-ignore-next-line
-							reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
+							...(reasoningDetails.length > 0 ? { reasoning_details: reasoningDetails } : {}),
 						},
 					] as Array<
 						Anthropic.Messages.RedactedThinkingBlock | Anthropic.Messages.ThinkingBlock | Anthropic.Messages.TextBlock

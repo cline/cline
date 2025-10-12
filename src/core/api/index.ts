@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { AihubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
 import { BasetenHandler } from "./providers/baseten"
@@ -388,6 +389,14 @@ function createHandlerForProvider(
 						? options.planModeOcaModelInfo?.supportsPromptCache
 						: options.actModeOcaModelInfo?.supportsPromptCache,
 				taskId: options.ulid,
+			})
+		case "aihubmix":
+			return new AihubmixHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				apiKey: options.aihubmixApiKey,
+				baseUrl: options.aihubmixBaseUrl,
+				appCode: options.aihubmixAppCode,
+				modelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		default:
 			return new AnthropicHandler({

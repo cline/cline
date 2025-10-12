@@ -357,6 +357,18 @@ export function normalizeApiConfiguration(
 				selectedModelId: ocaModelId || "",
 				selectedModelInfo: ocaModelInfo || liteLlmModelInfoSaneDefaults,
 			}
+		case "aihubmix":
+			// Aihubmix uses its own model data
+			const aihubmixModels = {
+				"gpt-4o-mini": { name: "GPT-4o Mini", maxTokens: 128000, supportsPromptCache: false },
+				"gpt-4o": { name: "GPT-4o", maxTokens: 128000, supportsPromptCache: false },
+				"gpt-4-turbo": { name: "GPT-4 Turbo", maxTokens: 128000, supportsPromptCache: false },
+				"gpt-3.5-turbo": { name: "GPT-3.5 Turbo", maxTokens: 16384, supportsPromptCache: false },
+				"claude-3-5-sonnet-20241022": { name: "Claude 3.5 Sonnet", maxTokens: 200000, supportsPromptCache: false },
+				"claude-3-5-haiku-20241022": { name: "Claude 3.5 Haiku", maxTokens: 200000, supportsPromptCache: false },
+				"claude-3-opus-20240229": { name: "Claude 3 Opus", maxTokens: 200000, supportsPromptCache: false },
+			}
+			return getProviderData(aihubmixModels, "gpt-4o-mini")
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -621,6 +633,12 @@ export async function syncModeConfigurations(
 			updates.actModeOcaModelId = sourceFields.ocaModelId
 			updates.planModeOcaModelInfo = sourceFields.ocaModelInfo
 			updates.actModeOcaModelInfo = sourceFields.ocaModelInfo
+			break
+
+		case "aihubmix":
+			// Aihubmix uses the standard apiModelId field
+			updates.planModeApiModelId = sourceFields.apiModelId
+			updates.actModeApiModelId = sourceFields.apiModelId
 			break
 
 		// Providers that use apiProvider + apiModelId fields

@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs"
 import os from "os"
 import path from "path"
 import type { Extension, ExtensionContext } from "vscode"
-import { ExtensionKind, ExtensionMode } from "vscode"
+import { EventEmitter, ExtensionKind, ExtensionMode } from "vscode"
 import { URI } from "vscode-uri"
 import { ExtensionRegistryInfo } from "@/registry"
 import { log } from "./utils"
@@ -45,6 +45,10 @@ export function initializeContext(clineDir?: string) {
 		// Set up KV stores.
 		globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),
 		secrets: new SecretStore(path.join(DATA_DIR, "secrets.json")),
+		languageModelAccessInformation: {
+			canSendRequest: () => true,
+			onDidChange: new EventEmitter<void>().event,
+		},
 
 		// Set up URIs.
 		storageUri: URI.file(WORKSPACE_STORAGE_DIR),
