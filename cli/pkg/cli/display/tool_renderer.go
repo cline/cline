@@ -1,6 +1,7 @@
 package display
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -32,7 +33,7 @@ func (tr *ToolRenderer) RenderToolApprovalRequest(tool *types.ToolMessage) strin
 	output.WriteString("\n")
 
 	// Add content preview for relevant tools
-	contentPreview := tr.generateToolContentPreview(tool)
+	contentPreview := tr.GenerateToolContentPreview(tool)
 	if contentPreview != "" {
 		output.WriteString("\n")
 		output.WriteString(contentPreview)
@@ -53,7 +54,7 @@ func (tr *ToolRenderer) RenderToolExecution(tool *types.ToolMessage) string {
 	output.WriteString("\n")
 
 	// Add content body for relevant tools
-	contentBody := tr.generateToolContentBody(tool)
+	contentBody := tr.GenerateToolContentBody(tool)
 	if contentBody != "" {
 		output.WriteString("\n")
 		output.WriteString(contentBody)
@@ -177,8 +178,8 @@ func (tr *ToolRenderer) generateToolHeader(tool *types.ToolMessage, verbTense st
 	}
 }
 
-// generateToolContentPreview generates content preview for approval requests
-func (tr *ToolRenderer) generateToolContentPreview(tool *types.ToolMessage) string {
+// GenerateToolContentPreview generates content preview for approval requests
+func (tr *ToolRenderer) GenerateToolContentPreview(tool *types.ToolMessage) string {
 	if tool.Content == "" {
 		return ""
 	}
@@ -215,8 +216,8 @@ func (tr *ToolRenderer) generateToolContentPreview(tool *types.ToolMessage) stri
 	}
 }
 
-// generateToolContentBody generates full content for completed executions
-func (tr *ToolRenderer) generateToolContentBody(tool *types.ToolMessage) string {
+// GenerateToolContentBody generates full content for completed executions
+func (tr *ToolRenderer) GenerateToolContentBody(tool *types.ToolMessage) string {
 	if tool.Content == "" {
 		return ""
 	}
@@ -354,4 +355,91 @@ func (tr *ToolRenderer) renderMarkdown(markdown string) string {
 	}
 
 	return rendered
+}
+
+// GenerateAskFollowupHeader generates the header for followup questions
+func (tr *ToolRenderer) GenerateAskFollowupHeader() string {
+	return "### Cline has a question\n"
+}
+
+// GenerateAskFollowupBody generates the body content for followup questions
+func (tr *ToolRenderer) GenerateAskFollowupBody(messageText string) string {
+	var question string
+	var options []string
+
+	// Try to parse as JSON
+	var askData types.AskData
+	if err := json.Unmarshal([]byte(messageText), &askData); err == nil {
+		question = askData.Question
+		options = askData.Options
+	} else {
+		question = messageText
+	}
+
+	if question == "" {
+		return ""
+	}
+
+	// Build the body
+	var body strings.Builder
+
+	// Render the question
+	rendered := tr.renderMarkdown(question)
+	body.WriteString(rendered)
+
+	// Add options if available
+	if len(options) > 0 {
+		body.WriteString("\n\nOptions:\n")
+		for i, option := range options {
+			body.WriteString(fmt.Sprintf("%d. %s\n", i+1, option))
+		}
+	}
+
+	return body.String()
+}
+
+// GeneratePlanModeRespondHeader generates the header for plan mode responses
+func (tr *ToolRenderer) GeneratePlanModeRespondHeader() string {
+	return "### Cline has a plan\n"
+}
+
+// GeneratePlanModeRespondBody generates the body content for plan mode responses
+func (tr *ToolRenderer) GeneratePlanModeRespondBody(messageText string) string {
+	var response string
+	var options []string
+
+	// Try to parse as JSON
+	type PlanModeResponse struct {
+		Response string   `json:"response"`
+		Options  []string `json:"options,omitempty"`
+	}
+
+	var planData PlanModeResponse
+	if err := json.Unmarshal([]byte(messageText), &planData); err == nil {
+		response = planData.Response
+		options = planData.Options
+	} else {
+		response = messageText
+	}
+
+	if response == "" {
+		return ""
+	}
+
+	// Build the body
+	var body strings.Builder
+
+	// Render the response
+	rendered := tr.renderMarkdown(response)
+	body.WriteString(rendered)
+
+	// Add options if available
+	if len(options) > 0 {
+		body.WriteString("\n\nOptions:\n")
+		for i, option := range options {
+			body.WriteString(fmt.Sprintf("%d. %s\n", i+1, option))
+		}
+	}
+
+	return body.String()
 }
