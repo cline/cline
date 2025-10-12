@@ -22,6 +22,7 @@ type Manager struct {
 	clientAddress    string
 	state            *types.ConversationState
 	renderer         *display.Renderer
+	toolRenderer     *display.ToolRenderer
 	streamingDisplay *display.StreamingDisplay
 	handlerRegistry  *handlers.HandlerRegistry
 	isStreamingMode  bool
@@ -32,6 +33,7 @@ type Manager struct {
 func NewManager(client *client.ClineClient) *Manager {
 	state := types.NewConversationState()
 	renderer := display.NewRenderer(global.Config.OutputFormat)
+	toolRenderer := display.NewToolRenderer(renderer.GetMdRenderer(), global.Config.OutputFormat)
 	streamingDisplay := display.NewStreamingDisplay(state, renderer)
 
 	// Create handler registry and register handlers
@@ -44,6 +46,7 @@ func NewManager(client *client.ClineClient) *Manager {
 		clientAddress:    "", // Will be set when client is provided
 		state:            state,
 		renderer:         renderer,
+		toolRenderer:     toolRenderer,
 		streamingDisplay: streamingDisplay,
 		handlerRegistry:  registry,
 	}
@@ -1072,6 +1075,7 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 		dc := &handlers.DisplayContext{
 			State:           m.state,
 			Renderer:        m.renderer,
+			ToolRenderer:    m.toolRenderer,
 			IsLast:          isLast,
 			IsPartial:       isPartial,
 			MessageIndex:    messageIndex,

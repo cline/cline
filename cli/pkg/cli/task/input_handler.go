@@ -2,7 +2,6 @@ package task
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -190,13 +189,10 @@ func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error
 
 // promptForApproval displays an approval prompt for tool/command requests
 // Returns (approved, message, error)
+// Note: The approval details are already shown by segment streamer / state stream
 func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineMessage) (bool, string, error) {
-	// First, display what needs approval
+	// Show selection menu (approval details already displayed by other handlers)
 	fmt.Println()
-	ih.displayApprovalRequest(msg)
-	fmt.Println()
-
-	// Show selection menu
 	var choice string
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -242,118 +238,6 @@ func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineM
 	}
 
 	return approved, feedback, nil
-}
-
-// displayApprovalRequest shows the tool/command that needs approval
-func (ih *InputHandler) displayApprovalRequest(msg *types.ClineMessage) {
-	switch msg.Ask {
-	case string(types.AskTypeTool):
-		ih.displayToolApproval(msg)
-	case string(types.AskTypeCommand):
-		ih.displayCommandApproval(msg)
-	case string(types.AskTypeBrowserActionLaunch):
-		markdown := "### Cline wants to launch browser action"
-		if msg.Text != "" {
-			markdown += fmt.Sprintf("\n\nDetails: %s", msg.Text)
-		}
-		rendered := ih.manager.GetRenderer().RenderMarkdown(markdown)
-		fmt.Print(rendered)
-	case string(types.AskTypeUseMcpServer):
-		markdown := "### Cline wants to use MCP server"
-		if msg.Text != "" {
-			markdown += fmt.Sprintf("\n\nDetails: %s", msg.Text)
-		}
-		rendered := ih.manager.GetRenderer().RenderMarkdown(markdown)
-		fmt.Print(rendered)
-	default:
-		markdown := fmt.Sprintf("### Cline is requesting approval for: %s", msg.Ask)
-		if msg.Text != "" {
-			markdown += fmt.Sprintf("\n\nDetails: %s", msg.Text)
-		}
-		rendered := ih.manager.GetRenderer().RenderMarkdown(markdown)
-		fmt.Print(rendered)
-	}
-}
-
-// displayToolApproval displays tool-specific approval information
-func (ih *InputHandler) displayToolApproval(msg *types.ClineMessage) {
-	var tool types.ToolMessage
-	if err := json.Unmarshal([]byte(msg.Text), &tool); err != nil {
-		markdown := fmt.Sprintf("### Cline wants to use a tool\n\nDetails: %s", msg.Text)
-		rendered := ih.manager.GetRenderer().RenderMarkdown(markdown)
-		fmt.Print(rendered)
-		return
-	}
-
-	var markdown string
-	switch tool.Tool {
-	case string(types.ToolTypeEditedExistingFile):
-		markdown = fmt.Sprintf("### Cline wants to edit `%s`", tool.Path)
-	case string(types.ToolTypeNewFileCreated):
-		markdown = fmt.Sprintf("### Cline wants to write `%s`", tool.Path)
-	case string(types.ToolTypeReadFile):
-		markdown = fmt.Sprintf("### Cline wants to read `%s`", tool.Path)
-	case string(types.ToolTypeListFilesTopLevel):
-		markdown = fmt.Sprintf("### Cline wants to list files in `%s`", tool.Path)
-	case string(types.ToolTypeListFilesRecursive):
-		markdown = fmt.Sprintf("### Cline wants to recursively list files in `%s`", tool.Path)
-	case string(types.ToolTypeSearchFiles):
-		if tool.Regex != "" && tool.Path != "" {
-			markdown = fmt.Sprintf("### Cline wants to search for `%s` in `%s`", tool.Regex, tool.Path)
-		} else if tool.Regex != "" {
-			markdown = fmt.Sprintf("### Cline wants to search for `%s`", tool.Regex)
-		} else {
-			markdown = "### Cline wants to search files"
-		}
-	case string(types.ToolTypeWebFetch):
-		markdown = fmt.Sprintf("### Cline wants to fetch `%s`", tool.Path)
-	case string(types.ToolTypeListCodeDefinitionNames):
-		markdown = fmt.Sprintf("### Cline wants to list code definitions in `%s`", tool.Path)
-	default:
-		markdown = fmt.Sprintf("### Cline wants to use tool: %s", tool.Tool)
-	}
-
-	rendered := ih.manager.GetRenderer().RenderMarkdown(markdown)
-	fmt.Print(rendered)
-
-	// Show content preview for edit/write tools
-	if tool.Content != "" {
-		if tool.Tool == string(types.ToolTypeEditedExistingFile) {
-			// Show diff for edits
-			diffMarkdown := fmt.Sprintf("```diff\n%s\n```", tool.Content)
-			diffRendered := ih.manager.GetRenderer().RenderMarkdown(diffMarkdown)
-			fmt.Print(diffRendered)
-		} else if tool.Tool == string(types.ToolTypeNewFileCreated) {
-			// Show content for new files
-			preview := strings.TrimSpace(tool.Content)
-			if len(preview) > 500 {
-				preview = preview[:500] + "..."
-			}
-			previewMd := fmt.Sprintf("\n```\n%s\n```", preview)
-			previewRendered := ih.manager.GetRenderer().RenderMarkdown(previewMd)
-			fmt.Print(previewRendered)
-		}
-	}
-}
-
-// displayCommandApproval displays command-specific approval information
-func (ih *InputHandler) displayCommandApproval(msg *types.ClineMessage) {
-	command := msg.Text
-
-	// Check if this command was flagged despite auto-approval settings
-	hasAutoApprovalConflict := strings.HasSuffix(command, "REQ_APP")
-	if hasAutoApprovalConflict {
-		command = strings.TrimSuffix(command, "REQ_APP")
-	}
-
-	// Render header
-	markdown := fmt.Sprintf("### Cline wants to run `%s`", strings.TrimSpace(command))
-	rendered := ih.manager.GetRenderer().RenderMarkdown(markdown)
-	fmt.Print(rendered)
-
-	if hasAutoApprovalConflict {
-		fmt.Println("\nWARNING: The model has determined this command requires explicit approval.")
-	}
 }
 
 // handleSpecialCommand processes special commands like /cancel, /exit

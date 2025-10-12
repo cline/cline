@@ -26,9 +26,10 @@ func (h *AskHandler) CanHandle(msg *types.ClineMessage) bool {
 }
 
 func (h *AskHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
-	// Skip approval display when in interactive streaming mode
+	// Skip approval display when in interactive streaming mode for pending/partial messages
 	// The input handler will show the approval prompt instead
-	if dc.IsStreamingMode && dc.IsInteractive {
+	// But always show historical (non-last, non-partial) approval messages
+	if dc.IsStreamingMode && dc.IsInteractive && (dc.IsLast || dc.IsPartial) {
 		approvalTypes := []string{
 			string(types.AskTypeTool),
 			string(types.AskTypeCommand),
@@ -167,29 +168,12 @@ func (h *AskHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) 
 		return nil
 	}
 
-	command := msg.Text
+	// Check if this command was flagged despite auto-approval settings
+	autoApprovalConflict := strings.HasSuffix(msg.Text, "REQ_APP")
 
-	// Check if this command was flagged despite auto-approval settings turned on for safe commands
-	hasAutoApprovalConflict := strings.HasSuffix(command, "REQ_APP")
-	if hasAutoApprovalConflict {
-		command = strings.TrimSuffix(command, "REQ_APP")
-	}
-
-	err := dc.Renderer.RenderMessage("TERMINAL", "Cline wants to execute this command:", true)
-	if err != nil {
-		return fmt.Errorf("failed to render handleCommand: %w", err)
-	}
-
-	// Render markdown with syntax highlighting
-	markdown := fmt.Sprintf("```shell\n%s\n```", strings.TrimSpace(command))
-	rendered := dc.Renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
-
-	if hasAutoApprovalConflict {
-		fmt.Printf("\nThe model has determined this command requires explicit approval.\n")
-	} else {
-		fmt.Printf("\nApproval required for this command.\n")
-	}
+	// Use unified ToolRenderer
+	output := dc.ToolRenderer.RenderCommandApprovalRequest(msg.Text, autoApprovalConflict)
+	fmt.Print(output)
 
 	return nil
 }
@@ -224,49 +208,9 @@ func (h *AskHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 		return dc.Renderer.RenderMessage("TOOL", msg.Text, true)
 	}
 
-	return h.renderToolMessage(&tool, dc)
-}
-
-// renderToolMessage renders a tool message with appropriate formatting
-func (h *AskHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayContext) error {
-	switch tool.Tool {
-	case string(types.ToolTypeEditedExistingFile):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to edit file: %s", tool.Path), true)
-	case string(types.ToolTypeNewFileCreated):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to create file: %s", tool.Path), true)
-	case string(types.ToolTypeReadFile):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to read file: %s", tool.Path), true)
-	case string(types.ToolTypeListFilesTopLevel):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to list files in: %s", tool.Path), true)
-	case string(types.ToolTypeListFilesRecursive):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to recursively list files in: %s", tool.Path), true)
-	case string(types.ToolTypeSearchFiles):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to search for '%s' in: %s", tool.Regex, tool.Path), true)
-	case string(types.ToolTypeWebFetch):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to fetch URL: %s", tool.Path), true)
-	case string(types.ToolTypeListCodeDefinitionNames):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to list code definitions for: %s", tool.Path), true)
-	default:
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to use tool: %s", tool.Tool), true)
-	}
-
-	// Skip content preview for readFile and webFetch tools
-	if tool.Tool == string(types.ToolTypeReadFile) || tool.Tool == string(types.ToolTypeWebFetch) {
-		return nil
-	}
-
-	// Show content preview, truncating if necessary
-	preview := tool.Content
-	if preview != "" {
-		preview = strings.TrimSpace(tool.Content)
-		if len(preview) > 1000 {
-			preview = preview[:1000] + "..."
-		}
-
-		fmt.Printf("Preview: %s\n", preview)
-	}
-
-	fmt.Printf("\nApproval required.\n")
+	// Use unified ToolRenderer
+	output := dc.ToolRenderer.RenderToolApprovalRequest(&tool)
+	fmt.Print(output)
 
 	return nil
 }
