@@ -350,8 +350,8 @@ func newInstanceListCommand() *cobra.Command {
 					))
 				}
 
-				// Render the markdown table
-				renderer, err := display.NewMarkdownRenderer()
+				// Render the markdown table with terminal width for nice table layout
+				renderer, err := display.NewMarkdownRendererForTerminal()
 				if err != nil {
 					// Fallback to plain table if markdown renderer fails
 					fmt.Println(markdown.String())
@@ -365,8 +365,8 @@ func newInstanceListCommand() *cobra.Command {
 						rendered = strings.ReplaceAll(rendered, "✓", "\033[32m✓\033[0m")       			   		// Green
 						rendered = strings.ReplaceAll(rendered, "NOT_SERVING", "\033[31mNOT_SERVING\033[0m") 	// Red
 						rendered = strings.ReplaceAll(rendered, "UNKNOWN", "\033[33mUNKNOWN\033[0m")      		// Yellow
-						
-						
+
+
 						fmt.Print(strings.TrimLeft(rendered, "\n"))
 					}
 					fmt.Println("\n")

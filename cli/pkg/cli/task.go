@@ -86,7 +86,6 @@ func newTaskNewCommand() *cobra.Command {
 	var (
 		images     []string
 		files      []string
-		wait       bool
 		workspaces []string
 		address    string
 		mode       string
@@ -143,18 +142,12 @@ func newTaskNewCommand() *cobra.Command {
 
 			fmt.Printf("Task created successfully with ID: %s\n", taskID)
 
-			// Wait for completion if requested
-			if wait {
-				return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance())
-			}
-
 			return nil
 		},
 	}
 
 	cmd.Flags().StringSliceVarP(&images, "image", "i", nil, "attach image files")
 	cmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
-	cmd.Flags().BoolVar(&wait, "wait", false, "wait for task completion")
 	cmd.Flags().StringSliceVarP(&workspaces, "workdir", "w", nil, "workdir directory paths")
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
@@ -343,7 +336,7 @@ func newTaskFollowCommand() *cobra.Command {
 		Use:     "follow",
 		Aliases: []string{"f"},
 		Short:   "Follow current task conversation in real-time",
-		Long:    `Follow the current task conversation, displaying new messages as they arrive in real-time.`,
+		Long:    `Follow the current task conversation, displaying new messages as they arrive in real-time. Interactive input is enabled by default.`,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -351,8 +344,8 @@ func newTaskFollowCommand() *cobra.Command {
 			if err := ensureTaskManager(ctx, address); err != nil {
 				return err
 			}
-			
-			return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance())
+
+			return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), true)
 		},
 	}
 

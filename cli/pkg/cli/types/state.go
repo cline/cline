@@ -12,9 +12,8 @@ type ConversationState struct {
 
 // StreamingMessage manages state for streaming message display
 type StreamingMessage struct {
-	CurrentKey      string `json:"currentKey"`
-	LastText        string `json:"lastText"`
-	LastToolMessage string `json:"lastToolMessage,omitempty"`
+	CurrentKey string `json:"currentKey"`
+	LastText   string `json:"lastText"`
 }
 
 // NewConversationState creates a new conversation state
@@ -37,9 +36,8 @@ func (cs *ConversationState) GetStreamingMessage() *StreamingMessage {
 	cs.mu.RLock()
 	defer cs.mu.RUnlock()
 	return &StreamingMessage{
-		CurrentKey:      cs.StreamingMessage.CurrentKey,
-		LastText:        cs.StreamingMessage.LastText,
-		LastToolMessage: cs.StreamingMessage.LastToolMessage,
+		CurrentKey: cs.StreamingMessage.CurrentKey,
+		LastText:   cs.StreamingMessage.LastText,
 	}
 }
 
