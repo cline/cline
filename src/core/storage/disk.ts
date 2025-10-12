@@ -3,12 +3,13 @@ import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes
 import { execa } from "@packages/execa"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
-import { fileExistsAtPath } from "@utils/fs"
+import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { StateManager } from "./StateManager"
 import { GlobalState, Settings } from "./state-keys"
 
 export const GlobalFileNames = {
@@ -22,6 +23,7 @@ export const GlobalFileNames = {
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
 	workflows: ".clinerules/workflows",
+	hooksDir: ".clinerules/hooks",
 	cursorRulesDir: ".cursor/rules",
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",
@@ -310,4 +312,26 @@ export async function writeRemoteConfigToCache(organizationId: string, config: R
 	} catch (error) {
 		console.error("Failed to write remote config to cache:", error)
 	}
+}
+
+/**
+ * Gets the paths to the workspace's .clinerules/hooks directories to search for
+ * hooks. A workspace may not use hooks, and the resulting array will be empty. A
+ * multi-root workspace may have multiple hooks directories.
+ */
+export async function getWorkspaceHooksDirs(): Promise<string[]> {
+	const workspaceRootPaths =
+		StateManager.get()
+			.getGlobalStateKey("workspaceRoots")
+			?.map((root) => root.path) || []
+
+	return (
+		await Promise.all(
+			workspaceRootPaths.map(async (workspaceRootPath) => {
+				// Look for a .clinerules/hooks folder in this workspace root.
+				const candidate = path.join(workspaceRootPath, GlobalFileNames.hooksDir)
+				return (await isDirectory(candidate)) ? candidate : undefined
+			}),
+		)
+	).filter((path): path is string => Boolean(path))
 }
