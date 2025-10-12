@@ -1,11 +1,9 @@
 package display
 
 import (
-	"os"
 	"strings"
 
 	"github.com/charmbracelet/glamour"
-	"golang.org/x/term"
 )
 
 type MarkdownRenderer struct {
@@ -14,11 +12,9 @@ type MarkdownRenderer struct {
 }
 
 func NewMarkdownRenderer() (*MarkdownRenderer, error) {
-	width := getTerminalWidth()
-
 	r, err := glamour.NewTermRenderer(
 		glamour.WithStandardStyle("auto"),
-		glamour.WithWordWrap(width),
+		glamour.WithWordWrap(0), // 0 = no wrapping, let terminal handle it
 		glamour.WithPreservedNewLines(),
 	)
 	if err != nil {
@@ -27,7 +23,7 @@ func NewMarkdownRenderer() (*MarkdownRenderer, error) {
 
 	return &MarkdownRenderer{
 		renderer: r,
-		width:    width,
+		width:    0, // Unlimited width
 	}, nil
 }
 
@@ -37,16 +33,4 @@ func (mr *MarkdownRenderer) Render(markdown string) (string, error) {
 		return "", err
 	}
 	return strings.TrimLeft(strings.TrimRight(rendered, "\n"), "\n"), nil
-}
-
-
-func getTerminalWidth() int {
-	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil || width == 0 {
-		return 120
-	}
-	if width > 150 {
-		return 150
-	}
-	return width
 }

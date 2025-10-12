@@ -160,12 +160,13 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error) {
 	var message string
 
-	// Create input form using huh
+	// Create multiline text area form using huh
 	form := huh.NewForm(
 		huh.NewGroup(
-			huh.NewInput().
+			huh.NewText().
 				Title("Cline is ready for your message").
-				Placeholder("").
+				Placeholder("Type your message... (alt+enter for new line, enter to submit)").
+				Lines(5).
 				Value(&message),
 		),
 	)
@@ -219,12 +220,13 @@ func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineM
 
 	var feedback string
 	if needsFeedback {
-		// Show text input for feedback
+		// Show multiline text area for feedback
 		feedbackForm := huh.NewForm(
 			huh.NewGroup(
-				huh.NewInput().
+				huh.NewText().
 					Title("Your feedback").
-					Placeholder("Type your message...").
+					Placeholder("Type your message... (alt+enter for new line, enter to submit)").
+					Lines(5).
 					Value(&feedback),
 			),
 		)
