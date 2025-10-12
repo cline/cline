@@ -301,6 +301,50 @@ func (m *Manager) CheckSendDisabled(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+// CheckNeedsApproval determines if the current task is waiting for approval
+// Returns (needsApproval, lastMessage, error)
+func (m *Manager) CheckNeedsApproval(ctx context.Context) (bool, *types.ClineMessage, error) {
+	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return false, nil, fmt.Errorf("failed to get latest state: %w", err)
+	}
+
+	messages, err := m.extractMessagesFromState(state.StateJson)
+	if err != nil {
+		return false, nil, fmt.Errorf("failed to extract messages: %w", err)
+	}
+
+	if len(messages) == 0 {
+		return false, nil, nil
+	}
+
+	// Use final message to check if approval is needed
+	lastMessage := messages[len(messages)-1]
+
+	// Only check non-partial ask messages
+	if lastMessage.Partial {
+		return false, nil, nil
+	}
+
+	// Check if this is an approval-required ask type
+	if lastMessage.Type == types.MessageTypeAsk {
+		approvalTypes := []string{
+			string(types.AskTypeTool),
+			string(types.AskTypeCommand),
+			string(types.AskTypeBrowserActionLaunch),
+			string(types.AskTypeUseMcpServer),
+		}
+
+		for _, approvalType := range approvalTypes {
+			if lastMessage.Ask == approvalType {
+				return true, lastMessage, nil
+			}
+		}
+	}
+
+	return false, nil, nil
+}
+
 // SendMessage sends a followup message to the current task
 func (m *Manager) SendMessage(ctx context.Context, message string, images, files []string, approve string) error {
 	responseType := "messageResponse"

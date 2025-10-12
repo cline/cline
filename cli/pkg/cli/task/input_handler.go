@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/types"
 )
 
 // InputHandler manages interactive user input during follow mode
@@ -50,7 +52,56 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 		case <-ctx.Done():
 			return
 		case <-ih.pollTicker.C:
-			// Check if we can send a message
+			// First check if approval is needed
+			needsApproval, approvalMsg, err := ih.manager.CheckNeedsApproval(ctx)
+			if err != nil {
+				if global.Config.Verbose {
+					fmt.Printf("\nDebug: CheckNeedsApproval error: %v\n", err)
+				}
+				continue
+			}
+
+			if needsApproval {
+				ih.coordinator.SetInputAllowed(true)
+
+				// Show approval prompt
+				approved, feedback, err := ih.promptForApproval(ctx, approvalMsg)
+				if err != nil {
+					// Check if the error is due to interrupt (Ctrl+C) or context cancellation
+					if err == huh.ErrUserAborted || ctx.Err() != nil {
+						// User pressed Ctrl+C, cancel the context and exit cleanly
+						ih.cancelFunc()
+						return
+					}
+					if global.Config.Verbose {
+						fmt.Printf("\nDebug: Approval prompt error: %v\n", err)
+					}
+					continue
+				}
+
+				ih.coordinator.SetInputAllowed(false)
+
+				// Send approval response
+				approveStr := "false"
+				if approved {
+					approveStr = "true"
+				}
+
+				if err := ih.manager.SendMessage(ctx, feedback, nil, nil, approveStr); err != nil {
+					fmt.Printf("\nError sending approval: %v\n", err)
+					continue
+				}
+
+				if global.Config.Verbose {
+					fmt.Printf("\nDebug: Approval sent (approved=%s, feedback=%q)\n", approveStr, feedback)
+				}
+
+				// Give the system a moment to process before re-polling
+				time.Sleep(1 * time.Second)
+				continue
+			}
+
+			// Check if we can send a regular message
 			sendDisabled, err := ih.manager.CheckSendDisabled(ctx)
 			if err != nil {
 				if global.Config.Verbose {
@@ -135,6 +186,145 @@ func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error
 	}
 
 	return message, true, nil
+}
+
+// promptForApproval displays an approval prompt for tool/command requests
+// Returns (approved, message, error)
+func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineMessage) (bool, string, error) {
+	// First, display what needs approval
+	fmt.Println()
+	ih.displayApprovalRequest(msg)
+	fmt.Println()
+
+	// Show selection menu
+	var choice string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Let Cline use this tool?").
+				Options(
+					huh.NewOption("Yes", "yes"),
+					huh.NewOption("Yes with feedback", "yes_feedback"),
+					huh.NewOption("No", "no"),
+					huh.NewOption("No with feedback", "no_feedback"),
+				).
+				Value(&choice),
+		),
+	)
+
+	err := form.Run()
+	if err != nil {
+		return false, "", err
+	}
+
+	// Check if feedback is needed
+	needsFeedback := choice == "yes_feedback" || choice == "no_feedback"
+	approved := choice == "yes" || choice == "yes_feedback"
+
+	var feedback string
+	if needsFeedback {
+		// Show text input for feedback
+		feedbackForm := huh.NewForm(
+			huh.NewGroup(
+				huh.NewInput().
+					Title("Your feedback").
+					Placeholder("Type your message...").
+					Value(&feedback),
+			),
+		)
+
+		err := feedbackForm.Run()
+		if err != nil {
+			return false, "", err
+		}
+
+		feedback = strings.TrimSpace(feedback)
+	}
+
+	return approved, feedback, nil
+}
+
+// displayApprovalRequest shows the tool/command that needs approval
+func (ih *InputHandler) displayApprovalRequest(msg *types.ClineMessage) {
+	switch msg.Ask {
+	case string(types.AskTypeTool):
+		ih.displayToolApproval(msg)
+	case string(types.AskTypeCommand):
+		ih.displayCommandApproval(msg)
+	case string(types.AskTypeBrowserActionLaunch):
+		fmt.Println("Cline wants to launch browser action")
+		if msg.Text != "" {
+			fmt.Printf("Details: %s\n", msg.Text)
+		}
+	case string(types.AskTypeUseMcpServer):
+		fmt.Println("Cline wants to use MCP server")
+		if msg.Text != "" {
+			fmt.Printf("Details: %s\n", msg.Text)
+		}
+	default:
+		fmt.Printf("Cline is requesting approval for: %s\n", msg.Ask)
+		if msg.Text != "" {
+			fmt.Printf("Details: %s\n", msg.Text)
+		}
+	}
+}
+
+// displayToolApproval displays tool-specific approval information
+func (ih *InputHandler) displayToolApproval(msg *types.ClineMessage) {
+	var tool types.ToolMessage
+	if err := json.Unmarshal([]byte(msg.Text), &tool); err != nil {
+		fmt.Printf("Cline wants to use a tool\n")
+		fmt.Printf("Details: %s\n", msg.Text)
+		return
+	}
+
+	switch tool.Tool {
+	case string(types.ToolTypeEditedExistingFile):
+		fmt.Printf("Cline wants to edit file: %s\n", tool.Path)
+	case string(types.ToolTypeNewFileCreated):
+		fmt.Printf("Cline wants to create file: %s\n", tool.Path)
+	case string(types.ToolTypeReadFile):
+		fmt.Printf("Cline wants to read file: %s\n", tool.Path)
+	case string(types.ToolTypeListFilesTopLevel):
+		fmt.Printf("Cline wants to list files in: %s\n", tool.Path)
+	case string(types.ToolTypeListFilesRecursive):
+		fmt.Printf("Cline wants to recursively list files in: %s\n", tool.Path)
+	case string(types.ToolTypeSearchFiles):
+		fmt.Printf("Cline wants to search for '%s' in: %s\n", tool.Regex, tool.Path)
+	case string(types.ToolTypeWebFetch):
+		fmt.Printf("Cline wants to fetch URL: %s\n", tool.Path)
+	case string(types.ToolTypeListCodeDefinitionNames):
+		fmt.Printf("Cline wants to list code definitions for: %s\n", tool.Path)
+	default:
+		fmt.Printf("Cline wants to use tool: %s\n", tool.Tool)
+	}
+
+	// Show content preview for certain tools
+	if tool.Content != "" && tool.Tool != string(types.ToolTypeReadFile) && tool.Tool != string(types.ToolTypeWebFetch) {
+		preview := strings.TrimSpace(tool.Content)
+		if len(preview) > 200 {
+			preview = preview[:200] + "..."
+		}
+		fmt.Printf("Preview: %s\n", preview)
+	}
+}
+
+// displayCommandApproval displays command-specific approval information
+func (ih *InputHandler) displayCommandApproval(msg *types.ClineMessage) {
+	command := msg.Text
+
+	// Check if this command was flagged despite auto-approval settings
+	hasAutoApprovalConflict := strings.HasSuffix(command, "REQ_APP")
+	if hasAutoApprovalConflict {
+		command = strings.TrimSuffix(command, "REQ_APP")
+	}
+
+	fmt.Printf("Cline wants to execute this command:\n")
+	fmt.Printf("```\n%s\n```\n", strings.TrimSpace(command))
+
+	if hasAutoApprovalConflict {
+		fmt.Printf("WARNING: The model has determined this command requires explicit approval.\n")
+	}
 }
 
 // handleSpecialCommand processes special commands like /cancel, /exit
