@@ -7,6 +7,7 @@ import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { UiServiceClient } from "@/services/grpc-client"
+import { getEnvironmentColor } from "@/utils/environmentColors"
 import CopyTaskButton from "./buttons/CopyTaskButton"
 import DeleteTaskButton from "./buttons/DeleteTaskButton"
 import NewTaskButton from "./buttons/NewTaskButton"
@@ -58,6 +59,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		mode,
 		expandTaskHeader: isTaskExpanded,
 		setExpandTaskHeader: setIsTaskExpanded,
+		environment,
 	} = useExtensionState()
 
 	// Simplified computed values
@@ -86,6 +88,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	}, [navigateToSettings])
 
 	const highlightedText = useMemo(() => highlightText(task.text, false), [task.text])
+	const environmentBorderColor = getEnvironmentColor(environment, "border")
 
 	return (
 		<div className={"p-2 flex flex-col gap-1.5"}>
@@ -99,11 +102,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				className={cn(
 					"relative overflow-hidden cursor-pointer rounded-sm flex flex-col gap-1.5 z-10 pt-2 pb-2 px-2 hover:opacity-100 bg-[var(--vscode-toolbar-hoverBackground)]/65",
 					{
-						"opacity-100 border-1 border-[var(--vscode-editorGroup-border)]": isTaskExpanded, // No hover effects when expanded, add border
-						"hover:bg-[var(--vscode-toolbar-hoverBackground)] border-1 border-[var(--vscode-editorGroup-border)]":
-							!isTaskExpanded, // Hover effects only when collapsed
+						"opacity-100 border-1": isTaskExpanded, // No hover effects when expanded, add border
+						"hover:bg-[var(--vscode-toolbar-hoverBackground)] border-1": !isTaskExpanded, // Hover effects only when collapsed
 					},
-				)}>
+				)}
+				style={{
+					borderColor: environmentBorderColor,
+				}}>
 				{/* Task Title */}
 				<div className="flex justify-between items-center cursor-pointer" onClick={toggleTaskExpanded}>
 					<div className="flex justify-between items-center">
