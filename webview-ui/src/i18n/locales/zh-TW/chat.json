@@ -69,7 +69,7 @@
 		}
 	},
 	"runCommand": {
-		"title": "命令",
+		"title": "執行",
 		"tooltip": "執行此命令"
 	},
 	"proceedWhileRunning": {
