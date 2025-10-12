@@ -14,6 +14,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// TaskOptions contains options for creating a task
+type TaskOptions struct {
+	Images     []string
+	Files      []string
+	Workspaces []string
+	Mode       string
+	Settings   []string
+	Yolo       bool
+	Address    string
+}
+
 func NewTaskCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "task",
@@ -541,4 +552,42 @@ func CleanupTaskManager() {
 	if taskManager != nil {
 		taskManager.Cleanup()
 	}
+}
+
+// CreateAndFollowTask creates a new task and immediately follows it in interactive mode
+// This is used by the root command to provide a streamlined UX
+func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) error {
+	// Ensure task manager is initialized
+	if err := ensureTaskManager(ctx, opts.Address); err != nil {
+		return err
+	}
+
+	// Set mode to plan by default if not specified
+	if opts.Mode == "" {
+		opts.Mode = "plan"
+	}
+
+	// Set mode if provided
+	if opts.Mode != "" {
+		if err := taskManager.SetMode(ctx, opts.Mode, nil, nil, nil); err != nil {
+			return fmt.Errorf("failed to set mode: %w", err)
+		}
+		fmt.Printf("Mode set to: %s\n", opts.Mode)
+	}
+
+	// Inject yolo_mode_toggled setting if --yolo flag is set
+	if opts.Yolo {
+		opts.Settings = append(opts.Settings, "yolo_mode_toggled=true")
+	}
+
+	// Create the task
+	taskID, err := taskManager.CreateTask(ctx, prompt, opts.Images, opts.Files, opts.Workspaces, opts.Settings)
+	if err != nil {
+		return fmt.Errorf("failed to create task: %w", err)
+	}
+
+	fmt.Printf("Task created successfully with ID: %s\n\n", taskID)
+
+	// Immediately follow the conversation in interactive mode
+	return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), true)
 }
