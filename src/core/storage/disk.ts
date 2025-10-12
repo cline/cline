@@ -3,6 +3,7 @@ import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes
 import { execa } from "@packages/execa"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
+import { RemoteConfig } from "@shared/remote-config/schema"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import os from "os"
@@ -290,7 +291,7 @@ export async function writeTaskSettingsToStorage(taskId: string, settings: Parti
 	}
 }
 
-export async function readRemoteConfigFromCache(organizationId: string): Promise<Record<string, any> | undefined> {
+export async function readRemoteConfigFromCache(organizationId: string): Promise<RemoteConfig | undefined> {
 	try {
 		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
 		const fileExists = await fileExistsAtPath(remoteConfigFilePath)
@@ -305,7 +306,7 @@ export async function readRemoteConfigFromCache(organizationId: string): Promise
 	}
 }
 
-export async function writeRemoteConfigToCache(organizationId: string, config: Record<string, any>): Promise<void> {
+export async function writeRemoteConfigToCache(organizationId: string, config: RemoteConfig): Promise<void> {
 	try {
 		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
 		await fs.writeFile(remoteConfigFilePath, JSON.stringify(config))
