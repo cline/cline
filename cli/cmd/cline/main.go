@@ -8,6 +8,7 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/cline/cli/pkg/cli"
+	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/common"
 	"github.com/spf13/cobra"
@@ -75,6 +76,20 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 						fmt.Printf("Warning: Failed to clean up instance: %v\n", err)
 					}
 				}()
+
+				// Check if user has credentials configured
+				if !isUserReadyToUse(ctx, instanceAddress) {
+					fmt.Println("Let's get you set up first!\n")
+					if err := auth.HandleAuthMenuNoArgs(ctx); err != nil {
+						return fmt.Errorf("auth setup failed: %w", err)
+					}
+
+					// Re-check after auth wizard
+					if !isUserReadyToUse(ctx, instanceAddress) {
+						return fmt.Errorf("credentials still not configured - please run 'cline auth' to complete setup")
+					}
+					fmt.Println("\n✓ Setup complete! Let's get started.\n")
+				}
 			} else {
 				// User specified --address flag, use that
 				instanceAddress = coreAddress
@@ -153,4 +168,26 @@ func promptForInitialTask() (string, error) {
 	}
 
 	return strings.TrimSpace(prompt), nil
+}
+
+// isUserReadyToUse checks if the user has valid credentials to use Cline
+// Returns true if either:
+// - Authenticated with Cline provider, OR
+// - Has a BYO provider with both API key and model configured
+func isUserReadyToUse(ctx context.Context, instanceAddress string) bool {
+	// Create task manager for the instance
+	manager, err := cli.NewTaskManagerForAddress(ctx, instanceAddress)
+	if err != nil {
+		return false
+	}
+
+	// Get provider configurations from state
+	providerList, err := auth.GetProviderConfigurations(ctx, manager)
+	if err != nil {
+		return false
+	}
+
+	// Check if user has any ready-to-use providers
+	readyProviders := providerList.GetAllReadyProviders()
+	return len(readyProviders) > 0
 }

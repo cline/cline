@@ -554,6 +554,11 @@ func CleanupTaskManager() {
 	}
 }
 
+// NewTaskManagerForAddress is an exported wrapper around task.NewManagerForAddress
+func NewTaskManagerForAddress(ctx context.Context, address string) (*task.Manager, error) {
+	return task.NewManagerForAddress(ctx, address)
+}
+
 // CreateAndFollowTask creates a new task and immediately follows it in interactive mode
 // This is used by the root command to provide a streamlined UX
 func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) error {
