@@ -5,6 +5,146 @@ description: "Last updated: August 20, 2025."
 
 New models drop constantly, so this guide focuses on what's working well with Cline right now. We'll keep it updated as the landscape shifts.
 
+<Callout type="tip">
+**New to model selection?** Start with [Module 2 of Cline's Learning Path](https://cline.bot/learn) for a comprehensive guide to choosing and configuring models.
+</Callout>
+
+## What is an AI Model?
+
+Think of an AI model as the "brain" that powers Cline. When you ask Cline to write code, fix bugs, or refactor your project, it's the model that actually understands your request and generates the response.
+
+**Key points:**
+- **Models are trained AI systems** that understand natural language and code
+- **Different models have different strengths** some excel at complex reasoning, others prioritize speed or cost
+- **You choose which model Cline uses** like picking between different experts for different tasks
+- **Models are accessed via API providers** - companies like Anthropic, OpenAI, and OpenRouter host these models
+
+**Why it matters:** The model you choose directly impacts Cline's capabilities, response quality, speed, and cost. A premium model might handle complex refactoring beautifully but cost more, while a budget model works great for routine tasks at a fraction of the price.
+
+## How to Select a Model in Cline
+
+Get started with Cline in just 5 simple steps:
+
+<Tabs>
+  <Tab title="1. Open Settings">
+    ### Open Cline Settings
+    
+    **Two ways to access:**
+    - **Quick method**: Click the **gear icon (⚙️)** in the top-right corner of Cline's chat interface
+    - **Command palette**: Press **Cmd/Ctrl + Shift + P** → type "Cline: Open Settings"
+    
+    The settings panel opens, showing configuration options with "API Provider" at the top.
+  </Tab>
+  
+  <Tab title="2. Choose Provider">
+    ### Select an API Provider
+    
+    **Popular providers:**
+    
+    | Provider | Best For | Notes |
+    |----------|----------|-------|
+    | **Cline** | Easiest setup | No API keys needed, access to multiple models including stealth models |
+    | **OpenRouter** | Value seekers | Multiple models, competitive pricing |
+    | **Anthropic** | Reliability | Claude models, most dependable tool usage |
+    | **OpenAI** | Latest tech | GPT models |
+    | **Google Gemini** | Large context | Google's AI models |
+    | **AWS Bedrock** | Enterprise | Advanced features |
+    | **Ollama** | Privacy | Run models locally |
+    
+    See the [full provider list](/provider-config) for more options.
+    
+    <Info>
+    **Recommended for beginners:** Start with **Cline** as your provider - no API key management needed, instant access to multiple models, and occasional free inferencing through partner providers.
+    </Info>
+  </Tab>
+  
+  <Tab title="3. Add API Key">
+    ### Add Your API Key
+    
+    **Using Cline Provider:**
+    
+    If you selected **Cline** as your provider:
+    - **No API key needed!** Simply sign in with your Cline account
+    - Click **Sign In** when prompted
+    - You'll be redirected to [app.cline.bot](https://app.cline.bot) to authenticate
+    - After signing in, you're ready to start coding
+    
+    **Using Other Providers:**
+    
+    If you selected a different provider, get your API key:
+    
+    1. Visit your provider's website:
+       - **Anthropic**: [console.anthropic.com](https://console.anthropic.com/)
+       - **OpenRouter**: [openrouter.ai/keys](https://openrouter.ai/keys)
+       - **OpenAI**: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+       - **Others**: See [Provider Setup Guide](/provider-config)
+    
+    2. Generate an API key
+    
+    3. In the Cline settings, paste your key in the **"API Key"** field
+    
+    4. Your key is stored securely in VSCode's secrets storage
+    
+    <Warning>
+    **Payment required for other providers**: Most providers need payment information before generating keys. You only pay for what you use.
+    </Warning>
+  </Tab>
+  
+  <Tab title="4. Select Model">
+    ### Choose a Model
+    
+    After adding your API key, the **"Model"** dropdown appears with available models.
+    
+    **Quick recommendations:**
+    
+    | Your Priority | Choose This |
+    |---------------|-------------|
+    | **Maximum reliability** | Claude Sonnet 4.5 |
+    | **Best value** | DeepSeek V3 or Qwen3 Coder |
+    | **Fastest speed** | Qwen3 Coder on Cerebras |
+    | **Run locally** | Any Ollama model |
+    | **Latest features** | GPT-5 |
+    
+    Not sure? See the [model comparison tables](#current-top-models) below for detailed comparisons.
+  </Tab>
+  
+  <Tab title="5. Start Coding">
+    ### Start Using Cline
+    
+    **You're all set!** Here's how to begin:
+    
+    1. **Type your request** in the chat (e.g., "Create a React component for a login form")
+    2. **Press Enter** or click teh send icon
+    3. **Watch Cline work** with your selected model
+    
+    **Switch models anytime:**
+    - Click the **gear icon** → Select a different model
+    - Your conversation history is preserved
+    - Great for testing different models on the same task
+  </Tab>
+</Tabs>
+
+## Choosing the Right Model
+
+Selecting the right model involves balancing several factors. Use this framework to find your ideal match:
+
+<Note>
+**Pro tips**: Configure separate models for Plan Mode and Act Mode. Make the most out the each model's strengths. For example, use a budget model for planning discussions and a premium model for implementation.
+</Note>
+
+### Key Selection Factors
+
+| Factor | What to Consider | Recommendation |
+|--------|------------------|----------------|
+| **Task Complexity** | Simple fixes vs complex refactoring | Budget models for routine tasks; Premium models for complex work |
+| **Budget** | Monthly spending capacity | \$10-\$30: Budget,  \$30-\$100: Mid-tier, \$100+: Premium |
+| **Context Window** | Project size and file count | Small: 32K-128K, Medium: 128K-200K, Large: 400K+ |
+| **Speed** | Response time requirements | Interactive: Fast models, Background: Reasoning models OK |
+| **Tool Reliability** | Complex operations | Claude excels at tool usage; Test others with your workflow |
+| **Provider** | Access and pricing needs | OpenRouter: Many options, Direct: Faster/reliable, Local: Privacy |
+
+
+
 ## Current Top Models
 
 | Model | Context Window | Input Price* | Output Price* | Best For |
@@ -67,13 +207,3 @@ New models drop constantly, so this guide focuses on what's working well with Cl
 ## What Others Are Using
 
 Check [OpenRouter's Cline usage stats](https://openrouter.ai/apps?url=https%3A%2F%2Fcline.bot%2F) to see real usage patterns from the community.
-
-## Context Management
-
-Cline automatically handles context limits with [auto-compact](/features/auto-compact). When you approach your model's limit, Cline summarizes the conversation to keep working. You don't need to micromanage this.
-
-## The Bottom Line
-
-Start with **Claude Sonnet 4.5** if you want reliability. Experiment with **open source options** once you're comfortable to find the best fit for your workflow and budget.
-
-The landscape moves fast - these recommendations reflect what's working now, but keep an eye on new releases.
