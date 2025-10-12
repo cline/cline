@@ -1,9 +1,10 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
-import { clineEnvConfig } from "@/config"
-import { readRemoteConfigFromCache, writeRemoteConfigToCache } from "@/core/storage/disk"
-import { AuthService } from "@/services/auth/AuthService"
-import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
-import { RemoteConfig, RemoteConfigSchema } from "./schema"
+import { clineEnvConfig } from "../../../config"
+import { AuthService } from "../../../services/auth/AuthService"
+import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
+import { RemoteConfig, RemoteConfigSchema } from "../../../shared/remote-config/schema"
+import { readRemoteConfigFromCache, writeRemoteConfigToCache } from "../disk"
+import { applyRemoteConfig } from "./utils"
 
 /**
  * Fetches remote configuration for the active organization from the API.
@@ -67,6 +68,7 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig | undefined> {
 
 		// Extract and validate the config data
 		const configData = response.data.data
+		console.log("[Remote Config] configData", configData)
 		if (!configData) {
 			throw new Error(`No config data returned from ${endpoint}`)
 		}
@@ -85,6 +87,11 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig | undefined> {
 		// Write to cache
 		await writeRemoteConfigToCache(organizationId, validatedConfig)
 
+		console.log("[Remote Config] validatedConfig", validatedConfig)
+
+		// Apply config to StateManager
+		applyRemoteConfig(validatedConfig)
+
 		return validatedConfig
 	} catch (error) {
 		console.error("Failed to fetch remote config from API:", error)
@@ -93,7 +100,10 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig | undefined> {
 		const cachedConfig = await readRemoteConfigFromCache(organizationId)
 		if (cachedConfig) {
 			// Validate cached config against schema
-			return RemoteConfigSchema.parse(cachedConfig)
+			const validatedCachedConfig = RemoteConfigSchema.parse(cachedConfig)
+			// Apply config to StateManager
+			applyRemoteConfig(validatedCachedConfig)
+			return validatedCachedConfig
 		}
 
 		// Both API and cache failed
