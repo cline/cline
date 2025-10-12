@@ -128,6 +128,18 @@ export class AuthService {
 		return token
 	}
 
+	/**
+	 * Gets the active organization ID from the authenticated user's info
+	 * @returns The active organization ID, or null if no active organization exists
+	 */
+	getActiveOrganizationId(): string | null {
+		if (!this._clineAuthInfo?.userInfo?.organizations) {
+			return null
+		}
+		const activeOrg = this._clineAuthInfo.userInfo.organizations.find((org) => org.active)
+		return activeOrg?.organizationId ?? null
+	}
+
 	private async internalGetAuthToken(provider: IAuthProvider): Promise<string | null> {
 		try {
 			let clineAccountAuthToken = this._clineAuthInfo?.idToken
