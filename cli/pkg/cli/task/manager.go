@@ -614,19 +614,23 @@ func (m *Manager) ShowConversation(ctx context.Context) error {
 	return nil
 }
 
-func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string) error {
+func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string, interactive bool) error {
 	// Enable streaming mode
 	m.mu.Lock()
 	m.isStreamingMode = true
 	m.mu.Unlock()
-	
+
 	if global.Config.OutputFormat != "plain" {
         markdown := fmt.Sprintf("*Using instance: %s*\n*Press Ctrl+C to exit*", instanceAddress)
         rendered := m.renderer.RenderMarkdown(markdown)
         fmt.Printf("%s", rendered)
     } else {
 		fmt.Printf("Using instance: %s\n", instanceAddress)
-        fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
+		if interactive {
+			fmt.Println("Following task conversation in interactive mode... (Press Ctrl+C to exit)")
+		} else {
+			fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
+		}
     }
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -644,13 +648,19 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	coordinator.SetConversationTurnStartIndex(totalMessageCount)
 
 	// Start both streams concurrently
-	errChan := make(chan error, 2)
+	errChan := make(chan error, 3)
 
 	if global.Config.OutputFormat == "json" {
 		go m.handleStateStream(ctx, coordinator, errChan, nil)
 	} else {
 		go m.handleStateStream(ctx, coordinator, errChan, nil)
 		go m.handlePartialMessageStream(ctx, coordinator, errChan)
+
+		// Start input handler if interactive mode is enabled
+		if interactive {
+			inputHandler := NewInputHandler(m, coordinator)
+			go inputHandler.Start(ctx, errChan)
+		}
 	}
 
 	// Wait for either stream to error or context cancellation
@@ -906,7 +916,6 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			// Only process when message is complete (partial=false)
 			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				fmt.Println()
 				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
