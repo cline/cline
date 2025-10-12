@@ -1004,59 +1004,59 @@ export const ChatRowContent = memo(
 							borderBottomRightRadius: isExpanded ? "0" : "6px",
 							cursor: "pointer",
 						}}>
-						<div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0 }}>
-							<div
+					<div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0 }}>
+						<div
+							style={{
+								width: "8px",
+								height: "8px",
+								borderRadius: "50%",
+								backgroundColor: isCommandExecuting
+									? successColor
+									: "var(--vscode-descriptionForeground)",
+								animation: isCommandExecuting ? "pulse 2s ease-in-out infinite" : "none",
+								flexShrink: 0,
+							}}
+						/>
+						{isExpanded ? (
+							<span
 								style={{
-									width: "8px",
-									height: "8px",
-									borderRadius: "50%",
-									backgroundColor: isCommandExecuting
-										? successColor
-										: "var(--vscode-descriptionForeground)",
-									animation: isCommandExecuting ? "pulse 2s ease-in-out infinite" : "none",
+									color: isCommandExecuting ? successColor : "var(--vscode-descriptionForeground)",
+									fontWeight: 500,
+									fontSize: "13px",
 									flexShrink: 0,
-								}}
-							/>
-							{isExpanded ? (
-								<span
-									style={{
-										color: isCommandExecuting ? successColor : "var(--vscode-descriptionForeground)",
-										fontWeight: 500,
-										fontSize: "13px",
-										flexShrink: 0,
-									}}>
-									{isCommandExecuting ? "Running" : "Completed"}
-								</span>
-							) : isSubagentCommand && subagentPrompt ? (
-								<span
-									className="ph-no-capture"
-									style={{
-										color: "var(--vscode-foreground)",
-										fontSize: "13px",
-										opacity: 0.8,
-										whiteSpace: "nowrap",
-										overflow: "hidden",
-										textOverflow: "ellipsis",
-										fontFamily: "var(--vscode-editor-font-family)",
-									}}>
-									{subagentPrompt}
-								</span>
-							) : (
-								<span
-									className="ph-no-capture"
-									style={{
-										color: "var(--vscode-foreground)",
-										fontSize: "13px",
-										opacity: 0.8,
-										whiteSpace: "nowrap",
-										overflow: "hidden",
-										textOverflow: "ellipsis",
-										fontFamily: "var(--vscode-editor-font-family)",
-									}}>
-									{command}
-								</span>
-							)}
-						</div>
+								}}>
+								{isCommandExecuting ? "Running" : "Completed"}
+							</span>
+						) : isSubagentCommand && subagentPrompt ? (
+							<span
+								className="ph-no-capture"
+								style={{
+									color: "var(--vscode-foreground)",
+									fontSize: "13px",
+									opacity: 0.8,
+									whiteSpace: "nowrap",
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									fontFamily: "var(--vscode-editor-font-family)",
+								}}>
+								{subagentPrompt}
+							</span>
+						) : (
+							<span
+								className="ph-no-capture"
+								style={{
+									color: "var(--vscode-foreground)",
+									fontSize: "13px",
+									opacity: 0.8,
+									whiteSpace: "nowrap",
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									fontFamily: "var(--vscode-editor-font-family)",
+								}}>
+								{command}
+							</span>
+						)}
+					</div>
 						<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
 							{showCancelButton && (
 								<button
