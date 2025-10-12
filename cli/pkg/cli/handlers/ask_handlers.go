@@ -99,10 +99,14 @@ func (h *AskHandler) handleFollowup(msg *types.ClineMessage, dc *DisplayContext)
 		return nil
 	}
 
-	err := dc.Renderer.RenderMessage("QUESTION", question, true)
+	err := dc.Renderer.RenderMessage("CLINE", "### Cline has a question", false)
 	if err != nil {
 		return err
 	}
+
+	// Render the question text
+	rendered := dc.Renderer.RenderMarkdown(question)
+	fmt.Printf("\n%s\n", rendered)
 
 	// Display options if available
 	if len(options) > 0 {

@@ -120,8 +120,8 @@ func (ss *StreamingSegment) renderFinal(currentBuffer string) {
 			// For other ASK types (questions, etc.), parse as AskData
 			var askData types.AskData
 			if err := json.Unmarshal([]byte(currentBuffer), &askData); err == nil {
-				// Use the response field as the text to render
-				text = askData.Response
+				// Use the question field as the text to render
+				text = askData.Question
 
 				// Add options if available
 				if len(askData.Options) > 0 {
@@ -229,7 +229,12 @@ func (ss *StreamingSegment) generateRichHeader() string {
 			return fmt.Sprintf("### Cline wants to run `%s`\n", command)
 		}
 
-		// For other ask types (questions, etc.), show generic message
+		// For followup questions, show question header
+		if ss.msg.Ask == string(types.AskTypeFollowup) {
+			return "### Cline has a question\n"
+		}
+
+		// For other ask types, show generic message
 		return fmt.Sprintf("### Cline is asking (%s)\n", ss.msg.Ask)
 		
 	default:
