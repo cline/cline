@@ -173,7 +173,8 @@ export function convertToOpenAiMessages(
 type ReasoningDetail = {
 	// https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning-detail-types
 	type: string // "reasoning.summary" | "reasoning.encrypted" | "reasoning.text"
-	text: string
+	text?: string
+	data?: string // Encrypted reasoning data
 	signature?: string | null
 	id?: string | null // Unique identifier for the reasoning detail
 	/*
@@ -236,17 +237,33 @@ function consolidateReasoningDetails(reasoningDetails: ReasoningDetail[]): Reaso
 			}
 		}
 
-		// Create consolidated entry
-		const consolidatedEntry: ReasoningDetail = {
-			type: type,
-			text: concatenatedText,
-			signature: signature,
-			id: id,
-			format: format,
-			index: index,
+		// Create consolidated entry for text
+		if (concatenatedText) {
+			const consolidatedEntry: ReasoningDetail = {
+				type: type,
+				text: concatenatedText,
+				signature: signature,
+				id: id,
+				format: format,
+				index: index,
+			}
+			consolidated.push(consolidatedEntry)
 		}
 
-		consolidated.push(consolidatedEntry)
+		// Add each data element separately
+		for (const detail of details) {
+			if (detail.data) {
+				const dataEntry: ReasoningDetail = {
+					type: detail.type,
+					data: detail.data,
+					signature: detail.signature,
+					id: detail.id,
+					format: detail.format,
+					index: index,
+				}
+				consolidated.push(dataEntry)
+			}
+		}
 	}
 
 	return consolidated
