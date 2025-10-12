@@ -24,11 +24,13 @@ type MessageHandler interface {
 type DisplayContext struct {
 	State           *types.ConversationState
 	Renderer        *display.Renderer
+	ToolRenderer    *display.ToolRenderer
 	IsLast          bool
 	IsPartial       bool
 	Verbose         bool
 	MessageIndex    int
 	IsStreamingMode bool
+	IsInteractive   bool
 }
 
 // BaseHandler provides common functionality for message handlers

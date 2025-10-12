@@ -1,9 +1,15 @@
+import { sendCheckpointEvent } from "@core/controller/checkpoints/subscribeToCheckpoints"
 import fs from "fs/promises"
 import * as path from "path"
 import simpleGit from "simple-git"
 import { telemetryService } from "@/services/telemetry"
 import { GitOperations } from "./CheckpointGitOperations"
 import { getShadowGitPath, hashWorkingDir } from "./CheckpointUtils"
+
+/**
+ * Operation types for checkpoint events
+ */
+type CheckpointOperation = "CHECKPOINT_INIT" | "CHECKPOINT_COMMIT" | "CHECKPOINT_RESTORE"
 
 /**
  * CheckpointTracker Module
@@ -50,6 +56,31 @@ class CheckpointTracker {
 	 */
 	private cleanCommitHash(hash: string): string {
 		return hash.startsWith("HEAD ") ? hash.slice(5) : hash
+	}
+
+	/**
+	 * Send a checkpoint event to all subscribers.
+	 *
+	 * @param operation - The operation type (CHECKPOINT_INIT, CHECKPOINT_COMMIT, or CHECKPOINT_RESTORE)
+	 * @param isActive - true when operation starts, false when complete
+	 * @param commitHash - Optional commit hash for CHECKPOINT_COMMIT and CHECKPOINT_RESTORE operations
+	 */
+	private async sendCheckpointSubscriptionEvent(
+		operation: CheckpointOperation,
+		isActive: boolean,
+		commitHash?: string,
+	): Promise<void> {
+		try {
+			await sendCheckpointEvent({
+				operation,
+				cwdHash: this.cwdHash,
+				isActive,
+				taskId: this.taskId,
+				commitHash,
+			})
+		} catch (error) {
+			console.debug("Failed to send checkpoint event:", error)
+		}
 	}
 
 	/**
@@ -130,9 +161,11 @@ class CheckpointTracker {
 			console.debug(`Repository ID (cwdHash): ${cwdHash}`)
 
 			const newTracker = new CheckpointTracker(taskId, workingDir, cwdHash)
+			await newTracker.sendCheckpointSubscriptionEvent("CHECKPOINT_INIT", true)
 
 			const gitPath = await getShadowGitPath(newTracker.cwdHash)
 			await newTracker.gitOperations.initShadowGit(gitPath, workingDir, taskId)
+			await newTracker.sendCheckpointSubscriptionEvent("CHECKPOINT_INIT", false)
 
 			const durationMs = Math.round(performance.now() - startTime)
 			telemetryService.captureCheckpointUsage(taskId, "shadow_git_initialized", durationMs)
@@ -171,6 +204,7 @@ class CheckpointTracker {
 	 */
 	public async commit(): Promise<string | undefined> {
 		try {
+			await this.sendCheckpointSubscriptionEvent("CHECKPOINT_COMMIT", true)
 			console.info(`Creating new checkpoint commit for task ${this.taskId}`)
 			const startTime = performance.now()
 
@@ -195,6 +229,7 @@ class CheckpointTracker {
 			console.warn(`Checkpoint commit created: `, commitHash)
 
 			const durationMs = Math.round(performance.now() - startTime)
+			await this.sendCheckpointSubscriptionEvent("CHECKPOINT_COMMIT", false, commitHash)
 			telemetryService.captureCheckpointUsage(this.taskId, "commit_created", durationMs)
 
 			return commitHash
@@ -263,6 +298,7 @@ class CheckpointTracker {
 	public async resetHead(commitHash: string): Promise<void> {
 		console.info(`Resetting to checkpoint: ${commitHash}`)
 		const startTime = performance.now()
+		await this.sendCheckpointSubscriptionEvent("CHECKPOINT_RESTORE", true, commitHash)
 
 		const gitPath = await getShadowGitPath(this.cwdHash)
 		const git = simpleGit(path.dirname(gitPath))
@@ -271,6 +307,7 @@ class CheckpointTracker {
 		console.debug(`Successfully reset to checkpoint: ${commitHash}`)
 
 		const durationMs = Math.round(performance.now() - startTime)
+		await this.sendCheckpointSubscriptionEvent("CHECKPOINT_RESTORE", false, commitHash)
 		telemetryService.captureCheckpointUsage(this.taskId, "restored", durationMs)
 	}
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
@@ -263,21 +262,24 @@ func (h *SayHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) 
 		return nil
 	}
 
-	command := strings.TrimSpace(msg.Text)
-
-	markdown := fmt.Sprintf("### Cline wants to run a command: `%s`", command)
-	rendered := dc.Renderer.RenderMarkdown(markdown)
-
-	// Render markdown with syntax highlighting
-	fmt.Printf("%s\n", rendered)
+	// Use unified ToolRenderer
+	output := dc.ToolRenderer.RenderCommandExecution(msg.Text)
+	fmt.Print(output)
 
 	return nil
 }
 
 // handleCommandOutput handles command output messages
 func (h *SayHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayContext) error {
-	commandOutput := msg.Text
-	return dc.Renderer.RenderMessage("TERMINAL", fmt.Sprintf("Current terminal output: %s", commandOutput), true)
+	if msg.Text == "" {
+		return nil
+	}
+
+	// Use unified ToolRenderer
+	output := dc.ToolRenderer.RenderCommandOutput(msg.Text)
+	fmt.Print(output)
+
+	return nil
 }
 
 func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) error {
@@ -286,86 +288,9 @@ func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 		return dc.Renderer.RenderMessage("TOOL", msg.Text, true)
 	}
 
-	return h.renderToolMessage(&tool, dc)
-}
-
-func (h *SayHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayContext) error {
-	var markdown string
-	
-	// Generate header with consistent phrasing
-	switch tool.Tool {
-	case string(types.ToolTypeEditedExistingFile):
-		markdown = fmt.Sprintf("### Cline is editing `%s`", tool.Path)
-	case string(types.ToolTypeNewFileCreated):
-		markdown = fmt.Sprintf("### Cline is writing `%s`", tool.Path)
-	case string(types.ToolTypeReadFile):
-		markdown = fmt.Sprintf("### Cline is reading `%s`", tool.Path)
-	case string(types.ToolTypeListFilesTopLevel):
-		markdown = fmt.Sprintf("### Cline is listing files in `%s`", tool.Path)
-	case string(types.ToolTypeListFilesRecursive):
-		markdown = fmt.Sprintf("### Cline is recursively listing files in `%s`", tool.Path)
-	case string(types.ToolTypeSearchFiles):
-		if tool.Regex != "" && tool.Path != "" {
-			markdown = fmt.Sprintf("### Cline is searching for `%s` in `%s`", tool.Regex, tool.Path)
-		} else if tool.Regex != "" {
-			markdown = fmt.Sprintf("### Cline is searching for `%s`", tool.Regex)
-		} else {
-			markdown = "### Cline is searching files"
-		}
-	case string(types.ToolTypeWebFetch):
-		markdown = fmt.Sprintf("### Cline is fetching `%s`", tool.Path)
-	case string(types.ToolTypeListCodeDefinitionNames):
-		markdown = fmt.Sprintf("### Cline is listing code definitions in `%s`", tool.Path)
-	case string(types.ToolTypeSummarizeTask):
-		markdown = "### Cline condensed the conversation"
-	default:
-		markdown = fmt.Sprintf("### Tool: %s", tool.Tool)
-	}
-	
-	rendered := dc.Renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
-
-	// Use enhanced tool result parser for supported tools
-	toolParser := display.NewToolResultParser(dc.Renderer.GetMdRenderer())
-	
-	switch tool.Tool {
-	case string(types.ToolTypeReadFile):
-		// readFile: show header only, no body
-		return nil
-		
-	case string(types.ToolTypeListFilesTopLevel), 
-	     string(types.ToolTypeListFilesRecursive), 
-		 string(types.ToolTypeListCodeDefinitionNames),
-	     string(types.ToolTypeSearchFiles), 
-		 string(types.ToolTypeWebFetch):
-
-		if tool.Content != "" {
-			preview := toolParser.ParseToolResult(tool)
-			previewRendered := dc.Renderer.RenderMarkdown(preview)
-			fmt.Printf("\n%s\n", previewRendered)
-		}
-		return nil
-		
-	case string(types.ToolTypeEditedExistingFile):
-		// Show the diff if available
-		if tool.Content != "" {
-			diffMarkdown := fmt.Sprintf("```diff\n%s\n```", tool.Content)
-			diffRendered := dc.Renderer.RenderMarkdown(diffMarkdown)
-			fmt.Printf("%s", diffRendered)
-		}
-		return nil
-	
-	default:
-		// Show content preview for other tools, truncating if necessary
-		preview := tool.Content
-		if preview != "" {
-			preview = strings.TrimSpace(tool.Content)
-			if len(preview) > 1000 {
-				preview = preview[:1000] + "..."
-			}
-			fmt.Printf("Content: %s\n", preview)
-		}
-	}
+	// Use unified ToolRenderer
+	output := dc.ToolRenderer.RenderToolExecution(&tool)
+	fmt.Print(output)
 
 	return nil
 }
