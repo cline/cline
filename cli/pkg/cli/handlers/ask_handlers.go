@@ -26,6 +26,23 @@ func (h *AskHandler) CanHandle(msg *types.ClineMessage) bool {
 }
 
 func (h *AskHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
+	// Skip approval display when in interactive streaming mode
+	// The input handler will show the approval prompt instead
+	if dc.IsStreamingMode && dc.IsInteractive {
+		approvalTypes := []string{
+			string(types.AskTypeTool),
+			string(types.AskTypeCommand),
+			string(types.AskTypeBrowserActionLaunch),
+			string(types.AskTypeUseMcpServer),
+		}
+
+		for _, approvalType := range approvalTypes {
+			if msg.Ask == approvalType {
+				return nil // Skip display
+			}
+		}
+	}
+
 	switch msg.Ask {
 	case string(types.AskTypeFollowup):
 		return h.handleFollowup(msg, dc)

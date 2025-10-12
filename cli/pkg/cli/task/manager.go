@@ -25,6 +25,7 @@ type Manager struct {
 	streamingDisplay *display.StreamingDisplay
 	handlerRegistry  *handlers.HandlerRegistry
 	isStreamingMode  bool
+	isInteractive    bool
 }
 
 // NewManager creates a new task manager
@@ -662,6 +663,7 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	// Enable streaming mode
 	m.mu.Lock()
 	m.isStreamingMode = true
+	m.isInteractive = interactive
 	m.mu.Unlock()
 
 	if global.Config.OutputFormat != "plain" {
@@ -1064,8 +1066,9 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 	} else {
 		m.mu.RLock()
 		isStreaming := m.isStreamingMode
+		isInteractive := m.isInteractive
 		m.mu.RUnlock()
-		
+
 		dc := &handlers.DisplayContext{
 			State:           m.state,
 			Renderer:        m.renderer,
@@ -1073,6 +1076,7 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 			IsPartial:       isPartial,
 			MessageIndex:    messageIndex,
 			IsStreamingMode: isStreaming,
+			IsInteractive:   isInteractive,
 		}
 
 		return m.handlerRegistry.Handle(msg, dc)
@@ -1165,6 +1169,11 @@ func (m *Manager) GetClient() *client.ClineClient {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.client
+}
+
+// GetRenderer returns the renderer for formatting output
+func (m *Manager) GetRenderer() *display.Renderer {
+	return m.renderer
 }
 
 // Cleanup cleans up resources

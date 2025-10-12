@@ -29,6 +29,7 @@ type DisplayContext struct {
 	Verbose         bool
 	MessageIndex    int
 	IsStreamingMode bool
+	IsInteractive   bool
 }
 
 // BaseHandler provides common functionality for message handlers
