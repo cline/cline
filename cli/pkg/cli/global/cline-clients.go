@@ -324,10 +324,6 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		"--host-bridge-port", fmt.Sprintf("%d", hostPort),
 		"--config", Config.ConfigPath}
 
-	fmt.Printf("DEBUG: Starting cline-core with command: %s %v\n", nodePath, args)
-	fmt.Printf("DEBUG: Working directory: %s\n", installDir)
-	fmt.Printf("DEBUG: Config path: %s\n", Config.ConfigPath)
-
 	cmd := exec.Command(nodePath, args...)
 
 	// Set working directory to installation root
