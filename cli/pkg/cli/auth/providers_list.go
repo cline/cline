@@ -109,6 +109,7 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 		cline.ApiProvider_BEDROCK,
 		cline.ApiProvider_GEMINI,
 		cline.ApiProvider_OLLAMA,
+		cline.ApiProvider_CEREBRAS,
 	}
 
 	// Check each provider to see if it's ready to use
@@ -220,6 +221,8 @@ func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
 		return cline.ApiProvider_GEMINI, true
 	case "ollama":
 		return cline.ApiProvider_OLLAMA, true
+	case "cerebras":
+		return cline.ApiProvider_CEREBRAS, true
 	case "cline":
 		return cline.ApiProvider_CLINE, true
 	default:
@@ -247,6 +250,8 @@ func GetProviderIDForEnum(provider cline.ApiProvider) string {
 		return "gemini"
 	case cline.ApiProvider_OLLAMA:
 		return "ollama"
+	case cline.ApiProvider_CEREBRAS:
+		return "cerebras"
 	case cline.ApiProvider_CLINE:
 		return "cline"
 	default:
@@ -320,6 +325,8 @@ func getProviderDisplayName(provider cline.ApiProvider) string {
 		return "Google Gemini"
 	case cline.ApiProvider_OLLAMA:
 		return "Ollama"
+	case cline.ApiProvider_CEREBRAS:
+		return "Cerebras"
 	case cline.ApiProvider_CLINE:
 		return "Cline (Official)"
 	default:
@@ -436,6 +443,7 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 		{cline.ApiProvider_BEDROCK, "awsAccessKey"},
 		{cline.ApiProvider_GEMINI, "geminiApiKey"},
 		{cline.ApiProvider_OLLAMA, "ollamaBaseUrl"}, // Ollama uses baseUrl instead of API key
+		{cline.ApiProvider_CEREBRAS, "cerebrasApiKey"},
 	}
 
 	for _, providerCheck := range providersToCheck {

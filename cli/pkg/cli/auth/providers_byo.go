@@ -25,6 +25,7 @@ func GetBYOProviderList() []BYOProviderOption {
 		{Name: "AWS Bedrock", Provider: cline.ApiProvider_BEDROCK},
 		{Name: "Google Gemini", Provider: cline.ApiProvider_GEMINI},
 		{Name: "Ollama", Provider: cline.ApiProvider_OLLAMA},
+		{Name: "Cerebras", Provider: cline.ApiProvider_CEREBRAS},
 	}
 }
 
@@ -94,6 +95,8 @@ func GetBYOProviderPlaceholder(provider cline.ApiProvider) string {
 		return "e.g., gemini-2.5-pro"
 	case cline.ApiProvider_OLLAMA:
 		return "e.g., qwen3-coder:30b"
+	case cline.ApiProvider_CEREBRAS:
+		return "e.g., gpt-oss-120b"
 	default:
 		return "Enter model ID"
 	}

@@ -93,6 +93,7 @@ const ENABLED_PROVIDERS = [
 	"bedrock", // AWS Bedrock
 	"gemini", // Google Gemini
 	"ollama", // Ollama local models
+	"cerebras", // Cerebras models
 ]
 
 /**
