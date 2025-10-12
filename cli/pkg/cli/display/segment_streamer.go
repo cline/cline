@@ -16,6 +16,7 @@ type StreamingSegment struct {
 	buffer         strings.Builder
 	frozen         bool
 	mdRenderer     *MarkdownRenderer
+	toolRenderer   *ToolRenderer
 	shouldMarkdown bool
 	outputFormat   string
 	msg            *types.ClineMessage
@@ -27,6 +28,7 @@ func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, s
 		sayType:        sayType,
 		prefix:         prefix,
 		mdRenderer:     mdRenderer,
+		toolRenderer:   NewToolRenderer(mdRenderer, outputFormat),
 		shouldMarkdown: shouldMarkdown,
 		outputFormat:   outputFormat,
 		msg:            msg,
@@ -76,19 +78,57 @@ func (ss *StreamingSegment) Freeze() {
 }
 
 func (ss *StreamingSegment) renderFinal(currentBuffer string) {
-	// For ASK messages, parse JSON and extract response field
+	// For ASK messages, handle based on ask type
 	text := currentBuffer
 	if ss.sayType == "ask" {
-		var askData types.AskData
-		if err := json.Unmarshal([]byte(currentBuffer), &askData); err == nil {
-			// Use the response field as the text to render
-			text = askData.Response
-			
-			// Add options if available
-			if len(askData.Options) > 0 {
-				text += "\n\nOptions:\n"
-				for i, option := range askData.Options {
-					text += fmt.Sprintf("%d. %s\n", i+1, option)
+		// For tool approvals, render tool content (diff, file content, etc.)
+		if ss.msg.Ask == string(types.AskTypeTool) {
+			var tool types.ToolMessage
+			if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
+				// Render tool-specific content
+				switch tool.Tool {
+				case "editedExistingFile":
+					// Show the diff (stored in Content field)
+					if tool.Content != "" {
+						text = "```diff\n" + tool.Content + "\n```"
+					} else {
+						return  // No diff, just header
+					}
+
+				case "readFile":
+					// Show file content preview
+					if tool.Content != "" {
+						text = "```\n" + tool.Content + "\n```"
+					} else {
+						return  // No content preview
+					}
+
+				case "newFileCreated":
+					// Show new file content
+					if tool.Content != "" {
+						text = "```\n" + tool.Content + "\n```"
+					} else {
+						return  // No content
+					}
+
+				default:
+					// Other tools: no body content needed
+					return
+				}
+			}
+		} else {
+			// For other ASK types (questions, etc.), parse as AskData
+			var askData types.AskData
+			if err := json.Unmarshal([]byte(currentBuffer), &askData); err == nil {
+				// Use the response field as the text to render
+				text = askData.Response
+
+				// Add options if available
+				if len(askData.Options) > 0 {
+					text += "\n\nOptions:\n"
+					for i, option := range askData.Options {
+						text += fmt.Sprintf("%d. %s\n", i+1, option)
+					}
 				}
 			}
 		}
@@ -169,7 +209,27 @@ func (ss *StreamingSegment) generateRichHeader() string {
 		if ss.msg.Ask == string(types.AskTypePlanModeRespond) {
 			return "### Cline has a plan\n"
 		}
-		// For other ask types (tool approvals, questions, etc.), show the ask type
+
+		// For tool approvals, show proper tool header
+		if ss.msg.Ask == string(types.AskTypeTool) {
+			var tool types.ToolMessage
+			if err := json.Unmarshal([]byte(ss.msg.Text), &tool); err == nil {
+				// Use ToolRenderer for approval header with "wants to" verbs
+				return ss.toolRenderer.RenderToolApprovalHeader(&tool)
+			}
+		}
+
+		// For command approvals, show command header
+		if ss.msg.Ask == string(types.AskTypeCommand) {
+			command := strings.TrimSpace(ss.msg.Text)
+			if strings.HasSuffix(command, "REQ_APP") {
+				command = strings.TrimSuffix(command, "REQ_APP")
+				command = strings.TrimSpace(command)
+			}
+			return fmt.Sprintf("### Cline wants to run `%s`\n", command)
+		}
+
+		// For other ask types (questions, etc.), show generic message
 		return fmt.Sprintf("### Cline is asking (%s)\n", ss.msg.Ask)
 		
 	default:
@@ -184,59 +244,7 @@ func (ss *StreamingSegment) generateToolHeader() string {
 	if err := json.Unmarshal([]byte(ss.msg.Text), &tool); err != nil {
 		return "### Tool operation\n"
 	}
-	
-	switch tool.Tool {
-	case "readFile":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is reading `%s`\n", tool.Path)
-		}
-		return "### Cline is reading a file\n"
-		
-	case "writeFile", "newFileCreated":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is writing `%s`\n", tool.Path)
-		}
-		return "### Cline is writing a file\n"
-		
-	case "editedExistingFile":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is editing `%s`\n", tool.Path)
-		}
-		return "### Cline is editing a file\n"
-		
-	case "searchFiles":
-		if tool.Regex != "" && tool.Path != "" {
-			return fmt.Sprintf("### Cline is searching for `%s` in `%s`\n", tool.Regex, tool.Path)
-		} else if tool.Regex != "" {
-			return fmt.Sprintf("### Cline is searching for `%s`\n", tool.Regex)
-		}
-		return "### Cline is searching files\n"
-		
-	case "listFilesTopLevel":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is listing files in `%s`\n", tool.Path)
-		}
-		return "### Cline is listing files\n"
-		
-	case "listFilesRecursive":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is recursively listing files in `%s`\n", tool.Path)
-		}
-		return "### Cline is recursively listing files\n"
-		
-	case "listCodeDefinitionNames":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is listing code definitions in `%s`\n", tool.Path)
-		}
-		return "### Cline is listing code definitions\n"
-		
-	case "webFetch":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is fetching `%s`\n", tool.Path)
-		}
-		return "### Cline is fetching a URL\n"
-		
-	default:
-		return fmt.Sprintf("### Tool: %s\n", tool.Tool)
-	}
+
+	// Use unified ToolRenderer for header
+	return ss.toolRenderer.RenderToolExecutionHeader(&tool)
 }

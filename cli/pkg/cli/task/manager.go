@@ -22,15 +22,18 @@ type Manager struct {
 	clientAddress    string
 	state            *types.ConversationState
 	renderer         *display.Renderer
+	toolRenderer     *display.ToolRenderer
 	streamingDisplay *display.StreamingDisplay
 	handlerRegistry  *handlers.HandlerRegistry
 	isStreamingMode  bool
+	isInteractive    bool
 }
 
 // NewManager creates a new task manager
 func NewManager(client *client.ClineClient) *Manager {
 	state := types.NewConversationState()
 	renderer := display.NewRenderer(global.Config.OutputFormat)
+	toolRenderer := display.NewToolRenderer(renderer.GetMdRenderer(), global.Config.OutputFormat)
 	streamingDisplay := display.NewStreamingDisplay(state, renderer)
 
 	// Create handler registry and register handlers
@@ -43,6 +46,7 @@ func NewManager(client *client.ClineClient) *Manager {
 		clientAddress:    "", // Will be set when client is provided
 		state:            state,
 		renderer:         renderer,
+		toolRenderer:     toolRenderer,
 		streamingDisplay: streamingDisplay,
 		handlerRegistry:  registry,
 	}
@@ -299,6 +303,50 @@ func (m *Manager) CheckSendDisabled(ctx context.Context) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// CheckNeedsApproval determines if the current task is waiting for approval
+// Returns (needsApproval, lastMessage, error)
+func (m *Manager) CheckNeedsApproval(ctx context.Context) (bool, *types.ClineMessage, error) {
+	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return false, nil, fmt.Errorf("failed to get latest state: %w", err)
+	}
+
+	messages, err := m.extractMessagesFromState(state.StateJson)
+	if err != nil {
+		return false, nil, fmt.Errorf("failed to extract messages: %w", err)
+	}
+
+	if len(messages) == 0 {
+		return false, nil, nil
+	}
+
+	// Use final message to check if approval is needed
+	lastMessage := messages[len(messages)-1]
+
+	// Only check non-partial ask messages
+	if lastMessage.Partial {
+		return false, nil, nil
+	}
+
+	// Check if this is an approval-required ask type
+	if lastMessage.Type == types.MessageTypeAsk {
+		approvalTypes := []string{
+			string(types.AskTypeTool),
+			string(types.AskTypeCommand),
+			string(types.AskTypeBrowserActionLaunch),
+			string(types.AskTypeUseMcpServer),
+		}
+
+		for _, approvalType := range approvalTypes {
+			if lastMessage.Ask == approvalType {
+				return true, lastMessage, nil
+			}
+		}
+	}
+
+	return false, nil, nil
 }
 
 // SendMessage sends a followup message to the current task
@@ -614,19 +662,24 @@ func (m *Manager) ShowConversation(ctx context.Context) error {
 	return nil
 }
 
-func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string) error {
+func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string, interactive bool) error {
 	// Enable streaming mode
 	m.mu.Lock()
 	m.isStreamingMode = true
+	m.isInteractive = interactive
 	m.mu.Unlock()
-	
+
 	if global.Config.OutputFormat != "plain" {
         markdown := fmt.Sprintf("*Using instance: %s*\n*Press Ctrl+C to exit*", instanceAddress)
         rendered := m.renderer.RenderMarkdown(markdown)
         fmt.Printf("%s", rendered)
     } else {
 		fmt.Printf("Using instance: %s\n", instanceAddress)
-        fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
+		if interactive {
+			fmt.Println("Following task conversation in interactive mode... (Press Ctrl+C to exit)")
+		} else {
+			fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
+		}
     }
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -644,18 +697,29 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	coordinator.SetConversationTurnStartIndex(totalMessageCount)
 
 	// Start both streams concurrently
-	errChan := make(chan error, 2)
+	errChan := make(chan error, 3)
 
 	if global.Config.OutputFormat == "json" {
 		go m.handleStateStream(ctx, coordinator, errChan, nil)
 	} else {
 		go m.handleStateStream(ctx, coordinator, errChan, nil)
 		go m.handlePartialMessageStream(ctx, coordinator, errChan)
+
+		// Start input handler if interactive mode is enabled
+		if interactive {
+			inputHandler := NewInputHandler(m, coordinator, cancel)
+			go inputHandler.Start(ctx, errChan)
+		}
 	}
 
 	// Wait for either stream to error or context cancellation
 	select {
 	case <-ctx.Done():
+		// Check if this was a user-initiated cancellation (Ctrl+C)
+		// Return nil for clean exit instead of context.Canceled error
+		if ctx.Err() == context.Canceled {
+			return nil
+		}
 		return ctx.Err()
 	case err := <-errChan:
 		cancel()
@@ -906,7 +970,6 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			// Only process when message is complete (partial=false)
 			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				fmt.Println()
 				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
@@ -1006,15 +1069,18 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 	} else {
 		m.mu.RLock()
 		isStreaming := m.isStreamingMode
+		isInteractive := m.isInteractive
 		m.mu.RUnlock()
-		
+
 		dc := &handlers.DisplayContext{
 			State:           m.state,
 			Renderer:        m.renderer,
+			ToolRenderer:    m.toolRenderer,
 			IsLast:          isLast,
 			IsPartial:       isPartial,
 			MessageIndex:    messageIndex,
 			IsStreamingMode: isStreaming,
+			IsInteractive:   isInteractive,
 		}
 
 		return m.handlerRegistry.Handle(msg, dc)
@@ -1107,6 +1173,11 @@ func (m *Manager) GetClient() *client.ClineClient {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.client
+}
+
+// GetRenderer returns the renderer for formatting output
+func (m *Manager) GetRenderer() *display.Renderer {
+	return m.renderer
 }
 
 // Cleanup cleans up resources
