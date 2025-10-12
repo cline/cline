@@ -68,7 +68,6 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig | undefined> {
 
 		// Extract and validate the config data
 		const configData = response.data.data
-		console.log("[Remote Config] configData", configData)
 		if (!configData) {
 			throw new Error(`No config data returned from ${endpoint}`)
 		}
@@ -86,8 +85,6 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig | undefined> {
 
 		// Write to cache
 		await writeRemoteConfigToCache(organizationId, validatedConfig)
-
-		console.log("[Remote Config] validatedConfig", validatedConfig)
 
 		// Apply config to StateManager
 		applyRemoteConfig(validatedConfig)
