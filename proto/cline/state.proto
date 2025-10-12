@@ -208,6 +208,7 @@ message Settings {
    optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 121;
    optional string act_mode_oca_model_id = 122;
    optional OcaModelInfo act_mode_oca_model_info = 123;
+   optional bool lm_studio_keep_alive_enabled = 124;
 }
 
 message DictationSettings {
@@ -420,6 +421,7 @@ message ApiConfiguration {
   optional string oca_refresh_token = 68;
   optional string oca_mode = 69;
   optional bool aws_use_global_inference = 70;
+  optional bool lm_studio_keep_alive_enabled = 71;
   
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

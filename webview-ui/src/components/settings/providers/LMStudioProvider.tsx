@@ -1,5 +1,5 @@
 import type { Mode } from "@shared/storage/types"
-import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useInterval } from "react-use"
 import UseCustomPromptCheckbox from "@/components/settings/UseCustomPromptCheckbox"
@@ -36,13 +36,14 @@ interface LMStudioApiModel {
 /**
  * The LM Studio provider configuration component
  */
-export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
+export const LMStudioProvider = ({ currentMode, showModelOptions }: LMStudioProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const { lmStudioModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	const [lmStudioModels, setLmStudioModels] = useState<LMStudioApiModel[]>([])
+	const keepAliveEnabled = Boolean(apiConfiguration?.lmStudioKeepAliveEnabled)
 
 	const currentLMStudioModel = useMemo(
 		() => lmStudioModels.find((model) => model.id === lmStudioModelId),
@@ -150,6 +151,37 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				title="Not editable - the value is returned by the connected endpoint"
 				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "0")}
 			/>
+
+			<VSCodeCheckbox
+				checked={keepAliveEnabled}
+				onChange={(event: any) => handleFieldChange("lmStudioKeepAliveEnabled", Boolean(event?.target?.checked))}
+				title="Prevents Cloudflare from timing out long LM Studio responses by injecting invisible heartbeat frames. Safe, no effect on chat or context.">
+				Keep connection alive behind Cloudflare (inject SSE heartbeat)
+			</VSCodeCheckbox>
+			<p className="text-xs mt-0 text-description">
+				Prevents Cloudflare from timing out long LM Studio responses by injecting invisible heartbeat frames. Safe, no
+				effect on chat or context.
+			</p>
+
+			{showModelOptions && (
+				<>
+					<DebouncedTextField
+						initialValue={apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "30000"}
+						onChange={(value) => {
+							const numValue = parseInt(value, 10)
+							if (!Number.isNaN(numValue) && numValue > 0) {
+								handleFieldChange("requestTimeoutMs", numValue)
+							}
+						}}
+						placeholder="Default: 30000 (30 seconds)"
+						style={{ width: "100%" }}>
+						<span className="font-semibold">Request Timeout (ms)</span>
+					</DebouncedTextField>
+					<p className="text-xs mt-0 text-description">
+						Maximum time in milliseconds to wait for API responses before timing out.
+					</p>
+				</>
+			)}
 
 			<UseCustomPromptCheckbox providerId="lmstudio" />
 
