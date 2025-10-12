@@ -331,6 +331,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			if (wasEnabled !== isEnabled) {
 				telemetryService.captureSubagentToggle(isEnabled)
 			}
+			controller.stateManager.setGlobalState("subagentsEnabled", !!request.subagentsEnabled)
 		}
 
 		// Post updated state to webview

@@ -31,6 +31,9 @@ service WorkspaceService {
 
   // Opens and focuses the terminal panel.
   rpc openTerminalPanel(OpenTerminalRequest) returns (OpenTerminalResponse);
+
+  // Executes a command in a new terminal
+  rpc executeCommandInTerminal(ExecuteCommandInTerminalRequest) returns (ExecuteCommandInTerminalResponse);
 }
 
 message GetWorkspacePathsRequest {
@@ -94,3 +97,12 @@ message OpenClineSidebarPanelRequest {}
 message OpenClineSidebarPanelResponse {}
 message OpenTerminalRequest {}
 message OpenTerminalResponse {}
+
+// Execute a command in the terminal
+message ExecuteCommandInTerminalRequest {
+  string command = 1;  // The command to execute
+}
+
+message ExecuteCommandInTerminalResponse {
+  bool success = 1;  // Whether the command was successfully sent to the terminal
+}
