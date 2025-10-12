@@ -259,9 +259,9 @@ func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineM
 				Title("Let Cline use this tool?").
 				Options(
 					huh.NewOption("Yes", "yes"),
-					huh.NewOption("Yes with feedback", "yes_feedback"),
+					huh.NewOption("Yes, with feedback", "yes_feedback"),
 					huh.NewOption("No", "no"),
-					huh.NewOption("No with feedback", "no_feedback"),
+					huh.NewOption("No, with feedback", "no_feedback"),
 				).
 				Value(&choice),
 		),

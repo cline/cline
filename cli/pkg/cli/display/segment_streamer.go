@@ -78,113 +78,69 @@ func (ss *StreamingSegment) Freeze() {
 }
 
 func (ss *StreamingSegment) renderFinal(currentBuffer string) {
-	// For ASK messages, handle based on ask type
-	text := currentBuffer
+	var bodyContent string
+
+	// Use ToolRenderer for all body rendering to centralize logic
 	if ss.sayType == "ask" {
-		// For tool approvals, render tool content (diff, file content, etc.)
+		// Handle ASK messages
 		if ss.msg.Ask == string(types.AskTypeTool) {
+			// Tool approval: use ToolRenderer for body
 			var tool types.ToolMessage
 			if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
-				// Render tool-specific content
-				switch tool.Tool {
-				case "editedExistingFile":
-					// Show the diff (stored in Content field)
-					if tool.Content != "" {
-						text = "```diff\n" + tool.Content + "\n```"
-					} else {
-						return  // No diff, just header
-					}
-
-				case "readFile":
-					// Show file content preview
-					if tool.Content != "" {
-						text = "```\n" + tool.Content + "\n```"
-					} else {
-						return  // No content preview
-					}
-
-				case "newFileCreated":
-					// Show new file content
-					if tool.Content != "" {
-						text = "```\n" + tool.Content + "\n```"
-					} else {
-						return  // No content
-					}
-
-				default:
-					// Other tools: no body content needed
-					return
-				}
+				// For approval requests in streaming, use the preview method
+				bodyContent = ss.toolRenderer.GenerateToolContentPreview(&tool)
 			}
+		} else if ss.msg.Ask == string(types.AskTypeFollowup) {
+			// Followup question: use ToolRenderer
+			bodyContent = ss.toolRenderer.GenerateAskFollowupBody(currentBuffer)
+		} else if ss.msg.Ask == string(types.AskTypePlanModeRespond) {
+			// Plan mode respond: use ToolRenderer
+			bodyContent = ss.toolRenderer.GeneratePlanModeRespondBody(currentBuffer)
+		} else if ss.msg.Ask == string(types.AskTypeCommand) {
+			// Command approval: no body needed - header shows command, output shown separately later
+			bodyContent = ""
 		} else {
-			// For other ASK types (questions, etc.), parse as AskData
-			var askData types.AskData
-			if err := json.Unmarshal([]byte(currentBuffer), &askData); err == nil {
-				// Use the question field as the text to render
-				text = askData.Question
-
-				// Add options if available
-				if len(askData.Options) > 0 {
-					text += "\n\nOptions:\n"
-					for i, option := range askData.Options {
-						text += fmt.Sprintf("%d. %s\n", i+1, option)
-					}
-				}
-			}
+			// For other ask types, render as-is
+			bodyContent = currentBuffer
 		}
-	}
-	
-	// For tools, parse JSON and render with enhanced formatting
-	if ss.sayType == string(types.SayTypeTool) {
+	} else if ss.sayType == string(types.SayTypeTool) {
+		// Tool execution (SAY): use ToolRenderer for body
 		var tool types.ToolMessage
 		if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
-			// Use tool parser for enhanced rendering
-			switch tool.Tool {
-			case "listFilesTopLevel", "listFilesRecursive",
-			     "listCodeDefinitionNames", "searchFiles", "webFetch":
-				// Use enhanced tool result parser for final render
-				text = ss.toolParser.ParseToolResult(&tool)
-			
-			case "readFile":
-				// readFile: show header only, no body
-				return
-			
-			case "editedExistingFile":
-				// Show the diff (stored in Content field)
-				if tool.Content != "" {
-					text = "```diff\n" + tool.Content + "\n```"
-				} else {
-					return  // No diff, just header
-				}
-			
-			default:
-				// Other tools: suppress JSON body for now
-				return
+			bodyContent = ss.toolRenderer.GenerateToolContentBody(&tool)
+		}
+	} else if ss.sayType == string(types.SayTypeCommand) {
+		// Command output
+		bodyContent = "```shell\n" + currentBuffer + "\n```"
+		// Render markdown
+		if ss.shouldMarkdown && ss.outputFormat != "plain" {
+			rendered, err := ss.mdRenderer.Render(bodyContent)
+			if err == nil {
+				bodyContent = rendered
 			}
 		}
-	}
-
-	if ss.sayType == string(types.SayTypeCommand) {
-		text = "```shell\n" + text + "\n```"
-	}
-
-	var rendered string
-	if ss.shouldMarkdown && ss.outputFormat != "plain" {
-		var err error
-		rendered, err = ss.mdRenderer.Render(text)
-		if err != nil {
-			rendered = ss.prefix + ": " + currentBuffer
+	} else {
+		// For other types (reasoning, text, etc.), render markdown as-is
+		if ss.shouldMarkdown && ss.outputFormat != "plain" {
+			rendered, err := ss.mdRenderer.Render(currentBuffer)
+			if err == nil {
+				bodyContent = rendered
+			} else {
+				bodyContent = currentBuffer
+			}
+		} else {
+			bodyContent = currentBuffer
 		}
-	} else {
-		rendered = ss.prefix + ": " + currentBuffer
 	}
 
-	// Print final render once (no clearing needed, header already printed)
-	if !strings.HasSuffix(rendered, "\n") {
-		fmt.Print(rendered)
-		fmt.Println()
-	} else {
-		fmt.Print(rendered)
+	// Print the body content
+	if bodyContent != "" {
+		if !strings.HasSuffix(bodyContent, "\n") {
+			fmt.Print(bodyContent)
+			fmt.Println()
+		} else {
+			fmt.Print(bodyContent)
+		}
 	}
 }
 
@@ -207,7 +163,7 @@ func (ss *StreamingSegment) generateRichHeader() string {
 	case "ask":
 		// Check the specific ask type
 		if ss.msg.Ask == string(types.AskTypePlanModeRespond) {
-			return "### Cline has a plan\n"
+			return ss.toolRenderer.GeneratePlanModeRespondHeader()
 		}
 
 		// For tool approvals, show proper tool header
@@ -231,7 +187,7 @@ func (ss *StreamingSegment) generateRichHeader() string {
 
 		// For followup questions, show question header
 		if ss.msg.Ask == string(types.AskTypeFollowup) {
-			return "### Cline has a question\n"
+			return ss.toolRenderer.GenerateAskFollowupHeader()
 		}
 
 		// For other ask types, show generic message

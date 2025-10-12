@@ -1033,19 +1033,13 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 		
 		case msg.Type == types.MessageTypeAsk:
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
-			// In streaming mode, partial stream handles headers for ask messages
-			// State stream should skip them to avoid duplication
-			if m.isStreamingMode {
-				// Skip - partial stream already handled this
-			} else {
-				// Non-streaming mode: render normally
-				if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-					coordinator.WithOutputLock(func() {
-						fmt.Println()
-						m.displayMessage(msg, false, false, i)
-					})
-					coordinator.MarkProcessedInCurrentTurn(msgKey)
-				}
+			// Only render if not already handled by partial stream
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				coordinator.WithOutputLock(func() {
+					fmt.Println()
+					m.displayMessage(msg, false, false, i)
+				})
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 		}
 	}
