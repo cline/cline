@@ -55,6 +55,31 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
+			var instanceAddress string
+
+			// If --address flag not provided, start instance BEFORE getting prompt
+			if !cmd.Flags().Changed("address") {
+				fmt.Println("Starting new Cline instance...")
+				instance, err := global.Clients.StartNewInstance(ctx)
+				if err != nil {
+					return fmt.Errorf("failed to start new instance: %w", err)
+				}
+				instanceAddress = instance.Address
+				fmt.Printf("Started instance at %s\n\n", instanceAddress)
+
+				// Set up cleanup on exit
+				defer func() {
+					fmt.Println("\nCleaning up instance...")
+					registry := global.Clients.GetRegistry()
+					if err := global.KillInstanceByAddress(context.Background(), registry, instanceAddress); err != nil {
+						fmt.Printf("Warning: Failed to clean up instance: %v\n", err)
+					}
+				}()
+			} else {
+				// User specified --address flag, use that
+				instanceAddress = coreAddress
+			}
+
 			var prompt string
 
 			// If args provided, use as prompt
@@ -72,14 +97,6 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 				}
 			}
 
-			// Create task + follow
-			// Don't pass address unless explicitly set via --address flag
-			// This allows the default instance resolution logic to work
-			var addr string
-			if cmd.Flags().Changed("address") {
-				addr = coreAddress
-			}
-
 			return cli.CreateAndFollowTask(ctx, prompt, cli.TaskOptions{
 				Images:     images,
 				Files:      files,
@@ -87,7 +104,7 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 				Mode:       mode,
 				Settings:   settings,
 				Yolo:       yolo,
-				Address:    addr, // Empty string means use default instance
+				Address:    instanceAddress,
 			})
 		},
 	}
