@@ -133,18 +133,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								const checked = e.target.checked === true
 								updateSetting("subagentsEnabled", checked)
 							}}>
-							<span className="font-semibold">
-								{subagentsEnabled ? (
-									<>
-										<span
-											className="codicon codicon-check"
-											style={{ marginRight: "4px", color: "var(--vscode-charts-green)" }}></span>
-										Subagents Enabled
-									</>
-								) : (
-									"Enable Subagents"
-								)}
-							</span>
+							<span className="font-semibold">Enable Subagents</span>
 						</VSCodeCheckbox>
 						<p className="text-xs mt-1 mb-0">
 							<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
