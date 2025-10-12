@@ -72,14 +72,19 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 	}
 
 	// When message is complete (partial=false), render the content body
-	// Only if we have an active segment (header was shown earlier)
 	if s.activeSegment != nil {
-		// Append final text and freeze to render body
+		// Had an active segment from partial messages - freeze to render body
 		s.activeSegment.AppendText(msg.Text)
 		s.activeSegment.Freeze()
 		s.activeSegment = nil
+	} else if !msg.Partial {
+		// Message arrived complete without partial phase - create segment and render immediately
+		shouldMd := s.shouldRenderMarkdown(sayType)
+		prefix := s.getPrefix(sayType)
+		segment := NewStreamingSegment(sayType, prefix, s.mdRenderer, shouldMd, msg, s.renderer.outputFormat)
+		segment.AppendText(msg.Text)
+		segment.Freeze()
 	}
-	// If no active segment, partial stream never started - state stream will handle it
 
 	return nil
 }

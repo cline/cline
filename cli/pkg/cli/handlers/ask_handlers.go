@@ -26,23 +26,8 @@ func (h *AskHandler) CanHandle(msg *types.ClineMessage) bool {
 }
 
 func (h *AskHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
-	// Skip approval display when in interactive streaming mode for pending/partial messages
-	// The input handler will show the approval prompt instead
-	// But always show historical (non-last, non-partial) approval messages
-	if dc.IsStreamingMode && dc.IsInteractive && (dc.IsLast || dc.IsPartial) {
-		approvalTypes := []string{
-			string(types.AskTypeTool),
-			string(types.AskTypeCommand),
-			string(types.AskTypeBrowserActionLaunch),
-			string(types.AskTypeUseMcpServer),
-		}
-
-		for _, approvalType := range approvalTypes {
-			if msg.Ask == approvalType {
-				return nil // Skip display
-			}
-		}
-	}
+	// Always display approval messages so user can see what they're approving
+	// The input handler will show the approval prompt form after the content is displayed
 
 	switch msg.Ask {
 	case string(types.AskTypeFollowup):
@@ -84,79 +69,52 @@ func (h *AskHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 
 // handleFollowup handles followup questions
 func (h *AskHandler) handleFollowup(msg *types.ClineMessage, dc *DisplayContext) error {
-	var question string
-	var options []string
+	// Use ToolRenderer for unified rendering
+	header := dc.ToolRenderer.GenerateAskFollowupHeader()
+	body := dc.ToolRenderer.GenerateAskFollowupBody(msg.Text)
 
-	var askData types.AskData
-	if err := json.Unmarshal([]byte(msg.Text), &askData); err == nil {
-		question = askData.Question
-		options = askData.Options
-	} else {
-		question = msg.Text
-	}
-
-	if question == "" {
+	if body == "" {
 		return nil
 	}
 
-	err := dc.Renderer.RenderMessage("QUESTION", question, true)
-	if err != nil {
-		return err
-	}
+	// Render header
+	rendered := dc.Renderer.RenderMarkdown(header)
+	fmt.Print("\n")
+	fmt.Print(rendered)
+	fmt.Print("\n")
 
-	// Display options if available
-	if len(options) > 0 {
-		fmt.Println("\nOptions:")
-		for i, option := range options {
-			fmt.Printf("%d. %s\n", i+1, option)
-		}
-	}
+	// Render body
+	fmt.Print(body)
 
 	return nil
 }
 
 // handlePlanModeRespond handles plan mode responses
 func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayContext) error {
-	var response string
-	var options []string
-
-	// Try to parse as JSON
-	type PlanModeResponse struct {
-		Response string   `json:"response"`
-		Options  []string `json:"options,omitempty"`
-	}
-
-	var planData PlanModeResponse
-	if err := json.Unmarshal([]byte(msg.Text), &planData); err == nil {
-		response = planData.Response
-		options = planData.Options
-	} else {
-		response = msg.Text
-	}
-
-	if response == "" {
-		return nil
-	}
-
-	var rendered string
 	if dc.IsStreamingMode {
 		// In streaming mode, header was already shown by partial stream
 		// Just render the body content
-		rendered = dc.Renderer.RenderMarkdown(response)
-		fmt.Printf("%s\n", rendered)
+		body := dc.ToolRenderer.GeneratePlanModeRespondBody(msg.Text)
+		if body != "" {
+			fmt.Print(body)
+		}
 	} else {
 		// In non-streaming mode, render header + body together
-		markdown := fmt.Sprintf("### Cline has a plan\n\n%s", response)
-		rendered = dc.Renderer.RenderMarkdown(markdown)
-		fmt.Printf("\n%s\n", rendered)
-	}
+		header := dc.ToolRenderer.GeneratePlanModeRespondHeader()
+		body := dc.ToolRenderer.GeneratePlanModeRespondBody(msg.Text)
 
-	// Display options if available
-	if len(options) > 0 {
-		fmt.Println("\nOptions:")
-		for i, option := range options {
-			fmt.Printf("%d. %s\n", i+1, option)
+		if body == "" {
+			return nil
 		}
+
+		// Render header
+		rendered := dc.Renderer.RenderMarkdown(header)
+		fmt.Print("\n")
+		fmt.Print(rendered)
+		fmt.Print("\n")
+
+		// Render body
+		fmt.Print(body)
 	}
 
 	return nil

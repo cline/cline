@@ -13,10 +13,25 @@ type MarkdownRenderer struct {
 	width    int
 }
 
+// Custom style JSON that removes margins while keeping all other auto style features
+// This is based on the "auto" style but with document and code_block margins set to 0
+const noMarginAutoStyleDark = `{
+  "document": {
+    "block_prefix": "\n",
+    "block_suffix": "\n",
+    "color": "252",
+    "margin": 0
+  },
+  "code_block": {
+    "margin": 0
+  }
+}`
+
 func NewMarkdownRenderer() (*MarkdownRenderer, error) {
 	r, err := glamour.NewTermRenderer(
-		glamour.WithStandardStyle("auto"),
-		glamour.WithWordWrap(0), // 0 = no wrapping, let terminal handle it
+		glamour.WithStandardStyle("auto"),              // Load full auto style first
+		glamour.WithStylesFromJSONBytes([]byte(noMarginAutoStyleDark)), // Then override just margins
+		glamour.WithWordWrap(0),                        // 0 = no wrapping, let terminal handle it
 		glamour.WithPreservedNewLines(),
 	)
 	if err != nil {
@@ -33,7 +48,8 @@ func NewMarkdownRenderer() (*MarkdownRenderer, error) {
 // Useful for tables and other content that should fit within terminal bounds.
 func NewMarkdownRendererWithWidth(width int) (*MarkdownRenderer, error) {
 	r, err := glamour.NewTermRenderer(
-		glamour.WithStandardStyle("auto"),
+		glamour.WithStandardStyle("auto"),                          // Load full auto style first
+		glamour.WithStylesFromJSONBytes([]byte(noMarginAutoStyleDark)), // Then override just margins
 		glamour.WithWordWrap(width),
 		glamour.WithPreservedNewLines(),
 	)
