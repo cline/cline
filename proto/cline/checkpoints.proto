@@ -11,6 +11,7 @@ service CheckpointsService {
   rpc checkpointDiff(Int64Request) returns (Empty);
   rpc checkpointRestore(CheckpointRestoreRequest) returns (Empty);
   rpc subscribeToCheckpoints(CheckpointSubscriptionRequest) returns (stream CheckpointEvent);
+  rpc getCwdHash(StringArrayRequest) returns (PathHashMap);
 }
 
 message CheckpointRestoreRequest {
@@ -36,5 +37,9 @@ message CheckpointEvent {
   bool is_active = 3;
   google.protobuf.Timestamp timestamp = 4;
   optional string task_id = 5;
-  optional string commit_hash = 6;
+  optional string commit_hash = 6;  
+}
+
+message PathHashMap {
+  map<string, string> path_hash = 1;
 }
