@@ -8,6 +8,7 @@ type StreamCoordinator struct {
 	processedInCurrentTurn     map[string]bool // What we've handled in THIS turn
 	inputAllowed               bool            // Whether user input is currently allowed
 	mu                         sync.RWMutex    // Protects inputAllowed
+	outputMu                   sync.Mutex      // Protects terminal output (prevents interleaving with input forms)
 }
 
 // NewStreamCoordinator creates a new stream coordinator
@@ -57,4 +58,24 @@ func (sc *StreamCoordinator) IsInputAllowed() bool {
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 	return sc.inputAllowed
+}
+
+// LockOutput locks the output mutex to prevent interleaved terminal output
+// Should be called before displaying input forms
+func (sc *StreamCoordinator) LockOutput() {
+	sc.outputMu.Lock()
+}
+
+// UnlockOutput unlocks the output mutex
+// Should be called after input forms are dismissed
+func (sc *StreamCoordinator) UnlockOutput() {
+	sc.outputMu.Unlock()
+}
+
+// WithOutputLock executes a function while holding the output lock
+// This is a convenience method for wrapping output operations
+func (sc *StreamCoordinator) WithOutputLock(fn func()) {
+	sc.outputMu.Lock()
+	defer sc.outputMu.Unlock()
+	fn()
 }

@@ -557,8 +557,28 @@ func CleanupTaskManager() {
 // CreateAndFollowTask creates a new task and immediately follows it in interactive mode
 // This is used by the root command to provide a streamlined UX
 func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) error {
-	// Ensure task manager is initialized
-	if err := ensureTaskManager(ctx, opts.Address); err != nil {
+	// Always start a fresh new instance for the root command
+	// This ensures users get a clean slate every time they run `cline`
+	fmt.Println("Starting new Cline instance...")
+	instance, err := global.Clients.StartNewInstance(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start new instance: %w", err)
+	}
+
+	fmt.Printf("Started instance at %s\n", instance.Address)
+
+	// Set up cleanup on exit - kill the instance when this function returns
+	defer func() {
+		fmt.Println("\nCleaning up instance...")
+		registry := global.Clients.GetRegistry()
+
+		if err := global.KillInstanceByAddress(context.Background(), registry, instance.Address); err != nil {
+			fmt.Printf("Warning: Failed to clean up instance: %v\n", err)
+		}
+	}()
+
+	// Initialize task manager with the new instance
+	if err := ensureTaskManager(ctx, instance.Address); err != nil {
 		return err
 	}
 
