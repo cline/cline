@@ -708,7 +708,6 @@ export class StateManager {
 	 * Precedence: remote config > task settings > global settings
 	 */
 	getGlobalSettingsKey<K extends keyof Settings>(key: K): Settings[K] {
-		// console.log("[Remote Config] remoteConfigCache", this.remoteConfigCache)
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
