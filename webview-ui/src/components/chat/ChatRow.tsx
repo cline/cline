@@ -140,7 +140,7 @@ const CommandOutput = memo(
 					paddingBottom: lineCount > 5 ? "16px" : "0",
 					overflow: "visible",
 					borderTop: "1px solid rgba(255,255,255,.07)",
-					backgroundColor: "#151515",
+					backgroundColor: CODE_BLOCK_BG_COLOR,
 				}}>
 				<div
 					ref={outputRef}
@@ -149,9 +149,9 @@ const CommandOutput = memo(
 						maxHeight: shouldAutoShow ? "none" : isOutputFullyExpanded ? "200px" : "75px",
 						overflowY: shouldAutoShow ? "visible" : "auto",
 						scrollBehavior: "smooth",
-						backgroundColor: "#151515",
+						backgroundColor: CODE_BLOCK_BG_COLOR,
 					}}>
-					<div style={{ backgroundColor: "#151515" }}>
+					<div style={{ backgroundColor: CODE_BLOCK_BG_COLOR }}>
 						<CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
 					</div>
 				</div>
