@@ -42,6 +42,7 @@ import {
 	GlobalFileNames,
 	writeMcpMarketplaceCatalogToCache,
 } from "../storage/disk"
+import { fetchRemoteConfig } from "../storage/remote-config/fetch"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
@@ -67,6 +68,9 @@ export class Controller {
 	// NEW: Add workspace manager (optional initially)
 	private workspaceManager?: WorkspaceRootManager
 
+	// Timer for periodic remote config fetching
+	private remoteConfigTimer?: NodeJS.Timeout
+
 	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
 		if (!this.workspaceManager) {
@@ -87,15 +91,28 @@ export class Controller {
 		return this.workspaceManager
 	}
 
+	/**
+	 * Starts the periodic remote config fetching timer
+	 * Fetches immediately and then every 30 seconds
+	 */
+	private startRemoteConfigTimer() {
+		// Initial fetch
+		fetchRemoteConfig(this).catch((error) => {
+			console.error("Failed to fetch remote config:", error)
+		})
+
+		// Set up 30-second interval
+		this.remoteConfigTimer = setInterval(() => {
+			fetchRemoteConfig(this).catch((error) => {
+				console.error("Failed to fetch remote config:", error)
+			})
+		}, 30000) // 30 seconds
+	}
+
 	constructor(readonly context: vscode.ExtensionContext) {
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.stateManager = StateManager.get()
-		this.authService = AuthService.getInstance(this)
-		this.ocaAuthService = OcaAuthService.initialize(this)
-		this.accountService = ClineAccountService.getInstance()
-		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
-
 		StateManager.get().registerCallbacks({
 			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
 				console.error("[Controller] Cache persistence failed, recovering:", error)
@@ -118,6 +135,13 @@ export class Controller {
 				await this.postStateToWebview()
 			},
 		})
+		this.authService = AuthService.getInstance(this)
+		this.ocaAuthService = OcaAuthService.initialize(this)
+		this.accountService = ClineAccountService.getInstance()
+
+		this.authService.restoreRefreshTokenAndRetrieveAuthInfo().then(() => {
+			this.startRemoteConfigTimer()
+		})
 
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
@@ -138,6 +162,12 @@ export class Controller {
 	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	*/
 	async dispose() {
+		// Clear the remote config timer
+		if (this.remoteConfigTimer) {
+			clearInterval(this.remoteConfigTimer)
+			this.remoteConfigTimer = undefined
+		}
+
 		await this.clearTask()
 		this.mcpHub.dispose()
 
