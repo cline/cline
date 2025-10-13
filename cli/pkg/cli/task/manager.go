@@ -734,7 +734,7 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 				// Do nothing here, let the input handler deal with it
 			} else {
 				// Streaming mode - cancel the task and stay in follow mode
-				fmt.Println("\nCancelling task...")
+				m.renderer.RenderTaskCancelled()
 				if err := m.CancelTask(context.Background()); err != nil {
 					fmt.Printf("Error cancelling task: %v\n", err)
 				}

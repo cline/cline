@@ -298,6 +298,7 @@
 		"compile-standalone-cli": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
 		"compile-cli": "scripts/build-cli.sh",
 		"download-node": "node scripts/download-node.mjs",
+		"download-ripgrep": "node scripts/download-ripgrep.mjs",
 		"test:install": "bash scripts/test-install.sh",
 		"dev:cli:watch": "node scripts/dev-cli-watch.mjs",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",

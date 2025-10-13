@@ -134,7 +134,9 @@ func newTaskNewCommand() *cobra.Command {
 				if err := taskManager.SetMode(ctx, mode, nil, nil, nil); err != nil {
 					return fmt.Errorf("failed to set mode: %w", err)
 				}
-				fmt.Printf("Mode set to: %s\n", mode)
+				if global.Config.Verbose {
+					fmt.Printf("Mode set to: %s\n", mode)
+				}
 			}
 
 			// Inject yolo_mode_toggled setting if --yolo flag is set
@@ -150,8 +152,10 @@ func newTaskNewCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to create task: %w", err)
 			}
-
-			fmt.Printf("Task created successfully with ID: %s\n", taskID)
+			
+			if global.Config.Verbose {
+				fmt.Printf("Task created successfully with ID: %s\n", taskID)
+			}
 
 			return nil
 		},
@@ -205,7 +209,10 @@ func newTaskOneshotCommand() *cobra.Command {
 			if err := taskManager.SetMode(ctx, "plan", nil, nil, nil); err != nil {
 				return fmt.Errorf("failed to set plan mode: %w", err)
 			}
-			fmt.Println("Mode set to: plan")
+
+			if global.Config.Verbose {
+				fmt.Println("Mode set to: plan")
+			}
 
 			// Inject yolo mode into settings
 			settings = append(settings, "yolo_mode_toggled=true")
@@ -554,31 +561,16 @@ func CleanupTaskManager() {
 	}
 }
 
+// NewTaskManagerForAddress is an exported wrapper around task.NewManagerForAddress
+func NewTaskManagerForAddress(ctx context.Context, address string) (*task.Manager, error) {
+	return task.NewManagerForAddress(ctx, address)
+}
+
 // CreateAndFollowTask creates a new task and immediately follows it in interactive mode
 // This is used by the root command to provide a streamlined UX
 func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) error {
-	// Always start a fresh new instance for the root command
-	// This ensures users get a clean slate every time they run `cline`
-	fmt.Println("Starting new Cline instance...")
-	instance, err := global.Clients.StartNewInstance(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to start new instance: %w", err)
-	}
-
-	fmt.Printf("Started instance at %s\n", instance.Address)
-
-	// Set up cleanup on exit - kill the instance when this function returns
-	defer func() {
-		fmt.Println("\nCleaning up instance...")
-		registry := global.Clients.GetRegistry()
-
-		if err := global.KillInstanceByAddress(context.Background(), registry, instance.Address); err != nil {
-			fmt.Printf("Warning: Failed to clean up instance: %v\n", err)
-		}
-	}()
-
-	// Initialize task manager with the new instance
-	if err := ensureTaskManager(ctx, instance.Address); err != nil {
+	// Initialize task manager with the provided instance address
+	if err := ensureTaskManager(ctx, opts.Address); err != nil {
 		return err
 	}
 
@@ -592,7 +584,9 @@ func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) e
 		if err := taskManager.SetMode(ctx, opts.Mode, nil, nil, nil); err != nil {
 			return fmt.Errorf("failed to set mode: %w", err)
 		}
-		fmt.Printf("Mode set to: %s\n", opts.Mode)
+		if global.Config.Verbose {
+			fmt.Printf("Mode set to: %s\n", opts.Mode)
+		}
 	}
 
 	// Inject yolo_mode_toggled setting if --yolo flag is set
@@ -606,7 +600,9 @@ func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) e
 		return fmt.Errorf("failed to create task: %w", err)
 	}
 
-	fmt.Printf("Task created successfully with ID: %s\n\n", taskID)
+	if global.Config.Verbose {
+		fmt.Printf("Task created successfully with ID: %s\n\n", taskID)
+	}
 
 	// Immediately follow the conversation in interactive mode
 	return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), true)

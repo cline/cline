@@ -55,7 +55,10 @@ jobs:
       
       - name: Download Node.js binaries
         run: npm run download-node
-      
+
+      - name: Download ripgrep binaries
+        run: npm run download-ripgrep
+
       - name: Build CLI binaries
         run: npm run compile-cli
       
@@ -147,11 +150,12 @@ jobs:
             4. Add to PATH: `export PATH="$HOME/.cline/bin:$PATH"`
             
             ### What's Included
-            
+
             - ✅ Node.js v22.15.0 (bundled)
             - ✅ Cline CLI binary
             - ✅ Cline Host bridge
             - ✅ Cline Core (TypeScript compiled)
+            - ✅ Ripgrep v14.1.1 (for file searching)
             - ✅ All dependencies
             
             ### Getting Started

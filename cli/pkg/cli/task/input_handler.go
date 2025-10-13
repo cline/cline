@@ -325,7 +325,7 @@ func (ih *InputHandler) parseModeSwitch(message string) (string, string, bool) {
 func (ih *InputHandler) handleSpecialCommand(ctx context.Context, message string) bool {
 	switch strings.ToLower(strings.TrimSpace(message)) {
 	case "/cancel":
-		fmt.Println("\nCancelling task...")
+		ih.manager.GetRenderer().RenderTaskCancelled()
 		if err := ih.manager.CancelTask(ctx); err != nil {
 			fmt.Printf("Error cancelling task: %v\n", err)
 		} else {

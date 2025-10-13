@@ -16,7 +16,7 @@ var isSessionAuthenticated bool
 // Cline provider specific code
 
 func HandleClineAuth(ctx context.Context) error {
-	fmt.Println("Authenticating with Cline...")
+	verboseLog("Authenticating with Cline...")
 
 	// Check if already authenticated
 	if IsAuthenticated(ctx) {
@@ -28,7 +28,10 @@ func HandleClineAuth(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Println("✓ You are signed in!")
+	fmt.Println()
+	
+	verboseLog("✓ You are signed in!")
+	
 
 	// Configure default Cline model after successful authentication
 	if err := configureDefaultClineModel(ctx); err != nil {
@@ -83,15 +86,6 @@ func signIn(ctx context.Context) error {
 	if IsAuthenticated(ctx) {
 		return nil
 	}
-
-	verboseLog("Ensuring default instance exists...")
-	if err := global.EnsureDefaultInstance(ctx); err != nil {
-		verboseLog("Failed to ensure default instance: %v", err)
-		return fmt.Errorf("failed to ensure default instance: %w", err)
-	}
-
-	verboseLog("Default instance ensured successfully.")
-	time.Sleep(2 * time.Second) // Allow services to start
 
 	// Subscribe to auth updates before initiating login
 	verboseLog("Subscribing to auth status updates...")

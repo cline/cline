@@ -14,6 +14,7 @@ const BUILD_DIR = "dist-standalone"
 const BINARIES_DIR = `${BUILD_DIR}/binaries`
 const RUNTIME_DEPS_DIR = "standalone/runtime-files"
 const NODE_BINARIES_DIR = `${BUILD_DIR}/node-binaries`
+const RIPGREP_BINARIES_DIR = `${BUILD_DIR}/ripgrep-binaries`
 const CLI_BINARIES_DIR = "cli/bin"
 const IS_DEBUG_BUILD = process.env.IS_DEBUG_BUILD === "true"
 
@@ -60,10 +61,12 @@ async function main() {
 
 	// Step 2: Copy Node.js binary (only for CLI builds)
 	// Step 3: Copy CLI binaries (only for CLI builds)
-	// Step 4: Create VERSION file (only for CLI builds)
+	// Step 4: Copy ripgrep binary (only for CLI builds)
+	// Step 5: Create VERSION file (only for CLI builds)
 	if (IS_CLI_BUILD) {
 		await copyNodeBinary()
 		await copyCliBinaries()
+		await copyRipgrepBinary()
 		await createVersionFile()
 	}
 
@@ -161,6 +164,36 @@ async function copyCliBinaries() {
 
 		console.log(`✓ ${source} copied to ${destPath}`)
 	}
+}
+
+/**
+ * Copy ripgrep binary for the current platform
+ * Ripgrep is needed by cline-core for file searching
+ */
+async function copyRipgrepBinary() {
+	const currentPlatform = getCurrentPlatform()
+	const binaryName = currentPlatform.startsWith("win") ? "rg.exe" : "rg"
+	const ripgrepBinarySource = path.join(RIPGREP_BINARIES_DIR, currentPlatform, binaryName)
+	const ripgrepBinaryDest = path.join(BUILD_DIR, binaryName)
+
+	console.log(`Copying ripgrep binary for ${currentPlatform}...`)
+
+	// Check if ripgrep binaries exist
+	if (!fs.existsSync(ripgrepBinarySource)) {
+		console.error(`Error: Ripgrep binary not found at ${ripgrepBinarySource}`)
+		console.error(`Please run: npm run download-ripgrep`)
+		process.exit(1)
+	}
+
+	// Copy ripgrep binary to the root of dist-standalone (where cline-core.js is)
+	await cpr(ripgrepBinarySource, ripgrepBinaryDest)
+
+	// Make it executable (Unix only)
+	if (!currentPlatform.startsWith("win")) {
+		fs.chmodSync(ripgrepBinaryDest, 0o755)
+	}
+
+	console.log(`✓ Ripgrep binary copied to ${ripgrepBinaryDest}`)
 }
 
 /**
