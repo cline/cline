@@ -150,7 +150,7 @@ func (sr *SystemMessageRenderer) RenderAuthError(err *clerror.ClineError) error 
 	// Guidance
 	parts = append(parts, "**Next Steps:**")
 	parts = append(parts, "- Check your API key configuration")
-	parts = append(parts, "- Run `cline auth login` to authenticate")
+	parts = append(parts, "- Run `cline auth` to authenticate")
 	parts = append(parts, "- Verify your account status at https://app.cline.bot")
 
 	// Request ID
