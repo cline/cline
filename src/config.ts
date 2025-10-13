@@ -19,6 +19,11 @@ export interface EnvironmentConfig {
 }
 
 function getClineEnv(): Environment {
+	const _override = process?.env?.CLINE_ENVIRONMENT_OVERRIDE
+	if (_override && Object.values(Environment).includes(_override as Environment)) {
+		return _override as Environment
+	}
+
 	const _env = process?.env?.CLINE_ENVIRONMENT
 	if (_env && Object.values(Environment).includes(_env as Environment)) {
 		return _env as Environment

@@ -5,6 +5,7 @@ import Fuse from "fuse.js"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
+import HeroTooltip from "@/components/common/HeroTooltip"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -83,7 +84,7 @@ declare module "vscode" {
 
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup, currentMode }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
@@ -125,7 +126,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
 	const providerOptions = useMemo(() => {
-		const providers = [
+		let providers = [
 			{ value: "cline", label: "Cline" },
 			{ value: "openrouter", label: "OpenRouter" },
 			{ value: "gemini", label: "Google Gemini" },
@@ -166,11 +167,11 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
 			// Don't include VS Code LM API for non-VSCode platforms
-			return providers.filter((option) => option.value !== "vscode-lm")
+			providers = providers.filter((option) => option.value !== "vscode-lm")
 		}
 
 		return providers
-	}, [])
+	}, [remoteConfigSettings])
 
 	const currentProviderLabel = useMemo(() => {
 		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
@@ -295,12 +296,24 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				`}
 			</style>
 			<DropdownContainer className="dropdown-container">
-				<label htmlFor="api-provider">
-					<span style={{ fontWeight: 500 }}>API Provider</span>
-				</label>
+				{remoteConfigSettings?.planModeApiProvider !== undefined ? (
+					<HeroTooltip content="This setting is managed by your organization's remote configuration">
+						<div className="flex items-center gap-2 mb-1">
+							<label htmlFor="api-provider">
+								<span style={{ fontWeight: 500 }}>API Provider</span>
+							</label>
+							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+						</div>
+					</HeroTooltip>
+				) : (
+					<label htmlFor="api-provider">
+						<span style={{ fontWeight: 500 }}>API Provider</span>
+					</label>
+				)}
 				<ProviderDropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						data-testid="provider-selector-input"
+						disabled={remoteConfigSettings?.planModeApiProvider !== undefined}
 						id="api-provider"
 						onFocus={() => {
 							setIsDropdownVisible(true)

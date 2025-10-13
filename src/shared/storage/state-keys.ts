@@ -1,16 +1,16 @@
+import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { ApiProvider, ModelInfo, type OcaModelInfo } from "@shared/api"
+import { BrowserSettings } from "@shared/BrowserSettings"
+import { ClineRulesToggles } from "@shared/cline-rules"
+import { DictationSettings } from "@shared/DictationSettings"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
+import { HistoryItem } from "@shared/HistoryItem"
+import { McpDisplayMode } from "@shared/McpDisplayMode"
+import { WorkspaceRoot } from "@shared/multi-root/types"
+import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
-import { WorkspaceRoot } from "@/core/workspace/WorkspaceRoot"
-import { AutoApprovalSettings } from "@/shared/AutoApprovalSettings"
-import { BrowserSettings } from "@/shared/BrowserSettings"
-import { ClineRulesToggles } from "@/shared/cline-rules"
-import { DictationSettings } from "@/shared/DictationSettings"
-import { HistoryItem } from "@/shared/HistoryItem"
-import { McpDisplayMode } from "@/shared/McpDisplayMode"
-import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
-import { TelemetrySetting } from "@/shared/TelemetrySetting"
-import { UserInfo } from "@/shared/UserInfo"
 export type SecretKey = keyof Secrets
 
 export type GlobalStateKey = keyof GlobalState
@@ -103,6 +103,7 @@ export interface Settings {
 	autoCondenseThreshold: number | undefined // number from 0 to 1
 	ocaBaseUrl: string | undefined
 	ocaMode: string | undefined
+	hooksEnabled: boolean
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
