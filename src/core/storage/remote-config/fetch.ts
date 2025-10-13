@@ -20,7 +20,10 @@ export async function fetchRemoteConfig(controller: Controller): Promise<RemoteC
 
 	// Get the active organization ID
 	const organizationId = authService.getActiveOrganizationId()
+
 	if (!organizationId) {
+		// Clear the in-memory cache of the remote config settings in case it was previously set with an organization that has remote config
+		StateManager.get().clearRemoteConfig()
 		return undefined
 	}
 
