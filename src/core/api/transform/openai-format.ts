@@ -1,6 +1,143 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 
+/**
+ * Converts an array of Anthropic MessageParam objects to OpenAI ResponseInput format.
+ * @param messages - Array of Anthropic messages to convert.
+ * @returns An array of OpenAI ResponseInput objects.
+ */
+export function convertToOpenAiResponseInput(messages: Anthropic.Messages.MessageParam[]): OpenAI.Responses.ResponseInput {
+	const result: OpenAI.Responses.ResponseInput = []
+
+	for (let i = 0; i < messages.length; i++) {
+		const msg = messages[i]
+
+		// Simple string content → user input text
+		if (typeof msg.content === "string") {
+			result.push({
+				type: "message",
+				role: msg.role,
+				content: [{ type: "input_text", text: msg.content }],
+			})
+			continue
+		}
+
+		if (!Array.isArray(msg.content)) {
+			throw new Error(`Invalid message content: must be string or array`)
+		}
+
+		if (msg.role === "user") {
+			const inputParts: OpenAI.Responses.ResponseInputContent[] = []
+			const toolResultImages: Anthropic.Messages.ImageBlockParam[] = []
+
+			for (const part of msg.content) {
+				switch (part.type) {
+					case "text":
+						inputParts.push({ type: "input_text", text: part.text })
+						break
+					case "image":
+						inputParts.push({
+							type: "input_image",
+							image_url: `data:${part.source.media_type};base64,${part.source.data}`,
+							detail: "auto",
+						})
+						break
+					case "document":
+					case "thinking":
+					case "redacted_thinking":
+						if ("content" in part && typeof part.content === "string") {
+							inputParts.push({ type: "input_text", text: part.content })
+						}
+						break
+					case "tool_result":
+						if (typeof part.content === "string") {
+							inputParts.push({ type: "input_text", text: part.content })
+						} else if (Array.isArray(part.content)) {
+							for (const p of part.content) {
+								if (p.type === "image") {
+									toolResultImages.push(p)
+									inputParts.push({
+										type: "input_text",
+										text: "(see following user message for image)",
+									})
+								}
+								// Intentionally ignore other block types (e.g., text) within tool_result arrays
+							}
+						}
+						break
+					default:
+						console.warn(`Skipping unsupported user block type: ${part.type}`)
+				}
+			}
+
+			// Push tool-result images as separate user messages
+			if (toolResultImages.length > 0) {
+				result.push({
+					type: "message",
+					role: "user",
+					content: toolResultImages.map((img) => ({
+						type: "input_image",
+						image_url: `data:${img.source.media_type};base64,${img.source.data}`,
+						detail: "auto",
+					})),
+				})
+			}
+
+			// Push non-image user content
+			if (inputParts.length > 0) {
+				result.push({
+					type: "message",
+					role: "user",
+					content: inputParts,
+				})
+			}
+		}
+
+		if (msg.role === "assistant") {
+			const outputParts: OpenAI.Responses.ResponseOutputText[] = []
+
+			for (const part of msg.content) {
+				switch (part.type) {
+					case "text":
+						outputParts.push({ type: "output_text", text: part.text, annotations: [] })
+						break
+					case "document":
+					case "thinking":
+					case "redacted_thinking":
+						if ("content" in part && typeof part.content === "string") {
+							outputParts.push({ type: "output_text", text: part.content, annotations: [] })
+						}
+						break
+					case "tool_use":
+						// Push a proper function_call object directly
+						result.push({
+							type: "function_call",
+							name: part.name,
+							arguments: JSON.stringify(part.input), // must be JSON string
+							call_id: crypto.randomUUID(),
+						})
+						break
+					default:
+						console.warn(`Skipping unsupported assistant block type: ${part.type}`)
+				}
+			}
+
+			// Push assistant text blocks using existing ID
+			if (outputParts.length > 0) {
+				result.push({
+					type: "message",
+					role: "assistant",
+					id: (msg as any).id as string, // this is available at runtime
+					status: "completed",
+					content: outputParts,
+				})
+			}
+		}
+	}
+
+	return result
+}
+
 export function convertToOpenAiMessages(
 	anthropicMessages: Anthropic.Messages.MessageParam[],
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
@@ -118,9 +255,9 @@ export function convertToOpenAiMessages(
 				const reasoningDetails: any[] = []
 				if (nonToolMessages.length > 0) {
 					nonToolMessages.forEach((part) => {
-						// @ts-ignore-next-line
+						// @ts-expect-error-next-line
 						if (part.type === "text" && part.reasoning_details) {
-							// @ts-ignore-next-line
+							// @ts-expect-error-next-line
 							reasoningDetails.push(part.reasoning_details)
 						}
 					})
@@ -150,7 +287,7 @@ export function convertToOpenAiMessages(
 					content,
 					// Cannot be an empty array. API expects an array with minimum length 1, and will respond with an error if it's empty
 					tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
 				})
 			}
@@ -199,20 +336,22 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 
 	if (openAiMessage.tool_calls && openAiMessage.tool_calls.length > 0) {
 		anthropicMessage.content.push(
-			...openAiMessage.tool_calls.map((toolCall): Anthropic.ToolUseBlock => {
-				let parsedInput = {}
-				try {
-					parsedInput = JSON.parse(toolCall.function.arguments || "{}")
-				} catch (error) {
-					console.error("Failed to parse tool arguments:", error)
-				}
-				return {
-					type: "tool_use",
-					id: toolCall.id,
-					name: toolCall.function.name,
-					input: parsedInput,
-				}
-			}),
+			...openAiMessage.tool_calls
+				.filter((toolCall) => toolCall.type === "function" && "function" in toolCall)
+				.map((toolCall) => {
+					let parsedInput: unknown = {}
+					try {
+						parsedInput = JSON.parse(toolCall.function.arguments || "{}")
+					} catch (error) {
+						console.error("Failed to parse tool arguments:", error)
+					}
+					return {
+						type: "tool_use",
+						id: toolCall.id,
+						name: toolCall.function.name,
+						input: parsedInput,
+					} as Anthropic.ToolUseBlockParam
+				}),
 		)
 	}
 	return anthropicMessage

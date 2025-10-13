@@ -233,7 +233,7 @@ function convertProtoToOpenAiCompatibleModelInfo(
 }
 
 // Convert application ApiProvider to proto ApiProvider
-function convertApiProviderToProto(provider: string | undefined): ProtoApiProvider {
+function convertApiProviderToProto(provider: ApiProvider | undefined): ProtoApiProvider {
 	switch (provider) {
 		case "anthropic":
 			return ProtoApiProvider.ANTHROPIC
@@ -506,6 +506,10 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeOcaModelId: config.planModeOcaModelId,
 		planModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.planModeOcaModelInfo),
 
+		planModeRateLimitRpm: config.planModeRateLimitRpm,
+		planModeRateLimitTpm: config.planModeRateLimitTpm,
+		planModeRateLimitNearThreshold: config.planModeRateLimitNearThreshold,
+
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
 		actModeApiModelId: config.actModeApiModelId,
@@ -540,6 +544,12 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
 		actModeOcaModelId: config.actModeOcaModelId,
 		actModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.actModeOcaModelInfo),
+
+		actModeRateLimitRpm: config.actModeRateLimitRpm,
+		actModeRateLimitTpm: config.actModeRateLimitTpm,
+		actModeRateLimitNearThreshold: config.actModeRateLimitNearThreshold,
+
+		favoritedModelIds: config.favoritedModelIds || [],
 	}
 }
 
@@ -660,6 +670,11 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeOcaModelId: protoConfig.planModeOcaModelId,
 		planModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.planModeOcaModelInfo),
 
+		// Plan mode rate limit configs
+		planModeRateLimitRpm: protoConfig.planModeRateLimitRpm,
+		planModeRateLimitTpm: protoConfig.planModeRateLimitTpm,
+		planModeRateLimitNearThreshold: protoConfig.planModeRateLimitNearThreshold,
+
 		// Act mode configurations
 		actModeApiProvider:
 			protoConfig.actModeApiProvider !== undefined ? convertProtoToApiProvider(protoConfig.actModeApiProvider) : undefined,
@@ -693,7 +708,14 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeSapAiCoreDeploymentId: protoConfig.actModeSapAiCoreDeploymentId,
 		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
+
 		actModeOcaModelId: protoConfig.actModeOcaModelId,
 		actModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.actModeOcaModelInfo),
+		actModeRateLimitRpm: protoConfig.actModeRateLimitRpm,
+		actModeRateLimitTpm: protoConfig.actModeRateLimitTpm,
+		actModeRateLimitNearThreshold: protoConfig.actModeRateLimitNearThreshold,
+
+		favoritedModelIds:
+			protoConfig.favoritedModelIds && protoConfig.favoritedModelIds.length > 0 ? protoConfig.favoritedModelIds : undefined,
 	}
 }

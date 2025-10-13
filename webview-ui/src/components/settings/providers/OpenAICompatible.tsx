@@ -2,7 +2,7 @@ import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shar
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -11,6 +11,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
@@ -68,6 +69,11 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 		}
 	}, [])
 
+	const showThinkingBudgetSlider = useMemo(() => {
+		const baseUrlLc = (apiConfiguration?.openAiBaseUrl || "").toLowerCase()
+		return /openai\.azure\.com\/openai\/responses/.test(baseUrlLc) || /(^|\/)openai\/responses(\/|$)/.test(baseUrlLc)
+	}, [apiConfiguration?.openAiBaseUrl])
+
 	return (
 		<div>
 			{remoteConfigSettings?.openAiBaseUrl !== undefined ? (
@@ -103,6 +109,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					<span style={{ fontWeight: 500 }}>Base URL</span>
 				</DebouncedTextField>
 			)}
+
+			{showThinkingBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
 
 			<ApiKeyField
 				initialValue={apiConfiguration?.openAiApiKey || ""}
@@ -384,6 +392,92 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							}}>
 							<span style={{ fontWeight: 500 }}>Temperature</span>
 						</DebouncedTextField>
+					</div>
+
+					{/* Rate Limits */}
+					<div
+						style={{
+							marginTop: 10,
+							borderTop: "1px solid var(--vscode-button-secondaryHoverBackground)",
+							paddingTop: 10,
+						}}>
+						<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+							<span style={{ fontWeight: 700, textTransform: "uppercase" }}>Rate Limits</span>
+						</div>
+
+						<div style={{ display: "flex", gap: 10 }}>
+							<DebouncedTextField
+								initialValue={String(
+									(currentMode === "plan"
+										? apiConfiguration?.planModeRateLimitRpm
+										: apiConfiguration?.actModeRateLimitRpm) ?? "",
+								)}
+								onChange={(value) => {
+									const num = value.trim() === "" ? undefined : Number(value)
+									const mapped = { plan: "planModeRateLimitRpm", act: "actModeRateLimitRpm" } as const
+									handleModeFieldChange(
+										mapped,
+										Number.isFinite(num as number) ? (num as number) : undefined,
+										currentMode,
+									)
+								}}
+								placeholder={"Default: 2500"}
+								style={{ flex: 1 }}>
+								<span style={{ fontWeight: 500 }}>Requests Per Minute (RPM)</span>
+							</DebouncedTextField>
+
+							<DebouncedTextField
+								initialValue={String(
+									(currentMode === "plan"
+										? apiConfiguration?.planModeRateLimitTpm
+										: apiConfiguration?.actModeRateLimitTpm) ?? "",
+								)}
+								onChange={(value) => {
+									const num = value.trim() === "" ? undefined : Number(value)
+									const mapped = { plan: "planModeRateLimitTpm", act: "actModeRateLimitTpm" } as const
+									handleModeFieldChange(
+										mapped,
+										Number.isFinite(num as number) ? (num as number) : undefined,
+										currentMode,
+									)
+								}}
+								placeholder={"Default: 250000"}
+								style={{ flex: 1 }}>
+								<span style={{ fontWeight: 500 }}>Tokens Per Minute (TPM)</span>
+							</DebouncedTextField>
+						</div>
+
+						<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
+							<DebouncedTextField
+								initialValue={String(
+									(currentMode === "plan"
+										? apiConfiguration?.planModeRateLimitNearThreshold
+										: apiConfiguration?.actModeRateLimitNearThreshold) ?? "",
+								)}
+								onChange={(value) => {
+									if (value.trim() === "") {
+										handleModeFieldChange(
+											{ plan: "planModeRateLimitNearThreshold", act: "actModeRateLimitNearThreshold" },
+											undefined as any,
+											currentMode,
+										)
+										return
+									}
+									let num = Number(value)
+									if (!Number.isFinite(num)) return
+									// clamp (0,1)
+									num = Math.max(0.01, Math.min(0.99, num))
+									handleModeFieldChange(
+										{ plan: "planModeRateLimitNearThreshold", act: "actModeRateLimitNearThreshold" },
+										num,
+										currentMode,
+									)
+								}}
+								placeholder={"Default: 0.9"}
+								style={{ flex: 1 }}>
+								<span style={{ fontWeight: 500 }}>Near-threshold fraction (0-1)</span>
+							</DebouncedTextField>
+						</div>
 					</div>
 				</>
 			)}
