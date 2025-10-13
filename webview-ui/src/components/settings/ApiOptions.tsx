@@ -5,6 +5,7 @@ import Fuse from "fuse.js"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
+import HeroTooltip from "@/components/common/HeroTooltip"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -163,9 +164,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "dify", label: "Dify.ai" },
 			{ value: "oca", label: "Oracle Code Assist" },
 		]
-		if (remoteConfigSettings?.planModeApiProvider) {
-			providers = providers.filter((option) => option.value === remoteConfigSettings.planModeApiProvider)
-		}
 
 		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
 			// Don't include VS Code LM API for non-VSCode platforms
@@ -298,12 +296,24 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				`}
 			</style>
 			<DropdownContainer className="dropdown-container">
-				<label htmlFor="api-provider">
-					<span style={{ fontWeight: 500 }}>API Provider</span>
-				</label>
+				{remoteConfigSettings?.planModeApiProvider !== undefined ? (
+					<HeroTooltip content="This setting is managed by your organization's remote configuration">
+						<div className="flex items-center gap-2 mb-1">
+							<label htmlFor="api-provider">
+								<span style={{ fontWeight: 500 }}>API Provider</span>
+							</label>
+							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+						</div>
+					</HeroTooltip>
+				) : (
+					<label htmlFor="api-provider">
+						<span style={{ fontWeight: 500 }}>API Provider</span>
+					</label>
+				)}
 				<ProviderDropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						data-testid="provider-selector-input"
+						disabled={remoteConfigSettings?.planModeApiProvider !== undefined}
 						id="api-provider"
 						onFocus={() => {
 							setIsDropdownVisible(true)
