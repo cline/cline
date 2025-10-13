@@ -345,7 +345,7 @@ message UpdateSettingsRequest {
   optional double auto_condense_threshold = 24;
   optional bool multi_root_enabled = 25;
   optional bool hooks_enabled = 26;
-  optional string vscode_terminal_execution_mode = 26;
+  optional string vscode_terminal_execution_mode = 27;
 }
 
 // Complete API Configuration message
