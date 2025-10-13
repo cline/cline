@@ -10,7 +10,7 @@ import { Controller } from ".."
  * @param _request The empty request
  * @returns Empty response
  */
-export async function installClineCli(controller: Controller, _request: EmptyRequest): Promise<Empty> {
+export async function installClineCli(_controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	const installCommand = "ls"
 
 	try {

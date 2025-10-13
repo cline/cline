@@ -2,14 +2,14 @@ import { SystemPromptSection } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../types"
 
-const getCliSubagentsTemplateText = (context: SystemPromptContext) => `USING THE CLINE CLI TOOL
+const getCliSubagentsTemplateText = (_context: SystemPromptContext) => `USING THE CLINE CLI TOOL
 
 The Cline CLI tool is installed and available for spawning subprocesses to handle focused tasks. This keeps your main context clean by delegating information-gathering and exploration to separate Cline instances. Use this when you need to research large codebases, explore file structures, gather information from multiple files, analyze dependencies, or summarize code sections without loading everything into your context.
 
 ## Command Syntax
 
 \`\`\`bash
-cline "your prompt here" [options]
+cline t o "your prompt here" [options]
 
 Options:
   --workdir <directory>    # Specify working directory (defaults to current)
@@ -20,19 +20,19 @@ Options:
 
 \`\`\`bash
 # Find specific patterns
-cline "find all React components that use the useState hook and list their names" --no-interactive
+cline t o "find all React components that use the useState hook and list their names" --no-interactive
 
 # Analyze code structure
-cline "analyze the authentication flow and provide a summary" --workdir ./src/auth --no-interactive
+cline t o "analyze the authentication flow and provide a summary" --workdir ./src/auth --no-interactive
 
 # Gather targeted information
-cline "list all API endpoints and their HTTP methods" --workdir ./backend --no-interactive
+cline t o "list all API endpoints and their HTTP methods" --workdir ./backend --no-interactive
 
 # Summarize directories
-cline "summarize the purpose of all files in the src/services directory" --no-interactive
+cline t o "summarize the purpose of all files in the src/services directory" --no-interactive
 
 # Research implementations
-cline "find how error handling is implemented across the application" --no-interactive
+cline t o "find how error handling is implemented across the application" --no-interactive
 \`\`\`
 
 ## Tips

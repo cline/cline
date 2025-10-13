@@ -44,7 +44,7 @@ const XS_CLI_SUBAGENTS = `USING THE CLINE CLI TOOL
 
 The Cline CLI tool is installed and available for you to use to handle focused tasks without polluting your main context window. This can be done using 
 \`\`\`bash
-cline "your prompt here" [options]
+cline t o "your prompt here" [options]
 
 Options:
   --workdir <directory>    # Specify working directory (defaults to current)
@@ -52,7 +52,7 @@ Options:
 
 Example:
   # Find specific patterns
-  cline "find all React components that use the useState hook and list their names" --no-interactive
+  cline t o "find all React components that use the useState hook and list their names" --no-interactive
 \`\`\``
 
 export const xsComponentOverrides: PromptVariant["componentOverrides"] = {
