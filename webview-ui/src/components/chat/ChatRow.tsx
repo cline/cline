@@ -871,9 +871,14 @@ export const ChatRowContent = memo(
 					// Wait 1.5 seconds before auto-collapsing to let user see the completion
 					const timer = setTimeout(() => {
 						onToggleExpand(message.ts)
+						// Clean up the ref after auto-collapse completes
+						commandStartTimeRef.current = null
 					}, 1500)
 
 					return () => clearTimeout(timer)
+				} else {
+					// Command was too fast, didn't auto-collapse, so clean up now
+					commandStartTimeRef.current = null
 				}
 			}
 		}, [isCommandMessage, isCommandCompleted, isExpanded, onToggleExpand, message.ts])
