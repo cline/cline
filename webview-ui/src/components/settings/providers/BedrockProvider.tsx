@@ -96,7 +96,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 				</>
 			)}
 
-			{remoteConfigSettings.awsRegion !== undefined ? (
+			{remoteConfigSettings?.awsRegion !== undefined ? (
 				<HeroTooltip content="This setting is managed by your organization's remote configuration">
 					<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 1}>
 						<div className="flex items-center gap-2">
@@ -185,7 +185,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 			)}
 
 			<div style={{ display: "flex", flexDirection: "column" }}>
-				{remoteConfigSettings.awsBedrockEndpoint !== undefined ? (
+				{remoteConfigSettings?.awsBedrockEndpoint !== undefined ? (
 					<HeroTooltip content="This setting is managed by your organization's remote configuration">
 						<div>
 							<div className="flex items-center gap-2">
@@ -242,7 +242,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					</>
 				)}
 
-				{remoteConfigSettings.awsUseCrossRegionInference !== undefined ? (
+				{remoteConfigSettings?.awsUseCrossRegionInference !== undefined ? (
 					<HeroTooltip content="This setting is managed by your organization's remote configuration">
 						<div className="flex items-center gap-2">
 							<VSCodeCheckbox
@@ -272,7 +272,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 
 				{apiConfiguration?.awsUseCrossRegionInference &&
 					selectedModelInfo.supportsGlobalEndpoint &&
-					(remoteConfigSettings.awsUseGlobalInference !== undefined ? (
+					(remoteConfigSettings?.awsUseGlobalInference !== undefined ? (
 						<HeroTooltip content="This setting is managed by your organization's remote configuration">
 							<div className="flex items-center gap-2">
 								<VSCodeCheckbox
@@ -299,7 +299,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					))}
 
 				{selectedModelInfo.supportsPromptCache &&
-					(remoteConfigSettings.awsBedrockUsePromptCache !== undefined ? (
+					(remoteConfigSettings?.awsBedrockUsePromptCache !== undefined ? (
 						<HeroTooltip content="This setting is managed by your organization's remote configuration">
 							<div className="flex items-center gap-2">
 								<VSCodeCheckbox

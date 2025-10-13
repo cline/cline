@@ -54,7 +54,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
-						{remoteConfigSettings.mcpMarketplaceEnabled !== undefined ? (
+						{remoteConfigSettings?.mcpMarketplaceEnabled !== undefined ? (
 							<HeroTooltip content="This setting is managed by your organization's remote configuration">
 								<div className="flex items-center gap-2">
 									<VSCodeCheckbox
@@ -304,7 +304,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</div>
 					)}
 					<div style={{ marginTop: 10 }}>
-						{remoteConfigSettings.yoloModeToggled !== undefined ? (
+						{remoteConfigSettings?.yoloModeToggled !== undefined ? (
 							<HeroTooltip content="This setting is managed by your organization's remote configuration">
 								<div className="flex items-center gap-2">
 									<VSCodeCheckbox

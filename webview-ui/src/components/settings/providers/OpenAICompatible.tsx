@@ -70,7 +70,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	return (
 		<div>
-			{remoteConfigSettings.openAiBaseUrl !== undefined ? (
+			{remoteConfigSettings?.openAiBaseUrl !== undefined ? (
 				<HeroTooltip content="This setting is managed by your organization's remote configuration">
 					<div className="mb-2.5">
 						<div className="flex items-center gap-2 mb-1">
@@ -129,7 +129,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 				return (
 					<div style={{ marginBottom: 10 }}>
-						{remoteConfigSettings.openAiHeaders !== undefined ? (
+						{remoteConfigSettings?.openAiHeaders !== undefined ? (
 							<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 								<HeroTooltip content="This setting is managed by your organization's remote configuration">
 									<div className="flex items-center gap-2">
@@ -158,7 +158,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							{headerEntries.map(([key, value], index) => (
 								<div key={index} style={{ display: "flex", gap: 5, marginTop: 5 }}>
 									<DebouncedTextField
-										disabled={remoteConfigSettings.openAiHeaders !== undefined}
+										disabled={remoteConfigSettings?.openAiHeaders !== undefined}
 										initialValue={key}
 										onChange={(newValue) => {
 											const currentHeaders = apiConfiguration?.openAiHeaders ?? {}
@@ -174,7 +174,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 										style={{ width: "40%" }}
 									/>
 									<DebouncedTextField
-										disabled={remoteConfigSettings.openAiHeaders !== undefined}
+										disabled={remoteConfigSettings?.openAiHeaders !== undefined}
 										initialValue={value}
 										onChange={(newValue) => {
 											handleFieldChange("openAiHeaders", {
@@ -187,7 +187,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 									/>
 									<VSCodeButton
 										appearance="secondary"
-										disabled={remoteConfigSettings.openAiHeaders !== undefined}
+										disabled={remoteConfigSettings?.openAiHeaders !== undefined}
 										onClick={() => {
 											const { [key]: _, ...rest } = apiConfiguration?.openAiHeaders ?? {}
 											handleFieldChange("openAiHeaders", rest)
@@ -201,7 +201,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 				)
 			})()}
 
-			{remoteConfigSettings.azureApiVersion !== undefined ? (
+			{remoteConfigSettings?.azureApiVersion !== undefined ? (
 				<HeroTooltip content="This setting is managed by your organization's remote configuration">
 					<BaseUrlField
 						disabled={true}
