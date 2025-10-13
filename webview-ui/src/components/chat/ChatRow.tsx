@@ -21,6 +21,7 @@ import CodeBlock, {
 	CHAT_ROW_COLLAPSED_BG_COLOR,
 	CHAT_ROW_EXPANDED_BG_COLOR,
 	CODE_BLOCK_BG_COLOR,
+	TERMINAL_CODE_BLOCK_BG_COLOR,
 } from "@/components/common/CodeBlock"
 import { WithCopyButton } from "@/components/common/CopyButton"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
@@ -144,7 +145,9 @@ const CommandOutput = memo(
 					paddingBottom: lineCount > 5 ? "16px" : "0",
 					overflow: "visible",
 					borderTop: "1px solid rgba(255,255,255,.07)",
-					backgroundColor: CODE_BLOCK_BG_COLOR,
+					backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR,
+					borderBottomLeftRadius: "6px",
+					borderBottomRightRadius: "6px",
 				}}>
 				<div
 					ref={outputRef}
@@ -153,9 +156,9 @@ const CommandOutput = memo(
 						maxHeight: shouldAutoShow ? "none" : isOutputFullyExpanded ? "200px" : "75px",
 						overflowY: shouldAutoShow ? "visible" : "auto",
 						scrollBehavior: "smooth",
-						backgroundColor: CODE_BLOCK_BG_COLOR,
+						backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR,
 					}}>
-					<div style={{ backgroundColor: CODE_BLOCK_BG_COLOR }}>
+					<div style={{ backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR }}>
 						<CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
 					</div>
 				</div>
