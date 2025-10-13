@@ -18,15 +18,17 @@ const (
 
 // SystemMessageRenderer handles rendering of system messages (errors, warnings, info)
 type SystemMessageRenderer struct {
-	renderer   *Renderer
-	mdRenderer *MarkdownRenderer
+	renderer     *Renderer
+	mdRenderer   *MarkdownRenderer
+	outputFormat string
 }
 
 // NewSystemMessageRenderer creates a new system message renderer
-func NewSystemMessageRenderer(renderer *Renderer, mdRenderer *MarkdownRenderer) *SystemMessageRenderer {
+func NewSystemMessageRenderer(renderer *Renderer, mdRenderer *MarkdownRenderer, outputFormat string) *SystemMessageRenderer {
 	return &SystemMessageRenderer{
-		renderer:   renderer,
-		mdRenderer: mdRenderer,
+		renderer:     renderer,
+		mdRenderer:   mdRenderer,
+		outputFormat: outputFormat,
 	}
 }
 
@@ -82,28 +84,48 @@ func (sr *SystemMessageRenderer) RenderBalanceError(err *clerror.ClineError) err
 	parts = append(parts, "### ❌ **[ERROR]** Credit Limit Reached")
 	parts = append(parts, "")
 
-	// Message
-	parts = append(parts, err.Message)
-
-	// Balance info
-	if balance := err.GetCurrentBalance(); balance != nil {
-		parts = append(parts, "")
-		parts = append(parts, fmt.Sprintf("**Current Balance:** $%.2f", *balance))
+	// Message - prefer detail message from error.details, fallback to main message
+	message := err.Message
+	if detailMsg := err.GetDetailMessage(); detailMsg != "" {
+		message = detailMsg
 	}
+	parts = append(parts, message)
+	parts = append(parts, "")
+
+	// Account Balance section
+	parts = append(parts, "**Account Balance:**")
+
+	// Current balance
+	if balance := err.GetCurrentBalance(); balance != nil {
+		parts = append(parts, fmt.Sprintf("- Current Balance: **$%.2f**", *balance))
+	}
+
+	// Total spent
+	if spent := err.GetTotalSpent(); spent != nil {
+		parts = append(parts, fmt.Sprintf("- Total Spent: $%.2f", *spent))
+	}
+
+	// Promotions applied
+	if promos := err.GetTotalPromotions(); promos != nil {
+		parts = append(parts, fmt.Sprintf("- Promotions Applied: $%.2f", *promos))
+	}
+
+	parts = append(parts, "")
 
 	// Buy credits link
 	if url := err.GetBuyCreditsURL(); url != "" {
-		parts = append(parts, "")
-		parts = append(parts, fmt.Sprintf("**To add credits, visit:** %s", url))
+		parts = append(parts, fmt.Sprintf("**→ Buy credits:** %s", url))
 	} else {
-		parts = append(parts, "")
-		parts = append(parts, "**To add credits, visit:** https://app.cline.bot/dashboard/account?tab=credits")
+		// Fallback - show both personal and org URLs
+		parts = append(parts, "**→ Buy credits:**")
+		parts = append(parts, "  - Personal: https://app.cline.bot/dashboard/account?tab=credits")
+		parts = append(parts, "  - Organization: https://app.cline.bot/dashboard/organization?tab=credits")
 	}
 
-	// Request ID
+	// Request ID (less prominent at the end)
 	if err.RequestID != "" {
 		parts = append(parts, "")
-		parts = append(parts, fmt.Sprintf("*Request ID: `%s`*", err.RequestID))
+		parts = append(parts, fmt.Sprintf("*Request ID: %s*", err.RequestID))
 	}
 
 	markdown := strings.Join(parts, "\n")

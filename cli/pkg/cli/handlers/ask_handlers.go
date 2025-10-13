@@ -191,8 +191,6 @@ func (h *AskHandler) handleAPIReqFailed(msg *types.ClineMessage, dc *DisplayCont
 			default:
 				dc.SystemRenderer.RenderAPIError(clineErr)
 			}
-			// Still show "Approve to retry" message
-			fmt.Printf("\n**Approve to retry request.**\n")
 			return nil
 		}
 	}

@@ -61,11 +61,7 @@ func (e *ClineError) GetErrorType() ClineErrorType {
 
 	// Check balance error first (most specific)
 	if e.Code == "insufficient_credits" {
-		if e.Details != nil {
-			if _, hasBalance := e.Details["current_balance"]; hasBalance {
-				return ErrorTypeBalance
-			}
-		}
+		return ErrorTypeBalance
 	}
 
 	// Check auth errors
@@ -127,6 +123,45 @@ func (e *ClineError) GetBuyCreditsURL() string {
 
 	if url, ok := e.Details["buy_credits_url"].(string); ok {
 		return url
+	}
+
+	return ""
+}
+
+// GetTotalSpent returns the total spent amount if available
+func (e *ClineError) GetTotalSpent() *float64 {
+	if e == nil || e.Details == nil {
+		return nil
+	}
+
+	if spent, ok := e.Details["total_spent"].(float64); ok {
+		return &spent
+	}
+
+	return nil
+}
+
+// GetTotalPromotions returns the total promotions amount if available
+func (e *ClineError) GetTotalPromotions() *float64 {
+	if e == nil || e.Details == nil {
+		return nil
+	}
+
+	if promos, ok := e.Details["total_promotions"].(float64); ok {
+		return &promos
+	}
+
+	return nil
+}
+
+// GetDetailMessage returns the detail message from error.details if available
+func (e *ClineError) GetDetailMessage() string {
+	if e == nil || e.Details == nil {
+		return ""
+	}
+
+	if msg, ok := e.Details["message"].(string); ok {
+		return msg
 	}
 
 	return ""

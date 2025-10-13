@@ -39,7 +39,7 @@ func NewManager(client *client.ClineClient) *Manager {
 	state := types.NewConversationState()
 	renderer := display.NewRenderer(global.Config.OutputFormat)
 	toolRenderer := display.NewToolRenderer(renderer.GetMdRenderer(), global.Config.OutputFormat)
-	systemRenderer := display.NewSystemMessageRenderer(renderer, renderer.GetMdRenderer())
+	systemRenderer := display.NewSystemMessageRenderer(renderer, renderer.GetMdRenderer(), global.Config.OutputFormat)
 	streamingDisplay := display.NewStreamingDisplay(state, renderer)
 
 	// Create handler registry and register handlers
