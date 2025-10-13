@@ -1,7 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { APIError, OpenAIError } from "openai"
-import type { FinalRequestOptions, Headers as OpenAIHeaders } from "openai/core"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import {
 	DEFAULT_EXTERNAL_OCA_BASE_URL,
@@ -35,7 +34,7 @@ export class OcaHandler implements ApiHandler {
 
 	protected initializeClient(options: OcaHandlerOptions) {
 		return new (class OCIOpenAI extends OpenAI {
-			protected override async prepareOptions(opts: FinalRequestOptions<unknown>): Promise<void> {
+			protected override async prepareOptions(opts: any): Promise<void> {
 				const token = await OcaAuthService.getInstance().getAuthToken()
 				if (!token) {
 					throw new OpenAIError("Unable to handle auth, Oracle Code Assist (OCA) access token is not available")
@@ -52,7 +51,7 @@ export class OcaHandler implements ApiHandler {
 				status: number | undefined,
 				error: Object | undefined,
 				message: string | undefined,
-				headers: OpenAIHeaders | undefined,
+				headers: Headers,
 			): APIError {
 				interface OciError {
 					code?: string
@@ -68,11 +67,16 @@ export class OcaHandler implements ApiHandler {
 						}
 					} catch {}
 				}
-				const opcRequestId = headers?.[OCI_HEADER_OPC_REQUEST_ID]
+				const opcRequestId = headers.get(OCI_HEADER_OPC_REQUEST_ID)
 				if (opcRequestId) {
 					ociErrorMessage += `\n(${OCI_HEADER_OPC_REQUEST_ID}: ${opcRequestId})`
 				}
-				return super.makeStatusError(status, error, ociErrorMessage, headers)
+				return super.makeStatusError(
+					status ?? 500,
+					error ?? "Error is undefined",
+					ociErrorMessage,
+					headers ?? new Headers(),
+				)
 			}
 		})({
 			baseURL:

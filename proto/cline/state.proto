@@ -350,7 +350,7 @@ message UpdateSettingsRequest {
 // Complete API Configuration message
 message ApiConfiguration {
   // Global configuration fields (not mode-specific)
-  optional string api_key = 1; // anthropic
+  optional string api_key = 1;
   optional string cline_api_key = 2;
   optional string ulid = 3;
   optional string lite_llm_base_url = 4;
@@ -385,8 +385,8 @@ message ApiConfiguration {
   optional string requesty_base_url = 33;
   optional string together_api_key = 34;
   optional string fireworks_api_key = 35;
-  optional int32 fireworks_model_max_completion_tokens = 36;
-  optional int32 fireworks_model_max_tokens = 37;
+  optional int64 fireworks_model_max_completion_tokens = 36;
+  optional int64 fireworks_model_max_tokens = 37;
   optional string qwen_api_key = 38;
   optional string doubao_api_key = 39;
   optional string mistral_api_key = 40;
@@ -398,33 +398,40 @@ message ApiConfiguration {
   optional string xai_api_key = 46;
   optional string sambanova_api_key = 47;
   optional string cerebras_api_key = 48;
-  optional int32 request_timeout_ms = 49;
+  optional int64 request_timeout_ms = 49;
   optional string sap_ai_core_client_id = 50;
   optional string sap_ai_core_client_secret = 51;
   optional string sap_ai_resource_group = 52;
   optional string sap_ai_core_token_url = 53;
   optional string sap_ai_core_base_url = 54;
-  optional string moonshot_api_key = 55;
-  optional string moonshot_api_line = 56;
-  optional string huawei_cloud_maas_api_key = 57;
-  optional string ollama_api_key = 58;
-  optional string zai_api_key = 59;
-  optional string zai_api_line = 60;
-  optional string lm_studio_max_tokens = 61;
-  optional string vercel_ai_gateway_api_key = 62;
-  optional string qwen_code_oauth_path = 63;
-  optional string dify_api_key = 64;
-  optional string dify_base_url = 65;
-  optional string oca_base_url = 66;
-  optional string oca_api_key = 67;
-  optional string oca_refresh_token = 68;
-  optional string oca_mode = 69;
-  optional bool aws_use_global_inference = 70;
-  
+  optional bool sap_ai_core_use_orchestration_mode = 55;
+  optional string moonshot_api_key = 56;
+  optional string moonshot_api_line = 57;
+  optional string aws_authentication = 58;
+  optional string aws_bedrock_api_key = 59;
+  optional string cline_account_id = 60;
+  optional string groq_api_key = 61;
+  optional string hugging_face_api_key = 62;
+  optional string huawei_cloud_maas_api_key = 63;
+  optional string baseten_api_key = 64;
+  optional string ollama_api_key = 65;
+  optional string zai_api_key = 66;
+  optional string zai_api_line = 67;
+  optional string lm_studio_max_tokens = 68;
+  optional string vercel_ai_gateway_api_key = 69;
+  optional string qwen_code_oauth_path = 70;
+  optional string dify_api_key = 71;
+  optional string dify_base_url = 72;
+  optional string oca_base_url = 73;
+  optional string oca_api_key = 74;
+  optional string oca_refresh_token = 75;
+  optional string oca_mode = 76;
+  optional bool aws_use_global_inference = 77;
+
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
   optional string plan_mode_api_model_id = 101;
-  optional int32 plan_mode_thinking_budget_tokens = 102;
+  optional int64 plan_mode_thinking_budget_tokens = 102;
   optional string plan_mode_reasoning_effort = 103;
   optional LanguageModelChatSelector plan_mode_vs_code_lm_model_selector = 104;
   optional bool plan_mode_aws_bedrock_custom_selected = 105;
@@ -442,17 +449,29 @@ message ApiConfiguration {
   optional string plan_mode_together_model_id = 117;
   optional string plan_mode_fireworks_model_id = 118;
   optional string plan_mode_sap_ai_core_model_id = 119;
-  optional string plan_mode_huawei_cloud_maas_model_id = 120;
-  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 121;
-  optional string plan_mode_vercel_ai_gateway_model_id = 122;
-  optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 123;
-  optional string plan_mode_oca_model_id = 124;
-  optional OcaModelInfo plan_mode_oca_model_info = 125;
-  
+  optional string plan_mode_sap_ai_core_deployment_id = 120;
+  optional string plan_mode_groq_model_id = 121;
+  optional OpenRouterModelInfo plan_mode_groq_model_info = 122;
+  optional string plan_mode_hugging_face_model_id = 123;
+  optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 124;
+  optional string plan_mode_huawei_cloud_maas_model_id = 125;
+  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 126;
+  optional string plan_mode_baseten_model_id = 127;
+  optional OpenRouterModelInfo plan_mode_baseten_model_info = 128;
+  optional string plan_mode_vercel_ai_gateway_model_id = 129;
+  optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 130;
+  optional string plan_mode_oca_model_id = 131;
+  optional OcaModelInfo plan_mode_oca_model_info = 132;
+
+  // Plan mode rate limit configs
+  optional int64 plan_mode_rate_limit_rpm = 133;
+  optional int64 plan_mode_rate_limit_tpm = 134;
+  optional double plan_mode_rate_limit_near_threshold = 135;
+
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
   optional string act_mode_api_model_id = 201;
-  optional int32 act_mode_thinking_budget_tokens = 202;
+  optional int64 act_mode_thinking_budget_tokens = 202;
   optional string act_mode_reasoning_effort = 203;
   optional LanguageModelChatSelector act_mode_vs_code_lm_model_selector = 204;
   optional bool act_mode_aws_bedrock_custom_selected = 205;
@@ -470,18 +489,26 @@ message ApiConfiguration {
   optional string act_mode_together_model_id = 217;
   optional string act_mode_fireworks_model_id = 218;
   optional string act_mode_sap_ai_core_model_id = 219;
-  optional string act_mode_huawei_cloud_maas_model_id = 220;
-  optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 221;
-  optional string act_mode_vercel_ai_gateway_model_id = 222;
-  optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 223;
-  optional string act_mode_oca_model_id = 224;
-  optional OcaModelInfo act_mode_oca_model_info = 225;
+  optional string act_mode_sap_ai_core_deployment_id = 220;
+  optional string act_mode_groq_model_id = 221;
+  optional OpenRouterModelInfo act_mode_groq_model_info = 222;
+  optional string act_mode_hugging_face_model_id = 223;
+  optional OpenRouterModelInfo act_mode_hugging_face_model_info = 224;
+  optional string act_mode_huawei_cloud_maas_model_id = 225;
+  optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 226;
+  optional string act_mode_baseten_model_id = 227;
+  optional OpenRouterModelInfo act_mode_baseten_model_info = 228;
+  optional string act_mode_vercel_ai_gateway_model_id = 229;
+  optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
+  optional string act_mode_oca_model_id = 231;
+  optional OcaModelInfo act_mode_oca_model_info = 232;
 
-  // Extension fields for Bedrock Api Keys
-  optional string aws_authentication = 301;
-  optional string aws_bedrock_api_key = 302;
+  // Act mode rate limit configs
+  optional int64 act_mode_rate_limit_rpm = 233;
+  optional int64 act_mode_rate_limit_tpm = 234;
+  optional double act_mode_rate_limit_near_threshold = 235;
 
-  optional string cline_account_id = 303;
+  repeated string favorited_model_ids = 300;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

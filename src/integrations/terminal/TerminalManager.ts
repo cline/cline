@@ -70,25 +70,6 @@ for terminal command execution.
 Interestingly, some environments like Cursor enable these APIs even without the latest VSCode engine.
 This approach allows us to leverage advanced features when available while ensuring broad compatibility.
 */
-declare module "vscode" {
-	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L7442
-	interface Terminal {
-		shellIntegration?: {
-			cwd?: vscode.Uri
-			executeCommand?: (command: string) => {
-				read: () => AsyncIterable<string>
-			}
-		}
-	}
-	// https://github.com/microsoft/vscode/blob/f0417069c62e20f3667506f4b7e53ca0004b4e3e/src/vscode-dts/vscode.d.ts#L10794
-	interface Window {
-		onDidStartTerminalShellExecution?: (
-			listener: (e: any) => any,
-			thisArgs?: any,
-			disposables?: vscode.Disposable[],
-		) => vscode.Disposable
-	}
-}
 
 export class TerminalManager {
 	private terminalIds: Set<number> = new Set()
@@ -102,7 +83,7 @@ export class TerminalManager {
 	constructor() {
 		let disposable: vscode.Disposable | undefined
 		try {
-			disposable = (vscode.window as vscode.Window).onDidStartTerminalShellExecution?.(async (e) => {
+			disposable = (vscode.window as any).onDidStartTerminalShellExecution?.(async (e: any) => {
 				// Creating a read stream here results in a more consistent output. This is most obvious when running the `date` command.
 				e?.execution?.read()
 			})
@@ -334,7 +315,9 @@ export class TerminalManager {
 		// }
 		this.terminalIds.clear()
 		this.processes.clear()
-		this.disposables.forEach((disposable) => disposable.dispose())
+		this.disposables.forEach((disposable) => {
+			disposable.dispose()
+		})
 		this.disposables = []
 	}
 

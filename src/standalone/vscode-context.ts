@@ -41,6 +41,7 @@ export function initializeContext(clineDir?: string) {
 	const extensionContext: ExtensionContext = {
 		extension: extension,
 		extensionMode: EXTENSION_MODE,
+		languageModelAccessInformation: {} as any,
 
 		// Set up KV stores.
 		globalState: new MementoStore(path.join(DATA_DIR, "globalState.json")),

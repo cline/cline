@@ -574,7 +574,9 @@ export class ClineApiServerMock {
 		const server = ClineApiServerMock.globalSharedServer.server
 
 		// Clean shutdown - destroy all socket connections first
-		ClineApiServerMock.globalSockets.forEach((socket) => socket.destroy())
+		ClineApiServerMock.globalSockets.forEach((socket) => {
+			socket.destroy()
+		})
 		ClineApiServerMock.globalSockets.clear()
 
 		await new Promise<void>((resolve, reject) => {

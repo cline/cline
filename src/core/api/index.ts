@@ -136,6 +136,11 @@ function createHandlerForProvider(
 				openAiModelId: mode === "plan" ? options.planModeOpenAiModelId : options.actModeOpenAiModelId,
 				openAiModelInfo: mode === "plan" ? options.planModeOpenAiModelInfo : options.actModeOpenAiModelInfo,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				// Mode-effective rate limits
+				rateLimitRpm: mode === "plan" ? options.planModeRateLimitRpm : options.actModeRateLimitRpm,
+				rateLimitTpm: mode === "plan" ? options.planModeRateLimitTpm : options.actModeRateLimitTpm,
+				rateLimitNearThreshold:
+					mode === "plan" ? options.planModeRateLimitNearThreshold : options.actModeRateLimitNearThreshold,
 			})
 		case "ollama":
 			return new OllamaHandler({

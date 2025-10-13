@@ -373,7 +373,7 @@ message ModelsApiConfiguration {
   optional string plan_mode_hugging_face_model_id = 123;
   optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 124;
   optional string plan_mode_huawei_cloud_maas_model_id = 125;
-  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 126; 
+  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 126;
   optional string plan_mode_baseten_model_id = 127;
   optional OpenRouterModelInfo plan_mode_baseten_model_info = 128;
   optional string plan_mode_vercel_ai_gateway_model_id = 129;
@@ -381,6 +381,10 @@ message ModelsApiConfiguration {
   optional string plan_mode_oca_model_id = 131;
   optional OcaModelInfo plan_mode_oca_model_info = 132;
 
+  // Plan mode rate limit configs
+  optional int64 plan_mode_rate_limit_rpm = 133;
+  optional int64 plan_mode_rate_limit_tpm = 134;
+  optional double plan_mode_rate_limit_near_threshold = 135;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -416,4 +420,11 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
   optional string act_mode_oca_model_id = 231;
   optional OcaModelInfo act_mode_oca_model_info = 232;
+
+  // Act mode rate limit configs
+  optional int64 act_mode_rate_limit_rpm = 233;
+  optional int64 act_mode_rate_limit_tpm = 234;
+  optional double act_mode_rate_limit_near_threshold = 235;
+
+  repeated string favorited_model_ids = 300;
 }
