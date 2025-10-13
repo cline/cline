@@ -1,6 +1,6 @@
-import { RemoteConfig } from "../../../shared/remote-config/schema"
+import { RemoteConfig } from "@shared/remote-config/schema"
+import { GlobalStateAndSettings } from "@shared/storage/state-keys"
 import { StateManager } from "../StateManager"
-import { GlobalStateAndSettings } from "../state-keys"
 
 /**
  * Transforms RemoteConfig schema to GlobalStateAndSettings shape

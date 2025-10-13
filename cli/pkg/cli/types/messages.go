@@ -69,6 +69,7 @@ const (
 	SayTypeUserFeedback            SayType = "user_feedback"
 	SayTypeUserFeedbackDiff        SayType = "user_feedback_diff"
 	SayTypeAPIReqRetried           SayType = "api_req_retried"
+	SayTypeErrorRetry              SayType = "error_retry"
 	SayTypeCommand                 SayType = "command"
 	SayTypeCommandOutput           SayType = "command_output"
 	SayTypeTool                    SayType = "tool"
@@ -286,6 +287,8 @@ func convertProtoSayType(sayType cline.ClineSay) string {
 		return string(SayTypeUserFeedbackDiff)
 	case cline.ClineSay_API_REQ_RETRIED:
 		return string(SayTypeAPIReqRetried)
+	case cline.ClineSay_ERROR_RETRY:
+		return string(SayTypeErrorRetry)
 	case cline.ClineSay_COMMAND_SAY:
 		return string(SayTypeCommand)
 	case cline.ClineSay_COMMAND_OUTPUT_SAY:

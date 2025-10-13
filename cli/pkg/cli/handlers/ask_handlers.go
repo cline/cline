@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cline/cli/pkg/cli/clerror"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
@@ -175,26 +176,77 @@ func (h *AskHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 
 // handleAPIReqFailed handles API request failures
 func (h *AskHandler) handleAPIReqFailed(msg *types.ClineMessage, dc *DisplayContext) error {
+	// Try to parse as ClineError for better error display
+	clineErr, _ := clerror.ParseClineError(msg.Text)
+	if clineErr != nil {
+		if dc.SystemRenderer != nil {
+			// Render the error with system renderer
+			switch clineErr.GetErrorType() {
+			case clerror.ErrorTypeBalance:
+				dc.SystemRenderer.RenderBalanceError(clineErr)
+			case clerror.ErrorTypeAuth:
+				dc.SystemRenderer.RenderAuthError(clineErr)
+			case clerror.ErrorTypeRateLimit:
+				dc.SystemRenderer.RenderRateLimitError(clineErr)
+			default:
+				dc.SystemRenderer.RenderAPIError(clineErr)
+			}
+			return nil
+		}
+		// Fallback: render with basic renderer using parsed message
+		return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("API Request Failed: %s. Approve to retry request.", clineErr.Message), true)
+	}
+	// Last resort: display raw text if parsing completely failed
 	return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("API Request Failed: %s. Approve to retry request.", msg.Text), true)
 }
 
 // handleResumeTask handles resume task requests
 func (h *AskHandler) handleResumeTask(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("GEN INFO", "Resuming interrupted task.", true)
+	// Don't render - this is metadata only, user already knows they're resuming
+	return nil
 }
 
 // handleResumeCompletedTask handles resume completed task requests
 func (h *AskHandler) handleResumeCompletedTask(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("GEN INFO", "Resuming completed task.", true)
+	// Don't render - this is metadata only, user already knows they're resuming
+	return nil
 }
 
 // handleMistakeLimitReached handles mistake limit reached
 func (h *AskHandler) handleMistakeLimitReached(msg *types.ClineMessage, dc *DisplayContext) error {
+	if dc.SystemRenderer != nil {
+		details := make(map[string]string)
+		if msg.Text != "" {
+			details["details"] = msg.Text
+		}
+		dc.SystemRenderer.RenderError(
+			"critical",
+			"Mistake Limit Reached",
+			"Cline has made too many consecutive mistakes and needs your guidance to proceed.",
+			details,
+		)
+		fmt.Printf("\n**Approval required to continue.**\n")
+		return nil
+	}
 	return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("Mistake Limit Reached: %s. Approval required.", msg.Text), true)
 }
 
 // handleAutoApprovalMaxReached handles auto-approval max reached
 func (h *AskHandler) handleAutoApprovalMaxReached(msg *types.ClineMessage, dc *DisplayContext) error {
+	if dc.SystemRenderer != nil {
+		details := make(map[string]string)
+		if msg.Text != "" {
+			details["reason"] = msg.Text
+		}
+		dc.SystemRenderer.RenderError(
+			"warning",
+			"Auto-Approval Limit Reached",
+			"The maximum number of auto-approved requests has been reached. Manual approval is now required.",
+			details,
+		)
+		fmt.Printf("\n**Approval required to continue.**\n")
+		return nil
+	}
 	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Auto-approval limit reached: %s. Approval required.", msg.Text), true)
 }
 

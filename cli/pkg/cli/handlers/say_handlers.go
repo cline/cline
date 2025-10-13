@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cline/cli/pkg/cli/clerror"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
@@ -50,6 +51,8 @@ func (h *SayHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 		return h.handleUserFeedbackDiff(msg, dc)
 	case string(types.SayTypeAPIReqRetried):
 		return h.handleAPIReqRetried(msg, dc)
+	case string(types.SayTypeErrorRetry):
+		return h.handleErrorRetry(msg, dc)
 	case string(types.SayTypeCommand):
 		return h.handleCommand(msg, dc)
 	case string(types.SayTypeCommandOutput):
@@ -109,6 +112,14 @@ func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayCon
 		return dc.Renderer.RenderMessage("API INFO", msg.Text, true)
 	}
 
+	// Check for streaming failed message with error details
+	if apiInfo.StreamingFailedMessage != "" {
+		clineErr, _ := clerror.ParseClineError(apiInfo.StreamingFailedMessage)
+		if clineErr != nil {
+			return h.renderClineError(clineErr, dc)
+		}
+	}
+
 	// Handle different API request states
 	if apiInfo.CancelReason != "" {
 		if apiInfo.CancelReason == "user_cancelled" {
@@ -132,6 +143,24 @@ func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayCon
 	}
 
 	return dc.Renderer.RenderAPI("processing request", &apiInfo)
+}
+
+// renderClineError renders a ClineError with appropriate formatting based on type
+func (h *SayHandler) renderClineError(err *clerror.ClineError, dc *DisplayContext) error {
+	if dc.SystemRenderer == nil {
+		return dc.Renderer.RenderMessage("ERROR", err.Message, true)
+	}
+
+	switch err.GetErrorType() {
+	case clerror.ErrorTypeBalance:
+		return dc.SystemRenderer.RenderBalanceError(err)
+	case clerror.ErrorTypeAuth:
+		return dc.SystemRenderer.RenderAuthError(err)
+	case clerror.ErrorTypeRateLimit:
+		return dc.SystemRenderer.RenderRateLimitError(err)
+	default:
+		return dc.SystemRenderer.RenderAPIError(err)
+	}
 }
 
 // handleAPIReqFinished handles API request finished messages
@@ -254,6 +283,37 @@ func (h *SayHandler) handleUserFeedbackDiff(msg *types.ClineMessage, dc *Display
 // handleAPIReqRetried handles API request retry messages
 func (h *SayHandler) handleAPIReqRetried(msg *types.ClineMessage, dc *DisplayContext) error {
 	return dc.Renderer.RenderMessage("API INFO", "Retrying request", true)
+}
+
+// handleErrorRetry handles error retry status messages
+func (h *SayHandler) handleErrorRetry(msg *types.ClineMessage, dc *DisplayContext) error {
+	// Parse retry info from message text
+	type ErrorRetryInfo struct {
+		Attempt      int  `json:"attempt"`
+		MaxAttempts  int  `json:"maxAttempts"`
+		DelaySeconds int  `json:"delaySeconds"`
+		Failed       bool `json:"failed"`
+	}
+
+	var retryInfo ErrorRetryInfo
+	if err := json.Unmarshal([]byte(msg.Text), &retryInfo); err != nil {
+		// Fallback to simple message if parsing fails
+		return dc.Renderer.RenderMessage("API INFO", "Auto-retry in progress", true)
+	}
+
+	if retryInfo.Failed {
+		// Retry failed after max attempts
+		message := fmt.Sprintf("Auto-retry failed after %d attempts. Manual intervention required.", retryInfo.MaxAttempts)
+		if dc.SystemRenderer != nil {
+			return dc.SystemRenderer.RenderWarning("Auto-Retry Failed", message)
+		}
+		return dc.Renderer.RenderMessage("WARNING", message, true)
+	}
+
+	// Retry in progress
+	message := fmt.Sprintf("Attempt %d/%d - Retrying in %d seconds...",
+		retryInfo.Attempt, retryInfo.MaxAttempts, retryInfo.DelaySeconds)
+	return dc.Renderer.RenderMessage("API INFO", message, true)
 }
 
 // handleCommand handles command execution announcements
@@ -392,27 +452,49 @@ func (h *SayHandler) handleUseMcpServer(msg *types.ClineMessage, dc *DisplayCont
 
 // handleDiffError handles diff error messages
 func (h *SayHandler) handleDiffError(msg *types.ClineMessage, dc *DisplayContext) error {
+	if dc.SystemRenderer != nil {
+		return dc.SystemRenderer.RenderWarning(
+			"Diff Edit Failure",
+			"The model used search patterns that don't match anything in the file. Retrying...",
+		)
+	}
 	return dc.Renderer.RenderMessage("WARNING", "Diff Edit Failure - The model used an invalid diff edit format or used search patterns that don't match anything in the file.", true)
 }
 
 // handleDeletedAPIReqs handles deleted API requests messages
 func (h *SayHandler) handleDeletedAPIReqs(msg *types.ClineMessage, dc *DisplayContext) error {
-	// This message includes api metrics of deleted messages, which we do not log
-	return dc.Renderer.RenderMessage("GEN INFO", "Checkpoint restored", true)
+	// Don't render - this is internal metadata (aggregated API metrics from deleted checkpoint messages)
+	return nil
 }
 
 // handleClineignoreError handles .clineignore error messages
 func (h *SayHandler) handleClineignoreError(msg *types.ClineMessage, dc *DisplayContext) error {
+	if dc.SystemRenderer != nil {
+		return dc.SystemRenderer.RenderInfo(
+			"Access Denied",
+			fmt.Sprintf("Cline tried to access `%s` which is blocked by the .clineignore file.", msg.Text),
+		)
+	}
 	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Access Denied - Cline tried to access %s which is blocked by the .clineignore file", msg.Text), true)
 }
 
 func (h *SayHandler) handleCheckpointCreated(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderCheckpointMessage(timestamp, "GEN INFO", msg.Timestamp)
+	if dc.SystemRenderer != nil {
+		return dc.SystemRenderer.RenderCheckpoint(timestamp, msg.Timestamp)
+	}
+	// Fallback to basic renderer if SystemRenderer not available
+	markdown := fmt.Sprintf("## [%s] Checkpoint created `%d`", timestamp, msg.Timestamp)
+	rendered := dc.Renderer.RenderMarkdown(markdown)
+	fmt.Printf(rendered)
+	return nil
 }
 
 // handleLoadMcpDocumentation handles load MCP documentation messages
 func (h *SayHandler) handleLoadMcpDocumentation(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("GEN INFO", "Loading MCP documentation", true)
+	if dc.SystemRenderer != nil {
+		return dc.SystemRenderer.RenderInfo("MCP", "Loading MCP documentation")
+	}
+	return dc.Renderer.RenderMessage("INFO", "Loading MCP documentation", true)
 }
 
 // handleInfo handles info messages

@@ -1,4 +1,16 @@
 import { ApiConfiguration } from "@shared/api"
+import {
+	GlobalState,
+	GlobalStateAndSettings,
+	GlobalStateAndSettingsKey,
+	GlobalStateKey,
+	LocalState,
+	LocalStateKey,
+	SecretKey,
+	Secrets,
+	Settings,
+	SettingsKey,
+} from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
@@ -11,18 +23,6 @@ import {
 	writeTaskSettingsToStorage,
 } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
-import {
-	GlobalState,
-	GlobalStateAndSettings,
-	GlobalStateAndSettingsKey,
-	GlobalStateKey,
-	LocalState,
-	LocalStateKey,
-	SecretKey,
-	Secrets,
-	Settings,
-	SettingsKey,
-} from "./state-keys"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 export interface PersistenceErrorEvent {
 	error: Error
@@ -321,6 +321,18 @@ export class StateManager {
 
 		// Update cache immediately for instant access (no persistence needed)
 		this.remoteConfigCache[key] = value
+	}
+
+	/**
+	 * Set method for remote config field - updates cache immediately (no persistence)
+	 * Remote config is read-only from the extension's perspective and only stored in memory
+	 */
+	getRemoteConfigSettings(): Partial<GlobalStateAndSettings> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		return this.remoteConfigCache
 	}
 
 	/**
@@ -726,6 +738,9 @@ export class StateManager {
 	getGlobalStateKey<K extends keyof GlobalState>(key: K): GlobalState[K] {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		if (this.remoteConfigCache[key] !== undefined) {
+			return this.remoteConfigCache[key]
 		}
 		return this.globalStateCache[key]
 	}

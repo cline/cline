@@ -213,6 +213,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
+		remoteConfigSettings: {},
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
