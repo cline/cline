@@ -2,6 +2,7 @@ package clerror
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -21,10 +22,27 @@ type ClineError struct {
 	Message    string                 `json:"message"`
 	Status     int                    `json:"status"`
 	RequestID  string                 `json:"request_id"`
-	Code       string                 `json:"code"`
+	Code       interface{}            `json:"code"` // Can be string or int
 	ModelID    string                 `json:"modelId"`
 	ProviderID string                 `json:"providerId"`
 	Details    map[string]interface{} `json:"details"`
+}
+
+// GetCodeString returns the code as a string regardless of its type
+func (e *ClineError) GetCodeString() string {
+	if e == nil || e.Code == nil {
+		return ""
+	}
+	switch v := e.Code.(type) {
+	case string:
+		return v
+	case float64:
+		return fmt.Sprintf("%.0f", v)
+	case int:
+		return fmt.Sprintf("%d", v)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 // Rate limit patterns from webview
@@ -60,12 +78,13 @@ func (e *ClineError) GetErrorType() ClineErrorType {
 	}
 
 	// Check balance error first (most specific)
-	if e.Code == "insufficient_credits" {
+	codeStr := e.GetCodeString()
+	if codeStr == "insufficient_credits" {
 		return ErrorTypeBalance
 	}
 
 	// Check auth errors
-	if e.Code == "ERR_BAD_REQUEST" || e.Status == 401 {
+	if codeStr == "ERR_BAD_REQUEST" || e.Status == 401 {
 		return ErrorTypeAuth
 	}
 

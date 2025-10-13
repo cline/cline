@@ -51,6 +51,8 @@ func (h *SayHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 		return h.handleUserFeedbackDiff(msg, dc)
 	case string(types.SayTypeAPIReqRetried):
 		return h.handleAPIReqRetried(msg, dc)
+	case string(types.SayTypeErrorRetry):
+		return h.handleErrorRetry(msg, dc)
 	case string(types.SayTypeCommand):
 		return h.handleCommand(msg, dc)
 	case string(types.SayTypeCommandOutput):
@@ -111,7 +113,7 @@ func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayCon
 	}
 
 	// Check for streaming failed message with error details
-	if apiInfo.StreamingFailedMessage != "" && dc.SystemRenderer != nil {
+	if apiInfo.StreamingFailedMessage != "" {
 		clineErr, _ := clerror.ParseClineError(apiInfo.StreamingFailedMessage)
 		if clineErr != nil {
 			return h.renderClineError(clineErr, dc)
@@ -283,6 +285,37 @@ func (h *SayHandler) handleAPIReqRetried(msg *types.ClineMessage, dc *DisplayCon
 	return dc.Renderer.RenderMessage("API INFO", "Retrying request", true)
 }
 
+// handleErrorRetry handles error retry status messages
+func (h *SayHandler) handleErrorRetry(msg *types.ClineMessage, dc *DisplayContext) error {
+	// Parse retry info from message text
+	type ErrorRetryInfo struct {
+		Attempt      int  `json:"attempt"`
+		MaxAttempts  int  `json:"maxAttempts"`
+		DelaySeconds int  `json:"delaySeconds"`
+		Failed       bool `json:"failed"`
+	}
+
+	var retryInfo ErrorRetryInfo
+	if err := json.Unmarshal([]byte(msg.Text), &retryInfo); err != nil {
+		// Fallback to simple message if parsing fails
+		return dc.Renderer.RenderMessage("API INFO", "Auto-retry in progress", true)
+	}
+
+	if retryInfo.Failed {
+		// Retry failed after max attempts
+		message := fmt.Sprintf("Auto-retry failed after %d attempts. Manual intervention required.", retryInfo.MaxAttempts)
+		if dc.SystemRenderer != nil {
+			return dc.SystemRenderer.RenderWarning("Auto-Retry Failed", message)
+		}
+		return dc.Renderer.RenderMessage("WARNING", message, true)
+	}
+
+	// Retry in progress
+	message := fmt.Sprintf("Attempt %d/%d - Retrying in %d seconds...",
+		retryInfo.Attempt, retryInfo.MaxAttempts, retryInfo.DelaySeconds)
+	return dc.Renderer.RenderMessage("API INFO", message, true)
+}
+
 // handleCommand handles command execution announcements
 func (h *SayHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) error {
 	if msg.Text == "" {
@@ -430,8 +463,8 @@ func (h *SayHandler) handleDiffError(msg *types.ClineMessage, dc *DisplayContext
 
 // handleDeletedAPIReqs handles deleted API requests messages
 func (h *SayHandler) handleDeletedAPIReqs(msg *types.ClineMessage, dc *DisplayContext) error {
-	// This message includes api metrics of deleted messages, which we do not log
-	return dc.Renderer.RenderMessage("GEN INFO", "Checkpoint restored", true)
+	// Don't render - this is internal metadata (aggregated API metrics from deleted checkpoint messages)
+	return nil
 }
 
 // handleClineignoreError handles .clineignore error messages
@@ -446,12 +479,22 @@ func (h *SayHandler) handleClineignoreError(msg *types.ClineMessage, dc *Display
 }
 
 func (h *SayHandler) handleCheckpointCreated(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderCheckpointMessage(timestamp, "GEN INFO", msg.Timestamp)
+	if dc.SystemRenderer != nil {
+		return dc.SystemRenderer.RenderCheckpoint(timestamp, msg.Timestamp)
+	}
+	// Fallback to basic renderer if SystemRenderer not available
+	markdown := fmt.Sprintf("## [%s] Checkpoint created `%d`", timestamp, msg.Timestamp)
+	rendered := dc.Renderer.RenderMarkdown(markdown)
+	fmt.Printf(rendered)
+	return nil
 }
 
 // handleLoadMcpDocumentation handles load MCP documentation messages
 func (h *SayHandler) handleLoadMcpDocumentation(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("GEN INFO", "Loading MCP documentation", true)
+	if dc.SystemRenderer != nil {
+		return dc.SystemRenderer.RenderInfo("MCP", "Loading MCP documentation")
+	}
+	return dc.Renderer.RenderMessage("INFO", "Loading MCP documentation", true)
 }
 
 // handleInfo handles info messages
