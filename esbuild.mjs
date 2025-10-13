@@ -168,8 +168,12 @@ const baseConfig = {
 // Extension-specific configuration
 const extensionConfig = {
 	...baseConfig,
-	entryPoints: ["src/extension.ts"],
-	outfile: `${destDir}/extension.js`,
+	entryPoints: {
+		extension: "src/extension.ts",
+		"lmstudio-keepalive-proxy": "src/core/api/providers/lmstudio-keepalive-proxy-process.ts",
+	},
+	outdir: destDir,
+	entryNames: "[name]",
 	external: ["vscode"],
 }
 

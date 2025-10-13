@@ -106,6 +106,12 @@ For optimal performance with local models, enable compact prompts in Cline setti
 
 Navigate to Cline Settings → Features → Use Compact Prompt and toggle it on.
 
+### Cloudflare Keep-Alive (optional)
+
+If your LM Studio endpoint is routed through Cloudflare and you see messages like “Client disconnected. Stopping generation…” after about 100 seconds of silence, enable **Keep connection alive behind Cloudflare (inject SSE heartbeat)** in Cline’s LM Studio provider settings. Cline spins up a lightweight local proxy that sits in front of LM Studio and injects invisible SSE heartbeat frames so Cloudflare keeps the stream open. The proxy shuts down automatically when Cline exits and never alters model outputs.
+
+The proxy tries to bind to port `1234` (the default LM Studio port). If that port is already taken, Cline automatically selects the next available local port and shows an info message with the chosen value. Point your Cloudflare tunnel (or any reverse proxy) at the reported proxy port so the heartbeat injector remains in the request path. If you prefer to keep Cloudflare targeting `1234`, simply run LM Studio on a different local port before enabling the keep-alive option.
+
 ### Important Notes
 
 -   Start LM Studio before using with Cline

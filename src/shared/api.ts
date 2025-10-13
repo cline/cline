@@ -102,6 +102,7 @@ export interface ApiHandlerOptions {
 	lmStudioBaseUrl?: string
 	lmStudioModelId?: string
 	lmStudioMaxTokens?: string
+	lmStudioKeepAliveEnabled?: boolean
 	geminiBaseUrl?: string
 	requestyBaseUrl?: string
 	fireworksModelMaxCompletionTokens?: number

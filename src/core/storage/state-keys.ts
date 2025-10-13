@@ -61,6 +61,7 @@ export interface Settings {
 	ollamaApiOptionsCtxNum: string | undefined
 	lmStudioBaseUrl: string | undefined
 	lmStudioMaxTokens: string | undefined
+	lmStudioKeepAliveEnabled: boolean | undefined
 	anthropicBaseUrl: string | undefined
 	geminiBaseUrl: string | undefined
 	azureApiVersion: string | undefined
