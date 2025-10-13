@@ -377,6 +377,18 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	nodePath := path.Join(binDir, "node")
 	clineCorePath := path.Join(installDir, "cline-core.js")
 
+	if Config.Verbose {
+		fmt.Printf("Executable path: %s\n", execPath)
+		fmt.Printf("Bin directory: %s\n", binDir)
+		fmt.Printf("Install directory: %s\n", installDir)
+		fmt.Printf("Looking for cline-core.js at: %s\n", clineCorePath)
+	}
+
+	// Check if cline-core.js exists
+	if _, err := os.Stat(clineCorePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("cline-core.js not found at '%s'", clineCorePath)
+	}
+
 	// Create logs directory in ~/.cline/logs
 	logsDir := path.Join(Config.ConfigPath, "logs")
 	if err := os.MkdirAll(logsDir, 0755); err != nil {
