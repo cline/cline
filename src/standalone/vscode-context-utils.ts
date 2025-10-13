@@ -28,6 +28,41 @@ export class SecretStore implements vscode.SecretStorage {
 	}
 }
 
+// A SecretStorage implementation that delegates to an injected storage
+// (e.g., the cline secretStorage singleton backed by OS keychain).
+export class DelegatingSecretStore implements vscode.SecretStorage {
+	private readonly _onDidChange = new EventEmitter<vscode.SecretStorageChangeEvent>()
+
+	constructor(
+		private readonly delegate: {
+			get(key: string): Promise<string | undefined>
+			store(key: string, value: string): Promise<void>
+			delete(key: string): Promise<void>
+			onDidChange?: (listener: (e: { key: string }) => any) => { dispose(): void } | (() => void)
+		},
+	) {
+		if (this.delegate.onDidChange) {
+			const sub = this.delegate.onDidChange(({ key }) => this._onDidChange.fire({ key }))
+			// No instance-level storage required; delegate owns lifecycle.
+			void (typeof sub === "function" ? { dispose: sub } : sub)
+		}
+	}
+
+	readonly onDidChange: vscode.Event<vscode.SecretStorageChangeEvent> = this._onDidChange.event
+
+	get(key: string): Thenable<string | undefined> {
+		return this.delegate.get(key)
+	}
+
+	store(key: string, value: string): Thenable<void> {
+		return this.delegate.store(key, value)
+	}
+
+	delete(key: string): Thenable<void> {
+		return this.delegate.delete(key)
+	}
+}
+
 // Create a class that implements Memento interface with the required setKeysForSync method
 export class MementoStore implements vscode.Memento {
 	private data: JsonKeyValueStore<any>

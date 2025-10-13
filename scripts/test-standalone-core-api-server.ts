@@ -79,7 +79,8 @@ async function main(): Promise<void> {
 	}
 
 	const extensionsDir = path.join(distDir, "vsce-extension")
-	const userDataDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
+	// Respect incoming CLINE_DIR from parent (e.g., E2E tests that seed legacy secrets)
+	const userDataDir = process.env.CLINE_DIR ? process.env.CLINE_DIR : mkdtempSync(path.join(os.tmpdir(), "vsce"))
 	const clineTestWorkspace = mkdtempSync(path.join(os.tmpdir(), "cline-test-workspace-"))
 
 	console.log("Starting HostBridge test server...")
@@ -134,16 +135,22 @@ async function main(): Promise<void> {
 			CLINE_DIR: userDataDir,
 			INSTALL_DIR: extensionsDir,
 		},
-		stdio: "inherit",
+		stdio: "pipe",
 	})
 	childProcesses.push(coreService)
+
+	// Proxy core service output so callers that pipe this script can observe logs
+	coreService.stdout?.on("data", (chunk) => process.stdout.write(chunk))
+	coreService.stderr?.on("data", (chunk) => process.stderr.write(chunk))
 
 	const shutdown = async () => {
 		console.log("\nShutting down services...")
 
 		while (childProcesses.length > 0) {
 			const child = childProcesses.pop()
-			if (child && !child.killed) child.kill("SIGINT")
+			if (child && !child.killed) {
+				child.kill("SIGINT")
+			}
 		}
 
 		await ClineApiServerMock.stopGlobalServer()

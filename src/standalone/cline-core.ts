@@ -1,18 +1,20 @@
 import { ExternalDiffViewProvider } from "@hosts/external/ExternalDiffviewProvider"
 import { ExternalWebviewProvider } from "@hosts/external/ExternalWebviewProvider"
 import { ExternalHostBridgeClientManager } from "@hosts/external/host-bridge-client-manager"
-import { retryOperation } from "@utils/retry"
 import * as path from "path"
 import { initialize, tearDown } from "@/common"
 import { SqliteLockManager } from "@/core/locks/SqliteLockManager"
+import { secretStorage } from "@/core/storage/secrets"
 import { WebviewProvider } from "@/core/webview"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
+import { AuthService } from "@/services/auth/AuthService"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { HOSTBRIDGE_PORT, waitForHostBridgeReady } from "./hostbridge-client"
 import { PROTOBUS_PORT, startProtobusService } from "./protobus-service"
 import { log } from "./utils"
-import { initializeContext } from "./vscode-context"
+import { getStandaloneDepsWarning, initializeContext, runLegacySecretsMigrationIfNeeded } from "./vscode-context"
 
 let globalLockManager: SqliteLockManager | undefined
 
@@ -55,6 +57,9 @@ async function main() {
 		// The host bridge should be available before creating the host provider because it depends on the host bridge.
 		setupHostProvider(extensionContext, EXTENSION_DIR, DATA_DIR)
 
+		// Ensure legacy secrets are migrated to OS keychain before any reads during initialization
+		await runLegacySecretsMigrationIfNeeded()
+
 		const webviewProvider = await initialize(extensionContext)
 
 		// Enable the localhost HTTP server that handles auth redirects.
@@ -62,6 +67,16 @@ async function main() {
 
 		// Now this will throw instead of exit if binding fails
 		const protobusAddress = await startProtobusService(webviewProvider.controller)
+
+		// Non-blocking info when OS keychain deps are missing (Linux/Windows)
+		const depsWarning = getStandaloneDepsWarning()
+		if (depsWarning) {
+			void HostProvider.window.showMessage({ type: ShowMessageType.INFORMATION, message: depsWarning })
+		}
+
+		// Mirror VS Code behavior: react to clineAccountId secret changes (login/logout)
+		const authService = AuthService.getInstance(webviewProvider.controller)
+		authService.startSecretSync(secretStorage)
 
 		// Initialize SQLite lock manager for instance registration
 		const dbPath = `${DATA_DIR}/locks.db`
@@ -162,10 +177,9 @@ function setupGlobalErrorHandlers() {
  */
 async function requestHostBridgeShutdown(): Promise<void> {
 	try {
-		await retryOperation(3, 2000, async () => {
-			await HostProvider.env.shutdown({})
-		})
-		log("Host bridge shutdown requested successfully")
+		// Shutdown RPC is not exposed in the current EnvService client for TS runtime.
+		// Best-effort: log and skip since the host bridge lifecycle is managed externally.
+		log("Host bridge shutdown RPC not available in TS client; skipping request")
 	} catch (error) {
 		log(`Warning: Failed to request host bridge shutdown: ${error}`)
 		log("Proceeding with cleanup")
@@ -188,6 +202,11 @@ async function shutdownGracefully(lockManager?: SqliteLockManager) {
 		} else {
 			log("Warning: HostProvider not initialized, cannot request shutdown")
 		}
+
+		// Stop secret sync listener
+		try {
+			AuthService.getInstance().stopSecretSync()
+		} catch {}
 
 		// Step 2: Clean up lock manager entry
 		log("Cleaning up lock manager entry...")

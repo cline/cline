@@ -101,6 +101,7 @@ describe("Retry Decorator", () => {
 				result.push(value)
 			}
 
+			// main branch: rely on setTimeoutSpy assertions instead of duration checks
 			callCount.should.equal(2)
 			setTimeoutSpy.calledOnce.should.be.true
 			const [_, delay] = setTimeoutSpy.getCall(0).args
@@ -136,6 +137,7 @@ describe("Retry Decorator", () => {
 				result.push(value)
 			}
 
+			// main branch: rely on setTimeoutSpy assertions instead of duration checks
 			callCount.should.equal(2)
 
 			setTimeoutSpy.calledOnce.should.be.true
@@ -169,6 +171,7 @@ describe("Retry Decorator", () => {
 				result.push(value)
 			}
 
+			// main branch: rely on setTimeoutSpy assertions instead of duration checks
 			callCount.should.equal(2)
 			setTimeoutSpy.calledOnce.should.be.true
 			const [_, delay] = setTimeoutSpy.getCall(0).args
@@ -202,6 +205,7 @@ describe("Retry Decorator", () => {
 				result.push(value)
 			}
 
+			// main branch: rely on setTimeoutSpy assertions instead of duration checks
 			callCount.should.equal(3)
 			setTimeoutSpy.calledOnce.should.be.true
 			const [_, delay] = setTimeoutSpy.getCall(0).args
