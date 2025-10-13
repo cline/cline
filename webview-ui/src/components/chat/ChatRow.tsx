@@ -140,6 +140,7 @@ const CommandOutput = memo(
 					paddingBottom: lineCount > 5 ? "16px" : "0",
 					overflow: "visible",
 					borderTop: "1px solid rgba(255,255,255,.07)",
+					backgroundColor: "#151515",
 				}}>
 				<div
 					ref={outputRef}
@@ -148,8 +149,11 @@ const CommandOutput = memo(
 						maxHeight: shouldAutoShow ? "none" : isOutputFullyExpanded ? "200px" : "75px",
 						overflowY: shouldAutoShow ? "visible" : "auto",
 						scrollBehavior: "smooth",
+						backgroundColor: "#151515",
 					}}>
-					<CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
+					<div style={{ backgroundColor: "#151515" }}>
+						<CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
+					</div>
 				</div>
 				{/* Show notch only if there's more than 5 lines */}
 				{lineCount > 5 && (
@@ -924,7 +928,7 @@ export const ChatRowContent = memo(
 							borderRadius: 6,
 							border: "1px solid var(--vscode-editorGroup-border)",
 							overflow: "visible",
-							backgroundColor: CODE_BLOCK_BG_COLOR,
+							backgroundColor: isExpanded ? "#151515" : "#2d2d30",
 							transition: "all 0.3s ease-in-out",
 						}}>
 						{(isCommandExecuting || isCommandCompleted) && (
@@ -935,7 +939,7 @@ export const ChatRowContent = memo(
 									alignItems: "center",
 									justifyContent: "space-between",
 									padding: "8px 10px",
-									backgroundColor: "#151515",
+									backgroundColor: isExpanded ? "#151515" : "#2d2d30",
 									borderBottom: isExpanded ? "1px solid var(--vscode-editorGroup-border)" : "none",
 									borderTopLeftRadius: "6px",
 									borderTopRightRadius: "6px",
@@ -1027,8 +1031,10 @@ export const ChatRowContent = memo(
 							</div>
 						)}
 						{isExpanded && (
-							<div style={{ opacity: 0.6 }}>
-								<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
+							<div style={{ opacity: 0.6, backgroundColor: "#151515" }}>
+								<div style={{ backgroundColor: "#151515" }}>
+									<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
+								</div>
 							</div>
 						)}
 						{output.length > 0 && (
