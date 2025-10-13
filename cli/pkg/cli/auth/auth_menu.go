@@ -56,6 +56,12 @@ func HandleAuthCommand(ctx context.Context, args []string) error {
 
 // HandleAuthMenuNoArgs prepares the auth menu when no arguments are provided
 func HandleAuthMenuNoArgs(ctx context.Context) error {
+	// Ensure a default instance exists BEFORE trying to create task manager
+	// This is necessary because createTaskManager() needs a default instance to connect to
+	if err := global.EnsureDefaultInstance(ctx); err != nil {
+		return fmt.Errorf("failed to ensure default instance: %w", err)
+	}
+
 	// Check if Cline is authenticated
 	isClineAuth := IsAuthenticated(ctx)
 
