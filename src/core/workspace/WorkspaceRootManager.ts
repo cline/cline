@@ -3,10 +3,10 @@
  * This class handles workspace root resolution, path mapping, and workspace context
  */
 
+import { VcsType, WorkspaceRoot } from "@shared/multi-root/types"
 import { execa } from "execa"
 import * as path from "path"
 import { getGitRemoteUrls, getLatestGitCommitHash } from "../../utils/git"
-import { VcsType, WorkspaceRoot } from "./WorkspaceRoot"
 
 export interface WorkspaceContext {
 	workspaceRoots: WorkspaceRoot[]

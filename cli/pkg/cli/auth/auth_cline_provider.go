@@ -195,3 +195,94 @@ func configureDefaultClineModel(ctx context.Context) error {
 	// Set default Cline model
 	return SetDefaultClineModel(ctx, manager)
 }
+
+// HandleSelectOrganization allows Cline-authenticated users to select which organization to use
+func HandleSelectOrganization(ctx context.Context) error {
+	// Ensure user is authenticated
+	if !IsAuthenticated(ctx) {
+		return fmt.Errorf("you must be authenticated with Cline to select an organization. Run 'cline auth' to sign in")
+	}
+
+	// Get client
+	client, err := global.GetDefaultClient(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get client: %w", err)
+	}
+
+	// Fetch user organizations
+	orgsResponse, err := client.Account.GetUserOrganizations(ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return fmt.Errorf("failed to fetch organizations: %w", err)
+	}
+
+	organizations := orgsResponse.GetOrganizations()
+	if len(organizations) == 0 {
+		fmt.Println("You don't have any organizations yet.")
+		fmt.Println("Visit https://app.cline.bot/dashboard to create an organization.")
+		return HandleAuthMenuNoArgs(ctx)
+	}
+
+	// Build options list: Personal + Organizations
+	var options []huh.Option[string]
+	options = append(options, huh.NewOption("Personal", "personal"))
+
+	for _, org := range organizations {
+		displayName := org.Name
+		// Show active indicator
+		if org.Active {
+			displayName = fmt.Sprintf("%s (active)", displayName)
+		}
+		options = append(options, huh.NewOption(displayName, org.OrganizationId))
+	}
+
+	options = append(options, huh.NewOption("(Cancel)", "cancel"))
+
+	// Show selection menu
+	var selected string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Select which account to use").
+				Options(options...).
+				Value(&selected),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return fmt.Errorf("failed to select organization: %w", err)
+	}
+
+	if selected == "cancel" {
+		return HandleAuthMenuNoArgs(ctx)
+	}
+
+	// Set the organization
+	var orgId *string
+	if selected != "personal" {
+		orgId = &selected
+	}
+
+	req := &cline.UserOrganizationUpdateRequest{
+		OrganizationId: orgId,
+	}
+
+	if _, err := client.Account.SetUserOrganization(ctx, req); err != nil {
+		return fmt.Errorf("failed to set organization: %w", err)
+	}
+
+	if selected == "personal" {
+		fmt.Println("✓ Switched to personal account")
+	} else {
+		// Find the org name to display
+		var orgName string
+		for _, org := range organizations {
+			if org.OrganizationId == selected {
+				orgName = org.Name
+				break
+			}
+		}
+		fmt.Printf("✓ Switched to organization: %s\n", orgName)
+	}
+
+	return HandleAuthMenuNoArgs(ctx)
+}

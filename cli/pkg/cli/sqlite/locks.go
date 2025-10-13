@@ -160,7 +160,7 @@ func (lm *LockManager) RemoveInstanceLock(address string) error {
 // HasInstanceAtAddress checks if an instance exists at the given address
 func (lm *LockManager) HasInstanceAtAddress(address string) (bool, error) {
 	if err := lm.ensureConnection(); err != nil {
-		return false, nil
+		return false, err
 	}
 
 	query := common.CountInstanceLockSQL

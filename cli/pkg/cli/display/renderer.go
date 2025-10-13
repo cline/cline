@@ -46,23 +46,6 @@ func (r *Renderer) RenderMessage(prefix, text string, newline bool) error {
 	return nil
 }
 
-
-func (r *Renderer) RenderCheckpointMessage(timestamp, prefix string, id int64) error {
-	markdown := fmt.Sprintf("## [%s] Checkpoint created `%d`", timestamp, id)
-	rendered := r.RenderMarkdown(markdown)
-	fmt.Printf(rendered)
-	return nil
-}
-
-func (r *Renderer) RenderCommand(command string, isExecuting bool) error {
-	if isExecuting {
-		r.typewriter.PrintMessageLine("EXEC", command)
-	} else {
-		r.typewriter.PrintMessageLine("CMD", command)
-	}
-	return nil
-}
-
 // formatNumber formats numbers with k/m abbreviations
 func formatNumber(n int) string {
 	if n >= 1000000 {

@@ -14,6 +14,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// TaskOptions contains options for creating a task
+type TaskOptions struct {
+	Images     []string
+	Files      []string
+	Workspaces []string
+	Mode       string
+	Settings   []string
+	Yolo       bool
+	Address    string
+}
+
 func NewTaskCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "task",
@@ -86,7 +97,6 @@ func newTaskNewCommand() *cobra.Command {
 	var (
 		images     []string
 		files      []string
-		wait       bool
 		workspaces []string
 		address    string
 		mode       string
@@ -143,18 +153,12 @@ func newTaskNewCommand() *cobra.Command {
 
 			fmt.Printf("Task created successfully with ID: %s\n", taskID)
 
-			// Wait for completion if requested
-			if wait {
-				return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance())
-			}
-
 			return nil
 		},
 	}
 
 	cmd.Flags().StringSliceVarP(&images, "image", "i", nil, "attach image files")
 	cmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
-	cmd.Flags().BoolVar(&wait, "wait", false, "wait for task completion")
 	cmd.Flags().StringSliceVarP(&workspaces, "workdir", "w", nil, "workdir directory paths")
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
@@ -343,7 +347,7 @@ func newTaskFollowCommand() *cobra.Command {
 		Use:     "follow",
 		Aliases: []string{"f"},
 		Short:   "Follow current task conversation in real-time",
-		Long:    `Follow the current task conversation, displaying new messages as they arrive in real-time.`,
+		Long:    `Follow the current task conversation, displaying new messages as they arrive in real-time. Interactive input is enabled by default.`,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -351,8 +355,8 @@ func newTaskFollowCommand() *cobra.Command {
 			if err := ensureTaskManager(ctx, address); err != nil {
 				return err
 			}
-			
-			return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance())
+
+			return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), true)
 		},
 	}
 
@@ -548,4 +552,62 @@ func CleanupTaskManager() {
 	if taskManager != nil {
 		taskManager.Cleanup()
 	}
+}
+
+// CreateAndFollowTask creates a new task and immediately follows it in interactive mode
+// This is used by the root command to provide a streamlined UX
+func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) error {
+	// Always start a fresh new instance for the root command
+	// This ensures users get a clean slate every time they run `cline`
+	fmt.Println("Starting new Cline instance...")
+	instance, err := global.Clients.StartNewInstance(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start new instance: %w", err)
+	}
+
+	fmt.Printf("Started instance at %s\n", instance.Address)
+
+	// Set up cleanup on exit - kill the instance when this function returns
+	defer func() {
+		fmt.Println("\nCleaning up instance...")
+		registry := global.Clients.GetRegistry()
+
+		if err := global.KillInstanceByAddress(context.Background(), registry, instance.Address); err != nil {
+			fmt.Printf("Warning: Failed to clean up instance: %v\n", err)
+		}
+	}()
+
+	// Initialize task manager with the new instance
+	if err := ensureTaskManager(ctx, instance.Address); err != nil {
+		return err
+	}
+
+	// Set mode to plan by default if not specified
+	if opts.Mode == "" {
+		opts.Mode = "plan"
+	}
+
+	// Set mode if provided
+	if opts.Mode != "" {
+		if err := taskManager.SetMode(ctx, opts.Mode, nil, nil, nil); err != nil {
+			return fmt.Errorf("failed to set mode: %w", err)
+		}
+		fmt.Printf("Mode set to: %s\n", opts.Mode)
+	}
+
+	// Inject yolo_mode_toggled setting if --yolo flag is set
+	if opts.Yolo {
+		opts.Settings = append(opts.Settings, "yolo_mode_toggled=true")
+	}
+
+	// Create the task
+	taskID, err := taskManager.CreateTask(ctx, prompt, opts.Images, opts.Files, opts.Workspaces, opts.Settings)
+	if err != nil {
+		return fmt.Errorf("failed to create task: %w", err)
+	}
+
+	fmt.Printf("Task created successfully with ID: %s\n\n", taskID)
+
+	// Immediately follow the conversation in interactive mode
+	return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), true)
 }
