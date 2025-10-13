@@ -126,6 +126,11 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 
+		// Prevent setting keys managed by remote config
+		if (key in this.remoteConfigCache) {
+			throw new Error(`Cannot set '${key}': This setting is managed by remote configuration`)
+		}
+
 		// Update cache immediately for instant access
 		this.globalStateCache[key] = value
 
@@ -140,6 +145,12 @@ export class StateManager {
 	setGlobalStateBatch(updates: Partial<GlobalStateAndSettings>): void {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		// Prevent setting keys managed by remote config
+		const remoteKeys = Object.keys(updates).filter((key) => key in this.remoteConfigCache)
+		if (remoteKeys.length > 0) {
+			throw new Error(`Cannot set remote-managed keys: ${remoteKeys.join(", ")}`)
 		}
 
 		// Update cache in one go
@@ -163,6 +174,11 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 
+		// Prevent setting keys managed by remote config
+		if (key in this.remoteConfigCache) {
+			throw new Error(`Cannot set '${key}': This setting is managed by remote configuration`)
+		}
+
 		// Update cache immediately for instant access
 		this.taskStateCache[key] = value
 
@@ -180,6 +196,12 @@ export class StateManager {
 	setTaskSettingsBatch(taskId: string, updates: Partial<Settings>): void {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		// Prevent setting keys managed by remote config
+		const remoteKeys = Object.keys(updates).filter((key) => key in this.remoteConfigCache)
+		if (remoteKeys.length > 0) {
+			throw new Error(`Cannot set remote-managed keys: ${remoteKeys.join(", ")}`)
 		}
 
 		// Update cache in one go
@@ -321,6 +343,18 @@ export class StateManager {
 
 		// Update cache immediately for instant access (no persistence needed)
 		this.remoteConfigCache[key] = value
+	}
+
+	/**
+	 * Set method for remote config field - updates cache immediately (no persistence)
+	 * Remote config is read-only from the extension's perspective and only stored in memory
+	 */
+	getRemoteConfigSettings(): Partial<GlobalStateAndSettings> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		return this.remoteConfigCache
 	}
 
 	/**
@@ -726,6 +760,9 @@ export class StateManager {
 	getGlobalStateKey<K extends keyof GlobalState>(key: K): GlobalState[K] {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		if (this.remoteConfigCache[key] !== undefined) {
+			return this.remoteConfigCache[key]
 		}
 		return this.globalStateCache[key]
 	}
