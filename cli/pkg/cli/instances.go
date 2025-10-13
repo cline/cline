@@ -60,7 +60,7 @@ func newInstanceKillCommand() *cobra.Command {
 			if killAll {
 				return killAllInstances(ctx, registry)
 			} else {
-				return killSingleInstance(ctx, registry, args[0])
+				return global.KillInstanceByAddress(ctx, registry, args[0])
 			}
 		},
 	}
@@ -68,62 +68,6 @@ func newInstanceKillCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&killAll, "all", false, "kill all running instances")
 
 	return cmd
-}
-
-func killSingleInstance(ctx context.Context, registry *global.ClientRegistry, address string) error {
-	// Check if the instance exists in the registry
-	_, err := registry.GetInstance(address)
-	if err != nil {
-		return fmt.Errorf("instance %s not found in registry", address)
-	}
-
-	fmt.Printf("Killing instance: %s\n", address)
-
-	// Get gRPC client and process info
-	client, err := registry.GetClient(ctx, address)
-	if err != nil {
-		return fmt.Errorf("failed to connect to instance %s: %w", address, err)
-	}
-
-	processInfo, err := client.State.GetProcessInfo(ctx, &cline.EmptyRequest{})
-	if err != nil {
-		return fmt.Errorf("failed to get process info for instance %s: %w", address, err)
-	}
-
-	pid := int(processInfo.ProcessId)
-	fmt.Printf("Terminating process PID %d...\n", pid)
-
-	// Kill the process
-	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
-		return fmt.Errorf("failed to kill process %d: %w", pid, err)
-	}
-
-	// Wait for the instance to remove itself from registry
-	fmt.Printf("Waiting for instance to clean up registry entry...\n")
-	for i := 0; i < 5; i++ {
-		time.Sleep(1 * time.Second)
-		if !registry.HasInstanceAtAddress(address) {
-			fmt.Printf("Instance %s successfully killed and removed from registry.\n", address)
-
-			// Update default instance if needed
-			instances, err := registry.ListInstancesCleaned(ctx)
-			if err == nil && len(instances) > 0 {
-				// ensureDefaultInstance logic will handle setting a new default
-				defaultInstance := registry.GetDefaultInstance()
-				if defaultInstance == address || defaultInstance == "" {
-					if len(instances) > 0 {
-						if err := registry.SetDefaultInstance(instances[0].Address); err == nil {
-							fmt.Printf("Updated default instance to: %s\n", instances[0].Address)
-						}
-					}
-				}
-			}
-
-			return nil
-		}
-	}
-
-	return fmt.Errorf("instance killed but failed to remove itself from registry within 5 seconds")
 }
 
 func killAllInstances(ctx context.Context, registry *global.ClientRegistry) error {
@@ -350,8 +294,8 @@ func newInstanceListCommand() *cobra.Command {
 					))
 				}
 
-				// Render the markdown table
-				renderer, err := display.NewMarkdownRenderer()
+				// Render the markdown table with terminal width for nice table layout
+				renderer, err := display.NewMarkdownRendererForTerminal()
 				if err != nil {
 					// Fallback to plain table if markdown renderer fails
 					fmt.Println(markdown.String())
@@ -365,8 +309,8 @@ func newInstanceListCommand() *cobra.Command {
 						rendered = strings.ReplaceAll(rendered, "✓", "\033[32m✓\033[0m")       			   		// Green
 						rendered = strings.ReplaceAll(rendered, "NOT_SERVING", "\033[31mNOT_SERVING\033[0m") 	// Red
 						rendered = strings.ReplaceAll(rendered, "UNKNOWN", "\033[33mUNKNOWN\033[0m")      		// Yellow
-						
-						
+
+
 						fmt.Print(strings.TrimLeft(rendered, "\n"))
 					}
 					fmt.Println("\n")
