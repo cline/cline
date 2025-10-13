@@ -98,12 +98,12 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 
 			{remoteConfigSettings?.awsRegion !== undefined ? (
 				<HeroTooltip content="This setting is managed by your organization's remote configuration">
-					<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 1}>
-						<div className="flex items-center gap-2">
+					<DropdownContainer className="dropdown-container mb-2.5" zIndex={DROPDOWN_Z_INDEX - 1}>
+						<div className="flex items-center gap-2 mb-1">
 							<label htmlFor="aws-region-dropdown">
 								<span style={{ fontWeight: 500 }}>AWS Region</span>
 							</label>
-							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm flex items-center" />
 						</div>
 						<VSCodeDropdown
 							disabled={true}
@@ -211,7 +211,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 									onChange={(value) => handleFieldChange("awsBedrockEndpoint", value)}
 									placeholder="Enter VPC Endpoint URL (optional)"
 									style={{ width: "100%", marginTop: 3, marginBottom: 5 }}
-									type="url"
+									type="text"
 								/>
 							)}
 						</div>
