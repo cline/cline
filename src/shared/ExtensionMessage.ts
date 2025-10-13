@@ -2,6 +2,7 @@
 
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { GlobalStateAndSettings } from "@shared/storage/state-keys"
+import type { Environment } from "../config"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
@@ -51,6 +52,7 @@ export interface ExtensionState {
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting?: boolean
 	platform: Platform
+	environment?: Environment
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting

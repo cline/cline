@@ -754,6 +754,7 @@ export class Controller {
 		const platform = process.platform as Platform
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
+		const environment = clineEnvConfig.environment
 
 		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
@@ -784,6 +785,8 @@ export class Controller {
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
+			platform,
+			environment,
 			distinctId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
@@ -800,7 +803,6 @@ export class Controller {
 			terminalOutputLineLimit,
 			customPrompt,
 			taskHistory: processedTaskHistory,
-			platform,
 			shouldShowAnnouncement,
 			favoritedModelIds,
 			autoCondenseThreshold,
@@ -810,7 +812,7 @@ export class Controller {
 			isMultiRootWorkspace: (this.workspaceManager?.getRoots().length ?? 0) > 1,
 			multiRootSetting: {
 				user: this.stateManager.getGlobalStateKey("multiRootEnabled"),
-				featureFlag: featureFlagsService.getMultiRootEnabled(),
+				featureFlag: true, // Multi-root workspace is now always enabled
 			},
 			hooksEnabled: {
 				user: this.stateManager.getGlobalStateKey("hooksEnabled"),
