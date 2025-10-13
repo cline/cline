@@ -64,8 +64,15 @@ func SetDefaultClineModel(ctx context.Context, manager *task.Manager) error {
 		return fmt.Errorf("no usable Cline models found")
 	}
 
-	// Apply the default model
-	return applyClineModelConfiguration(ctx, manager, DefaultClineModelID, modelInfo)
+	if err := applyClineModelConfiguration(ctx, manager, DefaultClineModelID, modelInfo); err != nil {
+		return err
+	}
+
+	if err := setWelcomeViewCompletedWithManager(ctx, manager); err != nil {
+		verboseLog("Warning: Failed to mark welcome view as completed: %v", err)
+	}
+
+	return nil
 }
 
 // SelectClineModel presents a menu to select a Cline model and applies the configuration.
@@ -116,8 +123,19 @@ func applyClineModelConfiguration(ctx context.Context, manager *task.Manager, mo
 	return UpdateProviderPartial(ctx, manager, provider, updates, true)
 }
 
-// applyDefaultClineModel applies the default Cline model without model info.
-// This is a fallback when model fetching fails.
 func applyDefaultClineModel(ctx context.Context, manager *task.Manager, modelInfo *cline.OpenRouterModelInfo) error {
-	return applyClineModelConfiguration(ctx, manager, DefaultClineModelID, modelInfo)
+	if err := applyClineModelConfiguration(ctx, manager, DefaultClineModelID, modelInfo); err != nil {
+		return err
+	}
+
+	if err := setWelcomeViewCompletedWithManager(ctx, manager); err != nil {
+		verboseLog("Warning: Failed to mark welcome view as completed: %v", err)
+	}
+
+	return nil
+}
+
+func setWelcomeViewCompletedWithManager(ctx context.Context, manager *task.Manager) error {
+	_, err := manager.GetClient().State.SetWelcomeViewCompleted(ctx, &cline.BooleanRequest{Value: true})
+	return err
 }
