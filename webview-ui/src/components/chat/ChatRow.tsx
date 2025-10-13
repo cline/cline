@@ -836,12 +836,11 @@ export const ChatRowContent = memo(
 			}
 		}, [isCommandMessage, isCommandExecuting])
 
-		// Reset output expansion state and ref when command stops (completes or is cancelled)
+		// Reset output expansion state when command stops (completes or is cancelled)
 		useEffect(() => {
 			// If command was executing and now isn't, clean up
 			if (isCommandMessage && prevCommandExecutingRef.current && !isCommandExecuting) {
 				setIsOutputFullyExpanded(false)
-				commandStartTimeRef.current = null
 			}
 
 			// Update ref for next render
@@ -859,10 +858,7 @@ export const ChatRowContent = memo(
 
 				return () => clearTimeout(timer)
 			}
-			// Note: We intentionally don't include isCommandExecuting in dependencies
-			// to prevent the effect from re-running when the command completes
-			// eslint-disable-next-line react-hooks/exhaustive-deps
-		}, [isCommandMessage, isExpanded, onToggleExpand, message.ts])
+		}, [isCommandMessage, isCommandExecuting, isExpanded, onToggleExpand, message.ts])
 
 		// Auto-collapse when command completes (only if it ran > 500ms)
 		useEffect(() => {
