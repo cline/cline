@@ -26,6 +26,7 @@ type Manager struct {
 	state            *types.ConversationState
 	renderer         *display.Renderer
 	toolRenderer     *display.ToolRenderer
+	systemRenderer   *display.SystemMessageRenderer
 	streamingDisplay *display.StreamingDisplay
 	handlerRegistry  *handlers.HandlerRegistry
 	isStreamingMode  bool
@@ -38,6 +39,7 @@ func NewManager(client *client.ClineClient) *Manager {
 	state := types.NewConversationState()
 	renderer := display.NewRenderer(global.Config.OutputFormat)
 	toolRenderer := display.NewToolRenderer(renderer.GetMdRenderer(), global.Config.OutputFormat)
+	systemRenderer := display.NewSystemMessageRenderer(renderer, renderer.GetMdRenderer(), global.Config.OutputFormat)
 	streamingDisplay := display.NewStreamingDisplay(state, renderer)
 
 	// Create handler registry and register handlers
@@ -51,6 +53,7 @@ func NewManager(client *client.ClineClient) *Manager {
 		state:            state,
 		renderer:         renderer,
 		toolRenderer:     toolRenderer,
+		systemRenderer:   systemRenderer,
 		streamingDisplay: streamingDisplay,
 		handlerRegistry:  registry,
 		currentMode:      "plan", // Default mode
@@ -1129,9 +1132,10 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 		m.mu.RUnlock()
 
 		dc := &handlers.DisplayContext{
-			State:           m.state,
-			Renderer:        m.renderer,
-			ToolRenderer:    m.toolRenderer,
+			State:          m.state,
+			Renderer:       m.renderer,
+			ToolRenderer:   m.toolRenderer,
+			SystemRenderer: m.systemRenderer,
 			IsLast:          isLast,
 			IsPartial:       isPartial,
 			MessageIndex:    messageIndex,
