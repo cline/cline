@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -108,83 +109,91 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 			}
 
 			// Check if we can send a regular message
-			sendDisabled, err := ih.manager.CheckSendDisabled(ctx)
+			err = ih.manager.CheckSendEnabled(ctx)
 			if err != nil {
+				// Handle specific error cases
+				if errors.Is(err, ErrNoActiveTask) {
+					// No active task - don't show input prompt
+					ih.coordinator.SetInputAllowed(false)
+					continue
+				}
+				if errors.Is(err, ErrTaskBusy) {
+					// Task is busy - don't show input prompt
+					ih.coordinator.SetInputAllowed(false)
+					continue
+				}
+				// Unexpected error
 				if global.Config.Verbose {
-					fmt.Printf("\nDebug: CheckSendDisabled error: %v\n", err)
+					fmt.Printf("\nDebug: CheckSendEnabled error: %v\n", err)
 				}
 				continue
 			}
 
-			// If send is enabled (not disabled), show prompt
-			if !sendDisabled {
-				ih.coordinator.SetInputAllowed(true)
+			// If we reach here, we can send a message
+			ih.coordinator.SetInputAllowed(true)
 
-				// Lock output to prevent race with streaming display
-				ih.coordinator.LockOutput()
+			// Lock output to prevent race with streaming display
+			ih.coordinator.LockOutput()
 
-				// Show prompt and get input
-				message, shouldSend, err := ih.promptForInput(ctx)
+			// Show prompt and get input
+			message, shouldSend, err := ih.promptForInput(ctx)
 
-				// Unlock output after form dismissed
-				ih.coordinator.UnlockOutput()
+			// Unlock output after form dismissed
+			ih.coordinator.UnlockOutput()
 
-				if err != nil {
-					// Check if the error is due to interrupt (Ctrl+C) or context cancellation
-					if err == huh.ErrUserAborted || ctx.Err() != nil {
-						// User pressed Ctrl+C - cancel context to exit FollowConversation
-						ih.cancelFunc()
-						return
+			if err != nil {
+				// Check if the error is due to interrupt (Ctrl+C) or context cancellation
+				if err == huh.ErrUserAborted || ctx.Err() != nil {
+					// User pressed Ctrl+C - cancel context to exit FollowConversation
+					ih.cancelFunc()
+					return
+				}
+				if global.Config.Verbose {
+					fmt.Printf("\nDebug: Input prompt error: %v\n", err)
+				}
+				continue
+			}
+
+			ih.coordinator.SetInputAllowed(false)
+
+			if shouldSend {
+				// Check for mode switch commands first
+				newMode, remainingMessage, isModeSwitch := ih.parseModeSwitch(message)
+				if isModeSwitch {
+					// Switch mode
+					if err := ih.manager.SetMode(ctx, newMode, nil, nil, nil); err != nil {
+						fmt.Printf("\nError switching to %s mode: %v\n", newMode, err)
+						continue
 					}
-					if global.Config.Verbose {
-						fmt.Printf("\nDebug: Input prompt error: %v\n", err)
+					fmt.Printf("\nSwitched to %s mode\n", newMode)
+
+					// If there's remaining message, use it as the new message to send
+					if remainingMessage != "" {
+						message = remainingMessage
+					} else {
+						// No message to send, just mode switch
+						time.Sleep(1 * time.Second)
+						continue
 					}
+				}
+
+				// Handle special commands
+				if handled := ih.handleSpecialCommand(ctx, message); handled {
 					continue
 				}
 
-				ih.coordinator.SetInputAllowed(false)
-
-				if shouldSend {
-					// Check for mode switch commands first
-					newMode, remainingMessage, isModeSwitch := ih.parseModeSwitch(message)
-					if isModeSwitch {
-						// Switch mode
-						if err := ih.manager.SetMode(ctx, newMode, nil, nil, nil); err != nil {
-							fmt.Printf("\nError switching to %s mode: %v\n", newMode, err)
-							continue
-						}
-						fmt.Printf("\nSwitched to %s mode\n", newMode)
-
-						// If there's remaining message, use it as the new message to send
-						if remainingMessage != "" {
-							message = remainingMessage
-						} else {
-							// No message to send, just mode switch
-							time.Sleep(1 * time.Second)
-							continue
-						}
-					}
-
-					// Handle special commands
-					if handled := ih.handleSpecialCommand(ctx, message); handled {
-						continue
-					}
-
-					// Send the message
-					if err := ih.manager.SendMessage(ctx, message, nil, nil, ""); err != nil {
-						fmt.Printf("\nError sending message: %v\n", err)
-						continue
-					}
-
-					if global.Config.Verbose {
-						fmt.Printf("\nDebug: Message sent successfully\n")
-					}
-
-					// Give the system a moment to process before re-polling
-					time.Sleep(1 * time.Second)
+				// Send the message
+				if err := ih.manager.SendMessage(ctx, message, nil, nil, ""); err != nil {
+					fmt.Printf("\nError sending message: %v\n", err)
+					continue
 				}
-			} else {
-				ih.coordinator.SetInputAllowed(false)
+
+				if global.Config.Verbose {
+					fmt.Printf("\nDebug: Message sent successfully\n")
+				}
+
+				// Give the system a moment to process before re-polling
+				time.Sleep(1 * time.Second)
 			}
 		}
 	}
