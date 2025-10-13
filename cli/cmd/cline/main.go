@@ -101,7 +101,12 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 						return fmt.Errorf("auth setup failed: %w", err)
 					}
 
-					markdown = "## ✓ Setup complete! Let's get started."
+					// Re-check after auth wizard
+					if !isUserReadyToUse(ctx, instanceAddress) {
+						return fmt.Errorf("credentials still not configured - please run 'cline auth' to complete setup")
+					}
+
+					markdown = "## ✓ setup complete, you can now use the cline cli"
 					rendered = renderer.RenderMarkdown(markdown)
 					fmt.Printf("\n%s\n\n", rendered)
 				}
