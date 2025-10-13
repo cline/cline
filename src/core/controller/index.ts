@@ -230,6 +230,12 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	) {
+		try {
+			await fetchRemoteConfig(this)
+		} catch (error) {
+			console.error("Failed to fetch remote config on task init:", error)
+		}
+
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
