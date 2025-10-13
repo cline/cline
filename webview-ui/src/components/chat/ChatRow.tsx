@@ -17,7 +17,11 @@ import styled from "styled-components"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
-import CodeBlock, { CODE_BLOCK_BG_COLOR, TERMINAL_CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import CodeBlock, {
+	CHAT_ROW_COLLAPSED_BG_COLOR,
+	CHAT_ROW_EXPANDED_BG_COLOR,
+	CODE_BLOCK_BG_COLOR,
+} from "@/components/common/CodeBlock"
 import { WithCopyButton } from "@/components/common/CopyButton"
 import MarkdownBlock from "@/components/common/MarkdownBlock"
 import SuccessButton from "@/components/common/SuccessButton"
@@ -140,7 +144,7 @@ const CommandOutput = memo(
 					paddingBottom: lineCount > 5 ? "16px" : "0",
 					overflow: "visible",
 					borderTop: "1px solid rgba(255,255,255,.07)",
-					backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR,
+					backgroundColor: CODE_BLOCK_BG_COLOR,
 				}}>
 				<div
 					ref={outputRef}
@@ -149,9 +153,9 @@ const CommandOutput = memo(
 						maxHeight: shouldAutoShow ? "none" : isOutputFullyExpanded ? "200px" : "75px",
 						overflowY: shouldAutoShow ? "visible" : "auto",
 						scrollBehavior: "smooth",
-						backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR,
+						backgroundColor: CODE_BLOCK_BG_COLOR,
 					}}>
-					<div style={{ backgroundColor: TERMINAL_CODE_BLOCK_BG_COLOR }}>
+					<div style={{ backgroundColor: CODE_BLOCK_BG_COLOR }}>
 						<CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
 					</div>
 				</div>
@@ -934,7 +938,7 @@ export const ChatRowContent = memo(
 							borderRadius: 6,
 							border: "1px solid var(--vscode-editorGroup-border)",
 							overflow: "visible",
-							backgroundColor: isExpanded ? "#151515" : "#2d2d30",
+							backgroundColor: isExpanded ? CHAT_ROW_EXPANDED_BG_COLOR : CHAT_ROW_COLLAPSED_BG_COLOR,
 							transition: "all 0.3s ease-in-out",
 						}}>
 						{command && (
@@ -945,7 +949,7 @@ export const ChatRowContent = memo(
 									alignItems: "center",
 									justifyContent: "space-between",
 									padding: "8px 10px",
-									backgroundColor: isExpanded ? "#151515" : "#2d2d30",
+									backgroundColor: isExpanded ? CHAT_ROW_EXPANDED_BG_COLOR : CHAT_ROW_COLLAPSED_BG_COLOR,
 									borderBottom: isExpanded ? "1px solid var(--vscode-editorGroup-border)" : "none",
 									borderTopLeftRadius: "6px",
 									borderTopRightRadius: "6px",
@@ -1037,8 +1041,8 @@ export const ChatRowContent = memo(
 							</div>
 						)}
 						{isExpanded && (
-							<div style={{ opacity: 0.6, backgroundColor: "#151515" }}>
-								<div style={{ backgroundColor: "#151515" }}>
+							<div style={{ opacity: 0.6, backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
+								<div style={{ backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
 									<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
 								</div>
 							</div>
