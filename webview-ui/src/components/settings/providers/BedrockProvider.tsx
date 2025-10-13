@@ -2,6 +2,7 @@ import { bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX } from "@
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
+import HeroTooltip from "@/components/common/HeroTooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -20,7 +21,7 @@ interface BedrockProviderProps {
 }
 
 export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: BedrockProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
 
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -95,100 +96,234 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 				</>
 			)}
 
-			<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 1}>
-				<label htmlFor="aws-region-dropdown">
-					<span style={{ fontWeight: 500 }}>AWS Region</span>
-				</label>
-				<VSCodeDropdown
-					id="aws-region-dropdown"
-					onChange={(e: any) => handleFieldChange("awsRegion", e.target.value)}
-					style={{ width: "100%" }}
-					value={apiConfiguration?.awsRegion || ""}>
-					<VSCodeOption value="">Select a region...</VSCodeOption>
-					{/* The user will have to choose a region that supports the model they use, but this shouldn't be a problem since they'd have to request access for it in that region in the first place. */}
-					<VSCodeOption value="us-east-1">us-east-1</VSCodeOption>
-					<VSCodeOption value="us-east-2">us-east-2</VSCodeOption>
-					<VSCodeOption value="us-west-1">us-west-1</VSCodeOption>
-					<VSCodeOption value="us-west-2">us-west-2</VSCodeOption>
-					{/* <VSCodeOption value="af-south-1">af-south-1</VSCodeOption> */}
-					{/* <VSCodeOption value="ap-east-1">ap-east-1</VSCodeOption> */}
-					<VSCodeOption value="ap-south-1">ap-south-1</VSCodeOption>
-					<VSCodeOption value="ap-northeast-1">ap-northeast-1</VSCodeOption>
-					<VSCodeOption value="ap-northeast-2">ap-northeast-2</VSCodeOption>
-					<VSCodeOption value="ap-northeast-3">ap-northeast-3</VSCodeOption>
-					<VSCodeOption value="ap-southeast-1">ap-southeast-1</VSCodeOption>
-					<VSCodeOption value="ap-southeast-2">ap-southeast-2</VSCodeOption>
-					<VSCodeOption value="ca-central-1">ca-central-1</VSCodeOption>
-					<VSCodeOption value="eu-central-1">eu-central-1</VSCodeOption>
-					<VSCodeOption value="eu-central-2">eu-central-2</VSCodeOption>
-					<VSCodeOption value="eu-west-1">eu-west-1</VSCodeOption>
-					<VSCodeOption value="eu-west-2">eu-west-2</VSCodeOption>
-					<VSCodeOption value="eu-west-3">eu-west-3</VSCodeOption>
-					<VSCodeOption value="eu-north-1">eu-north-1</VSCodeOption>
-					<VSCodeOption value="eu-south-1">eu-south-1</VSCodeOption>
-					<VSCodeOption value="eu-south-2">eu-south-2</VSCodeOption>
-					{/* <VSCodeOption value="me-south-1">me-south-1</VSCodeOption> */}
-					<VSCodeOption value="sa-east-1">sa-east-1</VSCodeOption>
-					<VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption>
-					<VSCodeOption value="us-gov-west-1">us-gov-west-1</VSCodeOption>
-					{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
-				</VSCodeDropdown>
-			</DropdownContainer>
+			{remoteConfigSettings.awsRegion !== undefined ? (
+				<HeroTooltip content="This setting is managed by your organization's remote configuration">
+					<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 1}>
+						<div className="flex items-center gap-2">
+							<label htmlFor="aws-region-dropdown">
+								<span style={{ fontWeight: 500 }}>AWS Region</span>
+							</label>
+							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+						</div>
+						<VSCodeDropdown
+							disabled={true}
+							id="aws-region-dropdown"
+							onChange={(e: any) => handleFieldChange("awsRegion", e.target.value)}
+							style={{ width: "100%" }}
+							value={apiConfiguration?.awsRegion || ""}>
+							<VSCodeOption value="">Select a region...</VSCodeOption>
+							{/* The user will have to choose a region that supports the model they use, but this shouldn't be a problem since they'd have to request access for it in that region in the first place. */}
+							<VSCodeOption value="us-east-1">us-east-1</VSCodeOption>
+							<VSCodeOption value="us-east-2">us-east-2</VSCodeOption>
+							<VSCodeOption value="us-west-1">us-west-1</VSCodeOption>
+							<VSCodeOption value="us-west-2">us-west-2</VSCodeOption>
+							{/* <VSCodeOption value="af-south-1">af-south-1</VSCodeOption> */}
+							{/* <VSCodeOption value="ap-east-1">ap-east-1</VSCodeOption> */}
+							<VSCodeOption value="ap-south-1">ap-south-1</VSCodeOption>
+							<VSCodeOption value="ap-northeast-1">ap-northeast-1</VSCodeOption>
+							<VSCodeOption value="ap-northeast-2">ap-northeast-2</VSCodeOption>
+							<VSCodeOption value="ap-northeast-3">ap-northeast-3</VSCodeOption>
+							<VSCodeOption value="ap-southeast-1">ap-southeast-1</VSCodeOption>
+							<VSCodeOption value="ap-southeast-2">ap-southeast-2</VSCodeOption>
+							<VSCodeOption value="ca-central-1">ca-central-1</VSCodeOption>
+							<VSCodeOption value="eu-central-1">eu-central-1</VSCodeOption>
+							<VSCodeOption value="eu-central-2">eu-central-2</VSCodeOption>
+							<VSCodeOption value="eu-west-1">eu-west-1</VSCodeOption>
+							<VSCodeOption value="eu-west-2">eu-west-2</VSCodeOption>
+							<VSCodeOption value="eu-west-3">eu-west-3</VSCodeOption>
+							<VSCodeOption value="eu-north-1">eu-north-1</VSCodeOption>
+							<VSCodeOption value="eu-south-1">eu-south-1</VSCodeOption>
+							<VSCodeOption value="eu-south-2">eu-south-2</VSCodeOption>
+							{/* <VSCodeOption value="me-south-1">me-south-1</VSCodeOption> */}
+							<VSCodeOption value="sa-east-1">sa-east-1</VSCodeOption>
+							<VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption>
+							<VSCodeOption value="us-gov-west-1">us-gov-west-1</VSCodeOption>
+							{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
+						</VSCodeDropdown>
+					</DropdownContainer>
+				</HeroTooltip>
+			) : (
+				<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 1}>
+					<label htmlFor="aws-region-dropdown">
+						<span style={{ fontWeight: 500 }}>AWS Region</span>
+					</label>
+					<VSCodeDropdown
+						id="aws-region-dropdown"
+						onChange={(e: any) => handleFieldChange("awsRegion", e.target.value)}
+						style={{ width: "100%" }}
+						value={apiConfiguration?.awsRegion || ""}>
+						<VSCodeOption value="">Select a region...</VSCodeOption>
+						{/* The user will have to choose a region that supports the model they use, but this shouldn't be a problem since they'd have to request access for it in that region in the first place. */}
+						<VSCodeOption value="us-east-1">us-east-1</VSCodeOption>
+						<VSCodeOption value="us-east-2">us-east-2</VSCodeOption>
+						<VSCodeOption value="us-west-1">us-west-1</VSCodeOption>
+						<VSCodeOption value="us-west-2">us-west-2</VSCodeOption>
+						{/* <VSCodeOption value="af-south-1">af-south-1</VSCodeOption> */}
+						{/* <VSCodeOption value="ap-east-1">ap-east-1</VSCodeOption> */}
+						<VSCodeOption value="ap-south-1">ap-south-1</VSCodeOption>
+						<VSCodeOption value="ap-northeast-1">ap-northeast-1</VSCodeOption>
+						<VSCodeOption value="ap-northeast-2">ap-northeast-2</VSCodeOption>
+						<VSCodeOption value="ap-northeast-3">ap-northeast-3</VSCodeOption>
+						<VSCodeOption value="ap-southeast-1">ap-southeast-1</VSCodeOption>
+						<VSCodeOption value="ap-southeast-2">ap-southeast-2</VSCodeOption>
+						<VSCodeOption value="ca-central-1">ca-central-1</VSCodeOption>
+						<VSCodeOption value="eu-central-1">eu-central-1</VSCodeOption>
+						<VSCodeOption value="eu-central-2">eu-central-2</VSCodeOption>
+						<VSCodeOption value="eu-west-1">eu-west-1</VSCodeOption>
+						<VSCodeOption value="eu-west-2">eu-west-2</VSCodeOption>
+						<VSCodeOption value="eu-west-3">eu-west-3</VSCodeOption>
+						<VSCodeOption value="eu-north-1">eu-north-1</VSCodeOption>
+						<VSCodeOption value="eu-south-1">eu-south-1</VSCodeOption>
+						<VSCodeOption value="eu-south-2">eu-south-2</VSCodeOption>
+						{/* <VSCodeOption value="me-south-1">me-south-1</VSCodeOption> */}
+						<VSCodeOption value="sa-east-1">sa-east-1</VSCodeOption>
+						<VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption>
+						<VSCodeOption value="us-gov-west-1">us-gov-west-1</VSCodeOption>
+						{/* <VSCodeOption value="us-gov-east-1">us-gov-east-1</VSCodeOption> */}
+					</VSCodeDropdown>
+				</DropdownContainer>
+			)}
 
 			<div style={{ display: "flex", flexDirection: "column" }}>
-				<VSCodeCheckbox
-					checked={awsEndpointSelected}
-					onChange={(e: any) => {
-						const isChecked = e.target.checked === true
-						setAwsEndpointSelected(isChecked)
-						if (!isChecked) {
-							handleFieldChange("awsBedrockEndpoint", "")
-						}
-					}}>
-					Use custom VPC endpoint
-				</VSCodeCheckbox>
+				{remoteConfigSettings.awsBedrockEndpoint !== undefined ? (
+					<HeroTooltip content="This setting is managed by your organization's remote configuration">
+						<div>
+							<div className="flex items-center gap-2">
+								<VSCodeCheckbox
+									checked={awsEndpointSelected}
+									disabled={true}
+									onChange={(e: any) => {
+										const isChecked = e.target.checked === true
+										setAwsEndpointSelected(isChecked)
+										if (!isChecked) {
+											handleFieldChange("awsBedrockEndpoint", "")
+										}
+									}}>
+									Use custom VPC endpoint
+								</VSCodeCheckbox>
+								<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+							</div>
 
-				{awsEndpointSelected && (
-					<DebouncedTextField
-						initialValue={apiConfiguration?.awsBedrockEndpoint || ""}
-						onChange={(value) => handleFieldChange("awsBedrockEndpoint", value)}
-						placeholder="Enter VPC Endpoint URL (optional)"
-						style={{ width: "100%", marginTop: 3, marginBottom: 5 }}
-						type="url"
-					/>
+							{awsEndpointSelected && (
+								<DebouncedTextField
+									disabled={true}
+									initialValue={apiConfiguration?.awsBedrockEndpoint || ""}
+									onChange={(value) => handleFieldChange("awsBedrockEndpoint", value)}
+									placeholder="Enter VPC Endpoint URL (optional)"
+									style={{ width: "100%", marginTop: 3, marginBottom: 5 }}
+									type="url"
+								/>
+							)}
+						</div>
+					</HeroTooltip>
+				) : (
+					<>
+						<VSCodeCheckbox
+							checked={awsEndpointSelected}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								setAwsEndpointSelected(isChecked)
+								if (!isChecked) {
+									handleFieldChange("awsBedrockEndpoint", "")
+								}
+							}}>
+							Use custom VPC endpoint
+						</VSCodeCheckbox>
+
+						{awsEndpointSelected && (
+							<DebouncedTextField
+								initialValue={apiConfiguration?.awsBedrockEndpoint || ""}
+								onChange={(value) => handleFieldChange("awsBedrockEndpoint", value)}
+								placeholder="Enter VPC Endpoint URL (optional)"
+								style={{ width: "100%", marginTop: 3, marginBottom: 5 }}
+								type="url"
+							/>
+						)}
+					</>
 				)}
 
-				<VSCodeCheckbox
-					checked={apiConfiguration?.awsUseCrossRegionInference || false}
-					onChange={(e: any) => {
-						const isChecked = e.target.checked === true
+				{remoteConfigSettings.awsUseCrossRegionInference !== undefined ? (
+					<HeroTooltip content="This setting is managed by your organization's remote configuration">
+						<div className="flex items-center gap-2">
+							<VSCodeCheckbox
+								checked={apiConfiguration?.awsUseCrossRegionInference || false}
+								disabled={true}
+								onChange={(e: any) => {
+									const isChecked = e.target.checked === true
 
-						handleFieldChange("awsUseCrossRegionInference", isChecked)
-					}}>
-					Use cross-region inference
-				</VSCodeCheckbox>
-
-				{apiConfiguration?.awsUseCrossRegionInference && selectedModelInfo.supportsGlobalEndpoint && (
+									handleFieldChange("awsUseCrossRegionInference", isChecked)
+								}}>
+								Use cross-region inference
+							</VSCodeCheckbox>
+							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+						</div>
+					</HeroTooltip>
+				) : (
 					<VSCodeCheckbox
-						checked={apiConfiguration?.awsUseGlobalInference || false}
+						checked={apiConfiguration?.awsUseCrossRegionInference || false}
 						onChange={(e: any) => {
 							const isChecked = e.target.checked === true
-							handleFieldChange("awsUseGlobalInference", isChecked)
+
+							handleFieldChange("awsUseCrossRegionInference", isChecked)
 						}}>
-						Use global inference profile
+						Use cross-region inference
 					</VSCodeCheckbox>
 				)}
 
-				{selectedModelInfo.supportsPromptCache && (
-					<VSCodeCheckbox
-						checked={apiConfiguration?.awsBedrockUsePromptCache || false}
-						onChange={(e: any) => {
-							const isChecked = e.target.checked === true
-							handleFieldChange("awsBedrockUsePromptCache", isChecked)
-						}}>
-						Use prompt caching
-					</VSCodeCheckbox>
-				)}
+				{apiConfiguration?.awsUseCrossRegionInference &&
+					selectedModelInfo.supportsGlobalEndpoint &&
+					(remoteConfigSettings.awsUseGlobalInference !== undefined ? (
+						<HeroTooltip content="This setting is managed by your organization's remote configuration">
+							<div className="flex items-center gap-2">
+								<VSCodeCheckbox
+									checked={apiConfiguration?.awsUseGlobalInference || false}
+									disabled={true}
+									onChange={(e: any) => {
+										const isChecked = e.target.checked === true
+										handleFieldChange("awsUseGlobalInference", isChecked)
+									}}>
+									Use global inference profile
+								</VSCodeCheckbox>
+								<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+							</div>
+						</HeroTooltip>
+					) : (
+						<VSCodeCheckbox
+							checked={apiConfiguration?.awsUseGlobalInference || false}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								handleFieldChange("awsUseGlobalInference", isChecked)
+							}}>
+							Use global inference profile
+						</VSCodeCheckbox>
+					))}
+
+				{selectedModelInfo.supportsPromptCache &&
+					(remoteConfigSettings.awsBedrockUsePromptCache !== undefined ? (
+						<HeroTooltip content="This setting is managed by your organization's remote configuration">
+							<div className="flex items-center gap-2">
+								<VSCodeCheckbox
+									checked={apiConfiguration?.awsBedrockUsePromptCache || false}
+									disabled={true}
+									onChange={(e: any) => {
+										const isChecked = e.target.checked === true
+										handleFieldChange("awsBedrockUsePromptCache", isChecked)
+									}}>
+									Use prompt caching
+								</VSCodeCheckbox>
+								<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+							</div>
+						</HeroTooltip>
+					) : (
+						<VSCodeCheckbox
+							checked={apiConfiguration?.awsBedrockUsePromptCache || false}
+							onChange={(e: any) => {
+								const isChecked = e.target.checked === true
+								handleFieldChange("awsBedrockUsePromptCache", isChecked)
+							}}>
+							Use prompt caching
+						</VSCodeCheckbox>
+					))}
 			</div>
 
 			<p

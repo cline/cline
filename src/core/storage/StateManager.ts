@@ -324,6 +324,18 @@ export class StateManager {
 	}
 
 	/**
+	 * Set method for remote config field - updates cache immediately (no persistence)
+	 * Remote config is read-only from the extension's perspective and only stored in memory
+	 */
+	getRemoteConfigSettings(): Partial<GlobalStateAndSettings> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		return this.remoteConfigCache
+	}
+
+	/**
 	 * Clear remote config cache
 	 * Used when switching organizations or when remote config is no longer applicable
 	 */
@@ -726,6 +738,9 @@ export class StateManager {
 	getGlobalStateKey<K extends keyof GlobalState>(key: K): GlobalState[K] {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		if (this.remoteConfigCache[key] !== undefined) {
+			return this.remoteConfigCache[key]
 		}
 		return this.globalStateCache[key]
 	}

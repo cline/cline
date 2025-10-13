@@ -3,6 +3,7 @@ import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
+import HeroTooltip from "@/components/common/HeroTooltip"
 import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import Section from "../Section"
@@ -26,6 +27,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		focusChainSettings,
 		multiRootSetting,
 		hooksEnabled,
+		remoteConfigSettings,
 	} = useExtensionState()
 
 	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
@@ -52,14 +54,32 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={mcpMarketplaceEnabled}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("mcpMarketplaceEnabled", checked)
-							}}>
-							Enable MCP Marketplace
-						</VSCodeCheckbox>
+						{remoteConfigSettings.mcpMarketplaceEnabled !== undefined ? (
+							<HeroTooltip content="This setting is managed by your organization's remote configuration">
+								<div className="flex items-center gap-2">
+									<VSCodeCheckbox
+										checked={mcpMarketplaceEnabled}
+										disabled={true}
+										onChange={(e: any) => {
+											const checked = e.target.checked === true
+											updateSetting("mcpMarketplaceEnabled", checked)
+										}}>
+										Enable MCP Marketplace
+									</VSCodeCheckbox>
+									<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+								</div>
+							</HeroTooltip>
+						) : (
+							<VSCodeCheckbox
+								checked={mcpMarketplaceEnabled}
+								disabled={false}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("mcpMarketplaceEnabled", checked)
+								}}>
+								Enable MCP Marketplace
+							</VSCodeCheckbox>
+						)}
 						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
 							Enables the MCP Marketplace tab for discovering and installing MCP servers.
 						</p>
@@ -284,14 +304,32 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</div>
 					)}
 					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={yoloModeToggled}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("yoloModeToggled", checked)
-							}}>
-							Enable YOLO Mode
-						</VSCodeCheckbox>
+						{remoteConfigSettings.yoloModeToggled !== undefined ? (
+							<HeroTooltip content="This setting is managed by your organization's remote configuration">
+								<div className="flex items-center gap-2">
+									<VSCodeCheckbox
+										checked={yoloModeToggled}
+										disabled={true}
+										onChange={(e: any) => {
+											const checked = e.target.checked === true
+											updateSetting("yoloModeToggled", checked)
+										}}>
+										Enable YOLO Mode
+									</VSCodeCheckbox>
+									<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+								</div>
+							</HeroTooltip>
+						) : (
+							<VSCodeCheckbox
+								checked={yoloModeToggled}
+								disabled={false}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("yoloModeToggled", checked)
+								}}>
+								Enable YOLO Mode
+							</VSCodeCheckbox>
+						)}
 						<p className="text-xs text-[var(--vscode-errorForeground)]">
 							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
 							automatically approve all actions without asking. Use with extreme caution.

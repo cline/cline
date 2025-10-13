@@ -818,6 +818,7 @@ export class Controller {
 			},
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,
+			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),
 		}
 	}
 
