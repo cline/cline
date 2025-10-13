@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cline/cli/pkg/cli/clerror"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
@@ -109,6 +110,14 @@ func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayCon
 		return dc.Renderer.RenderMessage("API INFO", msg.Text, true)
 	}
 
+	// Check for streaming failed message with error details
+	if apiInfo.StreamingFailedMessage != "" && dc.SystemRenderer != nil {
+		clineErr, _ := clerror.ParseClineError(apiInfo.StreamingFailedMessage)
+		if clineErr != nil {
+			return h.renderClineError(clineErr, dc)
+		}
+	}
+
 	// Handle different API request states
 	if apiInfo.CancelReason != "" {
 		if apiInfo.CancelReason == "user_cancelled" {
@@ -132,6 +141,24 @@ func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayCon
 	}
 
 	return dc.Renderer.RenderAPI("processing request", &apiInfo)
+}
+
+// renderClineError renders a ClineError with appropriate formatting based on type
+func (h *SayHandler) renderClineError(err *clerror.ClineError, dc *DisplayContext) error {
+	if dc.SystemRenderer == nil {
+		return dc.Renderer.RenderMessage("ERROR", err.Message, true)
+	}
+
+	switch err.GetErrorType() {
+	case clerror.ErrorTypeBalance:
+		return dc.SystemRenderer.RenderBalanceError(err)
+	case clerror.ErrorTypeAuth:
+		return dc.SystemRenderer.RenderAuthError(err)
+	case clerror.ErrorTypeRateLimit:
+		return dc.SystemRenderer.RenderRateLimitError(err)
+	default:
+		return dc.SystemRenderer.RenderAPIError(err)
+	}
 }
 
 // handleAPIReqFinished handles API request finished messages
@@ -392,6 +419,12 @@ func (h *SayHandler) handleUseMcpServer(msg *types.ClineMessage, dc *DisplayCont
 
 // handleDiffError handles diff error messages
 func (h *SayHandler) handleDiffError(msg *types.ClineMessage, dc *DisplayContext) error {
+	if dc.SystemRenderer != nil {
+		return dc.SystemRenderer.RenderWarning(
+			"Diff Edit Failure",
+			"The model used search patterns that don't match anything in the file. Retrying...",
+		)
+	}
 	return dc.Renderer.RenderMessage("WARNING", "Diff Edit Failure - The model used an invalid diff edit format or used search patterns that don't match anything in the file.", true)
 }
 
@@ -403,6 +436,12 @@ func (h *SayHandler) handleDeletedAPIReqs(msg *types.ClineMessage, dc *DisplayCo
 
 // handleClineignoreError handles .clineignore error messages
 func (h *SayHandler) handleClineignoreError(msg *types.ClineMessage, dc *DisplayContext) error {
+	if dc.SystemRenderer != nil {
+		return dc.SystemRenderer.RenderInfo(
+			"Access Denied",
+			fmt.Sprintf("Cline tried to access `%s` which is blocked by the .clineignore file.", msg.Text),
+		)
+	}
 	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Access Denied - Cline tried to access %s which is blocked by the .clineignore file", msg.Text), true)
 }
 

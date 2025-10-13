@@ -22,9 +22,10 @@ type MessageHandler interface {
 
 // DisplayContext provides context and utilities for message handlers
 type DisplayContext struct {
-	State           *types.ConversationState
-	Renderer        *display.Renderer
-	ToolRenderer    *display.ToolRenderer
+	State          *types.ConversationState
+	Renderer       *display.Renderer
+	ToolRenderer   *display.ToolRenderer
+	SystemRenderer *display.SystemMessageRenderer
 	IsLast          bool
 	IsPartial       bool
 	Verbose         bool

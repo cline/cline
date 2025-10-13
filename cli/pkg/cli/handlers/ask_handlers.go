@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cline/cli/pkg/cli/clerror"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
@@ -175,6 +176,26 @@ func (h *AskHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 
 // handleAPIReqFailed handles API request failures
 func (h *AskHandler) handleAPIReqFailed(msg *types.ClineMessage, dc *DisplayContext) error {
+	// Try to parse as ClineError for better error display
+	if dc.SystemRenderer != nil {
+		clineErr, _ := clerror.ParseClineError(msg.Text)
+		if clineErr != nil {
+			// Render the error with system renderer
+			switch clineErr.GetErrorType() {
+			case clerror.ErrorTypeBalance:
+				dc.SystemRenderer.RenderBalanceError(clineErr)
+			case clerror.ErrorTypeAuth:
+				dc.SystemRenderer.RenderAuthError(clineErr)
+			case clerror.ErrorTypeRateLimit:
+				dc.SystemRenderer.RenderRateLimitError(clineErr)
+			default:
+				dc.SystemRenderer.RenderAPIError(clineErr)
+			}
+			// Still show "Approve to retry" message
+			fmt.Printf("\n**Approve to retry request.**\n")
+			return nil
+		}
+	}
 	return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("API Request Failed: %s. Approve to retry request.", msg.Text), true)
 }
 
@@ -190,11 +211,39 @@ func (h *AskHandler) handleResumeCompletedTask(msg *types.ClineMessage, dc *Disp
 
 // handleMistakeLimitReached handles mistake limit reached
 func (h *AskHandler) handleMistakeLimitReached(msg *types.ClineMessage, dc *DisplayContext) error {
+	if dc.SystemRenderer != nil {
+		details := make(map[string]string)
+		if msg.Text != "" {
+			details["details"] = msg.Text
+		}
+		dc.SystemRenderer.RenderError(
+			"critical",
+			"Mistake Limit Reached",
+			"Cline has made too many consecutive mistakes and needs your guidance to proceed.",
+			details,
+		)
+		fmt.Printf("\n**Approval required to continue.**\n")
+		return nil
+	}
 	return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("Mistake Limit Reached: %s. Approval required.", msg.Text), true)
 }
 
 // handleAutoApprovalMaxReached handles auto-approval max reached
 func (h *AskHandler) handleAutoApprovalMaxReached(msg *types.ClineMessage, dc *DisplayContext) error {
+	if dc.SystemRenderer != nil {
+		details := make(map[string]string)
+		if msg.Text != "" {
+			details["reason"] = msg.Text
+		}
+		dc.SystemRenderer.RenderError(
+			"warning",
+			"Auto-Approval Limit Reached",
+			"The maximum number of auto-approved requests has been reached. Manual approval is now required.",
+			details,
+		)
+		fmt.Printf("\n**Approval required to continue.**\n")
+		return nil
+	}
 	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Auto-approval limit reached: %s. Approval required.", msg.Text), true)
 }
 
