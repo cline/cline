@@ -931,7 +931,7 @@ export const ChatRowContent = memo(
 							backgroundColor: isExpanded ? "#151515" : "#2d2d30",
 							transition: "all 0.3s ease-in-out",
 						}}>
-						{(isCommandExecuting || isCommandCompleted) && (
+						{command && (
 							<div
 								onClick={handleToggle}
 								style={{
