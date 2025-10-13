@@ -315,6 +315,18 @@ export async function writeRemoteConfigToCache(organizationId: string, config: R
 	}
 }
 
+export async function deleteRemoteConfigFromCache(organizationId: string): Promise<void> {
+	try {
+		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
+		const fileExists = await fileExistsAtPath(remoteConfigFilePath)
+		if (fileExists) {
+			await fs.unlink(remoteConfigFilePath)
+		}
+	} catch (error) {
+		console.error("Failed to delete remote config from cache:", error)
+	}
+}
+
 /**
  * Gets the paths to the workspace's .clinerules/hooks directories to search for
  * hooks. A workspace may not use hooks, and the resulting array will be empty. A
