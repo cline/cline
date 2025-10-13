@@ -17,6 +17,7 @@ import { useEvent } from "react-use"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
+import { getEnvironmentColor } from "@/utils/environmentColors"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
 import SectionHeader from "./SectionHeader"
 import AboutSection from "./sections/AboutSection"
@@ -139,7 +140,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		[],
 	) // Empty deps - these imports never change
 
-	const { version } = useExtensionState()
+	const { version, environment } = useExtensionState()
 
 	// Initialize active tab with memoized calculation
 	const initialTab = useMemo(() => targetSection || SETTINGS_TABS[0].id, [targetSection])
@@ -295,11 +296,15 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		return <Component {...props} />
 	}, [activeTab, handleResetState, version])
 
+	const titleColor = getEnvironmentColor(environment)
+
 	return (
 		<Tab>
 			<TabHeader className="flex justify-between items-center gap-2">
 				<div className="flex items-center gap-1">
-					<h3 className="text-foreground m-0">Settings</h3>
+					<h3 className="m-0" style={{ color: titleColor }}>
+						Settings
+					</h3>
 				</div>
 				<div className="flex gap-2">
 					<VSCodeButton onClick={onDone}>Done</VSCodeButton>

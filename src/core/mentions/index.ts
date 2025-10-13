@@ -5,6 +5,7 @@ import { getLatestTerminalOutput } from "@integrations/terminal/get-latest-outpu
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { telemetryService } from "@services/telemetry"
 import { mentionRegexGlobal } from "@shared/context-mentions"
+import { WorkspaceRoot } from "@shared/multi-root/types"
 import { openExternal } from "@utils/env"
 import { getCommitInfo, getWorkingState } from "@utils/git"
 import fs from "fs/promises"
@@ -16,7 +17,7 @@ import { DiagnosticSeverity } from "@/shared/proto/index.cline"
 import { isDirectory } from "@/utils/fs"
 import { getCwd } from "@/utils/path"
 import { FileContextTracker } from "../context/context-tracking/FileContextTracker"
-import type { WorkspaceRoot, WorkspaceRootManager } from "../workspace"
+import type { WorkspaceRootManager } from "../workspace"
 
 export async function openMention(mention?: string): Promise<void> {
 	if (!mention) {
