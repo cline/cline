@@ -350,6 +350,14 @@ export class ToolExecutor {
 	 * Adds hook context modification to the conversation if provided.
 	 * Parses the context to extract type prefix and formats as XML.
 	 *
+	 * Context Type Prefix Format:
+	 * - Type prefixes MUST be uppercase (A-Z and underscores only)
+	 * - Format: "TYPE_PREFIX: context content"
+	 * - Valid examples: "WORKSPACE_RULES:", "FILE_OPERATIONS:", "VALIDATION:"
+	 * - Invalid examples: "workspace_rules:", "Workspace_Rules:" (lowercase not matched)
+	 *
+	 * If no valid uppercase type prefix is found, defaults to type="general"
+	 *
 	 * @param contextModification The context string from the hook output
 	 * @param source The hook source name ("PreToolUse" or "PostToolUse")
 	 */
@@ -369,7 +377,8 @@ export class ToolExecutor {
 		let contextType = "general"
 		let content = contextText
 
-		// Check if first line specifies a type: "TYPE: content"
+		// Type prefix MUST be uppercase: matches "TYPE_PREFIX: content"
+		// Only uppercase letters (A-Z) and underscores are recognized
 		const typeMatchRegex = /^([A-Z_]+):\s*(.*)/
 		const typeMatch = typeMatchRegex.exec(firstLine)
 		if (typeMatch) {
