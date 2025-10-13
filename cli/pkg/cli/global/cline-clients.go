@@ -106,6 +106,15 @@ func (c *ClineClients) StartNewInstance(ctx context.Context) (*common.CoreInstan
 		fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
 		fmt.Printf("  Process PID: %d\n", coreCmd.Process.Pid)
 	}
+
+	// If this is the first instance, set it as default
+	instances := c.registry.ListInstances()
+	if err := c.registry.EnsureDefaultInstance(instances); err != nil {
+		if Config.Verbose {
+			fmt.Printf("Warning: Failed to set default instance: %v\n", err)
+		}
+	}
+
 	return instance, nil
 }
 
@@ -184,6 +193,15 @@ func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int)
 		fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
 		fmt.Printf("  Process PID: %d\n", coreCmd.Process.Pid)
 	}
+
+	// If this is the first instance, set it as default
+	instances := c.registry.ListInstances()
+	if err := c.registry.EnsureDefaultInstance(instances); err != nil {
+		if Config.Verbose {
+			fmt.Printf("Warning: Failed to set default instance: %v\n", err)
+		}
+	}
+
 	return instance, nil
 }
 

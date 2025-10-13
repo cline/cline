@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/cline/cli/pkg/cli"
 	"github.com/cline/cli/pkg/cli/auth"
+	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/common"
 	"github.com/cline/grpc-go/cline"
@@ -89,16 +90,20 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 
 				// Check if user has credentials configured
 				if !isUserReadyToUse(ctx, instanceAddress) {
-					fmt.Println("Let's get you set up first!\n")
+					// Create renderer for welcome messages
+					renderer := display.NewRenderer(global.Config.OutputFormat)
+
+					markdown := "## hey there! looks like you're new here. let's get you set up"
+					rendered := renderer.RenderMarkdown(markdown)
+					fmt.Printf("\n%s\n\n", rendered)
+
 					if err := auth.HandleAuthMenuNoArgs(ctx); err != nil {
 						return fmt.Errorf("auth setup failed: %w", err)
 					}
 
-					// Re-check after auth wizard
-					if !isUserReadyToUse(ctx, instanceAddress) {
-						return fmt.Errorf("credentials still not configured - please run 'cline auth' to complete setup")
-					}
-					fmt.Println("\n✓ Setup complete! Let's get started.\n")
+					markdown = "## ✓ Setup complete! Let's get started."
+					rendered = renderer.RenderMarkdown(markdown)
+					fmt.Printf("\n%s\n\n", rendered)
 				}
 			} else {
 				// User specified --address flag, use that
@@ -182,7 +187,8 @@ func promptForInitialTask() (string, error) {
 }
 
 // isUserReadyToUse checks if the user has completed initial setup
-// Returns true if welcomeViewCompleted flag is set in state
+// Returns true if welcomeViewCompleted flag is set OR user is authenticated
+// Matches extension logic: welcomeViewCompleted = Boolean(globalState.welcomeViewCompleted || user?.uid)
 func isUserReadyToUse(ctx context.Context, instanceAddress string) bool {
 	manager, err := cli.NewTaskManagerForAddress(ctx, instanceAddress)
 	if err != nil {
@@ -201,9 +207,16 @@ func isUserReadyToUse(ctx context.Context, instanceAddress string) bool {
 		return false
 	}
 
-	// Check welcomeViewCompleted flag
+	// Check 1: welcomeViewCompleted flag
 	if welcomeCompleted, ok := stateMap["welcomeViewCompleted"].(bool); ok && welcomeCompleted {
 		return true
+	}
+
+	// Check 2: Is user authenticated? (matches extension's || user?.uid check)
+	if userInfo, ok := stateMap["userInfo"].(map[string]interface{}); ok {
+		if uid, ok := userInfo["uid"].(string); ok && uid != "" {
+			return true
+		}
 	}
 
 	return false

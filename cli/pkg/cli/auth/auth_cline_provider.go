@@ -16,7 +16,9 @@ var isSessionAuthenticated bool
 // Cline provider specific code
 
 func HandleClineAuth(ctx context.Context) error {
-	fmt.Println("Authenticating with Cline...")
+	if global.Config.Verbose {
+		fmt.Println("Authenticating with Cline...")
+	}
 
 	// Check if already authenticated
 	if IsAuthenticated(ctx) {
