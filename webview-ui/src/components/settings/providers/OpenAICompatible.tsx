@@ -2,7 +2,7 @@ import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shar
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -11,6 +11,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
@@ -68,6 +69,11 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 		}
 	}, [])
 
+	const showThinkingBudgetSlider = useMemo(() => {
+		const baseUrlLc = (apiConfiguration?.openAiBaseUrl || "").toLowerCase()
+		return /openai\.azure\.com\/openai\/responses/.test(baseUrlLc) || /(^|\/)openai\/responses(\/|$)/.test(baseUrlLc)
+	}, [apiConfiguration?.openAiBaseUrl])
+
 	return (
 		<div>
 			{remoteConfigSettings?.openAiBaseUrl !== undefined ? (
@@ -103,6 +109,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					<span style={{ fontWeight: 500 }}>Base URL</span>
 				</DebouncedTextField>
 			)}
+
+			{showThinkingBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
 
 			<ApiKeyField
 				initialValue={apiConfiguration?.openAiApiKey || ""}
