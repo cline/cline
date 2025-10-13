@@ -31,12 +31,14 @@ const SUPPORTED_BINARY_MODULES = ["better-sqlite3"]
 const UNIVERSAL_BUILD = !process.argv.includes("-s")
 const IS_VERBOSE = process.argv.includes("-v") || process.argv.includes("--verbose")
 
-// Parse --target flag (e.g., --target=cli)
+// Parse --target flag (e.g., --target=cli, --target=npm)
 // Default behavior is JetBrains build (no binaries)
 // Use --target=cli for standalone CLI build (with binaries)
+// Use --target=npm for npm package build (CLI binaries but no Node.js)
 const targetArg = process.argv.find((arg) => arg.startsWith("--target="))
 const BUILD_TARGET = targetArg ? targetArg.split("=")[1] : "jetbrains"
 const IS_CLI_BUILD = BUILD_TARGET === "cli"
+const IS_NPM_BUILD = BUILD_TARGET === "npm"
 
 // Detect current platform
 function getCurrentPlatform() {
@@ -54,23 +56,31 @@ function getCurrentPlatform() {
 }
 
 async function main() {
-	console.log(`🚀 Building Cline ${IS_CLI_BUILD ? "Standalone CLI" : "JetBrains"} Package\n`)
+	const buildType = IS_NPM_BUILD ? "NPM Package" : IS_CLI_BUILD ? "Standalone CLI" : "JetBrains"
+	console.log(`🚀 Building Cline ${buildType} Package\n`)
 
 	// Step 1: Install Node.js dependencies
 	await installNodeDependencies()
 
-	// Step 2: Copy Node.js binary (only for CLI builds)
-	// Step 3: Copy CLI binaries (only for CLI builds)
-	// Step 4: Copy ripgrep binary (only for CLI builds)
-	// Step 5: Create VERSION file (only for CLI builds)
+	// Step 2: Copy Node.js binary (only for CLI builds, not NPM)
+	// Step 3: Copy CLI binaries (for CLI and NPM builds)
+	// Step 4: Copy ripgrep binary (for CLI and NPM builds)
+	// Step 5: Create VERSION file (for CLI and NPM builds)
+	// Step 6: Copy NPM package files (only for NPM builds)
 	if (IS_CLI_BUILD) {
 		await copyNodeBinary()
 		await copyCliBinaries()
 		await copyRipgrepBinary()
 		await createVersionFile()
+	} else if (IS_NPM_BUILD) {
+		await copyCliBinaries()
+		await copyRipgrepBinary()
+		await createNpmPackageFiles()
+		await createPostinstallScript()
+		await cleanupNpmBuild()
 	}
 
-	// Step 6: Package platform-specific binary modules
+	// Step 7: Package platform-specific binary modules
 	if (UNIVERSAL_BUILD) {
 		console.log("\nBuilding universal package for all platforms...")
 		await packageAllBinaryDeps()
@@ -78,11 +88,17 @@ async function main() {
 		console.log(`\nBuilding package for ${os.platform()}-${os.arch()}...`)
 	}
 
-	// Step 7: Create final package
-	console.log("\n📦 Creating final package...")
-	await zipDistribution()
+	// Step 8: Create final package (skip zipping for NPM builds)
+	if (!IS_NPM_BUILD) {
+		console.log("\n📦 Creating final package...")
+		await zipDistribution()
+	}
 
 	console.log("\n✅ Build complete!")
+	if (IS_NPM_BUILD) {
+		console.log(`\n📦 NPM package ready in ${BUILD_DIR}/`)
+		console.log(`To publish: cd ${BUILD_DIR} && npm publish`)
+	}
 }
 
 async function installNodeDependencies() {
@@ -178,11 +194,23 @@ async function copyRipgrepBinary() {
 
 	console.log(`Copying ripgrep binary for ${currentPlatform}...`)
 
-	// Check if ripgrep binaries exist
+	// Check if ripgrep binaries exist, download if missing
 	if (!fs.existsSync(ripgrepBinarySource)) {
-		console.error(`Error: Ripgrep binary not found at ${ripgrepBinarySource}`)
-		console.error(`Please run: npm run download-ripgrep`)
-		process.exit(1)
+		console.log(`Ripgrep binary not found, downloading...`)
+		try {
+			execSync("npm run download-ripgrep", { stdio: "inherit" })
+		} catch (error) {
+			console.error(`Error downloading ripgrep: ${error.message}`)
+			console.error(`Please run: npm run download-ripgrep`)
+			process.exit(1)
+		}
+		
+		// Check again after download
+		if (!fs.existsSync(ripgrepBinarySource)) {
+			console.error(`Error: Ripgrep binary still not found at ${ripgrepBinarySource}`)
+			console.error(`Download may have failed. Please run: npm run download-ripgrep`)
+			process.exit(1)
+		}
 	}
 
 	// Copy ripgrep binary to the root of dist-standalone (where cline-core.js is)
@@ -216,6 +244,174 @@ async function createVersionFile() {
 	fs.writeFileSync(versionPath, JSON.stringify(versionInfo, null, 2))
 
 	console.log(`✓ VERSION file created: ${version} (${platform})`)
+}
+
+/**
+ * Copy NPM package files (package.json and README.md) from cli/ directory
+ */
+async function createNpmPackageFiles() {
+	console.log("Copying NPM package files...")
+
+	// Copy package.json from cli/ directory
+	const packageJsonSource = path.join("cli", "package.json")
+	const packageJsonDest = path.join(BUILD_DIR, "package.json")
+	
+	if (!fs.existsSync(packageJsonSource)) {
+		console.error(`Error: NPM package.json not found at ${packageJsonSource}`)
+		process.exit(1)
+	}
+
+	await cpr(packageJsonSource, packageJsonDest)
+	console.log(`✓ package.json copied from ${packageJsonSource}`)
+
+	// Copy README.md from cli/ directory
+	const readmeSource = path.join("cli", "README.md")
+	const readmeDest = path.join(BUILD_DIR, "README.md")
+	
+	if (!fs.existsSync(readmeSource)) {
+		console.error(`Error: NPM README.md not found at ${readmeSource}`)
+		process.exit(1)
+	}
+
+	await cpr(readmeSource, readmeDest)
+	console.log(`✓ README.md copied from ${readmeSource}`)
+}
+
+/**
+ * Create postinstall script for NPM package
+ */
+async function createPostinstallScript() {
+	console.log("Creating postinstall script...")
+
+	const postinstallScript = `#!/usr/bin/env node
+
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+// Detect current platform
+function getCurrentPlatform() {
+	const platform = os.platform();
+	const arch = os.arch();
+
+	if (platform === 'darwin') {
+		return arch === 'arm64' ? 'darwin-arm64' : 'darwin-x64';
+	} else if (platform === 'linux') {
+		return 'linux-x64';
+	} else if (platform === 'win32') {
+		return 'win-x64';
+	}
+	throw new Error(\`Unsupported platform: \${platform}-\${arch}\`);
+}
+
+// Validate binary installation
+function validateInstallation() {
+	const currentPlatform = getCurrentPlatform();
+	console.log(\`Validating Cline installation for \${currentPlatform}...\`);
+
+	// Check CLI binaries
+	const clineExe = path.join(__dirname, 'bin', 'cline');
+	const clineHostExe = path.join(__dirname, 'bin', 'cline-host');
+	
+	if (!fs.existsSync(clineExe)) {
+		console.error(\`Error: cline binary not found at \${clineExe}\`);
+		process.exit(1);
+	}
+	
+	if (!fs.existsSync(clineHostExe)) {
+		console.error(\`Error: cline-host binary not found at \${clineHostExe}\`);
+		process.exit(1);
+	}
+
+	// Check ripgrep binary
+	const rgBinary = currentPlatform.startsWith('win') ? 'rg.exe' : 'rg';
+	const rgPath = path.join(__dirname, rgBinary);
+	
+	if (!fs.existsSync(rgPath)) {
+		console.error(\`Error: ripgrep binary not found at \${rgPath}\`);
+		process.exit(1);
+	}
+
+	// Ensure binaries are executable (Unix only)
+	if (!currentPlatform.startsWith('win')) {
+		try {
+			fs.chmodSync(clineExe, 0o755);
+			fs.chmodSync(clineHostExe, 0o755);
+			fs.chmodSync(rgPath, 0o755);
+		} catch (error) {
+			console.warn(\`Warning: Could not set executable permissions: \${error.message}\`);
+		}
+	}
+
+	console.log('✓ Cline installation validated successfully');
+	console.log('');
+	console.log('Usage:');
+	console.log('  cline        - Start Cline CLI');
+	console.log('  cline-host   - Start Cline host service');
+	console.log('');
+	console.log('Documentation: https://docs.cline.bot');
+}
+
+try {
+	validateInstallation();
+} catch (error) {
+	console.error(\`Installation validation failed: \${error.message}\`);
+	console.error('Please report this issue at: https://github.com/cline/cline/issues');
+	process.exit(1);
+}
+`;
+
+	const postinstallPath = path.join(BUILD_DIR, "postinstall.js")
+	fs.writeFileSync(postinstallPath, postinstallScript)
+	
+	console.log(`✓ postinstall.js created`)
+}
+
+/**
+ * Clean up npm build by removing files not needed for npm package
+ */
+async function cleanupNpmBuild() {
+	console.log("Cleaning up npm build...")
+
+	// Remove Node.js binary (users have their own Node.js)
+	const nodeBinaryPath = path.join(BUILD_DIR, "bin", "node")
+	if (fs.existsSync(nodeBinaryPath)) {
+		fs.unlinkSync(nodeBinaryPath)
+		console.log(`✓ Removed Node.js binary`)
+	}
+
+	// Remove node-binaries directory (not needed for npm)
+	const nodeBinariesDir = path.join(BUILD_DIR, "node-binaries")
+	if (fs.existsSync(nodeBinariesDir)) {
+		await rmrf(nodeBinariesDir)
+		console.log(`✓ Removed node-binaries directory`)
+	}
+
+	// Remove ripgrep-binaries directory (not needed for npm)
+	const ripgrepBinariesDir = path.join(BUILD_DIR, "ripgrep-binaries")
+	if (fs.existsSync(ripgrepBinariesDir)) {
+		await rmrf(ripgrepBinariesDir)
+		console.log(`✓ Removed ripgrep-binaries directory`)
+	}
+
+	// Remove zip files (not needed for npm)
+	const zipFiles = ["standalone.zip", "standalone-cli.zip"]
+	for (const zipFile of zipFiles) {
+		const zipPath = path.join(BUILD_DIR, zipFile)
+		if (fs.existsSync(zipPath)) {
+			fs.unlinkSync(zipPath)
+			console.log(`✓ Removed ${zipFile}`)
+		}
+	}
+
+	// Remove VERSION.txt (not needed for npm, version is in package.json)
+	const versionPath = path.join(BUILD_DIR, "VERSION.txt")
+	if (fs.existsSync(versionPath)) {
+		fs.unlinkSync(versionPath)
+		console.log(`✓ Removed VERSION.txt`)
+	}
+
+	console.log(`✓ NPM build cleanup complete`)
 }
 
 /**

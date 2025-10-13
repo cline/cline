@@ -1,0 +1,60 @@
+{
+  "name": "cline",
+  "version": "1.0.0-nightly.1",
+  "description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
+  "main": "cline-core.js",
+  "bin": {
+    "cline": "./bin/cline",
+    "cline-host": "./bin/cline-host"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "cline",
+    "claude",
+    "dev",
+    "mcp",
+    "openrouter",
+    "coding",
+    "agent",
+    "autonomous",
+    "chatgpt",
+    "sonnet",
+    "ai",
+    "llama",
+    "cli"
+  ],
+  "author": {
+    "name": "Cline Bot Inc."
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cline/cline"
+  },
+  "homepage": "https://cline.bot",
+  "bugs": {
+    "url": "https://github.com/cline/cline/issues"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.13.3",
+    "@grpc/reflection": "^1.0.4",
+    "better-sqlite3": "^12.2.0",
+    "grpc-health-check": "^2.0.2",
+    "open": "^10.1.2",
+    "vscode-uri": "^3.1.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}

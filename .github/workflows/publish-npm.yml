@@ -1,0 +1,91 @@
+name: Publish NPM Package
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  publish-npm:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+          
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Install webview dependencies
+        run: cd webview-ui && npm ci
+        
+      - name: Download binaries
+        run: |
+          npm run download-node
+          npm run download-ripgrep
+          
+      - name: Build CLI binaries
+        run: npm run compile-cli
+        
+      - name: Build NPM package
+        run: npm run compile-standalone-npm
+        
+      - name: Verify package structure
+        run: |
+          echo "Package contents:"
+          ls -la dist-standalone/
+          echo "Binary contents:"
+          ls -la dist-standalone/bin/
+          echo "Package.json:"
+          cat dist-standalone/package.json
+          
+      - name: Test postinstall script
+        run: cd dist-standalone && node postinstall.js
+        
+      - name: Publish to NPM
+        run: cd dist-standalone && npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            ## NPM Package Published
+            
+            The Cline CLI package has been published to npm:
+            
+            ```bash
+            npm install -g cline
+            ```
+            
+            ### Usage
+            
+            ```bash
+            cline        # Start Cline CLI
+            cline-host   # Start Cline host service
+            ```
+            
+            ### Documentation
+            
+            - [Website](https://cline.bot)
+            - [Documentation](https://docs.cline.bot)
+            - [GitHub](https://github.com/cline/cline)
+          draft: false
+          prerelease: false
