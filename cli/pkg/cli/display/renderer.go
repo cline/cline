@@ -80,6 +80,7 @@ func (r *Renderer) formatUsageInfo(tokensIn, tokensOut, cacheReads, cacheWrites 
     return fmt.Sprintf("%s $%.4f", strings.Join(parts, " "), cost)
 }
 
+
 func (r *Renderer) RenderAPI(status string, apiInfo *types.APIRequestInfo) error {
 	if apiInfo.Cost >= 0 {
 		usageInfo := r.formatUsageInfo(apiInfo.TokensIn, apiInfo.TokensOut, apiInfo.CacheReads, apiInfo.CacheWrites, apiInfo.Cost)
@@ -102,6 +103,13 @@ func (r *Renderer) RenderRetry(attempt, maxAttempts, delaySec int) error {
 	}
 	message += "..."
 	r.typewriter.PrintMessageLine("API INFO", message)
+	return nil
+}
+
+func (r *Renderer) RenderTaskCancelled() error {
+	markdown := "## Task cancelled"
+	rendered := r.RenderMarkdown(markdown)
+	fmt.Printf("\n%s\n", rendered)
 	return nil
 }
 

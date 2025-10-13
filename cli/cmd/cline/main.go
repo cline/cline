@@ -76,10 +76,14 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 
 				// Set up cleanup on exit
 				defer func() {
-					fmt.Println("\nCleaning up instance...")
+					if global.Config.Verbose {
+						fmt.Println("\nCleaning up instance...")
+					}
 					registry := global.Clients.GetRegistry()
 					if err := global.KillInstanceByAddress(context.Background(), registry, instanceAddress); err != nil {
-						fmt.Printf("Warning: Failed to clean up instance: %v\n", err)
+						if global.Config.Verbose {
+							fmt.Printf("Warning: Failed to clean up instance: %v\n", err)
+						}
 					}
 				}()
 

@@ -285,7 +285,9 @@ func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, addres
 		return fmt.Errorf("instance %s not found in registry", address)
 	}
 
-	fmt.Printf("Killing instance: %s\n", address)
+	if Config.Verbose {
+		fmt.Printf("Killing instance: %s\n", address)
+	}
 
 	// Get gRPC client and process info
 	client, err := registry.GetClient(ctx, address)
@@ -299,7 +301,9 @@ func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, addres
 	}
 
 	pid := int(processInfo.ProcessId)
-	fmt.Printf("Terminating process PID %d...\n", pid)
+	if Config.Verbose {
+		fmt.Printf("Terminating process PID %d...\n", pid)
+	}
 
 	// Kill the process
 	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
@@ -307,11 +311,15 @@ func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, addres
 	}
 
 	// Wait for the instance to remove itself from registry
-	fmt.Printf("Waiting for instance to clean up registry entry...\n")
+	if Config.Verbose {
+		fmt.Printf("Waiting for instance to clean up registry entry...\n")
+	}
 	for i := 0; i < 5; i++ {
 		time.Sleep(1 * time.Second)
 		if !registry.HasInstanceAtAddress(address) {
-			fmt.Printf("Instance %s successfully killed and removed from registry.\n", address)
+			if Config.Verbose {
+				fmt.Printf("Instance %s successfully killed and removed from registry.\n", address)
+			}
 
 			// Update default instance if needed
 			instances, err := registry.ListInstancesCleaned(ctx)
@@ -321,7 +329,9 @@ func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, addres
 				if defaultInstance == address || defaultInstance == "" {
 					if len(instances) > 0 {
 						if err := registry.SetDefaultInstance(instances[0].Address); err == nil {
-							fmt.Printf("Updated default instance to: %s\n", instances[0].Address)
+							if Config.Verbose {
+								fmt.Printf("Updated default instance to: %s\n", instances[0].Address)
+							}
 						}
 					}
 				}
