@@ -241,8 +241,7 @@ export const ChatRowContent = memo(
 		onSetQuote,
 		onCancelCommand,
 	}: ChatRowContentProps) => {
-		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode, backgroundCommandRunning } =
-			useExtensionState()
+		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
@@ -1531,7 +1530,7 @@ export const ChatRowContent = memo(
 									</div>
 								</div>
 							)
-						} catch (e) {
+						} catch (_e) {
 							// Fallback if JSON parsing fails
 							return (
 								<div style={{ color: "var(--vscode-foreground)" }}>

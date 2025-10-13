@@ -1283,57 +1283,46 @@ export class Task {
 		//await process
 
 		if (!didCancelViaUi) {
-			if (!didCancelViaUi) {
-				if (timeoutSeconds) {
-					const timeoutPromise = new Promise<never>((_, reject) => {
-						setTimeout(() => {
-							reject(new Error("COMMAND_TIMEOUT"))
-						}, timeoutSeconds * 1000)
-					})
+			if (timeoutSeconds) {
+				const timeoutPromise = new Promise<never>((_, reject) => {
+					setTimeout(() => {
+						reject(new Error("COMMAND_TIMEOUT"))
+					}, timeoutSeconds * 1000)
+				})
 
-					try {
-						await Promise.race([process, timeoutPromise])
-					} catch (error) {
-						// This will continue running the command in the background
-						didContinue = true
-						process.continue()
+				try {
+					await Promise.race([process, timeoutPromise])
+				} catch (error) {
+					// This will continue running the command in the background
+					didContinue = true
+					process.continue()
 
-						// Clear all our timers
-						if (chunkTimer) {
-							clearTimeout(chunkTimer)
-							chunkTimer = null
-						}
-						if (completionTimer) {
-							clearTimeout(completionTimer)
-							completionTimer = null
-						}
-
-						// Process any output we captured before timeout
-						await setTimeoutPromise(50)
-						const result = this.terminalManager.processOutput(outputLines)
-
-						if (error.message === "COMMAND_TIMEOUT") {
-							return [
-								false,
-								`Command execution timed out after ${timeoutSeconds} seconds. The command may still be running in the terminal.${result.length > 0 ? `\nOutput so far:\n${result}` : ""}`,
-							]
-						}
-
-						// Re-throw other errors
-						throw error
+					// Clear all our timers
+					if (chunkTimer) {
+						clearTimeout(chunkTimer)
+						chunkTimer = null
 					}
-				} else {
-					await process
+					if (completionTimer) {
+						clearTimeout(completionTimer)
+						completionTimer = null
+					}
+
+					// Process any output we captured before timeout
+					await setTimeoutPromise(50)
+					const result = this.terminalManager.processOutput(outputLines)
+
+					if (error.message === "COMMAND_TIMEOUT") {
+						return [
+							false,
+							`Command execution timed out after ${timeoutSeconds} seconds. The command may still be running in the terminal.${result.length > 0 ? `\nOutput so far:\n${result}` : ""}`,
+						]
+					}
+
+					// Re-throw other errors
+					throw error
 				}
 			} else {
-				if (chunkTimer) {
-					clearTimeout(chunkTimer)
-					chunkTimer = null
-				}
-				if (completionTimer) {
-					clearTimeout(completionTimer)
-					completionTimer = null
-				}
+				await process
 			}
 		}
 
