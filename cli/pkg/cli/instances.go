@@ -18,6 +18,46 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
+const (
+	platformCLI       = "CLI"
+	platformJetBrains = "JetBrains"
+	platformNA        = "N/A"
+	hostPlatformCLI   = "Cline CLI" // Value returned by host bridge for CLI instances
+)
+
+// detectInstancePlatform connects to an instance's host bridge and determines its platform
+func detectInstancePlatform(ctx context.Context, instance *common.CoreInstanceInfo) (string, error) {
+	hostTarget, err := common.NormalizeAddressForGRPC(instance.HostServiceAddress)
+	if err != nil {
+		return platformNA, err
+	}
+
+	hostClient, err := client2.NewClineClient(hostTarget)
+	if err != nil {
+		return platformNA, err
+	}
+	defer hostClient.Disconnect()
+
+	if err := hostClient.Connect(ctx); err != nil {
+		return platformNA, err
+	}
+
+	hostVersion, err := hostClient.Env.GetHostVersion(ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return platformNA, err
+	}
+
+	if hostVersion.Platform == nil {
+		return platformNA, fmt.Errorf("host returned nil platform")
+	}
+
+	platformStr := *hostVersion.Platform
+	if platformStr == hostPlatformCLI {
+		return platformCLI, nil
+	}
+	return platformJetBrains, nil
+}
+
 func NewInstanceCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "instance",
@@ -89,22 +129,13 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 	var skippedNonCLI int
 	for _, instance := range instances {
 		if instance.Status == grpc_health_v1.HealthCheckResponse_SERVING {
-			// Check if this is a CLI instance by querying the host bridge
-			hostTarget, err := common.NormalizeAddressForGRPC(instance.HostServiceAddress)
+			platform, err := detectInstancePlatform(ctx, instance)
 			if err == nil {
-				if hostClient, err := client2.NewClineClient(hostTarget); err == nil {
-					if err := hostClient.Connect(ctx); err == nil {
-						if hostVersion, err := hostClient.Env.GetHostVersion(ctx, &cline.EmptyRequest{}); err == nil && hostVersion.Platform != nil {
-							platformStr := *hostVersion.Platform
-							if platformStr == "Cline CLI" {
-								cliInstances = append(cliInstances, instance)
-							} else {
-								skippedNonCLI++
-								fmt.Printf("⊘ Skipping JetBrains instance: %s\n", instance.Address)
-							}
-						}
-						hostClient.Disconnect()
-					}
+				if platform == platformCLI {
+					cliInstances = append(cliInstances, instance)
+				} else {
+					skippedNonCLI++
+					fmt.Printf("⊘ Skipping %s instance: %s\n", platform, instance.Address)
 				}
 			}
 		}
@@ -277,8 +308,8 @@ func newInstanceListCommand() *cobra.Command {
 				}
 
 				// Get PID and platform via RPC if instance is healthy
-				pid := "N/A"
-				platform := "N/A"
+				pid := platformNA
+				platform := platformNA
 				if instance.Status == grpc_health_v1.HealthCheckResponse_SERVING {
 					// Get PID from core
 					if client, err := registry.GetClient(ctx, instance.Address); err == nil {
@@ -289,24 +320,11 @@ func newInstanceListCommand() *cobra.Command {
 								instance.Version = *processInfo.Version
 							}
 						}
+					}
 
-						// Get platform from host bridge by connecting directly to it
-						hostTarget, err := common.NormalizeAddressForGRPC(instance.HostServiceAddress)
-						if err == nil {
-							if hostClient, err := client2.NewClineClient(hostTarget); err == nil {
-								if err := hostClient.Connect(ctx); err == nil {
-									if hostVersion, err := hostClient.Env.GetHostVersion(ctx, &cline.EmptyRequest{}); err == nil && hostVersion.Platform != nil {
-										platformStr := *hostVersion.Platform
-										if platformStr == "Cline CLI" {
-											platform = "CLI"
-										} else {
-											platform = "JetBrains"
-										}
-									}
-									hostClient.Disconnect()
-								}
-							}
-						}
+					// Get platform from host bridge
+					if detectedPlatform, err := detectInstancePlatform(ctx, instance); err == nil {
+						platform = detectedPlatform
 					}
 				}
 
