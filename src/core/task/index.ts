@@ -1186,10 +1186,7 @@ export class Task {
 				if (didCancelViaUi) {
 					outputBuffer = []
 					outputBufferSize = 0
-					await this.say(
-						"command_output",
-						"Command cancelled. It will keep running in the terminal if you want to monitor it manually.",
-					)
+					await this.say("command_output", "Command cancelled")
 				}
 
 				// If more output accumulated, flush again
@@ -1314,7 +1311,7 @@ export class Task {
 					if (error.message === "COMMAND_TIMEOUT") {
 						return [
 							false,
-							`Command execution timed out after ${timeoutSeconds} seconds. The command may still be running in the terminal.${result.length > 0 ? `\nOutput so far:\n${result}` : ""}`,
+							`Command execution timed out after ${timeoutSeconds} seconds. ${result.length > 0 ? `\nOutput so far:\n${result}` : ""}`,
 						]
 					}
 
@@ -1347,9 +1344,7 @@ export class Task {
 			return [
 				true,
 				formatResponse.toolResult(
-					`Command cancelled. It will continue running in the terminal.${
-						result.length > 0 ? `\nOutput captured before cancellation:\n${result}` : ""
-					}`,
+					`Command cancelled. ${result.length > 0 ? `\nOutput captured before cancellation:\n${result}` : ""}`,
 				),
 			]
 		}
