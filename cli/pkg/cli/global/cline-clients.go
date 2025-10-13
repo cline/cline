@@ -42,7 +42,9 @@ func (c *ClineClients) StartNewInstance(ctx context.Context) (*common.CoreInstan
 		return nil, fmt.Errorf("failed to find available ports: %w", err)
 	}
 
-	fmt.Printf("Starting new Cline instance on ports %d (core) and %d (host bridge)\n", corePort, hostPort)
+	if Config.Verbose {
+		fmt.Printf("Starting new Cline instance on ports %d (core) and %d (host bridge)\n", corePort, hostPort)
+	}
 
 	// Start cline-host first
 	hostCmd, err := startClineHost(hostPort, corePort)
@@ -61,7 +63,9 @@ func (c *ClineClients) StartNewInstance(ctx context.Context) (*common.CoreInstan
 	}
 
 	fullAddress := fmt.Sprintf("localhost:%d", corePort)
-	fmt.Println("Waiting for services to start and self-register in SQLite...")
+	if Config.Verbose {
+		fmt.Println("Waiting for services to start and self-register in SQLite...")
+	}
 
 	// Use RetryOperation to wait for instance to be ready
 	var instance *common.CoreInstanceInfo
@@ -95,11 +99,13 @@ func (c *ClineClients) StartNewInstance(ctx context.Context) (*common.CoreInstan
 		return nil, fmt.Errorf("failed to start instance: %w", err)
 	}
 
-	fmt.Println("Services started and registered successfully!")
-	fmt.Printf("  Address: %s\n", instance.Address)
-	fmt.Printf("  Core Port: %d\n", instance.CorePort())
-	fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
-	fmt.Printf("  Process PID: %d\n", coreCmd.Process.Pid)
+	if Config.Verbose {
+		fmt.Println("Services started and registered successfully!")
+		fmt.Printf("  Address: %s\n", instance.Address)
+		fmt.Printf("  Core Port: %d\n", instance.CorePort())
+		fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
+		fmt.Printf("  Process PID: %d\n", coreCmd.Process.Pid)
+	}
 	return instance, nil
 }
 
@@ -114,7 +120,9 @@ func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int)
 		return nil, fmt.Errorf("port %d is already in use by another Cline instance", corePort)
 	}
 
-	fmt.Printf("Starting new Cline instance on ports %d (core) and %d (host bridge)\n", corePort, hostPort)
+	if Config.Verbose {
+		fmt.Printf("Starting new Cline instance on ports %d (core) and %d (host bridge)\n", corePort, hostPort)
+	}
 
 	// Start cline-host first
 	hostCmd, err := startClineHost(hostPort, corePort)
@@ -133,7 +141,9 @@ func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int)
 	}
 
 	fullAddress := fmt.Sprintf("localhost:%d", corePort)
-	fmt.Println("Waiting for services to start and self-register in SQLite...")
+	if Config.Verbose {
+		fmt.Println("Waiting for services to start and self-register in SQLite...")
+	}
 
 	// Use RetryOperation to wait for instance to be ready
 	var instance *common.CoreInstanceInfo
@@ -167,11 +177,13 @@ func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int)
 		return nil, fmt.Errorf("failed to start instance at port %d: %w", corePort, err)
 	}
 
-	fmt.Println("Services started and registered successfully!")
-	fmt.Printf("  Address: %s\n", instance.Address)
-	fmt.Printf("  Core Port: %d\n", instance.CorePort())
-	fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
-	fmt.Printf("  Process PID: %d\n", coreCmd.Process.Pid)
+	if Config.Verbose {
+		fmt.Println("Services started and registered successfully!")
+		fmt.Printf("  Address: %s\n", instance.Address)
+		fmt.Printf("  Core Port: %d\n", instance.CorePort())
+		fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
+		fmt.Printf("  Process PID: %d\n", coreCmd.Process.Pid)
+	}
 	return instance, nil
 }
 
@@ -212,7 +224,9 @@ func (c *ClineClients) EnsureInstanceAtAddress(ctx context.Context, address stri
 }
 
 func startClineHost(hostPort, corePort int) (*exec.Cmd, error) {
-	fmt.Printf("Starting cline-host on port %d\n", hostPort)
+	if Config.Verbose {
+		fmt.Printf("Starting cline-host on port %d\n", hostPort)
+	}
 
 	// Get the directory where the cline binary is located
 	execPath, err := os.Executable()
@@ -256,8 +270,10 @@ func startClineHost(hostPort, corePort int) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("failed to start cline-host: %w", err)
 	}
 
-	fmt.Printf("Started cline-host (PID: %d)\n", cmd.Process.Pid)
-	fmt.Printf("Logging cline-host output to: %s\n", logFilePath)
+	if Config.Verbose {
+		fmt.Printf("Started cline-host (PID: %d)\n", cmd.Process.Pid)
+		fmt.Printf("Logging cline-host output to: %s\n", logFilePath)
+	}
 	return cmd, nil
 }
 
@@ -319,7 +335,9 @@ func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, addres
 }
 
 func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
-	fmt.Printf("Starting cline-core on port %d (with hostbridge on %d)\n", corePort, hostPort)
+	if Config.Verbose {
+		fmt.Printf("Starting cline-core on port %d (with hostbridge on %d)\n", corePort, hostPort)
+	}
 
 	// Get paths relative to the cline binary location
 	execPath, err := os.Executable()
@@ -381,7 +399,9 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("failed to start cline-core: %w", err)
 	}
 
-	fmt.Printf("Started cline-core (PID: %d)\n", cmd.Process.Pid)
-	fmt.Printf("Logging cline-core output to: %s\n", logFilePath)
+	if Config.Verbose {
+		fmt.Printf("Started cline-core (PID: %d)\n", cmd.Process.Pid)
+		fmt.Printf("Logging cline-core output to: %s\n", logFilePath)
+	}
 	return cmd, nil
 }

@@ -58,13 +58,26 @@ func formatNumber(n int) string {
 
 // formatUsageInfo formats token usage information (extracted from RenderAPI)
 func (r *Renderer) formatUsageInfo(tokensIn, tokensOut, cacheReads, cacheWrites int, cost float64) string {
-	tokenDetails := fmt.Sprintf("[tokens in: %s, out: %s; cache read: %s, write: %s]",
-		formatNumber(tokensIn),
-		formatNumber(tokensOut),
-		formatNumber(cacheReads),
-		formatNumber(cacheWrites))
+    parts := make([]string, 0, 4)
 
-	return fmt.Sprintf("%s ($%.4f)", tokenDetails, cost)
+    if tokensIn != 0 {
+        parts = append(parts, fmt.Sprintf("↑ %s", formatNumber(tokensIn)))
+    }
+    if tokensOut != 0 {
+        parts = append(parts, fmt.Sprintf("↓ %s", formatNumber(tokensOut)))
+    }
+    if cacheReads != 0 {
+        parts = append(parts, fmt.Sprintf("→ %s", formatNumber(cacheReads)))
+    }
+    if cacheWrites != 0 {
+        parts = append(parts, fmt.Sprintf("← %s", formatNumber(cacheWrites)))
+    }
+
+    if len(parts) == 0 {
+        return fmt.Sprintf("$%.4f", cost)
+    }
+
+    return fmt.Sprintf("%s $%.4f", strings.Join(parts, " "), cost)
 }
 
 func (r *Renderer) RenderAPI(status string, apiInfo *types.APIRequestInfo) error {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/common"
+	"github.com/cline/grpc-go/cline"
 	"github.com/spf13/cobra"
 )
 
@@ -60,13 +62,17 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 
 			// If --address flag not provided, start instance BEFORE getting prompt
 			if !cmd.Flags().Changed("address") {
-				fmt.Println("Starting new Cline instance...")
+				if global.Config.Verbose {
+					fmt.Println("Starting new Cline instance...")
+				}
 				instance, err := global.Clients.StartNewInstance(ctx)
 				if err != nil {
 					return fmt.Errorf("failed to start new instance: %w", err)
 				}
 				instanceAddress = instance.Address
-				fmt.Printf("Started instance at %s\n\n", instanceAddress)
+				if global.Config.Verbose {
+					fmt.Printf("Started instance at %s\n\n", instanceAddress)
+				}
 
 				// Set up cleanup on exit
 				defer func() {
@@ -171,24 +177,30 @@ func promptForInitialTask() (string, error) {
 	return strings.TrimSpace(prompt), nil
 }
 
-// isUserReadyToUse checks if the user has valid credentials to use Cline
-// Returns true if either:
-// - Authenticated with Cline provider, OR
-// - Has a BYO provider with both API key and model configured
+// isUserReadyToUse checks if the user has completed initial setup
+// Returns true if welcomeViewCompleted flag is set in state
 func isUserReadyToUse(ctx context.Context, instanceAddress string) bool {
-	// Create task manager for the instance
 	manager, err := cli.NewTaskManagerForAddress(ctx, instanceAddress)
 	if err != nil {
 		return false
 	}
 
-	// Get provider configurations from state
-	providerList, err := auth.GetProviderConfigurations(ctx, manager)
+	// Get state
+	state, err := manager.GetClient().State.GetLatestState(ctx, &cline.EmptyRequest{})
 	if err != nil {
 		return false
 	}
 
-	// Check if user has any ready-to-use providers
-	readyProviders := providerList.GetAllReadyProviders()
-	return len(readyProviders) > 0
+	// Parse state JSON
+	stateMap := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(state.StateJson), &stateMap); err != nil {
+		return false
+	}
+
+	// Check welcomeViewCompleted flag
+	if welcomeCompleted, ok := stateMap["welcomeViewCompleted"].(bool); ok && welcomeCompleted {
+		return true
+	}
+
+	return false
 }
