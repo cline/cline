@@ -4,6 +4,7 @@ import { execa } from "@packages/execa"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { RemoteConfig } from "@shared/remote-config/schema"
+import { GlobalState, Settings } from "@shared/storage/state-keys"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import os from "os"
@@ -11,7 +12,6 @@ import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { McpMarketplaceCatalog } from "@/shared/mcp"
 import { StateManager } from "./StateManager"
-import { GlobalState, Settings } from "./state-keys"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",

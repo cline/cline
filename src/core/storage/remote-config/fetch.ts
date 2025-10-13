@@ -42,7 +42,7 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig | undefined> {
 		}
 
 		const response: AxiosResponse<{
-			data?: { Value: string; Enabled: boolean }
+			data?: { value: string; enabled: boolean }
 			error: string
 			success: boolean
 		}> = await axios.request({
@@ -73,12 +73,12 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig | undefined> {
 		}
 
 		// Check if config is enabled
-		if (!configData.Enabled) {
+		if (!configData.enabled) {
 			return undefined
 		}
 
 		// Parse the JSON-encoded Value field
-		const parsedConfig = JSON.parse(configData.Value)
+		const parsedConfig = JSON.parse(configData.value)
 
 		// Validate against schema
 		const validatedConfig = RemoteConfigSchema.parse(parsedConfig)
