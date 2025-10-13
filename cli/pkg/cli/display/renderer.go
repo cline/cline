@@ -46,23 +46,6 @@ func (r *Renderer) RenderMessage(prefix, text string, newline bool) error {
 	return nil
 }
 
-
-func (r *Renderer) RenderCheckpointMessage(timestamp, prefix string, id int64) error {
-	markdown := fmt.Sprintf("## [%s] Checkpoint created `%d`", timestamp, id)
-	rendered := r.RenderMarkdown(markdown)
-	fmt.Printf(rendered)
-	return nil
-}
-
-func (r *Renderer) RenderCommand(command string, isExecuting bool) error {
-	if isExecuting {
-		r.typewriter.PrintMessageLine("EXEC", command)
-	} else {
-		r.typewriter.PrintMessageLine("CMD", command)
-	}
-	return nil
-}
-
 // formatNumber formats numbers with k/m abbreviations
 func formatNumber(n int) string {
 	if n >= 1000000 {
@@ -75,21 +58,35 @@ func formatNumber(n int) string {
 
 // formatUsageInfo formats token usage information (extracted from RenderAPI)
 func (r *Renderer) formatUsageInfo(tokensIn, tokensOut, cacheReads, cacheWrites int, cost float64) string {
-	tokenDetails := fmt.Sprintf("[tokens in: %s, out: %s; cache read: %s, write: %s]",
-		formatNumber(tokensIn),
-		formatNumber(tokensOut),
-		formatNumber(cacheReads),
-		formatNumber(cacheWrites))
+    parts := make([]string, 0, 4)
 
-	return fmt.Sprintf("%s ($%.4f)", tokenDetails, cost)
+    if tokensIn != 0 {
+        parts = append(parts, fmt.Sprintf("↑ %s", formatNumber(tokensIn)))
+    }
+    if tokensOut != 0 {
+        parts = append(parts, fmt.Sprintf("↓ %s", formatNumber(tokensOut)))
+    }
+    if cacheReads != 0 {
+        parts = append(parts, fmt.Sprintf("→ %s", formatNumber(cacheReads)))
+    }
+    if cacheWrites != 0 {
+        parts = append(parts, fmt.Sprintf("← %s", formatNumber(cacheWrites)))
+    }
+
+    if len(parts) == 0 {
+        return fmt.Sprintf("$%.4f", cost)
+    }
+
+    return fmt.Sprintf("%s $%.4f", strings.Join(parts, " "), cost)
 }
+
 
 func (r *Renderer) RenderAPI(status string, apiInfo *types.APIRequestInfo) error {
 	if apiInfo.Cost >= 0 {
 		usageInfo := r.formatUsageInfo(apiInfo.TokensIn, apiInfo.TokensOut, apiInfo.CacheReads, apiInfo.CacheWrites, apiInfo.Cost)
 		markdown := fmt.Sprintf("## API %s `%s`", status, usageInfo)
 		rendered := r.RenderMarkdown(markdown)
-		fmt.Printf("\n%s\n", rendered)
+		fmt.Printf(rendered)
 	} else {
 		// honestly i see no point in showing "### API processing request" here...
 		// markdown := fmt.Sprintf("## API %s", status)
@@ -106,6 +103,13 @@ func (r *Renderer) RenderRetry(attempt, maxAttempts, delaySec int) error {
 	}
 	message += "..."
 	r.typewriter.PrintMessageLine("API INFO", message)
+	return nil
+}
+
+func (r *Renderer) RenderTaskCancelled() error {
+	markdown := "## Task cancelled"
+	rendered := r.RenderMarkdown(markdown)
+	fmt.Printf("\n%s\n", rendered)
 	return nil
 }
 

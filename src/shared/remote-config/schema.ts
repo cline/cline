@@ -57,6 +57,7 @@ export const AwsBedrockSettingsSchema = z.object({
 	// AWS Bedrock specific settings:
 	awsRegion: z.string().optional(),
 	awsUseCrossRegionInference: z.boolean().optional(),
+	awsUseGlobalInference: z.boolean().optional(),
 	awsBedrockUsePromptCache: z.boolean().optional(),
 	awsBedrockEndpoint: z.string().optional(),
 })

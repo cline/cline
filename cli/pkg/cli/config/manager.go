@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/grpc-go/client"
@@ -115,7 +116,7 @@ func (m *Manager) ListSettings(ctx context.Context) error {
 	// Render each field using the renderer
 	for _, field := range settingsFields {
 		if value, ok := stateData[field]; ok {
-			if err := RenderField(field, value); err != nil {
+			if err := RenderField(field, value, true); err != nil {
 				fmt.Printf("Error rendering %s: %v\n", field, err)
 			}
 			fmt.Println()
@@ -123,4 +124,85 @@ func (m *Manager) ListSettings(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (m *Manager) GetSetting(ctx context.Context, key string) error {
+	// Get state
+	stateData, err := m.GetState(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Convert kebab-case to camelCase path
+	parts := kebabToCamelPath(key)
+	rootField := parts[0]
+
+	// Get the value
+	value, found := getNestedValue(stateData, parts)
+	if !found {
+		return fmt.Errorf("setting '%s' not found", key)
+	}
+
+	// Render the value
+	if len(parts) == 1 {
+		// Top-level field: use RenderField for nice formatting
+		return RenderField(rootField, value, false)
+	} else {
+		// Nested field: simple print
+		fmt.Printf("%s: %s\n", key, formatValue(value, rootField, true))
+	}
+
+	return nil
+}
+
+// kebabToCamelPath converts a kebab-case path to camelCase
+// e.g., "auto-approval-settings.actions.read-files" -> "autoApprovalSettings.actions.readFiles"
+func kebabToCamelPath(path string) []string {
+	parts := strings.Split(path, ".")
+	for i, part := range parts {
+		parts[i] = kebabToCamel(part)
+	}
+	return parts
+}
+
+// kebabToCamel converts a single kebab-case string to camelCase
+// e.g., "auto-approval-settings" -> "autoApprovalSettings"
+func kebabToCamel(s string) string {
+	if s == "" {
+		return s
+	}
+
+	parts := strings.Split(s, "-")
+	if len(parts) == 1 {
+		return s
+	}
+
+	// First part stays lowercase, rest are capitalized
+	result := parts[0]
+	for i := 1; i < len(parts); i++ {
+		if parts[i] != "" {
+			result += strings.ToUpper(parts[i][:1]) + parts[i][1:]
+		}
+	}
+	return result
+}
+
+// getNestedValue retrieves a value from a nested map using dot notation
+// e.g., "autoApprovalSettings.actions.readFiles"
+func getNestedValue(data map[string]interface{}, parts []string) (interface{}, bool) {
+	current := interface{}(data)
+
+	for _, part := range parts {
+		// Try to access as map
+		if m, ok := current.(map[string]interface{}); ok {
+			if val, exists := m[part]; exists {
+				current = val
+				continue
+			}
+			return nil, false
+		}
+		return nil, false
+	}
+
+	return current, true
 }
