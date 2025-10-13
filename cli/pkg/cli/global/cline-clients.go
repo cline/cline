@@ -6,9 +6,11 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"syscall"
 	"time"
 
 	"github.com/cline/cli/pkg/common"
+	"github.com/cline/grpc-go/cline"
 )
 
 // ClineClients manages Cline instances using the new registry system
@@ -225,12 +227,95 @@ func startClineHost(hostPort, corePort int) (*exec.Cmd, error) {
 		"--verbose",
 		"--port", fmt.Sprintf("%d", hostPort))
 
+	// Create logs directory in ~/.cline/logs
+	logsDir := path.Join(Config.ConfigPath, "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create logs directory: %w", err)
+	}
+
+	// Create timestamped log file
+	timestamp := time.Now().Format("2006-01-02-15-04-05")
+	logFileName := fmt.Sprintf("cline-host-%s-localhost-%d.log", timestamp, hostPort)
+	logFilePath := path.Join(logsDir, logFileName)
+	logFile, err := os.Create(logFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create log file: %w", err)
+	}
+
+	// Redirect stdout and stderr to log file
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+
+	// Put the child process in a new process group so Ctrl+C doesn't kill it
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+	}
+
 	if err := cmd.Start(); err != nil {
+		logFile.Close()
 		return nil, fmt.Errorf("failed to start cline-host: %w", err)
 	}
 
 	fmt.Printf("Started cline-host (PID: %d)\n", cmd.Process.Pid)
+	fmt.Printf("Logging cline-host output to: %s\n", logFilePath)
 	return cmd, nil
+}
+
+// KillInstanceByAddress kills a Cline instance by its address
+func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, address string) error {
+	// Check if the instance exists in the registry
+	_, err := registry.GetInstance(address)
+	if err != nil {
+		return fmt.Errorf("instance %s not found in registry", address)
+	}
+
+	fmt.Printf("Killing instance: %s\n", address)
+
+	// Get gRPC client and process info
+	client, err := registry.GetClient(ctx, address)
+	if err != nil {
+		return fmt.Errorf("failed to connect to instance %s: %w", address, err)
+	}
+
+	processInfo, err := client.State.GetProcessInfo(ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return fmt.Errorf("failed to get process info for instance %s: %w", address, err)
+	}
+
+	pid := int(processInfo.ProcessId)
+	fmt.Printf("Terminating process PID %d...\n", pid)
+
+	// Kill the process
+	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+		return fmt.Errorf("failed to kill process %d: %w", pid, err)
+	}
+
+	// Wait for the instance to remove itself from registry
+	fmt.Printf("Waiting for instance to clean up registry entry...\n")
+	for i := 0; i < 5; i++ {
+		time.Sleep(1 * time.Second)
+		if !registry.HasInstanceAtAddress(address) {
+			fmt.Printf("Instance %s successfully killed and removed from registry.\n", address)
+
+			// Update default instance if needed
+			instances, err := registry.ListInstancesCleaned(ctx)
+			if err == nil && len(instances) > 0 {
+				// ensureDefaultInstance logic will handle setting a new default
+				defaultInstance := registry.GetDefaultInstance()
+				if defaultInstance == address || defaultInstance == "" {
+					if len(instances) > 0 {
+						if err := registry.SetDefaultInstance(instances[0].Address); err == nil {
+							fmt.Printf("Updated default instance to: %s\n", instances[0].Address)
+						}
+					}
+				}
+			}
+
+			return nil
+		}
+	}
+
+	return fmt.Errorf("instance killed but failed to remove itself from registry within 5 seconds")
 }
 
 func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
@@ -246,9 +331,16 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	nodePath := path.Join(binDir, "node")
 	clineCorePath := path.Join(installDir, "cline-core.js")
 
-	// Create port-tagged log file in OS temp directory with full address
-	logFileName := fmt.Sprintf("cline-core-debug-localhost-%d.log", corePort)
-	logFilePath := fmt.Sprintf("%s/%s", os.TempDir(), logFileName)
+	// Create logs directory in ~/.cline/logs
+	logsDir := path.Join(Config.ConfigPath, "logs")
+	if err := os.MkdirAll(logsDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create logs directory: %w", err)
+	}
+
+	// Create timestamped log file
+	timestamp := time.Now().Format("2006-01-02-15-04-05")
+	logFileName := fmt.Sprintf("cline-core-%s-localhost-%d.log", timestamp, corePort)
+	logFilePath := path.Join(logsDir, logFileName)
 	logFile, err := os.Create(logFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create log file: %w", err)
@@ -272,6 +364,11 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	// Redirect stdout and stderr to log file
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
+
+	// Put the child process in a new process group so Ctrl+C doesn't kill it
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+	}
 
 	// Set environment variables with NODE_PATH for node_modules
 	env := os.Environ()

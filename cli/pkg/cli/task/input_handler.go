@@ -63,12 +63,19 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 			if needsApproval {
 				ih.coordinator.SetInputAllowed(true)
 
+				// Lock output to prevent race with streaming display
+				ih.coordinator.LockOutput()
+
 				// Show approval prompt
 				approved, feedback, err := ih.promptForApproval(ctx, approvalMsg)
+
+				// Unlock output after form dismissed
+				ih.coordinator.UnlockOutput()
+
 				if err != nil {
 					// Check if the error is due to interrupt (Ctrl+C) or context cancellation
 					if err == huh.ErrUserAborted || ctx.Err() != nil {
-						// User pressed Ctrl+C, cancel the context and exit cleanly
+						// User pressed Ctrl+C - cancel context to exit FollowConversation
 						ih.cancelFunc()
 						return
 					}
@@ -113,12 +120,19 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 			if !sendDisabled {
 				ih.coordinator.SetInputAllowed(true)
 
+				// Lock output to prevent race with streaming display
+				ih.coordinator.LockOutput()
+
 				// Show prompt and get input
 				message, shouldSend, err := ih.promptForInput(ctx)
+
+				// Unlock output after form dismissed
+				ih.coordinator.UnlockOutput()
+
 				if err != nil {
 					// Check if the error is due to interrupt (Ctrl+C) or context cancellation
 					if err == huh.ErrUserAborted || ctx.Err() != nil {
-						// User pressed Ctrl+C, cancel the context and exit cleanly
+						// User pressed Ctrl+C - cancel context to exit FollowConversation
 						ih.cancelFunc()
 						return
 					}
@@ -131,6 +145,26 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 				ih.coordinator.SetInputAllowed(false)
 
 				if shouldSend {
+					// Check for mode switch commands first
+					newMode, remainingMessage, isModeSwitch := ih.parseModeSwitch(message)
+					if isModeSwitch {
+						// Switch mode
+						if err := ih.manager.SetMode(ctx, newMode, nil, nil, nil); err != nil {
+							fmt.Printf("\nError switching to %s mode: %v\n", newMode, err)
+							continue
+						}
+						fmt.Printf("\nSwitched to %s mode\n", newMode)
+
+						// If there's remaining message, use it as the new message to send
+						if remainingMessage != "" {
+							message = remainingMessage
+						} else {
+							// No message to send, just mode switch
+							time.Sleep(1 * time.Second)
+							continue
+						}
+					}
+
 					// Handle special commands
 					if handled := ih.handleSpecialCommand(ctx, message); handled {
 						continue
@@ -158,14 +192,36 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 
 // promptForInput displays an interactive prompt and waits for user input
 func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error) {
+	// Add visual separation before the form
+	fmt.Println()
+
 	var message string
+
+	// Get current mode and format title with color
+	currentMode := ih.manager.GetCurrentMode()
+
+	// ANSI color codes
+	yellow := "\033[33m"      // Yellow for plan mode
+	blue := "\033[34m"        // Blue for act mode
+	indigo := "\033[38;5;99m" // Indigo (huh default title color) - approximation of #7571F9
+	bold := "\033[1m"         // Bold
+	reset := "\033[0m"        // Reset
+
+	var coloredMode string
+	if currentMode == "plan" {
+		coloredMode = fmt.Sprintf("%s[plan mode]%s", yellow, reset)
+	} else {
+		coloredMode = fmt.Sprintf("%s[act mode]%s", blue, reset)
+	}
+
+	title := fmt.Sprintf("%s %s%sCline is ready for your message%s", coloredMode, bold, indigo, reset)
 
 	// Create multiline text area form using huh
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewText().
-				Title("Cline is ready for your message").
-				Placeholder("Type your message... (shift+enter for new line, enter to submit)").
+				Title(title).
+				Placeholder("Type your message... (shift+enter for new line, enter to submit, /plan or /act to switch mode)").
 				Lines(5).
 				Value(&message),
 		),
@@ -192,8 +248,10 @@ func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error
 // Returns (approved, message, error)
 // Note: The approval details are already shown by segment streamer / state stream
 func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineMessage) (bool, string, error) {
-	// Show selection menu (approval details already displayed by other handlers)
+	// Add visual separation before the form
 	fmt.Println()
+
+	// Show selection menu (approval details already displayed by other handlers)
 	var choice string
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -201,9 +259,9 @@ func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineM
 				Title("Let Cline use this tool?").
 				Options(
 					huh.NewOption("Yes", "yes"),
-					huh.NewOption("Yes with feedback", "yes_feedback"),
+					huh.NewOption("Yes, with feedback", "yes_feedback"),
 					huh.NewOption("No", "no"),
-					huh.NewOption("No with feedback", "no_feedback"),
+					huh.NewOption("No, with feedback", "no_feedback"),
 				).
 				Value(&choice),
 		),
@@ -225,7 +283,7 @@ func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineM
 			huh.NewGroup(
 				huh.NewText().
 					Title("Your feedback").
-					Placeholder("Type your message... (shift+enter for new line, enter to submit)").
+					Placeholder("Type your message... (shift+enter for new line, enter to submit, /plan or /act to switch mode)").
 					Lines(5).
 					Value(&feedback),
 			),
@@ -240,6 +298,27 @@ func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineM
 	}
 
 	return approved, feedback, nil
+}
+
+// parseModeSwitch checks if message starts with /act or /plan and extracts the mode and remaining message
+// Returns: (newMode, remainingMessage, isModeSwitch)
+func (ih *InputHandler) parseModeSwitch(message string) (string, string, bool) {
+	trimmed := strings.TrimSpace(message)
+	lower := strings.ToLower(trimmed)
+
+	if strings.HasPrefix(lower, "/plan") {
+		// Extract remaining message after /plan
+		remaining := strings.TrimSpace(trimmed[5:]) // Remove "/plan"
+		return "plan", remaining, true
+	}
+
+	if strings.HasPrefix(lower, "/act") {
+		// Extract remaining message after /act
+		remaining := strings.TrimSpace(trimmed[4:]) // Remove "/act"
+		return "act", remaining, true
+	}
+
+	return "", message, false
 }
 
 // handleSpecialCommand processes special commands like /cancel, /exit

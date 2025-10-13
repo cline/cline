@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/cline/cli/pkg/cli/display"
@@ -27,6 +30,7 @@ type Manager struct {
 	handlerRegistry  *handlers.HandlerRegistry
 	isStreamingMode  bool
 	isInteractive    bool
+	currentMode      string // "plan" or "act"
 }
 
 // NewManager creates a new task manager
@@ -49,6 +53,7 @@ func NewManager(client *client.ClineClient) *Manager {
 		toolRenderer:     toolRenderer,
 		streamingDisplay: streamingDisplay,
 		handlerRegistry:  registry,
+		currentMode:      "plan", // Default mode
 	}
 }
 
@@ -712,6 +717,29 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 		}
 	}
 
+	// Handle Ctrl+C signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-sigChan:
+			// Check if input is currently being shown
+			if coordinator.IsInputAllowed() {
+				// Input form is showing - huh will handle the signal via ErrUserAborted
+				// Do nothing here, let the input handler deal with it
+			} else {
+				// Streaming mode - cancel the task and stay in follow mode
+				fmt.Println("\nCancelling task...")
+				if err := m.CancelTask(context.Background()); err != nil {
+					fmt.Printf("Error cancelling task: %v\n", err)
+				}
+				// Don't cancel main context - stay in follow mode
+			}
+		}
+	}()
+
 	// Wait for either stream to error or context cancellation
 	select {
 	case <-ctx.Done():
@@ -859,7 +887,9 @@ func (m *Manager) processStateUpdateJsonMode(stateUpdate *cline.State, coordinat
 		// Display valid messages, exit as soon as we hit a non-valid message
 		if shouldDisplay {
 			coordinator.CompleteTurn(i + 1) // Mark the message as complete as soon as we print it
-			m.displayMessage(msg, false, false, i)
+			coordinator.WithOutputLock(func() {
+				m.displayMessage(msg, false, false, i)
+			})
 		} else {
 			break
 		}
@@ -875,6 +905,9 @@ func (m *Manager) processStateUpdateJsonMode(stateUpdate *cline.State, coordinat
 
 // processStateUpdate processes state updates and supports logic for handling task competion markers
 func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *StreamCoordinator, completionChan chan bool) error {
+	// Update current mode from state
+	m.updateMode(stateUpdate.StateJson)
+
 	messages, err := m.extractMessagesFromState(stateUpdate.StateJson)
 	if err != nil {
 		return err
@@ -902,47 +935,59 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 		case msg.Say == string(types.SayTypeUserFeedback):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				fmt.Println()
-				m.displayMessage(msg, false, false, i)
+				coordinator.WithOutputLock(func() {
+					fmt.Println()
+					m.displayMessage(msg, false, false, i)
+				})
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCommand):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				fmt.Println()
-				m.displayMessage(msg, false, false, i)
+				coordinator.WithOutputLock(func() {
+					fmt.Println()
+					m.displayMessage(msg, false, false, i)
+				})
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCommandOutput):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				m.displayMessage(msg, false, false, i)
+				coordinator.WithOutputLock(func() {
+					m.displayMessage(msg, false, false, i)
+				})
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeBrowserActionLaunch):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				fmt.Println()
-				m.displayMessage(msg, false, false, i)
+				coordinator.WithOutputLock(func() {
+					fmt.Println()
+					m.displayMessage(msg, false, false, i)
+				})
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeMcpServerRequestStarted):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				fmt.Println()
-				m.displayMessage(msg, false, false, i)
+				coordinator.WithOutputLock(func() {
+					fmt.Println()
+					m.displayMessage(msg, false, false, i)
+				})
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCheckpointCreated):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				fmt.Println()
-				m.displayMessage(msg, false, false, i)
+				coordinator.WithOutputLock(func() {
+					fmt.Println()
+					m.displayMessage(msg, false, false, i)
+				})
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
@@ -951,8 +996,10 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			apiInfo := types.APIRequestInfo{Cost: -1}
 			if err := json.Unmarshal([]byte(msg.Text), &apiInfo); err == nil && apiInfo.Cost >= 0 {
 				if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-					fmt.Println() // adds a separator between cline message and usage message
-					m.displayMessage(msg, false, false, i)
+					coordinator.WithOutputLock(func() {
+						fmt.Println() // adds a separator between cline message and usage message
+						m.displayMessage(msg, false, false, i)
+					})
 					coordinator.MarkProcessedInCurrentTurn(msgKey)
 					coordinator.CompleteTurn(len(messages))
 					displayedUsage = true
@@ -962,31 +1009,37 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 		case msg.Ask == string(types.AskTypeCommandOutput):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				m.displayMessage(msg, false, false, i)
+				coordinator.WithOutputLock(func() {
+					m.displayMessage(msg, false, false, i)
+				})
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Ask == string(types.AskTypePlanModeRespond):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
-			// Only process when message is complete (partial=false)
-			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				m.displayMessage(msg, false, false, i)
-				coordinator.MarkProcessedInCurrentTurn(msgKey)
+			// In streaming mode, partial stream handles this message
+			// State stream should skip to avoid duplication
+			if m.isStreamingMode {
+				// Skip - partial stream already handled this
+			} else {
+				// Non-streaming mode: render normally when message is complete
+				if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
+					coordinator.WithOutputLock(func() {
+						m.displayMessage(msg, false, false, i)
+					})
+					coordinator.MarkProcessedInCurrentTurn(msgKey)
+				}
 			}
 		
 		case msg.Type == types.MessageTypeAsk:
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
-			// In streaming mode, partial stream handles headers for ask messages
-			// State stream should skip them to avoid duplication
-			if m.isStreamingMode {
-				// Skip - partial stream already handled this
-			} else {
-				// Non-streaming mode: render normally
-				if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+			// Only render if not already handled by partial stream
+			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				coordinator.WithOutputLock(func() {
 					fmt.Println()
 					m.displayMessage(msg, false, false, i)
-					coordinator.MarkProcessedInCurrentTurn(msgKey)
-				}
+				})
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 		}
 	}
@@ -1031,7 +1084,7 @@ func (m *Manager) handlePartialMessageStream(ctx context.Context, coordinator *S
 				msg.Type, msg.Partial, len(msg.Text))
 
 			// Handle the message with streaming support for de-dupping
-			if err := m.handleStreamingMessage(msg); err != nil {
+			if err := m.handleStreamingMessage(msg, coordinator); err != nil {
 				m.renderer.RenderDebug("Error handling streaming message: %v", err)
 			}
 		}
@@ -1039,17 +1092,20 @@ func (m *Manager) handlePartialMessageStream(ctx context.Context, coordinator *S
 }
 
 // handleStreamingMessage handles a streaming message
-func (m *Manager) handleStreamingMessage(msg *types.ClineMessage) error {
+func (m *Manager) handleStreamingMessage(msg *types.ClineMessage, coordinator *StreamCoordinator) error {
 	// Debug: Always log what we're processing
 	m.renderer.RenderDebug("Processing message: timestamp=%d, partial=%v, type=%s, text_preview=%s",
 		msg.Timestamp, msg.Partial, msg.Type, m.truncateText(msg.Text, 50))
 
-	// Use streaming display which handles deduplication internally
-	if err := m.streamingDisplay.HandlePartialMessage(msg); err != nil {
-		m.renderer.RenderDebug("Streaming display failed, using fallback: %v", err)
-		// Fallback to regular display
-		return m.displayMessage(msg, true, false, -1)
-	}
+	// Lock output to prevent race with input forms
+	coordinator.WithOutputLock(func() {
+		// Use streaming display which handles deduplication internally
+		if err := m.streamingDisplay.HandlePartialMessage(msg); err != nil {
+			m.renderer.RenderDebug("Streaming display failed, using fallback: %v", err)
+			// Fallback to regular display
+			m.displayMessage(msg, true, false, -1)
+		}
+	})
 
 	return nil
 }
@@ -1178,6 +1234,35 @@ func (m *Manager) GetClient() *client.ClineClient {
 // GetRenderer returns the renderer for formatting output
 func (m *Manager) GetRenderer() *display.Renderer {
 	return m.renderer
+}
+
+// GetCurrentMode returns the current plan/act mode
+func (m *Manager) GetCurrentMode() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.currentMode
+}
+
+// extractModeFromState extracts the current mode from state JSON
+func (m *Manager) extractModeFromState(stateJson string) string {
+	var rawState map[string]interface{}
+	if err := json.Unmarshal([]byte(stateJson), &rawState); err != nil {
+		return m.currentMode // Return current mode if parsing fails
+	}
+
+	if mode, ok := rawState["mode"].(string); ok {
+		return mode
+	}
+
+	return m.currentMode // Return current mode if not found in state
+}
+
+// updateMode updates the current mode from state
+func (m *Manager) updateMode(stateJson string) {
+	mode := m.extractModeFromState(stateJson)
+	m.mu.Lock()
+	m.currentMode = mode
+	m.mu.Unlock()
 }
 
 // Cleanup cleans up resources
