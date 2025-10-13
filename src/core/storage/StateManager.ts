@@ -1,4 +1,16 @@
 import { ApiConfiguration } from "@shared/api"
+import {
+	GlobalState,
+	GlobalStateAndSettings,
+	GlobalStateAndSettingsKey,
+	GlobalStateKey,
+	LocalState,
+	LocalStateKey,
+	SecretKey,
+	Secrets,
+	Settings,
+	SettingsKey,
+} from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
@@ -11,18 +23,6 @@ import {
 	writeTaskSettingsToStorage,
 } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
-import {
-	GlobalState,
-	GlobalStateAndSettings,
-	GlobalStateAndSettingsKey,
-	GlobalStateKey,
-	LocalState,
-	LocalStateKey,
-	SecretKey,
-	Secrets,
-	Settings,
-	SettingsKey,
-} from "./state-keys"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 export interface PersistenceErrorEvent {
 	error: Error
