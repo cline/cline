@@ -810,7 +810,7 @@ export class Controller {
 			isMultiRootWorkspace: (this.workspaceManager?.getRoots().length ?? 0) > 1,
 			multiRootSetting: {
 				user: this.stateManager.getGlobalStateKey("multiRootEnabled"),
-				featureFlag: featureFlagsService.getMultiRootEnabled(),
+				featureFlag: true, // Multi-root workspace is now always enabled
 			},
 			hooksEnabled: {
 				user: this.stateManager.getGlobalStateKey("hooksEnabled"),
