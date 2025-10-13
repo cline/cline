@@ -1,4 +1,5 @@
-import { VcsType } from "@core/workspace"
+import type { WorkspaceRoot } from "@shared/multi-root/types"
+import { VcsType } from "@shared/multi-root/types"
 import { expect } from "chai"
 import * as path from "path"
 import sinon from "sinon"
@@ -7,7 +8,6 @@ import * as featureFlags from "@/services/feature-flags"
 import * as telemetry from "@/services/telemetry"
 import * as pathUtils from "@/utils/path"
 import { setupWorkspaceManager } from "../setup"
-import type { WorkspaceRoot } from "../WorkspaceRoot"
 import { WorkspaceRootManager } from "../WorkspaceRootManager"
 
 describe("setupWorkspaceManager", () => {
