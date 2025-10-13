@@ -142,6 +142,7 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 	rootCmd.AddCommand(cli.NewVersionCommand())
 	rootCmd.AddCommand(cli.NewAuthCommand())
 	rootCmd.AddCommand(cli.NewTaskSendCommand())
+	rootCmd.AddCommand(cli.NewLogsCommand())
 
 	if err := rootCmd.ExecuteContext(context.Background()); err != nil {
 		os.Exit(1)

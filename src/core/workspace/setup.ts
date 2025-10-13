@@ -1,3 +1,4 @@
+import type { WorkspaceRoot } from "@shared/multi-root/types"
 import { HostProvider } from "@/hosts/host-provider"
 import { telemetryService } from "@/services/telemetry"
 import type { HistoryItem } from "@/shared/HistoryItem"
@@ -5,7 +6,6 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { StateManager } from "../storage/StateManager"
 import { isMultiRootEnabled } from "./multi-root-utils"
-import type { WorkspaceRoot } from "./WorkspaceRoot"
 import { WorkspaceRootManager } from "./WorkspaceRootManager"
 
 type DetectRoots = () => Promise<WorkspaceRoot[]>

@@ -14,11 +14,12 @@ import (
 type AuthAction string
 
 const (
-	AuthActionClineLogin       AuthAction = "cline_login"
-	AuthActionBYOSetup         AuthAction = "provider_setup"
-	AuthActionChangeClineModel AuthAction = "change_cline_model"
-	AuthActionSelectProvider   AuthAction = "select_provider"
-	AuthActionExit             AuthAction = "exit_wizard"
+	AuthActionClineLogin          AuthAction = "cline_login"
+	AuthActionBYOSetup            AuthAction = "provider_setup"
+	AuthActionChangeClineModel    AuthAction = "change_cline_model"
+	AuthActionSelectOrganization  AuthAction = "select_organization"
+	AuthActionSelectProvider      AuthAction = "select_provider"
+	AuthActionExit                AuthAction = "exit_wizard"
 )
 
 //  Cline Auth Menu
@@ -70,7 +71,17 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 		}
 	}
 
-	action, err := ShowAuthMenuWithStatus(isClineAuth, currentProvider, currentModel)
+	// Fetch organizations if authenticated
+	var hasOrganizations bool
+	if isClineAuth {
+		if client, err := global.GetDefaultClient(ctx); err == nil {
+			if orgsResponse, err := client.Account.GetUserOrganizations(ctx, &cline.EmptyRequest{}); err == nil {
+				hasOrganizations = len(orgsResponse.GetOrganizations()) > 0
+			}
+		}
+	}
+
+	action, err := ShowAuthMenuWithStatus(isClineAuth, hasOrganizations, currentProvider, currentModel)
 	if err != nil {
 		return err
 	}
@@ -82,6 +93,8 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 		return HandleAPIProviderSetup(ctx)
 	case AuthActionChangeClineModel:
 		return HandleChangeClineModel(ctx)
+	case AuthActionSelectOrganization:
+		return HandleSelectOrganization(ctx)
 	case AuthActionSelectProvider:
 		return HandleSelectProvider(ctx)
 	case AuthActionExit:
@@ -92,7 +105,7 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 }
 
 // ShowAuthMenuWithStatus displays the main auth menu with Cline + provider status
-func ShowAuthMenuWithStatus(isClineAuthenticated bool, currentProvider, currentModel string) (AuthAction, error) {
+func ShowAuthMenuWithStatus(isClineAuthenticated bool, hasOrganizations bool, currentProvider, currentModel string) (AuthAction, error) {
 	var action AuthAction
 	var options []huh.Option[AuthAction]
 
@@ -100,11 +113,19 @@ func ShowAuthMenuWithStatus(isClineAuthenticated bool, currentProvider, currentM
 	if isClineAuthenticated {
 		options = []huh.Option[AuthAction]{
 			huh.NewOption("Change Cline model", AuthActionChangeClineModel),
+		}
+
+		// Add organization selection if user has organizations
+		if hasOrganizations {
+			options = append(options, huh.NewOption("Select organization", AuthActionSelectOrganization))
+		}
+
+		options = append(options,
 			huh.NewOption("Sign out of Cline", AuthActionClineLogin),
 			huh.NewOption("Select active provider (Cline or BYO)", AuthActionSelectProvider),
 			huh.NewOption("Configure API provider", AuthActionBYOSetup),
 			huh.NewOption("Exit authorization wizard", AuthActionExit),
-		}
+		)
 	} else {
 		options = []huh.Option[AuthAction]{
 			huh.NewOption("Authenticate with Cline account", AuthActionClineLogin),
