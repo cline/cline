@@ -255,6 +255,7 @@ export const ChatRowContent = memo(
 		// Command output expansion state (for all messages, but only used by command messages)
 		const [isOutputFullyExpanded, setIsOutputFullyExpanded] = useState(false)
 		const commandStartTimeRef = useRef<number | null>(null)
+		const prevCommandExecutingRef = useRef<boolean>(false)
 		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
 				const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -835,12 +836,17 @@ export const ChatRowContent = memo(
 			}
 		}, [isCommandMessage, isCommandExecuting])
 
-		// Reset output expansion state when command completes
+		// Reset output expansion state and ref when command stops (completes or is cancelled)
 		useEffect(() => {
-			if (isCommandMessage && isCommandCompleted && !isCommandExecuting) {
+			// If command was executing and now isn't, clean up
+			if (isCommandMessage && prevCommandExecutingRef.current && !isCommandExecuting) {
 				setIsOutputFullyExpanded(false)
+				commandStartTimeRef.current = null
 			}
-		}, [isCommandMessage, isCommandCompleted, isCommandExecuting])
+
+			// Update ref for next render
+			prevCommandExecutingRef.current = isCommandExecuting
+		}, [isCommandMessage, isCommandExecuting])
 
 		// Auto-expand when command starts executing (only if running > 500ms)
 		useEffect(() => {
@@ -860,7 +866,7 @@ export const ChatRowContent = memo(
 
 		// Auto-collapse when command completes (only if it ran > 500ms)
 		useEffect(() => {
-			if (isCommandMessage && isCommandCompleted && !isCommandExecuting && isExpanded) {
+			if (isCommandMessage && isCommandCompleted && isExpanded) {
 				// Calculate how long the command ran
 				const duration = commandStartTimeRef.current ? Date.now() - commandStartTimeRef.current : 0
 
@@ -874,7 +880,7 @@ export const ChatRowContent = memo(
 					return () => clearTimeout(timer)
 				}
 			}
-		}, [isCommandMessage, isCommandCompleted, isCommandExecuting, isExpanded, onToggleExpand, message.ts])
+		}, [isCommandMessage, isCommandCompleted, isExpanded, onToggleExpand, message.ts])
 
 		if (message.ask === "command" || message.say === "command") {
 			const splitMessage = (text: string) => {
