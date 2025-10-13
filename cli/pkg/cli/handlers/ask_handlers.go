@@ -177,9 +177,9 @@ func (h *AskHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 // handleAPIReqFailed handles API request failures
 func (h *AskHandler) handleAPIReqFailed(msg *types.ClineMessage, dc *DisplayContext) error {
 	// Try to parse as ClineError for better error display
-	if dc.SystemRenderer != nil {
-		clineErr, _ := clerror.ParseClineError(msg.Text)
-		if clineErr != nil {
+	clineErr, _ := clerror.ParseClineError(msg.Text)
+	if clineErr != nil {
+		if dc.SystemRenderer != nil {
 			// Render the error with system renderer
 			switch clineErr.GetErrorType() {
 			case clerror.ErrorTypeBalance:
@@ -193,18 +193,23 @@ func (h *AskHandler) handleAPIReqFailed(msg *types.ClineMessage, dc *DisplayCont
 			}
 			return nil
 		}
+		// Fallback: render with basic renderer using parsed message
+		return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("API Request Failed: %s. Approve to retry request.", clineErr.Message), true)
 	}
+	// Last resort: display raw text if parsing completely failed
 	return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("API Request Failed: %s. Approve to retry request.", msg.Text), true)
 }
 
 // handleResumeTask handles resume task requests
 func (h *AskHandler) handleResumeTask(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("GEN INFO", "Resuming interrupted task.", true)
+	// Don't render - this is metadata only, user already knows they're resuming
+	return nil
 }
 
 // handleResumeCompletedTask handles resume completed task requests
 func (h *AskHandler) handleResumeCompletedTask(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("GEN INFO", "Resuming completed task.", true)
+	// Don't render - this is metadata only, user already knows they're resuming
+	return nil
 }
 
 // handleMistakeLimitReached handles mistake limit reached

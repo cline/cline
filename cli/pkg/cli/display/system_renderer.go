@@ -34,18 +34,14 @@ func NewSystemMessageRenderer(renderer *Renderer, mdRenderer *MarkdownRenderer, 
 
 // RenderError renders a beautiful error message with optional details
 func (sr *SystemMessageRenderer) RenderError(severity ErrorSeverity, title, body string, details map[string]string) error {
-	var icon string
 	var colorMarkdown string
 
 	switch severity {
 	case SeverityCritical:
-		icon = "❌"
 		colorMarkdown = "**[ERROR]**"
 	case SeverityWarning:
-		icon = "⚠️"
 		colorMarkdown = "**[WARNING]**"
 	case SeverityInfo:
-		icon = "ℹ️"
 		colorMarkdown = "**[INFO]**"
 	}
 
@@ -53,7 +49,7 @@ func (sr *SystemMessageRenderer) RenderError(severity ErrorSeverity, title, body
 	var parts []string
 
 	// Header
-	header := fmt.Sprintf("### %s %s %s", icon, colorMarkdown, title)
+	header := fmt.Sprintf("### %s %s", colorMarkdown, title)
 	parts = append(parts, header)
 
 	// Body
@@ -81,7 +77,7 @@ func (sr *SystemMessageRenderer) RenderBalanceError(err *clerror.ClineError) err
 	var parts []string
 
 	// Header
-	parts = append(parts, "### ❌ **[ERROR]** Credit Limit Reached")
+	parts = append(parts, "### **[ERROR]** Credit Limit Reached")
 	parts = append(parts, "")
 
 	// Message - prefer detail message from error.details, fallback to main message
@@ -140,17 +136,21 @@ func (sr *SystemMessageRenderer) RenderAuthError(err *clerror.ClineError) error 
 	var parts []string
 
 	// Header
-	parts = append(parts, "### ❌ **[ERROR]** Authentication Failed")
+	parts = append(parts, "### **[ERROR]** Authentication Failed")
 	parts = append(parts, "")
 
-	// Message
-	parts = append(parts, err.Message)
+	// Message - prefer detail message if available
+	message := err.Message
+	if detailMsg := err.GetDetailMessage(); detailMsg != "" {
+		message = detailMsg
+	}
+	parts = append(parts, message)
 	parts = append(parts, "")
 
 	// Guidance
 	parts = append(parts, "**Next Steps:**")
 	parts = append(parts, "- Check your API key configuration")
-	parts = append(parts, "- Run `cline auth login` to authenticate")
+	parts = append(parts, "- Run `cline auth` to authenticate")
 	parts = append(parts, "- Verify your account status at https://app.cline.bot")
 
 	// Request ID
@@ -171,11 +171,15 @@ func (sr *SystemMessageRenderer) RenderRateLimitError(err *clerror.ClineError) e
 	var parts []string
 
 	// Header
-	parts = append(parts, "### ⚠️ **[WARNING]** Rate Limit Reached")
+	parts = append(parts, "### **[WARNING]** Rate Limit Reached")
 	parts = append(parts, "")
 
-	// Message
-	parts = append(parts, err.Message)
+	// Message - prefer detail message if available
+	message := err.Message
+	if detailMsg := err.GetDetailMessage(); detailMsg != "" {
+		message = detailMsg
+	}
+	parts = append(parts, message)
 	parts = append(parts, "")
 
 	// Guidance
@@ -199,19 +203,23 @@ func (sr *SystemMessageRenderer) RenderAPIError(err *clerror.ClineError) error {
 	var parts []string
 
 	// Header
-	parts = append(parts, "### ❌ **[ERROR]** API Request Failed")
+	parts = append(parts, "### **[ERROR]** API Request Failed")
 	parts = append(parts, "")
 
-	// Message
-	parts = append(parts, err.Message)
+	// Message - prefer detail message if available
+	message := err.Message
+	if detailMsg := err.GetDetailMessage(); detailMsg != "" {
+		message = detailMsg
+	}
+	parts = append(parts, message)
 
 	// Details
 	var details []string
 	if err.RequestID != "" {
 		details = append(details, fmt.Sprintf("- Request ID: `%s`", err.RequestID))
 	}
-	if err.Code != "" {
-		details = append(details, fmt.Sprintf("- Error Code: `%s`", err.Code))
+	if code := err.GetCodeString(); code != "" {
+		details = append(details, fmt.Sprintf("- Error Code: `%s`", code))
 	}
 	if err.Status > 0 {
 		details = append(details, fmt.Sprintf("- HTTP Status: `%d`", err.Status))
@@ -238,7 +246,7 @@ func (sr *SystemMessageRenderer) RenderAPIError(err *clerror.ClineError) error {
 
 // RenderWarning renders a warning message
 func (sr *SystemMessageRenderer) RenderWarning(title, message string) error {
-	markdown := fmt.Sprintf("### ⚠️ **[WARNING]** %s\n\n%s", title, message)
+	markdown := fmt.Sprintf("### **[WARNING]** %s\n\n%s", title, message)
 	rendered := sr.renderer.RenderMarkdown(markdown)
 	fmt.Printf("\n%s\n", rendered)
 	return nil
@@ -246,8 +254,16 @@ func (sr *SystemMessageRenderer) RenderWarning(title, message string) error {
 
 // RenderInfo renders an info message
 func (sr *SystemMessageRenderer) RenderInfo(title, message string) error {
-	markdown := fmt.Sprintf("### ℹ️ **[INFO]** %s\n\n%s", title, message)
+	markdown := fmt.Sprintf("### **[INFO]** %s\n\n%s", title, message)
 	rendered := sr.renderer.RenderMarkdown(markdown)
 	fmt.Printf("\n%s\n", rendered)
+	return nil
+}
+
+// RenderCheckpoint renders a checkpoint creation message
+func (sr *SystemMessageRenderer) RenderCheckpoint(timestamp string, id int64) error {
+	markdown := fmt.Sprintf("## [%s] Checkpoint created `%d`", timestamp, id)
+	rendered := sr.renderer.RenderMarkdown(markdown)
+	fmt.Printf(rendered)
 	return nil
 }
