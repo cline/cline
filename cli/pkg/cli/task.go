@@ -115,6 +115,12 @@ func newTaskNewCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
+			// Check if an instance exists when no address specified
+			if address == "" && global.Clients.GetRegistry().GetDefaultInstance() == "" {
+				fmt.Println("No instances available for creating tasks")
+				return nil
+			}
+
 			// Get content from both args and stdin
 			prompt, err := getContentFromStdinAndArgs(args)
 			if err != nil {
@@ -170,6 +176,7 @@ func newTaskNewCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
 	cmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format, e.g., -s aws-region=us-west-2 -s mode=act)")
 	cmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
+	cmd.Flags().BoolVar(&yolo, "no-interactive", false, "enable yolo mode (non-interactive)")
 
 	return cmd
 }
