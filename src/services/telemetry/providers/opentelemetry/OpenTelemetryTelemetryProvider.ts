@@ -194,10 +194,35 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	public async reinitializeIfNeeded(): Promise<boolean> {
-		// Stub implementation for PR #1
-		// Actual reinitialization logic will be added in PR #4
-		console.log("[OpenTelemetryTelemetryProvider] reinitializeIfNeeded called (stub)")
-		return false
+		// Check if config has changed
+		if (!OpenTelemetryClientProvider.hasConfigChanged()) {
+			return false
+		}
+
+		console.log("[OTEL] Config changed, reinitializing...")
+
+		try {
+			// Reinitialize the client provider
+			await OpenTelemetryClientProvider.reinitialize()
+
+			// Get new meter and logger from reinitialized provider
+			const meterProvider = OpenTelemetryClientProvider.getMeterProvider()
+			const loggerProvider = OpenTelemetryClientProvider.getLoggerProvider()
+
+			// Update our references
+			this.meter = meterProvider ? meterProvider.getMeter("cline") : null
+			this.logger = loggerProvider ? loggerProvider.getLogger("cline") : null
+
+			// Clear cached instruments since we have new meter
+			this.counters.clear()
+			this.histograms.clear()
+
+			console.log("[OTEL] Reinitialization complete")
+			return true
+		} catch (error) {
+			console.error("[OTEL] Reinitialization failed:", error)
+			return false
+		}
 	}
 
 	public async dispose(): Promise<void> {
