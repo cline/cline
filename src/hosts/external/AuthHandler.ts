@@ -151,21 +151,17 @@ export class AuthHandler {
 
 	private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
 		console.log("AuthHandler: Received request", req.url)
-		console.log("AuthHandler: Full URL will be:", `http://127.0.0.1:${this.port}${req.url}`)
 
 		if (!req.url) {
-			console.log("AuthHandler: No URL in request, returning 404")
 			this.sendResponse(res, 404, "text/plain", "Not found")
 			return
 		}
 
 		try {
 			const fullUrl = `http://127.0.0.1:${this.port}${req.url}`
-			console.log("AuthHandler: Processing URL:", fullUrl)
 
 			// Use SharedUriHandler directly - it handles all validation and processing
 			const success = await SharedUriHandler.handleUri(fullUrl)
-			console.log("AuthHandler: SharedUriHandler returned success:", success)
 
 			// Try to get redirect URI, but don't fail if not implemented (CLI/JetBrains)
 			let redirectUri: string | undefined
@@ -179,13 +175,10 @@ export class AuthHandler {
 			}
 
 			const html = createAuthSucceededHtml(redirectUri)
-			console.log("AuthHandler: Generated HTML with redirect URI:", redirectUri ? "present" : "empty")
 
 			if (success) {
-				console.log("AuthHandler: Sending success response (200)")
 				this.sendResponse(res, 200, "text/html", html)
 			} else {
-				console.log("AuthHandler: Sending bad request response (400)")
 				this.sendResponse(res, 400, "text/plain", "Bad request")
 			}
 		} catch (error) {
@@ -193,7 +186,6 @@ export class AuthHandler {
 			this.sendResponse(res, 400, "text/plain", "Bad request")
 		} finally {
 			// Stop the server after handling any request (success or failure)
-			console.log("AuthHandler: Stopping server after handling request")
 			this.stop()
 		}
 	}
