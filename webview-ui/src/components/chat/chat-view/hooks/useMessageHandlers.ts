@@ -212,7 +212,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				case "cancel":
 					if (backgroundCommandRunning) {
 						await TaskServiceClient.cancelBackgroundCommand(EmptyRequest.create({}))
-						clearInputState()
 					} else {
 						await TaskServiceClient.cancelTask(EmptyRequest.create({}))
 					}
