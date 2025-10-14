@@ -21,6 +21,11 @@ You must use the following command syntax for creating Cline AI agents:
 cline "your prompt here"
 \`\`\`
 
+## Optional
+
+Working directory to start the subagent in:
+--workdir ./src/auth
+
 ## Examples of how you might use this tool
 
 \`\`\`bash

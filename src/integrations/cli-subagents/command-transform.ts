@@ -83,8 +83,13 @@ function injectSubagentSettings(command: string): string {
 
 	// Flags/settings to insert after the prompt
 	const postPromptFlags = [
+		"-s yolo_mode_toggled=true",
+		"-s auto_approval_settings.enabled=true",
 		"-s auto_approval_settings.max_requests=100",
 		"-s auto_approval_settings.enable_notifications=false",
+		"-s auto_approval_settings.actions.read_files=true",
+		"-s auto_approval_settings.actions.edit_files=true",
+		"-s auto_approval_settings.actions.execute_safe_commands=true",
 		"-s max_consecutive_mistakes=6",
 	]
 
