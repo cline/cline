@@ -292,6 +292,40 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const openTelemetryLogMaxQueueSize =
 			context.globalState.get<GlobalStateAndSettings["openTelemetryLogMaxQueueSize"]>("openTelemetryLogMaxQueueSize")
 		const subagentsEnabled = context.globalState.get<GlobalStateAndSettings["subagentsEnabled"]>("subagentsEnabled")
+
+		// OpenTelemetry configuration
+		const openTelemetryEnabled =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryEnabled"]>("openTelemetryEnabled")
+		const openTelemetryMetricsExporter =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryMetricsExporter"]>("openTelemetryMetricsExporter")
+		const openTelemetryLogsExporter =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryLogsExporter"]>("openTelemetryLogsExporter")
+		const openTelemetryOtlpProtocol =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpProtocol"]>("openTelemetryOtlpProtocol")
+		const openTelemetryOtlpEndpoint =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpEndpoint"]>("openTelemetryOtlpEndpoint")
+		const openTelemetryOtlpMetricsProtocol = context.globalState.get<
+			GlobalStateAndSettings["openTelemetryOtlpMetricsProtocol"]
+		>("openTelemetryOtlpMetricsProtocol")
+		const openTelemetryOtlpMetricsEndpoint = context.globalState.get<
+			GlobalStateAndSettings["openTelemetryOtlpMetricsEndpoint"]
+		>("openTelemetryOtlpMetricsEndpoint")
+		const openTelemetryOtlpLogsProtocol =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpLogsProtocol"]>("openTelemetryOtlpLogsProtocol")
+		const openTelemetryOtlpLogsEndpoint =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpLogsEndpoint"]>("openTelemetryOtlpLogsEndpoint")
+		const openTelemetryMetricExportInterval = context.globalState.get<
+			GlobalStateAndSettings["openTelemetryMetricExportInterval"]
+		>("openTelemetryMetricExportInterval")
+		const openTelemetryOtlpInsecure =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpInsecure"]>("openTelemetryOtlpInsecure")
+		const openTelemetryLogBatchSize =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryLogBatchSize"]>("openTelemetryLogBatchSize")
+		const openTelemetryLogBatchTimeout =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryLogBatchTimeout"]>("openTelemetryLogBatchTimeout")
+		const openTelemetryLogMaxQueueSize =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryLogMaxQueueSize"]>("openTelemetryLogMaxQueueSize")
+
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
 
