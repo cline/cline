@@ -92,9 +92,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							/>
 						</div>
 					</TooltipTrigger>
-					<TooltipContent>
-						<p>This setting is managed by your organization's remote configuration</p>
-					</TooltipContent>
+					<TooltipContent>This setting is managed by your organization's remote configuration</TooltipContent>
 				</Tooltip>
 			) : (
 				<DebouncedTextField
@@ -141,11 +139,11 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 									<TooltipTrigger>
 										<div className="flex items-center gap-2">
 											<span style={{ fontWeight: 500 }}>Custom Headers</span>
-											<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+											<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
 										</div>
 									</TooltipTrigger>
 									<TooltipContent>
-										<p>This setting is managed by your organization's remote configuration</p>
+										This setting is managed by your organization's remote configuration
 									</TooltipContent>
 								</Tooltip>
 								<VSCodeButton disabled={true}>Add Header</VSCodeButton>
@@ -224,9 +222,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							showLockIcon={true}
 						/>
 					</TooltipTrigger>
-					<TooltipContent>
-						<p>This setting is managed by your organization's remote configuration</p>
-					</TooltipContent>
+					<TooltipContent>This setting is managed by your organization's remote configuration</TooltipContent>
 				</Tooltip>
 			) : (
 				<BaseUrlField

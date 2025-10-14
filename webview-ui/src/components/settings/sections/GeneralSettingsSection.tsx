@@ -22,9 +22,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 				<div className="mb-[5px]">
 					{isDisabledByRemoteConfig ? (
 						<Tooltip>
-							<TooltipContent>
-								<p>This setting is managed by your organization's remote configuration</p>
-							</TooltipContent>
+							<TooltipContent>This setting is managed by your organization's remote configuration</TooltipContent>
 							<TooltipTrigger asChild>
 								<div className="flex items-center gap-2 mb-[5px]">
 									<VSCodeCheckbox

@@ -71,7 +71,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									</div>
 								</TooltipTrigger>
 								<TooltipContent>
-									<p>This setting is managed by your organization's remote configuration</p>
+									This setting is managed by your organization's remote configuration
 								</TooltipContent>
 							</Tooltip>
 						) : (
