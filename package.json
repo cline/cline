@@ -297,6 +297,7 @@
 		"compile-standalone": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
 		"compile-standalone-npm": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
 		"compile-cli": "scripts/build-cli.sh",
+		"compile-cli-all-platforms": "scripts/build-cli-all-platforms.sh",
 		"test:install": "bash scripts/test-install.sh",
 		"dev:cli:watch": "node scripts/dev-cli-watch.mjs",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",

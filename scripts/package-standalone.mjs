@@ -65,6 +65,7 @@ async function main() {
 		await createNpmPackageFiles()
 		await createFakeNodeModules()
 		await createNpmIgnoreFile()
+		await createPostinstallScript()
 	}
 
 	if (UNIVERSAL_BUILD && !IS_NPM_BUILD) {
@@ -104,40 +105,58 @@ async function installNodeDependencies() {
 }
 
 /**
- * Copy CLI binaries (cline and cline-host)
- * The Go binary is named 'cline' and includes service management
+ * Copy CLI binaries (cline and cline-host) for all platforms
+ * The Go binaries are cross-compiled for darwin/linux arm64/amd64
  */
 async function copyCliBinaries() {
-	console.log("Copying CLI binaries...")
+	console.log("Copying CLI binaries for all platforms...")
 
-	const binaries = [
-		{ source: "cline", dest: "cline" },
-		{ source: "cline-host", dest: "cline-host" },
+	const platforms = [
+		{ os: "darwin", arch: "arm64" },
+		{ os: "darwin", arch: "amd64" },
+		{ os: "linux", arch: "amd64" },
+		{ os: "linux", arch: "arm64" },
 	]
+
 	const binDir = path.join(BUILD_DIR, "bin")
 
 	// Create bin directory
 	fs.mkdirSync(binDir, { recursive: true })
 
-	for (const { source, dest } of binaries) {
-		const sourcePath = path.join(CLI_BINARIES_DIR, source)
-		const destPath = path.join(binDir, dest)
-
-		// Check if binary exists
-		if (!fs.existsSync(sourcePath)) {
-			console.error(`Error: CLI binary not found at ${sourcePath}`)
+	// Copy all platform-specific binaries
+	for (const { os, arch } of platforms) {
+		const platformSuffix = `${os}-${arch}`
+		
+		// Copy cline binary
+		const clineSource = path.join(CLI_BINARIES_DIR, `cline-${platformSuffix}`)
+		const clineDest = path.join(binDir, `cline-${platformSuffix}`)
+		
+		if (!fs.existsSync(clineSource)) {
+			console.error(`Error: CLI binary not found at ${clineSource}`)
 			console.error(`Please run: npm run compile-cli`)
 			process.exit(1)
 		}
-
-		// Copy binary
-		await cpr(sourcePath, destPath)
-
-		// Make it executable
-		fs.chmodSync(destPath, 0o755)
-
-		console.log(`✓ ${source} copied to ${destPath}`)
+		
+		await cpr(clineSource, clineDest)
+		fs.chmodSync(clineDest, 0o755)
+		console.log(`✓ cline-${platformSuffix} copied`)
+		
+		// Copy cline-host binary
+		const hostSource = path.join(CLI_BINARIES_DIR, `cline-host-${platformSuffix}`)
+		const hostDest = path.join(binDir, `cline-host-${platformSuffix}`)
+		
+		if (!fs.existsSync(hostSource)) {
+			console.error(`Error: CLI binary not found at ${hostSource}`)
+			console.error(`Please run: npm run compile-cli`)
+			process.exit(1)
+		}
+		
+		await cpr(hostSource, hostDest)
+		fs.chmodSync(hostDest, 0o755)
+		console.log(`✓ cline-host-${platformSuffix} copied`)
 	}
+
+	console.log(`✓ All platform binaries copied to ${binDir}`)
 }
 
 /**
@@ -318,6 +337,7 @@ node_modules/vscode
 
 /**
  * Create postinstall script for NPM package
+ * This script selects the correct platform-specific binary and creates symlinks
  */
 async function createPostinstallScript() {
 	console.log("Creating postinstall script...")
@@ -328,42 +348,88 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-// Detect current platform
-function getCurrentPlatform() {
+// Detect current platform and architecture
+function getPlatformInfo() {
 	const platform = os.platform();
 	const arch = os.arch();
 
-	if (platform === 'darwin') {
-		return arch === 'arm64' ? 'darwin-arm64' : 'darwin-x64';
-	} else if (platform === 'linux') {
-		return 'linux-x64';
-	} else if (platform === 'win32') {
-		return 'win-x64';
+	// Map Node.js arch names to Go arch names
+	let goArch = arch;
+	if (arch === 'x64') {
+		goArch = 'amd64';
 	}
-	throw new Error(\`Unsupported platform: \${platform}-\${arch}\`);
+
+	let goPlatform = platform;
+	
+	return { platform: goPlatform, arch: goArch };
 }
 
-// Validate binary installation
-function validateInstallation() {
-	const currentPlatform = getCurrentPlatform();
-	console.log(\`Validating Cline installation for \${currentPlatform}...\`);
-
-	// Check CLI binaries
-	const clineExe = path.join(__dirname, 'bin', 'cline');
-	const clineHostExe = path.join(__dirname, 'bin', 'cline-host');
+// Setup platform-specific binaries
+function setupBinaries() {
+	const { platform, arch } = getPlatformInfo();
+	const platformSuffix = \`\${platform}-\${arch}\`;
 	
-	if (!fs.existsSync(clineExe)) {
-		console.error(\`Error: cline binary not found at \${clineExe}\`);
+	console.log(\`Setting up Cline CLI for \${platformSuffix}...\`);
+
+	const binDir = path.join(__dirname, 'bin');
+	
+	// Check if platform-specific binaries exist
+	const clineSource = path.join(binDir, \`cline-\${platformSuffix}\`);
+	const clineHostSource = path.join(binDir, \`cline-host-\${platformSuffix}\`);
+	
+	if (!fs.existsSync(clineSource)) {
+		console.error(\`Error: Binary not found for platform \${platformSuffix}\`);
+		console.error(\`Expected: \${clineSource}\`);
+		console.error(\`Supported platforms: darwin-arm64, darwin-amd64, linux-amd64, linux-arm64\`);
 		process.exit(1);
 	}
 	
-	if (!fs.existsSync(clineHostExe)) {
-		console.error(\`Error: cline-host binary not found at \${clineHostExe}\`);
+	if (!fs.existsSync(clineHostSource)) {
+		console.error(\`Error: Binary not found for platform \${platformSuffix}\`);
+		console.error(\`Expected: \${clineHostSource}\`);
 		process.exit(1);
+	}
+
+	// Create symlinks or copies to the generic names
+	const clineTarget = path.join(binDir, 'cline');
+	const clineHostTarget = path.join(binDir, 'cline-host');
+	
+	// Remove existing files if they exist
+	[clineTarget, clineHostTarget].forEach(target => {
+		if (fs.existsSync(target)) {
+			try {
+				fs.unlinkSync(target);
+			} catch (e) {
+				console.warn(\`Warning: Could not remove existing file \${target}: \${e.message}\`);
+			}
+		}
+	});
+	
+	// On Unix, create symlinks; on Windows, copy files
+	if (platform === 'win32') {
+		// Windows: copy files
+		fs.copyFileSync(clineSource, clineTarget);
+		fs.copyFileSync(clineHostSource, clineHostTarget);
+		console.log('✓ Copied platform-specific binaries');
+	} else {
+		// Unix: create symlinks
+		fs.symlinkSync(path.basename(clineSource), clineTarget);
+		fs.symlinkSync(path.basename(clineHostSource), clineHostTarget);
+		console.log('✓ Created symlinks to platform-specific binaries');
+		
+		// Make binaries executable
+		try {
+			fs.chmodSync(clineSource, 0o755);
+			fs.chmodSync(clineHostSource, 0o755);
+			fs.chmodSync(clineTarget, 0o755);
+			fs.chmodSync(clineHostTarget, 0o755);
+		} catch (error) {
+			console.warn(\`Warning: Could not set executable permissions: \${error.message}\`);
+		}
 	}
 
 	// Check ripgrep binary
-	const rgBinary = currentPlatform.startsWith('win') ? 'rg.exe' : 'rg';
+	const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
 	const rgPath = path.join(__dirname, rgBinary);
 	
 	if (!fs.existsSync(rgPath)) {
@@ -371,59 +437,16 @@ function validateInstallation() {
 		process.exit(1);
 	}
 
-	// Ensure binaries are executable (Unix only)
-	if (!currentPlatform.startsWith('win')) {
+	// Make ripgrep executable (Unix only)
+	if (platform !== 'win32') {
 		try {
-			fs.chmodSync(clineExe, 0o755);
-			fs.chmodSync(clineHostExe, 0o755);
 			fs.chmodSync(rgPath, 0o755);
 		} catch (error) {
-			console.warn(\`Warning: Could not set executable permissions: \${error.message}\`);
+			console.warn(\`Warning: Could not set ripgrep executable permissions: \${error.message}\`);
 		}
 	}
 
-	// Create symlink from node_modules/vscode to ../vscode
-	// This allows Node.js to find the vscode stub module
-	const vscodeStubPath = path.join(__dirname, 'vscode');
-	const nodeModulesVscodePath = path.join(__dirname, 'node_modules', 'vscode');
-	
-	if (fs.existsSync(vscodeStubPath)) {
-		// Create node_modules directory if it doesn't exist
-		const nodeModulesDir = path.join(__dirname, 'node_modules');
-		if (!fs.existsSync(nodeModulesDir)) {
-			fs.mkdirSync(nodeModulesDir, { recursive: true });
-		}
-		
-		// Remove existing symlink/directory if it exists
-		if (fs.existsSync(nodeModulesVscodePath)) {
-			try {
-				fs.unlinkSync(nodeModulesVscodePath);
-			} catch (e) {
-				// Might be a directory, try rmdir
-				try {
-					fs.rmdirSync(nodeModulesVscodePath, { recursive: true });
-				} catch (e2) {
-					console.warn(\`Warning: Could not remove existing vscode module: \${e2.message}\`);
-				}
-			}
-		}
-		
-		// Create symlink
-		try {
-			if (currentPlatform.startsWith('win')) {
-				// Windows requires junction for directories
-				fs.symlinkSync(vscodeStubPath, nodeModulesVscodePath, 'junction');
-			} else {
-				// Unix uses regular symlinks
-				fs.symlinkSync('../vscode', nodeModulesVscodePath);
-			}
-			console.log('✓ Created symlink for vscode stub module');
-		} catch (error) {
-			console.warn(\`Warning: Could not create vscode symlink: \${error.message}\`);
-		}
-	}
-
-	console.log('✓ Cline installation validated successfully');
+	console.log('✓ Cline CLI installation complete');
 	console.log('');
 	console.log('Usage:');
 	console.log('  cline        - Start Cline CLI');
@@ -433,9 +456,9 @@ function validateInstallation() {
 }
 
 try {
-	validateInstallation();
+	setupBinaries();
 } catch (error) {
-	console.error(\`Installation validation failed: \${error.message}\`);
+	console.error(\`Installation failed: \${error.message}\`);
 	console.error('Please report this issue at: https://github.com/cline/cline/issues');
 	process.exit(1);
 }
@@ -443,6 +466,7 @@ try {
 
 	const postinstallPath = path.join(BUILD_DIR, "postinstall.js")
 	fs.writeFileSync(postinstallPath, postinstallScript)
+	fs.chmodSync(postinstallPath, 0o755)
 	
 	console.log(`✓ postinstall.js created`)
 }
