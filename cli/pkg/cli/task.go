@@ -418,8 +418,6 @@ func newTaskViewCommand() *cobra.Command {
 }
 
 func newTaskListCommand() *cobra.Command {
-	var address string
-
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"l"},
@@ -427,20 +425,11 @@ func newTaskListCommand() *cobra.Command {
 		Long:    `Display recent tasks from task history.`,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-
-			// Ensure task manager is initialized
-			if err := ensureTaskManager(ctx, address); err != nil {
-				return err
-			}
-
-			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
-
-			return taskManager.ListTasks(ctx)
+			// Read directly from disk
+			return task.ListTasksFromDisk()
 		},
 	}
 
-	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	return cmd
 }
 
