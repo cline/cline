@@ -1,10 +1,11 @@
 import { cn } from "@heroui/react"
 import { TranscribeAudioRequest } from "@shared/proto/cline/dictation"
 import { EmptyRequest } from "@shared/proto/index.cline"
+import { SquareIcon, StopCircleIcon } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DictationServiceClient } from "@/services/grpc-client"
 import { formatSeconds } from "@/utils/format"
-import HeroTooltip from "../common/HeroTooltip"
 
 interface VoiceRecorderProps {
 	onTranscription: (text: string) => void
@@ -240,40 +241,50 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 				? "Starting recording..."
 				: error
 					? `Error: ${error}`
-					: null
+					: "Voice Input"
 
 		return (
-			<HeroTooltip content={tooltipContent} placement="top">
-				<div
-					className={`input-icon-button mr-1.5 text-base ${iconAdjustment} ${iconAnimation} ${disabled || isProcessing || isStarting ? "disabled" : ""}`}
-					onClick={handleStartClick}
-					style={{ color: iconColor }}>
-					<span className={`codicon ${iconClass}`} />
-				</div>
-			</HeroTooltip>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<div
+						className={`input-icon-button mr-1.5 text-base ${iconAdjustment} ${iconAnimation} ${disabled || isProcessing || isStarting ? "disabled" : ""}`}
+						onClick={handleStartClick}
+						style={{ color: iconColor }}>
+						<span className={`codicon ${iconClass}`} />
+					</div>
+				</TooltipTrigger>
+				<TooltipContent side="top">{tooltipContent}</TooltipContent>
+			</Tooltip>
 		)
 	}
 
 	return (
 		<div className={`flex items-center ${isRecording ? "mr-0.5" : "mr-1.5"}`}>
-			<HeroTooltip
-				content={`Stop Recording (${formatSeconds(recordingDuration)}/${formatSeconds(MAX_DURATION)})`}
-				placement="top">
-				<div
-					className={cn("input-icon-button mr-1.5 text-error", iconAdjustment, iconAnimation, {
-						disabled: disabled || isProcessing,
-					})}
-					onClick={handleStopClick}>
-					<span className="codicon codicon-stop-circle" />
-				</div>
-			</HeroTooltip>
-			<HeroTooltip content="Cancel Recording" placement="top">
-				<div
-					className={`input-icon-button text-base ${isRecording ? "mt-0.5" : "mt-1"} text-foreground ${disabled || isProcessing ? "disabled" : ""}`}
-					onClick={handleCancelClick}>
-					<span className="codicon codicon-close" />
-				</div>
-			</HeroTooltip>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<div
+						className={cn("input-icon-button mr-1.5 text-base", iconAdjustment, iconAnimation, {
+							disabled: disabled || isProcessing,
+						})}
+						onClick={handleStopClick}>
+						<StopCircleIcon />
+					</div>
+				</TooltipTrigger>
+				<TooltipContent side="top">
+					Stop Recording ({formatSeconds(recordingDuration)}/{formatSeconds(MAX_DURATION)})
+				</TooltipContent>
+			</Tooltip>
+
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<div
+						className={`input-icon-button text-base mt-1 text-foreground ${disabled || isProcessing ? "disabled" : ""}`}
+						onClick={handleCancelClick}>
+						<SquareIcon />
+					</div>
+				</TooltipTrigger>
+				<TooltipContent side="top">Cancel Recording</TooltipContent>
+			</Tooltip>
 		</div>
 	)
 }
