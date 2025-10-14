@@ -25,8 +25,8 @@ export async function createHooksDirectory(baseDir: string): Promise<string> {
 
 /**
  * Creates a test hook script with the specified output behavior.
- * Creates shell scripts that work uniformly on all platforms via embedded shell.
- * No file extensions are used - the embedded shell handles execution.
+ * Generates executable scripts for the embedded shell architecture.
+ * Note: Windows support requires embedded shell implementation.
  *
  * @param baseDir Base directory (typically tempDir from test environment)
  * @param hookName Name of the hook (e.g., "PreToolUse", "PostToolUse")
@@ -79,7 +79,7 @@ export async function createTestHook(
 }
 
 /**
- * Generates a Node.js script with shebang for Unix systems.
+ * Generates an executable Node.js script with shebang.
  */
 function generateHookScript(
 	output: Partial<HookOutput>,
@@ -125,7 +125,7 @@ function generateHookScript(
 }
 
 /**
- * Writes a hook script for Unix systems.
+ * Writes an executable hook script.
  */
 async function writeShellHook(hooksDir: string, hookName: string, scriptContent: string): Promise<string> {
 	const scriptPath = path.join(hooksDir, hookName)
@@ -428,7 +428,7 @@ export async function loadFixture(fixtureName: string, destDir: string): Promise
 		const destFile = path.join(destHooksDir, file)
 		await fs.copyFile(sourceFile, destFile)
 
-		// Preserve executable permissions on Unix
+		// Set executable permission (not needed on Windows)
 		if (process.platform !== "win32") {
 			const stats = await fs.stat(sourceFile)
 			await fs.chmod(destFile, stats.mode)
