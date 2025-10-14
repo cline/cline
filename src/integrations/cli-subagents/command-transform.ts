@@ -5,6 +5,12 @@
 const DEBUG_LOGGING = true
 
 /**
+ * Pattern to match simplified Cline CLI syntax: cline "prompt" or cline 'prompt'
+ * with optional additional flags after the closing quote
+ */
+const CLINE_COMMAND_PATTERN = /^cline\s+(['"])(.+?)\1(\s+.*)?$/
+
+/**
  * Detects if a command is a Cline CLI subagent command.
  *
  * Matches both simplified syntax (cline "prompt") and full syntax (cline t o "prompt").
@@ -17,12 +23,11 @@ export function isSubagentCommand(command: string): boolean {
 	// Match simplified syntaxes
 	// cline "prompt"
 	// cline 'prompt'
-	const simplifiedPattern = /^cline\s+(['"])(.+?)\1(\s+.*)?$/
-	if (simplifiedPattern.test(command)) {
+	if (CLINE_COMMAND_PATTERN.test(command)) {
 		return true
 	}
 
-	// Match full syntax (in case the model starts mimicking after seeing terminal outputs)
+	// Match addnl syntax (in case the model starts mimicking after seeing terminal outputs)
 	// cline t o "prompt" ...
 	const fullPattern = /^cline\s+t\s+o\s+/
 	if (fullPattern.test(command)) {
@@ -56,40 +61,43 @@ export function transformClineCommand(command: string): string {
 		return command
 	}
 
-	// Pattern to match: cline followed by a quoted string (single or double quotes)
-	// with optional additional flags after the closing quote
-	const simplifiedPattern = /^cline\s+(['"])(.+?)\1(\s+.*)?$/
-	const match = command.match(simplifiedPattern)
+	// Inject subagent-specific command structure and settings
+	const commandWithSettings = injectSubagentSettings(command)
 
 	if (DEBUG_LOGGING) {
-		console.log("[CLI-SUBAGENTS] Pattern matched:", !!match)
-		if (match) {
-			console.log("[CLI-SUBAGENTS] Match groups:")
-			console.log("  - Full match:", match[0])
-			console.log("  - Quote type:", match[1])
-			console.log("  - Prompt:", match[2])
-			console.log("  - Additional flags:", match[3] || "(none)")
-		}
+		console.log("[CLI-SUBAGENTS] Final command with settings:", commandWithSettings)
 	}
 
-	// Return original command if it doesn't match the simplified pattern
-	if (!match) {
-		if (DEBUG_LOGGING) {
-			console.log("[CLI-SUBAGENTS] No transformation - returning original command")
-		}
-		return command
+	return commandWithSettings
+}
+
+/**
+ * Injects subagent-specific command structure and settings into Cline CLI commands.
+ *
+ * @param command - The Cline CLI command (simplified or full syntax)
+ * @returns The command with injected flags and settings
+ */
+function injectSubagentSettings(command: string): string {
+	// Flags to insert before the prompt
+	const prePromptFlags = ["t", "o"]
+
+	// Flags/settings to insert after the prompt
+	const postPromptFlags = ["-s auto_approval_settings.max_requests=100", "-s auto_approval_settings.enable_notifications=false"]
+
+	const match = command.match(CLINE_COMMAND_PATTERN)
+
+	if (match) {
+		const quote = match[1]
+		const prompt = match[2]
+		const additionalFlags = match[3] || ""
+		return `cline ${prePromptFlags.join(" ")} ${quote}${prompt}${quote} ${postPromptFlags.join(" ")} -o plain${additionalFlags}`
 	}
 
-	const quoteType = match[1] // Will be either ' or "
-	const prompt = match[2]
-	const additionalFlags = match[3] || "" // Preserve any additional flags (like --workdir)
-
-	// Transform to full syntax, preserving the original quote type and any additional flags
-	const transformedCommand = `cline t o ${quoteType}${prompt}${quoteType} -o plain${additionalFlags}`
-
-	if (DEBUG_LOGGING) {
-		console.log("[CLI-SUBAGENTS] Transformed command:", transformedCommand)
+	// Already full format: just inject settings after prompt
+	const parts = command.split(" ")
+	const promptEndIndex = parts.findIndex((p) => p.endsWith('"') || p.endsWith("'"))
+	if (promptEndIndex !== -1) {
+		parts.splice(promptEndIndex + 1, 0, ...postPromptFlags)
 	}
-
-	return transformedCommand
+	return parts.join(" ")
 }
