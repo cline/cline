@@ -1,0 +1,115 @@
+---
+title: "Cline Enterprise"
+sidebarTitle: "Overview"
+description: "Enterprise security, governance, and observability for the coding agent 3 million developers trust"
+---
+
+Cline Enterprise brings centralized governance to the same open-source architecture that millions of developers already use. Your code stays in your environment, you use your own inference at your negotiated rates, and you get the security and observability capabilities that platform teams need for org-wide deployment.
+
+## What You Get
+
+### Security by Design
+
+Your code never leaves your environment. Cline processes everything locally - no uploads, no indexing, no training on your data.
+
+<CardGroup cols={2}>
+  <Card title="Client-side execution" icon="computer">
+    All processing happens within your environment
+  </Card>
+
+  <Card title="No data exfiltration" icon="shield-check">
+    Code and context never transmitted externally
+  </Card>
+
+  <Card title="No codebase indexing" icon="database">
+    Repositories are never indexed or cached
+  </Card>
+
+  <Card title="No model training" icon="ban">
+    Your code and prompts aren't used for training
+  </Card>
+</CardGroup>
+
+### Bring Your Own Inference
+
+Use your existing cloud contracts and negotiated rates. Most AI tools force you to buy inference through them with markup. Cline connects directly to your providers.
+
+Connect to any inference provider:
+- AWS Bedrock
+- Google Vertex AI
+- Azure OpenAI
+- Anthropic direct
+- OpenAI direct
+- Cerebras
+- Any OpenAI-compatible endpoint
+
+Switch models instantly as new ones release. Use Claude Sonnet 4.5 as your daily driver, GPT-5 for complex refactoring, open-source models for simple tasks. Your existing cloud credits and startup program contracts now cover AI coding.
+
+We handle the agent loop. You handle the inference. No markup, no vendor lock-in.
+
+### Governance at Scale
+
+Platform teams need central control when thousands of developers use AI. Individual API keys scattered across laptops create security risks and cost overruns.
+
+Enterprise governance provides:
+- **SSO authentication**: Corporate credentials instead of personal API keys
+- **Role-based access control**: Fine-grained permissions per team and project
+- **Model and tool controls**: Govern which models and tools each team accesses
+- **Remote configuration**: Manage settings for all developers from one dashboard
+- **Full audit logging**: Every AI interaction tracked with detailed logs
+
+Configure once, deploy everywhere. Developers work how they prefer while you maintain control.
+
+### Complete Observability
+
+Export logs to your existing observability stack. Track usage, costs, and performance across all teams.
+
+- **OpenTelemetry export**: Direct integration with Datadog, Grafana, Splunk
+- **Real-time analytics**: Track adoption, performance, and patterns
+- **Cost breakdown**: See exactly what each team spends on which models
+- **Model comparison**: Identify which models high-performing teams prefer
+- **JSON output**: Build custom dashboards in your existing tools
+
+The same observability standards you require for production systems.
+
+### Developer Experience
+
+The same Cline your team uses in open source, now connected to enterprise infrastructure. Works in VS Code and JetBrains IDEs without changing how developers code.
+
+**CLI for complex workflows.** Launch Cline from your terminal, coordinate multiple instances on large refactors, and continue in your IDE with full context. No context loss between terminal and editor.
+
+**Build custom tooling.** The CLI and lifecycle hooks let DevX teams extend Cline's agent loop. Run automated PR reviews, integrate with incident response systems, or build custom workflows specific to your org.
+
+**Multi-root workspace support** handles complex enterprise codebases where a single project spans multiple repositories. Cline maintains context across all roots.
+
+Everything developers already use Cline for, plus the governance and observability your platform team requires.
+
+## Deployment
+
+Cline Enterprise connects securely to your infrastructure. Deploy in cloud environments, on-premises, or air-gapped networks. Configure to work with your existing security policies and compliance requirements.
+
+Rolling out to your organization:
+1. Configure Cline Core to connect to your infrastructure
+2. Set SSO, RBAC, and governance policies
+3. Deploy to developers via your existing software distribution
+4. Monitor usage through your observability tools
+
+## Proven at Scale
+
+Organizations deployed the open-source architecture across tens of thousands of developers:
+- Salesforce used Cline's open architecture for Agentforce
+- Teams at Samsung, SAP, and Oracle deployed across thousands of seats
+- Proven quality and ability to scale in production environments
+
+## Pricing
+
+Per-seat licensing. You bring your own inference through existing cloud contracts. Contact our sales team to discuss pricing tailored to your organization's size and requirements.
+
+## Next Steps
+
+- Review [security architecture](/enterprise-solutions/security-concerns)
+- Configure [cloud provider setup](/provider-config/aws-bedrock/api-key) (AWS Bedrock, Vertex AI, Azure)
+- Set up [MCP servers](/mcp/mcp-overview) for custom tooling
+- Add [custom instructions](/features/cline-rules) for your codebase
+
+Schedule a walkthrough to see how Cline Enterprise fits your infrastructure. We'll work with your security and compliance requirements to deploy in your environment.

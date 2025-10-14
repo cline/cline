@@ -224,12 +224,10 @@
 						]
 					},
 					{
-						"group": "Enterprise & Security",
+						"group": "Enterprise",
 						"pages": [
-							"enterprise-solutions/cloud-provider-integration",
-							"enterprise-solutions/security-concerns",
-							"enterprise-solutions/mcp-servers",
-							"enterprise-solutions/custom-instructions"
+							"enterprise-solutions/overview",
+							"enterprise-solutions/security-concerns"
 						]
 					},
 					{
