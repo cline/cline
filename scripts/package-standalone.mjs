@@ -13,7 +13,6 @@ import { rmrf } from "./file-utils.mjs"
 const BUILD_DIR = "dist-standalone"
 const BINARIES_DIR = `${BUILD_DIR}/binaries`
 const RUNTIME_DEPS_DIR = "standalone/runtime-files"
-const NODE_BINARIES_DIR = `${BUILD_DIR}/node-binaries`
 const RIPGREP_BINARIES_DIR = `${BUILD_DIR}/ripgrep-binaries`
 const CLI_BINARIES_DIR = "cli/bin"
 const IS_DEBUG_BUILD = process.env.IS_DEBUG_BUILD === "true"
@@ -31,13 +30,11 @@ const SUPPORTED_BINARY_MODULES = ["better-sqlite3"]
 const UNIVERSAL_BUILD = !process.argv.includes("-s")
 const IS_VERBOSE = process.argv.includes("-v") || process.argv.includes("--verbose")
 
-// Parse --target flag (e.g., --target=cli, --target=npm)
+// Parse --target flag (e.g., --target=npm)
 // Default behavior is JetBrains build (no binaries)
-// Use --target=cli for standalone CLI build (with binaries)
 // Use --target=npm for npm package build (CLI binaries but no Node.js)
 const targetArg = process.argv.find((arg) => arg.startsWith("--target="))
 const BUILD_TARGET = targetArg ? targetArg.split("=")[1] : "jetbrains"
-const IS_CLI_BUILD = BUILD_TARGET === "cli"
 const IS_NPM_BUILD = BUILD_TARGET === "npm"
 
 // Detect current platform
@@ -56,39 +53,29 @@ function getCurrentPlatform() {
 }
 
 async function main() {
-	const buildType = IS_NPM_BUILD ? "NPM Package" : IS_CLI_BUILD ? "Standalone CLI" : "JetBrains"
+	const buildType = IS_NPM_BUILD ? "NPM Package" : "JetBrains"
 	console.log(`🚀 Building Cline ${buildType} Package\n`)
 
-	// Step 1: Install Node.js dependencies
 	await installNodeDependencies()
 
-	// Step 2: Copy Node.js binary (only for CLI builds, not NPM)
-	// Step 3: Copy CLI binaries (for CLI and NPM builds)
-	// Step 4: Copy ripgrep binary (for CLI and NPM builds)
-	// Step 5: Create VERSION file (for CLI and NPM builds)
-	// Step 6: Copy NPM package files (only for NPM builds)
-	if (IS_CLI_BUILD) {
-		await copyNodeBinary()
+	if (IS_NPM_BUILD) {
 		await copyCliBinaries()
 		await copyRipgrepBinary()
-		await createVersionFile()
-	} else if (IS_NPM_BUILD) {
-		await copyCliBinaries()
-		await copyRipgrepBinary()
+		await copyProtoDescriptors()
 		await createNpmPackageFiles()
-		await createPostinstallScript()
-		await cleanupNpmBuild()
+		await createFakeNodeModules()
+		await createNpmIgnoreFile()
 	}
 
-	// Step 7: Package platform-specific binary modules
-	if (UNIVERSAL_BUILD) {
+	if (UNIVERSAL_BUILD && !IS_NPM_BUILD) {
 		console.log("\nBuilding universal package for all platforms...")
 		await packageAllBinaryDeps()
+	} else if (IS_NPM_BUILD) {
+		console.log("\nNPM build: Keeping native modules in node_modules for npm to handle...")
 	} else {
 		console.log(`\nBuilding package for ${os.platform()}-${os.arch()}...`)
 	}
 
-	// Step 8: Create final package (skip zipping for NPM builds)
 	if (!IS_NPM_BUILD) {
 		console.log("\n📦 Creating final package...")
 		await zipDistribution()
@@ -114,35 +101,6 @@ async function installNodeDependencies() {
 	// Move the vscode directory into node_modules.
 	// It can't be installed using npm because it will create a symlink which cannot be unzipped correctly on windows.
 	fs.renameSync(`${BUILD_DIR}/vscode`, `${BUILD_DIR}/node_modules/vscode`)
-}
-
-/**
- * Copy Node.js binary for the current platform
- */
-async function copyNodeBinary() {
-	const currentPlatform = getCurrentPlatform()
-	const nodeBinarySource = path.join(NODE_BINARIES_DIR, currentPlatform, "bin", "node")
-	const nodeBinaryDest = path.join(BUILD_DIR, "bin", "node")
-
-	console.log(`Copying Node.js binary for ${currentPlatform}...`)
-
-	// Check if Node.js binaries exist
-	if (!fs.existsSync(nodeBinarySource)) {
-		console.error(`Error: Node.js binary not found at ${nodeBinarySource}`)
-		console.error(`Please run: npm run download-node`)
-		process.exit(1)
-	}
-
-	// Create bin directory
-	fs.mkdirSync(path.join(BUILD_DIR, "bin"), { recursive: true })
-
-	// Copy Node.js binary
-	await cpr(nodeBinarySource, nodeBinaryDest)
-
-	// Make it executable
-	fs.chmodSync(nodeBinaryDest, 0o755)
-
-	console.log(`✓ Node.js binary copied to ${nodeBinaryDest}`)
 }
 
 /**
@@ -180,6 +138,37 @@ async function copyCliBinaries() {
 
 		console.log(`✓ ${source} copied to ${destPath}`)
 	}
+}
+
+/**
+ * Copy proto descriptors directory
+ * The proto/descriptor_set.pb file is needed by cline-core for gRPC reflection
+ */
+async function copyProtoDescriptors() {
+	console.log("Copying proto descriptors...")
+
+	const protoSource = "proto"
+	const protoDest = path.join(BUILD_DIR, "proto")
+
+	// Check if proto directory exists
+	if (!fs.existsSync(protoSource)) {
+		console.error(`Error: proto directory not found at ${protoSource}`)
+		console.error(`Please ensure the proto files have been generated`)
+		process.exit(1)
+	}
+
+	// Check if descriptor_set.pb exists
+	const descriptorPath = path.join(protoSource, "descriptor_set.pb")
+	if (!fs.existsSync(descriptorPath)) {
+		console.error(`Error: proto/descriptor_set.pb not found at ${descriptorPath}`)
+		console.error(`Please run: npm run protos`)
+		process.exit(1)
+	}
+
+	// Copy the entire proto directory
+	await cpr(protoSource, protoDest)
+
+	console.log(`✓ Proto descriptors copied to ${protoDest}`)
 }
 
 /**
@@ -278,6 +267,56 @@ async function createNpmPackageFiles() {
 }
 
 /**
+ * Create fake_node_modules directory with vscode stub
+ * This directory will be added to NODE_PATH so Node.js can find the vscode module
+ * without npm interfering with the real node_modules directory
+ */
+async function createFakeNodeModules() {
+	console.log("Creating fake_node_modules with vscode stub...")
+
+	const vscodeSource = path.join(BUILD_DIR, "node_modules", "vscode")
+	const fakeNodeModulesDir = path.join(BUILD_DIR, "fake_node_modules")
+	const vscodeDest = path.join(fakeNodeModulesDir, "vscode")
+
+	if (!fs.existsSync(vscodeSource)) {
+		console.error(`Error: vscode stub module not found at ${vscodeSource}`)
+		process.exit(1)
+	}
+
+	// Create fake_node_modules directory
+	fs.mkdirSync(fakeNodeModulesDir, { recursive: true })
+
+	// Copy vscode stub into fake_node_modules
+	await cpr(vscodeSource, vscodeDest)
+	
+	console.log(`✓ fake_node_modules/vscode created at ${vscodeDest}`)
+}
+
+/**
+ * Create .npmignore file to ensure necessary files are included
+ */
+async function createNpmIgnoreFile() {
+	console.log("Creating .npmignore file...")
+
+	// Create .npmignore that excludes build artifacts
+	// Note: proto/ directory is NOT excluded because proto/descriptor_set.pb is needed at runtime
+	const npmignoreContent = `# Exclude build artifacts and unnecessary files
+binaries/
+ripgrep-binaries/
+standalone.zip
+cline-core.js.map
+package-lock.json
+tree-sitter*.wasm
+node_modules/vscode
+`
+
+	const npmignorePath = path.join(BUILD_DIR, ".npmignore")
+	fs.writeFileSync(npmignorePath, npmignoreContent)
+	
+	console.log(`✓ .npmignore created`)
+}
+
+/**
  * Create postinstall script for NPM package
  */
 async function createPostinstallScript() {
@@ -343,6 +382,47 @@ function validateInstallation() {
 		}
 	}
 
+	// Create symlink from node_modules/vscode to ../vscode
+	// This allows Node.js to find the vscode stub module
+	const vscodeStubPath = path.join(__dirname, 'vscode');
+	const nodeModulesVscodePath = path.join(__dirname, 'node_modules', 'vscode');
+	
+	if (fs.existsSync(vscodeStubPath)) {
+		// Create node_modules directory if it doesn't exist
+		const nodeModulesDir = path.join(__dirname, 'node_modules');
+		if (!fs.existsSync(nodeModulesDir)) {
+			fs.mkdirSync(nodeModulesDir, { recursive: true });
+		}
+		
+		// Remove existing symlink/directory if it exists
+		if (fs.existsSync(nodeModulesVscodePath)) {
+			try {
+				fs.unlinkSync(nodeModulesVscodePath);
+			} catch (e) {
+				// Might be a directory, try rmdir
+				try {
+					fs.rmdirSync(nodeModulesVscodePath, { recursive: true });
+				} catch (e2) {
+					console.warn(\`Warning: Could not remove existing vscode module: \${e2.message}\`);
+				}
+			}
+		}
+		
+		// Create symlink
+		try {
+			if (currentPlatform.startsWith('win')) {
+				// Windows requires junction for directories
+				fs.symlinkSync(vscodeStubPath, nodeModulesVscodePath, 'junction');
+			} else {
+				// Unix uses regular symlinks
+				fs.symlinkSync('../vscode', nodeModulesVscodePath);
+			}
+			console.log('✓ Created symlink for vscode stub module');
+		} catch (error) {
+			console.warn(\`Warning: Could not create vscode symlink: \${error.message}\`);
+		}
+	}
+
 	console.log('✓ Cline installation validated successfully');
 	console.log('');
 	console.log('Usage:');
@@ -365,53 +445,6 @@ try {
 	fs.writeFileSync(postinstallPath, postinstallScript)
 	
 	console.log(`✓ postinstall.js created`)
-}
-
-/**
- * Clean up npm build by removing files not needed for npm package
- */
-async function cleanupNpmBuild() {
-	console.log("Cleaning up npm build...")
-
-	// Remove Node.js binary (users have their own Node.js)
-	const nodeBinaryPath = path.join(BUILD_DIR, "bin", "node")
-	if (fs.existsSync(nodeBinaryPath)) {
-		fs.unlinkSync(nodeBinaryPath)
-		console.log(`✓ Removed Node.js binary`)
-	}
-
-	// Remove node-binaries directory (not needed for npm)
-	const nodeBinariesDir = path.join(BUILD_DIR, "node-binaries")
-	if (fs.existsSync(nodeBinariesDir)) {
-		await rmrf(nodeBinariesDir)
-		console.log(`✓ Removed node-binaries directory`)
-	}
-
-	// Remove ripgrep-binaries directory (not needed for npm)
-	const ripgrepBinariesDir = path.join(BUILD_DIR, "ripgrep-binaries")
-	if (fs.existsSync(ripgrepBinariesDir)) {
-		await rmrf(ripgrepBinariesDir)
-		console.log(`✓ Removed ripgrep-binaries directory`)
-	}
-
-	// Remove zip files (not needed for npm)
-	const zipFiles = ["standalone.zip", "standalone-cli.zip"]
-	for (const zipFile of zipFiles) {
-		const zipPath = path.join(BUILD_DIR, zipFile)
-		if (fs.existsSync(zipPath)) {
-			fs.unlinkSync(zipPath)
-			console.log(`✓ Removed ${zipFile}`)
-		}
-	}
-
-	// Remove VERSION.txt (not needed for npm, version is in package.json)
-	const versionPath = path.join(BUILD_DIR, "VERSION.txt")
-	if (fs.existsSync(versionPath)) {
-		fs.unlinkSync(versionPath)
-		console.log(`✓ Removed VERSION.txt`)
-	}
-
-	console.log(`✓ NPM build cleanup complete`)
 }
 
 /**
@@ -466,9 +499,8 @@ async function packageAllBinaryDeps() {
 }
 
 async function zipDistribution() {
-	// Use different filename for CLI builds
-	// Default (JetBrains) = standalone.zip, CLI = standalone-cli.zip
-	const zipFilename = IS_CLI_BUILD ? "standalone-cli.zip" : "standalone.zip"
+	// Default JetBrains build
+	const zipFilename = "standalone.zip"
 	const zipPath = path.join(BUILD_DIR, zipFilename)
 	const output = fs.createWriteStream(zipPath)
 	const startTime = Date.now()
@@ -492,19 +524,17 @@ async function zipDistribution() {
 	const ignorePatterns = ["standalone.zip", "standalone-cli.zip"]
 	const extensionIgnores = ["dist/**"]
 
-	// For JetBrains (default) builds, exclude binaries from both directories
-	if (!IS_CLI_BUILD) {
-		// JetBrains provides their own Node.js, so exclude all binaries
-		ignorePatterns.push(
-			"bin/**", // Exclude entire bin directory
-			"node-binaries/**", // Exclude all platform-specific Node.js binaries
-		)
-		extensionIgnores.push(
-			"cli/bin/**", // Exclude CLI binaries from extension
-			"node-binaries/**", // Exclude node-binaries from extension
-		)
-		console.log("JetBrains build: Excluding Node.js and CLI binaries (JetBrains provides its own Node.js)")
-	}
+	// For JetBrains builds, exclude binaries from both directories
+	// JetBrains provides their own Node.js, so exclude all binaries
+	ignorePatterns.push(
+		"bin/**", // Exclude entire bin directory
+		"node-binaries/**", // Exclude all platform-specific Node.js binaries
+	)
+	extensionIgnores.push(
+		"cli/bin/**", // Exclude CLI binaries from extension
+		"node-binaries/**", // Exclude node-binaries from extension
+	)
+	console.log("JetBrains build: Excluding Node.js and CLI binaries (JetBrains provides its own Node.js)")
 
 	// Add all the files from the standalone build dir.
 	archive.glob("**/*", {

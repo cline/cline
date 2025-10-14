@@ -1,15 +1,20 @@
 {
   "name": "cline",
-  "version": "1.0.0-nightly.1",
+  "version": "1.0.0-nightly.6",
   "description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
   "main": "cline-core.js",
   "bin": {
     "cline": "./bin/cline",
     "cline-host": "./bin/cline-host"
   },
-  "scripts": {
-    "postinstall": "node postinstall.js"
-  },
+  "bundleDependencies": [
+    "@grpc/grpc-js",
+    "@grpc/reflection",
+    "better-sqlite3",
+    "grpc-health-check",
+    "open",
+    "vscode-uri"
+  ],
   "engines": {
     "node": ">=18.0.0"
   },
