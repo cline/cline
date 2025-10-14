@@ -5,6 +5,7 @@ export enum Environment {
 }
 
 export interface EnvironmentConfig {
+	environment: Environment
 	appBaseUrl: string
 	apiBaseUrl: string
 	mcpBaseUrl: string
@@ -32,10 +33,11 @@ function getClineEnv(): Environment {
 }
 
 // Config getter function to avoid storing all configs in memory
-function getEnvironmentConfig(env: Environment): EnvironmentConfig {
-	switch (env) {
+function getEnvironmentConfig(environment: Environment): EnvironmentConfig {
+	switch (environment) {
 		case Environment.staging:
 			return {
+				environment,
 				appBaseUrl: "https://staging-app.cline.bot",
 				apiBaseUrl: "https://core-api.staging.int.cline.bot",
 				mcpBaseUrl: "https://api.cline.bot/v1/mcp",
@@ -50,6 +52,7 @@ function getEnvironmentConfig(env: Environment): EnvironmentConfig {
 			}
 		case Environment.local:
 			return {
+				environment,
 				appBaseUrl: "http://localhost:3000",
 				apiBaseUrl: "http://localhost:7777",
 				mcpBaseUrl: "https://api.cline.bot/v1/mcp",
@@ -61,6 +64,7 @@ function getEnvironmentConfig(env: Environment): EnvironmentConfig {
 			}
 		default:
 			return {
+				environment,
 				appBaseUrl: "https://app.cline.bot",
 				apiBaseUrl: "https://api.cline.bot",
 				mcpBaseUrl: "https://api.cline.bot/v1/mcp",
@@ -77,9 +81,8 @@ function getEnvironmentConfig(env: Environment): EnvironmentConfig {
 }
 
 // Get environment once at module load
-const CLINE_ENVIRONMENT = getClineEnv()
-const _configCache = getEnvironmentConfig(CLINE_ENVIRONMENT)
+const _configCache = getEnvironmentConfig(getClineEnv())
 
-console.info("Cline environment:", CLINE_ENVIRONMENT)
+console.info("Cline environment:", _configCache.environment)
 
 export const clineEnvConfig = _configCache

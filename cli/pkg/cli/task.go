@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -152,7 +153,7 @@ func newTaskNewCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to create task: %w", err)
 			}
-			
+
 			if global.Config.Verbose {
 				fmt.Printf("Task created successfully with ID: %s\n", taskID)
 			}
@@ -309,15 +310,20 @@ func NewTaskSendCommand() *cobra.Command {
 				return err
 			}
 
-			sendDisabled, err := taskManager.CheckSendDisabled(ctx)
-
+			// Check if we can send a message
+			err = taskManager.CheckSendEnabled(ctx)
 			if err != nil {
+				// Handle specific error cases
+				if errors.Is(err, task.ErrNoActiveTask) {
+					fmt.Println("Cannot send message: no active task")
+					return nil
+				}
+				if errors.Is(err, task.ErrTaskBusy) {
+					fmt.Println("Cannot send message: task is currently busy")
+					return nil
+				}
+				// All other errors are unexpected
 				return fmt.Errorf("failed to check if message can be sent: %w", err)
-			}
-
-			if sendDisabled {
-				fmt.Println("Cannot send message: task is currently busy")
-				return nil
 			}
 
 			if mode != "" {
@@ -412,8 +418,6 @@ func newTaskViewCommand() *cobra.Command {
 }
 
 func newTaskListCommand() *cobra.Command {
-	var address string
-
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"l"},
@@ -421,20 +425,11 @@ func newTaskListCommand() *cobra.Command {
 		Long:    `Display recent tasks from task history.`,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-
-			// Ensure task manager is initialized
-			if err := ensureTaskManager(ctx, address); err != nil {
-				return err
-			}
-
-			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
-
-			return taskManager.ListTasks(ctx)
+			// Read directly from disk
+			return task.ListTasksFromDisk()
 		},
 	}
 
-	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	return cmd
 }
 
