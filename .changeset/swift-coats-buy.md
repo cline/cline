@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Otel settings schema
+OpenTelemetry settings schema

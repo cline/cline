@@ -175,20 +175,20 @@ export interface Settings {
 	actModeOcaModelInfo: OcaModelInfo | undefined
 
 	// OpenTelemetry configuration
-	openTelemetryEnabled: boolean | undefined
+	openTelemetryEnabled: boolean
 	openTelemetryMetricsExporter: string | undefined
 	openTelemetryLogsExporter: string | undefined
-	openTelemetryOtlpProtocol: string | undefined
-	openTelemetryOtlpEndpoint: string | undefined
+	openTelemetryOtlpProtocol: string
+	openTelemetryOtlpEndpoint: string
 	openTelemetryOtlpMetricsProtocol: string | undefined
 	openTelemetryOtlpMetricsEndpoint: string | undefined
 	openTelemetryOtlpLogsProtocol: string | undefined
 	openTelemetryOtlpLogsEndpoint: string | undefined
-	openTelemetryMetricExportInterval: number | undefined
-	openTelemetryOtlpInsecure: boolean | undefined
-	openTelemetryLogBatchSize: number | undefined
-	openTelemetryLogBatchTimeout: number | undefined
-	openTelemetryLogMaxQueueSize: number | undefined
+	openTelemetryMetricExportInterval: number
+	openTelemetryOtlpInsecure: boolean
+	openTelemetryLogBatchSize: number
+	openTelemetryLogBatchTimeout: number
+	openTelemetryLogMaxQueueSize: number
 }
 
 export interface Secrets {

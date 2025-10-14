@@ -610,20 +610,20 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			multiRootEnabled: !!multiRootEnabled,
 
 			// OpenTelemetry configuration
-			openTelemetryEnabled,
+			openTelemetryEnabled: openTelemetryEnabled ?? true,
 			openTelemetryMetricsExporter,
 			openTelemetryLogsExporter,
-			openTelemetryOtlpProtocol,
-			openTelemetryOtlpEndpoint,
+			openTelemetryOtlpProtocol: openTelemetryOtlpProtocol ?? "http/json",
+			openTelemetryOtlpEndpoint: openTelemetryOtlpEndpoint ?? "http://localhost:4318",
 			openTelemetryOtlpMetricsProtocol,
 			openTelemetryOtlpMetricsEndpoint,
 			openTelemetryOtlpLogsProtocol,
 			openTelemetryOtlpLogsEndpoint,
-			openTelemetryMetricExportInterval,
-			openTelemetryOtlpInsecure,
-			openTelemetryLogBatchSize,
-			openTelemetryLogBatchTimeout,
-			openTelemetryLogMaxQueueSize,
+			openTelemetryMetricExportInterval: openTelemetryMetricExportInterval ?? 60000,
+			openTelemetryOtlpInsecure: openTelemetryOtlpInsecure ?? false,
+			openTelemetryLogBatchSize: openTelemetryLogBatchSize ?? 512,
+			openTelemetryLogBatchTimeout: openTelemetryLogBatchTimeout ?? 5000,
+			openTelemetryLogMaxQueueSize: openTelemetryLogMaxQueueSize ?? 2048,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)
