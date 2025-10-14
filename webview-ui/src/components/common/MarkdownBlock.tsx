@@ -19,7 +19,7 @@ const ActModeHighlight: React.FC = () => {
 
 	return (
 		<span
-			className={`text-[var(--vscode-textLink-foreground)] inline-flex items-center gap-1 ${
+			className={`text-(--vscode-textLink-foreground) inline-flex items-center gap-1 ${
 				mode === "plan" ? "hover:opacity-90 cursor-pointer" : "cursor-default opacity-60"
 			}`}
 			onClick={() => {
@@ -33,8 +33,8 @@ const ActModeHighlight: React.FC = () => {
 				}
 			}}
 			title={mode === "plan" ? "Click to toggle to Act Mode" : "Already in Act Mode"}>
-			<div className="p-1 rounded-[12px] bg-[var(--vscode-editor-background)] flex items-center justify-end w-4 border-[1px] border-[var(--vscode-input-border)]">
-				<div className="rounded-full bg-[var(--vscode-textLink-foreground)] w-2 h-2" />
+			<div className="p-1 rounded-[12px] bg-(--vscode-editor-background) flex items-center justify-end w-4 border border-(--vscode-input-border)">
+				<div className="rounded-full bg-(--vscode-textLink-foreground) w-2 h-2" />
 			</div>
 			Act Mode (⌘⇧A)
 		</span>
@@ -385,7 +385,7 @@ const MarkdownBlock = memo(({ markdown, compact }: MarkdownBlockProps) => {
 							<>
 								<code {...props} />
 								<button
-									className="codicon codicon-link-external bg-transparent border-0 appearance-none p-0 ml-0.5 leading-none align-middle opacity-70 hover:opacity-100 transition-opacity text-[1em] relative top-[1px] text-[var(--vscode-textPreformat-foreground)] translate-y-[-2px]"
+									className="codicon codicon-link-external bg-transparent border-0 appearance-none p-0 ml-0.5 leading-none align-middle opacity-70 hover:opacity-100 transition-opacity text-[1em] relative top-px text-(--vscode-textPreformat-foreground) translate-y-[-2px]"
 									onClick={() => FileServiceClient.openFileRelativePath({ value: filePath })}
 									title={`Open ${filePath} in editor`}
 									type="button"

@@ -32,7 +32,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 									}}>
 									Allow error and usage reporting
 								</VSCodeCheckbox>
-								<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+								<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
 							</div>
 						</HeroTooltip>
 					) : (
@@ -47,7 +47,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 							Allow error and usage reporting
 						</VSCodeCheckbox>
 					)}
-					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+					<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
 						Help improve Cline by sending usage data and error reports. No code, prompts, or personal information are
 						ever sent. See our{" "}
 						<VSCodeLink

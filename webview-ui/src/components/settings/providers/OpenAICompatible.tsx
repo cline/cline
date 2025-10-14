@@ -75,7 +75,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					<div className="mb-2.5">
 						<div className="flex items-center gap-2 mb-1">
 							<span style={{ fontWeight: 500 }}>Base URL</span>
-							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+							<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
 						</div>
 						<DebouncedTextField
 							disabled={true}
@@ -134,7 +134,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 								<HeroTooltip content="This setting is managed by your organization's remote configuration">
 									<div className="flex items-center gap-2">
 										<span style={{ fontWeight: 500 }}>Custom Headers</span>
-										<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+										<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
 									</div>
 								</HeroTooltip>
 								<VSCodeButton disabled={true}>Add Header</VSCodeButton>
