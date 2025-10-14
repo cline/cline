@@ -36,7 +36,7 @@ func NewTaskCommand() *cobra.Command {
 
 	cmd.AddCommand(newTaskNewCommand())
 	cmd.AddCommand(newTaskOneshotCommand())
-	cmd.AddCommand(newTaskCancelCommand())
+	cmd.AddCommand(newTaskPauseCommand())
 	cmd.AddCommand(newTaskFollowCommand())
 	cmd.AddCommand(NewTaskSendCommand())
 	cmd.AddCommand(newTaskViewCommand())
@@ -241,13 +241,13 @@ func newTaskOneshotCommand() *cobra.Command {
 	return cmd
 }
 
-func newTaskCancelCommand() *cobra.Command {
+func newTaskPauseCommand() *cobra.Command {
 	var address string
 
 	cmd := &cobra.Command{
-		Use:     "cancel",
-		Aliases: []string{"c"},
-		Short:   "Cancel the current task",
+		Use:     "pause",
+		Aliases: []string{"p"},
+		Short:   "Pause the current task",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
@@ -259,7 +259,7 @@ func newTaskCancelCommand() *cobra.Command {
 				return err
 			}
 
-			fmt.Println("Task cancelled successfully")
+			fmt.Println("Task paused successfully")
 			fmt.Printf("Instance: %s\n", taskManager.GetCurrentInstance())
 			return nil
 		},
