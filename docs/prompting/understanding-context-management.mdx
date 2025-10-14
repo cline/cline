@@ -130,25 +130,21 @@ When context usage hits around 80%, Auto Compact automatically creates a compreh
 
 ### Context Truncation System
 
-When approaching limits, Cline's Context Manager:
+If your conversation approaches the model's context window limit before Auto Compact runs, Cline's Context Manager automatically truncates older parts of the conversation to prevent errors.
 
-1. **Preserves Critical Information**
-   - Original task description
-   - Recent tool executions
-   - Current code state
-   - Active errors or issues
+The system prioritizes what matters most:
+- Your original task description stays
+- Recent tool executions and their results remain intact
+- Current code state and active errors are preserved
+- The logical flow of user-assistant messages is maintained
 
-2. **Intelligently Removes**
-   - Redundant conversation history
-   - Completed tool outputs
-   - Intermediate states
-   - Verbose explanations
+What gets removed first:
+- Redundant conversation history from earlier in the task
+- Completed tool outputs that are no longer relevant
+- Intermediate debugging steps
+- Verbose explanations that served their purpose
 
-3. **Maintains Structure**
-   - User-assistant message pairing
-   - Logical conversation flow
-   - Decision history
-   - Implementation progress
+This happens automatically. You'll keep working without interruption, and Cline maintains enough context to continue solving your problem effectively.
 
 ## Best Practices
 
