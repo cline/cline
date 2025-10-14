@@ -54,10 +54,15 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						)
 					}
 
+					// For non-cline providers, we display the raw error message
+					const errorMessageToDisplay = isClineProvider
+						? clineErrorMessage
+						: apiReqStreamingFailedMessage || apiRequestFailedMessage
+
 					// Default error display
 					return (
 						<p className="m-0 whitespace-pre-wrap text-(--vscode-errorForeground) wrap-anywhere">
-							{clineErrorMessage}
+							{errorMessageToDisplay}
 							{requestId && <div>Request ID: {requestId}</div>}
 							{clineErrorMessage?.toLowerCase()?.includes("powershell") && (
 								<>

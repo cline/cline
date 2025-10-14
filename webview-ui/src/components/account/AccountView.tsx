@@ -5,6 +5,7 @@ import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption, VSCodeTag } 
 import deepEqual from "fast-deep-equal"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { useInterval } from "react-use"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type ClineUser, handleSignOut } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
@@ -66,6 +67,11 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 
 export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization }: ClineAccountViewProps) => {
 	const { email, displayName, appBaseUrl, uid } = clineUser
+	const { remoteConfigSettings } = useExtensionState()
+
+	// Determine if dropdown should be locked by remote config
+	const isLockedByRemoteConfig = Object.keys(remoteConfigSettings || {}).length > 0
+	console.log("isLockedByRemoteConfig", isLockedByRemoteConfig)
 
 	// Source of truth: Dedicated state for dropdown value that persists through failures
 	// and represents that user's current selection.
@@ -314,20 +320,27 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 							{email && <div className="text-sm text-(--vscode-descriptionForeground)">{email}</div>}
 
 							<div className="flex gap-2 items-center mt-1">
-								<VSCodeDropdown
-									className="w-full"
-									currentValue={dropdownValue}
-									disabled={isLoading}
-									onChange={handleOrganizationChange}>
-									<VSCodeOption key="personal" value={uid}>
-										Personal
-									</VSCodeOption>
-									{userOrganizations?.map((org: UserOrganization) => (
-										<VSCodeOption key={org.organizationId} value={org.organizationId}>
-											{org.name}
-										</VSCodeOption>
-									))}
-								</VSCodeDropdown>
+								<Tooltip>
+									<TooltipTrigger>
+										<VSCodeDropdown
+											className="w-full"
+											currentValue={dropdownValue}
+											disabled={isLoading || isLockedByRemoteConfig}
+											onChange={handleOrganizationChange}>
+											<VSCodeOption key="personal" value={uid}>
+												Personal
+											</VSCodeOption>
+											{userOrganizations?.map((org: UserOrganization) => (
+												<VSCodeOption key={org.organizationId} value={org.organizationId}>
+													{org.name}
+												</VSCodeOption>
+											))}
+										</VSCodeDropdown>
+									</TooltipTrigger>
+									<TooltipContent hidden={isLockedByRemoteConfig}>
+										This cannot be changed while your organization has remote configuration enabled.
+									</TooltipContent>
+								</Tooltip>
 								{activeOrganization && (
 									<VSCodeTag className="text-xs p-2" title="Role">
 										{getMainRole(activeOrganization.roles)}

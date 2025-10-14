@@ -11,7 +11,7 @@ func NewAuthCommand() *cobra.Command {
 		Short: "Sign in to Cline",
 		Long:  `Complete the authentication flow in browser to sign in to Cline.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return auth.HandleAuthCommand(cmd.Context(), args)
+			return auth.RunAuthFlow(cmd.Context(), args)
 		},
 	}
 }

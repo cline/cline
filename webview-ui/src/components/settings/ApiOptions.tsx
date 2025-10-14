@@ -306,9 +306,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
 							</div>
 						</TooltipTrigger>
-						<TooltipContent>
-							<p>This setting is managed by your organization's remote configuration</p>
-						</TooltipContent>
+						<TooltipContent>This setting is managed by your organization's remote configuration</TooltipContent>
 					</Tooltip>
 				) : (
 					<label htmlFor="api-provider">

@@ -598,31 +598,6 @@ func (m *Manager) CancelTask(ctx context.Context) error {
 	return nil
 }
 
-// ListTasks retrieves and displays task history
-func (m *Manager) ListTasks(ctx context.Context) error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	req := &cline.GetTaskHistoryRequest{
-		FavoritesOnly:        false,
-		SearchQuery:          "",
-		SortBy:               "oldest",
-		CurrentWorkspaceOnly: false,
-	}
-
-	resp, err := m.client.Task.GetTaskHistory(ctx, req)
-	if err != nil {
-		return fmt.Errorf("failed to get task history: %w", err)
-	}
-
-	if len(resp.Tasks) == 0 {
-		fmt.Println("No task history found.")
-		return nil
-	}
-
-	return m.renderer.RenderTaskList(resp.Tasks)
-}
-
 // GatherFinalSummary attempts to gather the latest completion_result output and display it
 func (m *Manager) GatherFinalSummary(ctx context.Context) error {
 	m.mu.RLock()
