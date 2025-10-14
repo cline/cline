@@ -6,7 +6,16 @@ const getCliSubagentsTemplateText = (_context: SystemPromptContext) => `USING TH
 
 The Cline CLI tool can be used to assign Cline AI agents with focused tasks. This can be used to keep you focused by delegating information-gathering and exploration to separate Cline instances. Use the Cline CLI tool to research large codebases, explore file structures, gather information from multiple files, analyze dependencies, or summarize code sections when the complete context may be too large or overwhelming.
 
+## Creating Cline AI agents
+
+Users may refer to Cline AI agents as subagents, subtasks, or just agents. They may also not reference the tool at all, but the request or task you are given may benefit from the use of these agents. Unless you are specifically asked to use this tool, use your best judgement to determine when this tool is applicable without using them too often. If users specifically ask that you use this tool, you then must use this tool.
+
+If you are performing a search via search_files or the terminal (grep etc.), and the results are long and overwhleming, it is reccomended that you switch to use Cline CLI agents to perform this task.
+
+
 ## Command Syntax
+
+The command syntax for creating Cline AI agents must be followed exactly.
 
 \`\`\`bash
 cline "your prompt here" --no-interactive
