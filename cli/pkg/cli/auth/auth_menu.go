@@ -10,6 +10,11 @@ import (
 	"github.com/cline/grpc-go/cline"
 )
 
+// contextKey is a distinct type for context keys to avoid collisions
+type contextKey string
+
+const authInstanceAddressKey contextKey = "authInstanceAddress"
+
 // AuthAction represents the type of authentication action
 type AuthAction string
 
@@ -54,7 +59,7 @@ func RunAuthFlow(ctx context.Context, args []string) error {
 	}()
 
 	// Store instance address in context for all auth handlers to use
-	authCtx := context.WithValue(ctx, "authInstanceAddress", instanceInfo.Address)
+	authCtx := context.WithValue(ctx, authInstanceAddressKey, instanceInfo.Address)
 
 	// Route to existing auth flow
 	return HandleAuthCommand(authCtx, args)
@@ -81,7 +86,7 @@ func HandleAuthCommand(ctx context.Context, args []string) error {
 // getAuthInstanceAddress retrieves the auth instance address from context
 // Returns empty string if not found (falls back to default behavior)
 func getAuthInstanceAddress(ctx context.Context) string {
-	if addr, ok := ctx.Value("authInstanceAddress").(string); ok {
+	if addr, ok := ctx.Value(authInstanceAddressKey).(string); ok {
 		return addr
 	}
 	return ""
