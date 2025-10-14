@@ -80,6 +80,23 @@ export const RemoteConfigSchema = z.object({
 	// If the user is allowed to enable YOLO mode. Note this is different from the extension setting
 	// yoloModeEnabled, because we do not want to force YOLO enabled for the user.
 	yoloModeAllowed: z.boolean().optional(),
+
+	// OpenTelemetry configuration
+	openTelemetryEnabled: z.boolean().optional(),
+	openTelemetryMetricsExporter: z.string().optional(),
+	openTelemetryLogsExporter: z.string().optional(),
+	openTelemetryOtlpProtocol: z.string().optional(),
+	openTelemetryOtlpEndpoint: z.string().optional(),
+	openTelemetryOtlpMetricsProtocol: z.string().optional(),
+	openTelemetryOtlpMetricsEndpoint: z.string().optional(),
+	openTelemetryOtlpLogsProtocol: z.string().optional(),
+	openTelemetryOtlpLogsEndpoint: z.string().optional(),
+	openTelemetryMetricExportInterval: z.number().optional(),
+	openTelemetryOtlpInsecure: z.boolean().optional(),
+	openTelemetryLogBatchSize: z.number().optional(),
+	openTelemetryLogBatchTimeout: z.number().optional(),
+	openTelemetryLogMaxQueueSize: z.number().optional(),
+
 	// Other top-level settings can be added here later.
 
 	// Provider specific settings

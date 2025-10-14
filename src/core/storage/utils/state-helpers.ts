@@ -249,6 +249,40 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const autoCondenseThreshold =
 			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
 		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
+
+		// OpenTelemetry configuration
+		const openTelemetryEnabled =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryEnabled"]>("openTelemetryEnabled")
+		const openTelemetryMetricsExporter =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryMetricsExporter"]>("openTelemetryMetricsExporter")
+		const openTelemetryLogsExporter =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryLogsExporter"]>("openTelemetryLogsExporter")
+		const openTelemetryOtlpProtocol =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpProtocol"]>("openTelemetryOtlpProtocol")
+		const openTelemetryOtlpEndpoint =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpEndpoint"]>("openTelemetryOtlpEndpoint")
+		const openTelemetryOtlpMetricsProtocol = context.globalState.get<
+			GlobalStateAndSettings["openTelemetryOtlpMetricsProtocol"]
+		>("openTelemetryOtlpMetricsProtocol")
+		const openTelemetryOtlpMetricsEndpoint = context.globalState.get<
+			GlobalStateAndSettings["openTelemetryOtlpMetricsEndpoint"]
+		>("openTelemetryOtlpMetricsEndpoint")
+		const openTelemetryOtlpLogsProtocol =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpLogsProtocol"]>("openTelemetryOtlpLogsProtocol")
+		const openTelemetryOtlpLogsEndpoint =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpLogsEndpoint"]>("openTelemetryOtlpLogsEndpoint")
+		const openTelemetryMetricExportInterval = context.globalState.get<
+			GlobalStateAndSettings["openTelemetryMetricExportInterval"]
+		>("openTelemetryMetricExportInterval")
+		const openTelemetryOtlpInsecure =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpInsecure"]>("openTelemetryOtlpInsecure")
+		const openTelemetryLogBatchSize =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryLogBatchSize"]>("openTelemetryLogBatchSize")
+		const openTelemetryLogBatchTimeout =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryLogBatchTimeout"]>("openTelemetryLogBatchTimeout")
+		const openTelemetryLogMaxQueueSize =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryLogMaxQueueSize"]>("openTelemetryLogMaxQueueSize")
+
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
 
@@ -574,6 +608,22 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			// Feature flag - defaults to false
 			// For now, always return false to disable multi-root support by default
 			multiRootEnabled: !!multiRootEnabled,
+
+			// OpenTelemetry configuration
+			openTelemetryEnabled,
+			openTelemetryMetricsExporter,
+			openTelemetryLogsExporter,
+			openTelemetryOtlpProtocol,
+			openTelemetryOtlpEndpoint,
+			openTelemetryOtlpMetricsProtocol,
+			openTelemetryOtlpMetricsEndpoint,
+			openTelemetryOtlpLogsProtocol,
+			openTelemetryOtlpLogsEndpoint,
+			openTelemetryMetricExportInterval,
+			openTelemetryOtlpInsecure,
+			openTelemetryLogBatchSize,
+			openTelemetryLogBatchTimeout,
+			openTelemetryLogMaxQueueSize,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)

@@ -91,13 +91,13 @@ const isTestEnv = process.env.E2E_TEST === "true" || process.env.IS_TEST === "tr
 let otelConfig: OpenTelemetryClientConfig | null = null
 
 /**
- * Gets or creates the OpenTelemetry configuration from environment variables.
+ * Gets or creates the OpenTelemetry configuration with proper precedence.
  * Configuration is cached after first access for performance.
  *
- * Configuration Sources:
- * - **Production Build**: Environment variables injected by esbuild at build time
- *   via .github/workflows/publish.yml
- * - **Development**: Environment variables from .env file loaded by VSCode
+ * Configuration Precedence (lowest to highest):
+ * 1. **Build-time**: Environment variables injected by esbuild at build time via .github/workflows/publish.yml
+ * 2. **Runtime Environment Variables**: Environment variables from .env file or startup
+ * 3. **Settings**: Values from StateManager (can be set via UI or remote config)
  *
  * Supported Environment Variables:
  * - OTEL_TELEMETRY_ENABLED: "1" to enable OpenTelemetry (default: off)
@@ -121,7 +121,8 @@ let otelConfig: OpenTelemetryClientConfig | null = null
  */
 function getOtelConfig(): OpenTelemetryClientConfig {
 	if (!otelConfig) {
-		otelConfig = {
+		// Start with build-time/environment variable config (lowest precedence)
+		const baseConfig: OpenTelemetryClientConfig = {
 			enabled: process.env.OTEL_TELEMETRY_ENABLED === "1",
 			metricsExporter: process.env.OTEL_METRICS_EXPORTER,
 			logsExporter: process.env.OTEL_LOGS_EXPORTER,
@@ -145,8 +146,79 @@ function getOtelConfig(): OpenTelemetryClientConfig {
 				? Math.max(1, parseInt(process.env.OTEL_LOG_MAX_QUEUE_SIZE, 10))
 				: undefined,
 		}
+
+		// Try to get settings from StateManager (highest precedence)
+		// Note: StateManager may not be initialized yet during early extension startup
+		const settingsOverrides: Partial<OpenTelemetryClientConfig> = {}
+		try {
+			// Dynamic import to avoid circular dependencies
+			const { StateManager } = require("@/core/storage/StateManager")
+			const stateManager = StateManager.get()
+
+			if (stateManager?.isInitialized) {
+				// Apply settings overrides if they exist
+				const settings = stateManager.state
+
+				if (settings.openTelemetryEnabled !== undefined) {
+					settingsOverrides.enabled = settings.openTelemetryEnabled
+				}
+				if (settings.openTelemetryMetricsExporter !== undefined) {
+					settingsOverrides.metricsExporter = settings.openTelemetryMetricsExporter
+				}
+				if (settings.openTelemetryLogsExporter !== undefined) {
+					settingsOverrides.logsExporter = settings.openTelemetryLogsExporter
+				}
+				if (settings.openTelemetryOtlpProtocol !== undefined) {
+					settingsOverrides.otlpProtocol = settings.openTelemetryOtlpProtocol
+				}
+				if (settings.openTelemetryOtlpEndpoint !== undefined) {
+					settingsOverrides.otlpEndpoint = settings.openTelemetryOtlpEndpoint
+				}
+				if (settings.openTelemetryOtlpMetricsProtocol !== undefined) {
+					settingsOverrides.otlpMetricsProtocol = settings.openTelemetryOtlpMetricsProtocol
+				}
+				if (settings.openTelemetryOtlpMetricsEndpoint !== undefined) {
+					settingsOverrides.otlpMetricsEndpoint = settings.openTelemetryOtlpMetricsEndpoint
+				}
+				if (settings.openTelemetryOtlpLogsProtocol !== undefined) {
+					settingsOverrides.otlpLogsProtocol = settings.openTelemetryOtlpLogsProtocol
+				}
+				if (settings.openTelemetryOtlpLogsEndpoint !== undefined) {
+					settingsOverrides.otlpLogsEndpoint = settings.openTelemetryOtlpLogsEndpoint
+				}
+				if (settings.openTelemetryMetricExportInterval !== undefined) {
+					settingsOverrides.metricExportInterval = settings.openTelemetryMetricExportInterval
+				}
+				if (settings.openTelemetryOtlpInsecure !== undefined) {
+					settingsOverrides.otlpInsecure = settings.openTelemetryOtlpInsecure
+				}
+				if (settings.openTelemetryLogBatchSize !== undefined) {
+					settingsOverrides.logBatchSize = settings.openTelemetryLogBatchSize
+				}
+				if (settings.openTelemetryLogBatchTimeout !== undefined) {
+					settingsOverrides.logBatchTimeout = settings.openTelemetryLogBatchTimeout
+				}
+				if (settings.openTelemetryLogMaxQueueSize !== undefined) {
+					settingsOverrides.logMaxQueueSize = settings.openTelemetryLogMaxQueueSize
+				}
+			}
+		} catch (error) {
+			// StateManager not available yet (early startup) - use base config only
+			console.log("[OTEL] StateManager not available, using environment config only")
+		}
+
+		// Merge base config with settings overrides
+		otelConfig = { ...baseConfig, ...settingsOverrides }
 	}
 	return otelConfig
+}
+
+/**
+ * Clears the cached OpenTelemetry configuration.
+ * Should be called when settings change to force re-evaluation.
+ */
+export function clearOtelConfigCache(): void {
+	otelConfig = null
 }
 
 export function isOpenTelemetryConfigValid(config: OpenTelemetryClientConfig): config is OpenTelemetryClientValidConfig {
