@@ -1,5 +1,7 @@
 import { RemoteConfig } from "@shared/remote-config/schema"
+import { clearOtelConfigCache } from "@shared/services/config/otel-config"
 import { GlobalStateAndSettings } from "@shared/storage/state-keys"
+import { telemetryService } from "@/services/telemetry"
 import { StateManager } from "../StateManager"
 
 /**
@@ -22,6 +24,50 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		if (remoteConfig.yoloModeAllowed === false) {
 			transformed.yoloModeToggled = false
 		}
+	}
+
+	// Map OpenTelemetry settings
+	if (remoteConfig.openTelemetryEnabled !== undefined) {
+		transformed.openTelemetryEnabled = remoteConfig.openTelemetryEnabled
+	}
+	if (remoteConfig.openTelemetryMetricsExporter !== undefined) {
+		transformed.openTelemetryMetricsExporter = remoteConfig.openTelemetryMetricsExporter
+	}
+	if (remoteConfig.openTelemetryLogsExporter !== undefined) {
+		transformed.openTelemetryLogsExporter = remoteConfig.openTelemetryLogsExporter
+	}
+	if (remoteConfig.openTelemetryOtlpProtocol !== undefined) {
+		transformed.openTelemetryOtlpProtocol = remoteConfig.openTelemetryOtlpProtocol
+	}
+	if (remoteConfig.openTelemetryOtlpEndpoint !== undefined) {
+		transformed.openTelemetryOtlpEndpoint = remoteConfig.openTelemetryOtlpEndpoint
+	}
+	if (remoteConfig.openTelemetryOtlpMetricsProtocol !== undefined) {
+		transformed.openTelemetryOtlpMetricsProtocol = remoteConfig.openTelemetryOtlpMetricsProtocol
+	}
+	if (remoteConfig.openTelemetryOtlpMetricsEndpoint !== undefined) {
+		transformed.openTelemetryOtlpMetricsEndpoint = remoteConfig.openTelemetryOtlpMetricsEndpoint
+	}
+	if (remoteConfig.openTelemetryOtlpLogsProtocol !== undefined) {
+		transformed.openTelemetryOtlpLogsProtocol = remoteConfig.openTelemetryOtlpLogsProtocol
+	}
+	if (remoteConfig.openTelemetryOtlpLogsEndpoint !== undefined) {
+		transformed.openTelemetryOtlpLogsEndpoint = remoteConfig.openTelemetryOtlpLogsEndpoint
+	}
+	if (remoteConfig.openTelemetryMetricExportInterval !== undefined) {
+		transformed.openTelemetryMetricExportInterval = remoteConfig.openTelemetryMetricExportInterval
+	}
+	if (remoteConfig.openTelemetryOtlpInsecure !== undefined) {
+		transformed.openTelemetryOtlpInsecure = remoteConfig.openTelemetryOtlpInsecure
+	}
+	if (remoteConfig.openTelemetryLogBatchSize !== undefined) {
+		transformed.openTelemetryLogBatchSize = remoteConfig.openTelemetryLogBatchSize
+	}
+	if (remoteConfig.openTelemetryLogBatchTimeout !== undefined) {
+		transformed.openTelemetryLogBatchTimeout = remoteConfig.openTelemetryLogBatchTimeout
+	}
+	if (remoteConfig.openTelemetryLogMaxQueueSize !== undefined) {
+		transformed.openTelemetryLogMaxQueueSize = remoteConfig.openTelemetryLogMaxQueueSize
 	}
 
 	// Map OpenAiCompatible provider settings
@@ -90,4 +136,12 @@ export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
 	for (const [key, value] of Object.entries(transformed)) {
 		stateManager.setRemoteConfigField(key as keyof GlobalStateAndSettings, value)
 	}
+
+	// Reinitialize telemetry providers with new config
+	// Fire-and-forget to avoid blocking remote config application
+	clearOtelConfigCache()
+	telemetryService.reinitializeAllProviders().catch((error) => {
+		console.error("[RemoteConfig] Failed to reinitialize telemetry providers:", error)
+		// Continue with old config on error
+	})
 }
