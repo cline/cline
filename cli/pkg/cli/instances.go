@@ -67,7 +67,7 @@ func NewInstanceCommand() *cobra.Command {
 	}
 
 	cmd.AddCommand(newInstanceListCommand())
-	cmd.AddCommand(newInstanceUseCommand())
+	cmd.AddCommand(newInstanceDefaultCommand())
 	cmd.AddCommand(newInstanceNewCommand())
 	cmd.AddCommand(newInstanceKillCommand())
 
@@ -286,12 +286,12 @@ func newInstanceListCommand() *cobra.Command {
 
 			// Build instance data
 			type instanceRow struct {
-				address  string
-				status   string
-				version  string
-				lastSeen string
-				pid      string
-				platform string
+				address   string
+				status    string
+				version   string
+				lastSeen  string
+				pid       string
+				platform  string
 				isDefault string
 			}
 
@@ -329,12 +329,12 @@ func newInstanceListCommand() *cobra.Command {
 				}
 
 				rows = append(rows, instanceRow{
-					address:  instance.Address,
-					status:   instance.Status.String(),
-					version:  instance.Version,
-					lastSeen: lastSeen,
-					pid:      pid,
-					platform: platform,
+					address:   instance.Address,
+					status:    instance.Status.String(),
+					version:   instance.Version,
+					lastSeen:  lastSeen,
+					pid:       pid,
+					platform:  platform,
 					isDefault: isDefault,
 				})
 			}
@@ -387,11 +387,10 @@ func newInstanceListCommand() *cobra.Command {
 						fmt.Println(markdown.String())
 					} else {
 						// Post-process to colorize status values
-						rendered = strings.ReplaceAll(rendered, "SERVING", "\033[32mSERVING\033[0m")       		// Green
-						rendered = strings.ReplaceAll(rendered, "✓", "\033[32m✓\033[0m")       			   		// Green
-						rendered = strings.ReplaceAll(rendered, "NOT_SERVING", "\033[31mNOT_SERVING\033[0m") 	// Red
-						rendered = strings.ReplaceAll(rendered, "UNKNOWN", "\033[33mUNKNOWN\033[0m")      		// Yellow
-
+						rendered = strings.ReplaceAll(rendered, "SERVING", "\033[32mSERVING\033[0m")         // Green
+						rendered = strings.ReplaceAll(rendered, "✓", "\033[32m✓\033[0m")                     // Green
+						rendered = strings.ReplaceAll(rendered, "NOT_SERVING", "\033[31mNOT_SERVING\033[0m") // Red
+						rendered = strings.ReplaceAll(rendered, "UNKNOWN", "\033[33mUNKNOWN\033[0m")         // Yellow
 
 						fmt.Print(strings.TrimLeft(rendered, "\n"))
 					}
@@ -406,10 +405,10 @@ func newInstanceListCommand() *cobra.Command {
 	return cmd
 }
 
-func newInstanceUseCommand() *cobra.Command {
+func newInstanceDefaultCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "use <address>",
-		Aliases: []string{"u"},
+		Use:     "default <address>",
+		Aliases: []string{"d"},
 		Short:   "Set the default Cline instance",
 		Long:    `Set the default Cline instance to use for subsequent commands.`,
 		Args:    cobra.ExactArgs(1),
