@@ -9,6 +9,7 @@ import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayMode
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import Section from "../Section"
+import SubagentOutputLineLimitSlider from "../SubagentOutputLineLimitSlider"
 import { updateSetting } from "../utils/settingsHandlers"
 
 interface FeatureSettingsSectionProps {
@@ -142,6 +143,11 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								your main context clean.
 							</span>
 						</p>
+						{subagentsEnabled && (
+							<div className="mt-3">
+								<SubagentOutputLineLimitSlider />
+							</div>
+						)}
 					</div>
 
 					<div>

@@ -148,6 +148,12 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState(
 				"vscodeTerminalExecutionMode",
 				request.vscodeTerminalExecutionMode === "backgroundExec" ? "backgroundExec" : "vscodeTerminal",
+				
+		// Update subagent terminal output line limit
+		if (request.subagentTerminalOutputLineLimit !== undefined) {
+			controller.stateManager.setGlobalState(
+				"subagentTerminalOutputLineLimit",
+				Number(request.subagentTerminalOutputLineLimit),
 			)
 		}
 
@@ -338,8 +344,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		await controller.postStateToWebview()
 
 		return Empty.create()
-	} catch (error) {
+	} catch (error) 
 		console.error("Failed to update settings:", error)
 		throw error
-	}
 }

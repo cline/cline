@@ -37,7 +37,7 @@ import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkpoints/factory"
 import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializer"
 import { ICheckpointManager } from "@integrations/checkpoints/types"
-import { transformClineCommand } from "@integrations/cli-subagents/command-transform"
+import { isSubagentCommand, transformClineCommand } from "@integrations/cli-subagents/command-transform"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
@@ -1105,6 +1105,8 @@ export class Task {
 
 	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ToolResponse]> {
 		// For Cline CLI subagents, we want to parse and process the command to ensure flags are correct
+		// First we detect if this is a subagent command to use appropriate output limit
+		const isSubagent = isSubagentCommand(command)
 		command = transformClineCommand(command)
 
 		Logger.info("IS_TEST: " + isInTestMode())
@@ -1366,7 +1368,10 @@ export class Task {
 			await setTimeoutPromise(50)
 		}
 
-		const result = this.terminalManager.processOutput(outputLines)
+		const result = this.terminalManager.processOutput(
+			outputLines,
+			isSubagent ? this.terminalManager["subagentTerminalOutputLineLimit"] : undefined,
+		)
 
 		if (didCancelViaUi) {
 			return [
