@@ -38,7 +38,7 @@ func NewTaskCommand() *cobra.Command {
 	cmd.AddCommand(newTaskNewCommand())
 	cmd.AddCommand(newTaskOneshotCommand())
 	cmd.AddCommand(newTaskPauseCommand())
-	cmd.AddCommand(newTaskFollowCommand())
+	cmd.AddCommand(newTaskChatCommand())
 	cmd.AddCommand(newTaskSendCommand())
 	cmd.AddCommand(newTaskViewCommand())
 	cmd.AddCommand(newTaskListCommand())
@@ -392,14 +392,14 @@ func newTaskSendCommand() *cobra.Command {
 	return cmd
 }
 
-func newTaskFollowCommand() *cobra.Command {
+func newTaskChatCommand() *cobra.Command {
 	var address string
 
 	cmd := &cobra.Command{
-		Use:     "follow",
-		Aliases: []string{"f"},
-		Short:   "Follow current task conversation in real-time",
-		Long:    `Follow the current task conversation, displaying new messages as they arrive in real-time. Interactive input is enabled by default.`,
+		Use:     "chat",
+		Aliases: []string{"c"},
+		Short:   "Chat with the current task in interactive mode",
+		Long:    `Chat with the current task, displaying messages in real-time with interactive input enabled.`,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
