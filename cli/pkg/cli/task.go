@@ -275,7 +275,8 @@ func NewTaskSendCommand() *cobra.Command {
 		files   []string
 		address string
 		mode    string
-		approve string
+		approve bool
+		deny    bool
 	)
 
 	cmd := &cobra.Command{
@@ -293,16 +294,16 @@ func NewTaskSendCommand() *cobra.Command {
 				return fmt.Errorf("failed to read message: %w", err)
 			}
 
-			if message == "" && len(images) == 0 && len(files) == 0 && mode == "" && approve == "" {
-				return fmt.Errorf("content (message, files, images) required unless using --mode or --approve flags")
+			if message == "" && len(images) == 0 && len(files) == 0 && mode == "" && !approve && !deny {
+				return fmt.Errorf("content (message, files, images) required unless using --mode, --approve, or --deny flags")
 			}
 
-			if approve != "" && approve != "true" && approve != "false" {
-				return fmt.Errorf("--approve must be 'true' or 'false'")
+			if approve && deny {
+				return fmt.Errorf("cannot use both --approve and --deny flags")
 			}
 
-			if approve != "" && mode != "" {
-				return fmt.Errorf("cannot use --approve and --mode together")
+			if (approve || deny) && mode != "" {
+				return fmt.Errorf("cannot use --approve/--deny and --mode together")
 			}
 
 			// Ensure task manager is initialized
@@ -333,7 +334,16 @@ func NewTaskSendCommand() *cobra.Command {
 				fmt.Printf("Mode set to %s and message sent successfully.\n", mode)
 
 			} else {
-				if err := taskManager.SendMessage(ctx, message, images, files, approve); err != nil {
+				// Convert approve/deny booleans to string
+				approveStr := ""
+				if approve {
+					approveStr = "true"
+				}
+				if deny {
+					approveStr = "false"
+				}
+
+				if err := taskManager.SendMessage(ctx, message, images, files, approveStr); err != nil {
 					return err
 				}
 				fmt.Printf("Message sent successfully.\n")
@@ -348,7 +358,8 @@ func NewTaskSendCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
-	cmd.Flags().StringVarP(&approve, "approve", "a", "", "approve (true) or deny (false) pending request")
+	cmd.Flags().BoolVarP(&approve, "approve", "a", false, "approve pending request")
+	cmd.Flags().BoolVarP(&deny, "deny", "d", false, "deny pending request")
 
 	return cmd
 }
