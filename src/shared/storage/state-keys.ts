@@ -173,6 +173,22 @@ export interface Settings {
 	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	actModeOcaModelId: string | undefined
 	actModeOcaModelInfo: OcaModelInfo | undefined
+
+	// OpenTelemetry configuration
+	openTelemetryEnabled: boolean | undefined
+	openTelemetryMetricsExporter: string | undefined
+	openTelemetryLogsExporter: string | undefined
+	openTelemetryOtlpProtocol: string | undefined
+	openTelemetryOtlpEndpoint: string | undefined
+	openTelemetryOtlpMetricsProtocol: string | undefined
+	openTelemetryOtlpMetricsEndpoint: string | undefined
+	openTelemetryOtlpLogsProtocol: string | undefined
+	openTelemetryOtlpLogsEndpoint: string | undefined
+	openTelemetryMetricExportInterval: number | undefined
+	openTelemetryOtlpInsecure: boolean | undefined
+	openTelemetryLogBatchSize: number | undefined
+	openTelemetryLogBatchTimeout: number | undefined
+	openTelemetryLogMaxQueueSize: number | undefined
 }
 
 export interface Secrets {
