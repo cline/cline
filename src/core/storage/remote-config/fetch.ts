@@ -1,9 +1,12 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
-import { clineEnvConfig } from "@/config"
-import { readRemoteConfigFromCache, writeRemoteConfigToCache } from "@/core/storage/disk"
-import { AuthService } from "@/services/auth/AuthService"
-import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
-import { RemoteConfig, RemoteConfigSchema } from "./schema"
+import { Controller } from "@/core/controller"
+import { clineEnvConfig } from "../../../config"
+import { AuthService } from "../../../services/auth/AuthService"
+import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
+import { RemoteConfig, RemoteConfigSchema } from "../../../shared/remote-config/schema"
+import { deleteRemoteConfigFromCache, readRemoteConfigFromCache, writeRemoteConfigToCache } from "../disk"
+import { StateManager } from "../StateManager"
+import { applyRemoteConfig } from "./utils"
 
 /**
  * Fetches remote configuration for the active organization from the API.
@@ -12,12 +15,15 @@ import { RemoteConfig, RemoteConfigSchema } from "./schema"
  * @returns Promise resolving to the RemoteConfig object, or undefined if no active organization exists
  * @throws Error if both API fetch and cache retrieval fail (when an organization exists)
  */
-export async function fetchRemoteConfig(): Promise<RemoteConfig | undefined> {
+export async function fetchRemoteConfig(controller: Controller): Promise<RemoteConfig | undefined> {
 	const authService = AuthService.getInstance()
 
 	// Get the active organization ID
 	const organizationId = authService.getActiveOrganizationId()
+
 	if (!organizationId) {
+		// Clear the in-memory cache of the remote config settings in case it was previously set with an organization that has remote config
+		StateManager.get().clearRemoteConfig()
 		return undefined
 	}
 
@@ -41,7 +47,7 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig | undefined> {
 		}
 
 		const response: AxiosResponse<{
-			data?: { Value: string; Enabled: boolean }
+			data?: { value: string; enabled: boolean }
 			error: string
 			success: boolean
 		}> = await axios.request({
@@ -72,18 +78,29 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig | undefined> {
 		}
 
 		// Check if config is enabled
-		if (!configData.Enabled) {
+		if (!configData.enabled) {
+			// Clear the remote config from the on-disk cache if it exists
+			await deleteRemoteConfigFromCache(organizationId)
+
+			// Clear the in-memory cache of the remote config settings in case it was previously set
+			StateManager.get().clearRemoteConfig()
+
 			return undefined
 		}
 
 		// Parse the JSON-encoded Value field
-		const parsedConfig = JSON.parse(configData.Value)
+		const parsedConfig = JSON.parse(configData.value)
 
 		// Validate against schema
 		const validatedConfig = RemoteConfigSchema.parse(parsedConfig)
 
 		// Write to cache
 		await writeRemoteConfigToCache(organizationId, validatedConfig)
+
+		// Apply config to StateManager
+		applyRemoteConfig(validatedConfig)
+
+		controller.postStateToWebview()
 
 		return validatedConfig
 	} catch (error) {
@@ -92,13 +109,21 @@ export async function fetchRemoteConfig(): Promise<RemoteConfig | undefined> {
 		// Try to fall back to cached config
 		const cachedConfig = await readRemoteConfigFromCache(organizationId)
 		if (cachedConfig) {
-			// Validate cached config against schema
-			return RemoteConfigSchema.parse(cachedConfig)
+			try {
+				// Validate cached config against schema
+				const validatedCachedConfig = RemoteConfigSchema.parse(cachedConfig)
+				// Apply config to StateManager
+				applyRemoteConfig(validatedCachedConfig)
+				return validatedCachedConfig
+			} catch (validationError) {
+				// Cache validation failed - log and fall through
+				console.error("Cached config validation failed:", validationError)
+			}
 		}
 
-		// Both API and cache failed
+		// Both API and cache failed (or cache was invalid)
 		throw new Error(
-			`Failed to fetch remote config: ${error instanceof Error ? error.message : "Unknown error"}. No cached config available.`,
+			`Failed to fetch remote config: ${error instanceof Error ? error.message : "Unknown error"}. No valid cached config available.`,
 		)
 	}
 }

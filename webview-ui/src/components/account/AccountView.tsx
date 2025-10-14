@@ -6,7 +6,9 @@ import deepEqual from "fast-deep-equal"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import { type ClineUser, handleSignOut } from "@/context/ClineAuthContext"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
+import { getEnvironmentColor } from "@/utils/environmentColors"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import { AccountWelcomeView } from "./AccountWelcomeView"
 import { CreditBalance } from "./CreditBalance"
@@ -34,10 +36,15 @@ type CachedData = {
 }
 
 const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: AccountViewProps) => {
+	const { environment } = useExtensionState()
+	const titleColor = getEnvironmentColor(environment)
+
 	return (
 		<div className="fixed inset-0 flex flex-col overflow-hidden pt-[10px] pl-[20px]">
 			<div className="flex justify-between items-center mb-[17px] pr-[17px]">
-				<h3 className="text-[var(--vscode-foreground)] m-0">Account</h3>
+				<h3 className="m-0" style={{ color: titleColor }}>
+					Account
+				</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
 			<div className="flex-grow overflow-hidden pr-[8px] flex flex-col">

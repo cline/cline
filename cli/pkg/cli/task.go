@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +14,17 @@ import (
 	"github.com/cline/cli/pkg/cli/task"
 	"github.com/spf13/cobra"
 )
+
+// TaskOptions contains options for creating a task
+type TaskOptions struct {
+	Images     []string
+	Files      []string
+	Workspaces []string
+	Mode       string
+	Settings   []string
+	Yolo       bool
+	Address    string
+}
 
 func NewTaskCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -86,7 +98,6 @@ func newTaskNewCommand() *cobra.Command {
 	var (
 		images     []string
 		files      []string
-		wait       bool
 		workspaces []string
 		address    string
 		mode       string
@@ -124,7 +135,9 @@ func newTaskNewCommand() *cobra.Command {
 				if err := taskManager.SetMode(ctx, mode, nil, nil, nil); err != nil {
 					return fmt.Errorf("failed to set mode: %w", err)
 				}
-				fmt.Printf("Mode set to: %s\n", mode)
+				if global.Config.Verbose {
+					fmt.Printf("Mode set to: %s\n", mode)
+				}
 			}
 
 			// Inject yolo_mode_toggled setting if --yolo flag is set
@@ -141,11 +154,8 @@ func newTaskNewCommand() *cobra.Command {
 				return fmt.Errorf("failed to create task: %w", err)
 			}
 
-			fmt.Printf("Task created successfully with ID: %s\n", taskID)
-
-			// Wait for completion if requested
-			if wait {
-				return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance())
+			if global.Config.Verbose {
+				fmt.Printf("Task created successfully with ID: %s\n", taskID)
 			}
 
 			return nil
@@ -154,7 +164,6 @@ func newTaskNewCommand() *cobra.Command {
 
 	cmd.Flags().StringSliceVarP(&images, "image", "i", nil, "attach image files")
 	cmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
-	cmd.Flags().BoolVar(&wait, "wait", false, "wait for task completion")
 	cmd.Flags().StringSliceVarP(&workspaces, "workdir", "w", nil, "workdir directory paths")
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
@@ -201,7 +210,10 @@ func newTaskOneshotCommand() *cobra.Command {
 			if err := taskManager.SetMode(ctx, "plan", nil, nil, nil); err != nil {
 				return fmt.Errorf("failed to set plan mode: %w", err)
 			}
-			fmt.Println("Mode set to: plan")
+
+			if global.Config.Verbose {
+				fmt.Println("Mode set to: plan")
+			}
 
 			// Inject yolo mode into settings
 			settings = append(settings, "yolo_mode_toggled=true")
@@ -298,15 +310,20 @@ func NewTaskSendCommand() *cobra.Command {
 				return err
 			}
 
-			sendDisabled, err := taskManager.CheckSendDisabled(ctx)
-
+			// Check if we can send a message
+			err = taskManager.CheckSendEnabled(ctx)
 			if err != nil {
+				// Handle specific error cases
+				if errors.Is(err, task.ErrNoActiveTask) {
+					fmt.Println("Cannot send message: no active task")
+					return nil
+				}
+				if errors.Is(err, task.ErrTaskBusy) {
+					fmt.Println("Cannot send message: task is currently busy")
+					return nil
+				}
+				// All other errors are unexpected
 				return fmt.Errorf("failed to check if message can be sent: %w", err)
-			}
-
-			if sendDisabled {
-				fmt.Println("Cannot send message: task is currently busy")
-				return nil
 			}
 
 			if mode != "" {
@@ -343,7 +360,7 @@ func newTaskFollowCommand() *cobra.Command {
 		Use:     "follow",
 		Aliases: []string{"f"},
 		Short:   "Follow current task conversation in real-time",
-		Long:    `Follow the current task conversation, displaying new messages as they arrive in real-time.`,
+		Long:    `Follow the current task conversation, displaying new messages as they arrive in real-time. Interactive input is enabled by default.`,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -351,8 +368,8 @@ func newTaskFollowCommand() *cobra.Command {
 			if err := ensureTaskManager(ctx, address); err != nil {
 				return err
 			}
-			
-			return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance())
+
+			return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), true)
 		},
 	}
 
@@ -548,4 +565,51 @@ func CleanupTaskManager() {
 	if taskManager != nil {
 		taskManager.Cleanup()
 	}
+}
+
+// NewTaskManagerForAddress is an exported wrapper around task.NewManagerForAddress
+func NewTaskManagerForAddress(ctx context.Context, address string) (*task.Manager, error) {
+	return task.NewManagerForAddress(ctx, address)
+}
+
+// CreateAndFollowTask creates a new task and immediately follows it in interactive mode
+// This is used by the root command to provide a streamlined UX
+func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) error {
+	// Initialize task manager with the provided instance address
+	if err := ensureTaskManager(ctx, opts.Address); err != nil {
+		return err
+	}
+
+	// Set mode to plan by default if not specified
+	if opts.Mode == "" {
+		opts.Mode = "plan"
+	}
+
+	// Set mode if provided
+	if opts.Mode != "" {
+		if err := taskManager.SetMode(ctx, opts.Mode, nil, nil, nil); err != nil {
+			return fmt.Errorf("failed to set mode: %w", err)
+		}
+		if global.Config.Verbose {
+			fmt.Printf("Mode set to: %s\n", opts.Mode)
+		}
+	}
+
+	// Inject yolo_mode_toggled setting if --yolo flag is set
+	if opts.Yolo {
+		opts.Settings = append(opts.Settings, "yolo_mode_toggled=true")
+	}
+
+	// Create the task
+	taskID, err := taskManager.CreateTask(ctx, prompt, opts.Images, opts.Files, opts.Workspaces, opts.Settings)
+	if err != nil {
+		return fmt.Errorf("failed to create task: %w", err)
+	}
+
+	if global.Config.Verbose {
+		fmt.Printf("Task created successfully with ID: %s\n\n", taskID)
+	}
+
+	// Immediately follow the conversation in interactive mode
+	return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), true)
 }
