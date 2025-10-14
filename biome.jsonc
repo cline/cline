@@ -139,6 +139,7 @@
 				"!**/*.test.ts",
 				"!src/dev/**",
 				"!src/extension.ts",
+				"!src/test-otel-settings.ts",
 				"!src/integrations/git/commit-message-generator.ts",
 				"!src/integrations/terminal/**",
 				"!src/core/controller/ui/openWalkthrough.ts"
@@ -156,7 +157,8 @@
 				"!src/common.ts",
 				"!src/services/logging/distinctId.ts",
 				"!src/core/storage/utils/state-helpers.ts",
-				"!src/extension.ts"
+				"!src/extension.ts",
+				"!src/test-otel-settings.ts"
 			],
 			"plugins": [
 				"src/dev/grit/use-cache-service.grit"

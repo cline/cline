@@ -7,7 +7,6 @@ import * as vscode from "vscode"
 import { sendAccountButtonClickedEvent } from "./core/controller/ui/subscribeToAccountButtonClicked"
 import { sendChatButtonClickedEvent } from "./core/controller/ui/subscribeToChatButtonClicked"
 import { sendHistoryButtonClickedEvent } from "./core/controller/ui/subscribeToHistoryButtonClicked"
-import { sendMcpButtonClickedEvent } from "./core/controller/ui/subscribeToMcpButtonClicked"
 import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeToSettingsButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
@@ -38,6 +37,7 @@ import { LogoutReason } from "./services/auth/types"
 import { telemetryService } from "./services/telemetry"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
+import { registerTestOtelSettingsCommand } from "./test-otel-settings"
 import { fileExistsAtPath } from "./utils/fs"
 /*
 Built using https://github.com/microsoft/vscode-webview-ui-toolkit
@@ -83,10 +83,13 @@ export async function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.McpButton, () => {
-			sendMcpButtonClickedEvent()
+		vscode.commands.registerCommand(commands.AbortCommit, () => {
+			abortCommitGeneration()
 		}),
 	)
+
+	// Register test command for OpenTelemetry settings (for testing precedence)
+	registerTestOtelSettingsCommand(context)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.SettingsButton, () => {
