@@ -34,6 +34,10 @@
 		font-size: var(--text-sm);
 		font-weight: var(--font-weight-semibold);
 	}
+	h4 {
+		font-size: var(--text-base);
+		font-weight: var(--font-weight-bold);
+	}
 	a {
 		@apply text-link hover:text-link-hover;
 	}

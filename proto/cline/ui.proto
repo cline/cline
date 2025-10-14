@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package cline;
 import "cline/common.proto";
+option go_package = "github.com/cline/grpc-go/cline";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 
@@ -62,6 +63,7 @@ enum ClineSay {
   LOAD_MCP_DOCUMENTATION = 25;
   INFO = 26;
   TASK_PROGRESS = 27;
+  ERROR_RETRY = 28;
 }
 
 // Enum for ClineSayTool tool types

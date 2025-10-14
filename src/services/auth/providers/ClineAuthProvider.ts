@@ -95,7 +95,7 @@ export class ClineAuthProvider implements IAuthProvider {
 	async retrieveClineAuthInfo(controller: Controller): Promise<ClineAuthInfo | null> {
 		try {
 			// Get the stored auth data from secure storage
-			const storedAuthDataString = controller.stateManager.getSecretKey("clineAccountId")
+			const storedAuthDataString = controller.stateManager.getSecretKey("cline:clineAccountId")
 
 			if (!storedAuthDataString) {
 				Logger.debug("No stored authentication data found")
@@ -108,13 +108,13 @@ export class ClineAuthProvider implements IAuthProvider {
 				storedAuthData = JSON.parse(storedAuthDataString)
 			} catch (e) {
 				console.error("Failed to parse stored auth data:", e)
-				controller.stateManager.setSecret("clineAccountId", undefined)
+				controller.stateManager.setSecret("cline:clineAccountId", undefined)
 				return null
 			}
 
 			if (!storedAuthData.refreshToken || !storedAuthData?.idToken) {
 				console.error("No valid token found in stored authentication data")
-				controller.stateManager.setSecret("clineAccountId", undefined)
+				controller.stateManager.setSecret("cline:clineAccountId", undefined)
 				return null
 			}
 
@@ -198,6 +198,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					appBaseUrl: this._config.appBaseUrl,
 					subject: data.data.userInfo.subject || "",
 				},
+				provider: this.name,
 			}
 		} catch (error: any) {
 			throw error
@@ -300,9 +301,10 @@ export class ClineAuthProvider implements IAuthProvider {
 					organizations: [],
 				},
 				expiresAt: new Date(tokenData.expiresAt).getTime() / 1000, // "2025-09-17T04:32:24.842636548Z"
+				provider: this.name,
 			}
 
-			controller.stateManager.setSecret("clineAccountId", JSON.stringify(clineAuthInfo))
+			controller.stateManager.setSecret("cline:clineAccountId", JSON.stringify(clineAuthInfo))
 
 			return clineAuthInfo
 		} catch (error) {

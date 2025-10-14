@@ -4,6 +4,7 @@ import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import Section from "../Section"
 import { updateSetting } from "../utils/settingsHandlers"
@@ -25,6 +26,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		useAutoCondense,
 		focusChainSettings,
 		multiRootSetting,
+		hooksEnabled,
+		remoteConfigSettings,
 	} = useExtensionState()
 
 	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
@@ -51,14 +54,37 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={mcpMarketplaceEnabled}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("mcpMarketplaceEnabled", checked)
-							}}>
-							Enable MCP Marketplace
-						</VSCodeCheckbox>
+						{remoteConfigSettings?.mcpMarketplaceEnabled !== undefined ? (
+							<Tooltip>
+								<TooltipTrigger>
+									<div className="flex items-center gap-2">
+										<VSCodeCheckbox
+											checked={mcpMarketplaceEnabled}
+											disabled={true}
+											onChange={(e: any) => {
+												const checked = e.target.checked === true
+												updateSetting("mcpMarketplaceEnabled", checked)
+											}}>
+											Enable MCP Marketplace
+										</VSCodeCheckbox>
+										<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
+									</div>
+								</TooltipTrigger>
+								<TooltipContent>
+									<p>This setting is managed by your organization's remote configuration</p>
+								</TooltipContent>
+							</Tooltip>
+						) : (
+							<VSCodeCheckbox
+								checked={mcpMarketplaceEnabled}
+								disabled={false}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("mcpMarketplaceEnabled", checked)
+								}}>
+								Enable MCP Marketplace
+							</VSCodeCheckbox>
+						)}
 						<p className="text-xs text-(--vscode-descriptionForeground)">
 							Enables the MCP Marketplace tab for discovering and installing MCP servers.
 						</p>
@@ -264,15 +290,48 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</p>
 						</div>
 					)}
+					{hooksEnabled?.featureFlag && (
+						<div className="mt-2.5">
+							<VSCodeCheckbox
+								checked={hooksEnabled.user}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("hooksEnabled", checked)
+								}}>
+								Enable Hooks
+							</VSCodeCheckbox>
+							<p className="text-xs">
+								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
+								<span className="text-description">
+									Allows execution of hooks from .clinerules/hooks/ directory.
+								</span>
+							</p>
+						</div>
+					)}
 					<div style={{ marginTop: 10 }}>
-						<VSCodeCheckbox
-							checked={yoloModeToggled}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("yoloModeToggled", checked)
-							}}>
-							Enable YOLO Mode
-						</VSCodeCheckbox>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="flex items-center gap-2">
+									<VSCodeCheckbox
+										checked={yoloModeToggled}
+										disabled={remoteConfigSettings?.yoloModeToggled !== undefined}
+										onChange={(e: any) => {
+											const checked = e.target.checked === true
+											updateSetting("yoloModeToggled", checked)
+										}}>
+										Enable YOLO Mode
+									</VSCodeCheckbox>
+									<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
+								</div>
+							</TooltipTrigger>
+							<TooltipContent
+								className="max-w-xs"
+								hidden={remoteConfigSettings?.yoloModeToggled === undefined}
+								side="top">
+								This setting is managed by your organization's remote configuration
+							</TooltipContent>
+						</Tooltip>
+
 						<p className="text-xs text-(--vscode-errorForeground)">
 							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
 							automatically approve all actions without asking. Use with extreme caution.

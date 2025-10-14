@@ -12,6 +12,7 @@ import { ChatContent } from "@shared/ChatContent"
 import { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpMarketplaceCatalog } from "@shared/mcp"
+import { Settings } from "@shared/storage/state-keys"
 import { Mode } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
@@ -26,6 +27,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
+import { LogoutReason } from "@/services/auth/types"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
@@ -38,9 +40,10 @@ import {
 	ensureMcpServersDirectoryExists,
 	ensureSettingsDirectoryExists,
 	GlobalFileNames,
+	writeMcpMarketplaceCatalogToCache,
 } from "../storage/disk"
+import { fetchRemoteConfig } from "../storage/remote-config/fetch"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
-import { Settings } from "../storage/state-keys"
 import { Task } from "../task"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
@@ -65,53 +68,80 @@ export class Controller {
 	// NEW: Add workspace manager (optional initially)
 	private workspaceManager?: WorkspaceRootManager
 
+	// Timer for periodic remote config fetching
+	private remoteConfigTimer?: NodeJS.Timeout
+
+	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
+	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
+		if (!this.workspaceManager) {
+			try {
+				this.workspaceManager = await setupWorkspaceManager({
+					stateManager: this.stateManager,
+					detectRoots: detectWorkspaceRoots,
+				})
+			} catch (error) {
+				console.error("[Controller] Failed to initialize workspace manager:", error)
+			}
+		}
+		return this.workspaceManager
+	}
+
+	// Synchronous getter for workspace manager
+	getWorkspaceManager(): WorkspaceRootManager | undefined {
+		return this.workspaceManager
+	}
+
+	/**
+	 * Starts the periodic remote config fetching timer
+	 * Fetches immediately and then every 30 seconds
+	 */
+	private startRemoteConfigTimer() {
+		// Initial fetch
+		fetchRemoteConfig(this).catch((error) => {
+			console.error("Failed to fetch remote config:", error)
+		})
+
+		// Set up 30-second interval
+		this.remoteConfigTimer = setInterval(() => {
+			fetchRemoteConfig(this).catch((error) => {
+				console.error("Failed to fetch remote config:", error)
+			})
+		}, 30000) // 30 seconds
+	}
+
 	constructor(readonly context: vscode.ExtensionContext) {
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
-		this.stateManager = new StateManager(context)
+		this.stateManager = StateManager.get()
+		StateManager.get().registerCallbacks({
+			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
+				console.error("[Controller] Cache persistence failed, recovering:", error)
+				try {
+					await StateManager.get().reInitialize(this.task?.taskId)
+					await this.postStateToWebview()
+					HostProvider.window.showMessage({
+						type: ShowMessageType.WARNING,
+						message: "Saving settings to storage failed.",
+					})
+				} catch (recoveryError) {
+					console.error("[Controller] Cache recovery failed:", recoveryError)
+					HostProvider.window.showMessage({
+						type: ShowMessageType.ERROR,
+						message: "Failed to save settings. Please restart the extension.",
+					})
+				}
+			},
+			onSyncExternalChange: async () => {
+				await this.postStateToWebview()
+			},
+		})
 		this.authService = AuthService.getInstance(this)
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
 
-		// Initialize cache service asynchronously - critical for extension functionality
-		this.stateManager
-			.initialize()
-			.then(() => {
-				this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
-			})
-			.catch((error) => {
-				console.error(
-					"[Controller] CRITICAL: Failed to initialize StateManager - extension may not function properly:",
-					error,
-				)
-				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: "Failed to initialize Cline's application state. Please restart the extension.",
-				})
-			})
-
-		// Set up persistence error recovery
-		this.stateManager.onPersistenceError = async ({ error }: PersistenceErrorEvent) => {
-			console.error("[Controller] Cache persistence failed, recovering:", error)
-			try {
-				await this.stateManager.reInitialize(this.task?.taskId)
-				await this.postStateToWebview()
-				HostProvider.window.showMessage({
-					type: ShowMessageType.WARNING,
-					message: "Saving settings to storage failed.",
-				})
-			} catch (recoveryError) {
-				console.error("[Controller] Cache recovery failed:", recoveryError)
-				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: "Failed to save settings. Please restart the extension.",
-				})
-			}
-		}
-
-		this.stateManager.onSyncExternalChange = async () => {
-			await this.postStateToWebview()
-		}
+		this.authService.restoreRefreshTokenAndRetrieveAuthInfo().then(() => {
+			this.startRemoteConfigTimer()
+		})
 
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
@@ -132,6 +162,12 @@ export class Controller {
 	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	*/
 	async dispose() {
+		// Clear the remote config timer
+		if (this.remoteConfigTimer) {
+			clearInterval(this.remoteConfigTimer)
+			this.remoteConfigTimer = undefined
+		}
+
 		await this.clearTask()
 		this.mcpHub.dispose()
 
@@ -141,8 +177,7 @@ export class Controller {
 	// Auth methods
 	async handleSignOut() {
 		try {
-			// TODO: update to clineAccountId and then move clineApiKey to a clear function.
-			this.stateManager.setSecret("clineAccountId", undefined)
+			// AuthService now handles its own storage cleanup in handleDeauth()
 			this.stateManager.setGlobalState("userInfo", undefined)
 
 			// Update API providers through cache service
@@ -170,7 +205,7 @@ export class Controller {
 	// Oca Auth methods
 	async handleOcaSignOut() {
 		try {
-			await this.ocaAuthService.handleDeauth()
+			await this.ocaAuthService.handleDeauth(LogoutReason.USER_INITIATED)
 			await this.postStateToWebview()
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
@@ -195,6 +230,12 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	) {
+		try {
+			await fetchRemoteConfig(this)
+		} catch (error) {
+			console.error("Failed to fetch remote config on task init:", error)
+		}
+
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
@@ -256,6 +297,8 @@ export class Controller {
 			historyItem,
 			taskId,
 		})
+
+		return this.task.taskId
 	}
 
 	async reinitExistingTaskFromId(taskId: string) {
@@ -490,8 +533,8 @@ export class Controller {
 				})),
 			}
 
-			// Store in global state
-			this.stateManager.setGlobalState("mcpMarketplaceCatalog", catalog)
+			// Store in cache file
+			await writeMcpMarketplaceCatalogToCache(catalog)
 			return catalog
 		} catch (error) {
 			console.error("Failed to fetch MCP marketplace:", error)
@@ -528,8 +571,8 @@ export class Controller {
 				})),
 			}
 
-			// Store in global state
-			this.stateManager.setGlobalState("mcpMarketplaceCatalog", catalog)
+			// Store in cache file
+			await writeMcpMarketplaceCatalogToCache(catalog)
 			return catalog
 		} catch (error) {
 			console.error("Failed to fetch MCP marketplace:", error)
@@ -747,6 +790,7 @@ export class Controller {
 		const platform = process.platform as Platform
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
+		const environment = clineEnvConfig.environment
 
 		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
@@ -777,6 +821,8 @@ export class Controller {
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
+			platform,
+			environment,
 			distinctId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
@@ -793,7 +839,6 @@ export class Controller {
 			terminalOutputLineLimit,
 			customPrompt,
 			taskHistory: processedTaskHistory,
-			platform,
 			shouldShowAnnouncement,
 			favoritedModelIds,
 			autoCondenseThreshold,
@@ -803,10 +848,15 @@ export class Controller {
 			isMultiRootWorkspace: (this.workspaceManager?.getRoots().length ?? 0) > 1,
 			multiRootSetting: {
 				user: this.stateManager.getGlobalStateKey("multiRootEnabled"),
-				featureFlag: featureFlagsService.getMultiRootEnabled(),
+				featureFlag: true, // Multi-root workspace is now always enabled
+			},
+			hooksEnabled: {
+				user: this.stateManager.getGlobalStateKey("hooksEnabled"),
+				featureFlag: featureFlagsService.getHooksEnabled(),
 			},
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,
+			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),
 		}
 	}
 

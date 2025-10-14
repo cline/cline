@@ -241,7 +241,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 				? "Starting recording..."
 				: error
 					? `Error: ${error}`
-					: null
+					: "Voice Input"
 
 		return (
 			<Tooltip>

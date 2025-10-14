@@ -1,7 +1,7 @@
-import { Empty } from "@shared/proto/cline/common"
+import { String } from "@shared/proto/cline/common"
 import { PlanActMode, OpenaiReasoningEffort as ProtoOpenaiReasoningEffort } from "@shared/proto/cline/state"
 import { NewTaskRequest } from "@shared/proto/cline/task"
-import { Settings } from "@/core/storage/state-keys"
+import { Settings } from "@shared/storage/state-keys"
 import { convertProtoToApiProvider } from "@/shared/proto-conversions/models/api-configuration-conversion"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
 import { convertProtoToAutoApprovalSettings } from "../../../shared/proto-conversions/models/auto-approval-settings-conversion"
@@ -13,7 +13,7 @@ import { Controller } from ".."
  * @param request The new task request containing text and optional images, and optional task settings
  * @returns Empty response
  */
-export async function newTask(controller: Controller, request: NewTaskRequest): Promise<Empty> {
+export async function newTask(controller: Controller, request: NewTaskRequest): Promise<String> {
 	const convertOpenaiReasoningEffort = (effort: ProtoOpenaiReasoningEffort): string => {
 		switch (effort) {
 			case ProtoOpenaiReasoningEffort.LOW:
@@ -70,6 +70,6 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 		}).filter(([_, value]) => value !== undefined),
 	)
 
-	await controller.initTask(request.text, request.images, request.files, undefined, filteredTaskSettings)
-	return Empty.create()
+	const taskId = await controller.initTask(request.text, request.images, request.files, undefined, filteredTaskSettings)
+	return String.create({ value: taskId || "" })
 }

@@ -1,6 +1,8 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
-import { WorkspaceRoot } from "../core/workspace"
+import { WorkspaceRoot } from "@shared/multi-root/types"
+import { GlobalStateAndSettings } from "@shared/storage/state-keys"
+import type { Environment } from "../config"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
@@ -50,6 +52,7 @@ export interface ExtensionState {
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting?: boolean
 	platform: Platform
+	environment?: Environment
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
@@ -82,6 +85,8 @@ export interface ExtensionState {
 	multiRootSetting: ClineFeatureSetting
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
+	hooksEnabled?: ClineFeatureSetting
+	remoteConfigSettings?: Partial<GlobalStateAndSettings>
 }
 
 export interface ClineMessage {
@@ -123,6 +128,7 @@ export type ClineAsk =
 export type ClineSay =
 	| "task"
 	| "error"
+	| "error_retry"
 	| "api_req_started"
 	| "api_req_finished"
 	| "text"

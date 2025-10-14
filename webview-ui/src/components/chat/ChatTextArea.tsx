@@ -609,7 +609,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							selectedOption.type !== ContextMenuOptionType.URL &&
 							selectedOption.type !== ContextMenuOptionType.NoResults
 						) {
-							handleMentionSelect(selectedOption.type, selectedOption.value)
+							// Use label if it contains workspace prefix, otherwise use value
+							const mentionValue = selectedOption.label?.includes(":") ? selectedOption.label : selectedOption.value
+							handleMentionSelect(selectedOption.type, mentionValue)
 						}
 						return
 					}
@@ -796,13 +798,23 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									? FileSearchType.FOLDER
 									: undefined
 
+						// Parse workspace hint from query (e.g., "@frontend:/filename")
+						let workspaceHint: string | undefined
+						let searchQuery = query
+						const workspaceHintMatch = query.match(/^([\w-]+):\/(.*)$/)
+						if (workspaceHintMatch) {
+							workspaceHint = workspaceHintMatch[1]
+							searchQuery = workspaceHintMatch[2]
+						}
+
 						// Set a timeout to debounce the search requests
 						searchTimeoutRef.current = setTimeout(() => {
 							FileServiceClient.searchFiles(
 								FileSearchRequest.create({
-									query: query,
+									query: searchQuery,
 									mentionsRequestId: query,
 									selectedType: searchType,
+									workspaceHint: workspaceHint,
 								}),
 							)
 								.then((results) => {
@@ -1610,7 +1622,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						value={inputValue}
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
-						<div className="text-[10px] absolute bottom-5 left-5 right-16 text-(--vscode-input-placeholderForeground)/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
+						<div className="text-xs absolute bottom-5 left-6.5 right-16 text-(--vscode-input-placeholderForeground)/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
 							Type @ for context, / for slash commands & workflows, hold shift to drag in files/images
 						</div>
 					)}
@@ -1767,14 +1779,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					</div>
 					{/* Tooltip for Plan/Act toggle remains outside the conditional rendering */}
 					<Tooltip>
-						{shownTooltipMode !== null && (
-							<TooltipContent className="text-xs text-description p-2 flex flex-col gap-1" side="top">
-								<div>{`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}</div>
-								<div className="text-description/80">
-									Toggle w/ <kbd className="text-xs text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
-								</div>
-							</TooltipContent>
-						)}
+						<TooltipContent
+							className="text-xs text-description p-2 flex flex-col gap-1"
+							hidden={shownTooltipMode === null}
+							side="top">
+							{`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
+							<p className="text-description/80 text-xs">
+								Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
+							</p>
+						</TooltipContent>
+
 						<TooltipTrigger>
 							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />

@@ -1224,6 +1224,66 @@ export const ChatRowContent = memo(
 								</div>
 							</div>
 						)
+					case "error_retry":
+						try {
+							const retryInfo = JSON.parse(message.text || "{}")
+							const { attempt, maxAttempts, delaySeconds, failed } = retryInfo
+							const isFailed = failed === true
+
+							return (
+								<div
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										backgroundColor: "var(--vscode-textBlockQuote-background)",
+										padding: 8,
+										borderRadius: 3,
+										fontSize: 12,
+									}}>
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											marginBottom: 4,
+										}}>
+										<i
+											className={isFailed ? "codicon codicon-warning" : "codicon codicon-sync"}
+											style={{
+												marginRight: 8,
+												fontSize: 14,
+												color: "var(--vscode-descriptionForeground)",
+											}}></i>
+										<span
+											style={{
+												fontWeight: 500,
+												color: "var(--vscode-foreground)",
+											}}>
+											{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}
+										</span>
+									</div>
+									<div style={{ color: "var(--vscode-foreground)", opacity: 0.8 }}>
+										{isFailed ? (
+											<>
+												Auto-retry failed after <strong>{maxAttempts}</strong> attempts. Manual
+												intervention required.
+											</>
+										) : (
+											<>
+												Attempt <strong>{attempt}</strong> of <strong>{maxAttempts}</strong> - Retrying in{" "}
+												{delaySeconds} seconds...
+											</>
+										)}
+									</div>
+								</div>
+							)
+						} catch (e) {
+							// Fallback if JSON parsing fails
+							return (
+								<div style={{ color: "var(--vscode-foreground)" }}>
+									<Markdown markdown={message.text} />
+								</div>
+							)
+						}
 					case "task_progress":
 						return null // task_progress messages should be displayed in TaskHeader only, not in chat
 					default:

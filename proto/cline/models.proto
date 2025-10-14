@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package cline;
 import "cline/common.proto";
+import "google/protobuf/field_mask.proto";
+option go_package = "github.com/cline/grpc-go/cline";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 
@@ -27,6 +29,8 @@ service ModelsService {
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Updates API configuration
   rpc updateApiConfigurationProto(UpdateApiConfigurationRequest) returns (Empty);
+  // Updates API configuration with partial values (only updates fields that are explicitly set)
+  rpc updateApiConfigurationPartial(UpdateApiConfigurationPartialRequest) returns (Empty);
   // Refreshes and returns Groq models
   rpc refreshGroqModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Baseten models
@@ -127,6 +131,21 @@ message SapAiCoreModelsResponse {
 message UpdateApiConfigurationRequest {
   Metadata metadata = 1;
   ModelsApiConfiguration api_configuration = 2;
+}
+
+// Request for partially updating API configuration using FieldMask
+// Only fields specified in update_mask will be updated from api_configuration
+message UpdateApiConfigurationPartialRequest {
+  Metadata metadata = 1;
+  
+  // The API configuration with values to update.
+  // Only fields listed in update_mask will be applied from this configuration.
+  ModelsApiConfiguration api_configuration = 2;
+  
+  // Mask specifying which top-level fields from api_configuration to update.
+  // Field names should use camelCase (e.g., "apiKey", "planModeApiProvider").
+  // If a field is in the mask but not set in api_configuration, it will be cleared (set to undefined).
+  google.protobuf.FieldMask update_mask = 3;
 }
 
  // Model info for OCA (OpenAI-compatible) models exposed by the OCA provider
@@ -324,6 +343,8 @@ message ModelsApiConfiguration {
   optional string oca_base_url = 73;
   optional string oca_api_key = 74;
   optional string oca_refresh_token = 75;
+  optional string oca_mode = 76;
+  optional bool aws_use_global_inference = 77;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

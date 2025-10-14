@@ -209,7 +209,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 						<TooltipTrigger>
 							<div className="flex items-center pl-1.5 my-2">
 								<span className="codicon codicon-settings text-[#CCCCCC] text-[14px]" />
-								<span className="tex-base font-medium ml-2">Max Requests:</span>
+								<span className="text-base font-medium ml-2">Max Requests:</span>
 								<VSCodeTextField
 									className="flex-1 w-full pr-[35px] ml-4"
 									onInput={async (e) => {
