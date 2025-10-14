@@ -2,7 +2,7 @@
 	"$schema": "https://mintlify.com/docs.json",
 	"theme": "linden",
 	"name": "Cline",
-	"description": "AI-powered coding assistant for VSCode",
+	"description": "AI-powered coding agent for complex work",
 	"colors": {
 		"primary": "#9D4EDD",
 		"light": "#F0E6FF",
@@ -70,16 +70,16 @@
 						"group": "Getting Started",
 						"pages": [
 							"getting-started/installing-cline",
-							"getting-started/model-selection-guide",
-							"getting-started/task-management",
-							"getting-started/understanding-context-management",
-							{
-								"group": "For New Coders",
-								"pages": [
-									"getting-started/for-new-coders",
-									"getting-started/installing-dev-essentials"
-								]
-							}
+							"getting-started/selecting-your-model",
+							"getting-started/your-first-project"
+						]
+					},
+					{
+						"group": "Best Practices",
+						"pages": [
+							"prompting/understanding-context-management",
+							"prompting/prompt-engineering-guide",
+							"prompting/cline-memory-bank"
 						]
 					},
 					{
@@ -134,136 +134,128 @@
 								]
 							},
 							"features/slash-commands/workflows",
+							{
+								"group": "Task Management",
+								"pages": [
+									"features/tasks/understanding-tasks",
+									"features/tasks/task-management"
+								]
+							},
 							"features/yolo-mode"
+						]
+					},
+					{
+						"group": "Model & Provider Configuration",
+						"pages": [
+							{
+								"group": "Model Selection",
+								"pages": [
+									"core-features/model-selection-guide",
+									"model-config/model-comparison",
+									"model-config/context-windows"
+								]
+							},
+							{
+								"group": "Cloud Providers",
+								"pages": [
+									"provider-config/anthropic",
+									"provider-config/claude-code",
+									"provider-config/openai",
+									"provider-config/gcp-vertex-ai",
+									{
+										"group": "AWS Bedrock",
+										"pages": [
+											"provider-config/aws-bedrock/api-key",
+											"provider-config/aws-bedrock/iam-credentials",
+											"provider-config/aws-bedrock/cli-profile"
+										]
+									}
+								]
+							},
+							{
+								"group": "Alternative Providers",
+								"pages": [
+									"provider-config/openrouter",
+									"provider-config/cerebras",
+									"provider-config/deepseek",
+									"provider-config/groq",
+									"provider-config/xai-grok",
+									"provider-config/mistral-ai",
+									"provider-config/doubao",
+									"provider-config/fireworks",
+									"provider-config/zai"
+								]
+							},
+							{
+								"group": "Running Models Locally",
+								"pages": [
+									"running-models-locally/overview",
+									"running-models-locally/ollama",
+									"running-models-locally/lm-studio"
+								]
+							},
+							{
+								"group": "Advanced Configuration",
+								"pages": [
+									"provider-config/openai-compatible",
+									"provider-config/litellm-and-cline-using-codestral",
+									"provider-config/vscode-language-model-api",
+									"provider-config/sap-aicore",
+									"provider-config/vercel-ai-gateway",
+									"provider-config/requesty",
+									"provider-config/baseten"
+								]
+							}
+						]
+					},
+					{
+						"group": "MCP Integration",
+						"pages": [
+							"mcp/mcp-overview",
+							"mcp/adding-mcp-servers-from-github",
+							"mcp/configuring-mcp-servers",
+							"mcp/connecting-to-a-remote-server",
+							"mcp/mcp-marketplace",
+							"mcp/mcp-server-development-protocol",
+							"mcp/mcp-transport-mechanisms"
+						]
+					},
+					{
+						"group": "Cline Tools Reference",
+						"pages": [
+							"exploring-clines-tools/cline-tools-guide",
+							"exploring-clines-tools/new-task-tool",
+							"exploring-clines-tools/remote-browser-support"
+						]
+					},
+					{
+						"group": "Enterprise & Security",
+						"pages": [
+							"enterprise-solutions/cloud-provider-integration",
+							"enterprise-solutions/security-concerns",
+							"enterprise-solutions/mcp-servers",
+							"enterprise-solutions/custom-instructions"
+						]
+					},
+					{
+						"group": "Reference",
+						"pages": [
+							"troubleshooting/terminal-quick-fixes",
+							"troubleshooting/terminal-integration-guide",
+							"more-info/telemetry"
 						]
 					}
 				]
 			},
 			{
 				"tab": "Learn",
-				"icon": "code",
-				"pages": []
+				"icon": "graduation-cap",
+				"href": "https://cline.bot/learn"
 			},
 			{
 				"tab": "Blog",
 				"icon": "newspaper",
 				"href": "https://cline.bot/blog"
-			}
-		],
-		"groups": [
-			{
-				"group": "Introduction",
-				"pages": [
-					"introduction/welcome",
-					"introduction/overview"
-				]
-			},
-			{
-				"group": "Getting Started",
-				"pages": [
-					"getting-started/installing-cline",
-					"getting-started/model-selection-guide",
-					"getting-started/task-management",
-					"getting-started/understanding-context-management",
-					{
-						"group": "For New Coders",
-						"pages": [
-							"getting-started/for-new-coders",
-							"getting-started/installing-dev-essentials"
-						]
-					}
-				]
-			},
-			{
-				"group": "Improving Your Prompting Skills",
-				"pages": [
-					"prompting/prompt-engineering-guide",
-					"prompting/cline-memory-bank"
-				]
-			},
-			{
-				"group": "Exploring Cline's Tools",
-				"pages": [
-					"exploring-clines-tools/cline-tools-guide",
-					"exploring-clines-tools/new-task-tool",
-					"exploring-clines-tools/remote-browser-support"
-				]
-			},
-			{
-				"group": "Enterprise Solutions",
-				"pages": [
-					"enterprise-solutions/cloud-provider-integration",
-					"enterprise-solutions/custom-instructions",
-					"enterprise-solutions/mcp-servers",
-					"enterprise-solutions/security-concerns"
-				]
-			},
-			{
-				"group": "MCP Servers",
-				"pages": [
-					"mcp/mcp-overview",
-					"mcp/adding-mcp-servers-from-github",
-					"mcp/configuring-mcp-servers",
-					"mcp/connecting-to-a-remote-server",
-					"mcp/mcp-marketplace",
-					"mcp/mcp-server-development-protocol",
-					"mcp/mcp-transport-mechanisms"
-				]
-			},
-			{
-				"group": "Provider Configuration",
-				"pages": [
-					"provider-config/anthropic",
-					"provider-config/claude-code",
-					{
-						"group": "AWS Bedrock",
-						"pages": [
-							"provider-config/aws-bedrock/api-key",
-							"provider-config/aws-bedrock/iam-credentials",
-							"provider-config/aws-bedrock/cli-profile"
-						]
-					},
-					"provider-config/gcp-vertex-ai",
-					"provider-config/litellm-and-cline-using-codestral",
-					"provider-config/vscode-language-model-api",
-					"provider-config/xai-grok",
-					"provider-config/mistral-ai",
-					"provider-config/deepseek",
-					"provider-config/groq",
-					"provider-config/cerebras",
-					"provider-config/doubao",
-					"provider-config/fireworks",
-					"provider-config/zai",
-					"provider-config/ollama",
-					"provider-config/openai",
-					"provider-config/openai-compatible",
-					"provider-config/openrouter",
-					"provider-config/sap-aicore",
-					"provider-config/vercel-ai-gateway",
-					"provider-config/requesty",
-					"provider-config/baseten"
-				]
-			},
-			{
-				"group": "Running Models Locally",
-				"pages": [
-					"running-models-locally/read-me-first",
-					"running-models-locally/lm-studio",
-					"running-models-locally/ollama"
-				]
-			},
-			{
-				"group": "Troubleshooting",
-				"pages": [
-					"troubleshooting/terminal-quick-fixes",
-					"troubleshooting/terminal-integration-guide"
-				]
-			},
-			{
-				"group": "More Info",
-				"pages": [
-					"more-info/telemetry"
-				]
 			}
 		]
 	},
@@ -297,6 +289,26 @@
 		{
 			"source": "/introduction",
 			"destination": "/introduction/welcome"
+		},
+		{
+			"source": "/getting-started/model-selection-guide",
+			"destination": "/core-features/model-selection-guide"
+		},
+		{
+			"source": "/provider-config/ollama",
+			"destination": "/running-models-locally/ollama"
+		},
+		{
+			"source": "/running-models-locally/read-me-first",
+			"destination": "/running-models-locally/overview"
+		},
+		{
+			"source": "/getting-started/understanding-context-management",
+			"destination": "/prompting/understanding-context-management"
+		},
+		{
+			"source": "/getting-started/your-first-task",
+			"destination": "/getting-started/your-first-project"
 		}
 	],
 	"search": {
