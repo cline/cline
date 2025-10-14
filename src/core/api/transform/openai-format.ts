@@ -250,10 +250,11 @@ function consolidateReasoningDetails(reasoningDetails: ReasoningDetail[]): Reaso
 			consolidated.push(consolidatedEntry)
 		}
 
-		// Add each data element separately
+		// For encrypted chunks (data), only keep the last one
+		let lastDataEntry: ReasoningDetail | undefined
 		for (const detail of details) {
 			if (detail.data) {
-				const dataEntry: ReasoningDetail = {
+				lastDataEntry = {
 					type: detail.type,
 					data: detail.data,
 					signature: detail.signature,
@@ -261,8 +262,10 @@ function consolidateReasoningDetails(reasoningDetails: ReasoningDetail[]): Reaso
 					format: detail.format,
 					index: index,
 				}
-				consolidated.push(dataEntry)
 			}
+		}
+		if (lastDataEntry) {
+			consolidated.push(lastDataEntry)
 		}
 	}
 
