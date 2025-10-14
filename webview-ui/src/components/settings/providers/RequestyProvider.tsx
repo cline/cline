@@ -44,7 +44,7 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 					setRequestyEndpointSelected(isChecked)
 
 					if (!isChecked) {
-						handleFieldChange("requestyBaseUrl", "")
+						handleFieldChange("requestyBaseUrl", undefined)
 					}
 				}}>
 				Use custom base URL
@@ -53,7 +53,11 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 				<DebouncedTextField
 					initialValue={apiConfiguration?.requestyBaseUrl ?? ""}
 					onChange={(value) => {
-						handleFieldChange("requestyBaseUrl", value)
+						if (value.length === 0) {
+							handleFieldChange("requestyBaseUrl", undefined)
+						} else {
+							handleFieldChange("requestyBaseUrl", value)
+						}
 					}}
 					placeholder="Custom base URL"
 					style={{ width: "100%", marginBottom: 5 }}
