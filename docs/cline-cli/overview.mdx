@@ -1,0 +1,176 @@
+---
+title: "Overview"
+description: "Command-line interface using Cline with multi-instance support, task management, and pipeline integration"
+---
+
+## What is Cline CLI?
+
+Cline CLI brings AI-powered coding agents to your terminal. Run multiple Cline
+instances simultaneously, automate code reviews in CI/CD pipelines, pipe git
+diffs directly to Cline for analysis, or script complex workflows that integrate
+with your existing tools.
+
+The CLI tracks instances across your system, supports multiple AI providers and
+models, and outputs in formats designed for both human readability and
+programmatic use.
+
+- Create, monitor, and manage AI coding tasks from the terminal
+- Run multiple Cline instances simultaneously with independent configurations
+- Automatically track and manage Cline instances across your system
+- Support for both interactive and automated (YOLO) modes
+- Choose between rich terminal output, JSON for scripting, or plain text
+- Seamlessly integrate with Unix pipes and command-line workflows
+- Save and restore task states at any point in time
+
+## Installation
+
+You can install the Cline CLI using one of the following methods:
+
+<Tabs>
+  <Tab title="NPM">
+    ```bash
+    npm install -g cline
+    ```
+    
+    Install Cline CLI globally using npm. Ensure you have Node.js and npm installed on your system.
+  </Tab>
+
+  <Tab title="Install Script">
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/cline/cline/main/scripts/install.sh | bash
+    ```
+    
+    This script will download and install the latest version of Cline CLI and automatically update your shell configuration to include the CLI on your PATH.
+  </Tab>
+</Tabs>
+
+## Quick Start
+
+Authenticate first to get access to all models:
+
+```bash
+cline auth
+```
+
+This opens a browser window to sign in. Once authenticated, navigate to your
+project directory and start a Cline instance:
+
+```bash
+cd /path/to/your/project
+cline
+```
+
+The instance registers automatically and you'll see an interactive prompt. Type
+your task description:
+
+```bash
+"Build a REST API with Go"
+```
+
+Cline starts in Plan mode by default. He'll gather context and create a detailed
+plan. Once you're satisfied with the plan, switch to Act mode to execute it:
+
+```bash
+/act
+```
+
+Watch as Cline generates code, creates files, and implements your task. Send
+followup messages anytime:
+
+```bash
+"Add authentication middleware"
+```
+
+That's it. You're running Cline from the terminal now.
+
+## Command Overview
+
+```
+A command-line interface for interacting with Cline AI coding assistant.
+
+This CLI provides access to Cline's task management, configuration, and
+monitoring capabilities from the terminal.
+
+Usage:
+  cline [command]
+
+Available Commands:
+  auth        Sign in to Cline
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+  instance    Manage Cline instances
+  send        Send a followup message to the current task and/or update mode/approve
+  task        Manage Cline tasks
+  version     Show version information
+
+Flags:
+      --address string         Cline Core gRPC address (default "localhost:50052")
+  -h, --help                   help for cline
+  -o, --output-format string   output format (rich|json|plain) (default "rich")
+  -v, --verbose                verbose output
+
+Use "cline [command] --help" for more information about a command.
+```
+
+## Use Cases
+
+### Multi-Instance Workflow
+
+Run multiple Cline instances simultaneously to work on different tasks in
+parallel. Each instance gets a unique port and maintains its own state. Direct
+commands to specific instances with `--address` or set a default instance for
+convenience.
+
+```bash
+# Start multiple instances
+cline instance new  # Gets port 51051
+cline instance new  # Gets port 51052
+cline instance new  # Gets port 51053
+
+# List all instances
+cline instance list
+
+# Use specific instance for a task
+cline task new "Task A" --address localhost:51051
+cline task new "Task B" --address localhost:51052
+
+# Set default instance
+cline instance use localhost:51052
+
+# Now commands go to 51052 by default
+cline task new "Task C"
+
+# Clean up
+cline instance kill --all
+```
+
+### Pipeline Integration
+
+These examples show how Cline CLI integrates with Unix pipes and command-line
+workflows. You can pipe content directly into Cline, capture output for further
+processing, or combine Cline with other developer tools like `git`, `jq`, or
+custom scripts.
+
+This makes Cline CLI perfect for automation scenarios, CI/CD pipelines, code
+review workflows, or any situation where you need to programmatically generate,
+analyze, or transform code.
+
+```bash
+# Use with pipes
+cat prompt.txt | cline task new --wait
+
+# Generate code and pipe to file
+cline task oneshot "Create a function" | tee output.log
+
+# Combine with other tools
+git diff | cline task new "Review these changes"
+```
+
+## Learn More
+
+Explore the detailed command references to learn about all available features:
+
+- **[Samples](/cline-cli/samples/github-issue-rca)**: Real-world examples and
+  workflows
+- **[CLI Reference](/cline-cli/cli-reference)**: Complete command
+  reference including configuration, instance management, and task commands

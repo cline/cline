@@ -72,6 +72,13 @@
 				]
 			},
 			{
+				"group": "CLI",
+				"pages": [
+					"cline-cli/overview",
+					"cline-cli/cli-reference"
+				]
+			},
+			{
 				"group": "Improving Your Prompting Skills",
 				"pages": [
 					"prompting/prompt-engineering-guide",
