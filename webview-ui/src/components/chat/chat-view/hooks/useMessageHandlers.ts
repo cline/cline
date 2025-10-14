@@ -1,5 +1,4 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
-import { COMMAND_CANCEL_TOKEN } from "@shared/ExtensionMessage"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { AskResponseRequest, NewTaskRequest } from "@shared/proto/cline/task"
 import { useCallback } from "react"
@@ -213,15 +212,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				case "cancel":
 					if (backgroundCommandRunning) {
 						await TaskServiceClient.cancelBackgroundCommand(EmptyRequest.create({}))
+						clearInputState()
 					} else {
-						await TaskServiceClient.askResponse(
-							AskResponseRequest.create({
-								responseType: "noButtonClicked",
-								text: COMMAND_CANCEL_TOKEN,
-							}),
-						)
+						await TaskServiceClient.cancelTask(EmptyRequest.create({}))
 					}
-					clearInputState()
 					break
 
 				case "utility":
