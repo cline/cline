@@ -358,8 +358,8 @@ func NewTaskSendCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
-	cmd.Flags().BoolVar(&approve, "approve", false, "approve pending request")
-	cmd.Flags().BoolVar(&deny, "deny", false, "deny pending request")
+	cmd.Flags().BoolVarP(&approve, "approve", "a", false, "approve pending request")
+	cmd.Flags().BoolVarP(&deny, "deny", "d", false, "deny pending request")
 
 	return cmd
 }
