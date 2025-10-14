@@ -123,8 +123,6 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 
 	const isClineBotUser = useMemo(() => email?.endsWith("@cline.bot") || false, [email])
 
-	useEffect(() => {}, [isClineBotUser, clineEnv])
-
 	const fetchUserCredit = useCallback(async () => {
 		try {
 			const response = await AccountServiceClient.getUserCredits(EmptyRequest.create())
@@ -394,10 +392,8 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 									return
 								}
 								const value = target.value as "Local" | "Staging" | "Production"
-								updateSetting("clineEnv", value.toLocaleLowerCase())
+								updateSetting("clineEnv", value.toLowerCase())
 								handleSignOut()
-
-								return
 							}}>
 							{ClineEnvOptions.map((env) => (
 								<VSCodeOption key={env} value={env}>
