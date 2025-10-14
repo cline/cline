@@ -52,61 +52,13 @@ export class MinimaxHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 		})
-		const startTag: string = "<think>"
-		const endTag: string = "</think>"
-		let isInThinkingMode: boolean = false
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
-				let content: string = delta.content
-
-				// Check if thinking mode starts
-				if (content.startsWith(startTag)) {
-					isInThinkingMode = true
-					content = content.replace(startTag, "")
-				}
-
-				if (isInThinkingMode) {
-					// Check if thinking mode ends
-					const endIndex: number = content.indexOf(endTag)
-					if (endIndex > -1) {
-						isInThinkingMode = false
-						const beforeThink = content.slice(0, endIndex)
-						const afterThink = content.slice(endIndex + endTag.length)
-
-						// Output thinking content
-						if (beforeThink) {
-							yield {
-								type: "reasoning",
-								reasoning: beforeThink,
-							}
-						}
-
-						// Output content after thinking ends
-						if (afterThink) {
-							yield {
-								type: "text",
-								text: afterThink,
-							}
-						}
-						continue
-					}
-
-					// Still in thinking mode, output reasoning
-					if (content) {
-						yield {
-							type: "reasoning",
-							reasoning: content,
-						}
-					}
-					continue
-				}
-
-				// Normal text mode
 				yield {
 					type: "text",
-					text: content,
+					text: delta.content,
 				}
 			}
 
