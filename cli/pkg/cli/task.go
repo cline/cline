@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cline/cli/pkg/cli/config"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/task"
 	"github.com/spf13/cobra"
@@ -36,12 +37,12 @@ func NewTaskCommand() *cobra.Command {
 
 	cmd.AddCommand(newTaskNewCommand())
 	cmd.AddCommand(newTaskOneshotCommand())
-	cmd.AddCommand(newTaskCancelCommand())
+	cmd.AddCommand(newTaskPauseCommand())
 	cmd.AddCommand(newTaskFollowCommand())
 	cmd.AddCommand(NewTaskSendCommand())
 	cmd.AddCommand(newTaskViewCommand())
 	cmd.AddCommand(newTaskListCommand())
-	cmd.AddCommand(newTaskResumeCommand())
+	cmd.AddCommand(newTaskOpenCommand())
 	cmd.AddCommand(newTaskRestoreCommand())
 
 	return cmd
@@ -241,13 +242,13 @@ func newTaskOneshotCommand() *cobra.Command {
 	return cmd
 }
 
-func newTaskCancelCommand() *cobra.Command {
+func newTaskPauseCommand() *cobra.Command {
 	var address string
 
 	cmd := &cobra.Command{
-		Use:     "cancel",
-		Aliases: []string{"c"},
-		Short:   "Cancel the current task",
+		Use:     "pause",
+		Aliases: []string{"p"},
+		Short:   "Pause the current task",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
@@ -259,7 +260,7 @@ func newTaskCancelCommand() *cobra.Command {
 				return err
 			}
 
-			fmt.Println("Task cancelled successfully")
+			fmt.Println("Task paused successfully")
 			fmt.Printf("Instance: %s\n", taskManager.GetCurrentInstance())
 			return nil
 		},
@@ -275,7 +276,8 @@ func NewTaskSendCommand() *cobra.Command {
 		files   []string
 		address string
 		mode    string
-		approve string
+		approve bool
+		deny    bool
 	)
 
 	cmd := &cobra.Command{
@@ -293,16 +295,16 @@ func NewTaskSendCommand() *cobra.Command {
 				return fmt.Errorf("failed to read message: %w", err)
 			}
 
-			if message == "" && len(images) == 0 && len(files) == 0 && mode == "" && approve == "" {
-				return fmt.Errorf("content (message, files, images) required unless using --mode or --approve flags")
+			if message == "" && len(images) == 0 && len(files) == 0 && mode == "" && !approve && !deny {
+				return fmt.Errorf("content (message, files, images) required unless using --mode, --approve, or --deny flags")
 			}
 
-			if approve != "" && approve != "true" && approve != "false" {
-				return fmt.Errorf("--approve must be 'true' or 'false'")
+			if approve && deny {
+				return fmt.Errorf("cannot use both --approve and --deny flags")
 			}
 
-			if approve != "" && mode != "" {
-				return fmt.Errorf("cannot use --approve and --mode together")
+			if (approve || deny) && mode != "" {
+				return fmt.Errorf("cannot use --approve/--deny and --mode together")
 			}
 
 			// Ensure task manager is initialized
@@ -333,7 +335,16 @@ func NewTaskSendCommand() *cobra.Command {
 				fmt.Printf("Mode set to %s and message sent successfully.\n", mode)
 
 			} else {
-				if err := taskManager.SendMessage(ctx, message, images, files, approve); err != nil {
+				// Convert approve/deny booleans to string
+				approveStr := ""
+				if approve {
+					approveStr = "true"
+				}
+				if deny {
+					approveStr = "false"
+				}
+
+				if err := taskManager.SendMessage(ctx, message, images, files, approveStr); err != nil {
 					return err
 				}
 				fmt.Printf("Message sent successfully.\n")
@@ -348,7 +359,8 @@ func NewTaskSendCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
-	cmd.Flags().StringVarP(&approve, "approve", "a", "", "approve (true) or deny (false) pending request")
+	cmd.Flags().BoolVarP(&approve, "approve", "a", false, "approve pending request")
+	cmd.Flags().BoolVarP(&deny, "deny", "d", false, "deny pending request")
 
 	return cmd
 }
@@ -433,14 +445,19 @@ func newTaskListCommand() *cobra.Command {
 	return cmd
 }
 
-func newTaskResumeCommand() *cobra.Command {
-	var address string
+func newTaskOpenCommand() *cobra.Command {
+	var (
+		address  string
+		mode     string
+		settings []string
+		yolo     bool
+	)
 
 	cmd := &cobra.Command{
-		Use:     "resume <task-id>",
-		Aliases: []string{"r"},
-		Short:   "Resume a task by ID",
-		Long:    `Resume an existing task by ID.`,
+		Use:     "open <task-id>",
+		Aliases: []string{"o"},
+		Short:   "Open a task by ID",
+		Long:    `Open an existing task by ID and optionally update settings or mode.`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -453,11 +470,55 @@ func newTaskResumeCommand() *cobra.Command {
 
 			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
 
-			return taskManager.ResumeTask(ctx, taskID)
+			// Resume the task
+			if err := taskManager.ResumeTask(ctx, taskID); err != nil {
+				return err
+			}
+
+			// Apply mode if provided
+			if mode != "" {
+				if err := taskManager.SetMode(ctx, mode, nil, nil, nil); err != nil {
+					return fmt.Errorf("failed to set mode: %w", err)
+				}
+				if global.Config.Verbose {
+					fmt.Printf("Mode set to: %s\n", mode)
+				}
+			}
+
+			// Process yolo flag and apply settings
+			if yolo {
+				settings = append(settings, "yolo_mode_toggled=true")
+			}
+
+			if len(settings) > 0 {
+				// Parse settings using existing parser
+				parsedSettings, secrets, err := task.ParseTaskSettings(settings)
+				if err != nil {
+					return fmt.Errorf("failed to parse settings: %w", err)
+				}
+
+				// Create config manager to apply settings
+				configManager, err := config.NewManager(ctx, taskManager.GetCurrentInstance())
+				if err != nil {
+					return fmt.Errorf("failed to create config manager: %w", err)
+				}
+
+				// Apply the settings to the instance
+				if err := configManager.UpdateSettings(ctx, parsedSettings, secrets); err != nil {
+					return fmt.Errorf("failed to apply settings: %w", err)
+				}
+			}
+
+			return nil
 		},
 	}
 
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
+	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
+	cmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format, e.g., -s model=claude)")
+	cmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
+	cmd.Flags().BoolVar(&yolo, "no-interactive", false, "enable yolo mode (non-interactive)")
+
 	return cmd
 }
 
