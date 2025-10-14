@@ -99,15 +99,22 @@ Available Commands:
   completion  Generate the autocompletion script for the specified shell
   help        Help about any command
   instance    Manage Cline instances
+  logs        Manage Cline log files
   send        Send a followup message to the current task and/or update mode/approve
   task        Manage Cline tasks
   version     Show version information
 
 Flags:
       --address string         Cline Core gRPC address (default "localhost:50052")
+  -f, --file strings           attach files
   -h, --help                   help for cline
+  -i, --image strings          attach image files
+  -m, --mode string            mode (act|plan) - defaults to plan (default "plan")
   -o, --output-format string   output format (rich|json|plain) (default "rich")
+  -s, --setting strings        task settings (key=value format)
   -v, --verbose                verbose output
+  -w, --workdir strings        workdir directory paths
+  -y, --yolo                   enable yolo mode (non-interactive)
 
 Use "cline [command] --help" for more information about a command.
 ```
@@ -141,7 +148,7 @@ cline instance use localhost:51052
 cline task new "Task C"
 
 # Clean up
-cline instance kill --all
+cline instance kill --all-cli
 ```
 
 ### Pipeline Integration
@@ -157,7 +164,7 @@ analyze, or transform code.
 
 ```bash
 # Use with pipes
-cat prompt.txt | cline task new --wait
+cat prompt.txt | cline task oneshot
 
 # Generate code and pipe to file
 cline task oneshot "Create a function" | tee output.log

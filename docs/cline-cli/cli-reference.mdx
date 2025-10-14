@@ -12,9 +12,16 @@ This page provides a comprehensive reference for all Cline CLI commands, global 
 These flags are available for all Cline CLI commands:
 
 ```bash
---address string       Cline Core gRPC address (default "localhost:50052")
--v, --verbose         Verbose output
--o, --output-format   Output format: rich|json|plain (default "rich")
+--address string         Cline Core gRPC address (default "localhost:50052")
+-f, --file strings       attach files
+-h, --help               help for cline
+-i, --image strings      attach image files
+-m, --mode string        mode (act|plan) - defaults to plan (default "plan")
+-o, --output-format      output format (rich|json|plain) (default "rich")
+-s, --setting strings    task settings (key=value format)
+-v, --verbose            verbose output
+-w, --workdir strings    workdir directory paths
+-y, --yolo               enable yolo mode (non-interactive)
 ```
 
 ### Address Flag
@@ -29,9 +36,78 @@ cline task new "Create a feature"
 cline task new "Create a feature" --address localhost:51052
 ```
 
+### File and Image Attachments
+
+Attach files and images to your tasks using the `-f` and `-i` flags:
+
+```bash
+# Attach files
+cline task new "Review this code" -f main.go -f utils.go
+
+# Attach images
+cline task new "Fix this UI bug" -i screenshot.png
+
+# Combine files and images
+cline task new "Update docs" -f README.md -i diagram.png
+```
+
+### Mode Selection
+
+Set the initial mode for your task (plan or act):
+
+```bash
+# Start in plan mode (default)
+cline task new "Build a feature"
+
+# Start in act mode
+cline task new "Build a feature" --mode act
+
+# Explicitly specify plan mode
+cline task new "Design architecture" -m plan
+```
+
+### Task Settings
+
+Pass custom settings to your task using key=value format:
+
+```bash
+# Single setting
+cline task new "Deploy app" -s aws-region=us-west-2
+
+# Multiple settings
+cline task new "Run tests" -s aws-region=us-west-2 --s mode=act
+```
+
+### Workspace Directories
+
+Specify workspace directories for your task:
+
+```bash
+# Single directory
+cline task new "Build project" -w /path/to/project
+
+# Multiple directories
+cline task new "Refactor code" -w /path/to/frontend -w /path/to/backend
+```
+
+### YOLO Mode
+
+Enable YOLO (non-interactive) mode to auto-approve all actions:
+
+```bash
+# Enable YOLO mode
+cline task new "Quick fix" --yolo
+
+# Short form
+cline task new "Quick fix" -y
+
+# Combine with other flags
+cline task new "Deploy" -y -m act -w /path/to/project
+```
+
 ### Output Formats
 
-The CLI supports three output formats:
+The CLI supports three formats for task output:
 
 1. **rich** (default): Formatted terminal output with colors
 2. **json**: Machine-readable JSON output
@@ -41,13 +117,13 @@ Set via `--output-format` or `-o` flag:
 
 ```bash
 # Rich format (default)
-cline task list
+cline task follow
 
 # JSON format for scripting
-cline task list -o json
+cline task follow -o json
 
 # Plain text format
-cline task list -o plain
+cline task follow -o plain
 ```
 
 ### Verbose Output
@@ -262,7 +338,7 @@ Global Flags:
 cline instance kill localhost:51052
 
 # Kill all instances
-cline instance kill --all
+cline instance kill --all-cli
 ```
 
 The kill command:
@@ -296,6 +372,143 @@ The registry is stored in `$CLINE_DIR/cli/registry.db` (or
 3. **Selection**: CLI routes commands to default or specified instance
 4. **Shutdown**: Instance cleans up registry entry
 5. **Cleanup**: CLI removes stale entries on next list
+
+## Logs Commands
+
+### Logs Command Overview
+
+```
+List and manage log files created by Cline instances.
+
+Usage:
+  cline logs [command]
+
+Aliases:
+  logs, log, l
+
+Available Commands:
+  clean       Delete old log files
+  list        List all log files
+  path        Print the logs directory path
+
+Flags:
+  -h, --help   help for logs
+
+Global Flags:
+      --address string         Cline Core gRPC address (default "localhost:50052")
+  -o, --output-format string   output format (rich|json|plain) (default "rich")
+  -v, --verbose                verbose output
+```
+
+### List Log Files
+
+**Command Help:**
+```
+List all log files created by Cline instances with details about their size, 
+creation time, and associated instance.
+
+Usage:
+  cline logs list [flags]
+
+Aliases:
+  list, l
+
+Flags:
+  -h, --help   help for list
+
+Global Flags:
+      --address string         Cline Core gRPC address (default "localhost:50052")
+  -o, --output-format string   output format (rich|json|plain) (default "rich")
+  -v, --verbose                verbose output
+```
+
+**Examples:**
+```bash
+# List all log files
+cline logs list
+
+# List with JSON output for scripting
+cline logs list -o json
+
+# Output shows:
+# - Log file name
+# - File size
+# - Creation timestamp
+# - Associated instance address (if applicable)
+```
+
+### Clean Log Files
+
+**Command Help:**
+```
+Delete old log files to free up disk space. By default, removes log files 
+older than 7 days.
+
+Usage:
+  cline logs clean [flags]
+
+Aliases:
+  clean, c
+
+Flags:
+  -h, --help   help for clean
+
+Global Flags:
+      --address string         Cline Core gRPC address (default "localhost:50052")
+  -o, --output-format string   output format (rich|json|plain) (default "rich")
+  -v, --verbose                verbose output
+```
+
+**Examples:**
+```bash
+# Clean old log files
+cline logs clean
+
+# Clean with verbose output
+cline logs clean --verbose
+
+# Output shows:
+# - Number of files deleted
+# - Total space freed
+# - Remaining log files
+```
+
+### Show Logs Directory Path
+
+**Command Help:**
+```
+Print the directory path where Cline stores log files. Useful for manual 
+inspection or scripting.
+
+Usage:
+  cline logs path [flags]
+
+Aliases:
+  path, p
+
+Flags:
+  -h, --help   help for path
+
+Global Flags:
+      --address string         Cline Core gRPC address (default "localhost:50052")
+  -o, --output-format string   output format (rich|json|plain) (default "rich")
+  -v, --verbose                verbose output
+```
+
+**Examples:**
+```bash
+# Print logs directory path
+cline logs path
+
+# Open logs directory in file browser (macOS)
+open "$(cline logs path)"
+
+# Navigate to logs directory
+cd "$(cline logs path)"
+
+# List log files with system tools
+ls -lh "$(cline logs path)"
+```
 
 ## Task Commands
 
@@ -334,8 +547,7 @@ Global Flags:
 
 **Command Help:**
 ```
-Create a new Cline task with the specified prompt. If no Cline instance exists 
-at the specified address, a new one will be started automatically.
+Create a new Cline task with the specified prompt. If no Cline instance exists at the specified address, a new one will be started automatically.
 
 Usage:
   cline task new <prompt> [flags]
@@ -350,7 +562,6 @@ Flags:
   -i, --image strings     attach image files
   -m, --mode string       mode (act|plan)
   -s, --setting strings   task settings (key=value format, e.g., -s aws-region=us-west-2 -s mode=act)
-      --wait              wait for task completion
   -w, --workdir strings   workdir directory paths
   -y, --yolo              enable yolo mode (non-interactive)
 
@@ -373,9 +584,6 @@ cline task new "Review this code" -f main.go -f utils.go
 
 # With workspace directory
 cline task new "Build a web app" -w /path/to/project
-
-# Wait for completion
-cline task new "Quick fix" --wait
 
 # Specify instance address
 cline task new "Task for specific instance" --address localhost:51052
