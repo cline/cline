@@ -441,6 +441,8 @@ func newInstanceDefaultCommand() *cobra.Command {
 }
 
 func newInstanceNewCommand() *cobra.Command {
+	var setDefault bool
+
 	cmd := &cobra.Command{
 		Use:     "new",
 		Aliases: []string{"n"},
@@ -465,15 +467,27 @@ func newInstanceNewCommand() *cobra.Command {
 			fmt.Printf("  Core Port: %d\n", instance.CorePort())
 			fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
 
-			// Check if this is now the default instance
 			registry := global.Clients.GetRegistry()
-			if registry.GetDefaultInstance() == instance.Address {
-				fmt.Printf("  Status: Default instance\n")
+
+			// If --default flag provided, set this instance as the default
+			if setDefault {
+				if err := registry.SetDefaultInstance(instance.Address); err != nil {
+					fmt.Printf("Warning: Failed to set as default: %v\n", err)
+				} else {
+					fmt.Printf("  Status: Set as default instance\n")
+				}
+			} else {
+				// Otherwise, check if EnsureDefaultInstance already set it as default
+				if registry.GetDefaultInstance() == instance.Address {
+					fmt.Printf("  Status: Default instance\n")
+				}
 			}
 
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVarP(&setDefault, "default", "d", false, "set as default instance")
 
 	return cmd
 }
