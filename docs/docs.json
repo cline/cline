@@ -302,6 +302,10 @@
 			"destination": "/prompting/understanding-context-management"
 		},
 		{
+			"source": "/best-practices/understanding-context-management",
+			"destination": "/prompting/understanding-context-management"
+		},
+		{
 			"source": "/getting-started/your-first-task",
 			"destination": "/getting-started/your-first-project"
 		}
