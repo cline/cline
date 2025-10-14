@@ -82,7 +82,11 @@ function injectSubagentSettings(command: string): string {
 	const prePromptFlags = ["t", "o"]
 
 	// Flags/settings to insert after the prompt
-	const postPromptFlags = ["-s auto_approval_settings.max_requests=100", "-s auto_approval_settings.enable_notifications=false"]
+	const postPromptFlags = [
+		"-s auto_approval_settings.max_requests=100",
+		"-s auto_approval_settings.enable_notifications=false",
+		"-s max_consecutive_mistakes=6",
+	]
 
 	const match = command.match(CLINE_COMMAND_PATTERN)
 
