@@ -71,6 +71,13 @@ export type McpToolCallResponse = {
 					blob?: string
 				}
 		  }
+		| {
+				type: "resource_link"
+				uri: string
+				name?: string
+				description?: string
+				mimeType?: string
+		  }
 	>
 	isError?: boolean
 }
@@ -111,4 +118,4 @@ export interface McpDownloadResponse {
 	requiresApiKey: boolean
 }
 
-export type McpViewTab = "marketplace" | "addRemote" | "installed"
+export type McpViewTab = "marketplace" | "addRemote" | "configure"

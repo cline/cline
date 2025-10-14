@@ -1,19 +1,20 @@
-import { ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
+import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
+import { GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "@shared/storage/state-keys"
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
+import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@/shared/DictationSettings"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@/shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@/shared/McpDisplayMode"
 import { OpenaiReasoningEffort } from "@/shared/storage/types"
 import { readTaskHistoryFromState } from "../disk"
-import { GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "../state-keys"
-
 export async function readSecretsFromDisk(context: ExtensionContext): Promise<Secrets> {
 	const [
 		apiKey,
 		openRouterApiKey,
+		firebaseClineAccountId,
 		clineAccountId,
 		awsAccessKey,
 		awsSecretKey,
@@ -53,6 +54,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
 		context.secrets.get("clineAccountId") as Promise<Secrets["clineAccountId"]>,
+		context.secrets.get("cline:clineAccountId") as Promise<Secrets["cline:clineAccountId"]>,
 		context.secrets.get("awsAccessKey") as Promise<Secrets["awsAccessKey"]>,
 		context.secrets.get("awsSecretKey") as Promise<Secrets["awsSecretKey"]>,
 		context.secrets.get("awsSessionToken") as Promise<Secrets["awsSessionToken"]>,
@@ -93,7 +95,8 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		authNonce,
 		apiKey,
 		openRouterApiKey,
-		clineAccountId,
+		clineAccountId: firebaseClineAccountId,
+		"cline:clineAccountId": clineAccountId,
 		huggingFaceApiKey,
 		huaweiCloudMaasApiKey,
 		basetenApiKey,
@@ -157,6 +160,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const awsRegion = context.globalState.get<GlobalStateAndSettings["awsRegion"]>("awsRegion")
 		const awsUseCrossRegionInference =
 			context.globalState.get<GlobalStateAndSettings["awsUseCrossRegionInference"]>("awsUseCrossRegionInference")
+		const awsUseGlobalInference =
+			context.globalState.get<GlobalStateAndSettings["awsUseGlobalInference"]>("awsUseGlobalInference")
 		const awsBedrockUsePromptCache =
 			context.globalState.get<GlobalStateAndSettings["awsBedrockUsePromptCache"]>("awsBedrockUsePromptCache")
 		const awsBedrockEndpoint = context.globalState.get<GlobalStateAndSettings["awsBedrockEndpoint"]>("awsBedrockEndpoint")
@@ -226,16 +231,24 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const claudeCodePath = context.globalState.get<GlobalStateAndSettings["claudeCodePath"]>("claudeCodePath")
 		const difyBaseUrl = context.globalState.get<GlobalStateAndSettings["difyBaseUrl"]>("difyBaseUrl")
 		const ocaBaseUrl = context.globalState.get("ocaBaseUrl") as string | undefined
+		const ocaMode = context.globalState.get("ocaMode") as string | undefined
 		const openaiReasoningEffort =
 			context.globalState.get<GlobalStateAndSettings["openaiReasoningEffort"]>("openaiReasoningEffort")
 		const preferredLanguage = context.globalState.get<GlobalStateAndSettings["preferredLanguage"]>("preferredLanguage")
 		const focusChainSettings = context.globalState.get<GlobalStateAndSettings["focusChainSettings"]>("focusChainSettings")
-
-		const mcpMarketplaceCatalog =
-			context.globalState.get<GlobalStateAndSettings["mcpMarketplaceCatalog"]>("mcpMarketplaceCatalog")
+		const dictationSettings = context.globalState.get<GlobalStateAndSettings["dictationSettings"]>("dictationSettings") as
+			| DictationSettings
+			| undefined
+		const lastDismissedInfoBannerVersion =
+			context.globalState.get<GlobalStateAndSettings["lastDismissedInfoBannerVersion"]>("lastDismissedInfoBannerVersion")
+		const lastDismissedModelBannerVersion = context.globalState.get<
+			GlobalStateAndSettings["lastDismissedModelBannerVersion"]
+		>("lastDismissedModelBannerVersion")
 		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
 		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
-
+		const autoCondenseThreshold =
+			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
+		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
 
@@ -390,16 +403,11 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		if (planActSeparateModelsSettingRaw === true || planActSeparateModelsSettingRaw === false) {
 			planActSeparateModelsSetting = planActSeparateModelsSettingRaw
 		} else {
-			// default to true for existing users
-			if (planModeApiProvider) {
-				planActSeparateModelsSetting = true
-			} else {
-				// default to false for new users
-				planActSeparateModelsSetting = false
-			}
+			// default to false
+			planActSeparateModelsSetting = false
 		}
 
-		const taskHistory = await readTaskHistoryFromState(context)
+		const taskHistory = await readTaskHistoryFromState()
 
 		// Multi-root workspace support
 		const workspaceRoots = context.globalState.get<GlobalStateAndSettings["workspaceRoots"]>("workspaceRoots")
@@ -418,6 +426,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			claudeCodePath,
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsUseGlobalInference,
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
 			awsProfile,
@@ -452,10 +461,13 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			difyBaseUrl,
 			sapAiCoreUseOrchestrationMode: sapAiCoreUseOrchestrationMode ?? true,
 			ocaBaseUrl,
+			ocaMode: ocaMode || "internal",
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
-			planModeThinkingBudgetTokens,
+			// undefined means it was never modified, 0 means it was turned off
+			// (having this on by default ensures that <thinking> text does not pollute the user's chat and is instead rendered as reasoning)
+			planModeThinkingBudgetTokens: planModeThinkingBudgetTokens ?? ANTHROPIC_MIN_THINKING_BUDGET,
 			planModeReasoningEffort,
 			planModeVsCodeLmModelSelector,
 			planModeAwsBedrockCustomSelected,
@@ -489,7 +501,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
-			actModeThinkingBudgetTokens,
+			actModeThinkingBudgetTokens: actModeThinkingBudgetTokens ?? ANTHROPIC_MIN_THINKING_BUDGET,
 			actModeReasoningEffort,
 			actModeVsCodeLmModelSelector,
 			actModeAwsBedrockCustomSelected,
@@ -523,6 +535,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
+			dictationSettings: { ...DEFAULT_DICTATION_SETTINGS, ...dictationSettings },
 			strictPlanModeEnabled: strictPlanModeEnabled ?? true,
 			yoloModeToggled: yoloModeToggled ?? false,
 			useAutoCondense: useAutoCondense ?? false,
@@ -548,15 +561,19 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			defaultTerminalProfile: defaultTerminalProfile ?? "default",
 			globalWorkflowToggles: globalWorkflowToggles || {},
-			mcpMarketplaceCatalog,
 			qwenCodeOauthPath,
 			customPrompt,
+			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
+			// Hooks require explicit user opt-in
+			hooksEnabled: hooksEnabled ?? false,
+			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
+			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			// Multi-root workspace support
 			workspaceRoots,
 			primaryRootIndex: primaryRootIndex ?? 0,
 			// Feature flag - defaults to false
 			// For now, always return false to disable multi-root support by default
-			multiRootEnabled: multiRootEnabled ?? false,
+			multiRootEnabled: !!multiRootEnabled,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)

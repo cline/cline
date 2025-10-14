@@ -1,3 +1,4 @@
+import { Logger } from "@/services/logging/Logger"
 import { FEATURE_FLAGS, FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
 import type { IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 
@@ -34,6 +35,9 @@ export class FeatureFlagsService {
 			const flagEnabled = await this.getFeatureFlag(flag).catch(() => false)
 			this.cache.set(flag, flagEnabled === true)
 		}
+
+		// Print DO_NOTHING flag status after polling
+		Logger.log(`do_nothing flag: ${this.getDoNothingFlag()}`)
 	}
 
 	private async getFeatureFlag(flagName: FeatureFlag): Promise<boolean> {
@@ -75,11 +79,16 @@ export class FeatureFlagsService {
 		return this.cache.get(flagName) ?? defaultValue
 	}
 
-	/**
-	 * Convenience: multi-root workspace remote gate
-	 */
-	public getMultiRootEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.MULTI_ROOT_WORKSPACE, false)
+	public getWorkOsAuthEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.WORKOS_AUTH, false)
+	}
+
+	public getDoNothingFlag(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.DO_NOTHING, false)
+	}
+
+	public getHooksEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.HOOKS, false)
 	}
 
 	/**

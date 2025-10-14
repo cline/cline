@@ -1,5 +1,8 @@
+import { cn } from "@heroui/react"
 import { parseFocusChainItem } from "@shared/focus-chain-utils"
+import { CheckIcon, CircleIcon } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import LightMarkdown from "./LightMarkdown"
 
 interface ChecklistRendererProps {
 	text: string
@@ -102,35 +105,19 @@ const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ text }) => {
 				overflowY: items.length >= 10 ? "auto" : "visible",
 			}}>
 			{items.map((item, index) => (
-				<div
-					key={index}
-					style={{
-						display: "flex",
-						alignItems: "flex-start",
-						gap: "6px",
-						padding: "1px 0",
-					}}>
-					<span
-						style={{
-							fontSize: "11px",
-							color: item.checked ? "var(--vscode-charts-green)" : "var(--vscode-descriptionForeground)",
-							flexShrink: 0,
-							marginTop: "1px",
-						}}>
-						{item.checked ? "✓" : "○"}
+				// biome-ignore lint/suspicious/noArrayIndexKey: Using index as key for checklist items
+				<div className="flex items-start gap-1.5 p-0.5" key={`checklist-item-${index}`}>
+					<span className={cn("text-xs shrink-0 mt-0.5", item.checked ? "text-success" : "text-foreground")}>
+						{item.checked ? <CheckIcon size={10} /> : <CircleIcon size={10} />}
 					</span>
-					<span
+					<div
+						className={cn("text-xs break-words flex-1", item.checked ? "text-description" : "text-foreground")}
 						style={{
-							color: item.checked ? "var(--vscode-descriptionForeground)" : "inherit",
 							textDecoration: item.checked ? "line-through" : "none",
-							opacity: item.checked ? 0.7 : 1,
-							fontSize: "12px",
-							wordBreak: "break-word",
-							overflowWrap: "anywhere",
 							lineHeight: "1.3",
 						}}>
-						{item.text}
-					</span>
+						<LightMarkdown compact text={item.text} />
+					</div>
 				</div>
 			))}
 		</div>

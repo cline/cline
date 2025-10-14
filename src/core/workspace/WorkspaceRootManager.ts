@@ -3,10 +3,10 @@
  * This class handles workspace root resolution, path mapping, and workspace context
  */
 
+import { VcsType, WorkspaceRoot } from "@shared/multi-root/types"
 import { execa } from "execa"
 import * as path from "path"
-import { getLatestGitCommitHash } from "../../utils/git"
-import { VcsType, WorkspaceRoot } from "./WorkspaceRoot"
+import { getGitRemoteUrls, getLatestGitCommitHash } from "../../utils/git"
 
 export interface WorkspaceContext {
 	workspaceRoots: WorkspaceRoot[]
@@ -218,6 +218,33 @@ export class WorkspaceRootManager {
 				root.commitHash = gitHash === null ? undefined : gitHash
 			}
 		}
+	}
+
+	/**
+	 * Build workspaces JSON structure for environment details
+	 */
+	async buildWorkspacesJson(): Promise<string | null> {
+		const workspaces: Record<string, { hint: string; associatedRemoteUrls?: string[]; latestGitCommitHash?: string }> = {}
+
+		// Process all workspace roots
+		for (const root of this.roots) {
+			const hint = root.name || path.basename(root.path)
+			const gitRemotes = await getGitRemoteUrls(root.path)
+			const gitCommitHash = await getLatestGitCommitHash(root.path)
+
+			workspaces[root.path] = {
+				hint,
+				...(gitRemotes.length > 0 && { associatedRemoteUrls: gitRemotes }),
+				...(gitCommitHash && { latestGitCommitHash: gitCommitHash }),
+			}
+		}
+
+		// Only return JSON if there's content to feed the env details
+		if (Object.keys(workspaces).length === 0) {
+			return null
+		}
+
+		return JSON.stringify({ workspaces }, null, 2)
 	}
 }
 

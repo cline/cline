@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package cline;
 import "cline/common.proto";
+import "cline/state.proto";
+option go_package = "github.com/cline/grpc-go/cline";
 option java_package = "bot.cline.proto";
 option java_multiple_files = true;
 
@@ -15,7 +17,7 @@ service TaskService {
   // Deletes multiple tasks with the given IDs
   rpc deleteTasksWithIds(StringArrayRequest) returns (Empty);
   // Creates a new task with the given text and optional images
-  rpc newTask(NewTaskRequest) returns (Empty);
+  rpc newTask(NewTaskRequest) returns (String);
   // Shows a task with the specified ID
   rpc showTaskWithId(StringRequest) returns (TaskResponse);
   // Exports a task with the given ID to markdown
@@ -42,6 +44,7 @@ message NewTaskRequest {
   string text = 2;
   repeated string images = 3;
   repeated string files = 4;
+  optional Settings task_settings = 5;
 }
 
 // Request message for toggling task favorite status

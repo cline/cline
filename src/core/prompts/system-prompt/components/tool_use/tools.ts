@@ -20,7 +20,6 @@ export async function getToolUseToolsSection(variant: PromptVariant, context: Sy
 
 	// Define multi-root hint based on feature flag
 	const multiRootHint = context.isMultiRootEnabled ? MULTI_ROOT_HINT : ""
-
 	return new TemplateEngine().resolve(template, context, {
 		TASK_PROGRESS: shouldIncludeTaskProgress ? TASK_PROGRESS : "",
 		FOCUS_CHAIN_ATTEMPT: shouldIncludeTaskProgress ? FOCUS_CHAIN_ATTEMPT : "",

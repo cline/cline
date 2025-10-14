@@ -9,7 +9,7 @@ import {
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
-import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_4_1M_SUFFIX, ModelInfo } from "@shared/api"
+import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -25,6 +25,7 @@ export interface AwsBedrockHandlerOptions extends CommonApiHandlerOptions {
 	awsAuthentication?: string
 	awsBedrockApiKey?: string
 	awsUseCrossRegionInference?: boolean
+	awsUseGlobalInference?: boolean
 	awsBedrockUsePromptCache?: boolean
 	awsUseProfile?: boolean
 	awsProfile?: string
@@ -106,6 +107,10 @@ interface ProviderChainOptions {
 	profile?: string
 }
 
+// a special jp inference profile was created for sonnet 4.5
+// https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
+const JP_SUPPORTED_CRIS_MODELS = ["anthropic.claude-sonnet-4-5-20250929-v1:0", "anthropic.claude-sonnet-4-5-20250929-v1:0:1m"]
+
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
 	private options: AwsBedrockHandlerOptions
@@ -119,11 +124,11 @@ export class AwsBedrockHandler implements ApiHandler {
 		// cross region inference requires prefixing the model id with the region
 		const rawModelId = await this.getModelId()
 
-		const modelId = rawModelId.endsWith(CLAUDE_SONNET_4_1M_SUFFIX)
-			? rawModelId.slice(0, -CLAUDE_SONNET_4_1M_SUFFIX.length)
+		const modelId = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
+			? rawModelId.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
 			: rawModelId
 
-		const enable1mContextWindow = rawModelId.endsWith(CLAUDE_SONNET_4_1M_SUFFIX)
+		const enable1mContextWindow = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
 
 		const model = this.getModel()
 
@@ -271,6 +276,9 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	async getModelId(): Promise<string> {
 		if (!this.options.awsBedrockCustomSelected && this.options.awsUseCrossRegionInference) {
+			if (this.getModel().info.supportsGlobalEndpoint && this.options.awsUseGlobalInference) {
+				return `global.${this.getModel().id}`
+			}
 			const regionPrefix = this.getRegion().slice(0, 3)
 			switch (regionPrefix) {
 				case "us-":
@@ -278,6 +286,9 @@ export class AwsBedrockHandler implements ApiHandler {
 				case "eu-":
 					return `eu.${this.getModel().id}`
 				case "ap-":
+					if (JP_SUPPORTED_CRIS_MODELS.includes(this.getModel().id)) {
+						return `jp.${this.getModel().id}`
+					}
 					return `apac.${this.getModel().id}`
 				default:
 					// cross region inference is not supported in this region, falling back to default model
@@ -741,7 +752,10 @@ export class AwsBedrockHandler implements ApiHandler {
 	 */
 	private shouldEnableReasoning(baseModelId: string, budgetTokens: number): boolean {
 		return (
-			(baseModelId.includes("3-7") || baseModelId.includes("sonnet-4") || baseModelId.includes("opus-4")) &&
+			(baseModelId.includes("3-7") ||
+				baseModelId.includes("sonnet-4") ||
+				baseModelId.includes("opus-4") ||
+				baseModelId.includes("sonnet-4-5")) &&
 			budgetTokens !== 0
 		)
 	}

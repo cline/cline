@@ -4,18 +4,16 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { featureFlagsService } from "@services/feature-flags"
 import { McpHub } from "@services/mcp/McpHub"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import { BrowserSettings } from "@shared/BrowserSettings"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
-import { FocusChainSettings } from "@shared/FocusChainSettings"
-import { Mode } from "@shared/storage/types"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
 import { modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
+import { HookFactory } from "../hooks/hook-factory"
 import { formatResponse } from "../prompts/responses"
 import { StateManager } from "../storage/StateManager"
 import { WorkspaceRootManager } from "../workspace"
@@ -80,15 +78,10 @@ export class ToolExecutor {
 		private stateManager: StateManager,
 
 		// Configuration & Settings
-		private autoApprovalSettings: AutoApprovalSettings,
-		private browserSettings: BrowserSettings,
-		private focusChainSettings: FocusChainSettings,
+
 		private cwd: string,
 		private taskId: string,
 		private ulid: string,
-		private mode: Mode,
-		private strictPlanModeEnabled: boolean,
-		private yoloModeToggled: boolean,
 
 		// Workspace Management
 		private workspaceManager: WorkspaceRootManager | undefined,
@@ -120,7 +113,7 @@ export class ToolExecutor {
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
 		private switchToActMode: () => Promise<boolean>,
 	) {
-		this.autoApprover = new AutoApprove(autoApprovalSettings, yoloModeToggled)
+		this.autoApprover = new AutoApprove(this.stateManager)
 
 		// Initialize the coordinator and register all tool handlers
 		this.coordinator = new ToolExecutorCoordinator()
@@ -134,19 +127,19 @@ export class ToolExecutor {
 			taskId: this.taskId,
 			ulid: this.ulid,
 			context: this.context,
-			mode: this.mode,
-			strictPlanModeEnabled: this.strictPlanModeEnabled,
-			yoloModeToggled: this.yoloModeToggled,
+			mode: this.stateManager.getGlobalSettingsKey("mode"),
+			strictPlanModeEnabled: this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled"),
+			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			cwd: this.cwd,
 			workspaceManager: this.workspaceManager,
 			isMultiRootEnabled: this.isMultiRootEnabled,
 			taskState: this.taskState,
 			messageState: this.messageStateHandler,
 			api: this.api,
-			autoApprovalSettings: this.autoApprovalSettings,
+			autoApprovalSettings: this.stateManager.getGlobalSettingsKey("autoApprovalSettings"),
 			autoApprover: this.autoApprover,
-			browserSettings: this.browserSettings,
-			focusChainSettings: this.focusChainSettings,
+			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),
+			focusChainSettings: this.stateManager.getGlobalSettingsKey("focusChainSettings"),
 			services: {
 				mcpHub: this.mcpHub,
 				browserSession: this.browserSession,
@@ -217,26 +210,6 @@ export class ToolExecutor {
 	}
 
 	/**
-	 * Updates the auto approval settings
-	 */
-	public updateAutoApprovalSettings(settings: AutoApprovalSettings): void {
-		this.autoApprover.updateSettings(settings)
-	}
-
-	public updateMode(mode: Mode): void {
-		this.mode = mode
-	}
-
-	public updateStrictPlanModeEnabled(strictPlanModeEnabled: boolean): void {
-		this.strictPlanModeEnabled = strictPlanModeEnabled
-	}
-
-	public updateYoloModeToggled(yoloModeToggled: boolean): void {
-		this.yoloModeToggled = yoloModeToggled
-		this.autoApprover.updateApproveAll(yoloModeToggled)
-	}
-
-	/**
 	 * Main entry point for tool execution - called by Task class
 	 */
 	public async executeTool(block: ToolUse): Promise<void> {
@@ -247,15 +220,10 @@ export class ToolExecutor {
 	 * Updates the browser settings
 	 */
 	public async applyLatestBrowserSettings() {
-		if (this.context) {
-			await this.browserSession.dispose()
-			const apiHandlerModel = this.api.getModel()
-			const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
-			this.browserSession = new BrowserSession(this.context, this.browserSettings, useWebp)
-		} else {
-			console.warn("no controller context available for browserSession")
-		}
-
+		await this.browserSession.dispose()
+		const apiHandlerModel = this.api.getModel()
+		const useWebp = this.api ? !modelDoesntSupportWebp(apiHandlerModel) : true
+		this.browserSession = new BrowserSession(this.stateManager, useWebp)
 		return this.browserSession
 	}
 
@@ -326,7 +294,12 @@ export class ToolExecutor {
 			}
 
 			// Logic for plan-mode tool call restrictions
-			if (this.strictPlanModeEnabled && this.mode === "plan" && block.name && this.isPlanModeToolRestricted(block.name)) {
+			if (
+				this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled") &&
+				this.stateManager.getGlobalSettingsKey("mode") === "plan" &&
+				block.name &&
+				this.isPlanModeToolRestricted(block.name)
+			) {
 				const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. Only use tools available for PLAN MODE when in that mode.`
 				await this.say("error", errorMessage)
 				this.pushToolResult(formatResponse.toolError(errorMessage), block)
@@ -374,6 +347,44 @@ export class ToolExecutor {
 	}
 
 	/**
+	 * Adds hook context modification to the conversation if provided.
+	 * Parses the context to extract type prefix and formats as XML.
+	 *
+	 * @param contextModification The context string from the hook output
+	 * @param source The hook source name ("PreToolUse" or "PostToolUse")
+	 */
+	private addHookContextToConversation(contextModification: string | undefined, source: string): void {
+		if (!contextModification) {
+			return
+		}
+
+		const contextText = contextModification.trim()
+		if (!contextText) {
+			return
+		}
+
+		// Extract context type from first line if specified (e.g., "WORKSPACE_RULES: ...")
+		const lines = contextText.split("\n")
+		const firstLine = lines[0]
+		let contextType = "general"
+		let content = contextText
+
+		// Check if first line specifies a type: "TYPE: content"
+		const typeMatchRegex = /^([A-Z_]+):\s*(.*)/
+		const typeMatch = typeMatchRegex.exec(firstLine)
+		if (typeMatch) {
+			contextType = typeMatch[1].toLowerCase()
+			const remainingLines = lines.slice(1).filter((l: string) => l.trim())
+			content = typeMatch[2] ? [typeMatch[2], ...remainingLines].join("\n") : remainingLines.join("\n")
+		}
+
+		this.taskState.userMessageContent.push({
+			type: "text",
+			text: `<hook_context source="${source}" type="${contextType}">\n${content}\n</hook_context>`,
+		})
+	}
+
+	/**
 	 * Handle partial block streaming UI updates
 	 */
 	private async handlePartialBlock(block: ToolUse, config: TaskConfig): Promise<void> {
@@ -394,12 +405,87 @@ export class ToolExecutor {
 	 * Handle complete block execution
 	 */
 	private async handleCompleteBlock(block: ToolUse, config: any): Promise<void> {
-		const result = await this.coordinator.execute(config, block)
+		// Check if hooks are enabled (both feature flag and user setting must be true)
+		const featureFlagEnabled = featureFlagsService.getHooksEnabled()
+		const userEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		const hooksEnabled = featureFlagEnabled && userEnabled
 
-		this.pushToolResult(result, block)
+		let executionSuccess = true
+		let toolResult: any = null
+
+		// Run PreToolUse hook, if enabled
+		if (hooksEnabled) {
+			let preToolUseResult: any = null
+			try {
+				const hookFactory = new HookFactory()
+				const preToolUseHook = await hookFactory.create("PreToolUse")
+
+				preToolUseResult = await preToolUseHook.run({
+					taskId: this.taskId,
+					preToolUse: {
+						toolName: block.name,
+						parameters: block.params,
+					},
+				})
+
+				// Check if hook wants to stop execution
+				if (!preToolUseResult.shouldContinue) {
+					const errorMessage = preToolUseResult.errorMessage || "PreToolUse hook prevented tool execution"
+					await this.say("error", errorMessage)
+					this.pushToolResult(formatResponse.toolError(errorMessage), block)
+					return
+				}
+
+				// Add context modification to the conversation if provided by the hook
+				this.addHookContextToConversation(preToolUseResult.contextModification, "PreToolUse")
+			} catch (hookError) {
+				const errorMessage = `PreToolUse hook failed: ${hookError.toString()}`
+				await this.say("error", errorMessage)
+				this.pushToolResult(formatResponse.toolError(errorMessage), block)
+				return
+			}
+		}
+
+		const executionStartTime = Date.now()
+		try {
+			// Execute the actual tool
+			toolResult = await this.coordinator.execute(config, block)
+			this.pushToolResult(toolResult, block)
+		} catch (error) {
+			executionSuccess = false
+			toolResult = formatResponse.toolError(`Tool execution failed: ${error}`)
+			this.pushToolResult(toolResult, block)
+			throw error
+		} finally {
+			// Run PostToolUse hook if enabled
+			if (hooksEnabled) {
+				const hookFactory = new HookFactory()
+				const postToolUseHook = await hookFactory.create("PostToolUse")
+
+				const executionTimeMs = Date.now() - executionStartTime
+				const postToolUseResult = await postToolUseHook.run({
+					taskId: this.taskId,
+					postToolUse: {
+						toolName: block.name,
+						parameters: block.params,
+						result: typeof toolResult === "string" ? toolResult : JSON.stringify(toolResult),
+						success: executionSuccess,
+						executionTimeMs,
+					},
+				})
+
+				// Add context modification to the conversation if provided by the hook
+				this.addHookContextToConversation(postToolUseResult.contextModification, "PostToolUse")
+
+				// Log any error messages from the hook
+				if (postToolUseResult.errorMessage) {
+					this.say("error", postToolUseResult.errorMessage)
+				}
+			}
+		}
 
 		// Handle focus chain updates
-		if (!block.partial && this.focusChainSettings.enabled) {
+		if (!block.partial && this.stateManager.getGlobalSettingsKey("focusChainSettings").enabled) {
 			await this.updateFCListFromToolResponse(block.params.task_progress)
 		}
 	}

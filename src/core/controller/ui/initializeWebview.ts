@@ -1,6 +1,6 @@
-import { McpMarketplaceCatalog } from "@shared/mcp"
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { readMcpMarketplaceCatalogFromCache } from "@/core/storage/disk"
 import { telemetryService } from "@/services/telemetry"
 import type { Controller } from "../index"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
@@ -18,12 +18,11 @@ import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels
  */
 export async function initializeWebview(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	try {
-		// Post last cached models in case the call to endpoint fails
-		controller.readOpenRouterModels().then((openRouterModels) => {
-			if (openRouterModels) {
-				sendOpenRouterModelsEvent(OpenRouterCompatibleModelInfo.create({ models: openRouterModels }))
-			}
-		})
+		// Post last cached models as soon as possible for immediate availability in the UI
+		const lastCachedModels = await controller.readOpenRouterModels()
+		if (lastCachedModels) {
+			sendOpenRouterModelsEvent(OpenRouterCompatibleModelInfo.create({ models: lastCachedModels }))
+		}
 
 		// Refresh OpenRouter models from API
 		refreshOpenRouterModels(controller, EmptyRequest.create()).then(async (response) => {
@@ -31,7 +30,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 				// Update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.stateManager.getApiConfiguration()
 				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
-				const currentMode = await controller.getCurrentMode()
+				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
 
 				if (planActSeparateModelsSetting) {
 					// Separate models: update only current mode
@@ -77,7 +76,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 				// Update model info in state for Groq (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.stateManager.getApiConfiguration()
 				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
-				const currentMode = await controller.getCurrentMode()
+				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
 
 				if (planActSeparateModelsSetting) {
 					// Separate models: update only current mode
@@ -124,7 +123,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 				const apiConfiguration = controller.stateManager.getApiConfiguration()
 				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 
-				const currentMode = await controller.getCurrentMode()
+				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
 
 				if (planActSeparateModelsSetting) {
 					// Separate models: update only current mode
@@ -165,7 +164,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 				// Update model info in state for Vercel AI Gateway (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.stateManager.getApiConfiguration()
 				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
-				const currentMode = await controller.getCurrentMode()
+				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
 
 				if (planActSeparateModelsSetting) {
 					// Separate models: update only current mode
@@ -214,10 +213,10 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		// Prefetch marketplace and OpenRouter models
 
 		// Send stored MCP marketplace catalog if available
-		const mcpMarketplaceCatalog = controller.stateManager.getGlobalStateKey("mcpMarketplaceCatalog")
+		const mcpMarketplaceCatalog = await readMcpMarketplaceCatalogFromCache()
 
 		if (mcpMarketplaceCatalog) {
-			sendMcpMarketplaceCatalogEvent(mcpMarketplaceCatalog as McpMarketplaceCatalog)
+			sendMcpMarketplaceCatalogEvent(mcpMarketplaceCatalog)
 		}
 
 		// Silently refresh MCP marketplace catalog

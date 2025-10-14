@@ -5,7 +5,9 @@ import Fuse from "fuse.js"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
+import HeroTooltip from "@/components/common/HeroTooltip"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
@@ -30,6 +32,7 @@ import { LMStudioProvider } from "./providers/LMStudioProvider"
 import { MistralProvider } from "./providers/MistralProvider"
 import { MoonshotProvider } from "./providers/MoonshotProvider"
 import { NebiusProvider } from "./providers/NebiusProvider"
+import { OcaProvider } from "./providers/OcaProvider"
 import { OllamaProvider } from "./providers/OllamaProvider"
 import { OpenAICompatibleProvider } from "./providers/OpenAICompatible"
 import { OpenAINativeProvider } from "./providers/OpenAINative"
@@ -81,7 +84,7 @@ declare module "vscode" {
 
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup, currentMode }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
@@ -122,8 +125,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 	const dropdownListRef = useRef<HTMLDivElement>(null)
 
-	const providerOptions = useMemo(
-		() => [
+	const providerOptions = useMemo(() => {
+		let providers = [
 			{ value: "cline", label: "Cline" },
 			{ value: "openrouter", label: "OpenRouter" },
 			{ value: "gemini", label: "Google Gemini" },
@@ -159,9 +162,16 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "sambanova", label: "SambaNova" },
 			{ value: "huawei-cloud-maas", label: "Huawei Cloud MaaS" },
 			{ value: "dify", label: "Dify.ai" },
-		],
-		[],
-	)
+			{ value: "oca", label: "Oracle Code Assist" },
+		]
+
+		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
+			// Don't include VS Code LM API for non-VSCode platforms
+			providers = providers.filter((option) => option.value !== "vscode-lm")
+		}
+
+		return providers
+	}, [remoteConfigSettings])
 
 	const currentProviderLabel = useMemo(() => {
 		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
@@ -286,12 +296,24 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				`}
 			</style>
 			<DropdownContainer className="dropdown-container">
-				<label htmlFor="api-provider">
-					<span style={{ fontWeight: 500 }}>API Provider</span>
-				</label>
+				{remoteConfigSettings?.planModeApiProvider !== undefined ? (
+					<HeroTooltip content="This setting is managed by your organization's remote configuration">
+						<div className="flex items-center gap-2 mb-1">
+							<label htmlFor="api-provider">
+								<span style={{ fontWeight: 500 }}>API Provider</span>
+							</label>
+							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+						</div>
+					</HeroTooltip>
+				) : (
+					<label htmlFor="api-provider">
+						<span style={{ fontWeight: 500 }}>API Provider</span>
+					</label>
+				)}
 				<ProviderDropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						data-testid="provider-selector-input"
+						disabled={remoteConfigSettings?.planModeApiProvider !== undefined}
 						id="api-provider"
 						onFocus={() => {
 							setIsDropdownVisible(true)
@@ -481,6 +503,8 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{apiConfiguration && selectedProvider === "zai" && (
 				<ZAiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
+
+			{apiConfiguration && selectedProvider === "oca" && <OcaProvider currentMode={currentMode} isPopup={isPopup} />}
 
 			{apiErrorMessage && (
 				<p

@@ -71,9 +71,6 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				}
 				break
 			case "cline":
-				if (!apiConfiguration.clineAccountId) {
-					return "You must provide a valid API key or choose a different provider."
-				}
 				break
 			case "openai":
 				if (!apiConfiguration.openAiBaseUrl || !apiConfiguration.openAiApiKey || !openAiModelId) {

@@ -23,7 +23,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 			await controller.initTask(undefined, undefined, undefined, historyItem)
 
 			// Send UI update to show the chat view
-			await sendChatButtonClickedEvent(controller.id)
+			await sendChatButtonClickedEvent()
 
 			// Return task data for gRPC response
 			return TaskResponse.create({
@@ -47,7 +47,7 @@ export async function showTaskWithId(controller: Controller, request: StringRequ
 		await controller.initTask(undefined, undefined, undefined, fetchedItem)
 
 		// Send UI update to show the chat view
-		await sendChatButtonClickedEvent(controller.id)
+		await sendChatButtonClickedEvent()
 
 		return TaskResponse.create({
 			id: fetchedItem.id,

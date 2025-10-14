@@ -34,6 +34,7 @@ import ErrorRow from "./ErrorRow"
 import NewTaskPreview from "./NewTaskPreview"
 import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
+import SearchResultsDisplay from "./SearchResultsDisplay"
 import UserMessage from "./UserMessage"
 
 const normalColor = "var(--vscode-foreground)"
@@ -103,7 +104,7 @@ const Markdown = memo(({ markdown }: { markdown?: string }) => {
 
 const ChatRow = memo(
 	(props: ChatRowProps) => {
-		const { isLast, onHeightChange, message, lastModifiedMessage, inputValue } = props
+		const { isLast, onHeightChange, message } = props
 		// Store the previous height to compare with the current height
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
@@ -147,7 +148,7 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 	}: ChatRowContentProps) => {
-		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, apiConfiguration } = useExtensionState()
+		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl } = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
@@ -585,15 +586,16 @@ export const ChatRowContent = memo(
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>
-									Cline wants to search this directory for <code>{tool.regex}</code>:
+									Cline wants to search this directory for{" "}
+									<code style={{ wordBreak: "break-all" }}>{tool.regex}</code>:
 								</span>
 							</div>
-							<CodeAccordian
-								code={tool.content!}
+							<SearchResultsDisplay
+								content={tool.content!}
+								filePattern={tool.filePattern}
 								isExpanded={isExpanded}
-								language="plaintext"
 								onToggleExpand={handleToggle}
-								path={tool.path! + (tool.filePattern ? `/(${tool.filePattern})` : "")}
+								path={tool.path!}
 							/>
 						</>
 					)
@@ -1124,7 +1126,7 @@ export const ChatRowContent = memo(
 									}}>
 									{icon}
 									{title}
-									<TaskFeedbackButtons
+									{/* <TaskFeedbackButtons
 										isFromHistory={
 											!isLast ||
 											lastModifiedMessage?.ask === "resume_completed_task" ||
@@ -1134,7 +1136,7 @@ export const ChatRowContent = memo(
 										style={{
 											marginLeft: "auto",
 										}}
-									/>
+									/> */}
 								</div>
 								<WithCopyButton
 									onMouseUp={handleMouseUp}
@@ -1227,6 +1229,66 @@ export const ChatRowContent = memo(
 								</div>
 							</div>
 						)
+					case "error_retry":
+						try {
+							const retryInfo = JSON.parse(message.text || "{}")
+							const { attempt, maxAttempts, delaySeconds, failed } = retryInfo
+							const isFailed = failed === true
+
+							return (
+								<div
+									style={{
+										display: "flex",
+										flexDirection: "column",
+										backgroundColor: "var(--vscode-textBlockQuote-background)",
+										padding: 8,
+										borderRadius: 3,
+										fontSize: 12,
+									}}>
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											marginBottom: 4,
+										}}>
+										<i
+											className={isFailed ? "codicon codicon-warning" : "codicon codicon-sync"}
+											style={{
+												marginRight: 8,
+												fontSize: 14,
+												color: "var(--vscode-descriptionForeground)",
+											}}></i>
+										<span
+											style={{
+												fontWeight: 500,
+												color: "var(--vscode-foreground)",
+											}}>
+											{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}
+										</span>
+									</div>
+									<div style={{ color: "var(--vscode-foreground)", opacity: 0.8 }}>
+										{isFailed ? (
+											<>
+												Auto-retry failed after <strong>{maxAttempts}</strong> attempts. Manual
+												intervention required.
+											</>
+										) : (
+											<>
+												Attempt <strong>{attempt}</strong> of <strong>{maxAttempts}</strong> - Retrying in{" "}
+												{delaySeconds} seconds...
+											</>
+										)}
+									</div>
+								</div>
+							)
+						} catch (e) {
+							// Fallback if JSON parsing fails
+							return (
+								<div style={{ color: "var(--vscode-foreground)" }}>
+									<Markdown markdown={message.text} />
+								</div>
+							)
+						}
 					case "task_progress":
 						return null // task_progress messages should be displayed in TaskHeader only, not in chat
 					default:

@@ -40,7 +40,13 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				if (messages.length === 0) {
-					await TaskServiceClient.newTask(NewTaskRequest.create({ text: messageToSend, images, files }))
+					await TaskServiceClient.newTask(
+						NewTaskRequest.create({
+							text: messageToSend,
+							images,
+							files,
+						}),
+					)
 				} else if (clineAsk) {
 					switch (clineAsk) {
 						case "followup":

@@ -4,7 +4,8 @@ export enum Environment {
 	local = "local",
 }
 
-interface EnvironmentConfig {
+export interface EnvironmentConfig {
+	environment: Environment
 	appBaseUrl: string
 	apiBaseUrl: string
 	mcpBaseUrl: string
@@ -35,7 +36,7 @@ class ClineEndpoint {
 		this.environment = Environment.production
 	}
 
-	public config() {
+	public config(): EnvironmentConfig {
 		console.info("Cline environment:", this.environment)
 		return this.getEnvironment()
 	}
@@ -49,6 +50,7 @@ class ClineEndpoint {
 		switch (this.environment) {
 			case Environment.staging:
 				return {
+					environment: Environment.staging,
 					appBaseUrl: "https://staging-app.cline.bot",
 					apiBaseUrl: "https://core-api.staging.int.cline.bot",
 					mcpBaseUrl: "https://api.cline.bot/v1/mcp",
@@ -63,6 +65,7 @@ class ClineEndpoint {
 				}
 			case Environment.local:
 				return {
+					environment: Environment.local,
 					appBaseUrl: "http://localhost:3000",
 					apiBaseUrl: "http://localhost:7777",
 					mcpBaseUrl: "https://api.cline.bot/v1/mcp",
@@ -74,6 +77,7 @@ class ClineEndpoint {
 				}
 			default:
 				return {
+					environment: Environment.production,
 					appBaseUrl: "https://app.cline.bot",
 					apiBaseUrl: "https://api.cline.bot",
 					mcpBaseUrl: "https://api.cline.bot/v1/mcp",
@@ -90,4 +94,10 @@ class ClineEndpoint {
 	}
 }
 
+/**
+ * Singleton instance to access the current environment configuration.
+ * Usage:
+ * - ClineEnv.config() to get the current config.
+ * - ClineEnv.setEnvironment(Environment.local) to change the environment.
+ */
 export const ClineEnv = ClineEndpoint.instance

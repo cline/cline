@@ -412,4 +412,61 @@ Content
 			expect(result).to.equal(expectedOutput)
 		})
 	})
+
+	describe("Multiroot workspace mentions", () => {
+		let workspaceManagerStub: any
+
+		beforeEach(() => {
+			// Create a mock multiroot workspace manager
+			workspaceManagerStub = {
+				getRoots: sandbox.stub().returns([
+					{ name: "frontend", path: "/test/frontend" },
+					{ name: "backend", path: "/test/backend" },
+				]),
+				getRootByName: sandbox.stub().callsFake((name: string) => {
+					const roots = [
+						{ name: "frontend", path: "/test/frontend" },
+						{ name: "backend", path: "/test/backend" },
+					]
+					return roots.find((r) => r.name === name)
+				}),
+			}
+		})
+
+		it("should handle workspace-prefixed file mention", async () => {
+			const text = "Check @frontend:/src/index.ts"
+
+			fsStatStub.resolves({ isFile: () => true, isDirectory: () => false })
+			isBinaryFileStub.resolves(false)
+			extractTextStub.resolves("console.log('Frontend');")
+
+			const result = await parseMentions(text, cwd, urlContentFetcherStub, fileContextTrackerStub, workspaceManagerStub)
+
+			const expectedOutput = `Check 'frontend:src/index.ts' (see below for file content)
+
+<file_content path="src/index.ts" workspace="frontend">
+console.log('Frontend');
+</file_content>`
+
+			expect(result).to.equal(expectedOutput)
+			expect(fileContextTrackerStub.trackFileContext.calledWith("src/index.ts", "file_mentioned")).to.be.true
+		})
+
+		it("should handle file in multiple workspaces without hint", async () => {
+			const text = "Check @/config.json"
+
+			fsStatStub.resolves({ isFile: () => true, isDirectory: () => false })
+			isBinaryFileStub.resolves(false)
+			extractTextStub.withArgs(path.resolve("/test/frontend", "config.json")).resolves('{"env": "dev"}')
+			extractTextStub.withArgs(path.resolve("/test/backend", "config.json")).resolves('{"env": "prod"}')
+
+			const result = await parseMentions(text, cwd, urlContentFetcherStub, fileContextTrackerStub, workspaceManagerStub)
+
+			// Should include both files with workspace annotations
+			expect(result).to.include('workspace="frontend"')
+			expect(result).to.include('workspace="backend"')
+			expect(result).to.include('{"env": "dev"}')
+			expect(result).to.include('{"env": "prod"}')
+		})
+	})
 })

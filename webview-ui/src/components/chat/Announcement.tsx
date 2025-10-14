@@ -2,10 +2,12 @@ import { Accordion, AccordionItem } from "@heroui/react"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { CSSProperties, memo, useState } from "react"
+import { useMount } from "react-use"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
+import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
 interface AnnouncementProps {
@@ -42,11 +44,15 @@ Patch releases (3.19.1 → 3.19.2) will not trigger new announcements.
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
 	const { clineUser } = useClineAuth()
-	const { apiConfiguration, openRouterModels, setShowChatModelSelector } = useExtensionState()
-	const user = apiConfiguration?.clineAccountId ? clineUser : undefined
+	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
+	const user = clineUser || undefined
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const [didClickGrokCodeButton, setDidClickGrokCodeButton] = useState(false)
+	const [didClickCodeSupernovaButton, setDidClickCodeSupernovaButton] = useState(false)
+
+	// Need to get latest model list in case user hits shortcut button to set model
+	useMount(refreshOpenRouterModels)
 
 	const setGrokCodeFast1 = () => {
 		const modelId = "x-ai/grok-code-fast-1"
@@ -66,6 +72,24 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 		}, 10)
 	}
 
+	const setCodeSupernova = () => {
+		const modelId = "cline/code-supernova-1-million"
+		// set both plan and act modes to use code-supernova-1-million
+		handleFieldsChange({
+			planModeOpenRouterModelId: modelId,
+			actModeOpenRouterModelId: modelId,
+			planModeOpenRouterModelInfo: openRouterModels[modelId],
+			actModeOpenRouterModelInfo: openRouterModels[modelId],
+			planModeApiProvider: "cline",
+			actModeApiProvider: "cline",
+		})
+
+		setTimeout(() => {
+			setDidClickCodeSupernovaButton(true)
+			setShowChatModelSelector(true)
+		}, 10)
+	}
+
 	const handleShowAccount = () => {
 		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
 			console.error("Failed to get login URL:", err),
@@ -80,37 +104,56 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<h3 style={h3TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
 			</h3>
-			<h3 style={h3TitleStyle}>JetBrains Support is Live!</h3>
-			Our #1 most requested feature is here! Use Cline natively in IntelliJ IDEA, PyCharm, WebStorm, Android Studio, GoLand,
-			PhpStorm, and all JetBrains IDEs. Same powerful AI coding, now in your preferred development environment.
-			<div style={{ margin: "12px 0" }} />
-			<VSCodeLink
-				href="https://cline.bot/jetbrains"
-				style={{
-					padding: "4px 8px",
-					backgroundColor: "var(--vscode-button-background)",
-					color: "var(--vscode-button-foreground)",
-					borderRadius: "2px",
-				}}>
-				Get Cline for JetBrains!
-			</VSCodeLink>
-			<div style={{ margin: "12px 0" }} />
-			<b>Extended Grok Promotion:</b> Free grok-code-fast-1 access extended! We've found this model to be improving
-			incredibly fast, and it's still available at no cost
-			<div style={{ margin: "12px 0" }} />
-			<b>Accesibility Improvements:</b> Improved screen reader support throughout Cline
-			<div style={{ margin: "18px 0" }} />
-			{user ? (
-				!didClickGrokCodeButton ? (
-					<VSCodeButton appearance="primary" onClick={setGrokCodeFast1}>
-						Try grok-code-fast-1 (free)
-					</VSCodeButton>
-				) : null
-			) : (
-				<VSCodeButton appearance="secondary" onClick={handleShowAccount}>
-					Sign Up with Cline
-				</VSCodeButton>
-			)}
+			<ul style={ulStyle}>
+				<li>
+					<b>UI Improvements:</b> New task header and focus chain design to take up less space for a cleaner experience
+				</li>
+				<li>
+					<b>Voice Mode:</b> Experimental feature that must be enabled in settings for hands-free coding
+				</li>
+				<li>
+					<b>YOLO Mode:</b> Enable in settings to let Cline approve all actions and automatically switch between
+					plan/act mode
+				</li>
+				<li>
+					<b>JetBrains Updates:</b> We've brought support to Rider and made tons of improvements thanks to all the
+					feedback!
+					<br />
+					<VSCodeButtonLink href="https://cline.bot/jetbrains" style={{ margin: "5px 0" }}>
+						Get Cline for JetBrains
+					</VSCodeButtonLink>
+				</li>
+				<li>
+					<b>Free Models:</b> Try the new code-supernova-1-million stealth model, or grok-code-fast-1 for free!
+					<br />
+					{user ? (
+						<div style={{ display: "flex", gap: "8px", flexWrap: "wrap", margin: "5px 0" }}>
+							{!didClickCodeSupernovaButton && (
+								<VSCodeButton appearance="primary" onClick={setCodeSupernova}>
+									Try code-supernova
+								</VSCodeButton>
+							)}
+							{!didClickGrokCodeButton && (
+								<VSCodeButton appearance="primary" onClick={setGrokCodeFast1}>
+									Try grok-code-fast-1
+								</VSCodeButton>
+							)}
+						</div>
+					) : (
+						<VSCodeButton appearance="primary" onClick={handleShowAccount} style={{ margin: "5px 0" }}>
+							Sign Up with Cline
+						</VSCodeButton>
+					)}
+				</li>
+				{user && (
+					<li>
+						Updated the Terms of Service for Cline account users:{" "}
+						<VSCodeLink href="https://cline.bot/tos" style={linkStyle}>
+							https://cline.bot/tos
+						</VSCodeLink>
+					</li>
+				)}
+			</ul>
 			<div style={{ margin: "12px 0" }} />
 			<div style={{ margin: "-8px 0 -3px 0" }}>
 				<Accordion className="pl-0" isCompact>
