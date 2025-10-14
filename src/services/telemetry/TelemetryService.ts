@@ -1533,6 +1533,30 @@ export class TelemetryService {
 	}
 
 	/**
+	 * Reinitialize all telemetry providers if their configuration has changed.
+	 * Each provider decides internally whether reinitialization is needed.
+	 *
+	 * @returns Promise<void>
+	 */
+	public async reinitializeAllProviders(): Promise<void> {
+		console.log("[TelemetryService] Checking all providers for reinitialization...")
+
+		const results = await Promise.all(
+			this.providers.map(async (provider) => {
+				try {
+					return await provider.reinitializeIfNeeded()
+				} catch (error) {
+					console.error("[TelemetryService] Error reinitializing provider:", error)
+					return false
+				}
+			}),
+		)
+
+		const reinitializedCount = results.filter((r) => r).length
+		console.log(`[TelemetryService] Reinitialized ${reinitializedCount} of ${this.providers.length} provider(s)`)
+	}
+
+	/**
 	 * Clean up resources when the service is disposed
 	 */
 	public async dispose(): Promise<void> {

@@ -193,6 +193,13 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		histogram.record(value, this.flattenProperties(attributes))
 	}
 
+	public async reinitializeIfNeeded(): Promise<boolean> {
+		// Stub implementation for PR #1
+		// Actual reinitialization logic will be added in PR #4
+		console.log("[OpenTelemetryTelemetryProvider] reinitializeIfNeeded called (stub)")
+		return false
+	}
+
 	public async dispose(): Promise<void> {
 		// OpenTelemetry client provider handles shutdown
 		// Individual providers don't need to do anything
