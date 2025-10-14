@@ -155,52 +155,75 @@ function getOtelConfig(): OpenTelemetryClientConfig {
 			const { StateManager } = require("@/core/storage/StateManager")
 			const stateManager = StateManager.get()
 
-			if (stateManager?.isInitialized) {
-				// Apply settings overrides if they exist
-				const settings = stateManager.state
+			// Apply settings overrides if they exist (using getter methods)
+			const enabled = stateManager.getGlobalSettingsKey("openTelemetryEnabled")
+			if (enabled !== undefined) {
+				settingsOverrides.enabled = enabled
+			}
 
-				if (settings.openTelemetryEnabled !== undefined) {
-					settingsOverrides.enabled = settings.openTelemetryEnabled
-				}
-				if (settings.openTelemetryMetricsExporter !== undefined) {
-					settingsOverrides.metricsExporter = settings.openTelemetryMetricsExporter
-				}
-				if (settings.openTelemetryLogsExporter !== undefined) {
-					settingsOverrides.logsExporter = settings.openTelemetryLogsExporter
-				}
-				if (settings.openTelemetryOtlpProtocol !== undefined) {
-					settingsOverrides.otlpProtocol = settings.openTelemetryOtlpProtocol
-				}
-				if (settings.openTelemetryOtlpEndpoint !== undefined) {
-					settingsOverrides.otlpEndpoint = settings.openTelemetryOtlpEndpoint
-				}
-				if (settings.openTelemetryOtlpMetricsProtocol !== undefined) {
-					settingsOverrides.otlpMetricsProtocol = settings.openTelemetryOtlpMetricsProtocol
-				}
-				if (settings.openTelemetryOtlpMetricsEndpoint !== undefined) {
-					settingsOverrides.otlpMetricsEndpoint = settings.openTelemetryOtlpMetricsEndpoint
-				}
-				if (settings.openTelemetryOtlpLogsProtocol !== undefined) {
-					settingsOverrides.otlpLogsProtocol = settings.openTelemetryOtlpLogsProtocol
-				}
-				if (settings.openTelemetryOtlpLogsEndpoint !== undefined) {
-					settingsOverrides.otlpLogsEndpoint = settings.openTelemetryOtlpLogsEndpoint
-				}
-				if (settings.openTelemetryMetricExportInterval !== undefined) {
-					settingsOverrides.metricExportInterval = settings.openTelemetryMetricExportInterval
-				}
-				if (settings.openTelemetryOtlpInsecure !== undefined) {
-					settingsOverrides.otlpInsecure = settings.openTelemetryOtlpInsecure
-				}
-				if (settings.openTelemetryLogBatchSize !== undefined) {
-					settingsOverrides.logBatchSize = settings.openTelemetryLogBatchSize
-				}
-				if (settings.openTelemetryLogBatchTimeout !== undefined) {
-					settingsOverrides.logBatchTimeout = settings.openTelemetryLogBatchTimeout
-				}
-				if (settings.openTelemetryLogMaxQueueSize !== undefined) {
-					settingsOverrides.logMaxQueueSize = settings.openTelemetryLogMaxQueueSize
-				}
+			const metricsExporter = stateManager.getGlobalSettingsKey("openTelemetryMetricsExporter")
+			if (metricsExporter !== undefined) {
+				settingsOverrides.metricsExporter = metricsExporter
+			}
+
+			const logsExporter = stateManager.getGlobalSettingsKey("openTelemetryLogsExporter")
+			if (logsExporter !== undefined) {
+				settingsOverrides.logsExporter = logsExporter
+			}
+
+			const otlpProtocol = stateManager.getGlobalSettingsKey("openTelemetryOtlpProtocol")
+			if (otlpProtocol !== undefined) {
+				settingsOverrides.otlpProtocol = otlpProtocol
+			}
+
+			const otlpEndpoint = stateManager.getGlobalSettingsKey("openTelemetryOtlpEndpoint")
+			if (otlpEndpoint !== undefined) {
+				settingsOverrides.otlpEndpoint = otlpEndpoint
+			}
+
+			const otlpMetricsProtocol = stateManager.getGlobalSettingsKey("openTelemetryOtlpMetricsProtocol")
+			if (otlpMetricsProtocol !== undefined) {
+				settingsOverrides.otlpMetricsProtocol = otlpMetricsProtocol
+			}
+
+			const otlpMetricsEndpoint = stateManager.getGlobalSettingsKey("openTelemetryOtlpMetricsEndpoint")
+			if (otlpMetricsEndpoint !== undefined) {
+				settingsOverrides.otlpMetricsEndpoint = otlpMetricsEndpoint
+			}
+
+			const otlpLogsProtocol = stateManager.getGlobalSettingsKey("openTelemetryOtlpLogsProtocol")
+			if (otlpLogsProtocol !== undefined) {
+				settingsOverrides.otlpLogsProtocol = otlpLogsProtocol
+			}
+
+			const otlpLogsEndpoint = stateManager.getGlobalSettingsKey("openTelemetryOtlpLogsEndpoint")
+			if (otlpLogsEndpoint !== undefined) {
+				settingsOverrides.otlpLogsEndpoint = otlpLogsEndpoint
+			}
+
+			const metricExportInterval = stateManager.getGlobalSettingsKey("openTelemetryMetricExportInterval")
+			if (metricExportInterval !== undefined) {
+				settingsOverrides.metricExportInterval = metricExportInterval
+			}
+
+			const otlpInsecure = stateManager.getGlobalSettingsKey("openTelemetryOtlpInsecure")
+			if (otlpInsecure !== undefined) {
+				settingsOverrides.otlpInsecure = otlpInsecure
+			}
+
+			const logBatchSize = stateManager.getGlobalSettingsKey("openTelemetryLogBatchSize")
+			if (logBatchSize !== undefined) {
+				settingsOverrides.logBatchSize = logBatchSize
+			}
+
+			const logBatchTimeout = stateManager.getGlobalSettingsKey("openTelemetryLogBatchTimeout")
+			if (logBatchTimeout !== undefined) {
+				settingsOverrides.logBatchTimeout = logBatchTimeout
+			}
+
+			const logMaxQueueSize = stateManager.getGlobalSettingsKey("openTelemetryLogMaxQueueSize")
+			if (logMaxQueueSize !== undefined) {
+				settingsOverrides.logMaxQueueSize = logMaxQueueSize
 			}
 		} catch (error) {
 			// StateManager not available yet (early startup) - use base config only
