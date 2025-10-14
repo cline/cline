@@ -70,7 +70,7 @@ export class FirebaseAuthProvider implements IAuthProvider {
 	async refreshToken(userRefreshToken: string): Promise<Partial<ClineAuthInfo>> {
 		// Exchange refresh token for new access token using Firebase's secure token endpoint
 		// https://stackoverflow.com/questions/38233687/how-to-use-the-firebase-refreshtoken-to-reauthenticate/57119131#57119131
-		const firebaseApiKey = this._config.firebase.apiKey
+		const firebaseApiKey = this.config.firebase.apiKey
 		const googleAccessTokenResponse = await axios.post(
 			`https://securetoken.googleapis.com/v1/token?key=${firebaseApiKey}`,
 			`grant_type=refresh_token&refresh_token=${encodeURIComponent(userRefreshToken)}`,
@@ -108,7 +108,7 @@ export class FirebaseAuthProvider implements IAuthProvider {
 					throw new Error(`Unsupported provider: ${provider}`)
 			}
 			// we've received the short-lived tokens from google/github, now we need to sign in to firebase with them
-			const firebaseConfig = Object.assign({}, this._config.firebase)
+			const firebaseConfig = Object.assign({}, this.config.firebase)
 			const app = initializeApp(firebaseConfig)
 			const auth = getAuth(app)
 			// this signs the user into firebase sdk internally

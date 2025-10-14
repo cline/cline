@@ -25,13 +25,14 @@ class ClineEndpoint {
 		return ClineEndpoint.instance.config()
 	}
 
-	private environment: Environment
+	private environment: Environment = Environment.production
 
 	private constructor() {
 		// Set environment at module load
 		const _env = process?.env?.CLINE_ENVIRONMENT
 		if (_env && Object.values(Environment).includes(_env as Environment)) {
 			this.environment = _env as Environment
+			return
 		}
 		this.environment = Environment.production
 	}
@@ -41,9 +42,20 @@ class ClineEndpoint {
 		return this.getEnvironment()
 	}
 
-	public setEnvironment(env: Environment) {
-		console.info("Cline environment updated:", env)
-		this.environment = env
+	public setEnvironment(env: string) {
+		console.info("Setting Cline environment:", env)
+		switch (env.toLowerCase()) {
+			case "staging":
+				this.environment = Environment.staging
+				break
+			case "local":
+				this.environment = Environment.local
+				break
+			default:
+				this.environment = Environment.production
+				break
+		}
+		console.info("Cline environment updated:", this.environment)
 	}
 
 	public getEnvironment(): EnvironmentConfig {

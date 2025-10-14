@@ -790,7 +790,7 @@ export class Controller {
 		const platform = process.platform as Platform
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
-		const environment = clineEnvConfig.environment
+		const environment = ClineEnv.config().environment
 
 		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
