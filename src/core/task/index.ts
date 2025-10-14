@@ -37,6 +37,7 @@ import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkpoints/factory"
 import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializer"
 import { ICheckpointManager } from "@integrations/checkpoints/types"
+import { transformClineCommand } from "@integrations/cli-subagents/command-transform"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
@@ -1103,6 +1104,9 @@ export class Task {
 	}
 
 	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ToolResponse]> {
+		// For Cline CLI subagents, we want to parse and process the command to ensure flags are correct
+		command = transformClineCommand(command)
+
 		Logger.info("IS_TEST: " + isInTestMode())
 
 		// Check if we're in test mode
