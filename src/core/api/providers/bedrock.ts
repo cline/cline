@@ -11,7 +11,7 @@ import {
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
-import { version as extensionVersion } from "../../../../package.json"
+import { ExtensionRegistryInfo } from "@/registry"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToR1Format } from "../transform/r1-format"
@@ -265,7 +265,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			}
 		}
 		return new BedrockRuntimeClient({
-			defaultUserAgentProvider: () => Promise.resolve([["cline", extensionVersion]]),
+			defaultUserAgentProvider: () => Promise.resolve([["cline", ExtensionRegistryInfo.version]]),
 			region: this.getRegion(),
 			...auth,
 			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
