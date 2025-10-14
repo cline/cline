@@ -278,6 +278,7 @@ func NewTaskSendCommand() *cobra.Command {
 		mode    string
 		approve bool
 		deny    bool
+		yolo    bool
 	)
 
 	cmd := &cobra.Command{
@@ -328,6 +329,24 @@ func NewTaskSendCommand() *cobra.Command {
 				return fmt.Errorf("failed to check if message can be sent: %w", err)
 			}
 
+			// Process yolo flag and apply settings
+			if yolo {
+				settings := []string{"yolo_mode_toggled=true"}
+				parsedSettings, secrets, err := task.ParseTaskSettings(settings)
+				if err != nil {
+					return fmt.Errorf("failed to parse settings: %w", err)
+				}
+
+				configManager, err := config.NewManager(ctx, taskManager.GetCurrentInstance())
+				if err != nil {
+					return fmt.Errorf("failed to create config manager: %w", err)
+				}
+
+				if err := configManager.UpdateSettings(ctx, parsedSettings, secrets); err != nil {
+					return fmt.Errorf("failed to apply settings: %w", err)
+				}
+			}
+
 			if mode != "" {
 				if err := taskManager.SetModeAndSendMessage(ctx, mode, message, images, files); err != nil {
 					return fmt.Errorf("failed to set mode and send message: %w", err)
@@ -361,6 +380,8 @@ func NewTaskSendCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
 	cmd.Flags().BoolVarP(&approve, "approve", "a", false, "approve pending request")
 	cmd.Flags().BoolVarP(&deny, "deny", "d", false, "deny pending request")
+	cmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
+	cmd.Flags().BoolVar(&yolo, "no-interactive", false, "enable yolo mode (non-interactive)")
 
 	return cmd
 }
