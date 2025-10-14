@@ -161,6 +161,15 @@
 									"provider-config/anthropic",
 									"provider-config/claude-code",
 									"provider-config/openai",
+									"provider-config/openrouter",
+									"provider-config/cerebras",
+									"provider-config/deepseek",
+									"provider-config/groq",
+									"provider-config/xai-grok",
+									"provider-config/mistral-ai",
+									"provider-config/doubao",
+									"provider-config/fireworks",
+									"provider-config/zai",
 									"provider-config/gcp-vertex-ai",
 									{
 										"group": "AWS Bedrock",
@@ -170,20 +179,6 @@
 											"provider-config/aws-bedrock/cli-profile"
 										]
 									}
-								]
-							},
-							{
-								"group": "Alternative Providers",
-								"pages": [
-									"provider-config/openrouter",
-									"provider-config/cerebras",
-									"provider-config/deepseek",
-									"provider-config/groq",
-									"provider-config/xai-grok",
-									"provider-config/mistral-ai",
-									"provider-config/doubao",
-									"provider-config/fireworks",
-									"provider-config/zai"
 								]
 							},
 							{
