@@ -30,13 +30,20 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		transformed.planModeApiProvider = "openai"
 		transformed.actModeApiProvider = "openai"
 
-		if (openAiSettings.openAiBaseUrl !== undefined) {
+		if (openAiSettings.openAiBaseUrl !== undefined && openAiSettings.openAiBaseUrl !== "") {
 			transformed.openAiBaseUrl = openAiSettings.openAiBaseUrl
 		}
 		if (openAiSettings.openAiHeaders !== undefined) {
-			transformed.openAiHeaders = openAiSettings.openAiHeaders
+			// Filter out empty string values from headers
+			const filteredHeaders = Object.fromEntries(
+				Object.entries(openAiSettings.openAiHeaders).filter(([_, value]) => value !== ""),
+			)
+			// Only set if there are any non-empty headers
+			if (Object.keys(filteredHeaders).length > 0) {
+				transformed.openAiHeaders = filteredHeaders
+			}
 		}
-		if (openAiSettings.azureApiVersion !== undefined) {
+		if (openAiSettings.azureApiVersion !== undefined && openAiSettings.azureApiVersion !== "") {
 			transformed.azureApiVersion = openAiSettings.azureApiVersion
 		}
 	}
@@ -47,7 +54,7 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		transformed.planModeApiProvider = "bedrock"
 		transformed.actModeApiProvider = "bedrock"
 
-		if (awsBedrockSettings.awsRegion !== undefined) {
+		if (awsBedrockSettings.awsRegion !== undefined && awsBedrockSettings.awsRegion !== "") {
 			transformed.awsRegion = awsBedrockSettings.awsRegion
 		}
 		if (awsBedrockSettings.awsUseCrossRegionInference !== undefined) {
@@ -59,7 +66,7 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		if (awsBedrockSettings.awsBedrockUsePromptCache !== undefined) {
 			transformed.awsBedrockUsePromptCache = awsBedrockSettings.awsBedrockUsePromptCache
 		}
-		if (awsBedrockSettings.awsBedrockEndpoint !== undefined) {
+		if (awsBedrockSettings.awsBedrockEndpoint !== undefined && awsBedrockSettings.awsBedrockEndpoint !== "") {
 			transformed.awsBedrockEndpoint = awsBedrockSettings.awsBedrockEndpoint
 		}
 	}
