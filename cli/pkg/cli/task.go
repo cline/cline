@@ -290,6 +290,12 @@ func NewTaskSendCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
+			// Check if an instance exists when no address specified
+			if address == "" && global.Clients.GetRegistry().GetDefaultInstance() == "" {
+				fmt.Println("No instances available for sending messages")
+				return nil
+			}
+
 			// Get content from both args and stdin
 			message, err := getContentFromStdinAndArgs(args)
 			if err != nil {
