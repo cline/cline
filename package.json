@@ -198,6 +198,11 @@
 				"command": "cline.reconstructTaskHistory",
 				"title": "Reconstruct Task History",
 				"category": "Cline"
+			},
+			{
+				"command": "cline.testOtelSettings",
+				"title": "Test Otel Settings",
+				"category": "Cline"
 			}
 		],
 		"keybindings": [

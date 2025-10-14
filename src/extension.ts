@@ -82,12 +82,6 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand(commands.AbortCommit, () => {
-			abortCommitGeneration()
-		}),
-	)
-
 	// Register test command for OpenTelemetry settings (for testing precedence)
 	registerTestOtelSettingsCommand(context)
 

@@ -1,5 +1,7 @@
 import { RemoteConfig } from "@shared/remote-config/schema"
+import { clearOtelConfigCache } from "@shared/services/config/otel-config"
 import { GlobalStateAndSettings } from "@shared/storage/state-keys"
+import { telemetryService } from "@/services/telemetry"
 import { StateManager } from "../StateManager"
 
 /**
@@ -134,4 +136,12 @@ export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
 	for (const [key, value] of Object.entries(transformed)) {
 		stateManager.setRemoteConfigField(key as keyof GlobalStateAndSettings, value)
 	}
+
+	// Reinitialize telemetry providers with new config
+	// Fire-and-forget to avoid blocking remote config application
+	clearOtelConfigCache()
+	telemetryService.reinitializeAllProviders().catch((error) => {
+		console.error("[RemoteConfig] Failed to reinitialize telemetry providers:", error)
+		// Continue with old config on error
+	})
 }
