@@ -347,4 +347,3 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 	} catch (error) 
 		console.error("Failed to update settings:", error)
 		throw error
-}

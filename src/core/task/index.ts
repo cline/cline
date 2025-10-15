@@ -1107,7 +1107,12 @@ export class Task {
 		// For Cline CLI subagents, we want to parse and process the command to ensure flags are correct
 		// First we detect if this is a subagent command to use appropriate output limit
 		const isSubagent = isSubagentCommand(command)
-		command = transformClineCommand(command)
+
+		if (transformClineCommand(command) != command && isSubagent) {
+			command = transformClineCommand(command)
+		}
+		// Start timing for subagent telemetry
+		const subAgentStartTime = isSubagent ? performance.now() : 0
 
 		Logger.info("IS_TEST: " + isInTestMode())
 
@@ -1380,6 +1385,12 @@ export class Task {
 					`Command cancelled. ${result.length > 0 ? `\nOutput captured before cancellation:\n${result}` : ""}`,
 				),
 			]
+		}
+		
+		// Capture subagent telemetry if this was a subagent command
+		if (isSubagent && subAgentStartTime > 0) {
+			const durationMs = Math.round(performance.now() - subAgentStartTime)
+			telemetryService.captureSubagentExecution(this.ulid, durationMs, outputLines.length, completed)
 		}
 
 		if (userFeedback) {
