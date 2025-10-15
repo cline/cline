@@ -34,8 +34,8 @@ const WelcomeView = memo(() => {
 
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col">
-			<div className="h-full px-5 overflow-auto">
-				<h2>Hi, I'm Cline</h2>
+			<div className="h-full px-5 overflow-auto flex flex-col gap-2.5">
+				<h2 className="text-lg font-semibold">Hi, I'm Cline</h2>
 				<div className="flex justify-center my-5">
 					<ClineLogoWhite className="size-16" />
 				</div>

@@ -55,7 +55,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		checkpointManagerErrorMessage,
 		clineMessages,
 		navigateToSettings,
-		useAutoCondense,
 		mode,
 		expandTaskHeader: isTaskExpanded,
 		setExpandTaskHeader: setIsTaskExpanded,
@@ -114,7 +113,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					<div className="flex justify-between items-center">
 						{isTaskExpanded ? <ChevronDownIcon size="16" /> : <ChevronRightIcon size="16" />}
 						{isTaskExpanded && (
-							<div className="mt-1 max-h-3 flex justify-end flex-wrap cursor-pointer opacity-80">
+							<div className="mt-1 max-h-3 flex justify-end flex-wrap cursor-pointer opacity-80 gap-2 mx-2">
 								<CopyTaskButton className={BUTTON_CLASS} taskText={task.text} />
 								<DeleteTaskButton
 									className={BUTTON_CLASS}
@@ -130,17 +129,17 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</div>
 					<div className="flex items-center select-none grow min-w-0 gap-1 justify-between">
 						{!isTaskExpanded && (
-							<div className="text-sm whitespace-nowrap overflow-hidden text-ellipsis grow min-w-0">
-								<span className="ph-no-capture">{highlightText(task.text, false)}</span>
+							<div className="whitespace-nowrap overflow-hidden text-ellipsis grow min-w-0">
+								<span className="ph-no-capture text-base">{highlightText(task.text, false)}</span>
 							</div>
 						)}
 					</div>
 					<div className="inline-flex items-center justify-end select-none shrink-0">
 						{isCostAvailable && (
 							<div
-								className="mr-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"
+								className="mx-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"
 								id="price-tag">
-								<span className="text-xs">${totalCost?.toFixed(4)}</span>
+								<span className="text-sm">${totalCost?.toFixed(4)}</span>
 							</div>
 						)}
 						<NewTaskButton className={BUTTON_CLASS} onClick={onClose} />
@@ -150,10 +149,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				{/* Expand/Collapse Task Details */}
 				{isTaskExpanded && (
 					<div className="flex flex-col break-words" key={`task-details-${currentTaskItem?.id}`}>
-						<div className="whitespace-nowrap overflow-hidden text-ellipsis grow min-w-0 max-h-20 overflow-y-auto scroll-smooth">
+						<div className="whitespace-nowrap overflow-hidden text-ellipsis grow min-w-0 max-h-25 overflow-y-auto scroll-smooth">
 							<div
 								className={
-									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer mt-1"
+									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-base cursor-pointer my-1 pt-1"
 								}>
 								{highlightedText}
 							</div>
