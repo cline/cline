@@ -307,8 +307,18 @@ func (m *Manager) CheckSendEnabled(ctx context.Context) error {
 		return ErrTaskBusy
 	}
 
-	// All ask messages allow sending
+	// All ask messages allow sending, EXCEPT command_output
 	if lastMessage.Type == types.MessageTypeAsk {
+		// Special case: command_output means command is actively streaming
+		// In the CLI, we don't want to show input during streaming output (too messy)
+		// The webview can show "Proceed While Running" button, but CLI should wait
+		if lastMessage.Ask == string(types.AskTypeCommandOutput) {
+			if global.Config.Verbose {
+				m.renderer.RenderDebug("Send disabled: command output is streaming")
+			}
+			return ErrTaskBusy
+		}
+
 		if global.Config.Verbose {
 			m.renderer.RenderDebug("Send enabled: ask message")
 		}
