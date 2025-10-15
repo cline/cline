@@ -79,12 +79,16 @@ export class VertexHandler implements ApiHandler {
 		// Claude implementation
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = !!(
-			(modelId.includes("3-7") || modelId.includes("sonnet-4") || modelId.includes("opus-4")) &&
+			(modelId.includes("3-7") ||
+				modelId.includes("sonnet-4") ||
+				modelId.includes("opus-4") ||
+				modelId.includes("haiku-4-5")) &&
 			budget_tokens !== 0
 		)
 		let stream
 
 		switch (modelId) {
+			case "claude-haiku-4-5@20251001":
 			case "claude-sonnet-4@20250514":
 			case "claude-opus-4-1@20250805":
 			case "claude-opus-4@20250514":
