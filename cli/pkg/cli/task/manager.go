@@ -693,17 +693,27 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 		case <-ctx.Done():
 			return
 		case <-sigChan:
-			// Check if input is currently being shown
-			if coordinator.IsInputAllowed() {
-				// Input form is showing - huh will handle the signal via ErrUserAborted
-				// Do nothing here, let the input handler deal with it
+			if interactive {
+				// Interactive mode: check if input is currently being shown
+				if coordinator.IsInputAllowed() {
+					// Input form is showing - huh will handle the signal via ErrUserAborted
+					// Do nothing here, let the input handler deal with it
+				} else {
+					// Streaming mode - cancel the task and stay in follow mode
+					m.renderer.RenderTaskCancelled()
+					if err := m.CancelTask(context.Background()); err != nil {
+						fmt.Printf("Error cancelling task: %v\n", err)
+					}
+					// Don't cancel main context - stay in follow mode
+				}
 			} else {
-				// Streaming mode - cancel the task and stay in follow mode
+				// Non-interactive mode: cancel task and exit command
 				m.renderer.RenderTaskCancelled()
 				if err := m.CancelTask(context.Background()); err != nil {
 					fmt.Printf("Error cancelling task: %v\n", err)
 				}
-				// Don't cancel main context - stay in follow mode
+				// Cancel main context to exit the command
+				cancel()
 			}
 		}
 	}()
