@@ -1,9 +1,9 @@
-import { cn } from "@heroui/react"
 import { TranscribeAudioRequest } from "@shared/proto/cline/dictation"
 import { EmptyRequest } from "@shared/proto/index.cline"
 import { SquareIcon, StopCircleIcon } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { DictationServiceClient } from "@/services/grpc-client"
 import { formatSeconds } from "@/utils/format"
 

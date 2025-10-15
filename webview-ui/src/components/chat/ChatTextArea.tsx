@@ -102,22 +102,6 @@ interface GitCommit {
 const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
 const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
 
-const SwitchOption = styled.div.withConfig({
-	shouldForwardProp: (prop) => !["isActive"].includes(prop),
-})<{ isActive: boolean }>`
-	padding: 2px 8px;
-	color: ${(props) => (props.isActive ? "white" : "var(--vscode-input-foreground)")};
-	z-index: 1;
-	transition: color 0.2s ease;
-	font-size: 12px;
-	width: 50%;
-	text-align: center;
-
-	&:hover {
-		background-color: ${(props) => (!props.isActive ? "var(--vscode-toolbar-hoverBackground)" : "transparent")};
-	}
-`
-
 const SwitchContainer = styled.div<{ disabled: boolean }>`
 	display: flex;
 	align-items: center;
@@ -1780,34 +1764,32 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{/* Tooltip for Plan/Act toggle remains outside the conditional rendering */}
 					<Tooltip>
 						<TooltipContent
-							className="text-xs text-description p-2 flex flex-col gap-1"
+							className="text-xs px-2 flex flex-col gap-1"
 							hidden={shownTooltipMode === null}
 							side="top">
 							{`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
-							<p className="text-description/80 text-xs">
+							<p className="text-description/80 text-xs mb-0">
 								Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
 							</p>
 						</TooltipContent>
-
 						<TooltipTrigger>
 							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
-								<SwitchOption
-									aria-checked={mode === "plan"}
-									isActive={mode === "plan"}
-									onMouseLeave={() => setShownTooltipMode(null)}
-									onMouseOver={() => setShownTooltipMode("plan")}
-									role="switch">
-									Plan
-								</SwitchOption>
-								<SwitchOption
-									aria-checked={mode === "act"}
-									isActive={mode === "act"}
-									onMouseLeave={() => setShownTooltipMode(null)}
-									onMouseOver={() => setShownTooltipMode("act")}
-									role="switch">
-									Act
-								</SwitchOption>
+								{["Plan", "Act"].map((m) => (
+									<div
+										aria-checked={mode === m.toLowerCase()}
+										// isActive={mode === m.toLowerCase()}
+										className={cn(
+											"py-0.5 px-2 z-10 text-xs w-1/2 text-center",
+											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
+											mode === m.toLowerCase() ? "bg-transparent" : "bg-toolbar-hover",
+										)}
+										onMouseLeave={() => setShownTooltipMode(null)}
+										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
+										role="switch">
+										{m}
+									</div>
+								))}
 							</SwitchContainer>
 						</TooltipTrigger>
 					</Tooltip>

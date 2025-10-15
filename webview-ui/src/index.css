@@ -15,12 +15,16 @@
 		@apply bg-background text-foreground;
 	}
 	p {
-		@apply my-0 text-base leading-5 block line-clamp-3;
+		@apply my-0 py-0 text-inherit leading-5 block line-clamp-3;
 		margin-block-start: 1em;
 		margin-block-end: 1em;
 		margin-inline-start: 0px;
 		margin-inline-end: 0px;
 		unicode-bidi: isolate;
+	}
+	span {
+		font-size: inherit;
+		color: inherit;
 	}
 	h1 {
 		font-size: var(--text-lg);

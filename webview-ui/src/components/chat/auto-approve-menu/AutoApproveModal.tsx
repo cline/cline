@@ -148,7 +148,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 								<div className="text-md font-semibold mb-1">Auto-approve Settings</div>
 							</TooltipTrigger>
 						</Tooltip>
-						<Button onClick={() => setIsVisible(false)} variant="icon">
+						<Button onClick={() => setIsVisible(false)} size="icon" variant="icon">
 							<XIcon />
 						</Button>
 					</div>

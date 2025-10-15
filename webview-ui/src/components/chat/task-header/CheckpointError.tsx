@@ -1,7 +1,8 @@
 import { Alert } from "@heroui/react"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { XIcon } from "lucide-react"
 import { useMemo, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface CheckpointErrorProps {
 	checkpointManagerErrorMessage?: string
@@ -28,7 +29,7 @@ export const CheckpointError: React.FC<CheckpointErrorProps> = ({
 	return (
 		<div className="flex items-center justify-center w-full">
 			<Alert
-				className="rounded-sm border-0 bg-(--vscode-inputValidation-errorBackground) text-(--vscode-inputValidation-errorForeground) pl-1 pr-1.5 py-1"
+				className="rounded-sm text-base h-fit bg-input-error-background text-input-error-foreground px-2 py-1 border border-foreground/30"
 				color="warning"
 				description={
 					<div className="flex gap-2">
@@ -49,16 +50,25 @@ export const CheckpointError: React.FC<CheckpointErrorProps> = ({
 					</div>
 				}
 				endContent={
-					<VSCodeButton
-						appearance="icon"
-						aria-label="Dismiss"
-						className="inline-flex opacity-100 hover:bg-transparent hover:opacity-60 p-0"
-						onClick={() => setDismissed(true)}
-						title="Dismiss Checkpoint Error">
-						<XIcon size={12} />
-					</VSCodeButton>
+					<Tooltip>
+						<TooltipContent side="left">Dismiss</TooltipContent>
+						<TooltipTrigger>
+							<Button
+								aria-label="Dismiss"
+								className="inline-flex"
+								onClick={(e) => {
+									e.preventDefault()
+									e.stopPropagation()
+									setDismissed(true)
+								}}
+								size="icon"
+								variant="icon">
+								<XIcon />
+							</Button>
+						</TooltipTrigger>
+					</Tooltip>
 				}
-				hideIconWrapper={true}
+				hideIcon={true}
 				isVisible={!dismissed}
 				title={messages.message}
 				variant="faded"

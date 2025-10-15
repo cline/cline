@@ -137,7 +137,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					<div className="inline-flex items-center justify-end select-none shrink-0">
 						{isCostAvailable && (
 							<div
-								className="mr-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"
+								className="mx-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"
 								id="price-tag">
 								<span className="text-sm">${totalCost?.toFixed(4)}</span>
 							</div>

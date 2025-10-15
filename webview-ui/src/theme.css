@@ -14,6 +14,8 @@
 	--color-input-background: var(--vscode-input-background);
 	--color-input-border: var(--vscode-input-border);
 	--color-input-placeholder: var(--vscode-input-placeholderForeground);
+	--color-input-error-background: var(--vscode-inputValidation-errorBackground);
+	--color-input-error-foreground: var(--vscode-inputValidation-errorForeground);
 	--color-selection: var(--vscode-list-activeSelectionBackground);
 	--color-selection-foreground: var(--vscode-list-activeSelectionForeground);
 	--color-button-background: var(--vscode-button-background);
@@ -51,7 +53,7 @@
 	--text-lg: calc(1.5 * var(--vscode-font-size));
 	--text-md: calc(1.25 * var(--vscode-font-size));
 	--text-base: var(--vscode-font-size);
-	--text-sm: calc(0.9 * var(--vscode-font-size));
+	--text-sm: calc(0.85 * var(--vscode-font-size));
 	--text-xs: calc(0.75 * var(--vscode-font-size));
 	--text-xxs: calc(0.5 * var(--vscode-font-size));
 }
