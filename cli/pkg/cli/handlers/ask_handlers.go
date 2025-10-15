@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/cline/cli/pkg/cli/clerror"
-	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/cli/pkg/cli/output"
+	"github.com/cline/cli/pkg/cli/types"
 )
 
 // AskHandler handles ASK type messages
@@ -125,7 +125,8 @@ func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayC
 // showApprovalHint displays a hint in non-interactive mode about how to approve/deny
 func (h *AskHandler) showApprovalHint(dc *DisplayContext) {
 	if !dc.IsInteractive {
-		output.Printf("\n\033[90mUse \033[0mcline task send --approve\033[90m or \033[0m--deny\033[90m to respond\033[0m\n")
+		output.Printf("\n\033[90mCline is requesting approval to use this tool\033[0m\n")
+		output.Printf("\033[90mUse \033[0mcline task send --approve\033[90m or \033[0m--deny\033[90m to respond\033[0m\n")
 	}
 }
 
