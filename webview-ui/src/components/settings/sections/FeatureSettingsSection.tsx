@@ -32,7 +32,10 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		hooksEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
+		platform,
 	} = useExtensionState()
+
+	const isMacOS = platform === "darwin"
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
 
@@ -68,87 +71,91 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 			{renderSectionHeader("features")}
 			<Section>
 				<div style={{ marginBottom: 20 }}>
-					{/* Subagents - Featured at top */}
-					<div
-						className="relative p-3 mb-3 rounded-md"
-						id="subagents-section"
-						style={{
-							border: "1px solid var(--vscode-widget-border)",
-							backgroundColor: "var(--vscode-list-hoverBackground)",
-						}}>
+					{/* Subagents - Only show on macOS */}
+					{isMacOS && (
 						<div
-							className="absolute -top-2 -right-2 px-2 py-0.5 rounded text-xs font-semibold"
+							className="relative p-3 mb-3 rounded-md"
+							id="subagents-section"
 							style={{
-								backgroundColor: "var(--vscode-button-secondaryBackground)",
-								color: "var(--vscode-button-secondaryForeground)",
+								border: "1px solid var(--vscode-widget-border)",
+								backgroundColor: "var(--vscode-list-hoverBackground)",
 							}}>
-							NEW
-						</div>
-						{!isClineCliInstalled && (
 							<div
-								className="mt-1.5 mb-2 px-2 pt-0.5 pb-1.5 rounded"
+								className="absolute -top-2 -right-2 px-2 py-0.5 rounded text-xs font-semibold"
 								style={{
-									backgroundColor: "color-mix(in srgb, var(--vscode-sideBar-background) 99%, black)",
+									backgroundColor: "var(--vscode-button-secondaryBackground)",
+									color: "var(--vscode-button-secondaryForeground)",
 								}}>
-								<p
-									className="text-xs mb-2 flex items-start"
-									style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
-									<span
-										className="codicon codicon-warning mr-1"
-										style={{ fontSize: "12px", marginTop: "1px", flexShrink: 0 }}></span>
-									<span>
-										Cline for CLI is required for subagents. Install it with:
-										<code
-											className="ml-1 px-1 rounded"
-											style={{
-												backgroundColor: "var(--vscode-editor-background)",
-												color: "var(--vscode-foreground)",
-												opacity: 0.9,
-											}}>
-											npm install -g cline
-										</code>
-									</span>
-								</p>
-								<VSCodeButton
-									appearance="secondary"
-									onClick={async () => {
-										try {
-											await StateServiceClient.installClineCli(EmptyRequest.create())
-										} catch (error) {
-											console.error("Failed to initiate CLI installation:", error)
-										}
-									}}
+								NEW
+							</div>
+							{!isClineCliInstalled && (
+								<div
+									className="mt-1.5 mb-2 px-2 pt-0.5 pb-1.5 rounded"
 									style={{
-										transform: "scale(0.85)",
-										transformOrigin: "left center",
-										marginLeft: "-2px",
+										backgroundColor: "color-mix(in srgb, var(--vscode-sideBar-background) 99%, black)",
 									}}>
-									Install Now
-								</VSCodeButton>
-							</div>
-						)}
-						<VSCodeCheckbox
-							checked={subagentsEnabled}
-							disabled={!isClineCliInstalled}
-							onChange={(e: any) => {
-								const checked = e.target.checked === true
-								updateSetting("subagentsEnabled", checked)
-							}}>
-							<span className="font-semibold">Enable Subagents</span>
-						</VSCodeCheckbox>
-						<p className="text-xs mt-1 mb-0">
-							<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
-							<span className="text-description">
-								Allows Cline to spawn subprocesses to handle focused tasks like exploring large codebases, keeping
-								your main context clean.
-							</span>
-						</p>
-						{subagentsEnabled && (
-							<div className="mt-3">
-								<SubagentOutputLineLimitSlider />
-							</div>
-						)}
-					</div>
+									<p
+										className="text-xs mb-2 flex items-start"
+										style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
+										<span
+											className="codicon codicon-warning mr-1"
+											style={{ fontSize: "12px", marginTop: "1px", flexShrink: 0 }}></span>
+										<span>
+											Cline for CLI is required for subagents. Install it with:
+											<code
+												className="ml-1 px-1 rounded"
+												style={{
+													backgroundColor: "var(--vscode-editor-background)",
+													color: "var(--vscode-foreground)",
+													opacity: 0.9,
+												}}>
+												npm install -g cline
+											</code>
+										</span>
+									</p>
+									<VSCodeButton
+										appearance="secondary"
+										onClick={async () => {
+											try {
+												await StateServiceClient.installClineCli(EmptyRequest.create())
+											} catch (error) {
+												console.error("Failed to initiate CLI installation:", error)
+											}
+										}}
+										style={{
+											transform: "scale(0.85)",
+											transformOrigin: "left center",
+											marginLeft: "-2px",
+										}}>
+										Install Now
+									</VSCodeButton>
+								</div>
+							)}
+							<VSCodeCheckbox
+								checked={subagentsEnabled}
+								disabled={!isClineCliInstalled}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									updateSetting("subagentsEnabled", checked)
+								}}>
+								<span className="font-semibold">
+									{subagentsEnabled ? "Subagents Enabled" : "Enable Subagents"}
+								</span>
+							</VSCodeCheckbox>
+							<p className="text-xs mt-1 mb-0">
+								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
+								<span className="text-description">
+									Allows Cline to spawn subprocesses to handle focused tasks like exploring large codebases,
+									keeping your main context clean.
+								</span>
+							</p>
+							{subagentsEnabled && (
+								<div className="mt-3">
+									<SubagentOutputLineLimitSlider />
+								</div>
+							)}
+						</div>
+					)}
 
 					<div>
 						<VSCodeCheckbox

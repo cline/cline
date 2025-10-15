@@ -10,9 +10,11 @@ import { getAsVar, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
 export const CURRENT_CLI_BANNER_VERSION = 1
 
 export const CliInstallBanner: React.FC = () => {
-	const { navigateToSettings, subagentsEnabled } = useExtensionState()
+	const { navigateToSettings, subagentsEnabled, platform } = useExtensionState()
 	const [isCopied, setIsCopied] = useState(false)
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
+
+	const isMacOS = platform === "darwin"
 
 	// Poll for CLI installation status while the component is mounted
 	useEffect(() => {
@@ -100,12 +102,20 @@ export const CliInstallBanner: React.FC = () => {
 			}}>
 			<h4 className="m-0 flex items-center gap-2" style={{ paddingRight: "24px" }}>
 				<Terminal className="w-4 h-4" />
-				Cline for CLI is here!
+				{isMacOS ? "Cline for CLI is here!" : "Cline CLI Information"}
 			</h4>
 			<p className="m-0">
-				Install to use Cline directly in your terminal and enable subagent capabilities. Cline can spawn{" "}
-				<code>cline</code> commands to handle focused tasks like exploring large codebases for information. This keeps
-				your main context window clean by running these operations in separate subprocesses.
+				{isMacOS ? (
+					<>
+						Install to use Cline directly in your terminal and enable subagent capabilities. Cline can spawn{" "}
+						<code>cline</code> commands to handle focused tasks like exploring large codebases for information. This
+						keeps your main context window clean by running these operations in separate subprocesses.
+					</>
+				) : (
+					<>
+						Cline CLI is available for Mac OS users now! coming <code>soon</code> to other platforms.
+					</>
+				)}
 			</p>
 			<div className="flex flex-col gap-2 my-1">
 				<div
@@ -124,30 +134,56 @@ export const CliInstallBanner: React.FC = () => {
 						<span className={`codicon ${isCopied ? "codicon-check" : "codicon-copy"}`}></span>
 					</VSCodeButton>
 				</div>
-				<div className="flex gap-2">
-					<VSCodeButton
-						appearance="primary"
-						className="flex-1"
-						disabled={isClineCliInstalled}
-						onClick={handleInstallClick}>
-						{isClineCliInstalled ? (
-							<>
-								<span className="codicon codicon-check" style={{ marginRight: "4px" }}></span>
-								Installed
-							</>
-						) : (
-							"Install"
-						)}
-					</VSCodeButton>
-					<VSCodeButton
-						appearance="primary"
-						className="flex-1"
-						disabled={subagentsEnabled}
-						onClick={handleEnableSubagents}
-						title="Configure Subagents">
-						Enable Subagents
-					</VSCodeButton>
-				</div>
+				{isMacOS ? (
+					<div className="flex gap-2">
+						<VSCodeButton
+							appearance="primary"
+							className="flex-1"
+							disabled={isClineCliInstalled}
+							onClick={handleInstallClick}>
+							{isClineCliInstalled ? (
+								<>
+									<span className="codicon codicon-check" style={{ marginRight: "4px" }}></span>
+									Installed
+								</>
+							) : (
+								"Install"
+							)}
+						</VSCodeButton>
+						<VSCodeButton
+							appearance="primary"
+							className="flex-1"
+							disabled={subagentsEnabled}
+							onClick={handleEnableSubagents}
+							title="Configure Subagents">
+							Enable Subagents
+						</VSCodeButton>
+					</div>
+				) : (
+					<div className="flex gap-2">
+						<VSCodeButton
+							appearance="primary"
+							className="flex-1"
+							disabled={isClineCliInstalled}
+							onClick={handleInstallClick}>
+							{isClineCliInstalled ? (
+								<>
+									<span className="codicon codicon-check" style={{ marginRight: "4px" }}></span>
+									Installed
+								</>
+							) : (
+								"Install CLI"
+							)}
+						</VSCodeButton>
+						<VSCodeButton
+							appearance="secondary"
+							className="flex-1"
+							disabled
+							title="Cline CLI & subagents are only available on macOS">
+							Subagents (macOS only)
+						</VSCodeButton>
+					</div>
+				)}
 			</div>
 
 			{/* Close button */}
