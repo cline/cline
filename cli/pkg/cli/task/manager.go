@@ -699,28 +699,32 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-sigChan:
-			if interactive {
-				// Interactive mode (task chat)
-				// Check if input is currently being shown
-				if coordinator.IsInputAllowed() {
-					// Input form is showing - huh will handle the signal via ErrUserAborted
-					// Do nothing here, let the input handler deal with it
-				} else {
-					// Streaming mode - cancel the task and stay in follow mode
-					m.renderer.RenderTaskCancelled()
-					if err := m.CancelTask(context.Background()); err != nil {
-						fmt.Printf("Error cancelling task: %v\n", err)
+		defer signal.Stop(sigChan) // Clean up signal handler when goroutine exits
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-sigChan:
+				if interactive {
+					// Interactive mode (task chat)
+					// Check if input is currently being shown
+					if coordinator.IsInputAllowed() {
+						// Input form is showing - huh will handle the signal via ErrUserAborted
+						// Do nothing here, let the input handler deal with it
+					} else {
+						// Streaming mode - cancel the task and stay in follow mode
+						m.renderer.RenderTaskCancelled()
+						if err := m.CancelTask(context.Background()); err != nil {
+							fmt.Printf("Error cancelling task: %v\n", err)
+						}
+						// Don't cancel main context - stay in follow mode
 					}
-					// Don't cancel main context - stay in follow mode
+				} else {
+					// Non-interactive mode (task view --follow)
+					// Just exit without canceling the task
+					cancel()
+					return // Exit the loop after canceling in non-interactive mode
 				}
-			} else {
-				// Non-interactive mode (task view --follow)
-				// Just exit without canceling the task
-				cancel()
 			}
 		}
 	}()
