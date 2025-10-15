@@ -116,6 +116,12 @@ type TaskParams = {
 }
 
 export class Task {
+	// Constants
+	private static readonly STANDALONE_TERMINAL_MODULE_PATH = path.join(
+		__dirname,
+		"../standalone/runtime-files/vscode/enhanced-terminal.js",
+	)
+
 	// Core task variables
 	readonly taskId: string
 	readonly ulid: string
@@ -213,8 +219,7 @@ export class Task {
 
 		if (terminalExecutionMode === "backgroundExec") {
 			try {
-				const modulePath = path.join(__dirname, "../standalone/runtime-files/vscode/enhanced-terminal.js")
-				const { StandaloneTerminalManager } = require(modulePath) as {
+				const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
 					StandaloneTerminalManager?: new () => TerminalManager
 				}
 				if (StandaloneTerminalManager) {
