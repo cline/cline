@@ -104,6 +104,7 @@ type TaskParams = {
 	shellIntegrationTimeout: number
 	terminalReuseEnabled: boolean
 	terminalOutputLineLimit: number
+	subagentTerminalOutputLineLimit: number
 	defaultTerminalProfile: string
 	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	cwd: string
@@ -192,6 +193,7 @@ export class Task {
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
 			terminalOutputLineLimit,
+			subagentTerminalOutputLineLimit,
 			defaultTerminalProfile,
 			vscodeTerminalExecutionMode,
 			cwd,
@@ -252,6 +254,7 @@ export class Task {
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
+		this.terminalManager.setSubagentTerminalOutputLineLimit(subagentTerminalOutputLineLimit)
 		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
 		this.urlContentFetcher = new UrlContentFetcher(controller.context)
@@ -1871,7 +1874,7 @@ export class Task {
 			} catch {}
 		}
 
-		if (this.taskState.consecutiveMistakeCount >= 3) {
+		if (this.taskState.consecutiveMistakeCount >= this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
 			const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 			if (autoApprovalSettings.enabled && autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
