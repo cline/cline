@@ -926,8 +926,6 @@ export const ChatRowContent = memo(
 			const showCancelButton =
 				isCommandExecuting && typeof onCancelCommand === "function" && vscodeTerminalExecutionMode === "backgroundExec"
 
-
-
 			// Check if this is a Cline subagent command
 			const isSubagentCommand = command.trim().startsWith("cline ")
 			let subagentPrompt: string | undefined
@@ -969,205 +967,203 @@ export const ChatRowContent = memo(
 
 			const commandHeader = (
 				<div style={headerStyle}>
-					{icon}
 					{displayIcon}
-					{title}
 					{displayTitle}
 				</div>
 			)
-			
 
-	return (
-		<>
-			{commandHeader}
-			<div
-				style={{
-					borderRadius: 6,
-					border: "1px solid var(--vscode-editorGroup-border)",
-					overflow: "visible",
-					backgroundColor: isExpanded ? CHAT_ROW_EXPANDED_BG_COLOR : CHAT_ROW_COLLAPSED_BG_COLOR,
-					transition: "all 0.3s ease-in-out",
-				}}>
-				{command && (
+			return (
+				<>
+					{commandHeader}
 					<div
-						onClick={handleToggle}
 						style={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "space-between",
-							padding: "8px 10px",
+							borderRadius: 6,
+							border: "1px solid var(--vscode-editorGroup-border)",
+							overflow: "visible",
 							backgroundColor: isExpanded ? CHAT_ROW_EXPANDED_BG_COLOR : CHAT_ROW_COLLAPSED_BG_COLOR,
-							borderBottom: isExpanded ? "1px solid var(--vscode-editorGroup-border)" : "none",
-							borderTopLeftRadius: "6px",
-							borderTopRightRadius: "6px",
-							borderBottomLeftRadius: isExpanded ? "0" : "6px",
-							borderBottomRightRadius: isExpanded ? "0" : "6px",
-							cursor: "pointer",
+							transition: "all 0.3s ease-in-out",
 						}}>
-					<div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0 }}>
-						<div
-							style={{
-								width: "8px",
-								height: "8px",
-								borderRadius: "50%",
-								backgroundColor: isCommandExecuting
-									? successColor
-									: "var(--vscode-descriptionForeground)",
-								animation: isCommandExecuting ? "pulse 2s ease-in-out infinite" : "none",
-								flexShrink: 0,
-							}}
-						/>
-						{isExpanded ? (
-							<span
+						{command && (
+							<div
+								onClick={handleToggle}
 								style={{
-									color: isCommandExecuting ? successColor : "var(--vscode-descriptionForeground)",
-									fontWeight: 500,
-									fontSize: "13px",
-									flexShrink: 0,
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "space-between",
+									padding: "8px 10px",
+									backgroundColor: isExpanded ? CHAT_ROW_EXPANDED_BG_COLOR : CHAT_ROW_COLLAPSED_BG_COLOR,
+									borderBottom: isExpanded ? "1px solid var(--vscode-editorGroup-border)" : "none",
+									borderTopLeftRadius: "6px",
+									borderTopRightRadius: "6px",
+									borderBottomLeftRadius: isExpanded ? "0" : "6px",
+									borderBottomRightRadius: isExpanded ? "0" : "6px",
+									cursor: "pointer",
 								}}>
-								{isCommandExecuting ? "Running" : "Completed"}
-							</span>
-						) : isSubagentCommand && subagentPrompt ? (
-							<span
-								className="ph-no-capture"
-								style={{
-									color: "var(--vscode-foreground)",
-									fontSize: "13px",
-									opacity: 0.8,
-									whiteSpace: "nowrap",
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									fontFamily: "var(--vscode-editor-font-family)",
-								}}>
-								{subagentPrompt}
-							</span>
-						) : (
-							<span
-								className="ph-no-capture"
-								style={{
-									color: "var(--vscode-foreground)",
-									fontSize: "13px",
-									opacity: 0.8,
-									whiteSpace: "nowrap",
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									fontFamily: "var(--vscode-editor-font-family)",
-								}}>
-								{command}
-							</span>
-						)}
-					</div>
-						<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-							{showCancelButton && (
-								<button
-									onClick={(e) => {
-										e.stopPropagation()
-										if (vscodeTerminalExecutionMode === "backgroundExec") {
-											onCancelCommand?.()
-										} else {
-											alert(
-												"This command is running in the VSCode terminal. You can manually stop it using Ctrl+C in the terminal, or switch to Background Execution mode in settings for cancellable commands.",
-											)
-										}
-									}}
-									onMouseEnter={(e) => {
-										e.currentTarget.style.background = "var(--vscode-button-secondaryHoverBackground)"
-									}}
-									onMouseLeave={(e) => {
-										e.currentTarget.style.background = "var(--vscode-button-secondaryBackground)"
-									}}
-									style={{
-										background: "var(--vscode-button-secondaryBackground)",
-										color: "var(--vscode-button-secondaryForeground)",
-										border: "none",
-										borderRadius: "2px",
-										padding: "4px 10px",
-										fontSize: "12px",
-										cursor: "pointer",
-										fontFamily: "inherit",
-									}}>
-									{vscodeTerminalExecutionMode === "backgroundExec" ? "cancel" : "stop"}
-								</button>
-							)}
-							<span
-								className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}
-								style={{
-									fontSize: "16px",
-									color: "var(--vscode-descriptionForeground)",
-									padding: "2px",
-								}}
-							/>
-						</div>
-					</div>
-				)}
-				{isSubagentCommand && subagentPrompt && isExpanded && (
-					<div style={{ padding: "10px", borderBottom: "1px solid var(--vscode-editorGroup-border)" }}>
-						<div style={{ marginBottom: "8px" }}>
-							<strong>Prompt:</strong>{" "}
-							<span className="ph-no-capture" style={{ fontFamily: "var(--vscode-editor-font-family)" }}>
-								{subagentPrompt}
-							</span>
-						</div>
-						{subagentWorkdir && (
-							<div style={{ marginBottom: 0 }}>
-								<strong>Directory:</strong> <code>{subagentWorkdir}</code>
+								<div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0 }}>
+									<div
+										style={{
+											width: "8px",
+											height: "8px",
+											borderRadius: "50%",
+											backgroundColor: isCommandExecuting
+												? successColor
+												: "var(--vscode-descriptionForeground)",
+											animation: isCommandExecuting ? "pulse 2s ease-in-out infinite" : "none",
+											flexShrink: 0,
+										}}
+									/>
+									{isExpanded ? (
+										<span
+											style={{
+												color: isCommandExecuting ? successColor : "var(--vscode-descriptionForeground)",
+												fontWeight: 500,
+												fontSize: "13px",
+												flexShrink: 0,
+											}}>
+											{isCommandExecuting ? "Running" : "Completed"}
+										</span>
+									) : isSubagentCommand && subagentPrompt ? (
+										<span
+											className="ph-no-capture"
+											style={{
+												color: "var(--vscode-foreground)",
+												fontSize: "13px",
+												opacity: 0.8,
+												whiteSpace: "nowrap",
+												overflow: "hidden",
+												textOverflow: "ellipsis",
+												fontFamily: "var(--vscode-editor-font-family)",
+											}}>
+											{subagentPrompt}
+										</span>
+									) : (
+										<span
+											className="ph-no-capture"
+											style={{
+												color: "var(--vscode-foreground)",
+												fontSize: "13px",
+												opacity: 0.8,
+												whiteSpace: "nowrap",
+												overflow: "hidden",
+												textOverflow: "ellipsis",
+												fontFamily: "var(--vscode-editor-font-family)",
+											}}>
+											{command}
+										</span>
+									)}
+								</div>
+								<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+									{showCancelButton && (
+										<button
+											onClick={(e) => {
+												e.stopPropagation()
+												if (vscodeTerminalExecutionMode === "backgroundExec") {
+													onCancelCommand?.()
+												} else {
+													// For regular terminal mode, show a message
+													alert(
+														"This command is running in the VSCode terminal. You can manually stop it using Ctrl+C in the terminal, or switch to Background Execution mode in settings for cancellable commands.",
+													)
+												}
+											}}
+											onMouseEnter={(e) => {
+												e.currentTarget.style.background = "var(--vscode-button-secondaryHoverBackground)"
+											}}
+											onMouseLeave={(e) => {
+												e.currentTarget.style.background = "var(--vscode-button-secondaryBackground)"
+											}}
+											style={{
+												background: "var(--vscode-button-secondaryBackground)",
+												color: "var(--vscode-button-secondaryForeground)",
+												border: "none",
+												borderRadius: "2px",
+												padding: "4px 10px",
+												fontSize: "12px",
+												cursor: "pointer",
+												fontFamily: "inherit",
+											}}>
+											{vscodeTerminalExecutionMode === "backgroundExec" ? "cancel" : "stop"}
+										</button>
+									)}
+									<span
+										className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}
+										style={{
+											fontSize: "16px",
+											color: "var(--vscode-descriptionForeground)",
+											padding: "2px",
+										}}
+									/>
+								</div>
 							</div>
 						)}
+						{isSubagentCommand && subagentPrompt && isExpanded && (
+							<div style={{ padding: "10px", borderBottom: "1px solid var(--vscode-editorGroup-border)" }}>
+								<div style={{ marginBottom: "8px" }}>
+									<strong>Prompt:</strong>{" "}
+									<span className="ph-no-capture" style={{ fontFamily: "var(--vscode-editor-font-family)" }}>
+										{subagentPrompt}
+									</span>
+								</div>
+								{subagentWorkdir && (
+									<div style={{ marginBottom: 0 }}>
+										<strong>Directory:</strong> <code>{subagentWorkdir}</code>
+									</div>
+								)}
+							</div>
+						)}
+						{output.length > 0 && (
+							<div style={{ width: "100%" }}>
+								<div
+									onClick={handleToggle}
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "4px",
+										width: "100%",
+										justifyContent: "flex-start",
+										cursor: "pointer",
+										padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
+									}}>
+									<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
+									<span style={{ fontSize: "0.8em" }}>
+										{isSubagentCommand ? "Subagent Output" : "Command Output"}
+									</span>
+								</div>
+							</div>
+						)}
+						{isExpanded && !isSubagentCommand && (
+							<div style={{ opacity: 0.6, backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
+								<div style={{ backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
+									<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
+								</div>
+							</div>
+						)}
+						{output.length > 0 && (
+							<CommandOutput
+								isContainerExpanded={isExpanded}
+								isOutputFullyExpanded={isOutputFullyExpanded}
+								onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
+								output={output}
+							/>
+						)}
 					</div>
-				)}
-				{output.length > 0 && (
-					<div style={{ width: "100%" }}>
+					{requestsApproval && (
 						<div
-							onClick={handleToggle}
 							style={{
 								display: "flex",
 								alignItems: "center",
-								gap: "4px",
-								width: "100%",
-								justifyContent: "flex-start",
-								cursor: "pointer",
-								padding: `2px 8px ${isExpanded ? 0 : 8}px 8px`,
+								gap: 10,
+								padding: 8,
+								fontSize: "12px",
+								color: "var(--vscode-editorWarning-foreground)",
 							}}>
-							<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"}`}></span>
-							<span style={{ fontSize: "0.8em" }}>
-								{isSubagentCommand ? "Subagent Output" : "Command Output"}
-							</span>
+							<i className="codicon codicon-warning"></i>
+							<span>The model has determined this command requires explicit approval.</span>
 						</div>
-					</div>
-				)}
-				{isExpanded && (
-					<div style={{ opacity: 0.6, backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
-						<div style={{ backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
-							<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
-						</div>
-					</div>
-				)}
-				{output.length > 0 && (
-					<CommandOutput
-						isContainerExpanded={isExpanded}
-						isOutputFullyExpanded={isOutputFullyExpanded}
-						onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
-						output={output}
-					/>
-				)}
-			</div>
-			{requestsApproval && (
-				<div
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: 10,
-						padding: 8,
-						fontSize: "12px",
-						color: "var(--vscode-editorWarning-foreground)",
-					}}>
-					<i className="codicon codicon-warning"></i>
-					<span>The model has determined this command requires explicit approval.</span>
-				</div>
-			)}
-		</>
-		)
-	}
+					)}
+				</>
+			)
+		}
 
 		if (message.ask === "use_mcp_server" || message.say === "use_mcp_server") {
 			const useMcpServer = JSON.parse(message.text || "{}") as ClineAskUseMcpServer

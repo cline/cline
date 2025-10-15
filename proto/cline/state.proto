@@ -343,7 +343,6 @@ message UpdateSettingsRequest {
   optional bool mcp_responses_collapsed = 10;
   optional McpDisplayMode mcp_display_mode = 11;
   optional int32 terminal_output_line_limit = 12;
-  optional int32 subagent_terminal_output_line_limit = 28;
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
   optional OpenaiReasoningEffort openai_reasoning_effort = 15;
