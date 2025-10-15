@@ -365,4 +365,200 @@ console.log(JSON.stringify({
 			result.contextModification!.should.equal("All fields present")
 		})
 	})
+
+	describe("Global Hooks", () => {
+		let globalHooksDir: string
+		let originalGetAllHooksDirs: any
+
+		beforeEach(async () => {
+			// Create global hooks directory
+			globalHooksDir = path.join(tempDir, "global-hooks")
+			await fs.mkdir(globalHooksDir, { recursive: true })
+
+			// Mock getAllHooksDirs to include our test global directory
+			const diskModule = require("../../storage/disk")
+			originalGetAllHooksDirs = diskModule.getAllHooksDirs
+			sandbox.stub(diskModule, "getAllHooksDirs").callsFake(async () => {
+				// Get workspace dirs from original function
+				const workspaceDirs = await originalGetAllHooksDirs()
+				// Return global first, then workspace
+				return [globalHooksDir, ...workspaceDirs]
+			})
+		})
+
+		it("should execute both global and workspace hooks", async () => {
+			// Create global hook
+			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
+			const globalHookScript = `#!/usr/bin/env node
+const input = require('fs').readFileSync(0, 'utf-8');
+console.log(JSON.stringify({
+  shouldContinue: true,
+  contextModification: "GLOBAL: Context added"
+}))`
+			await writeHookScript(globalHookPath, globalHookScript)
+
+			// Create workspace hook
+			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const workspaceHookScript = `#!/usr/bin/env node
+const input = require('fs').readFileSync(0, 'utf-8');
+console.log(JSON.stringify({
+  shouldContinue: true,
+  contextModification: "WORKSPACE: Context added"
+}))`
+			await writeHookScript(workspaceHookPath, workspaceHookScript)
+
+			// Execute
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: { toolName: "test_tool", parameters: {} },
+			})
+
+			// Both contexts should be present (order not guaranteed)
+			result.shouldContinue.should.be.true()
+			result.contextModification!.should.match(/GLOBAL: Context added/)
+			result.contextModification!.should.match(/WORKSPACE: Context added/)
+		})
+
+		it("should block execution if global hook blocks", async () => {
+			// Create blocking global hook
+			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
+			const globalHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: false,
+  errorMessage: "Global policy violation"
+}))`
+			await writeHookScript(globalHookPath, globalHookScript)
+
+			// Create allowing workspace hook
+			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const workspaceHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: true
+}))`
+			await writeHookScript(workspaceHookPath, workspaceHookScript)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: { toolName: "test_tool", parameters: {} },
+			})
+
+			result.shouldContinue.should.be.false()
+			result.errorMessage!.should.match(/Global policy violation/)
+		})
+
+		it("should work with only global hooks (no workspace hooks)", async () => {
+			// Create global hook only
+			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
+			const globalHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: true,
+  contextModification: "Global hook only"
+}))`
+			await writeHookScript(globalHookPath, globalHookScript)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: { toolName: "test_tool", parameters: {} },
+			})
+
+			result.shouldContinue.should.be.true()
+			result.contextModification!.should.equal("Global hook only")
+		})
+
+		it("should block if workspace hook blocks even when global allows", async () => {
+			// Create allowing global hook
+			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
+			const globalHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: true,
+  contextModification: "Global allows"
+}))`
+			await writeHookScript(globalHookPath, globalHookScript)
+
+			// Create blocking workspace hook
+			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const workspaceHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: false,
+  errorMessage: "Workspace blocks"
+}))`
+			await writeHookScript(workspaceHookPath, workspaceHookScript)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: { toolName: "test_tool", parameters: {} },
+			})
+
+			result.shouldContinue.should.be.false()
+			result.errorMessage!.should.match(/Workspace blocks/)
+			// Context from global should still be included
+			result.contextModification!.should.match(/Global allows/)
+		})
+
+		it("should combine error messages from global and workspace hooks", async () => {
+			// Create blocking global hook
+			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
+			const globalHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: false,
+  errorMessage: "Global error"
+}))`
+			await writeHookScript(globalHookPath, globalHookScript)
+
+			// Create blocking workspace hook
+			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const workspaceHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: false,
+  errorMessage: "Workspace error"
+}))`
+			await writeHookScript(workspaceHookPath, workspaceHookScript)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: { toolName: "test_tool", parameters: {} },
+			})
+
+			result.shouldContinue.should.be.false()
+			result.errorMessage!.should.match(/Global error/)
+			result.errorMessage!.should.match(/Workspace error/)
+		})
+
+		it("should work with global PostToolUse hooks", async () => {
+			// Create global PostToolUse hook
+			const globalHookPath = path.join(globalHooksDir, "PostToolUse")
+			const globalHookScript = `#!/usr/bin/env node
+const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
+console.log(JSON.stringify({
+  shouldContinue: true,
+  contextModification: "Global observed: " + input.postToolUse.success
+}))`
+			await writeHookScript(globalHookPath, globalHookScript)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PostToolUse")
+			const result = await runner.run({
+				taskId: "test-task",
+				postToolUse: {
+					toolName: "test_tool",
+					parameters: {},
+					result: "success",
+					success: true,
+					executionTimeMs: 100,
+				},
+			})
+
+			result.contextModification!.should.equal("Global observed: true")
+		})
+	})
 })
