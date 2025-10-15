@@ -24,10 +24,12 @@ type InputHandler struct {
 	pollTicker      *time.Ticker
 	program         *tea.Program
 	programRunning  bool
+	programDoneChan chan struct{} // Signals when program actually exits
 	resultChan      chan output.InputSubmitMsg
 	cancelChan      chan struct{}
 	feedbackApproval bool // Track if we're in feedback after approval
 	feedbackApproved bool // Track the approval decision
+	ctx             context.Context // Context for restart callback
 }
 
 // NewInputHandler creates a new input handler
@@ -248,7 +250,13 @@ func (ih *InputHandler) runInputProgram(ctx context.Context, model output.InputM
 	}
 
 	ih.program = tea.NewProgram(wrappedModel)
+	ih.programDoneChan = make(chan struct{})
+	ih.ctx = ctx
+
+	// Set up coordinator references
 	output.SetProgram(ih.program)
+	output.SetInputModel(wrappedModel.model)
+	output.SetRestartCallback(ih.restartProgram)
 	output.SetInputVisible(true)
 	ih.programRunning = true
 	ih.mu.Unlock()
@@ -259,6 +267,8 @@ func (ih *InputHandler) runInputProgram(ctx context.Context, model output.InputM
 		if _, err := ih.program.Run(); err != nil {
 			programErrChan <- err
 		}
+		// Signal that program is done
+		close(ih.programDoneChan)
 	}()
 
 	// Wait for result, cancellation, or context done
@@ -423,4 +433,49 @@ func (ih *InputHandler) IsRunning() bool {
 	ih.mu.RLock()
 	defer ih.mu.RUnlock()
 	return ih.isRunning
+}
+
+// restartProgram restarts the Bubble Tea program with preserved state
+func (ih *InputHandler) restartProgram(savedModel *output.InputModel) {
+	ih.mu.Lock()
+
+	// Wait for old program to actually quit
+	if ih.programDoneChan != nil {
+		select {
+		case <-ih.programDoneChan:
+			// Program quit successfully
+		case <-time.After(100 * time.Millisecond):
+			// Timeout - continue anyway
+		}
+	}
+
+	// Create new wrapper with the saved model
+	wrappedModel := &inputProgramWrapper{
+		model:      savedModel,
+		resultChan: ih.resultChan,
+		cancelChan: ih.cancelChan,
+		handler:    ih,
+	}
+
+	// Start new program
+	ih.program = tea.NewProgram(wrappedModel)
+	ih.programDoneChan = make(chan struct{})
+
+	// Update coordinator references
+	output.SetProgram(ih.program)
+	output.SetInputModel(savedModel)
+	output.SetInputVisible(true)
+	ih.programRunning = true
+	ih.mu.Unlock()
+
+	// Run in goroutine
+	go func() {
+		if _, err := ih.program.Run(); err != nil {
+			// Log error if needed
+			if global.Config.Verbose {
+				output.Printf("\nDebug: Program restart error: %v\n", err)
+			}
+		}
+		close(ih.programDoneChan)
+	}()
 }

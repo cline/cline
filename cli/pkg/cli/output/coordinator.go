@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -16,9 +17,11 @@ type ResumeInputMsg struct{}
 
 // OutputCoordinator manages terminal output and coordinates with interactive input
 type OutputCoordinator struct {
-	mu           sync.Mutex
-	program      *tea.Program
-	inputVisible atomic.Bool
+	mu              sync.Mutex
+	program         *tea.Program
+	inputVisible    atomic.Bool
+	inputModel      *InputModel      // Reference to current input model for state restoration
+	restartCallback func(*InputModel) // Callback to restart the program with preserved state
 }
 
 var (
@@ -44,6 +47,20 @@ func (oc *OutputCoordinator) SetProgram(program *tea.Program) {
 	oc.program = program
 }
 
+// SetInputModel sets the current input model reference for state preservation
+func (oc *OutputCoordinator) SetInputModel(model *InputModel) {
+	oc.mu.Lock()
+	defer oc.mu.Unlock()
+	oc.inputModel = model
+}
+
+// SetRestartCallback sets the callback for restarting the program
+func (oc *OutputCoordinator) SetRestartCallback(callback func(*InputModel)) {
+	oc.mu.Lock()
+	defer oc.mu.Unlock()
+	oc.restartCallback = callback
+}
+
 // SetInputVisible sets whether input is currently visible
 func (oc *OutputCoordinator) SetInputVisible(visible bool) {
 	oc.inputVisible.Store(visible)
@@ -57,13 +74,35 @@ func (oc *OutputCoordinator) IsInputVisible() bool {
 // Printf prints formatted output, suspending input if necessary
 func (oc *OutputCoordinator) Printf(format string, args ...interface{}) {
 	oc.mu.Lock()
-	defer oc.mu.Unlock()
+	prog := oc.program
+	model := oc.inputModel
+	restart := oc.restartCallback
+	visible := oc.inputVisible.Load()
+	oc.mu.Unlock()
 
-	if oc.inputVisible.Load() && oc.program != nil {
-		// Suspend input, print, then resume
-		oc.program.Send(SuspendInputMsg{})
+	if visible && prog != nil && restart != nil && model != nil {
+		// Kill/restart approach: completely stop the program, print, restart with state
+
+		// 1. Save the current input state (text, cursor position, etc.)
+		savedModel := model.Clone()
+
+		// 2. Manually clear the form from terminal BEFORE quitting
+		clearCodes := model.ClearScreen()
+		if clearCodes != "" {
+			fmt.Print(clearCodes)
+		}
+
+		// 3. Quit the program
+		prog.Send(Quit())
+
+		// Small delay to let program actually quit
+		time.Sleep(20 * time.Millisecond)
+
+		// 4. Print the output
 		fmt.Printf(format, args...)
-		oc.program.Send(ResumeInputMsg{})
+
+		// 5. Restart with preserved state
+		restart(savedModel)
 	} else {
 		// No input showing, just print normally
 		fmt.Printf(format, args...)
@@ -110,4 +149,19 @@ func SetInputVisible(visible bool) {
 // IsInputVisible checks input visibility on the global coordinator
 func IsInputVisible() bool {
 	return GetCoordinator().IsInputVisible()
+}
+
+// SetInputModel sets the input model on the global coordinator
+func SetInputModel(model *InputModel) {
+	GetCoordinator().SetInputModel(model)
+}
+
+// SetRestartCallback sets the restart callback on the global coordinator
+func SetRestartCallback(callback func(*InputModel)) {
+	GetCoordinator().SetRestartCallback(callback)
+}
+
+// Quit returns a Bubble Tea quit message
+func Quit() tea.Msg {
+	return tea.Quit()
 }

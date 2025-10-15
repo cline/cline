@@ -379,6 +379,50 @@ func (m *InputModel) ClearScreen() string {
 	return fmt.Sprintf("\033[%dA\033[J", m.lastHeight)
 }
 
+// Clone creates a deep copy of the InputModel with all state preserved
+func (m *InputModel) Clone() *InputModel {
+	// Create new textarea with same configuration
+	ta := textarea.New()
+	ta.SetValue(m.textarea.Value()) // Preserve user's text!
+	ta.Placeholder = m.placeholder
+	ta.CharLimit = 0
+	ta.ShowLineNumbers = false
+	ta.Prompt = ""
+	ta.SetHeight(5)
+	ta.SetWidth(80)
+	ta.Focus()
+
+	// Configure keybindings
+	ta.KeyMap.InsertNewline.SetKeys("alt+enter", "ctrl+j")
+
+	// Apply styles
+	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
+	ta.FocusedStyle.EndOfBuffer = lipgloss.NewStyle()
+	ta.FocusedStyle.Placeholder = m.styles.placeholder
+	ta.FocusedStyle.Text = m.styles.textArea
+	ta.FocusedStyle.Prompt = lipgloss.NewStyle()
+	ta.Cursor.Style = m.styles.cursor
+	ta.Cursor.TextStyle = m.styles.textArea
+
+	// Create cloned model
+	clone := &InputModel{
+		textarea:        ta,
+		suspended:       false, // New program starts unsuspended
+		savedValue:      m.savedValue,
+		inputType:       m.inputType,
+		title:           m.title,
+		placeholder:     m.placeholder,
+		currentMode:     m.currentMode,
+		width:           m.width,
+		lastHeight:      m.lastHeight,
+		approvalOptions: m.approvalOptions,
+		selectedOption:  m.selectedOption,
+		styles:          m.styles,
+	}
+
+	return clone
+}
+
 // openEditor opens an external editor for composing the message
 func (m *InputModel) openEditor() tea.Cmd {
 	// Get editor from environment or use nano as default
