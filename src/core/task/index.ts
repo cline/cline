@@ -1341,7 +1341,7 @@ export class Task {
 
 					// Process any output we captured before timeout
 					await setTimeoutPromise(50)
-					const result = this.terminalManager.processOutput(outputLines)
+					const result = this.terminalManager.processOutput(outputLines, undefined, false)
 
 					if (error.message === "COMMAND_TIMEOUT") {
 						return [
@@ -1376,6 +1376,7 @@ export class Task {
 		const result = this.terminalManager.processOutput(
 			outputLines,
 			isSubagent ? this.terminalManager["subagentTerminalOutputLineLimit"] : undefined,
+			isSubagent,
 		)
 
 		if (didCancelViaUi) {
@@ -1386,7 +1387,7 @@ export class Task {
 				),
 			]
 		}
-		
+
 		// Capture subagent telemetry if this was a subagent command
 		if (isSubagent && subAgentStartTime > 0) {
 			const durationMs = Math.round(performance.now() - subAgentStartTime)
