@@ -105,6 +105,10 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 					fmt.Printf("\n%s\n\n", rendered)
 
 					if err := auth.HandleAuthMenuNoArgs(ctx); err != nil {
+						// Check if user cancelled - exit cleanly
+						if err == huh.ErrUserAborted {
+							return nil
+						}
 						return fmt.Errorf("auth setup failed: %w", err)
 					}
 
@@ -133,6 +137,10 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 				// Pass the mode flag to banner so it shows correct mode
 				prompt, err = promptForInitialTask(ctx, instanceAddress, mode)
 				if err != nil {
+					// Check if user cancelled - exit cleanly without error
+					if err == huh.ErrUserAborted {
+						return nil
+					}
 					return err
 				}
 				if prompt == "" {
@@ -217,7 +225,9 @@ func promptForInitialTask(ctx context.Context, instanceAddress, modeFlag string)
 	if err != nil {
 		// Check if user cancelled with Control-C
 		if err == huh.ErrUserAborted {
-			os.Exit(0)
+			// Return a special error that indicates clean cancellation
+			// This allows deferred cleanup to run
+			return "", huh.ErrUserAborted
 		}
 		return "", err
 	}
