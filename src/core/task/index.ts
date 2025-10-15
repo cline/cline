@@ -810,6 +810,40 @@ export class Task {
 
 		this.taskState.isInitialized = true
 
+		// Run TaskStart hook
+		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		if (hooksEnabled) {
+			try {
+				const { HookFactory } = await import("../hooks/hook-factory")
+				const hookFactory = new HookFactory()
+				const taskStartHook = await hookFactory.create("TaskStart")
+
+				const taskStartResult = await taskStartHook.run({
+					taskId: this.taskId,
+					taskStart: {
+						taskMetadata: {
+							taskId: this.taskId,
+							ulid: this.ulid,
+							initialTask: task || "",
+						},
+					},
+				})
+
+				if (!taskStartResult.shouldContinue) {
+					const errorMessage = taskStartResult.errorMessage || "TaskStart hook prevented task from starting"
+					await this.say("error", errorMessage)
+					this.abortTask()
+					return
+				}
+
+				// TaskStart hook context modifications are not added to conversation
+				// as this would be redundant with the initial task message
+			} catch (hookError) {
+				console.error("TaskStart hook failed:", hookError)
+				// Non-fatal: continue with task
+			}
+		}
+
 		const imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
 
 		const userContent: UserContent = [

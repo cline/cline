@@ -118,6 +118,20 @@ For more control, you can also manually copy fixture files.
 - **Behavior**: Prints error to stderr and exits with code 1
 - **Use for**: Testing error handling in UserPromptSubmit
 
+### TaskStart Hooks
+
+#### `hooks/taskstart/success`
+- **Returns**: `{ shouldContinue: true, contextModification: "TaskStart hook executed successfully", errorMessage: "" }`
+- **Use for**: Testing TaskStart hook success path, allowing task to proceed
+
+#### `hooks/taskstart/blocking`
+- **Returns**: `{ shouldContinue: false, contextModification: "", errorMessage: "Task execution blocked by hook" }`
+- **Use for**: Testing task blocking at start (e.g., policy enforcement)
+
+#### `hooks/taskstart/error`
+- **Behavior**: Prints error to stderr and exits with code 1
+- **Use for**: Testing error handling in TaskStart hooks
+
 ## Platform Considerations
 
 These fixtures are designed for the embedded shell architecture (similar to git hooks). They work uniformly across all platforms once the embedded shell is implemented.
