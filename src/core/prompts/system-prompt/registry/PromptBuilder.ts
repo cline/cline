@@ -94,6 +94,9 @@ export class PromptBuilder {
 			.trim() // Remove leading/trailing whitespace
 			.replace(/====+\s*$/, "") // Remove trailing ==== after trim
 			.replace(/\n====+\s*\n+\s*====+\n/g, "\n====\n") // Remove empty sections between separators
+			.replace(/====\s*\n\s*====\s*\n/g, "====\n") // Remove consecutive empty sections
+			.replace(/^##\s*$[\r\n]*/gm, "") // Remove empty section headers (## with no content)
+			.replace(/\n##\s*$[\r\n]*/gm, "") // Remove empty section headers that appear mid-document
 			.replace(/====+\n(?!\n)([^\n])/g, (match, nextChar, offset, string) => {
 				// Add extra newline after ====+ if not already followed by a newline
 				// Exception: preserve single newlines when ====+ appears to be part of diff-like content
@@ -111,6 +114,8 @@ export class PromptBuilder {
 				const isDiffLike = /SEARCH|REPLACE|\+\+\+\+\+\+\+|-------/.test(beforeContext + afterContext)
 				return isDiffLike ? match : prevChar + "\n\n" + match.substring(1).replace(/\n/, "")
 			})
+			.replace(/\n\s*\n\s*\n/g, "\n\n") // Clean up any multiple empty lines created by header removal
+			.trim() // Final trim to remove any whitespace added by regex operations
 	}
 
 	getBuildMetadata(): {
