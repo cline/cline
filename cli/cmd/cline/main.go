@@ -29,6 +29,7 @@ var (
 	mode       string
 	settings   []string
 	yolo       bool
+	oneshot    bool
 )
 
 func main() {
@@ -132,6 +133,12 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 				}
 			}
 
+			// If oneshot mode, force plan mode and yolo
+			if oneshot {
+				mode = "plan"
+				yolo = true
+			}
+
 			return cli.CreateAndFollowTask(ctx, prompt, cli.TaskOptions{
 				Images:     images,
 				Files:      files,
@@ -146,7 +153,7 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 
 	rootCmd.PersistentFlags().StringVar(&coreAddress, "address", fmt.Sprintf("localhost:%d", common.DEFAULT_CLINE_CORE_PORT), "Cline Core gRPC address")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
-	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output-format", "o", "rich", "output format (rich|json|plain)")
+	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output-format", "F", "rich", "output format (rich|json|plain)")
 
 	// Task creation flags (only apply when using root command with prompt)
 	rootCmd.Flags().StringSliceVarP(&images, "image", "i", nil, "attach image files")
@@ -155,13 +162,14 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 	rootCmd.Flags().StringVarP(&mode, "mode", "m", "plan", "mode (act|plan) - defaults to plan")
 	rootCmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format)")
 	rootCmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
+	rootCmd.Flags().BoolVar(&yolo, "no-interactive", false, "enable yolo mode (non-interactive)")
+	rootCmd.Flags().BoolVarP(&oneshot, "oneshot", "o", false, "full autonomous mode")
 
 	rootCmd.AddCommand(cli.NewTaskCommand())
 	rootCmd.AddCommand(cli.NewInstanceCommand())
 	rootCmd.AddCommand(cli.NewConfigCommand())
 	rootCmd.AddCommand(cli.NewVersionCommand())
 	rootCmd.AddCommand(cli.NewAuthCommand())
-	rootCmd.AddCommand(cli.NewTaskSendCommand())
 	rootCmd.AddCommand(cli.NewLogsCommand())
 
 	if err := rootCmd.ExecuteContext(context.Background()); err != nil {

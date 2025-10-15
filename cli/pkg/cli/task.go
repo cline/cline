@@ -36,10 +36,9 @@ func NewTaskCommand() *cobra.Command {
 	}
 
 	cmd.AddCommand(newTaskNewCommand())
-	cmd.AddCommand(newTaskOneshotCommand())
 	cmd.AddCommand(newTaskPauseCommand())
-	cmd.AddCommand(newTaskFollowCommand())
-	cmd.AddCommand(NewTaskSendCommand())
+	cmd.AddCommand(newTaskChatCommand())
+	cmd.AddCommand(newTaskSendCommand())
 	cmd.AddCommand(newTaskViewCommand())
 	cmd.AddCommand(newTaskListCommand())
 	cmd.AddCommand(newTaskOpenCommand())
@@ -115,6 +114,12 @@ func newTaskNewCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
+			// Check if an instance exists when no address specified
+			if address == "" && global.Clients.GetRegistry().GetDefaultInstance() == "" {
+				fmt.Println("No instances available for creating tasks")
+				return nil
+			}
+
 			// Get content from both args and stdin
 			prompt, err := getContentFromStdinAndArgs(args)
 			if err != nil {
@@ -170,74 +175,7 @@ func newTaskNewCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
 	cmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format, e.g., -s aws-region=us-west-2 -s mode=act)")
 	cmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
-
-	return cmd
-}
-
-func newTaskOneshotCommand() *cobra.Command {
-	var (
-		images     []string
-		files      []string
-		workspaces []string
-		address    string
-		settings   []string
-	)
-
-	cmd := &cobra.Command{
-		Use:     "oneshot <prompt>",
-		Aliases: []string{"o"},
-		Short:   "Create a task in yolo+plan mode and view until completion",
-		Long:    `Creates a new task in yolo mode (non-interactive) and plan mode, then streams the conversation until completion.`,
-		Args:    cobra.MinimumNArgs(0),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-
-			// Get prompt from args/stdin
-			prompt, err := getContentFromStdinAndArgs(args)
-			if err != nil {
-				return fmt.Errorf("failed to read prompt: %w", err)
-			}
-
-			if prompt == "" {
-				return fmt.Errorf("prompt required: provide as argument or pipe via stdin")
-			}
-
-			// Ensure task manager
-			if err := ensureTaskManager(ctx, address); err != nil {
-				return err
-			}
-
-			// Set mode to plan
-			if err := taskManager.SetMode(ctx, "plan", nil, nil, nil); err != nil {
-				return fmt.Errorf("failed to set plan mode: %w", err)
-			}
-
-			if global.Config.Verbose {
-				fmt.Println("Mode set to: plan")
-			}
-
-			// Inject yolo mode into settings
-			settings = append(settings, "yolo_mode_toggled=true")
-
-			// Create task
-			taskID, err := taskManager.CreateTask(ctx, prompt, images, files, workspaces, settings)
-			if err != nil {
-				return fmt.Errorf("failed to create task: %w", err)
-			}
-
-			fmt.Printf("Task created in yolo+plan mode (ID: %s)\n", taskID)
-			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
-
-			// Follow until completion
-			return taskManager.FollowConversationUntilCompletion(ctx)
-		},
-	}
-
-	cmd.Flags().StringSliceVarP(&images, "image", "i", nil, "attach image files")
-	cmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
-	cmd.Flags().StringSliceVarP(&workspaces, "workdir", "w", nil, "workdir directory paths")
-	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
-	cmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format, e.g., -s model=claude)")
+	cmd.Flags().BoolVar(&yolo, "no-interactive", false, "enable yolo mode (non-interactive)")
 
 	return cmd
 }
@@ -270,7 +208,7 @@ func newTaskPauseCommand() *cobra.Command {
 	return cmd
 }
 
-func NewTaskSendCommand() *cobra.Command {
+func newTaskSendCommand() *cobra.Command {
 	var (
 		images  []string
 		files   []string
@@ -278,6 +216,7 @@ func NewTaskSendCommand() *cobra.Command {
 		mode    string
 		approve bool
 		deny    bool
+		yolo    bool
 	)
 
 	cmd := &cobra.Command{
@@ -288,6 +227,12 @@ func NewTaskSendCommand() *cobra.Command {
 		Args:    cobra.MinimumNArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
+
+			// Check if an instance exists when no address specified
+			if address == "" && global.Clients.GetRegistry().GetDefaultInstance() == "" {
+				fmt.Println("No instances available for sending messages")
+				return nil
+			}
 
 			// Get content from both args and stdin
 			message, err := getContentFromStdinAndArgs(args)
@@ -328,6 +273,24 @@ func NewTaskSendCommand() *cobra.Command {
 				return fmt.Errorf("failed to check if message can be sent: %w", err)
 			}
 
+			// Process yolo flag and apply settings
+			if yolo {
+				settings := []string{"yolo_mode_toggled=true"}
+				parsedSettings, secrets, err := task.ParseTaskSettings(settings)
+				if err != nil {
+					return fmt.Errorf("failed to parse settings: %w", err)
+				}
+
+				configManager, err := config.NewManager(ctx, taskManager.GetCurrentInstance())
+				if err != nil {
+					return fmt.Errorf("failed to create config manager: %w", err)
+				}
+
+				if err := configManager.UpdateSettings(ctx, parsedSettings, secrets); err != nil {
+					return fmt.Errorf("failed to apply settings: %w", err)
+				}
+			}
+
 			if mode != "" {
 				if err := taskManager.SetModeAndSendMessage(ctx, mode, message, images, files); err != nil {
 					return fmt.Errorf("failed to set mode and send message: %w", err)
@@ -361,18 +324,20 @@ func NewTaskSendCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
 	cmd.Flags().BoolVarP(&approve, "approve", "a", false, "approve pending request")
 	cmd.Flags().BoolVarP(&deny, "deny", "d", false, "deny pending request")
+	cmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
+	cmd.Flags().BoolVar(&yolo, "no-interactive", false, "enable yolo mode (non-interactive)")
 
 	return cmd
 }
 
-func newTaskFollowCommand() *cobra.Command {
+func newTaskChatCommand() *cobra.Command {
 	var address string
 
 	cmd := &cobra.Command{
-		Use:     "follow",
-		Aliases: []string{"f"},
-		Short:   "Follow current task conversation in real-time",
-		Long:    `Follow the current task conversation, displaying new messages as they arrive in real-time. Interactive input is enabled by default.`,
+		Use:     "chat",
+		Aliases: []string{"c"},
+		Short:   "Chat with the current task in interactive mode",
+		Long:    `Chat with the current task, displaying messages in real-time with interactive input enabled.`,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -392,16 +357,16 @@ func newTaskFollowCommand() *cobra.Command {
 
 func newTaskViewCommand() *cobra.Command {
 	var (
-		current bool
-		summary bool
-		address string
+		follow         bool
+		followComplete bool
+		address        string
 	)
 
 	cmd := &cobra.Command{
 		Use:     "view",
 		Aliases: []string{"v"},
 		Short:   "View task conversation",
-		Long:    `Output conversation until next completion, with options for current state or summary only.`,
+		Long:    `Output conversation snapshot by default, or follow with flags.`,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -412,18 +377,21 @@ func newTaskViewCommand() *cobra.Command {
 
 			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
 
-			if current {
-				return taskManager.ShowConversation(ctx)
-			} else if summary {
-				return taskManager.GatherFinalSummary(ctx)
-			} else {
+			if follow {
+				// Follow conversation forever (non-interactive)
+				return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), false)
+			} else if followComplete {
+				// Follow until completion
 				return taskManager.FollowConversationUntilCompletion(ctx)
+			} else {
+				// Default: show snapshot
+				return taskManager.ShowConversation(ctx)
 			}
 		},
 	}
 
-	cmd.Flags().BoolVarP(&current, "current", "c", false, "output current conversation without following")
-	cmd.Flags().BoolVarP(&summary, "summary", "s", false, "outputs only the completion summary")
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "follow conversation forever")
+	cmd.Flags().BoolVarP(&followComplete, "follow-complete", "c", false, "follow until completion")
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 
 	return cmd
@@ -660,6 +628,11 @@ func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) e
 		fmt.Printf("Task created successfully with ID: %s\n\n", taskID)
 	}
 
-	// Immediately follow the conversation in interactive mode
-	return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), true)
+	// If yolo mode is enabled, follow until completion (non-interactive)
+	// Otherwise, follow in interactive mode
+	if opts.Yolo {
+		return taskManager.FollowConversationUntilCompletion(ctx)
+	} else {
+		return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), true)
+	}
 }

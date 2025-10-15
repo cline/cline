@@ -7,7 +7,7 @@ require (
 	github.com/charmbracelet/glamour v0.10.0
 	github.com/charmbracelet/huh v0.7.1-0.20251005153135-a01a1e304532
 	github.com/cline/grpc-go v0.0.0
-	github.com/mattn/go-sqlite3 v1.14.24
+	github.com/glebarez/go-sqlite v1.22.0
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/term v0.32.0
 	google.golang.org/grpc v1.75.0

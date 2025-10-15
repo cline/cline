@@ -31,6 +31,7 @@ import {
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 } from "@core/storage/disk"
+import { releaseTaskLock } from "@core/task/TaskLockUtils"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkpoints/factory"
@@ -104,6 +105,7 @@ type TaskParams = {
 	files?: string[]
 	historyItem?: HistoryItem
 	taskId: string
+	taskLockAcquired: boolean
 }
 
 export class Task {
@@ -153,6 +155,9 @@ export class Task {
 	// Workspace manager
 	workspaceManager?: WorkspaceRootManager
 
+	// Task Locking (Sqlite)
+	private taskLockAcquired: boolean
+
 	constructor(params: TaskParams) {
 		const {
 			controller,
@@ -173,6 +178,7 @@ export class Task {
 			files,
 			historyItem,
 			taskId,
+			taskLockAcquired,
 		} = params
 
 		this.taskInitializationStartTime = performance.now()
@@ -184,6 +190,7 @@ export class Task {
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
+		this.taskLockAcquired = taskLockAcquired
 
 		// TODO(ae) this is a hack to replace the terminal manager for standalone,
 		// until we have proper host bridge support for terminal execution. The
@@ -934,24 +941,37 @@ export class Task {
 	}
 
 	async abortTask() {
-		// Check for incomplete progress before aborting
-		if (this.FocusChainManager) {
-			this.FocusChainManager.checkIncompleteProgressOnCompletion()
-		}
+		try {
+			// Check for incomplete progress before aborting
+			if (this.FocusChainManager) {
+				this.FocusChainManager.checkIncompleteProgressOnCompletion()
+			}
 
-		this.taskState.abort = true // will stop any autonomously running promises
-		this.terminalManager.disposeAll()
-		this.urlContentFetcher.closeBrowser()
-		await this.browserSession.dispose()
-		this.clineIgnoreController.dispose()
-		this.fileContextTracker.dispose()
-		// need to await for when we want to make sure directories/files are reverted before
-		// re-starting the task from a checkpoint
-		await this.diffViewProvider.revertChanges()
-		// Clear the notification callback when task is aborted
-		this.mcpHub.clearNotificationCallback()
-		if (this.FocusChainManager) {
-			this.FocusChainManager.dispose()
+			this.taskState.abort = true // will stop any autonomously running promises
+			this.terminalManager.disposeAll()
+			this.urlContentFetcher.closeBrowser()
+			await this.browserSession.dispose()
+			this.clineIgnoreController.dispose()
+			this.fileContextTracker.dispose()
+			// need to await for when we want to make sure directories/files are reverted before
+			// re-starting the task from a checkpoint
+			await this.diffViewProvider.revertChanges()
+			// Clear the notification callback when task is aborted
+			this.mcpHub.clearNotificationCallback()
+			if (this.FocusChainManager) {
+				this.FocusChainManager.dispose()
+			}
+		} finally {
+			// Release task folder lock
+			if (this.taskLockAcquired) {
+				try {
+					await releaseTaskLock(this.taskId)
+					this.taskLockAcquired = false
+					console.info(`[Task ${this.taskId}] Task lock released`)
+				} catch (error) {
+					console.error(`[Task ${this.taskId}] Failed to release task lock:`, error)
+				}
+			}
 		}
 	}
 
@@ -1755,6 +1775,7 @@ export class Task {
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 
 		if (
+			!this.stateManager.getGlobalSettingsKey("yoloModeToggled") &&
 			autoApprovalSettings.enabled &&
 			this.taskState.consecutiveAutoApprovedRequestsCount >= autoApprovalSettings.maxRequests
 		) {
