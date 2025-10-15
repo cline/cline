@@ -1775,6 +1775,7 @@ export class Task {
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 
 		if (
+			!this.stateManager.getGlobalSettingsKey("yoloModeToggled") &&
 			autoApprovalSettings.enabled &&
 			this.taskState.consecutiveAutoApprovedRequestsCount >= autoApprovalSettings.maxRequests
 		) {

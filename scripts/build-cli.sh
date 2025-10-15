@@ -20,13 +20,21 @@ LDFLAGS="-X 'github.com/cline/cli/pkg/cli.Version=${VERSION}' \
          -X 'github.com/cline/cli/pkg/cli.BuiltBy=${BUILT_BY}'"
 
 cd cli
-GO111MODULE=on go build -ldflags "$LDFLAGS" -o bin/cline ./cmd/cline 
-echo 'cli/bin/cline built'
+
+# Build for current platform only
+echo "Building for current platform..."
+
+GO111MODULE=on go build -ldflags "$LDFLAGS" -o bin/cline ./cmd/cline
+echo "  ✓ bin/cline built"
+
 GO111MODULE=on go build -ldflags "$LDFLAGS" -o bin/cline-host ./cmd/cline-host
-echo 'cli/bin/cline-host built'
+echo "  ✓ bin/cline-host built"
+
+echo ""
+echo "Build complete for current platform!"
+
 # Copy binaries to dist-standalone/bin
 cd ..
 mkdir -p dist-standalone/bin
-cp cli/bin/cline dist-standalone/bin/cline
-cp cli/bin/cline-host dist-standalone/bin/cline-host
-echo 'Copied binaries to dist-standalone/bin/'
+cp cli/bin/cline-* dist-standalone/bin/
+echo 'Copied all platform binaries to dist-standalone/bin/'
