@@ -208,7 +208,7 @@ func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error
 	model := output.NewInputModel(
 		output.InputTypeMessage,
 		"Cline is ready for your message",
-		"Type your message... (alt+enter / ctrl+j for new line, ctrl+e to open editor, enter to submit)",
+		"/plan or /act to switch modes\ncntrl+e to open editor",
 		currentMode,
 	)
 
