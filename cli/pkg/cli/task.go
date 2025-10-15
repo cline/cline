@@ -346,6 +346,18 @@ func newTaskChatCommand() *cobra.Command {
 				return err
 			}
 
+			// Check if there's an active task before entering follow mode
+			err := taskManager.CheckSendEnabled(ctx)
+			if err != nil {
+				// Handle specific error cases
+				if errors.Is(err, task.ErrNoActiveTask) {
+					fmt.Println("No active task found. Use 'cline task new' to create a task first.")
+					return nil
+				}
+				// For other errors (like task busy), we can still enter follow mode
+				// as the user may want to observe the task
+			}
+
 			return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), true)
 		},
 	}
