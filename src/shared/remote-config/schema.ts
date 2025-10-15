@@ -31,7 +31,7 @@ export const OpenAiCompatibleSchema = z.object({
 	models: z.array(OpenAiCompatibleModelSchema).optional(),
 	// OpenAiCompatible specific settings:
 	openAiBaseUrl: z.string().optional(),
-	openAiHeaders: z.record(z.string(), z.string()).default({}),
+	openAiHeaders: z.record(z.string(), z.string()).optional(),
 	azureApiVersion: z.string().optional(),
 })
 
