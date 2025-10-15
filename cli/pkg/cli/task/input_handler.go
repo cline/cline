@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -205,7 +206,7 @@ func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error
 	model := output.NewInputModel(
 		output.InputTypeMessage,
 		"Cline is ready for your message",
-		"Type your message... (shift+enter for new line, enter to submit, /plan or /act to switch mode)",
+		"Type your message... (alt+enter / ctrl+j for new line, ctrl+e to open editor, enter to submit)",
 		currentMode,
 	)
 
@@ -240,7 +241,7 @@ func (ih *InputHandler) runInputProgram(ctx context.Context, model output.InputM
 
 	// Create the program with custom update wrapper
 	wrappedModel := &inputProgramWrapper{
-		model:      model,
+		model:      &model,
 		resultChan: ih.resultChan,
 		cancelChan: ih.cancelChan,
 		handler:    ih,
@@ -322,7 +323,7 @@ func (ih *InputHandler) runInputProgram(ctx context.Context, model output.InputM
 
 // inputProgramWrapper wraps the InputModel to handle message routing
 type inputProgramWrapper struct {
-	model      output.InputModel
+	model      *output.InputModel
 	resultChan chan output.InputSubmitMsg
 	cancelChan chan struct{}
 	handler    *InputHandler
@@ -335,25 +336,31 @@ func (w *inputProgramWrapper) Init() tea.Cmd {
 func (w *inputProgramWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case output.InputSubmitMsg:
-		// Handle input submission
+		// Handle input submission - clear the screen before quitting
 		w.resultChan <- msg
+		clearCodes := w.model.ClearScreen()
+		if clearCodes != "" {
+			fmt.Print(clearCodes)
+		}
 		return w, tea.Quit
 
 	case output.InputCancelMsg:
-		// Handle cancellation
+		// Handle cancellation - clear the screen before quitting
 		w.cancelChan <- struct{}{}
+		clearCodes := w.model.ClearScreen()
+		if clearCodes != "" {
+			fmt.Print(clearCodes)
+		}
 		return w, tea.Quit
 
 	case output.ChangeInputTypeMsg:
 		// Change input type (approval -> feedback)
-		newModel, cmd := w.model.Update(msg)
-		w.model = newModel.(output.InputModel)
+		_, cmd := w.model.Update(msg)
 		return w, cmd
 	}
 
 	// Forward to wrapped model
-	newModel, cmd := w.model.Update(msg)
-	w.model = newModel.(output.InputModel)
+	_, cmd := w.model.Update(msg)
 	return w, cmd
 }
 

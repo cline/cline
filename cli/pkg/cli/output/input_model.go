@@ -2,10 +2,13 @@ package output
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // InputType represents the type of input being collected
@@ -35,35 +38,110 @@ type ChangeInputTypeMsg struct {
 	Placeholder string
 }
 
+// editorFinishedMsg is sent when the external editor finishes
+type editorFinishedMsg struct {
+	content []byte
+	err     error
+}
+
 // InputModel is the bubbletea model for interactive input
 type InputModel struct {
-	textInput   textinput.Model
+	textarea    textarea.Model
 	suspended   bool
 	savedValue  string
 	inputType   InputType
 	title       string
 	placeholder string
 	currentMode string // "plan" or "act"
+	width       int
+	lastHeight  int    // Track height for cleanup on submit
 
 	// For approval type
 	approvalOptions []string
 	selectedOption  int
+
+	// Styles (huh-inspired theme)
+	styles fieldStyles
+}
+
+// fieldStyles holds the styling for the input field
+type fieldStyles struct {
+	base           lipgloss.Style
+	title          lipgloss.Style
+	textArea       lipgloss.Style
+	cursor         lipgloss.Style
+	placeholder    lipgloss.Style
+	selector       lipgloss.Style
+	selectedOption lipgloss.Style
+	option         lipgloss.Style
+}
+
+// newFieldStyles creates huh-inspired styles (Charm theme)
+func newFieldStyles() fieldStyles {
+	// Charm theme colors
+	indigo := lipgloss.AdaptiveColor{Light: "#5A56E0", Dark: "#7571F9"}
+	fuchsia := lipgloss.Color("#F780E2")
+	normalFg := lipgloss.AdaptiveColor{Light: "235", Dark: "252"}
+	green := lipgloss.AdaptiveColor{Light: "#02BA84", Dark: "#02BF87"}
+
+	return fieldStyles{
+		base: lipgloss.NewStyle().
+			PaddingLeft(1).
+			BorderStyle(lipgloss.ThickBorder()).
+			BorderLeft(true).
+			BorderForeground(lipgloss.Color("238")),
+		title: lipgloss.NewStyle().
+			Foreground(indigo).
+			Bold(true),
+		textArea: lipgloss.NewStyle().
+			Foreground(normalFg),
+		cursor: lipgloss.NewStyle().
+			Foreground(green),
+		placeholder: lipgloss.NewStyle().
+			Foreground(lipgloss.AdaptiveColor{Light: "248", Dark: "238"}),
+		selector: lipgloss.NewStyle().
+			Foreground(fuchsia).
+			SetString("> "),
+		selectedOption: lipgloss.NewStyle().
+			Foreground(normalFg),
+		option: lipgloss.NewStyle().
+			Foreground(normalFg),
+	}
 }
 
 // NewInputModel creates a new input model
 func NewInputModel(inputType InputType, title, placeholder, currentMode string) InputModel {
-	ti := textinput.New()
-	ti.Placeholder = placeholder
-	ti.Focus()
-	ti.CharLimit = 0
-	ti.Width = 80
+	ta := textarea.New()
+	ta.Placeholder = placeholder
+	ta.Focus()
+	ta.CharLimit = 0
+	ta.ShowLineNumbers = false
+	ta.Prompt = ""  // Remove prompt prefix (this is what adds the inner border!)
+	ta.SetHeight(5)
+	ta.SetWidth(80)
+
+	// Configure keybindings like huh does:
+	// alt+enter and ctrl+j for newlines (textarea will handle these)
+	ta.KeyMap.InsertNewline.SetKeys("alt+enter", "ctrl+j")
+
+	// Apply huh-like styling
+	styles := newFieldStyles()
+	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()   // No cursor line highlighting
+	ta.FocusedStyle.EndOfBuffer = lipgloss.NewStyle()  // No end-of-buffer styling
+	ta.FocusedStyle.Placeholder = styles.placeholder
+	ta.FocusedStyle.Text = styles.textArea
+	ta.FocusedStyle.Prompt = lipgloss.NewStyle()       // No prompt styling
+	ta.Cursor.Style = styles.cursor
+	ta.Cursor.TextStyle = styles.textArea
 
 	m := InputModel{
-		textInput:   ti,
+		textarea:    ta,
 		inputType:   inputType,
 		title:       title,
 		placeholder: placeholder,
 		currentMode: currentMode,
+		width:       80,
+		styles:      styles,
 	}
 
 	// For approval type, set up options
@@ -81,24 +159,31 @@ func NewInputModel(inputType InputType, title, placeholder, currentMode string) 
 }
 
 // Init initializes the model
-func (m InputModel) Init() tea.Cmd {
-	return textinput.Blink
+func (m *InputModel) Init() tea.Cmd {
+	return textarea.Blink
 }
 
 // Update handles messages
-func (m InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	case editorFinishedMsg:
+		// External editor finished
+		if msg.err == nil && len(msg.content) > 0 {
+			m.textarea.SetValue(string(msg.content))
+		}
+		return m, nil
+
 	case SuspendInputMsg:
 		// Save current value and suspend
-		m.savedValue = m.textInput.Value()
+		m.savedValue = m.textarea.Value()
 		m.suspended = true
 		return m, tea.ClearScreen
 
 	case ResumeInputMsg:
 		// Restore value and resume
-		m.textInput.SetValue(m.savedValue)
+		m.textarea.SetValue(m.savedValue)
 		m.suspended = false
 		return m, nil
 
@@ -107,9 +192,9 @@ func (m InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.inputType = msg.InputType
 		m.title = msg.Title
 		m.placeholder = msg.Placeholder
-		m.textInput.Placeholder = msg.Placeholder
-		m.textInput.SetValue("")
-		m.textInput.Focus()
+		m.textarea.Placeholder = msg.Placeholder
+		m.textarea.SetValue("")
+		m.textarea.Focus()
 
 		if msg.InputType == InputTypeApproval {
 			m.approvalOptions = []string{
@@ -127,43 +212,63 @@ func (m InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		switch msg.String() {
-		case "ctrl+c":
-			return m, func() tea.Msg { return InputCancelMsg{} }
+		// Handle keys for text input types (Message/Feedback)
+		if m.inputType == InputTypeMessage || m.inputType == InputTypeFeedback {
+			switch msg.String() {
+			case "ctrl+c":
+				return m, func() tea.Msg { return InputCancelMsg{} }
 
-		case "enter":
-			return m.handleSubmit()
+			case "ctrl+e":
+				// Open external editor (like huh does)
+				return m, m.openEditor()
 
-		case "up":
-			if m.inputType == InputTypeApproval {
+			case "enter":
+				// Intercept enter for submit (textarea handles alt+enter and ctrl+j for newlines)
+				return m.handleSubmit()
+
+			case "up", "down", "left", "right":
+				// Let textarea handle navigation
+				m.textarea, cmd = m.textarea.Update(msg)
+				return m, cmd
+			}
+
+			// Pass all other keys to textarea (including alt+enter, ctrl+j for newlines)
+			m.textarea, cmd = m.textarea.Update(msg)
+			return m, cmd
+		}
+
+		// Handle keys for approval type
+		if m.inputType == InputTypeApproval {
+			switch msg.String() {
+			case "ctrl+c":
+				return m, func() tea.Msg { return InputCancelMsg{} }
+
+			case "enter":
+				return m.handleSubmit()
+
+			case "up":
 				if m.selectedOption > 0 {
 					m.selectedOption--
 				}
 				return m, nil
-			}
 
-		case "down":
-			if m.inputType == InputTypeApproval {
+			case "down":
 				if m.selectedOption < len(m.approvalOptions)-1 {
 					m.selectedOption++
 				}
 				return m, nil
 			}
 		}
-
-		// Update text input
-		m.textInput, cmd = m.textInput.Update(msg)
-		return m, cmd
 	}
 
 	return m, nil
 }
 
 // handleSubmit handles submission based on input type
-func (m InputModel) handleSubmit() (tea.Model, tea.Cmd) {
+func (m *InputModel) handleSubmit() (tea.Model, tea.Cmd) {
 	switch m.inputType {
 	case InputTypeMessage:
-		value := strings.TrimSpace(m.textInput.Value())
+		value := strings.TrimSpace(m.textarea.Value())
 		return m, func() tea.Msg {
 			return InputSubmitMsg{
 				Value:     value,
@@ -182,7 +287,7 @@ func (m InputModel) handleSubmit() (tea.Model, tea.Cmd) {
 				return ChangeInputTypeMsg{
 					InputType:   InputTypeFeedback,
 					Title:       "Your feedback",
-					Placeholder: "Type your message... (shift+enter for new line, enter to submit, /plan or /act to switch mode)",
+					Placeholder: "Type your message... (alt+enter / ctrl+j for new line, ctrl+e to open editor, enter to submit)",
 				}
 			}
 		}
@@ -197,7 +302,7 @@ func (m InputModel) handleSubmit() (tea.Model, tea.Cmd) {
 		}
 
 	case InputTypeFeedback:
-		value := strings.TrimSpace(m.textInput.Value())
+		value := strings.TrimSpace(m.textarea.Value())
 		return m, func() tea.Msg {
 			return InputSubmitMsg{
 				Value:     value,
@@ -210,47 +315,111 @@ func (m InputModel) handleSubmit() (tea.Model, tea.Cmd) {
 }
 
 // View renders the model
-func (m InputModel) View() string {
+func (m *InputModel) View() string {
 	if m.suspended {
 		return ""
 	}
 
-	var s strings.Builder
-
-	s.WriteString("\n")
+	var parts []string
 
 	// Render title with mode indicator
-	yellow := "\033[33m"
-	blue := "\033[34m"
-	indigo := "\033[38;5;99m"
-	bold := "\033[1m"
-	reset := "\033[0m"
+	yellow := lipgloss.Color("3")
+	blue := lipgloss.Color("4")
 
-	var coloredMode string
+	modeStyle := lipgloss.NewStyle()
 	if m.currentMode == "plan" {
-		coloredMode = fmt.Sprintf("%s[plan mode]%s", yellow, reset)
+		modeStyle = modeStyle.Foreground(yellow)
 	} else {
-		coloredMode = fmt.Sprintf("%s[act mode]%s", blue, reset)
+		modeStyle = modeStyle.Foreground(blue)
 	}
 
-	title := fmt.Sprintf("%s %s%s%s%s", coloredMode, bold, indigo, m.title, reset)
-	s.WriteString(title + "\n\n")
+	modeIndicator := modeStyle.Render(fmt.Sprintf("[%s mode]", m.currentMode))
+	titleText := m.styles.title.Render(m.title)
+	fullTitle := fmt.Sprintf("%s %s", modeIndicator, titleText)
+	parts = append(parts, fullTitle)
 
 	// Render based on input type
 	switch m.inputType {
 	case InputTypeMessage, InputTypeFeedback:
-		s.WriteString(m.textInput.View())
-		s.WriteString("\n")
+		parts = append(parts, m.textarea.View())
 
 	case InputTypeApproval:
+		var options []string
 		for i, option := range m.approvalOptions {
 			if i == m.selectedOption {
-				s.WriteString(fmt.Sprintf("> %s%s%s\n", bold, option, reset))
+				options = append(options, m.styles.selector.Render("")+m.styles.selectedOption.Render(option))
 			} else {
-				s.WriteString(fmt.Sprintf("  %s\n", option))
+				options = append(options, "  "+m.styles.option.Render(option))
+			}
+		}
+		parts = append(parts, strings.Join(options, "\n"))
+	}
+
+	// Wrap everything in the base style with border
+	content := strings.Join(parts, "\n")
+	rendered := m.styles.base.Render(content)
+
+	// Add newline before the form (outside the border)
+	rendered = "\n" + rendered
+
+	// Track height for cleanup
+	m.lastHeight = lipgloss.Height(rendered)
+
+	return rendered
+}
+
+// ClearScreen returns the ANSI codes to clear the input from the terminal
+// This is used when submitting to remove the form cleanly
+func (m *InputModel) ClearScreen() string {
+	if m.lastHeight == 0 {
+		return ""
+	}
+
+	// Move cursor up by lastHeight lines and clear from cursor to end of screen
+	return fmt.Sprintf("\033[%dA\033[J", m.lastHeight)
+}
+
+// openEditor opens an external editor for composing the message
+func (m *InputModel) openEditor() tea.Cmd {
+	// Get editor from environment or use nano as default
+	editorCmd := "nano"
+	editorArgs := []string{}
+
+	if editor := os.Getenv("EDITOR"); editor != "" {
+		editorFields := strings.Fields(editor)
+		if len(editorFields) > 0 {
+			editorCmd = editorFields[0]
+			if len(editorFields) > 1 {
+				editorArgs = editorFields[1:]
 			}
 		}
 	}
 
-	return s.String()
+	// Create temp file with current content
+	tmpFile, err := os.CreateTemp(os.TempDir(), "*.md")
+	if err != nil {
+		return func() tea.Msg {
+			return editorFinishedMsg{err: err}
+		}
+	}
+
+	// Write current textarea value to temp file
+	if err := os.WriteFile(tmpFile.Name(), []byte(m.textarea.Value()), 0o644); err != nil {
+		return func() tea.Msg {
+			return editorFinishedMsg{err: err}
+		}
+	}
+
+	// Open the editor
+	cmd := exec.Command(editorCmd, append(editorArgs, tmpFile.Name())...)
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		content, readErr := os.ReadFile(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name())
+
+		if readErr != nil {
+			return editorFinishedMsg{err: readErr}
+		}
+
+		return editorFinishedMsg{content: content, err: err}
+	})
 }
