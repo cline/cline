@@ -208,13 +208,12 @@ export class Task {
 		// standaloneTerminalManager is defined in the vscode-impls and injected
 		// during compilation of the standalone manager only, so this variable only
 		// exists in that case
-		const terminalExecutionMode = vscodeTerminalExecutionMode ?? "vscodeTerminal"
+		const terminalExecutionMode = vscodeTerminalExecutionMode
 		this.terminalExecutionMode = terminalExecutionMode
 
 		if (terminalExecutionMode === "backgroundExec") {
 			try {
 				const modulePath = path.join(__dirname, "../standalone/runtime-files/vscode/enhanced-terminal.js")
-				// eslint-disable-next-line @typescript-eslint/no-var-requires
 				const { StandaloneTerminalManager } = require(modulePath) as {
 					StandaloneTerminalManager?: new () => TerminalManager
 				}

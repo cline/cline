@@ -213,7 +213,7 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
 		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
-		const vscodeTerminalExecutionMode = this.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode") ?? "vscodeTerminal"
+		const vscodeTerminalExecutionMode = this.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
@@ -384,10 +384,6 @@ export class Controller {
 		if (this.backgroundCommandRunning === running && this.backgroundCommandTaskId === nextTaskId) {
 			return
 		}
-		console.log(
-			"[Controller] updateBackgroundCommandState",
-			JSON.stringify({ running, taskId, previousTaskId: this.backgroundCommandTaskId }),
-		)
 		this.backgroundCommandRunning = running
 		this.backgroundCommandTaskId = nextTaskId
 		void this.postStateToWebview()
@@ -858,7 +854,7 @@ export class Controller {
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
-			vscodeTerminalExecutionMode: vscodeTerminalExecutionMode ?? "vscodeTerminal",
+			vscodeTerminalExecutionMode: vscodeTerminalExecutionMode,
 			defaultTerminalProfile,
 			isNewUser,
 			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
