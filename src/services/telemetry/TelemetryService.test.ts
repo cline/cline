@@ -352,7 +352,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			assert.ok(properties1, "Properties should be defined")
 			assert.strictEqual(eventName1, "task.subagent_completed", "Event should be subagent_completed when successful")
 			assert.strictEqual(properties1.ulid, "task-123", "Properties should include task ULID")
-			assert.strictEqual(properties1.command, "git", "Command should be sanitized to first part only")
 			assert.strictEqual(properties1.durationMs, 1500, "Properties should include duration")
 			assert.strictEqual(properties1.outputLines, 25, "Properties should include output line count")
 			assert.strictEqual(properties1.success, true, "Properties should include success status")
@@ -369,7 +368,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			assert.ok(properties2, "Properties should be defined")
 			assert.strictEqual(eventName2, "task.subagent_started", "Event should be subagent_started when failed")
 			assert.strictEqual(properties2.ulid, "task-456", "Properties should include task ULID")
-			assert.strictEqual(properties2.command, "npm", "Command should be sanitized to first part only")
 			assert.strictEqual(properties2.durationMs, 3200, "Properties should include duration")
 			assert.strictEqual(properties2.outputLines, 150, "Properties should include output line count")
 			assert.strictEqual(properties2.success, false, "Properties should include success status")
@@ -403,45 +401,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			// Test that events are captured for execution
 			telemetryService.captureSubagentExecution("task-789", 2000, 10, true)
 			assert.ok(logSpy.calledOnce, "Execution event should be captured when category is enabled")
-
-			logSpy.restore()
-			await noOpProvider.dispose()
-		})
-
-		it("should handle command sanitization for privacy", async () => {
-			const noOpProvider = new NoOpTelemetryProvider()
-			const logSpy = sinon.spy(noOpProvider, "log")
-			const telemetryService = new TelemetryService([noOpProvider], MOCK_METADATA)
-
-			// Reset spy to ignore constructor events
-			logSpy.resetHistory()
-
-			// Test command with arguments gets sanitized
-			telemetryService.captureSubagentExecution("task-123", 1000, 5, true)
-
-			const [_eventName, properties] = logSpy.firstCall.args
-			assert.ok(properties, "Properties should be defined")
-			assert.strictEqual(properties.command, "curl", "Command should be sanitized to remove arguments")
-
-			// Reset spy
-			logSpy.resetHistory()
-
-			// Test command with no arguments
-			telemetryService.captureSubagentExecution("task-123", 500, 3, true)
-
-			const [_eventName2, properties2] = logSpy.firstCall.args
-			assert.ok(properties2, "Properties should be defined")
-			assert.strictEqual(properties2.command, "ls", "Simple command should remain unchanged")
-
-			// Reset spy
-			logSpy.resetHistory()
-
-			// Test empty command
-			telemetryService.captureSubagentExecution("task-123", 100, 0, false)
-
-			const [_eventName3, properties3] = logSpy.firstCall.args
-			assert.ok(properties3, "Properties should be defined")
-			assert.strictEqual(properties3.command, "unknown", "Empty command should default to 'unknown'")
 
 			logSpy.restore()
 			await noOpProvider.dispose()
