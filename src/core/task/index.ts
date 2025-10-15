@@ -45,6 +45,7 @@ import { TerminalManager } from "@integrations/terminal/TerminalManager"
 import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { featureFlagsService } from "@services/feature-flags"
 import { listFiles } from "@services/glob/list-files"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
@@ -740,6 +741,53 @@ export class Task {
 		return await this.controller.toggleActModeForYoloMode()
 	}
 
+	private async runUserPromptSubmitHook(
+		userContent: UserContent,
+		context: "initial_task" | "resume" | "feedback",
+	): Promise<{ shouldContinue: boolean; contextModification?: string; errorMessage?: string }> {
+		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+
+		if (!hooksEnabled) {
+			return { shouldContinue: true }
+		}
+
+		try {
+			const { HookFactory } = await import("../hooks/hook-factory")
+			const hookFactory = new HookFactory()
+			const hook = await hookFactory.create("UserPromptSubmit")
+
+			// Serialize UserContent to string for the hook
+			const promptText = userContent
+				.map((block) => {
+					if (block.type === "text") {
+						return block.text
+					}
+					if (block.type === "image") {
+						return "[IMAGE]"
+					}
+					return ""
+				})
+				.join("\n\n")
+
+			const result = await hook.run({
+				taskId: this.taskId,
+				userPromptSubmit: {
+					prompt: promptText,
+					attachments: [], // Images are inline in UserContent
+				},
+			})
+
+			return {
+				shouldContinue: result.shouldContinue,
+				contextModification: result.contextModification,
+				errorMessage: result.errorMessage,
+			}
+		} catch (error) {
+			console.error("UserPromptSubmit hook failed:", error)
+			return { shouldContinue: true }
+		}
+	}
+
 	// Task lifecycle
 
 	private async startTask(task?: string, images?: string[], files?: string[]): Promise<void> {
@@ -759,6 +807,40 @@ export class Task {
 		await this.say("text", task, images, files)
 
 		this.taskState.isInitialized = true
+
+		// Run TaskStart hook
+		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		if (hooksEnabled) {
+			try {
+				const { HookFactory } = await import("../hooks/hook-factory")
+				const hookFactory = new HookFactory()
+				const taskStartHook = await hookFactory.create("TaskStart")
+
+				const taskStartResult = await taskStartHook.run({
+					taskId: this.taskId,
+					taskStart: {
+						taskMetadata: {
+							taskId: this.taskId,
+							ulid: this.ulid,
+							initialTask: task || "",
+						},
+					},
+				})
+
+				if (!taskStartResult.shouldContinue) {
+					const errorMessage = taskStartResult.errorMessage || "TaskStart hook prevented task from starting"
+					await this.say("error", errorMessage)
+					this.abortTask()
+					return
+				}
+
+				// TaskStart hook context modifications are not added to conversation
+				// as this would be redundant with the initial task message
+			} catch (hookError) {
+				console.error("TaskStart hook failed:", hookError)
+				// Non-fatal: continue with task
+			}
+		}
 
 		const imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
 
@@ -839,6 +921,46 @@ export class Task {
 
 		this.taskState.isInitialized = true
 
+		// Initialize newUserContent array for hook context
+		const newUserContent: UserContent = []
+
+		// Run TaskResume hook
+		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		if (hooksEnabled) {
+			try {
+				const { HookFactory } = await import("../hooks/hook-factory")
+				const hookFactory = new HookFactory()
+				const taskResumeHook = await hookFactory.create("TaskResume")
+
+				const clineMessages = this.messageStateHandler.getClineMessages()
+				const taskResumeResult = await taskResumeHook.run({
+					taskId: this.taskId,
+					taskResume: {
+						taskMetadata: {
+							taskId: this.taskId,
+							ulid: this.ulid,
+						},
+						previousState: {
+							lastMessageTs: lastClineMessage?.ts?.toString() || "",
+							messageCount: clineMessages.length.toString(),
+							conversationHistoryDeleted: (this.taskState.conversationHistoryDeletedRange !== undefined).toString(),
+						},
+					},
+				})
+
+				// Add context if provided
+				if (taskResumeResult.contextModification) {
+					newUserContent.push({
+						type: "text",
+						text: `<hook_context source="TaskResume" type="general">\n${taskResumeResult.contextModification}\n</hook_context>`,
+					})
+				}
+			} catch (hookError) {
+				console.error("TaskResume hook failed:", hookError)
+				// Non-fatal: continue with resume
+			}
+		}
+
 		const { response, text, images, files } = await this.ask(askType) // calls poststatetowebview
 		let responseText: string | undefined
 		let responseImages: string[] | undefined
@@ -878,7 +1000,8 @@ export class Task {
 			throw new Error("Unexpected: No existing API conversation history")
 		}
 
-		const newUserContent: UserContent = [...modifiedOldUserContent]
+		// Add previous content to newUserContent array
+		newUserContent.push(...modifiedOldUserContent)
 
 		const agoText = (() => {
 			const timestamp = lastClineMessage?.ts ?? Date.now()
@@ -990,6 +1113,32 @@ export class Task {
 
 	async abortTask() {
 		try {
+			// Run TaskCancel hook
+			const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+			if (hooksEnabled) {
+				try {
+					const { HookFactory } = await import("../hooks/hook-factory")
+					const hookFactory = new HookFactory()
+					const taskCancelHook = await hookFactory.create("TaskCancel")
+
+					await taskCancelHook.run({
+						taskId: this.taskId,
+						taskCancel: {
+							taskMetadata: {
+								taskId: this.taskId,
+								ulid: this.ulid,
+								completionStatus: this.taskState.abandoned ? "abandoned" : "cancelled",
+							},
+						},
+					})
+
+					// TaskCancel hook is fire-and-forget, no need to check shouldContinue
+				} catch (hookError) {
+					console.error("TaskCancel hook failed:", hookError)
+					// Non-fatal: continue with abort
+				}
+			}
+
 			// Check for incomplete progress before aborting
 			if (this.FocusChainManager) {
 				this.FocusChainManager.checkIncompleteProgressOnCompletion()
@@ -2081,6 +2230,38 @@ export class Task {
 					autoCondenseThreshold,
 				)
 
+				// Run PreCompact hook if compaction is about to occur
+				if (shouldCompact) {
+					const hooksEnabled =
+						featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+					if (hooksEnabled) {
+						try {
+							const { HookFactory } = await import("../hooks/hook-factory")
+							const hookFactory = new HookFactory()
+							const preCompactHook = await hookFactory.create("PreCompact")
+
+							const apiHistory = this.messageStateHandler.getApiConversationHistory()
+							const activeMessageCount = this.taskState.conversationHistoryDeletedRange
+								? apiHistory.length - this.taskState.conversationHistoryDeletedRange[1] - 1
+								: apiHistory.length
+
+							await preCompactHook.run({
+								taskId: this.taskId,
+								preCompact: {
+									contextSize: apiHistory.length,
+									messagesToCompact: activeMessageCount,
+									compactionStrategy: "auto",
+								},
+							})
+
+							// PreCompact is informational only, no need to check shouldContinue
+						} catch (hookError) {
+							console.error("PreCompact hook failed:", hookError)
+							// Non-fatal: continue with compaction
+						}
+					}
+				}
+
 				// There is an edge case where the summarize_task tool call completes but the user cancels the next request before it finishes
 				// this will result in this.taskState.currentlySummarizing being false, and we also failed to update the context window token
 				// estimate, which require a full new message to be completed along with gathering the latest usage block. A proxy for whether
@@ -2157,6 +2338,28 @@ export class Task {
 			userContent = parsedUserContent
 
 			userContent.push({ type: "text", text: environmentDetails })
+		}
+
+		// Run UserPromptSubmit hook with expanded content (after mentions/slash commands are processed)
+		const hookResult = await this.runUserPromptSubmitHook(
+			userContent,
+			this.taskState.apiRequestCount === 0 ? "initial_task" : "feedback",
+		)
+
+		// Handle hook blocking
+		if (!hookResult.shouldContinue) {
+			const errorMessage = hookResult.errorMessage || "UserPromptSubmit hook prevented this request"
+			await this.say("error", errorMessage)
+			// Return true to end the loop gracefully
+			return true
+		}
+
+		// Add hook context if provided
+		if (hookResult.contextModification) {
+			userContent.push({
+				type: "text",
+				text: `<hook_context source="UserPromptSubmit">\n${hookResult.contextModification}\n</hook_context>`,
+			})
 		}
 
 		await this.messageStateHandler.addToApiConversationHistory({

@@ -3,6 +3,7 @@ import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
+import { featureFlagsService } from "@services/feature-flags"
 import { findLastIndex } from "@shared/array"
 import { COMPLETION_RESULT_CHANGES_FLAG } from "@shared/ExtensionMessage"
 import { telemetryService } from "@/services/telemetry"
@@ -119,6 +120,33 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			await config.callbacks.saveCheckpoint(true, completionMessageTs)
 			await addNewChangesFlagToLastCompletionResultMessage()
 			telemetryService.captureTaskCompleted(config.ulid)
+
+			// Run TaskComplete hook
+			const hooksEnabled =
+				featureFlagsService.getHooksEnabled() && config.services.stateManager.getGlobalSettingsKey("hooksEnabled")
+			if (hooksEnabled) {
+				try {
+					const { HookFactory } = await import("../../../hooks/hook-factory")
+					const hookFactory = new HookFactory()
+					const taskCompleteHook = await hookFactory.create("TaskComplete")
+
+					await taskCompleteHook.run({
+						taskId: config.taskId,
+						taskComplete: {
+							taskMetadata: {
+								taskId: config.taskId,
+								ulid: config.ulid,
+								completionResult: result,
+							},
+						},
+					})
+
+					// TaskComplete hook is fire-and-forget, no need to check shouldContinue
+				} catch (hookError) {
+					console.error("TaskComplete hook failed:", hookError)
+					// Non-fatal: continue with completion
+				}
+			}
 		}
 
 		// we already sent completion_result says, an empty string asks relinquishes control over button and field
