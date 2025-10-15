@@ -3,6 +3,8 @@ package display
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -79,12 +81,12 @@ func RenderSessionBanner(info BannerInfo) string {
 
 	// Model line - dim gray
 	if info.Provider != "" && info.ModelID != "" {
-		lines = append(lines, dimStyle.Render(info.Provider+"/"+info.ModelID))
+		lines = append(lines, dimStyle.Render(info.Provider+"/"+shortenPath(info.ModelID, 30)))
 	}
 
 	// Workspace line - dim gray
 	if info.Workdir != "" {
-		lines = append(lines, dimStyle.Render(shortenPath(info.Workdir, 50)))
+		lines = append(lines, dimStyle.Render(shortenPath(info.Workdir, 45)))
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -93,34 +95,38 @@ func RenderSessionBanner(info BannerInfo) string {
 
 // shortenPath shortens a filesystem path to fit within maxLen
 func shortenPath(path string, maxLen int) string {
+	// Try to replace home directory with ~ (cross-platform)
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		if strings.HasPrefix(path, homeDir) {
+			shortened := "~" + path[len(homeDir):]
+			// Always use ~ version if we can
+			path = shortened
+		}
+	}
+
 	if len(path) <= maxLen {
 		return path
 	}
 
-	// Try to show ~/... if it's in home directory
-	if strings.HasPrefix(path, "/Users/") || strings.HasPrefix(path, "/home/") {
-		parts := strings.Split(path, "/")
+	// If still too long, show last few path components
+	if len(path) > maxLen {
+		parts := strings.Split(path, string(filepath.Separator))
 		if len(parts) > 2 {
-			shortened := "~/" + strings.Join(parts[3:], "/")
+			// Show last 2-3 components
+			lastParts := parts[len(parts)-2:]
+			shortened := "..." + string(filepath.Separator) + strings.Join(lastParts, string(filepath.Separator))
 			if len(shortened) <= maxLen {
 				return shortened
 			}
 		}
 	}
 
-	// Otherwise show .../{last few components}
-	parts := strings.Split(path, "/")
-	if len(parts) > 2 {
-		// Show last 2-3 components
-		lastParts := parts[len(parts)-2:]
-		shortened := ".../" + strings.Join(lastParts, "/")
-		if len(shortened) <= maxLen {
-			return shortened
-		}
+	// Last resort: truncate with ellipsis
+	if len(path) > maxLen {
+		return "..." + path[len(path)-maxLen+3:]
 	}
 
-	// Last resort: truncate with ellipsis
-	return "..." + path[len(path)-maxLen+3:]
+	return path
 }
 
 // ExtractBannerInfoFromState extracts banner info from state JSON
@@ -176,12 +182,24 @@ func ExtractBannerInfoFromState(stateJSON, version string) (BannerInfo, error) {
 
 // shortenModelID shortens long model IDs for display
 func shortenModelID(modelID string) string {
-	// Remove date suffixes (e.g., -20241022)
-	if idx := strings.LastIndex(modelID, "-202"); idx > 0 {
-		return modelID[:idx]
-	}
-	if idx := strings.LastIndex(modelID, "-201"); idx > 0 {
-		return modelID[:idx]
+	// Remove date suffixes only if they're at the end (e.g., -20241022)
+	// Check if the model ID ends with -YYYYMMDD pattern
+	if len(modelID) > 9 {
+		suffix := modelID[len(modelID)-9:] // Last 9 chars: -20241022
+		if suffix[0] == '-' &&
+		   (strings.HasPrefix(suffix[1:], "202") || strings.HasPrefix(suffix[1:], "201")) {
+			// Verify all remaining chars are digits
+			allDigits := true
+			for _, c := range suffix[1:] {
+				if c < '0' || c > '9' {
+					allDigits = false
+					break
+				}
+			}
+			if allDigits {
+				return modelID[:len(modelID)-9]
+			}
+		}
 	}
 
 	// If still too long, show first 40 chars
