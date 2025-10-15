@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 )
@@ -128,6 +129,48 @@ func SetupKeyboard() func() {
 	return DisableEnhancedKeyboard
 }
 
+// getVSCodeConfigPath returns the platform-specific path to VS Code's User directory
+func getVSCodeConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "Application Support", "Code", "User"), nil
+	case "windows":
+		appData := os.Getenv("APPDATA")
+		if appData == "" {
+			appData = filepath.Join(home, "AppData", "Roaming")
+		}
+		return filepath.Join(appData, "Code", "User"), nil
+	default: // linux, freebsd, etc.
+		return filepath.Join(home, ".config", "Code", "User"), nil
+	}
+}
+
+// getCursorConfigPath returns the platform-specific path to Cursor's User directory
+func getCursorConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "Application Support", "Cursor", "User"), nil
+	case "windows":
+		appData := os.Getenv("APPDATA")
+		if appData == "" {
+			appData = filepath.Join(home, "AppData", "Roaming")
+		}
+		return filepath.Join(appData, "Cursor", "User"), nil
+	default: // linux, freebsd, etc.
+		return filepath.Join(home, ".config", "Cursor", "User"), nil
+	}
+}
+
 // DetectTerminal identifies which terminal emulator is currently running
 func DetectTerminal() string {
 	// Check TERM_PROGRAM (works for most terminals)
@@ -191,13 +234,13 @@ type VSCodeKeybinding struct {
 // SetupVSCodeKeybindings adds shift+enter support to VS Code's integrated terminal
 // by modifying the user's keybindings.json file.
 func SetupVSCodeKeybindings() error {
-	// Get VS Code keybindings path
-	home, err := os.UserHomeDir()
+	// Get platform-specific VS Code config path
+	configDir, err := getVSCodeConfigPath()
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return fmt.Errorf("failed to get config path: %w", err)
 	}
 
-	keybindingsPath := filepath.Join(home, "Library", "Application Support", "Code", "User", "keybindings.json")
+	keybindingsPath := filepath.Join(configDir, "keybindings.json")
 
 	// Check if VS Code is installed (keybindings file or parent dir exists)
 	if _, err := os.Stat(filepath.Dir(keybindingsPath)); os.IsNotExist(err) {
@@ -271,13 +314,13 @@ func SetupVSCodeKeybindings() error {
 // by modifying the user's keybindings.json file.
 // Cursor is a fork of VS Code, so it uses the same keybinding format.
 func SetupCursorKeybindings() error {
-	// Get Cursor keybindings path
-	home, err := os.UserHomeDir()
+	// Get platform-specific Cursor config path
+	configDir, err := getCursorConfigPath()
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return fmt.Errorf("failed to get config path: %w", err)
 	}
 
-	keybindingsPath := filepath.Join(home, "Library", "Application Support", "Cursor", "User", "keybindings.json")
+	keybindingsPath := filepath.Join(configDir, "keybindings.json")
 
 	// Check if Cursor is installed (keybindings file or parent dir exists)
 	if _, err := os.Stat(filepath.Dir(keybindingsPath)); os.IsNotExist(err) {
