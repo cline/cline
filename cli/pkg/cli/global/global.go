@@ -22,6 +22,12 @@ type GlobalConfig struct {
 var (
 	Config  *GlobalConfig
 	Clients *ClineClients
+
+	// Version info - set at build time via ldflags in cli/version.go
+	Version = "dev"
+	Commit  = "unknown"
+	Date    = "unknown"
+	BuiltBy = "unknown"
 )
 
 func InitializeGlobalConfig(cfg *GlobalConfig) error {

@@ -129,12 +129,19 @@ func NewInputModel(inputType InputType, title, placeholder, currentMode string) 
 
 	// Apply huh-like styling
 	styles := newFieldStyles()
+
+	// Set cursor color based on mode
+	cursorColor := lipgloss.Color("3") // Yellow for plan
+	if currentMode == "act" {
+		cursorColor = lipgloss.Color("39") // Blue for act
+	}
+
 	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()   // No cursor line highlighting
 	ta.FocusedStyle.EndOfBuffer = lipgloss.NewStyle()  // No end-of-buffer styling
 	ta.FocusedStyle.Placeholder = styles.placeholder
 	ta.FocusedStyle.Text = styles.textArea
 	ta.FocusedStyle.Prompt = lipgloss.NewStyle()       // No prompt styling
-	ta.Cursor.Style = styles.cursor
+	ta.Cursor.Style = lipgloss.NewStyle().Foreground(cursorColor)
 	ta.Cursor.TextStyle = styles.textArea
 
 	m := InputModel{
@@ -209,6 +216,13 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selectedOption = 0
 		}
 		return m, nil
+
+	default:
+		// Forward all other messages to textarea (including blink ticks)
+		if !m.suspended && (m.inputType == InputTypeMessage || m.inputType == InputTypeFeedback) {
+			m.textarea, cmd = m.textarea.Update(msg)
+			return m, cmd
+		}
 
 	case tea.KeyMsg:
 		if m.suspended {
@@ -398,13 +412,18 @@ func (m *InputModel) Clone() *InputModel {
 	// Configure keybindings
 	ta.KeyMap.InsertNewline.SetKeys("alt+enter", "ctrl+j")
 
-	// Apply styles
+	// Apply styles (including mode-based cursor color)
+	cursorColor := lipgloss.Color("3") // Yellow for plan
+	if m.currentMode == "act" {
+		cursorColor = lipgloss.Color("39") // Blue for act
+	}
+
 	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
 	ta.FocusedStyle.EndOfBuffer = lipgloss.NewStyle()
 	ta.FocusedStyle.Placeholder = m.styles.placeholder
 	ta.FocusedStyle.Text = m.styles.textArea
 	ta.FocusedStyle.Prompt = lipgloss.NewStyle()
-	ta.Cursor.Style = m.styles.cursor
+	ta.Cursor.Style = lipgloss.NewStyle().Foreground(cursorColor)
 	ta.Cursor.TextStyle = m.styles.textArea
 
 	// Create cloned model
