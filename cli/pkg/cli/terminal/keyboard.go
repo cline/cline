@@ -93,15 +93,15 @@ func isatty(fd uintptr) bool {
 	return (fileInfo.Mode() & os.ModeCharDevice) != 0
 }
 
-// SetupKeyboard is a convenience function that:
-// 1. Enables enhanced keyboard protocols
-// 2. Detects the current terminal and configures keybindings if needed
-// 3. Registers cleanup handler to disable on exit
+// SetupKeyboard detects the current terminal and configures keybindings if needed.
+// This modifies terminal config files to add permanent shift+enter support.
 //
 // This should be called once at CLI startup.
-func SetupKeyboard() func() {
-	EnableEnhancedKeyboard()
-
+// Note: We don't enable the enhanced keyboard protocol globally because it
+// breaks Control-C signal handling. Bubble Tea will handle keyboard input
+// when it's running, and the config file modifications provide permanent
+// shift+enter support after terminal restart.
+func SetupKeyboard() {
 	// Detect current terminal and configure only that terminal
 	// This runs in the background and doesn't block CLI startup
 	go func() {
@@ -125,8 +125,6 @@ func SetupKeyboard() func() {
 			// Terminal.app cannot be automated - user must configure manually
 		}
 	}()
-
-	return DisableEnhancedKeyboard
 }
 
 // getVSCodeConfigPath returns the platform-specific path to VS Code's User directory
