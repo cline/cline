@@ -1087,7 +1087,6 @@ export class Task {
 
 		if (this.terminalExecutionMode === "backgroundExec") {
 			this.activeBackgroundCommand = { process: process as any, command }
-			console.log(`[Task] Background command started`, JSON.stringify({ taskId: this.taskId, command }))
 		}
 
 		const clearCommandState = async () => {
@@ -1096,7 +1095,6 @@ export class Task {
 					return
 				}
 				this.activeBackgroundCommand = undefined
-				console.log(`[Task] Background command cleared`, JSON.stringify({ taskId: this.taskId }))
 			}
 			this.controller.updateBackgroundCommandState(false, this.taskId)
 
@@ -1396,7 +1394,6 @@ export class Task {
 			Logger.error("Failed to terminate background command", error)
 		}
 		try {
-			console.log(`[Task] Background command cancelled via API`, JSON.stringify({ taskId: this.taskId, command }))
 			await this.say("command_output", "Command cancelled. Background execution has been terminated.")
 		} catch (error) {
 			Logger.error("Failed to notify command cancellation", error)
