@@ -381,7 +381,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 	options := make([]huh.Option[int], len(configurableProviders)+1)
 	for i, providerDisplay := range configurableProviders {
 		displayName := fmt.Sprintf("%s (current: %s)",
-			getProviderDisplayName(providerDisplay.Provider),
+			GetProviderDisplayName(providerDisplay.Provider),
 			providerDisplay.ModelID)
 		options[i] = huh.NewOption(displayName, i)
 	}
@@ -407,7 +407,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 	selectedProvider := configurableProviders[selectedIndex]
 	provider := selectedProvider.Provider
 
-	fmt.Printf("\nChanging model for %s\n", getProviderDisplayName(provider))
+	fmt.Printf("\nChanging model for %s\n", GetProviderDisplayName(provider))
 	fmt.Printf("Current model: %s\n\n", selectedProvider.ModelID)
 
 	// Step 5: Retrieve API key if needed for model fetching
@@ -431,7 +431,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 
 		apiKey = getProviderAPIKeyFromState(apiConfig, provider)
 		if apiKey == "" {
-			return fmt.Errorf("no API key found for provider %s", getProviderDisplayName(provider))
+			return fmt.Errorf("no API key found for provider %s", GetProviderDisplayName(provider))
 		}
 	}
 
@@ -484,7 +484,7 @@ func SwitchToBYOProvider(ctx context.Context, manager *task.Manager, provider cl
 	// Get the model ID for the selected provider
 	modelID := getProviderModelIDFromState(apiConfig, provider)
 	if modelID == "" {
-		return fmt.Errorf("no model configured for provider %s", getProviderDisplayName(provider))
+		return fmt.Errorf("no model configured for provider %s", GetProviderDisplayName(provider))
 	}
 
 	// Get model info if available (for OpenRouter/Cline)
@@ -505,7 +505,7 @@ func SwitchToBYOProvider(ctx context.Context, manager *task.Manager, provider cl
 		return fmt.Errorf("failed to switch provider: %w", err)
 	}
 
-	verboseLog("✓ Switched to %s\n", getProviderDisplayName(provider))
+	verboseLog("✓ Switched to %s\n", GetProviderDisplayName(provider))
 	verboseLog("  Using model: %s\n", modelID)
 
 	return HandleAuthMenuNoArgs(ctx)
@@ -607,7 +607,7 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 	options := make([]huh.Option[int], len(removableProviders))
 	for i, provider := range removableProviders {
 		// Mark active provider
-		displayName := getProviderDisplayName(provider.Provider)
+		displayName := GetProviderDisplayName(provider.Provider)
 		if result.ActProvider != nil && provider.Provider == result.ActProvider.Provider {
 			displayName += " (ACTIVE)"
 		}
@@ -631,7 +631,7 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 
 	// Step 5: Check if trying to remove the active provider
 	if result.ActProvider != nil && selectedProvider.Provider == result.ActProvider.Provider {
-		fmt.Printf("\nCannot remove %s because it is currently active.\n", getProviderDisplayName(selectedProvider.Provider))
+		fmt.Printf("\nCannot remove %s because it is currently active.\n", GetProviderDisplayName(selectedProvider.Provider))
 		fmt.Println("Please switch to a different provider first, then try again.")
 		return nil
 	}
@@ -641,7 +641,7 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 	confirmForm := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
-				Title(fmt.Sprintf("Are you sure you want to remove %s?", getProviderDisplayName(selectedProvider.Provider))).
+				Title(fmt.Sprintf("Are you sure you want to remove %s?", GetProviderDisplayName(selectedProvider.Provider))).
 				Description("This will clear the API key but preserve the model configuration.").
 				Value(&confirm),
 		),
@@ -661,7 +661,7 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 		return fmt.Errorf("failed to remove provider: %w", err)
 	}
 
-	fmt.Printf("\n✓ %s removed successfully\n", getProviderDisplayName(selectedProvider.Provider))
+	fmt.Printf("\n✓ %s removed successfully\n", GetProviderDisplayName(selectedProvider.Provider))
 	return nil
 }
 

@@ -129,7 +129,8 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 
 			// If no prompt from args or stdin, show interactive input
 			if prompt == "" {
-				prompt, err = promptForInitialTask()
+				// Pass the mode flag to banner so it shows correct mode
+				prompt, err = promptForInitialTask(ctx, instanceAddress, mode)
 				if err != nil {
 					return err
 				}
@@ -182,7 +183,10 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 	}
 }
 
-func promptForInitialTask() (string, error) {
+func promptForInitialTask(ctx context.Context, instanceAddress, modeFlag string) (string, error) {
+	// Show session banner before the initial input
+	showSessionBanner(ctx, instanceAddress, modeFlag)
+
 	var prompt string
 
 	form := huh.NewForm(
@@ -194,7 +198,7 @@ func promptForInitialTask() (string, error) {
 				Lines(5).
 				Value(&prompt),
 		),
-	)
+	).WithWidth(48)
 
 	err := form.Run()
 	if err != nil {
@@ -202,6 +206,48 @@ func promptForInitialTask() (string, error) {
 	}
 
 	return strings.TrimSpace(prompt), nil
+}
+
+// showSessionBanner displays session info before initial prompt
+func showSessionBanner(ctx context.Context, instanceAddress, modeFlag string) {
+	bannerInfo := display.BannerInfo{
+		Version: global.Version,
+		Mode:    modeFlag, // Use the mode from command flag, not state
+	}
+
+	// If mode is empty, default to "plan"
+	if bannerInfo.Mode == "" {
+		bannerInfo.Mode = "plan"
+	}
+
+	// Get current working directory (this is what Cline will use)
+	if cwd, err := os.Getwd(); err == nil {
+		bannerInfo.Workdir = cwd
+	}
+
+	// Get provider/model using auth functions (same logic as auth menu)
+	manager, err := cli.NewTaskManagerForAddress(ctx, instanceAddress)
+	if err == nil {
+		if providerList, err := auth.GetProviderConfigurations(ctx, manager); err == nil {
+			// Show provider/model for the mode we'll be using
+			var providerDisplay *auth.ProviderDisplay
+			if bannerInfo.Mode == "plan" && providerList.PlanProvider != nil {
+				providerDisplay = providerList.PlanProvider
+			} else if bannerInfo.Mode == "act" && providerList.ActProvider != nil {
+				providerDisplay = providerList.ActProvider
+			}
+
+			if providerDisplay != nil {
+				bannerInfo.Provider = auth.GetProviderIDForEnum(providerDisplay.Provider)
+				bannerInfo.ModelID = providerDisplay.ModelID
+			}
+		}
+	}
+
+	// Render and display banner
+	banner := display.RenderSessionBanner(bannerInfo)
+	fmt.Println(banner)
+	fmt.Println() // Extra spacing before form
 }
 
 // isUserReadyToUse checks if the user has completed initial setup
