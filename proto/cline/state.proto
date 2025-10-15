@@ -19,6 +19,7 @@ service StateService {
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
   rpc updateSettingsCli(UpdateSettingsRequestCli) returns (Empty);
+  rpc updateTaskSettings(UpdateTaskSettingsRequest) returns (Empty);
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
   rpc updateInfoBannerVersion(Int64Request) returns (Empty);
@@ -316,6 +317,11 @@ message UpdateSettingsRequestCli {
   Metadata metadata = 1;
   optional Settings settings = 2;
   optional Secrets secrets = 3;
+}
+
+message UpdateTaskSettingsRequest {
+  Metadata metadata = 1;
+  optional Settings settings = 2;
 }
 
 // Message for updating settings
