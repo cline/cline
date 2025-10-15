@@ -16,8 +16,8 @@ message HookInput {
   oneof data {
     PreToolUseData pre_tool_use = 10;
     PostToolUseData post_tool_use = 11;
+    UserPromptSubmitData user_prompt_submit = 12;
     // Future hooks will be added here
-    // UserPromptSubmitData user_prompt_submit = 12;
     // TaskStartData task_start = 13;
     // TaskResumeData task_resume = 14;
     // TaskCancelData task_cancel = 15;
@@ -46,4 +46,10 @@ message PostToolUseData {
   string result = 3;
   bool success = 4;
   int64 execution_time_ms = 5;
+}
+
+// Data for UserPromptSubmit hook
+message UserPromptSubmitData {
+  string prompt = 1;
+  repeated string attachments = 2;
 }
