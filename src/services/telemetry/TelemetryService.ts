@@ -16,7 +16,7 @@ import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation"
+type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation" | "subagents"
 
 /**
  * Enum for terminal output failure reasons
@@ -78,6 +78,7 @@ export class TelemetryService {
 		["browser", true], // Browser telemetry enabled
 		["dictation", true], // Dictation telemetry enabled
 		["focus_chain", true], // Focus Chain telemetry enabled
+		["subagents", true], // CLI Subagents telemetry enabled
 	])
 
 	// Event constants for tracking user interactions and system events
@@ -197,6 +198,11 @@ export class TelemetryService {
 			MENTION_SEARCH_RESULTS: "task.mention_search_results",
 			// Multi-workspace search pattern tracking
 			WORKSPACE_SEARCH_PATTERN: "task.workspace_search_pattern",
+			// CLI Subagents telemetry events
+			SUBAGENT_ENABLED: "task.subagent_enabled",
+			SUBAGENT_DISABLED: "task.subagent_disabled",
+			SUBAGENT_STARTED: "task.subagent_started",
+			SUBAGENT_COMPLETED: "task.subagent_completed",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -1527,6 +1533,50 @@ export class TelemetryService {
 				resultCount,
 				searchType,
 				isEmpty,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	// CLI Subagents telemetry methods
+
+	/**
+	 * Records when CLI subagents feature is enabled/disabled by the user
+	 * @param enabled Whether subagents was enabled (true) or disabled (false)
+	 */
+	public captureSubagentToggle(enabled: boolean) {
+		if (!this.isCategoryEnabled("subagents")) {
+			return
+		}
+
+		this.capture({
+			event: enabled ? TelemetryService.EVENTS.TASK.SUBAGENT_ENABLED : TelemetryService.EVENTS.TASK.SUBAGENT_DISABLED,
+			properties: {
+				enabled,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when a CLI subagent is executed
+	 * @param ulid Unique identifier for the task
+	 * @param durationMs Duration of the subagent execution in milliseconds
+	 * @param outputLines Number of lines of output produced by the subagent
+	 * @param success Whether the subagent execution was successful
+	 */
+	public captureSubagentExecution(ulid: string, durationMs: number, outputLines: number, success: boolean) {
+		if (!this.isCategoryEnabled("subagents")) {
+			return
+		}
+
+		this.capture({
+			event: success ? TelemetryService.EVENTS.TASK.SUBAGENT_COMPLETED : TelemetryService.EVENTS.TASK.SUBAGENT_STARTED,
+			properties: {
+				ulid,
+				durationMs,
+				outputLines,
+				success,
 				timestamp: new Date().toISOString(),
 			},
 		})

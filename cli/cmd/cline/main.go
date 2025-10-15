@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/cline/cli/pkg/cli"
 	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/display"
@@ -104,6 +105,10 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 					fmt.Printf("\n%s\n\n", rendered)
 
 					if err := auth.HandleAuthMenuNoArgs(ctx); err != nil {
+						// Check if user cancelled - exit cleanly
+						if err == huh.ErrUserAborted {
+							return nil
+						}
 						return fmt.Errorf("auth setup failed: %w", err)
 					}
 
@@ -129,8 +134,13 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 
 			// If no prompt from args or stdin, show interactive input
 			if prompt == "" {
-				prompt, err = promptForInitialTask()
+				// Pass the mode flag to banner so it shows correct mode
+				prompt, err = promptForInitialTask(ctx, instanceAddress, mode)
 				if err != nil {
+					// Check if user cancelled - exit cleanly without error
+					if err == huh.ErrUserAborted {
+						return nil
+					}
 					return err
 				}
 				if prompt == "" {
@@ -182,8 +192,23 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 	}
 }
 
-func promptForInitialTask() (string, error) {
+func promptForInitialTask(ctx context.Context, instanceAddress, modeFlag string) (string, error) {
+	// Show session banner before the initial input
+	showSessionBanner(ctx, instanceAddress, modeFlag)
+
 	var prompt string
+
+	// Create custom theme with mode-colored cursor and title
+	theme := huh.ThemeCharm()
+
+	// Set cursor and title color based on mode
+	modeColor := lipgloss.Color("3") // Yellow for plan
+	if modeFlag == "act" {
+		modeColor = lipgloss.Color("39") // Blue for act
+	}
+
+	theme.Focused.TextInput.Cursor = theme.Focused.TextInput.Cursor.Foreground(modeColor)
+	theme.Focused.Title = theme.Focused.Title.Foreground(modeColor)
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -194,14 +219,62 @@ func promptForInitialTask() (string, error) {
 				Lines(5).
 				Value(&prompt),
 		),
-	)
+	).WithWidth(48).WithTheme(theme)
 
 	err := form.Run()
 	if err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			// Return a special error that indicates clean cancellation
+			// This allows deferred cleanup to run
+			return "", huh.ErrUserAborted
+		}
 		return "", err
 	}
 
 	return strings.TrimSpace(prompt), nil
+}
+
+// showSessionBanner displays session info before initial prompt
+func showSessionBanner(ctx context.Context, instanceAddress, modeFlag string) {
+	bannerInfo := display.BannerInfo{
+		Version: global.Version,
+		Mode:    modeFlag, // Use the mode from command flag, not state
+	}
+
+	// If mode is empty, default to "plan"
+	if bannerInfo.Mode == "" {
+		bannerInfo.Mode = "plan"
+	}
+
+	// Get current working directory (this is what Cline will use)
+	if cwd, err := os.Getwd(); err == nil {
+		bannerInfo.Workdir = cwd
+	}
+
+	// Get provider/model using auth functions (same logic as auth menu)
+	manager, err := cli.NewTaskManagerForAddress(ctx, instanceAddress)
+	if err == nil {
+		if providerList, err := auth.GetProviderConfigurations(ctx, manager); err == nil {
+			// Show provider/model for the mode we'll be using
+			var providerDisplay *auth.ProviderDisplay
+			if bannerInfo.Mode == "plan" && providerList.PlanProvider != nil {
+				providerDisplay = providerList.PlanProvider
+			} else if bannerInfo.Mode == "act" && providerList.ActProvider != nil {
+				providerDisplay = providerList.ActProvider
+			}
+
+			if providerDisplay != nil {
+				bannerInfo.Provider = auth.GetProviderIDForEnum(providerDisplay.Provider)
+				bannerInfo.ModelID = providerDisplay.ModelID
+			}
+		}
+	}
+
+	// Render and display banner
+	banner := display.RenderSessionBanner(bannerInfo)
+	fmt.Println(banner)
+	fmt.Println() // Extra spacing before form
 }
 
 // isUserReadyToUse checks if the user has completed initial setup
