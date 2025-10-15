@@ -416,9 +416,9 @@ func SetupGhosttyKeybindings() error {
 		}
 	}
 
-	// Keybinding to add - send ESC+newline (alt+enter equivalent)
-	// Using raw string with actual escape char (0x1b) + newline
-	keybinding := "keybind = shift+enter=text:\x1b\n\n"
+	// Keybinding to add - send newline character (0x0a)
+	// Ghostty requires \x0a hex escape syntax, verified working
+	keybinding := "keybind = shift+enter=text:\\x0a\n"
 
 	// Append to config
 	newContent := append(existingContent, []byte(keybinding)...)
