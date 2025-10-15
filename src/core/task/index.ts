@@ -1108,19 +1108,15 @@ export class Task {
 			}
 		}
 
-		const processEmitter = process as unknown as {
-			on?: (event: string, listener: (...args: any[]) => void) => void
-			once?: (event: string, listener: (...args: any[]) => void) => void
-			finally?: (listener: () => void) => Promise<void>
-		}
-		processEmitter.once?.("completed", clearCommandState)
-		processEmitter.once?.("error", clearCommandState)
-		const processFinally = (process as Promise<void>).finally?.(() => {
-			clearCommandState()
-		})
-		processFinally?.catch(() => {
-			clearCommandState()
-		})
+		process.once("completed", clearCommandState)
+		process.once("error", clearCommandState)
+		process
+			.finally(() => {
+				clearCommandState()
+			})
+			.catch(() => {
+				clearCommandState()
+			})
 
 		let userFeedback: { text?: string; images?: string[]; files?: string[] } | undefined
 		let didContinue = false
