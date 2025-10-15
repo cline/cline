@@ -1544,6 +1544,10 @@ export class Task {
 					content = content.replace(/<thinking>\s?/g, "")
 					content = content.replace(/\s?<\/thinking>/g, "")
 
+					// New claude models tend to output <function_calls> tags which we don't want to show in the chat
+					content = content.replace(/<function_calls>\s?/g, "")
+					content = content.replace(/\s?<\/function_calls>/g, "")
+
 					// Remove partial XML tag at the very end of the content (for tool use and thinking tags)
 					// (prevents scrollview from jumping when tags are automatically removed)
 					const lastOpenBracketIndex = content.lastIndexOf("<")
