@@ -162,21 +162,49 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 				// Check for mode switch commands first
 				newMode, remainingMessage, isModeSwitch := ih.parseModeSwitch(message)
 				if isModeSwitch {
-					// Switch mode
-					if err := ih.manager.SetMode(ctx, newMode, nil, nil, nil); err != nil {
-						output.Printf("\nError switching to %s mode: %v\n", newMode, err)
-						continue
-					}
-					output.Printf("\nSwitched to %s mode\n", newMode)
-
-					// If there's remaining message, use it as the new message to send
 					if remainingMessage != "" {
-						message = remainingMessage
+						// Switching with a message - behavior differs by mode
+						if newMode == "act" {
+							// Act mode: can send mode + message in one call
+							if err := ih.manager.SetMode(ctx, newMode, &remainingMessage, nil, nil); err != nil {
+								output.Printf("\nError switching to act mode with message: %v\n", err)
+								continue
+							}
+							// 256-color index 39 for act mode (matches lipgloss color "39" in input form)
+							output.Printf("\n\033[38;5;39m\033[1mSwitched to act mode\033[0m\n")
+						} else {
+							// Plan mode: must switch first, then send message separately
+							if err := ih.manager.SetMode(ctx, newMode, nil, nil, nil); err != nil {
+								output.Printf("\nError switching to plan mode: %v\n", err)
+								continue
+							}
+							// Yellow color for plan mode (ANSI color 3)
+							output.Printf("\n\033[33m\033[1mSwitched to plan mode\033[0m\n")
+
+							// Now send the message separately
+							time.Sleep(500 * time.Millisecond) // Give mode switch time to process
+							if err := ih.manager.SendMessage(ctx, remainingMessage, nil, nil, ""); err != nil {
+								output.Printf("\nError sending message after mode switch: %v\n", err)
+								continue
+							}
+						}
 					} else {
-						// No message to send, just mode switch
-						time.Sleep(1 * time.Second)
-						continue
+						// Just switch mode, no message
+						if err := ih.manager.SetMode(ctx, newMode, nil, nil, nil); err != nil {
+							output.Printf("\nError switching to %s mode: %v\n", newMode, err)
+							continue
+						}
+						// Color based on mode
+						if newMode == "act" {
+							output.Printf("\n\033[38;5;39m\033[1mSwitched to act mode\033[0m\n")
+						} else {
+							output.Printf("\n\033[33m\033[1mSwitched to plan mode\033[0m\n")
+						}
 					}
+
+					// Mode switch handled, continue to next poll
+					time.Sleep(1 * time.Second)
+					continue
 				}
 
 				// Handle special commands
