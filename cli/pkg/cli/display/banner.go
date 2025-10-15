@@ -19,19 +19,36 @@ type BannerInfo struct {
 
 // RenderSessionBanner renders a nice banner showing version, model, and workspace info
 func RenderSessionBanner(info BannerInfo) string {
-	highlight := lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
-	valueStyle := lipgloss.NewStyle().Foreground(highlight)
-	pathStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+	// Bright white for title
+	titleStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("15")). // Bright white
+		Bold(true)
+
+	// Dim gray for regular text (same as huh placeholder)
+	dimStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.AdaptiveColor{Light: "248", Dark: "238"})
+
+	// Border color matches mode
+	borderColor := lipgloss.Color("3") // Yellow for plan
+	if info.Mode == "act" {
+		borderColor = lipgloss.Color("39") // Blue for act
+	}
 
 	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(highlight).
-		Padding(0, 1)
+		BorderForeground(borderColor).
+		Padding(1, 4)
 
 	var lines []string
 
-	// Title line - "cline cli <version>"
-	lines = append(lines, "cline cli "+valueStyle.Render(info.Version))
+	// Format version with "v" prefix if it starts with a number
+	versionStr := info.Version
+	if len(versionStr) > 0 && versionStr[0] >= '0' && versionStr[0] <= '9' {
+		versionStr = "v" + versionStr
+	}
+
+	// Title line - "cline cli" bold white, version dim gray
+	lines = append(lines, titleStyle.Render("cline cli")+" "+dimStyle.Render(versionStr))
 
 	// Mode line - colored based on mode
 	if info.Mode != "" {
@@ -43,14 +60,14 @@ func RenderSessionBanner(info BannerInfo) string {
 		lines = append(lines, modeStyle.Render(info.Mode+" mode"))
 	}
 
-	// Model line - provider/model
+	// Model line - dim gray
 	if info.Provider != "" && info.ModelID != "" {
-		lines = append(lines, valueStyle.Render(info.Provider+"/"+info.ModelID))
+		lines = append(lines, dimStyle.Render(info.Provider+"/"+info.ModelID))
 	}
 
-	// Workspace line
+	// Workspace line - dim gray
 	if info.Workdir != "" {
-		lines = append(lines, pathStyle.Render(shortenPath(info.Workdir, 50)))
+		lines = append(lines, dimStyle.Render(shortenPath(info.Workdir, 50)))
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
