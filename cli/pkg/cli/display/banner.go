@@ -19,79 +19,38 @@ type BannerInfo struct {
 
 // RenderSessionBanner renders a nice banner showing version, model, and workspace info
 func RenderSessionBanner(info BannerInfo) string {
-	// Color palette
-	subtle := lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#383838"}
 	highlight := lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
-	label := lipgloss.AdaptiveColor{Light: "#666666", Dark: "#999999"}
-
-	// Styles
-	labelStyle := lipgloss.NewStyle().
-		Foreground(label).
-		Bold(true)
-
-	valueStyle := lipgloss.NewStyle().
-		Foreground(highlight)
-
-	pathStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("6")). // Cyan for paths
-		Italic(true)
+	valueStyle := lipgloss.NewStyle().Foreground(highlight)
+	pathStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
 
 	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(subtle).
+		BorderForeground(highlight).
 		Padding(0, 1)
 
-	// Build the banner content
 	var lines []string
 
-	// Version line
-	versionLine := lipgloss.JoinHorizontal(
-		lipgloss.Left,
-		labelStyle.Render("cline cli"),
-		" ",
-		valueStyle.Render(info.Version),
-	)
-	lines = append(lines, versionLine)
+	// Title line - "cline cli <version>"
+	lines = append(lines, "cline cli "+valueStyle.Render(info.Version))
 
-	// Mode line
+	// Mode line - colored based on mode
 	if info.Mode != "" {
 		modeColor := lipgloss.Color("3") // Yellow for plan
 		if info.Mode == "act" {
 			modeColor = lipgloss.Color("39") // Blue for act
 		}
 		modeStyle := lipgloss.NewStyle().Foreground(modeColor).Bold(true)
-
-		modeLine := lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			labelStyle.Render("mode"),
-			"      ",
-			modeStyle.Render(info.Mode),
-		)
-		lines = append(lines, modeLine)
+		lines = append(lines, modeStyle.Render(info.Mode+" mode"))
 	}
 
-	// Model line (provider/model)
+	// Model line - provider/model
 	if info.Provider != "" && info.ModelID != "" {
-		modelLine := lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			labelStyle.Render("model"),
-			"     ",
-			valueStyle.Render(info.Provider+"/"+info.ModelID),
-		)
-		lines = append(lines, modelLine)
+		lines = append(lines, valueStyle.Render(info.Provider+"/"+info.ModelID))
 	}
 
-	// Workspace line (shortened path)
+	// Workspace line
 	if info.Workdir != "" {
-		// Shorten the path for readability
-		shortened := shortenPath(info.Workdir, 50)
-		workdirLine := lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			labelStyle.Render("workspace"),
-			" ",
-			pathStyle.Render(shortened),
-		)
-		lines = append(lines, workdirLine)
+		lines = append(lines, pathStyle.Render(shortenPath(info.Workdir, 50)))
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left, lines...)
