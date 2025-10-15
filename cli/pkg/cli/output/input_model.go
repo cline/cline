@@ -327,9 +327,9 @@ func (m *InputModel) View() string {
 
 	// Render title with mode indicator
 	yellow := lipgloss.Color("3")
-	blue := lipgloss.Color("4")
+	blue := lipgloss.Color("39") // Same color glamour uses for headers in dark mode
 
-	modeStyle := lipgloss.NewStyle()
+	modeStyle := lipgloss.NewStyle().Bold(true)
 	if m.currentMode == "plan" {
 		modeStyle = modeStyle.Foreground(yellow)
 	} else {
