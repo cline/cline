@@ -29,7 +29,7 @@ export const CheckpointError: React.FC<CheckpointErrorProps> = ({
 	return (
 		<div className="flex items-center justify-center w-full">
 			<Alert
-				className="rounded-sm text-base h-fit bg-input-error-background text-input-error-foreground px-2 py-1 border border-foreground/30"
+				className="rounded-sm text-base h-fit bg-input-error-background text-input-error-foreground px-2 py-0 border border-foreground/30"
 				color="warning"
 				description={
 					<div className="flex gap-2">

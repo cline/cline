@@ -2,11 +2,16 @@
 @import url("../../node_modules/@vscode/codicons/dist/codicon.css");
 @import url("../node_modules/@fontsource/azeret-mono/index.css");
 
+/* Tailwind CSS */
 @import "tailwindcss";
 @import "./theme.css";
 @plugin "tailwindcss-animate";
 @custom-variant dark (&:is(.dark *));
 
+/**
+ * The default styles for each defined element.
+ * This ensures all the elements are rendered with the expected styles consistently without affecting by the parent element / host.
+ */
 @layer base {
 	* {
 		@apply border-border outline-ring/50 text-base;
