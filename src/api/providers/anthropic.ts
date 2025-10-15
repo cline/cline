@@ -62,6 +62,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 			case "claude-3-5-sonnet-20241022":
 			case "claude-3-5-haiku-20241022":
 			case "claude-3-opus-20240229":
+			case "claude-haiku-4-5-20251001":
 			case "claude-3-haiku-20240307": {
 				/**
 				 * The latest message will be the new user message, one before
@@ -122,6 +123,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 							case "claude-3-5-sonnet-20241022":
 							case "claude-3-5-haiku-20241022":
 							case "claude-3-opus-20240229":
+							case "claude-haiku-4-5-20251001":
 							case "claude-3-haiku-20240307":
 								betas.push("prompt-caching-2024-07-31")
 								return { headers: { "anthropic-beta": betas.join(",") } }

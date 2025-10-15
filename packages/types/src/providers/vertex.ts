@@ -187,6 +187,17 @@ export const vertexModels = {
 		cacheReadsPrice: 0.3,
 		supportsReasoningBudget: true,
 	},
+	"claude-haiku-4-5@20251001": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
+		supportsReasoningBudget: true,
+	},
 	"claude-opus-4-1@20250805": {
 		maxTokens: 8192,
 		contextWindow: 200_000,

@@ -169,6 +169,20 @@ export const bedrockModels = {
 		maxCachePoints: 4,
 		cachableFields: ["system", "messages", "tools"],
 	},
+	"anthropic.claude-haiku-4-5-20251001-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsReasoningBudget: true,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25, // 5m cache writes
+		cacheReadsPrice: 0.1, // cache hits / refreshes
+		minTokensPerCachePoint: 2048,
+		maxCachePoints: 4,
+		cachableFields: ["system", "messages", "tools"],
+	},
 	"anthropic.claude-3-5-sonnet-20240620-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,

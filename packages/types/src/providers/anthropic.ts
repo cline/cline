@@ -139,6 +139,19 @@ export const anthropicModels = {
 		cacheWritesPrice: 0.3,
 		cacheReadsPrice: 0.03,
 	},
+	"claude-haiku-4-5-20251001": {
+		maxTokens: 64_000,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
+		supportsReasoningBudget: true,
+		description:
+			"Claude Haiku 4.5 delivers near-frontier intelligence at lightning speeds with extended thinking, vision, and multilingual support.",
+	},
 } as const satisfies Record<string, ModelInfo>
 
 export const ANTHROPIC_DEFAULT_MAX_TOKENS = 8192

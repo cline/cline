@@ -137,6 +137,7 @@ describe("OpenRouter API", () => {
 				"google/gemini-2.5-pro",
 				"anthropic/claude-opus-4.1", // Not yet available in OpenRouter API
 				"anthropic/claude-sonnet-4.5", // Not yet available in OpenRouter API
+				"anthropic/claude-haiku-4.5", // Not yet available in OpenRouter API
 			])
 
 			const expectedReasoningBudgetModels = Array.from(OPEN_ROUTER_REASONING_BUDGET_MODELS)

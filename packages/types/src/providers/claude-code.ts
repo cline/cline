@@ -105,4 +105,12 @@ export const claudeCodeModels = {
 		supportsReasoningBudget: false,
 		requiredReasoningBudget: false,
 	},
+	"claude-haiku-4-5-20251001": {
+		...anthropicModels["claude-haiku-4-5-20251001"],
+		supportsImages: false,
+		supportsPromptCache: true, // Claude Code does report cache tokens
+		supportsReasoningEffort: false,
+		supportsReasoningBudget: false,
+		requiredReasoningBudget: false,
+	},
 } as const satisfies Record<string, ModelInfo>

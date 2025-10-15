@@ -253,6 +253,13 @@ export const parseOpenRouterModel = ({
 		modelInfo.maxTokens = anthropicModels["claude-opus-4-1-20250805"].maxTokens
 	}
 
+	// Ensure correct reasoning handling for Claude Haiku 4.5 on OpenRouter
+	// Use budget control and disable effort-based reasoning fallback
+	if (id === "anthropic/claude-haiku-4.5") {
+		modelInfo.supportsReasoningBudget = true
+		modelInfo.supportsReasoningEffort = false
+	}
+
 	// Set horizon-alpha model to 32k max tokens
 	if (id === "openrouter/horizon-alpha") {
 		modelInfo.maxTokens = 32768
