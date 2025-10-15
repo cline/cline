@@ -488,4 +488,109 @@ console.log(JSON.stringify({
 			result.shouldContinue.should.be.true()
 		})
 	})
+
+	describe("Fixture-Based Tests", () => {
+		// These tests demonstrate using pre-written fixtures from the fixtures directory
+		// Fixtures serve as both test data and examples for manual testing
+
+		it("should work with success fixture", async () => {
+			// Load the success fixture
+			const { loadFixture } = await import("./test-utils")
+			await loadFixture("hooks/userpromptsubmit/success", tempDir)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("UserPromptSubmit")
+
+			const result = await runner.run({
+				taskId: "test-task",
+				userPromptSubmit: {
+					prompt: "Create a feature",
+					attachments: [],
+				},
+			})
+
+			result.shouldContinue.should.be.true()
+			result.contextModification!.should.equal("Prompt approved")
+		})
+
+		it("should work with blocking fixture", async () => {
+			const { loadFixture } = await import("./test-utils")
+			await loadFixture("hooks/userpromptsubmit/blocking", tempDir)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("UserPromptSubmit")
+
+			const result = await runner.run({
+				taskId: "test-task",
+				userPromptSubmit: {
+					prompt: "Do something forbidden",
+					attachments: [],
+				},
+			})
+
+			result.shouldContinue.should.be.false()
+			result.errorMessage!.should.equal("Prompt violates policy")
+		})
+
+		it("should work with context-injection fixture", async () => {
+			const { loadFixture } = await import("./test-utils")
+			await loadFixture("hooks/userpromptsubmit/context-injection", tempDir)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("UserPromptSubmit")
+
+			const result = await runner.run({
+				taskId: "test-task",
+				userPromptSubmit: {
+					prompt: "Build something",
+					attachments: [],
+				},
+			})
+
+			result.shouldContinue.should.be.true()
+			result.contextModification!.should.equal("CONTEXT_INJECTION: User is in plan mode")
+		})
+
+		it("should work with error fixture", async () => {
+			const { loadFixture } = await import("./test-utils")
+			await loadFixture("hooks/userpromptsubmit/error", tempDir)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("UserPromptSubmit")
+
+			try {
+				await runner.run({
+					taskId: "test-task",
+					userPromptSubmit: {
+						prompt: "Test",
+						attachments: [],
+					},
+				})
+				throw new Error("Should have thrown")
+			} catch (error: any) {
+				error.message.should.match(/exited with code 1/)
+			}
+		})
+
+		it("should work with malformed-json fixture", async () => {
+			const { loadFixture } = await import("./test-utils")
+			await loadFixture("hooks/userpromptsubmit/malformed-json", tempDir)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("UserPromptSubmit")
+
+			try {
+				await runner.run({
+					taskId: "test-task",
+					userPromptSubmit: {
+						prompt: "Test",
+						attachments: [],
+					},
+				})
+				throw new Error("Should have thrown parse error")
+			} catch (error: any) {
+				error.message.should.match(/Failed to parse hook output/)
+			}
+		})
+	})
 })
