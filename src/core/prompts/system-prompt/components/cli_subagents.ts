@@ -8,7 +8,7 @@ The Cline CLI tool can be used to assign Cline AI agents with focused tasks. Thi
 
 ## Creating Cline AI agents
 
-Cline AI agents may be referred to as subagents or subtasks. Requests may not specifically invoke subagents, but you may invoke them directly if warranted. Unless you are specifically asked to use this tool, only create subagents when it seems likely you may be exploring across 10 or more files. If users specifically ask that you use this tool, you then must use this tool. Do not use subagents for editing code or executing commands- they should only be used for reading and research to help you better answer questions or build useful context for future coding tasks. You may perform code edits directly using the create_file and replace_in_file tools, and commands using the execute_command tool.
+Cline AI agents may be referred to as agents, subagents, or subtasks. Requests may not specifically invoke agents, but you may invoke them directly if warranted. Unless you are specifically asked to use this tool, only create agents when it seems likely you may be exploring across 10 or more files. If users specifically ask that you use this tool, you then must use this tool. Do not use subagents for editing code or executing commands- they should only be used for reading and research to help you better answer questions or build useful context for future coding tasks. You may perform code edits directly using the write_to_file and replace_in_file tools, and commands using the execute_command tool.
 
 If you are performing a search via search_files or the terminal (grep etc.), and the results are long and overwhleming, it is reccomended that you switch to use Cline CLI agents to perform this task.
 
@@ -23,7 +23,7 @@ cline "your prompt here"
 
 ## Optional
 
-Working directory to start the subagent in:
+Working directory to start the agent in:
 --workdir ./src/auth
 
 ## Examples of how you might use this tool
