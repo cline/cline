@@ -109,11 +109,25 @@ export const CliInstallBanner: React.FC = () => {
 					<>
 						Install to use Cline directly in your terminal and enable subagent capabilities. Cline can spawn{" "}
 						<code>cline</code> commands to handle focused tasks like exploring large codebases for information. This
-						keeps your main context window clean by running these operations in separate subprocesses.
+						keeps your main context window clean by running these operations in separate subprocesses.{" "}
+						<a
+							href="https://docs.cline.bot/cline-cli/overview"
+							rel="noopener noreferrer"
+							style={{ color: "var(--vscode-textLink-foreground)" }}
+							target="_blank">
+							Learn more
+						</a>
 					</>
 				) : (
 					<>
-						Cline CLI is available for Mac OS users now! coming <code>soon</code> to other platforms.
+						Cline CLI is available for Mac OS users now! coming <code>soon</code> to other platforms.{" "}
+						<a
+							href="https://docs.cline.bot/cline-cli/overview"
+							rel="noopener noreferrer"
+							style={{ color: "var(--vscode-textLink-foreground)" }}
+							target="_blank">
+							Learn more
+						</a>
 					</>
 				)}
 			</p>
