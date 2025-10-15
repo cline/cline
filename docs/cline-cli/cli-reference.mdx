@@ -12,7 +12,7 @@ This page provides a comprehensive reference for all Cline CLI commands, global 
 These flags are available for all Cline CLI commands:
 
 ```bash
---address string         Cline Core gRPC address (default "localhost:50052")
+--address string         Cline Core gRPC address (default "127.0.0.1:50052")
 -f, --file strings       attach files
 -h, --help               help for cline
 -i, --image strings      attach image files
@@ -33,7 +33,7 @@ The `--address` flag allows you to specify which Cline instance to target:
 cline task new "Create a feature"
 
 # Target specific instance
-cline task new "Create a feature" --address localhost:51052
+cline task new "Create a feature" --address 127.0.0.1:51052
 ```
 
 ### File and Image Attachments
@@ -138,25 +138,6 @@ cline task new "Debug this" --verbose
 cline task new "Debug this" -v
 ```
 
-## Environment Variables
-
-### CLINE_DIR
-
-Override the default Cline directory location:
-
-```bash
-# Override default Cline directory
-export CLINE_DIR=/custom/path
-
-# Default: ~/.cline
-```
-
-This directory is used for:
-- Instance registry database
-- Configuration files
-- Task history
-- Checkpoints
-
 ## Authentication
 
 **Command Help:**
@@ -170,7 +151,7 @@ Flags:
   -h, --help   help for auth
 
 Global Flags:
-      --address string         Cline Core gRPC address (default "localhost:50052")
+      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
   -o, --output-format string   output format (rich|json|plain) (default "rich")
   -v, --verbose                verbose output
 ```
@@ -209,7 +190,7 @@ Flags:
   -h, --help   help for instance
 
 Global Flags:
-      --address string         Cline Core gRPC address (default "localhost:50052")
+      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
   -o, --output-format string   output format (rich|json|plain) (default "rich")
   -v, --verbose                verbose output
 ```
@@ -230,7 +211,7 @@ Flags:
   -h, --help   help for list
 
 Global Flags:
-      --address string         Cline Core gRPC address (default "localhost:50052")
+      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
   -o, --output-format string   output format (rich|json|plain) (default "rich")
   -v, --verbose                verbose output
 ```
@@ -241,7 +222,7 @@ Global Flags:
 cline instance list
 
 # Output shows:
-# - ADDRESS: Instance address (e.g., localhost:51051)
+# - ADDRESS: Instance address (e.g., 127.0.0.1:51051)
 # - STATUS: Health status (SERVING, NOT_SERVING)
 # - VERSION: Cline version
 # - LAST SEEN: Last health check timestamp
@@ -265,7 +246,7 @@ Flags:
   -h, --help   help for new
 
 Global Flags:
-      --address string         Cline Core gRPC address (default "localhost:50052")
+      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
   -o, --output-format string   output format (rich|json|plain) (default "rich")
   -v, --verbose                verbose output
 ```
@@ -276,7 +257,7 @@ Global Flags:
 cline instance new
 
 # Output shows:
-# - Address (e.g., localhost:51052)
+# - Address (e.g., 127.0.0.1:51052)
 # - Core Port (e.g., 51052)
 # - Host Bridge Port (e.g., 51053)
 # - Default status
@@ -298,7 +279,7 @@ Flags:
   -h, --help   help for use
 
 Global Flags:
-      --address string         Cline Core gRPC address (default "localhost:50052")
+      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
   -o, --output-format string   output format (rich|json|plain) (default "rich")
   -v, --verbose                verbose output
 ```
@@ -306,7 +287,7 @@ Global Flags:
 **Examples:**
 ```bash
 # Set default instance
-cline instance use localhost:51052
+cline instance use 127.0.0.1:51052
 ```
 
 ### Kill Instance
@@ -326,7 +307,7 @@ Flags:
   -h, --help   help for kill
 
 Global Flags:
-      --address string         Cline Core gRPC address (default "localhost:50052")
+      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
   -o, --output-format string   output format (rich|json|plain) (default "rich")
   -v, --verbose                verbose output
 ```
@@ -335,7 +316,7 @@ Global Flags:
 
 ```bash
 # Kill specific instance
-cline instance kill localhost:51052
+cline instance kill 127.0.0.1:51052
 
 # Kill all instances
 cline instance kill --all-cli
@@ -395,7 +376,7 @@ Flags:
   -h, --help   help for logs
 
 Global Flags:
-      --address string         Cline Core gRPC address (default "localhost:50052")
+      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
   -o, --output-format string   output format (rich|json|plain) (default "rich")
   -v, --verbose                verbose output
 ```
@@ -417,7 +398,7 @@ Flags:
   -h, --help   help for list
 
 Global Flags:
-      --address string         Cline Core gRPC address (default "localhost:50052")
+      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
   -o, --output-format string   output format (rich|json|plain) (default "rich")
   -v, --verbose                verbose output
 ```
@@ -427,14 +408,11 @@ Global Flags:
 # List all log files
 cline logs list
 
-# List with JSON output for scripting
-cline logs list -o json
-
 # Output shows:
 # - Log file name
 # - File size
 # - Creation timestamp
-# - Associated instance address (if applicable)
+# - File age
 ```
 
 ### Clean Log Files
@@ -454,7 +432,7 @@ Flags:
   -h, --help   help for clean
 
 Global Flags:
-      --address string         Cline Core gRPC address (default "localhost:50052")
+      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
   -o, --output-format string   output format (rich|json|plain) (default "rich")
   -v, --verbose                verbose output
 ```
@@ -463,9 +441,6 @@ Global Flags:
 ```bash
 # Clean old log files
 cline logs clean
-
-# Clean with verbose output
-cline logs clean --verbose
 
 # Output shows:
 # - Number of files deleted
@@ -490,7 +465,7 @@ Flags:
   -h, --help   help for path
 
 Global Flags:
-      --address string         Cline Core gRPC address (default "localhost:50052")
+      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
   -o, --output-format string   output format (rich|json|plain) (default "rich")
   -v, --verbose                verbose output
 ```
@@ -538,7 +513,7 @@ Flags:
   -h, --help   help for task
 
 Global Flags:
-      --address string         Cline Core gRPC address (default "localhost:50052")
+      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
   -o, --output-format string   output format (rich|json|plain) (default "rich")
   -v, --verbose                verbose output
 ```
@@ -586,7 +561,7 @@ cline task new "Review this code" -f main.go -f utils.go
 cline task new "Build a web app" -w /path/to/project
 
 # Specify instance address
-cline task new "Task for specific instance" --address localhost:51052
+cline task new "Task for specific instance" --address 127.0.0.1:51052
 
 # Set mode (act or plan)
 cline task new "Plan this feature" --mode plan
@@ -641,9 +616,6 @@ cline task oneshot "Analyze this" -f data.csv -i chart.png
 
 # With workspace
 cline task oneshot "Build project" -w /path/to/workspace
-
-# With custom settings
-cline task oneshot "Task" -s model=claude
 ```
 
 ### Send Messages
@@ -694,7 +666,7 @@ cline task send --approve true
 cline task send --approve false
 
 # Specify instance
-cline task send "Message" --address localhost:51052
+cline task send "Message" --address 127.0.0.1:51052
 ```
 
 ### Follow Task Progress
@@ -724,7 +696,7 @@ Global Flags:
 cline task follow
 
 # Follow on specific instance
-cline task follow --address localhost:51052
+cline task follow --address 127.0.0.1:51052
 ```
 
 ### View Task
@@ -762,7 +734,7 @@ cline task view --current
 cline task view --summary
 
 # Specify instance
-cline task view --address localhost:51052
+cline task view --address 127.0.0.1:51052
 ```
 
 ### Cancel Task
@@ -792,7 +764,7 @@ Global Flags:
 cline task cancel
 
 # Cancel on specific instance
-cline task cancel --address localhost:51052
+cline task cancel --address 127.0.0.1:51052
 ```
 
 ### List Tasks
@@ -822,7 +794,7 @@ Global Flags:
 cline task list
 
 # List from specific instance
-cline task list --address localhost:51052
+cline task list --address 127.0.0.1:51052
 ```
 
 ### Resume Task
@@ -852,7 +824,7 @@ Global Flags:
 cline task resume abc123
 
 # Resume on specific instance
-cline task resume abc123 --address localhost:51052
+cline task resume abc123 --address 127.0.0.1:51052
 ```
 
 ### Restore Checkpoint
@@ -885,7 +857,7 @@ cline task restore 1234567890 --type workspace
 cline task restore 1234567890 --type taskAndWorkspace
 
 # Restore on specific instance
-cline task restore 1234567890 --address localhost:51052
+cline task restore 1234567890 --address 127.0.0.1:51052
 ```
 
 **Restore Types:**
@@ -951,7 +923,7 @@ Flags:
   -h, --help   help for completion
 
 Global Flags:
-      --address string         Cline Core gRPC address (default "localhost:50052")
+      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
   -o, --output-format string   output format (rich|json|plain) (default "rich")
   -v, --verbose                verbose output
 ```
@@ -1039,10 +1011,10 @@ The host bridge exposes several gRPC services:
 **Command Output:**
 ```
 Cline Go Host
-Version:    dev
-Commit:     unknown
-Built:      unknown
-Built by:   unknown
+Version:    3.32.7
+Commit:     6eb0e7000
+Built:      2025-10-14T00:26:49Z
+Built by:   lung
 Go version: go1.25.1
 OS/Arch:    darwin/arm64
 ```
@@ -1052,3 +1024,22 @@ OS/Arch:    darwin/arm64
 # Show version information
 cline version
 ```
+
+## Environment Variables
+
+### CLINE_DIR
+
+Override the default Cline directory location:
+
+```bash
+# Override default Cline directory
+export CLINE_DIR=/custom/path
+
+# Default: ~/.cline
+```
+
+This directory is used for:
+- Instance registry database
+- Configuration files
+- Task history
+- Checkpoints
