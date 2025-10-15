@@ -38,12 +38,12 @@ const USETERMINALWORDWRAP = true
 func detectTerminalTheme() string {
 	switch os.Getenv("TERM_PROGRAM") {
 	case "iTerm.app", "Ghostty":
-		return "auto"
+		return "dark"
 	}
 	if os.Getenv("GHOSTTY_VERSION") != "" {
-		return "auto"
+		return "dark"
 	}
-	return "auto"
+	return "dark"
 }
 
 func glamourStyleJSON(terminalWrap bool) string {
