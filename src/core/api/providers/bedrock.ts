@@ -755,6 +755,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			(baseModelId.includes("3-7") ||
 				baseModelId.includes("sonnet-4") ||
 				baseModelId.includes("opus-4") ||
+				baseModelId.includes("haiku-4-5") ||
 				baseModelId.includes("sonnet-4-5")) &&
 			budgetTokens !== 0
 		)
