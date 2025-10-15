@@ -21,21 +21,11 @@ npm install -g cline
 
 ## Usage
 
-### Start Cline
-
 ```bash
 cline
 ```
 
 This will start the Cline CLI interface where you can interact with the autonomous coding agent.
-
-### Host Service
-
-```bash
-cline-host
-```
-
-Starts the Cline host service for advanced integrations and multi-instance management. This is typically managed by `cline` automatically
 
 ## Features
 
