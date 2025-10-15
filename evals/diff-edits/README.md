@@ -47,6 +47,36 @@ We're specifically looking for the model to make a single `replace_in_file` tool
 
 We record a bunch of data for every attempt into a database. This includes details about the model and prompt, token counts, costs, the raw output from the model, the parsed tool calls, whether it succeeded or failed, any error messages, and timing info. For a detailed explanation of the database schema, see [database.md](./database.md).
 
+### Quickstart: Two runner paths
+
+Run the smallest suite with both execution paths to sanity check the harness:
+
+```bash
+# Responses API path (OpenAI Responses)
+cd evals/cli && node dist/index.js run-diff-eval \
+  --model-ids "openai/gpt-4.1-mini" \
+  --max-cases 3 \
+  --valid-attempts-per-case 1 \
+  --provider openai \
+  --verbose
+
+# Streaming path (legacy, generic streaming provider)
+cd evals/cli && node dist/index.js run-diff-eval \
+  --model-ids "anthropic/claude-3-5-sonnet-20241022" \
+  --max-cases 3 \
+  --valid-attempts-per-case 1 \
+  --provider openrouter \
+  --verbose
+```
+
+Both runs print final status, a brief tool-call transcript, token usage (input/output/cache), and estimated $ cost. Each run also writes a compact artifact at `evals/diff-edits/results/run-artifact.json` (or your chosen `--output-path`) containing:
+
+- model ids and git commit hash
+- pass/fail with reason per attempt
+- tool calls (name/args keys)
+- token usage by category and total cost
+- the main flags used (provider, prompts, iteration caps, etc.)
+
 A big part of this is how we handle "valid attempts," which I'll explain next.
 
 ## Keeping it Fair with "Valid Attempts"

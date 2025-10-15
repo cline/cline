@@ -14,6 +14,7 @@ import * as path from "path"
 import { Command } from "commander"
 import { InputMessage, ProcessedTestCase, TestCase, TestConfig, SystemPromptDetails, ConstructSystemPromptFn } from "./types"
 import { loadOpenRouterModelData, EvalOpenRouterModelInfo } from "./openRouterModelsHelper"; // Added import
+import { execSync } from "child_process"
 import {
 	upsertSystemPrompt,
 	upsertProcessingFunctions,
@@ -429,6 +430,67 @@ class NodeTestRunner {
 		)
 
 		return systemPrompt
+	}
+
+	/**
+	 * Write a compact JSON artifact for the run to the given output path
+	 */
+	writeRunArtifact(params: {
+		results: TestResultSet
+		modelIds: string[]
+		outputPath: string
+		flags: Record<string, unknown>
+		isVerbose: boolean
+	}): void {
+		const { results, modelIds, outputPath, flags, isVerbose } = params
+		try {
+			if (!fs.existsSync(outputPath)) {
+				fs.mkdirSync(outputPath, { recursive: true })
+			}
+			let commitHash = ""
+			try {
+				commitHash = execSync("git rev-parse HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim()
+			} catch {}
+
+			const now = new Date().toISOString()
+			const flatResults: any[] = []
+			for (const [testId, attempts] of Object.entries(results)) {
+				for (const attempt of attempts) {
+					flatResults.push({
+						test_id: testId,
+						success: attempt.success === true && attempt.diffEditSuccess === true,
+						error: attempt.error || null,
+						tool_calls: (attempt.toolCalls || []).map((c) => ({ name: c.name, callId: c.callId, argKeys: Object.keys(c.input || {}) })),
+						usage: attempt.streamResult?.usage || null,
+						timing: attempt.streamResult?.timing || null,
+						filePath: attempt.filePath,
+					})
+				}
+			}
+
+			const artifact = {
+				run_id: this.currentRunId,
+				commit_hash: commitHash || null,
+				model_ids: modelIds,
+				timestamp: now,
+				flags,
+				results: flatResults,
+			}
+
+			// Minimal schema validation to prevent drift
+			const isValid =
+				Array.isArray(artifact.model_ids) &&
+				typeof artifact.timestamp === "string" &&
+				Array.isArray(artifact.results)
+			if (!isValid) {
+				throw new Error("Run artifact failed validation")
+			}
+
+			fs.writeFileSync(path.join(outputPath, "run-artifact.json"), JSON.stringify(artifact, null, 2))
+			log(isVerbose, `✓ Wrote run artifact to ${path.join(outputPath, "run-artifact.json")}`)
+		} catch (e) {
+			log(isVerbose, `Warning: failed to write run artifact: ${e}`)
+		}
 	}
 
 	/**
@@ -1222,6 +1284,27 @@ async function main() {
 			runner.saveTestResults(results, outputPath);
 			log(isVerbose, `✓ Results also saved to JSON files in ${outputPath}`);
 		}
+
+		// Always write a compact run artifact for CI/audit
+		runner.writeRunArtifact({
+			results,
+			modelIds,
+			outputPath,
+			flags: {
+				provider: options.provider,
+				systemPromptName: options.systemPromptName,
+				parsingFunction: options.parsingFunction,
+				diffEditFunction: options.diffEditFunction,
+				replay: options.replay,
+				simulateTools: true,
+				responsesMaxIterations: 6,
+				streamingMaxToolIterationsDefault: 5,
+				validAttemptsPerCase,
+				maxAttemptsPerCase,
+				maxConcurrency,
+			},
+			isVerbose,
+		})
 
 		log(isVerbose, `\n✓ All results stored in database. Use the dashboard to view results.`)
 	} catch (error) {

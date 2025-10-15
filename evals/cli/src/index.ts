@@ -90,7 +90,7 @@ program
 	.option("--max-attempts-per-case <number>", "Maximum total attempts per test case (default: 10x valid attempts)")
 	.option("--max-cases <number>", "Maximum number of test cases to run (limits total cases loaded)")
 	.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
-	.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
+	.option("--diff-edit-function <name>", "The diff editing function to use", "diff-06-26-25")
 	.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
 	.option("--provider <provider>", "API provider to use (openrouter, openai)", "openrouter")
 	.option("--parallel", "Run tests in parallel", false)

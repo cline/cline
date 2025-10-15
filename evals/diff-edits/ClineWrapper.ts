@@ -28,6 +28,8 @@ const diffEditingFunctions: Record<string, ConstructNewFileContentFn> = {
 	"diff-06-23-25": constructNewFileContent_06_23_25,
 	"diff-06-25-25": constructNewFileContent_06_25_25,
 	"diff-06-26-25": constructNewFileContent_06_26_25,
+    "constructNewFileContentV1": constructNewFileContent_06_23_25,
+    "constructNewFileContentV2": constructNewFileContent_06_26_25,
 }
 
 import { TestInput, TestResult, ExtractedToolCall } from "./types";
@@ -396,7 +398,7 @@ async function runOpenAiResponsesEvaluation(input: TestInput): Promise<TestResul
 			totalCost: 0,
 		}
 		const conversation: AggregatedConversation = { assistantPieces: [], reasoningPieces: [] }
-		const aggregatedToolCalls: ExtractedToolCall[] = []
+        const aggregatedToolCalls: ExtractedToolCall[] = []
 		let currentFileContent = originalFile
 
 		const collectToolCall = (call: ExtractedToolCall) => {
@@ -409,7 +411,7 @@ async function runOpenAiResponsesEvaluation(input: TestInput): Promise<TestResul
 			pathMatched: false,
 		}
 
-		const processNormalizedCall = async (call: ExtractedToolCall, requireOutput: boolean): Promise<string | undefined> => {
+        const processNormalizedCall = async (call: ExtractedToolCall, requireOutput: boolean): Promise<string | undefined> => {
 			collectToolCall(call)
 			if (call.name === "replace_in_file") {
 				diffState.attempted = true
@@ -493,8 +495,8 @@ async function runOpenAiResponsesEvaluation(input: TestInput): Promise<TestResul
 				}
 			}
 
-			const simulatedOutput = simulateNonDiffToolCall(call.name, call.input as any, currentFileContent, originalFilePath)
-			return requireOutput ? simulatedOutput : undefined
+            const simulatedOutput = simulateNonDiffToolCall(call.name, call.input as any, currentFileContent, originalFilePath)
+            return requireOutput ? simulatedOutput : undefined
 		}
 
 		let iterationCount = 0
@@ -508,11 +510,11 @@ async function runOpenAiResponsesEvaluation(input: TestInput): Promise<TestResul
 				await processNormalizedCall(normalized, false)
 			}
 
-			if (response.status === "completed") {
+			if ((response as any).status === "completed") {
 				break
 			}
 
-			if (response.status !== "requires_action") {
+			if ((response as any).status !== "requires_action") {
 				return {
 					success: false,
 					streamResult: {
@@ -522,11 +524,11 @@ async function runOpenAiResponsesEvaluation(input: TestInput): Promise<TestResul
 					},
 					toolCalls: aggregatedToolCalls,
 					error: "other_error",
-					errorString: `Unexpected response status: ${response.status}`,
+					errorString: `Unexpected response status: ${(response as any).status}`,
 				}
 			}
 
-			const toolCallsRaw = response.required_action?.submit_tool_outputs?.tool_calls || []
+			const toolCallsRaw = (response as any).required_action?.submit_tool_outputs?.tool_calls || []
 			if (toolCallsRaw.length === 0) {
 				return {
 					success: false,
@@ -556,7 +558,7 @@ async function runOpenAiResponsesEvaluation(input: TestInput): Promise<TestResul
 				}
 			}
 
-			const toolOutputs: { tool_call_id: string; output: string }[] = []
+            const toolOutputs: { tool_call_id: string; output: string }[] = []
 			for (const rawCall of toolCallsRaw) {
 				const normalized = normalizeFunctionCall(rawCall)
 				const requireOutput = normalized.name !== "replace_in_file"
@@ -598,7 +600,7 @@ async function runOpenAiResponsesEvaluation(input: TestInput): Promise<TestResul
 			}
 		}
 
-		const streamResult: StreamResult = {
+        const streamResult: StreamResult = {
 			assistantMessage: conversation.assistantPieces.join("\n").trim(),
 			reasoningMessage: conversation.reasoningPieces.join("\n").trim(),
 			usage: { ...aggregatedUsage },
@@ -639,7 +641,7 @@ async function runOpenAiResponsesEvaluation(input: TestInput): Promise<TestResul
 		return {
 			success: true,
 			streamResult,
-			toolCalls: aggregatedToolCalls,
+            toolCalls: aggregatedToolCalls,
 			diffEdit: diffState.diffContent,
 			diffEditSuccess: true,
 			replacementData: diffState.replacementData,
@@ -1081,7 +1083,7 @@ async function runStreamingEvaluation(input: TestInput): Promise<TestResult> {
 					const fallbackResult = await constructNewFileContentV3(diffToolContent, originalFile, true)
 					diffSuccess = true
 					if (typeof fallbackResult === "object" && fallbackResult !== null && "replacements" in fallbackResult) {
-						replacementData = fallbackResult.replacements
+						replacementData = (fallbackResult as any).replacements
 					}
 					log(
 						input.isVerbose,
