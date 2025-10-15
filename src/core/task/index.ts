@@ -214,27 +214,33 @@ export class Task {
 		// standaloneTerminalManager is defined in the vscode-impls and injected
 		// during compilation of the standalone manager only, so this variable only
 		// exists in that case
-		const terminalExecutionMode = vscodeTerminalExecutionMode
-		this.terminalExecutionMode = terminalExecutionMode
 
-		if (terminalExecutionMode === "backgroundExec") {
-			try {
-				const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
-					StandaloneTerminalManager?: new () => TerminalManager
-				}
-				if (StandaloneTerminalManager) {
-					this.terminalManager = new StandaloneTerminalManager()
-				} else {
+		// First check if we're in standalone mode (original automatic detection)
+		if ((global as any).standaloneTerminalManager) {
+			this.terminalManager = (global as any).standaloneTerminalManager
+			this.terminalExecutionMode = "backgroundExec"
+		} else {
+			// Not in standalone mode, use the configured mode (default to vscodeTerminal)
+			const terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
+			this.terminalExecutionMode = terminalExecutionMode
+
+			if (terminalExecutionMode === "backgroundExec") {
+				try {
+					const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
+						StandaloneTerminalManager?: new () => TerminalManager
+					}
+					if (StandaloneTerminalManager) {
+						this.terminalManager = new StandaloneTerminalManager()
+					} else {
+						this.terminalManager = new TerminalManager()
+					}
+				} catch (error) {
+					console.error("[DEBUG] Failed to load standalone terminal manager", error)
 					this.terminalManager = new TerminalManager()
 				}
-			} catch (error) {
-				console.error("[DEBUG] Failed to load standalone terminal manager", error)
+			} else {
 				this.terminalManager = new TerminalManager()
 			}
-		} else if ((global as any).standaloneTerminalManager) {
-			this.terminalManager = (global as any).standaloneTerminalManager
-		} else {
-			this.terminalManager = new TerminalManager()
 		}
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
