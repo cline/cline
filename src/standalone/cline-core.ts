@@ -46,8 +46,6 @@ async function main() {
 	}
 
 	try {
-		log("\n\n\nStarting cline-core service...\n\n\n")
-
 		// Set up error handlers FIRST (before any service starts)
 		setupGlobalErrorHandlers()
 
@@ -85,7 +83,7 @@ async function main() {
 		// Mark instance healthy after services are up
 		globalLockManager.touchInstance()
 
-		log("✅ All services started successfully")
+		log("All services started successfully")
 	} catch (err) {
 		log(`FATAL ERROR during startup: ${err}`)
 		log(`Cleaning up and shutting down...`)
