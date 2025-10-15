@@ -109,13 +109,16 @@ func signIn(ctx context.Context) error {
 		return fmt.Errorf("failed to obtain client: %w", err)
 	}
 
-	_, err = client.Account.AccountLoginClicked(ctx, &cline.EmptyRequest{})
+	response, err := client.Account.AccountLoginClicked(ctx, &cline.EmptyRequest{})
 	if err != nil {
 		verboseLog("Failed to initiate login: %v", err)
 		return fmt.Errorf("failed to initiate login: %w", err)
 	}
 
 	fmt.Println("\n  Opening browser for authentication...")
+	if response != nil && response.Value != "" {
+		fmt.Printf("  If the browser doesn't open automatically, visit this URL:\n  %s\n\n", response.Value)
+	}
 	fmt.Println("  Waiting for you to complete authentication in your browser...")
 	fmt.Println("   (This may take a few moments. Timeout: 5 minutes)")
 

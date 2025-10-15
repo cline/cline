@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eux
+set -eu
 
 npm run protos
 npm run protos-go
