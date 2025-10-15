@@ -8,18 +8,22 @@ By default, most terminals treat shift+enter the same as regular enter. To use s
 
 ## Terminal-Specific Configuration
 
-### Ghostty ✅ (Automatic + Manual)
+### Ghostty ✅ (Automatic)
 
-**Automatic**: The CLI now detects Ghostty's `[27;2;13~` sequence automatically!
+**The CLI automatically configures this for you!**
 
-**Manual Config** (optional, for better reliability):
+On first run, the CLI will add the shift+enter keybinding to `~/.config/ghostty/config`.
+
+**Important:** After the CLI modifies the config, you must **fully restart Ghostty** (Cmd+Q and reopen) for the change to take effect. Opening a new window is not sufficient.
+
+**Manual Config** (if needed):
 
 Add to `~/.config/ghostty/config`:
 ```
-keybind = shift+enter=text:\u001b\n
+keybind = shift+enter=text:\x0a
 ```
 
-Then restart Ghostty.
+Then **fully restart Ghostty** (Cmd+Q and reopen).
 
 ### Terminal.app 🛠️ (Manual Configuration Required)
 
