@@ -45,6 +45,7 @@ import { TerminalManager } from "@integrations/terminal/TerminalManager"
 import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { featureFlagsService } from "@services/feature-flags"
 import { listFiles } from "@services/glob/list-files"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
@@ -2089,6 +2090,38 @@ export class Task {
 				// approaches such as storing this.taskState.currentlySummarizing on disk in the clineMessages. This was intentionally not done
 				// for now to prevent additional disk from needing to be used.
 				// The worse case scenario is effectively cline summarizing a summary, which is bad UX, but doesn't break other logic.
+				// Run PreCompact hook if compaction is about to occur
+				if (shouldCompact) {
+					const hooksEnabled =
+						featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+					if (hooksEnabled) {
+						try {
+							const { HookFactory } = await import("../hooks/hook-factory")
+							const hookFactory = new HookFactory()
+							const preCompactHook = await hookFactory.create("PreCompact")
+
+							const apiHistory = this.messageStateHandler.getApiConversationHistory()
+							const activeMessageCount = this.taskState.conversationHistoryDeletedRange
+								? apiHistory.length - this.taskState.conversationHistoryDeletedRange[1] - 1
+								: apiHistory.length
+
+							await preCompactHook.run({
+								taskId: this.taskId,
+								preCompact: {
+									contextSize: apiHistory.length,
+									messagesToCompact: activeMessageCount,
+									compactionStrategy: "auto",
+								},
+							})
+
+							// PreCompact is informational only, no need to check shouldContinue
+						} catch (hookError) {
+							console.error("PreCompact hook failed:", hookError)
+							// Non-fatal: continue with compaction
+						}
+					}
+				}
+
 				if (shouldCompact && this.taskState.conversationHistoryDeletedRange) {
 					const apiHistory = this.messageStateHandler.getApiConversationHistory()
 					const activeMessageCount = apiHistory.length - this.taskState.conversationHistoryDeletedRange[1] - 1

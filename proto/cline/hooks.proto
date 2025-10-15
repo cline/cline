@@ -22,7 +22,7 @@ message HookInput {
     // TaskResumeData task_resume = 14;
     // TaskCancelData task_cancel = 15;
     // TaskCompleteData task_complete = 16;
-    // PreCompactData pre_compact = 17;
+    PreCompactData pre_compact = 17;
   }
 }
 
@@ -46,4 +46,11 @@ message PostToolUseData {
   string result = 3;
   bool success = 4;
   int64 execution_time_ms = 5;
+}
+
+// Data for PreCompact hook
+message PreCompactData {
+  int64 context_size = 1;
+  int32 messages_to_compact = 2;
+  string compaction_strategy = 3;
 }

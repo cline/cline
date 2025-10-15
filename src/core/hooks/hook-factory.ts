@@ -3,7 +3,7 @@ import fs from "fs/promises"
 import path from "path"
 import { version as clineVersion } from "../../../package.json"
 import { getDistinctId } from "../../services/logging/distinctId"
-import { HookInput, HookOutput, PostToolUseData, PreToolUseData } from "../../shared/proto/cline/hooks"
+import { HookInput, HookOutput, PostToolUseData, PreCompactData, PreToolUseData } from "../../shared/proto/cline/hooks"
 import { getAllHooksDirs } from "../storage/disk"
 import { StateManager } from "../storage/StateManager"
 
@@ -19,6 +19,9 @@ export interface Hooks {
 	}
 	PostToolUse: {
 		postToolUse: PostToolUseData
+	}
+	PreCompact: {
+		preCompact: PreCompactData
 	}
 }
 
