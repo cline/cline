@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/cline/cli/pkg/common"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -25,7 +25,7 @@ func readInstancesFromSQLite(t *testing.T, clineDir string) []common.CoreInstanc
 		return []common.CoreInstanceInfo{}
 	}
 
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Logf("Warning: Failed to open SQLite database: %v", err)
 		return []common.CoreInstanceInfo{}
@@ -97,7 +97,7 @@ func readDefaultInstanceFromSettings(t *testing.T, clineDir string) string {
 func insertRemoteInstanceIntoSQLite(t *testing.T, dbPath, address string, corePort, hostPort int) error {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func insertRemoteInstanceIntoSQLite(t *testing.T, dbPath, address string, corePo
 func verifyInstanceExistsInSQLite(t *testing.T, dbPath, address string) bool {
 	t.Helper()
 
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		t.Logf("Failed to open database: %v", err)
 		return false
