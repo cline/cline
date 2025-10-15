@@ -350,3 +350,4 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		console.error("Failed to update settings:", error)
 		throw error
 	}
+}
