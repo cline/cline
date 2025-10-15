@@ -218,10 +218,8 @@ export class Task {
 					StandaloneTerminalManager?: new () => TerminalManager
 				}
 				if (StandaloneTerminalManager) {
-					console.log("[DEBUG] Using standalone terminal manager via execution mode setting")
 					this.terminalManager = new StandaloneTerminalManager()
 				} else {
-					console.warn("[DEBUG] Standalone terminal manager module missing StandaloneTerminalManager export")
 					this.terminalManager = new TerminalManager()
 				}
 			} catch (error) {
@@ -229,10 +227,8 @@ export class Task {
 				this.terminalManager = new TerminalManager()
 			}
 		} else if ((global as any).standaloneTerminalManager) {
-			console.log("[DEBUG] Using vscode-impls.js terminal manager")
 			this.terminalManager = (global as any).standaloneTerminalManager
 		} else {
-			console.log("[DEBUG] Using built in terminal manager")
 			this.terminalManager = new TerminalManager()
 		}
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
