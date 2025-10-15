@@ -416,8 +416,9 @@ func SetupGhosttyKeybindings() error {
 		}
 	}
 
-	// Keybinding to add
-	keybinding := "keybind = shift+enter=text:\\u001b\\n\n"
+	// Keybinding to add - send ESC+newline (alt+enter equivalent)
+	// Using raw string with actual escape char (0x1b) + newline
+	keybinding := "keybind = shift+enter=text:\x1b\n\n"
 
 	// Append to config
 	newContent := append(existingContent, []byte(keybinding)...)
