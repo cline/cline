@@ -66,7 +66,9 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										}}>
 										Enable MCP Marketplace
 									</VSCodeCheckbox>
-									<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
+									{remoteConfigSettings?.mcpMarketplaceEnabled !== undefined && (
+										<i className="codicon codicon-lock text-description text-sm" />
+									)}
 								</div>
 							</TooltipTrigger>
 							<TooltipContent hidden={remoteConfigSettings?.mcpMarketplaceEnabled === undefined}>
@@ -74,7 +76,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</TooltipContent>
 						</Tooltip>
 
-						<p className="text-xs text-(--vscode-descriptionForeground)">
+						<p className="text-xs text-description">
 							Enables the MCP Marketplace tab for discovering and installing MCP servers.
 						</p>
 					</div>
@@ -310,7 +312,9 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										}}>
 										Enable YOLO Mode
 									</VSCodeCheckbox>
-									<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
+									{remoteConfigSettings?.yoloModeToggled !== undefined && (
+										<i className="codicon codicon-lock text-description text-sm" />
+									)}
 								</div>
 							</TooltipTrigger>
 							<TooltipContent

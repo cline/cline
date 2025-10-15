@@ -76,7 +76,9 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					<div className="mb-2.5">
 						<div className="flex items-center gap-2 mb-1">
 							<span style={{ fontWeight: 500 }}>Base URL</span>
-							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+							{remoteConfigSettings?.openAiBaseUrl !== undefined && (
+								<i className="codicon codicon-lock text-description text-sm" />
+							)}
 						</div>
 						<DebouncedTextField
 							disabled={remoteConfigSettings?.openAiBaseUrl !== undefined}
@@ -126,7 +128,9 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 								<TooltipTrigger>
 									<div className="flex items-center gap-2">
 										<span style={{ fontWeight: 500 }}>Custom Headers</span>
-										<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
+										{remoteConfigSettings?.openAiHeaders !== undefined && (
+											<i className="codicon codicon-lock text-description text-sm" />
+										)}
 									</div>
 								</TooltipTrigger>
 								<TooltipContent hidden={remoteConfigSettings?.openAiHeaders === undefined}>
