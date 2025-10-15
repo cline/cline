@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/cline/cli/pkg/cli"
 	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/display"
@@ -189,6 +190,18 @@ func promptForInitialTask(ctx context.Context, instanceAddress, modeFlag string)
 
 	var prompt string
 
+	// Create custom theme with mode-colored cursor and title
+	theme := huh.ThemeCharm()
+
+	// Set cursor and title color based on mode
+	modeColor := lipgloss.Color("3") // Yellow for plan
+	if modeFlag == "act" {
+		modeColor = lipgloss.Color("39") // Blue for act
+	}
+
+	theme.Focused.TextInput.Cursor = theme.Focused.TextInput.Cursor.Foreground(modeColor)
+	theme.Focused.Title = theme.Focused.Title.Foreground(modeColor)
+
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewText().
@@ -198,7 +211,7 @@ func promptForInitialTask(ctx context.Context, instanceAddress, modeFlag string)
 				Lines(5).
 				Value(&prompt),
 		),
-	).WithWidth(48)
+	).WithWidth(48).WithTheme(theme)
 
 	err := form.Run()
 	if err != nil {
