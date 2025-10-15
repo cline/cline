@@ -104,6 +104,7 @@ type TaskParams = {
 	shellIntegrationTimeout: number
 	terminalReuseEnabled: boolean
 	terminalOutputLineLimit: number
+	subagentTerminalOutputLineLimit: number
 	defaultTerminalProfile: string
 	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	cwd: string
@@ -192,6 +193,7 @@ export class Task {
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
 			terminalOutputLineLimit,
+			subagentTerminalOutputLineLimit,
 			defaultTerminalProfile,
 			vscodeTerminalExecutionMode,
 			cwd,
@@ -252,6 +254,7 @@ export class Task {
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
+		this.terminalManager.setSubagentTerminalOutputLineLimit(subagentTerminalOutputLineLimit)
 		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
 		this.urlContentFetcher = new UrlContentFetcher(controller.context)
@@ -1774,6 +1777,10 @@ export class Task {
 					content = content.replace(/<thinking>\s?/g, "")
 					content = content.replace(/\s?<\/thinking>/g, "")
 
+					// New claude models tend to output <function_calls> tags which we don't want to show in the chat
+					content = content.replace(/<function_calls>\s?/g, "")
+					content = content.replace(/\s?<\/function_calls>/g, "")
+
 					// Remove partial XML tag at the very end of the content (for tool use and thinking tags)
 					// (prevents scrollview from jumping when tags are automatically removed)
 					const lastOpenBracketIndex = content.lastIndexOf("<")
@@ -1871,7 +1878,7 @@ export class Task {
 			} catch {}
 		}
 
-		if (this.taskState.consecutiveMistakeCount >= 3) {
+		if (this.taskState.consecutiveMistakeCount >= this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
 			const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 			if (autoApprovalSettings.enabled && autoApprovalSettings.enableNotifications) {
 				showSystemNotification({

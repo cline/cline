@@ -253,6 +253,7 @@ export class Controller {
 		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
 		const vscodeTerminalExecutionMode = this.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
+		const subagentTerminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("subagentTerminalOutputLineLimit")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
@@ -316,6 +317,7 @@ export class Controller {
 			shellIntegrationTimeout,
 			terminalReuseEnabled: terminalReuseEnabled ?? true,
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
+			subagentTerminalOutputLineLimit: subagentTerminalOutputLineLimit ?? 2000,
 			defaultTerminalProfile: defaultTerminalProfile ?? "default",
 			vscodeTerminalExecutionMode,
 			cwd,
@@ -848,9 +850,12 @@ export class Controller {
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
 		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
+		const maxConsecutiveMistakes = this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
+		const subagentTerminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("subagentTerminalOutputLineLimit")
 		const favoritedModelIds = this.stateManager.getGlobalStateKey("favoritedModelIds")
 		const lastDismissedInfoBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
 		const lastDismissedModelBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
+		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -920,6 +925,8 @@ export class Controller {
 			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
+			maxConsecutiveMistakes,
+			subagentTerminalOutputLineLimit,
 			customPrompt,
 			taskHistory: processedTaskHistory,
 			shouldShowAnnouncement,
@@ -942,6 +949,7 @@ export class Controller {
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,
 			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),
+			subagentsEnabled,
 		}
 	}
 
