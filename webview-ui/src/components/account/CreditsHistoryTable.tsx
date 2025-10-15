@@ -55,6 +55,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 									</VSCodeDataGridRow>
 
 									{usageData.map((row, index) => (
+										// biome-ignore lint/suspicious/noArrayIndexKey: use index as key
 										<VSCodeDataGridRow key={index}>
 											<VSCodeDataGridCell grid-column="1">
 												{formatTimestamp(row.createdAt)}
@@ -88,6 +89,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 									</VSCodeDataGridRow>
 
 									{paymentsData.map((row, index) => (
+										// biome-ignore lint/suspicious/noArrayIndexKey: use index as key
 										<VSCodeDataGridRow key={index}>
 											<VSCodeDataGridCell grid-column="1">{formatTimestamp(row.paidAt)}</VSCodeDataGridCell>
 											<VSCodeDataGridCell grid-column="2">{`$${formatDollars(row.amountCents)}`}</VSCodeDataGridCell>

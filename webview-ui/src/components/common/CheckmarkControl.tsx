@@ -284,7 +284,7 @@ const Container = styled.div<{ isMenuOpen?: boolean; $isCheckedOut?: boolean }>`
 	margin-top: -10px;
 	margin-bottom: -10px;
 	opacity: ${(props) => (props.$isCheckedOut ? 1 : props.isMenuOpen ? 1 : 0.5)};
-
+	height: 0.5rem;
 	&:hover {
 		opacity: 1;
 	}

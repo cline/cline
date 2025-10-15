@@ -3,8 +3,8 @@ import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
-import HeroTooltip from "@/components/common/HeroTooltip"
 import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import Section from "../Section"
 import { updateSetting } from "../utils/settingsHandlers"
@@ -54,12 +54,12 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
-						{remoteConfigSettings?.mcpMarketplaceEnabled !== undefined ? (
-							<HeroTooltip content="This setting is managed by your organization's remote configuration">
+						<Tooltip>
+							<TooltipTrigger>
 								<div className="flex items-center gap-2">
 									<VSCodeCheckbox
 										checked={mcpMarketplaceEnabled}
-										disabled={true}
+										disabled={remoteConfigSettings?.mcpMarketplaceEnabled !== undefined}
 										onChange={(e: any) => {
 											const checked = e.target.checked === true
 											updateSetting("mcpMarketplaceEnabled", checked)
@@ -68,18 +68,12 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									</VSCodeCheckbox>
 									<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
 								</div>
-							</HeroTooltip>
-						) : (
-							<VSCodeCheckbox
-								checked={mcpMarketplaceEnabled}
-								disabled={false}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									updateSetting("mcpMarketplaceEnabled", checked)
-								}}>
-								Enable MCP Marketplace
-							</VSCodeCheckbox>
-						)}
+							</TooltipTrigger>
+							<TooltipContent hidden={remoteConfigSettings?.mcpMarketplaceEnabled === undefined}>
+								This setting is managed by your organization's remote configuration
+							</TooltipContent>
+						</Tooltip>
+
 						<p className="text-xs text-(--vscode-descriptionForeground)">
 							Enables the MCP Marketplace tab for discovering and installing MCP servers.
 						</p>
@@ -304,12 +298,12 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</div>
 					)}
 					<div style={{ marginTop: 10 }}>
-						{remoteConfigSettings?.yoloModeToggled !== undefined ? (
-							<HeroTooltip content="This setting is managed by your organization's remote configuration">
+						<Tooltip>
+							<TooltipTrigger asChild>
 								<div className="flex items-center gap-2">
 									<VSCodeCheckbox
 										checked={yoloModeToggled}
-										disabled={true}
+										disabled={remoteConfigSettings?.yoloModeToggled !== undefined}
 										onChange={(e: any) => {
 											const checked = e.target.checked === true
 											updateSetting("yoloModeToggled", checked)
@@ -318,18 +312,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									</VSCodeCheckbox>
 									<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
 								</div>
-							</HeroTooltip>
-						) : (
-							<VSCodeCheckbox
-								checked={yoloModeToggled}
-								disabled={false}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									updateSetting("yoloModeToggled", checked)
-								}}>
-								Enable YOLO Mode
-							</VSCodeCheckbox>
-						)}
+							</TooltipTrigger>
+							<TooltipContent
+								className="max-w-xs"
+								hidden={remoteConfigSettings?.yoloModeToggled === undefined}
+								side="top">
+								This setting is managed by your organization's remote configuration
+							</TooltipContent>
+						</Tooltip>
+
 						<p className="text-xs text-(--vscode-errorForeground)">
 							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
 							automatically approve all actions without asking. Use with extreme caution.

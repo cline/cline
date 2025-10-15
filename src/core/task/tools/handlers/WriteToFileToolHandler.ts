@@ -124,7 +124,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 			const { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext } = result
 
-
 			// Handle approval flow
 			const sharedMessageProps: ClineSayTool = {
 				tool: fileExists ? "editedExistingFile" : "newFileCreated",

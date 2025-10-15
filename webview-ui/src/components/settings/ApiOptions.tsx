@@ -5,8 +5,8 @@ import Fuse from "fuse.js"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
-import HeroTooltip from "@/components/common/HeroTooltip"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -297,14 +297,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			</style>
 			<DropdownContainer className="dropdown-container">
 				{remoteConfigSettings?.planModeApiProvider !== undefined ? (
-					<HeroTooltip content="This setting is managed by your organization's remote configuration">
-						<div className="flex items-center gap-2 mb-1">
-							<label htmlFor="api-provider">
-								<span style={{ fontWeight: 500 }}>API Provider</span>
-							</label>
-							<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
-						</div>
-					</HeroTooltip>
+					<Tooltip>
+						<TooltipTrigger>
+							<div className="flex items-center gap-2 mb-1">
+								<label htmlFor="api-provider">
+									<span style={{ fontWeight: 500 }}>API Provider</span>
+								</label>
+								<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+							</div>
+						</TooltipTrigger>
+						<TooltipContent>This setting is managed by your organization's remote configuration</TooltipContent>
+					</Tooltip>
 				) : (
 					<label htmlFor="api-provider">
 						<span style={{ fontWeight: 500 }}>API Provider</span>

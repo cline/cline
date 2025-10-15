@@ -43,7 +43,8 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 	await expect(providerSelectorInput).not.toBeVisible()
 
 	// Verify you are now in the chat page after setup was completed
-	const clineLogo = sidebar.getByRole("img").filter({ hasText: /^$/ }).locator("path")
+	// cline logo has the name "clline-logo"
+	const clineLogo = sidebar.locator(".size-20 > path")
 	await expect(clineLogo).toBeVisible()
 	const chatInputBox = sidebar.getByTestId("chat-input")
 	await expect(chatInputBox).toBeVisible()

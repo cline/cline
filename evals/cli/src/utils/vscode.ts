@@ -1,9 +1,9 @@
 import execa from "execa"
-import * as path from "path"
 import * as fs from "fs"
 import fetch from "node-fetch"
 import * as os from "os"
-import { installRequiredExtensions, configureExtensionSettings } from "./extensions"
+import * as path from "path"
+import { configureExtensionSettings, installRequiredExtensions } from "./extensions"
 
 // Store temporary directories for cleanup
 interface VSCodeResources {
