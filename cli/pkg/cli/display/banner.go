@@ -47,17 +47,34 @@ func RenderSessionBanner(info BannerInfo) string {
 		versionStr = "v" + versionStr
 	}
 
-	// Title line - "cline cli" bold white, version dim gray
-	lines = append(lines, titleStyle.Render("cline cli")+" "+dimStyle.Render(versionStr))
+	// First line: "cline cli vX.X.X" on left, "plan mode" on right
+	leftSide := titleStyle.Render("cline cli") + " " + dimStyle.Render(versionStr)
 
-	// Mode line - colored based on mode
 	if info.Mode != "" {
 		modeColor := lipgloss.Color("3") // Yellow for plan
 		if info.Mode == "act" {
 			modeColor = lipgloss.Color("39") // Blue for act
 		}
 		modeStyle := lipgloss.NewStyle().Foreground(modeColor).Bold(true)
-		lines = append(lines, modeStyle.Render(info.Mode+" mode"))
+		rightSide := modeStyle.Render(info.Mode + " mode")
+
+		// Calculate spacing to push mode to the right
+		// Assume a reasonable width (we'll adjust based on content)
+		lineWidth := 50
+		leftWidth := lipgloss.Width(leftSide)
+		rightWidth := lipgloss.Width(rightSide)
+		spacing := lineWidth - leftWidth - rightWidth
+
+		if spacing > 0 {
+			titleLine := leftSide + strings.Repeat(" ", spacing) + rightSide
+			lines = append(lines, titleLine)
+		} else {
+			// If too narrow, just put them on same line with a space
+			lines = append(lines, leftSide+" "+rightSide)
+		}
+	} else {
+		// No mode, just show title
+		lines = append(lines, leftSide)
 	}
 
 	// Model line - dim gray
