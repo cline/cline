@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/charmbracelet/huh"
 	"github.com/cline/cli/pkg/cli/global"
@@ -202,6 +203,10 @@ func ShowAuthMenuWithStatus(isClineAuthenticated bool, hasOrganizations bool, cu
 	)
 
 	if err := form.Run(); err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			os.Exit(0)
+		}
 		return "", fmt.Errorf("failed to get menu choice: %w", err)
 	}
 
@@ -268,6 +273,10 @@ func HandleSelectProvider(ctx context.Context) error {
 	)
 
 	if err := form.Run(); err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			os.Exit(0)
+		}
 		return fmt.Errorf("failed to select provider: %w", err)
 	}
 

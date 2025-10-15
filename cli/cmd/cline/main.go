@@ -215,6 +215,10 @@ func promptForInitialTask(ctx context.Context, instanceAddress, modeFlag string)
 
 	err := form.Run()
 	if err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			os.Exit(0)
+		}
 		return "", err
 	}
 
