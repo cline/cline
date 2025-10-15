@@ -10,16 +10,21 @@ import (
 	"github.com/cline/grpc-go/cline"
 )
 
+// contextKey is a distinct type for context keys to avoid collisions
+type contextKey string
+
+const authInstanceAddressKey contextKey = "authInstanceAddress"
+
 // AuthAction represents the type of authentication action
 type AuthAction string
 
 const (
-	AuthActionClineLogin          AuthAction = "cline_login"
-	AuthActionBYOSetup            AuthAction = "provider_setup"
-	AuthActionChangeClineModel    AuthAction = "change_cline_model"
-	AuthActionSelectOrganization  AuthAction = "select_organization"
-	AuthActionSelectProvider      AuthAction = "select_provider"
-	AuthActionExit                AuthAction = "exit_wizard"
+	AuthActionClineLogin         AuthAction = "cline_login"
+	AuthActionBYOSetup           AuthAction = "provider_setup"
+	AuthActionChangeClineModel   AuthAction = "change_cline_model"
+	AuthActionSelectOrganization AuthAction = "select_organization"
+	AuthActionSelectProvider     AuthAction = "select_provider"
+	AuthActionExit               AuthAction = "exit_wizard"
 )
 
 //  Cline Auth Menu
@@ -35,6 +40,30 @@ const (
 //	┃   Select active provider (Cline or BYO)					- always shown. Used to switch between Cline and BYO providers
 //	┃   Configure API provider									- always shown. Launches provider setup wizard
 //	┃   Exit authorization wizard								- always shown. Exits the auth menu
+
+// RunAuthFlow is the entry point for the entire auth flow with instance management
+// It spawns a fresh instance for auth operations and cleans it up when done
+func RunAuthFlow(ctx context.Context, args []string) error {
+	// Spawn a fresh instance for auth operations
+	instanceInfo, err := global.Clients.StartNewInstance(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start auth instance: %w", err)
+	}
+
+	// Cleanup when done (success, error, or panic)
+	defer func() {
+		verboseLog("Shutting down auth instance at %s", instanceInfo.Address)
+		if err := global.KillInstanceByAddress(context.Background(), global.Clients.GetRegistry(), instanceInfo.Address); err != nil {
+			verboseLog("Warning: Failed to kill auth instance: %v", err)
+		}
+	}()
+
+	// Store instance address in context for all auth handlers to use
+	authCtx := context.WithValue(ctx, authInstanceAddressKey, instanceInfo.Address)
+
+	// Route to existing auth flow
+	return HandleAuthCommand(authCtx, args)
+}
 
 // Main entry point for handling the `cline auth` command
 // HandleAuthCommand routes the auth command based on the number of arguments
@@ -54,14 +83,17 @@ func HandleAuthCommand(ctx context.Context, args []string) error {
 	}
 }
 
+// getAuthInstanceAddress retrieves the auth instance address from context
+// Returns empty string if not found (falls back to default behavior)
+func getAuthInstanceAddress(ctx context.Context) string {
+	if addr, ok := ctx.Value(authInstanceAddressKey).(string); ok {
+		return addr
+	}
+	return ""
+}
+
 // HandleAuthMenuNoArgs prepares the auth menu when no arguments are provided
 func HandleAuthMenuNoArgs(ctx context.Context) error {
-	// Ensure a default instance exists BEFORE trying to create task manager
-	// This is necessary because createTaskManager() needs a default instance to connect to
-	if err := global.EnsureDefaultInstance(ctx); err != nil {
-		return fmt.Errorf("failed to ensure default instance: %w", err)
-	}
-
 	// Check if Cline is authenticated
 	isClineAuth := IsAuthenticated(ctx)
 
@@ -71,7 +103,7 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 	if manager, err := createTaskManager(ctx); err == nil {
 		if providerList, err := GetProviderConfigurations(ctx, manager); err == nil {
 			if providerList.ActProvider != nil {
-				currentProvider = getProviderDisplayName(providerList.ActProvider.Provider)
+				currentProvider = GetProviderDisplayName(providerList.ActProvider.Provider)
 				currentModel = providerList.ActProvider.ModelID
 			}
 		}
@@ -89,6 +121,10 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 
 	action, err := ShowAuthMenuWithStatus(isClineAuth, hasOrganizations, currentProvider, currentModel)
 	if err != nil {
+		// Check if user cancelled - propagate for clean exit
+		if err == huh.ErrUserAborted {
+			return huh.ErrUserAborted
+		}
 		return err
 	}
 
@@ -170,6 +206,11 @@ func ShowAuthMenuWithStatus(isClineAuthenticated bool, hasOrganizations bool, cu
 	)
 
 	if err := form.Run(); err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			// Return the error to allow deferred cleanup to run
+			return "", huh.ErrUserAborted
+		}
 		return "", fmt.Errorf("failed to get menu choice: %w", err)
 	}
 
@@ -206,7 +247,7 @@ func HandleSelectProvider(ctx context.Context) error {
 
 	// Add each configured provider to the selection menu
 	for _, provider := range availableProviders {
-		providerName := getProviderDisplayName(provider)
+		providerName := GetProviderDisplayName(provider)
 		providerKey := fmt.Sprintf("provider_%d", provider)
 		providerOptions = append(providerOptions, huh.NewOption(providerName, providerKey))
 		providerMapping[providerKey] = provider
@@ -236,6 +277,10 @@ func HandleSelectProvider(ctx context.Context) error {
 	)
 
 	if err := form.Run(); err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			return huh.ErrUserAborted
+		}
 		return fmt.Errorf("failed to select provider: %w", err)
 	}
 
@@ -257,7 +302,12 @@ func HandleSelectProvider(ctx context.Context) error {
 }
 
 // createTaskManager is a helper to create a task manager (avoids import cycles)
+// Uses the auth instance address from context if available, otherwise falls back to default
 func createTaskManager(ctx context.Context) (*task.Manager, error) {
+	authAddr := getAuthInstanceAddress(ctx)
+	if authAddr != "" {
+		return task.NewManagerForAddress(ctx, authAddr)
+	}
 	return task.NewManagerForDefault(ctx)
 }
 

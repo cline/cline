@@ -193,17 +193,14 @@ jobs:
                   go-version: '1.24'
                   cache-dependency-path: cli/go.sum
 
-            - name: Download Node.js binaries
-              run: npm run download-node
-
             - name: Build CLI binaries
-              run: npm run compile-cli
+              run: npm run compile-cli-all-platforms
 
             - name: Download ripgrep binaries
               run: npm run download-ripgrep
 
-            - name: Compile standalone CLI
-              run: npm run compile-standalone-cli
+            - name: Compile NPM package
+              run: npm run compile-standalone-npm
 
             - name: Install testing platform dependencies
               if: steps.testing-platform-cache.outputs.cache-hit != 'true'

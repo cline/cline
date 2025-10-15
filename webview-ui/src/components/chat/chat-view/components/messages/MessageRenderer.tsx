@@ -64,6 +64,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 			key={messageOrGroup.ts}
 			lastModifiedMessage={modifiedMessages.at(-1)}
 			message={messageOrGroup}
+			onCancelCommand={() => messageHandlers.executeButtonAction("cancel")}
 			onHeightChange={onHeightChange}
 			onSetQuote={onSetQuote}
 			onToggleExpand={onToggleExpand}

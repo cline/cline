@@ -31,6 +31,7 @@ export interface GlobalState {
 	mcpMarketplaceEnabled: boolean
 	mcpResponsesCollapsed: boolean
 	terminalReuseEnabled: boolean
+	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	isNewUser: boolean
 	welcomeViewCompleted: boolean | undefined
 	mcpDisplayMode: McpDisplayMode
@@ -173,6 +174,22 @@ export interface Settings {
 	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	actModeOcaModelId: string | undefined
 	actModeOcaModelInfo: OcaModelInfo | undefined
+
+	// OpenTelemetry configuration
+	openTelemetryEnabled: boolean
+	openTelemetryMetricsExporter: string | undefined
+	openTelemetryLogsExporter: string | undefined
+	openTelemetryOtlpProtocol: string
+	openTelemetryOtlpEndpoint: string
+	openTelemetryOtlpMetricsProtocol: string | undefined
+	openTelemetryOtlpMetricsEndpoint: string | undefined
+	openTelemetryOtlpLogsProtocol: string | undefined
+	openTelemetryOtlpLogsEndpoint: string | undefined
+	openTelemetryMetricExportInterval: number
+	openTelemetryOtlpInsecure: boolean
+	openTelemetryLogBatchSize: number
+	openTelemetryLogBatchTimeout: number
+	openTelemetryLogMaxQueueSize: number
 }
 
 export interface Secrets {

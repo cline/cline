@@ -19,6 +19,7 @@ service StateService {
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
   rpc updateSettingsCli(UpdateSettingsRequestCli) returns (Empty);
+  rpc updateTaskSettings(UpdateTaskSettingsRequest) returns (Empty);
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
   rpc updateInfoBannerVersion(Int64Request) returns (Empty);
@@ -318,6 +319,11 @@ message UpdateSettingsRequestCli {
   optional Secrets secrets = 3;
 }
 
+message UpdateTaskSettingsRequest {
+  Metadata metadata = 1;
+  optional Settings settings = 2;
+}
+
 // Message for updating settings
 message UpdateSettingsRequest {
   Metadata metadata = 1;
@@ -345,7 +351,8 @@ message UpdateSettingsRequest {
   optional double auto_condense_threshold = 24;
   optional bool multi_root_enabled = 25;
   optional bool hooks_enabled = 26;
-  optional string cline_env = 27;
+  optional string vscode_terminal_execution_mode = 27;
+  optional string cline_env = 28;
 }
 
 // Complete API Configuration message

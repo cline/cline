@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -367,15 +368,67 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		fmt.Printf("Starting cline-core on port %d (with hostbridge on %d)\n", corePort, hostPort)
 	}
 
-	// Get paths relative to the cline binary location
+	// Get the executable path and resolve symlinks (for npm global installs)
 	execPath, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get executable path: %w", err)
 	}
-	binDir := path.Dir(execPath)
+
+	// Resolve symlinks to get the real path
+	// For npm global installs, execPath might be a symlink like:
+	// /opt/homebrew/bin/cline -> /opt/homebrew/lib/node_modules/cline/bin/cline
+	realPath, err := filepath.EvalSymlinks(execPath)
+	if err != nil {
+		// If we can't resolve symlinks, fall back to the original path
+		realPath = execPath
+		if Config.Verbose {
+			fmt.Printf("Warning: Could not resolve symlinks for %s: %v\n", execPath, err)
+		}
+	}
+
+	binDir := path.Dir(realPath)
 	installDir := path.Dir(binDir)
-	nodePath := path.Join(binDir, "node")
 	clineCorePath := path.Join(installDir, "cline-core.js")
+
+	if Config.Verbose {
+		fmt.Printf("Executable path: %s\n", execPath)
+		if realPath != execPath {
+			fmt.Printf("Real path (after resolving symlinks): %s\n", realPath)
+		}
+		fmt.Printf("Bin directory: %s\n", binDir)
+		fmt.Printf("Install directory: %s\n", installDir)
+		fmt.Printf("Looking for cline-core.js at: %s\n", clineCorePath)
+	}
+
+	// Check if cline-core.js exists at the primary location
+	var finalClineCorePath string
+	var finalInstallDir string
+	if _, err := os.Stat(clineCorePath); os.IsNotExist(err) {
+		// Development mode: Try ../../dist-standalone/cline-core.js
+		// This handles the case where we're running from cli/bin/cline
+		devClineCorePath := path.Join(binDir, "..", "..", "dist-standalone", "cline-core.js")
+		devInstallDir := path.Join(binDir, "..", "..", "dist-standalone")
+		
+		if Config.Verbose {
+			fmt.Printf("Primary location not found, trying development path: %s\n", devClineCorePath)
+		}
+		
+		if _, err := os.Stat(devClineCorePath); os.IsNotExist(err) {
+			return nil, fmt.Errorf("cline-core.js not found at '%s' or '%s'. Please ensure you're running from the correct location or reinstall with 'npm install -g cline'", clineCorePath, devClineCorePath)
+		}
+		
+		finalClineCorePath = devClineCorePath
+		finalInstallDir = devInstallDir
+		if Config.Verbose {
+			fmt.Printf("Using development mode: cline-core.js found at %s\n", finalClineCorePath)
+		}
+	} else {
+		finalClineCorePath = clineCorePath
+		finalInstallDir = installDir
+		if Config.Verbose {
+			fmt.Printf("Using production mode: cline-core.js found at %s\n", finalClineCorePath)
+		}
+	}
 
 	// Create logs directory in ~/.cline/logs
 	logsDir := path.Join(Config.ConfigPath, "logs")
@@ -392,16 +445,20 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("failed to create log file: %w", err)
 	}
 
-	// Start the cline-core process with --config flag
-	args := []string{clineCorePath,
+	// Start the cline-core process with --config flag using system node
+	args := []string{finalClineCorePath,
 		"--port", fmt.Sprintf("%d", corePort),
 		"--host-bridge-port", fmt.Sprintf("%d", hostPort),
 		"--config", Config.ConfigPath}
 
-	cmd := exec.Command(nodePath, args...)
+	if Config.Verbose {
+		fmt.Printf("Using system node\n")
+	}
+
+	cmd := exec.Command("node", args...)
 
 	// Set working directory to installation root
-	cmd.Dir = installDir
+	cmd.Dir = finalInstallDir
 
 	// Redirect stdout and stderr to log file
 	cmd.Stdout = logFile
@@ -412,15 +469,24 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		Setpgid: true,
 	}
 
-	// Set environment variables with NODE_PATH for node_modules
+	// Set environment variables with NODE_PATH for both real and fake node_modules
+	// The fake node_modules contains the vscode stub that can't be in the real node_modules
 	env := os.Environ()
+	realNodeModules := path.Join(finalInstallDir, "node_modules")
+	fakeNodeModules := path.Join(finalInstallDir, "fake_node_modules")
+	nodePath := fmt.Sprintf("%s%c%s", realNodeModules, os.PathListSeparator, fakeNodeModules)
+	
 	env = append(env,
-		fmt.Sprintf("NODE_PATH=%s", path.Join(installDir, "node_modules")),
+		fmt.Sprintf("NODE_PATH=%s", nodePath),
 		"GRPC_TRACE=all",
 		"GRPC_VERBOSITY=DEBUG",
 		"NODE_ENV=development",
 	)
 	cmd.Env = env
+	
+	if Config.Verbose {
+		fmt.Printf("NODE_PATH set to: %s\n", nodePath)
+	}
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
