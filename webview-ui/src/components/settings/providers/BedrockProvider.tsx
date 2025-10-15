@@ -236,7 +236,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								onChange={(value) => handleFieldChange("awsBedrockEndpoint", value)}
 								placeholder="Enter VPC Endpoint URL (optional)"
 								style={{ width: "100%", marginTop: 3, marginBottom: 5 }}
-								type="url"
+								type="text"
 							/>
 						)}
 					</>
