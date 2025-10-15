@@ -13,8 +13,8 @@ const CLINE_COMMAND_PATTERN = /^cline\s+(['"])(.+?)\1(\s+.*)?$/
 /**
  * Detects if a command is a Cline CLI subagent command.
  *
- * Matches both simplified syntax (cline "prompt") and full syntax (cline t o "prompt").
- * This allows the system to apply subagent-specific settings like higher output line limits.
+ * Matches the simplified syntax: cline "prompt" or cline 'prompt'
+ * This allows the system to apply subagent-specific settings like autonomous execution.
  *
  * @param command - The command string to check
  * @returns True if the command is a Cline CLI subagent command, false otherwise
@@ -23,31 +23,19 @@ export function isSubagentCommand(command: string): boolean {
 	// Match simplified syntaxes
 	// cline "prompt"
 	// cline 'prompt'
-	if (CLINE_COMMAND_PATTERN.test(command)) {
-		return true
-	}
-
-	// Match addnl syntax (in case the model starts mimicking after seeing terminal outputs)
-	// cline t o "prompt" ...
-	const fullPattern = /^cline\s+t\s+o\s+/
-	if (fullPattern.test(command)) {
-		return true
-	}
-
-	return false
+	return CLINE_COMMAND_PATTERN.test(command)
 }
 
 /**
- * Transforms simplified Cline CLI command syntax into the full required syntax.
+ * Transforms simplified Cline CLI command syntax with subagent settings.
  *
  * Converts: cline "prompt" or cline 'prompt'
- * To: cline t o "prompt" -o plain
+ * To: cline "prompt" -s yolo_mode_toggled=true -s max_consecutive_mistakes=6 -F plain -y --oneshot
  *
  * Preserves additional flags like --workdir:
- * cline "prompt" --workdir ./path → cline t o "prompt" -o plain --workdir ./path
+ * cline "prompt" --workdir ./path → cline "prompt" -s ... -F plain -y --oneshot --workdir ./path
  *
- * This simplifies the command syntax for AI agents while maintaining backward
- * compatibility with the full syntax.
+ * This enables autonomous subagent execution with proper CLI flags for automation.
  *
  * @param command - The command string to potentially transform
  * @returns The transformed command if it matches the pattern, otherwise the original command
@@ -78,20 +66,11 @@ export function transformClineCommand(command: string): string {
  * @returns The command with injected flags and settings
  */
 function injectSubagentSettings(command: string): string {
-	// Flags to insert before the prompt
-	const prePromptFlags = ["t", "o"]
+	// No pre-prompt flags needed - use standard "cline 'prompt'" syntax
+	const prePromptFlags: string[] = []
 
 	// Flags/settings to insert after the prompt
-	const postPromptFlags = [
-		"-s yolo_mode_toggled=true",
-		"-s auto_approval_settings.enabled=true",
-		"-s auto_approval_settings.max_requests=100",
-		"-s auto_approval_settings.enable_notifications=false",
-		"-s auto_approval_settings.actions.read_files=true",
-		"-s auto_approval_settings.actions.edit_files=true",
-		"-s auto_approval_settings.actions.execute_safe_commands=true",
-		"-s max_consecutive_mistakes=6",
-	]
+	const postPromptFlags = ["-s yolo_mode_toggled=true", "-s max_consecutive_mistakes=6", "-F plain", "-y", "--oneshot"]
 
 	const match = command.match(CLINE_COMMAND_PATTERN)
 
@@ -99,7 +78,8 @@ function injectSubagentSettings(command: string): string {
 		const quote = match[1]
 		const prompt = match[2]
 		const additionalFlags = match[3] || ""
-		return `cline ${prePromptFlags.join(" ")} ${quote}${prompt}${quote} ${postPromptFlags.join(" ")} -o plain${additionalFlags}`
+		const prePromptPart = prePromptFlags.length > 0 ? prePromptFlags.join(" ") + " " : ""
+		return `cline ${prePromptPart}${quote}${prompt}${quote} ${postPromptFlags.join(" ")}${additionalFlags}`
 	}
 
 	// Already full format: just inject settings after prompt
