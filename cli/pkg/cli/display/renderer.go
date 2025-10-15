@@ -39,9 +39,9 @@ func (r *Renderer) RenderMessage(prefix, text string, newline bool) error {
 	}
 
 	if newline {
-		fmt.Printf("%s: %s\n", prefix, clean)
+		Printf("%s: %s\n", prefix, clean)
 	} else {
-		fmt.Printf("%s: %s", prefix, clean)
+		Printf("%s: %s", prefix, clean)
 	}
 	return nil
 }
@@ -86,12 +86,12 @@ func (r *Renderer) RenderAPI(status string, apiInfo *types.APIRequestInfo) error
 		usageInfo := r.formatUsageInfo(apiInfo.TokensIn, apiInfo.TokensOut, apiInfo.CacheReads, apiInfo.CacheWrites, apiInfo.Cost)
 		markdown := fmt.Sprintf("## API %s `%s`", status, usageInfo)
 		rendered := r.RenderMarkdown(markdown)
-		fmt.Printf(rendered)
+		Printf("%s", rendered)
 	} else {
 		// honestly i see no point in showing "### API processing request" here...
 		// markdown := fmt.Sprintf("## API %s", status)
 		// rendered := r.RenderMarkdown(markdown)
-		// fmt.Printf("\n%s\n", rendered)
+		// Printf("\n%s\n", rendered)
 	}
 	return nil
 }
@@ -109,7 +109,7 @@ func (r *Renderer) RenderRetry(attempt, maxAttempts, delaySec int) error {
 func (r *Renderer) RenderTaskCancelled() error {
 	markdown := "## Task cancelled"
 	rendered := r.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	Printf("\n%s\n", rendered)
 	return nil
 }
 
@@ -156,11 +156,11 @@ func (r *Renderer) RenderDebug(format string, args ...interface{}) error {
 }
 
 func (r *Renderer) ClearLine() {
-	fmt.Print("\r\033[K")
+	Print("\r\033[K")
 }
 
 func (r *Renderer) MoveCursorUp(n int) {
-	fmt.Printf("\033[%dA", n)
+	Printf("\033[%dA", n)
 }
 
 func (r *Renderer) sanitizeText(text string) string {

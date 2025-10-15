@@ -34,6 +34,11 @@ type DisplayContext struct {
 	IsInteractive   bool
 }
 
+// Printf outputs text using the global display singleton
+func (dc *DisplayContext) Printf(format string, args ...interface{}) {
+	display.Printf(format, args...)
+}
+
 // BaseHandler provides common functionality for message handlers
 type BaseHandler struct {
 	name     string

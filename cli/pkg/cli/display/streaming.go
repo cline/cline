@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
@@ -16,6 +17,8 @@ type StreamingDisplay struct {
 	dedupe        *MessageDeduplicator
 	activeSegment *StreamingSegment
 	mdRenderer    *MarkdownRenderer
+	teaProgram    *tea.Program
+	teaMu         sync.RWMutex // Protects teaProgram access
 }
 
 // NewStreamingDisplay creates a new streaming display manager
@@ -30,7 +33,22 @@ func NewStreamingDisplay(state *types.ConversationState, renderer *Renderer) *St
 		renderer:   renderer,
 		dedupe:     NewMessageDeduplicator(),
 		mdRenderer: mdRenderer,
+		teaProgram: nil, // Will be set later via SetTeaProgram
 	}
+}
+
+// SetTeaProgram sets the BubbleTea program reference for Printf output
+func (s *StreamingDisplay) SetTeaProgram(program *tea.Program) {
+	s.teaMu.Lock()
+	defer s.teaMu.Unlock()
+	s.teaProgram = program
+}
+
+// GetTeaProgram safely retrieves the tea program reference
+func (s *StreamingDisplay) GetTeaProgram() *tea.Program {
+	s.teaMu.RLock()
+	defer s.teaMu.RUnlock()
+	return s.teaProgram
 }
 
 // HandlePartialMessage processes partial messages with streaming support
@@ -61,7 +79,7 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 		shouldMd := s.shouldRenderMarkdown(sayType)
 		prefix := s.getPrefix(sayType)
 		// NewStreamingSegment prints the header immediately
-		s.activeSegment = NewStreamingSegment(sayType, prefix, s.mdRenderer, shouldMd, msg, s.renderer.outputFormat)
+		s.activeSegment = NewStreamingSegment(sayType, prefix, s.mdRenderer, shouldMd, msg, s.renderer.outputFormat, s.GetTeaProgram())
 		// Header printed, done - don't append text or freeze
 		return nil
 	}
@@ -81,7 +99,7 @@ func (s *StreamingDisplay) HandlePartialMessage(msg *types.ClineMessage) error {
 		// Message arrived complete without partial phase - create segment and render immediately
 		shouldMd := s.shouldRenderMarkdown(sayType)
 		prefix := s.getPrefix(sayType)
-		segment := NewStreamingSegment(sayType, prefix, s.mdRenderer, shouldMd, msg, s.renderer.outputFormat)
+		segment := NewStreamingSegment(sayType, prefix, s.mdRenderer, shouldMd, msg, s.renderer.outputFormat, s.GetTeaProgram())
 		segment.AppendText(msg.Text)
 		segment.Freeze()
 	}

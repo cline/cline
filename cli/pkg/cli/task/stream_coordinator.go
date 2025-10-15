@@ -1,6 +1,10 @@
 package task
 
-import "sync"
+import (
+	"sync"
+
+	tea "github.com/charmbracelet/bubbletea/v2"
+)
 
 // StreamCoordinator manages coordination between SubscribeToState and SubscribeToPartialMessage streams
 type StreamCoordinator struct {
@@ -8,7 +12,7 @@ type StreamCoordinator struct {
 	processedInCurrentTurn     map[string]bool // What we've handled in THIS turn
 	inputAllowed               bool            // Whether user input is currently allowed
 	mu                         sync.RWMutex    // Protects inputAllowed
-	outputMu                   sync.Mutex      // Protects terminal output (prevents interleaving with input forms)
+	teaProgram                 *tea.Program    // BubbleTea program for Printf output
 }
 
 // NewStreamCoordinator creates a new stream coordinator
@@ -60,22 +64,21 @@ func (sc *StreamCoordinator) IsInputAllowed() bool {
 	return sc.inputAllowed
 }
 
-// LockOutput locks the output mutex to prevent interleaved terminal output
-// Should be called before displaying input forms
-func (sc *StreamCoordinator) LockOutput() {
-	sc.outputMu.Lock()
+// SetTeaProgram sets the BubbleTea program reference for Printf output
+func (sc *StreamCoordinator) SetTeaProgram(program *tea.Program) {
+	sc.teaProgram = program
 }
 
-// UnlockOutput unlocks the output mutex
-// Should be called after input forms are dismissed
-func (sc *StreamCoordinator) UnlockOutput() {
-	sc.outputMu.Unlock()
+// GetTeaProgram returns the BubbleTea program reference
+func (sc *StreamCoordinator) GetTeaProgram() *tea.Program {
+	return sc.teaProgram
 }
 
-// WithOutputLock executes a function while holding the output lock
-// This is a convenience method for wrapping output operations
-func (sc *StreamCoordinator) WithOutputLock(fn func()) {
-	sc.outputMu.Lock()
-	defer sc.outputMu.Unlock()
-	fn()
+// Printf outputs text above the BubbleTea UI using tea.Printf
+// Falls back to regular fmt.Printf if tea program isn't set (non-interactive mode)
+func (sc *StreamCoordinator) Printf(format string, args ...interface{}) tea.Cmd {
+	if sc.teaProgram != nil {
+		return tea.Printf(format, args...)
+	}
+	return nil
 }

@@ -67,7 +67,7 @@ func (sr *SystemMessageRenderer) RenderError(severity ErrorSeverity, title, body
 
 	markdown := strings.Join(parts, "\n")
 	rendered := sr.renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	Printf("\n%s\n", rendered)
 
 	return nil
 }
@@ -126,7 +126,7 @@ func (sr *SystemMessageRenderer) RenderBalanceError(err *clerror.ClineError) err
 
 	markdown := strings.Join(parts, "\n")
 	rendered := sr.renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	Printf("\n%s\n", rendered)
 
 	return nil
 }
@@ -161,7 +161,7 @@ func (sr *SystemMessageRenderer) RenderAuthError(err *clerror.ClineError) error 
 
 	markdown := strings.Join(parts, "\n")
 	rendered := sr.renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	Printf("\n%s\n", rendered)
 
 	return nil
 }
@@ -193,7 +193,7 @@ func (sr *SystemMessageRenderer) RenderRateLimitError(err *clerror.ClineError) e
 
 	markdown := strings.Join(parts, "\n")
 	rendered := sr.renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	Printf("\n%s\n", rendered)
 
 	return nil
 }
@@ -239,7 +239,7 @@ func (sr *SystemMessageRenderer) RenderAPIError(err *clerror.ClineError) error {
 
 	markdown := strings.Join(parts, "\n")
 	rendered := sr.renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	Printf("\n%s\n", rendered)
 
 	return nil
 }
@@ -248,7 +248,7 @@ func (sr *SystemMessageRenderer) RenderAPIError(err *clerror.ClineError) error {
 func (sr *SystemMessageRenderer) RenderWarning(title, message string) error {
 	markdown := fmt.Sprintf("### **[WARNING]** %s\n\n%s", title, message)
 	rendered := sr.renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	Printf("\n%s\n", rendered)
 	return nil
 }
 
@@ -256,7 +256,7 @@ func (sr *SystemMessageRenderer) RenderWarning(title, message string) error {
 func (sr *SystemMessageRenderer) RenderInfo(title, message string) error {
 	markdown := fmt.Sprintf("### **[INFO]** %s\n\n%s", title, message)
 	rendered := sr.renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	Printf("\n%s\n", rendered)
 	return nil
 }
 
@@ -264,6 +264,6 @@ func (sr *SystemMessageRenderer) RenderInfo(title, message string) error {
 func (sr *SystemMessageRenderer) RenderCheckpoint(timestamp string, id int64) error {
 	markdown := fmt.Sprintf("## [%s] Checkpoint created `%d`", timestamp, id)
 	rendered := sr.renderer.RenderMarkdown(markdown)
-	fmt.Printf(rendered)
+	Printf("%s", rendered)
 	return nil
 }

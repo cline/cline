@@ -4,8 +4,11 @@ go 1.23.0
 
 require (
 	github.com/atotto/clipboard v0.1.4
+	github.com/charmbracelet/bubbles/v2 v2.0.0-00010101000000-000000000000
+	github.com/charmbracelet/bubbletea/v2 v2.0.0-00010101000000-000000000000
 	github.com/charmbracelet/glamour v0.10.0
 	github.com/charmbracelet/huh v0.7.1-0.20251005153135-a01a1e304532
+	github.com/charmbracelet/lipgloss/v2 v2.0.0-00010101000000-000000000000
 	github.com/cline/grpc-go v0.0.0
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/spf13/cobra v1.8.0
@@ -15,6 +18,12 @@ require (
 )
 
 replace github.com/cline/grpc-go => ../src/generated/grpc-go
+
+replace github.com/charmbracelet/bubbletea/v2 => github.com/charmbracelet/bubbletea/v2 v2.0.0-20251011205917-3b687ffc1619
+
+replace github.com/charmbracelet/bubbles/v2 => github.com/charmbracelet/bubbles/v2 v2.0.0-20251001202932-f03bfcc799df
+
+replace github.com/charmbracelet/lipgloss/v2 => github.com/charmbracelet/lipgloss/v2 v2.0.0-20250917201909-41ff0bf215ea
 
 require (
 	github.com/alecthomas/chroma/v2 v2.14.0 // indirect

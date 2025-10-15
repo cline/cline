@@ -24,8 +24,8 @@ type MarkdownRenderer struct {
 // word wrap, the indentation looks weird so you have to turn it off
 // and everything will be right next to the left margin
 // but if you DO use glamours word wrap, it also means if you resize the terminal,
-// it will scuff everything. but given that this is the case for the input anyway, 
-// i figure we just make things as beautiful as possible 
+// it will scuff everything. but given that this is the case for the input anyway,
+// i figure we just make things as beautiful as possible
 // and if you resize the terminal, you'll learn real quick.
 // anyway, you can set this to true or false to experiment
 const USETERMINALWORDWRAP = true

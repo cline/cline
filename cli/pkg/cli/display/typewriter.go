@@ -46,7 +46,7 @@ func NewTypewriterPrinter(config *TypewriterConfig) *TypewriterPrinter {
 // Print prints text with typewriter effect
 func (tp *TypewriterPrinter) Print(text string) {
 	if !tp.config.Enabled {
-		fmt.Print(text)
+		Print(text)
 		return
 	}
 
@@ -72,12 +72,12 @@ func (tp *TypewriterPrinter) PrintfLn(format string, args ...interface{}) {
 
 // PrintInstant prints text immediately without typewriter effect
 func (tp *TypewriterPrinter) PrintInstant(text string) {
-	fmt.Print(text)
+	Print(text)
 }
 
 // PrintfInstant prints formatted text immediately without typewriter effect
 func (tp *TypewriterPrinter) PrintfInstant(format string, args ...interface{}) {
-	fmt.Printf(format, args...)
+	Printf(format, args...)
 }
 
 // typewriterPrint displays text with a typewriter animation effect
@@ -87,7 +87,7 @@ func (tp *TypewriterPrinter) typewriterPrint(text string) {
 
 	for i, r := range runes {
 		// Print the character
-		fmt.Print(string(r))
+		Print(string(r))
 		os.Stdout.Sync() // Force immediate output
 
 		// Don't add delay after the last character

@@ -179,8 +179,8 @@ func (h *SayHandler) handleText(msg *types.ClineMessage, dc *DisplayContext) err
 	if dc.MessageIndex == 0 {
 		markdown := formatUserMessage(msg.Text)
 		rendered := dc.Renderer.RenderMarkdown(markdown)
-		fmt.Printf("%s", rendered)
-		fmt.Printf("\n")
+		dc.Printf("%s", rendered)
+		dc.Printf("\n")
 		return nil
 	}
 
@@ -189,12 +189,12 @@ func (h *SayHandler) handleText(msg *types.ClineMessage, dc *DisplayContext) err
 	if dc.IsStreamingMode {
 		// In streaming mode, header already shown by partial stream
 		rendered = dc.Renderer.RenderMarkdown(msg.Text)
-		fmt.Printf("%s\n", rendered)
+		dc.Printf("%s\n", rendered)
 	} else {
 		// In non-streaming mode, render header + body together
 		markdown := fmt.Sprintf("### Cline responds\n\n%s", msg.Text)
 		rendered = dc.Renderer.RenderMarkdown(markdown)
-		fmt.Printf("\n%s\n", rendered)
+		dc.Printf("\n%s\n", rendered)
 	}
 	return nil
 }
@@ -209,12 +209,12 @@ func (h *SayHandler) handleReasoning(msg *types.ClineMessage, dc *DisplayContext
 	if dc.IsStreamingMode {
 		// In streaming mode, header already shown by partial stream
 		rendered = dc.Renderer.RenderMarkdown(msg.Text)
-		fmt.Printf("%s\n", rendered)
+		dc.Printf("%s\n", rendered)
 	} else {
 		// In non-streaming mode, render header + body together
 		markdown := fmt.Sprintf("### Cline is thinking\n\n%s", msg.Text)
 		rendered = dc.Renderer.RenderMarkdown(markdown)
-		fmt.Printf("\n%s\n", rendered)
+		dc.Printf("\n%s\n", rendered)
 	}
 	return nil
 }
@@ -230,12 +230,12 @@ func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *Display
 	if dc.IsStreamingMode {
 		// In streaming mode, header already shown by partial stream
 		rendered = dc.Renderer.RenderMarkdown(text)
-		fmt.Printf("%s\n", rendered)
+		dc.Printf("%s\n", rendered)
 	} else {
 		// In non-streaming mode, render header + body together
 		markdown := fmt.Sprintf("### Task completed\n\n%s", text)
 		rendered = dc.Renderer.RenderMarkdown(markdown)
-		fmt.Printf("\n%s\n", rendered)
+		dc.Printf("\n%s\n", rendered)
 	}
 	return nil
 }
@@ -259,7 +259,7 @@ func (h *SayHandler) handleUserFeedback(msg *types.ClineMessage, dc *DisplayCont
 	if msg.Text != "" {
 		markdown := formatUserMessage(msg.Text)
 		rendered := dc.Renderer.RenderMarkdown(markdown)
-		fmt.Printf("%s", rendered)
+		dc.Printf("%s", rendered)
 		return nil
 	} else {
 		return dc.Renderer.RenderMessage("USER", "[Provided feedback without text]", true)
@@ -324,7 +324,7 @@ func (h *SayHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) 
 
 	// Use unified ToolRenderer
 	output := dc.ToolRenderer.RenderCommandExecution(msg.Text)
-	fmt.Print(output)
+	dc.Printf("%s", output)
 
 	return nil
 }
@@ -337,7 +337,7 @@ func (h *SayHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayCon
 
 	// Use unified ToolRenderer
 	output := dc.ToolRenderer.RenderCommandOutput(msg.Text)
-	fmt.Print(output)
+	dc.Printf("%s", output)
 
 	return nil
 }
@@ -350,7 +350,7 @@ func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 
 	// Use unified ToolRenderer
 	output := dc.ToolRenderer.RenderToolExecution(&tool)
-	fmt.Print(output)
+	dc.Printf("%s", output)
 
 	return nil
 }
@@ -485,7 +485,7 @@ func (h *SayHandler) handleCheckpointCreated(msg *types.ClineMessage, dc *Displa
 	// Fallback to basic renderer if SystemRenderer not available
 	markdown := fmt.Sprintf("## [%s] Checkpoint created `%d`", timestamp, msg.Timestamp)
 	rendered := dc.Renderer.RenderMarkdown(markdown)
-	fmt.Printf(rendered)
+	dc.Printf("%s", rendered)
 	return nil
 }
 
@@ -510,7 +510,7 @@ func (h *SayHandler) handleTaskProgress(msg *types.ClineMessage, dc *DisplayCont
 
 	markdown := fmt.Sprintf("### Progress\n\n%s", msg.Text)
 	rendered := dc.Renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	dc.Printf("\n%s\n", rendered)
 	return nil
 }
 

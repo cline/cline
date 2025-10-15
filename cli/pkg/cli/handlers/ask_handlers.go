@@ -80,12 +80,12 @@ func (h *AskHandler) handleFollowup(msg *types.ClineMessage, dc *DisplayContext)
 
 	// Render header
 	rendered := dc.Renderer.RenderMarkdown(header)
-	fmt.Print("\n")
-	fmt.Print(rendered)
-	fmt.Print("\n")
+	dc.Printf("\n")
+	dc.Printf("%s", rendered)
+	dc.Printf("\n")
 
 	// Render body
-	fmt.Print(body)
+	dc.Printf("%s", body)
 
 	return nil
 }
@@ -97,7 +97,7 @@ func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayC
 		// Just render the body content
 		body := dc.ToolRenderer.GeneratePlanModeRespondBody(msg.Text)
 		if body != "" {
-			fmt.Print(body)
+			dc.Printf("%s", body)
 		}
 	} else {
 		// In non-streaming mode, render header + body together
@@ -110,12 +110,12 @@ func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayC
 
 		// Render header
 		rendered := dc.Renderer.RenderMarkdown(header)
-		fmt.Print("\n")
-		fmt.Print(rendered)
-		fmt.Print("\n")
+		dc.Printf("\n")
+		dc.Printf("%s", rendered)
+		dc.Printf("\n")
 
 		// Render body
-		fmt.Print(body)
+		dc.Printf("%s", body)
 	}
 
 	return nil
@@ -132,7 +132,7 @@ func (h *AskHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) 
 
 	// Use unified ToolRenderer
 	output := dc.ToolRenderer.RenderCommandApprovalRequest(msg.Text, autoApprovalConflict)
-	fmt.Print(output)
+	dc.Printf("%s", output)
 
 	return nil
 }
@@ -148,7 +148,7 @@ func (h *AskHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayCon
 	markdown := fmt.Sprintf("```\n%s\n```", commandOutput)
 	rendered := dc.Renderer.RenderMarkdown(markdown)
 
-	fmt.Printf("%s", rendered)
+	dc.Printf("%s", rendered)
 
 	return nil
 }
@@ -169,7 +169,7 @@ func (h *AskHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 
 	// Use unified ToolRenderer
 	output := dc.ToolRenderer.RenderToolApprovalRequest(&tool)
-	fmt.Print(output)
+	dc.Printf("%s", output)
 
 	return nil
 }
@@ -225,7 +225,7 @@ func (h *AskHandler) handleMistakeLimitReached(msg *types.ClineMessage, dc *Disp
 			"Cline has made too many consecutive mistakes and needs your guidance to proceed.",
 			details,
 		)
-		fmt.Printf("\n**Approval required to continue.**\n")
+		dc.Printf("\n**Approval required to continue.**\n")
 		return nil
 	}
 	return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("Mistake Limit Reached: %s. Approval required.", msg.Text), true)
@@ -244,7 +244,7 @@ func (h *AskHandler) handleAutoApprovalMaxReached(msg *types.ClineMessage, dc *D
 			"The maximum number of auto-approved requests has been reached. Manual approval is now required.",
 			details,
 		)
-		fmt.Printf("\n**Approval required to continue.**\n")
+		dc.Printf("\n**Approval required to continue.**\n")
 		return nil
 	}
 	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Auto-approval limit reached: %s. Approval required.", msg.Text), true)
@@ -315,12 +315,12 @@ func (h *AskHandler) handleReportBug(msg *types.ClineMessage, dc *DisplayContext
 		return fmt.Errorf("failed to render handleReportBug: %w", err)
 	}
 
-	fmt.Printf("\n**Title**: %s\n", bugData.Title)
-	fmt.Printf("**What Happened**: %s\n", bugData.WhatHappened)
-	fmt.Printf("**Steps to Reproduce**: %s\n", bugData.StepsToReproduce)
-	fmt.Printf("**API Request Output**: %s\n", bugData.APIRequestOutput)
-	fmt.Printf("**Additional Context**: %s\n", bugData.AdditionalContext)
-	fmt.Printf("\nApprove to create a GitHub issue.\n")
+	dc.Printf("\n**Title**: %s\n", bugData.Title)
+	dc.Printf("**What Happened**: %s\n", bugData.WhatHappened)
+	dc.Printf("**Steps to Reproduce**: %s\n", bugData.StepsToReproduce)
+	dc.Printf("**API Request Output**: %s\n", bugData.APIRequestOutput)
+	dc.Printf("**Additional Context**: %s\n", bugData.AdditionalContext)
+	dc.Printf("\nApprove to create a GitHub issue.\n")
 
 	return nil
 }

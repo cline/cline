@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/handlers"
@@ -699,32 +700,43 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	// Start both streams concurrently
 	errChan := make(chan error, 3)
 
+	// Setup BubbleTea interactive mode if enabled
+	var teaProgram *tea.Program
+	if interactive && global.Config.OutputFormat != "json" {
+		model := NewInteractiveModel(m, cancel, ctx)
+		teaProgram = tea.NewProgram(model)
+		coordinator.SetTeaProgram(teaProgram)
+		m.streamingDisplay.SetTeaProgram(teaProgram)
+
+		// Set the global output writer to use BubbleTea
+		display.SetOutputWriter(display.NewBubbleTeaWriter(teaProgram))
+
+		// Run BubbleTea in goroutine
+		go func() {
+			if _, err := teaProgram.Run(); err != nil {
+				errChan <- fmt.Errorf("bubbletea error: %w", err)
+			}
+		}()
+	}
+
 	if global.Config.OutputFormat == "json" {
 		go m.handleStateStream(ctx, coordinator, errChan, nil)
 	} else {
 		go m.handleStateStream(ctx, coordinator, errChan, nil)
 		go m.handlePartialMessageStream(ctx, coordinator, errChan)
-
-		// Start input handler if interactive mode is enabled
-		if interactive {
-			inputHandler := NewInputHandler(m, coordinator, cancel)
-			go inputHandler.Start(ctx, errChan)
-		}
 	}
 
 	// Handle Ctrl+C signals
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-sigChan:
-			// Check if input is currently being shown
-			if coordinator.IsInputAllowed() {
-				// Input form is showing - huh will handle the signal via ErrUserAborted
-				// Do nothing here, let the input handler deal with it
-			} else {
+	if !interactive || global.Config.OutputFormat == "json" {
+		// Only handle Ctrl+C manually in non-interactive mode
+		// In interactive mode, BubbleTea handles it
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		go func() {
+			select {
+			case <-ctx.Done():
+				return
+			case <-sigChan:
 				// Streaming mode - cancel the task and stay in follow mode
 				m.renderer.RenderTaskCancelled()
 				if err := m.CancelTask(context.Background()); err != nil {
@@ -732,8 +744,8 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 				}
 				// Don't cancel main context - stay in follow mode
 			}
-		}
-	}()
+		}()
+	}
 
 	// Wait for either stream to error or context cancellation
 	select {
@@ -882,9 +894,7 @@ func (m *Manager) processStateUpdateJsonMode(stateUpdate *cline.State, coordinat
 		// Display valid messages, exit as soon as we hit a non-valid message
 		if shouldDisplay {
 			coordinator.CompleteTurn(i + 1) // Mark the message as complete as soon as we print it
-			coordinator.WithOutputLock(func() {
 				m.displayMessage(msg, false, false, i)
-			})
 		} else {
 			break
 		}
@@ -930,59 +940,47 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 		case msg.Say == string(types.SayTypeUserFeedback):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				m.printf("\n")
+				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCommand):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				m.printf("\n")
+				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCommandOutput):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
 					m.displayMessage(msg, false, false, i)
-				})
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeBrowserActionLaunch):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				m.printf("\n")
+				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeMcpServerRequestStarted):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				m.printf("\n")
+				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCheckpointCreated):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				m.printf("\n")
+				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
@@ -991,10 +989,8 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			apiInfo := types.APIRequestInfo{Cost: -1}
 			if err := json.Unmarshal([]byte(msg.Text), &apiInfo); err == nil && apiInfo.Cost >= 0 {
 				if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-					coordinator.WithOutputLock(func() {
-						fmt.Println() // adds a separator between cline message and usage message
-						m.displayMessage(msg, false, false, i)
-					})
+					m.printf("\n") // adds a separator between cline message and usage message
+					m.displayMessage(msg, false, false, i)
 					coordinator.MarkProcessedInCurrentTurn(msgKey)
 					coordinator.CompleteTurn(len(messages))
 					displayedUsage = true
@@ -1004,9 +1000,7 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 		case msg.Ask == string(types.AskTypeCommandOutput):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
 					m.displayMessage(msg, false, false, i)
-				})
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
@@ -1019,9 +1013,7 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			} else {
 				// Non-streaming mode: render normally when message is complete
 				if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
-					coordinator.WithOutputLock(func() {
-						m.displayMessage(msg, false, false, i)
-					})
+					m.displayMessage(msg, false, false, i)
 					coordinator.MarkProcessedInCurrentTurn(msgKey)
 				}
 			}
@@ -1030,10 +1022,8 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			// Only render if not already handled by partial stream
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				m.printf("\n")
+				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 		}
@@ -1093,14 +1083,12 @@ func (m *Manager) handleStreamingMessage(msg *types.ClineMessage, coordinator *S
 		msg.Timestamp, msg.Partial, msg.Type, m.truncateText(msg.Text, 50))
 
 	// Lock output to prevent race with input forms
-	coordinator.WithOutputLock(func() {
 		// Use streaming display which handles deduplication internally
 		if err := m.streamingDisplay.HandlePartialMessage(msg); err != nil {
 			m.renderer.RenderDebug("Streaming display failed, using fallback: %v", err)
 			// Fallback to regular display
 			m.displayMessage(msg, true, false, -1)
 		}
-	})
 
 	return nil
 }
@@ -1256,6 +1244,11 @@ func (m *Manager) updateMode(stateJson string) {
 	m.mu.Lock()
 	m.currentMode = mode
 	m.mu.Unlock()
+}
+
+// printf outputs text using the global display singleton
+func (m *Manager) printf(format string, args ...interface{}) {
+	display.Printf(format, args...)
 }
 
 // Cleanup cleans up resources

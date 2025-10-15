@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
@@ -21,9 +22,10 @@ type StreamingSegment struct {
 	outputFormat   string
 	msg            *types.ClineMessage
 	toolParser     *ToolResultParser
+	teaProgram     *tea.Program
 }
 
-func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, shouldMarkdown bool, msg *types.ClineMessage, outputFormat string) *StreamingSegment {
+func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, shouldMarkdown bool, msg *types.ClineMessage, outputFormat string, teaProgram *tea.Program) *StreamingSegment {
 	ss := &StreamingSegment{
 		sayType:        sayType,
 		prefix:         prefix,
@@ -33,16 +35,17 @@ func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, s
 		outputFormat:   outputFormat,
 		msg:            msg,
 		toolParser:     NewToolResultParser(mdRenderer),
+		teaProgram:     teaProgram,
 	}
-	
+
 	// Render rich header immediately when creating segment (if in rich mode)
 	if shouldMarkdown && outputFormat != "plain" {
 		header := ss.generateRichHeader()
 		rendered, _ := mdRenderer.Render(header)
-		fmt.Println()
-		fmt.Print(rendered)
+		ss.printf("\n")
+		ss.printf("%s", rendered)
 	}
-	
+
 	return ss
 }
 
@@ -136,12 +139,17 @@ func (ss *StreamingSegment) renderFinal(currentBuffer string) {
 	// Print the body content
 	if bodyContent != "" {
 		if !strings.HasSuffix(bodyContent, "\n") {
-			fmt.Print(bodyContent)
-			fmt.Println()
+			ss.printf("%s", bodyContent)
+			ss.printf("\n")
 		} else {
-			fmt.Print(bodyContent)
+			ss.printf("%s", bodyContent)
 		}
 	}
+}
+
+// printf outputs text using the global display singleton
+func (ss *StreamingSegment) printf(format string, args ...interface{}) {
+	Printf(format, args...)
 }
 
 

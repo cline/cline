@@ -1,7 +1,6 @@
 package display
 
 import (
-	"fmt"
 	"os"
 
 	"golang.org/x/term"
@@ -15,7 +14,7 @@ func ClearLine() {
 	if !isTTY() {
 		return
 	}
-	fmt.Print("\r\033[K")
+	Print("\r\033[K")
 }
 
 // ClearToEnd clears from cursor to end of screen
@@ -23,5 +22,5 @@ func ClearToEnd() {
 	if !isTTY() {
 		return
 	}
-	fmt.Print("\033[J")
+	Print("\033[J")
 }
