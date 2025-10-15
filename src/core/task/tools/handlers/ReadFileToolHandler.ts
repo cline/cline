@@ -96,7 +96,9 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			// Auto-approval flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-			config.taskState.consecutiveAutoApprovedRequestsCount++
+			if (!config.yoloModeToggled) {
+				config.taskState.consecutiveAutoApprovedRequestsCount++
+			}
 
 			// Capture telemetry
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)

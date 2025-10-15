@@ -20,11 +20,8 @@ type ProviderWizard struct {
 
 // NewProviderWizard prepares a new provider configuration wizard
 func NewProviderWizard(ctx context.Context) (*ProviderWizard, error) {
-	if err := global.EnsureDefaultInstance(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ensure Cline Core instance: %w", err)
-	}
-
-	manager, err := task.NewManagerForDefault(ctx)
+	// Create task manager using auth instance from context
+	manager, err := createTaskManager(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task manager: %w", err)
 	}
@@ -127,6 +124,10 @@ func (pw *ProviderWizard) handleAddProvider() error {
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
+	if err := setWelcomeViewCompleted(pw.ctx, pw.manager); err != nil {
+		verboseLog("Warning: Failed to mark welcome view as completed: %v", err)
+	}
+
 	fmt.Println("✓ Provider configured successfully!")
 	return nil
 }
@@ -151,6 +152,10 @@ func (pw *ProviderWizard) handleAddBedrockProvider() error {
 	// Step 3: Apply Bedrock configuration
 	if err := ApplyBedrockConfig(pw.ctx, pw.manager, config, modelID, modelInfo); err != nil {
 		return fmt.Errorf("failed to save Bedrock configuration: %w", err)
+	}
+
+	if err := setWelcomeViewCompleted(pw.ctx, pw.manager); err != nil {
+		verboseLog("Warning: Failed to mark welcome view as completed: %v", err)
 	}
 
 	fmt.Println("✓ Bedrock provider configured successfully!")
@@ -663,4 +668,9 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 // clearProviderAPIKey clears the API key field for a specific provider using RemoveProviderPartial
 func (pw *ProviderWizard) clearProviderAPIKey(provider cline.ApiProvider) error {
 	return RemoveProviderPartial(pw.ctx, pw.manager, provider)
+}
+
+func setWelcomeViewCompleted(ctx context.Context, manager *task.Manager) error {
+	_, err := manager.GetClient().State.SetWelcomeViewCompleted(ctx, &cline.BooleanRequest{Value: true})
+	return err
 }

@@ -3,11 +3,26 @@ title: "Multiroot Workspace Support"
 sidebarTitle: "Multiroot Workspace"
 ---
 
-Cline's Multiroot feature _(experimental - Oct 1 2025)_ works seamlessly with VSCode's multi-root workspaces, letting you manage multiple project folders in a single workspace.
+Cline's Multiroot feature works seamlessly with VSCode's multi-root workspaces, letting you manage multiple project folders in a single workspace.
 
-## What is Multiroot Workspace Support?
+<Note>
+**Important:** Multi-root workspaces are currently an experimental feature and have the following limitations:
+- **Cline rules** only work in the first workspace folder
+- **Checkpoints** are automatically disabled with a warning message
+- Both features are restored when you return to a single-folder workspace
+</Note>
+
+## What is multiroot workspace support?
 
 Instead of being limited to one project folder, Cline can read files, write code, and run commands across all folders in your VSCode workspace. This is helpful when working with monorepos, microservices, or when you're working on related projects simultaneously.
+
+### How it works
+
+When you open multiple workspace folders in VSCode, Cline automatically:
+- Designates one folder as the **primary workspace** (typically the first folder added)
+- Tracks all workspace folders and their paths
+- Resolves file paths intelligently across workspaces
+- Displays workspace information in the environment details for each API request
 
 ## Getting Started
 
@@ -23,18 +38,25 @@ Instead of being limited to one project folder, Cline can read files, write code
 
 For detailed instructions on setting up multi-root workspaces in VS Code, see [Microsoft's official guide](https://code.visualstudio.com/docs/editing/workspaces/multi-root-workspaces).
 
-### How Cline Handles Multiple Workspaces
+### Technical behavior
 
-Once you have multiple folders, Cline automatically:
+**Workspace detection**
+- Cline detects all workspace folders when a task starts
+- The first workspace folder becomes the primary workspace by default
+- Each workspace can have its own VCS (Git, SVN, etc.)
 
-- Detects all your workspace folders
-- Works with files across different projects
-- Executes commands in the right context
-- Handles path resolution intelligently
+**Path resolution**
+- Relative paths are resolved relative to the primary workspace
+- You can use workspace hints to target specific workspaces: `@workspaceName:path/to/file`
+- Cline attempts to intelligently determine which workspace a file belongs to
 
-## Working Across Workspaces
+**Command execution**
+- Commands execute in the appropriate workspace context
+- The working directory is set based on where files are being accessed
 
-### Let Cline explore, or guide it precisely
+## Working across workspaces
+
+### Referencing specific workspaces
 
 You can reference different workspaces naturally in your prompts:
 
@@ -50,8 +72,19 @@ You can reference different workspaces naturally in your prompts:
 "Search for TODO comments across all my workspace folders"
 ```
 
+### Workspace hints
 
-## Common Use Cases
+Use workspace hints to explicitly reference files in specific workspaces:
+
+```
+@frontend:src/App.tsx
+@backend:server.ts
+```
+
+This syntax helps Cline resolve ambiguity when multiple workspaces contain similarly named files.
+
+
+## Common use cases
 
 ### Monorepo Development
 

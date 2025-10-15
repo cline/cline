@@ -2,6 +2,7 @@
 
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { GlobalStateAndSettings } from "@shared/storage/state-keys"
+import type { Environment } from "../config"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
@@ -32,6 +33,8 @@ export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sun
 
 export const DEFAULT_PLATFORM = "unknown"
 
+export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
+
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
@@ -51,6 +54,7 @@ export interface ExtensionState {
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting?: boolean
 	platform: Platform
+	environment?: Environment
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
@@ -58,6 +62,10 @@ export interface ExtensionState {
 	terminalReuseEnabled?: boolean
 	terminalOutputLineLimit: number
 	defaultTerminalProfile?: string
+	vscodeTerminalExecutionMode: string
+	backgroundCommandRunning?: boolean
+	backgroundCommandTaskId?: string
+	lastCompletedCommandTs?: number
 	userInfo?: UserInfo
 	version: string
 	distinctId: string
@@ -97,6 +105,7 @@ export interface ClineMessage {
 	images?: string[]
 	files?: string[]
 	partial?: boolean
+	commandCompleted?: boolean
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean
 	isOperationOutsideWorkspace?: boolean
@@ -139,6 +148,7 @@ export type ClineSay =
 	| "command_output"
 	| "tool"
 	| "shell_integration_warning"
+	| "shell_integration_warning_with_suggestion"
 	| "browser_action_launch"
 	| "browser_action"
 	| "browser_action_result"

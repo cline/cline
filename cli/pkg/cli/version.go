@@ -20,9 +20,10 @@ func NewVersionCommand() *cobra.Command {
 	var short bool
 
 	cmd := &cobra.Command{
-		Use:   "version",
-		Short: "Show version information",
-		Long:  `Display version information for the Cline Go host.`,
+		Use:     "version",
+		Aliases: []string{"v"},
+		Short:   "Show version information",
+		Long:    `Display version information for the Cline Go host.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if short {
 				fmt.Println(Version)

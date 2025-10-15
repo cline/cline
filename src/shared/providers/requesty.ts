@@ -11,7 +11,7 @@ const replaceCname = (baseUrl: string, type: URLType): string => {
 }
 
 export const toRequestyServiceUrl = (baseUrl?: string, service: URLType = "router"): URL | undefined => {
-	const url = replaceCname(baseUrl ?? REQUESTY_BASE_URL, service)
+	const url = replaceCname(baseUrl || REQUESTY_BASE_URL, service)
 
 	try {
 		return new URL(url)

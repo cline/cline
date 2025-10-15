@@ -87,6 +87,24 @@ export interface ITelemetryProvider {
 	getSettings(): TelemetrySettings
 
 	/**
+	 * (Optional) Increment a counter metric.
+	 * Providers that don't support metrics may implement this as a no-op.
+	 * @param name Metric name
+	 * @param value Amount to increment by (default 1)
+	 * @param attributes Optional metric attributes (JSON-serializable)
+	 */
+	incrementCounter?(name: string, value?: number, attributes?: TelemetryProperties): void
+
+	/**
+	 * (Optional) Record a value in a histogram metric.
+	 * Providers that don't support metrics may implement this as a no-op.
+	 * @param name Metric name
+	 * @param value Value to record
+	 * @param attributes Optional metric attributes (JSON-serializable)
+	 */
+	recordHistogram?(name: string, value: number, attributes?: TelemetryProperties): void
+
+	/**
 	 * Clean up resources when the provider is disposed
 	 */
 	dispose(): Promise<void>

@@ -18,6 +18,12 @@ import (
 	"github.com/cline/grpc-go/cline"
 )
 
+// Sentinel errors for CheckSendEnabled
+var (
+	ErrNoActiveTask = fmt.Errorf("no active task")
+	ErrTaskBusy     = fmt.Errorf("task is currently busy")
+)
+
 // Manager handles task execution and message display
 type Manager struct {
 	mu               sync.RWMutex
@@ -243,21 +249,32 @@ func (m *Manager) ValidateCheckpointExists(ctx context.Context, checkpointID int
 	return fmt.Errorf("checkpoint ID %d not found in task history", checkpointID)
 }
 
-// CheckSendDisabled determines if we can send a message to the current task
+// CheckSendEnabled checks if we can send a message to the current task
+// Returns nil if sending is allowed, or an error indicating why it's not allowed
 // We duplicate the logic from buttonConfig::getButtonConfig
-func (m *Manager) CheckSendDisabled(ctx context.Context) (bool, error) {
+func (m *Manager) CheckSendEnabled(ctx context.Context) error {
 	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
 	if err != nil {
-		return false, fmt.Errorf("failed to get latest state: %w", err)
+		return fmt.Errorf("failed to get latest state: %w", err)
+	}
+
+	var stateData types.ExtensionState
+	if err := json.Unmarshal([]byte(state.StateJson), &stateData); err != nil {
+		return fmt.Errorf("failed to parse state: %w", err)
+	}
+
+	// Check if there is an active task
+	if stateData.CurrentTaskItem == nil {
+		return ErrNoActiveTask
 	}
 
 	messages, err := m.extractMessagesFromState(state.StateJson)
 	if err != nil {
-		return false, fmt.Errorf("failed to extract messages: %w", err)
+		return fmt.Errorf("failed to extract messages: %w", err)
 	}
 
 	if len(messages) == 0 {
-		return false, nil
+		return nil
 	}
 
 	// Use final message to perform validation
@@ -287,7 +304,7 @@ func (m *Manager) CheckSendDisabled(ctx context.Context) (bool, error) {
 		if global.Config.Verbose {
 			m.renderer.RenderDebug("Send disabled: task is streaming and non-error")
 		}
-		return true, nil
+		return ErrTaskBusy
 	}
 
 	// All ask messages allow sending
@@ -295,7 +312,7 @@ func (m *Manager) CheckSendDisabled(ctx context.Context) (bool, error) {
 		if global.Config.Verbose {
 			m.renderer.RenderDebug("Send enabled: ask message")
 		}
-		return false, nil
+		return nil
 	}
 
 	// Technically unnecessary but implements getButtonConfig 1-1
@@ -303,14 +320,14 @@ func (m *Manager) CheckSendDisabled(ctx context.Context) (bool, error) {
 		if global.Config.Verbose {
 			m.renderer.RenderDebug("Send disabled: API request is active")
 		}
-		return true, nil
+		return ErrTaskBusy
 	}
 
 	if global.Config.Verbose {
 		m.renderer.RenderDebug("Send disabled: default fallback")
 	}
 
-	return true, nil
+	return ErrTaskBusy
 }
 
 // CheckNeedsApproval determines if the current task is waiting for approval
@@ -581,65 +598,13 @@ func (m *Manager) CancelTask(ctx context.Context) error {
 	return nil
 }
 
-// ListTasks retrieves and displays task history
-func (m *Manager) ListTasks(ctx context.Context) error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	req := &cline.GetTaskHistoryRequest{
-		FavoritesOnly:        false,
-		SearchQuery:          "",
-		SortBy:               "oldest",
-		CurrentWorkspaceOnly: false,
-	}
-
-	resp, err := m.client.Task.GetTaskHistory(ctx, req)
-	if err != nil {
-		return fmt.Errorf("failed to get task history: %w", err)
-	}
-
-	if len(resp.Tasks) == 0 {
-		fmt.Println("No task history found.")
-		return nil
-	}
-
-	return m.renderer.RenderTaskList(resp.Tasks)
-}
-
-// GatherFinalSummary attempts to gather the latest completion_result output and display it
-func (m *Manager) GatherFinalSummary(ctx context.Context) error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
-	if err != nil {
-		return fmt.Errorf("failed to get state: %w", err)
-	}
-
-	messages, err := m.extractMessagesFromState(state.StateJson)
-	if err != nil {
-		return fmt.Errorf("failed to extract messages: %w", err)
-	}
-
-	for i := len(messages) - 1; i >= 0; i-- {
-		msg := messages[i]
-
-		// Check if this is a completion result SAY message
-		if msg.IsSay() && msg.Say == string(types.SayTypeCompletionResult) {
-			return m.displayMessage(msg, false, false, i)
-		}
-	}
-
-	return nil
-}
-
 // ShowConversation displays the current conversation
 func (m *Manager) ShowConversation(ctx context.Context) error {
 	// Disable streaming mode for static view
 	m.mu.Lock()
 	m.isStreamingMode = false
 	m.mu.Unlock()
-	
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -678,17 +643,17 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	m.mu.Unlock()
 
 	if global.Config.OutputFormat != "plain" {
-        markdown := fmt.Sprintf("*Using instance: %s*\n*Press Ctrl+C to exit*", instanceAddress)
-        rendered := m.renderer.RenderMarkdown(markdown)
-        fmt.Printf("%s", rendered)
-    } else {
+		markdown := fmt.Sprintf("*Using instance: %s*\n*Press Ctrl+C to exit*", instanceAddress)
+		rendered := m.renderer.RenderMarkdown(markdown)
+		fmt.Printf("%s", rendered)
+	} else {
 		fmt.Printf("Using instance: %s\n", instanceAddress)
 		if interactive {
 			fmt.Println("Following task conversation in interactive mode... (Press Ctrl+C to exit)")
 		} else {
 			fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
 		}
-    }
+	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -734,7 +699,7 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 				// Do nothing here, let the input handler deal with it
 			} else {
 				// Streaming mode - cancel the task and stay in follow mode
-				fmt.Println("\nCancelling task...")
+				m.renderer.RenderTaskCancelled()
 				if err := m.CancelTask(context.Background()); err != nil {
 					fmt.Printf("Error cancelling task: %v\n", err)
 				}
@@ -764,7 +729,7 @@ func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
 	m.mu.Lock()
 	m.isStreamingMode = true
 	m.mu.Unlock()
-	
+
 	fmt.Println("Following task conversation until completion... (Press Ctrl+C to exit)")
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -1033,7 +998,7 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 					coordinator.MarkProcessedInCurrentTurn(msgKey)
 				}
 			}
-		
+
 		case msg.Type == types.MessageTypeAsk:
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			// Only render if not already handled by partial stream
@@ -1132,10 +1097,10 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 		m.mu.RUnlock()
 
 		dc := &handlers.DisplayContext{
-			State:          m.state,
-			Renderer:       m.renderer,
-			ToolRenderer:   m.toolRenderer,
-			SystemRenderer: m.systemRenderer,
+			State:           m.state,
+			Renderer:        m.renderer,
+			ToolRenderer:    m.toolRenderer,
+			SystemRenderer:  m.systemRenderer,
 			IsLast:          isLast,
 			IsPartial:       isPartial,
 			MessageIndex:    messageIndex,
@@ -1182,7 +1147,6 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 	totalMessages := len(messages)
 	startIndex := 0
 
-
 	if totalMessages > maxHistoryMessages {
 		startIndex = totalMessages - maxHistoryMessages
 		if global.Config.OutputFormat != "plain" {
@@ -1201,8 +1165,6 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 			fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
 		}
 	}
-
-
 
 	for i := startIndex; i < len(messages); i++ {
 		msg := messages[i]
