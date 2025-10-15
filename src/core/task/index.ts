@@ -1382,7 +1382,7 @@ export class Task {
 		if (!this.activeBackgroundCommand) {
 			return false
 		}
-		const { process, command } = this.activeBackgroundCommand
+		const { process } = this.activeBackgroundCommand
 		this.activeBackgroundCommand = undefined
 		this.controller.updateBackgroundCommandState(false, this.taskId)
 		try {
