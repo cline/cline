@@ -54,13 +54,11 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 			}
 		}
 
-		// Check immediately when component mounts
 		checkInstallation()
 
-		// Set up polling interval (every 1.5 seconds)
+		// Poll ever 1.5 seconds to see if CLI is installed (only when form is open)
 		const pollInterval = setInterval(checkInstallation, 1500)
 
-		// Clean up interval when component unmounts
 		return () => {
 			clearInterval(pollInterval)
 		}
@@ -71,7 +69,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 			{renderSectionHeader("features")}
 			<Section>
 				<div style={{ marginBottom: 20 }}>
-					{/* Subagents - Only show on macOS */}
+					{/* Subagents - Only show on macOS (for now) */}
 					{isMacOS && (
 						<div
 							className="relative p-3 mb-3 rounded-md"
@@ -111,6 +109,17 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 												}}>
 												npm install -g cline
 											</code>
+											, then run
+											<code
+												className="ml-1 px-1 rounded"
+												style={{
+													backgroundColor: "var(--vscode-editor-background)",
+													color: "var(--vscode-foreground)",
+													opacity: 0.9,
+												}}>
+												cline auth
+											</code>
+											To authenticate with Cline or configure an API provider.
 										</span>
 									</p>
 									<VSCodeButton

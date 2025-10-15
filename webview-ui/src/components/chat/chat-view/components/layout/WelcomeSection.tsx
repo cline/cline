@@ -25,6 +25,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 	const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
 	// const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
+
 	// Show CLI banner if not dismissed
 	const shouldShowCliBanner = lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
 

@@ -13,7 +13,7 @@ const SubagentOutputLineLimitSlider: React.FC = () => {
 	return (
 		<div style={{ marginBottom: 15 }}>
 			<label htmlFor="subagent-output-limit" style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
-				Subagent terminal output limit
+				Subagent output limit
 			</label>
 			<div style={{ display: "flex", alignItems: "center" }}>
 				<input
@@ -29,8 +29,7 @@ const SubagentOutputLineLimitSlider: React.FC = () => {
 				<span>{subagentTerminalOutputLineLimit ?? 2000}</span>
 			</div>
 			<p style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", margin: "5px 0 0 0" }}>
-				Maximum number of lines to include in terminal output from CLI subagent commands. Set higher than regular terminal
-				limit to allow more comprehensive subagent output.
+				Maximum number of lines to include in output from CLI subagents.
 			</p>
 		</div>
 	)
