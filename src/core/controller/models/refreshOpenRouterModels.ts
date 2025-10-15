@@ -183,6 +183,7 @@ export async function refreshOpenRouterModels(
 						modelInfo.contextWindow = 131_000
 						break
 					case "openai/gpt-5":
+					case "openai/gpt-5-codex":
 					case "openai/gpt-5-chat":
 					case "openai/gpt-5-mini":
 					case "openai/gpt-5-nano":

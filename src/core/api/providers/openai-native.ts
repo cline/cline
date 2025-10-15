@@ -756,6 +756,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 				yield* this.streamResponse(stream as AsyncIterable<ResponseStreamEvent>, model.info)
 				break
 			}
+			case "gpt-5":
+			case "gpt-5-codex":
 			case "gpt-5-2025-08-07":
 			case "gpt-5-mini-2025-08-07":
 			case "gpt-5-nano-2025-08-07": {
@@ -776,18 +778,23 @@ export class OpenAiNativeHandler implements ApiHandler {
 				break
 			}
 			default: {
-				const input = this.convertAnthropicToResponsesInput(systemPrompt, messages, "system")
-				const stream = (await client.responses.create({
+				const isGpt5 = (model.id as string).startsWith("gpt-5")
+				const input = this.convertAnthropicToResponsesInput(systemPrompt, messages, isGpt5 ? "developer" : "system")
+				const params: any = {
 					model: model.id,
 					input,
 					store: true,
 					stream: true,
-					include: ["reasoning.encrypted_content"],
-					temperature: 0,
 					tools: getOpenAiResponsesTools(),
 					tool_choice: "auto",
 					parallel_tool_calls: false,
-				})) as any
+					temperature: isGpt5 ? 1 : 0,
+				}
+				if (isGpt5) {
+					params.include = ["reasoning.encrypted_content"]
+					params.reasoning = { effort: (this.options.reasoningEffort as any) || "medium" }
+				}
+				const stream = (await client.responses.create(params)) as any
 				yield* this.streamResponse(stream as AsyncIterable<ResponseStreamEvent>, model.info)
 			}
 		}
@@ -821,7 +828,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 			model: model.id,
 			input,
 			store: true,
-			include: ["reasoning.encrypted_content"],
 			tool_choice: "auto",
 			tools: getOpenAiResponsesTools(),
 			parallel_tool_calls: false,
@@ -829,6 +835,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		if (model.id.startsWith("gpt-5")) {
 			params.reasoning = { effort: (this.options.reasoningEffort as any) || "medium" }
 			params.temperature = 1
+			;(params as any).include = ["reasoning.encrypted_content"]
 		} else {
 			params.temperature = 0
 		}
