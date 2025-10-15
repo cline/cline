@@ -35,7 +35,7 @@ describe("Remote Config Schema", () => {
 			expect(result).to.deep.equal(validSettings)
 		})
 
-		it("should apply default empty array for models", () => {
+		it("should have undefined for models and openAiHeaders by default", () => {
 			const result = OpenAiCompatibleSchema.parse({})
 			expect(result.models).to.be.undefined
 			expect(result.openAiHeaders).to.be.undefined
