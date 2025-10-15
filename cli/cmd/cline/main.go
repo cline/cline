@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -40,6 +41,10 @@ func main() {
 
 Start a new task by providing a prompt:
   cline "Create a new Python script that prints hello world"
+
+Or pipe a prompt via stdin:
+  echo "Create a todo app" | cline
+  cat prompt.txt | cline --yolo
 
 Or run with no arguments to enter interactive mode:
   cline
@@ -116,14 +121,14 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 				instanceAddress = coreAddress
 			}
 
-			var prompt string
+			// Get content from both args and stdin
+			prompt, err := getContentFromStdinAndArgs(args)
+			if err != nil {
+				return fmt.Errorf("failed to read prompt: %w", err)
+			}
 
-			// If args provided, use as prompt
-			if len(args) > 0 {
-				prompt = strings.Join(args, " ")
-			} else {
-				// Show interactive input to get prompt
-				var err error
+			// If no prompt from args or stdin, show interactive input
+			if prompt == "" {
 				prompt, err = promptForInitialTask()
 				if err != nil {
 					return err
@@ -233,4 +238,38 @@ func isUserReadyToUse(ctx context.Context, instanceAddress string) bool {
 	}
 
 	return false
+}
+
+// getContentFromStdinAndArgs reads content from both command line args and stdin, and combines them
+func getContentFromStdinAndArgs(args []string) (string, error) {
+	var content strings.Builder
+
+	// Add command line args first (if any)
+	if len(args) > 0 {
+		content.WriteString(strings.Join(args, " "))
+	}
+
+	// Check if stdin has data
+	stat, err := os.Stdin.Stat()
+	if err != nil {
+		return "", fmt.Errorf("failed to stat stdin: %w", err)
+	}
+
+	// Check if data is being piped to stdin
+	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		stdinBytes, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return "", fmt.Errorf("failed to read from stdin: %w", err)
+		}
+
+		stdinContent := strings.TrimSpace(string(stdinBytes))
+		if stdinContent != "" {
+			if content.Len() > 0 {
+				content.WriteString(" ")
+			}
+			content.WriteString(stdinContent)
+		}
+	}
+
+	return content.String(), nil
 }
