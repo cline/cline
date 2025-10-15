@@ -14,7 +14,7 @@ import (
 // InputType represents the type of input being collected
 type InputType int
 
-const INPUT_WIDTH = 48 
+const INPUT_WIDTH = 46 
 
 const (
 	InputTypeMessage InputType = iota
