@@ -118,7 +118,8 @@ func NewInputModel(inputType InputType, title, placeholder, currentMode string) 
 	ta.ShowLineNumbers = false
 	ta.Prompt = ""  // Remove prompt prefix (this is what adds the inner border!)
 	ta.SetHeight(5)
-	ta.SetWidth(80)
+	// Don't set width here - let WindowSizeMsg handle it
+	// ta.SetWidth(80)
 
 	// Configure keybindings like huh does:
 	// alt+enter and ctrl+j for newlines (textarea will handle these)
@@ -140,7 +141,7 @@ func NewInputModel(inputType InputType, title, placeholder, currentMode string) 
 		title:       title,
 		placeholder: placeholder,
 		currentMode: currentMode,
-		width:       80,
+		width:       0, // Will be set by first WindowSizeMsg
 		styles:      styles,
 	}
 
@@ -389,7 +390,7 @@ func (m *InputModel) Clone() *InputModel {
 	ta.ShowLineNumbers = false
 	ta.Prompt = ""
 	ta.SetHeight(5)
-	ta.SetWidth(80)
+	ta.SetWidth(m.width) // Use current width, not hardcoded 80!
 	ta.Focus()
 
 	// Configure keybindings
