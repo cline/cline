@@ -307,8 +307,18 @@ func (m *Manager) CheckSendEnabled(ctx context.Context) error {
 		return ErrTaskBusy
 	}
 
-	// All ask messages allow sending
+	// All ask messages allow sending, EXCEPT command_output
 	if lastMessage.Type == types.MessageTypeAsk {
+		// Special case: command_output means command is actively streaming
+		// In the CLI, we don't want to show input during streaming output (too messy)
+		// The webview can show "Proceed While Running" button, but CLI should wait
+		if lastMessage.Ask == string(types.AskTypeCommandOutput) {
+			if global.Config.Verbose {
+				m.renderer.RenderDebug("Send disabled: command output is streaming")
+			}
+			return ErrTaskBusy
+		}
+
 		if global.Config.Verbose {
 			m.renderer.RenderDebug("Send enabled: ask message")
 		}
@@ -693,17 +703,24 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 		case <-ctx.Done():
 			return
 		case <-sigChan:
-			// Check if input is currently being shown
-			if coordinator.IsInputAllowed() {
-				// Input form is showing - huh will handle the signal via ErrUserAborted
-				// Do nothing here, let the input handler deal with it
-			} else {
-				// Streaming mode - cancel the task and stay in follow mode
-				m.renderer.RenderTaskCancelled()
-				if err := m.CancelTask(context.Background()); err != nil {
-					fmt.Printf("Error cancelling task: %v\n", err)
+			if interactive {
+				// Interactive mode (task chat)
+				// Check if input is currently being shown
+				if coordinator.IsInputAllowed() {
+					// Input form is showing - huh will handle the signal via ErrUserAborted
+					// Do nothing here, let the input handler deal with it
+				} else {
+					// Streaming mode - cancel the task and stay in follow mode
+					m.renderer.RenderTaskCancelled()
+					if err := m.CancelTask(context.Background()); err != nil {
+						fmt.Printf("Error cancelling task: %v\n", err)
+					}
+					// Don't cancel main context - stay in follow mode
 				}
-				// Don't cancel main context - stay in follow mode
+			} else {
+				// Non-interactive mode (task view --follow)
+				// Just exit without canceling the task
+				cancel()
 			}
 		}
 	}()
@@ -855,9 +872,7 @@ func (m *Manager) processStateUpdateJsonMode(stateUpdate *cline.State, coordinat
 		// Display valid messages, exit as soon as we hit a non-valid message
 		if shouldDisplay {
 			coordinator.CompleteTurn(i + 1) // Mark the message as complete as soon as we print it
-			coordinator.WithOutputLock(func() {
-				m.displayMessage(msg, false, false, i)
-			})
+			m.displayMessage(msg, false, false, i)
 		} else {
 			break
 		}
@@ -903,59 +918,52 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 		case msg.Say == string(types.SayTypeUserFeedback):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCommand):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCommandOutput):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					m.displayMessage(msg, false, false, i)
-				})
+				m.displayMessage(msg, false, false, i)
+
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeBrowserActionLaunch):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeMcpServerRequestStarted):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCheckpointCreated):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
@@ -964,10 +972,9 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			apiInfo := types.APIRequestInfo{Cost: -1}
 			if err := json.Unmarshal([]byte(msg.Text), &apiInfo); err == nil && apiInfo.Cost >= 0 {
 				if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-					coordinator.WithOutputLock(func() {
-						fmt.Println() // adds a separator between cline message and usage message
-						m.displayMessage(msg, false, false, i)
-					})
+					fmt.Println() // adds a separator between cline message and usage message
+					m.displayMessage(msg, false, false, i)
+
 					coordinator.MarkProcessedInCurrentTurn(msgKey)
 					coordinator.CompleteTurn(len(messages))
 					displayedUsage = true
@@ -977,9 +984,8 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 		case msg.Ask == string(types.AskTypeCommandOutput):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					m.displayMessage(msg, false, false, i)
-				})
+				m.displayMessage(msg, false, false, i)
+
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
@@ -992,9 +998,8 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			} else {
 				// Non-streaming mode: render normally when message is complete
 				if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
-					coordinator.WithOutputLock(func() {
-						m.displayMessage(msg, false, false, i)
-					})
+					m.displayMessage(msg, false, false, i)
+
 					coordinator.MarkProcessedInCurrentTurn(msgKey)
 				}
 			}
@@ -1003,10 +1008,9 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			// Only render if not already handled by partial stream
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 		}
@@ -1065,15 +1069,12 @@ func (m *Manager) handleStreamingMessage(msg *types.ClineMessage, coordinator *S
 	m.renderer.RenderDebug("Processing message: timestamp=%d, partial=%v, type=%s, text_preview=%s",
 		msg.Timestamp, msg.Partial, msg.Type, m.truncateText(msg.Text, 50))
 
-	// Lock output to prevent race with input forms
-	coordinator.WithOutputLock(func() {
-		// Use streaming display which handles deduplication internally
-		if err := m.streamingDisplay.HandlePartialMessage(msg); err != nil {
-			m.renderer.RenderDebug("Streaming display failed, using fallback: %v", err)
-			// Fallback to regular display
-			m.displayMessage(msg, true, false, -1)
-		}
-	})
+	// Use streaming display which handles deduplication internally
+	if err := m.streamingDisplay.HandlePartialMessage(msg); err != nil {
+		m.renderer.RenderDebug("Streaming display failed, using fallback: %v", err)
+		// Fallback to regular display
+		m.displayMessage(msg, true, false, -1)
+	}
 
 	return nil
 }

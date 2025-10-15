@@ -255,7 +255,7 @@ async function createVersionFile() {
 }
 
 /**
- * Copy NPM package files (package.json and README.md) from cli/ directory
+ * Copy NPM package files (package.json, README.md, and man page) from cli/ directory
  */
 async function createNpmPackageFiles() {
 	console.log("Copying NPM package files...")
@@ -283,6 +283,22 @@ async function createNpmPackageFiles() {
 
 	await cpr(readmeSource, readmeDest)
 	console.log(`✓ README.md copied from ${readmeSource}`)
+
+	// Copy man page from cli/man/ directory
+	const manPageSource = path.join("cli", "man", "cline.1")
+	const manDir = path.join(BUILD_DIR, "man")
+	const manPageDest = path.join(manDir, "cline.1")
+	
+	if (!fs.existsSync(manPageSource)) {
+		console.error(`Error: Man page not found at ${manPageSource}`)
+		process.exit(1)
+	}
+
+	// Create man directory if it doesn't exist
+	fs.mkdirSync(manDir, { recursive: true })
+
+	await cpr(manPageSource, manPageDest)
+	console.log(`✓ Man page copied from ${manPageSource}`)
 }
 
 /**

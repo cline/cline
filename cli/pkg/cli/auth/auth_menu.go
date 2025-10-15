@@ -103,7 +103,7 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 	if manager, err := createTaskManager(ctx); err == nil {
 		if providerList, err := GetProviderConfigurations(ctx, manager); err == nil {
 			if providerList.ActProvider != nil {
-				currentProvider = getProviderDisplayName(providerList.ActProvider.Provider)
+				currentProvider = GetProviderDisplayName(providerList.ActProvider.Provider)
 				currentModel = providerList.ActProvider.ModelID
 			}
 		}
@@ -238,7 +238,7 @@ func HandleSelectProvider(ctx context.Context) error {
 
 	// Add each configured provider to the selection menu
 	for _, provider := range availableProviders {
-		providerName := getProviderDisplayName(provider)
+		providerName := GetProviderDisplayName(provider)
 		providerKey := fmt.Sprintf("provider_%d", provider)
 		providerOptions = append(providerOptions, huh.NewOption(providerName, providerKey))
 		providerMapping[providerKey] = provider

@@ -7,6 +7,7 @@ import (
 
 	"github.com/cline/cli/pkg/cli/clerror"
 	"github.com/cline/cli/pkg/cli/types"
+	"github.com/cline/cli/pkg/cli/output"
 )
 
 // AskHandler handles ASK type messages
@@ -80,12 +81,12 @@ func (h *AskHandler) handleFollowup(msg *types.ClineMessage, dc *DisplayContext)
 
 	// Render header
 	rendered := dc.Renderer.RenderMarkdown(header)
-	fmt.Print("\n")
-	fmt.Print(rendered)
-	fmt.Print("\n")
+	output.Print("\n")
+	output.Print(rendered)
+	output.Print("\n")
 
 	// Render body
-	fmt.Print(body)
+	output.Print(body)
 
 	return nil
 }
@@ -97,7 +98,7 @@ func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayC
 		// Just render the body content
 		body := dc.ToolRenderer.GeneratePlanModeRespondBody(msg.Text)
 		if body != "" {
-			fmt.Print(body)
+			output.Print(body)
 		}
 	} else {
 		// In non-streaming mode, render header + body together
@@ -110,12 +111,12 @@ func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayC
 
 		// Render header
 		rendered := dc.Renderer.RenderMarkdown(header)
-		fmt.Print("\n")
-		fmt.Print(rendered)
-		fmt.Print("\n")
+		output.Print("\n")
+		output.Print(rendered)
+		output.Print("\n")
 
 		// Render body
-		fmt.Print(body)
+		output.Print(body)
 	}
 
 	return nil
@@ -131,8 +132,8 @@ func (h *AskHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) 
 	autoApprovalConflict := strings.HasSuffix(msg.Text, "REQ_APP")
 
 	// Use unified ToolRenderer
-	output := dc.ToolRenderer.RenderCommandApprovalRequest(msg.Text, autoApprovalConflict)
-	fmt.Print(output)
+	rendered := dc.ToolRenderer.RenderCommandApprovalRequest(msg.Text, autoApprovalConflict)
+	output.Print(rendered)
 
 	return nil
 }
@@ -168,8 +169,8 @@ func (h *AskHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 	}
 
 	// Use unified ToolRenderer
-	output := dc.ToolRenderer.RenderToolApprovalRequest(&tool)
-	fmt.Print(output)
+	rendered := dc.ToolRenderer.RenderToolApprovalRequest(&tool)
+	output.Print(rendered)
 
 	return nil
 }

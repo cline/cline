@@ -8,29 +8,40 @@ import (
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/huh"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
 // InputHandler manages interactive user input during follow mode
 type InputHandler struct {
-	manager     *Manager
-	coordinator *StreamCoordinator
-	cancelFunc  context.CancelFunc
-	mu          sync.RWMutex
-	isRunning   bool
-	pollTicker  *time.Ticker
+	manager         *Manager
+	coordinator     *StreamCoordinator
+	cancelFunc      context.CancelFunc
+	mu              sync.RWMutex
+	isRunning       bool
+	pollTicker      *time.Ticker
+	program         *tea.Program
+	programRunning  bool
+	programDoneChan chan struct{} // Signals when program actually exits
+	resultChan      chan output.InputSubmitMsg
+	cancelChan      chan struct{}
+	feedbackApproval bool // Track if we're in feedback after approval
+	feedbackApproved bool // Track the approval decision
+	ctx             context.Context // Context for restart callback
 }
 
 // NewInputHandler creates a new input handler
 func NewInputHandler(manager *Manager, coordinator *StreamCoordinator, cancelFunc context.CancelFunc) *InputHandler {
 	return &InputHandler{
-		manager:     manager,
-		coordinator: coordinator,
-		cancelFunc:  cancelFunc,
-		isRunning:   false,
-		pollTicker:  time.NewTicker(500 * time.Millisecond),
+		manager:      manager,
+		coordinator:  coordinator,
+		cancelFunc:   cancelFunc,
+		isRunning:    false,
+		pollTicker:   time.NewTicker(500 * time.Millisecond),
+		resultChan:   make(chan output.InputSubmitMsg, 1),
+		cancelChan:   make(chan struct{}, 1),
 	}
 }
 
@@ -45,6 +56,9 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 		ih.isRunning = false
 		ih.mu.Unlock()
 		ih.pollTicker.Stop()
+		if ih.program != nil {
+			ih.program.Quit()
+		}
 	}()
 
 	for {
@@ -56,7 +70,7 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 			needsApproval, approvalMsg, err := ih.manager.CheckNeedsApproval(ctx)
 			if err != nil {
 				if global.Config.Verbose {
-					fmt.Printf("\nDebug: CheckNeedsApproval error: %v\n", err)
+					output.Printf("\nDebug: CheckNeedsApproval error: %v\n", err)
 				}
 				continue
 			}
@@ -64,24 +78,18 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 			if needsApproval {
 				ih.coordinator.SetInputAllowed(true)
 
-				// Lock output to prevent race with streaming display
-				ih.coordinator.LockOutput()
-
 				// Show approval prompt
 				approved, feedback, err := ih.promptForApproval(ctx, approvalMsg)
 
-				// Unlock output after form dismissed
-				ih.coordinator.UnlockOutput()
-
 				if err != nil {
 					// Check if the error is due to interrupt (Ctrl+C) or context cancellation
-					if err == huh.ErrUserAborted || ctx.Err() != nil {
+					if errors.Is(err, context.Canceled) || ctx.Err() != nil {
 						// User pressed Ctrl+C - cancel context to exit FollowConversation
 						ih.cancelFunc()
 						return
 					}
 					if global.Config.Verbose {
-						fmt.Printf("\nDebug: Approval prompt error: %v\n", err)
+						output.Printf("\nDebug: Approval prompt error: %v\n", err)
 					}
 					continue
 				}
@@ -95,12 +103,12 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 				}
 
 				if err := ih.manager.SendMessage(ctx, feedback, nil, nil, approveStr); err != nil {
-					fmt.Printf("\nError sending approval: %v\n", err)
+					output.Printf("\nError sending approval: %v\n", err)
 					continue
 				}
 
 				if global.Config.Verbose {
-					fmt.Printf("\nDebug: Approval sent (approved=%s, feedback=%q)\n", approveStr, feedback)
+					output.Printf("\nDebug: Approval sent (approved=%s, feedback=%q)\n", approveStr, feedback)
 				}
 
 				// Give the system a moment to process before re-polling
@@ -124,7 +132,7 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 				}
 				// Unexpected error
 				if global.Config.Verbose {
-					fmt.Printf("\nDebug: CheckSendEnabled error: %v\n", err)
+					output.Printf("\nDebug: CheckSendEnabled error: %v\n", err)
 				}
 				continue
 			}
@@ -132,24 +140,18 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 			// If we reach here, we can send a message
 			ih.coordinator.SetInputAllowed(true)
 
-			// Lock output to prevent race with streaming display
-			ih.coordinator.LockOutput()
-
 			// Show prompt and get input
 			message, shouldSend, err := ih.promptForInput(ctx)
 
-			// Unlock output after form dismissed
-			ih.coordinator.UnlockOutput()
-
 			if err != nil {
 				// Check if the error is due to interrupt (Ctrl+C) or context cancellation
-				if err == huh.ErrUserAborted || ctx.Err() != nil {
+				if errors.Is(err, context.Canceled) || ctx.Err() != nil {
 					// User pressed Ctrl+C - cancel context to exit FollowConversation
 					ih.cancelFunc()
 					return
 				}
 				if global.Config.Verbose {
-					fmt.Printf("\nDebug: Input prompt error: %v\n", err)
+					output.Printf("\nDebug: Input prompt error: %v\n", err)
 				}
 				continue
 			}
@@ -160,21 +162,49 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 				// Check for mode switch commands first
 				newMode, remainingMessage, isModeSwitch := ih.parseModeSwitch(message)
 				if isModeSwitch {
-					// Switch mode
-					if err := ih.manager.SetMode(ctx, newMode, nil, nil, nil); err != nil {
-						fmt.Printf("\nError switching to %s mode: %v\n", newMode, err)
-						continue
-					}
-					fmt.Printf("\nSwitched to %s mode\n", newMode)
-
-					// If there's remaining message, use it as the new message to send
 					if remainingMessage != "" {
-						message = remainingMessage
+						// Switching with a message - behavior differs by mode
+						if newMode == "act" {
+							// Act mode: can send mode + message in one call
+							if err := ih.manager.SetMode(ctx, newMode, &remainingMessage, nil, nil); err != nil {
+								output.Printf("\nError switching to act mode with message: %v\n", err)
+								continue
+							}
+							// 256-color index 39 for act mode (matches lipgloss color "39" in input form)
+							output.Printf("\n\033[38;5;39m\033[1mSwitched to act mode\033[0m\n")
+						} else {
+							// Plan mode: must switch first, then send message separately
+							if err := ih.manager.SetMode(ctx, newMode, nil, nil, nil); err != nil {
+								output.Printf("\nError switching to plan mode: %v\n", err)
+								continue
+							}
+							// Yellow color for plan mode (ANSI color 3)
+							output.Printf("\n\033[33m\033[1mSwitched to plan mode\033[0m\n")
+
+							// Now send the message separately
+							time.Sleep(500 * time.Millisecond) // Give mode switch time to process
+							if err := ih.manager.SendMessage(ctx, remainingMessage, nil, nil, ""); err != nil {
+								output.Printf("\nError sending message after mode switch: %v\n", err)
+								continue
+							}
+						}
 					} else {
-						// No message to send, just mode switch
-						time.Sleep(1 * time.Second)
-						continue
+						// Just switch mode, no message
+						if err := ih.manager.SetMode(ctx, newMode, nil, nil, nil); err != nil {
+							output.Printf("\nError switching to %s mode: %v\n", newMode, err)
+							continue
+						}
+						// Color based on mode
+						if newMode == "act" {
+							output.Printf("\n\033[38;5;39m\033[1mSwitched to act mode\033[0m\n")
+						} else {
+							output.Printf("\n\033[33m\033[1mSwitched to plan mode\033[0m\n")
+						}
 					}
+
+					// Mode switch handled, continue to next poll
+					time.Sleep(1 * time.Second)
+					continue
 				}
 
 				// Handle special commands
@@ -184,12 +214,12 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 
 				// Send the message
 				if err := ih.manager.SendMessage(ctx, message, nil, nil, ""); err != nil {
-					fmt.Printf("\nError sending message: %v\n", err)
+					output.Printf("\nError sending message: %v\n", err)
 					continue
 				}
 
 				if global.Config.Verbose {
-					fmt.Printf("\nDebug: Message sent successfully\n")
+					output.Printf("\nDebug: Message sent successfully\n")
 				}
 
 				// Give the system a moment to process before re-polling
@@ -201,129 +231,193 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 
 // promptForInput displays an interactive prompt and waits for user input
 func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error) {
-	// Add visual separation before the form
-	fmt.Println()
-
-	var message string
-
-	// Get current mode and format title with color
 	currentMode := ih.manager.GetCurrentMode()
 
-	// ANSI color codes
-	yellow := "\033[33m"      // Yellow for plan mode
-	blue := "\033[34m"        // Blue for act mode
-	indigo := "\033[38;5;99m" // Indigo (huh default title color) - approximation of #7571F9
-	bold := "\033[1m"         // Bold
-	reset := "\033[0m"        // Reset
-
-	var coloredMode string
-	if currentMode == "plan" {
-		coloredMode = fmt.Sprintf("%s[plan mode]%s", yellow, reset)
-	} else {
-		coloredMode = fmt.Sprintf("%s[act mode]%s", blue, reset)
-	}
-
-	title := fmt.Sprintf("%s %s%sCline is ready for your message%s", coloredMode, bold, indigo, reset)
-
-	// Create multiline text area form using huh
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewText().
-				Title(title).
-				Placeholder("Type your message... (shift+enter for new line, enter to submit, /plan or /act to switch mode)").
-				Lines(5).
-				Value(&message),
-		),
+	model := output.NewInputModel(
+		output.InputTypeMessage,
+		"Cline is ready for your message...",
+		"/plan or /act to switch modes\nctrl+e to open editor",
+		currentMode,
 	)
 
-	// Run the form
-	err := form.Run()
-	if err != nil {
-		return "", false, err
-	}
-
-	// Trim whitespace
-	message = strings.TrimSpace(message)
-
-	// If empty, user just wants to keep watching
-	if message == "" {
-		return "", false, nil
-	}
-
-	return message, true, nil
+	return ih.runInputProgram(ctx, model)
 }
 
 // promptForApproval displays an approval prompt for tool/command requests
-// Returns (approved, message, error)
-// Note: The approval details are already shown by segment streamer / state stream
 func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineMessage) (bool, string, error) {
-	// Add visual separation before the form
-	fmt.Println()
-
-	// Show selection menu (approval details already displayed by other handlers)
-	var choice string
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Let Cline use this tool?").
-				Options(
-					huh.NewOption("Yes", "yes"),
-					huh.NewOption("Yes, with feedback", "yes_feedback"),
-					huh.NewOption("No", "no"),
-					huh.NewOption("No, with feedback", "no_feedback"),
-				).
-				Value(&choice),
-		),
+	model := output.NewInputModel(
+		output.InputTypeApproval,
+		"Let Cline use this tool?",
+		"",
+		ih.manager.GetCurrentMode(),
 	)
 
-	err := form.Run()
+	message, shouldSend, err := ih.runInputProgram(ctx, model)
 	if err != nil {
 		return false, "", err
 	}
 
-	// Check if feedback is needed
-	needsFeedback := choice == "yes_feedback" || choice == "no_feedback"
-	approved := choice == "yes" || choice == "yes_feedback"
-
-	var feedback string
-	if needsFeedback {
-		// Show multiline text area for feedback
-		feedbackForm := huh.NewForm(
-			huh.NewGroup(
-				huh.NewText().
-					Title("Your feedback").
-					Placeholder("Type your message... (shift+enter for new line, enter to submit, /plan or /act to switch mode)").
-					Lines(5).
-					Value(&feedback),
-			),
-		)
-
-		err := feedbackForm.Run()
-		if err != nil {
-			return false, "", err
-		}
-
-		feedback = strings.TrimSpace(feedback)
+	if !shouldSend {
+		return false, "", nil
 	}
 
-	return approved, feedback, nil
+	// The approval and feedback are handled via the model state
+	return ih.feedbackApproved, message, nil
+}
+
+// runInputProgram runs the bubbletea program and waits for result
+func (ih *InputHandler) runInputProgram(ctx context.Context, model output.InputModel) (string, bool, error) {
+	ih.mu.Lock()
+
+	// Create the program with custom update wrapper
+	wrappedModel := &inputProgramWrapper{
+		model:      &model,
+		resultChan: ih.resultChan,
+		cancelChan: ih.cancelChan,
+		handler:    ih,
+	}
+
+	ih.program = tea.NewProgram(wrappedModel)
+	ih.programDoneChan = make(chan struct{})
+	ih.ctx = ctx
+
+	// Set up coordinator references
+	output.SetProgram(ih.program)
+	output.SetInputModel(wrappedModel.model)
+	output.SetRestartCallback(ih.restartProgram)
+	output.SetInputVisible(true)
+	ih.programRunning = true
+	ih.mu.Unlock()
+
+	// Run program in goroutine
+	programErrChan := make(chan error, 1)
+	go func() {
+		if _, err := ih.program.Run(); err != nil {
+			programErrChan <- err
+		}
+		// Signal that program is done
+		close(ih.programDoneChan)
+	}()
+
+	// Wait for result, cancellation, or context done
+	select {
+	case <-ctx.Done():
+		ih.mu.Lock()
+		output.SetInputVisible(false)
+		if ih.program != nil {
+			ih.program.Quit()
+		}
+		ih.programRunning = false
+		ih.mu.Unlock()
+		return "", false, ctx.Err()
+
+	case <-ih.cancelChan:
+		ih.mu.Lock()
+		output.SetInputVisible(false)
+		ih.programRunning = false
+		ih.mu.Unlock()
+		return "", false, context.Canceled
+
+	case err := <-programErrChan:
+		ih.mu.Lock()
+		output.SetInputVisible(false)
+		ih.programRunning = false
+		ih.mu.Unlock()
+		return "", false, err
+
+	case result := <-ih.resultChan:
+		ih.mu.Lock()
+		output.SetInputVisible(false)
+		ih.programRunning = false
+		ih.mu.Unlock()
+
+		// Handle different input types
+		switch result.InputType {
+		case output.InputTypeMessage:
+			if result.Value == "" {
+				return "", false, nil
+			}
+			return result.Value, true, nil
+
+		case output.InputTypeApproval:
+			if result.NeedsFeedback {
+				// Need to collect feedback - will be handled by model state change
+				return "", false, nil
+			}
+			// Store approval state for when feedback comes back
+			ih.feedbackApproval = false
+			ih.feedbackApproved = result.Approved
+			return "", true, nil
+
+		case output.InputTypeFeedback:
+			// This came from approval flow
+			ih.feedbackApproval = true
+			return result.Value, true, nil
+		}
+
+		return "", false, nil
+	}
+}
+
+// inputProgramWrapper wraps the InputModel to handle message routing
+type inputProgramWrapper struct {
+	model      *output.InputModel
+	resultChan chan output.InputSubmitMsg
+	cancelChan chan struct{}
+	handler    *InputHandler
+}
+
+func (w *inputProgramWrapper) Init() tea.Cmd {
+	return w.model.Init()
+}
+
+func (w *inputProgramWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case output.InputSubmitMsg:
+		// Handle input submission - clear the screen before quitting
+		w.resultChan <- msg
+		clearCodes := w.model.ClearScreen()
+		if clearCodes != "" {
+			fmt.Print(clearCodes)
+		}
+		return w, tea.Quit
+
+	case output.InputCancelMsg:
+		// Handle cancellation - clear the screen before quitting
+		w.cancelChan <- struct{}{}
+		clearCodes := w.model.ClearScreen()
+		if clearCodes != "" {
+			fmt.Print(clearCodes)
+		}
+		return w, tea.Quit
+
+	case output.ChangeInputTypeMsg:
+		// Change input type (approval -> feedback)
+		_, cmd := w.model.Update(msg)
+		return w, cmd
+	}
+
+	// Forward to wrapped model
+	_, cmd := w.model.Update(msg)
+	return w, cmd
+}
+
+func (w *inputProgramWrapper) View() string {
+	return w.model.View()
 }
 
 // parseModeSwitch checks if message starts with /act or /plan and extracts the mode and remaining message
-// Returns: (newMode, remainingMessage, isModeSwitch)
 func (ih *InputHandler) parseModeSwitch(message string) (string, string, bool) {
 	trimmed := strings.TrimSpace(message)
 	lower := strings.ToLower(trimmed)
 
 	if strings.HasPrefix(lower, "/plan") {
-		// Extract remaining message after /plan
-		remaining := strings.TrimSpace(trimmed[5:]) // Remove "/plan"
+		remaining := strings.TrimSpace(trimmed[5:])
 		return "plan", remaining, true
 	}
 
 	if strings.HasPrefix(lower, "/act") {
-		// Extract remaining message after /act
-		remaining := strings.TrimSpace(trimmed[4:]) // Remove "/act"
+		remaining := strings.TrimSpace(trimmed[4:])
 		return "act", remaining, true
 	}
 
@@ -336,14 +430,13 @@ func (ih *InputHandler) handleSpecialCommand(ctx context.Context, message string
 	case "/cancel":
 		ih.manager.GetRenderer().RenderTaskCancelled()
 		if err := ih.manager.CancelTask(ctx); err != nil {
-			fmt.Printf("Error cancelling task: %v\n", err)
+			output.Printf("Error cancelling task: %v\n", err)
 		} else {
-			fmt.Println("Task cancelled successfully")
+			output.Println("Task cancelled successfully")
 		}
 		return true
 	case "/exit", "/quit":
-		fmt.Println("\nExiting follow mode...")
-		// This will be handled by context cancellation
+		output.Println("\nExiting follow mode...")
 		return true
 	default:
 		return false
@@ -357,6 +450,9 @@ func (ih *InputHandler) Stop() {
 	if ih.pollTicker != nil {
 		ih.pollTicker.Stop()
 	}
+	if ih.program != nil && ih.programRunning {
+		ih.program.Quit()
+	}
 	ih.isRunning = false
 }
 
@@ -365,4 +461,49 @@ func (ih *InputHandler) IsRunning() bool {
 	ih.mu.RLock()
 	defer ih.mu.RUnlock()
 	return ih.isRunning
+}
+
+// restartProgram restarts the Bubble Tea program with preserved state
+func (ih *InputHandler) restartProgram(savedModel *output.InputModel) {
+	ih.mu.Lock()
+
+	// Wait for old program to actually quit
+	if ih.programDoneChan != nil {
+		select {
+		case <-ih.programDoneChan:
+			// Program quit successfully
+		case <-time.After(100 * time.Millisecond):
+			// Timeout - continue anyway
+		}
+	}
+
+	// Create new wrapper with the saved model
+	wrappedModel := &inputProgramWrapper{
+		model:      savedModel,
+		resultChan: ih.resultChan,
+		cancelChan: ih.cancelChan,
+		handler:    ih,
+	}
+
+	// Start new program
+	ih.program = tea.NewProgram(wrappedModel)
+	ih.programDoneChan = make(chan struct{})
+
+	// Update coordinator references
+	output.SetProgram(ih.program)
+	output.SetInputModel(savedModel)
+	output.SetInputVisible(true)
+	ih.programRunning = true
+	ih.mu.Unlock()
+
+	// Run in goroutine
+	go func() {
+		if _, err := ih.program.Run(); err != nil {
+			// Log error if needed
+			if global.Config.Verbose {
+				output.Printf("\nDebug: Program restart error: %v\n", err)
+			}
+		}
+		close(ih.programDoneChan)
+	}()
 }

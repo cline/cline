@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/atotto/clipboard"
-	"github.com/cline/cli/pkg/cli"
+	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/grpc-go/cline"
 	"github.com/cline/grpc-go/host"
 	"google.golang.org/protobuf/proto"
@@ -78,7 +78,7 @@ func (s *EnvService) GetHostVersion(ctx context.Context, req *cline.EmptyRequest
 		Platform:     proto.String("Cline CLI"),
 		Version:      proto.String(""),
 		ClineType:    proto.String("CLI"),
-		ClineVersion: proto.String(cli.Version),
+		ClineVersion: proto.String(global.Version),
 	}, nil
 }
 
