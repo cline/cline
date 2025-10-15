@@ -3,932 +3,337 @@ title: "CLI Reference"
 description: "Complete command reference for Cline CLI including configuration, instance management, and task commands"
 ---
 
-## Overview
+## Manual Page
 
-This page provides a comprehensive reference for all Cline CLI commands, global configuration options, and usage patterns.
-
-## Global Flags
-
-These flags are available for all Cline CLI commands:
+Installing the Cline CLI will give you a manual page, which you can view with:
 
 ```bash
---address string         Cline Core gRPC address (default "127.0.0.1:50052")
--f, --file strings       attach files
--h, --help               help for cline
--i, --image strings      attach image files
--m, --mode string        mode (act|plan) - defaults to plan (default "plan")
--o, --output-format      output format (rich|json|plain) (default "rich")
--s, --setting strings    task settings (key=value format)
--v, --verbose            verbose output
--w, --workdir strings    workdir directory paths
--y, --yolo               enable yolo mode (non-interactive)
+man cline
 ```
 
-### Address Flag
+Here's the manual page:
 
-The `--address` flag allows you to specify which Cline instance to target:
-
-```bash
-# Use default instance
-cline task new "Create a feature"
-
-# Target specific instance
-cline task new "Create a feature" --address 127.0.0.1:51052
-```
-
-### File and Image Attachments
-
-Attach files and images to your tasks using the `-f` and `-i` flags:
-
-```bash
-# Attach files
-cline task new "Review this code" -f main.go -f utils.go
-
-# Attach images
-cline task new "Fix this UI bug" -i screenshot.png
-
-# Combine files and images
-cline task new "Update docs" -f README.md -i diagram.png
-```
-
-### Mode Selection
-
-Set the initial mode for your task (plan or act):
-
-```bash
-# Start in plan mode (default)
-cline task new "Build a feature"
-
-# Start in act mode
-cline task new "Build a feature" --mode act
-
-# Explicitly specify plan mode
-cline task new "Design architecture" -m plan
-```
-
-### Task Settings
-
-Pass custom settings to your task using key=value format:
-
-```bash
-# Single setting
-cline task new "Deploy app" -s aws-region=us-west-2
-
-# Multiple settings
-cline task new "Run tests" -s aws-region=us-west-2 --s mode=act
-```
-
-### Workspace Directories
-
-Specify workspace directories for your task:
-
-```bash
-# Single directory
-cline task new "Build project" -w /path/to/project
-
-# Multiple directories
-cline task new "Refactor code" -w /path/to/frontend -w /path/to/backend
-```
-
-### YOLO Mode
-
-Enable YOLO (non-interactive) mode to auto-approve all actions:
-
-```bash
-# Enable YOLO mode
-cline task new "Quick fix" --yolo
-
-# Short form
-cline task new "Quick fix" -y
-
-# Combine with other flags
-cline task new "Deploy" -y -m act -w /path/to/project
-```
-
-### Output Formats
-
-The CLI supports three formats for task output:
-
-1. **rich** (default): Formatted terminal output with colors
-2. **json**: Machine-readable JSON output
-3. **plain**: Plain text without formatting
-
-Set via `--output-format` or `-o` flag:
-
-```bash
-# Rich format (default)
-cline task follow
-
-# JSON format for scripting
-cline task follow -o json
-
-# Plain text format
-cline task follow -o plain
-```
-
-### Verbose Output
-
-Enable detailed logging and debug information:
-
-```bash
-# Enable verbose output
-cline task new "Debug this" --verbose
-
-# Short form
-cline task new "Debug this" -v
-```
-
-## Authentication
-
-**Command Help:**
-```
-Complete the authentication flow in browser to sign in to Cline.
-
-Usage:
-  cline auth [flags]
-
-Flags:
-  -h, --help   help for auth
-
-Global Flags:
-      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
-
-**Usage:**
-```bash
-# Sign in to Cline
-cline auth
-
-# This will:
-# - Open browser for authentication
-# - Handle OAuth flow
-# - Store credentials securely
-```
-
-## Instance Commands
-
-### Instance Command Overview
-
-```
-List and manage multiple Cline instances similar to kubectl contexts.
-
-Usage:
-  cline instance [command]
-
-Aliases:
-  instance, i
-
-Available Commands:
-  kill        Kill a Cline instance by address
-  list        List all registered Cline instances
-  new         Create a new Cline instance
-  use         Set the default Cline instance
-
-Flags:
-  -h, --help   help for instance
-
-Global Flags:
-      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
-
-### List Instances
-
-**Command Help:**
-```
-List all registered Cline instances with their status and connection details.
-
-Usage:
-  cline instance list [flags]
-
-Aliases:
-  list, l
-
-Flags:
-  -h, --help   help for list
-
-Global Flags:
-      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
-
-**Examples:**
-```bash
-# List all registered Cline instances
-cline instance list
-
-# Output shows:
-# - ADDRESS: Instance address (e.g., 127.0.0.1:51051)
-# - STATUS: Health status (SERVING, NOT_SERVING)
-# - VERSION: Cline version
-# - LAST SEEN: Last health check timestamp
-# - PID: Process ID
-# - DEFAULT: * if default instance
-```
-
-### Create New Instance
-
-**Command Help:**
-```
-Create a new Cline instance with automatically assigned ports.
-
-Usage:
-  cline instance new [flags]
-
-Aliases:
-  new, n
-
-Flags:
-  -h, --help   help for new
-
-Global Flags:
-      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
-
-**Examples:**
-```bash
-# Start a new Cline instance with auto-assigned ports
-cline instance new
-
-# Output shows:
-# - Address (e.g., 127.0.0.1:51052)
-# - Core Port (e.g., 51052)
-# - Host Bridge Port (e.g., 51053)
-# - Default status
-```
-
-### Use Instance
-
-**Command Help:**
-```
-Set the default Cline instance to use for subsequent commands.
-
-Usage:
-  cline instance use <address> [flags]
-
-Aliases:
-  use, u
-
-Flags:
-  -h, --help   help for use
-
-Global Flags:
-      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
-
-**Examples:**
-```bash
-# Set default instance
-cline instance use 127.0.0.1:51052
-```
-
-### Kill Instance
-
-**Command Help:**
-```
-Kill a running Cline instance and clean up its registry entry.
-
-Usage:
-  cline instance kill <address> [flags]
-
-Aliases:
-  kill, k
-
-Flags:
-      --all    kill all running instances
-  -h, --help   help for kill
-
-Global Flags:
-      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
-
-**Examples:**
-
-```bash
-# Kill specific instance
-cline instance kill 127.0.0.1:51052
-
-# Kill all instances
-cline instance kill --all-cli
-```
-
-The kill command:
-- Sends SIGTERM to the core process
-- Waits for graceful shutdown
-- Removes registry entry
-- Updates default instance if needed
-- Shows summary of results
-
-### Instance Registry
-
-The CLI uses a SQLite-based registry to track multiple Cline instances.
-
-**Registry Location**
-
-The registry is stored in `$CLINE_DIR/cli/registry.db` (or
-`~/.cline/cli/registry.db` by default).
-
-**Registry Features**
-
-- **Auto-registration**: Instances register themselves on startup
-- **Health monitoring**: Regular health checks via gRPC
-- **Cleanup**: Stale entries removed automatically
-- **Default instance**: One instance marked as default
-- **Multi-instance**: Support for multiple concurrent instances
-
-**Instance Lifecycle**
-
-1. **Start**: Instance starts and registers in SQLite
-2. **Health checks**: CLI queries health status via gRPC
-3. **Selection**: CLI routes commands to default or specified instance
-4. **Shutdown**: Instance cleans up registry entry
-5. **Cleanup**: CLI removes stale entries on next list
-
-## Logs Commands
-
-### Logs Command Overview
-
-```
-List and manage log files created by Cline instances.
-
-Usage:
-  cline logs [command]
-
-Aliases:
-  logs, log, l
-
-Available Commands:
-  clean       Delete old log files
-  list        List all log files
-  path        Print the logs directory path
-
-Flags:
-  -h, --help   help for logs
-
-Global Flags:
-      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
 ```
-
-### List Log Files
-
-**Command Help:**
-```
-List all log files created by Cline instances with details about their size, 
-creation time, and associated instance.
-
-Usage:
-  cline logs list [flags]
-
-Aliases:
-  list, l
-
-Flags:
-  -h, --help   help for list
+CLINE(1)                         User Commands                        CLINE(1)
 
-Global Flags:
-      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+NAME
+       cline - orchestrate and interact with Cline AI coding agents
 
-**Examples:**
-```bash
-# List all log files
-cline logs list
-
-# Output shows:
-# - Log file name
-# - File size
-# - Creation timestamp
-# - File age
-```
+SYNOPSIS
+       cline [prompt] [options]
 
-### Clean Log Files
+       cline command [subcommand] [options] [arguments]
 
-**Command Help:**
-```
-Delete old log files to free up disk space. By default, removes log files 
-older than 7 days.
+DESCRIPTION
+       Try: cat README.md | cline "Summarize this for me:"
 
-Usage:
-  cline logs clean [flags]
+       cline is a command-line interface for orchestrating multiple Cline AI
+       coding agents.  Cline is an autonomous AI agent who can read, write,
+       and execute code across your projects.  He operates through a
+       client-server architecture where Cline Core runs as a standalone
+       service, and the CLI acts as a scriptable interface for managing tasks,
+       instances, and agent interactions.
 
-Aliases:
-  clean, c
+       The CLI is designed for both interactive use and automation, making it
+       ideal for CI/CD pipelines, parallel task execution, and terminal-based
+       workflows.  Multiple frontends (CLI, VSCode, JetBrains) can attach to
+       the same Cline Core instance, enabling seamless task handoff between
+       environments.
 
-Flags:
-  -h, --help   help for clean
+MODES OF OPERATION
+       Instant Task Mode
+              The simplest invocation: cline "prompt here" immediately spawns
+              an instance, creates a task, and enters chat mode.  This is
+              equivalent to running cline instance new && cline task new &&
+              cline task chat in sequence.
 
-Global Flags:
-      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+       Subcommand Mode
+              Advanced usage with explicit control: cline <command>
+              [subcommand] [options] provides fine-grained control over
+              instances, tasks, authentication, and configuration.
 
-**Examples:**
-```bash
-# Clean old log files
-cline logs clean
-
-# Output shows:
-# - Number of files deleted
-# - Total space freed
-# - Remaining log files
-```
+AGENT BEHAVIOR
+       Cline operates in two primary modes:
 
-### Show Logs Directory Path
+       ACT MODE
+              Cline actively uses tools to accomplish tasks.  He can read
+              files, write code, execute commands, use a headless browser, and
+              more.  This is the default mode for task execution.
 
-**Command Help:**
-```
-Print the directory path where Cline stores log files. Useful for manual 
-inspection or scripting.
+       PLAN MODE
+              Cline gathers information and creates a detailed plan before
+              implementation.  He explores the codebase, asks clarifying
+              questions, and presents a strategy for user approval before
+              switching to ACT MODE.
 
-Usage:
-  cline logs path [flags]
+INSTANT TASK OPTIONS
+       When using the instant task syntax cline "prompt" the following options
+       are available:
 
-Aliases:
-  path, p
+       -o, --oneshot
+              Full autonomous mode.  Cline completes the task and stops
+              following after completion.  Example: cline -o "what's 6 + 8?"
 
-Flags:
-  -h, --help   help for path
+       -s, --setting setting value
+              Override a setting for this task
 
-Global Flags:
-      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+       -y, --no-interactive, --yolo
+              Enable fully autonomous mode.  Disables all interactivity:
 
-**Examples:**
-```bash
-# Print logs directory path
-cline logs path
+              • ask_followup_question tool is disabled
 
-# Open logs directory in file browser (macOS)
-open "$(cline logs path)"
+              • attempt_completion happens automatically
 
-# Navigate to logs directory
-cd "$(cline logs path)"
+              • execute_command runs in non-blocking mode with timeout
 
-# List log files with system tools
-ls -lh "$(cline logs path)"
-```
+              • PLAN MODE automatically switches to ACT MODE
 
-## Task Commands
+       -m, --mode mode
+              Starting mode.  Options: act (default), plan
 
-### Task Command Overview
+GLOBAL OPTIONS
+       These options apply to all subcommands:
 
-```
-Create, monitor, and manage Cline AI tasks.
-
-Usage:
-  cline task [command]
-
-Aliases:
-  task, t
-
-Available Commands:
-  cancel      Cancel the current task
-  follow      Follow current task conversation in real-time
-  list        List recent task history
-  new         Create a new task
-  oneshot     Create a task in yolo+plan mode and view until completion
-  restore     Restore task to a specific checkpoint
-  resume      Resume a task by ID
-  send        Send a followup message to the current task and/or update mode/approve
-  view        View task conversation
-
-Flags:
-  -h, --help   help for task
-
-Global Flags:
-      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+       -F, --output-format format
+              Output format.  Options: rich (default), json, plain
 
-### Create a New Task
+       -h, --help
+              Display help information for the command.
 
-**Command Help:**
-```
-Create a new Cline task with the specified prompt. If no Cline instance exists at the specified address, a new one will be started automatically.
-
-Usage:
-  cline task new <prompt> [flags]
-
-Aliases:
-  new, n
-
-Flags:
-      --address string    specific Cline instance address to use
-  -f, --file strings      attach files
-  -h, --help              help for new
-  -i, --image strings     attach image files
-  -m, --mode string       mode (act|plan)
-  -s, --setting strings   task settings (key=value format, e.g., -s aws-region=us-west-2 -s mode=act)
-  -w, --workdir strings   workdir directory paths
-  -y, --yolo              enable yolo mode (non-interactive)
-
-Global Flags:
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+       -v, --verbose
+              Enable verbose output for debugging.
 
-**Examples:**
+COMMANDS
+   Authentication
+       cline auth [provider] [key]
 
-```bash
-# Basic task creation
-cline task new "Create a hello world app"
+       cline a [provider] [key]
+              Configure authentication for AI model providers.  Launches an
+              interactive wizard if no arguments provided.  If provider is
+              specified without a key, prompts for the key or launches the
+              appropriate OAuth flow.
 
-# With images
-cline task new "Fix this bug" -i screenshot.png
+   Instance Management
+       Cline Core instances are independent agent processes that can run in
+       the background.  Multiple instances can run simultaneously, enabling
+       parallel task execution.
 
-# With files
-cline task new "Review this code" -f main.go -f utils.go
+       cline instance
 
-# With workspace directory
-cline task new "Build a web app" -w /path/to/project
+       cline i
+              Display instance management help.
 
-# Specify instance address
-cline task new "Task for specific instance" --address 127.0.0.1:51052
+       cline instance new [-d|--default]
 
-# Set mode (act or plan)
-cline task new "Plan this feature" --mode plan
+       cline i n [-d|--default]
+              Spawn a new Cline Core instance.  Use --default to set it as
+              the default instance for subsequent commands.
 
-# Enable YOLO mode (non-interactive)
-cline task new "Auto-approve changes" --yolo
+       cline instance list
 
-# With custom settings
-cline task new "Task with config" -s aws-region=us-west-2 -s mode=act
+       cline i l
+              List all running Cline Core instances with their addresses and
+              status.
 
-# Read prompt from stdin
-echo "Build a calculator" | cline task new
+       cline instance default address
 
-# Combine args and stdin
-echo "with React" | cline task new "Build a web app"
-```
+       cline i d address
+              Set the default instance to avoid specifying --address in task
+              commands.
 
-### Oneshot Command
+       cline instance kill address [-a|--all]
 
-**Command Help:**
-```
-Creates a new task in yolo mode (non-interactive) and plan mode, then streams 
-the conversation until completion.
-
-Usage:
-  cline task oneshot <prompt> [flags]
-
-Aliases:
-  oneshot, o
-
-Flags:
-      --address string    specific Cline instance address to use
-  -f, --file strings      attach files
-  -h, --help              help for oneshot
-  -i, --image strings     attach image files
-  -s, --setting strings   task settings (key=value format, e.g., -s model=claude)
-  -w, --workdir strings   workdir directory paths
-
-Global Flags:
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+       cline i k address [-a|--all]
+              Terminate a Cline Core instance.  Use --all to kill all running
+              instances.
 
-**Examples:**
+   Task Management
+       Tasks represent individual work items that Cline executes.  Tasks
+       maintain conversation history, checkpoints, and settings.
 
-```bash
-# Basic oneshot
-cline task oneshot "Quick analysis task"
+       cline task [-a|--address ADDR]
 
-# With files and images
-cline task oneshot "Analyze this" -f data.csv -i chart.png
+       cline t [-a|--address ADDR]
+              Display task management help.  The --address flag specifies
+              which Cline Core instance to use (e.g., localhost:50052).
 
-# With workspace
-cline task oneshot "Build project" -w /path/to/workspace
-```
+       cline task new prompt [options]
 
-### Send Messages
+       cline t n prompt [options]
+              Create a new task in the default or specified instance.
+              Options:
 
-**Command Help:**
-```
-Send a followup message to continue the conversation with the current task 
-and/or update mode/approve.
-
-Usage:
-  cline task send [message] [flags]
-
-Aliases:
-  send, s
-
-Flags:
-      --address string   specific Cline instance address to use
-  -a, --approve string   approve (true) or deny (false) pending request
-  -f, --file strings     attach files
-  -h, --help             help for send
-  -i, --image strings    attach image files
-  -m, --mode string      mode (act|plan)
-
-Global Flags:
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+              -s, --setting setting value
+                     Set task-specific settings
 
-**Examples:**
+              -y, --no-interactive, --yolo
+                     Enable autonomous mode
 
-```bash
-# Send followup message
-cline task send "Can you explain that?"
+              -m, --mode mode
+                     Starting mode (act or plan)
 
-# With images
-cline task send "What about this?" -i new-screenshot.png
+       cline task open task-id [options]
 
-# With files
-cline task send "Check this too" -f additional.go
+       cline t o task-id [options]
+              Resume a previous task from history.  Accepts the same options
+              as task new.
 
-# Change mode
-cline task send --mode act
+       cline task list
 
-# Approve pending request
-cline task send --approve true
+       cline t l
+              List all tasks in history with their id and snippet
 
-# Deny pending request
-cline task send --approve false
+       cline task chat
 
-# Specify instance
-cline task send "Message" --address 127.0.0.1:51052
-```
+       cline t c
+              Enter interactive chat mode for the current task.  Allows
+              back-and-forth conversation with Cline.
 
-### Follow Task Progress
+       cline task send [message] [options]
 
-**Command Help:**
-```
-Follow the current task conversation, displaying new messages as they arrive in real-time.
+       cline t s [message] [options]
+              Send a message to Cline.  If no message is provided, reads from
+              stdin.  Options:
 
-Usage:
-  cline task follow [flags]
+              -a, --approve
+                     Approve Cline's proposed action
 
-Aliases:
-  follow, f
+              -d, --deny
+                     Deny Cline's proposed action
 
-Flags:
-      --address string   specific Cline instance address to use
-  -h, --help             help for follow
+              -f, --file FILE
+                     Attach a file to the message
 
-Global Flags:
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+              -y, --no-interactive, --yolo
+                     Enable autonomous mode
 
-**Examples:**
-```bash
-# Follow current task in real-time
-cline task follow
+              -m, --mode mode
+                     Switch mode (act or plan)
 
-# Follow on specific instance
-cline task follow --address 127.0.0.1:51052
-```
+       cline task view [-f|--follow] [-c|--follow-complete]
 
-### View Task
+       cline t v [-f|--follow] [-c|--follow-complete]
+              Display the current conversation.  Use --follow to stream
+              updates in real-time, or --follow-complete to follow until task
+              completion.
 
-**Command Help:**
-```
-Output conversation until next completion, with options for current state or summary only.
-
-Usage:
-  cline task view [flags]
-
-Aliases:
-  view, v
-
-Flags:
-      --address string   specific Cline instance address to use
-  -c, --current          output current conversation without following
-  -h, --help             help for view
-  -s, --summary          outputs only the completion summary
-
-Global Flags:
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+       cline task restore checkpoint
 
-**Examples:**
-```bash
-# View and follow until next completion
-cline task view
+       cline t r checkpoint
+              Restore the task to a previous checkpoint state.
 
-# View current state without following
-cline task view --current
+       cline task pause
 
-# Get only completion summary
-cline task view --summary
+       cline t p
+              Pause task execution.
 
-# Specify instance
-cline task view --address 127.0.0.1:51052
-```
+   Configuration
+       Configuration can be set globally.  Override these global settings for
+       a task using the --setting flag
 
-### Cancel Task
+       cline config
 
-**Command Help:**
-```
-Cancel the current task
+       cline c
 
-Usage:
-  cline task cancel [flags]
+       cline config set key value
 
-Aliases:
-  cancel, c
+       cline c s key value
+              Set a configuration variable.
 
-Flags:
-      --address string   specific Cline instance address to use
-  -h, --help             help for cancel
+       cline config get key
 
-Global Flags:
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+       cline c g key
+              Read a configuration variable.
 
-**Examples:**
-```bash
-# Cancel current task
-cline task cancel
+       cline config list
 
-# Cancel on specific instance
-cline task cancel --address 127.0.0.1:51052
-```
+       cline c l
+              List all configuration variables and their values.
 
-### List Tasks
+TASK SETTINGS
+       Task settings are persisted in the ~/.cline/x/tasks directory.  When
+       resuming a task with cline task open, task settings are automatically
+       restored.
 
-**Command Help:**
-```
-Display recent tasks from task history.
+       Common settings include:
 
-Usage:
-  cline task list [flags]
+       yolo   Enable autonomous mode (true/false)
 
-Aliases:
-  list, l
+       mode   Starting mode (act/plan)
 
-Flags:
-      --address string   specific Cline instance address to use
-  -h, --help             help for list
+NOTES & EXAMPLES
+       The cline task send and cline task new commands support reading from
+       stdin, enabling powerful pipeline compositions:
 
-Global Flags:
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+              cat requirements.txt | cline task send
+              echo "Refactor this code" | cline -y
 
-**Examples:**
-```bash
-# List recent task history
-cline task list
+   Instance Management
+       Manage multiple Cline instances:
 
-# List from specific instance
-cline task list --address 127.0.0.1:51052
-```
+              # Start a new instance and make it default
+              cline instance new --default
 
-### Resume Task
+              # List all running instances
+              cline instance list
 
-**Command Help:**
-```
-Resume an existing task by ID.
+              # Kill a specific instance
+              cline instance kill localhost:50052
 
-Usage:
-  cline task resume <task-id> [flags]
+              # Kill all CLI instances
+              cline instance kill --all-cli
 
-Aliases:
-  resume, r
+   Task History
+       Work with task history:
 
-Flags:
-      --address string   specific Cline instance address to use
-  -h, --help             help for resume
+              # List previous tasks
+              cline task list
 
-Global Flags:
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+              # Resume a previous task
+              cline task open 1760501486669
 
-**Examples:**
-```bash
-# Resume task by ID
-cline task resume abc123
+              # View conversation history
+              cline task view
 
-# Resume on specific instance
-cline task resume abc123 --address 127.0.0.1:51052
-```
+              # Start interactive chat with this task
+              cline task chat
 
-### Restore Checkpoint
+ARCHITECTURE
+       Cline operates on a three-layer architecture:
 
-**Command Help:**
-```
-Restore the current task to a specific checkpoint by checkpoint ID (timestamp) and by type.
-
-Usage:
-  cline task restore <checkpoint-id> [flags]
-
-Flags:
-      --address string   specific Cline instance address to use
-  -h, --help             help for restore
-  -t, --type string      Restore type (task, workspace, taskAndWorkspace) (default "task")
-
-Global Flags:
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+       Presentation Layer
+              User interfaces (CLI, VSCode, JetBrains) that connect to Cline
+              Core via gRPC
 
-**Examples:**
-```bash
-# Restore to specific checkpoint
-cline task restore 1234567890
-
-# Restore with specific type
-cline task restore 1234567890 --type task
-cline task restore 1234567890 --type workspace
-cline task restore 1234567890 --type taskAndWorkspace
-
-# Restore on specific instance
-cline task restore 1234567890 --address 127.0.0.1:51052
-```
+       Cline Core
+              The autonomous agent service handling task management, AI model
+              integration, state management, tool orchestration, and real-time
+              streaming updates
 
-**Restore Types:**
-- `task` - Restore task state only
-- `workspace` - Restore workspace files only
-- `taskAndWorkspace` - Restore both
+       Host Provider Layer
+              Environment-specific integrations (VSCode APIs, JetBrains APIs,
+              shell APIs) that Cline Core uses to interact with the host
+              system
 
-### Top-Level Send Command
+BUGS
+       Report bugs at: <https://github.com/cline/cline/issues>
 
-Note: `cline send` is a convenience alias for `cline task send`, providing quick
-access to the send functionality at the top level.
+       For real-time help, join the Discord community at:
+       <https://discord.gg/cline>
 
-**Command Help:**
-```
-Send a followup message to continue the conversation with the current task 
-and/or update mode/approve.
-
-Usage:
-  cline send [message] [flags]
-
-Aliases:
-  send, s
-
-Flags:
-      --address string   specific Cline instance address to use
-  -a, --approve string   approve (true) or deny (false) pending request
-  -f, --file strings     attach files
-  -h, --help             help for send
-  -i, --image strings    attach image files
-  -m, --mode string      mode (act|plan)
-
-Global Flags:
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+SEE ALSO
+       Full documentation: <https://docs.cline.bot>
 
-**Usage:**
-```bash
-# Send a quick message (same as 'cline task send')
-cline send "Continue with the implementation"
+AUTHORS
+       Cline is developed by the Cline Bot Inc. and the open source community.
 
-# Approve a pending action
-cline send --approve true
+COPYRIGHT
+       Copyright © 2025 Cline Bot Inc. Licensed under the Apache License 2.0.
 ```
 
-## Shell Completion
-
-**Command Help:**
-```
-Generate the autocompletion script for cline for the specified shell.
-See each sub-command's help for details on how to use the generated script.
-
-Usage:
-  cline completion [command]
-
-Available Commands:
-  bash        Generate the autocompletion script for bash
-  fish        Generate the autocompletion script for fish
-  powershell  Generate the autocompletion script for powershell
-  zsh         Generate the autocompletion script for zsh
-
-Flags:
-  -h, --help   help for completion
-
-Global Flags:
-      --address string         Cline Core gRPC address (default "127.0.0.1:50052")
-  -o, --output-format string   output format (rich|json|plain) (default "rich")
-  -v, --verbose                verbose output
-```
+### Shell Completion
 
-### Setup Instructions
+Generate autocompletion scripts for various shells:
 
 #### Bash
 
@@ -967,67 +372,16 @@ cline completion powershell > cline.ps1
 Add-Content $PROFILE "cline completion powershell | Out-String | Invoke-Expression"
 ```
 
-## cline-host Command
+### Version Command
 
-The `cline-host` program provides a host bridge service that Cline Core uses for
-host operations.
-
-### Help Output
-
-```
-A simple host bridge service that provides host operations for Cline Core.
-
-Usage:
-  cline-host [flags]
-
-Flags:
-  -h, --help       help for cline-host
-  -p, --port int   port to listen on (default 51052)
-  -v, --verbose    verbose logging
-```
-
-### Usage
-
-```bash
-# Start host bridge on default port
-cline-host
-
-# Start on custom port with verbose logging
-cline-host --port 51053 --verbose
-```
-
-### Services Provided
-
-The host bridge exposes several gRPC services:
-
-1. **WorkspaceService** - Workspace operations
-2. **WindowService** - Window management
-3. **DiffService** - File diff operations
-4. **EnvService** - Environment variable access
-5. **HealthService** - Health checks
-
-## Version Command
-
-**Command Output:**
-```
-Cline Go Host
-Version:    3.32.7
-Commit:     6eb0e7000
-Built:      2025-10-14T00:26:49Z
-Built by:   lung
-Go version: go1.25.1
-OS/Arch:    darwin/arm64
-```
-
-**Usage:**
 ```bash
 # Show version information
 cline version
 ```
 
-## Environment Variables
+### Environment Variables
 
-### CLINE_DIR
+#### CLINE_DIR
 
 Override the default Cline directory location:
 
