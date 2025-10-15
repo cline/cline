@@ -153,7 +153,9 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			// Auto-approve flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
 			await config.callbacks.say("command", actualCommand, undefined, undefined, false)
-			config.taskState.consecutiveAutoApprovedRequestsCount++
+			if (!config.yoloModeToggled) {
+				config.taskState.consecutiveAutoApprovedRequestsCount++
+			}
 			didAutoApprove = true
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
 		} else {
