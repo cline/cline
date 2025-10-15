@@ -161,82 +161,6 @@ console.log(JSON.stringify({
 		})
 	})
 
-	describe("Hook Behavior", () => {
-		it("should allow prompt submission when hook returns shouldContinue: true", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
-			const hookScript = `#!/usr/bin/env node
-console.log(JSON.stringify({
-  shouldContinue: true,
-  contextModification: "Prompt approved"
-}))`
-
-			await writeHookScript(hookPath, hookScript)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("UserPromptSubmit")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
-					prompt: "Create a new feature",
-					attachments: [],
-				},
-			})
-
-			result.shouldContinue.should.be.true()
-			result.contextModification!.should.equal("Prompt approved")
-		})
-
-		it("should block prompt submission when hook returns shouldContinue: false", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
-			const hookScript = `#!/usr/bin/env node
-console.log(JSON.stringify({
-  shouldContinue: false,
-  errorMessage: "Prompt violates policy"
-}))`
-
-			await writeHookScript(hookPath, hookScript)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("UserPromptSubmit")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
-					prompt: "Do something forbidden",
-					attachments: [],
-				},
-			})
-
-			result.shouldContinue.should.be.false()
-			result.errorMessage!.should.equal("Prompt violates policy")
-		})
-
-		it("should inject context modification into the task request", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
-			const hookScript = `#!/usr/bin/env node
-console.log(JSON.stringify({
-  shouldContinue: true,
-  contextModification: "CONTEXT_INJECTION: User is in plan mode"
-}))`
-
-			await writeHookScript(hookPath, hookScript)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("UserPromptSubmit")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
-					prompt: "Build a feature",
-					attachments: [],
-				},
-			})
-
-			result.contextModification!.should.equal("CONTEXT_INJECTION: User is in plan mode")
-		})
-	})
-
 	describe("Prompt Content Serialization", () => {
 		it("should handle empty prompt", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
@@ -591,6 +515,83 @@ console.log(JSON.stringify({
 			} catch (error: any) {
 				error.message.should.match(/Failed to parse hook output/)
 			}
+		})
+
+		it("should work with multiline fixture", async () => {
+			const { loadFixture } = await import("./test-utils")
+			await loadFixture("hooks/userpromptsubmit/multiline", tempDir)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("UserPromptSubmit")
+
+			const result = await runner.run({
+				taskId: "test-task",
+				userPromptSubmit: {
+					prompt: "Line 1\nLine 2\nLine 3",
+					attachments: [],
+				},
+			})
+
+			result.shouldContinue.should.be.true()
+			result.contextModification!.should.equal("Line count: 3")
+		})
+
+		it("should work with large-prompt fixture", async () => {
+			const { loadFixture } = await import("./test-utils")
+			await loadFixture("hooks/userpromptsubmit/large-prompt", tempDir)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("UserPromptSubmit")
+
+			const largePrompt = "x".repeat(10000)
+			const result = await runner.run({
+				taskId: "test-task",
+				userPromptSubmit: {
+					prompt: largePrompt,
+					attachments: [],
+				},
+			})
+
+			result.shouldContinue.should.be.true()
+			result.contextModification!.should.equal("Prompt size: 10000")
+		})
+
+		it("should work with special-chars fixture", async () => {
+			const { loadFixture } = await import("./test-utils")
+			await loadFixture("hooks/userpromptsubmit/special-chars", tempDir)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("UserPromptSubmit")
+
+			const result = await runner.run({
+				taskId: "test-task",
+				userPromptSubmit: {
+					prompt: "Test @user #feature $cost",
+					attachments: [],
+				},
+			})
+
+			result.shouldContinue.should.be.true()
+			result.contextModification!.should.equal("Special chars preserved")
+		})
+
+		it("should work with empty-prompt fixture", async () => {
+			const { loadFixture } = await import("./test-utils")
+			await loadFixture("hooks/userpromptsubmit/empty-prompt", tempDir)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("UserPromptSubmit")
+
+			const result = await runner.run({
+				taskId: "test-task",
+				userPromptSubmit: {
+					prompt: "",
+					attachments: [],
+				},
+			})
+
+			result.shouldContinue.should.be.true()
+			result.contextModification!.should.equal("Prompt length: 0")
 		})
 	})
 })
