@@ -36,10 +36,9 @@ var (
 )
 
 func main() {
-	// Enable enhanced keyboard protocol for shift+enter support across all terminals
-	// This works for VS Code, iTerm2, Terminal.app, Ghostty, Kitty, WezTerm, etc.
-	cleanup := terminal.SetupKeyboard()
-	defer cleanup()
+	// Configure terminal keybindings for shift+enter support
+	// This modifies config files for VS Code, Ghostty, Kitty, WezTerm, etc.
+	terminal.SetupKeyboard()
 
 	rootCmd := &cobra.Command{
 		Use:   "cline [prompt]",
