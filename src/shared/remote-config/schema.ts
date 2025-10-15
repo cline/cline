@@ -28,7 +28,7 @@ export const OpenAiCompatibleModelSchema = z.object({
 // OpenAiCompatible specific settings
 export const OpenAiCompatibleSchema = z.object({
 	// A list of the allowed models with their settings
-	models: z.array(OpenAiCompatibleModelSchema).default([]),
+	models: z.array(OpenAiCompatibleModelSchema).optional(),
 	// OpenAiCompatible specific settings:
 	openAiBaseUrl: z.string().optional(),
 	openAiHeaders: z.record(z.string(), z.string()).default({}),
@@ -51,7 +51,7 @@ export const AwsBedrockCustomModelSchema = z.object({
 // AWS Bedrock specific settings
 export const AwsBedrockSettingsSchema = z.object({
 	// A list of the allowed models with their settings
-	models: z.array(AwsBedrockModelSchema).default([]),
+	models: z.array(AwsBedrockModelSchema).optional(),
 	// Custom models
 	customModels: z.array(AwsBedrockCustomModelSchema).optional(),
 	// AWS Bedrock specific settings:
