@@ -14,6 +14,7 @@ import (
 	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/terminal"
 	"github.com/cline/cli/pkg/common"
 	"github.com/cline/grpc-go/cline"
 	"github.com/spf13/cobra"
@@ -35,6 +36,11 @@ var (
 )
 
 func main() {
+	// Enable enhanced keyboard protocol for shift+enter support across all terminals
+	// This works for VS Code, iTerm2, Terminal.app, Ghostty, Kitty, WezTerm, etc.
+	cleanup := terminal.SetupKeyboard()
+	defer cleanup()
+
 	rootCmd := &cobra.Command{
 		Use:   "cline [prompt]",
 		Short: "Cline CLI - AI-powered coding assistant",

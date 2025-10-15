@@ -1,0 +1,585 @@
+package terminal
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+)
+
+// KeyboardProtocol manages enhanced keyboard protocol support for detecting
+// modified keys like shift+enter across all major terminals.
+type KeyboardProtocol struct {
+	enabled bool
+	mu      sync.Mutex
+}
+
+var globalProtocol = &KeyboardProtocol{}
+
+// EnableEnhancedKeyboard enables enhanced keyboard protocols to support
+// shift+enter and other modified keys across all major terminals:
+// - VS Code integrated terminal
+// - iTerm2
+// - Terminal.app
+// - Ghostty
+// - Kitty
+// - WezTerm
+// - Alacritty
+// - foot
+// - xterm
+//
+// This function is safe to call multiple times and handles cleanup automatically.
+// It enables both modifyOtherKeys (xterm protocol) and Kitty keyboard protocol
+// for maximum compatibility.
+func EnableEnhancedKeyboard() {
+	globalProtocol.mu.Lock()
+	defer globalProtocol.mu.Unlock()
+
+	if globalProtocol.enabled {
+		return // Already enabled
+	}
+
+	// Check if we're in a TTY (not piped/redirected)
+	if !isatty(os.Stdin.Fd()) {
+		return
+	}
+
+	// Enable modifyOtherKeys mode 2
+	// This tells xterm-compatible terminals (VS Code, iTerm2, Terminal.app, etc.)
+	// to send escape sequences for modified keys including shift+enter
+	// Format: CSI > 4 ; 2 m
+	// - Mode 2 enables for ALL keys including well-known ones
+	fmt.Print("\x1b[>4;2m")
+
+	// Also enable Kitty keyboard protocol for terminals that support it
+	// This is a more modern protocol supported by Kitty, Ghostty, WezTerm, foot, etc.
+	// Format: CSI = <flags> u where flags=1 means "disambiguate escape codes"
+	// This makes shift+enter distinguishable from plain enter
+	fmt.Print("\x1b[=1u")
+
+	globalProtocol.enabled = true
+}
+
+// DisableEnhancedKeyboard restores the terminal to its default keyboard mode.
+// This should be called on program exit to be a good citizen.
+func DisableEnhancedKeyboard() {
+	globalProtocol.mu.Lock()
+	defer globalProtocol.mu.Unlock()
+
+	if !globalProtocol.enabled {
+		return
+	}
+
+	// Disable modifyOtherKeys (restore to mode 0)
+	fmt.Print("\x1b[>4;0m")
+
+	// Disable Kitty keyboard protocol
+	fmt.Print("\x1b[<u")
+
+	globalProtocol.enabled = false
+}
+
+// isatty checks if a file descriptor is a terminal
+func isatty(fd uintptr) bool {
+	// Use the standard library's terminal package
+	// This works across all platforms (Unix, Windows, etc.)
+	fileInfo, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return (fileInfo.Mode() & os.ModeCharDevice) != 0
+}
+
+// SetupKeyboard is a convenience function that:
+// 1. Enables enhanced keyboard protocols
+// 2. Detects the current terminal and configures keybindings if needed
+// 3. Registers cleanup handler to disable on exit
+//
+// This should be called once at CLI startup.
+func SetupKeyboard() func() {
+	EnableEnhancedKeyboard()
+
+	// Detect current terminal and configure only that terminal
+	// This runs in the background and doesn't block CLI startup
+	go func() {
+		terminal := DetectTerminal()
+
+		switch terminal {
+		case "vscode":
+			// VS Code and Cursor use the same TERM_PROGRAM value
+			_ = SetupVSCodeKeybindings()
+			_ = SetupCursorKeybindings()
+		case "ghostty":
+			_ = SetupGhosttyKeybindings()
+		case "wezterm":
+			_ = SetupWezTermKeybindings()
+		case "alacritty":
+			_ = SetupAlacrittyKeybindings()
+		case "kitty":
+			_ = SetupKittyKeybindings()
+		case "iterm2", "terminal.app":
+			// iTerm2 already works by default (maps shift+enter to alt+enter)
+			// Terminal.app cannot be automated - user must configure manually
+		}
+	}()
+
+	return DisableEnhancedKeyboard
+}
+
+// DetectTerminal identifies which terminal emulator is currently running
+func DetectTerminal() string {
+	// Check TERM_PROGRAM (works for most terminals)
+	termProgram := os.Getenv("TERM_PROGRAM")
+	switch termProgram {
+	case "vscode":
+		return "vscode" // Also covers Cursor (uses same value)
+	case "WezTerm":
+		return "wezterm"
+	case "ghostty":
+		return "ghostty"
+	case "iTerm.app":
+		return "iterm2"
+	case "Apple_Terminal":
+		return "terminal.app"
+	}
+
+	// Kitty doesn't set TERM_PROGRAM, check KITTY_WINDOW_ID
+	if os.Getenv("KITTY_WINDOW_ID") != "" {
+		return "kitty"
+	}
+
+	// Alacritty doesn't set TERM_PROGRAM, check ALACRITTY_SOCKET
+	if os.Getenv("ALACRITTY_SOCKET") != "" {
+		return "alacritty"
+	}
+
+	// Ghostty fallback (cross-platform - more reliable than TERM_PROGRAM)
+	if os.Getenv("GHOSTTY_RESOURCES_DIR") != "" {
+		return "ghostty"
+	}
+
+	// Alacritty fallback
+	if os.Getenv("ALACRITTY_LOG") != "" {
+		return "alacritty"
+	}
+
+	// Check TERM variable as last resort
+	term := os.Getenv("TERM")
+	if strings.Contains(term, "kitty") {
+		return "kitty"
+	}
+	if term == "alacritty" {
+		return "alacritty"
+	}
+	if term == "xterm-ghostty" {
+		return "ghostty"
+	}
+
+	return "unknown"
+}
+
+// VSCodeKeybinding represents a VS Code keyboard shortcut
+type VSCodeKeybinding struct {
+	Key     string                 `json:"key"`
+	Command string                 `json:"command"`
+	Args    map[string]interface{} `json:"args,omitempty"`
+	When    string                 `json:"when,omitempty"`
+}
+
+// SetupVSCodeKeybindings adds shift+enter support to VS Code's integrated terminal
+// by modifying the user's keybindings.json file.
+func SetupVSCodeKeybindings() error {
+	// Get VS Code keybindings path
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	keybindingsPath := filepath.Join(home, "Library", "Application Support", "Code", "User", "keybindings.json")
+
+	// Check if VS Code is installed (keybindings file or parent dir exists)
+	if _, err := os.Stat(filepath.Dir(keybindingsPath)); os.IsNotExist(err) {
+		// VS Code not installed, skip silently
+		return nil
+	}
+
+	// Read existing keybindings
+	var keybindings []VSCodeKeybinding
+
+	data, err := os.ReadFile(keybindingsPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to read keybindings: %w", err)
+		}
+		// File doesn't exist, start with empty array
+		keybindings = []VSCodeKeybinding{}
+	} else {
+		// Parse existing keybindings
+		if err := json.Unmarshal(data, &keybindings); err != nil {
+			// If parse fails, don't modify the file
+			return fmt.Errorf("failed to parse keybindings.json: %w", err)
+		}
+	}
+
+	// Check if shift+enter binding already exists
+	for _, kb := range keybindings {
+		if kb.Key == "shift+enter" && kb.Command == "workbench.action.terminal.sendSequence" {
+			// Already configured
+			return nil
+		}
+	}
+
+	// Add shift+enter keybinding
+	newBinding := VSCodeKeybinding{
+		Key:     "shift+enter",
+		Command: "workbench.action.terminal.sendSequence",
+		Args: map[string]interface{}{
+			"text": "\u001b\n", // ESC + newline (alt+enter sequence)
+		},
+		When: "terminalFocus",
+	}
+
+	keybindings = append(keybindings, newBinding)
+
+	// Create backup
+	if data != nil {
+		backupPath := keybindingsPath + ".backup"
+		_ = os.WriteFile(backupPath, data, 0644)
+	}
+
+	// Write updated keybindings
+	updatedData, err := json.MarshalIndent(keybindings, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal keybindings: %w", err)
+	}
+
+	// Ensure parent directory exists
+	if err := os.MkdirAll(filepath.Dir(keybindingsPath), 0755); err != nil {
+		return fmt.Errorf("failed to create keybindings directory: %w", err)
+	}
+
+	if err := os.WriteFile(keybindingsPath, updatedData, 0644); err != nil {
+		return fmt.Errorf("failed to write keybindings: %w", err)
+	}
+
+	return nil
+}
+
+// SetupCursorKeybindings adds shift+enter support to Cursor's integrated terminal
+// by modifying the user's keybindings.json file.
+// Cursor is a fork of VS Code, so it uses the same keybinding format.
+func SetupCursorKeybindings() error {
+	// Get Cursor keybindings path
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	keybindingsPath := filepath.Join(home, "Library", "Application Support", "Cursor", "User", "keybindings.json")
+
+	// Check if Cursor is installed (keybindings file or parent dir exists)
+	if _, err := os.Stat(filepath.Dir(keybindingsPath)); os.IsNotExist(err) {
+		// Cursor not installed, skip silently
+		return nil
+	}
+
+	// Read existing keybindings
+	var keybindings []VSCodeKeybinding
+
+	data, err := os.ReadFile(keybindingsPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to read keybindings: %w", err)
+		}
+		// File doesn't exist, start with empty array
+		keybindings = []VSCodeKeybinding{}
+	} else {
+		// Parse existing keybindings
+		if err := json.Unmarshal(data, &keybindings); err != nil {
+			// If parse fails, don't modify the file
+			return fmt.Errorf("failed to parse keybindings.json: %w", err)
+		}
+	}
+
+	// Check if shift+enter binding already exists
+	for _, kb := range keybindings {
+		if kb.Key == "shift+enter" && kb.Command == "workbench.action.terminal.sendSequence" {
+			// Already configured
+			return nil
+		}
+	}
+
+	// Add shift+enter keybinding
+	newBinding := VSCodeKeybinding{
+		Key:     "shift+enter",
+		Command: "workbench.action.terminal.sendSequence",
+		Args: map[string]interface{}{
+			"text": "\u001b\n", // ESC + newline (alt+enter sequence)
+		},
+		When: "terminalFocus",
+	}
+
+	keybindings = append(keybindings, newBinding)
+
+	// Create backup
+	if data != nil {
+		backupPath := keybindingsPath + ".backup"
+		_ = os.WriteFile(backupPath, data, 0644)
+	}
+
+	// Write updated keybindings
+	updatedData, err := json.MarshalIndent(keybindings, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal keybindings: %w", err)
+	}
+
+	// Ensure parent directory exists
+	if err := os.MkdirAll(filepath.Dir(keybindingsPath), 0755); err != nil {
+		return fmt.Errorf("failed to create keybindings directory: %w", err)
+	}
+
+	if err := os.WriteFile(keybindingsPath, updatedData, 0644); err != nil {
+		return fmt.Errorf("failed to write keybindings: %w", err)
+	}
+
+	return nil
+}
+
+// SetupGhosttyKeybindings adds shift+enter support to Ghostty terminal
+// by appending to the user's config file.
+func SetupGhosttyKeybindings() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	// Ghostty config location: ~/.config/ghostty/config
+	configPath := filepath.Join(home, ".config", "ghostty", "config")
+
+	// Check if config directory exists
+	configDir := filepath.Dir(configPath)
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		// Ghostty not installed, skip silently
+		return nil
+	}
+
+	// Read existing config if it exists
+	var existingContent []byte
+	if data, err := os.ReadFile(configPath); err == nil {
+		existingContent = data
+		// Check if shift+enter already configured
+		if strings.Contains(string(data), "keybind = shift+enter") {
+			return nil
+		}
+	}
+
+	// Keybinding to add
+	keybinding := "keybind = shift+enter=text:\\u001b\\n\n"
+
+	// Append to config
+	newContent := append(existingContent, []byte(keybinding)...)
+
+	// Ensure directory exists
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	// Create backup if file exists
+	if existingContent != nil {
+		backupPath := configPath + ".backup"
+		_ = os.WriteFile(backupPath, existingContent, 0644)
+	}
+
+	// Write updated config
+	if err := os.WriteFile(configPath, newContent, 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	return nil
+}
+
+// SetupWezTermKeybindings adds shift+enter support to WezTerm
+// by appending to the user's .wezterm.lua file.
+func SetupWezTermKeybindings() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	configPath := filepath.Join(home, ".wezterm.lua")
+
+	// Check if WezTerm config exists
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// WezTerm not configured, skip silently
+		return nil
+	}
+
+	// Read existing config
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config: %w", err)
+	}
+
+	// Check if shift+enter already configured
+	if strings.Contains(string(data), "key = 'Enter'") && strings.Contains(string(data), "mods = 'SHIFT'") {
+		return nil
+	}
+
+	// Create backup
+	backupPath := configPath + ".backup"
+	_ = os.WriteFile(backupPath, data, 0644)
+
+	// Keybinding to add (insert before final return statement)
+	keybinding := `
+-- Shift+Enter for newlines (added by Cline CLI)
+config.keys = config.keys or {}
+table.insert(config.keys, {
+  key = 'Enter',
+  mods = 'SHIFT',
+  action = wezterm.action.SendString '\x1b\n',
+})
+`
+
+	content := string(data)
+	// Try to insert before the final return statement
+	if strings.Contains(content, "return config") {
+		content = strings.Replace(content, "return config", keybinding+"\nreturn config", 1)
+	} else {
+		// No return statement, append at end
+		content += keybinding
+	}
+
+	// Write updated config
+	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	return nil
+}
+
+// SetupAlacrittyKeybindings adds shift+enter support to Alacritty
+// by appending to the user's alacritty.yml file.
+func SetupAlacrittyKeybindings() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	// Try both possible locations
+	configPaths := []string{
+		filepath.Join(home, ".config", "alacritty", "alacritty.yml"),
+		filepath.Join(home, ".config", "alacritty", "alacritty.toml"),
+		filepath.Join(home, ".alacritty.yml"),
+	}
+
+	var configPath string
+	for _, path := range configPaths {
+		if _, err := os.Stat(path); err == nil {
+			configPath = path
+			break
+		}
+	}
+
+	if configPath == "" {
+		// Alacritty not configured, skip silently
+		return nil
+	}
+
+	// Read existing config
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config: %w", err)
+	}
+
+	// Check if shift+enter already configured
+	if strings.Contains(string(data), "key: Return") && strings.Contains(string(data), "mods: Shift") {
+		return nil
+	}
+
+	// Create backup
+	backupPath := configPath + ".backup"
+	_ = os.WriteFile(backupPath, data, 0644)
+
+	// Keybinding to add
+	var keybinding string
+	if strings.HasSuffix(configPath, ".yml") || strings.HasSuffix(configPath, ".yaml") {
+		keybinding = `
+# Shift+Enter for newlines (added by Cline CLI)
+key_bindings:
+  - { key: Return, mods: Shift, chars: "\x1b\n" }
+`
+	} else {
+		// TOML format
+		keybinding = `
+# Shift+Enter for newlines (added by Cline CLI)
+[[keyboard.bindings]]
+key = "Return"
+mods = "Shift"
+chars = "\x1b\n"
+`
+	}
+
+	// Append to config
+	newContent := append(data, []byte(keybinding)...)
+
+	// Write updated config
+	if err := os.WriteFile(configPath, newContent, 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	return nil
+}
+
+// SetupKittyKeybindings adds shift+enter support to Kitty terminal
+// by appending to the user's kitty.conf file.
+func SetupKittyKeybindings() error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	configPath := filepath.Join(home, ".config", "kitty", "kitty.conf")
+
+	// Check if config directory exists
+	configDir := filepath.Dir(configPath)
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		// Kitty not installed, skip silently
+		return nil
+	}
+
+	// Read existing config if it exists
+	var existingContent []byte
+	if data, err := os.ReadFile(configPath); err == nil {
+		existingContent = data
+		// Check if shift+enter already configured
+		if strings.Contains(string(data), "map shift+enter") {
+			return nil
+		}
+	}
+
+	// Keybinding to add
+	keybinding := "# Shift+Enter for newlines (added by Cline CLI)\nmap shift+enter send_text all \\x1b\\n\n"
+
+	// Append to config
+	newContent := append(existingContent, []byte(keybinding)...)
+
+	// Ensure directory exists
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	// Create backup if file exists
+	if existingContent != nil {
+		backupPath := configPath + ".backup"
+		_ = os.WriteFile(backupPath, existingContent, 0644)
+	}
+
+	// Write updated config
+	if err := os.WriteFile(configPath, newContent, 0644); err != nil {
+		return fmt.Errorf("failed to write config: %w", err)
+	}
+
+	return nil
+}
