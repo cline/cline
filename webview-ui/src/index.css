@@ -213,3 +213,14 @@ vscode-dropdown::part(listbox) {
 	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent);
 	color: transparent;
 }
+
+/* Pulse animation for running command indicator */
+@keyframes pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.5;
+	}
+}
