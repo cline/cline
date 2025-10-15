@@ -14,6 +14,8 @@ import (
 // InputType represents the type of input being collected
 type InputType int
 
+const INPUT_WIDTH = 46 
+
 const (
 	InputTypeMessage InputType = iota
 	InputTypeApproval
@@ -119,7 +121,7 @@ func NewInputModel(inputType InputType, title, placeholder, currentMode string) 
 	ta.Prompt = ""  // Remove prompt prefix (this is what adds the inner border!)
 	ta.SetHeight(5)
 	// Don't set width here - let WindowSizeMsg handle it
-	// ta.SetWidth(80)
+	ta.SetWidth(INPUT_WIDTH)
 
 	// Configure keybindings like huh does:
 	// alt+enter and ctrl+j for newlines (textarea will handle these)
@@ -288,7 +290,7 @@ func (m *InputModel) handleSubmit() (tea.Model, tea.Cmd) {
 				return ChangeInputTypeMsg{
 					InputType:   InputTypeFeedback,
 					Title:       "Your feedback",
-					Placeholder: "/plan or /act to switch modes\ncntrl+e to open editor",
+					Placeholder: "/plan or /act to switch modes\nctrl+e to open editor",
 				}
 			}
 		}
@@ -384,13 +386,13 @@ func (m *InputModel) ClearScreen() string {
 func (m *InputModel) Clone() *InputModel {
 	// Create new textarea with same configuration
 	ta := textarea.New()
-	ta.SetValue(m.textarea.Value()) // Preserve user's text!
+	ta.SetValue(m.textarea.Value())
 	ta.Placeholder = m.placeholder
 	ta.CharLimit = 0
 	ta.ShowLineNumbers = false
 	ta.Prompt = ""
 	ta.SetHeight(5)
-	ta.SetWidth(m.width) // Use current width, not hardcoded 80!
+	ta.SetWidth(INPUT_WIDTH) 
 	ta.Focus()
 
 	// Configure keybindings
