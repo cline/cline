@@ -357,16 +357,16 @@ func newTaskChatCommand() *cobra.Command {
 
 func newTaskViewCommand() *cobra.Command {
 	var (
-		current bool
-		summary bool
-		address string
+		follow         bool
+		followComplete bool
+		address        string
 	)
 
 	cmd := &cobra.Command{
 		Use:     "view",
 		Aliases: []string{"v"},
 		Short:   "View task conversation",
-		Long:    `Output conversation until next completion, with options for current state or summary only.`,
+		Long:    `Output conversation snapshot by default, or follow with flags.`,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -377,18 +377,21 @@ func newTaskViewCommand() *cobra.Command {
 
 			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
 
-			if current {
-				return taskManager.ShowConversation(ctx)
-			} else if summary {
-				return taskManager.GatherFinalSummary(ctx)
-			} else {
+			if follow {
+				// Follow conversation forever (non-interactive)
+				return taskManager.FollowConversation(ctx, taskManager.GetCurrentInstance(), false)
+			} else if followComplete {
+				// Follow until completion
 				return taskManager.FollowConversationUntilCompletion(ctx)
+			} else {
+				// Default: show snapshot
+				return taskManager.ShowConversation(ctx)
 			}
 		},
 	}
 
-	cmd.Flags().BoolVarP(&current, "current", "c", false, "output current conversation without following")
-	cmd.Flags().BoolVarP(&summary, "summary", "s", false, "outputs only the completion summary")
+	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "follow conversation forever")
+	cmd.Flags().BoolVarP(&followComplete, "follow-complete", "c", false, "follow until completion")
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 
 	return cmd
