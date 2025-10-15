@@ -598,33 +598,6 @@ func (m *Manager) CancelTask(ctx context.Context) error {
 	return nil
 }
 
-// GatherFinalSummary attempts to gather the latest completion_result output and display it
-func (m *Manager) GatherFinalSummary(ctx context.Context) error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
-	if err != nil {
-		return fmt.Errorf("failed to get state: %w", err)
-	}
-
-	messages, err := m.extractMessagesFromState(state.StateJson)
-	if err != nil {
-		return fmt.Errorf("failed to extract messages: %w", err)
-	}
-
-	for i := len(messages) - 1; i >= 0; i-- {
-		msg := messages[i]
-
-		// Check if this is a completion result SAY message
-		if msg.IsSay() && msg.Say == string(types.SayTypeCompletionResult) {
-			return m.displayMessage(msg, false, false, i)
-		}
-	}
-
-	return nil
-}
-
 // ShowConversation displays the current conversation
 func (m *Manager) ShowConversation(ctx context.Context) error {
 	// Disable streaming mode for static view
