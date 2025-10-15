@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/grpc-go/cline"
 )
@@ -20,7 +21,7 @@ func NewRenderer(outputFormat string) *Renderer {
 	if err != nil {
 		mdRenderer = nil
 	}
-	
+
 	return &Renderer{
 		typewriter:   NewTypewriterPrinter(DefaultTypewriterConfig()),
 		mdRenderer:   mdRenderer,
@@ -39,9 +40,9 @@ func (r *Renderer) RenderMessage(prefix, text string, newline bool) error {
 	}
 
 	if newline {
-		fmt.Printf("%s: %s\n", prefix, clean)
+		output.Printf("%s: %s\n", prefix, clean)
 	} else {
-		fmt.Printf("%s: %s", prefix, clean)
+		output.Printf("%s: %s", prefix, clean)
 	}
 	return nil
 }
@@ -86,12 +87,12 @@ func (r *Renderer) RenderAPI(status string, apiInfo *types.APIRequestInfo) error
 		usageInfo := r.formatUsageInfo(apiInfo.TokensIn, apiInfo.TokensOut, apiInfo.CacheReads, apiInfo.CacheWrites, apiInfo.Cost)
 		markdown := fmt.Sprintf("## API %s `%s`", status, usageInfo)
 		rendered := r.RenderMarkdown(markdown)
-		fmt.Printf(rendered)
+		output.Print(rendered)
 	} else {
 		// honestly i see no point in showing "### API processing request" here...
 		// markdown := fmt.Sprintf("## API %s", status)
 		// rendered := r.RenderMarkdown(markdown)
-		// fmt.Printf("\n%s\n", rendered)
+		// output.Printf("\n%s\n", rendered)
 	}
 	return nil
 }
@@ -109,7 +110,7 @@ func (r *Renderer) RenderRetry(attempt, maxAttempts, delaySec int) error {
 func (r *Renderer) RenderTaskCancelled() error {
 	markdown := "## Task cancelled"
 	rendered := r.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	output.Printf("\n%s\n", rendered)
 	return nil
 }
 
@@ -126,16 +127,16 @@ func (r *Renderer) RenderTaskList(tasks []*cline.TaskItem) error {
 
 	r.typewriter.PrintfLn("=== Task History (showing last %d of %d total tasks) ===\n", len(recentTasks), len(tasks))
 
-	for i, task := range recentTasks {
-		r.typewriter.PrintfLn("Task ID: %s", task.Id)
+	for i, taskItem := range recentTasks {
+		r.typewriter.PrintfLn("Task ID: %s", taskItem.Id)
 
-		description := task.Task
+		description := taskItem.Task
 		if len(description) > 1000 {
 			description = description[:1000] + "..."
 		}
 		r.typewriter.PrintfLn("Message: %s", description)
 
-		usageInfo := r.formatUsageInfo(int(task.TokensIn), int(task.TokensOut), int(task.CacheReads), int(task.CacheWrites), task.TotalCost)
+		usageInfo := r.formatUsageInfo(int(taskItem.TokensIn), int(taskItem.TokensOut), int(taskItem.CacheReads), int(taskItem.CacheWrites), taskItem.TotalCost)
 		r.typewriter.PrintfLn("Usage  : %s", usageInfo)
 
 		// Single space between tasks (except last)
@@ -156,11 +157,11 @@ func (r *Renderer) RenderDebug(format string, args ...interface{}) error {
 }
 
 func (r *Renderer) ClearLine() {
-	fmt.Print("\r\033[K")
+	output.Print("\r\033[K")
 }
 
 func (r *Renderer) MoveCursorUp(n int) {
-	fmt.Printf("\033[%dA", n)
+	output.Printf("\033[%dA", n)
 }
 
 func (r *Renderer) sanitizeText(text string) string {
