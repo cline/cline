@@ -417,13 +417,17 @@ console.log(JSON.stringify({
 		// These tests demonstrate using pre-written fixtures from the fixtures directory
 		// Fixtures serve as both test data and examples for manual testing
 
-		it("should work with success fixture", async () => {
-			// Load the success fixture
+		// Helper to load a fixture and create a runner
+		const loadFixtureAndCreateRunner = async (fixtureName: string) => {
 			const { loadFixture } = await import("./test-utils")
-			await loadFixture("hooks/userpromptsubmit/success", tempDir)
+			await loadFixture(`hooks/userpromptsubmit/${fixtureName}`, tempDir)
 
 			const factory = new HookFactory()
-			const runner = await factory.create("UserPromptSubmit")
+			return await factory.create("UserPromptSubmit")
+		}
+
+		it("should work with success fixture", async () => {
+			const runner = await loadFixtureAndCreateRunner("success")
 
 			const result = await runner.run({
 				taskId: "test-task",
@@ -438,11 +442,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should work with blocking fixture", async () => {
-			const { loadFixture } = await import("./test-utils")
-			await loadFixture("hooks/userpromptsubmit/blocking", tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("UserPromptSubmit")
+			const runner = await loadFixtureAndCreateRunner("blocking")
 
 			const result = await runner.run({
 				taskId: "test-task",
@@ -457,11 +457,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should work with context-injection fixture", async () => {
-			const { loadFixture } = await import("./test-utils")
-			await loadFixture("hooks/userpromptsubmit/context-injection", tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("UserPromptSubmit")
+			const runner = await loadFixtureAndCreateRunner("context-injection")
 
 			const result = await runner.run({
 				taskId: "test-task",
@@ -476,11 +472,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should work with error fixture", async () => {
-			const { loadFixture } = await import("./test-utils")
-			await loadFixture("hooks/userpromptsubmit/error", tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("UserPromptSubmit")
+			const runner = await loadFixtureAndCreateRunner("error")
 
 			try {
 				await runner.run({
@@ -497,11 +489,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should work with malformed-json fixture", async () => {
-			const { loadFixture } = await import("./test-utils")
-			await loadFixture("hooks/userpromptsubmit/malformed-json", tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("UserPromptSubmit")
+			const runner = await loadFixtureAndCreateRunner("malformed-json")
 
 			try {
 				await runner.run({
@@ -518,11 +506,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should work with multiline fixture", async () => {
-			const { loadFixture } = await import("./test-utils")
-			await loadFixture("hooks/userpromptsubmit/multiline", tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("UserPromptSubmit")
+			const runner = await loadFixtureAndCreateRunner("multiline")
 
 			const result = await runner.run({
 				taskId: "test-task",
@@ -537,11 +521,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should work with large-prompt fixture", async () => {
-			const { loadFixture } = await import("./test-utils")
-			await loadFixture("hooks/userpromptsubmit/large-prompt", tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("UserPromptSubmit")
+			const runner = await loadFixtureAndCreateRunner("large-prompt")
 
 			const largePrompt = "x".repeat(10000)
 			const result = await runner.run({
@@ -557,11 +537,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should work with special-chars fixture", async () => {
-			const { loadFixture } = await import("./test-utils")
-			await loadFixture("hooks/userpromptsubmit/special-chars", tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("UserPromptSubmit")
+			const runner = await loadFixtureAndCreateRunner("special-chars")
 
 			const result = await runner.run({
 				taskId: "test-task",
@@ -576,11 +552,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should work with empty-prompt fixture", async () => {
-			const { loadFixture } = await import("./test-utils")
-			await loadFixture("hooks/userpromptsubmit/empty-prompt", tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("UserPromptSubmit")
+			const runner = await loadFixtureAndCreateRunner("empty-prompt")
 
 			const result = await runner.run({
 				taskId: "test-task",
