@@ -8,10 +8,7 @@ The Cline CLI tool can be used to assign Cline AI agents with focused tasks. Thi
 
 ## Creating Cline AI agents
 
-Cline AI agents may be referred to as agents, subagents, or subtasks. Requests may not specifically invoke agents, but you may invoke them directly if warranted. Unless you are specifically asked to use this tool, only create agents when it seems likely you may be exploring across 10 or more files. If users specifically ask that you use this tool, you then must use this tool. Do not use subagents for editing code or executing commands- they should only be used for reading and research to help you better answer questions or build useful context for future coding tasks. You may perform code edits directly using the write_to_file and replace_in_file tools, and commands using the execute_command tool.
-
-If you are performing a search via search_files or the terminal (grep etc.), and the results are long and overwhleming, it is reccomended that you switch to use Cline CLI agents to perform this task.
-
+Cline AI agents may be referred to as agents, subagents, or subtasks. Requests may not specifically invoke agents, but you may invoke them directly if warranted. Unless you are specifically asked to use this tool, only create agents when it seems likely you may be exploring across 10 or more files. If users specifically ask that you use this tool, you then must use this tool. Do not use subagents for editing code or executing commands- they should only be used for reading and research to help you better answer questions or build useful context for future coding tasks. If you are performing a search via search_files or the terminal (grep etc.), and the results are long and overwhleming, it is reccomended that you switch to use Cline CLI agents to perform this task. You may perform code edits directly using the write_to_file and replace_in_file tools, and commands using the execute_command tool.
 
 ## Command Syntax
 
@@ -46,7 +43,7 @@ cline "find how error handling is implemented across the application"
 \`\`\`
 
 ## Tips
-
+- Request brief, technically dense summaries over full file dumps.
 - Be specific with your instructions to get focused results.
 - Request summaries rather than full file contents. Encourege the agent to be brief, but specific and technically dense with their response.
 - If files you want to read are large or complicated, use Cline CLI agents for exploration before instead of reading these files.`
