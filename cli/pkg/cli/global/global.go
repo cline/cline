@@ -23,11 +23,14 @@ var (
 	Config  *GlobalConfig
 	Clients *ClineClients
 
-	// Version info - set at build time via ldflags in cli/version.go
+	// Version info - set at build time via ldflags
+	// Version is the Cline Core version (from root package.json)
 	Version = "dev"
-	Commit  = "unknown"
-	Date    = "unknown"
-	BuiltBy = "unknown"
+	// CliVersion is the CLI package version (from cli/package.json)
+	CliVersion = "dev"
+	Commit     = "unknown"
+	Date       = "unknown"
+	BuiltBy    = "unknown"
 )
 
 func InitializeGlobalConfig(cfg *GlobalConfig) error {

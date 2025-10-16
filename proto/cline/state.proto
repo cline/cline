@@ -24,6 +24,9 @@ service StateService {
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
   rpc updateInfoBannerVersion(Int64Request) returns (Empty);
   rpc updateModelBannerVersion(Int64Request) returns (Empty);
+  rpc updateCliBannerVersion(Int64Request) returns (Empty);
+  rpc installClineCli(EmptyRequest) returns (Empty);
+  rpc checkCliInstallation(EmptyRequest) returns (Boolean);
   rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
 }
 
@@ -209,6 +212,9 @@ message Settings {
    optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 121;
    optional string act_mode_oca_model_id = 122;
    optional OcaModelInfo act_mode_oca_model_info = 123;
+   optional int32 max_consecutive_mistakes = 124;
+   optional bool subagents_enabled = 125;
+   optional int32 subagent_terminal_output_line_limit = 126;
 }
 
 message DictationSettings {
@@ -352,7 +358,10 @@ message UpdateSettingsRequest {
   optional bool multi_root_enabled = 25;
   optional bool hooks_enabled = 26;
   optional string vscode_terminal_execution_mode = 27;
-  optional string cline_env = 28;
+  optional int32 max_consecutive_mistakes = 28;
+  optional bool subagents_enabled = 29;
+  optional int32 subagent_terminal_output_line_limit = 30;
+  optional string cline_env = 31;
 }
 
 // Complete API Configuration message

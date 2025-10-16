@@ -19,6 +19,7 @@ export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
 	"claude-opus-4-1-20250805",
 	"claude-sonnet-4-5-20250929",
 	`claude-sonnet-4-5-20250929${CLAUDE_SONNET_1M_SUFFIX}`,
+	"claude-haiku-4-5-20251001",
 ]
 
 /**

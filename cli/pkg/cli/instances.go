@@ -156,6 +156,7 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 	}
 
 	var killResults []killResult
+	killedAddresses := make(map[string]bool)
 
 	// Kill all CLI instances
 	for _, instance := range cliInstances {
@@ -168,31 +169,42 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 			fmt.Printf("⚠ Instance %s appears to be already dead\n", instance.Address)
 		} else {
 			fmt.Printf("✓ Killed %s (PID %d)\n", instance.Address, result.pid)
+			killedAddresses[instance.Address] = true
 		}
 	}
 
-	// Wait for all instances to clean up their registry entries
-	fmt.Printf("Waiting for instances to clean up registry entries...\n")
+	// Wait for killed instances to clean up their registry entries
+	if len(killedAddresses) > 0 {
+		fmt.Printf("Waiting for instances to clean up registry entries...\n")
 
-	maxWaitTime := 10 // seconds
-	for i := 0; i < maxWaitTime; i++ {
-		time.Sleep(1 * time.Second)
+		maxWaitTime := 10 // seconds
+		for i := 0; i < maxWaitTime; i++ {
+			time.Sleep(1 * time.Second)
 
-		remainingInstances, err := registry.ListInstancesCleaned(ctx)
-		if err != nil {
-			fmt.Printf("Warning: failed to check registry status: %v\n", err)
-			continue
-		}
+			remainingInstances, err := registry.ListInstancesCleaned(ctx)
+			if err != nil {
+				fmt.Printf("Warning: failed to check registry status: %v\n", err)
+				continue
+			}
 
-		if len(remainingInstances) == 0 {
-			fmt.Printf("✓ All instances successfully removed from registry.\n")
-			break
-		}
-
-		if i == maxWaitTime-1 {
-			fmt.Printf("⚠ %d instances still in registry after %d seconds\n", len(remainingInstances), maxWaitTime)
+			// Check if any of the killed instances are still in the registry
+			stillPresent := []string{}
 			for _, remaining := range remainingInstances {
-				fmt.Printf("  - %s\n", remaining.Address)
+				if killedAddresses[remaining.Address] {
+					stillPresent = append(stillPresent, remaining.Address)
+				}
+			}
+
+			if len(stillPresent) == 0 {
+				fmt.Printf("✓ All killed instances successfully removed from registry.\n")
+				break
+			}
+
+			if i == maxWaitTime-1 {
+				fmt.Printf("⚠ %d killed instance(s) still in registry after %d seconds\n", len(stillPresent), maxWaitTime)
+				for _, addr := range stillPresent {
+					fmt.Printf("  - %s\n", addr)
+				}
 			}
 		}
 	}
