@@ -35,10 +35,10 @@ describe("Remote Config Schema", () => {
 			expect(result).to.deep.equal(validSettings)
 		})
 
-		it("should apply default empty array for models", () => {
+		it("should have undefined for models and openAiHeaders by default", () => {
 			const result = OpenAiCompatibleSchema.parse({})
-			expect(result.models).to.deep.equal([])
-			expect(result.openAiHeaders).to.deep.equal({})
+			expect(result.models).to.be.undefined
+			expect(result.openAiHeaders).to.be.undefined
 		})
 
 		it("should reject invalid field types", () => {
@@ -93,9 +93,10 @@ describe("Remote Config Schema", () => {
 			expect(result).to.deep.equal(validSettings)
 		})
 
-		it("should apply default empty array for models", () => {
+		it("should accept empty settings object", () => {
 			const result = AwsBedrockSettingsSchema.parse({})
-			expect(result.models).to.deep.equal([])
+			expect(result.models).to.be.undefined
+			expect(result.customModels).to.be.undefined
 		})
 
 		it("should accept models with only id field", () => {
@@ -114,7 +115,7 @@ describe("Remote Config Schema", () => {
 			}
 			const result = AwsBedrockSettingsSchema.parse(settings)
 			expect(result.models).to.have.lengthOf(2)
-			expect(result.models[0].thinkingBudgetTokens).to.equal(1600)
+			expect(result.models?.[0].thinkingBudgetTokens).to.equal(1600)
 		})
 
 		it("should accept custom models array", () => {
@@ -272,6 +273,20 @@ describe("Remote Config Schema", () => {
 				telemetryEnabled: true,
 				mcpMarketplaceEnabled: false,
 				yoloModeAllowed: true,
+				openTelemetryEnabled: true,
+				openTelemetryMetricsExporter: "otlp",
+				openTelemetryLogsExporter: "otlp",
+				openTelemetryOtlpProtocol: "http/json",
+				openTelemetryOtlpEndpoint: "http://localhost:4318",
+				openTelemetryOtlpMetricsProtocol: "http/json",
+				openTelemetryOtlpMetricsEndpoint: "http://localhost:4318/v1/metrics",
+				openTelemetryOtlpLogsProtocol: "http/json",
+				openTelemetryOtlpLogsEndpoint: "http://localhost:4318/v1/logs",
+				openTelemetryMetricExportInterval: 60000,
+				openTelemetryOtlpInsecure: false,
+				openTelemetryLogBatchSize: 512,
+				openTelemetryLogBatchTimeout: 5000,
+				openTelemetryLogMaxQueueSize: 2048,
 				providerSettings: {
 					OpenAiCompatible: {
 						models: [
@@ -322,6 +337,7 @@ describe("Remote Config Schema", () => {
 						],
 						awsRegion: "eu-west-1",
 						awsUseCrossRegionInference: false,
+						awsUseGlobalInference: true,
 						awsBedrockUsePromptCache: true,
 						awsBedrockEndpoint: "https://custom-bedrock.endpoint",
 					},
@@ -345,8 +361,25 @@ describe("Remote Config Schema", () => {
 			expect(result.providerSettings?.AwsBedrock?.customModels).to.have.lengthOf(2)
 			expect(result.providerSettings?.AwsBedrock?.awsRegion).to.equal("eu-west-1")
 			expect(result.providerSettings?.AwsBedrock?.awsUseCrossRegionInference).to.equal(false)
+			expect(result.providerSettings?.AwsBedrock?.awsUseGlobalInference).to.equal(true)
 			expect(result.providerSettings?.AwsBedrock?.awsBedrockUsePromptCache).to.equal(true)
 			expect(result.providerSettings?.AwsBedrock?.awsBedrockEndpoint).to.equal("https://custom-bedrock.endpoint")
+
+			// Verify OpenTelemetry settings
+			expect(result.openTelemetryEnabled).to.equal(true)
+			expect(result.openTelemetryMetricsExporter).to.equal("otlp")
+			expect(result.openTelemetryLogsExporter).to.equal("otlp")
+			expect(result.openTelemetryOtlpProtocol).to.equal("http/json")
+			expect(result.openTelemetryOtlpEndpoint).to.equal("http://localhost:4318")
+			expect(result.openTelemetryOtlpMetricsProtocol).to.equal("http/json")
+			expect(result.openTelemetryOtlpMetricsEndpoint).to.equal("http://localhost:4318/v1/metrics")
+			expect(result.openTelemetryOtlpLogsProtocol).to.equal("http/json")
+			expect(result.openTelemetryOtlpLogsEndpoint).to.equal("http://localhost:4318/v1/logs")
+			expect(result.openTelemetryMetricExportInterval).to.equal(60000)
+			expect(result.openTelemetryOtlpInsecure).to.equal(false)
+			expect(result.openTelemetryLogBatchSize).to.equal(512)
+			expect(result.openTelemetryLogBatchTimeout).to.equal(5000)
+			expect(result.openTelemetryLogMaxQueueSize).to.equal(2048)
 		})
 	})
 

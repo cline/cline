@@ -1,7 +1,7 @@
 import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
+import { GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "@shared/storage/state-keys"
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
-import { ClineAuthProvider } from "@/services/auth/providers/ClineAuthProvider"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
@@ -10,7 +10,6 @@ import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@/shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@/shared/McpDisplayMode"
 import { OpenaiReasoningEffort } from "@/shared/storage/types"
 import { readTaskHistoryFromState } from "../disk"
-import { GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "../state-keys"
 export async function readSecretsFromDisk(context: ExtensionContext): Promise<Secrets> {
 	const [
 		apiKey,
@@ -55,7 +54,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
 		context.secrets.get("clineAccountId") as Promise<Secrets["clineAccountId"]>,
-		context.secrets.get(ClineAuthProvider.secretKeyId) as Promise<Secrets["cline:clineAccountId"]>,
+		context.secrets.get("cline:clineAccountId") as Promise<Secrets["cline:clineAccountId"]>,
 		context.secrets.get("awsAccessKey") as Promise<Secrets["awsAccessKey"]>,
 		context.secrets.get("awsSecretKey") as Promise<Secrets["awsSecretKey"]>,
 		context.secrets.get("awsSessionToken") as Promise<Secrets["awsSessionToken"]>,
@@ -97,7 +96,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		apiKey,
 		openRouterApiKey,
 		clineAccountId: firebaseClineAccountId,
-		[ClineAuthProvider.secretKeyId]: clineAccountId,
+		"cline:clineAccountId": clineAccountId,
 		huggingFaceApiKey,
 		huaweiCloudMaasApiKey,
 		basetenApiKey,
@@ -222,8 +221,15 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["globalWorkflowToggles"]>("globalWorkflowToggles")
 		const terminalReuseEnabled =
 			context.globalState.get<GlobalStateAndSettings["terminalReuseEnabled"]>("terminalReuseEnabled")
+		const vscodeTerminalExecutionMode =
+			context.globalState.get<GlobalStateAndSettings["vscodeTerminalExecutionMode"]>("vscodeTerminalExecutionMode")
 		const terminalOutputLineLimit =
 			context.globalState.get<GlobalStateAndSettings["terminalOutputLineLimit"]>("terminalOutputLineLimit")
+		const maxConsecutiveMistakes =
+			context.globalState.get<GlobalStateAndSettings["maxConsecutiveMistakes"]>("maxConsecutiveMistakes")
+		const subagentTerminalOutputLineLimit = context.globalState.get<
+			GlobalStateAndSettings["subagentTerminalOutputLineLimit"]
+		>("subagentTerminalOutputLineLimit")
 		const defaultTerminalProfile =
 			context.globalState.get<GlobalStateAndSettings["defaultTerminalProfile"]>("defaultTerminalProfile")
 		const sapAiCoreBaseUrl = context.globalState.get<GlobalStateAndSettings["sapAiCoreBaseUrl"]>("sapAiCoreBaseUrl")
@@ -245,10 +251,48 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const lastDismissedModelBannerVersion = context.globalState.get<
 			GlobalStateAndSettings["lastDismissedModelBannerVersion"]
 		>("lastDismissedModelBannerVersion")
+		const lastDismissedCliBannerVersion =
+			context.globalState.get<GlobalStateAndSettings["lastDismissedCliBannerVersion"]>("lastDismissedCliBannerVersion")
 		const qwenCodeOauthPath = context.globalState.get<GlobalStateAndSettings["qwenCodeOauthPath"]>("qwenCodeOauthPath")
 		const customPrompt = context.globalState.get<GlobalStateAndSettings["customPrompt"]>("customPrompt")
 		const autoCondenseThreshold =
 			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
+		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
+
+		// OpenTelemetry configuration
+		const openTelemetryEnabled =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryEnabled"]>("openTelemetryEnabled")
+		const openTelemetryMetricsExporter =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryMetricsExporter"]>("openTelemetryMetricsExporter")
+		const openTelemetryLogsExporter =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryLogsExporter"]>("openTelemetryLogsExporter")
+		const openTelemetryOtlpProtocol =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpProtocol"]>("openTelemetryOtlpProtocol")
+		const openTelemetryOtlpEndpoint =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpEndpoint"]>("openTelemetryOtlpEndpoint")
+		const openTelemetryOtlpMetricsProtocol = context.globalState.get<
+			GlobalStateAndSettings["openTelemetryOtlpMetricsProtocol"]
+		>("openTelemetryOtlpMetricsProtocol")
+		const openTelemetryOtlpMetricsEndpoint = context.globalState.get<
+			GlobalStateAndSettings["openTelemetryOtlpMetricsEndpoint"]
+		>("openTelemetryOtlpMetricsEndpoint")
+		const openTelemetryOtlpLogsProtocol =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpLogsProtocol"]>("openTelemetryOtlpLogsProtocol")
+		const openTelemetryOtlpLogsEndpoint =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpLogsEndpoint"]>("openTelemetryOtlpLogsEndpoint")
+		const openTelemetryMetricExportInterval = context.globalState.get<
+			GlobalStateAndSettings["openTelemetryMetricExportInterval"]
+		>("openTelemetryMetricExportInterval")
+		const openTelemetryOtlpInsecure =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryOtlpInsecure"]>("openTelemetryOtlpInsecure")
+		const openTelemetryLogBatchSize =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryLogBatchSize"]>("openTelemetryLogBatchSize")
+		const openTelemetryLogBatchTimeout =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryLogBatchTimeout"]>("openTelemetryLogBatchTimeout")
+		const openTelemetryLogMaxQueueSize =
+			context.globalState.get<GlobalStateAndSettings["openTelemetryLogMaxQueueSize"]>("openTelemetryLogMaxQueueSize")
+		const subagentsEnabled = context.globalState.get<GlobalStateAndSettings["subagentsEnabled"]>("subagentsEnabled")
+
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
 
@@ -558,20 +602,43 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			enableCheckpointsSetting: enableCheckpointsSettingRaw ?? true,
 			shellIntegrationTimeout: shellIntegrationTimeout || 4000,
 			terminalReuseEnabled: terminalReuseEnabled ?? true,
+			vscodeTerminalExecutionMode: vscodeTerminalExecutionMode ?? "vscodeTerminal",
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
+			maxConsecutiveMistakes: maxConsecutiveMistakes ?? 3,
+			subagentTerminalOutputLineLimit: subagentTerminalOutputLineLimit ?? 2000,
 			defaultTerminalProfile: defaultTerminalProfile ?? "default",
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			qwenCodeOauthPath,
 			customPrompt,
 			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
+			// Hooks require explicit user opt-in
+			hooksEnabled: hooksEnabled ?? false,
+			subagentsEnabled: subagentsEnabled ?? false,
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
+			lastDismissedCliBannerVersion: lastDismissedCliBannerVersion ?? 0,
 			// Multi-root workspace support
 			workspaceRoots,
 			primaryRootIndex: primaryRootIndex ?? 0,
 			// Feature flag - defaults to false
 			// For now, always return false to disable multi-root support by default
 			multiRootEnabled: !!multiRootEnabled,
+
+			// OpenTelemetry configuration
+			openTelemetryEnabled: openTelemetryEnabled ?? true,
+			openTelemetryMetricsExporter,
+			openTelemetryLogsExporter,
+			openTelemetryOtlpProtocol: openTelemetryOtlpProtocol ?? "http/json",
+			openTelemetryOtlpEndpoint: openTelemetryOtlpEndpoint ?? "http://localhost:4318",
+			openTelemetryOtlpMetricsProtocol,
+			openTelemetryOtlpMetricsEndpoint,
+			openTelemetryOtlpLogsProtocol,
+			openTelemetryOtlpLogsEndpoint,
+			openTelemetryMetricExportInterval: openTelemetryMetricExportInterval ?? 60000,
+			openTelemetryOtlpInsecure: openTelemetryOtlpInsecure ?? false,
+			openTelemetryLogBatchSize: openTelemetryLogBatchSize ?? 512,
+			openTelemetryLogBatchTimeout: openTelemetryLogBatchTimeout ?? 5000,
+			openTelemetryLogMaxQueueSize: openTelemetryLogMaxQueueSize ?? 2048,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)

@@ -1,5 +1,6 @@
 import { UserOrganizationUpdateRequest } from "@shared/proto/cline/account"
 import { Empty } from "@shared/proto/cline/common"
+import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
 import type { Controller } from "../index"
 
 /**
@@ -16,6 +17,12 @@ export async function setUserOrganization(controller: Controller, request: UserO
 
 		// Switch to the specified organization using the account service
 		await controller.accountService.switchAccount(request.organizationId)
+
+		try {
+			await fetchRemoteConfig(controller)
+		} catch (error) {
+			console.error("Failed to fetch remote config after org switch:", error)
+		}
 
 		return Empty.create({})
 	} catch (error) {

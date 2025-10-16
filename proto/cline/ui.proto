@@ -63,6 +63,7 @@ enum ClineSay {
   LOAD_MCP_DOCUMENTATION = 25;
   INFO = 26;
   TASK_PROGRESS = 27;
+  ERROR_RETRY = 28;
 }
 
 // Enum for ClineSayTool tool types
@@ -213,6 +214,9 @@ message ClineMessage {
 service UiService {
   // Scrolls to a specific settings section in the settings view
   rpc scrollToSettings(StringRequest) returns (KeyValuePair);
+  
+  // Sets the terminal execution mode (vscodeTerminal or backgroundExec)
+  rpc setTerminalExecutionMode(BooleanRequest) returns (KeyValuePair);
   
   // Marks the current announcement as shown and returns whether an announcement should still be shown
   rpc onDidShowAnnouncement(EmptyRequest) returns (Boolean);

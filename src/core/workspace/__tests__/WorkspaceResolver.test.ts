@@ -3,13 +3,13 @@
  * These tests ensure behavior preservation during refactoring
  */
 
+import { VcsType, WorkspaceRoot } from "@shared/multi-root/types"
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as path from "path"
 import * as sinon from "sinon"
 import { Logger } from "../../../services/logging/Logger"
 import { WorkspaceResolver } from "../WorkspaceResolver"
-import { VcsType, WorkspaceRoot } from "../WorkspaceRoot"
 
 describe("WorkspaceResolver", () => {
 	let resolver: WorkspaceResolver

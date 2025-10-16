@@ -42,7 +42,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 				onChange={(value) => handleFieldChange("liteLlmBaseUrl", value)}
 				placeholder={"Default: http://localhost:4000"}
 				style={{ width: "100%" }}
-				type="url">
+				type="text">
 				<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
 			</DebouncedTextField>
 			<DebouncedTextField

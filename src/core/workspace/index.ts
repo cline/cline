@@ -20,8 +20,6 @@ export {
 	WorkspaceResolver,
 	workspaceResolver,
 } from "./WorkspaceResolver"
-export type { WorkspaceRoot } from "./WorkspaceRoot"
-export { VcsType } from "./WorkspaceRoot"
 export type { WorkspaceContext } from "./WorkspaceRootManager"
 export { createLegacyWorkspaceRoot, WorkspaceRootManager } from "./WorkspaceRootManager"
 

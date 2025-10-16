@@ -14,6 +14,7 @@ body:
       options:
         - VSCode Extension
         - JetBrains Plugin
+        - CLI
       default: 0
     validations:
       required: true

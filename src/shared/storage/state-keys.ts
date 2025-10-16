@@ -1,16 +1,16 @@
+import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { ApiProvider, ModelInfo, type OcaModelInfo } from "@shared/api"
+import { BrowserSettings } from "@shared/BrowserSettings"
+import { ClineRulesToggles } from "@shared/cline-rules"
+import { DictationSettings } from "@shared/DictationSettings"
 import { FocusChainSettings } from "@shared/FocusChainSettings"
+import { HistoryItem } from "@shared/HistoryItem"
+import { McpDisplayMode } from "@shared/McpDisplayMode"
+import { WorkspaceRoot } from "@shared/multi-root/types"
+import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
+import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
-import { WorkspaceRoot } from "@/core/workspace/WorkspaceRoot"
-import { AutoApprovalSettings } from "@/shared/AutoApprovalSettings"
-import { BrowserSettings } from "@/shared/BrowserSettings"
-import { ClineRulesToggles } from "@/shared/cline-rules"
-import { DictationSettings } from "@/shared/DictationSettings"
-import { HistoryItem } from "@/shared/HistoryItem"
-import { McpDisplayMode } from "@/shared/McpDisplayMode"
-import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
-import { TelemetrySetting } from "@/shared/TelemetrySetting"
-import { UserInfo } from "@/shared/UserInfo"
 export type SecretKey = keyof Secrets
 
 export type GlobalStateKey = keyof GlobalState
@@ -31,6 +31,7 @@ export interface GlobalState {
 	mcpMarketplaceEnabled: boolean
 	mcpResponsesCollapsed: boolean
 	terminalReuseEnabled: boolean
+	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	isNewUser: boolean
 	welcomeViewCompleted: boolean | undefined
 	mcpDisplayMode: McpDisplayMode
@@ -38,8 +39,10 @@ export interface GlobalState {
 	workspaceRoots: WorkspaceRoot[] | undefined
 	primaryRootIndex: number
 	multiRootEnabled: boolean
+	hooksEnabled: boolean
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
+	lastDismissedCliBannerVersion: number
 }
 
 export interface Settings {
@@ -83,6 +86,8 @@ export interface Settings {
 	shellIntegrationTimeout: number
 	defaultTerminalProfile: string
 	terminalOutputLineLimit: number
+	maxConsecutiveMistakes: number
+	subagentTerminalOutputLineLimit: number
 	sapAiCoreTokenUrl: string | undefined
 	sapAiCoreBaseUrl: string | undefined
 	sapAiResourceGroup: string | undefined
@@ -102,6 +107,8 @@ export interface Settings {
 	autoCondenseThreshold: number | undefined // number from 0 to 1
 	ocaBaseUrl: string | undefined
 	ocaMode: string | undefined
+	hooksEnabled: boolean
+	subagentsEnabled: boolean
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -171,12 +178,28 @@ export interface Settings {
 	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	actModeOcaModelId: string | undefined
 	actModeOcaModelInfo: OcaModelInfo | undefined
+
+	// OpenTelemetry configuration
+	openTelemetryEnabled: boolean
+	openTelemetryMetricsExporter: string | undefined
+	openTelemetryLogsExporter: string | undefined
+	openTelemetryOtlpProtocol: string
+	openTelemetryOtlpEndpoint: string
+	openTelemetryOtlpMetricsProtocol: string | undefined
+	openTelemetryOtlpMetricsEndpoint: string | undefined
+	openTelemetryOtlpLogsProtocol: string | undefined
+	openTelemetryOtlpLogsEndpoint: string | undefined
+	openTelemetryMetricExportInterval: number
+	openTelemetryOtlpInsecure: boolean
+	openTelemetryLogBatchSize: number
+	openTelemetryLogBatchTimeout: number
+	openTelemetryLogMaxQueueSize: number
 }
 
 export interface Secrets {
 	apiKey: string | undefined
 	clineAccountId: string | undefined
-	["cline:clineAccountId"]: string | undefined // Auth_Provider:AccountId
+	"cline:clineAccountId": string | undefined // Auth_Provider:AccountId
 	openRouterApiKey: string | undefined
 	awsAccessKey: string | undefined
 	awsSecretKey: string | undefined

@@ -79,19 +79,16 @@ export class FeatureFlagsService {
 		return this.cache.get(flagName) ?? defaultValue
 	}
 
-	/**
-	 * Convenience: multi-root workspace remote gate
-	 */
-	public getMultiRootEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.MULTI_ROOT_WORKSPACE, false)
-	}
-
 	public getWorkOsAuthEnabled(): boolean {
 		return this.getBooleanFlagEnabled(FeatureFlag.WORKOS_AUTH, false)
 	}
 
 	public getDoNothingFlag(): boolean {
 		return this.getBooleanFlagEnabled(FeatureFlag.DO_NOTHING, false)
+	}
+
+	public getHooksEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.HOOKS, false)
 	}
 
 	/**

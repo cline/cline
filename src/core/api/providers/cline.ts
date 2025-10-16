@@ -160,6 +160,26 @@ export class ClineHandler implements ApiHandler {
 					}
 				}
 
+				/* 
+				OpenRouter passes reasoning details that we can pass back unmodified in api requests to preserve reasoning traces for model
+				  - The reasoning_details array in each chunk may contain one or more reasoning objects
+				  - For encrypted reasoning, the content may appear as [REDACTED] in streaming responses
+				  - The complete reasoning sequence is built by concatenating all chunks in order
+				See: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks
+				*/
+				if (
+					"reasoning_details" in delta &&
+					delta.reasoning_details &&
+					// @ts-ignore-next-line
+					delta.reasoning_details.length && // exists and non-0
+					!shouldSkipReasoningForModel(this.options.openRouterModelId)
+				) {
+					yield {
+						type: "reasoning_details",
+						reasoning_details: delta.reasoning_details,
+					}
+				}
+
 				if (!didOutputUsage && chunk.usage) {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)

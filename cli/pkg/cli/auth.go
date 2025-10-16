@@ -8,10 +8,16 @@ import (
 func NewAuthCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "auth",
-		Short: "Sign in to Cline",
-		Long:  `Complete the authentication flow in browser to sign in to Cline.`,
+		Short: "Authenticate a provider and configure model used",
+		Long: `Authenticate  a provider and configure model used
+
+This command opens an interactive menu where you can:
+  - Sign in to your Cline account
+  - Configure other LLM providers (Anthropic, OpenAI, etc.)
+  - Select and switch between AI models
+  - Manage provider settings`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return auth.HandleAuthCommand(cmd.Context(), args)
+			return auth.RunAuthFlow(cmd.Context(), args)
 		},
 	}
 }
