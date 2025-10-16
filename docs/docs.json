@@ -176,6 +176,7 @@
 				"pages": [
 					"provider-config/anthropic",
 					"provider-config/claude-code",
+					"provider-config/qwen-code",
 					{
 						"group": "AWS Bedrock",
 						"pages": [
