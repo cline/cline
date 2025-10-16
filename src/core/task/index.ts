@@ -839,7 +839,7 @@ export class Task {
 				// TaskStart hook context modifications are not added to conversation
 				// as this would be redundant with the initial task message
 			} catch (hookError) {
-				console.error("TaskStart hook failed:", hookError)
+				Logger.error("TaskStart hook failed:", hookError)
 				// Non-fatal: continue with task
 			}
 		}
