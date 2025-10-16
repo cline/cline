@@ -658,18 +658,6 @@ func (m *Manager) ShowConversation(ctx context.Context) error {
 }
 
 func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string, interactive bool) error {
-	// Check if there's an active task before entering follow mode
-	err := m.CheckSendEnabled(ctx)
-	if err != nil {
-		// Handle specific error cases
-		if errors.Is(err, ErrNoActiveTask) {
-			fmt.Println("No active task found. Use 'cline task new' to create a task first.")
-			return nil
-		}
-		// For other errors (like task busy), we can still enter follow mode
-		// as the user may want to observe the task
-	}
-
 	// Enable streaming mode
 	m.mu.Lock()
 	m.isStreamingMode = true
@@ -770,18 +758,6 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 
 // FollowConversationUntilCompletion streams conversation updates until task completion
 func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
-	// Check if there's an active task before entering follow mode
-	err := m.CheckSendEnabled(ctx)
-	if err != nil {
-		// Handle specific error cases
-		if errors.Is(err, ErrNoActiveTask) {
-			fmt.Println("No active task found. Use 'cline task new' to create a task first.")
-			return nil
-		}
-		// For other errors (like task busy), we can still enter follow mode
-		// as the user may want to observe the task
-	}
-
 	// Enable streaming mode
 	m.mu.Lock()
 	m.isStreamingMode = true
