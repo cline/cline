@@ -25,6 +25,8 @@ service ModelsService {
   rpc refreshVercelAiGatewayModelsRPC(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Requesty models
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns Hicap models
+  rpc refreshHicapModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Subscribe to OpenRouter models updates
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Updates API configuration
@@ -39,6 +41,8 @@ service ModelsService {
   rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (SapAiCoreModelsResponse);
   // Fetches available models from OCA
   rpc refreshOcaModels(StringRequest) returns (OcaCompatibleModelInfo);
+  // Subscribe to Hicap models updates
+  rpc subscribeToHicapModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -228,6 +232,7 @@ enum ApiProvider {
   QWEN_CODE = 33;
   DIFY = 34;
   OCA = 35;
+  HICAP = 36;
 }
 
 // Model info for OpenAI-compatible models
@@ -345,6 +350,8 @@ message ModelsApiConfiguration {
   optional string oca_refresh_token = 75;
   optional string oca_mode = 76;
   optional bool aws_use_global_inference = 77;
+  optional string hicap_model_id = 78;
+  optional string hicap_api_key = 79;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -380,6 +387,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 130;
   optional string plan_mode_oca_model_id = 131;
   optional OcaModelInfo plan_mode_oca_model_info = 132;
+  optional string plan_mode_hicap_model_id = 133;
+  optional OpenRouterModelInfo plan_mode_hicap_model_info = 134;
 
 
   // Act mode configurations
@@ -416,4 +425,9 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
   optional string act_mode_oca_model_id = 231;
   optional OcaModelInfo act_mode_oca_model_info = 232;
+  optional string act_mode_hicap_model_id = 233;
+  optional OpenRouterModelInfo act_mode_hicap_model_info = 234;
+
+
+  repeated string favorited_model_ids = 300;
 }

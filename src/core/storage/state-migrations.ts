@@ -34,6 +34,7 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 		"groqModelInfo",
 		"huggingFaceModelId",
 		"huggingFaceModelInfo",
+		"hicapModelId",
 
 		// Previous mode settings
 		"previousModeApiProvider",
@@ -229,6 +230,7 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 		const groqModelInfo = await context.globalState.get("groqModelInfo")
 		const huggingFaceModelId = await context.globalState.get("huggingFaceModelId")
 		const huggingFaceModelInfo = await context.globalState.get("huggingFaceModelInfo")
+		const hicapModelId = await context.globalState.get("hicapModelId")
 
 		// Read previous mode values
 		const previousModeApiProvider = await context.globalState.get("previousModeApiProvider")
@@ -286,6 +288,9 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 				await context.globalState.update("planModeOpenAiModelId", openAiModelId)
 				await context.globalState.update("actModeOpenAiModelId", openAiModelId)
 			}
+			if (hicapModelId !== undefined) {
+				await context.globalState.update("hicapModelId", hicapModelId)
+			}
 			if (openAiModelInfo !== undefined) {
 				await context.globalState.update("planModeOpenAiModelInfo", openAiModelInfo)
 				await context.globalState.update("actModeOpenAiModelInfo", openAiModelInfo)
@@ -342,6 +347,10 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 				await context.globalState.update("planModeHuggingFaceModelInfo", huggingFaceModelInfo)
 				await context.globalState.update("actModeHuggingFaceModelInfo", huggingFaceModelInfo)
 			}
+			if (hicapModelId !== undefined) {
+				await context.globalState.update("planModeHicapModelId", hicapModelId)
+				await context.globalState.update("actModeHicapModelId", hicapModelId)
+			}
 		} else {
 			console.log("Migrating with separate models ENABLED - using current->plan, previous->act")
 
@@ -375,6 +384,9 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 			}
 			if (openAiModelId !== undefined) {
 				await context.globalState.update("planModeOpenAiModelId", openAiModelId)
+			}
+			if (hicapModelId !== undefined) {
+				await context.globalState.update("hicapModelId", hicapModelId)
 			}
 			if (openAiModelInfo !== undefined) {
 				await context.globalState.update("planModeOpenAiModelInfo", openAiModelInfo)
@@ -417,6 +429,9 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 			}
 			if (huggingFaceModelInfo !== undefined) {
 				await context.globalState.update("planModeHuggingFaceModelInfo", huggingFaceModelInfo)
+			}
+			if (hicapModelId !== undefined) {
+				await context.globalState.update("planModeHicapModelId", hicapModelId)
 			}
 
 			// Use previous values for act mode (with fallback to current values)
@@ -473,6 +488,9 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 			if (openAiModelId !== undefined) {
 				await context.globalState.update("actModeOpenAiModelId", openAiModelId)
 			}
+			if (hicapModelId !== undefined) {
+				await context.globalState.update("hicapModelId", hicapModelId)
+			}
 			if (openAiModelInfo !== undefined) {
 				await context.globalState.update("actModeOpenAiModelInfo", openAiModelInfo)
 			}
@@ -512,6 +530,9 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 			if (huggingFaceModelInfo !== undefined) {
 				await context.globalState.update("actModeHuggingFaceModelInfo", huggingFaceModelInfo)
 			}
+			if (hicapModelId !== undefined) {
+				await context.globalState.update("actModeHicapModelId", hicapModelId)
+			}
 		}
 
 		// Clean up legacy keys after successful migration
@@ -540,6 +561,7 @@ export async function migrateLegacyApiConfigurationToModeSpecific(context: vscod
 		await context.globalState.update("groqModelInfo", undefined)
 		await context.globalState.update("huggingFaceModelId", undefined)
 		await context.globalState.update("huggingFaceModelInfo", undefined)
+		await context.globalState.update("hicapModelId", undefined)
 		await context.globalState.update("previousModeApiProvider", undefined)
 		await context.globalState.update("previousModeModelId", undefined)
 		await context.globalState.update("previousModeModelInfo", undefined)
@@ -626,6 +648,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 				sambanovaApiKey,
 				sapAiCoreClientId,
 				difyApiKey,
+				hicapApiKey,
 			].some((key) => key !== undefined)
 
 			// Set welcomeViewCompleted based on whether user has keys

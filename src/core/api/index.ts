@@ -14,6 +14,7 @@ import { DoubaoHandler } from "./providers/doubao"
 import { FireworksHandler } from "./providers/fireworks"
 import { GeminiHandler } from "./providers/gemini"
 import { GroqHandler } from "./providers/groq"
+import { HicapHandler } from "./providers/hicap"
 import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
 import { HuggingFaceHandler } from "./providers/huggingface"
 import { LiteLlmHandler } from "./providers/litellm"
@@ -388,6 +389,12 @@ function createHandlerForProvider(
 						? options.planModeOcaModelInfo?.supportsPromptCache
 						: options.actModeOcaModelInfo?.supportsPromptCache,
 				taskId: options.ulid,
+			})
+		case "hicap":
+			return new HicapHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				hicapApiKey: options.hicapApiKey,
+				hicapModelId: mode === "plan" ? options.planModeHicapModelId : options.actModeHicapModelId,
 			})
 		default:
 			return new AnthropicHandler({
