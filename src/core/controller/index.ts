@@ -821,9 +821,6 @@ export class Controller {
 	}
 
 	async getStateToPostToWebview(): Promise<ExtensionState> {
-		// Check CLI installation status when preparing state (e.g., when settings are opened)
-		await checkCliInstallation(this)
-
 		// Get API configuration from cache for immediate access
 		const apiConfiguration = this.stateManager.getApiConfiguration()
 		const lastShownAnnouncementId = this.stateManager.getGlobalStateKey("lastShownAnnouncementId")
