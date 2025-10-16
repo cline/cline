@@ -93,6 +93,7 @@ export interface ExtensionState {
 	multiRootSetting: ClineFeatureSetting
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
+	lastDismissedCliBannerVersion: number
 	hooksEnabled?: ClineFeatureSetting
 	remoteConfigSettings?: Partial<GlobalStateAndSettings>
 	subagentsEnabled?: boolean

@@ -23,6 +23,7 @@ export const config = createVariant(ModelFamily.GPT_5)
 		SystemPromptSection.MCP,
 		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.ACT_VS_PLAN,
+		SystemPromptSection.CLI_SUBAGENTS,
 		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.CAPABILITIES,
 		SystemPromptSection.FEEDBACK,
