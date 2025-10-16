@@ -35,7 +35,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		platform,
 	} = useExtensionState()
 
-	const isMacOS = platform === "darwin"
+	const isMacOSOrLinux = platform === "darwin" || platform === "linux"
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
 
@@ -69,8 +69,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 			{renderSectionHeader("features")}
 			<Section>
 				<div style={{ marginBottom: 20 }}>
-					{/* Subagents - Only show on macOS (for now) */}
-					{isMacOS && (
+					{/* Subagents - Only show on macOS and Linux */}
+					{isMacOSOrLinux && (
 						<div
 							className="relative p-3 mb-3 rounded-md"
 							id="subagents-section"
