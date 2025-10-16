@@ -302,7 +302,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							<label htmlFor="api-provider">
 								<span style={{ fontWeight: 500 }}>API Provider</span>
 							</label>
-							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+							<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
 						</div>
 					</HeroTooltip>
 				) : (

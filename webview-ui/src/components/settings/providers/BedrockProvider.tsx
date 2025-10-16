@@ -103,7 +103,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							<label htmlFor="aws-region-dropdown">
 								<span style={{ fontWeight: 500 }}>AWS Region</span>
 							</label>
-							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm flex items-center" />
+							<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm flex items-center" />
 						</div>
 						<VSCodeDropdown
 							disabled={true}
@@ -201,7 +201,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 									}}>
 									Use custom VPC endpoint
 								</VSCodeCheckbox>
-								<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+								<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
 							</div>
 
 							{awsEndpointSelected && (
@@ -255,7 +255,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								}}>
 								Use cross-region inference
 							</VSCodeCheckbox>
-							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+							<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
 						</div>
 					</HeroTooltip>
 				) : (
@@ -284,7 +284,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 									}}>
 									Use global inference profile
 								</VSCodeCheckbox>
-								<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+								<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
 							</div>
 						</HeroTooltip>
 					) : (
@@ -311,7 +311,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 									}}>
 									Use prompt caching
 								</VSCodeCheckbox>
-								<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+								<i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />
 							</div>
 						</HeroTooltip>
 					) : (

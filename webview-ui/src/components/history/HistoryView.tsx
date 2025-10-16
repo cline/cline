@@ -29,16 +29,16 @@ interface CustomFilterRadioProps {
 const CustomFilterRadio = ({ checked, onChange, icon, label }: CustomFilterRadioProps) => {
 	return (
 		<div
-			className="flex items-center cursor-pointer py-[0.3em] px-0 mr-[10px] text-[var(--vscode-font-size)] select-none"
+			className="flex items-center cursor-pointer py-[0.3em] px-0 mr-[10px] text-(--vscode-font-size) select-none"
 			onClick={onChange}>
 			<div
-				className={`w-[14px] h-[14px] rounded-full border border-[var(--vscode-checkbox-border)] relative flex justify-center items-center mr-[6px] ${
-					checked ? "bg-[var(--vscode-checkbox-background)]" : "bg-transparent"
+				className={`w-[14px] h-[14px] rounded-full border border-(--vscode-checkbox-border) relative flex justify-center items-center mr-[6px] ${
+					checked ? "bg-(--vscode-checkbox-background)" : "bg-transparent"
 				}`}>
-				{checked && <div className="w-[6px] h-[6px] rounded-full bg-[var(--vscode-checkbox-foreground)]" />}
+				{checked && <div className="w-[6px] h-[6px] rounded-full bg-(--vscode-checkbox-foreground)" />}
 			</div>
 			<span className="flex items-center gap-[3px]">
-				<div className={`codicon codicon-${icon} text-[var(--vscode-button-background)] text-base`} />
+				<div className={`codicon codicon-${icon} text-(--vscode-button-background) text-base`} />
 				{label}
 			</span>
 		</div>
