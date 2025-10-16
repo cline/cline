@@ -882,10 +882,17 @@ export class Task {
 	}
 
 	private async resumeTaskFromHistory() {
-		// code previously here deleted to make room for task resumption logic
+		try {
+			await this.clineIgnoreController.initialize()
+		} catch (error) {
+			console.error("Failed to initialize ClineIgnoreController:", error)
+			// Optionally, inform the user or handle the error appropriately
+		}
+
 		const savedClineMessages = await getSavedClineMessages(this.taskId)
 
-		// remove any resume_task or resume_completed_task messages from the start of the file as they are only used for the UI, and have no effect on the conversation history
+		// Remove any resume messages that may have been added before
+
 		const lastRelevantMessageIndex = findLastIndex(
 			savedClineMessages,
 			(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"),
