@@ -810,7 +810,28 @@ export class Task {
 
 		this.taskState.isInitialized = true
 
-		// Run TaskStart hook
+		const imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
+
+		const userContent: UserContent = [
+			{
+				type: "text",
+				text: `<task>\n${task}\n</task>`,
+			},
+			...imageBlocks,
+		]
+
+		if (files && files.length > 0) {
+			const fileContentString = await processFilesIntoText(files)
+			if (fileContentString) {
+				userContent.push({
+					type: "text",
+					text: fileContentString,
+				})
+			}
+		}
+
+		// Add TaskStart hook context to the conversation if provided
+		// This follows the same pattern as PreToolUse, PostToolUse, and UserPromptSubmit hooks
 		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
 			try {
@@ -832,35 +853,28 @@ export class Task {
 				if (!taskStartResult.shouldContinue) {
 					const errorMessage = taskStartResult.errorMessage || "TaskStart hook prevented task from starting"
 					await this.say("error", errorMessage)
+					// Ensure the error message is saved and posted before aborting
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					await this.postStateToWebview()
 					this.abortTask()
 					return
 				}
 
-				// TaskStart hook context modifications are not added to conversation
-				// as this would be redundant with the initial task message
+				// Add context modification to the conversation if provided
+				if (taskStartResult.contextModification) {
+					const contextText = taskStartResult.contextModification.trim()
+					if (contextText) {
+						userContent.push({
+							type: "text",
+							text: `<hook_context source="TaskStart">\n${contextText}\n</hook_context>`,
+						})
+					}
+				}
 			} catch (hookError) {
-				Logger.error("TaskStart hook failed:", hookError)
-				// Non-fatal: continue with task
-			}
-		}
-
-		const imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
-
-		const userContent: UserContent = [
-			{
-				type: "text",
-				text: `<task>\n${task}\n</task>`,
-			},
-			...imageBlocks,
-		]
-
-		if (files && files.length > 0) {
-			const fileContentString = await processFilesIntoText(files)
-			if (fileContentString) {
-				userContent.push({
-					type: "text",
-					text: fileContentString,
-				})
+				const errorMessage = `TaskStart hook failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`
+				Logger.error(errorMessage, hookError)
+				// Show error to user but continue with task (non-fatal)
+				await this.say("error", errorMessage)
 			}
 		}
 
