@@ -46,7 +46,7 @@ The Cline CLI tool is installed and available for you to use to handle focused t
 \`\`\`bash
 cline t o "your prompt here"
 
-This must onlybe used for searching and exploring code. It cannot be uxed to edit files or execute commands.
+This must only be used for searching and exploring code. It cannot be used to edit files or execute commands.
 Example:
   # Find specific patterns
   cline t o "find all React components that use the useState hook and list their names" 
