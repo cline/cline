@@ -83,6 +83,7 @@ export function normalizeApiConfiguration(
 ): NormalizedApiConfig {
 	const provider =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
+
 	const modelId = currentMode === "plan" ? apiConfiguration?.planModeApiModelId : apiConfiguration?.actModeApiModelId
 
 	const getProviderData = (models: Record<string, ModelInfo>, defaultId: string) => {
@@ -358,17 +359,13 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: ocaModelInfo || liteLlmModelInfoSaneDefaults,
 			}
 		case "aihubmix":
-			// Aihubmix uses its own model data
-			const aihubmixModels = {
-				"gpt-4o-mini": { name: "GPT-4o Mini", maxTokens: 128000, supportsPromptCache: false },
-				"gpt-4o": { name: "GPT-4o", maxTokens: 128000, supportsPromptCache: false },
-				"gpt-4-turbo": { name: "GPT-4 Turbo", maxTokens: 128000, supportsPromptCache: false },
-				"gpt-3.5-turbo": { name: "GPT-3.5 Turbo", maxTokens: 16384, supportsPromptCache: false },
-				"claude-3-5-sonnet-20241022": { name: "Claude 3.5 Sonnet", maxTokens: 200000, supportsPromptCache: false },
-				"claude-3-5-haiku-20241022": { name: "Claude 3.5 Haiku", maxTokens: 200000, supportsPromptCache: false },
-				"claude-3-opus-20240229": { name: "Claude 3 Opus", maxTokens: 200000, supportsPromptCache: false },
+			// aihubmix 的模型为动态获取，默认选择将由组件在获取列表后设置为第一个
+			// 这里仅返回当前配置中的 modelId（若无则为空）与一个通用的占位信息
+			return {
+				selectedProvider: provider,
+				selectedModelId: modelId || "",
+				selectedModelInfo: openAiModelInfoSaneDefaults,
 			}
-			return getProviderData(aihubmixModels, "gpt-4o-mini")
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}

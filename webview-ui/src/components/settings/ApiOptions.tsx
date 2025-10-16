@@ -129,6 +129,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		const providers = [
 			{ value: "cline", label: "Cline" },
 			{ value: "openrouter", label: "OpenRouter" },
+			{ value: "aihubmix", label: "Aihubmix" },
 			{ value: "gemini", label: "Google Gemini" },
 			{ value: "openai", label: "OpenAI Compatible" },
 			{ value: "anthropic", label: "Anthropic" },
@@ -163,7 +164,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "huawei-cloud-maas", label: "Huawei Cloud MaaS" },
 			{ value: "dify", label: "Dify.ai" },
 			{ value: "oca", label: "Oracle Code Assist" },
-			{ value: "aihubmix", label: "Aihubmix" },
 		]
 
 		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
@@ -351,7 +351,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 									ref={(el) => {
 										itemRefs.current[index] = el
 									}}>
-									<span>{item.label}</span>
+									<span>{item.html}</span>
 								</ProviderDropdownItem>
 							))}
 						</ProviderDropdownList>

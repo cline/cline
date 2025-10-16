@@ -307,6 +307,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.DIFY
 		case "oca":
 			return ProtoApiProvider.OCA
+		case "aihubmix":
+			return ProtoApiProvider.AIHUBMIX
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -387,6 +389,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "dify"
 		case ProtoApiProvider.OCA:
 			return "oca"
+		case ProtoApiProvider.AIHUBMIX:
+			return "aihubmix"
 		default:
 			return "anthropic"
 	}
@@ -470,6 +474,9 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		difyBaseUrl: config.difyBaseUrl,
 		ocaBaseUrl: config.ocaBaseUrl,
 		ocaMode: config.ocaMode,
+		aihubmixApiKey: config.aihubmixApiKey,
+		aihubmixBaseUrl: config.aihubmixBaseUrl,
+		aihubmixAppCode: config.aihubmixAppCode,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -621,6 +628,9 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		difyBaseUrl: protoConfig.difyBaseUrl,
 		ocaBaseUrl: protoConfig.ocaBaseUrl,
 		ocaMode: protoConfig.ocaMode,
+		aihubmixApiKey: protoConfig.aihubmixApiKey,
+		aihubmixBaseUrl: protoConfig.aihubmixBaseUrl,
+		aihubmixAppCode: protoConfig.aihubmixAppCode,
 
 		// Plan mode configurations
 		planModeApiProvider:
