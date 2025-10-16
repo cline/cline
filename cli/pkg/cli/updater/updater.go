@@ -199,7 +199,7 @@ func showFailureMessage(channel string) {
 }
 
 func getCacheFilePath() string {
-	configDir := filepath.Join(os.Getenv("HOME"), ".cline")
+	configDir := filepath.Join(os.Getenv("HOME"), ".cline", "data")
 	return filepath.Join(configDir, ".update-cache")
 }
 
