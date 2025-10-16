@@ -35,10 +35,10 @@ describe("Remote Config Schema", () => {
 			expect(result).to.deep.equal(validSettings)
 		})
 
-		it("should apply default empty array for models", () => {
+		it("should have undefined for models and openAiHeaders by default", () => {
 			const result = OpenAiCompatibleSchema.parse({})
-			expect(result.models).to.deep.equal([])
-			expect(result.openAiHeaders).to.deep.equal({})
+			expect(result.models).to.be.undefined
+			expect(result.openAiHeaders).to.be.undefined
 		})
 
 		it("should reject invalid field types", () => {
@@ -93,9 +93,10 @@ describe("Remote Config Schema", () => {
 			expect(result).to.deep.equal(validSettings)
 		})
 
-		it("should apply default empty array for models", () => {
+		it("should accept empty settings object", () => {
 			const result = AwsBedrockSettingsSchema.parse({})
-			expect(result.models).to.deep.equal([])
+			expect(result.models).to.be.undefined
+			expect(result.customModels).to.be.undefined
 		})
 
 		it("should accept models with only id field", () => {
@@ -114,7 +115,7 @@ describe("Remote Config Schema", () => {
 			}
 			const result = AwsBedrockSettingsSchema.parse(settings)
 			expect(result.models).to.have.lengthOf(2)
-			expect(result.models[0].thinkingBudgetTokens).to.equal(1600)
+			expect(result.models?.[0].thinkingBudgetTokens).to.equal(1600)
 		})
 
 		it("should accept custom models array", () => {

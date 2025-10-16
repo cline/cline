@@ -225,6 +225,11 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["vscodeTerminalExecutionMode"]>("vscodeTerminalExecutionMode")
 		const terminalOutputLineLimit =
 			context.globalState.get<GlobalStateAndSettings["terminalOutputLineLimit"]>("terminalOutputLineLimit")
+		const maxConsecutiveMistakes =
+			context.globalState.get<GlobalStateAndSettings["maxConsecutiveMistakes"]>("maxConsecutiveMistakes")
+		const subagentTerminalOutputLineLimit = context.globalState.get<
+			GlobalStateAndSettings["subagentTerminalOutputLineLimit"]
+		>("subagentTerminalOutputLineLimit")
 		const defaultTerminalProfile =
 			context.globalState.get<GlobalStateAndSettings["defaultTerminalProfile"]>("defaultTerminalProfile")
 		const sapAiCoreBaseUrl = context.globalState.get<GlobalStateAndSettings["sapAiCoreBaseUrl"]>("sapAiCoreBaseUrl")
@@ -284,6 +289,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["openTelemetryLogBatchTimeout"]>("openTelemetryLogBatchTimeout")
 		const openTelemetryLogMaxQueueSize =
 			context.globalState.get<GlobalStateAndSettings["openTelemetryLogMaxQueueSize"]>("openTelemetryLogMaxQueueSize")
+		const subagentsEnabled = context.globalState.get<GlobalStateAndSettings["subagentsEnabled"]>("subagentsEnabled")
 
 		// Get mode-related configurations
 		const mode = context.globalState.get<GlobalStateAndSettings["mode"]>("mode")
@@ -596,6 +602,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			terminalReuseEnabled: terminalReuseEnabled ?? true,
 			vscodeTerminalExecutionMode: vscodeTerminalExecutionMode ?? "vscodeTerminal",
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
+			maxConsecutiveMistakes: maxConsecutiveMistakes ?? 3,
+			subagentTerminalOutputLineLimit: subagentTerminalOutputLineLimit ?? 2000,
 			defaultTerminalProfile: defaultTerminalProfile ?? "default",
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			qwenCodeOauthPath,
@@ -603,6 +611,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
 			// Hooks require explicit user opt-in
 			hooksEnabled: hooksEnabled ?? false,
+			subagentsEnabled: subagentsEnabled ?? false,
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			// Multi-root workspace support

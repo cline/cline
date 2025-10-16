@@ -204,6 +204,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		terminalReuseEnabled: true,
 		vscodeTerminalExecutionMode: "vscodeTerminal",
 		terminalOutputLineLimit: 500,
+		maxConsecutiveMistakes: 3,
+		subagentTerminalOutputLineLimit: 2000,
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
@@ -219,6 +221,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		remoteConfigSettings: {},
 		backgroundCommandRunning: false,
 		backgroundCommandTaskId: undefined,
+		subagentsEnabled: false,
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],

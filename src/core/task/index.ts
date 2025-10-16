@@ -45,6 +45,7 @@ import { TerminalManager } from "@integrations/terminal/TerminalManager"
 import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { featureFlagsService } from "@services/feature-flags"
 import { listFiles } from "@services/glob/list-files"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
@@ -104,6 +105,7 @@ type TaskParams = {
 	shellIntegrationTimeout: number
 	terminalReuseEnabled: boolean
 	terminalOutputLineLimit: number
+	subagentTerminalOutputLineLimit: number
 	defaultTerminalProfile: string
 	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	cwd: string
@@ -192,6 +194,7 @@ export class Task {
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
 			terminalOutputLineLimit,
+			subagentTerminalOutputLineLimit,
 			defaultTerminalProfile,
 			vscodeTerminalExecutionMode,
 			cwd,
@@ -252,6 +255,7 @@ export class Task {
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
+		this.terminalManager.setSubagentTerminalOutputLineLimit(subagentTerminalOutputLineLimit)
 		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
 		this.urlContentFetcher = new UrlContentFetcher(controller.context)
@@ -735,6 +739,53 @@ export class Task {
 
 	private async switchToActModeCallback(): Promise<boolean> {
 		return await this.controller.toggleActModeForYoloMode()
+	}
+
+	private async runUserPromptSubmitHook(
+		userContent: UserContent,
+		context: "initial_task" | "resume" | "feedback",
+	): Promise<{ shouldContinue: boolean; contextModification?: string; errorMessage?: string }> {
+		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+
+		if (!hooksEnabled) {
+			return { shouldContinue: true }
+		}
+
+		try {
+			const { HookFactory } = await import("../hooks/hook-factory")
+			const hookFactory = new HookFactory()
+			const hook = await hookFactory.create("UserPromptSubmit")
+
+			// Serialize UserContent to string for the hook
+			const promptText = userContent
+				.map((block) => {
+					if (block.type === "text") {
+						return block.text
+					}
+					if (block.type === "image") {
+						return "[IMAGE]"
+					}
+					return ""
+				})
+				.join("\n\n")
+
+			const result = await hook.run({
+				taskId: this.taskId,
+				userPromptSubmit: {
+					prompt: promptText,
+					attachments: [], // Images are inline in UserContent
+				},
+			})
+
+			return {
+				shouldContinue: result.shouldContinue,
+				contextModification: result.contextModification,
+				errorMessage: result.errorMessage,
+			}
+		} catch (error) {
+			console.error("UserPromptSubmit hook failed:", error)
+			return { shouldContinue: true }
+		}
 	}
 
 	// Task lifecycle
@@ -1774,6 +1825,10 @@ export class Task {
 					content = content.replace(/<thinking>\s?/g, "")
 					content = content.replace(/\s?<\/thinking>/g, "")
 
+					// New claude models tend to output <function_calls> tags which we don't want to show in the chat
+					content = content.replace(/<function_calls>\s?/g, "")
+					content = content.replace(/\s?<\/function_calls>/g, "")
+
 					// Remove partial XML tag at the very end of the content (for tool use and thinking tags)
 					// (prevents scrollview from jumping when tags are automatically removed)
 					const lastOpenBracketIndex = content.lastIndexOf("<")
@@ -1871,7 +1926,7 @@ export class Task {
 			} catch {}
 		}
 
-		if (this.taskState.consecutiveMistakeCount >= 3) {
+		if (this.taskState.consecutiveMistakeCount >= this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
 			const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 			if (autoApprovalSettings.enabled && autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
@@ -2150,6 +2205,28 @@ export class Task {
 			userContent = parsedUserContent
 
 			userContent.push({ type: "text", text: environmentDetails })
+		}
+
+		// Run UserPromptSubmit hook before sending to API
+		const hookResult = await this.runUserPromptSubmitHook(
+			userContent,
+			this.taskState.apiRequestCount === 1 ? "initial_task" : "feedback",
+		)
+
+		// Handle hook blocking
+		if (!hookResult.shouldContinue) {
+			const errorMessage = hookResult.errorMessage || "UserPromptSubmit hook prevented this request"
+			await this.say("error", errorMessage)
+			// Return true to end the loop gracefully
+			return true
+		}
+
+		// Add hook context if provided
+		if (hookResult.contextModification) {
+			userContent.push({
+				type: "text",
+				text: `<hook_context source="UserPromptSubmit">\n${hookResult.contextModification}\n</hook_context>`,
+			})
 		}
 
 		await this.messageStateHandler.addToApiConversationHistory({

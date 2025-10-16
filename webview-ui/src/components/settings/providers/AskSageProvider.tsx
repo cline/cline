@@ -41,7 +41,7 @@ export const AskSageProvider = ({ showModelOptions, isPopup, currentMode }: AskS
 				onChange={(value) => handleFieldChange("asksageApiUrl", value)}
 				placeholder="Enter AskSage API URL..."
 				style={{ width: "100%" }}
-				type="url">
+				type="text">
 				<span style={{ fontWeight: 500 }}>AskSage API URL</span>
 			</DebouncedTextField>
 

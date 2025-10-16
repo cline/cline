@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.32.8]
+
+- Add Claude Haiku 4.5 support
+
 ## [3.32.7]
 
 - Add JP and Global inference profile options to AWS Bedrock

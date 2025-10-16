@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -125,7 +126,7 @@ func (m *Manager) GetCurrentInstance() string {
 }
 
 // CreateTask creates a new task
-func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files []string, workspacePaths []string, settingsFlags []string) (string, error) {
+func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files []string, settingsFlags []string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -136,9 +137,6 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 		}
 		if len(images) > 0 {
 			m.renderer.RenderDebug("Images: %v", images)
-		}
-		if len(workspacePaths) > 0 {
-			m.renderer.RenderDebug("Workspaces: %v", workspacePaths)
 		}
 		if len(settingsFlags) > 0 {
 			m.renderer.RenderDebug("Settings: %v", settingsFlags)
@@ -610,6 +608,17 @@ func (m *Manager) CancelTask(ctx context.Context) error {
 
 // ShowConversation displays the current conversation
 func (m *Manager) ShowConversation(ctx context.Context) error {
+	// Check if there's an active task before showing conversation
+	err := m.CheckSendEnabled(ctx)
+	if err != nil {
+		// Handle specific error cases
+		if errors.Is(err, ErrNoActiveTask) {
+			fmt.Println("No active task found. Use 'cline task new' to create a task first.")
+			return nil
+		}
+		// For other errors (like task busy), we can still show the conversation
+	}
+
 	// Disable streaming mode for static view
 	m.mu.Lock()
 	m.isStreamingMode = false
@@ -699,28 +708,32 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-sigChan:
-			if interactive {
-				// Interactive mode (task chat)
-				// Check if input is currently being shown
-				if coordinator.IsInputAllowed() {
-					// Input form is showing - huh will handle the signal via ErrUserAborted
-					// Do nothing here, let the input handler deal with it
-				} else {
-					// Streaming mode - cancel the task and stay in follow mode
-					m.renderer.RenderTaskCancelled()
-					if err := m.CancelTask(context.Background()); err != nil {
-						fmt.Printf("Error cancelling task: %v\n", err)
+		defer signal.Stop(sigChan) // Clean up signal handler when goroutine exits
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-sigChan:
+				if interactive {
+					// Interactive mode (task chat)
+					// Check if input is currently being shown
+					if coordinator.IsInputAllowed() {
+						// Input form is showing - huh will handle the signal via ErrUserAborted
+						// Do nothing here, let the input handler deal with it
+					} else {
+						// Streaming mode - cancel the task and stay in follow mode
+						m.renderer.RenderTaskCancelled()
+						if err := m.CancelTask(context.Background()); err != nil {
+							fmt.Printf("Error cancelling task: %v\n", err)
+						}
+						// Don't cancel main context - stay in follow mode
 					}
-					// Don't cancel main context - stay in follow mode
+				} else {
+					// Non-interactive mode (task view --follow)
+					// Just exit without canceling the task
+					cancel()
+					return // Exit the loop after canceling in non-interactive mode
 				}
-			} else {
-				// Non-interactive mode (task view --follow)
-				// Just exit without canceling the task
-				cancel()
 			}
 		}
 	}()

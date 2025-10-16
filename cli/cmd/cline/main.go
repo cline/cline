@@ -26,13 +26,12 @@ var (
 	outputFormat string
 
 	// Task creation flags (for root command)
-	images     []string
-	files      []string
-	workspaces []string
-	mode       string
-	settings   []string
-	yolo       bool
-	oneshot    bool
+	images   []string
+	files    []string
+	mode     string
+	settings []string
+	yolo     bool
+	oneshot  bool
 )
 
 func main() {
@@ -55,7 +54,10 @@ Or pipe a prompt via stdin:
 Or run with no arguments to enter interactive mode:
   cline
 
-This CLI also provides task management, configuration, and monitoring capabilities.`,
+This CLI also provides task management, configuration, and monitoring capabilities.
+
+For detailed documentation including all commands, options, and examples,
+see the manual page: man cline`,
 		Args: cobra.ArbitraryArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if outputFormat != "rich" && outputFormat != "json" && outputFormat != "plain" {
@@ -110,6 +112,10 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 					fmt.Printf("\n%s\n\n", rendered)
 
 					if err := auth.HandleAuthMenuNoArgs(ctx); err != nil {
+						// Check if user cancelled - exit cleanly
+						if err == huh.ErrUserAborted {
+							return nil
+						}
 						return fmt.Errorf("auth setup failed: %w", err)
 					}
 
@@ -138,6 +144,10 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 				// Pass the mode flag to banner so it shows correct mode
 				prompt, err = promptForInitialTask(ctx, instanceAddress, mode)
 				if err != nil {
+					// Check if user cancelled - exit cleanly without error
+					if err == huh.ErrUserAborted {
+						return nil
+					}
 					return err
 				}
 				if prompt == "" {
@@ -152,13 +162,12 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 			}
 
 			return cli.CreateAndFollowTask(ctx, prompt, cli.TaskOptions{
-				Images:     images,
-				Files:      files,
-				Workspaces: workspaces,
-				Mode:       mode,
-				Settings:   settings,
-				Yolo:       yolo,
-				Address:    instanceAddress,
+				Images:   images,
+				Files:    files,
+				Mode:     mode,
+				Settings: settings,
+				Yolo:     yolo,
+				Address:  instanceAddress,
 			})
 		},
 	}
@@ -170,7 +179,6 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 	// Task creation flags (only apply when using root command with prompt)
 	rootCmd.Flags().StringSliceVarP(&images, "image", "i", nil, "attach image files")
 	rootCmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
-	rootCmd.Flags().StringSliceVarP(&workspaces, "workdir", "w", nil, "workdir directory paths")
 	rootCmd.Flags().StringVarP(&mode, "mode", "m", "plan", "mode (act|plan) - defaults to plan")
 	rootCmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format)")
 	rootCmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
@@ -220,6 +228,12 @@ func promptForInitialTask(ctx context.Context, instanceAddress, modeFlag string)
 
 	err := form.Run()
 	if err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			// Return a special error that indicates clean cancellation
+			// This allows deferred cleanup to run
+			return "", huh.ErrUserAborted
+		}
 		return "", err
 	}
 
