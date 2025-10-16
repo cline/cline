@@ -187,7 +187,7 @@ describe("DiffViewProvider", () => {
 			// Setup
 			const mockEditor = {
 				document: {
-					uri: { fsPath: `${mockCwd}/test.md` },
+					uri: { fsPath: `${mockCwd}/test.md`, scheme: "file" },
 					getText: vi.fn().mockReturnValue(""),
 					lineCount: 0,
 				},
@@ -220,7 +220,7 @@ describe("DiffViewProvider", () => {
 			vi.mocked(vscode.workspace.onDidOpenTextDocument).mockImplementation((callback) => {
 				// Trigger the callback immediately with the document
 				setTimeout(() => {
-					callback({ uri: { fsPath: `${mockCwd}/test.md` } } as any)
+					callback({ uri: { fsPath: `${mockCwd}/test.md`, scheme: "file" } } as any)
 				}, 0)
 				return { dispose: vi.fn() }
 			})

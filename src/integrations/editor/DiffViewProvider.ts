@@ -54,8 +54,8 @@ export class DiffViewProvider {
 		// If the file is already open, ensure it's not dirty before getting its
 		// contents.
 		if (fileExists) {
-			const existingDocument = vscode.workspace.textDocuments.find((doc) =>
-				arePathsEqual(doc.uri.fsPath, absolutePath),
+			const existingDocument = vscode.workspace.textDocuments.find(
+				(doc) => doc.uri.scheme === "file" && arePathsEqual(doc.uri.fsPath, absolutePath),
 			)
 
 			if (existingDocument && existingDocument.isDirty) {
@@ -91,7 +91,10 @@ export class DiffViewProvider {
 			.map((tg) => tg.tabs)
 			.flat()
 			.filter(
-				(tab) => tab.input instanceof vscode.TabInputText && arePathsEqual(tab.input.uri.fsPath, absolutePath),
+				(tab) =>
+					tab.input instanceof vscode.TabInputText &&
+					tab.input.uri.scheme === "file" &&
+					arePathsEqual(tab.input.uri.fsPath, absolutePath),
 			)
 
 		for (const tab of tabs) {
@@ -509,13 +512,14 @@ export class DiffViewProvider {
 			// Listen for document open events - more efficient than scanning all tabs
 			disposables.push(
 				vscode.workspace.onDidOpenTextDocument(async (document) => {
-					if (arePathsEqual(document.uri.fsPath, uri.fsPath)) {
+					// Only match file:// scheme documents to avoid git diffs
+					if (document.uri.scheme === "file" && arePathsEqual(document.uri.fsPath, uri.fsPath)) {
 						// Wait a tick for the editor to be available
 						await new Promise((r) => setTimeout(r, 0))
 
 						// Find the editor for this document
-						const editor = vscode.window.visibleTextEditors.find((e) =>
-							arePathsEqual(e.document.uri.fsPath, uri.fsPath),
+						const editor = vscode.window.visibleTextEditors.find(
+							(e) => e.document.uri.scheme === "file" && arePathsEqual(e.document.uri.fsPath, uri.fsPath),
 						)
 
 						if (editor) {
@@ -529,7 +533,11 @@ export class DiffViewProvider {
 			// Also listen for visible editor changes as a fallback
 			disposables.push(
 				vscode.window.onDidChangeVisibleTextEditors((editors) => {
-					const editor = editors.find((e) => arePathsEqual(e.document.uri.fsPath, uri.fsPath))
+					const editor = editors.find((e) => {
+						const isFileScheme = e.document.uri.scheme === "file"
+						const pathMatches = arePathsEqual(e.document.uri.fsPath, uri.fsPath)
+						return isFileScheme && pathMatches
+					})
 					if (editor) {
 						cleanup()
 						resolve(editor)
