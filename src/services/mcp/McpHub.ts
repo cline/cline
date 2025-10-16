@@ -634,7 +634,9 @@ export class McpHub {
 	}
 
 	private removeAllFileWatchers() {
-		this.fileWatchers.forEach((watcher) => watcher.close())
+		this.fileWatchers.forEach((watcher) => {
+			watcher.close()
+		})
 		this.fileWatchers.clear()
 	}
 
@@ -872,7 +874,7 @@ export class McpHub {
 
 			return {
 				...result,
-				content: result.content ?? [],
+				content: (result.content ?? []) as any,
 			}
 		} catch (error) {
 			this.telemetryService.captureMcpToolCall(
