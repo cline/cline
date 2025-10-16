@@ -8,13 +8,15 @@ mkdir -p dist-standalone/extension
 cp package.json dist-standalone/extension
 
 # Extract version information for ldflags
-VERSION=$(node -p "require('./package.json').version")
+CORE_VERSION=$(node -p "require('./package.json').version")
+CLI_VERSION=$(node -p "require('./cli/package.json').version")
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 BUILT_BY="${USER:-unknown}"
 
 # Build ldflags to inject version info
-LDFLAGS="-X 'github.com/cline/cli/pkg/cli/global.Version=${VERSION}' \
+LDFLAGS="-X 'github.com/cline/cli/pkg/cli/global.Version=${CORE_VERSION}' \
+         -X 'github.com/cline/cli/pkg/cli/global.CliVersion=${CLI_VERSION}' \
          -X 'github.com/cline/cli/pkg/cli/global.Commit=${COMMIT}' \
          -X 'github.com/cline/cli/pkg/cli/global.Date=${DATE}' \
          -X 'github.com/cline/cli/pkg/cli/global.BuiltBy=${BUILT_BY}'"
