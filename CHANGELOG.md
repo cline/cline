@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.33.0]
+
+- Added Cline CLI (Preview) 
+- Added Subagent support (Experimental)
+- Added Multi-Root Workspaces support (Enable in feature settings)
+- Add auto-retry with exponential backof for failed API requests
+
 ## [3.32.8]
 
 - Add Claude Haiku 4.5 support
