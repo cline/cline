@@ -13,6 +13,7 @@ import (
 	"github.com/cline/cli/pkg/cli/config"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/task"
+	"github.com/cline/cli/pkg/cli/updater"
 	"github.com/spf13/cobra"
 )
 
@@ -24,6 +25,7 @@ type TaskOptions struct {
 	Settings []string
 	Yolo     bool
 	Address  string
+	Verbose  bool
 }
 
 func NewTaskCommand() *cobra.Command {
@@ -636,6 +638,9 @@ func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) e
 	if global.Config.Verbose {
 		fmt.Printf("Task created successfully with ID: %s\n\n", taskID)
 	}
+
+	// Check for updates in background after task is created
+	updater.CheckAndUpdate(opts.Verbose)
 
 	// If yolo mode is enabled, follow until completion (non-interactive)
 	// Otherwise, follow in interactive mode

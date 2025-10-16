@@ -163,6 +163,7 @@ see the manual page: man cline`,
 				Settings: settings,
 				Yolo:     yolo,
 				Address:  instanceAddress,
+				Verbose:  verbose,
 			})
 		},
 	}
