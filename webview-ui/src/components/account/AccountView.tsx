@@ -1,4 +1,5 @@
 import type { UsageTransaction as ClineAccountUsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
+import { isClineInternalTester } from "@shared/internal/account"
 import type { UserOrganization } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption, VSCodeTag } from "@vscode/webview-ui-toolkit/react"
@@ -127,7 +128,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 	// Track if initial mount fetch has completed to avoid duplicate fetches
 	const initialFetchCompleteRef = useRef<boolean>(false)
 
-	const isClineBotUser = useMemo(() => email?.endsWith("@cline.bot") || false, [email])
+	const isClineTester = useMemo(() => (email ? isClineInternalTester(email) : false), [email])
 
 	const fetchUserCredit = useCallback(async () => {
 		try {
@@ -404,7 +405,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 					/>
 				</div>
 
-				{isClineBotUser && (
+				{isClineTester && (
 					<div className="w-full gap-1 items-end">
 						<VSCodeDivider className="w-full my-3" />
 						<div className="text-sm font-semibold">Cline Environment</div>
