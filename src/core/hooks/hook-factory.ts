@@ -3,7 +3,18 @@ import fs from "fs/promises"
 import path from "path"
 import { version as clineVersion } from "../../../package.json"
 import { getDistinctId } from "../../services/logging/distinctId"
-import { HookInput, HookOutput, PostToolUseData, PreToolUseData, UserPromptSubmitData } from "../../shared/proto/cline/hooks"
+import {
+	HookInput,
+	HookOutput,
+	PostToolUseData,
+	PreCompactData,
+	PreToolUseData,
+	TaskCancelData,
+	TaskCompleteData,
+	TaskResumeData,
+	TaskStartData,
+	UserPromptSubmitData,
+} from "../../shared/proto/cline/hooks"
 import { getAllHooksDirs } from "../storage/disk"
 import { StateManager } from "../storage/StateManager"
 
@@ -22,6 +33,21 @@ export interface Hooks {
 	}
 	UserPromptSubmit: {
 		userPromptSubmit: UserPromptSubmitData
+	}
+	TaskStart: {
+		taskStart: TaskStartData
+	}
+	TaskResume: {
+		taskResume: TaskResumeData
+	}
+	TaskCancel: {
+		taskCancel: TaskCancelData
+	}
+	TaskComplete: {
+		taskComplete: TaskCompleteData
+	}
+	PreCompact: {
+		preCompact: PreCompactData
 	}
 }
 
