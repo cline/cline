@@ -22,6 +22,15 @@ type GlobalConfig struct {
 var (
 	Config  *GlobalConfig
 	Clients *ClineClients
+
+	// Version info - set at build time via ldflags
+	// Version is the Cline Core version (from root package.json)
+	Version = "dev"
+	// CliVersion is the CLI package version (from cli/package.json)
+	CliVersion = "dev"
+	Commit     = "unknown"
+	Date       = "unknown"
+	BuiltBy    = "unknown"
 )
 
 func InitializeGlobalConfig(cfg *GlobalConfig) error {
@@ -72,18 +81,23 @@ func EnsureDefaultInstance(ctx context.Context) error {
 		return fmt.Errorf("global clients not initialized")
 	}
 
-	// Check if we have any instances in the registry
 	registry := Clients.GetRegistry()
+
+	// First, check if there are any instances already registered in SQLite
+	instances := registry.ListInstances()
+
+	// Use the registry's EnsureDefaultInstance to auto-set first instance as default if needed
+	if err := registry.EnsureDefaultInstance(instances); err != nil {
+		return fmt.Errorf("failed to ensure default from existing instances: %w", err)
+	}
+
+	// Now check if we have a default set
 	if registry.GetDefaultInstance() == "" {
-		// No default instance, start a new one
-		instance, err := Clients.StartNewInstance(ctx)
+		// No instances exist, start a new one
+		// Note: StartNewInstance will automatically set it as default since it's the first instance
+		_, err := Clients.StartNewInstance(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to start new default instance: %w", err)
-		}
-
-		// Set the new instance as default
-		if err := registry.SetDefaultInstance(instance.Address); err != nil {
-			return fmt.Errorf("failed to set default instance: %w", err)
 		}
 	}
 

@@ -109,6 +109,7 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 		cline.ApiProvider_BEDROCK,
 		cline.ApiProvider_GEMINI,
 		cline.ApiProvider_OLLAMA,
+		cline.ApiProvider_CEREBRAS,
 	}
 
 	// Check each provider to see if it's ready to use
@@ -220,6 +221,8 @@ func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
 		return cline.ApiProvider_GEMINI, true
 	case "ollama":
 		return cline.ApiProvider_OLLAMA, true
+	case "cerebras":
+		return cline.ApiProvider_CEREBRAS, true
 	case "cline":
 		return cline.ApiProvider_CLINE, true
 	default:
@@ -247,6 +250,8 @@ func GetProviderIDForEnum(provider cline.ApiProvider) string {
 		return "gemini"
 	case cline.ApiProvider_OLLAMA:
 		return "ollama"
+	case cline.ApiProvider_CEREBRAS:
+		return "cerebras"
 	case cline.ApiProvider_CLINE:
 		return "cline"
 	default:
@@ -301,8 +306,8 @@ func capitalizeMode(mode string) string {
 	return strings.ToUpper(mode[:1]) + mode[1:]
 }
 
-// getProviderDisplayName returns a user-friendly name for the provider
-func getProviderDisplayName(provider cline.ApiProvider) string {
+// GetProviderDisplayName returns a user-friendly name for the provider
+func GetProviderDisplayName(provider cline.ApiProvider) string {
 	switch provider {
 	case cline.ApiProvider_ANTHROPIC:
 		return "Anthropic"
@@ -320,6 +325,8 @@ func getProviderDisplayName(provider cline.ApiProvider) string {
 		return "Google Gemini"
 	case cline.ApiProvider_OLLAMA:
 		return "Ollama"
+	case cline.ApiProvider_CEREBRAS:
+		return "Cerebras"
 	case cline.ApiProvider_CLINE:
 		return "Cline (Official)"
 	default:
@@ -357,9 +364,9 @@ func FormatProviderList(result *ProviderListResult) string {
 			isActive := activeProviderSet && display.Provider == activeProvider
 
 			if isActive {
-				output.WriteString(fmt.Sprintf("  ✓ %s (ACTIVE)\n", getProviderDisplayName(display.Provider)))
+				output.WriteString(fmt.Sprintf("  ✓ %s (ACTIVE)\n", GetProviderDisplayName(display.Provider)))
 			} else {
-				output.WriteString(fmt.Sprintf("  • %s\n", getProviderDisplayName(display.Provider)))
+				output.WriteString(fmt.Sprintf("  • %s\n", GetProviderDisplayName(display.Provider)))
 			}
 
 			output.WriteString(fmt.Sprintf("    Model:    %s\n", display.ModelID))
@@ -436,15 +443,16 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 		{cline.ApiProvider_BEDROCK, "awsAccessKey"},
 		{cline.ApiProvider_GEMINI, "geminiApiKey"},
 		{cline.ApiProvider_OLLAMA, "ollamaBaseUrl"}, // Ollama uses baseUrl instead of API key
+		{cline.ApiProvider_CEREBRAS, "cerebrasApiKey"},
 	}
 
 	for _, providerCheck := range providersToCheck {
-		verboseLog("[DEBUG] Checking for %s key: %s", getProviderDisplayName(providerCheck.provider), providerCheck.keyField)
+		verboseLog("[DEBUG] Checking for %s key: %s", GetProviderDisplayName(providerCheck.provider), providerCheck.keyField)
 		if value, ok := apiConfig[providerCheck.keyField]; ok {
 			verboseLog("[DEBUG]   Found key, value type: %T, is empty: %v", value, value == "")
 			if str, ok := value.(string); ok && str != "" {
 				configuredProviders = append(configuredProviders, providerCheck.provider)
-				verboseLog("[DEBUG]   ✓ Provider %s is configured", getProviderDisplayName(providerCheck.provider))
+				verboseLog("[DEBUG]   ✓ Provider %s is configured", GetProviderDisplayName(providerCheck.provider))
 			}
 		} else {
 			verboseLog("[DEBUG]   Key %s not found", providerCheck.keyField)
@@ -453,7 +461,7 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 
 	verboseLog("[DEBUG] Total configured providers: %d", len(configuredProviders))
 	for _, p := range configuredProviders {
-		verboseLog("[DEBUG]   - %s", getProviderDisplayName(p))
+		verboseLog("[DEBUG]   - %s", GetProviderDisplayName(p))
 	}
 
 	return configuredProviders, nil

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/grpc-go/cline"
 )
@@ -20,7 +21,7 @@ func NewRenderer(outputFormat string) *Renderer {
 	if err != nil {
 		mdRenderer = nil
 	}
-	
+
 	return &Renderer{
 		typewriter:   NewTypewriterPrinter(DefaultTypewriterConfig()),
 		mdRenderer:   mdRenderer,
@@ -39,26 +40,9 @@ func (r *Renderer) RenderMessage(prefix, text string, newline bool) error {
 	}
 
 	if newline {
-		fmt.Printf("%s: %s\n", prefix, clean)
+		output.Printf("%s: %s\n", prefix, clean)
 	} else {
-		fmt.Printf("%s: %s", prefix, clean)
-	}
-	return nil
-}
-
-
-func (r *Renderer) RenderCheckpointMessage(timestamp, prefix string, id int64) error {
-	markdown := fmt.Sprintf("## [%s] Checkpoint created `%d`", timestamp, id)
-	rendered := r.RenderMarkdown(markdown)
-	fmt.Printf(rendered)
-	return nil
-}
-
-func (r *Renderer) RenderCommand(command string, isExecuting bool) error {
-	if isExecuting {
-		r.typewriter.PrintMessageLine("EXEC", command)
-	} else {
-		r.typewriter.PrintMessageLine("CMD", command)
+		output.Printf("%s: %s", prefix, clean)
 	}
 	return nil
 }
@@ -75,26 +59,40 @@ func formatNumber(n int) string {
 
 // formatUsageInfo formats token usage information (extracted from RenderAPI)
 func (r *Renderer) formatUsageInfo(tokensIn, tokensOut, cacheReads, cacheWrites int, cost float64) string {
-	tokenDetails := fmt.Sprintf("[tokens in: %s, out: %s; cache read: %s, write: %s]",
-		formatNumber(tokensIn),
-		formatNumber(tokensOut),
-		formatNumber(cacheReads),
-		formatNumber(cacheWrites))
+    parts := make([]string, 0, 4)
 
-	return fmt.Sprintf("%s ($%.4f)", tokenDetails, cost)
+    if tokensIn != 0 {
+        parts = append(parts, fmt.Sprintf("↑ %s", formatNumber(tokensIn)))
+    }
+    if tokensOut != 0 {
+        parts = append(parts, fmt.Sprintf("↓ %s", formatNumber(tokensOut)))
+    }
+    if cacheReads != 0 {
+        parts = append(parts, fmt.Sprintf("→ %s", formatNumber(cacheReads)))
+    }
+    if cacheWrites != 0 {
+        parts = append(parts, fmt.Sprintf("← %s", formatNumber(cacheWrites)))
+    }
+
+    if len(parts) == 0 {
+        return fmt.Sprintf("$%.4f", cost)
+    }
+
+    return fmt.Sprintf("%s $%.4f", strings.Join(parts, " "), cost)
 }
+
 
 func (r *Renderer) RenderAPI(status string, apiInfo *types.APIRequestInfo) error {
 	if apiInfo.Cost >= 0 {
 		usageInfo := r.formatUsageInfo(apiInfo.TokensIn, apiInfo.TokensOut, apiInfo.CacheReads, apiInfo.CacheWrites, apiInfo.Cost)
 		markdown := fmt.Sprintf("## API %s `%s`", status, usageInfo)
 		rendered := r.RenderMarkdown(markdown)
-		fmt.Printf(rendered)
+		output.Print(rendered)
 	} else {
 		// honestly i see no point in showing "### API processing request" here...
 		// markdown := fmt.Sprintf("## API %s", status)
 		// rendered := r.RenderMarkdown(markdown)
-		// fmt.Printf("\n%s\n", rendered)
+		// output.Printf("\n%s\n", rendered)
 	}
 	return nil
 }
@@ -106,6 +104,13 @@ func (r *Renderer) RenderRetry(attempt, maxAttempts, delaySec int) error {
 	}
 	message += "..."
 	r.typewriter.PrintMessageLine("API INFO", message)
+	return nil
+}
+
+func (r *Renderer) RenderTaskCancelled() error {
+	markdown := "## Task cancelled"
+	rendered := r.RenderMarkdown(markdown)
+	output.Printf("\n%s\n", rendered)
 	return nil
 }
 
@@ -122,16 +127,16 @@ func (r *Renderer) RenderTaskList(tasks []*cline.TaskItem) error {
 
 	r.typewriter.PrintfLn("=== Task History (showing last %d of %d total tasks) ===\n", len(recentTasks), len(tasks))
 
-	for i, task := range recentTasks {
-		r.typewriter.PrintfLn("Task ID: %s", task.Id)
+	for i, taskItem := range recentTasks {
+		r.typewriter.PrintfLn("Task ID: %s", taskItem.Id)
 
-		description := task.Task
+		description := taskItem.Task
 		if len(description) > 1000 {
 			description = description[:1000] + "..."
 		}
 		r.typewriter.PrintfLn("Message: %s", description)
 
-		usageInfo := r.formatUsageInfo(int(task.TokensIn), int(task.TokensOut), int(task.CacheReads), int(task.CacheWrites), task.TotalCost)
+		usageInfo := r.formatUsageInfo(int(taskItem.TokensIn), int(taskItem.TokensOut), int(taskItem.CacheReads), int(taskItem.CacheWrites), taskItem.TotalCost)
 		r.typewriter.PrintfLn("Usage  : %s", usageInfo)
 
 		// Single space between tasks (except last)
@@ -152,11 +157,11 @@ func (r *Renderer) RenderDebug(format string, args ...interface{}) error {
 }
 
 func (r *Renderer) ClearLine() {
-	fmt.Print("\r\033[K")
+	output.Print("\r\033[K")
 }
 
 func (r *Renderer) MoveCursorUp(n int) {
-	fmt.Printf("\033[%dA", n)
+	output.Printf("\033[%dA", n)
 }
 
 func (r *Renderer) sanitizeText(text string) string {

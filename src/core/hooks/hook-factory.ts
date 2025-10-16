@@ -3,8 +3,19 @@ import fs from "fs/promises"
 import path from "path"
 import { version as clineVersion } from "../../../package.json"
 import { getDistinctId } from "../../services/logging/distinctId"
-import { HookInput, HookOutput, PostToolUseData, PreToolUseData } from "../../shared/proto/cline/hooks"
-import { getWorkspaceHooksDirs } from "../storage/disk"
+import {
+	HookInput,
+	HookOutput,
+	PostToolUseData,
+	PreCompactData,
+	PreToolUseData,
+	TaskCancelData,
+	TaskCompleteData,
+	TaskResumeData,
+	TaskStartData,
+	UserPromptSubmitData,
+} from "../../shared/proto/cline/hooks"
+import { getAllHooksDirs } from "../storage/disk"
 import { StateManager } from "../storage/StateManager"
 
 // Hook execution timeout (30 seconds)
@@ -19,6 +30,24 @@ export interface Hooks {
 	}
 	PostToolUse: {
 		postToolUse: PostToolUseData
+	}
+	UserPromptSubmit: {
+		userPromptSubmit: UserPromptSubmitData
+	}
+	TaskStart: {
+		taskStart: TaskStartData
+	}
+	TaskResume: {
+		taskResume: TaskResumeData
+	}
+	TaskCancel: {
+		taskCancel: TaskCancelData
+	}
+	TaskComplete: {
+		taskComplete: TaskCompleteData
+	}
+	PreCompact: {
+		preCompact: PreCompactData
 	}
 }
 
@@ -267,10 +296,12 @@ export class HookFactory {
 
 	/**
 	 * @returns A list of paths to scripts for the given hook name.
+	 * Includes both global hooks (from ~/Documents/Cline/Rules/Hooks/) and workspace hooks
+	 * (from .clinerules/hooks/ in each workspace root).
 	 */
 	private static async findHookScripts(hookName: HookName): Promise<string[]> {
 		const hookScripts = []
-		for (const hooksDir of await getWorkspaceHooksDirs()) {
+		for (const hooksDir of await getAllHooksDirs()) {
 			hookScripts.push(HookFactory.findHookInHooksDir(hookName, hooksDir))
 		}
 		const isDefined = (scriptPath: string | undefined): scriptPath is string => Boolean(scriptPath)
@@ -292,32 +323,26 @@ export class HookFactory {
 	}
 
 	/**
-	 * Finds a hook on Windows by searching through PATHEXT extensions.
-	 * Windows doesn't have an executable bit, instead files are handed off
-	 * to a set of interpreters described in PATHEXT and the Windows registry.
+	 * Finds a hook on Windows using git-style hook discovery.
+	 * Like git, we look for a file with the hook name (no extension) and execute it
+	 * through the shell, which handles shebangs and script interpretation.
 	 *
 	 * @param hookName the name of the hook to search for
-	 * @param hooksDir the .clinerules directory path to search
+	 * @param hooksDir the hooks directory path to search
 	 * @returns the path to the hook to execute, or undefined if none found
 	 * @throws Error if an unexpected file system error occurs
 	 */
 	private static async findWindowsHook(hookName: HookName, hooksDir: string): Promise<string | undefined> {
-		// PATHEXT is a ;-delimited list of extensions like .EXE;.COM;.CMD;.BAT etc.
-		const pathExts = process.env.PATHEXT?.split(";") || []
+		const candidate = path.join(hooksDir, hookName)
 
-		for (const pathExt of pathExts) {
-			const candidate = path.join(hooksDir, hookName + pathExt)
-			try {
-				if ((await fs.stat(candidate)).isFile()) {
-					return candidate
-				}
-			} catch (error) {
-				HookFactory.handleHookDiscoveryError(error, hookName, candidate)
-				// Expected error (file doesn't exist), continue searching other extensions
-			}
+		try {
+			const stat = await fs.stat(candidate)
+			return stat.isFile() ? candidate : undefined
+		} catch (error) {
+			HookFactory.handleHookDiscoveryError(error, hookName, candidate)
+			// Expected error (file doesn't exist), return undefined
+			return undefined
 		}
-
-		return undefined
 	}
 
 	/**

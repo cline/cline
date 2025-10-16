@@ -662,6 +662,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			case "taskAndWorkspace":
 				// Update conversation history deleted range in our state
 				this.state.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
+				this.taskState.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
 
 				const apiConversationHistory = this.services.messageStateHandler.getApiConversationHistory()
 				const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive

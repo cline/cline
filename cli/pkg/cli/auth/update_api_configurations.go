@@ -124,6 +124,13 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 			ActModeProviderSpecificModelIDField:  "actModeOllamaModelId",
 		}, nil
 
+	case cline.ApiProvider_CEREBRAS:
+		return ProviderFields{
+			APIKeyField:          "cerebrasApiKey",
+			PlanModeModelIDField: "planModeApiModelId",
+			ActModeModelIDField:  "actModeApiModelId",
+		}, nil
+
 	case cline.ApiProvider_CLINE:
 		return ProviderFields{
 			APIKeyField:                          "clineApiKey",
@@ -234,6 +241,8 @@ func setAPIKeyField(apiConfig *cline.ModelsApiConfiguration, fieldName string, v
 		apiConfig.GeminiApiKey = value
 	case "ollamaBaseUrl":
 		apiConfig.OllamaBaseUrl = value
+	case "cerebrasApiKey":
+		apiConfig.CerebrasApiKey = value
 	case "clineApiKey":
 		apiConfig.ClineApiKey = value
 	}

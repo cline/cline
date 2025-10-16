@@ -93,6 +93,7 @@ const ENABLED_PROVIDERS = [
 	"bedrock", // AWS Bedrock
 	"gemini", // Google Gemini
 	"ollama", // Ollama local models
+	"cerebras", // Cerebras models
 ]
 
 /**
@@ -464,7 +465,7 @@ function parseModelInfo(modelContent) {
 	for (const prop of numericProps) {
 		const match = modelContent.match(new RegExp(`${prop}:\\s*([0-9_,]+)`))
 		if (match) {
-			info[prop] = parseInt(match[1].replace(/[_,]/g, ""))
+			info[prop] = parseInt(match[1].replace(/[_,]/g, ""), 10)
 		}
 	}
 

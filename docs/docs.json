@@ -83,6 +83,15 @@
 						]
 					},
 					{
+						"group": "CLI",
+						"pages": [
+							"cline-cli/overview",
+							"cline-cli/installation",
+							"cline-cli/three-core-flows",
+							"cline-cli/cli-reference"
+						]
+					},
+					{
 						"group": "Features",
 						"pages": [
 							{
