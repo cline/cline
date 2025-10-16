@@ -11,7 +11,7 @@ interface GeneralSettingsSectionProps {
 
 const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionProps) => {
 	const { telemetrySetting, remoteConfigSettings } = useExtensionState()
-	const isDisabledByRemoteConfig = remoteConfigSettings?.telemetrySetting === "disabled"
+	const isDisabledByRemoteConfig = remoteConfigSettings?.telemetrySetting !== undefined
 
 	return (
 		<div>
@@ -24,7 +24,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 						<HeroTooltip content="This setting is managed by your organization's remote configuration">
 							<div className="flex items-center gap-2 mb-[5px]">
 								<VSCodeCheckbox
-									checked={telemetrySetting !== "disabled"}
+									checked={remoteConfigSettings?.telemetrySetting === "enabled"}
 									disabled={true}
 									onChange={(e: any) => {
 										const checked = e.target.checked === true
@@ -37,7 +37,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 						</HeroTooltip>
 					) : (
 						<VSCodeCheckbox
-							checked={telemetrySetting !== "disabled"}
+							checked={telemetrySetting === "enabled"}
 							className="mb-[5px]"
 							disabled={false}
 							onChange={(e: any) => {

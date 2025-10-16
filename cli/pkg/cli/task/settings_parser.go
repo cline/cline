@@ -314,6 +314,12 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 			return err
 		}
 		settings.TerminalOutputLineLimit = int32Ptr(val)
+	case "max_consecutive_mistakes":
+		val, err := parseInt32(value)
+		if err != nil {
+			return err
+		}
+		settings.MaxConsecutiveMistakes = int32Ptr(val)
 	case "fireworks_model_max_completion_tokens":
 		val, err := parseInt32(value)
 		if err != nil {

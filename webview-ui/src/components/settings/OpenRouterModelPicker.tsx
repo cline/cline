@@ -49,6 +49,11 @@ const featuredModels = [
 	{
 		id: "anthropic/claude-sonnet-4.5",
 		description: "Recommended for agentic coding in Cline",
+		label: "Best",
+	},
+	{
+		id: "anthropic/claude-haiku-4.5",
+		description: "Fast frontier intelligence at low cost",
 		label: "New",
 	},
 	{
@@ -218,6 +223,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const showBudgetSlider = useMemo(() => {
 		return (
 			Object.entries(openRouterModels)?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
+			selectedModelId?.toLowerCase().includes("claude-haiku-4.5") ||
+			selectedModelId?.toLowerCase().includes("claude-4.5-haiku") ||
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4.5") ||
 			selectedModelId?.toLowerCase().includes("claude-sonnet-4") ||
 			selectedModelId?.toLowerCase().includes("claude-opus-4.1") ||

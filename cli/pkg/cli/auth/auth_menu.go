@@ -103,7 +103,7 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 	if manager, err := createTaskManager(ctx); err == nil {
 		if providerList, err := GetProviderConfigurations(ctx, manager); err == nil {
 			if providerList.ActProvider != nil {
-				currentProvider = getProviderDisplayName(providerList.ActProvider.Provider)
+				currentProvider = GetProviderDisplayName(providerList.ActProvider.Provider)
 				currentModel = providerList.ActProvider.ModelID
 			}
 		}
@@ -121,6 +121,10 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 
 	action, err := ShowAuthMenuWithStatus(isClineAuth, hasOrganizations, currentProvider, currentModel)
 	if err != nil {
+		// Check if user cancelled - propagate for clean exit
+		if err == huh.ErrUserAborted {
+			return huh.ErrUserAborted
+		}
 		return err
 	}
 
@@ -202,6 +206,11 @@ func ShowAuthMenuWithStatus(isClineAuthenticated bool, hasOrganizations bool, cu
 	)
 
 	if err := form.Run(); err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			// Return the error to allow deferred cleanup to run
+			return "", huh.ErrUserAborted
+		}
 		return "", fmt.Errorf("failed to get menu choice: %w", err)
 	}
 
@@ -238,7 +247,7 @@ func HandleSelectProvider(ctx context.Context) error {
 
 	// Add each configured provider to the selection menu
 	for _, provider := range availableProviders {
-		providerName := getProviderDisplayName(provider)
+		providerName := GetProviderDisplayName(provider)
 		providerKey := fmt.Sprintf("provider_%d", provider)
 		providerOptions = append(providerOptions, huh.NewOption(providerName, providerKey))
 		providerMapping[providerKey] = provider
@@ -268,6 +277,10 @@ func HandleSelectProvider(ctx context.Context) error {
 	)
 
 	if err := form.Run(); err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			return huh.ErrUserAborted
+		}
 		return fmt.Errorf("failed to select provider: %w", err)
 	}
 

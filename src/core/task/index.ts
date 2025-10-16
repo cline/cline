@@ -31,6 +31,7 @@ import {
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
 } from "@core/storage/disk"
+import { releaseTaskLock } from "@core/task/TaskLockUtils"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
 import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkpoints/factory"
@@ -41,8 +42,10 @@ import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
 import { TerminalManager } from "@integrations/terminal/TerminalManager"
+import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
+import { featureFlagsService } from "@services/feature-flags"
 import { listFiles } from "@services/glob/list-files"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
@@ -50,7 +53,14 @@ import { ApiConfiguration } from "@shared/api"
 import { findLast, findLastIndex } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
-import { ClineApiReqCancelReason, ClineApiReqInfo, ClineAsk, ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import {
+	ClineApiReqCancelReason,
+	ClineApiReqInfo,
+	ClineAsk,
+	ClineMessage,
+	ClineSay,
+	COMMAND_CANCEL_TOKEN,
+} from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
@@ -68,9 +78,11 @@ import * as vscode from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
+import { isSubagentCommand, transformClineCommand } from "@/integrations/cli-subagents/subagent_command"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
@@ -95,7 +107,9 @@ type TaskParams = {
 	shellIntegrationTimeout: number
 	terminalReuseEnabled: boolean
 	terminalOutputLineLimit: number
+	subagentTerminalOutputLineLimit: number
 	defaultTerminalProfile: string
+	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	cwd: string
 	stateManager: StateManager
 	workspaceManager?: WorkspaceRootManager
@@ -104,9 +118,16 @@ type TaskParams = {
 	files?: string[]
 	historyItem?: HistoryItem
 	taskId: string
+	taskLockAcquired: boolean
 }
 
 export class Task {
+	// Constants
+	private static readonly STANDALONE_TERMINAL_MODULE_PATH = path.join(
+		__dirname,
+		"../standalone/runtime-files/vscode/enhanced-terminal.js",
+	)
+
 	// Core task variables
 	readonly taskId: string
 	readonly ulid: string
@@ -131,6 +152,14 @@ export class Task {
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
 
+	private terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
+	private activeBackgroundCommand?: {
+		process: TerminalProcessResultPromise & {
+			terminate?: () => void
+		}
+		command: string
+	}
+
 	// Metadata tracking
 	private fileContextTracker: FileContextTracker
 	private modelContextTracker: ModelContextTracker
@@ -153,6 +182,9 @@ export class Task {
 	// Workspace manager
 	workspaceManager?: WorkspaceRootManager
 
+	// Task Locking (Sqlite)
+	private taskLockAcquired: boolean
+
 	constructor(params: TaskParams) {
 		const {
 			controller,
@@ -164,7 +196,9 @@ export class Task {
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
 			terminalOutputLineLimit,
+			subagentTerminalOutputLineLimit,
 			defaultTerminalProfile,
+			vscodeTerminalExecutionMode,
 			cwd,
 			stateManager,
 			workspaceManager,
@@ -173,6 +207,7 @@ export class Task {
 			files,
 			historyItem,
 			taskId,
+			taskLockAcquired,
 		} = params
 
 		this.taskInitializationStartTime = performance.now()
@@ -184,22 +219,45 @@ export class Task {
 		this.reinitExistingTaskFromId = reinitExistingTaskFromId
 		this.cancelTask = cancelTask
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
+		this.taskLockAcquired = taskLockAcquired
 
 		// TODO(ae) this is a hack to replace the terminal manager for standalone,
 		// until we have proper host bridge support for terminal execution. The
 		// standaloneTerminalManager is defined in the vscode-impls and injected
 		// during compilation of the standalone manager only, so this variable only
 		// exists in that case
+
+		// First check if we're in standalone mode (original automatic detection)
 		if ((global as any).standaloneTerminalManager) {
-			console.log("[DEBUG] Using vscode-impls.js terminal manager")
 			this.terminalManager = (global as any).standaloneTerminalManager
+			this.terminalExecutionMode = "backgroundExec"
 		} else {
-			console.log("[DEBUG] Using built in terminal manager")
-			this.terminalManager = new TerminalManager()
+			// Not in standalone mode, use the configured mode (default to vscodeTerminal)
+			const terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
+			this.terminalExecutionMode = terminalExecutionMode
+
+			if (terminalExecutionMode === "backgroundExec") {
+				try {
+					const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
+						StandaloneTerminalManager?: new () => TerminalManager
+					}
+					if (StandaloneTerminalManager) {
+						this.terminalManager = new StandaloneTerminalManager()
+					} else {
+						this.terminalManager = new TerminalManager()
+					}
+				} catch (error) {
+					console.error("[DEBUG] Failed to load standalone terminal manager", error)
+					this.terminalManager = new TerminalManager()
+				}
+			} else {
+				this.terminalManager = new TerminalManager()
+			}
 		}
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
+		this.terminalManager.setSubagentTerminalOutputLineLimit(subagentTerminalOutputLineLimit)
 		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
 		this.urlContentFetcher = new UrlContentFetcher(controller.context)
@@ -685,6 +743,53 @@ export class Task {
 		return await this.controller.toggleActModeForYoloMode()
 	}
 
+	private async runUserPromptSubmitHook(
+		userContent: UserContent,
+		context: "initial_task" | "resume" | "feedback",
+	): Promise<{ shouldContinue: boolean; contextModification?: string; errorMessage?: string }> {
+		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+
+		if (!hooksEnabled) {
+			return { shouldContinue: true }
+		}
+
+		try {
+			const { HookFactory } = await import("../hooks/hook-factory")
+			const hookFactory = new HookFactory()
+			const hook = await hookFactory.create("UserPromptSubmit")
+
+			// Serialize UserContent to string for the hook
+			const promptText = userContent
+				.map((block) => {
+					if (block.type === "text") {
+						return block.text
+					}
+					if (block.type === "image") {
+						return "[IMAGE]"
+					}
+					return ""
+				})
+				.join("\n\n")
+
+			const result = await hook.run({
+				taskId: this.taskId,
+				userPromptSubmit: {
+					prompt: promptText,
+					attachments: [], // Images are inline in UserContent
+				},
+			})
+
+			return {
+				shouldContinue: result.shouldContinue,
+				contextModification: result.contextModification,
+				errorMessage: result.errorMessage,
+			}
+		} catch (error) {
+			console.error("UserPromptSubmit hook failed:", error)
+			return { shouldContinue: true }
+		}
+	}
+
 	// Task lifecycle
 
 	private async startTask(task?: string, images?: string[], files?: string[]): Promise<void> {
@@ -934,24 +1039,37 @@ export class Task {
 	}
 
 	async abortTask() {
-		// Check for incomplete progress before aborting
-		if (this.FocusChainManager) {
-			this.FocusChainManager.checkIncompleteProgressOnCompletion()
-		}
+		try {
+			// Check for incomplete progress before aborting
+			if (this.FocusChainManager) {
+				this.FocusChainManager.checkIncompleteProgressOnCompletion()
+			}
 
-		this.taskState.abort = true // will stop any autonomously running promises
-		this.terminalManager.disposeAll()
-		this.urlContentFetcher.closeBrowser()
-		await this.browserSession.dispose()
-		this.clineIgnoreController.dispose()
-		this.fileContextTracker.dispose()
-		// need to await for when we want to make sure directories/files are reverted before
-		// re-starting the task from a checkpoint
-		await this.diffViewProvider.revertChanges()
-		// Clear the notification callback when task is aborted
-		this.mcpHub.clearNotificationCallback()
-		if (this.FocusChainManager) {
-			this.FocusChainManager.dispose()
+			this.taskState.abort = true // will stop any autonomously running promises
+			this.terminalManager.disposeAll()
+			this.urlContentFetcher.closeBrowser()
+			await this.browserSession.dispose()
+			this.clineIgnoreController.dispose()
+			this.fileContextTracker.dispose()
+			// need to await for when we want to make sure directories/files are reverted before
+			// re-starting the task from a checkpoint
+			await this.diffViewProvider.revertChanges()
+			// Clear the notification callback when task is aborted
+			this.mcpHub.clearNotificationCallback()
+			if (this.FocusChainManager) {
+				this.FocusChainManager.dispose()
+			}
+		} finally {
+			// Release task folder lock
+			if (this.taskLockAcquired) {
+				try {
+					await releaseTaskLock(this.taskId)
+					this.taskLockAcquired = false
+					console.info(`[Task ${this.taskId}] Task lock released`)
+				} catch (error) {
+					console.error(`[Task ${this.taskId}] Failed to release task lock:`, error)
+				}
+			}
 		}
 	}
 
@@ -1034,6 +1152,15 @@ export class Task {
 	}
 
 	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ToolResponse]> {
+		// For Cline CLI subagents, we want to parse and process the command to ensure flags are correct
+		const isSubagent = isSubagentCommand(command)
+
+		if (transformClineCommand(command) !== command && isSubagent) {
+			command = transformClineCommand(command)
+		}
+
+		const subAgentStartTime = isSubagent ? performance.now() : 0
+
 		Logger.info("IS_TEST: " + isInTestMode())
 
 		// Check if we're in test mode
@@ -1042,14 +1169,74 @@ export class Task {
 			Logger.info("Executing command in Node: " + command)
 			return this.executeCommandInNode(command)
 		}
+
+		// CRITICAL: CLI subagent commands MUST use VSCode terminal mode (not backgroundExec)
+		// Reason: Creates a three-way deadlock when using backgroundExec:
+		//   1. Extension blocks in 'await process' waiting for CLI to exit
+		//   2. CLI blocks waiting for gRPC messages from its child gRPC server
+		//   3. gRPC server (child of CLI) needs extension to process tasks
+		// Solution: Always use VSCode terminal for CLI commands
+		const useVscodeTerminal = isSubagent
+
 		Logger.info("Executing command in terminal: " + command)
 
-		const terminalInfo = await this.terminalManager.getOrCreateTerminal(this.cwd)
+		let terminalManager: TerminalManager
+		if (useVscodeTerminal) {
+			// Create a VSCode TerminalManager for CLI subagents
+			terminalManager = new TerminalManager()
+			terminalManager.setShellIntegrationTimeout(this.terminalManager["shellIntegrationTimeout"] || 4000)
+			terminalManager.setTerminalReuseEnabled(this.terminalManager["terminalReuseEnabled"] ?? true)
+			terminalManager.setTerminalOutputLineLimit(this.terminalManager["terminalOutputLineLimit"] || 500)
+			terminalManager.setSubagentTerminalOutputLineLimit(this.terminalManager["subagentTerminalOutputLineLimit"] || 2000)
+		} else {
+			// Use the configured terminal manager for regular commands
+			terminalManager = this.terminalManager
+		}
+
+		const terminalInfo = await terminalManager.getOrCreateTerminal(this.cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = this.terminalManager.runCommand(terminalInfo, command)
+		const process = terminalManager.runCommand(terminalInfo, command)
+
+		// Track command execution for both terminal modes
+		this.controller.updateBackgroundCommandState(true, this.taskId)
+
+		if (this.terminalExecutionMode === "backgroundExec") {
+			this.activeBackgroundCommand = { process: process as any, command }
+		}
+
+		const clearCommandState = async () => {
+			if (this.terminalExecutionMode === "backgroundExec") {
+				if (this.activeBackgroundCommand?.process !== process) {
+					return
+				}
+				this.activeBackgroundCommand = undefined
+			}
+			this.controller.updateBackgroundCommandState(false, this.taskId)
+
+			// Mark the command message as completed
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const lastCommandIndex = findLastIndex(clineMessages, (m) => m.ask === "command" || m.say === "command")
+			if (lastCommandIndex !== -1) {
+				await this.messageStateHandler.updateClineMessage(lastCommandIndex, {
+					commandCompleted: true,
+				})
+			}
+		}
+
+		process.once("completed", clearCommandState)
+		process.once("error", clearCommandState)
+		process
+			// process.continue() will complete the process promise, letting exeuction continue. therefore the command should not be considered 'completed', since it could still be running in the background
+			// .finally(() => {
+			// 	clearCommandState()
+			// })
+			.catch(() => {
+				clearCommandState()
+			})
 
 		let userFeedback: { text?: string; images?: string[]; files?: string[] } | undefined
 		let didContinue = false
+		let didCancelViaUi = false
 
 		// Chunked terminal output buffering
 		const CHUNK_LINE_COUNT = 20
@@ -1091,14 +1278,24 @@ export class Task {
 					if (text || (images && images.length > 0) || (files && files.length > 0)) {
 						userFeedback = { text, images, files }
 					}
+				} else if (response === "noButtonClicked" && text === COMMAND_CANCEL_TOKEN) {
+					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.CANCELLED)
+					didCancelViaUi = true
+					userFeedback = undefined
 				} else {
 					userFeedback = { text, images, files }
 				}
 				didContinue = true
 				process.continue()
 
+				if (didCancelViaUi) {
+					outputBuffer = []
+					outputBufferSize = 0
+					await this.say("command_output", "Command cancelled")
+				}
+
 				// If more output accumulated, flush again
-				if (outputBuffer.length > 0) {
+				if (!didCancelViaUi && outputBuffer.length > 0) {
 					await flushBuffer()
 				}
 			} catch {
@@ -1123,8 +1320,12 @@ export class Task {
 
 		const outputLines: string[] = []
 		process.on("line", async (line) => {
+			if (didCancelViaUi) {
+				return
+			}
 			outputLines.push(line)
 
+			// Apply buffered streaming for both vscodeTerminal and backgroundExec modes
 			if (!didContinue) {
 				outputBuffer.push(line)
 				outputBufferSize += Buffer.byteLength(line, "utf8")
@@ -1135,6 +1336,8 @@ export class Task {
 					scheduleFlush()
 				}
 			} else {
+				// For backgroundExec mode, stream output directly to UI after user continues
+				// For vscodeTerminal mode, this maintains existing behavior
 				this.say("command_output", line)
 			}
 		})
@@ -1153,6 +1356,7 @@ export class Task {
 
 		process.once("completed", async () => {
 			completed = true
+			//await this.say("shell_integration_warning_with_suggestion")
 			// Clear the completion timer
 			if (completionTimer) {
 				clearTimeout(completionTimer)
@@ -1169,51 +1373,59 @@ export class Task {
 		})
 
 		process.once("no_shell_integration", async () => {
-			await this.say("shell_integration_warning")
+			const shouldShowSuggestion = this.controller.shouldShowBackgroundTerminalSuggestion()
+
+			if (shouldShowSuggestion) {
+				await this.say("shell_integration_warning_with_suggestion")
+			} else {
+				await this.say("shell_integration_warning")
+			}
 		})
 
 		//await process
 
-		if (timeoutSeconds) {
-			const timeoutPromise = new Promise<never>((_, reject) => {
-				setTimeout(() => {
-					reject(new Error("COMMAND_TIMEOUT"))
-				}, timeoutSeconds * 1000)
-			})
+		if (!didCancelViaUi) {
+			if (timeoutSeconds) {
+				const timeoutPromise = new Promise<never>((_, reject) => {
+					setTimeout(() => {
+						reject(new Error("COMMAND_TIMEOUT"))
+					}, timeoutSeconds * 1000)
+				})
 
-			try {
-				await Promise.race([process, timeoutPromise])
-			} catch (error) {
-				// This will continue running the command in the background
-				didContinue = true
-				process.continue()
+				try {
+					await Promise.race([process, timeoutPromise])
+				} catch (error) {
+					// This will continue running the command in the background
+					didContinue = true
+					process.continue()
 
-				// Clear all our timers
-				if (chunkTimer) {
-					clearTimeout(chunkTimer)
-					chunkTimer = null
+					// Clear all our timers
+					if (chunkTimer) {
+						clearTimeout(chunkTimer)
+						chunkTimer = null
+					}
+					if (completionTimer) {
+						clearTimeout(completionTimer)
+						completionTimer = null
+					}
+
+					// Process any output we captured before timeout
+					await setTimeoutPromise(50)
+					const result = this.terminalManager.processOutput(outputLines, undefined, false)
+
+					if (error.message === "COMMAND_TIMEOUT") {
+						return [
+							false,
+							`Command execution timed out after ${timeoutSeconds} seconds. ${result.length > 0 ? `\nOutput so far:\n${result}` : ""}`,
+						]
+					}
+
+					// Re-throw other errors
+					throw error
 				}
-				if (completionTimer) {
-					clearTimeout(completionTimer)
-					completionTimer = null
-				}
-
-				// Process any output we captured before timeout
-				await setTimeoutPromise(50)
-				const result = this.terminalManager.processOutput(outputLines)
-
-				if (error.message === "COMMAND_TIMEOUT") {
-					return [
-						false,
-						`Command execution timed out after ${timeoutSeconds} seconds. The command may still be running in the terminal.${result.length > 0 ? `\nOutput so far:\n${result}` : ""}`,
-					]
-				}
-
-				// Re-throw other errors
-				throw error
+			} else {
+				await process
 			}
-		} else {
-			await process
 		}
 
 		// Clear timer if process completes normally
@@ -1227,9 +1439,30 @@ export class Task {
 		// for their associated messages to be sent to the webview, maintaining
 		// the correct order of messages (although the webview is smart about
 		// grouping command_output messages despite any gaps anyways)
-		await setTimeoutPromise(50)
+		if (!didCancelViaUi) {
+			await setTimeoutPromise(50)
+		}
 
-		const result = this.terminalManager.processOutput(outputLines)
+		const result = terminalManager.processOutput(
+			outputLines,
+			isSubagent ? terminalManager["subagentTerminalOutputLineLimit"] : undefined,
+			isSubagent,
+		)
+
+		if (didCancelViaUi) {
+			return [
+				true,
+				formatResponse.toolResult(
+					`Command cancelled. ${result.length > 0 ? `\nOutput captured before cancellation:\n${result}` : ""}`,
+				),
+			]
+		}
+
+		// Capture subagent telemetry if this was a subagent command
+		if (isSubagent && subAgentStartTime > 0) {
+			const durationMs = Math.round(performance.now() - subAgentStartTime)
+			telemetryService.captureSubagentExecution(this.ulid, durationMs, outputLines.length, completed)
+		}
 
 		if (userFeedback) {
 			await this.say("user_feedback", userFeedback.text, userFeedback.images, userFeedback.files)
@@ -1261,6 +1494,33 @@ export class Task {
 				}\n\nYou will be updated on the terminal status and new output in the future.`,
 			]
 		}
+	}
+
+	public async cancelBackgroundCommand(): Promise<boolean> {
+		if (this.terminalExecutionMode !== "backgroundExec") {
+			return false
+		}
+		if (!this.activeBackgroundCommand) {
+			return false
+		}
+		const { process } = this.activeBackgroundCommand
+		this.activeBackgroundCommand = undefined
+		this.controller.updateBackgroundCommandState(false, this.taskId)
+		try {
+			if (typeof (process as any).terminate === "function") {
+				;(process as any).terminate()
+			} else {
+				;(process as any).continue?.()
+			}
+		} catch (error) {
+			Logger.error("Failed to terminate background command", error)
+		}
+		try {
+			await this.say("command_output", "Command cancelled. Background execution has been terminated.")
+		} catch (error) {
+			Logger.error("Failed to notify command cancellation", error)
+		}
+		return true
 	}
 
 	/**
@@ -1337,6 +1597,14 @@ export class Task {
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
 
+		// Check CLI installation status only if subagents are enabled
+		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
+		let isSubagentsEnabledAndCliInstalled = false
+		if (subagentsEnabled) {
+			const clineCliInstalled = await isClineCliInstalled()
+			isSubagentsEnabledAndCliInstalled = subagentsEnabled && clineCliInstalled
+		}
+
 		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.controller, this.cwd)
 		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.controller, this.cwd)
 
@@ -1367,6 +1635,12 @@ export class Task {
 			}))
 		}
 
+		// Detect if this is a CLI subagent to prevent nested subagent creation
+		const isCliSubagent = isCliSubagentContext({
+			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
+			maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes"),
+		})
+
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
@@ -1385,6 +1659,8 @@ export class Task {
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			isMultiRootEnabled: multiRootEnabled,
 			workspaceRoots,
+			isSubagentsEnabledAndCliInstalled,
+			isCliSubagent,
 		}
 
 		const systemPrompt = await getSystemPrompt(promptContext)
@@ -1609,6 +1885,10 @@ export class Task {
 					content = content.replace(/<thinking>\s?/g, "")
 					content = content.replace(/\s?<\/thinking>/g, "")
 
+					// New claude models tend to output <function_calls> tags which we don't want to show in the chat
+					content = content.replace(/<function_calls>\s?/g, "")
+					content = content.replace(/\s?<\/function_calls>/g, "")
+
 					// Remove partial XML tag at the very end of the content (for tool use and thinking tags)
 					// (prevents scrollview from jumping when tags are automatically removed)
 					const lastOpenBracketIndex = content.lastIndexOf("<")
@@ -1706,7 +1986,7 @@ export class Task {
 			} catch {}
 		}
 
-		if (this.taskState.consecutiveMistakeCount >= 3) {
+		if (this.taskState.consecutiveMistakeCount >= this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
 			const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 			if (autoApprovalSettings.enabled && autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
@@ -1755,6 +2035,7 @@ export class Task {
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 
 		if (
+			!this.stateManager.getGlobalSettingsKey("yoloModeToggled") &&
 			autoApprovalSettings.enabled &&
 			this.taskState.consecutiveAutoApprovedRequestsCount >= autoApprovalSettings.maxRequests
 		) {
@@ -1984,6 +2265,28 @@ export class Task {
 			userContent = parsedUserContent
 
 			userContent.push({ type: "text", text: environmentDetails })
+		}
+
+		// Run UserPromptSubmit hook before sending to API
+		const hookResult = await this.runUserPromptSubmitHook(
+			userContent,
+			this.taskState.apiRequestCount === 1 ? "initial_task" : "feedback",
+		)
+
+		// Handle hook blocking
+		if (!hookResult.shouldContinue) {
+			const errorMessage = hookResult.errorMessage || "UserPromptSubmit hook prevented this request"
+			await this.say("error", errorMessage)
+			// Return true to end the loop gracefully
+			return true
+		}
+
+		// Add hook context if provided
+		if (hookResult.contextModification) {
+			userContent.push({
+				type: "text",
+				text: `<hook_context source="UserPromptSubmit">\n${hookResult.contextModification}\n</hook_context>`,
+			})
 		}
 
 		await this.messageStateHandler.addToApiConversationHistory({

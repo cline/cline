@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
@@ -34,15 +35,15 @@ func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, s
 		msg:            msg,
 		toolParser:     NewToolResultParser(mdRenderer),
 	}
-	
+
 	// Render rich header immediately when creating segment (if in rich mode)
 	if shouldMarkdown && outputFormat != "plain" {
 		header := ss.generateRichHeader()
 		rendered, _ := mdRenderer.Render(header)
-		fmt.Println()
-		fmt.Print(rendered)
+		output.Println("")
+		output.Print(rendered)
 	}
-	
+
 	return ss
 }
 
@@ -136,10 +137,10 @@ func (ss *StreamingSegment) renderFinal(currentBuffer string) {
 	// Print the body content
 	if bodyContent != "" {
 		if !strings.HasSuffix(bodyContent, "\n") {
-			fmt.Print(bodyContent)
-			fmt.Println()
+			output.Print(bodyContent)
+			output.Println("")
 		} else {
-			fmt.Print(bodyContent)
+			output.Print(bodyContent)
 		}
 	}
 }

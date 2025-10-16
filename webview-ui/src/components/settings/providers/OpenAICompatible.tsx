@@ -86,7 +86,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 							}}
 							placeholder={"Enter base URL..."}
 							style={{ width: "100%" }}
-							type="url"
+							type="text"
 						/>
 					</div>
 				</HeroTooltip>
@@ -99,7 +99,7 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 					}}
 					placeholder={"Enter base URL..."}
 					style={{ width: "100%", marginBottom: 10 }}
-					type="url">
+					type="text">
 					<span style={{ fontWeight: 500 }}>Base URL</span>
 				</DebouncedTextField>
 			)}
