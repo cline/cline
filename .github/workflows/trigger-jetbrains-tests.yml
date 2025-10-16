@@ -12,6 +12,8 @@ jobs:
   trigger-integration-test:
     name: Run Tests
     runs-on: ubuntu-latest
+    # Only run if the secret is available (i.e., in the main repo, not forks)
+    if: ${{ secrets.CLINE_JETBRAINS_WORKFLOW_KEY != '' }}
     steps:
       - name: Generate GitHub App Token
         id: app-token
