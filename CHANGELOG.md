@@ -5,6 +5,7 @@
 - Added Cline CLI (Preview) 
 - Added Subagent support (Experimental)
 - Added Multi-Root Workspaces support (Enable in feature settings)
+- Add auto-retry with exponential backof for failed API requests
 
 ## [3.32.8]
 
