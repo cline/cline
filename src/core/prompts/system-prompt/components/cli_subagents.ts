@@ -49,6 +49,11 @@ cline "find how error handling is implemented across the application"
 - If files you want to read are large or complicated, use Cline CLI agents for exploration before instead of reading these files.`
 
 export async function getCliSubagentsSection(variant: PromptVariant, context: SystemPromptContext): Promise<string | undefined> {
+	// If this is a CLI subagent, don't include CLI subagent instructions to prevent nesting/allignment concerns
+	if (context.isCliSubagent) {
+		return undefined
+	}
+
 	// Only include this section if CLI is installed and subagents are enabled
 	if (!context.isSubagentsEnabledAndCliInstalled) {
 		return undefined

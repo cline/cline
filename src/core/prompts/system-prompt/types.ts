@@ -109,6 +109,7 @@ export interface SystemPromptContext {
 	readonly isMultiRootEnabled?: boolean
 	readonly workspaceRoots?: Array<{ path: string; name: string; vcs?: string }>
 	readonly isSubagentsEnabledAndCliInstalled?: boolean
+	readonly isCliSubagent?: boolean
 }
 
 /**
