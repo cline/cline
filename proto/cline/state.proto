@@ -323,6 +323,7 @@ message UpdateSettingsRequestCli {
   Metadata metadata = 1;
   optional Settings settings = 2;
   optional Secrets secrets = 3;
+  optional string environment = 4;
 }
 
 message UpdateTaskSettingsRequest {
@@ -361,6 +362,7 @@ message UpdateSettingsRequest {
   optional int32 max_consecutive_mistakes = 28;
   optional bool subagents_enabled = 29;
   optional int32 subagent_terminal_output_line_limit = 30;
+  optional string cline_env = 31;
 }
 
 // Complete API Configuration message

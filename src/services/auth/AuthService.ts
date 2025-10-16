@@ -1,6 +1,6 @@
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import { type EmptyRequest, String } from "@shared/proto/cline/common"
-import { clineEnvConfig } from "@/config"
+import { ClineEnv } from "@/config"
 import { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
@@ -189,12 +189,12 @@ export class AuthService {
 		// Keeping the providerName param for forward compatibility/telemetry
 		switch (providerName) {
 			case "cline":
-				this._provider = new ClineAuthProvider(clineEnvConfig)
-				this._fallbackProvider = new FirebaseAuthProvider(clineEnvConfig)
+				this._provider = new ClineAuthProvider()
+				this._fallbackProvider = new FirebaseAuthProvider()
 				break
 			case "firebase":
 			default:
-				this._provider = new FirebaseAuthProvider(clineEnvConfig)
+				this._provider = new FirebaseAuthProvider()
 				break
 		}
 	}
@@ -204,7 +204,7 @@ export class AuthService {
 		let user: any = null
 		if (this._clineAuthInfo && this._authenticated) {
 			const userInfo = this._clineAuthInfo.userInfo
-			this._clineAuthInfo.userInfo.appBaseUrl = clineEnvConfig?.appBaseUrl
+			this._clineAuthInfo.userInfo.appBaseUrl = ClineEnv.config()?.appBaseUrl
 
 			user = UserInfo.create({
 				// TODO: create proto for new user info type

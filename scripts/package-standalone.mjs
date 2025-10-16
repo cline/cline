@@ -126,31 +126,31 @@ async function copyCliBinaries() {
 	// Copy all platform-specific binaries
 	for (const { os, arch } of platforms) {
 		const platformSuffix = `${os}-${arch}`
-		
+
 		// Copy cline binary
 		const clineSource = path.join(CLI_BINARIES_DIR, `cline-${platformSuffix}`)
 		const clineDest = path.join(binDir, `cline-${platformSuffix}`)
-		
+
 		if (!fs.existsSync(clineSource)) {
 			console.error(`Error: CLI binary not found at ${clineSource}`)
 			console.error(`Please run: npm run compile-cli`)
 			process.exit(1)
 		}
-		
+
 		await cpr(clineSource, clineDest)
 		fs.chmodSync(clineDest, 0o755)
 		console.log(`✓ cline-${platformSuffix} copied`)
-		
+
 		// Copy cline-host binary
 		const hostSource = path.join(CLI_BINARIES_DIR, `cline-host-${platformSuffix}`)
 		const hostDest = path.join(binDir, `cline-host-${platformSuffix}`)
-		
+
 		if (!fs.existsSync(hostSource)) {
 			console.error(`Error: CLI binary not found at ${hostSource}`)
 			console.error(`Please run: npm run compile-cli`)
 			process.exit(1)
 		}
-		
+
 		await cpr(hostSource, hostDest)
 		fs.chmodSync(hostDest, 0o755)
 		console.log(`✓ cline-host-${platformSuffix} copied`)
@@ -212,7 +212,7 @@ async function copyRipgrepBinary() {
 			console.error(`Please run: npm run download-ripgrep`)
 			process.exit(1)
 		}
-		
+
 		// Check again after download
 		if (!fs.existsSync(ripgrepBinarySource)) {
 			console.error(`Error: Ripgrep binary still not found at ${ripgrepBinarySource}`)
@@ -263,7 +263,7 @@ async function createNpmPackageFiles() {
 	// Copy package.json from cli/ directory
 	const packageJsonSource = path.join("cli", "package.json")
 	const packageJsonDest = path.join(BUILD_DIR, "package.json")
-	
+
 	if (!fs.existsSync(packageJsonSource)) {
 		console.error(`Error: NPM package.json not found at ${packageJsonSource}`)
 		process.exit(1)
@@ -275,7 +275,7 @@ async function createNpmPackageFiles() {
 	// Copy README.md from cli/ directory
 	const readmeSource = path.join("cli", "README.md")
 	const readmeDest = path.join(BUILD_DIR, "README.md")
-	
+
 	if (!fs.existsSync(readmeSource)) {
 		console.error(`Error: NPM README.md not found at ${readmeSource}`)
 		process.exit(1)
@@ -288,7 +288,7 @@ async function createNpmPackageFiles() {
 	const manPageSource = path.join("cli", "man", "cline.1")
 	const manDir = path.join(BUILD_DIR, "man")
 	const manPageDest = path.join(manDir, "cline.1")
-	
+
 	if (!fs.existsSync(manPageSource)) {
 		console.error(`Error: Man page not found at ${manPageSource}`)
 		process.exit(1)
@@ -323,7 +323,7 @@ async function createFakeNodeModules() {
 
 	// Copy vscode stub into fake_node_modules
 	await cpr(vscodeSource, vscodeDest)
-	
+
 	console.log(`✓ fake_node_modules/vscode created at ${vscodeDest}`)
 }
 
@@ -347,7 +347,7 @@ node_modules/vscode
 
 	const npmignorePath = path.join(BUILD_DIR, ".npmignore")
 	fs.writeFileSync(npmignorePath, npmignoreContent)
-	
+
 	console.log(`✓ .npmignore created`)
 }
 
@@ -478,12 +478,12 @@ try {
 	console.error('Please report this issue at: https://github.com/cline/cline/issues');
 	process.exit(1);
 }
-`;
+`
 
 	const postinstallPath = path.join(BUILD_DIR, "postinstall.js")
 	fs.writeFileSync(postinstallPath, postinstallScript)
 	fs.chmodSync(postinstallPath, 0o755)
-	
+
 	console.log(`✓ postinstall.js created`)
 }
 

@@ -60,7 +60,6 @@ export async function tryAcquireFolderLockWithRetry(
 
 			const result = await acquireFolderLock(options)
 
-
 			return { acquired: result.acquired, conflictingLock: result.conflictingLock, skipped: false }
 		} catch (error) {
 			console.error("Error in folder lock acquisition attempt:", error)
