@@ -10,6 +10,7 @@ import {
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
@@ -26,6 +27,11 @@ import { Controller } from ".."
  */
 export async function updateSettings(controller: Controller, request: UpdateSettingsRequest): Promise<Empty> {
 	try {
+		if (request.clineEnv !== undefined) {
+			ClineEnv.setEnvironment(request.clineEnv)
+			await controller.handleSignOut()
+		}
+
 		if (request.apiConfiguration) {
 			const protoApiConfiguration = request.apiConfiguration
 

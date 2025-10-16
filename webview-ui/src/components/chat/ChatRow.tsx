@@ -18,7 +18,6 @@ import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
 import CodeBlock, {
-	CHAT_ROW_COLLAPSED_BG_COLOR,
 	CHAT_ROW_EXPANDED_BG_COLOR,
 	CODE_BLOCK_BG_COLOR,
 	TERMINAL_CODE_BLOCK_BG_COLOR,
@@ -128,7 +127,15 @@ const CommandOutput = memo(
 		// Auto-scroll to bottom when output changes (only when showing limited output)
 		useEffect(() => {
 			if (!isOutputFullyExpanded && outputRef.current) {
+				// Direct scrollTop manipulation
 				outputRef.current.scrollTop = outputRef.current.scrollHeight
+
+				// Another attempt with more delay (for slower renders) to ensure scrolling works
+				setTimeout(() => {
+					if (outputRef.current) {
+						outputRef.current.scrollTop = outputRef.current.scrollHeight
+					}
+				}, 50)
 			}
 		}, [output, isOutputFullyExpanded])
 
@@ -260,7 +267,6 @@ export const ChatRowContent = memo(
 
 		// Command output expansion state (for all messages, but only used by command messages)
 		const [isOutputFullyExpanded, setIsOutputFullyExpanded] = useState(false)
-		const commandStartTimeRef = useRef<number | null>(null)
 		const prevCommandExecutingRef = useRef<boolean>(false)
 		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
@@ -277,8 +283,12 @@ export const ChatRowContent = memo(
 				: undefined
 
 		const isCommandMessage = message.ask === "command" || message.say === "command"
-		// Simplified: A command is executing if it's a command message that hasn't completed yet and is the last message
-		const isCommandExecuting = isCommandMessage && isLast && !message.commandCompleted
+		// Check if command has output to determine if it's actually executing
+		const commandHasOutput = message.text?.includes(COMMAND_OUTPUT_STRING) ?? false
+		// A command is executing if it has output but hasn't completed yet
+		const isCommandExecuting = isCommandMessage && !message.commandCompleted && commandHasOutput
+		// A command is pending if it hasn't started (no output) and hasn't completed
+		const isCommandPending = isCommandMessage && isLast && !message.commandCompleted && !commandHasOutput
 		const isCommandCompleted = isCommandMessage && message.commandCompleted === true
 
 		const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
@@ -462,7 +472,16 @@ export const ChatRowContent = memo(
 				default:
 					return [null, null]
 			}
-		}, [type, cost, apiRequestFailedMessage, isCommandExecuting, apiReqCancelReason, isMcpServerResponding, message.text])
+		}, [
+			type,
+			cost,
+			apiRequestFailedMessage,
+			isCommandExecuting,
+			isCommandPending,
+			apiReqCancelReason,
+			isMcpServerResponding,
+			message.text,
+		])
 
 		const headerStyle: React.CSSProperties = {
 			display: "flex",
@@ -835,13 +854,6 @@ export const ChatRowContent = memo(
 			}
 		}
 
-		// Track when command starts executing (only for command messages)
-		useEffect(() => {
-			if (isCommandMessage && isCommandExecuting && commandStartTimeRef.current === null) {
-				commandStartTimeRef.current = Date.now()
-			}
-		}, [isCommandMessage, isCommandExecuting])
-
 		// Reset output expansion state when command stops (completes or is cancelled)
 		useEffect(() => {
 			// If command was executing and now isn't, clean up
@@ -865,29 +877,6 @@ export const ChatRowContent = memo(
 				return () => clearTimeout(timer)
 			}
 		}, [isCommandMessage, isCommandExecuting, isExpanded, onToggleExpand, message.ts])
-
-		// Auto-collapse when command completes (only if it ran > 500ms)
-		useEffect(() => {
-			if (isCommandMessage && isCommandCompleted && isExpanded) {
-				// Calculate how long the command ran
-				const duration = commandStartTimeRef.current ? Date.now() - commandStartTimeRef.current : 0
-
-				// Only auto-collapse if command ran for more than 500ms
-				if (duration > 500) {
-					// Wait 1.5 seconds before auto-collapsing to let user see the completion
-					const timer = setTimeout(() => {
-						onToggleExpand(message.ts)
-						// Clean up the ref after auto-collapse completes
-						commandStartTimeRef.current = null
-					}, 1500)
-
-					return () => clearTimeout(timer)
-				} else {
-					// Command was too fast, didn't auto-collapse, so clean up now
-					commandStartTimeRef.current = null
-				}
-			}
-		}, [isCommandMessage, isCommandCompleted, isExpanded, onToggleExpand, message.ts])
 
 		if (message.ask === "command" || message.say === "command") {
 			const splitMessage = (text: string) => {
@@ -924,7 +913,9 @@ export const ChatRowContent = memo(
 			const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
 			const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
 			const showCancelButton =
-				isCommandExecuting && typeof onCancelCommand === "function" && vscodeTerminalExecutionMode === "backgroundExec"
+				(isCommandExecuting || isCommandPending) &&
+				typeof onCancelCommand === "function" &&
+				vscodeTerminalExecutionMode === "backgroundExec"
 
 			// Check if this is a Cline subagent command
 			const isSubagentCommand = command.trim().startsWith("cline ")
@@ -946,22 +937,18 @@ export const ChatRowContent = memo(
 				<svg height="16" style={{ marginBottom: "-1.5px" }} viewBox="0 0 92 96" width="16">
 					<g fill="currentColor">
 						<path d="M65.4492701,16.3 C76.3374701,16.3 85.1635558,25.16479 85.1635558,36.1 L85.1635558,42.7 L90.9027661,54.1647464 C91.4694141,55.2966923 91.4668177,56.6300535 90.8957658,57.7597839 L85.1635558,69.1 L85.1635558,75.7 C85.1635558,86.63554 76.3374701,95.5 65.4492701,95.5 L26.0206986,95.5 C15.1328272,95.5 6.30641291,86.63554 6.30641291,75.7 L6.30641291,69.1 L0.448507752,57.7954874 C-0.14693501,56.6464093 -0.149634367,55.2802504 0.441262896,54.1288283 L6.30641291,42.7 L6.30641291,36.1 C6.30641291,25.16479 15.1328272,16.3 26.0206986,16.3 L65.4492701,16.3 Z M62.9301895,22 L29.189529,22 C19.8723267,22 12.3191987,29.5552188 12.3191987,38.875 L12.3191987,44.5 L7.44288578,53.9634655 C6.84794449,55.1180686 6.85066096,56.4896598 7.45017099,57.6418974 L12.3191987,67 L12.3191987,72.625 C12.3191987,81.9450625 19.8723267,89.5 29.189529,89.5 L62.9301895,89.5 C72.2476729,89.5 79.8005198,81.9450625 79.8005198,72.625 L79.8005198,67 L84.5682187,57.6061395 C85.1432011,56.473244 85.1458141,55.1345713 84.5752587,53.9994398 L79.8005198,44.5 L79.8005198,38.875 C79.8005198,29.5552188 72.2476729,22 62.9301895,22 Z" />
-						<circle cx="45.7349843" cy="11" r="11" />
-						<rect height="22" rx="2.5" width="5" x="31" y="44.5" />
-						<rect height="22" rx="2.5" width="5" x="55" y="44.5" />
+						<ellipse cx="45.7349843" cy="11" rx="12" ry="14" />
+						<ellipse cx="33.5" cy="55.5" rx="8" ry="9" />
+						<ellipse cx="57.5" cy="55.5" rx="8" ry="9" />
 					</g>
 				</svg>
 			)
 
 			// Customize icon and title for subagent commands
 			const displayIcon = isSubagentCommand ? (
-				isCommandExecuting ? (
-					<ProgressIndicator />
-				) : (
-					<span style={{ color: normalColor }}>
-						<ClineIcon />
-					</span>
-				)
+				<span style={{ color: normalColor }}>
+					<ClineIcon />
+				</span>
 			) : (
 				icon
 			)
@@ -986,27 +973,32 @@ export const ChatRowContent = memo(
 						style={{
 							borderRadius: 6,
 							border: "1px solid var(--vscode-editorGroup-border)",
-							overflow: "visible",
-							backgroundColor: isExpanded ? CHAT_ROW_EXPANDED_BG_COLOR : CHAT_ROW_COLLAPSED_BG_COLOR,
+							overflow: "hidden",
+							backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
 							transition: "all 0.3s ease-in-out",
 						}}>
 						{command && (
 							<div
-								onClick={handleToggle}
 								style={{
 									display: "flex",
 									alignItems: "center",
 									justifyContent: "space-between",
 									padding: "8px 10px",
-									backgroundColor: isExpanded ? CHAT_ROW_EXPANDED_BG_COLOR : CHAT_ROW_COLLAPSED_BG_COLOR,
-									borderBottom: isExpanded ? "1px solid var(--vscode-editorGroup-border)" : "none",
+									backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+									borderBottom: "1px solid var(--vscode-editorGroup-border)",
 									borderTopLeftRadius: "6px",
 									borderTopRightRadius: "6px",
-									borderBottomLeftRadius: isExpanded ? "0" : "6px",
-									borderBottomRightRadius: isExpanded ? "0" : "6px",
-									cursor: "pointer",
+									borderBottomLeftRadius: 0,
+									borderBottomRightRadius: 0,
 								}}>
-								<div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0 }}>
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: "8px",
+										flex: 1,
+										minWidth: 0,
+									}}>
 									<div
 										style={{
 											width: "8px",
@@ -1014,50 +1006,32 @@ export const ChatRowContent = memo(
 											borderRadius: "50%",
 											backgroundColor: isCommandExecuting
 												? successColor
-												: "var(--vscode-descriptionForeground)",
+												: isCommandPending
+													? "var(--vscode-editorWarning-foreground)"
+													: "var(--vscode-descriptionForeground)",
 											animation: isCommandExecuting ? "pulse 2s ease-in-out infinite" : "none",
 											flexShrink: 0,
 										}}
 									/>
-									{isExpanded ? (
-										<span
-											style={{
-												color: isCommandExecuting ? successColor : "var(--vscode-descriptionForeground)",
-												fontWeight: 500,
-												fontSize: "13px",
-												flexShrink: 0,
-											}}>
-											{isCommandExecuting ? "Running" : "Completed"}
-										</span>
-									) : isSubagentCommand && subagentPrompt ? (
-										<span
-											className="ph-no-capture"
-											style={{
-												color: "var(--vscode-foreground)",
-												fontSize: "13px",
-												opacity: 0.8,
-												whiteSpace: "nowrap",
-												overflow: "hidden",
-												textOverflow: "ellipsis",
-												fontFamily: "var(--vscode-editor-font-family)",
-											}}>
-											{subagentPrompt}
-										</span>
-									) : (
-										<span
-											className="ph-no-capture"
-											style={{
-												color: "var(--vscode-foreground)",
-												fontSize: "13px",
-												opacity: 0.8,
-												whiteSpace: "nowrap",
-												overflow: "hidden",
-												textOverflow: "ellipsis",
-												fontFamily: "var(--vscode-editor-font-family)",
-											}}>
-											{command}
-										</span>
-									)}
+									<span
+										style={{
+											color: isCommandExecuting
+												? successColor
+												: isCommandPending
+													? "var(--vscode-editorWarning-foreground)"
+													: "var(--vscode-descriptionForeground)",
+											fontWeight: 500,
+											fontSize: "13px",
+											flexShrink: 0,
+										}}>
+										{isCommandExecuting
+											? "Running"
+											: isCommandPending
+												? "Pending"
+												: isCommandCompleted
+													? "Completed"
+													: "Not Executed"}
+									</span>
 								</div>
 								<div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
 									{showCancelButton && (
@@ -1092,18 +1066,10 @@ export const ChatRowContent = memo(
 											{vscodeTerminalExecutionMode === "backgroundExec" ? "cancel" : "stop"}
 										</button>
 									)}
-									<span
-										className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`}
-										style={{
-											fontSize: "16px",
-											color: "var(--vscode-descriptionForeground)",
-											padding: "2px",
-										}}
-									/>
 								</div>
 							</div>
 						)}
-						{isSubagentCommand && subagentPrompt && isExpanded && (
+						{isSubagentCommand && subagentPrompt && (
 							<div style={{ padding: "10px", borderBottom: "1px solid var(--vscode-editorGroup-border)" }}>
 								<div style={{ marginBottom: 0 }}>
 									<strong>Prompt:</strong>{" "}
@@ -1113,7 +1079,7 @@ export const ChatRowContent = memo(
 								</div>
 							</div>
 						)}
-						{output.length > 0 && (
+						{/* {output.length > 0 && (
 							<div style={{ width: "100%" }}>
 								<div
 									onClick={handleToggle}
@@ -1132,8 +1098,8 @@ export const ChatRowContent = memo(
 									</span>
 								</div>
 							</div>
-						)}
-						{isExpanded && !isSubagentCommand && (
+						)} */}
+						{!isSubagentCommand && (
 							<div style={{ opacity: 0.6, backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
 								<div style={{ backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR }}>
 									<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
@@ -1142,7 +1108,7 @@ export const ChatRowContent = memo(
 						)}
 						{output.length > 0 && (
 							<CommandOutput
-								isContainerExpanded={isExpanded}
+								isContainerExpanded={true}
 								isOutputFullyExpanded={isOutputFullyExpanded}
 								onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
 								output={output}
