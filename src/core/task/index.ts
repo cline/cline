@@ -1089,6 +1089,64 @@ export class Task {
 
 	async abortTask() {
 		try {
+			// Run TaskCancel hook
+			const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+			if (hooksEnabled) {
+				try {
+					const { HookFactory } = await import("../hooks/hook-factory")
+					const hookFactory = new HookFactory()
+					const taskCancelHook = await hookFactory.create("TaskCancel")
+
+					const taskCancelResult = await taskCancelHook.run({
+						taskId: this.taskId,
+						taskCancel: {
+							taskMetadata: {
+								taskId: this.taskId,
+								ulid: this.ulid,
+								completionStatus: this.taskState.abandoned ? "abandoned" : "cancelled",
+							},
+						},
+					})
+
+					// Surface errors from hook but don't block cancellation
+					// Only try to display errors if not already aborted (to prevent blocking cleanup)
+					if (!this.taskState.abort) {
+						// Display error message if present, or default message if shouldContinue is false
+						if (taskCancelResult.errorMessage) {
+							await this.say("error", taskCancelResult.errorMessage).catch(() => {
+								// If say() fails, log to console instead
+								console.error("TaskCancel hook error:", taskCancelResult.errorMessage)
+							})
+						} else if (!taskCancelResult.shouldContinue) {
+							// For consistency with other hooks, show a default error when shouldContinue: false with no message
+							await this.say("error", "TaskCancel hook indicated an issue but provided no error message").catch(
+								() => {
+									console.error("TaskCancel hook indicated an issue (shouldContinue: false)")
+								},
+							)
+						}
+					} else {
+						// Already aborted, just log to console
+						if (taskCancelResult.errorMessage) {
+							console.error("TaskCancel hook error (already aborted):", taskCancelResult.errorMessage)
+						} else if (!taskCancelResult.shouldContinue) {
+							console.error("TaskCancel hook indicated an issue (already aborted, shouldContinue: false)")
+						}
+					}
+					// TaskCancel is fire-and-forget - we don't block cancellation based on hook result
+				} catch (hookError) {
+					const errorMessage = `TaskCancel hook failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`
+					Logger.error(errorMessage, hookError)
+					// Show error to user but continue with abort (non-fatal)
+					// Only display if not already aborted
+					if (!this.taskState.abort) {
+						await this.say("error", errorMessage).catch(() => {
+							// If say() fails, already logged above
+						})
+					}
+				}
+			}
+
 			// Check for incomplete progress before aborting
 			if (this.FocusChainManager) {
 				this.FocusChainManager.checkIncompleteProgressOnCompletion()
