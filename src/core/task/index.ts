@@ -830,20 +830,62 @@ export class Task {
 			}
 		}
 
+		// Add TaskStart hook context to the conversation if provided
+		// This follows the same pattern as PreToolUse, PostToolUse, and UserPromptSubmit hooks
+		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		if (hooksEnabled) {
+			try {
+				const { HookFactory } = await import("../hooks/hook-factory")
+				const hookFactory = new HookFactory()
+				const taskStartHook = await hookFactory.create("TaskStart")
+
+				const taskStartResult = await taskStartHook.run({
+					taskId: this.taskId,
+					taskStart: {
+						taskMetadata: {
+							taskId: this.taskId,
+							ulid: this.ulid,
+							initialTask: task || "",
+						},
+					},
+				})
+
+				if (!taskStartResult.shouldContinue) {
+					const errorMessage = taskStartResult.errorMessage || "TaskStart hook prevented task from starting"
+					await this.say("error", errorMessage)
+					// Ensure the error message is saved and posted before aborting
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					await this.postStateToWebview()
+					this.abortTask()
+					return
+				}
+
+				// Add context modification to the conversation if provided
+				if (taskStartResult.contextModification) {
+					const contextText = taskStartResult.contextModification.trim()
+					if (contextText) {
+						userContent.push({
+							type: "text",
+							text: `<hook_context source="TaskStart">\n${contextText}\n</hook_context>`,
+						})
+					}
+				}
+			} catch (hookError) {
+				const errorMessage = `TaskStart hook failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`
+				Logger.error(errorMessage, hookError)
+				// Show error to user but continue with task (non-fatal)
+				await this.say("error", errorMessage)
+			}
+		}
+
 		await this.initiateTaskLoop(userContent)
 	}
 
 	private async resumeTaskFromHistory() {
-		try {
-			await this.clineIgnoreController.initialize()
-		} catch (error) {
-			console.error("Failed to initialize ClineIgnoreController:", error)
-			// Optionally, inform the user or handle the error appropriately
-		}
-
+		// code previously here deleted to make room for task resumption logic
 		const savedClineMessages = await getSavedClineMessages(this.taskId)
 
-		// Remove any resume messages that may have been added before
+		// remove any resume_task or resume_completed_task messages from the start of the file as they are only used for the UI, and have no effect on the conversation history
 		const lastRelevantMessageIndex = findLastIndex(
 			savedClineMessages,
 			(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"),
