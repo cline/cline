@@ -8,7 +8,7 @@ import { Setting } from "@/shared/proto/index.host"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
-import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
+import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
 import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
 
 /**
@@ -16,7 +16,7 @@ import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation"
+type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "dictation" | "subagents"
 
 /**
  * Enum for terminal output failure reasons
@@ -78,6 +78,7 @@ export class TelemetryService {
 		["browser", true], // Browser telemetry enabled
 		["dictation", true], // Dictation telemetry enabled
 		["focus_chain", true], // Focus Chain telemetry enabled
+		["subagents", true], // CLI Subagents telemetry enabled
 	])
 
 	// Event constants for tracking user interactions and system events
@@ -88,6 +89,10 @@ export class TelemetryService {
 			OPT_OUT: "user.opt_out",
 			TELEMETRY_ENABLED: "user.telemetry_enabled",
 			EXTENSION_ACTIVATED: "user.extension_activated",
+			AUTH_STARTED: "user.auth_started",
+			AUTH_SUCCEEDED: "user.auth_succeeded",
+			AUTH_FAILED: "user.auth_failed",
+			AUTH_LOGGED_OUT: "user.auth_logged_out",
 		},
 		DICTATION: {
 			// Tracks when voice recording is started
@@ -187,6 +192,17 @@ export class TelemetryService {
 			TERMINAL_OUTPUT_FAILURE: "task.terminal_output_failure",
 			TERMINAL_USER_INTERVENTION: "task.terminal_user_intervention",
 			TERMINAL_HANG: "task.terminal_hang",
+			// Mention telemetry events
+			MENTION_USED: "task.mention_used",
+			MENTION_FAILED: "task.mention_failed",
+			MENTION_SEARCH_RESULTS: "task.mention_search_results",
+			// Multi-workspace search pattern tracking
+			WORKSPACE_SEARCH_PATTERN: "task.workspace_search_pattern",
+			// CLI Subagents telemetry events
+			SUBAGENT_ENABLED: "task.subagent_enabled",
+			SUBAGENT_DISABLED: "task.subagent_disabled",
+			SUBAGENT_STARTED: "task.subagent_started",
+			SUBAGENT_COMPLETED: "task.subagent_completed",
 		},
 		// UI interaction events for tracking user engagement
 		UI: {
@@ -202,9 +218,7 @@ export class TelemetryService {
 	}
 
 	public static async create(): Promise<TelemetryService> {
-		const provider = await TelemetryProviderFactory.createProvider({
-			type: "posthog",
-		})
+		const providers = await TelemetryProviderFactory.createProviders()
 		const hostVersion = await HostProvider.env.getHostVersion({})
 		const metadata: TelemetryMetadata = {
 			extension_version: extensionVersion,
@@ -214,19 +228,19 @@ export class TelemetryService {
 			os_version: os.version(),
 			is_dev: process.env.IS_DEV,
 		}
-		return new TelemetryService(provider, metadata)
+		return new TelemetryService(providers, metadata)
 	}
 
 	/**
-	 * Constructor that accepts a PostHogClientProvider instance
-	 * @param provider PostHogClientProvider instance for sending analytics events
+	 * Constructor that accepts multiple telemetry providers for dual tracking
+	 * @param providers Array of telemetry providers for dual/multi tracking
 	 */
 	constructor(
-		private provider: ITelemetryProvider,
+		private providers: ITelemetryProvider[],
 		private telemetryMetadata: TelemetryMetadata,
 	) {
 		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
-		console.info("[TelemetryService] Initialized with telemetry provider")
+		console.info(`[TelemetryService] Initialized with ${providers.length} telemetry provider(s)`)
 	}
 
 	/**
@@ -261,30 +275,113 @@ export class TelemetryService {
 			}
 		}
 
-		this.provider.setOptIn(didUserOptIn)
-	}
-
-	private addProperties(properties: any): any {
-		return {
-			...properties,
-			...this.telemetryMetadata,
-		}
+		// Update all providers
+		this.providers.forEach((provider) => {
+			provider.setOptIn(didUserOptIn)
+		})
 	}
 
 	/**
 	 * Captures a telemetry event if telemetry is enabled
 	 * @param event The event to capture with its properties
 	 */
-	public capture(event: { event: string; properties?: unknown }): void {
-		const propertiesWithVersion = this.addProperties(event.properties)
+	public capture(event: { event: string; properties?: TelemetryProperties }): void {
+		const propertiesWithMetadata: TelemetryProperties = {
+			...(event.properties || {}),
+			...this.telemetryMetadata,
+		}
+		this.captureToProviders(event.event, propertiesWithMetadata, false)
+	}
 
-		// Use the provider's log method
-		this.provider.log(event.event, propertiesWithVersion)
+	/**
+	 * Captures a required telemetry event that bypasses user opt-out settings
+	 * @param event The event name to capture
+	 * @param properties Optional properties to attach to the event
+	 */
+	public captureRequired(event: string, properties?: TelemetryProperties): void {
+		const propertiesWithMetadata: TelemetryProperties = {
+			...(properties || {}),
+			...this.telemetryMetadata,
+		}
+		this.captureToProviders(event, propertiesWithMetadata, true)
+	}
+
+	/**
+	 * Internal method to capture events to all providers with error isolation
+	 * @param event The event name
+	 * @param properties Event properties (must be JSON-serializable)
+	 * @param required Whether this is a required event
+	 */
+	private captureToProviders(event: string, properties: TelemetryProperties, required: boolean): void {
+		this.providers.forEach((provider) => {
+			try {
+				if (required) {
+					provider.logRequired(event, properties)
+				} else {
+					provider.log(event, properties)
+				}
+			} catch (error) {
+				console.error(`[TelemetryService] Provider failed for event ${event}:`, error)
+			}
+		})
 	}
 
 	public captureExtensionActivated() {
-		// Use provider's log method for the activation event
-		this.provider.log(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED)
+		this.captureToProviders(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED, {}, false)
+	}
+
+	/**
+	 * Records when authentication flow is started
+	 * @param provider The authentication provider being used
+	 */
+	public captureAuthStarted(provider?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.USER.AUTH_STARTED,
+			properties: {
+				provider,
+			},
+		})
+	}
+
+	/**
+	 * Records when authentication flow succeeds
+	 * @param provider The authentication provider that was used
+	 */
+	public captureAuthSucceeded(provider?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.USER.AUTH_SUCCEEDED,
+			properties: {
+				provider,
+			},
+		})
+	}
+
+	/**
+	 * Records when authentication flow fails
+	 * @param provider The authentication provider that was used
+	 */
+	public captureAuthFailed(provider?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.USER.AUTH_FAILED,
+			properties: {
+				provider,
+			},
+		})
+	}
+
+	/**
+	 * Records when user logs out of their account
+	 * @param provider The authentication provider that was used
+	 * @param reason The reason for logout (user action, cross-window sync, error, etc.)
+	 */
+	public captureAuthLoggedOut(provider?: string, reason?: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.USER.AUTH_LOGGED_OUT,
+			properties: {
+				provider,
+				reason,
+			},
+		})
 	}
 
 	/**
@@ -292,13 +389,24 @@ export class TelemetryService {
 	 * @param userInfo The user's information
 	 */
 	public identifyAccount(userInfo: ClineAccountUserInfo) {
-		const propertiesWithVersion = this.addProperties({})
-		// Use the provider's log method instead of direct client capture
-		this.provider.identifyUser(userInfo, propertiesWithVersion)
+		const propertiesWithMetadata: TelemetryProperties = {
+			...this.telemetryMetadata,
+		}
+
+		// Update all providers with error isolation
+		this.providers.forEach((provider) => {
+			try {
+				provider.identifyUser(userInfo, propertiesWithMetadata)
+			} catch (error) {
+				console.error(`[TelemetryService] Provider failed for user identification:`, error)
+			}
+		})
+
 		if (userInfo.id) {
 			setDistinctId(userInfo.id)
 		}
 	}
+
 	// Dictation events
 	/**
 	 * Records when voice recording is started
@@ -419,6 +527,7 @@ export class TelemetryService {
 			},
 		})
 	}
+
 	// Task events
 	/**
 	 * Records when a new task/conversation is started
@@ -482,18 +591,16 @@ export class TelemetryService {
 			return
 		}
 
-		const properties: Record<string, unknown> = {
-			ulid,
-			provider,
-			model,
-			source,
-			timestamp: new Date().toISOString(), // Add timestamp for message sequencing
-			...tokenUsage,
-		}
-
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.CONVERSATION_TURN,
-			properties,
+			properties: {
+				ulid,
+				provider,
+				model,
+				source,
+				timestamp: new Date().toISOString(), // Add timestamp for message sequencing
+				...tokenUsage,
+			},
 		})
 	}
 
@@ -574,10 +681,24 @@ export class TelemetryService {
 	 * Records when a tool is used during task execution
 	 * @param ulid Unique identifier for the task
 	 * @param tool Name of the tool being used
+	 * @param modelId The model ID being used
 	 * @param autoApproved Whether the tool was auto-approved based on settings
 	 * @param success Whether the tool execution was successful
+	 * @param workspaceContext Optional workspace context for multi-root workspace tracking
 	 */
-	public captureToolUsage(ulid: string, tool: string, modelId: string, autoApproved: boolean, success: boolean) {
+	public captureToolUsage(
+		ulid: string,
+		tool: string,
+		modelId: string,
+		autoApproved: boolean,
+		success: boolean,
+		workspaceContext?: {
+			isMultiRootEnabled: boolean
+			usedWorkspaceHint: boolean
+			resolvedToNonPrimary: boolean
+			resolutionMethod: "hint" | "primary_fallback" | "path_detection"
+		},
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TOOL_USED,
 			properties: {
@@ -586,6 +707,13 @@ export class TelemetryService {
 				autoApproved,
 				success,
 				modelId,
+				// Workspace context (optional)
+				...(workspaceContext && {
+					workspace_multi_root_enabled: workspaceContext.isMultiRootEnabled,
+					workspace_hint_used: workspaceContext.usedWorkspaceHint,
+					workspace_resolved_non_primary: workspaceContext.resolvedToNonPrimary,
+					workspace_resolution_method: workspaceContext.resolutionMethod,
+				}),
 			},
 		})
 	}
@@ -748,7 +876,8 @@ export class TelemetryService {
 			action?: string
 			url?: string
 			isRemote?: boolean
-			[key: string]: unknown
+			remoteBrowserHost?: string
+			endpoint?: string
 		},
 	) {
 		if (!this.isCategoryEnabled("browser")) {
@@ -761,7 +890,7 @@ export class TelemetryService {
 				ulid,
 				errorType,
 				errorMessage,
-				context,
+				...(context && { context }),
 				timestamp: new Date().toISOString(),
 			},
 		})
@@ -1241,6 +1370,69 @@ export class TelemetryService {
 	}
 
 	/**
+	 * Records workspace path resolution events
+	 * @param ulid Unique identifier for the task
+	 * @param context The component/handler where resolution occurred
+	 * @param resolutionType Type of resolution performed
+	 * @param hintType Type of workspace hint provided (if any)
+	 * @param resolutionSuccess Whether the resolution was successful
+	 * @param targetWorkspaceIndex Index of the resolved workspace (0=primary, 1=secondary, etc.)
+	 * @param isMultiRootEnabled Whether multi-root mode is enabled
+	 */
+	public captureWorkspacePathResolved(
+		ulid: string,
+		context: string,
+		resolutionType: "hint_provided" | "fallback_to_primary" | "cross_workspace_search",
+		hintType?: "workspace_name" | "workspace_path" | "invalid",
+		resolutionSuccess?: boolean,
+		targetWorkspaceIndex?: number,
+		isMultiRootEnabled?: boolean,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.WORKSPACE.PATH_RESOLVED,
+			properties: {
+				ulid,
+				context,
+				resolution_type: resolutionType,
+				hint_type: hintType,
+				resolution_success: resolutionSuccess,
+				target_workspace_index: targetWorkspaceIndex,
+				is_multi_root_enabled: isMultiRootEnabled,
+			},
+		})
+	}
+
+	/**
+	 * Records multi-workspace search patterns and performance
+	 * @param ulid Unique identifier for the task
+	 * @param searchType Type of search performed
+	 * @param workspaceCount Number of workspaces searched
+	 * @param hintProvided Whether a workspace hint was provided
+	 * @param resultsFound Whether search results were found
+	 * @param searchDurationMs Optional search duration in milliseconds
+	 */
+	public captureWorkspaceSearchPattern(
+		ulid: string,
+		searchType: "targeted" | "cross_workspace" | "primary_only",
+		workspaceCount: number,
+		hintProvided: boolean,
+		resultsFound: boolean,
+		searchDurationMs?: number,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.WORKSPACE_SEARCH_PATTERN,
+			properties: {
+				ulid,
+				search_type: searchType,
+				workspace_count: workspaceCount,
+				hint_provided: hintProvided,
+				results_found: resultsFound,
+				search_duration_ms: searchDurationMs,
+			},
+		})
+	}
+
+	/**
 	 * Checks if a specific telemetry category is enabled
 	 * @param category The telemetry category to check
 	 * @returns Boolean indicating whether the specified telemetry category is enabled
@@ -1251,33 +1443,150 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Get the telemetry provider instance
-	 * @returns The current telemetry provider
+	 * Get the telemetry provider instances
+	 * @returns The array of telemetry providers
 	 */
-	public getProvider(): ITelemetryProvider {
-		return this.provider
+	public getProviders(): ITelemetryProvider[] {
+		return [...this.providers]
 	}
 
 	/**
 	 * Check if telemetry is currently enabled
-	 * @returns Boolean indicating whether telemetry is enabled
+	 * @returns Boolean indicating whether any provider is enabled
 	 */
 	public isEnabled(): boolean {
-		return this.provider.isEnabled()
+		return this.providers.some((provider) => provider.isEnabled())
 	}
 
 	/**
-	 * Get current telemetry settings
+	 * Get current telemetry settings from the first provider
 	 * @returns Current telemetry settings
 	 */
 	public getSettings() {
-		return this.provider.getSettings()
+		return this.providers.length > 0
+			? this.providers[0].getSettings()
+			: {
+					extensionEnabled: false,
+					hostEnabled: false,
+					level: "off" as const,
+				}
+	}
+
+	/**
+	 * Records when a mention is successfully used and content is retrieved
+	 * @param mentionType Type of mention (file, folder, url, problems, terminal, git-changes, commit)
+	 * @param contentLength Optional length of content retrieved (for size tracking)
+	 */
+	public captureMentionUsed(
+		mentionType: "file" | "folder" | "url" | "problems" | "terminal" | "git-changes" | "commit",
+		contentLength?: number,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MENTION_USED,
+			properties: {
+				mentionType,
+				contentLength,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when a mention fails to retrieve content
+	 * @param mentionType Type of mention that failed
+	 * @param errorType Category of error (not_found, permission_denied, network_error, parse_error)
+	 * @param errorMessage Optional error message for debugging (will be truncated)
+	 */
+	public captureMentionFailed(
+		mentionType: "file" | "folder" | "url" | "problems" | "terminal" | "git-changes" | "commit",
+		errorType: "not_found" | "permission_denied" | "network_error" | "parse_error" | "unknown",
+		errorMessage?: string,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MENTION_FAILED,
+			properties: {
+				mentionType,
+				errorType,
+				errorMessage: errorMessage?.substring(0, MAX_ERROR_MESSAGE_LENGTH),
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records search results when user searches for files/folders in mention dropdown
+	 * @param query The search query entered by user
+	 * @param resultCount Number of results returned
+	 * @param searchType Type of search (file, folder, or all)
+	 * @param isEmpty Whether the search returned no results
+	 */
+	public captureMentionSearchResults(
+		query: string,
+		resultCount: number,
+		searchType: "file" | "folder" | "all",
+		isEmpty: boolean,
+	) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MENTION_SEARCH_RESULTS,
+			properties: {
+				queryLength: query.length,
+				resultCount,
+				searchType,
+				isEmpty,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	// CLI Subagents telemetry methods
+
+	/**
+	 * Records when CLI subagents feature is enabled/disabled by the user
+	 * @param enabled Whether subagents was enabled (true) or disabled (false)
+	 */
+	public captureSubagentToggle(enabled: boolean) {
+		if (!this.isCategoryEnabled("subagents")) {
+			return
+		}
+
+		this.capture({
+			event: enabled ? TelemetryService.EVENTS.TASK.SUBAGENT_ENABLED : TelemetryService.EVENTS.TASK.SUBAGENT_DISABLED,
+			properties: {
+				enabled,
+				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	/**
+	 * Records when a CLI subagent is executed
+	 * @param ulid Unique identifier for the task
+	 * @param durationMs Duration of the subagent execution in milliseconds
+	 * @param outputLines Number of lines of output produced by the subagent
+	 * @param success Whether the subagent execution was successful
+	 */
+	public captureSubagentExecution(ulid: string, durationMs: number, outputLines: number, success: boolean) {
+		if (!this.isCategoryEnabled("subagents")) {
+			return
+		}
+
+		this.capture({
+			event: success ? TelemetryService.EVENTS.TASK.SUBAGENT_COMPLETED : TelemetryService.EVENTS.TASK.SUBAGENT_STARTED,
+			properties: {
+				ulid,
+				durationMs,
+				outputLines,
+				success,
+				timestamp: new Date().toISOString(),
+			},
+		})
 	}
 
 	/**
 	 * Clean up resources when the service is disposed
 	 */
 	public async dispose(): Promise<void> {
-		await this.provider.dispose()
+		const disposePromises = this.providers.map((provider) => provider.dispose())
+		await Promise.allSettled(disposePromises)
 	}
 }

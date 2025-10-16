@@ -1,3 +1,4 @@
+import path from "node:path"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import type { ToolUse } from "@core/assistant-message"
 import { constructNewFileContent } from "@core/assistant-message/diff"
@@ -6,7 +7,7 @@ import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
-import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -48,7 +49,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		}
 
 		try {
-			const { relPath, fileExists, diff, content, newContent } = result
+			const { relPath, absolutePath, fileExists, diff, content, newContent } = result
 
 			// Create and show partial UI message
 			const sharedMessageProps: ClineSayTool = {
@@ -74,7 +75,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			// CRITICAL: Open editor and stream content in real-time (from original code)
 			if (!config.services.diffViewProvider.isEditing) {
 				// Open the editor and prepare to stream content in
-				await config.services.diffViewProvider.open(relPath)
+				await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
 			}
 			// Editor is open, stream content in real-time (false = don't finalize yet)
 			await config.services.diffViewProvider.update(newContent, false)
@@ -124,7 +125,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				return "" // can only happen if the sharedLogic adds an error to userMessages
 			}
 
-			const { relPath, fileExists, diff, content, newContent } = result
+			const { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext } = result
 
 			// Handle approval flow
 			const sharedMessageProps: ClineSayTool = {
@@ -140,7 +141,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// show gui message before showing edit animation
 				const partialMessage = JSON.stringify(sharedMessageProps)
 				await config.callbacks.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
-				await config.services.diffViewProvider.open(relPath)
+				await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
 			}
 			await config.services.diffViewProvider.update(newContent, true)
 			await setTimeoutPromise(300) // wait for diff view to update
@@ -163,10 +164,12 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// Auto-approval flow
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-				config.taskState.consecutiveAutoApprovedRequestsCount++
+				if (!config.yoloModeToggled) {
+					config.taskState.consecutiveAutoApprovedRequestsCount++
+				}
 
 				// Capture telemetry
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
+				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
 
 				// we need an artificial delay to let the diagnostics catch up to the changes
 				await setTimeoutPromise(3_500)
@@ -215,7 +218,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					// await config.services.diffViewProvider.reset()
 
 					config.taskState.didRejectTool = true
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
+					telemetryService.captureToolUsage(
+						config.ulid,
+						block.name,
+						config.api.getModel().id,
+						false,
+						false,
+						workspaceContext,
+					)
 
 					await config.services.diffViewProvider.revertChanges()
 					return `The user denied this operation. ${fileDeniedNote}`
@@ -237,7 +247,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						await config.callbacks.say("user_feedback", text, images, files)
 					}
 
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
+					telemetryService.captureToolUsage(
+						config.ulid,
+						block.name,
+						config.api.getModel().id,
+						false,
+						true,
+						workspaceContext,
+					)
 				}
 			}
 
@@ -307,6 +324,15 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				? { absolutePath: pathResult, resolvedPath: relPath }
 				: { absolutePath: pathResult.absolutePath, resolvedPath: pathResult.resolvedPath }
 
+		// Determine workspace context for telemetry
+		const fallbackAbsolutePath = path.resolve(config.cwd, relPath)
+		const workspaceContext = {
+			isMultiRootEnabled: config.isMultiRootEnabled || false,
+			usedWorkspaceHint: typeof pathResult !== "string", // multi-root path result indicates hint usage
+			resolvedToNonPrimary: !arePathsEqual(absolutePath, fallbackAbsolutePath),
+			resolutionMethod: (typeof pathResult !== "string" ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
+		}
+
 		// Check clineignore access first
 		const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
 		if (!accessValidation.ok) {
@@ -354,7 +380,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			// open the editor if not done already.  This is to fix diff error when model provides correct search-replace text but Cline throws error
 			// because file is not open.
 			if (!config.services.diffViewProvider.isEditing) {
-				await config.services.diffViewProvider.open(relPath)
+				await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
 			}
 
 			try {
@@ -425,6 +451,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
 
-		return { relPath, fileExists, diff, content, newContent }
+		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext }
 	}
 }

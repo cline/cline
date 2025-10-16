@@ -4,11 +4,11 @@ import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
 import type { ChatCompletionTool } from "openai/resources/chat/completions"
-import { clineEnvConfig } from "@/config"
+import { ClineEnv } from "@/config"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
+import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
-import { version as extensionVersion } from "../../../../package.json"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
@@ -31,7 +31,7 @@ export class ClineHandler implements ApiHandler {
 	private clineAccountService = ClineAccountService.getInstance()
 	private _authService: AuthService
 	private client: OpenAI | undefined
-	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
+	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	lastGenerationId?: string
 	private lastRequestId?: string
 
@@ -47,15 +47,17 @@ export class ClineHandler implements ApiHandler {
 		}
 		if (!this.client) {
 			try {
+				const defaultHeaders: Record<string, string> = {
+					"HTTP-Referer": "https://cline.bot",
+					"X-Title": "Cline",
+					"X-Task-ID": this.options.ulid || "",
+				}
+				Object.assign(defaultHeaders, await buildClineExtraHeaders())
+
 				this.client = new OpenAI({
 					baseURL: `${this._baseUrl}/api/v1`,
 					apiKey: clineAccountAuthToken,
-					defaultHeaders: {
-						"HTTP-Referer": "https://cline.bot",
-						"X-Title": "Cline",
-						"X-Task-ID": this.options.ulid || "",
-						"X-Cline-Version": extensionVersion,
-					},
+					defaultHeaders,
 					// Capture real HTTP request ID from initial streaming response headers
 					fetch: async (...args: Parameters<typeof fetch>): Promise<Awaited<ReturnType<typeof fetch>>> => {
 						const [input, init] = args
@@ -180,6 +182,26 @@ export class ClineHandler implements ApiHandler {
 					}
 				}
 
+				/* 
+				OpenRouter passes reasoning details that we can pass back unmodified in api requests to preserve reasoning traces for model
+				  - The reasoning_details array in each chunk may contain one or more reasoning objects
+				  - For encrypted reasoning, the content may appear as [REDACTED] in streaming responses
+				  - The complete reasoning sequence is built by concatenating all chunks in order
+				See: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks
+				*/
+				if (
+					"reasoning_details" in delta &&
+					delta.reasoning_details &&
+					// @ts-ignore-next-line
+					delta.reasoning_details.length && // exists and non-0
+					!shouldSkipReasoningForModel(this.options.openRouterModelId)
+				) {
+					yield {
+						type: "reasoning_details",
+						reasoning_details: delta.reasoning_details,
+					}
+				}
+
 				if (!didOutputUsage && chunk.usage) {
 					// @ts-ignore-next-line
 					const totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
@@ -218,11 +240,14 @@ export class ClineHandler implements ApiHandler {
 				if (!clineAccountAuthToken) {
 					throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 				}
+				const headers: Record<string, string> = {
+					// Align with backend auth expectations
+					Authorization: `Bearer ${clineAccountAuthToken}`,
+				}
+				Object.assign(headers, await buildClineExtraHeaders())
+
 				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
-					headers: {
-						// Align with backend auth expectations
-						Authorization: `Bearer ${clineAccountAuthToken}`,
-					},
+					headers,
 					timeout: 15_000, // this request hangs sometimes
 				})
 

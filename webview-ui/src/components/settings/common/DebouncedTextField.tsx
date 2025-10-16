@@ -11,7 +11,7 @@ interface DebouncedTextFieldProps {
 
 	// Common VSCodeTextField props
 	style?: React.CSSProperties
-	type?: "text" | "password" | "url"
+	type?: "text" | "password"
 	placeholder?: string
 	id?: string
 	children?: React.ReactNode
@@ -30,7 +30,7 @@ export const DebouncedTextField = ({ initialValue, onChange, children, type, ...
 			{...otherProps}
 			onInput={(e: any) => {
 				const value = e.target.value
-				setLocalValue(type === "url" ? value.trim() : value)
+				setLocalValue(value)
 			}}
 			type={type}
 			value={localValue}>

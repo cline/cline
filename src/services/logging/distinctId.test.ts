@@ -1,10 +1,9 @@
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
+import * as nodeMachineId from "node-machine-id"
 import * as sinon from "sinon"
 import * as vscode from "vscode"
-import { HostProvider } from "@/hosts/host-provider"
 import { _GENERATED_MACHINE_ID_KEY, getDistinctId, initializeDistinctId, setDistinctId } from "@/services/logging/distinctId"
-import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 
 describe("distinctId", () => {
 	let sandbox: sinon.SinonSandbox
@@ -27,45 +26,40 @@ describe("distinctId", () => {
 		// Mock extension context
 		mockContext = { globalState: mockGlobalState } as unknown as vscode.ExtensionContext
 
-		// Mock vscode workspace
-		setVscodeHostProviderMock()
-
 		// Reset the distinctId module state
 		setDistinctId("")
 	})
 
 	afterEach(() => {
 		sandbox.restore()
-		// Reset HostProvider after each test to ensure clean state
-		HostProvider.reset()
 	})
 
 	it("should use id from extension globalstate if it exists", async () => {
 		mockGlobalState.get.withArgs(_GENERATED_MACHINE_ID_KEY).returns(MOCK_GLOBAL_STATE_ID)
-		const getMachineIdStub = sandbox.stub(HostProvider.env, "getMachineId").resolves({ value: MOCK_MACHINE_ID })
+		const machineIdStub = sandbox.stub(nodeMachineId, "machineId")
 
 		await initializeDistinctId(mockContext, mockUuidGenerator)
 
 		expect(getDistinctId()).to.equal(MOCK_GLOBAL_STATE_ID)
-		expect(getMachineIdStub.notCalled).to.be.true
+		expect(machineIdStub.notCalled).to.be.true
 		expect(mockGlobalState.update.notCalled).to.be.true
 	})
 
-	it("should use the host machine ID", async () => {
-		// Mock getMachineId to return a machine ID
-		const getMachineIdStub = sandbox.stub(HostProvider.env, "getMachineId").resolves({ value: MOCK_MACHINE_ID })
+	it("should use the machine ID from node-machine-id", async () => {
+		// Mock node-machine-id to return a machine ID
+		const machineIdStub = sandbox.stub(nodeMachineId, "machineId").resolves(MOCK_MACHINE_ID)
 
 		await initializeDistinctId(mockContext, mockUuidGenerator)
 
 		expect(getDistinctId()).to.equal(MOCK_MACHINE_ID)
-		expect(getMachineIdStub.calledOnce).to.be.true
+		expect(machineIdStub.calledOnce).to.be.true
 		expect(mockGlobalState.update.notCalled).to.be.true
 	})
 
 	it("distinct ID should be stable", async () => {
 		mockGlobalState.get.withArgs(_GENERATED_MACHINE_ID_KEY).returns(undefined)
-		// Mock getMachineId to return a machine ID
-		sandbox.stub(HostProvider.env, "getMachineId").resolves({ value: MOCK_MACHINE_ID })
+		// Mock node-machine-id to return a machine ID
+		sandbox.stub(nodeMachineId, "machineId").resolves(MOCK_MACHINE_ID)
 
 		await initializeDistinctId(mockContext, mockUuidGenerator)
 		expect(getDistinctId()).to.equal(MOCK_MACHINE_ID)
@@ -76,27 +70,27 @@ describe("distinctId", () => {
 		expect(mockGlobalState.update.notCalled).to.be.true
 	})
 
-	it("should generate and store UUID if there is no host ID", async () => {
+	it("should generate and store UUID if node-machine-id returns empty string", async () => {
 		mockGlobalState.get.withArgs(_GENERATED_MACHINE_ID_KEY).returns(undefined)
-		// Mock getMachineId to return undefined
-		const getMachineIdStub = sandbox.stub(HostProvider.env, "getMachineId").resolves({ value: "" })
+		// Mock node-machine-id to return empty string
+		const machineIdStub = sandbox.stub(nodeMachineId, "machineId").resolves("")
 
 		await initializeDistinctId(mockContext, mockUuidGenerator)
 
 		expect(getDistinctId()).to.equal(GENERATED_MACHINE_ID)
-		expect(getMachineIdStub.calledOnce).to.be.true
+		expect(machineIdStub.calledOnce).to.be.true
 		expect(mockGlobalState.update.calledWith(_GENERATED_MACHINE_ID_KEY, GENERATED_MACHINE_ID)).to.be.true
 	})
 
-	it("should handle getMachineId errors gracefully", async () => {
+	it("should handle node-machine-id errors gracefully", async () => {
 		mockGlobalState.get.withArgs(_GENERATED_MACHINE_ID_KEY).returns(undefined)
-		// Mock getMachineId to throw an error
-		const getMachineIdStub = sandbox.stub(HostProvider.env, "getMachineId").rejects(new Error("Network error"))
+		// Mock node-machine-id to throw an error
+		const machineIdStub = sandbox.stub(nodeMachineId, "machineId").rejects(new Error("Failed to get machine ID"))
 
 		await initializeDistinctId(mockContext, mockUuidGenerator)
 
 		expect(getDistinctId()).to.equal(GENERATED_MACHINE_ID)
-		expect(getMachineIdStub.calledOnce).to.be.true
+		expect(machineIdStub.calledOnce).to.be.true
 		expect(mockGlobalState.update.calledWith(_GENERATED_MACHINE_ID_KEY, GENERATED_MACHINE_ID)).to.be.true
 	})
 })

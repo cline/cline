@@ -1,60 +1,37 @@
-import { EmptyRequest } from "@shared/proto/index.cline"
+import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { Megaphone } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback } from "react"
 import { useMount } from "react-use"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
-const NEW_MODEL_BANNER_DISMISSED_KEY = "new-model-banner-dismissed"
-const CURRENT_BANNER_VERSION = "sep-28-2025"
+export const CURRENT_MODEL_BANNER_VERSION = 2
 
 export const NewModelBanner: React.FC = () => {
 	const { clineUser } = useClineAuth()
-	const { apiConfiguration, openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
-	const user = apiConfiguration?.clineAccountId ? clineUser : undefined
+	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
+	const user = clineUser || undefined
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-
-	const [shouldShow, setShouldShow] = useState<boolean>(false)
 
 	// Need to get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
-
-	// Check localStorage on mount to see if banner was already dismissed
-	useEffect(() => {
-		try {
-			const dismissedVersion = localStorage.getItem(NEW_MODEL_BANNER_DISMISSED_KEY)
-			if (dismissedVersion !== CURRENT_BANNER_VERSION) {
-				setShouldShow(true)
-			}
-		} catch (e) {
-			console.error("Error checking banner dismissal state:", e)
-		}
-	}, [])
 
 	const handleClose = useCallback((e?: React.MouseEvent) => {
 		e?.preventDefault()
 		e?.stopPropagation()
 
-		// Store dismissal state in localStorage
-		try {
-			localStorage.setItem(NEW_MODEL_BANNER_DISMISSED_KEY, CURRENT_BANNER_VERSION)
-			setShouldShow(false)
-		} catch (e) {
-			console.error("Error storing banner dismissal state:", e)
-		}
+		// Update state instead of localStorage
+		StateServiceClient.updateModelBannerVersion(Int64Request.create({ value: CURRENT_MODEL_BANNER_VERSION })).catch(
+			console.error,
+		)
 	}, [])
 
-	// Don't show banner if it was already dismissed
-	if (!shouldShow) {
-		return null
-	}
-
 	const setNewModel = () => {
-		const modelId = "anthropic/claude-sonnet-4.5"
+		const modelId = "anthropic/claude-haiku-4.5"
 		// set both plan and act modes to use new model
 		handleFieldsChange({
 			planModeOpenRouterModelId: modelId,
@@ -90,7 +67,7 @@ export const NewModelBanner: React.FC = () => {
 
 	return (
 		<div
-			className="px-3 py-2 flex flex-col gap-1 shrink-0 mb-1 relative text-sm m-4 no-underline transition-colors hover:brightness-120 border-0 cursor-pointer text-left w-auto"
+			className="px-3 py-2 flex flex-col gap-1 shrink-0 mb-1 relative text-sm mt-1.5 m-4 no-underline transition-colors hover:brightness-120 border-0 cursor-pointer text-left w-auto"
 			onClick={handleBannerClick}
 			style={{
 				backgroundColor: getAsVar(VSC_INACTIVE_SELECTION_BACKGROUND),
@@ -99,10 +76,10 @@ export const NewModelBanner: React.FC = () => {
 			}}>
 			<h4 className="m-0 flex items-center gap-2" style={{ paddingRight: "18px" }}>
 				<Megaphone className="w-4 h-4" />
-				Claude Sonnet 4.5
+				Claude Haiku 4.5
 			</h4>
 			<p className="m-0">
-				Anthropic's latest model excels at complex planning and long-horizon coding tasks.{" "}
+				Anthropic's fastest model with frontier-level coding intelligence at a fraction of the cost.{" "}
 				<span className="text-link cursor-pointer">{user ? "Try new model" : "Try with Cline account"} →</span>
 			</p>
 

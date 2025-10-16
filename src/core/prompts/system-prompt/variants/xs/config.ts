@@ -26,6 +26,7 @@ export const config = createVariant(ModelFamily.XS)
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.RULES,
 		SystemPromptSection.ACT_VS_PLAN,
+		SystemPromptSection.CLI_SUBAGENTS,
 		SystemPromptSection.CAPABILITIES,
 		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.OBJECTIVE,

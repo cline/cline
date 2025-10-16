@@ -18,6 +18,7 @@ tsconfig*.json
 eslint-rules/**
 .github/**
 .husky/**
+.env
 
 # Custom
 **/demo.gif
@@ -35,6 +36,9 @@ evals/
 buf.yaml
 .changeset/
 .clinerules/
+
+# Include specific file needed for Background Exec mode
+!standalone/runtime-files/vscode/enhanced-terminal.js
 
 # Ignore all webview-ui files except the build directory (https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/frameworks/hello-world-react-cra/.vscodeignore)
 webview-ui/src/**

@@ -70,7 +70,11 @@ export class OpenAiHandler implements ApiHandler {
 		const modelId = this.options.openAiModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 		const isR1FormatRequired = this.options.openAiModelInfo?.isR1FormatRequired ?? false
-		const isReasoningModelFamily = modelId.includes("o1") || modelId.includes("o3") || modelId.includes("o4")
+		const isReasoningModelFamily =
+			modelId.includes("o1") ||
+			modelId.includes("o3") ||
+			modelId.includes("o4") ||
+			(modelId.includes("gpt-5") && !modelId.includes("chat"))
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },

@@ -2,8 +2,8 @@ import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
 
-// Keep track of active chatButtonClicked subscriptions by controller ID
-const activeChatButtonClickedSubscriptions = new Map<string, StreamingResponseHandler<Empty>>()
+// Keep track of active chatButtonClicked subscriptions
+const activeChatButtonClickedSubscriptions = new Set<StreamingResponseHandler<Empty>>()
 
 /**
  * Subscribe to chatButtonClicked events
@@ -13,20 +13,19 @@ const activeChatButtonClickedSubscriptions = new Map<string, StreamingResponseHa
  * @param requestId The ID of the request (passed by the gRPC handler)
  */
 export async function subscribeToChatButtonClicked(
-	controller: Controller,
+	_controller: Controller,
 	_request: EmptyRequest,
 	responseStream: StreamingResponseHandler<Empty>,
 	requestId?: string,
 ): Promise<void> {
-	const controllerId = controller.id
-	console.log(`[DEBUG] set up chatButtonClicked subscription for controller ${controllerId}`)
+	console.log(`[DEBUG] set up chatButtonClicked subscription`)
 
-	// Add this subscription to the active subscriptions with the controller ID
-	activeChatButtonClickedSubscriptions.set(controllerId, responseStream)
+	// Add this subscription to the active subscriptions
+	activeChatButtonClickedSubscriptions.add(responseStream)
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
-		activeChatButtonClickedSubscriptions.delete(controllerId)
+		activeChatButtonClickedSubscriptions.delete(responseStream)
 	}
 
 	// Register the cleanup function with the request registry if we have a requestId
@@ -36,27 +35,23 @@ export async function subscribeToChatButtonClicked(
 }
 
 /**
- * Send a chatButtonClicked event to a specific controller's subscription
- * @param controllerId The ID of the controller to send the event to
+ * Send a chatButtonClicked event to all active subscribers
  */
-export async function sendChatButtonClickedEvent(controllerId: string): Promise<void> {
-	// Get the subscription for this specific controller
-	const responseStream = activeChatButtonClickedSubscriptions.get(controllerId)
+export async function sendChatButtonClickedEvent(): Promise<void> {
+	// Send the event to all active subscribers
+	const promises = Array.from(activeChatButtonClickedSubscriptions).map(async (responseStream) => {
+		try {
+			const event = Empty.create({})
+			await responseStream(
+				event,
+				false, // Not the last message
+			)
+		} catch (error) {
+			console.error("Error sending chatButtonClicked event:", error)
+			// Remove the subscription if there was an error
+			activeChatButtonClickedSubscriptions.delete(responseStream)
+		}
+	})
 
-	if (!responseStream) {
-		console.log(`[DEBUG] No active subscription for controller ${controllerId}`)
-		return
-	}
-
-	try {
-		const event = Empty.create({})
-		await responseStream(
-			event,
-			false, // Not the last message
-		)
-	} catch (error) {
-		console.error(`Error sending chatButtonClicked event to controller ${controllerId}:`, error)
-		// Remove the subscription if there was an error
-		activeChatButtonClickedSubscriptions.delete(controllerId)
-	}
+	await Promise.all(promises)
 }

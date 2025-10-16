@@ -1,20 +1,20 @@
-import type React from "react"
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
-import "../../../src/shared/webview/types"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
+import { ClineFeatureSetting } from "@shared/ClineFeatureSetting"
 import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@shared/DictationSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
 import { DEFAULT_MCP_DISPLAY_MODE } from "@shared/McpDisplayMode"
 import type { UserInfo } from "@shared/proto/cline/account"
-import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { type TerminalProfile } from "@shared/proto/cline/state"
-import { WebviewProviderType as WebviewProviderTypeEnum, WebviewProviderTypeRequest } from "@shared/proto/cline/ui"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import type React from "react"
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import { Environment } from "../../../src/config"
 import {
 	basetenDefaultModelId,
 	basetenModels,
@@ -44,11 +44,13 @@ export interface ExtensionStateContextType extends ExtensionState {
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	totalTasksSize: number | null
+	lastDismissedCliBannerVersion: number
 
 	availableTerminalProfiles: TerminalProfile[]
 
 	// View state
 	showMcp: boolean
+	hooksEnabled?: ClineFeatureSetting
 	mcpTab?: McpViewTab
 	showSettings: boolean
 	showHistory: boolean
@@ -110,9 +112,6 @@ export const ExtensionStateContext = createContext<ExtensionStateContextType | u
 export const ExtensionStateContextProvider: React.FC<{
 	children: React.ReactNode
 }> = ({ children }) => {
-	// Get the current webview provider type
-	const currentProviderType =
-		window.WEBVIEW_PROVIDER_TYPE === "sidebar" ? WebviewProviderTypeEnum.SIDEBAR : WebviewProviderTypeEnum.TAB
 	// UI view state
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
@@ -190,6 +189,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		openaiReasoningEffort: "medium",
 		mode: "act",
 		platform: DEFAULT_PLATFORM,
+		environment: Environment.production,
 		telemetrySetting: "unset",
 		distinctId: "",
 		planActSeparateModelsSetting: true,
@@ -203,7 +203,10 @@ export const ExtensionStateContextProvider: React.FC<{
 		globalWorkflowToggles: {},
 		shellIntegrationTimeout: 4000,
 		terminalReuseEnabled: true,
+		vscodeTerminalExecutionMode: "vscodeTerminal",
 		terminalOutputLineLimit: 500,
+		maxConsecutiveMistakes: 3,
+		subagentTerminalOutputLineLimit: 2000,
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
@@ -215,12 +218,19 @@ export const ExtensionStateContextProvider: React.FC<{
 		autoCondenseThreshold: undefined,
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
+		lastDismissedModelBannerVersion: 0,
+		remoteConfigSettings: {},
+		backgroundCommandRunning: false,
+		backgroundCommandTaskId: undefined,
+		lastDismissedCliBannerVersion: 0,
+		subagentsEnabled: false,
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
 		primaryRootIndex: 0,
 		isMultiRootWorkspace: false,
 		multiRootSetting: { user: false, featureFlag: false },
+		hooksEnabled: { user: false, featureFlag: false },
 	})
 	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -279,9 +289,6 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
-		// Use the already defined webview provider type
-		const webviewType = currentProviderType
-
 		// Set up state subscription
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
 			onResponse: (response) => {
@@ -332,9 +339,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Subscribe to MCP button clicked events with webview type
 		mcpButtonUnsubscribeRef.current = UiServiceClient.subscribeToMcpButtonClicked(
-			WebviewProviderTypeRequest.create({
-				providerType: webviewType,
-			}),
+			{},
 			{
 				onResponse: () => {
 					console.log("[DEBUG] Received mcpButtonClicked event from gRPC stream")
@@ -351,9 +356,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Set up history button clicked subscription with webview type
 		historyButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToHistoryButtonClicked(
-			WebviewProviderTypeRequest.create({
-				providerType: webviewType,
-			}),
+			{},
 			{
 				onResponse: () => {
 					// When history button is clicked, navigate to history view
@@ -370,17 +373,20 @@ export const ExtensionStateContextProvider: React.FC<{
 		)
 
 		// Subscribe to chat button clicked events with webview type
-		chatButtonUnsubscribeRef.current = UiServiceClient.subscribeToChatButtonClicked(EmptyRequest.create({}), {
-			onResponse: () => {
-				// When chat button is clicked, navigate to chat
-				console.log("[DEBUG] Received chat button clicked event from gRPC stream")
-				navigateToChat()
+		chatButtonUnsubscribeRef.current = UiServiceClient.subscribeToChatButtonClicked(
+			{},
+			{
+				onResponse: () => {
+					// When chat button is clicked, navigate to chat
+					console.log("[DEBUG] Received chat button clicked event from gRPC stream")
+					navigateToChat()
+				},
+				onError: (error) => {
+					console.error("Error in chat button subscription:", error)
+				},
+				onComplete: () => {},
 			},
-			onError: (error) => {
-				console.error("Error in chat button subscription:", error)
-			},
-			onComplete: () => {},
-		})
+		)
 
 		// Subscribe to didBecomeVisible events
 		didBecomeVisibleUnsubscribeRef.current = UiServiceClient.subscribeToDidBecomeVisible(EmptyRequest.create({}), {
@@ -411,23 +417,18 @@ export const ExtensionStateContextProvider: React.FC<{
 		})
 
 		// Set up settings button clicked subscription
-		settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(
-			WebviewProviderTypeRequest.create({
-				providerType: currentProviderType,
-			}),
-			{
-				onResponse: () => {
-					// When settings button is clicked, navigate to settings
-					navigateToSettings()
-				},
-				onError: (error) => {
-					console.error("Error in settings button clicked subscription:", error)
-				},
-				onComplete: () => {
-					console.log("Settings button clicked subscription completed")
-				},
+		settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(EmptyRequest.create({}), {
+			onResponse: () => {
+				// When settings button is clicked, navigate to settings
+				navigateToSettings()
 			},
-		)
+			onError: (error) => {
+				console.error("Error in settings button clicked subscription:", error)
+			},
+			onComplete: () => {
+				console.log("Settings button clicked subscription completed")
+			},
+		})
 
 		// Subscribe to partial message events
 		partialMessageUnsubscribeRef.current = UiServiceClient.subscribeToPartialMessage(EmptyRequest.create({}), {
@@ -542,10 +543,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		})
 
 		// Subscribe to focus chat input events
-		const clientId = (window as any).clineClientId
-		if (clientId) {
-			const request = StringRequest.create({ value: clientId })
-			focusChatInputUnsubscribeRef.current = UiServiceClient.subscribeToFocusChatInput(request, {
+		focusChatInputUnsubscribeRef.current = UiServiceClient.subscribeToFocusChatInput(
+			{},
+			{
 				onResponse: () => {
 					// Dispatch a local DOM event within this webview only
 					window.dispatchEvent(new CustomEvent("focusChatInput"))
@@ -554,10 +554,8 @@ export const ExtensionStateContextProvider: React.FC<{
 					console.error("Error in focusChatInput subscription:", error)
 				},
 				onComplete: () => {},
-			})
-		} else {
-			console.error("Client ID not found in window object")
-		}
+			},
+		)
 
 		// Clean up subscriptions when component unmounts
 		return () => {

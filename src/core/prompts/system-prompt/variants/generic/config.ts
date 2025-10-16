@@ -31,6 +31,7 @@ export const config = createVariant(ModelFamily.GENERIC)
 		SystemPromptSection.MCP,
 		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.ACT_VS_PLAN,
+		SystemPromptSection.CLI_SUBAGENTS,
 		SystemPromptSection.TODO,
 		SystemPromptSection.CAPABILITIES,
 		SystemPromptSection.RULES,

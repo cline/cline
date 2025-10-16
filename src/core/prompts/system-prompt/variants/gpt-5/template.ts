@@ -27,6 +27,10 @@ export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
+{{${SystemPromptSection.CLI_SUBAGENTS}}}
+
+====
+
 {{${SystemPromptSection.CAPABILITIES}}}
 
 ====
