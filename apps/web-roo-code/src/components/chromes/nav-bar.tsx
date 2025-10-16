@@ -38,8 +38,13 @@ export function NavBar({ stars, downloads }: NavBarProps) {
 					<ScrollButton
 						targetId="product"
 						className="text-muted-foreground px-4 py-6 transition-transform duration-200 hover:scale-105 hover:text-foreground max-lg:hidden">
-						Product
+						Extension
 					</ScrollButton>
+					<Link
+						href="/cloud"
+						className="text-muted-foreground px-4 py-6 transition-transform duration-200 hover:scale-105 hover:text-foreground">
+						Cloud
+					</Link>
 					<a
 						href={EXTERNAL_LINKS.DOCUMENTATION}
 						target="_blank"
@@ -140,8 +145,14 @@ export function NavBar({ stars, downloads }: NavBarProps) {
 							targetId="product"
 							className="block w-full p-5 py-3 text-left text-foreground active:opacity-50"
 							onClick={() => setIsMenuOpen(false)}>
-							Product
+							Extension
 						</ScrollButton>
+						<Link
+							href="/cloud"
+							className="block w-full p-5 text-left text-foreground active:opacity-50"
+							onClick={() => setIsMenuOpen(false)}>
+							Cloud
+						</Link>
 						<a
 							href={EXTERNAL_LINKS.DOCUMENTATION}
 							target="_blank"

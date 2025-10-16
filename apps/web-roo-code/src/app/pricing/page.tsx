@@ -14,6 +14,8 @@ const DESCRIPTION =
 const PATH = "/pricing"
 const OG_IMAGE = SEO.ogImage
 
+const PRICE_CREDITS = 5
+
 export const metadata: Metadata = {
 	title: TITLE,
 	description: DESCRIPTION,
@@ -59,6 +61,7 @@ interface PricingTier {
 	icon: LucideIcon
 	price: string
 	period?: string
+	creditPrice?: string
 	trial?: string
 	cancellation?: string
 	description: string
@@ -80,8 +83,9 @@ const pricingTiers: PricingTier[] = [
 		description: "For folks just getting started",
 		features: [
 			"Token usage analytics",
-			"Access your task history across devices",
 			"Follow your tasks from anywhere",
+			"Share tasks with friends and co-workers",
+			"Early access to free AI Models",
 			"Community support",
 		],
 		cta: {
@@ -95,13 +99,13 @@ const pricingTiers: PricingTier[] = [
 		price: "$20",
 		period: "/mo",
 		trial: "Free 14-day trial · ",
+		creditPrice: `$${PRICE_CREDITS}`,
 		cancellation: "Cancel anytime",
 		description: "For pro Roo coders",
-		featuresIntro: "Everything in Free, plus:",
+		featuresIntro: "Everything in Free +",
 		features: [
-			"Roomote Control",
-			"Start, stop and control tasks from anywhere",
-			"Course-correct Roo from afar",
+			"Cloud Agents: PR Reviewer and more",
+			"Roomote Control: Start, stop and control tasks from anywhere",
 			"Paid support",
 		],
 		cta: {
@@ -114,31 +118,15 @@ const pricingTiers: PricingTier[] = [
 		icon: Users,
 		price: "$99",
 		period: "/mo",
+		creditPrice: `$${PRICE_CREDITS}`,
 		trial: "Free 14-day trial · ",
 		cancellation: "Cancel anytime",
 		description: "For AI-forward teams",
-		featuresIntro: "Everything in Pro, plus:",
+		featuresIntro: "Everything in Pro +",
 		features: ["Unlimited users (no per-seat cost)", "Shared configuration & policies", "Centralized billing"],
 		cta: {
 			text: "Get started",
 			href: EXTERNAL_LINKS.CLOUD_APP_SIGNUP + "?redirect_url=/billing",
-		},
-	},
-	{
-		name: "Enterprise",
-		icon: Building2,
-		price: "Custom",
-		description: "For complex orgs",
-		featuresIntro: "Everything in Team, plus:",
-		features: [
-			"SAML SSO provisioning",
-			"Custom integrations and terms",
-			"Security questionnaires and all that fun stuff",
-			"Dedicated support",
-		],
-		cta: {
-			text: "Talk to Sales",
-			isContactForm: true,
 		},
 	},
 ]
@@ -156,7 +144,7 @@ export default function PricingPage() {
 						<p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
 							Simple, transparent pricing that scales with your needs.
 							<br />
-							Free 14-day trials to kick the tires.
+							No inference markups. Free 14-day trials to kick the tires.
 						</p>
 					</div>
 				</div>
@@ -175,7 +163,7 @@ export default function PricingPage() {
 			{/* Pricing Tiers */}
 			<section className="">
 				<div className="container mx-auto px-4 sm:px-6 lg:px-8">
-					<div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-4">
+					<div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-3">
 						{pricingTiers.map((tier) => {
 							const Icon = tier.icon
 							return (
@@ -194,7 +182,7 @@ export default function PricingPage() {
 										<p className="text-sm text-muted-foreground font-light mb-2">
 											{tier.featuresIntro}&nbsp;
 										</p>
-										<ul className="space-y-3 my-0">
+										<ul className="space-y-3 my-0 h-[148px]">
 											{tier.features.map((feature) => (
 												<li key={feature} className="flex items-start gap-2">
 													<Check className="mt-0.5 h-4 w-4 text-muted-foreground shrink-0" />
@@ -208,9 +196,16 @@ export default function PricingPage() {
 										<strong>{tier.price}</strong>
 										{tier.period}
 									</p>
+
+									{tier.creditPrice && (
+										<p className="text-sm text-muted-foreground mb-1">
+											+ {tier.creditPrice}/hour for Cloud tasks
+										</p>
+									)}
+
 									<p className="text-xs text-muted-foreground mb-4">
 										{tier.trial}
-										{tier.cancellation}&nbsp;
+										{tier.cancellation}
 									</p>
 
 									{tier.cta.isContactForm ? (
@@ -231,6 +226,19 @@ export default function PricingPage() {
 						})}
 					</div>
 				</div>
+
+				<div className="mx-auto grid max-w-6xl gap-4 mt-4 relative">
+					<p className="bg-background border rounded-2xl p-6 text-center text-sm text-muted-foreground">
+						<Building2 className="inline size-4 mr-2 mb-0.5" />
+						Need SAML, advanced security, custom integrations or terms? Enterprise is for you.
+						<Link
+							href="/enterprise#contact"
+							className="font-medium ml-1 text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300">
+							Talk to Sales
+						</Link>
+						.
+					</p>
+				</div>
 			</section>
 
 			{/* Additional Information */}
@@ -238,7 +246,6 @@ export default function PricingPage() {
 				<div className="container mx-auto px-4 sm:px-6 lg:px-8">
 					<div className="mx-auto max-w-3xl text-center">
 						<h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Frequently Asked Questions</h2>
-						<p className="mt-4 text-lg text-muted-foreground">Got questions about our pricing?</p>
 					</div>
 					<div className="mx-auto mt-12 grid max-w-5xl gap-8 md:grid-cols-2">
 						<div className="rounded-lg border border-border bg-card p-6">
@@ -252,15 +259,32 @@ export default function PricingPage() {
 						<div className="rounded-lg border border-border bg-card p-6">
 							<h3 className="font-semibold">Is there a free trial?</h3>
 							<p className="mt-2 text-sm text-muted-foreground">
-								Yes, all paid plans come with a 14-day free trial.
+								Yes, all paid plans come with a 14-day free trial to try out functionality.
+							</p>
+							<p className="mt-2 text-sm text-muted-foreground">
+								To use Cloud Agents, you can buy credits.
+							</p>
+						</div>
+						<div className="rounded-lg border border-border bg-card p-6">
+							<h3 className="font-semibold">How do Cloud Agent credits work?</h3>
+							<p className="mt-2 text-sm text-muted-foreground">
+								Cloud Agents are a version of Roo running in the cloud without depending on your IDE.
+								You can run as many as you want, and bring your own inference provider key.
+							</p>
+							<p className="mt-2 text-sm text-muted-foreground">
+								To cover our infrastructure costs, we charge ${PRICE_CREDITS}/hour while the agent is
+								running (independent of inference costs).
+							</p>
+							<p className="mt-2 text-sm text-muted-foreground">
+								There are no markups, no tiers, no dumbing-down of models to increase our profit.
 							</p>
 						</div>
 						<div className="rounded-lg border border-border bg-card p-6">
 							<h3 className="font-semibold">Do I need a credit card for the free trial?</h3>
 							<p className="mt-2 text-sm text-muted-foreground">
-								Yes, but you won&apos;t be charged until your trial ends. You can cancel anytime with
-								one click .
+								Yes, but you won&apos;t be charged until your trial ends, except for credit purchases.
 							</p>
+							<p className="mt-2 text-sm text-muted-foreground">You can cancel anytime with one click.</p>
 						</div>
 						<div className="rounded-lg border border-border bg-card p-6">
 							<h3 className="font-semibold">What payment methods do you accept?</h3>
