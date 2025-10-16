@@ -1,4 +1,4 @@
-import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider, fireworksDefaultModelId, type OcaModelInfo } from "@shared/api"
+import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider, fireworksDefaultModelId, ModelInfo, type OcaModelInfo } from "@shared/api"
 import { GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "@shared/storage/state-keys"
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
@@ -51,6 +51,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ocaApiKey,
 		ocaRefreshToken,
 		minimaxApiKey,
+		hicapApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -91,6 +92,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("ocaApiKey") as Promise<string | undefined>,
 		context.secrets.get("ocaRefreshToken") as Promise<string | undefined>,
 		context.secrets.get("minimaxApiKey") as Promise<Secrets["minimaxApiKey"]>,
+		context.secrets.get("hicapApiKey") as Promise<Secrets["hicapApiKey"]>,
 	])
 
 	return {
@@ -133,6 +135,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ocaApiKey,
 		ocaRefreshToken,
 		minimaxApiKey,
+		hicapApiKey,
 	}
 }
 
@@ -262,6 +265,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const autoCondenseThreshold =
 			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
 		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
+		const hicapModelId = context.globalState.get("hicapModelId") as string | undefined
 
 		// OpenTelemetry configuration
 		const openTelemetryEnabled =
@@ -434,6 +438,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const actModeOcaModelInfo = context.globalState.get("actModeOcaModelInfo") as OcaModelInfo | undefined
 		const sapAiCoreUseOrchestrationMode =
 			context.globalState.get<GlobalStateAndSettings["sapAiCoreUseOrchestrationMode"]>("sapAiCoreUseOrchestrationMode")
+		const actModeHicapModelId = context.globalState.get("actModeHicapModelId") as string | undefined
+		const actModeHicapModelInfo = context.globalState.get("actModeHicapModelInfo") as ModelInfo | undefined
 
 		let apiProvider: ApiProvider
 		if (planModeApiProvider) {
@@ -511,7 +517,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			ocaBaseUrl,
 			minimaxApiLine,
 			ocaMode: ocaMode || "internal",
-
+			hicapModelId,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -548,6 +554,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeHicapModelId,
+			planModeHicapModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -582,6 +590,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeHicapModelId,
+			actModeHicapModelInfo,
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
@@ -700,6 +710,7 @@ export async function resetGlobalState(controller: Controller) {
 		"ocaApiKey",
 		"ocaRefreshToken",
 		"minimaxApiKey",
+		"hicapApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()
