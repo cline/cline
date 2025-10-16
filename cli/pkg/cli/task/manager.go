@@ -126,7 +126,7 @@ func (m *Manager) GetCurrentInstance() string {
 }
 
 // CreateTask creates a new task
-func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files []string, workspacePaths []string, settingsFlags []string) (string, error) {
+func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files []string, settingsFlags []string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -137,9 +137,6 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 		}
 		if len(images) > 0 {
 			m.renderer.RenderDebug("Images: %v", images)
-		}
-		if len(workspacePaths) > 0 {
-			m.renderer.RenderDebug("Workspaces: %v", workspacePaths)
 		}
 		if len(settingsFlags) > 0 {
 			m.renderer.RenderDebug("Settings: %v", settingsFlags)

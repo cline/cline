@@ -18,13 +18,12 @@ import (
 
 // TaskOptions contains options for creating a task
 type TaskOptions struct {
-	Images     []string
-	Files      []string
-	Workspaces []string
-	Mode       string
-	Settings   []string
-	Yolo       bool
-	Address    string
+	Images   []string
+	Files    []string
+	Mode     string
+	Settings []string
+	Yolo     bool
+	Address  string
 }
 
 func NewTaskCommand() *cobra.Command {
@@ -96,13 +95,12 @@ func ensureInstanceAtAddress(ctx context.Context, address string) error {
 
 func newTaskNewCommand() *cobra.Command {
 	var (
-		images     []string
-		files      []string
-		workspaces []string
-		address    string
-		mode       string
-		settings   []string
-		yolo       bool
+		images   []string
+		files    []string
+		address  string
+		mode     string
+		settings []string
+		yolo     bool
 	)
 
 	cmd := &cobra.Command{
@@ -155,7 +153,7 @@ func newTaskNewCommand() *cobra.Command {
 			}
 
 			// Create the task
-			taskID, err := taskManager.CreateTask(ctx, prompt, images, files, workspaces, settings)
+			taskID, err := taskManager.CreateTask(ctx, prompt, images, files, settings)
 			if err != nil {
 				return fmt.Errorf("failed to create task: %w", err)
 			}
@@ -170,7 +168,6 @@ func newTaskNewCommand() *cobra.Command {
 
 	cmd.Flags().StringSliceVarP(&images, "image", "i", nil, "attach image files")
 	cmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
-	cmd.Flags().StringSliceVarP(&workspaces, "workdir", "w", nil, "workdir directory paths")
 	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	cmd.Flags().StringVarP(&mode, "mode", "m", "", "mode (act|plan)")
 	cmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format, e.g., -s aws-region=us-west-2 -s mode=act)")
@@ -631,7 +628,7 @@ func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) e
 	}
 
 	// Create the task
-	taskID, err := taskManager.CreateTask(ctx, prompt, opts.Images, opts.Files, opts.Workspaces, opts.Settings)
+	taskID, err := taskManager.CreateTask(ctx, prompt, opts.Images, opts.Files, opts.Settings)
 	if err != nil {
 		return fmt.Errorf("failed to create task: %w", err)
 	}

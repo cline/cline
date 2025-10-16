@@ -25,13 +25,12 @@ var (
 	outputFormat string
 
 	// Task creation flags (for root command)
-	images     []string
-	files      []string
-	workspaces []string
-	mode       string
-	settings   []string
-	yolo       bool
-	oneshot    bool
+	images   []string
+	files    []string
+	mode     string
+	settings []string
+	yolo     bool
+	oneshot  bool
 )
 
 func main() {
@@ -158,13 +157,12 @@ see the manual page: man cline`,
 			}
 
 			return cli.CreateAndFollowTask(ctx, prompt, cli.TaskOptions{
-				Images:     images,
-				Files:      files,
-				Workspaces: workspaces,
-				Mode:       mode,
-				Settings:   settings,
-				Yolo:       yolo,
-				Address:    instanceAddress,
+				Images:   images,
+				Files:    files,
+				Mode:     mode,
+				Settings: settings,
+				Yolo:     yolo,
+				Address:  instanceAddress,
 			})
 		},
 	}
@@ -176,7 +174,6 @@ see the manual page: man cline`,
 	// Task creation flags (only apply when using root command with prompt)
 	rootCmd.Flags().StringSliceVarP(&images, "image", "i", nil, "attach image files")
 	rootCmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
-	rootCmd.Flags().StringSliceVarP(&workspaces, "workdir", "w", nil, "workdir directory paths")
 	rootCmd.Flags().StringVarP(&mode, "mode", "m", "plan", "mode (act|plan) - defaults to plan")
 	rootCmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format)")
 	rootCmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
