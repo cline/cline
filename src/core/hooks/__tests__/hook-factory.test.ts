@@ -4,6 +4,7 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import sinon from "sinon"
+import { setDistinctId } from "@/services/logging/distinctId"
 import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
 
@@ -26,6 +27,7 @@ describe("Hook System", () => {
 	}
 
 	beforeEach(async () => {
+		setDistinctId("test-id")
 		sandbox = sinon.createSandbox()
 		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
