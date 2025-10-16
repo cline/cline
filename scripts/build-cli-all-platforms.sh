@@ -14,10 +14,10 @@ DATE=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 BUILT_BY="${USER:-unknown}"
 
 # Build ldflags to inject version info
-LDFLAGS="-X 'github.com/cline/cli/pkg/cli.Version=${VERSION}' \
-         -X 'github.com/cline/cli/pkg/cli.Commit=${COMMIT}' \
-         -X 'github.com/cline/cli/pkg/cli.Date=${DATE}' \
-         -X 'github.com/cline/cli/pkg/cli.BuiltBy=${BUILT_BY}'"
+LDFLAGS="-X 'github.com/cline/cli/pkg/cli/global.Version=${VERSION}' \
+         -X 'github.com/cline/cli/pkg/cli/global.Commit=${COMMIT}' \
+         -X 'github.com/cline/cli/pkg/cli/global.Date=${DATE}' \
+         -X 'github.com/cline/cli/pkg/cli/global.BuiltBy=${BUILT_BY}'"
 
 cd cli
 

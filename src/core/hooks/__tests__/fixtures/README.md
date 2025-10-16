@@ -76,6 +76,48 @@ For more control, you can also manually copy fixture files.
 - **Behavior**: Prints error to stderr and exits with code 1
 - **Use for**: Testing error handling in PostToolUse
 
+### UserPromptSubmit Hooks
+
+#### `hooks/userpromptsubmit/success`
+- **Returns**: `{ shouldContinue: true, contextModification: "Prompt approved", errorMessage: "" }`
+- **Use for**: Testing successful prompt submission
+
+#### `hooks/userpromptsubmit/blocking`
+- **Returns**: `{ shouldContinue: false, contextModification: "", errorMessage: "Prompt violates policy" }`
+- **Use for**: Testing prompt submission blocking
+
+#### `hooks/userpromptsubmit/context-injection`
+- **Returns**: `{ shouldContinue: true, contextModification: "CONTEXT_INJECTION: User is in plan mode", errorMessage: "" }`
+- **Use for**: Testing context injection into task request
+
+#### `hooks/userpromptsubmit/multiline`
+- **Returns**: `{ shouldContinue: true, contextModification: "Line count: N", errorMessage: "" }`
+- **Use for**: Testing multiline prompt handling
+- **Note**: Dynamically counts newlines in the prompt
+
+#### `hooks/userpromptsubmit/large-prompt`
+- **Returns**: `{ shouldContinue: true, contextModification: "Prompt size: N", errorMessage: "" }`
+- **Use for**: Testing large prompt handling
+- **Note**: Dynamically reports prompt character count
+
+#### `hooks/userpromptsubmit/special-chars`
+- **Returns**: `{ shouldContinue: true, contextModification: "Special chars preserved" | "Missing special chars", errorMessage: "" }`
+- **Use for**: Testing special character preservation
+- **Note**: Checks for @, #, and $ characters
+
+#### `hooks/userpromptsubmit/empty-prompt`
+- **Returns**: `{ shouldContinue: true, contextModification: "Prompt length: 0", errorMessage: "" }`
+- **Use for**: Testing empty prompt handling
+- **Note**: Safely handles undefined or empty prompts
+
+#### `hooks/userpromptsubmit/malformed-json`
+- **Behavior**: Outputs invalid JSON ("not valid json")
+- **Use for**: Testing malformed JSON error handling
+
+#### `hooks/userpromptsubmit/error`
+- **Behavior**: Prints error to stderr and exits with code 1
+- **Use for**: Testing error handling in UserPromptSubmit
+
 ## Platform Considerations
 
 These fixtures are designed for the embedded shell architecture (similar to git hooks). They work uniformly across all platforms once the embedded shell is implemented.
