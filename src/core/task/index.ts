@@ -1107,7 +1107,7 @@ export class Task {
 		// For Cline CLI subagents, we want to parse and process the command to ensure flags are correct
 		const isSubagent = isSubagentCommand(command)
 
-		if (transformClineCommand(command) != command && isSubagent) {
+		if (transformClineCommand(command) !== command && isSubagent) {
 			command = transformClineCommand(command)
 		}
 
@@ -1121,11 +1121,33 @@ export class Task {
 			Logger.info("Executing command in Node: " + command)
 			return this.executeCommandInNode(command)
 		}
+
+		// CRITICAL: CLI subagent commands MUST use VSCode terminal mode (not backgroundExec)
+		// Reason: Creates a three-way deadlock when using backgroundExec:
+		//   1. Extension blocks in 'await process' waiting for CLI to exit
+		//   2. CLI blocks waiting for gRPC messages from its child gRPC server
+		//   3. gRPC server (child of CLI) needs extension to process tasks
+		// Solution: Always use VSCode terminal for CLI commands
+		const useVscodeTerminal = isSubagent
+
 		Logger.info("Executing command in terminal: " + command)
 
-		const terminalInfo = await this.terminalManager.getOrCreateTerminal(this.cwd)
+		let terminalManager: TerminalManager
+		if (useVscodeTerminal) {
+			// Create a VSCode TerminalManager for CLI subagents
+			terminalManager = new TerminalManager()
+			terminalManager.setShellIntegrationTimeout(this.terminalManager["shellIntegrationTimeout"] || 4000)
+			terminalManager.setTerminalReuseEnabled(this.terminalManager["terminalReuseEnabled"] ?? true)
+			terminalManager.setTerminalOutputLineLimit(this.terminalManager["terminalOutputLineLimit"] || 500)
+			terminalManager.setSubagentTerminalOutputLineLimit(this.terminalManager["subagentTerminalOutputLineLimit"] || 2000)
+		} else {
+			// Use the configured terminal manager for regular commands
+			terminalManager = this.terminalManager
+		}
+
+		const terminalInfo = await terminalManager.getOrCreateTerminal(this.cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = this.terminalManager.runCommand(terminalInfo, command)
+		const process = terminalManager.runCommand(terminalInfo, command)
 
 		// Track command execution for both terminal modes
 		this.controller.updateBackgroundCommandState(true, this.taskId)
@@ -1372,9 +1394,9 @@ export class Task {
 			await setTimeoutPromise(50)
 		}
 
-		const result = this.terminalManager.processOutput(
+		const result = terminalManager.processOutput(
 			outputLines,
-			isSubagent ? this.terminalManager["subagentTerminalOutputLineLimit"] : undefined,
+			isSubagent ? terminalManager["subagentTerminalOutputLineLimit"] : undefined,
 			isSubagent,
 		)
 
