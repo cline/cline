@@ -140,6 +140,14 @@ export class AuthService {
 		return activeOrg?.organizationId ?? null
 	}
 
+	/**
+	 * Gets all organizations from the authenticated user's info
+	 * @returns Array of organizations, or undefined if not available
+	 */
+	getUserOrganizations(): ClineAccountOrganization[] | undefined {
+		return this._clineAuthInfo?.userInfo?.organizations
+	}
+
 	private async internalGetAuthToken(provider: IAuthProvider): Promise<string | null> {
 		try {
 			let clineAccountAuthToken = this._clineAuthInfo?.idToken
@@ -150,7 +158,6 @@ export class AuthService {
 
 			// Check if token has expired
 			if (await provider.shouldRefreshIdToken(clineAccountAuthToken, this._clineAuthInfo.expiresAt)) {
-				console.log("Provider indicates token needs refresh")
 				const updatedAuthInfo = await provider.retrieveClineAuthInfo(this._controller)
 				if (updatedAuthInfo) {
 					this._clineAuthInfo = updatedAuthInfo
@@ -338,8 +345,6 @@ export class AuthService {
 		responseStream: StreamingResponseHandler<AuthState>,
 		requestId?: string,
 	): Promise<void> {
-		console.log("Subscribing to authStatusUpdate")
-
 		// Add this subscription to the active subscriptions
 		this._activeAuthStatusUpdateHandlers.add(responseStream)
 		this._handlerToController.set(responseStream, controller)
