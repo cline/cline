@@ -28,9 +28,6 @@ export async function executeCommandInTerminal(
 		// Send the command to the terminal
 		terminal.sendText(request.command, true)
 
-		// Log the action
-		console.log(`Executed command in terminal: ${request.command}`)
-
 		return ExecuteCommandInTerminalResponse.create({
 			success: true,
 		})

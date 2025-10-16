@@ -1,10 +1,4 @@
 /**
- * Enable debug logging for CLI subagent command transformation.
- * Set to true to see detailed logs about command parsing and transformation.
- */
-const DEBUG_LOGGING = true
-
-/**
  * Pattern to match simplified Cline CLI syntax: cline "prompt" or cline 'prompt'
  * with optional additional flags after the closing quote
  */
@@ -41,20 +35,12 @@ export function isSubagentCommand(command: string): boolean {
  * @returns The transformed command if it matches the pattern, otherwise the original command
  */
 export function transformClineCommand(command: string): string {
-	if (DEBUG_LOGGING) {
-		console.log("[CLI-SUBAGENTS] Received command:", command)
-	}
-
 	if (!isSubagentCommand(command)) {
 		return command
 	}
 
 	// Inject subagent-specific command structure and settings
 	const commandWithSettings = injectSubagentSettings(command)
-
-	if (DEBUG_LOGGING) {
-		console.log("[CLI-SUBAGENTS] Final command with settings:", commandWithSettings)
-	}
 
 	return commandWithSettings
 }
