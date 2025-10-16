@@ -95,16 +95,9 @@ func isatty(fd uintptr) bool {
 
 // SetupKeyboard detects the current terminal and configures keybindings if needed.
 // This modifies terminal config files to add permanent shift+enter support.
-//
-// This should be called once at CLI startup.
-// Note: We don't enable the enhanced keyboard protocol globally because it
-// breaks Control-C signal handling. Bubble Tea will handle keyboard input
-// when it's running, and the config file modifications provide permanent
-// shift+enter support after terminal restart.
-func SetupKeyboard() {
-	// Detect current terminal and configure only that terminal
-	// This runs in the background and doesn't block CLI startup
-	go func() {
+// If sync is true, blocks until complete. If sync is false, runs in background.
+func SetupKeyboard(sync bool) {
+	setupFunc := func() {
 		terminal := DetectTerminal()
 
 		switch terminal {
@@ -137,7 +130,15 @@ func SetupKeyboard() {
 			// iTerm2 already works by default (maps shift+enter to alt+enter)
 			// Terminal.app cannot be automated - user must configure manually
 		}
-	}()
+	}
+
+	if sync {
+		// Run synchronously (block until complete)
+		setupFunc()
+	} else {
+		// Run in background so we don't block CLI startup
+		go setupFunc()
+	}
 }
 
 // getVSCodeConfigPath returns the platform-specific path to VS Code's User directory

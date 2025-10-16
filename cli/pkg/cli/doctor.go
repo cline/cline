@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/terminal"
+	"github.com/cline/cli/pkg/cli/updater"
 	"github.com/spf13/cobra"
 )
 
@@ -35,7 +37,12 @@ After configuration, you can use:
   - Alt+Enter: Alternative for newline (fallback)
   - Ctrl+J: Traditional Unix newline`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			terminal.SetupKeyboard()
+			// Configure terminal keybindings (sync - wait for completion)
+			terminal.SetupKeyboard(true)
+
+			// Check for updates (sync - wait for completion)
+			updater.CheckAndUpdate(global.Config.Verbose, true)
+
 			return nil
 		},
 	}

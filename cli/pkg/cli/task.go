@@ -640,7 +640,7 @@ func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) e
 	}
 
 	// Check for updates in background after task is created
-	updater.CheckAndUpdate(opts.Verbose)
+	updater.CheckAndUpdate(opts.Verbose, false) // async - don't block interactive mode
 
 	// If yolo mode is enabled, follow until completion (non-interactive)
 	// Otherwise, follow in interactive mode

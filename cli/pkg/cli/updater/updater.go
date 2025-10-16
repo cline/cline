@@ -41,9 +41,10 @@ var (
 
 var verbose bool
 
-// CheckAndUpdate performs a background update check and attempts to auto-update if needed.
-// This is non-blocking and safe to call on CLI startup.
-func CheckAndUpdate(isVerbose bool) {
+// CheckAndUpdate performs an update check and attempts to auto-update if needed.
+// If sync is true, blocks until complete. If sync is false, runs in background.
+// This is safe to call on CLI startup.
+func CheckAndUpdate(isVerbose bool, sync bool) {
 	verbose = isVerbose
 
 	// Skip in CI environments
@@ -63,17 +64,30 @@ func CheckAndUpdate(isVerbose bool) {
 	}
 
 	if verbose {
-		output.Printf("[updater] Starting background update check...\n")
+		if sync {
+			output.Printf("[updater] Starting update check...\n")
+		} else {
+			output.Printf("[updater] Starting background update check...\n")
+		}
 	}
 
-	// Run in background so we don't block CLI startup
-	go func() {
+	if sync {
+		// Run synchronously (block until complete)
 		if err := checkAndUpdateSync(); err != nil {
 			if verbose {
 				output.Printf("[updater] Update check failed: %v\n", err)
 			}
 		}
-	}()
+	} else {
+		// Run in background so we don't block CLI startup
+		go func() {
+			if err := checkAndUpdateSync(); err != nil {
+				if verbose {
+					output.Printf("[updater] Update check failed: %v\n", err)
+				}
+			}
+		}()
+	}
 }
 
 func checkAndUpdateSync() error {
