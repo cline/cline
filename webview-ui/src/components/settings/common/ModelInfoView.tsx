@@ -199,7 +199,7 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 	].filter(Boolean)
 
 	return (
-		<p
+		<div
 			style={{
 				fontSize: "12px",
 				marginTop: "2px",
@@ -211,6 +211,6 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 					{index < infoItems.length - 1 && <br />}
 				</Fragment>
 			))}
-		</p>
+		</div>
 	)
 }

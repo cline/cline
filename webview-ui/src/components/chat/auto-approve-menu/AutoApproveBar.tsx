@@ -34,6 +34,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				condensed={true}
 				isChecked={isChecked}
 				isFavorited={isFavorited}
+				key={action?.id}
 				onToggle={updateAction}
 				showIcon={false}
 			/>
