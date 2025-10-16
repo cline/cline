@@ -110,10 +110,23 @@ func SetupKeyboard() {
 		switch terminal {
 		case "vscode":
 			// VS Code and Cursor use the same TERM_PROGRAM value
-			_ = SetupVSCodeKeybindings()
-			_ = SetupCursorKeybindings()
+			if modified, path := SetupVSCodeKeybindings(); modified {
+				fmt.Printf("\033[90mConfigured shift+enter for\033[0m VS Code \033[90mterminal\033[0m\n")
+				fmt.Printf("\033[90m  →\033[0m %s\n", path)
+				fmt.Printf("\n")
+			}
+			if modified, path := SetupCursorKeybindings(); modified {
+				fmt.Printf("\033[90mConfigured shift+enter for\033[0m Cursor \033[90mterminal\033[0m\n")
+				fmt.Printf("\033[90m  →\033[0m %s\n", path)
+				fmt.Printf("\n")
+			}
 		case "ghostty":
-			_ = SetupGhosttyKeybindings()
+			if modified, path := SetupGhosttyKeybindings(); modified {
+				fmt.Printf("\033[90mConfigured shift+enter for\033[0m Ghostty \033[90mterminal\033[0m\n")
+				fmt.Printf("\033[90m  →\033[0m %s\n", path)
+				fmt.Printf("\033[90m  Restart Ghostty (Cmd+Q) for changes to take effect\033[0m\n")
+				fmt.Printf("\n")
+			}
 		case "wezterm":
 			_ = SetupWezTermKeybindings()
 		case "alacritty":
@@ -231,11 +244,12 @@ type VSCodeKeybinding struct {
 
 // SetupVSCodeKeybindings adds shift+enter support to VS Code's integrated terminal
 // by modifying the user's keybindings.json file.
-func SetupVSCodeKeybindings() error {
+// Returns (wasModified, configPath) to allow caller to log the change.
+func SetupVSCodeKeybindings() (bool, string) {
 	// Get platform-specific VS Code config path
 	configDir, err := getVSCodeConfigPath()
 	if err != nil {
-		return fmt.Errorf("failed to get config path: %w", err)
+		return false, ""
 	}
 
 	keybindingsPath := filepath.Join(configDir, "keybindings.json")
@@ -243,7 +257,7 @@ func SetupVSCodeKeybindings() error {
 	// Check if VS Code is installed (keybindings file or parent dir exists)
 	if _, err := os.Stat(filepath.Dir(keybindingsPath)); os.IsNotExist(err) {
 		// VS Code not installed, skip silently
-		return nil
+		return false, ""
 	}
 
 	// Read existing keybindings
@@ -252,7 +266,7 @@ func SetupVSCodeKeybindings() error {
 	data, err := os.ReadFile(keybindingsPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to read keybindings: %w", err)
+			return false, ""
 		}
 		// File doesn't exist, start with empty array
 		keybindings = []VSCodeKeybinding{}
@@ -260,7 +274,7 @@ func SetupVSCodeKeybindings() error {
 		// Parse existing keybindings
 		if err := json.Unmarshal(data, &keybindings); err != nil {
 			// If parse fails, don't modify the file
-			return fmt.Errorf("failed to parse keybindings.json: %w", err)
+			return false, ""
 		}
 	}
 
@@ -268,7 +282,7 @@ func SetupVSCodeKeybindings() error {
 	for _, kb := range keybindings {
 		if kb.Key == "shift+enter" && kb.Command == "workbench.action.terminal.sendSequence" {
 			// Already configured
-			return nil
+			return false, keybindingsPath
 		}
 	}
 
@@ -293,29 +307,30 @@ func SetupVSCodeKeybindings() error {
 	// Write updated keybindings
 	updatedData, err := json.MarshalIndent(keybindings, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal keybindings: %w", err)
+		return false, ""
 	}
 
 	// Ensure parent directory exists
 	if err := os.MkdirAll(filepath.Dir(keybindingsPath), 0755); err != nil {
-		return fmt.Errorf("failed to create keybindings directory: %w", err)
+		return false, ""
 	}
 
 	if err := os.WriteFile(keybindingsPath, updatedData, 0644); err != nil {
-		return fmt.Errorf("failed to write keybindings: %w", err)
+		return false, ""
 	}
 
-	return nil
+	return true, keybindingsPath
 }
 
 // SetupCursorKeybindings adds shift+enter support to Cursor's integrated terminal
 // by modifying the user's keybindings.json file.
 // Cursor is a fork of VS Code, so it uses the same keybinding format.
-func SetupCursorKeybindings() error {
+// Returns (wasModified, configPath) to allow caller to log the change.
+func SetupCursorKeybindings() (bool, string) {
 	// Get platform-specific Cursor config path
 	configDir, err := getCursorConfigPath()
 	if err != nil {
-		return fmt.Errorf("failed to get config path: %w", err)
+		return false, ""
 	}
 
 	keybindingsPath := filepath.Join(configDir, "keybindings.json")
@@ -323,7 +338,7 @@ func SetupCursorKeybindings() error {
 	// Check if Cursor is installed (keybindings file or parent dir exists)
 	if _, err := os.Stat(filepath.Dir(keybindingsPath)); os.IsNotExist(err) {
 		// Cursor not installed, skip silently
-		return nil
+		return false, ""
 	}
 
 	// Read existing keybindings
@@ -332,7 +347,7 @@ func SetupCursorKeybindings() error {
 	data, err := os.ReadFile(keybindingsPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to read keybindings: %w", err)
+			return false, ""
 		}
 		// File doesn't exist, start with empty array
 		keybindings = []VSCodeKeybinding{}
@@ -340,7 +355,7 @@ func SetupCursorKeybindings() error {
 		// Parse existing keybindings
 		if err := json.Unmarshal(data, &keybindings); err != nil {
 			// If parse fails, don't modify the file
-			return fmt.Errorf("failed to parse keybindings.json: %w", err)
+			return false, ""
 		}
 	}
 
@@ -348,7 +363,7 @@ func SetupCursorKeybindings() error {
 	for _, kb := range keybindings {
 		if kb.Key == "shift+enter" && kb.Command == "workbench.action.terminal.sendSequence" {
 			// Already configured
-			return nil
+			return false, keybindingsPath
 		}
 	}
 
@@ -373,27 +388,28 @@ func SetupCursorKeybindings() error {
 	// Write updated keybindings
 	updatedData, err := json.MarshalIndent(keybindings, "", "  ")
 	if err != nil {
-		return fmt.Errorf("failed to marshal keybindings: %w", err)
+		return false, ""
 	}
 
 	// Ensure parent directory exists
 	if err := os.MkdirAll(filepath.Dir(keybindingsPath), 0755); err != nil {
-		return fmt.Errorf("failed to create keybindings directory: %w", err)
+		return false, ""
 	}
 
 	if err := os.WriteFile(keybindingsPath, updatedData, 0644); err != nil {
-		return fmt.Errorf("failed to write keybindings: %w", err)
+		return false, ""
 	}
 
-	return nil
+	return true, keybindingsPath
 }
 
 // SetupGhosttyKeybindings adds shift+enter support to Ghostty terminal
 // by appending to the user's config file.
-func SetupGhosttyKeybindings() error {
+// Returns (wasModified, configPath) to allow caller to log the change.
+func SetupGhosttyKeybindings() (bool, string) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return false, ""
 	}
 
 	// Ghostty config location: ~/.config/ghostty/config
@@ -403,7 +419,7 @@ func SetupGhosttyKeybindings() error {
 	configDir := filepath.Dir(configPath)
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		// Ghostty not installed, skip silently
-		return nil
+		return false, ""
 	}
 
 	// Read existing config if it exists
@@ -412,7 +428,7 @@ func SetupGhosttyKeybindings() error {
 		existingContent = data
 		// Check if shift+enter already configured
 		if strings.Contains(string(data), "keybind = shift+enter") {
-			return nil
+			return false, configPath
 		}
 	}
 
@@ -425,7 +441,7 @@ func SetupGhosttyKeybindings() error {
 
 	// Ensure directory exists
 	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+		return false, ""
 	}
 
 	// Create backup if file exists
@@ -436,10 +452,10 @@ func SetupGhosttyKeybindings() error {
 
 	// Write updated config
 	if err := os.WriteFile(configPath, newContent, 0644); err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
+		return false, ""
 	}
 
-	return nil
+	return true, configPath
 }
 
 // SetupWezTermKeybindings adds shift+enter support to WezTerm
