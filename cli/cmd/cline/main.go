@@ -50,7 +50,10 @@ Or pipe a prompt via stdin:
 Or run with no arguments to enter interactive mode:
   cline
 
-This CLI also provides task management, configuration, and monitoring capabilities.`,
+This CLI also provides task management, configuration, and monitoring capabilities.
+
+For detailed documentation including all commands, options, and examples,
+see the manual page: man cline`,
 		Args: cobra.ArbitraryArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if outputFormat != "rich" && outputFormat != "json" && outputFormat != "plain" {
