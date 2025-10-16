@@ -1,131 +1,50 @@
 ---
 title: "Overview"
-description: "Command-line interface using Cline with multi-instance support, task management, and pipeline integration"
+description: "Install the CLI, run your first task, and learn to automate code reviews and integrate AI agents into your development workflow"
 ---
 
 ## What is Cline CLI?
 
-Cline CLI brings AI-powered coding agents to your terminal. Run multiple Cline
-instances simultaneously, automate code reviews in CI/CD pipelines, pipe git
-diffs directly to Cline for analysis, or script complex workflows that integrate
-with your existing tools.
+Cline CLI runs AI coding agents directly in your terminal. Pipe git diffs for automated code reviews in CI/CD, run multiple instances simultaneously for parallel development, or integrate Cline into your existing shell workflows.
 
-The CLI tracks instances across your system, supports multiple AI providers and
-models, and outputs in formats designed for both human readability and
-programmatic use.
+The CLI tracks instances across your system and outputs in formats designed for both humans and scripts—JSON, plain text, or rich terminal output.
 
-- Create, monitor, and manage AI coding tasks from the terminal
-- Run multiple Cline instances simultaneously with independent configurations
-- Automatically track and manage Cline instances across your system
-- Support for both interactive and automated (YOLO) modes
-- Choose between rich terminal output, JSON for scripting, or plain text
-- Seamlessly integrate with Unix pipes and command-line workflows
-- Save and restore task states at any point in time
+<Tip>
+Ready to get started? Check out the [installation guide](/cline-cli/installation) to install Cline CLI and run your first task.
+</Tip>
 
-## Installation
+## What you can build with this
 
-You can install the Cline CLI using one of the following methods:
+The CLI's design opens up creative possibilities:
 
-<Tabs>
-  <Tab title="NPM">
-    ```bash
-    npm install -g cline
-    ```
-    
-    Install Cline CLI globally using npm. Ensure you have Node.js and npm installed on your system.
-  </Tab>
+**Automated code maintenance**
+- Schedule daily runs to identify and fix linting issues across your codebase
+- Create tasks that scan for security vulnerabilities and automatically patch them
+- Build scripts that update deprecated dependencies and run tests
 
-  <Tab title="Install Script">
-    ```bash
-    curl -fsSL https://raw.githubusercontent.com/cline/cline/main/scripts/install.sh | bash
-    ```
-    
-    This script will download and install the latest version of Cline CLI and automatically update your shell configuration to include the CLI on your PATH.
-  </Tab>
-</Tabs>
+**Multi-instance development**
+- Run separate Cline instances for frontend and backend simultaneously
+- Spawn instances for different feature branches, each with isolated state
+- Create parallel review processes for multiple PRs
 
-### Authentication
+**Custom workflows**
+- Build shell scripts that combine Cline with git hooks for pre-commit analysis
+- Create custom commands that pipe complex data structures through Cline for processing
+- Integrate with your existing toolchain (jq, grep, awk) for sophisticated automation
 
-Before getting started, you'll want to authenticate with your Cline account.
+**CI/CD integration**
+- Add Cline to GitHub Actions for automatic code review on every PR
+- Create GitLab pipelines that generate migration scripts from schema changes
+- Build Jenkins jobs that use Cline to analyze test failures and suggest fixes
 
-```bash
-cline auth
-```
+## Learn more
 
-This starts an authentication wizard to get you signed in and set up with your
-preferred AI model provider.
-
-## Quick Start
-
-The simplest way to use Cline is with instant task mode - just provide a prompt:
-
-```bash
-cline "Create a Python script that prints hello world"
-```
-
-Cline will automatically:
-1. Spawn a new instance
-2. Create a task with your prompt
-3. Enter interactive chat mode
-
-Or, if you'd like to ask Cline to complete a task in a single command, use the
-`--yolo` flag:
-
-```bash
-cline --yolo "Create a Python script that prints hello world"
-```
-
-You can also pipe content from files or other commands:
-
-```bash
-# Pipe a file
-cat requirements.txt | cline
-
-# Use YOLO mode for full automation
-echo "Create a todo app" | cline --yolo
-```
-
-Or run with no arguments to enter interactive mode:
-
-```bash
-cline
-```
-
-### Working with Modes
-
-Cline operates in two modes:
-
-**Plan Mode** (default): Cline gathers context, explores the codebase, and
-creates a detailed plan before implementation.
-
-**Act Mode**: Cline actively uses tools to accomplish tasks - reading files,
-writing code, executing commands, using a browser, and more.
-
-Switch between modes during a task:
-
-```bash
-# In interactive mode, use slash commands
-/act    # Switch to Act mode
-/plan   # Switch to Plan mode
-```
-
-Or specify the mode when starting:
-
-```bash
-cline "Build a feature" --mode act
-```
-
-## Command Help
-
-To see all available commands, run:
-
-```bash
-cline --help
-```
-
-## Learn More
-
-Explore the detailed command references to learn about all available features:
-
-- **[CLI Reference](/cline-cli/cli-reference)**: Complete command reference
-  including configuration, instance management, and task commands
+<Columns cols={2}>
+  <Card title="Installation" icon="download" href="/cline-cli/installation">
+    Install Cline CLI and authenticate with your account to get started.
+  </Card>
+  
+  <Card title="Three Core Flows" icon="route" href="/cline-cli/three-core-flows">
+    Master the three ways to use Cline CLI: interactive mode, headless automation, and multi-instance parallelization.
+  </Card>
+</Columns>
