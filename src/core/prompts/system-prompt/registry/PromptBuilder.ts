@@ -96,7 +96,7 @@ export class PromptBuilder {
 			.replace(/====\s*\n\s*====\s*\n/g, "====\n") // Remove consecutive empty sections
 			.replace(/^##\s*$[\r\n]*/gm, "") // Remove empty section headers (## with no content)
 			.replace(/\n##\s*$[\r\n]*/gm, "") // Remove empty section headers that appear mid-document
-			.replace(/====+\n(?!\n)([^\n])/g, (match, offset, string) => {
+			.replace(/====+\n(?!\n)([^\n])/g, (match, _nextChar, offset, string) => {
 				// Add extra newline after ====+ if not already followed by a newline
 				// Exception: preserve single newlines when ====+ appears to be part of diff-like content
 				// Look for patterns like "SEARCH\n=======\n" or ";\n=======\n" (diff markers)
