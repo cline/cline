@@ -482,6 +482,11 @@ message ApiConfiguration {
   optional string aws_bedrock_api_key = 302;
 
   optional string cline_account_id = 303;
+
+  // Aihubmix configuration fields
+  optional string aihubmix_api_key = 304;
+  optional string aihubmix_base_url = 305;
+  optional string aihubmix_app_code = 306;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

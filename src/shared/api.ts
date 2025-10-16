@@ -45,6 +45,9 @@ export interface ApiHandlerSecrets {
 	awsAccessKey?: string
 	awsSecretKey?: string
 	openRouterApiKey?: string
+	aihubmixApiKey?: string
+	aihubmixBaseUrl?: string
+	aihubmixAppCode?: string
 
 	clineAccountId?: string
 	awsSessionToken?: string
@@ -76,7 +79,6 @@ export interface ApiHandlerSecrets {
 	basetenApiKey?: string
 	vercelAiGatewayApiKey?: string
 	difyApiKey?: string
-	aihubmixApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -3710,3 +3712,6 @@ export const qwenCodeModels = {
 } as const satisfies Record<string, ModelInfo>
 export type QwenCodeModelId = keyof typeof qwenCodeModels
 export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
+
+// Aihubmix models - supports multiple providers through unified API
+export const aihubmixDefaultModelId: string = "claude-sonnet-4-5"

@@ -71,6 +71,7 @@ function createHandlerForProvider(
 	options: Omit<ApiConfiguration, "apiProvider">,
 	mode: Mode,
 ): ApiHandler {
+	console.log("🔍 createHandlerForProvider Debug:", { apiProvider, options, mode })
 	switch (apiProvider) {
 		case "anthropic":
 			return new AnthropicHandler({
@@ -391,10 +392,17 @@ function createHandlerForProvider(
 				taskId: options.ulid,
 			})
 		case "aihubmix":
+			console.log("🔍 Creating AihubmixHandler with options:", {
+				apiKey: options.aihubmixApiKey ? "***" : undefined,
+				baseURL: options.aihubmixBaseUrl,
+				appCode: options.aihubmixAppCode,
+				modelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				mode,
+			})
 			return new AihubmixHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				apiKey: options.aihubmixApiKey,
-				baseUrl: options.aihubmixBaseUrl,
+				baseURL: options.aihubmixBaseUrl,
 				appCode: options.aihubmixAppCode,
 				modelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
