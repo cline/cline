@@ -32,6 +32,7 @@ Your summary should include the following sections:
 4. Problem Solving: Document problems solved and any ongoing troubleshooting efforts.
 5. Pending Tasks: Outline any pending tasks that you have explicitly been asked to work on.
 6. Task Evolution: If the user provided additional requests or modified the original task during the conversation, document this progression:
+   - Original Task: [Summary of the initial user request, including copying verbatim any relevant information/steps required to continue working]
    - Task Modifications: [Chronological list of how the user redirected or modified the work since the original task]
    - Current Active Task: [What the user most recently asked to work on]
    - Context for Changes: [Why the task evolved - user feedback, new requirements, etc. (Include direct quotes from user messages that caused task changes to prevent drift after context compacting)]

@@ -11,22 +11,8 @@ export const formatResponse = {
 	contextTruncationNotice: () =>
 		`[NOTE] Some previous conversation history with the user has been removed to maintain optimal context window length. The initial user task has been retained for continuity, while intermediate conversation history has been removed. Keep this in mind as you continue assisting the user. Pay special attention to the user's latest messages.`,
 
-	processFirstUserMessageForTruncation: (originalContent: string) => {
-		const MAX_CHARS = 400_000
-
-		const prependedContext =
-			"[[IMPORTANT] The conversation has been truncated. This initial task message is provided for historical context only. You MUST focus on responding to the user's most recent messages and instructions, not this initial message.]\n\n"
-
-		if (originalContent.length <= MAX_CHARS) {
-			return prependedContext + originalContent
-		}
-
-		const truncated = originalContent.substring(0, MAX_CHARS)
-		return (
-			prependedContext +
-			truncated +
-			"\n\n[[NOTE] This message was truncated past this point to preserve context window space.]"
-		)
+	processFirstUserMessageForTruncation: () => {
+		return "[Continue assisting the user!]"
 	},
 
 	condense: () =>
