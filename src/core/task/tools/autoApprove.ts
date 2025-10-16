@@ -32,8 +32,8 @@ export class AutoApprove {
 		}
 
 		return {
-			workspacePaths: this.workspacePathsCache,
-			isMultiRootScenario: this.isMultiRootScenarioCache,
+			workspacePaths: this.workspacePathsCache!,
+			isMultiRootScenario: this.isMultiRootScenarioCache!,
 		}
 	}
 
@@ -85,6 +85,8 @@ export class AutoApprove {
 				case ClineDefaultTool.MCP_ACCESS:
 				case ClineDefaultTool.MCP_USE:
 					return autoApprovalSettings.actions.useMcp
+				case ClineDefaultTool.NEW_TASK:
+					return autoApprovalSettings.actions.createNewTask ?? false
 			}
 		}
 		return false

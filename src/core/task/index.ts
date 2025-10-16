@@ -476,6 +476,7 @@ export class Task {
 			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
 			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
 			this.switchToActModeCallback.bind(this),
+			this.createNewTaskCallback.bind(this),
 		)
 	}
 
@@ -741,6 +742,21 @@ export class Task {
 
 	private async switchToActModeCallback(): Promise<boolean> {
 		return await this.controller.toggleActModeForYoloMode()
+	}
+
+	private async createNewTaskCallback(text: string, images?: string[], files?: string[]): Promise<string | void> {
+		try {
+			// Use controller helper that also sends the chat button clicked event
+			await this.controller.handleTaskCreation(text)
+			return
+		} catch (_e) {
+			// Fallback to direct initTask if needed
+			try {
+				return await this.controller.initTask(text, images, files)
+			} catch {
+				return
+			}
+		}
 	}
 
 	private async runUserPromptSubmitHook(

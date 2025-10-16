@@ -75,6 +75,13 @@ export const ACTION_METADATA: ActionMetadata[] = [
 		description: "Allows Cline to use configured MCP servers which may modify filesystem or interact with APIs.",
 		icon: "codicon-server",
 	},
+	{
+		id: "createNewTask",
+		label: "Create new tasks",
+		shortName: "New Task",
+		description: "Allows Cline to automatically create a new task when appropriate.",
+		icon: "codicon-new-file",
+	},
 ]
 
 export const NOTIFICATIONS_SETTING: ActionMetadata = {

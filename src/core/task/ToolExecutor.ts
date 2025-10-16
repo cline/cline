@@ -112,6 +112,7 @@ export class ToolExecutor {
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
 		private switchToActMode: () => Promise<boolean>,
+		private createNewTask: (text: string, images?: string[], files?: string[]) => Promise<string | void>,
 	) {
 		this.autoApprover = new AutoApprove(this.stateManager)
 
@@ -167,6 +168,7 @@ export class ToolExecutor {
 				shouldAutoApproveToolWithPath: this.shouldAutoApproveToolWithPath.bind(this),
 				applyLatestBrowserSettings: this.applyLatestBrowserSettings.bind(this),
 				switchToActMode: this.switchToActMode,
+				createNewTask: this.createNewTask,
 			},
 			coordinator: this.coordinator,
 		}

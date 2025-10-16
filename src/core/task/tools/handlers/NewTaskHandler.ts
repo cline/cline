@@ -2,7 +2,7 @@ import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
-import { ClineDefaultTool } from "@/shared/tools"
+import { ClineDefaultTool } from "@shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -21,6 +21,13 @@ export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 	 */
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const context = uiHelpers.removeClosingTag(block, "context", block.params.context)
+		// If auto-approval is enabled for creating new tasks, don't present an ask in partial streaming
+		const autoApprove = uiHelpers.shouldAutoApproveTool(this.name)
+		const shouldAutoApprove = Array.isArray(autoApprove) ? autoApprove[0] : autoApprove
+		if (shouldAutoApprove) {
+			await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "new_task").catch(() => {})
+			return
+		}
 		await uiHelpers.ask(this.name, context, true).catch(() => {})
 	}
 
@@ -41,6 +48,19 @@ export class NewTaskHandler implements IToolHandler, IPartialBlockHandler {
 				subtitle: "Cline wants to start a new task...",
 				message: `Cline is suggesting to start a new task with: ${context}`,
 			})
+		}
+
+		// Auto-approve create new task if enabled
+		const autoApproveResult = config.callbacks.shouldAutoApproveTool(this.name)
+		const shouldAutoApprove = Array.isArray(autoApproveResult) ? autoApproveResult[0] : autoApproveResult
+		if (shouldAutoApprove) {
+			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "new_task")
+			if (!config.yoloModeToggled) {
+				config.taskState.consecutiveAutoApprovedRequestsCount++
+			}
+			// Programmatically create a new task
+			await config.callbacks.createNewTask(context).catch(() => {})
+			return formatResponse.toolResult(`A new task was created with the provided context.`)
 		}
 
 		// Ask user for response
