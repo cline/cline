@@ -22,10 +22,7 @@ export async function installClineCli(_controller: Controller, _request: EmptyRe
 			}),
 		)
 
-		if (response.success) {
-			// Log the action
-			console.log("Sent CLI install command to terminal:", installCommand)
-		} else {
+		if (!response.success) {
 			throw new Error("Failed to execute command in terminal")
 		}
 	} catch (error) {
