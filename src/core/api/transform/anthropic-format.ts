@@ -1,5 +1,5 @@
-import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index.mjs"
-import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions.mjs"
+import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
+import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 
 /**
  * Converts an OpenAI ChatCompletionTool into an Anthropic Tool definition

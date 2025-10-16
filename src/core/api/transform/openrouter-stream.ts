@@ -6,7 +6,7 @@ import {
 	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
 import OpenAI from "openai"
-import { ChatCompletionTool } from "openai/resources/chat/completions.mjs"
+import { ChatCompletionTool } from "openai/resources/chat/completions"
 import { convertToOpenAiMessages } from "./openai-format"
 import { convertToR1Format } from "./r1-format"
 

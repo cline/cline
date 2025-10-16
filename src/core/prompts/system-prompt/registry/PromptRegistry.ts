@@ -1,4 +1,4 @@
-import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions.mjs"
+import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ApiProviderInfo } from "@/core/api"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineToolSet } from ".."

@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { AnthropicModelId, anthropicDefaultModelId, anthropicModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
-import { ChatCompletionTool } from "openai/resources/chat/completions.mjs"
+import { ChatCompletionTool } from "openai/resources/chat/completions"
 import { openAIToolToAnthropic } from "@/core/prompts/system-prompt/spec"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
