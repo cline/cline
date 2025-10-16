@@ -244,7 +244,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 			}
 		}
 
-		// Handle secrets updatea
+		// Handle secrets updates
 		if (request.secrets) {
 			const filteredSecrets = Object.fromEntries(
 				Object.entries(request.secrets).filter(([_, value]) => value !== undefined),
@@ -252,8 +252,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 
 			controller.stateManager.setSecretsBatch(filteredSecrets)
 		}
-
-		console.log("autoApprovalSettings", controller.stateManager.getGlobalSettingsKey("autoApprovalSettings"))
 
 		// Post updated state to webview
 		await controller.postStateToWebview()
