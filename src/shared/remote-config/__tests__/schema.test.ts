@@ -82,10 +82,7 @@ describe("Remote Config Schema", () => {
 	describe("ClineSettingsSchema", () => {
 		it("should accept valid Cline provider settings", () => {
 			const validSettings = {
-				models: [
-					{ id: "claude-3-5-sonnet-20241022", thinkingBudgetTokens: 1600 },
-					{ id: "claude-3-5-haiku-20241022", thinkingBudgetTokens: 800 },
-				],
+				models: [{ id: "claude-3-5-sonnet-20241022" }, { id: "claude-3-5-haiku-20241022" }],
 			}
 			const result = ClineSettingsSchema.parse(validSettings)
 			expect(result).to.deep.equal(validSettings)
@@ -106,7 +103,7 @@ describe("Remote Config Schema", () => {
 		it("should reject models with missing id field", () => {
 			expect(() =>
 				ClineSettingsSchema.parse({
-					models: [{ thinkingBudgetTokens: 1600 }],
+					models: [{}],
 				}),
 			).to.throw()
 		})
@@ -364,10 +361,7 @@ describe("Remote Config Schema", () => {
 						awsBedrockEndpoint: "https://custom-bedrock.endpoint",
 					},
 					Cline: {
-						models: [
-							{ id: "claude-3-5-sonnet-20241022", thinkingBudgetTokens: 1600 },
-							{ id: "claude-3-5-haiku-20241022", thinkingBudgetTokens: 800 },
-						],
+						models: [{ id: "claude-3-5-sonnet-20241022" }, { id: "claude-3-5-haiku-20241022" }],
 					},
 				},
 			}
@@ -396,9 +390,7 @@ describe("Remote Config Schema", () => {
 			// Verify Cline settings
 			expect(result.providerSettings?.Cline?.models).to.have.lengthOf(2)
 			expect(result.providerSettings?.Cline?.models?.[0].id).to.equal("claude-3-5-sonnet-20241022")
-			expect(result.providerSettings?.Cline?.models?.[0].thinkingBudgetTokens).to.equal(1600)
 			expect(result.providerSettings?.Cline?.models?.[1].id).to.equal("claude-3-5-haiku-20241022")
-			expect(result.providerSettings?.Cline?.models?.[1].thinkingBudgetTokens).to.equal(800)
 
 			// Verify OpenTelemetry settings
 			expect(result.openTelemetryEnabled).to.equal(true)
