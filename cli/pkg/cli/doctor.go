@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/terminal"
 	"github.com/cline/cli/pkg/cli/updater"
@@ -44,15 +46,27 @@ Auto-update:
   - Respects NO_AUTO_UPDATE environment variable
   - Skipped in CI environments`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Configure terminal keybindings (sync - wait for completion)
-			terminal.SetupKeyboard(true)
-
-			// Check for updates (sync - wait for completion)
-			updater.CheckAndUpdate(global.Config.Verbose, true)
-
-			return nil
+			return runDoctorChecks()
 		},
 	}
 
 	return cmd
+}
+
+// runDoctorChecks performs all doctor diagnostics and configuration
+func runDoctorChecks() error {
+	fmt.Println("\nRunning diagnostics and configuration...\n")
+
+	// Configure terminal keybindings (terminal.go prints its own status)
+	terminal.SetupKeyboardSync()
+
+	// Check for updates (updater.go prints its own status)
+	updater.CheckAndUpdateSync(global.Config.Verbose, true)
+
+	// Summary
+	fmt.Println("\n\033[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m")
+	fmt.Println("\n\033[32m✓ Doctor check complete!\033[0m\n")
+	fmt.Println("Your terminal is ready. Use \033[1mshift+enter\033[0m for newlines.\n")
+
+	return nil
 }

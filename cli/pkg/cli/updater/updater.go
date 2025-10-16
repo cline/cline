@@ -41,10 +41,9 @@ var (
 
 var verbose bool
 
-// CheckAndUpdate performs an update check and attempts to auto-update if needed.
-// If sync is true, blocks until complete. If sync is false, runs in background.
-// This is safe to call on CLI startup.
-func CheckAndUpdate(isVerbose bool, sync bool) {
+// CheckAndUpdate performs a background update check and attempts to auto-update if needed.
+// This is non-blocking and safe to call on CLI startup.
+func CheckAndUpdate(isVerbose bool) {
 	verbose = isVerbose
 
 	// Skip in CI environments
@@ -64,41 +63,62 @@ func CheckAndUpdate(isVerbose bool, sync bool) {
 	}
 
 	if verbose {
-		if sync {
-			output.Printf("[updater] Starting update check...\n")
-		} else {
-			output.Printf("[updater] Starting background update check...\n")
-		}
+		output.Printf("[updater] Starting background update check...\n")
 	}
 
-	if sync {
-		// Run synchronously (block until complete)
-		if err := checkAndUpdateSync(); err != nil {
+	// Run in background so we don't block CLI startup
+	go func() {
+		if err := checkAndUpdateInternal(false); err != nil {
 			if verbose {
 				output.Printf("[updater] Update check failed: %v\n", err)
 			}
 		}
-	} else {
-		// Run in background so we don't block CLI startup
-		go func() {
-			if err := checkAndUpdateSync(); err != nil {
-				if verbose {
-					output.Printf("[updater] Update check failed: %v\n", err)
-				}
-			}
-		}()
+	}()
+}
+
+// CheckAndUpdateSync performs a synchronous update check (blocks until complete).
+// If bypassCache is true, ignores the 24-hour cache and always checks npm registry.
+// This is used by the doctor command.
+func CheckAndUpdateSync(isVerbose bool, bypassCache bool) {
+	verbose = isVerbose
+
+	// Skip in CI environments
+	if os.Getenv("CI") != "" {
+		if verbose {
+			output.Printf("[updater] Skipping update check (CI environment)\n")
+		}
+		return
+	}
+
+	// Skip if user disabled auto-updates
+	if os.Getenv("NO_AUTO_UPDATE") != "" {
+		if verbose {
+			output.Printf("[updater] Skipping update check (NO_AUTO_UPDATE set)\n")
+		}
+		return
+	}
+
+	if verbose {
+		output.Printf("[updater] Starting update check...\n")
+	}
+
+	// Run synchronously
+	if err := checkAndUpdateInternal(bypassCache); err != nil {
+		if verbose {
+			output.Printf("[updater] Update check failed: %v\n", err)
+		}
 	}
 }
 
-func checkAndUpdateSync() error {
+func checkAndUpdateInternal(bypassCache bool) error {
 	if verbose {
 		output.Printf("[updater] Loading update cache...\n")
 	}
 
 	// Load cache
 	cache, err := loadCache()
-	if err == nil && time.Since(cache.LastCheck) < checkInterval {
-		// Checked recently, skip
+	if !bypassCache && err == nil && time.Since(cache.LastCheck) < checkInterval {
+		// Checked recently, skip (unless cache is bypassed)
 		if verbose {
 			output.Printf("[updater] Cache is fresh (last checked %v ago), skipping\n", time.Since(cache.LastCheck))
 		}

@@ -94,50 +94,91 @@ func isatty(fd uintptr) bool {
 }
 
 // SetupKeyboard detects the current terminal and configures keybindings if needed.
-// This modifies terminal config files to add permanent shift+enter support.
-// If sync is true, blocks until complete. If sync is false, runs in background.
-func SetupKeyboard(sync bool) {
-	setupFunc := func() {
-		terminal := DetectTerminal()
+// Runs in background and doesn't block. Prints status when configs are modified.
+func SetupKeyboard() {
+	go setupKeyboardInternal()
+}
 
-		switch terminal {
-		case "vscode":
-			// VS Code and Cursor use the same TERM_PROGRAM value
-			if modified, path := SetupVSCodeKeybindings(); modified {
-				fmt.Printf("\033[90mConfigured shift+enter for\033[0m VS Code \033[90mterminal\033[0m\n")
-				fmt.Printf("\033[90m  →\033[0m %s\n", path)
-				fmt.Printf("\n")
-			}
-			if modified, path := SetupCursorKeybindings(); modified {
-				fmt.Printf("\033[90mConfigured shift+enter for\033[0m Cursor \033[90mterminal\033[0m\n")
-				fmt.Printf("\033[90m  →\033[0m %s\n", path)
-				fmt.Printf("\n")
-			}
-		case "ghostty":
-			if modified, path := SetupGhosttyKeybindings(); modified {
-				fmt.Printf("\033[90mConfigured shift+enter for\033[0m Ghostty \033[90mterminal\033[0m\n")
-				fmt.Printf("\033[90m  →\033[0m %s\n", path)
-				fmt.Printf("\033[90m  Restart Ghostty (Cmd+Q) for changes to take effect\033[0m\n")
-				fmt.Printf("\n")
-			}
-		case "wezterm":
-			_ = SetupWezTermKeybindings()
-		case "alacritty":
-			_ = SetupAlacrittyKeybindings()
-		case "kitty":
-			_ = SetupKittyKeybindings()
-		case "iterm2", "terminal.app":
-			// iTerm2 already works by default (maps shift+enter to alt+enter)
-			// Terminal.app cannot be automated - user must configure manually
+// SetupKeyboardSync is the synchronous version used by doctor command.
+// Blocks until complete and prints status for all terminals.
+func SetupKeyboardSync() {
+	setupKeyboardInternal()
+}
+
+func setupKeyboardInternal() {
+	terminalName := DetectTerminal()
+
+	switch terminalName {
+	case "vscode":
+		// VS Code and Cursor use the same TERM_PROGRAM value
+		modified, path := SetupVSCodeKeybindings()
+		if modified {
+			fmt.Printf("\033[90mConfigured shift+enter for\033[0m VS Code \033[90mterminal\033[0m\n")
+			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+		} else if path != "" {
+			fmt.Printf("\033[90m✓ VS Code shift+enter already configured\033[0m\n")
+			fmt.Printf("\033[90m  →\033[0m %s\n", path)
 		}
-	}
 
-	if sync {
-		// Run synchronously (block until complete)
-		setupFunc()
-	} else {
-		// Run in background so we don't block CLI startup
-		go setupFunc()
+		modified, path = SetupCursorKeybindings()
+		if modified {
+			fmt.Printf("\033[90mConfigured shift+enter for\033[0m Cursor \033[90mterminal\033[0m\n")
+			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+		} else if path != "" {
+			fmt.Printf("\033[90m✓ Cursor shift+enter already configured\033[0m\n")
+			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+		}
+
+	case "ghostty":
+		modified, path := SetupGhosttyKeybindings()
+		if modified {
+			fmt.Printf("\033[90mConfigured shift+enter for\033[0m Ghostty \033[90mterminal\033[0m\n")
+			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+			fmt.Printf("\033[90m  Restart Ghostty (Cmd+Q) for changes to take effect\033[0m\n")
+		} else if path != "" {
+			fmt.Printf("\033[90m✓ Ghostty shift+enter already configured\033[0m\n")
+			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+		}
+
+	case "wezterm":
+		modified, path := SetupWezTermKeybindings()
+		if modified {
+			fmt.Printf("\033[90mConfigured shift+enter for\033[0m WezTerm \033[90mterminal\033[0m\n")
+			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+		} else if path != "" {
+			fmt.Printf("\033[90m✓ WezTerm shift+enter already configured\033[0m\n")
+			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+		}
+
+	case "alacritty":
+		modified, path := SetupAlacrittyKeybindings()
+		if modified {
+			fmt.Printf("\033[90mConfigured shift+enter for\033[0m Alacritty \033[90mterminal\033[0m\n")
+			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+		} else if path != "" {
+			fmt.Printf("\033[90m✓ Alacritty shift+enter already configured\033[0m\n")
+			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+		}
+
+	case "kitty":
+		modified, path := SetupKittyKeybindings()
+		if modified {
+			fmt.Printf("\033[90mConfigured shift+enter for\033[0m Kitty \033[90mterminal\033[0m\n")
+			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+		} else if path != "" {
+			fmt.Printf("\033[90m✓ Kitty shift+enter already configured\033[0m\n")
+			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+		}
+
+	case "iterm2":
+		fmt.Printf("\033[90m✓ iTerm2 shift+enter works by default (maps to alt+enter)\033[0m\n")
+
+	case "terminal.app":
+		fmt.Printf("\033[90m⚠ Terminal.app requires manual configuration\033[0m\n")
+		fmt.Printf("\033[90m  See: Terminal → Preferences → Profiles → Keyboard\033[0m\n")
+
+	case "unknown":
+		fmt.Printf("\033[90mℹ Terminal not detected - use alt+enter or ctrl+j for newlines\033[0m\n")
 	}
 }
 
@@ -461,10 +502,11 @@ func SetupGhosttyKeybindings() (bool, string) {
 
 // SetupWezTermKeybindings adds shift+enter support to WezTerm
 // by appending to the user's .wezterm.lua file.
-func SetupWezTermKeybindings() error {
+// Returns (wasModified, configPath)
+func SetupWezTermKeybindings() (bool, string) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return false, ""
 	}
 
 	configPath := filepath.Join(home, ".wezterm.lua")
@@ -472,18 +514,18 @@ func SetupWezTermKeybindings() error {
 	// Check if WezTerm config exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		// WezTerm not configured, skip silently
-		return nil
+		return false, ""
 	}
 
 	// Read existing config
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return fmt.Errorf("failed to read config: %w", err)
+		return false, ""
 	}
 
 	// Check if shift+enter already configured
 	if strings.Contains(string(data), "key = 'Enter'") && strings.Contains(string(data), "mods = 'SHIFT'") {
-		return nil
+		return false, configPath
 	}
 
 	// Create backup
@@ -512,18 +554,19 @@ table.insert(config.keys, {
 
 	// Write updated config
 	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
+		return false, ""
 	}
 
-	return nil
+	return true, configPath
 }
 
 // SetupAlacrittyKeybindings adds shift+enter support to Alacritty
 // by appending to the user's alacritty.yml file.
-func SetupAlacrittyKeybindings() error {
+// Returns (wasModified, configPath)
+func SetupAlacrittyKeybindings() (bool, string) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return false, ""
 	}
 
 	// Try both possible locations
@@ -543,18 +586,18 @@ func SetupAlacrittyKeybindings() error {
 
 	if configPath == "" {
 		// Alacritty not configured, skip silently
-		return nil
+		return false, ""
 	}
 
 	// Read existing config
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return fmt.Errorf("failed to read config: %w", err)
+		return false, ""
 	}
 
 	// Check if shift+enter already configured
 	if strings.Contains(string(data), "key: Return") && strings.Contains(string(data), "mods: Shift") {
-		return nil
+		return false, configPath
 	}
 
 	// Create backup
@@ -585,18 +628,19 @@ chars = "\x1b\n"
 
 	// Write updated config
 	if err := os.WriteFile(configPath, newContent, 0644); err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
+		return false, ""
 	}
 
-	return nil
+	return true, configPath
 }
 
 // SetupKittyKeybindings adds shift+enter support to Kitty terminal
 // by appending to the user's kitty.conf file.
-func SetupKittyKeybindings() error {
+// Returns (wasModified, configPath)
+func SetupKittyKeybindings() (bool, string) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
+		return false, ""
 	}
 
 	configPath := filepath.Join(home, ".config", "kitty", "kitty.conf")
@@ -605,7 +649,7 @@ func SetupKittyKeybindings() error {
 	configDir := filepath.Dir(configPath)
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		// Kitty not installed, skip silently
-		return nil
+		return false, ""
 	}
 
 	// Read existing config if it exists
@@ -614,7 +658,7 @@ func SetupKittyKeybindings() error {
 		existingContent = data
 		// Check if shift+enter already configured
 		if strings.Contains(string(data), "map shift+enter") {
-			return nil
+			return false, configPath
 		}
 	}
 
@@ -626,7 +670,7 @@ func SetupKittyKeybindings() error {
 
 	// Ensure directory exists
 	if err := os.MkdirAll(configDir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+		return false, ""
 	}
 
 	// Create backup if file exists
@@ -637,8 +681,8 @@ func SetupKittyKeybindings() error {
 
 	// Write updated config
 	if err := os.WriteFile(configPath, newContent, 0644); err != nil {
-		return fmt.Errorf("failed to write config: %w", err)
+		return false, ""
 	}
 
-	return nil
+	return true, configPath
 }
