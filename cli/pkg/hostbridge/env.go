@@ -79,7 +79,7 @@ func (s *EnvService) GetHostVersion(ctx context.Context, req *cline.EmptyRequest
 		Platform:     proto.String("Cline CLI"),
 		Version:      proto.String(""),
 		ClineType:    proto.String("CLI"),
-		ClineVersion: proto.String(global.Version),
+		ClineVersion: proto.String(global.CliVersion),
 	}, nil
 }
 
