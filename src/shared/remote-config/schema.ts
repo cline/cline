@@ -65,7 +65,6 @@ export const AwsBedrockSettingsSchema = z.object({
 // Cline Provider model schema with per-model settings
 export const ClineModelSchema = z.object({
 	id: z.string(), // The model ID is required
-	thinkingBudgetTokens: z.number().optional(),
 })
 
 // Cline Provider specific settings
