@@ -133,7 +133,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			// Use the continuationPrompt to format the tool result, appending file contents
 			if (fileContents) {
 				fileContents =
-					"\n\nThe following files were automatically read based on the files listed in the Required Files section. These are the latest versions - you should reference them directly and not re-read them:" +
+					"\n\nThe following files were automatically read based on the files listed in the Required Files section. These are the latest versions - you should reference them directly and not re-read them, unless they have been altered:" +
 					fileContents
 			}
 			const toolResult = formatResponse.toolResult(continuationPrompt(context) + fileContents)
