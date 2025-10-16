@@ -29,6 +29,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 	try {
 		if (request.clineEnv !== undefined) {
 			ClineEnv.setEnvironment(request.clineEnv)
+			await controller.handleSignOut()
 		}
 
 		if (request.apiConfiguration) {

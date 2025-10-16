@@ -323,6 +323,7 @@ message UpdateSettingsRequestCli {
   Metadata metadata = 1;
   optional Settings settings = 2;
   optional Secrets secrets = 3;
+  optional string environment = 4;
 }
 
 message UpdateTaskSettingsRequest {

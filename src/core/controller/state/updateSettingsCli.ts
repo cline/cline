@@ -9,6 +9,7 @@ import {
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Settings } from "@shared/storage/state-keys"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -44,6 +45,11 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 	}
 
 	try {
+		if (request.environment !== undefined) {
+			ClineEnv.setEnvironment(request.environment)
+			await controller.handleSignOut()
+		}
+
 		if (request.settings) {
 			// Extract all special case fields that need dedicated handlers
 			// These should NOT be included in the batch update

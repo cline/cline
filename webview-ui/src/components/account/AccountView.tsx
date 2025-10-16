@@ -414,12 +414,10 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 							currentValue={clineEnv}
 							onChange={async (e) => {
 								const target = e.target as HTMLSelectElement
-								if (!target) {
-									return
+								if (target?.value) {
+									const value = target.value as "Local" | "Staging" | "Production"
+									updateSetting("clineEnv", value.toLowerCase())
 								}
-								const value = target.value as "Local" | "Staging" | "Production"
-								updateSetting("clineEnv", value.toLowerCase())
-								handleSignOut()
 							}}>
 							{ClineEnvOptions.map((env) => (
 								<VSCodeOption key={env} value={env}>
