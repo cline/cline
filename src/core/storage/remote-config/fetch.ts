@@ -1,6 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { Controller } from "@/core/controller"
-import { clineEnvConfig } from "../../../config"
+import { ClineEnv } from "../../../config"
 import { AuthService } from "../../../services/auth/AuthService"
 import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
 import { RemoteConfig, RemoteConfigSchema } from "../../../shared/remote-config/schema"
@@ -27,7 +27,7 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
 
 		// Construct URL by replacing {id} placeholder with organizationId
 		const endpoint = CLINE_API_ENDPOINT.REMOTE_CONFIG.replace("{id}", organizationId)
-		const url = new URL(endpoint, clineEnvConfig.apiBaseUrl).toString()
+		const url = new URL(endpoint, ClineEnv.config().apiBaseUrl).toString()
 
 		// Make authenticated request
 		const requestConfig: AxiosRequestConfig = {
