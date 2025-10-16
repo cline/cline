@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.33.1]
+
+- Fix CLI installation copy text
+
 ## [3.33.0]
 
 - Added Cline CLI (Preview) 

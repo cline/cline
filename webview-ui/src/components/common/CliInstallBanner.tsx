@@ -82,7 +82,7 @@ export const CliInstallBanner: React.FC = () => {
 		e.stopPropagation()
 
 		// Copy the install command to clipboard
-		await navigator.clipboard.writeText("npm install -g @cline")
+		await navigator.clipboard.writeText("npm install -g cline")
 
 		// Show feedback by changing the icon
 		setIsCopied(true)

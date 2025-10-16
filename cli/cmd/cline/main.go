@@ -163,6 +163,7 @@ see the manual page: man cline`,
 				Settings: settings,
 				Yolo:     yolo,
 				Address:  instanceAddress,
+				Verbose:  verbose,
 			})
 		},
 	}
@@ -238,7 +239,7 @@ func promptForInitialTask(ctx context.Context, instanceAddress, modeFlag string)
 // showSessionBanner displays session info before initial prompt
 func showSessionBanner(ctx context.Context, instanceAddress, modeFlag string) {
 	bannerInfo := display.BannerInfo{
-		Version: global.Version,
+		Version: global.CliVersion,
 		Mode:    modeFlag, // Use the mode from command flag, not state
 	}
 
