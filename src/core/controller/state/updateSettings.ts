@@ -159,6 +159,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			)
 		}
 
+		// Update subagent terminal output line limit
+		if (request.subagentTerminalOutputLineLimit !== undefined) {
+			controller.stateManager.setGlobalState(
+				"subagentTerminalOutputLineLimit",
+				Number(request.subagentTerminalOutputLineLimit),
+			)
+		}
+
 		// Update max consecutive mistakes
 		if (request.maxConsecutiveMistakes !== undefined) {
 			controller.stateManager.setGlobalState("maxConsecutiveMistakes", Number(request.maxConsecutiveMistakes))
@@ -331,6 +339,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			if (wasEnabled !== isEnabled) {
 				telemetryService.captureSubagentToggle(isEnabled)
 			}
+			controller.stateManager.setGlobalState("subagentsEnabled", !!request.subagentsEnabled)
 		}
 
 		// Post updated state to webview

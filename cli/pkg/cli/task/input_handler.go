@@ -352,6 +352,7 @@ func (ih *InputHandler) runInputProgram(ctx context.Context, model output.InputM
 		case output.InputTypeFeedback:
 			// This came from approval flow
 			ih.feedbackApproval = true
+			ih.feedbackApproved = result.Approved // Use the approval decision from the feedback
 			return result.Value, true, nil
 		}
 

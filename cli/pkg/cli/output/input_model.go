@@ -61,6 +61,7 @@ type InputModel struct {
 	// For approval type
 	approvalOptions []string
 	selectedOption  int
+	pendingApproval bool // Stores approval decision when transitioning to feedback input
 
 	// Styles (huh-inspired theme)
 	styles fieldStyles
@@ -299,6 +300,8 @@ func (m *InputModel) handleSubmit() (tea.Model, tea.Cmd) {
 		needsFeedback := strings.Contains(selected, "feedback")
 
 		if needsFeedback {
+			// Store the approval decision before switching to feedback input
+			m.pendingApproval = approved
 			// Switch to feedback input
 			return m, func() tea.Msg {
 				return ChangeInputTypeMsg{
@@ -324,6 +327,7 @@ func (m *InputModel) handleSubmit() (tea.Model, tea.Cmd) {
 			return InputSubmitMsg{
 				Value:     value,
 				InputType: InputTypeFeedback,
+				Approved:  m.pendingApproval, // Pass the stored approval decision
 			}
 		}
 	}
@@ -439,6 +443,7 @@ func (m *InputModel) Clone() *InputModel {
 		lastHeight:      m.lastHeight,
 		approvalOptions: m.approvalOptions,
 		selectedOption:  m.selectedOption,
+		pendingApproval: m.pendingApproval, // Preserve approval decision
 		styles:          m.styles,
 	}
 

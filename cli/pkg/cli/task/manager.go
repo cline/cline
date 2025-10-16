@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -125,7 +126,7 @@ func (m *Manager) GetCurrentInstance() string {
 }
 
 // CreateTask creates a new task
-func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files []string, workspacePaths []string, settingsFlags []string) (string, error) {
+func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files []string, settingsFlags []string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -136,9 +137,6 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 		}
 		if len(images) > 0 {
 			m.renderer.RenderDebug("Images: %v", images)
-		}
-		if len(workspacePaths) > 0 {
-			m.renderer.RenderDebug("Workspaces: %v", workspacePaths)
 		}
 		if len(settingsFlags) > 0 {
 			m.renderer.RenderDebug("Settings: %v", settingsFlags)
@@ -610,6 +608,17 @@ func (m *Manager) CancelTask(ctx context.Context) error {
 
 // ShowConversation displays the current conversation
 func (m *Manager) ShowConversation(ctx context.Context) error {
+	// Check if there's an active task before showing conversation
+	err := m.CheckSendEnabled(ctx)
+	if err != nil {
+		// Handle specific error cases
+		if errors.Is(err, ErrNoActiveTask) {
+			fmt.Println("No active task found. Use 'cline task new' to create a task first.")
+			return nil
+		}
+		// For other errors (like task busy), we can still show the conversation
+	}
+
 	// Disable streaming mode for static view
 	m.mu.Lock()
 	m.isStreamingMode = false
