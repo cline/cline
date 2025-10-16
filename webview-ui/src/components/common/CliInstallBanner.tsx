@@ -120,7 +120,7 @@ export const CliInstallBanner: React.FC = () => {
 					</>
 				) : (
 					<>
-						Cline CLI is available for Mac OS users now! coming <code>soon</code> to other platforms.{" "}
+						Cline CLI is available for macOS and Linux now! coming <code>soon</code> to other platforms.{" "}
 						<a
 							href="https://docs.cline.bot/cline-cli/overview"
 							rel="noopener noreferrer"
@@ -193,7 +193,7 @@ export const CliInstallBanner: React.FC = () => {
 							appearance="secondary"
 							className="flex-1"
 							disabled
-							title="Cline CLI & subagents are only available on macOS">
+							title="Cline CLI & subagents are only available on macOS & Linux">
 							Subagents (macOS only)
 						</VSCodeButton>
 					</div>
