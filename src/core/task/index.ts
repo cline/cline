@@ -81,6 +81,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { resolveExtensionQueries } from "@/utils/mentions"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
@@ -2734,6 +2735,19 @@ export class Task {
 
 							if (needsCheck) {
 								needsClinerulesFileCheck = true
+							}
+
+							try {
+								const resolvedText = await resolveExtensionQueries(processedText, vscode.commands.executeCommand)
+								return {
+									...block,
+									text: resolvedText,
+								}
+							} catch (error) {
+								HostProvider.window.showMessage({
+									type: ShowMessageType.ERROR,
+									message: `Failed to resolve query: ${error}`,
+								})
 							}
 
 							return {
