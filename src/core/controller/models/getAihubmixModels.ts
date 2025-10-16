@@ -4,17 +4,17 @@ import axios from "axios"
 import { Controller } from ".."
 
 /**
- * Fetches available models from Aihubmix
+ * Fetches available models from AIhubmix
  * @param controller The controller instance
  * @param request Empty request object
- * @returns Response containing the Aihubmix models
+ * @returns Response containing the AIhubmix models
  */
 export async function getAihubmixModels(_controller: Controller, _request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
 	try {
 		const response = await axios.get("https://aihubmix.com/call/mdl_info")
 
 		if (!response.data?.success || !Array.isArray(response.data?.data)) {
-			console.error("Invalid response from Aihubmix API:", response.data)
+			console.error("Invalid response from AIhubmix API:", response.data)
 			return OpenRouterCompatibleModelInfo.create({ models: {} })
 		}
 
@@ -64,7 +64,7 @@ export async function getAihubmixModels(_controller: Controller, _request: Empty
 				outputPrice: outputPrice,
 				cacheWritesPrice: supportsPromptCache ? inputPrice * 0.25 : 0, // 缓存写入价格
 				cacheReadsPrice: supportsPromptCache ? inputPrice * 0.025 : 0, // 缓存读取价格
-				description: modelData.desc_en || modelData.desc || `Aihubmix ${modelId} model`,
+				description: modelData.desc_en || modelData.desc || `AIhubmix ${modelId} model`,
 				thinkingConfig: supportsThinking
 					? {
 							maxBudget: 1000000, // 1M tokens budget for thinking
@@ -77,10 +77,13 @@ export async function getAihubmixModels(_controller: Controller, _request: Empty
 			})
 		}
 
-		console.log(`Fetched ${Object.keys(models).length} Aihubmix models`)
+		console.log(`Fetched ${Object.keys(models).length} AIhubmix models`)
 		return OpenRouterCompatibleModelInfo.create({ models })
 	} catch (error) {
-		console.error("Failed to fetch Aihubmix models:", error)
+		console.error("Failed to fetch AIhubmix models:", error)
 		return OpenRouterCompatibleModelInfo.create({ models: {} })
 	}
 }
+
+// 兼容服务类型定义使用的大小写（proto 方法为 getAIhubmixModels）
+export { getAihubmixModels as getAIhubmixModels }

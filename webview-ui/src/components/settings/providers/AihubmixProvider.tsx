@@ -1,7 +1,6 @@
 import { ModelInfo } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -11,7 +10,7 @@ import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
-// Aihubmix 支持的模型列表
+// AIhubmix 支持的模型列表
 const AIHUBMIX_MODELS = {
 	"gpt-4o-mini": {
 		name: "GPT-4o Mini",
@@ -80,94 +79,122 @@ const AIHUBMIX_MODELS = {
 }
 
 /**
- * Props for the AihubmixProvider component
+ * Props for the AIhubmixProvider component
  */
-interface AihubmixProviderProps {
+interface AIhubmixProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
 	currentMode: Mode
 }
 
 /**
- * The Aihubmix provider configuration component
+ * The AIhubmix provider configuration component
  */
-export const AihubmixProvider = ({ showModelOptions, isPopup, currentMode }: AihubmixProviderProps) => {
+export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIhubmixProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	const [models, setModels] = useState<Record<string, ModelInfo>>({})
 
+	// 保证当前选中的模型在下拉列表中可见
+	const ensureSelectedPresent = (base: Record<string, ModelInfo>): Record<string, ModelInfo> => {
+		if (selectedModelId && !base[selectedModelId]) {
+			const info = (selectedModelInfo as ModelInfo) || {
+				maxTokens: 8192,
+				contextWindow: 128000,
+				supportsImages: true,
+				supportsPromptCache: false,
+			}
+			return { ...base, [selectedModelId]: info }
+		}
+		return base
+	}
+
+	console.log("selectedModelId", selectedModelId)
+	console.log("selectedModelInfo", selectedModelInfo)
+
 	// Get the normalized configuration
 
-	// Fetch Aihubmix models from API
+	// 先回显旧数据/静态数据，再异步刷新并持久化到 localStorage
 	useEffect(() => {
+		try {
+			const cached = window.localStorage.getItem("aihubmixModels")
+			if (cached) {
+				const parsed = JSON.parse(cached) as Record<string, ModelInfo>
+				if (parsed && typeof parsed === "object") {
+					setModels(ensureSelectedPresent(parsed))
+				}
+			} else {
+				// 无缓存则使用静态回退，保证 UI 立即可用
+				const fallback = Object.fromEntries(Object.entries(AIHUBMIX_MODELS).map(([id, info]) => [id, info as ModelInfo]))
+				setModels(ensureSelectedPresent(fallback))
+			}
+		} catch {
+			// 解析失败时使用静态回退
+			const fallback = Object.fromEntries(Object.entries(AIHUBMIX_MODELS).map(([id, info]) => [id, info as ModelInfo]))
+			setModels(ensureSelectedPresent(fallback))
+		}
+
+		// 异步刷新模型列表
 		ModelsServiceClient.getAihubmixModels(EmptyRequest.create({}))
 			.then((response) => {
 				if (response.models) {
-					setModels(response.models as Record<string, ModelInfo>)
+					const nextModels = response.models as Record<string, ModelInfo>
+					const injected = ensureSelectedPresent(nextModels)
+					setModels(injected)
+					try {
+						window.localStorage.setItem("aihubmixModels", JSON.stringify(injected))
+					} catch {}
 				}
 			})
 			.catch((error) => {
-				console.error("Failed to fetch Aihubmix models:", error)
-				// Fallback to static models if API fails
-				setModels(Object.fromEntries(Object.entries(AIHUBMIX_MODELS).map(([id, info]) => [id, info as ModelInfo])))
+				console.error("Failed to fetch AIhubmix models:", error)
+				// 失败时保持当前 models，不打断用户
 			})
 	}, [])
+
+	console.log("apiConfiguration", apiConfiguration)
 
 	return (
 		<div>
 			<ApiKeyField
+				helpText="Now request 10% discount！"
 				initialValue={apiConfiguration?.aihubmixApiKey || ""}
 				onChange={(value) => handleFieldChange("aihubmixApiKey", value)}
-				providerName="Aihubmix"
-				signupUrl="https://console.aihubmix.com/token"
+				providerName="AIhubmix"
+				signupUrl="https://console.aihubmix.com/token" // 转英文
 			/>
-
-			{/* 折扣信息 */}
-			{apiConfiguration?.aihubmixApiKey && (
-				<div
-					style={{
-						backgroundColor: "var(--vscode-badge-background)",
-						border: "1px solid var(--vscode-badge-foreground)",
-						borderRadius: "4px",
-						padding: "8px",
-						marginTop: "10px",
-					}}>
-					<VSCodeLink
-						href="https://aihubmix.com"
-						style={{
-							fontSize: "12px",
-							color: "var(--vscode-foreground)",
-							textDecoration: "none",
-							fontWeight: 500,
-						}}
-						title="访问 Aihubmix 查看余额和使用情况">
-						🎉 享受 Aihubmix 统一网关折扣优惠
-					</VSCodeLink>
-					<p
-						style={{
-							fontSize: "11px",
-							marginTop: "5px",
-							color: "var(--vscode-descriptionForeground)",
-						}}>
-						Aihubmix 提供统一的 AI 模型访问，支持 Claude、GPT、Gemini 等多种模型，享受折扣价格
-					</p>
-				</div>
-			)}
 
 			{showModelOptions && (
 				<>
 					<ModelSelector
 						label="Model"
 						models={models}
-						onChange={(e) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
-						}
+						onChange={(e) => {
+							const newModelId = e.target.value
+							const newModelInfo = models[newModelId] as ModelInfo | undefined
+							// 同步保存 ID 和 ModelInfo，避免切换后丢失
+							if (newModelInfo) {
+								handleModeFieldsChange(
+									{
+										id: { plan: "planModeAihubmixModelId", act: "actModeAihubmixModelId" },
+										info: { plan: "planModeAihubmixModelInfo", act: "actModeAihubmixModelInfo" },
+									},
+									{ id: newModelId, info: newModelInfo },
+									currentMode,
+								)
+								// 不同步写全局字段，保持 AIhubmix 与全局字段隔离
+							} else {
+								// 仅保存 ID（无信息时退化）
+								handleModeFieldChange(
+									{ plan: "planModeAihubmixModelId", act: "actModeAihubmixModelId" },
+									newModelId,
+									currentMode,
+								)
+								// 不同步写全局字段
+							}
+						}}
 						selectedModelId={selectedModelId}
 					/>
 

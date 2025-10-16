@@ -398,7 +398,7 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 
 // Converts application ApiConfiguration to proto ApiConfiguration
 export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoApiConfiguration {
-	return {
+	const base: any = {
 		// Global configuration fields
 		apiKey: config.apiKey,
 		clineAccountId: config.clineAccountId,
@@ -512,6 +512,9 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
 		planModeOcaModelId: config.planModeOcaModelId,
 		planModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.planModeOcaModelInfo),
+		// AIhubmix dedicated (OpenAI-compatible)
+		planModeAihubmixModelId: (config as any).planModeAihubmixModelId,
+		planModeAihubmixModelInfo: convertOpenAiCompatibleModelInfoToProto((config as any).planModeAihubmixModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -548,6 +551,14 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeOcaModelId: config.actModeOcaModelId,
 		actModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.actModeOcaModelInfo),
 	}
+
+	// AIhubmix dedicated fields (added via type cast until proto types are regenerated)
+	base.planModeAihubmixModelId = (config as any).planModeAihubmixModelId
+	base.planModeAihubmixModelInfo = convertOpenAiCompatibleModelInfoToProto((config as any).planModeAihubmixModelInfo)
+	base.actModeAihubmixModelId = (config as any).actModeAihubmixModelId
+	base.actModeAihubmixModelInfo = convertOpenAiCompatibleModelInfoToProto((config as any).actModeAihubmixModelInfo)
+
+	return base as ProtoApiConfiguration
 }
 
 // Converts proto ApiConfiguration to application ApiConfiguration
@@ -669,6 +680,9 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
 		planModeOcaModelId: protoConfig.planModeOcaModelId,
 		planModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.planModeOcaModelInfo),
+		// AIhubmix dedicated
+		planModeAihubmixModelId: (protoConfig as any).planModeAihubmixModelId,
+		planModeAihubmixModelInfo: convertProtoToOpenAiCompatibleModelInfo((protoConfig as any).planModeAihubmixModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -705,5 +719,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
 		actModeOcaModelId: protoConfig.actModeOcaModelId,
 		actModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.actModeOcaModelInfo),
+		// AIhubmix dedicated
+		actModeAihubmixModelId: (protoConfig as any).actModeAihubmixModelId,
+		actModeAihubmixModelInfo: convertProtoToOpenAiCompatibleModelInfo((protoConfig as any).actModeAihubmixModelInfo),
 	}
 }

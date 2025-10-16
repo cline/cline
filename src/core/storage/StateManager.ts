@@ -454,6 +454,9 @@ export class StateManager {
 			requestTimeoutMs,
 			ocaBaseUrl,
 			ocaMode,
+			aihubmixApiKey,
+			aihubmixBaseUrl,
+			aihubmixAppCode,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -488,6 +491,9 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			// AIhubmix dedicated
+			planModeAihubmixModelId,
+			planModeAihubmixModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -522,6 +528,9 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			// AIhubmix dedicated
+			actModeAihubmixModelId,
+			actModeAihubmixModelInfo,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -560,6 +569,9 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			// AIhubmix dedicated
+			planModeAihubmixModelId,
+			planModeAihubmixModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -595,6 +607,9 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			// AIhubmix dedicated
+			actModeAihubmixModelId,
+			actModeAihubmixModelInfo,
 
 			// Global state updates
 			awsRegion,
@@ -636,6 +651,9 @@ export class StateManager {
 			qwenCodeOauthPath,
 			ocaBaseUrl,
 			ocaMode,
+			// AIhubmix provider settings
+			aihubmixBaseUrl,
+			aihubmixAppCode,
 		})
 
 		// Batch update secrets
@@ -674,6 +692,8 @@ export class StateManager {
 			difyApiKey,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
+			// AIhubmix provider secret
+			aihubmixApiKey,
 		})
 	}
 
@@ -937,6 +957,8 @@ export class StateManager {
 			difyApiKey: this.secretsCache["difyApiKey"],
 			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
 			zaiApiKey: this.secretsCache["zaiApiKey"],
+			// AIhubmix provider secret
+			aihubmixApiKey: this.secretsCache["aihubmixApiKey"],
 
 			// Global state
 			awsRegion: this.taskStateCache["awsRegion"] || this.globalStateCache["awsRegion"],
@@ -986,6 +1008,9 @@ export class StateManager {
 			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
 			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
 			ocaMode: this.globalStateCache["ocaMode"],
+			// AIhubmix provider settings
+			aihubmixBaseUrl: this.taskStateCache["aihubmixBaseUrl"] || this.globalStateCache["aihubmixBaseUrl"],
+			aihubmixAppCode: this.taskStateCache["aihubmixAppCode"] || this.globalStateCache["aihubmixAppCode"],
 
 			// Plan mode configurations
 			planModeApiProvider: this.taskStateCache["planModeApiProvider"] || this.globalStateCache["planModeApiProvider"],
@@ -1050,6 +1075,9 @@ export class StateManager {
 				this.globalStateCache["planModeVercelAiGatewayModelInfo"],
 			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
 			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
+			// AIhubmix dedicated
+			planModeAihubmixModelId: this.globalStateCache["planModeAihubmixModelId"],
+			planModeAihubmixModelInfo: this.globalStateCache["planModeAihubmixModelInfo"],
 
 			// Act mode configurations
 			actModeApiProvider: this.taskStateCache["actModeApiProvider"] || this.globalStateCache["actModeApiProvider"],
@@ -1112,6 +1140,9 @@ export class StateManager {
 				this.globalStateCache["actModeVercelAiGatewayModelInfo"],
 			actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
 			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
+			// AIhubmix dedicated
+			actModeAihubmixModelId: this.globalStateCache["actModeAihubmixModelId"],
+			actModeAihubmixModelInfo: this.globalStateCache["actModeAihubmixModelInfo"],
 		}
 	}
 }

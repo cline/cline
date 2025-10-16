@@ -11,7 +11,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
-import { AihubmixProvider } from "./providers/AihubmixProvider"
+import { AIhubmixProvider } from "./providers/AihubmixProvider"
 import { AnthropicProvider } from "./providers/AnthropicProvider"
 import { AskSageProvider } from "./providers/AskSageProvider"
 import { BasetenProvider } from "./providers/BasetenProvider"
@@ -129,7 +129,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		const providers = [
 			{ value: "cline", label: "Cline" },
 			{ value: "openrouter", label: "OpenRouter" },
-			{ value: "aihubmix", label: "Aihubmix" },
+			{ value: "aihubmix", label: "AIhubmix" },
 			{ value: "gemini", label: "Google Gemini" },
 			{ value: "openai", label: "OpenAI Compatible" },
 			{ value: "anthropic", label: "Anthropic" },
@@ -498,7 +498,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{apiConfiguration && selectedProvider === "oca" && <OcaProvider currentMode={currentMode} isPopup={isPopup} />}
 
 			{apiConfiguration && selectedProvider === "aihubmix" && (
-				<AihubmixProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+				<AIhubmixProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiErrorMessage && (

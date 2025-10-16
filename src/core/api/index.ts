@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
-import { AihubmixHandler } from "./providers/aihubmix"
+import { AIhubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
 import { BasetenHandler } from "./providers/baseten"
@@ -392,19 +392,23 @@ function createHandlerForProvider(
 				taskId: options.ulid,
 			})
 		case "aihubmix":
-			console.log("🔍 Creating AihubmixHandler with options:", {
+			console.log("🔍 Creating AIhubmixHandler with options:", {
 				apiKey: options.aihubmixApiKey ? "***" : undefined,
 				baseURL: options.aihubmixBaseUrl,
 				appCode: options.aihubmixAppCode,
-				modelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				modelId: mode === "plan" ? (options as any).planModeAihubmixModelId : (options as any).actModeAihubmixModelId,
+				modelInfo:
+					mode === "plan" ? (options as any).planModeAihubmixModelInfo : (options as any).actModeAihubmixModelInfo,
 				mode,
 			})
-			return new AihubmixHandler({
+			return new AIhubmixHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				apiKey: options.aihubmixApiKey,
 				baseURL: options.aihubmixBaseUrl,
 				appCode: options.aihubmixAppCode,
-				modelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+				modelId: mode === "plan" ? (options as any).planModeAihubmixModelId : (options as any).actModeAihubmixModelId,
+				modelInfo:
+					mode === "plan" ? (options as any).planModeAihubmixModelInfo : (options as any).actModeAihubmixModelInfo,
 			})
 		default:
 			return new AnthropicHandler({

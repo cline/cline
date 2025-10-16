@@ -39,7 +39,7 @@ service ModelsService {
   rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (SapAiCoreModelsResponse);
   // Fetches available models from OCA
   rpc refreshOcaModels(StringRequest) returns (OcaCompatibleModelInfo);
-  // Fetches available models from Aihubmix
+  // Fetches available models from AIhubmix
   rpc getAihubmixModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
 }
 
@@ -387,6 +387,10 @@ message ModelsApiConfiguration {
   optional string plan_mode_oca_model_id = 131;
   optional OcaModelInfo plan_mode_oca_model_info = 132;
 
+  // AIhubmix (OpenAI-compatible) - dedicated fields
+  optional string plan_mode_aihubmix_model_id = 133;
+  optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 134;
+
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -422,4 +426,7 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
   optional string act_mode_oca_model_id = 231;
   optional OcaModelInfo act_mode_oca_model_info = 232;
+  // AIhubmix (OpenAI-compatible) - dedicated fields
+  optional string act_mode_aihubmix_model_id = 233;
+  optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 234;
 }

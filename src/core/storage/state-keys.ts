@@ -103,6 +103,9 @@ export interface Settings {
 	autoCondenseThreshold: number | undefined // number from 0 to 1
 	ocaBaseUrl: string | undefined
 	ocaMode: string | undefined
+	// AIhubmix provider settings
+	aihubmixBaseUrl: string | undefined
+	aihubmixAppCode: string | undefined
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -136,6 +139,9 @@ export interface Settings {
 	planModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
 	planModeOcaModelId: string | undefined
 	planModeOcaModelInfo: OcaModelInfo | undefined
+	// AIhubmix dedicated
+	planModeAihubmixModelId: string | undefined
+	planModeAihubmixModelInfo: ModelInfo | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
@@ -172,6 +178,9 @@ export interface Settings {
 	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	actModeOcaModelId: string | undefined
 	actModeOcaModelInfo: OcaModelInfo | undefined
+	// AIhubmix dedicated
+	actModeAihubmixModelId: string | undefined
+	actModeAihubmixModelInfo: ModelInfo | undefined
 }
 
 export interface Secrets {
@@ -213,6 +222,7 @@ export interface Secrets {
 	difyApiKey: string | undefined
 	ocaApiKey: string | undefined
 	ocaRefreshToken: string | undefined
+	aihubmixApiKey: string | undefined
 }
 
 export interface LocalState {

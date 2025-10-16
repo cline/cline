@@ -1,12 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { GenerateContentConfig, GoogleGenAI } from "@google/genai"
 import { ModelInfo } from "@shared/api"
 import OpenAI from "openai"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
+import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
-interface AihubmixHandlerOptions extends CommonApiHandlerOptions {
+interface AIhubmixHandlerOptions extends CommonApiHandlerOptions {
 	apiKey?: string
 	baseURL?: string
 	appCode?: string
@@ -15,23 +17,25 @@ interface AihubmixHandlerOptions extends CommonApiHandlerOptions {
 	thinkingBudgetTokens?: number
 }
 
-export class AihubmixHandler implements ApiHandler {
-	private options: AihubmixHandlerOptions
+export class AIhubmixHandler implements ApiHandler {
+	private options: AIhubmixHandlerOptions
 	private anthropicClient: Anthropic | undefined
 	private openaiClient: OpenAI | undefined
+	private geminiClient: GoogleGenAI | undefined
 
-	constructor(options: AihubmixHandlerOptions) {
+	constructor(options: AIhubmixHandlerOptions) {
+		const { baseURL, appCode, ...rest } = options
 		this.options = {
-			baseURL: "https://aihubmix.com",
-			appCode: "KUWF9311", // 应用代码，享受折扣
-			...options,
+			baseURL: baseURL ?? "https://aihubmix.com",
+			appCode: appCode ?? "KUWF9311", // 应用代码，享受折扣
+			...rest,
 		}
 	}
 
 	private ensureAnthropicClient(): Anthropic {
 		if (!this.anthropicClient) {
 			if (!this.options.apiKey) {
-				throw new Error("Aihubmix API key is required")
+				throw new Error("AIhubmix API key is required")
 			}
 			try {
 				this.anthropicClient = new Anthropic({
@@ -51,7 +55,7 @@ export class AihubmixHandler implements ApiHandler {
 	private ensureOpenaiClient(): OpenAI {
 		if (!this.openaiClient) {
 			if (!this.options.apiKey) {
-				throw new Error("Aihubmix API key is required")
+				throw new Error("AIhubmix API key is required")
 			}
 			try {
 				this.openaiClient = new OpenAI({
@@ -68,16 +72,36 @@ export class AihubmixHandler implements ApiHandler {
 		return this.openaiClient
 	}
 
+	private ensureGeminiClient(): GoogleGenAI {
+		if (!this.geminiClient) {
+			if (!this.options.apiKey) {
+				throw new Error("AIhubmix API key is required")
+			}
+			try {
+				this.geminiClient = new GoogleGenAI({
+					apiKey: this.options.apiKey,
+					httpOptions: {
+						baseUrl: `${this.options.baseURL}/gemini/v1beta`,
+					},
+				})
+			} catch (error) {
+				throw new Error(`Error creating Gemini client: ${error.message}`)
+			}
+		}
+		return this.geminiClient
+	}
+
 	/**
 	 * 根据模型名称路由到对应的客户端
 	 */
-	private routeModel(modelName: string): "anthropic" | "openai" {
-		if (modelName.startsWith("claude")) {
+	private routeModel(modelName: string): "anthropic" | "openai" | "gemini" {
+		const id = modelName || ""
+		const lower = id.toLowerCase()
+		if (lower.startsWith("claude")) {
 			return "anthropic"
 		}
-		// 排除 gpt-oss 系列，其他都使用 OpenAI 兼容接口
-		if (!modelName.startsWith("gpt-oss")) {
-			return "openai"
+		if (lower.startsWith("gemini") && !lower.endsWith("-nothink") && !lower.endsWith("-search")) {
+			return "gemini"
 		}
 		return "openai"
 	}
@@ -97,11 +121,11 @@ export class AihubmixHandler implements ApiHandler {
 		const modelId = this.options.modelId || ""
 		const route = this.routeModel(modelId)
 
-		console.log("🔍 AihubmixHandler.createMessage:", {
+		console.log("🔍 AIhubmixHandler.createMessage:", {
 			modelId,
 			route,
 			options: {
-				apiKey: this.options.apiKey ? "***" : undefined,
+				apiKey: this.options.apiKey,
 				baseURL: this.options.baseURL,
 				appCode: this.options.appCode,
 			},
@@ -114,6 +138,9 @@ export class AihubmixHandler implements ApiHandler {
 			case "openai":
 				yield* this.createOpenaiMessage(systemPrompt, messages)
 				break
+			case "gemini":
+				yield* this.createGeminiMessage(systemPrompt, messages)
+				break
 			default:
 				throw new Error(`Unsupported model route: ${route}`)
 		}
@@ -125,8 +152,8 @@ export class AihubmixHandler implements ApiHandler {
 
 		const stream = await client.messages.create({
 			model: modelId,
-			max_tokens: this.options.modelInfo?.maxTokens || 8192,
 			temperature: 0,
+			max_tokens: this.options.modelInfo?.maxTokens || 8192,
 			system: [{ text: systemPrompt, type: "text" }],
 			messages,
 			stream: true,
@@ -209,6 +236,36 @@ export class AihubmixHandler implements ApiHandler {
 		}
 	}
 
+	private async *createGeminiMessage(systemPrompt: string, messages: any[]): ApiStream {
+		const client = this.ensureGeminiClient()
+		const modelId = this.options.modelId || "gemini-2.0-flash-exp"
+
+		const contents = messages.map(convertAnthropicMessageToGemini)
+
+		const requestConfig: GenerateContentConfig = {
+			systemInstruction: systemPrompt,
+			temperature: 0,
+		}
+
+		if (this.options.thinkingBudgetTokens) {
+			requestConfig.thinkingConfig = {
+				thinkingBudget: this.options.thinkingBudgetTokens,
+			}
+		}
+
+		const stream = await client.models.generateContentStream({
+			model: modelId,
+			contents,
+			config: requestConfig,
+		})
+
+		for await (const chunk of stream as any) {
+			if (chunk?.text) {
+				yield { type: "text", text: chunk.text }
+			}
+		}
+	}
+
 	getModel(): { id: string; info: ModelInfo } {
 		return {
 			id: this.options.modelId || "gpt-4o-mini",
@@ -217,7 +274,7 @@ export class AihubmixHandler implements ApiHandler {
 				contextWindow: 128000,
 				supportsImages: true,
 				supportsPromptCache: false,
-				description: "Aihubmix unified model provider",
+				description: "AIhubmix unified model provider",
 			},
 		}
 	}

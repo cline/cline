@@ -161,6 +161,9 @@ export interface ApiHandlerOptions {
 	planModeVercelAiGatewayModelInfo?: ModelInfo
 	planModeOcaModelId?: string
 	planModeOcaModelInfo?: OcaModelInfo
+	// AIhubmix dedicated
+	planModeAihubmixModelId?: string
+	planModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
 	// Act mode configurations
 
 	// Act mode configurations
@@ -196,6 +199,9 @@ export interface ApiHandlerOptions {
 	actModeVercelAiGatewayModelInfo?: ModelInfo
 	actModeOcaModelId?: string
 	actModeOcaModelInfo?: OcaModelInfo
+	// AIhubmix dedicated
+	actModeAihubmixModelId?: string
+	actModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -3713,5 +3719,5 @@ export const qwenCodeModels = {
 export type QwenCodeModelId = keyof typeof qwenCodeModels
 export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
 
-// Aihubmix models - supports multiple providers through unified API
+// AIhubmix models - supports multiple providers through unified API
 export const aihubmixDefaultModelId: string = "claude-sonnet-4-5"
