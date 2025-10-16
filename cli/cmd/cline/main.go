@@ -14,7 +14,6 @@ import (
 	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/terminal"
 	"github.com/cline/cli/pkg/common"
 	"github.com/cline/grpc-go/cline"
 	"github.com/spf13/cobra"
@@ -117,10 +116,6 @@ see the manual page: man cline`,
 
 					fmt.Printf("\n\033[90m✓ Setup complete, you can now use the Cline CLI\033[0m\n\n")
 				}
-
-				// Configure terminal keybindings after auth setup
-				// This modifies config files for VS Code, Ghostty, Kitty, WezTerm, etc.
-				terminal.SetupKeyboard()
 			} else {
 				// User specified --address flag, use that
 				instanceAddress = coreAddress
@@ -185,6 +180,7 @@ see the manual page: man cline`,
 	rootCmd.AddCommand(cli.NewVersionCommand())
 	rootCmd.AddCommand(cli.NewAuthCommand())
 	rootCmd.AddCommand(cli.NewLogsCommand())
+	rootCmd.AddCommand(cli.NewDoctorCommand())
 
 	if err := rootCmd.ExecuteContext(context.Background()); err != nil {
 		os.Exit(1)
