@@ -45,7 +45,7 @@ cline "find how error handling is implemented across the application"
 ## Tips
 - Request brief, technically dense summaries over full file dumps.
 - Be specific with your instructions to get focused results.
-- Request summaries rather than full file contents. Encourege the agent to be brief, but specific and technically dense with their response.
+- Request summaries rather than full file contents. Encourage the agent to be brief, but specific and technically dense with their response.
 - If files you want to read are large or complicated, use Cline CLI agents for exploration before instead of reading these files.`
 
 export async function getCliSubagentsSection(variant: PromptVariant, context: SystemPromptContext): Promise<string | undefined> {
