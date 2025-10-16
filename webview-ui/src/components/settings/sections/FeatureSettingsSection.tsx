@@ -86,42 +86,43 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								}}>
 								NEW
 							</div>
-							{!isClineCliInstalled && (
-								<div
-									className="mt-1.5 mb-2 px-2 pt-0.5 pb-1.5 rounded"
-									style={{
-										backgroundColor: "color-mix(in srgb, var(--vscode-sideBar-background) 99%, black)",
-									}}>
-									<p
-										className="text-xs mb-2 flex items-start"
-										style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
-										<span
-											className="codicon codicon-warning mr-1"
-											style={{ fontSize: "12px", marginTop: "1px", flexShrink: 0 }}></span>
-										<span>
-											Cline for CLI is required for subagents. Install it with:
-											<code
-												className="ml-1 px-1 rounded"
-												style={{
-													backgroundColor: "var(--vscode-editor-background)",
-													color: "var(--vscode-foreground)",
-													opacity: 0.9,
-												}}>
-												npm install -g cline
-											</code>
-											, then run
-											<code
-												className="ml-1 px-1 rounded"
-												style={{
-													backgroundColor: "var(--vscode-editor-background)",
-													color: "var(--vscode-foreground)",
-													opacity: 0.9,
-												}}>
-												cline auth
-											</code>
-											To authenticate with Cline or configure an API provider.
-										</span>
-									</p>
+
+							<div
+								className="mt-1.5 mb-2 px-2 pt-0.5 pb-1.5 rounded"
+								style={{
+									backgroundColor: "color-mix(in srgb, var(--vscode-sideBar-background) 99%, black)",
+								}}>
+								<p
+									className="text-xs mb-2 flex items-start"
+									style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
+									<span
+										className="codicon codicon-warning mr-1"
+										style={{ fontSize: "12px", marginTop: "1px", flexShrink: 0 }}></span>
+									<span>
+										Cline for CLI is required for subagents. Install it with:
+										<code
+											className="ml-1 px-1 rounded"
+											style={{
+												backgroundColor: "var(--vscode-editor-background)",
+												color: "var(--vscode-foreground)",
+												opacity: 0.9,
+											}}>
+											npm install -g cline
+										</code>
+										, then run
+										<code
+											className="ml-1 px-1 rounded"
+											style={{
+												backgroundColor: "var(--vscode-editor-background)",
+												color: "var(--vscode-foreground)",
+												opacity: 0.9,
+											}}>
+											cline auth
+										</code>
+										To authenticate with Cline or configure an API provider.
+									</span>
+								</p>
+								{!isClineCliInstalled && (
 									<VSCodeButton
 										appearance="secondary"
 										onClick={async () => {
@@ -138,8 +139,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										}}>
 										Install Now
 									</VSCodeButton>
-								</div>
-							)}
+								)}
+							</div>
 							<VSCodeCheckbox
 								checked={subagentsEnabled}
 								disabled={!isClineCliInstalled}

@@ -1226,9 +1226,10 @@ export class Task {
 		process.once("completed", clearCommandState)
 		process.once("error", clearCommandState)
 		process
-			.finally(() => {
-				clearCommandState()
-			})
+			// process.continue() will complete the process promise, letting exeuction continue. therefore the command should not be considered 'completed', since it could still be running in the background
+			// .finally(() => {
+			// 	clearCommandState()
+			// })
 			.catch(() => {
 				clearCommandState()
 			})
