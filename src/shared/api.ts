@@ -3708,28 +3708,8 @@ export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
 // https://www.minimax.io/platform/document/text_api_intro
 // https://www.minimax.io/platform/document/pricing
 export type MinimaxModelId = keyof typeof minimaxModels
-export const minimaxDefaultModelId: MinimaxModelId = "M2-preview-1004"
+export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M1"
 export const minimaxModels = {
-	"M2-preview-1004": {
-		maxTokens: 128_000,
-		contextWindow: 1_000_192,
-		supportsImages: false,
-		supportsPromptCache: true,
-		inputPrice: 0.7,
-		outputPrice: 1.3,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
-	},
-	"MiniMax-M2-mini": {
-		maxTokens: 128_000,
-		contextWindow: 1_000_192,
-		supportsImages: false,
-		supportsPromptCache: true,
-		inputPrice: 0.7,
-		outputPrice: 1.3,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
-	},
 	"MiniMax-M1": {
 		maxTokens: 25_600,
 		contextWindow: 1_000_192,
