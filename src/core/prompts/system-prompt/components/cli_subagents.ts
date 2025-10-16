@@ -18,11 +18,6 @@ You must use the following command syntax for creating Cline AI agents:
 cline "your prompt here"
 \`\`\`
 
-## Optional
-
-Working directory to start the agent in:
---workdir ./src/auth
-
 ## Examples of how you might use this tool
 
 \`\`\`bash
@@ -30,10 +25,10 @@ Working directory to start the agent in:
 cline "find all React components that use the useState hook and list their names"
 
 # Analyze code structure
-cline "analyze the authentication flow. Reverse trace through all relevant functions and methods, and provide a summary of how it works. Include file/class references in your summary." --workdir ./src/auth
+cline "analyze the authentication flow. Reverse trace through all relevant functions and methods, and provide a summary of how it works. Include file/class references in your summary."
 
 # Gather targeted information
-cline "list all API endpoints and their HTTP methods" --workdir ./backend
+cline "list all API endpoints and their HTTP methods"
 
 # Summarize directories
 cline "summarize the purpose of all files in the src/services directory"

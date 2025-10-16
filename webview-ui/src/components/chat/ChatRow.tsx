@@ -929,17 +929,15 @@ export const ChatRowContent = memo(
 			// Check if this is a Cline subagent command
 			const isSubagentCommand = command.trim().startsWith("cline ")
 			let subagentPrompt: string | undefined
-			let subagentWorkdir: string | undefined
 
 			if (isSubagentCommand) {
-				// Parse the cline command to extract prompt and workdir
-				// Format: cline "prompt" [--no-interactive] [--workdir <directory>]
-				const clineCommandRegex = /^cline\s+"([^"]+)"(?:\s+--no-interactive)?(?:\s+--workdir\s+(\S+))?/
+				// Parse the cline command to extract prompt
+				// Format: cline "prompt"
+				const clineCommandRegex = /^cline\s+"([^"]+)"(?:\s+--no-interactive)?/
 				const match = command.match(clineCommandRegex)
 
 				if (match) {
 					subagentPrompt = match[1]
-					subagentWorkdir = match[2] || undefined
 				}
 			}
 
@@ -1107,17 +1105,12 @@ export const ChatRowContent = memo(
 						)}
 						{isSubagentCommand && subagentPrompt && isExpanded && (
 							<div style={{ padding: "10px", borderBottom: "1px solid var(--vscode-editorGroup-border)" }}>
-								<div style={{ marginBottom: "8px" }}>
+								<div style={{ marginBottom: 0 }}>
 									<strong>Prompt:</strong>{" "}
 									<span className="ph-no-capture" style={{ fontFamily: "var(--vscode-editor-font-family)" }}>
 										{subagentPrompt}
 									</span>
 								</div>
-								{subagentWorkdir && (
-									<div style={{ marginBottom: 0 }}>
-										<strong>Directory:</strong> <code>{subagentWorkdir}</code>
-									</div>
-								)}
 							</div>
 						)}
 						{output.length > 0 && (
