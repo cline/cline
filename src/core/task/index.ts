@@ -78,9 +78,11 @@ import * as vscode from "vscode"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
+import { isSubagentCommand, transformClineCommand } from "@/integrations/cli-subagents/subagent_command"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { isClineCliInstalled, isCliSubagentContext } from "@/utils/cli-detector"
 import { isInTestMode } from "../../services/test/TestMode"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
@@ -1150,6 +1152,15 @@ export class Task {
 	}
 
 	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ToolResponse]> {
+		// For Cline CLI subagents, we want to parse and process the command to ensure flags are correct
+		const isSubagent = isSubagentCommand(command)
+
+		if (transformClineCommand(command) !== command && isSubagent) {
+			command = transformClineCommand(command)
+		}
+
+		const subAgentStartTime = isSubagent ? performance.now() : 0
+
 		Logger.info("IS_TEST: " + isInTestMode())
 
 		// Check if we're in test mode
@@ -1158,11 +1169,33 @@ export class Task {
 			Logger.info("Executing command in Node: " + command)
 			return this.executeCommandInNode(command)
 		}
+
+		// CRITICAL: CLI subagent commands MUST use VSCode terminal mode (not backgroundExec)
+		// Reason: Creates a three-way deadlock when using backgroundExec:
+		//   1. Extension blocks in 'await process' waiting for CLI to exit
+		//   2. CLI blocks waiting for gRPC messages from its child gRPC server
+		//   3. gRPC server (child of CLI) needs extension to process tasks
+		// Solution: Always use VSCode terminal for CLI commands
+		const useVscodeTerminal = isSubagent
+
 		Logger.info("Executing command in terminal: " + command)
 
-		const terminalInfo = await this.terminalManager.getOrCreateTerminal(this.cwd)
+		let terminalManager: TerminalManager
+		if (useVscodeTerminal) {
+			// Create a VSCode TerminalManager for CLI subagents
+			terminalManager = new TerminalManager()
+			terminalManager.setShellIntegrationTimeout(this.terminalManager["shellIntegrationTimeout"] || 4000)
+			terminalManager.setTerminalReuseEnabled(this.terminalManager["terminalReuseEnabled"] ?? true)
+			terminalManager.setTerminalOutputLineLimit(this.terminalManager["terminalOutputLineLimit"] || 500)
+			terminalManager.setSubagentTerminalOutputLineLimit(this.terminalManager["subagentTerminalOutputLineLimit"] || 2000)
+		} else {
+			// Use the configured terminal manager for regular commands
+			terminalManager = this.terminalManager
+		}
+
+		const terminalInfo = await terminalManager.getOrCreateTerminal(this.cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = this.terminalManager.runCommand(terminalInfo, command)
+		const process = terminalManager.runCommand(terminalInfo, command)
 
 		// Track command execution for both terminal modes
 		this.controller.updateBackgroundCommandState(true, this.taskId)
@@ -1377,7 +1410,7 @@ export class Task {
 
 					// Process any output we captured before timeout
 					await setTimeoutPromise(50)
-					const result = this.terminalManager.processOutput(outputLines)
+					const result = this.terminalManager.processOutput(outputLines, undefined, false)
 
 					if (error.message === "COMMAND_TIMEOUT") {
 						return [
@@ -1409,7 +1442,11 @@ export class Task {
 			await setTimeoutPromise(50)
 		}
 
-		const result = this.terminalManager.processOutput(outputLines)
+		const result = terminalManager.processOutput(
+			outputLines,
+			isSubagent ? terminalManager["subagentTerminalOutputLineLimit"] : undefined,
+			isSubagent,
+		)
 
 		if (didCancelViaUi) {
 			return [
@@ -1418,6 +1455,12 @@ export class Task {
 					`Command cancelled. ${result.length > 0 ? `\nOutput captured before cancellation:\n${result}` : ""}`,
 				),
 			]
+		}
+
+		// Capture subagent telemetry if this was a subagent command
+		if (isSubagent && subAgentStartTime > 0) {
+			const durationMs = Math.round(performance.now() - subAgentStartTime)
+			telemetryService.captureSubagentExecution(this.ulid, durationMs, outputLines.length, completed)
 		}
 
 		if (userFeedback) {
@@ -1553,6 +1596,14 @@ export class Task {
 				? `# Preferred Language\n\nSpeak in ${preferredLanguage}.`
 				: ""
 
+		// Check CLI installation status only if subagents are enabled
+		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
+		let isSubagentsEnabledAndCliInstalled = false
+		if (subagentsEnabled) {
+			const clineCliInstalled = await isClineCliInstalled()
+			isSubagentsEnabledAndCliInstalled = subagentsEnabled && clineCliInstalled
+		}
+
 		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.controller, this.cwd)
 		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.controller, this.cwd)
 
@@ -1583,6 +1634,12 @@ export class Task {
 			}))
 		}
 
+		// Detect if this is a CLI subagent to prevent nested subagent creation
+		const isCliSubagent = isCliSubagentContext({
+			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
+			maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes"),
+		})
+
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
@@ -1601,6 +1658,8 @@ export class Task {
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			isMultiRootEnabled: multiRootEnabled,
 			workspaceRoots,
+			isSubagentsEnabledAndCliInstalled,
+			isCliSubagent,
 		}
 
 		const systemPrompt = await getSystemPrompt(promptContext)

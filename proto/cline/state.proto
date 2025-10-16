@@ -24,6 +24,9 @@ service StateService {
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
   rpc updateInfoBannerVersion(Int64Request) returns (Empty);
   rpc updateModelBannerVersion(Int64Request) returns (Empty);
+  rpc updateCliBannerVersion(Int64Request) returns (Empty);
+  rpc installClineCli(EmptyRequest) returns (Empty);
+  rpc checkCliInstallation(EmptyRequest) returns (Boolean);
   rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
 }
 
