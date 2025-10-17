@@ -11,7 +11,7 @@ import { getAsVar, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
 export const CURRENT_CLI_BANNER_VERSION = 1
 
 export const CliInstallBanner: React.FC = () => {
-	const { navigateToSettings, subagentsEnabled, platform } = useExtensionState()
+	const { navigateToSettings, subagentsEnabled } = useExtensionState()
 	const [isCopied, setIsCopied] = useState(false)
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
 
@@ -101,10 +101,10 @@ export const CliInstallBanner: React.FC = () => {
 			}}>
 			<h4 className="m-0 flex items-center gap-2" style={{ paddingRight: "24px" }}>
 				<Terminal className="w-4 h-4" />
-				{isMacOSOrLinux(platform) ? "Cline for CLI is here!" : "Cline CLI Information"}
+				{isMacOSOrLinux() ? "Cline for CLI is here!" : "Cline CLI Information"}
 			</h4>
 			<p className="m-0">
-				{isMacOSOrLinux(platform) ? (
+				{isMacOSOrLinux() ? (
 					<>
 						Install to use Cline directly in your terminal and enable subagent capabilities. Cline can spawn{" "}
 						<code>cline</code> commands to handle focused tasks like exploring large codebases for information. This
@@ -147,7 +147,7 @@ export const CliInstallBanner: React.FC = () => {
 						<span className={`codicon ${isCopied ? "codicon-check" : "codicon-copy"}`}></span>
 					</VSCodeButton>
 				</div>
-				{isMacOSOrLinux(platform) ? (
+				{isMacOSOrLinux() ? (
 					<div className="flex gap-2">
 						<VSCodeButton
 							appearance="primary"

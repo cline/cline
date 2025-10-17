@@ -43,9 +43,9 @@ export const isSafari = !isChrome && userAgent.indexOf("Safari") >= 0
 
 /**
  * Checks if the platform is macOS or Linux
- * @param platform - The platform string (typically from extension state)
  * @returns true if platform is darwin (macOS) or linux
  */
-export const isMacOSOrLinux = (platform: string): boolean => {
-	return platform === "darwin" || platform === "linux"
+export const isMacOSOrLinux = (): boolean => {
+	const platform = process?.platform
+	return !platform?.startsWith("win") // Non-Windows
 }

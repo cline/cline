@@ -34,7 +34,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		hooksEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
-		platform,
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
@@ -70,7 +69,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 			<Section>
 				<div style={{ marginBottom: 20 }}>
 					{/* Subagents - Only show on macOS and Linux */}
-					{isMacOSOrLinux(platform) && PLATFORM_CONFIG.type === PlatformType.VSCODE && (
+					{isMacOSOrLinux() && PLATFORM_CONFIG.type === PlatformType.VSCODE && (
 						<div
 							className="relative p-3 mb-3 rounded-md"
 							id="subagents-section"
