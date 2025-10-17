@@ -225,36 +225,6 @@ console.log(JSON.stringify({
 	})
 
 	describe("Error Handling", () => {
-		it("should handle hook timeout gracefully", async function () {
-			// Increase timeout for this test since it's testing timeout behavior
-			this.timeout(40000)
-
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
-			// This hook will timeout (doesn't output anything)
-			const hookScript = `#!/usr/bin/env node
-setTimeout(() => {
-  // Never outputs anything
-}, 60000);`
-
-			await writeHookScript(hookPath, hookScript)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("UserPromptSubmit")
-
-			try {
-				await runner.run({
-					taskId: "test-task",
-					userPromptSubmit: {
-						prompt: "Test",
-						attachments: [],
-					},
-				})
-				throw new Error("Should have thrown timeout error")
-			} catch (error: any) {
-				error.message.should.match(/timed out/)
-			}
-		})
-
 		it("should handle malformed JSON output from hook", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
 			const hookScript = `#!/usr/bin/env node

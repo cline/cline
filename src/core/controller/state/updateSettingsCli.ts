@@ -9,10 +9,10 @@ import {
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { Settings } from "@shared/storage/state-keys"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
 import { ShowMessageType } from "@/shared/proto/host/window"
-import { convertProtoToAutoApprovalSettings } from "@/shared/proto-conversions/models/auto-approval-settings-conversion"
 import { Mode, OpenaiReasoningEffort } from "@/shared/storage/types"
 import { telemetryService } from "../../../services/telemetry"
 import { Controller } from ".."
@@ -44,6 +44,11 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 	}
 
 	try {
+		if (request.environment !== undefined) {
+			ClineEnv.setEnvironment(request.environment)
+			await controller.handleSignOut()
+		}
+
 		if (request.settings) {
 			// Extract all special case fields that need dedicated handlers
 			// These should NOT be included in the batch update
@@ -72,13 +77,31 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 
 			controller.stateManager.setGlobalStateBatch(filteredSettings)
 
+			console.log("autoApprovalSettings", controller.stateManager.getGlobalSettingsKey("autoApprovalSettings"))
+
 			// Handle fields requiring type conversion from generated protobuf types to application types
 			if (autoApprovalSettings) {
-				const converted = convertProtoToAutoApprovalSettings({
-					...autoApprovalSettings,
-					metadata: {},
-				})
-				controller.stateManager.setGlobalState("autoApprovalSettings", converted)
+				// Merge with current settings to preserve unspecified fields
+				const currentAutoApprovalSettings = controller.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+				const mergedSettings = {
+					...currentAutoApprovalSettings,
+					...(autoApprovalSettings.version !== undefined && { version: autoApprovalSettings.version }),
+					...(autoApprovalSettings.enabled !== undefined && { enabled: autoApprovalSettings.enabled }),
+					...(autoApprovalSettings.maxRequests !== undefined && { maxRequests: autoApprovalSettings.maxRequests }),
+					...(autoApprovalSettings.enableNotifications !== undefined && {
+						enableNotifications: autoApprovalSettings.enableNotifications,
+					}),
+					...(autoApprovalSettings.favorites &&
+						autoApprovalSettings.favorites.length > 0 && { favorites: autoApprovalSettings.favorites }),
+					actions: {
+						...currentAutoApprovalSettings.actions,
+						...(autoApprovalSettings.actions
+							? Object.fromEntries(Object.entries(autoApprovalSettings.actions).filter(([_, v]) => v !== undefined))
+							: {}),
+					},
+				}
+
+				controller.stateManager.setGlobalState("autoApprovalSettings", mergedSettings)
 			}
 
 			if (openaiReasoningEffort !== undefined) {
@@ -227,7 +250,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 			}
 		}
 
-		// Handle secrets update
+		// Handle secrets updates
 		if (request.secrets) {
 			const filteredSecrets = Object.fromEntries(
 				Object.entries(request.secrets).filter(([_, value]) => value !== undefined),

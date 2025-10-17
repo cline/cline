@@ -31,14 +31,14 @@ service StateService {
 }
 
 message AutoApprovalActions {
-  bool read_files = 1;
-  bool read_files_externally = 2;
-  bool edit_files = 3;
-  bool edit_files_externally = 4;
-  bool execute_safe_commands = 5;
-  bool execute_all_commands = 6;
-  bool use_browser = 7;
-  bool use_mcp = 8;
+  optional bool read_files = 1;
+  optional bool read_files_externally = 2;
+  optional bool edit_files = 3;
+  optional bool edit_files_externally = 4;
+  optional bool execute_safe_commands = 5;
+  optional bool execute_all_commands = 6;
+  optional bool use_browser = 7;
+  optional bool use_mcp = 8;
 }
 
 // Auto approval settings for task execution
@@ -280,19 +280,9 @@ message ResetStateRequest {
 
 message AutoApprovalSettingsRequest {
   Metadata metadata = 1;
-  message Actions {
-    bool read_files = 1;
-    bool read_files_externally = 2;
-    bool edit_files = 3;
-    bool edit_files_externally = 4;
-    bool execute_safe_commands = 5;
-    bool execute_all_commands = 6;
-    bool use_browser = 7;
-    bool use_mcp = 8;
-  }
   int32 version = 2;
   bool enabled = 3;
-  Actions actions = 4;
+  AutoApprovalActions actions = 4;
   int32 max_requests = 5;
   bool enable_notifications = 6;
   repeated string favorites = 7;
@@ -323,6 +313,7 @@ message UpdateSettingsRequestCli {
   Metadata metadata = 1;
   optional Settings settings = 2;
   optional Secrets secrets = 3;
+  optional string environment = 4;
 }
 
 message UpdateTaskSettingsRequest {
@@ -361,6 +352,7 @@ message UpdateSettingsRequest {
   optional int32 max_consecutive_mistakes = 28;
   optional bool subagents_enabled = 29;
   optional int32 subagent_terminal_output_line_limit = 30;
+  optional string cline_env = 31;
 }
 
 // Complete API Configuration message

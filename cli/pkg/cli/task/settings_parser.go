@@ -464,21 +464,21 @@ func setAutoApprovalAction(actions *cline.AutoApprovalActions, key, value string
 
 	switch key {
 	case "read_files":
-		actions.ReadFiles = val
+		actions.ReadFiles = boolPtr(val)
 	case "read_files_externally":
-		actions.ReadFilesExternally = val
+		actions.ReadFilesExternally = boolPtr(val)
 	case "edit_files":
-		actions.EditFiles = val
+		actions.EditFiles = boolPtr(val)
 	case "edit_files_externally":
-		actions.EditFilesExternally = val
+		actions.EditFilesExternally = boolPtr(val)
 	case "execute_safe_commands":
-		actions.ExecuteSafeCommands = val
+		actions.ExecuteSafeCommands = boolPtr(val)
 	case "execute_all_commands":
-		actions.ExecuteAllCommands = val
+		actions.ExecuteAllCommands = boolPtr(val)
 	case "use_browser":
-		actions.UseBrowser = val
+		actions.UseBrowser = boolPtr(val)
 	case "use_mcp":
-		actions.UseMcp = val
+		actions.UseMcp = boolPtr(val)
 	default:
 		return fmt.Errorf("unsupported auto_approval_actions field '%s'", key)
 	}
