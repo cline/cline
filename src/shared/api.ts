@@ -37,6 +37,7 @@ export type ApiProvider =
 	| "vercel-ai-gateway"
 	| "zai"
 	| "oca"
+	| "cortecs"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -75,6 +76,7 @@ export interface ApiHandlerSecrets {
 	basetenApiKey?: string
 	vercelAiGatewayApiKey?: string
 	difyApiKey?: string
+	cortecsApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -121,6 +123,7 @@ export interface ApiHandlerOptions {
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
 	ocaMode?: string
+	cortecsBaseUrl?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -155,6 +158,8 @@ export interface ApiHandlerOptions {
 	planModeVercelAiGatewayModelInfo?: ModelInfo
 	planModeOcaModelId?: string
 	planModeOcaModelInfo?: OcaModelInfo
+	planModeCortecsModelId?: string
+	planModeCortecsModelInfo?: ModelInfo
 	// Act mode configurations
 
 	// Act mode configurations
@@ -190,6 +195,8 @@ export interface ApiHandlerOptions {
 	actModeVercelAiGatewayModelInfo?: ModelInfo
 	actModeOcaModelId?: string
 	actModeOcaModelInfo?: OcaModelInfo
+	actModeCortecsModelId?: string
+	actModeCortecsModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -3113,6 +3120,19 @@ export const requestyDefaultModelInfo: ModelInfo = {
 	outputPrice: 15.0,
 	cacheWritesPrice: 3.75,
 	cacheReadsPrice: 0.3,
+	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
+}
+
+// Cortecs
+// https://api.cortecs.ai/v1/models?tag=Code
+export const cortecsDefaultModelId = "claude-sonnet-4"
+export const cortecsDefaultModelInfo: ModelInfo = {
+	maxTokens: 8192,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsPromptCache: false,
+	inputPrice: 3.0,
+	outputPrice: 15.0,
 	description: "Anthropic's most intelligent model. Highest level of intelligence and capability.",
 }
 

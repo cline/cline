@@ -1,0 +1,469 @@
+import { cortecsDefaultModelId, cortecsDefaultModelInfo } from "@shared/api"
+import { EmptyRequest } from "@shared/proto/cline/common"
+import { Mode } from "@shared/storage/types"
+import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import Fuse from "fuse.js"
+import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
+import { useRemark } from "react-remark"
+import { useMount } from "react-use"
+import styled from "styled-components"
+import { useExtensionState } from "../../context/ExtensionStateContext"
+import { ModelsServiceClient } from "../../services/grpc-client"
+import { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
+import { highlight } from "../history/HistoryView"
+import { ModelInfoView } from "./common/ModelInfoView"
+import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
+import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
+import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+
+export interface CortecsModelPickerProps {
+	isPopup?: boolean
+	baseUrl?: string
+	currentMode: Mode
+}
+
+const CortecsModelPicker: React.FC<CortecsModelPickerProps> = ({ isPopup, baseUrl, currentMode }) => {
+	const { apiConfiguration, cortecsModels, setCortecsModels } = useExtensionState()
+	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const [searchTerm, setSearchTerm] = useState(modeFields.cortecsModelId || cortecsDefaultModelId)
+	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
+	const [selectedIndex, setSelectedIndex] = useState(-1)
+	const dropdownRef = useRef<HTMLDivElement>(null)
+	const itemRefs = useRef<(HTMLDivElement | null)[]>([])
+	const dropdownListRef = useRef<HTMLDivElement>(null)
+
+	const cortecsModelListUrl = baseUrl
+		? `${baseUrl}/models?tag=Code&currency=USD`
+		: "https://api.cortecs.ai/v1/models?tag=Code&currency=USD"
+
+	const handleModelChange = (newModelId: string) => {
+		// could be setting invalid model id/undefined info but validation will catch it
+
+		handleModeFieldsChange(
+			{
+				cortecsModelId: {
+					plan: "planModeCortecsModelId",
+					act: "actModeCortecsModelId",
+				},
+				cortecsModelInfo: {
+					plan: "planModeCortecsModelInfo",
+					act: "actModeCortecsModelInfo",
+				},
+			},
+			{
+				cortecsModelId: newModelId,
+				cortecsModelInfo: cortecsModels[newModelId],
+			},
+			currentMode,
+		)
+		setSearchTerm(newModelId)
+	}
+
+	const { selectedModelId, selectedModelInfo } = useMemo(() => {
+		return normalizeApiConfiguration(apiConfiguration, currentMode)
+	}, [apiConfiguration, currentMode])
+
+	useMount(() => {
+		ModelsServiceClient.refreshCortecsModels(EmptyRequest.create({}))
+			.then((response) => {
+				setCortecsModels({
+					[cortecsDefaultModelId]: cortecsDefaultModelInfo,
+					...response.models,
+				})
+			})
+			.catch((err) => {
+				console.error("Failed to refresh Cortecs models:", err)
+			})
+	})
+
+	useEffect(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+				setIsDropdownVisible(false)
+			}
+		}
+
+		document.addEventListener("mousedown", handleClickOutside)
+		return () => {
+			document.removeEventListener("mousedown", handleClickOutside)
+		}
+	}, [])
+
+	const modelIds = useMemo(() => {
+		return Object.keys(cortecsModels).sort((a, b) => a.localeCompare(b))
+	}, [cortecsModels])
+
+	const searchableItems = useMemo(() => {
+		return modelIds.map((id) => ({
+			id,
+			html: id,
+		}))
+	}, [modelIds])
+
+	const fuse = useMemo(() => {
+		return new Fuse(searchableItems, {
+			keys: ["html"], // highlight function will update this
+			threshold: 0.6,
+			shouldSort: true,
+			isCaseSensitive: false,
+			ignoreLocation: false,
+			includeMatches: true,
+			minMatchCharLength: 1,
+		})
+	}, [searchableItems])
+
+	const modelSearchResults = useMemo(() => {
+		const results: { id: string; html: string }[] = searchTerm
+			? highlight(fuse.search(searchTerm), "model-item-highlight")
+			: searchableItems
+		// results.sort((a, b) => a.id.localeCompare(b.id)) NOTE: sorting like this causes ids in objects to be reordered and mismatched
+		return results
+	}, [searchableItems, searchTerm, fuse])
+
+	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+		if (!isDropdownVisible) {
+			return
+		}
+
+		switch (event.key) {
+			case "ArrowDown":
+				event.preventDefault()
+				setSelectedIndex((prev) => (prev < modelSearchResults.length - 1 ? prev + 1 : prev))
+				break
+			case "ArrowUp":
+				event.preventDefault()
+				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
+				break
+			case "Enter":
+				event.preventDefault()
+				if (selectedIndex >= 0 && selectedIndex < modelSearchResults.length) {
+					handleModelChange(modelSearchResults[selectedIndex].id)
+					setIsDropdownVisible(false)
+				}
+				break
+			case "Escape":
+				setIsDropdownVisible(false)
+				setSelectedIndex(-1)
+				break
+		}
+	}
+
+	const hasInfo = useMemo(() => {
+		try {
+			return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
+		} catch {
+			return false
+		}
+	}, [modelIds, searchTerm])
+
+	useEffect(() => {
+		setSelectedIndex(-1)
+		if (dropdownListRef.current) {
+			dropdownListRef.current.scrollTop = 0
+		}
+	}, [searchTerm])
+
+	useEffect(() => {
+		if (selectedIndex >= 0 && itemRefs.current[selectedIndex]) {
+			itemRefs.current[selectedIndex]?.scrollIntoView({
+				block: "nearest",
+				behavior: "smooth",
+			})
+		}
+	}, [selectedIndex])
+
+	const showBudgetSlider = useMemo(() => {
+		return selectedModelId?.includes("claude-sonnet-4")
+	}, [selectedModelId])
+
+	return (
+		<div style={{ width: "100%" }}>
+			<style>
+				{`
+				.model-item-highlight {
+					background-color: var(--vscode-editor-findMatchHighlightBackground);
+					color: inherit;
+				}
+				`}
+			</style>
+			<div style={{ display: "flex", flexDirection: "column" }}>
+				<label htmlFor="model-search">
+					<span style={{ fontWeight: 500 }}>Model</span>
+				</label>
+				<DropdownWrapper ref={dropdownRef}>
+					<VSCodeTextField
+						id="model-search"
+						onFocus={() => setIsDropdownVisible(true)}
+						onInput={(e) => {
+							handleModelChange((e.target as HTMLInputElement)?.value?.toLowerCase())
+							setIsDropdownVisible(true)
+						}}
+						onKeyDown={handleKeyDown}
+						placeholder="Search and select a model..."
+						style={{
+							width: "100%",
+							zIndex: CORTECS_MODEL_PICKER_Z_INDEX,
+							position: "relative",
+						}}
+						value={searchTerm}>
+						{searchTerm && (
+							<div
+								aria-label="Clear search"
+								className="input-icon-button codicon codicon-close"
+								onClick={() => {
+									handleModelChange("")
+									setIsDropdownVisible(true)
+								}}
+								slot="end"
+								style={{
+									display: "flex",
+									justifyContent: "center",
+									alignItems: "center",
+									height: "100%",
+								}}
+							/>
+						)}
+					</VSCodeTextField>
+					{isDropdownVisible && (
+						<DropdownList ref={dropdownListRef}>
+							{modelSearchResults.map((item, index) => (
+								<DropdownItem
+									dangerouslySetInnerHTML={{
+										__html: item.html,
+									}}
+									isSelected={index === selectedIndex}
+									key={item.id}
+									onClick={() => {
+										handleModelChange(item.id)
+										setIsDropdownVisible(false)
+									}}
+									onMouseEnter={() => setSelectedIndex(index)}
+									ref={(el) => (itemRefs.current[index] = el)}
+								/>
+							))}
+						</DropdownList>
+					)}
+				</DropdownWrapper>
+			</div>
+
+			{hasInfo ? (
+				<>
+					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
+					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+				</>
+			) : (
+				<p
+					style={{
+						fontSize: "12px",
+						marginTop: 0,
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+					The extension automatically fetches the latest list of models available on{" "}
+					<VSCodeLink href={cortecsModelListUrl?.toString()} style={{ display: "inline", fontSize: "inherit" }}>
+						Cortecs.
+					</VSCodeLink>
+					If you're unsure which model to choose, Cline works best with{" "}
+					<VSCodeLink
+						onClick={() => handleModelChange("claude-sonnet-4")}
+						style={{ display: "inline", fontSize: "inherit" }}>
+						claude-sonnet-4.
+					</VSCodeLink>
+				</p>
+			)}
+		</div>
+	)
+}
+
+export default CortecsModelPicker
+
+// Dropdown
+
+const DropdownWrapper = styled.div`
+  position: relative;
+  width: 100%;
+`
+
+export const CORTECS_MODEL_PICKER_Z_INDEX = 1_000
+
+const DropdownList = styled.div`
+  position: absolute;
+  top: calc(100% - 3px);
+  left: 0;
+  width: calc(100% - 2px);
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-list-activeSelectionBackground);
+  z-index: ${CORTECS_MODEL_PICKER_Z_INDEX - 1};
+  border-bottom-left-radius: 3px;
+  border-bottom-right-radius: 3px;
+`
+
+const DropdownItem = styled.div<{ isSelected: boolean }>`
+  padding: 5px 10px;
+  cursor: pointer;
+  word-break: break-all;
+  white-space: normal;
+
+  background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
+
+  &:hover {
+    background-color: var(--vscode-list-activeSelectionBackground);
+  }
+`
+
+// Markdown
+
+const StyledMarkdown = styled.div`
+  font-family:
+    var(--vscode-font-family),
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Open Sans",
+    "Helvetica Neue",
+    sans-serif;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+
+  p,
+  li,
+  ol,
+  ul {
+    line-height: 1.25;
+    margin: 0;
+  }
+
+  ol,
+  ul {
+    padding-left: 1.5em;
+    margin-left: 0;
+  }
+
+  p {
+    white-space: pre-wrap;
+  }
+
+  a {
+    text-decoration: none;
+  }
+  a {
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+`
+
+export const ModelDescriptionMarkdown = memo(
+	({
+		markdown,
+		key,
+		isExpanded,
+		setIsExpanded,
+		isPopup,
+	}: {
+		markdown?: string
+		key: string
+		isExpanded: boolean
+		setIsExpanded: (isExpanded: boolean) => void
+		isPopup?: boolean
+	}) => {
+		const [reactContent, setMarkdown] = useRemark()
+		// const [isExpanded, setIsExpanded] = useState(false)
+		const [showSeeMore, setShowSeeMore] = useState(false)
+		const textContainerRef = useRef<HTMLDivElement>(null)
+		const textRef = useRef<HTMLDivElement>(null)
+
+		useEffect(() => {
+			setMarkdown(markdown || "")
+		}, [markdown, setMarkdown])
+
+		useEffect(() => {
+			if (textRef.current && textContainerRef.current) {
+				const { scrollHeight } = textRef.current
+				const { clientHeight } = textContainerRef.current
+				const isOverflowing = scrollHeight > clientHeight
+				setShowSeeMore(isOverflowing)
+				// if (!isOverflowing) {
+				// 	setIsExpanded(false)
+				// }
+			}
+		}, [reactContent, setIsExpanded])
+
+		return (
+			<StyledMarkdown key={key} style={{ display: "inline-block", marginBottom: 0 }}>
+				<div
+					ref={textContainerRef}
+					style={{
+						overflowY: isExpanded ? "auto" : "hidden",
+						position: "relative",
+						wordBreak: "break-word",
+						overflowWrap: "anywhere",
+					}}>
+					<div
+						ref={textRef}
+						style={{
+							display: "-webkit-box",
+							WebkitLineClamp: isExpanded ? "unset" : 3,
+							WebkitBoxOrient: "vertical",
+							overflow: "hidden",
+							// whiteSpace: "pre-wrap",
+							// wordBreak: "break-word",
+							// overflowWrap: "anywhere",
+						}}>
+						{reactContent}
+					</div>
+					{!isExpanded && showSeeMore && (
+						<div
+							style={{
+								position: "absolute",
+								right: 0,
+								bottom: 0,
+								display: "flex",
+								alignItems: "center",
+							}}>
+							<div
+								style={{
+									width: 30,
+									height: "1.2em",
+									background: "linear-gradient(to right, transparent, var(--vscode-sideBar-background))",
+								}}
+							/>
+							<VSCodeLink
+								onClick={() => setIsExpanded(true)}
+								style={{
+									// cursor: "pointer",
+									// color: "var(--vscode-textLink-foreground)",
+									fontSize: "inherit",
+									paddingRight: 0,
+									paddingLeft: 3,
+									backgroundColor: isPopup ? CODE_BLOCK_BG_COLOR : "var(--vscode-sideBar-background)",
+								}}>
+								See more
+							</VSCodeLink>
+						</div>
+					)}
+				</div>
+				{/* {isExpanded && showSeeMore && (
+				<div
+					style={{
+						cursor: "pointer",
+						color: "var(--vscode-textLink-foreground)",
+						marginLeft: "auto",
+						textAlign: "right",
+						paddingRight: 2,
+					}}
+					onClick={() => setIsExpanded(false)}>
+					See less
+				</div>
+			)} */}
+			</StyledMarkdown>
+		)
+	},
+)

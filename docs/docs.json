@@ -207,7 +207,8 @@
 									"provider-config/sap-aicore",
 									"provider-config/vercel-ai-gateway",
 									"provider-config/requesty",
-									"provider-config/baseten"
+									"provider-config/baseten",
+                                    "provider-config/cortecs"
 								]
 							}
 						]

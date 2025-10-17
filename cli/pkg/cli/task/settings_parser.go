@@ -144,6 +144,8 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 		settings.DifyBaseUrl = strPtr(value)
 	case "oca_base_url":
 		settings.OcaBaseUrl = strPtr(value)
+	case "cortecs_base_url":
+		settings.CortecsBaseUrl = strPtr(value)
 	case "plan_mode_api_model_id":
 		settings.PlanModeApiModelId = strPtr(value)
 	case "plan_mode_reasoning_effort":
@@ -180,6 +182,8 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 		settings.PlanModeHuaweiCloudMaasModelId = strPtr(value)
 	case "plan_mode_oca_model_id":
 		settings.PlanModeOcaModelId = strPtr(value)
+	case "plan_mode_cortecs_model_id":
+		settings.PlanModeCortecsModelId = strPtr(value)
 	case "plan_mode_vercel_ai_gateway_model_id":
 		settings.PlanModeVercelAiGatewayModelId = strPtr(value)
 	case "act_mode_api_model_id":
@@ -220,6 +224,8 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 		settings.ActModeOcaModelId = strPtr(value)
 	case "act_mode_vercel_ai_gateway_model_id":
 		settings.ActModeVercelAiGatewayModelId = strPtr(value)
+	case "act_mode_cortecs_model_id":
+		settings.ActModeCortecsModelId = strPtr(value)
 
 	// Boolean fields
 	case "aws_use_cross_region_inference":
@@ -672,6 +678,8 @@ func parseApiProvider(value string) (cline.ApiProvider, error) {
 		return cline.ApiProvider_DIFY, nil
 	case "oca":
 		return cline.ApiProvider_OCA, nil
+	case "cortecs":
+		return cline.ApiProvider_CORTECS, nil
 	default:
 		return cline.ApiProvider_ANTHROPIC, fmt.Errorf("invalid api_provider '%s'", value)
 	}
