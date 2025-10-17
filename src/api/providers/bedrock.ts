@@ -27,6 +27,7 @@ import {
 import { ApiStream } from "../transform/stream"
 import { BaseProvider } from "./base-provider"
 import { logger } from "../../utils/logging"
+import { Package } from "../../shared/package"
 import { MultiPointStrategy } from "../transform/cache-strategy/multi-point-strategy"
 import { ModelInfo as CacheModelInfo } from "../transform/cache-strategy/types"
 import { convertToBedrockConverseMessages as sharedConverter } from "../transform/bedrock-converse-format"
@@ -218,6 +219,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		this.costModelConfig = this.getModel()
 
 		const clientConfig: BedrockRuntimeClientConfig = {
+			defaultUserAgentProvider: () => Promise.resolve([["RooCode", Package.version]]),
 			region: this.options.awsRegion,
 			// Add the endpoint configuration when specified and enabled
 			...(this.options.awsBedrockEndpoint &&
