@@ -18,8 +18,11 @@ export const config = createVariant(ModelFamily.GPT_5)
 		tool_functions: 1,
 	})
 	.matcher((providerInfo) => {
-		// Match GPT-5 models from the Cline providers
-		return providerInfo.providerId.includes("openai") && isGPT5ModelFamily(providerInfo.model.id)
+		// Match GPT-5 models from providers that support native tools
+		return (
+			isGPT5ModelFamily(providerInfo.model.id) &&
+			["cline", "openai", "openrouter"].some((id) => providerInfo.providerId.includes(id))
+		)
 	})
 	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
 	.components(

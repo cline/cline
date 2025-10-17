@@ -13,6 +13,7 @@ import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import { ToolCallProcessor } from "../transform/tool-call-processor"
 import { OpenRouterErrorResponse } from "./types"
 
 interface ClineHandlerOptions extends CommonApiHandlerOptions {
@@ -120,7 +121,7 @@ export class ClineHandler implements ApiHandler {
 					: undefined,
 			)
 
-			const lastToolCall = { id: "", name: "" }
+			const toolCallProcessor = new ToolCallProcessor()
 
 			for await (const chunk of stream) {
 				// openrouter returns an error object instead of the openai sdk throwing an error
@@ -160,29 +161,8 @@ export class ClineHandler implements ApiHandler {
 					}
 				}
 
-				// Yield tool calls as ApiStreamToolCallsChunk for processing in the task loop
 				if (delta?.tool_calls) {
-					for (const toolCallDelta of delta.tool_calls) {
-						if (toolCallDelta.id) {
-							lastToolCall.id = toolCallDelta.id
-						}
-						if (toolCallDelta.function?.name) {
-							lastToolCall.name = toolCallDelta.function.name
-						}
-						if (lastToolCall.id && lastToolCall.name && toolCallDelta.function?.arguments) {
-							yield {
-								type: "tool_calls",
-								tool_call: {
-									...toolCallDelta,
-									id: lastToolCall.id,
-									function: {
-										...toolCallDelta.function,
-										name: lastToolCall.name,
-									},
-								},
-							}
-						}
-					}
+					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 				}
 
 				// Reasoning tokens are returned separately from the content

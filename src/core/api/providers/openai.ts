@@ -7,6 +7,7 @@ import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 	openAiApiKey?: string
@@ -105,12 +106,10 @@ export class OpenAiHandler implements ApiHandler {
 			reasoning_effort: reasoningEffort,
 			stream: true,
 			stream_options: { include_usage: true },
-			tools,
-			tool_choice: tools ? "auto" : undefined,
-			parallel_tool_calls: tools ? true : undefined,
+			...getOpenAIToolParams(tools),
 		})
 
-		const lastToolCall = { id: "", name: "" }
+		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
@@ -129,27 +128,7 @@ export class OpenAiHandler implements ApiHandler {
 			}
 
 			if (delta?.tool_calls) {
-				for (const toolCallDelta of delta.tool_calls) {
-					if (toolCallDelta.id) {
-						lastToolCall.id = toolCallDelta.id
-					}
-					if (toolCallDelta.function?.name) {
-						lastToolCall.name = toolCallDelta.function.name
-					}
-					if (lastToolCall.id && lastToolCall.name && toolCallDelta.function?.arguments) {
-						yield {
-							type: "tool_calls",
-							tool_call: {
-								...toolCallDelta,
-								id: lastToolCall.id,
-								function: {
-									...toolCallDelta.function,
-									name: lastToolCall.name,
-								},
-							},
-						}
-					}
-				}
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			if (chunk.usage) {
