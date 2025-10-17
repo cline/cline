@@ -65,8 +65,8 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const { highlightedText, displayTextExpanded } = useMemo(() => {
 		const taskTextLines = task.text?.split("\n") || []
 		const highlightedText = isHighlightedTextExpanded
-			? highlightText(task.text, true)
-			: highlightText(taskTextLines.slice(0, 3).join("\n"))
+			? highlightText(task.text, false)
+			: highlightText(taskTextLines.slice(0, 3).join("\n"), false)
 
 		return { highlightedText, displayTextExpanded: taskTextLines.length > 3 }
 	}, [task.text, isHighlightedTextExpanded])
