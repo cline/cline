@@ -1,5 +1,6 @@
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { combineHookSequences } from "@shared/combineHookSequences"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import React, { useCallback, useEffect, useMemo, useRef } from "react"
 import { Virtuoso } from "react-virtuoso"
@@ -27,7 +28,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 			return { taskTimelinePropsMessages: [], messageIndexMap: [] }
 		}
 
-		const processed = combineApiRequests(combineCommandSequences(messages.slice(1)))
+		const processed = combineApiRequests(combineCommandSequences(combineHookSequences(messages.slice(1))))
 		const indexMap: number[] = []
 
 		const filtered = processed.filter((msg, _processedIndex) => {
