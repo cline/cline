@@ -102,6 +102,8 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		info: ClineSay.INFO,
 		task_progress: ClineSay.TASK_PROGRESS,
 		error_retry: ClineSay.ERROR_RETRY,
+		hook: ClineSay.INFO, // Map hook messages to INFO enum for proto compatibility
+		hook_output: ClineSay.COMMAND_OUTPUT_SAY, // Map hook_output to COMMAND_OUTPUT_SAY for proto compatibility
 	}
 
 	const result = mapping[say]
