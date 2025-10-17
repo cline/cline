@@ -80,6 +80,7 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 					} satisfies ClinePlanModeResponse)
 					lastPlanMessage.partial = false
 					await config.messageState.saveClineMessagesAndUpdateHistory()
+					await config.callbacks.postStateToWebview()
 				}
 
 				// we dont need to process any text, options, files or other content here
