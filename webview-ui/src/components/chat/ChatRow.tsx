@@ -28,6 +28,7 @@ import SuccessButton from "@/components/common/SuccessButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
 import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server-row/McpResourceRow"
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
@@ -917,8 +918,8 @@ export const ChatRowContent = memo(
 				typeof onCancelCommand === "function" &&
 				vscodeTerminalExecutionMode === "backgroundExec"
 
-			// Check if this is a Cline subagent command
-			const isSubagentCommand = command.trim().startsWith("cline ")
+			// Check if this is a Cline subagent command (only on VSCode platform, not JetBrains/standalone)
+			const isSubagentCommand = PLATFORM_CONFIG.type === PlatformType.VSCODE && command.trim().startsWith("cline ")
 			let subagentPrompt: string | undefined
 
 			if (isSubagentCommand) {

@@ -1004,17 +1004,11 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 
 		case msg.Ask == string(types.AskTypePlanModeRespond):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
-			// In streaming mode, partial stream handles this message
-			// State stream should skip to avoid duplication
-			if m.isStreamingMode {
-				// Skip - partial stream already handled this
-			} else {
-				// Non-streaming mode: render normally when message is complete
-				if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
-					m.displayMessage(msg, false, false, i)
+			// Non-streaming mode: render normally when message is complete
+			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				m.displayMessage(msg, false, false, i)
 
-					coordinator.MarkProcessedInCurrentTurn(msgKey)
-				}
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Type == types.MessageTypeAsk:
