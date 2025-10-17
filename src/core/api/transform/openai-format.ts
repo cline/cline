@@ -160,7 +160,7 @@ export function convertToOpenAiMessages(
 					role: "assistant",
 					content,
 					// Cannot be an empty array. API expects an array with minimum length 1, and will respond with an error if it's empty
-					tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
+					tool_calls: tool_calls?.length > 0 ? tool_calls : undefined,
 					// @ts-ignore-next-line
 					reasoning_details: reasoningDetails.length > 0 ? consolidateReasoningDetails(reasoningDetails) : undefined,
 				})
@@ -314,28 +314,32 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 			cache_read_input_tokens: null,
 		},
 	}
-
-	if (openAiMessage.tool_calls && openAiMessage.tool_calls.length > 0) {
-		anthropicMessage.content.push(
-			...openAiMessage.tool_calls
-				.map((toolCall): Anthropic.ToolUseBlock => {
-					const parsedName = toolCall.type === "function" && toolCall.function.name
-					let parsedInput = toolCall.function.arguments
-					try {
-						parsedInput = JSON.parse(toolCall.function.arguments || "{}")
-					} catch (error) {
-						console.error("Failed to parse tool arguments:", error)
-					}
-					return {
-						type: "tool_use",
-						id: toolCall.id,
-						name: parsedName || UNIQUE_ERROR_TOOL_NAME,
-						input: parsedInput,
-					}
-				})
-				// Filter out any tool uses with the UNIQUE_ERROR_TOOL_NAME, which indicates a parsing error
-				.filter((toolUse) => toolUse.name !== UNIQUE_ERROR_TOOL_NAME),
-		)
+	try {
+		if (openAiMessage?.tool_calls?.length) {
+			anthropicMessage.content.push(
+				...openAiMessage.tool_calls
+					.map((toolCall): Anthropic.ToolUseBlock => {
+						const parsedName = toolCall.type === "function" && toolCall.function.name
+						let parsedInput = toolCall.function.arguments
+						try {
+							parsedInput = JSON.parse(toolCall.function.arguments || "{}")
+						} catch (error) {
+							console.error("Failed to parse tool arguments:", error)
+						}
+						return {
+							type: "tool_use",
+							id: toolCall.id,
+							name: parsedName || UNIQUE_ERROR_TOOL_NAME,
+							input: parsedInput,
+						}
+					})
+					// Filter out any tool uses with the UNIQUE_ERROR_TOOL_NAME, which indicates a parsing error
+					.filter((toolUse) => toolUse.name !== UNIQUE_ERROR_TOOL_NAME),
+			)
+		}
+	} catch (error) {
+		console.error("Failed to process tool calls:", error)
 	}
+
 	return anthropicMessage
 }

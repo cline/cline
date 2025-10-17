@@ -17,5 +17,6 @@ export async function getSystemPrompt(context: SystemPromptContext) {
 	const registry = PromptRegistry.getInstance()
 	const systemPrompt = await registry.get(context)
 	const tools = registry.nativeTools
+	console.log(systemPrompt, "systemPrompt")
 	return { systemPrompt, tools }
 }

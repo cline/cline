@@ -48,8 +48,8 @@ const GENERIC: ClineToolSpec = {
 	],
 }
 
-const CLINE_NEXT_GEN: ClineToolSpec = {
-	variant: ModelFamily.CLINE_NEXT_GEN,
+const NATIVE_NEXT_GEN: ClineToolSpec = {
+	variant: ModelFamily.NATIVE_NEXT_GEN,
 	id,
 	name: "write_to_file",
 	description:
@@ -69,4 +69,4 @@ const CLINE_NEXT_GEN: ClineToolSpec = {
 	],
 }
 
-export const write_to_file_variants = [GENERIC, CLINE_NEXT_GEN]
+export const write_to_file_variants = [GENERIC, NATIVE_NEXT_GEN]

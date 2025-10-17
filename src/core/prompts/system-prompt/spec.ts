@@ -165,3 +165,28 @@ export function openAIToolToAnthropic(openAITool: OpenAITool): AnthropicTool {
 		},
 	}
 }
+
+// export function toOpenAIResponsesAPITool(openAITool: OpenAITool): OpenAITool {
+// 	// {
+// 	// 	"type": "function",
+// 	// 	"function": {
+// 	// 		"name": "get_weather",
+// 	// 		"description": "Determine weather in my location",
+// 	// 		"strict": true,
+// 	// 		"parameters": {
+// 	// 		"type": "object",
+// 	// 		"properties": {
+// 	// 			"location": {
+// 	// 			"type": "string",
+// 	// 			},
+// 	// 		},
+// 	// 		"additionalProperties": false,
+// 	// 		"required": [
+// 	// 			"location",
+// 	// 			"unit"
+// 	// 		]
+// 	// 		}
+// 	// 	}
+// 	// }
+
+// }

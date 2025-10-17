@@ -61,9 +61,9 @@ IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user th
 	],
 }
 
-const CLINE_NEXT_GEN: ClineToolSpec = {
+const NATIVE_NEXT_GEN: ClineToolSpec = {
 	...GPT_5,
-	variant: ModelFamily.CLINE_NEXT_GEN,
+	variant: ModelFamily.NATIVE_NEXT_GEN,
 }
 
-export const attempt_completion_variants = [generic, GPT_5, CLINE_NEXT_GEN]
+export const attempt_completion_variants = [generic, GPT_5, NATIVE_NEXT_GEN]

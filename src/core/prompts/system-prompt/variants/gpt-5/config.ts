@@ -19,7 +19,7 @@ export const config = createVariant(ModelFamily.GPT_5)
 	})
 	.matcher((providerInfo) => {
 		// Match GPT-5 models from the Cline providers
-		return providerInfo.providerId === "cline" && isGPT5ModelFamily(providerInfo.model.id)
+		return providerInfo.providerId.includes("openai") && isGPT5ModelFamily(providerInfo.model.id)
 	})
 	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
 	.components(
@@ -29,7 +29,6 @@ export const config = createVariant(ModelFamily.GPT_5)
 		SystemPromptSection.MCP,
 		SystemPromptSection.ACT_VS_PLAN,
 		SystemPromptSection.CLI_SUBAGENTS,
-		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.CAPABILITIES,
 		SystemPromptSection.FEEDBACK,
 		SystemPromptSection.RULES,
@@ -71,6 +70,9 @@ export const config = createVariant(ModelFamily.GPT_5)
 	})
 	.overrideComponent(SystemPromptSection.OBJECTIVE, {
 		template: GPT_5_TEMPLATE_OVERRIDES.OBJECTIVE,
+	})
+	.overrideComponent(SystemPromptSection.FEEDBACK, {
+		template: GPT_5_TEMPLATE_OVERRIDES.FEEDBACK,
 	})
 	.build()
 

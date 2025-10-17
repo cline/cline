@@ -2560,6 +2560,10 @@ export class Task {
 							})
 							break
 						case "tool_calls": {
+							if (!chunk.tool_call) {
+								console.log("no tool call in chunk, skipping...", chunk)
+								break
+							}
 							// Accumulate tool use blocks in proper Anthropic format
 							this.toolUseHandler.processToolUseDelta({
 								id: chunk.tool_call.id,

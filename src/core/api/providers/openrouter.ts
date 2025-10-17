@@ -4,6 +4,7 @@ import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from 
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
@@ -50,7 +51,7 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		this.lastGenerationId = undefined
 
@@ -62,9 +63,17 @@ export class OpenRouterHandler implements ApiHandler {
 			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
+			tools
+				? {
+						tools,
+						tool_choice: "auto",
+						parallel_tool_calls: true,
+					}
+				: undefined,
 		)
 
 		let didOutputUsage: boolean = false
+		const lastToolCall = { id: "", name: "" }
 
 		for await (const chunk of stream) {
 			// openrouter returns an error object instead of the openai sdk throwing an error
@@ -112,6 +121,29 @@ export class OpenRouterHandler implements ApiHandler {
 				}
 			}
 
+			if (delta?.tool_calls) {
+				for (const toolCallDelta of delta.tool_calls) {
+					if (toolCallDelta.id) {
+						lastToolCall.id = toolCallDelta.id
+					}
+					if (toolCallDelta.function?.name) {
+						lastToolCall.name = toolCallDelta.function.name
+					}
+					if (lastToolCall.id && lastToolCall.name && toolCallDelta.function?.arguments) {
+						yield {
+							type: "tool_calls",
+							tool_call: {
+								...toolCallDelta,
+								id: lastToolCall.id,
+								function: {
+									...toolCallDelta.function,
+									name: lastToolCall.name,
+								},
+							},
+						}
+					}
+				}
+			}
 			// Reasoning tokens are returned separately from the content
 			// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
 			if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {

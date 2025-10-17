@@ -4,10 +4,10 @@ import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
 import { validateVariant } from "../variant-validator"
-import { GPT_5_TEMPLATE_OVERRIDES } from "./template"
+import { TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
-export const config = createVariant(ModelFamily.CLINE_NEXT_GEN)
+export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 	.description("Cline next gen models with native tool calling")
 	.version(1)
 	.tags("advanced", "production", "native_tools")
@@ -18,14 +18,15 @@ export const config = createVariant(ModelFamily.CLINE_NEXT_GEN)
 		tool_functions: 1,
 	})
 	.matcher((providerInfo) => {
-		// Match GPT-5 models from the Cline providers
-		return (
-			providerInfo.providerId === "cline" &&
-			!isGPT5ModelFamily(providerInfo.model.id) &&
-			isNextGenModelFamily(providerInfo.model.id)
+		const isSupportedProvider = ["cline", "anthropic"].some(
+			(id) => providerInfo.providerId === id || providerInfo.providerId.includes(id),
 		)
+		if (!isSupportedProvider) {
+			return false
+		}
+		return !isGPT5ModelFamily(providerInfo.model.id) && isNextGenModelFamily(providerInfo.model.id)
 	})
-	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
+	.template(TEMPLATE_OVERRIDES.BASE)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
@@ -60,34 +61,37 @@ export const config = createVariant(ModelFamily.CLINE_NEXT_GEN)
 		ClineDefaultTool.TODO,
 	)
 	.placeholders({
-		MODEL_FAMILY: ModelFamily.CLINE_NEXT_GEN,
+		MODEL_FAMILY: ModelFamily.NATIVE_NEXT_GEN,
 	})
 	.config({})
 	// Override the RULES component with custom template
 	.overrideComponent(SystemPromptSection.RULES, {
-		template: GPT_5_TEMPLATE_OVERRIDES.RULES,
+		template: TEMPLATE_OVERRIDES.RULES,
 	})
 	.overrideComponent(SystemPromptSection.TOOL_USE, {
-		template: GPT_5_TEMPLATE_OVERRIDES.TOOL_USE,
+		template: TEMPLATE_OVERRIDES.TOOL_USE,
 	})
 	.overrideComponent(SystemPromptSection.OBJECTIVE, {
-		template: GPT_5_TEMPLATE_OVERRIDES.OBJECTIVE,
+		template: TEMPLATE_OVERRIDES.OBJECTIVE,
 	})
 	.overrideComponent(SystemPromptSection.ACT_VS_PLAN, {
-		template: GPT_5_TEMPLATE_OVERRIDES.ACT_VS_PLAN,
+		template: TEMPLATE_OVERRIDES.ACT_VS_PLAN,
+	})
+	.overrideComponent(SystemPromptSection.FEEDBACK, {
+		template: TEMPLATE_OVERRIDES.FEEDBACK,
 	})
 	.build()
 
 // Compile-time validation
-const validationResult = validateVariant({ ...config, id: "cline-next-gen" }, { strict: true })
+const validationResult = validateVariant({ ...config, id: "native-next-gen" }, { strict: true })
 if (!validationResult.isValid) {
-	console.error("Cline Next Gen variant configuration validation failed:", validationResult.errors)
-	throw new Error(`Invalid Cline Next Gen variant configuration: ${validationResult.errors.join(", ")}`)
+	console.error("Native Next Gen variant configuration validation failed:", validationResult.errors)
+	throw new Error(`Invalid Native Next Gen variant configuration: ${validationResult.errors.join(", ")}`)
 }
 
 if (validationResult.warnings.length > 0) {
-	console.warn("Cline Next Gen variant configuration warnings:", validationResult.warnings)
+	console.warn("Native Next Gen variant configuration warnings:", validationResult.warnings)
 }
 
 // Export type information for better IDE support
-export type ClineNextGenVariantConfig = typeof config
+export type NativeNextGenVariantConfig = typeof config

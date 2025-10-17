@@ -271,9 +271,11 @@ export class AnthropicHandler implements ApiHandler {
 								yield {
 									type: "tool_calls",
 									tool_call: {
+										...lastStartedToolCall,
 										id: lastStartedToolCall.id,
 										type: "function",
 										function: {
+											...lastStartedToolCall,
 											name: lastStartedToolCall.name,
 											arguments: chunk.delta.partial_json,
 										},

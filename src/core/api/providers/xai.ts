@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, XAIModelId, xaiDefaultModelId, xaiModels } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -40,7 +41,7 @@ export class XAIHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.getModel().id
 		// ensure reasoning effort is either "low" or "high" for grok-3-mini
@@ -58,8 +59,13 @@ export class XAIHandler implements ApiHandler {
 			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 			stream: true,
 			stream_options: { include_usage: true },
+			tools,
 			reasoning_effort: reasoningEffort,
+			tool_choice: tools ? "auto" : undefined,
+			parallel_tool_calls: tools ? true : undefined,
 		})
+
+		const lastToolCall = { id: "", name: "" }
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
@@ -67,6 +73,30 @@ export class XAIHandler implements ApiHandler {
 				yield {
 					type: "text",
 					text: delta.content,
+				}
+			}
+
+			if (delta?.tool_calls) {
+				for (const toolCallDelta of delta.tool_calls) {
+					if (toolCallDelta.id) {
+						lastToolCall.id = toolCallDelta.id
+					}
+					if (toolCallDelta.function?.name) {
+						lastToolCall.name = toolCallDelta.function.name
+					}
+					if (lastToolCall.id && lastToolCall.name && toolCallDelta.function?.arguments) {
+						yield {
+							type: "tool_calls",
+							tool_call: {
+								...toolCallDelta,
+								id: lastToolCall.id,
+								function: {
+									...toolCallDelta.function,
+									name: lastToolCall.name,
+								},
+							},
+						}
+					}
 				}
 			}
 

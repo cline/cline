@@ -119,7 +119,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 					stream_options: { include_usage: true },
 					reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
 					tools,
+					tool_choice: tools ? "auto" : undefined,
+					parallel_tool_calls: tools ? true : undefined,
 				})
+
+				const lastToolCall = { id: "", name: "" }
 
 				for await (const chunk of stream) {
 					const delta = chunk.choices[0]?.delta
@@ -130,13 +134,32 @@ export class OpenAiNativeHandler implements ApiHandler {
 						}
 					}
 
-					if (delta.tool_calls) {
-						// Yield tool calls as ApiStreamToolCallsChunk for processing in the task loop
-						for (const toolCallDelta of delta.tool_calls) {
-							yield {
-								type: "tool_calls",
-								tool_call: toolCallDelta,
+					if (delta?.tool_calls) {
+						try {
+							for (const toolCallDelta of delta.tool_calls) {
+								if (toolCallDelta.id) {
+									lastToolCall.id = toolCallDelta.id
+								}
+								if (toolCallDelta.function?.name) {
+									lastToolCall.name = toolCallDelta.function.name
+								}
+								if (lastToolCall.id && lastToolCall.name && toolCallDelta.function?.arguments) {
+									yield {
+										type: "tool_calls",
+										tool_call: {
+											...toolCallDelta,
+											id: lastToolCall.id,
+											function: {
+												...toolCallDelta.function,
+												name: lastToolCall.name,
+												arguments: toolCallDelta.function.arguments,
+											},
+										},
+									}
+								}
 							}
+						} catch (error) {
+							console.error("Error processing tool call delta:", error, delta.tool_calls)
 						}
 					}
 
@@ -157,6 +180,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 					tools,
 				})
 
+				const lastToolCall = { id: "", name: "" }
+
 				for await (const chunk of stream) {
 					const delta = chunk.choices[0]?.delta
 					if (delta?.content) {
@@ -166,12 +191,27 @@ export class OpenAiNativeHandler implements ApiHandler {
 						}
 					}
 
-					if (delta.tool_calls) {
-						// Yield tool calls as ApiStreamToolCallsChunk for processing in the task loop
+					if (delta?.tool_calls) {
 						for (const toolCallDelta of delta.tool_calls) {
-							yield {
-								type: "tool_calls",
-								tool_call: toolCallDelta,
+							if (toolCallDelta.id) {
+								lastToolCall.id = toolCallDelta.id
+							}
+							if (toolCallDelta.function?.name) {
+								lastToolCall.name = toolCallDelta.function.name
+							}
+							if (lastToolCall.id && lastToolCall.name && toolCallDelta.function?.arguments) {
+								yield {
+									type: "tool_calls",
+									tool_call: {
+										...toolCallDelta,
+										id: lastToolCall.id,
+										function: {
+											...toolCallDelta.function,
+											name: lastToolCall.name,
+											arguments: toolCallDelta.function.arguments,
+										},
+									},
+								}
 							}
 						}
 					}

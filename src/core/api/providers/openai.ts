@@ -71,10 +71,7 @@ export class OpenAiHandler implements ApiHandler {
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 		const isR1FormatRequired = this.options.openAiModelInfo?.isR1FormatRequired ?? false
 		const isReasoningModelFamily =
-			modelId.includes("o1") ||
-			modelId.includes("o3") ||
-			modelId.includes("o4") ||
-			(modelId.includes("gpt-5") && !modelId.includes("chat"))
+			["o1", "o3", "o4", "gpt-5"].some((prefix) => modelId.includes(prefix)) && !modelId.includes("chat")
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -109,7 +106,12 @@ export class OpenAiHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 			tools,
+			tool_choice: tools ? "auto" : undefined,
+			parallel_tool_calls: tools ? true : undefined,
 		})
+
+		const lastToolCall = { id: "", name: "" }
+
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
@@ -126,12 +128,26 @@ export class OpenAiHandler implements ApiHandler {
 				}
 			}
 
-			if (delta.tool_calls) {
-				// Yield tool calls as ApiStreamToolCallsChunk for processing in the task loop
+			if (delta?.tool_calls) {
 				for (const toolCallDelta of delta.tool_calls) {
-					yield {
-						type: "tool_calls",
-						tool_call: toolCallDelta,
+					if (toolCallDelta.id) {
+						lastToolCall.id = toolCallDelta.id
+					}
+					if (toolCallDelta.function?.name) {
+						lastToolCall.name = toolCallDelta.function.name
+					}
+					if (lastToolCall.id && lastToolCall.name && toolCallDelta.function?.arguments) {
+						yield {
+							type: "tool_calls",
+							tool_call: {
+								...toolCallDelta,
+								id: lastToolCall.id,
+								function: {
+									...toolCallDelta.function,
+									name: lastToolCall.name,
+								},
+							},
+						}
 					}
 				}
 			}
@@ -141,7 +157,6 @@ export class OpenAiHandler implements ApiHandler {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
 					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
 					// @ts-ignore-next-line
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,

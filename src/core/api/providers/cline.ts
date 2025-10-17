@@ -3,7 +3,7 @@ import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from 
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
-import type { ChatCompletionTool } from "openai/resources/chat/completions"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineEnv } from "@/config"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
@@ -94,11 +94,7 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		tools?: ChatCompletionTool[],
-	): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		try {
 			const client = await this.ensureClient()
 
@@ -123,6 +119,8 @@ export class ClineHandler implements ApiHandler {
 						}
 					: undefined,
 			)
+
+			const lastToolCall = { id: "", name: "" }
 
 			for await (const chunk of stream) {
 				// openrouter returns an error object instead of the openai sdk throwing an error
@@ -162,12 +160,27 @@ export class ClineHandler implements ApiHandler {
 					}
 				}
 
-				if (delta.tool_calls) {
-					// Yield tool calls as ApiStreamToolCallsChunk for processing in the task loop
+				// Yield tool calls as ApiStreamToolCallsChunk for processing in the task loop
+				if (delta?.tool_calls) {
 					for (const toolCallDelta of delta.tool_calls) {
-						yield {
-							type: "tool_calls",
-							tool_call: toolCallDelta,
+						if (toolCallDelta.id) {
+							lastToolCall.id = toolCallDelta.id
+						}
+						if (toolCallDelta.function?.name) {
+							lastToolCall.name = toolCallDelta.function.name
+						}
+						if (lastToolCall.id && lastToolCall.name && toolCallDelta.function?.arguments) {
+							yield {
+								type: "tool_calls",
+								tool_call: {
+									...toolCallDelta,
+									id: lastToolCall.id,
+									function: {
+										...toolCallDelta.function,
+										name: lastToolCall.name,
+									},
+								},
+							}
 						}
 					}
 				}
