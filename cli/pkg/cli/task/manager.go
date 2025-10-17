@@ -1014,10 +1014,8 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 		case msg.Type == types.MessageTypeAsk:
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			// Only render if not already handled by partial stream
-			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				fmt.Println()
+			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
 				m.displayMessage(msg, false, false, i)
-
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 		}
