@@ -1,5 +1,7 @@
 repositories
 
+temp-files
+
 results/evals.db
 
 diff-edits/cases/

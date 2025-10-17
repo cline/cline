@@ -20,7 +20,7 @@ program
 	.option(
 		"-b, --benchmarks <benchmarks>",
 		"Comma-separated list of benchmarks to set up",
-		"exercism,swe-bench,swelancer,multi-swe",
+		"exercism",
 	)
 	.action(async (options) => {
 		try {
@@ -36,7 +36,7 @@ program
 	.command("run")
 	.description("Run evaluations")
 	.option("-b, --benchmark <benchmark>", "Specific benchmark to run")
-	.option("-m, --model <model>", "Model to evaluate", "claude-3-opus-20240229")
+	.option("-m, --model <model>", "Model to evaluate", "claude-sonnet-4-5-20250929")
 	.option("-c, --count <count>", "Number of tasks to run", parseInt)
 	.option("-k, --api-key <apiKey>", "Cline API key to use for evaluations")
 	.action(async (options) => {
@@ -90,7 +90,7 @@ program
 	.option("--max-attempts-per-case <number>", "Maximum total attempts per test case (default: 10x valid attempts)")
 	.option("--max-cases <number>", "Maximum number of test cases to run (limits total cases loaded)")
 	.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
-	.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
+	.option("--diff-edit-function <name>", "The diff editing function to use", "diff-06-26-25")
 	.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
 	.option("--provider <provider>", "API provider to use (openrouter, openai)", "openrouter")
 	.option("--parallel", "Run tests in parallel", false)

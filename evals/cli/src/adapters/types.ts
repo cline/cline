@@ -27,5 +27,6 @@ export interface BenchmarkAdapter {
 	setup(): Promise<void>
 	listTasks(): Promise<Task[]>
 	prepareTask(taskId: string): Promise<Task>
+	cleanupTask(task: Task): Promise<void>
 	verifyResult(task: Task, result: any): Promise<VerificationResult>
 }

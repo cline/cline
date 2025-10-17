@@ -48,10 +48,7 @@ cline-repo/
 │   │   ├── parsing/                  # Assistant message parsing
 │   │   └── prompts/                  # System prompts
 │   ├── repositories/                 # Cloned benchmark repositories
-│   │   ├── exercism/                 # Modified Exercism (from pashpashpash/evals)
-│   │   ├── swe-bench/                # SWE-Bench repository
-│   │   ├── swelancer/                # SWELancer repository
-│   │   └── multi-swe/                # Multi-SWE-Bench repository
+│   │   └── exercism/                 # Exercism (Aider Polyglot)
 │   ├── results/                      # Evaluation results storage
 │   │   ├── runs/                     # Individual run results
 │   │   └── reports/                  # Generated reports

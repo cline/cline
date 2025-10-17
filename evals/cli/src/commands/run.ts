@@ -1,11 +1,9 @@
-import * as path from "path"
 import { v4 as uuidv4 } from "uuid"
 import chalk from "chalk"
 import ora from "ora"
 import { getAdapter } from "../adapters"
 import { ResultsDatabase } from "../db"
-import { spawnVSCode, cleanupVSCode } from "../utils/vscode"
-import { sendTaskToServer } from "../utils/task"
+import { runClineTask } from "../utils/cline-harness"
 import { storeTaskResult } from "../utils/results"
 
 interface RunOptions {
@@ -63,27 +61,40 @@ export async function runHandler(options: RunOptions): Promise<void> {
 				const preparedTask = await adapter.prepareTask(task.id)
 				prepareSpinner.succeed("Task prepared")
 
-				// Spawn VSCode
-				console.log("Spawning VSCode...")
-				await spawnVSCode(preparedTask.workspacePath)
+				let cleanedUp = false
 
-				// Send task to server
-				const sendSpinner = ora("Sending task to server...").start()
 				try {
-					const result = await sendTaskToServer(preparedTask.description, options.apiKey)
-					sendSpinner.succeed("Task completed")
+					// Run Cline CLI task
+					console.log(`Running task with Cline CLI... Task ID: ${preparedTask.id}`)
+					const { exitCode, duration } = await runClineTask(
+						preparedTask.workspacePath,
+						preparedTask.description,
+					)
 
-					// Verify result
-					const verifySpinner = ora("Verifying result...").start()
+					// Create a result object
+					const result = {
+						exitCode,
+						duration,
+						completed: exitCode === 0,
+					}
+
+					// Cleanup task
+					const cleanupSpinner = ora("Cleaning up task...").start()
+					await adapter.cleanupTask(preparedTask)
+					cleanedUp = true
+					cleanupSpinner.succeed("Cleanup complete")
+
+					// Verify result (run tests)
+					const verifySpinner = ora("Running tests...").start()
 					const verification = await adapter.verifyResult(preparedTask, result)
 
 					if (verification.success) {
 						verifySpinner.succeed(
-							`Verification successful: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal} tests passed`,
+							`Tests passed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal}`,
 						)
 					} else {
 						verifySpinner.fail(
-							`Verification failed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal} tests passed`,
+							`Tests failed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal}`,
 						)
 					}
 
@@ -93,28 +104,19 @@ export async function runHandler(options: RunOptions): Promise<void> {
 					storeSpinner.succeed("Result stored")
 
 					console.log(chalk.green(`Task completed. Success: ${verification.success}`))
-
-					// Clean up VS Code and temporary files
-					const cleanupSpinner = ora("Cleaning up...").start()
-					try {
-						await cleanupVSCode(preparedTask.workspacePath)
-						cleanupSpinner.succeed("Cleanup completed")
-					} catch (cleanupError: any) {
-						cleanupSpinner.fail(`Cleanup failed: ${cleanupError.message}`)
-						console.error(chalk.yellow(cleanupError.stack))
-					}
 				} catch (error: any) {
-					sendSpinner.fail(`Task failed: ${error.message}`)
+					console.error(chalk.red(`Task failed: ${error.message}`))
 					console.error(chalk.red(error.stack))
-
-					// Clean up VS Code and temporary files even if the task failed
-					const cleanupSpinner = ora("Cleaning up...").start()
-					try {
-						await cleanupVSCode(preparedTask.workspacePath)
-						cleanupSpinner.succeed("Cleanup completed")
-					} catch (cleanupError: any) {
-						cleanupSpinner.fail(`Cleanup failed: ${cleanupError.message}`)
-						console.error(chalk.yellow(cleanupError.stack))
+				} finally {
+					// Ensure cleanup always happens
+					if (!cleanedUp) {
+						try {
+							const finalCleanupSpinner = ora("Performing cleanup...").start()
+							await adapter.cleanupTask(preparedTask)
+							finalCleanupSpinner.succeed("Cleanup complete")
+						} catch (cleanupError: any) {
+							console.error(chalk.red(`Cleanup failed: ${cleanupError.message}`))
+						}
 					}
 				}
 			}
