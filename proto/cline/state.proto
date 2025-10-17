@@ -215,6 +215,11 @@ message Settings {
    optional int32 max_consecutive_mistakes = 124;
    optional bool subagents_enabled = 125;
    optional int32 subagent_terminal_output_line_limit = 126;
+   optional string cortecs_base_url = 127;
+   optional string plan_mode_cortecs_model_id = 128;
+   optional OpenRouterModelInfo plan_mode_cortecs_model_info = 129;
+   optional string act_mode_cortecs_model_id = 130;
+   optional OpenRouterModelInfo act_mode_cortecs_model_info = 131;
 }
 
 message DictationSettings {
