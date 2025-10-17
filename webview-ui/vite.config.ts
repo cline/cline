@@ -5,7 +5,6 @@ import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react-swc"
 import { resolve } from "path"
 import { defineConfig, type Plugin, ViteDevServer } from "vite"
-import { nodePolyfills } from "vite-plugin-node-polyfills"
 
 // Custom plugin to write the server port to a file
 const writePortToFile = (): Plugin => {
@@ -39,7 +38,39 @@ if (!VALID_PLATFORMS.includes(platform)) {
 console.log("Building webview for", platform)
 
 export default defineConfig({
-	plugins: [react(), tailwindcss(), writePortToFile(), nodePolyfills()],
+	plugins: [react(), tailwindcss(), writePortToFile()],
+	test: {
+		environment: "jsdom",
+		globals: true,
+		setupFiles: ["./src/setupTests.ts"],
+		coverage: {
+			provider: "v8",
+			reportOnFailure: true,
+			reporter: ["html", "lcov", "text"],
+			reportsDirectory: "./coverage",
+			exclude: [
+				"**/*.{spec,test}.{js,jsx,ts,tsx,mjs,cjs}",
+
+				"**/*.d.ts",
+				"**/vite-env.d.ts",
+				"**/*.{config,setup}.{js,ts,mjs,cjs}",
+
+				"**/*.{css,scss,sass,less,styl}",
+				"**/*.{svg,png,jpg,jpeg,gif,ico}",
+
+				"**/*.{json,yaml,yml}",
+
+				"**/__mocks__/**",
+				"node_modules/**",
+				"build/**",
+				"coverage/**",
+				"dist/**",
+				"public/**",
+
+				"src/services/grpc-client.ts",
+			],
+		},
+	},
 	build: {
 		outDir: "build",
 		reportCompressedSize: false,
@@ -79,15 +110,8 @@ export default defineConfig({
 			allowedHeaders: "*",
 		},
 	},
-	optimizeDeps: {
-		esbuildOptions: {
-			target: "esnext",
-		},
-		include: ["crypto-js"],
-	},
 	define: {
 		__PLATFORM__: JSON.stringify(platform),
-		global: "globalThis",
 		process: JSON.stringify({
 			env: {
 				NODE_ENV: JSON.stringify(process?.env?.IS_DEV ? "development" : "production"),

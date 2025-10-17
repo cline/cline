@@ -872,10 +872,7 @@ export class McpHub {
 				toolArguments ? Object.keys(toolArguments) : undefined,
 			)
 
-			return {
-				...result,
-				content: (result.content ?? []) as any,
-			}
+			return { ...result, content: result.content ?? [] } as any
 		} catch (error) {
 			this.telemetryService.captureMcpToolCall(
 				ulid,
