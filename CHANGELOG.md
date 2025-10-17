@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.33.2]
+
+- Add demo link to Announcement banner
+
 ## [3.33.1]
 
 - Fix CLI installation copy text
