@@ -1,17 +1,17 @@
 /**
- * Aihubmix 提供商使用示例
+ * AIhubmix 提供商使用示例
  *
  * 这个示例展示了如何在 Cline 中使用 aihubmix 统一网关
  */
 
-import { AihubmixHandler } from "../src/core/api/providers/aihubmix"
+import { AIhubmixHandler } from "../src/core/api/providers/aihubmix"
 
 // 基本使用示例
 async function basicUsage() {
 	// 创建 aihubmix 处理器
-	const handler = new AihubmixHandler({
+	const handler = new AIhubmixHandler({
 		apiKey: "your-aihubmix-api-key",
-		baseUrl: "https://aihubmix.com",
+		baseURL: "https://aihubmix.com",
 		appCode: "WHVL9885", // 享受折扣
 		modelId: "gpt-4o-mini",
 	})
@@ -38,7 +38,7 @@ async function basicUsage() {
 
 // 模型路由示例
 function demonstrateModelRouting() {
-	const handler = new AihubmixHandler({
+	const handler = new AIhubmixHandler({
 		apiKey: "your-aihubmix-api-key",
 	})
 
@@ -58,7 +58,7 @@ function demonstrateModelRouting() {
 
 // 工具调用示例
 async function toolCallExample() {
-	const handler = new AihubmixHandler({
+	const handler = new AIhubmixHandler({
 		apiKey: "your-aihubmix-api-key",
 		modelId: "gpt-4o-mini",
 	})
@@ -80,7 +80,7 @@ async function toolCallExample() {
 
 // 错误处理示例
 async function errorHandlingExample() {
-	const handler = new AihubmixHandler({
+	const handler = new AIhubmixHandler({
 		apiKey: "invalid-key", // 无效的 API 密钥
 		modelId: "gpt-4o-mini",
 	})
@@ -98,7 +98,7 @@ async function errorHandlingExample() {
 
 // 运行示例
 async function runExamples() {
-	console.log("=== Aihubmix 提供商使用示例 ===\n")
+	console.log("=== AIhubmix 提供商使用示例 ===\n")
 
 	console.log("1. 模型路由演示:")
 	demonstrateModelRouting()

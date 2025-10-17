@@ -100,13 +100,16 @@ export class AIhubmixHandler implements ApiHandler {
 	/**
 	 * 根据模型名称路由到对应的客户端
 	 */
-	private routeModel(modelName: string): "anthropic" | "openai" | "gemini" {
+	private routeModel(modelName: string): "anthropic" | "openai" | "gemini" | "openai-response" {
 		const id = modelName || ""
 		if (id.startsWith("claude")) {
 			return "anthropic"
 		}
 		if (id.startsWith("gemini") && !id.endsWith("-nothink") && !id.endsWith("-search")) {
 			return "gemini"
+		}
+		if (id === "gpt-5-pro" || id === "gpt-5-codex") {
+			return "openai-response"
 		}
 		return "openai"
 	}
@@ -130,11 +133,14 @@ export class AIhubmixHandler implements ApiHandler {
 			case "anthropic":
 				yield* this.createAnthropicMessage(systemPrompt, messages)
 				break
-			case "openai":
-				yield* this.createOpenaiMessage(systemPrompt, messages)
-				break
 			case "gemini":
 				yield* this.createGeminiMessage(systemPrompt, messages)
+				break
+			case "openai-response":
+				yield* this.createOpenaiResponseMessage(systemPrompt, messages)
+				break
+			case "openai":
+				yield* this.createOpenaiMessage(systemPrompt, messages)
 				break
 			default:
 				throw new Error(`Unsupported model route: ${route}`)
@@ -189,6 +195,55 @@ export class AIhubmixHandler implements ApiHandler {
 						}
 					}
 					break
+			}
+		}
+	}
+
+	private async *createOpenaiResponseMessage(systemPrompt: string, messages: any[]): ApiStream {
+		const client = this.ensureOpenaiClient()
+		const modelId = this.options.modelId || "gpt-4o-mini"
+
+		// 将 Anthropic 风格消息转换为 Responses API 的 input 结构
+		const input = (messages || []).map((m: any) => {
+			const role = m.role || "user"
+			const contentArray = Array.isArray(m.content) ? m.content : [{ type: "text", text: m.content }]
+			const content = contentArray
+				.filter((c: any) => c != null)
+				.map((c: any) => {
+					// 图片
+					if (c.type === "image" || c.type === "input_image" || c.type === "image_url") {
+						return { type: "input_image", image_url: c.image_url || c.url || c.source?.url }
+					}
+					// 文本（用户 -> input_text，助手 -> output_text）
+					const text = c.text ?? (typeof c === "string" ? c : "")
+					return { type: role === "assistant" ? "output_text" : "input_text", text }
+				})
+			return { role, content }
+		})
+
+		// 使用 Responses 流式 API，以事件驱动产出
+		const stream = await (client as any).responses.stream({
+			model: modelId,
+			instructions: systemPrompt,
+			input,
+		})
+
+		for await (const event of stream as any) {
+			if (event?.type === "response.output_text.delta") {
+				yield { type: "text", text: event.delta || "" }
+				continue
+			}
+			if (event?.type === "response.completed") {
+				const usage = event.response?.usage || {}
+				yield {
+					type: "usage",
+					inputTokens: usage.input_tokens || 0,
+					outputTokens: usage.output_tokens || 0,
+				}
+				continue
+			}
+			if (event?.type === "response.error") {
+				throw new Error(event.error?.message || "responses error")
 			}
 		}
 	}
