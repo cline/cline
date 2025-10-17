@@ -22,14 +22,18 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	taskHistory,
 	shouldShowQuickWins,
 }) => {
-	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion } = useExtensionState()
+	const { lastDismissedInfoBannerVersion, lastDismissedCliBannerVersion, platform } = useExtensionState()
 
 	const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
 	// const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
 
+	const isMacOSOrLinux = platform === "darwin" || platform === "linux"
+
 	// Show CLI banner if not dismissed and platform is VSCode (not JetBrains/standalone)
 	const shouldShowCliBanner =
-		PLATFORM_CONFIG.type === PlatformType.VSCODE && lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
+		isMacOSOrLinux &&
+		PLATFORM_CONFIG.type === PlatformType.VSCODE &&
+		lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
 
 	return (
 		<div className="flex flex-col flex-1 w-full h-full p-0 m-0">
