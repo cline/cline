@@ -161,7 +161,9 @@ export const zaiApiLineConfigs = {
 		baseUrl: "https://api.z.ai/api/coding/paas/v4",
 		isChina: false,
 	},
-	international: { name: "International Standard", baseUrl: "https://api.z.ai/api/paas/v4", isChina: false },
-	china_coding: { name: "China Coding Plan", baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4", isChina: true },
-	china: { name: "China Standard", baseUrl: "https://open.bigmodel.cn/api/paas/v4", isChina: true },
+	china_coding: {
+		name: "China Coding Plan",
+		baseUrl: "https://open.bigmodel.cn/api/coding/paas/v4",
+		isChina: true,
+	},
 } satisfies Record<ZaiApiLine, { name: string; baseUrl: string; isChina: boolean }>
