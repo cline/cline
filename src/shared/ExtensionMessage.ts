@@ -167,6 +167,8 @@ export type ClineSay =
 	| "load_mcp_documentation"
 	| "info" // Added for general informational messages like retry status
 	| "task_progress"
+	| "hook" // Hook execution indicator
+	| "hook_output" // Hook streaming output
 
 export interface ClineSayTool {
 	tool:
@@ -185,6 +187,14 @@ export interface ClineSayTool {
 	regex?: string
 	filePattern?: string
 	operationIsLocatedInWorkspace?: boolean
+}
+
+export interface ClineSayHook {
+	hookName: string // Name of the hook (e.g., "PreToolUse", "PostToolUse")
+	toolName?: string // Tool name if applicable (for PreToolUse/PostToolUse)
+	status: "running" | "completed" | "failed" // Execution status
+	exitCode?: number // Exit code when completed
+	hasJsonResponse?: boolean // Whether a JSON response was parsed
 }
 
 // must keep in sync with system prompt
