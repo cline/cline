@@ -19,70 +19,97 @@ export interface EnvironmentConfig {
 	}
 }
 
-function getClineEnv(): Environment {
-	const _override = process?.env?.CLINE_ENVIRONMENT_OVERRIDE
-	if (_override && Object.values(Environment).includes(_override as Environment)) {
-		return _override as Environment
+class ClineEndpoint {
+	public static instance = new ClineEndpoint()
+	public static get config() {
+		return ClineEndpoint.instance.config()
 	}
 
-	const _env = process?.env?.CLINE_ENVIRONMENT
-	if (_env && Object.values(Environment).includes(_env as Environment)) {
-		return _env as Environment
+	private environment: Environment = Environment.production
+
+	private constructor() {
+		// Set environment at module load
+		const _env = process?.env?.CLINE_ENVIRONMENT
+		if (_env && Object.values(Environment).includes(_env as Environment)) {
+			this.environment = _env as Environment
+			return
+		}
+		this.environment = Environment.production
 	}
-	return Environment.production
+
+	public config(): EnvironmentConfig {
+		console.info("Cline environment:", this.environment)
+		return this.getEnvironment()
+	}
+
+	public setEnvironment(env: string) {
+		console.info("Setting Cline environment:", env)
+		switch (env.toLowerCase()) {
+			case "staging":
+				this.environment = Environment.staging
+				break
+			case "local":
+				this.environment = Environment.local
+				break
+			default:
+				this.environment = Environment.production
+				break
+		}
+		console.info("Cline environment updated:", this.environment)
+	}
+
+	public getEnvironment(): EnvironmentConfig {
+		switch (this.environment) {
+			case Environment.staging:
+				return {
+					environment: Environment.staging,
+					appBaseUrl: "https://staging-app.cline.bot",
+					apiBaseUrl: "https://core-api.staging.int.cline.bot",
+					mcpBaseUrl: "https://api.cline.bot/v1/mcp",
+					firebase: {
+						apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
+						authDomain: "cline-staging.firebaseapp.com",
+						projectId: "cline-staging",
+						storageBucket: "cline-staging.firebasestorage.app",
+						messagingSenderId: "853479478430",
+						appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
+					},
+				}
+			case Environment.local:
+				return {
+					environment: Environment.local,
+					appBaseUrl: "http://localhost:3000",
+					apiBaseUrl: "http://localhost:7777",
+					mcpBaseUrl: "https://api.cline.bot/v1/mcp",
+					firebase: {
+						apiKey: "AIzaSyD8wtkd1I-EICuAg6xgAQpRdwYTvwxZG2w",
+						authDomain: "cline-preview.firebaseapp.com",
+						projectId: "cline-preview",
+					},
+				}
+			default:
+				return {
+					environment: Environment.production,
+					appBaseUrl: "https://app.cline.bot",
+					apiBaseUrl: "https://api.cline.bot",
+					mcpBaseUrl: "https://api.cline.bot/v1/mcp",
+					firebase: {
+						apiKey: "AIzaSyC5rx59Xt8UgwdU3PCfzUF7vCwmp9-K2vk",
+						authDomain: "cline-prod.firebaseapp.com",
+						projectId: "cline-prod",
+						storageBucket: "cline-prod.firebasestorage.app",
+						messagingSenderId: "941048379330",
+						appId: "1:941048379330:web:45058eedeefc5cdfcc485b",
+					},
+				}
+		}
+	}
 }
 
-// Config getter function to avoid storing all configs in memory
-function getEnvironmentConfig(environment: Environment): EnvironmentConfig {
-	switch (environment) {
-		case Environment.staging:
-			return {
-				environment,
-				appBaseUrl: "https://staging-app.cline.bot",
-				apiBaseUrl: "https://core-api.staging.int.cline.bot",
-				mcpBaseUrl: "https://api.cline.bot/v1/mcp",
-				firebase: {
-					apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
-					authDomain: "cline-staging.firebaseapp.com",
-					projectId: "cline-staging",
-					storageBucket: "cline-staging.firebasestorage.app",
-					messagingSenderId: "853479478430",
-					appId: "1:853479478430:web:2de0dba1c63c3262d4578f",
-				},
-			}
-		case Environment.local:
-			return {
-				environment,
-				appBaseUrl: "http://localhost:3000",
-				apiBaseUrl: "http://localhost:7777",
-				mcpBaseUrl: "https://api.cline.bot/v1/mcp",
-				firebase: {
-					apiKey: "AIzaSyD8wtkd1I-EICuAg6xgAQpRdwYTvwxZG2w",
-					authDomain: "cline-preview.firebaseapp.com",
-					projectId: "cline-preview",
-				},
-			}
-		default:
-			return {
-				environment,
-				appBaseUrl: "https://app.cline.bot",
-				apiBaseUrl: "https://api.cline.bot",
-				mcpBaseUrl: "https://api.cline.bot/v1/mcp",
-				firebase: {
-					apiKey: "AIzaSyC5rx59Xt8UgwdU3PCfzUF7vCwmp9-K2vk",
-					authDomain: "cline-prod.firebaseapp.com",
-					projectId: "cline-prod",
-					storageBucket: "cline-prod.firebasestorage.app",
-					messagingSenderId: "941048379330",
-					appId: "1:941048379330:web:45058eedeefc5cdfcc485b",
-				},
-			}
-	}
-}
-
-// Get environment once at module load
-const _configCache = getEnvironmentConfig(getClineEnv())
-
-console.info("Cline environment:", _configCache.environment)
-
-export const clineEnvConfig = _configCache
+/**
+ * Singleton instance to access the current environment configuration.
+ * Usage:
+ * - ClineEnv.config() to get the current config.
+ * - ClineEnv.setEnvironment(Environment.local) to change the environment.
+ */
+export const ClineEnv = ClineEndpoint.instance

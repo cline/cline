@@ -1,9 +1,10 @@
 import type { UsageTransaction as ClineAccountUsageTransaction, PaymentTransaction } from "@shared/ClineAccount"
+import { isClineInternalTester } from "@shared/internal/account"
 import type { UserOrganization } from "@shared/proto/cline/account"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption, VSCodeTag } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
-import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import { type ClineUser, handleSignOut } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -11,6 +12,7 @@ import { AccountServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import HeroTooltip from "../common/HeroTooltip"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
+import { updateSetting } from "../settings/utils/settingsHandlers"
 import { AccountWelcomeView } from "./AccountWelcomeView"
 import { CreditBalance } from "./CreditBalance"
 import CreditsHistoryTable from "./CreditsHistoryTable"
@@ -27,6 +29,7 @@ type ClineAccountViewProps = {
 	clineUser: ClineUser
 	userOrganizations: UserOrganization[] | null
 	activeOrganization: UserOrganization | null
+	clineEnv: "Production" | "Staging" | "Local"
 }
 
 type CachedData = {
@@ -36,6 +39,8 @@ type CachedData = {
 	lastFetchTime: number
 }
 
+const ClineEnvOptions = ["Production", "Staging", "Local"] as const
+
 const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: AccountViewProps) => {
 	const { environment } = useExtensionState()
 	const titleColor = getEnvironmentColor(environment)
@@ -44,7 +49,7 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 		<div className="fixed inset-0 flex flex-col overflow-hidden pt-[10px] pl-[20px]">
 			<div className="flex justify-between items-center mb-[17px] pr-[17px]">
 				<h3 className="m-0" style={{ color: titleColor }}>
-					Account
+					Account {environment !== "production" ? ` - ${environment} environment` : ""}
 				</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
@@ -53,6 +58,7 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 					{clineUser?.uid ? (
 						<ClineAccountView
 							activeOrganization={activeOrganization}
+							clineEnv={environment === "local" ? "Local" : environment === "staging" ? "Staging" : "Production"}
 							clineUser={clineUser}
 							key={clineUser.uid}
 							userOrganizations={organizations}
@@ -66,7 +72,7 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 	)
 }
 
-export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization }: ClineAccountViewProps) => {
+export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, clineEnv }: ClineAccountViewProps) => {
 	const { email, displayName, appBaseUrl, uid } = clineUser
 	const { remoteConfigSettings } = useExtensionState()
 
@@ -77,7 +83,6 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 	// Source of truth: Dedicated state for dropdown value that persists through failures
 	// and represents that user's current selection.
 	const [dropdownValue, setDropdownValue] = useState<string>(activeOrganization?.organizationId || uid)
-
 	const [isLoading, setIsLoading] = useState(false)
 
 	// Cache data per organization/user ID to avoid showing empty state when switching
@@ -122,6 +127,8 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 	const manualFetchInProgressRef = useRef<boolean>(false)
 	// Track if initial mount fetch has completed to avoid duplicate fetches
 	const initialFetchCompleteRef = useRef<boolean>(false)
+
+	const isClineTester = useMemo(() => (email ? isClineInternalTester(email) : false), [email])
 
 	const fetchUserCredit = useCallback(async () => {
 		try {
@@ -310,14 +317,14 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 						{/* {user.photoUrl ? (
 								<img src={user.photoUrl} alt="Profile" className="size-16 rounded-full mr-4" />
 							) : ( */}
-						<div className="size-16 rounded-full bg-[var(--vscode-button-background)] flex items-center justify-center text-2xl text-[var(--vscode-button-foreground)] mr-4">
+						<div className="size-16 rounded-full bg-button-background flex items-center justify-center text-2xl text-[var(--vscode-button-foreground)] mr-4">
 							{displayName?.[0] || email?.[0] || "?"}
 						</div>
 						{/* )} */}
 
 						<div className="flex flex-col">
 							{displayName && (
-								<h2 className="text-[var(--vscode-foreground)] m-0 text-lg font-medium">{displayName}</h2>
+								<h2 className="text-foreground m-0 text-lg font-medium flex items-center">{displayName}</h2>
 							)}
 
 							{email && <div className="text-sm text-[var(--vscode-descriptionForeground)]">{email}</div>}
@@ -397,6 +404,29 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 						usageData={usageData}
 					/>
 				</div>
+
+				{isClineTester && (
+					<div className="w-full gap-1 items-end">
+						<VSCodeDivider className="w-full my-3" />
+						<div className="text-sm font-semibold">Cline Environment</div>
+						<VSCodeDropdown
+							className="w-full mt-1"
+							currentValue={clineEnv}
+							onChange={async (e) => {
+								const target = e.target as HTMLSelectElement
+								if (target?.value) {
+									const value = target.value as "Local" | "Staging" | "Production"
+									updateSetting("clineEnv", value.toLowerCase())
+								}
+							}}>
+							{ClineEnvOptions.map((env) => (
+								<VSCodeOption key={env} value={env}>
+									{env}
+								</VSCodeOption>
+							))}
+						</VSCodeDropdown>
+					</div>
+				)}
 			</div>
 		</div>
 	)
