@@ -31,8 +31,10 @@ const formatTiers = (
 				return null
 			}
 
+			const stableKey = `${priceType}-${tier.contextWindow ?? "inf"}-${price ?? "na"}`
+
 			return (
-				<span key={index} style={{ paddingLeft: "15px" }}>
+				<span key={stableKey} style={{ paddingLeft: "15px" }}>
 					{formatPrice(price)}/million tokens (
 					{tier.contextWindow === Number.POSITIVE_INFINITY || tier.contextWindow >= Number.MAX_SAFE_INTEGER ? (
 						<span>
@@ -205,12 +207,15 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 				marginTop: "2px",
 				color: "var(--vscode-descriptionForeground)",
 			}}>
-			{infoItems.map((item, index) => (
-				<Fragment key={index}>
-					{item}
-					{index < infoItems.length - 1 && <br />}
-				</Fragment>
-			))}
+			{infoItems.map((item, index) => {
+				const k = String((item as any).key ?? `idx-${index}`)
+				return (
+					<Fragment key={k}>
+						{item}
+						{index < infoItems.length - 1 && <br key={`br-${k}`} />}
+					</Fragment>
+				)
+			})}
 		</div>
 	)
 }
