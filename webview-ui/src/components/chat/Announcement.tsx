@@ -117,6 +117,13 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 					<b>Auto-Retry Failed API Requests:</b> No more interrupted auto-approved tasks due to server errors
 				</li>
 			</ul>
+			<p style={linkContainerStyle}>
+				See a{" "}
+				<VSCodeLink href="https://x.com/sdrzn/status/1979014975743005101" style={linkStyle}>
+					demo
+				</VSCodeLink>{" "}
+				of Cline CLI and subagents
+			</p>
 			<div style={hrStyle} />
 			<p style={linkContainerStyle}>
 				Join us on{" "}
