@@ -30,12 +30,14 @@ export const MatrixFileParsePrompt=()=>
 - 支持从任何步骤恢复
 
 ## 上下文传递说明
-- 文件路径通过任务系统上下文传递，使用 TASK_FILES 环境变量
+- 文件路径通过任务系统上下文传递，后续的步骤用$TASK_FILES来代表。
 - MCP 工具处理后返回结果，供后续步骤使用
 - 后续步骤可以通过解析 TASK_FILES 获取原始文件路径或使用 MCP 工具返回的结果
 
 ## 步骤 1: 让用户选择上传的矩阵文件中需要处理的Sheet
-让用户从传入的**矩阵文件的Sheet列表**中选择一个作为待处理的Sheet,并将选择的Sheet名称存储在变量sheet_name中,然后进入下一步。
+让用户从传入的**矩阵文件的Sheet列表**中选择一个作为待处理的Sheet,并将选择的Sheet名称存储在变量sheet_name中，
+这个变量后续的步骤用$sheet_name来代表
+,然后进入下一步。
 
 <ask_followup_question>
   <question>请选择要处理的Sheet：</question>
@@ -55,8 +57,8 @@ handle_matrix_file
 </tool_name>
 <arguments>
 {
-  "fileUrl": "$(echo "$TASK_FILES" | grep "matrix_file_path" | cut -d'=' -f2-)",
-  "sheetName": "$(echo "$sheet_name")"
+  "fileUrl": "$TASK_FILES",
+  "sheetName": "$sheet_name"
 }
 </arguments>
 </use_mcp_tool>
