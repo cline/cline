@@ -158,7 +158,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				{/* Expand/Collapse Task Details */}
 				{isTaskExpanded && (
 					<div className="flex flex-col break-words" key={`task-details-${currentTaskItem?.id}`}>
-						<div className="max-h-80 whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0 overflow-y-auto scroll-smooth">
+						<div className="max-h-[25vh] whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0 overflow-y-auto scroll-smooth">
 							<div
 								className={
 									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer mt-1"
