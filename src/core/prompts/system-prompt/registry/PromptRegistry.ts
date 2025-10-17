@@ -1,6 +1,6 @@
-import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ApiProviderInfo } from "@/core/api"
 import { ModelFamily } from "@/shared/prompts"
+import { ClineTool } from "@/shared/tools"
 import { ClineToolSet } from ".."
 import { getSystemPromptComponents } from "../components"
 import { registerClineToolSets } from "../tools"
@@ -14,7 +14,7 @@ export class PromptRegistry {
 	private variants: Map<string, PromptVariant> = new Map()
 	private components: ComponentRegistry = {}
 	private loaded: boolean = false
-	public nativeTools: OpenAITool[] | undefined = undefined
+	public nativeTools: ClineTool[] | undefined = undefined
 
 	private constructor() {
 		registerClineToolSets()

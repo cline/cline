@@ -1,8 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { AnthropicModelId, anthropicDefaultModelId, anthropicModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
-import { ChatCompletionTool } from "openai/resources/chat/completions"
-import { openAIToolToAnthropic } from "@/core/prompts/system-prompt/spec"
+import { ClineTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
@@ -40,11 +40,7 @@ export class AnthropicHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		tools?: ChatCompletionTool[],
-	): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: ClineTool[]): ApiStream {
 		const client = this.ensureClient()
 
 		const model = this.getModel()
@@ -126,7 +122,7 @@ export class AnthropicHandler implements ApiHandler {
 						}),
 						// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
 						stream: true,
-						tools: tools ? tools.map((t) => openAIToolToAnthropic(t)) : undefined,
+						tools: tools?.length ? (tools as AnthropicTool[]) : undefined,
 						// tool_choice options:
 						// - none: disables tool use, even if tools are provided. Claude will not call any tools.
 						// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
@@ -164,6 +160,7 @@ export class AnthropicHandler implements ApiHandler {
 		}
 
 		let thinkingDeltaAccumulator = ""
+		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 
 		for await (const chunk of stream) {
 			switch (chunk?.type) {
@@ -219,17 +216,11 @@ export class AnthropicHandler implements ApiHandler {
 							}
 							break
 						case "tool_use":
-							// Convert Anthropic tool_use to OpenAI-compatible format
-							yield {
-								type: "tool_calls",
-								tool_call: {
-									id: chunk.content_block.id,
-									type: "function",
-									function: {
-										name: chunk.content_block.name,
-										arguments: JSON.stringify(chunk.content_block.input),
-									},
-								},
+							if (chunk.content_block.id && chunk.content_block.name) {
+								// Convert Anthropic tool_use to OpenAI-compatible format
+								lastStartedToolCall.id = chunk.content_block.id
+								lastStartedToolCall.name = chunk.content_block.name
+								lastStartedToolCall.arguments = ""
 							}
 							break
 						case "text":
@@ -274,9 +265,29 @@ export class AnthropicHandler implements ApiHandler {
 								text: chunk.delta.text,
 							}
 							break
+						case "input_json_delta":
+							if (lastStartedToolCall.id && lastStartedToolCall.name && chunk.delta.partial_json) {
+								// 	// Convert Anthropic tool_use to OpenAI-compatible format
+								yield {
+									type: "tool_calls",
+									tool_call: {
+										id: lastStartedToolCall.id,
+										type: "function",
+										function: {
+											name: lastStartedToolCall.name,
+											arguments: chunk.delta.partial_json,
+										},
+									},
+								}
+							}
+							break
 					}
 					break
+
 				case "content_block_stop":
+					lastStartedToolCall.id = ""
+					lastStartedToolCall.name = ""
+					lastStartedToolCall.arguments = ""
 					break
 			}
 		}

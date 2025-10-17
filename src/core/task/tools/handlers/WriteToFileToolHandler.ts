@@ -96,7 +96,10 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (!rawRelPath) {
 			config.taskState.consecutiveMistakeCount++
 			await config.services.diffViewProvider.reset()
-			return await config.callbacks.sayAndCreateMissingParamError(block.name, "path")
+			return await config.callbacks.sayAndCreateMissingParamError(
+				block.name,
+				block.params.absolutePath ? "absolutePath" : "path",
+			)
 		}
 
 		if (block.name === "replace_in_file" && !rawDiff) {

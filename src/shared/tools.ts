@@ -1,3 +1,8 @@
+import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
+import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+
+export type ClineTool = OpenAITool | AnthropicTool
+
 // Define available tool ids
 export enum ClineDefaultTool {
 	ASK = "ask_followup_question",

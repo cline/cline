@@ -1,5 +1,5 @@
 import { ModelFamily } from "@/shared/prompts"
-import { type ClineToolSpec, toolSpecFunctionDefinition } from "../spec"
+import { type ClineToolSpec, toolSpecFunctionDefinition, toolSpecInputSchema } from "../spec"
 import { PromptVariant, SystemPromptContext } from "../types"
 
 export class ClineToolSet {
@@ -110,10 +110,9 @@ export class ClineToolSet {
 			return undefined
 		}
 		const enabledTools = ClineToolSet.getEnabledTools(variant, context)
-		// if (variant.family === ModelFamily.CLAUDE) {
-		// 	// Map Claude tools to their function definitions
-		// 	return enabledTools.map((tool) => toolSpecInputSchema(tool.config, context))
-		// }
+		if (context.providerInfo.providerId === "anthropic") {
+			return enabledTools.map((tool) => toolSpecInputSchema(tool.config, context))
+		}
 		return enabledTools.map((tool) => toolSpecFunctionDefinition(tool.config, context))
 	}
 }
