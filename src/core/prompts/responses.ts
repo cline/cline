@@ -290,5 +290,17 @@ const formatImagesIntoBlocks = (images?: string[]): Anthropic.ImageBlockParam[] 
 		: []
 }
 
-// TODO: Confirm this does still works with non-native tool-calling setup.
-const toolUseInstructionsReminder = "Please try to use tool following the expected format."
+const toolUseInstructionsReminder = `# Reminder: Instructions for Tool Use
+Tool uses are formatted using XML-style tags. The tool name is enclosed in opening and closing tags, and each parameter is similarly enclosed within its own set of tags. Here's the structure:
+<tool_name>
+<parameter1_name>value1</parameter1_name>
+<parameter2_name>value2</parameter2_name>
+...
+</tool_name>
+For example:
+<attempt_completion>
+<result>
+I have completed the task...
+</result>
+</attempt_completion>
+Always adhere to this format for all tool uses to ensure proper parsing and execution.`

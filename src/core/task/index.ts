@@ -153,6 +153,13 @@ export class Task {
 	public checkpointManager?: ICheckpointManager
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
+	/**
+	 * Whether the task is using native tool calls.
+	 * This is used to determine how we would format response.
+	 * Example: We don't add noToolsUsed response when native tool call is used
+	 * because of the expected format from the tool calls is different.
+	 */
+	private useNativeToolCalls: boolean = false
 	private toolCallHandler: StreamingToolCallHandler
 	private toolUseHandler: ToolUseHandler
 
@@ -1132,7 +1139,7 @@ export class Task {
 				// For now a task never 'completes'. This will only happen if the user hits max requests and denies resetting the count.
 				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
 				break
-			} else {
+			} else if (!this.useNativeToolCalls) {
 				// this.say(
 				// 	"tool",
 				// 	"Cline responded with only text blocks but has not called attempt_completion yet. Forcing him to continue with task..."
@@ -1774,6 +1781,7 @@ export class Task {
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
+		this.useNativeToolCalls = !!tools?.length
 
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
@@ -2825,7 +2833,7 @@ export class Task {
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
 				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")
 
-				if (!didToolUse) {
+				if (!didToolUse && !this.useNativeToolCalls) {
 					// normal request where tool use is required
 					this.taskState.userMessageContent.push({
 						type: "text",
