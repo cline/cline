@@ -6,6 +6,7 @@ import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextF
 import { memo, useEffect, useState } from "react"
 import HeroTooltip from "@/components/common/HeroTooltip"
 import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import Section from "../Section"
@@ -70,7 +71,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 			<Section>
 				<div style={{ marginBottom: 20 }}>
 					{/* Subagents - Only show on macOS and Linux */}
-					{isMacOSOrLinux && (
+					{isMacOSOrLinux && PLATFORM_CONFIG.type === PlatformType.VSCODE && (
+
 						<div
 							className="relative p-3 mb-3 rounded-md"
 							id="subagents-section"

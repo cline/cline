@@ -5,6 +5,7 @@ import InfoBanner, { CURRENT_INFO_BANNER_VERSION } from "@/components/common/Inf
 import HistoryPreview from "@/components/history/HistoryPreview"
 import HomeHeader from "@/components/welcome/HomeHeader"
 import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { WelcomeSectionProps } from "../../types/chatTypes"
 
@@ -26,8 +27,9 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
 	// const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
 
-	// Show CLI banner if not dismissed
-	const shouldShowCliBanner = lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
+	// Show CLI banner if not dismissed and platform is VSCode (not JetBrains/standalone)
+	const shouldShowCliBanner =
+		PLATFORM_CONFIG.type === PlatformType.VSCODE && lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
 
 	return (
 		<div className="flex flex-col flex-1 w-full h-full p-0 m-0">
