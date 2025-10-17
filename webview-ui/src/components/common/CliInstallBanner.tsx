@@ -14,7 +14,7 @@ export const CliInstallBanner: React.FC = () => {
 	const [isCopied, setIsCopied] = useState(false)
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
 
-	const isMacOS = platform === "darwin"
+	const isMacOSOrLinux = platform === "darwin" || platform === "linux"
 
 	// Poll for CLI installation status while the component is mounted
 	useEffect(() => {
@@ -102,10 +102,10 @@ export const CliInstallBanner: React.FC = () => {
 			}}>
 			<h4 className="m-0 flex items-center gap-2" style={{ paddingRight: "24px" }}>
 				<Terminal className="w-4 h-4" />
-				{isMacOS ? "Cline for CLI is here!" : "Cline CLI Information"}
+				{isMacOSOrLinux ? "Cline for CLI is here!" : "Cline CLI Information"}
 			</h4>
 			<p className="m-0">
-				{isMacOS ? (
+				{isMacOSOrLinux ? (
 					<>
 						Install to use Cline directly in your terminal and enable subagent capabilities. Cline can spawn{" "}
 						<code>cline</code> commands to handle focused tasks like exploring large codebases for information. This
@@ -120,7 +120,7 @@ export const CliInstallBanner: React.FC = () => {
 					</>
 				) : (
 					<>
-						Cline CLI is available for Mac OS users now! coming <code>soon</code> to other platforms.{" "}
+						Cline CLI is available for macOS and Linux! Coming <code>soon</code> to other platforms.{" "}
 						<a
 							href="https://docs.cline.bot/cline-cli/overview"
 							rel="noopener noreferrer"
@@ -148,7 +148,7 @@ export const CliInstallBanner: React.FC = () => {
 						<span className={`codicon ${isCopied ? "codicon-check" : "codicon-copy"}`}></span>
 					</VSCodeButton>
 				</div>
-				{isMacOS ? (
+				{isMacOSOrLinux ? (
 					<div className="flex gap-2">
 						<VSCodeButton
 							appearance="primary"
@@ -193,8 +193,8 @@ export const CliInstallBanner: React.FC = () => {
 							appearance="secondary"
 							className="flex-1"
 							disabled
-							title="Cline CLI & subagents are only available on macOS">
-							Subagents (macOS only)
+							title="Cline CLI & subagents are only available on macOS & Linux">
+							Subagents (Windows coming soon)
 						</VSCodeButton>
 					</div>
 				)}
