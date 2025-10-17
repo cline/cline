@@ -21,7 +21,7 @@ export const config = createVariant(ModelFamily.GPT_5)
 		// Match GPT-5 models from providers that support native tools
 		return (
 			isGPT5ModelFamily(providerInfo.model.id) &&
-			["cline", "openai", "openrouter"].some((id) => providerInfo.providerId.includes(id))
+			["cline", "openai", "openrouter"].some((substring) => providerInfo.providerId.includes(substring))
 		)
 	})
 	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)

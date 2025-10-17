@@ -1,4 +1,4 @@
-import { isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
+import { isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -21,7 +21,11 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		return (
 			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
 			providerInfo.providerId !== "cline" &&
-			isNextGenModelFamily(providerInfo.model.id)
+			isNextGenModelFamily(providerInfo.model.id) &&
+			!(
+				isGPT5ModelFamily(providerInfo.model.id) &&
+				["cline", "openai", "openrouter"].some((substring) => providerInfo.providerId.includes(substring))
+			)
 		)
 	})
 	.template(baseTemplate)
