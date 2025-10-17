@@ -343,8 +343,8 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			try {
-				const prompt = await getSystemPrompt(baseContext)
-				expect(prompt).to.include("TODO")
+				const { systemPrompt } = await getSystemPrompt(baseContext)
+				expect(systemPrompt).to.include("TODO")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
 					this.skip()
@@ -358,8 +358,8 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			try {
-				const prompt = await getSystemPrompt(baseContext)
-				expect(prompt).to.include("USER'S CUSTOM INSTRUCTIONS")
+				const { systemPrompt } = await getSystemPrompt(baseContext)
+				expect(systemPrompt).to.include("USER'S CUSTOM INSTRUCTIONS")
 			} catch (error) {
 				if (error instanceof Error && error.message.includes("No prompt variant found")) {
 					this.skip()
@@ -398,9 +398,9 @@ describe("Prompt System Integration Tests", () => {
 			}
 
 			try {
-				const prompt = await getSystemPrompt(contextWithNulls)
-				expect(prompt).to.be.a("string")
-				expect(prompt).to.include("{{TOOL_USE_SECTION}}")
+				const { systemPrompt } = await getSystemPrompt(contextWithNulls)
+				expect(systemPrompt).to.be.a("string")
+				expect(systemPrompt).to.include("{{TOOL_USE_SECTION}}")
 			} catch (error) {
 				// Error is acceptable for invalid context
 				expect(error).to.be.instanceOf(Error)
