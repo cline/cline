@@ -95,23 +95,53 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				return
 			}
 
-			const summary = this.createPatchSummary(rawInput)
-			const primaryFile = allFiles[0]
-			const isInWorkspace = primaryFile ? await isLocatedInWorkspace(primaryFile) : true
-
-			const message: ClineSayTool = {
-				tool: "editedExistingFile",
-				content: summary,
-				operationIsLocatedInWorkspace: isInWorkspace,
+			const autoApproveCheck = async (path: string, message: ClineSayTool) => {
+				const shouldAutoApprove = await uiHelpers.shouldAutoApproveToolWithPath(block.name, path)
+				if (shouldAutoApprove) {
+					await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
+					await uiHelpers.say("tool", JSON.stringify(message), undefined, undefined, block.partial)
+				} else {
+					await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "tool")
+					await uiHelpers.ask("tool", JSON.stringify(message), block.partial).catch(() => {})
+				}
 			}
 
-			const shouldAutoApprove = await uiHelpers.shouldAutoApproveToolWithPath(block.name, primaryFile)
-			if (shouldAutoApprove) {
-				await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
-				await uiHelpers.say("tool", JSON.stringify(message), undefined, undefined, block.partial)
-			} else {
-				await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "tool")
-				await uiHelpers.ask("tool", JSON.stringify(message), block.partial).catch(() => {})
+			const lines = this.stripBashWrapper(rawInput.split("\n"))
+			const operations = {
+				add: this.extractFilesFromLines(lines, PATCH_MARKERS.ADD),
+				update: this.extractFilesFromLines(lines, PATCH_MARKERS.UPDATE),
+				delete: this.extractFilesFromLines(lines, PATCH_MARKERS.DELETE),
+			}
+
+			if (operations.add.length > 0) {
+				for (const file of operations.add) {
+					const operationIsLocatedInWorkspace = await isLocatedInWorkspace(file)
+					await autoApproveCheck(file, {
+						tool: "newFileCreated",
+						path: file,
+						operationIsLocatedInWorkspace,
+					})
+				}
+			}
+			if (operations.update.length > 0) {
+				for (const file of operations.update) {
+					const operationIsLocatedInWorkspace = await isLocatedInWorkspace(file)
+					await autoApproveCheck(file, {
+						tool: "editedExistingFile",
+						path: file,
+						operationIsLocatedInWorkspace,
+					})
+				}
+			}
+			if (operations.delete.length > 0) {
+				for (const file of operations.delete) {
+					const operationIsLocatedInWorkspace = await isLocatedInWorkspace(file)
+					await autoApproveCheck(file, {
+						tool: "editedExistingFile",
+						path: file,
+						operationIsLocatedInWorkspace,
+					})
+				}
 			}
 		} catch {
 			// Wait for more data if parsing fails
@@ -148,30 +178,28 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			// Generate summary
 			const changedFiles = Object.keys(commit.changes)
-			const summary = this.generateChangeSummary(commit.changes)
-			const primaryFile = allFiles[0]
-			const isInWorkspace = primaryFile ? await isLocatedInWorkspace(primaryFile) : true
+			const messages = await this.generateChangeSummary(commit.changes)
 
-			const message: ClineSayTool = {
-				tool: "editedExistingFile",
-				content: `Applied patch to ${changedFiles.length} file(s):\n${summary}`,
-				operationIsLocatedInWorkspace: isInWorkspace,
+			const finalResponses = []
+
+			for (const message of messages) {
+				// Handle approval flow
+				const approved = await this.handleApproval(config, block, message, changedFiles[0] || "")
+				if (!approved) {
+					return "The user denied this patch operation."
+				}
+
+				// Track file edits
+				for (const filePath of changedFiles) {
+					config.services.fileContextTracker.markFileAsEditedByCline(filePath)
+					await config.services.fileContextTracker.trackFileContext(filePath, "cline_edited")
+				}
+
+				config.taskState.didEditFile = true
+				finalResponses.push(message.path)
 			}
 
-			// Handle approval flow
-			const approved = await this.handleApproval(config, block, message, changedFiles[0] || "")
-			if (!approved) {
-				return "The user denied this patch operation."
-			}
-
-			// Track file edits
-			for (const filePath of changedFiles) {
-				config.services.fileContextTracker.markFileAsEditedByCline(filePath)
-				await config.services.fileContextTracker.trackFileContext(filePath, "cline_edited")
-			}
-
-			config.taskState.didEditFile = true
-			return formatResponse.toolResult(`Successfully applied patch to ${changedFiles.length} file(s):\n${summary}`)
+			return `Successfully applied patch to files: ${finalResponses.join(", ")}`
 		} catch (error) {
 			throw error
 		}
@@ -271,29 +299,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 	private extractAllFiles(text: string): string[] {
 		return this.extractFilesForOperations(text, [PATCH_MARKERS.ADD, PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE])
-	}
-
-	private createPatchSummary(text: string): string {
-		const lines = this.stripBashWrapper(text.split("\n"))
-		const operations = {
-			add: this.extractFilesFromLines(lines, PATCH_MARKERS.ADD),
-			update: this.extractFilesFromLines(lines, PATCH_MARKERS.UPDATE),
-			delete: this.extractFilesFromLines(lines, PATCH_MARKERS.DELETE),
-		}
-
-		const parts: string[] = []
-		if (operations.add.length > 0) {
-			parts.push(`Adding ${operations.add.length} file(s): ${operations.add.join(", ")}`)
-		}
-		if (operations.update.length > 0) {
-			parts.push(`Updating ${operations.update.length} file(s): ${operations.update.join(", ")}`)
-		}
-		if (operations.delete.length > 0) {
-			parts.push(`Deleting ${operations.delete.length} file(s): ${operations.delete.join(", ")}`)
-		}
-
-		const total = operations.add.length + operations.update.length + operations.delete.length
-		return parts.length > 0 ? `Applying patch to ${total} file(s):\n${parts.join("\n")}` : "Preparing to apply patch..."
 	}
 
 	private extractFilesFromLines(lines: string[], marker: string): string[] {
@@ -399,7 +404,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					break
 				case ActionType.ADD:
 					if (!change.newContent) {
-						throw new DiffError(`ADD change for ${path} has no content`)
+						throw new DiffError(`Cannot create ${path} with no content`)
 					}
 					await fs.mkdir(dirname(absolutePath), { recursive: true })
 					await fs.writeFile(absolutePath, change.newContent, "utf-8")
@@ -424,21 +429,38 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return typeof result === "string" ? result : result.absolutePath
 	}
 
-	private generateChangeSummary(changes: Record<string, FileChange>): string {
-		return Object.entries(changes)
-			.map(([file, change]) => {
+	// Promise all for generateChangeSummary
+	private async generateChangeSummary(changes: Record<string, FileChange>): Promise<ClineSayTool[]> {
+		const summaries = await Promise.all(
+			Object.entries(changes).map(async ([file, change]) => {
 				switch (change.type) {
 					case ActionType.ADD:
-						return `Added: ${file}`
-					case ActionType.DELETE:
-						return `Deleted: ${file}`
+						return {
+							tool: "newFileCreated",
+							path: file,
+							content: change.newContent,
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(file),
+						} as ClineSayTool
 					case ActionType.UPDATE:
-						return `Updated: ${file}${change.movePath ? ` (moved to ${change.movePath})` : ""}`
+						return {
+							tool: change.movePath ? "newFileCreated" : "editedExistingFile",
+							path: change.movePath || file,
+							content: change.movePath ? change.oldContent : change.newContent,
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(file),
+						} as ClineSayTool
+					case ActionType.DELETE:
 					default:
-						return `Modified: ${file}`
+						return {
+							tool: "editedExistingFile",
+							path: file,
+							content: change.newContent,
+							operationIsLocatedInWorkspace: await isLocatedInWorkspace(file),
+						} as ClineSayTool
 				}
-			})
-			.join("\n")
+			}),
+		)
+
+		return summaries
 	}
 
 	// Approval handling
