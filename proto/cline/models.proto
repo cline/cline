@@ -246,6 +246,9 @@ message OpenAiCompatibleModelInfo {
   repeated ModelTier tiers = 12;
   optional double temperature = 13;
   optional bool is_r1_format_required = 14;
+  optional bool is_reasoning_model_family = 15;
+  optional string reasoning_effort = 16;
+  optional bool set_reasoning_effort = 17;
 }
 
 // Model info for LiteLLM models

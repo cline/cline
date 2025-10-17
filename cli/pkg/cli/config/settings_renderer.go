@@ -30,14 +30,14 @@ func isSensitiveField(fieldName string) bool {
 	if fieldName == "" {
 		return false
 	}
-	
+
 	lowerName := strings.ToLower(fieldName)
 	for _, keyword := range sensitiveKeywords {
 		if strings.Contains(lowerName, keyword) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -47,14 +47,14 @@ func formatValue(val interface{}, fieldName string, censor bool) string {
 	if str, ok := val.(string); ok && str == "" {
 		return "''"
 	}
-	
+
 	if censor && isSensitiveField(fieldName) {
 		valStr := fmt.Sprintf("%v", val)
 		if valStr != "" && valStr != "''" {
 			return "********"
 		}
 	}
-	
+
 	return fmt.Sprintf("%v", val)
 }
 
@@ -75,7 +75,7 @@ func RenderField(key string, value interface{}, censor bool) error {
 
 	// Simple values - just print key: value
 	case "mode", "telemetrySetting", "preferredLanguage", "customPrompt",
-		"defaultTerminalProfile", "mcpDisplayMode", "openaiReasoningEffort",
+		"defaultTerminalProfile", "mcpDisplayMode",
 		"planActSeparateModelsSetting", "enableCheckpointsSetting",
 		"mcpMarketplaceEnabled", "terminalReuseEnabled",
 		"mcpResponsesCollapsed", "strictPlanModeEnabled",

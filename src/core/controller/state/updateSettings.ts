@@ -1,14 +1,8 @@
 import { buildApiHandler } from "@core/api"
 
 import { Empty } from "@shared/proto/cline/common"
-import {
-	PlanActMode,
-	McpDisplayMode as ProtoMcpDisplayMode,
-	OpenaiReasoningEffort as ProtoOpenaiReasoningEffort,
-	UpdateSettingsRequest,
-} from "@shared/proto/cline/state"
-import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { OpenaiReasoningEffort } from "@shared/storage/types"
+import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
+import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
@@ -33,18 +27,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		}
 
 		if (request.apiConfiguration) {
-			const protoApiConfiguration = request.apiConfiguration
-
-			const convertedApiConfigurationFromProto = {
-				...protoApiConfiguration,
-				// Convert proto ApiProvider enums to native string types
-				planModeApiProvider: protoApiConfiguration.planModeApiProvider
-					? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider)
-					: undefined,
-				actModeApiProvider: protoApiConfiguration.actModeApiProvider
-					? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider)
-					: undefined,
-			}
+			const convertedApiConfigurationFromProto = convertProtoToApiConfiguration(request.apiConfiguration)
 
 			controller.stateManager.setApiConfiguration(convertedApiConfigurationFromProto)
 
@@ -106,29 +89,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		if (request.mode !== undefined) {
 			const mode = request.mode === PlanActMode.PLAN ? "plan" : "act"
 			controller.stateManager.setGlobalState("mode", mode)
-		}
-
-		if (request.openaiReasoningEffort !== undefined) {
-			// Convert proto enum to string type
-			let reasoningEffort: OpenaiReasoningEffort
-			switch (request.openaiReasoningEffort) {
-				case ProtoOpenaiReasoningEffort.LOW:
-					reasoningEffort = "low"
-					break
-				case ProtoOpenaiReasoningEffort.MEDIUM:
-					reasoningEffort = "medium"
-					break
-				case ProtoOpenaiReasoningEffort.HIGH:
-					reasoningEffort = "high"
-					break
-				case ProtoOpenaiReasoningEffort.MINIMAL:
-					reasoningEffort = "minimal"
-					break
-				default:
-					throw new Error(`Invalid OpenAI reasoning effort value: ${request.openaiReasoningEffort}`)
-			}
-
-			controller.stateManager.setGlobalState("openaiReasoningEffort", reasoningEffort)
 		}
 
 		if (request.preferredLanguage !== undefined) {

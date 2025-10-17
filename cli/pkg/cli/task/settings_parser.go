@@ -8,7 +8,6 @@ import (
 	"github.com/cline/grpc-go/cline"
 )
 
-
 func ParseTaskSettings(settingsFlags []string) (*cline.Settings, *cline.Secrets, error) {
 	if len(settingsFlags) == 0 {
 		return nil, nil, nil
@@ -359,12 +358,6 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 	// Note: We can use &val directly for enums because the parser functions return a new local variable.
 	// This is different from using &value (the loop variable), which would cause all fields to share
 	// the same memory address.
-	case "openai_reasoning_effort":
-		val, err := parseOpenaiReasoningEffort(value)
-		if err != nil {
-			return err
-		}
-		settings.OpenaiReasoningEffort = &val
 	case "mode":
 		val, err := parsePlanActMode(value)
 		if err != nil {
@@ -571,20 +564,6 @@ func parseFloat64(value string) (float64, error) {
 }
 
 // Enum parsing helpers
-func parseOpenaiReasoningEffort(value string) (cline.OpenaiReasoningEffort, error) {
-	lower := strings.ToLower(value)
-	switch lower {
-	case "low":
-		return cline.OpenaiReasoningEffort_LOW, nil
-	case "medium":
-		return cline.OpenaiReasoningEffort_MEDIUM, nil
-	case "high":
-		return cline.OpenaiReasoningEffort_HIGH, nil
-	default:
-		return cline.OpenaiReasoningEffort_LOW, fmt.Errorf("invalid openai_reasoning_effort '%s': expected low/medium/high", value)
-	}
-}
-
 func parsePlanActMode(value string) (cline.PlanActMode, error) {
 	lower := strings.ToLower(value)
 	switch lower {

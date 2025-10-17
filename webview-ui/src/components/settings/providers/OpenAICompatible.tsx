@@ -1,5 +1,7 @@
 import { azureOpenAiDefaultApiVersion, openAiModelInfoSaneDefaults } from "@shared/api"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
+import type { OpenaiReasoningEffortOption } from "@shared/reasoning"
+import { normalizeReasoningEffort } from "@shared/reasoning"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -11,6 +13,7 @@ import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { ReasoningEffortDropdown } from "../common/ReasoningEffortDropdown"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
@@ -37,6 +40,30 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 
 	// Get mode-specific fields
 	const { openAiModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
+
+	const setReasoningEffortEnabled = !!openAiModelInfo?.setReasoningEffort
+	const sanitizedReasoningEffort: OpenaiReasoningEffortOption | undefined = setReasoningEffortEnabled
+		? normalizeReasoningEffort(openAiModelInfo?.reasoningEffort)
+		: undefined
+	const reasoningEffortValue = setReasoningEffortEnabled ? (sanitizedReasoningEffort ?? "medium") : undefined
+	const hasReasoningFlags = !!(openAiModelInfo?.reasoningEffort || openAiModelInfo?.isReasoningModelFamily)
+
+	useEffect(() => {
+		if (setReasoningEffortEnabled && !sanitizedReasoningEffort) {
+			const modelInfo = openAiModelInfo ? { ...openAiModelInfo } : { ...openAiModelInfoSaneDefaults }
+			modelInfo.setReasoningEffort = true
+			modelInfo.isReasoningModelFamily = true
+			modelInfo.reasoningEffort = "medium"
+			handleModeFieldChange({ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" }, modelInfo, currentMode)
+		}
+		if (!setReasoningEffortEnabled && hasReasoningFlags) {
+			const modelInfo = openAiModelInfo ? { ...openAiModelInfo } : { ...openAiModelInfoSaneDefaults }
+			modelInfo.setReasoningEffort = false
+			modelInfo.isReasoningModelFamily = false
+			modelInfo.reasoningEffort = undefined
+			handleModeFieldChange({ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" }, modelInfo, currentMode)
+		}
+	}, [setReasoningEffortEnabled, sanitizedReasoningEffort, hasReasoningFlags, handleModeFieldChange, currentMode])
 
 	// Debounced function to refresh OpenAI models (prevents excessive API calls while typing)
 	const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -276,6 +303,45 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 						}}>
 						Enable R1 messages format
 					</VSCodeCheckbox>
+
+					<VSCodeCheckbox
+						checked={!!openAiModelInfo?.setReasoningEffort}
+						onChange={(e: any) => {
+							const isChecked = e.target.checked === true
+							const modelInfo = openAiModelInfo ? { ...openAiModelInfo } : { ...openAiModelInfoSaneDefaults }
+							modelInfo.setReasoningEffort = isChecked
+							if (isChecked) {
+								modelInfo.isReasoningModelFamily = true
+								modelInfo.reasoningEffort = modelInfo.reasoningEffort || "medium"
+							} else {
+								modelInfo.isReasoningModelFamily = false
+								modelInfo.reasoningEffort = undefined
+							}
+							handleModeFieldChange(
+								{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+								modelInfo,
+								currentMode,
+							)
+						}}>
+						Set Reasoning Effort
+					</VSCodeCheckbox>
+
+					{setReasoningEffortEnabled && reasoningEffortValue && (
+						<ReasoningEffortDropdown
+							onChange={(value) => {
+								const modelInfo = openAiModelInfo ? { ...openAiModelInfo } : { ...openAiModelInfoSaneDefaults }
+								modelInfo.setReasoningEffort = true
+								modelInfo.isReasoningModelFamily = true
+								modelInfo.reasoningEffort = value
+								handleModeFieldChange(
+									{ plan: "planModeOpenAiModelInfo", act: "actModeOpenAiModelInfo" },
+									modelInfo,
+									currentMode,
+								)
+							}}
+							value={reasoningEffortValue}
+						/>
+					)}
 
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 						<DebouncedTextField
