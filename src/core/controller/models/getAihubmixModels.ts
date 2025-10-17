@@ -11,7 +11,7 @@ import { Controller } from ".."
  */
 export async function getAihubmixModels(_controller: Controller, _request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
 	try {
-		const response = await axios.get("https://aihubmix.com/call/mdl_info_platform")
+		const response = await axios.get("https://aihubmix.com/call/mdl_info_platform?tag=coding")
 
 		if (!response.data?.success || !Array.isArray(response.data?.data)) {
 			console.error("Invalid response from AIhubmix API:", response.data)

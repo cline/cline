@@ -550,6 +550,9 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
 		actModeOcaModelId: config.actModeOcaModelId,
 		actModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.actModeOcaModelInfo),
+		// AIhubmix dedicated
+		actModeAihubmixModelId: config.actModeAihubmixModelId,
+		actModeAihubmixModelInfo: convertOpenAiCompatibleModelInfoToProto(config.actModeAihubmixModelInfo),
 	}
 }
 
