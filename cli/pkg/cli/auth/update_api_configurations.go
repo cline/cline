@@ -421,7 +421,7 @@ func RemoveProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	return nil
 }
 
-// BedrockOptionalFields holds optional configuration fields for AWS Bedrock
+// BedrockOptionalFields holds optional configuration fields for Amazon Bedrock
 type BedrockOptionalFields struct {
 	SessionToken            *string // Optional: AWS session token for temporary credentials
 	Region                  *string // Optional: AWS region

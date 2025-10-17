@@ -64,7 +64,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					placeholder="Enter Bedrock Api Key"
 					style={{ width: "100%" }}
 					type="password">
-					<span style={{ fontWeight: 500 }}>AWS Bedrock Api Key</span>
+					<span style={{ fontWeight: 500 }}>Amazon Bedrock Api Key</span>
 				</DebouncedTextField>
 			) : (
 				<>
