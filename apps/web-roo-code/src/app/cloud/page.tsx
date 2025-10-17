@@ -124,7 +124,7 @@ export default function CloudPage() {
 			<section className="relative flex md:h-[calc(80vh-theme(spacing.12))] items-center overflow-hidden">
 				<AnimatedBackground />
 				<div className="container relative flex items-center h-full z-10 mx-auto px-4 sm:px-6 lg:px-8">
-					<div className="grid h-full relative gap-8 md:gap-12 lg:grid-cols-2 lg:gap-16">
+					<div className="grid h-full relative gap-4 md:gap-0 lg:grid-cols-2">
 						<div className="flex flex-col px-4 justify-center space-y-6 sm:space-y-8">
 							<div>
 								<h1 className="text-4xl font-bold tracking-tight mt-8 text-center md:text-left md:text-4xl lg:text-5xl lg:mt-0">
@@ -152,14 +152,14 @@ export default function CloudPage() {
 							</div>
 						</div>
 						<div className="flex items-center justify-end mx-auto h-full mt-8 lg:mt-0">
-							<div className="md:w-[900px] md:h-[530px]  bg-black dark:bg-white relative rounded-md overflow-clip shadow-2xl">
+							<div className="md:w-[900px] md:h-[700px]  dark:bg-white relative rounded-md overflow-clip">
 								<div className="block">
 									<Image
 										src={screenshotDark}
 										alt="Screenshot of Roo Code Cloud"
 										className="max-w-full h-auto"
-										width={2680}
-										height={1784}
+										width={1390}
+										height={1012}
 									/>
 								</div>
 							</div>
