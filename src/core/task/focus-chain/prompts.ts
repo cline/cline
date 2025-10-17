@@ -75,24 +75,30 @@ currentFocusChainChecklist
 
 **Remember:** Only use attempt_completion if you're confident the task is truly finished. If there's any remaining work, create a new focus chain list to track it.`
 
-const planModeReminder = `\n
-# Todo List (Optional - Plan Mode)\n
-\n
-While in PLAN MODE, if you've outlined concrete steps or requirements for the user, you may include a preliminary todo list using the task_progress parameter.\n
-Reminder on how to use the task_progress parameter:\n
+const planModeReminder = `
+# Todo List (Optional - Plan Mode)
+
+While in PLAN MODE, if you've outlined concrete steps or requirements for the user, you may include a preliminary todo list using the task_progress parameter.
+
+Reminder on how to use the task_progress parameter:
+
 ${reminder}`
 
-const recommended = `\n
-			# TODO LIST RECOMMENDED
-			When starting a new task, it is recommended to create a todo list.
-			\n
-			${listInstructionsRecommended}\n`
+const recommended = `
+# TODO LIST RECOMMENDED
 
-const apiRequestCount = `\n
-			# TODO LIST \n
-			You've made {{apiRequestCount}} API requests without a todo list. Consider creating one to track remaining work.\n
-			\n
-			${reminder}\n`
+When starting a new task, it is recommended to create a todo list.
+
+${listInstructionsRecommended}
+`
+
+const apiRequestCount = `
+# TODO LIST
+
+You've made {{apiRequestCount}} API requests without a todo list. Consider creating one to track remaining work.
+
+${reminder}
+`
 
 export const FocusChainPrompts = {
 	initial,
