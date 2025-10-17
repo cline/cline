@@ -13,7 +13,9 @@ interface ImageGenerationSettingsProps {
 
 // Hardcoded list of image generation models
 const IMAGE_GENERATION_MODELS = [
-	{ value: "google/gemini-2.5-flash-image-preview", label: "Gemini 2.5 Flash Image Preview" },
+	{ value: "google/gemini-2.5-flash-image", label: "Gemini 2.5 Flash Image" },
+	{ value: "openai/gpt-5-image", label: "GPT-5 Image" },
+	{ value: "openai/gpt-5-image-mini", label: "GPT-5 Image Mini" },
 	// Add more models as they become available
 ]
 
