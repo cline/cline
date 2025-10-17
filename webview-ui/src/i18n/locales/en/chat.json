@@ -96,24 +96,16 @@
 		"placeholder": "Edit your message..."
 	},
 	"scrollToBottom": "Scroll to bottom of chat",
-	"about": "Generate, refactor, and debug code with AI assistance. Check out our <DocsLink>documentation</DocsLink> to learn more.",
-	"onboarding": "Your task list in this workspace is empty.",
+	"about": "Roo Code is a whole AI dev team in your editor.",
+	"docs": "Check our <DocsLink>docs</DocsLink> to learn more.",
 	"rooTips": {
-		"boomerangTasks": {
-			"title": "Task Orchestration",
-			"description": "Split tasks into smaller, manageable parts"
-		},
-		"stickyModels": {
-			"title": "Sticky Models",
-			"description": "Each mode remembers your last used model"
-		},
-		"tools": {
-			"title": "Tools",
-			"description": "Allow the AI to solve problems by browsing the web, running commands, and more"
-		},
 		"customizableModes": {
-			"title": "Customizable Modes",
-			"description": "Specialized personas with their own behaviors and assigned models"
+			"title": "Customizable modes",
+			"description": "Specialized personas that stay on-task and deliver."
+		},
+		"modelAgnostic": {
+			"title": "Bring your own model",
+			"description": "Use your own provider key or even run local inference — no markup, lock-in, no restrictions"
 		}
 	},
 	"selectMode": "Select mode for interaction",
@@ -406,5 +398,12 @@
 		"problems": "Problems",
 		"terminal": "Terminal",
 		"url": "Paste URL to fetch contents"
+	},
+	"cloudAgents": {
+		"create": "Create",
+		"title": "Cloud Agents",
+		"description": "You haven’t created any Cloud Agents yet.",
+		"createFirst": "Create your first",
+		"clickToRun": "Click to run {{name}}"
 	}
 }

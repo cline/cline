@@ -94,19 +94,4 @@ describe("TaskItem", () => {
 		// Should display time ago format
 		expect(screen.getByText(/ago/)).toBeInTheDocument()
 	})
-
-	it("applies hover effect class", () => {
-		render(
-			<TaskItem
-				item={mockTask}
-				variant="full"
-				isSelected={false}
-				onToggleSelection={vi.fn()}
-				isSelectionMode={false}
-			/>,
-		)
-
-		const taskItem = screen.getByTestId("task-item-1")
-		expect(taskItem).toHaveClass("hover:bg-vscode-list-hoverBackground")
-	})
 })

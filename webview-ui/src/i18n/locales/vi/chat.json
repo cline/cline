@@ -85,24 +85,16 @@
 		"tooltip": "Hủy thao tác hiện tại"
 	},
 	"scrollToBottom": "Cuộn xuống cuối cuộc trò chuyện",
-	"about": "Tạo, tái cấu trúc và gỡ lỗi mã bằng sự hỗ trợ của AI. Kiểm tra <DocsLink>tài liệu</DocsLink> của chúng tôi để tìm hiểu thêm.",
-	"onboarding": "<strong>Danh sách nhiệm vụ của bạn trong không gian làm việc này trống.</strong> Bắt đầu bằng cách nhập nhiệm vụ bên dưới. Bạn không chắc chắn nên bắt đầu như thế nào? Đọc thêm về những gì Roo có thể làm cho bạn trong <DocsLink>tài liệu</DocsLink>.",
+	"about": "Roo Code là một đội ngũ phát triển AI toàn diện ngay trong trình soạn thảo của bạn.",
+	"docs": "Kiểm tra <DocsLink>tài liệu</DocsLink> của chúng tôi để tìm hiểu thêm.",
 	"rooTips": {
-		"boomerangTasks": {
-			"title": "Điều phối Nhiệm vụ",
-			"description": "Chia nhỏ các nhiệm vụ thành các phần nhỏ hơn, dễ quản lý hơn."
-		},
-		"stickyModels": {
-			"title": "Chế độ dính",
-			"description": "Mỗi chế độ ghi nhớ mô hình đã sử dụng cuối cùng của bạn"
-		},
-		"tools": {
-			"title": "Công cụ",
-			"description": "Cho phép AI giải quyết vấn đề bằng cách duyệt web, chạy lệnh, v.v."
-		},
 		"customizableModes": {
-			"title": "Chế độ tùy chỉnh",
-			"description": "Các nhân vật chuyên biệt với hành vi riêng và mô hình được chỉ định"
+			"title": "Chế độ có thể tùy chỉnh",
+			"description": "Các nhân vật chuyên biệt luôn tập trung vào nhiệm vụ và hoàn thành công việc."
+		},
+		"modelAgnostic": {
+			"title": "Mang theo mô hình của riêng bạn",
+			"description": "Sử dụng khóa nhà cung cấp của riêng bạn hoặc thậm chí chạy suy luận cục bộ — không phụ phí, không ràng buộc, không giới hạn"
 		}
 	},
 	"selectMode": "Chọn chế độ tương tác",
@@ -413,5 +405,12 @@
 	"slashCommand": {
 		"wantsToRun": "Roo muốn chạy lệnh slash",
 		"didRun": "Roo đã chạy lệnh slash"
+	},
+	"cloudAgents": {
+		"create": "Tạo",
+		"title": "Agents trên Cloud",
+		"description": "Bạn chưa tạo Agents trên Cloud nào.",
+		"createFirst": "Tạo agent đầu tiên của bạn",
+		"clickToRun": "Nhấp để chạy {{name}}"
 	}
 }

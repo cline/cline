@@ -99,24 +99,16 @@
 		"tooltip": "Batalkan operasi saat ini"
 	},
 	"scrollToBottom": "Gulir ke bawah chat",
-	"about": "Buat, refaktor, dan debug kode dengan bantuan AI.<br />Lihat <DocsLink>dokumentasi</DocsLink> kami untuk mempelajari lebih lanjut.",
-	"onboarding": "Daftar tugas di workspace ini kosong.",
+	"about": "Roo Code adalah seluruh tim pengembang AI di editor Anda.",
+	"docs": "Lihat <DocsLink>dokumentasi</DocsLink> kami untuk mempelajari lebih lanjut.",
 	"rooTips": {
-		"boomerangTasks": {
-			"title": "Orkestrasi Tugas",
-			"description": "Bagi tugas menjadi bagian-bagian kecil yang dapat dikelola"
-		},
-		"stickyModels": {
-			"title": "Model Sticky",
-			"description": "Setiap mode mengingat model terakhir yang kamu gunakan"
-		},
-		"tools": {
-			"title": "Tools",
-			"description": "Izinkan AI menyelesaikan masalah dengan browsing web, menjalankan perintah, dan lainnya"
-		},
 		"customizableModes": {
-			"title": "Mode yang Dapat Disesuaikan",
-			"description": "Persona khusus dengan perilaku dan model yang ditugaskan sendiri"
+			"title": "Mode yang dapat disesuaikan",
+			"description": "Persona khusus yang tetap fokus pada tugas dan memberikan hasil."
+		},
+		"modelAgnostic": {
+			"title": "Bawa model Anda sendiri",
+			"description": "Gunakan kunci penyedia Anda sendiri atau bahkan jalankan inferensi lokal — tanpa markup, tanpa kunci, tanpa batasan"
 		}
 	},
 	"selectMode": "Pilih mode untuk interaksi",
@@ -418,5 +410,12 @@
 	"slashCommand": {
 		"wantsToRun": "Roo ingin menjalankan perintah slash",
 		"didRun": "Roo telah menjalankan perintah slash"
+	},
+	"cloudAgents": {
+		"create": "Buat",
+		"title": "Agen Cloud",
+		"description": "Anda belum membuat Agen Cloud apa pun.",
+		"createFirst": "Buat yang pertama",
+		"clickToRun": "Klik untuk menjalankan {{name}}"
 	}
 }

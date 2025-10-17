@@ -85,24 +85,16 @@
 		"tooltip": "Aktuelle Operation abbrechen"
 	},
 	"scrollToBottom": "Zum Chat-Ende scrollen",
-	"about": "Generiere, überarbeite und debugge Code mit KI-Unterstützung. Weitere Informationen findest du in unserer <DocsLink>Dokumentation</DocsLink>.",
-	"onboarding": "<strong>Deine Aufgabenliste in diesem Arbeitsbereich ist leer.</strong> Beginne mit der Eingabe einer Aufgabe unten. Du bist dir nicht sicher, wie du anfangen sollst? Lies mehr darüber, was Roo für dich tun kann, in <DocsLink>den Dokumenten</DocsLink>.",
+	"about": "Roo Code ist ein ganzes KI-Entwicklerteam in deinem Editor.",
+	"docs": "Schau in unsere <DocsLink>Dokumentation</DocsLink>, um mehr zu erfahren.",
 	"rooTips": {
-		"boomerangTasks": {
-			"title": "Aufgaben-Orchestrierung",
-			"description": "Teile Aufgaben in kleinere, überschaubare Teile auf."
-		},
-		"stickyModels": {
-			"title": "Sticky Modi",
-			"description": "Jeder Modus merkt sich dein zuletzt verwendetes Modell"
-		},
-		"tools": {
-			"title": "Tools",
-			"description": "Erlaube der KI, Probleme durch Surfen im Web, Ausführen von Befehlen und mehr zu lösen."
-		},
 		"customizableModes": {
 			"title": "Anpassbare Modi",
-			"description": "Spezialisierte Personas mit eigenem Verhalten und zugewiesenen Modellen"
+			"description": "Spezialisierte Personas, die bei der Sache bleiben und Ergebnisse liefern."
+		},
+		"modelAgnostic": {
+			"title": "Bring dein eigenes Modell mit",
+			"description": "Verwende deinen eigenen Anbieter-Schlüssel oder führe sogar lokale Inferenz aus — kein Aufpreis, keine Bindung, keine Einschränkungen"
 		}
 	},
 	"selectMode": "Interaktionsmodus auswählen",
@@ -412,5 +404,12 @@
 	"slashCommand": {
 		"wantsToRun": "Roo möchte einen Slash-Befehl ausführen",
 		"didRun": "Roo hat einen Slash-Befehl ausgeführt"
+	},
+	"cloudAgents": {
+		"create": "Erstellen",
+		"title": "Cloud-Agenten",
+		"description": "Du hast noch keine Cloud-Agenten erstellt.",
+		"createFirst": "Erstelle deinen ersten",
+		"clickToRun": "Klicke, um {{name}} auszuführen"
 	}
 }

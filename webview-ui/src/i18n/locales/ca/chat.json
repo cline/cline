@@ -85,24 +85,16 @@
 		"tooltip": "Cancel·la l'operació actual"
 	},
 	"scrollToBottom": "Desplaça't al final del xat",
-	"about": "Genera, refactoritza i depura codi amb l'ajuda de la IA. Consulta la nostra <DocsLink>documentació</DocsLink> per obtenir més informació.",
-	"onboarding": "<strong> La vostra llista de tasques en aquest espai de treball està buida. </strong> Comença escrivint una tasca a continuació. \nNo esteu segur per on començar? \nMés informació sobre què pot fer Roo als documents.",
+	"about": "Roo Code és un equip de desenvolupament d'IA sencer al teu editor.",
+	"docs": "Consulta la nostra <DocsLink>documentació</DocsLink> per aprendre més.",
 	"rooTips": {
-		"boomerangTasks": {
-			"title": "Orquestració de Tasques",
-			"description": "Divideix les tasques en parts més petites i manejables."
-		},
-		"stickyModels": {
-			"title": "Modes persistents",
-			"description": "Cada mode recorda el vostre darrer model utilitzat"
-		},
-		"tools": {
-			"title": "Eines",
-			"description": "Permet que la IA resolgui problemes navegant per la web, executant ordres i molt més."
-		},
 		"customizableModes": {
 			"title": "Modes personalitzables",
-			"description": "Personalitats especialitzades amb comportaments propis i models assignats"
+			"description": "Personatges especialitzats que es mantenen a la tasca i compleixen."
+		},
+		"modelAgnostic": {
+			"title": "Porta el teu propi model",
+			"description": "Fes servir la teva pròpia clau de proveïdor o fins i tot executa inferència local — sense sobrecost, sense bloqueig, sense restriccions"
 		}
 	},
 	"selectMode": "Selecciona el mode d'interacció",
@@ -412,5 +404,12 @@
 		"problems": "Problemes",
 		"terminal": "Terminal",
 		"url": "Enganxa la URL per obtenir-ne el contingut"
+	},
+	"cloudAgents": {
+		"create": "Crear",
+		"title": "Agents al núvol",
+		"description": "Encara no has creat cap Agent al núvol.",
+		"createFirst": "Crea el teu primer",
+		"clickToRun": "Fes clic per executar {{name}}"
 	}
 }

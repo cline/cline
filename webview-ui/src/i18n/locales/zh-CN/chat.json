@@ -85,24 +85,16 @@
 		"tooltip": "取消当前操作"
 	},
 	"scrollToBottom": "滚动到聊天底部",
-	"about": "通过 AI 辅助生成、重构和调试代码。查看我们的 <DocsLink>文档</DocsLink> 了解更多信息。",
-	"onboarding": "<strong>此工作区中的任务列表为空。</strong> 请在下方输入任务开始。 不确定如何开始？ 在 <DocsLink>文档</DocsLink> 中阅读更多关于 Roo 可以为您做什么的信息。",
+	"about": "Roo Code 是您编辑器中的整个 AI 开发团队。",
+	"docs": "查看我们的 <DocsLink>文档</DocsLink> 了解更多信息。",
 	"rooTips": {
-		"boomerangTasks": {
-			"title": "任务编排",
-			"description": "将任务拆分为更小、更易于管理的部分。"
-		},
-		"stickyModels": {
-			"title": "粘性模式",
-			"description": "每个模式 都会记住 您上次使用的模型"
-		},
-		"tools": {
-			"title": "工具",
-			"description": "允许 AI 通过浏览网络、运行命令等方式解决问题。"
-		},
 		"customizableModes": {
-			"title": "自定义模式",
-			"description": "具有专属行为和指定模型的特定角色"
+			"title": "可自定义模式",
+			"description": "专注于任务并交付成果的专业角色。"
+		},
+		"modelAgnostic": {
+			"title": "自带模型",
+			"description": "使用您自己的提供商密钥，甚至可以运行本地推理——无加价、无锁定、无限制"
 		}
 	},
 	"selectMode": "选择交互模式",
@@ -413,5 +405,12 @@
 	"slashCommand": {
 		"wantsToRun": "Roo 想要运行斜杠命令",
 		"didRun": "Roo 运行了斜杠命令"
+	},
+	"cloudAgents": {
+		"create": "创建",
+		"title": "云代理",
+		"description": "您还没有创建任何云代理。",
+		"createFirst": "创建您的第一个",
+		"clickToRun": "点击运行 {{name}}"
 	}
 }

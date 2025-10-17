@@ -85,24 +85,16 @@
 		"tooltip": "Annuleer de huidige bewerking"
 	},
 	"scrollToBottom": "Scroll naar onderaan de chat",
-	"about": "Genereer, refactor en debug code met AI-assistentie. Bekijk onze <DocsLink>documentatie</DocsLink> voor meer informatie.",
-	"onboarding": "Je takenlijst in deze werkruimte is leeg.",
+	"about": "Roo Code is een heel AI-ontwikkelteam in je editor.",
+	"docs": "Bekijk onze <DocsLink>documentatie</DocsLink> voor meer informatie.",
 	"rooTips": {
-		"boomerangTasks": {
-			"title": "Taak Orchestratie",
-			"description": "Splits taken op in kleinere, beheersbare delen"
-		},
-		"stickyModels": {
-			"title": "Vastgezette modellen",
-			"description": "Elke modus onthoudt je laatst gebruikte model"
-		},
-		"tools": {
-			"title": "Tools",
-			"description": "Laat de AI problemen oplossen door te browsen, commando's uit te voeren en meer"
-		},
 		"customizableModes": {
 			"title": "Aanpasbare modi",
-			"description": "Gespecialiseerde persona's met hun eigen gedrag en toegewezen modellen"
+			"description": "Gespecialiseerde persona's die bij de taak blijven en leveren."
+		},
+		"modelAgnostic": {
+			"title": "Gebruik je eigen model",
+			"description": "Gebruik je eigen provider key of voer zelfs lokale inferentie uit — geen markup, geen lock-in, geen beperkingen"
 		}
 	},
 	"selectMode": "Selecteer modus voor interactie",
@@ -412,5 +404,12 @@
 	"slashCommand": {
 		"wantsToRun": "Roo wil een slash commando uitvoeren",
 		"didRun": "Roo heeft een slash commando uitgevoerd"
+	},
+	"cloudAgents": {
+		"create": "Aanmaken",
+		"title": "Cloud Agents",
+		"description": "Je hebt nog geen Cloud Agents aangemaakt.",
+		"createFirst": "Maak je eerste aan",
+		"clickToRun": "Klik om {{name}} uit te voeren"
 	}
 }

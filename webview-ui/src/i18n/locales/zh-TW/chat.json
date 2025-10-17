@@ -96,24 +96,16 @@
 		"placeholder": "編輯您的訊息..."
 	},
 	"scrollToBottom": "捲動至聊天室底部",
-	"about": "利用 AI 輔助產生、重構和偵錯程式碼。請參閱我們的<DocsLink>說明文件</DocsLink>以瞭解更多資訊。",
-	"onboarding": "此工作區的工作清單是空的。",
+	"about": "Roo Code 是您編輯器中的整個 AI 開發團隊。",
+	"docs": "查看我們的<DocsLink>文件</DocsLink>以了解更多信息。",
 	"rooTips": {
-		"boomerangTasks": {
-			"title": "工作編排",
-			"description": "將工作拆分為更小、更易於管理的部分。"
-		},
-		"stickyModels": {
-			"title": "記憶模型",
-			"description": "每個模式都會記住您上次使用的模型"
-		},
-		"tools": {
-			"title": "工具",
-			"description": "允許 AI 透過瀏覽網路、執行命令等方式解決問題。"
-		},
 		"customizableModes": {
 			"title": "可自訂模式",
-			"description": "具有專屬行為和指定模型的特定角色"
+			"description": "專注於任務並交付成果的專業角色。"
+		},
+		"modelAgnostic": {
+			"title": "自備模型",
+			"description": "使用您自己的提供商密鑰，甚至可以運行本地推理——無加價、無鎖定、無限制"
 		}
 	},
 	"selectMode": "選擇互動模式",
@@ -413,5 +405,12 @@
 	"slashCommand": {
 		"wantsToRun": "Roo 想要執行斜線指令",
 		"didRun": "Roo 執行了斜線指令"
+	},
+	"cloudAgents": {
+		"create": "創建",
+		"title": "雲端代理",
+		"description": "您尚未建立任何雲端代理程式。",
+		"createFirst": "建立您的第一個",
+		"clickToRun": "點擊以執行 {{name}}"
 	}
 }

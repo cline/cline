@@ -112,10 +112,10 @@ const TaskHeader = ({
 			)}
 			<div
 				className={cn(
-					"px-2.5 pt-2.5 pb-2 flex flex-col gap-1.5 relative z-1 cursor-pointer",
+					"px-3 pt-2.5 pb-2 flex flex-col gap-1.5 relative z-1 cursor-pointer",
 					"bg-vscode-input-background hover:bg-vscode-input-background/90",
 					"text-vscode-foreground/80 hover:text-vscode-foreground",
-					"shadow-sm shadow-black/30 rounded-md",
+					"shadow-sm shadow-black/30 rounded-xl",
 					hasTodos && "border-b-0",
 				)}
 				onClick={(e) => {
@@ -163,7 +163,9 @@ const TaskHeader = ({
 					</div>
 				</div>
 				{!isTaskExpanded && contextWindow > 0 && (
-					<div className="flex items-center gap-2 text-sm" onClick={(e) => e.stopPropagation()}>
+					<div
+						className="flex items-center gap-2 text-sm text-muted-foreground/70"
+						onClick={(e) => e.stopPropagation()}>
 						<StandardTooltip
 							content={
 								<div className="space-y-1">

@@ -724,6 +724,35 @@ export type LeaveResponse = {
 }
 
 /**
+ * CloudAgent
+ */
+
+export interface CloudAgent {
+	id: string
+	name: string
+	type: string // e.g., "PR Reviewer", "Documentation Writer"
+	icon?: string // e.g., "pr-reviewer", "documentation-writer"
+}
+
+/**
+ * CloudAgents API Response
+ */
+
+export const cloudAgentsResponseSchema = z.object({
+	success: z.boolean(),
+	data: z.array(
+		z.object({
+			id: z.string(),
+			name: z.string(),
+			type: z.string(),
+			icon: z.string().optional(),
+		}),
+	),
+})
+
+export type CloudAgentsResponse = z.infer<typeof cloudAgentsResponseSchema>
+
+/**
  * UsageStats
  */
 

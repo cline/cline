@@ -14,6 +14,7 @@ import type {
 	OrganizationAllowList,
 	ShareVisibility,
 	QueuedMessage,
+	CloudAgent,
 } from "@roo-code/types"
 
 import { GitCommit } from "../utils/git"
@@ -126,6 +127,7 @@ export interface ExtensionMessage {
 		| "insertTextIntoTextarea"
 		| "dismissedUpsells"
 		| "organizationSwitchResult"
+		| "cloudAgents"
 	text?: string
 	payload?: any // Add a generic payload for now, can refine later
 	action?:
@@ -205,6 +207,7 @@ export interface ExtensionMessage {
 	queuedMessages?: QueuedMessage[]
 	list?: string[] // For dismissedUpsells
 	organizationId?: string | null // For organizationSwitchResult
+	agents?: CloudAgent[] // For cloudAgents
 }
 
 export type ExtensionState = Pick<

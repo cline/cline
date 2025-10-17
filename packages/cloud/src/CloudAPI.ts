@@ -1,6 +1,13 @@
 import { z } from "zod"
 
-import { type AuthService, type ShareVisibility, type ShareResponse, shareResponseSchema } from "@roo-code/types"
+import {
+	type AuthService,
+	type ShareVisibility,
+	type ShareResponse,
+	shareResponseSchema,
+	type CloudAgent,
+	cloudAgentsResponseSchema,
+} from "@roo-code/types"
 
 import { getRooCodeApiUrl } from "./config.js"
 import { getUserAgent } from "./utils.js"
@@ -133,5 +140,17 @@ export class CloudAPI {
 					})
 					.parse(data),
 		})
+	}
+
+	async getCloudAgents(): Promise<CloudAgent[]> {
+		this.log("[CloudAPI] Fetching cloud agents")
+
+		const agents = await this.request<CloudAgent[]>("/api/cloud-agents", {
+			method: "GET",
+			parseResponse: (data) => cloudAgentsResponseSchema.parse(data).data,
+		})
+
+		this.log("[CloudAPI] Cloud agents response:", agents)
+		return agents
 	}
 }

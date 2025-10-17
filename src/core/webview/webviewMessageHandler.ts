@@ -2431,6 +2431,55 @@ export const webviewMessageHandler = async (
 			}
 			break
 		}
+		case "getCloudAgents": {
+			try {
+				// Ensure CloudService is initialized
+				if (!CloudService.hasInstance()) {
+					provider.log("[getCloudAgents] CloudService not initialized")
+					await provider.postMessageToWebview({
+						type: "cloudAgents",
+						agents: [],
+						error: "CloudService not initialized",
+					})
+					break
+				}
+
+				// Fetch cloud agents using the CloudAPI instance
+				const cloudAPI = CloudService.instance.cloudAPI
+				if (!cloudAPI) {
+					provider.log("[getCloudAgents] CloudAPI not available")
+					await provider.postMessageToWebview({
+						type: "cloudAgents",
+						agents: [],
+						error: "CloudAPI not available",
+					})
+					break
+				}
+
+				provider.log("[getCloudAgents] Fetching cloud agents")
+				const agents = await cloudAPI.getCloudAgents()
+				provider.log(`[getCloudAgents] Fetched ${agents.length} cloud agents`)
+
+				// Send the agents back to the webview
+				await provider.postMessageToWebview({
+					type: "cloudAgents",
+					agents: agents,
+				})
+			} catch (error) {
+				provider.log(
+					`[getCloudAgents] Error fetching cloud agents: ${error instanceof Error ? error.message : String(error)}`,
+				)
+
+				// Send response to stop loading state in UI
+				// The CloudAgents component will handle this gracefully by returning null
+				await provider.postMessageToWebview({
+					type: "cloudAgents",
+					agents: [],
+					error: error instanceof Error ? error.message : String(error),
+				})
+			}
+			break
+		}
 
 		case "saveCodeIndexSettingsAtomic": {
 			if (!message.codeIndexSettings) {
