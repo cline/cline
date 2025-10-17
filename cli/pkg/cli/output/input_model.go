@@ -160,9 +160,7 @@ func NewInputModel(inputType InputType, title, placeholder, currentMode string) 
 	if inputType == InputTypeApproval {
 		m.approvalOptions = []string{
 			"Yes",
-			"Yes, with feedback",
 			"Yes, and don't ask again for this task",
-			"No",
 			"No, with feedback",
 		}
 		m.selectedOption = 0
@@ -212,9 +210,7 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.InputType == InputTypeApproval {
 			m.approvalOptions = []string{
 				"Yes",
-				"Yes, with feedback",
 				"Yes, and don't ask again for this task",
-				"No",
 				"No, with feedback",
 			}
 			m.selectedOption = 0
