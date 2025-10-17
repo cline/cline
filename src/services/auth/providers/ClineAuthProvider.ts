@@ -1,4 +1,4 @@
-import { clineEnvConfig, EnvironmentConfig } from "@/config"
+import { ClineEnv, EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/services/logging/Logger"
@@ -52,18 +52,9 @@ export interface ClineAuthApiTokenRefreshResponse {
 
 export class ClineAuthProvider implements IAuthProvider {
 	readonly name = "cline"
-	private _config
 
-	constructor(config: EnvironmentConfig) {
-		this._config = config
-	}
-
-	get config(): any {
-		return this._config
-	}
-
-	set config(value: any) {
-		this._config = value
+	get config(): EnvironmentConfig {
+		return ClineEnv.config()
 	}
 
 	/**
@@ -157,7 +148,7 @@ export class ClineAuthProvider implements IAuthProvider {
 	async refreshToken(refreshToken: string): Promise<ClineAuthInfo> {
 		try {
 			// Get the callback URL that was used during the initial auth request
-			const endpoint = new URL(CLINE_API_ENDPOINT.REFRESH_TOKEN, this._config.apiBaseUrl)
+			const endpoint = new URL(CLINE_API_ENDPOINT.REFRESH_TOKEN, this.config.apiBaseUrl)
 			const response = await fetch(endpoint.toString(), {
 				method: "POST",
 				headers: {
@@ -195,7 +186,7 @@ export class ClineAuthProvider implements IAuthProvider {
 					id: data.data.userInfo.clineUserId || "",
 					displayName: data.data.userInfo.name || "",
 					organizations: [],
-					appBaseUrl: this._config.appBaseUrl,
+					appBaseUrl: this.config.appBaseUrl,
 					subject: data.data.userInfo.subject || "",
 				},
 				provider: this.name,
@@ -206,7 +197,7 @@ export class ClineAuthProvider implements IAuthProvider {
 	}
 
 	async getAuthRequest(callbackUrl: string): Promise<string> {
-		const authUrl = new URL(CLINE_API_ENDPOINT.AUTH, clineEnvConfig.apiBaseUrl)
+		const authUrl = new URL(CLINE_API_ENDPOINT.AUTH, this.config.apiBaseUrl)
 		authUrl.searchParams.set("client_type", "extension")
 		authUrl.searchParams.set("callback_url", callbackUrl)
 		// Ensure the redirect_uri is properly encoded and included
@@ -257,7 +248,7 @@ export class ClineAuthProvider implements IAuthProvider {
 			const callbackUrl = `${callbackHost}/auth`
 
 			// Exchange the authorization code for tokens
-			const tokenUrl = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, clineEnvConfig.apiBaseUrl)
+			const tokenUrl = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, this.config.apiBaseUrl)
 
 			const response = await fetch(tokenUrl.toString(), {
 				method: "POST",

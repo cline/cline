@@ -42,6 +42,7 @@ export interface GlobalState {
 	hooksEnabled: boolean
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
+	lastDismissedCliBannerVersion: number
 }
 
 export interface Settings {
@@ -85,6 +86,8 @@ export interface Settings {
 	shellIntegrationTimeout: number
 	defaultTerminalProfile: string
 	terminalOutputLineLimit: number
+	maxConsecutiveMistakes: number
+	subagentTerminalOutputLineLimit: number
 	sapAiCoreTokenUrl: string | undefined
 	sapAiCoreBaseUrl: string | undefined
 	sapAiResourceGroup: string | undefined
@@ -105,6 +108,7 @@ export interface Settings {
 	ocaBaseUrl: string | undefined
 	ocaMode: string | undefined
 	hooksEnabled: boolean
+	subagentsEnabled: boolean
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider

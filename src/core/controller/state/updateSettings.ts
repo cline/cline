@@ -10,6 +10,7 @@ import {
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
@@ -26,6 +27,11 @@ import { Controller } from ".."
  */
 export async function updateSettings(controller: Controller, request: UpdateSettingsRequest): Promise<Empty> {
 	try {
+		if (request.clineEnv !== undefined) {
+			ClineEnv.setEnvironment(request.clineEnv)
+			await controller.handleSignOut()
+		}
+
 		if (request.apiConfiguration) {
 			const protoApiConfiguration = request.apiConfiguration
 
@@ -149,6 +155,27 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				"vscodeTerminalExecutionMode",
 				request.vscodeTerminalExecutionMode === "backgroundExec" ? "backgroundExec" : "vscodeTerminal",
 			)
+		}
+
+		// Update subagent terminal output line limit
+		if (request.subagentTerminalOutputLineLimit !== undefined) {
+			controller.stateManager.setGlobalState(
+				"subagentTerminalOutputLineLimit",
+				Number(request.subagentTerminalOutputLineLimit),
+			)
+		}
+
+		// Update subagent terminal output line limit
+		if (request.subagentTerminalOutputLineLimit !== undefined) {
+			controller.stateManager.setGlobalState(
+				"subagentTerminalOutputLineLimit",
+				Number(request.subagentTerminalOutputLineLimit),
+			)
+		}
+
+		// Update max consecutive mistakes
+		if (request.maxConsecutiveMistakes !== undefined) {
+			controller.stateManager.setGlobalState("maxConsecutiveMistakes", Number(request.maxConsecutiveMistakes))
 		}
 
 		// Update strict plan mode setting
@@ -300,6 +327,25 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.hooksEnabled !== undefined) {
 			controller.stateManager.setGlobalState("hooksEnabled", !!request.hooksEnabled)
+		}
+
+		if (request.subagentsEnabled !== undefined) {
+			const currentSettings = controller.stateManager.getGlobalSettingsKey("subagentsEnabled")
+			const wasEnabled = currentSettings ?? false
+			const isEnabled = !!request.subagentsEnabled
+
+			// Platform validation: Only allow enabling subagents on macOS and Linux
+			if (isEnabled && process.platform !== "darwin" && process.platform !== "linux") {
+				throw new Error("CLI subagents are only supported on macOS and Linux platforms")
+			}
+
+			controller.stateManager.setGlobalState("subagentsEnabled", isEnabled)
+
+			// Capture telemetry when setting changes
+			if (wasEnabled !== isEnabled) {
+				telemetryService.captureSubagentToggle(isEnabled)
+			}
+			controller.stateManager.setGlobalState("subagentsEnabled", !!request.subagentsEnabled)
 		}
 
 		// Post updated state to webview

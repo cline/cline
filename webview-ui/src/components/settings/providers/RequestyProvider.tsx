@@ -61,7 +61,7 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 					}}
 					placeholder="Custom base URL"
 					style={{ width: "100%", marginBottom: 5 }}
-					type="url"
+					type="text"
 				/>
 			)}
 			{showModelOptions && (

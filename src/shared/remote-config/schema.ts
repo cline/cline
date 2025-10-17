@@ -28,10 +28,10 @@ export const OpenAiCompatibleModelSchema = z.object({
 // OpenAiCompatible specific settings
 export const OpenAiCompatibleSchema = z.object({
 	// A list of the allowed models with their settings
-	models: z.array(OpenAiCompatibleModelSchema).default([]),
+	models: z.array(OpenAiCompatibleModelSchema).optional(),
 	// OpenAiCompatible specific settings:
 	openAiBaseUrl: z.string().optional(),
-	openAiHeaders: z.record(z.string(), z.string()).default({}),
+	openAiHeaders: z.record(z.string(), z.string()).optional(),
 	azureApiVersion: z.string().optional(),
 })
 
@@ -51,7 +51,7 @@ export const AwsBedrockCustomModelSchema = z.object({
 // AWS Bedrock specific settings
 export const AwsBedrockSettingsSchema = z.object({
 	// A list of the allowed models with their settings
-	models: z.array(AwsBedrockModelSchema).default([]),
+	models: z.array(AwsBedrockModelSchema).optional(),
 	// Custom models
 	customModels: z.array(AwsBedrockCustomModelSchema).optional(),
 	// AWS Bedrock specific settings:
@@ -62,11 +62,23 @@ export const AwsBedrockSettingsSchema = z.object({
 	awsBedrockEndpoint: z.string().optional(),
 })
 
+// Cline Provider model schema with per-model settings
+export const ClineModelSchema = z.object({
+	id: z.string(), // The model ID is required
+})
+
+// Cline Provider specific settings
+export const ClineSettingsSchema = z.object({
+	// A list of the allowed models with their settings
+	models: z.array(ClineModelSchema).optional(),
+})
+
 // Provider settings schema
 // Each provider becomes an optional field
 const ProviderSettingsSchema = z.object({
 	OpenAiCompatible: OpenAiCompatibleSchema.optional(),
 	AwsBedrock: AwsBedrockSettingsSchema.optional(),
+	Cline: ClineSettingsSchema.optional(),
 })
 
 export const RemoteConfigSchema = z.object({

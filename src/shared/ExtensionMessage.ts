@@ -61,6 +61,8 @@ export interface ExtensionState {
 	shellIntegrationTimeout: number
 	terminalReuseEnabled?: boolean
 	terminalOutputLineLimit: number
+	maxConsecutiveMistakes: number
+	subagentTerminalOutputLineLimit: number
 	defaultTerminalProfile?: string
 	vscodeTerminalExecutionMode: string
 	backgroundCommandRunning?: boolean
@@ -91,8 +93,10 @@ export interface ExtensionState {
 	multiRootSetting: ClineFeatureSetting
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
+	lastDismissedCliBannerVersion: number
 	hooksEnabled?: ClineFeatureSetting
 	remoteConfigSettings?: Partial<GlobalStateAndSettings>
+	subagentsEnabled?: boolean
 }
 
 export interface ClineMessage {

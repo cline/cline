@@ -1,0 +1,93 @@
+---
+title: "Model Comparison & Pricing"
+description: "Compare AI models by performance, features, and pricing"
+---
+
+## Model Comparison Table
+
+### Premium Models
+
+| Model | Provider | Context Window | Input Price* | Output Price* | Best For |
+|-------|----------|---------------|--------------|---------------|----------|
+| **Claude Sonnet 4.5** | Anthropic | 1M tokens | $3-6 | $15-22.50 | Reliable tool usage, complex codebases |
+| **GPT-5** | OpenAI | 400K tokens | $1.25 | $10 | Latest OpenAI tech, three modes |
+| **Gemini 2.5 Pro** | Google | 1M+ tokens | TBD | TBD | Large codebases, document analysis |
+| **Qwen3 Coder** | Multiple | 256K tokens | $0.20 | $0.80 | Coding tasks, open source flexibility |
+
+*Per million tokens
+
+### Budget Models
+
+| Model | Provider | Context Window | Input Price* | Output Price* | Notes |
+|-------|----------|---------------|--------------|---------------|-------|
+| **DeepSeek V3** | DeepSeek | 128K tokens | $0.14 | $0.28 | Great value for daily coding |
+| **DeepSeek R1** | DeepSeek | 128K tokens | $0.55 | $2.19 | Budget reasoning champion |
+| **Qwen3 32B** | Multiple | 128K tokens | Varies | Varies | Open source, multiple providers |
+| **Z AI GLM 4.5** | Z AI | 128K tokens | TBD | TBD | MIT licensed, hybrid reasoning |
+
+*Per million tokens
+
+## Performance Comparison
+
+### Speed vs Quality Trade-offs
+
+| Priority | Recommended Model | Why |
+|----------|------------------|-----|
+| **Speed** | Qwen3 Coder on Cerebras | Fastest inference available |
+| **Quality** | Claude Sonnet 4.5 | Most reliable for complex tasks |
+| **Balance** | DeepSeek V3 | Good quality at low cost |
+
+### Tool Reliability
+
+Models ranked by tool usage reliability:
+1. **Claude Sonnet 4.5** - Most reliable tool execution
+2. **GPT-5** - Excellent but occasional formatting issues
+3. **Gemini 2.5 Pro** - Good for standard tools
+4. **DeepSeek V3** - Reliable for basic tools
+5. **Qwen3 variants** - May need retry for complex tools
+
+## Cost Calculator
+
+### Typical Task Costs
+
+| Task Type | Token Usage (avg) | Claude Sonnet | DeepSeek V3 | Difference |
+|-----------|------------------|---------------|-------------|------------|
+| **Simple Bug Fix** | 5K tokens | $0.05 | $0.001 | 50x cheaper |
+| **Feature Implementation** | 50K tokens | $0.50 | $0.01 | 50x cheaper |
+| **Large Refactoring** | 200K tokens | $2.00 | $0.04 | 50x cheaper |
+
+### Monthly Budget Estimates
+
+| Budget | Claude Usage | DeepSeek Usage | Mixed Strategy |
+|--------|-------------|----------------|----------------|
+| **$10/month** | ~20 features | ~1000 features | Plan: DeepSeek, Act: Claude |
+| **$50/month** | ~100 features | ~5000 features | Critical: Claude, Rest: DeepSeek |
+| **$100/month** | ~200 features | ~10000 features | Complex: Claude, Simple: DeepSeek |
+
+## Provider Comparison
+
+### Provider Features
+
+| Provider | Models Available | Billing | API Stability | Support |
+|----------|-----------------|---------|---------------|---------|
+| **Cline** | Multiple | Credit-based | High | In-app |
+| **Anthropic** | Claude only | Usage-based | High | Email |
+| **OpenRouter** | 100+ models | Usage-based | High | Discord |
+| **OpenAI** | GPT only | Usage-based | High | Forum |
+| **Local (Ollama)** | Open source | Free | N/A | Community |
+
+### Provider Selection Guide
+
+Choose your provider based on:
+- **Simplicity**: Cline (no API key management)
+- **Variety**: OpenRouter (access to all models)
+- **Direct Access**: Individual providers (Anthropic, OpenAI)
+- **Privacy**: Ollama or LM Studio (local models)
+
+## Community Usage Stats
+
+Real-time usage data from the Cline community:
+- View current trends at [OpenRouter's Cline stats](https://openrouter.ai/apps?url=https%3A%2F%2Fcline.bot%2F)
+- Most popular: Claude Sonnet 4.5 (40%)
+- Rising star: DeepSeek V3 (25%)
+- Budget favorite: Qwen3 variants (20%)

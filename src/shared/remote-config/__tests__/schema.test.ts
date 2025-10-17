@@ -1,6 +1,12 @@
 import { expect } from "chai"
 import { describe, it } from "mocha"
-import { AwsBedrockSettingsSchema, OpenAiCompatibleSchema, type RemoteConfig, RemoteConfigSchema } from "../schema"
+import {
+	AwsBedrockSettingsSchema,
+	ClineSettingsSchema,
+	OpenAiCompatibleSchema,
+	type RemoteConfig,
+	RemoteConfigSchema,
+} from "../schema"
 
 describe("Remote Config Schema", () => {
 	describe("OpenAiCompatibleSchema", () => {
@@ -35,10 +41,10 @@ describe("Remote Config Schema", () => {
 			expect(result).to.deep.equal(validSettings)
 		})
 
-		it("should apply default empty array for models", () => {
+		it("should have undefined for models and openAiHeaders by default", () => {
 			const result = OpenAiCompatibleSchema.parse({})
-			expect(result.models).to.deep.equal([])
-			expect(result.openAiHeaders).to.deep.equal({})
+			expect(result.models).to.be.undefined
+			expect(result.openAiHeaders).to.be.undefined
 		})
 
 		it("should reject invalid field types", () => {
@@ -73,6 +79,36 @@ describe("Remote Config Schema", () => {
 		})
 	})
 
+	describe("ClineSettingsSchema", () => {
+		it("should accept valid Cline provider settings", () => {
+			const validSettings = {
+				models: [{ id: "claude-3-5-sonnet-20241022" }, { id: "claude-3-5-haiku-20241022" }],
+			}
+			const result = ClineSettingsSchema.parse(validSettings)
+			expect(result).to.deep.equal(validSettings)
+		})
+
+		it("should accept empty settings object", () => {
+			const result = ClineSettingsSchema.parse({})
+			expect(result.models).to.be.undefined
+		})
+
+		it("should accept models with only id field", () => {
+			const settings = {
+				models: [{ id: "claude-3-5-sonnet-20241022" }],
+			}
+			expect(() => ClineSettingsSchema.parse(settings)).to.not.throw()
+		})
+
+		it("should reject models with missing id field", () => {
+			expect(() =>
+				ClineSettingsSchema.parse({
+					models: [{}],
+				}),
+			).to.throw()
+		})
+	})
+
 	describe("AwsBedrockSettingsSchema", () => {
 		it("should accept valid AWS Bedrock settings", () => {
 			const validSettings = {
@@ -93,9 +129,10 @@ describe("Remote Config Schema", () => {
 			expect(result).to.deep.equal(validSettings)
 		})
 
-		it("should apply default empty array for models", () => {
+		it("should accept empty settings object", () => {
 			const result = AwsBedrockSettingsSchema.parse({})
-			expect(result.models).to.deep.equal([])
+			expect(result.models).to.be.undefined
+			expect(result.customModels).to.be.undefined
 		})
 
 		it("should accept models with only id field", () => {
@@ -114,7 +151,7 @@ describe("Remote Config Schema", () => {
 			}
 			const result = AwsBedrockSettingsSchema.parse(settings)
 			expect(result.models).to.have.lengthOf(2)
-			expect(result.models[0].thinkingBudgetTokens).to.equal(1600)
+			expect(result.models?.[0].thinkingBudgetTokens).to.equal(1600)
 		})
 
 		it("should accept custom models array", () => {
@@ -228,23 +265,6 @@ describe("Remote Config Schema", () => {
 			expect(() => RemoteConfigSchema.parse(config)).to.not.throw()
 		})
 
-		it("should accept config with multiple providers", () => {
-			const config = {
-				version: "v1",
-				providerSettings: {
-					OpenAiCompatible: {
-						models: [{ id: "gpt-4" }],
-					},
-					AwsBedrock: {
-						models: [{ id: "anthropic.claude-v2" }],
-					},
-				},
-			}
-			const result = RemoteConfigSchema.parse(config)
-			expect(result.providerSettings).to.have.property("OpenAiCompatible")
-			expect(result.providerSettings).to.have.property("AwsBedrock")
-		})
-
 		it("should reject invalid version type", () => {
 			expect(() => RemoteConfigSchema.parse({ version: 123 })).to.throw()
 		})
@@ -340,6 +360,9 @@ describe("Remote Config Schema", () => {
 						awsBedrockUsePromptCache: true,
 						awsBedrockEndpoint: "https://custom-bedrock.endpoint",
 					},
+					Cline: {
+						models: [{ id: "claude-3-5-sonnet-20241022" }, { id: "claude-3-5-haiku-20241022" }],
+					},
 				},
 			}
 			const result = RemoteConfigSchema.parse(config)
@@ -363,6 +386,11 @@ describe("Remote Config Schema", () => {
 			expect(result.providerSettings?.AwsBedrock?.awsUseGlobalInference).to.equal(true)
 			expect(result.providerSettings?.AwsBedrock?.awsBedrockUsePromptCache).to.equal(true)
 			expect(result.providerSettings?.AwsBedrock?.awsBedrockEndpoint).to.equal("https://custom-bedrock.endpoint")
+
+			// Verify Cline settings
+			expect(result.providerSettings?.Cline?.models).to.have.lengthOf(2)
+			expect(result.providerSettings?.Cline?.models?.[0].id).to.equal("claude-3-5-sonnet-20241022")
+			expect(result.providerSettings?.Cline?.models?.[1].id).to.equal("claude-3-5-haiku-20241022")
 
 			// Verify OpenTelemetry settings
 			expect(result.openTelemetryEnabled).to.equal(true)

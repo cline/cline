@@ -146,6 +146,8 @@ export async function refreshOpenRouterModels(
 						modelInfo.cacheWritesPrice = 3.75
 						modelInfo.cacheReadsPrice = 0.3
 						break
+					case "anthropic/claude-haiku-4.5":
+					case "anthropic/claude-4.5-haiku":
 					case "anthropic/claude-3-5-haiku":
 					case "anthropic/claude-3-5-haiku:beta":
 					case "anthropic/claude-3-5-haiku-20241022":
