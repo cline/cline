@@ -43,7 +43,6 @@ const GPT_5: ClineToolSpec = {
 			name: "url",
 			required: true,
 			instruction: "The URL to fetch content from",
-			usage: "https://example.com/docs",
 		},
 		TASK_PROGRESS_PARAMETER,
 	],
