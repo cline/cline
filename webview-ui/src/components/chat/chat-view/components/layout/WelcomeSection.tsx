@@ -7,6 +7,7 @@ import HomeHeader from "@/components/welcome/HomeHeader"
 import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { isMacOSOrLinux } from "@/utils/platformUtils"
 import { WelcomeSectionProps } from "../../types/chatTypes"
 
 /**
@@ -17,7 +18,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	showAnnouncement,
 	hideAnnouncement,
 	showHistoryView,
-	telemetrySetting,
 	version,
 	taskHistory,
 	shouldShowQuickWins,
@@ -27,11 +27,9 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	const shouldShowInfoBanner = lastDismissedInfoBannerVersion < CURRENT_INFO_BANNER_VERSION
 	// const shouldShowNewModelBanner = lastDismissedModelBannerVersion < CURRENT_MODEL_BANNER_VERSION
 
-	const isMacOSOrLinux = platform === "darwin" || platform === "linux"
-
 	// Show CLI banner if not dismissed and platform is VSCode (not JetBrains/standalone)
 	const shouldShowCliBanner =
-		isMacOSOrLinux &&
+		isMacOSOrLinux(platform) &&
 		PLATFORM_CONFIG.type === PlatformType.VSCODE &&
 		lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
 

@@ -5,6 +5,7 @@ import { Terminal } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { isMacOSOrLinux } from "@/utils/platformUtils"
 import { getAsVar, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
 
 export const CURRENT_CLI_BANNER_VERSION = 1
@@ -13,8 +14,6 @@ export const CliInstallBanner: React.FC = () => {
 	const { navigateToSettings, subagentsEnabled, platform } = useExtensionState()
 	const [isCopied, setIsCopied] = useState(false)
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
-
-	const isMacOSOrLinux = platform === "darwin" || platform === "linux"
 
 	// Poll for CLI installation status while the component is mounted
 	useEffect(() => {
@@ -102,10 +101,10 @@ export const CliInstallBanner: React.FC = () => {
 			}}>
 			<h4 className="m-0 flex items-center gap-2" style={{ paddingRight: "24px" }}>
 				<Terminal className="w-4 h-4" />
-				{isMacOSOrLinux ? "Cline for CLI is here!" : "Cline CLI Information"}
+				{isMacOSOrLinux(platform) ? "Cline for CLI is here!" : "Cline CLI Information"}
 			</h4>
 			<p className="m-0">
-				{isMacOSOrLinux ? (
+				{isMacOSOrLinux(platform) ? (
 					<>
 						Install to use Cline directly in your terminal and enable subagent capabilities. Cline can spawn{" "}
 						<code>cline</code> commands to handle focused tasks like exploring large codebases for information. This
@@ -148,7 +147,7 @@ export const CliInstallBanner: React.FC = () => {
 						<span className={`codicon ${isCopied ? "codicon-check" : "codicon-copy"}`}></span>
 					</VSCodeButton>
 				</div>
-				{isMacOSOrLinux ? (
+				{isMacOSOrLinux(platform) ? (
 					<div className="flex gap-2">
 						<VSCodeButton
 							appearance="primary"
