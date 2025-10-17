@@ -65,7 +65,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	const { highlightedText, displayTextExpanded } = useMemo(() => {
 		const taskTextLines = task.text?.split("\n") || []
 		const highlightedText = isHighlightedTextExpanded
-			? highlightText(task.text, false)
+			? highlightText(task.text, true)
 			: highlightText(taskTextLines.slice(0, 3).join("\n"))
 
 		return { highlightedText, displayTextExpanded: taskTextLines.length > 3 }
@@ -158,7 +158,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				{/* Expand/Collapse Task Details */}
 				{isTaskExpanded && (
 					<div className="flex flex-col break-words" key={`task-details-${currentTaskItem?.id}`}>
-						<div className="whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0 max-h-80 overflow-y-auto scroll-smooth">
+						<div className="max-h-80 whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0 overflow-y-auto scroll-smooth">
 							<div
 								className={
 									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer mt-1"
@@ -170,7 +170,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						{displayTextExpanded && (
 							<div
 								className="text-link/50 hover:text-link text-right text-xs"
-								onClick={() => setIsHighlightedTextExpanded(!isHighlightedTextExpanded)}>
+								onClick={() => setIsHighlightedTextExpanded((prev) => !prev)}>
 								{isHighlightedTextExpanded ? "Show Less" : "Read More"}
 							</div>
 						)}
