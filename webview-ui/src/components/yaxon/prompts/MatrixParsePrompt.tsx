@@ -30,7 +30,7 @@ export const MatrixFileParsePrompt=()=>
 - 支持从任何步骤恢复
 
 ## 上下文传递说明
-- 文件路径通过任务系统上下文传递，后续的步骤用$TASK_FILES来代表。
+- 文件路径通过任务系统上下文传递，后续的步骤用$TASK_FILES来代表。$TASK_FILES 应为字符串（单个文件路径）或字符串数组（多个文件路径），格式为绝对或相对路径，根据任务系统实际传递内容决定。
 - MCP 工具处理后返回结果，供后续步骤使用
 - 后续步骤可以通过解析 TASK_FILES 获取原始文件路径或使用 MCP 工具返回的结果
 
@@ -45,8 +45,8 @@ export const MatrixFileParsePrompt=()=>
 </ask_followup_question>
 
 
-## 步骤 2: 文件处理
-调用 MCP 服务处理上传的矩阵文件并获取可访问的文件 内容的base64 编码字符串。
+## 步骤 2: 矩阵文件转换为DBC文件
+调用 MCP 服务处理上传的矩阵文件将其转换为DBC文件。
 
 <use_mcp_tool>
 <server_name>
@@ -63,13 +63,16 @@ handle_matrix_file
 </arguments>
 </use_mcp_tool>
 
+## 步骤 3: 将生成的DBC文件下载到本地项目的指定目录
+让用户选择将上一步生成的DBC文件下载到本地项目的指定目录,并将下载后的本地文件路径存储在变量dbc_file_path中，
+这个变量后续的步骤用$dbc_file_path来代表
 
-## 步骤 3: 任务完成
-通知用户任务已完成,并输出上一步输出的处理结果,**仅输出mcp返回的响应，不要输出任何其他内容**。
+## 步骤 4: 任务完成
+通知用户任务已完成,并输出上一步输出的处理结果,**仅输出返回的$dbc_file_path，不要输出任何其他内容**。
 <attempt_completion>
 
 <result>
-  直接输出上一步Mcp 的响应内容
+  直接输出上一步Mcp 的$dbc_file_path
 
 </result>
 
