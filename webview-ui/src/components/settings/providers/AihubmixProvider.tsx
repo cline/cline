@@ -10,74 +10,6 @@ import { ModelSelector } from "../common/ModelSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
-// AIhubmix 支持的模型列表
-const AIHUBMIX_MODELS = {
-	"gpt-4o-mini": {
-		name: "GPT-4o Mini",
-		maxTokens: 128000,
-		contextWindow: 128000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		description: "Fast and efficient model for most tasks",
-	},
-	"gpt-4o": {
-		name: "GPT-4o",
-		maxTokens: 128000,
-		contextWindow: 128000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		description: "Most capable GPT-4 model",
-	},
-	"gpt-4-turbo": {
-		name: "GPT-4 Turbo",
-		maxTokens: 128000,
-		contextWindow: 128000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		description: "Advanced reasoning and analysis",
-	},
-	"claude-3-5-sonnet-20241022": {
-		name: "Claude 3.5 Sonnet",
-		maxTokens: 8192,
-		contextWindow: 200000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: "Anthropic's most capable model",
-	},
-	"claude-3-5-haiku-20241022": {
-		name: "Claude 3.5 Haiku",
-		maxTokens: 8192,
-		contextWindow: 200000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: "Fast and efficient Claude model",
-	},
-	"claude-3-opus-20240229": {
-		name: "Claude 3 Opus",
-		maxTokens: 8192,
-		contextWindow: 200000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		description: "Most powerful Claude model",
-	},
-	"gemini-2.0-flash-exp": {
-		name: "Gemini 2.0 Flash",
-		maxTokens: 8192,
-		contextWindow: 1000000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		description: "Google's latest multimodal model",
-	},
-	"gemini-1.5-pro": {
-		name: "Gemini 1.5 Pro",
-		maxTokens: 8192,
-		contextWindow: 2000000,
-		supportsImages: true,
-		supportsPromptCache: false,
-		description: "Google's advanced reasoning model",
-	},
-}
-
 /**
  * Props for the AIhubmixProvider component
  */
@@ -116,7 +48,7 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 
 	// Get the normalized configuration
 
-	// 先回显旧数据/静态数据，再异步刷新并持久化到 localStorage
+	// 先回显本地缓存数据，再异步刷新并持久化到 localStorage
 	useEffect(() => {
 		try {
 			const cached = window.localStorage.getItem("aihubmixModels")
@@ -125,15 +57,10 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 				if (parsed && typeof parsed === "object") {
 					setModels(ensureSelectedPresent(parsed))
 				}
-			} else {
-				// 无缓存则使用静态回退，保证 UI 立即可用
-				const fallback = Object.fromEntries(Object.entries(AIHUBMIX_MODELS).map(([id, info]) => [id, info as ModelInfo]))
-				setModels(ensureSelectedPresent(fallback))
 			}
 		} catch {
-			// 解析失败时使用静态回退
-			const fallback = Object.fromEntries(Object.entries(AIHUBMIX_MODELS).map(([id, info]) => [id, info as ModelInfo]))
-			setModels(ensureSelectedPresent(fallback))
+			// 解析失败则回显空集，仅注入当前选中模型（若有）
+			setModels(ensureSelectedPresent({}))
 		}
 
 		// 异步刷新模型列表

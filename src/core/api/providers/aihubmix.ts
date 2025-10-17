@@ -81,7 +81,13 @@ export class AIhubmixHandler implements ApiHandler {
 				this.geminiClient = new GoogleGenAI({
 					apiKey: this.options.apiKey,
 					httpOptions: {
-						baseUrl: `${this.options.baseURL}/gemini/v1beta`,
+						// AIhubmix Gemini 兼容网关，按 Google GenAI 路径规范
+						baseUrl: `${this.options.baseURL}/gemini`,
+						headers: {
+							// @ts-expect-error
+							"APP-Code": this.options.appCode,
+							Authorization: `Bearer ${this.options.apiKey ?? ""}`,
+						},
 					},
 				})
 			} catch (error) {
@@ -96,11 +102,10 @@ export class AIhubmixHandler implements ApiHandler {
 	 */
 	private routeModel(modelName: string): "anthropic" | "openai" | "gemini" {
 		const id = modelName || ""
-		const lower = id.toLowerCase()
-		if (lower.startsWith("claude")) {
+		if (id.startsWith("claude")) {
 			return "anthropic"
 		}
-		if (lower.startsWith("gemini") && !lower.endsWith("-nothink") && !lower.endsWith("-search")) {
+		if (id.startsWith("gemini") && !id.endsWith("-nothink") && !id.endsWith("-search")) {
 			return "gemini"
 		}
 		return "openai"
@@ -120,16 +125,6 @@ export class AIhubmixHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: any[]): ApiStream {
 		const modelId = this.options.modelId || ""
 		const route = this.routeModel(modelId)
-
-		console.log("🔍 AIhubmixHandler.createMessage:", {
-			modelId,
-			route,
-			options: {
-				apiKey: this.options.apiKey,
-				baseURL: this.options.baseURL,
-				appCode: this.options.appCode,
-			},
-		})
 
 		switch (route) {
 			case "anthropic":
@@ -208,7 +203,6 @@ export class AIhubmixHandler implements ApiHandler {
 			model: modelId,
 			messages: openaiMessages,
 			temperature: 0,
-			max_tokens: this.options.modelInfo?.maxTokens || 8192,
 			stream: true,
 		}
 
@@ -250,6 +244,7 @@ export class AIhubmixHandler implements ApiHandler {
 		if (this.options.thinkingBudgetTokens) {
 			requestConfig.thinkingConfig = {
 				thinkingBudget: this.options.thinkingBudgetTokens,
+				includeThoughts: true,
 			}
 		}
 
