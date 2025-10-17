@@ -19,7 +19,7 @@ export const config = createVariant(ModelFamily.GPT_5)
 	})
 	.matcher((providerInfo) => {
 		// Match GPT-5 models from the Cline providers
-		return isGPT5ModelFamily(providerInfo.model.id)
+		return providerInfo.providerId === "cline" && isGPT5ModelFamily(providerInfo.model.id)
 	})
 	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
 	.components(

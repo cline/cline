@@ -61,7 +61,7 @@ describe("PromptRegistry", () => {
 				{ id: "google/gemini", expected: ModelFamily.GENERIC },
 				{ id: "claude-sonnet-4", expected: ModelFamily.NEXT_GEN },
 				{ id: "gpt-5", provider: "cline", expected: ModelFamily.GPT_5 },
-				{ id: "openai/gpt-5", expected: ModelFamily.GPT_5 },
+				{ id: "openai/gpt-5", expected: ModelFamily.NEXT_GEN },
 				{ id: "unknown-model", expected: ModelFamily.GENERIC },
 			]
 
