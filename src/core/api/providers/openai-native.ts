@@ -1,5 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import type { OpenAiCompatibleModelInfo } from "@shared/api"
 import { ModelInfo, OpenAiNativeModelId, openAiNativeDefaultModelId, openAiNativeModels } from "@shared/api"
+import { resolveReasoningEffort } from "@shared/reasoning"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
@@ -81,12 +83,16 @@ export class OpenAiNativeHandler implements ApiHandler {
 			case "o4-mini":
 			case "o3":
 			case "o3-mini": {
+				const reasoningEffort = resolveReasoningEffort(
+					this.options.reasoningEffort,
+					(model.info as OpenAiCompatibleModelInfo).reasoningEffort,
+				) as ChatCompletionReasoningEffort | undefined
 				const stream = await client.chat.completions.create({
 					model: model.id,
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
-					reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
+					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 				})
 
 				for await (const chunk of stream) {
@@ -106,14 +112,18 @@ export class OpenAiNativeHandler implements ApiHandler {
 			}
 			case "gpt-5-2025-08-07":
 			case "gpt-5-mini-2025-08-07":
-			case "gpt-5-nano-2025-08-07":
+			case "gpt-5-nano-2025-08-07": {
+				const reasoningEffort = resolveReasoningEffort(
+					this.options.reasoningEffort,
+					(model.info as OpenAiCompatibleModelInfo).reasoningEffort,
+				) as ChatCompletionReasoningEffort | undefined
 				const stream = await client.chat.completions.create({
 					model: model.id,
 					temperature: 1,
 					messages: [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
-					reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
+					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 				})
 
 				for await (const chunk of stream) {
@@ -130,6 +140,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					}
 				}
 				break
+			}
 			default: {
 				const stream = await client.chat.completions.create({
 					model: model.id,
