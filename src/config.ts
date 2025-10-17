@@ -34,16 +34,13 @@ class ClineEndpoint {
 			this.environment = _env as Environment
 			return
 		}
-		this.environment = Environment.production
 	}
 
 	public config(): EnvironmentConfig {
-		console.info("Cline environment:", this.environment)
 		return this.getEnvironment()
 	}
 
 	public setEnvironment(env: string) {
-		console.info("Setting Cline environment:", env)
 		switch (env.toLowerCase()) {
 			case "staging":
 				this.environment = Environment.staging
@@ -55,7 +52,7 @@ class ClineEndpoint {
 				this.environment = Environment.production
 				break
 		}
-		console.info("Cline environment updated:", this.environment)
+		console.info("Cline environment updated: ", this.environment)
 	}
 
 	public getEnvironment(): EnvironmentConfig {
