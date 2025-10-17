@@ -52,7 +52,6 @@ export const CortecsProvider = ({ isPopup, currentMode }: CortecsProviderProps) 
 					}}
 					placeholder="Custom base URL"
 					style={{ width: "100%", marginBottom: 5 }}
-					type="url"
 				/>
 			)}
 			<CortecsModelPicker baseUrl={apiConfiguration?.cortecsBaseUrl} currentMode={currentMode} isPopup={isPopup} />
