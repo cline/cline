@@ -1,6 +1,6 @@
 import { ProcessMatrixRequest, ProcessMatrixResponse } from "@shared/proto/cline/matrix"
 import { Controller } from "@/core/controller"
-import { processMatrixFile } from "./MatrixService"
+import { uploadMatrixFile } from "./MatrixService"
 
 /**
  * Process a matrix file and return a URL to the processed file
@@ -15,7 +15,7 @@ export async function processMatrixFileServer(
 	console.log("[MatrixServiceServer] Processing matrix file:", request.fileName)
 
 	// Call the service function to process the file
-	const response = await processMatrixFile(request)
+	const response = await uploadMatrixFile(request)
 
 	console.log("[MatrixServiceServer] File processing completed:", response.status)
 

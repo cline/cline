@@ -25,6 +25,7 @@ message ProcessMatrixRequest {
 // Response message for processing a matrix file
 message ProcessMatrixResponse {
   string fileUrl = 1;
+  repeated string sheetNames = 4;
   string status = 2;  // "success" or "error"
   string error = 3;   // Error message if status is "error"
 }

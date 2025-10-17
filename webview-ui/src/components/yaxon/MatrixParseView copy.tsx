@@ -15,7 +15,6 @@ const { Title, Text } = Typography
 
 interface MatrixParseViewProps {
 	onBack?: () => void,
-	onSwitchToChat: () => void,
 	task: ClineMessage | undefined,
 	groupedMessages: (ClineMessage | ClineMessage[])[],
 	modifiedMessages: ClineMessage[],
@@ -57,7 +56,7 @@ const UploadCard = styled(Card)`
   }
 `
 
-const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat,task,groupedMessages,modifiedMessages,scrollBehavior,chatState,messageHandlers}) => {
+const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,task,groupedMessages,modifiedMessages,scrollBehavior,chatState,messageHandlers}) => {
 	const [messages, setMessages] = useState<ClineMessage[]>([])
 	const [isProcessing, setIsProcessing] = useState(false)
 	const [selectedFileName, setSelectedFileName] = useState<string>("")
@@ -65,10 +64,7 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 	const [showMcpDemo, setShowMcpDemo] = useState(false)
 	const [fileUrl, setFileUrl] = useState<string>("") // 添加存储文件URL的状态
 	const [isFileProcessed, setIsFileProcessed] = useState(false) // 添加文件是否已处理完成的状态
-	const [sheetNames, setSheetNames] = useState<string[]>([])
-
-	// 在state定义中添加sheetName的状态变量
-	const [sheetName, setSheetName] = useState<string>("")
+	
 
 	const header = (
 		<div className="flex items-center p-2 border-b border-gray-200 dark:border-gray-700" style={{ gridRow: "1" }}>
@@ -151,7 +147,39 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 
 	// 消息处理
 
+	useEffect(() => {
+		
+		const msg=	groupedMessages.at(groupedMessages.length-1);
+		
+		if (msg) {
+		    const obj:ClineMessage	=msg as ClineMessage;
+			
+			if(obj.type==="say"){
+				if(obj.say=="completion_result"&&!obj.partial){
+					
+				console.log("output  message:",JSON.parse(obj.text as string));
+				}else if(obj.say=="task"){
+					console.log("task  message:",obj)
+				}
 
+			}else{
+
+				console.log("ask  message:",obj.text);
+
+				
+			}
+			
+				
+		
+		}
+
+	}, [groupedMessages])
+
+	useEffect(() => {
+
+		console.log("task:",task)
+	
+	},[task])
 
 	// 处理文件选择
 	const handleFileSelect = async () => {
@@ -167,7 +195,7 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 				const file = (event.target as HTMLInputElement).files?.[0]
 				if (file) {
 					// 验证文件类型
-					if (!file.name.toLowerCase().endsWith(".xlsx") && !file.name.toLowerCase().endsWith(".xls")) {
+					if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
 						message.error("请选择Excel文件 (.xlsx 或 .xls)")
 						return
 					}
@@ -213,16 +241,14 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 					try {
 						const response = await MatrixServiceClient.processMatrixFile(request)
 
-						
-					
+						console.log("[MatrixParseView] MatrixService response:", response)
+						response.fileUrl
 						
 
 						if (response.status === "success" && response.fileUrl) {
 							// 保存处理结果
 							setFileUrl(response.fileUrl)
 							setIsFileProcessed(true)
-							setSheetNames(response.sheetNames)
-							console.log(response.sheetNames)
 
 							// 添加处理完成的消息
 							const processingCompleteMessage = MatrixParseMessageFactory.createSay(
@@ -287,13 +313,17 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 				
 				await TaskServiceClient.newTask(
 					NewTaskRequest.create({
-						text: `${MatrixFileParsePrompt()}\n处理上传的CAN矩阵文件，
-						在每一步与用户进行交互\n\n文件URL: ${fileUrl}\n\n**矩阵文件的Sheet列表**: ${sheetNames}`,
+						text: `${MatrixFileParsePrompt()}\n处理上传的CAN矩阵文件，在每一步与用户进行交互\n\n文件URL: ${fileUrl}`,
 						images: [],
 					}),
 				)
-				onSwitchToChat()
-			
+
+				// 添加成功启动的消息
+				const processingSuccessMessage = MatrixParseMessageFactory.createSay(
+					"workflow_step",
+					"工作流已成功启动，请在新任务中查看处理进度",
+				)
+				setMessages((prev) => [...prev, processingSuccessMessage])
 			} catch (error) {
 				console.error("Failed to start matrix parse workflow:", error)
 				message.error("启动工作流失败: " + (error instanceof Error ? error.message : String(error)))
@@ -698,10 +728,7 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 													{isFileProcessed && fileUrl ? (
 														<Button
 															icon={<PlayCircleOutlined />}
-															onClick={() => {
-																
-																handleStartProcessing();
-															}}
+															onClick={handleStartProcessing}
 															size="large"
 															style={{ width: "100%" }}
 															type="primary">
@@ -729,18 +756,43 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 													选择文件
 												</Button>
 											)}
-											
+											{selectedFileName && (
+												<div
+													style={{
+														marginTop: "12px",
+														padding: "8px",
+														backgroundColor: "var(--vscode-editor-background)",
+														borderRadius: "4px",
+														border: "1px solid var(--vscode-panel-border)",
+													}}>
+													<Text style={{ color: "var(--vscode-foreground)" }}>
+														已选择文件: {selectedFileName}
+													</Text>
+												</div>
+											)}
+											{isFileProcessed && fileUrl && (
+												<div
+													style={{
+														marginTop: "8px",
+														padding: "8px",
+														backgroundColor: "var(--vscode-editor-background)",
+														borderRadius: "4px",
+														border: "1px solid var(--vscode-panel-border)",
+													}}>
+													<Text style={{ color: "#52c41a" }}>文件已处理完成，可以开始处理</Text>
+												</div>
+											)}
 										</div>
 									</Space>
 								</UploadCard>
-									{/* {task && (<MessagesArea	chatState={chatState}
+									{task && (<MessagesArea	chatState={chatState}
 															groupedMessages={groupedMessages}
 															messageHandlers={messageHandlers}
 															modifiedMessages={modifiedMessages}
 															scrollBehavior={scrollBehavior}
 															task={task}
 														/>
-													)} */}
+													)}
 
 								<div style={{ flex: 1, minHeight: 0 }}>
 								

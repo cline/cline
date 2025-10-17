@@ -43,6 +43,8 @@ const AppContent = () => {
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent) => {
 			const message = event.data || event.data?.data // 处理不同的消息格式
+
+			
 			if (message?.type === "switchToCanView") {
 				setShowCanView(true)
 			}
@@ -82,11 +84,11 @@ const AppContent = () => {
 	const canTool = rootElement?.getAttribute("data-can-tool")
 
 	// If we're in a dedicated CAN tool tab, render only that tool
-	if (canTool === "matrix-parse") {
-		return <MatrixParseView />
-	} else if (canTool === "uds-diag") {
-		return <UdsDiagView />
-	}
+	// if (canTool === "matrix-parse") {
+	// 	return <MatrixParseView />
+	// } else if (canTool === "uds-diag") {
+	// 	return <UdsDiagView />
+	// }
 
 	// 当其他视图显示时，隐藏CanView和ChatView
 	const isOtherViewVisible = showSettings || showHistory || showMcp || showAccount

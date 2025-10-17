@@ -2,18 +2,29 @@ import { ProcessMatrixRequest, ProcessMatrixResponse } from "@shared/proto/cline
 import { existsSync, mkdirSync, writeFileSync } from "fs"
 import { Client } from "minio"
 import { resolve } from "path"
-import { MATRIX_FILES_BUCKET, minioClient } from "./minioClient"
+import { MATRIX_FILES_BUCKET, minioClient,minioConfig } from "./minioClient"
+import * as XLSX from "xlsx"
 
 /**
  * Process a matrix file and store it in MinIO
  * @param request The process matrix request containing file data
  * @returns The process matrix response with file URL
  */
-export async function processMatrixFile(request: ProcessMatrixRequest): Promise<ProcessMatrixResponse> {
+export async function uploadMatrixFile(request: ProcessMatrixRequest): Promise<ProcessMatrixResponse> {
 	console.log("[MatrixService] Processing matrix file:", request.fileName)
 	console.log("[MatrixService] File size:", request.fileSize, "bytes")
 
 	try {
+		// Read the Excel file and get sheet names
+		const fileBuffer = Buffer.from(request.fileContent.buffer, request.fileContent.byteOffset, request.fileContent.byteLength);
+		
+		// Parse Excel file - XLSX.read automatically detects file type
+		const workbook = XLSX.read(fileBuffer, { type: "buffer" });
+		const sheetNames = workbook.SheetNames;
+		
+		console.log("[MatrixService] Excel sheet names:", sheetNames);
+		console.log("[MatrixService] File type detected as:", workbook.Workbook?.WBProps?.date1904 ? "xls" : "xlsx");
+
 		// Ensure the bucket exists
 		const bucketExists = await minioClient.bucketExists(MATRIX_FILES_BUCKET)
 		if (!bucketExists) {
@@ -28,22 +39,18 @@ export async function processMatrixFile(request: ProcessMatrixRequest): Promise<
 
 		// Upload the file to MinIO
 		// Convert Uint8Array to Buffer for MinIO
-		const fileBuffer = Buffer.from(request.fileContent.buffer, request.fileContent.byteOffset, request.fileContent.byteLength)
-		await minioClient.putObject(MATRIX_FILES_BUCKET, uniqueFileName, fileBuffer, fileBuffer.length, {
-			"Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-			"x-amz-meta-filename": request.fileName,
-			"x-amz-meta-filesize": request.fileSize.toString(),
-		})
+		await minioClient.putObject(MATRIX_FILES_BUCKET, uniqueFileName, fileBuffer, fileBuffer.length)
 
 		console.log(`[MatrixService] File uploaded to MinIO: ${uniqueFileName}`)
 
 		// Generate the file URL
-		const fileUrl = `/api/matrix/files/${uniqueFileName}`
+		const fileUrl = `http://${minioConfig.endPoint}:${minioConfig.port}/${MATRIX_FILES_BUCKET}/${uniqueFileName}`
 
 		console.log("[MatrixService] File processed successfully, URL:", fileUrl)
 
 		return ProcessMatrixResponse.create({
 			fileUrl: fileUrl,
+			sheetNames: sheetNames,
 			status: "success",
 		})
 	} catch (error) {
@@ -51,6 +58,7 @@ export async function processMatrixFile(request: ProcessMatrixRequest): Promise<
 
 		return ProcessMatrixResponse.create({
 			fileUrl: "",
+			sheetNames: [],
 			status: "error",
 			error: error instanceof Error ? error.message : "Unknown error occurred",
 		})

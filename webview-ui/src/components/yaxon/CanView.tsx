@@ -11,11 +11,14 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { SystemInfo } from "@shared/proto/cline/models"
 import type { MenuProps } from "antd"
 import { Button, Menu } from "antd"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import MatrixParseView from "./MatrixParseView"
 import UdsDiagView from "./UdsDiagView"
+import { combineApiRequests } from "@shared/combineApiRequests"
+import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { filterVisibleMessages, groupMessages, useChatState, useMessageHandlers, useScrollBehavior } from "../chat/chat-view"
 
 interface CanViewProps {
 	isHidden?: boolean
@@ -25,8 +28,35 @@ interface CanViewProps {
 const CanView: React.FC<CanViewProps> = ({ isHidden = false, onSwitchToChat }) => {
 	const [systemInfo, setSystemInfo] = useState<SystemInfo | undefined>(undefined)
 	const [activeTool, setActiveTool] = useState<string | null>(null)
-	const { navigateToChat, navigateToHistory, navigateToMcp, navigateToSettings } = useExtensionState()
+	const { clineMessages: messages,navigateToChat, navigateToHistory, navigateToMcp, navigateToSettings } = useExtensionState()
+	const task = useMemo(() => messages.at(0), [messages])
+	
+	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
+	const visibleMessages = useMemo(() => {
+			return filterVisibleMessages(modifiedMessages)
+		}, [modifiedMessages])
+	const groupedMessages = useMemo(() => {
+		return groupMessages(visibleMessages)
+	}, [visibleMessages])
+	// 使用自定义钩子进行状态管理
+	const chatState = useChatState(messages)
+		const {
+		setInputValue,
+		selectedImages,
+		setSelectedImages,
+		selectedFiles,
+		setSelectedFiles,
+		sendingDisabled,
+		enableButtons,
+		expandedRows,
+		setExpandedRows,
+		textAreaRef,
+	} = chatState
 
+
+	const scrollBehavior = useScrollBehavior(messages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
+	// Use message handlers hook
+	const messageHandlers = useMessageHandlers(messages, chatState)
 	const fetchSystemInfo = async () => {
 		try {
 			const info = await ModelsServiceClient.getSystemInfo(EmptyRequest.create({}))
@@ -42,8 +72,12 @@ const CanView: React.FC<CanViewProps> = ({ isHidden = false, onSwitchToChat }) =
 		return () => {}
 	}, [])
 
+	useEffect(() => {
+			setExpandedRows({})
+		}, [task?.ts])
+
 	const onClick: MenuProps["onClick"] = (e) => {
-		console.log("click ", e)
+		
 		switch (e.key) {
 			case "matrix-parse":
 				// 在当前面板中显示矩阵报文解析组件
@@ -78,10 +112,26 @@ const CanView: React.FC<CanViewProps> = ({ isHidden = false, onSwitchToChat }) =
 	const handleBackToMenu = () => {
 		setActiveTool(null)
 	}
+	const handleSwitchToChat = () => {
+			
+			if (onSwitchToChat) {
+					onSwitchToChat()
+				}
+			navigateToChat()
+	}
+
 
 	// 如果已选择工具，则显示对应组件而不是菜单
 	if (activeTool === "matrix-parse") {
-		return <MatrixParseView onBack={handleBackToMenu} />
+		return <MatrixParseView
+		 task={task} 
+		 chatState={chatState}
+		 modifiedMessages={modifiedMessages}	 
+		 scrollBehavior={scrollBehavior}
+		 messageHandlers={messageHandlers}
+		 groupedMessages={groupedMessages}
+		 onSwitchToChat={handleSwitchToChat}
+		 onBack={handleBackToMenu} />
 	}
 
 	if (activeTool === "uds-diag") {
@@ -110,7 +160,7 @@ const CanView: React.FC<CanViewProps> = ({ isHidden = false, onSwitchToChat }) =
 			key: "cline-op",
 			children: [
 				{
-					label: "新建 CLIEN任务",
+					label: "当前任务",
 					key: "new-task",
 					icon: <PlusOutlined />,
 				},
