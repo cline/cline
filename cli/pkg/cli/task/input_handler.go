@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -16,20 +17,21 @@ import (
 
 // InputHandler manages interactive user input during follow mode
 type InputHandler struct {
-	manager         *Manager
-	coordinator     *StreamCoordinator
-	cancelFunc      context.CancelFunc
-	mu              sync.RWMutex
-	isRunning       bool
-	pollTicker      *time.Ticker
-	program         *tea.Program
-	programRunning  bool
-	programDoneChan chan struct{} // Signals when program actually exits
-	resultChan      chan output.InputSubmitMsg
-	cancelChan      chan struct{}
-	feedbackApproval bool // Track if we're in feedback after approval
-	feedbackApproved bool // Track the approval decision
-	ctx             context.Context // Context for restart callback
+	manager          *Manager
+	coordinator      *StreamCoordinator
+	cancelFunc       context.CancelFunc
+	mu               sync.RWMutex
+	isRunning        bool
+	pollTicker       *time.Ticker
+	program          *tea.Program
+	programRunning   bool
+	programDoneChan  chan struct{} // Signals when program actually exits
+	resultChan       chan output.InputSubmitMsg
+	cancelChan       chan struct{}
+	feedbackApproval bool                // Track if we're in feedback after approval
+	feedbackApproved bool                // Track the approval decision
+	approvalMessage  *types.ClineMessage // Store the approval message for determining action
+	ctx              context.Context     // Context for restart callback
 }
 
 // NewInputHandler creates a new input handler
@@ -229,6 +231,46 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 	}
 }
 
+// determineAutoApprovalAction determines which auto-approval action to enable based on the ask type
+func determineAutoApprovalAction(msg *types.ClineMessage) (string, error) {
+	switch types.AskType(msg.Ask) {
+	case types.AskTypeTool:
+		// Parse tool message to determine if it's a read or edit operation
+		var toolMsg types.ToolMessage
+		if err := json.Unmarshal([]byte(msg.Text), &toolMsg); err != nil {
+			return "", fmt.Errorf("failed to parse tool message: %w", err)
+		}
+
+		// Determine action based on tool type
+		switch types.ToolType(toolMsg.Tool) {
+		case types.ToolTypeReadFile,
+			types.ToolTypeListFilesTopLevel,
+			types.ToolTypeListFilesRecursive,
+			types.ToolTypeListCodeDefinitionNames,
+			types.ToolTypeSearchFiles,
+			types.ToolTypeWebFetch:
+			return "read_files", nil
+		case types.ToolTypeEditedExistingFile,
+			types.ToolTypeNewFileCreated:
+			return "edit_files", nil
+		default:
+			return "", fmt.Errorf("unsupported tool type: %s", toolMsg.Tool)
+		}
+
+	case types.AskTypeCommand:
+		return "execute_all_commands", nil
+
+	case types.AskTypeBrowserActionLaunch:
+		return "use_browser", nil
+
+	case types.AskTypeUseMcpServer:
+		return "use_mcp", nil
+
+	default:
+		return "", fmt.Errorf("unsupported ask type: %s", msg.Ask)
+	}
+}
+
 // promptForInput displays an interactive prompt and waits for user input
 func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error) {
 	currentMode := ih.manager.GetCurrentMode()
@@ -245,6 +287,9 @@ func (ih *InputHandler) promptForInput(ctx context.Context) (string, bool, error
 
 // promptForApproval displays an approval prompt for tool/command requests
 func (ih *InputHandler) promptForApproval(ctx context.Context, msg *types.ClineMessage) (bool, string, error) {
+	// Store the approval message for later use in determining auto-approval action
+	ih.approvalMessage = msg
+	
 	model := output.NewInputModel(
 		output.InputTypeApproval,
 		"Let Cline use this tool?",
@@ -344,6 +389,23 @@ func (ih *InputHandler) runInputProgram(ctx context.Context, model output.InputM
 				// Need to collect feedback - will be handled by model state change
 				return "", false, nil
 			}
+			
+			// Check if NoAskAgain was selected
+			if result.NoAskAgain && result.Approved && ih.approvalMessage != nil {
+				// Determine which auto-approval action to enable
+				action, err := determineAutoApprovalAction(ih.approvalMessage)
+				if err != nil {
+					output.Printf("\nWarning: Could not determine auto-approval action: %v\n", err)
+				} else {
+					// Enable the auto-approval action
+					if err := ih.manager.UpdateTaskAutoApprovalAction(ctx, action); err != nil {
+						output.Printf("\nWarning: Could not update auto-approval: %v\n", err)
+					} else {
+						output.Printf("\nAuto-approval enabled for %s\n", action)
+					}
+				}
+			}
+			
 			// Store approval state for when feedback comes back
 			ih.feedbackApproval = false
 			ih.feedbackApproved = result.Approved

@@ -1245,6 +1245,44 @@ func (m *Manager) updateMode(stateJson string) {
 	m.mu.Unlock()
 }
 
+// UpdateTaskAutoApprovalAction enables a specific auto-approval action for the current task
+func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey string) error {
+	settings := &cline.Settings{
+		AutoApprovalSettings: &cline.AutoApprovalSettings{
+			Enabled:     true,
+			MaxRequests: 20, // Important: avoid maxRequests=0 bug
+			Actions:     &cline.AutoApprovalActions{},
+		},
+	}
+
+	// Set the specific action to true based on actionKey
+	truePtr := func() *bool { b := true; return &b }()
+	
+	switch actionKey {
+	case "read_files":
+		settings.AutoApprovalSettings.Actions.ReadFiles = truePtr
+	case "edit_files":
+		settings.AutoApprovalSettings.Actions.EditFiles = truePtr
+	case "execute_all_commands":
+		settings.AutoApprovalSettings.Actions.ExecuteAllCommands = truePtr
+	case "use_browser":
+		settings.AutoApprovalSettings.Actions.UseBrowser = truePtr
+	case "use_mcp":
+		settings.AutoApprovalSettings.Actions.UseMcp = truePtr
+	default:
+		return fmt.Errorf("unknown auto-approval action: %s", actionKey)
+	}
+
+	_, err := m.client.State.UpdateTaskSettings(ctx, &cline.UpdateTaskSettingsRequest{
+		Settings: settings,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update task settings: %w", err)
+	}
+
+	return nil
+}
+
 // Cleanup cleans up resources
 func (m *Manager) Cleanup() {
 	// Clean up streaming display resources if needed
