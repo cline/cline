@@ -24,10 +24,11 @@ const (
 
 // InputSubmitMsg is sent when the user submits input
 type InputSubmitMsg struct {
-	Value      string
-	InputType  InputType
-	Approved   bool   // For approval type
-	NeedsFeedback bool // For approval type
+	Value          string
+	InputType      InputType
+	Approved       bool // For approval type
+	NeedsFeedback  bool // For approval type
+	NoAskAgain     bool // For approval type - indicates "don't ask again" was selected
 }
 
 // InputCancelMsg is sent when the user cancels input (Ctrl+C)
@@ -159,8 +160,7 @@ func NewInputModel(inputType InputType, title, placeholder, currentMode string) 
 	if inputType == InputTypeApproval {
 		m.approvalOptions = []string{
 			"Yes",
-			"Yes, with feedback",
-			"No",
+			"Yes, and don't ask again for this task",
 			"No, with feedback",
 		}
 		m.selectedOption = 0
@@ -210,8 +210,7 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.InputType == InputTypeApproval {
 			m.approvalOptions = []string{
 				"Yes",
-				"Yes, with feedback",
-				"No",
+				"Yes, and don't ask again for this task",
 				"No, with feedback",
 			}
 			m.selectedOption = 0
@@ -298,6 +297,7 @@ func (m *InputModel) handleSubmit() (tea.Model, tea.Cmd) {
 		selected := m.approvalOptions[m.selectedOption]
 		approved := strings.HasPrefix(selected, "Yes")
 		needsFeedback := strings.Contains(selected, "feedback")
+		noAskAgain := strings.Contains(selected, "don't ask again")
 
 		if needsFeedback {
 			// Store the approval decision before switching to feedback input
@@ -318,6 +318,7 @@ func (m *InputModel) handleSubmit() (tea.Model, tea.Cmd) {
 				InputType:     InputTypeApproval,
 				Approved:      approved,
 				NeedsFeedback: false,
+				NoAskAgain:    noAskAgain,
 			}
 		}
 
