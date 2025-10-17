@@ -46,6 +46,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			// We impose a max number of files which are allowed to be read in as well as on
 			// the number of files which are allowed to be processed in total
 			// We also impose a limit on the max number of chars these files reads can consume
+			const loadedFilePaths: string[] = []
 			let fileContents = ""
 			const filePathRegex = /9\.\s*(?:Optional\s+)?Required Files:\s*((?:\n\s*-\s*.+)+)/m
 			const match = context.match(filePathRegex)
@@ -114,6 +115,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 
 							// Append file content in the same format as file mentions
 							fileContents += `\n\n<file_content path="${relPath}">\n${fileContent.text}\n</file_content>`
+							loadedFilePaths.push(relPath)
 
 							totalChars += fileContent.text.length
 							filesLoaded++
@@ -132,8 +134,9 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 
 			// Use the continuationPrompt to format the tool result, appending file contents
 			if (fileContents) {
+				const fileMentionString = loadedFilePaths.map((path) => `'${path}'`).join(", ") + " (see below for file content)"
 				fileContents =
-					"\n\nThe following files were automatically read based on the files listed in the Required Files section. These are the latest versions - you should reference them directly and not re-read them, unless they have been altered:" +
+					`\n\nThe following files were automatically read based on the files listed in the Required Files section: ${fileMentionString}. These are the latest versions of these files - you should reference them directly and not re-read them:` +
 					fileContents
 			}
 			const toolResult = formatResponse.toolResult(continuationPrompt(context) + fileContents)

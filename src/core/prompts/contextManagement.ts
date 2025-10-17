@@ -13,7 +13,7 @@ This summary should be thorough in capturing technical details, code patterns, a
 
 You have only two options: If you are immediately prepared to call the attempt_completion tool, and have completed all items in your task_progress list, you may call attempt_completion at this time. If you are not prepared to call the attempt_completion tool, and have not completed all items in your task_progress list, you must call the summarize_task tool - in this case you must call the summarize_task tool whether you are in PLAN or ACT mode.
 
-You MUST ONLY respond to this message by using either the attempt_completion tool or the summarize_task tool call. When using the summarize_task tool call, you must add ALL information to the summary required for continuing with the task at hand. This is because you will lose access to ALL messages other than this summary.
+You MUST ONLY respond to this message by using either the attempt_completion tool or the summarize_task tool call. When using the summarize_task tool call, you must include ALL information in the summary required for continuing with the task at hand. This is because you will lose access to all messages other than this summary.
 
 When responding with the summarize_task tool call, follow these instructions:
 
