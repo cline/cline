@@ -361,13 +361,9 @@ export function normalizeApiConfiguration(
 		case "aihubmix":
 			// 仅使用 AIhubmix 专属字段，不再回退到全局或 OpenAI 兼容字段
 			const aihubmixModelId =
-				currentMode === "plan"
-					? (apiConfiguration as any)?.planModeAihubmixModelId
-					: (apiConfiguration as any)?.actModeAihubmixModelId
+				currentMode === "plan" ? apiConfiguration?.planModeAihubmixModelId : apiConfiguration?.actModeAihubmixModelId
 			const aihubmixModelInfo =
-				currentMode === "plan"
-					? (apiConfiguration as any)?.planModeAihubmixModelInfo
-					: (apiConfiguration as any)?.actModeAihubmixModelInfo
+				currentMode === "plan" ? apiConfiguration?.planModeAihubmixModelInfo : apiConfiguration?.actModeAihubmixModelInfo
 			return {
 				selectedProvider: provider,
 				selectedModelId: aihubmixModelId || "",

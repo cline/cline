@@ -3718,6 +3718,3 @@ export const qwenCodeModels = {
 } as const satisfies Record<string, ModelInfo>
 export type QwenCodeModelId = keyof typeof qwenCodeModels
 export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
-
-// AIhubmix models - supports multiple providers through unified API
-export const aihubmixDefaultModelId: string = "claude-sonnet-4-5"
