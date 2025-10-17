@@ -54,6 +54,22 @@ const ChatRowContainer = styled.div`
 	&:hover ${CheckpointControls} {
 		opacity: 1;
 	}
+
+	/* Fade-in animation for hook messages being inserted */
+	&.hook-message-animate {
+		animation: hookFadeSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	@keyframes hookFadeSlideIn {
+		from {
+			opacity: 0;
+			transform: translateY(-12px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
 `
 
 interface ChatRowProps {
@@ -269,6 +285,8 @@ export const ChatRowContent = memo(
 		// Command output expansion state (for all messages, but only used by command messages)
 		const [isOutputFullyExpanded, setIsOutputFullyExpanded] = useState(false)
 		const prevCommandExecutingRef = useRef<boolean>(false)
+		// Hook output expansion state (for all messages, but only used by hook messages)
+		const [isHookOutputExpanded, setIsHookOutputExpanded] = useState(false)
 		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
 				const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -291,6 +309,23 @@ export const ChatRowContent = memo(
 		// A command is pending if it hasn't started (no output) and hasn't completed
 		const isCommandPending = isCommandMessage && isLast && !message.commandCompleted && !commandHasOutput
 		const isCommandCompleted = isCommandMessage && message.commandCompleted === true
+
+		// Hook message detection and parsing
+		const isHookStatusMessage = message.say === "hook"
+		const isHookOutputMessage = message.say === "hook_output"
+		const HOOK_OUTPUT_STRING = "__HOOK_OUTPUT__"
+
+		// Parse hook metadata if this is a hook status message
+		const hookMetadata = useMemo(() => {
+			if (isHookStatusMessage && message.text) {
+				try {
+					return JSON.parse(message.text)
+				} catch {
+					return null
+				}
+			}
+			return null
+		}, [isHookStatusMessage, message.text])
 
 		const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
 
@@ -1602,6 +1637,158 @@ export const ChatRowContent = memo(
 								</div>
 							)
 						}
+					case "hook": {
+						// Parse hook output similar to command output
+						const splitMessage = (text: string) => {
+							const outputIndex = text.indexOf(HOOK_OUTPUT_STRING)
+							if (outputIndex === -1) {
+								return { metadata: text, output: "" }
+							}
+							return {
+								metadata: text.slice(0, outputIndex).trim(),
+								output: text
+									.slice(outputIndex + HOOK_OUTPUT_STRING.length)
+									.trim()
+									.split("")
+									.map((char) => {
+										switch (char) {
+											case "\t":
+												return "→   "
+											case "\b":
+												return "⌫"
+											case "\f":
+												return "⏏"
+											case "\v":
+												return "⇳"
+											default:
+												return char
+										}
+									})
+									.join(""),
+							}
+						}
+
+						const { metadata: metadataStr, output } = splitMessage(message.text || "")
+
+						// Parse the metadata JSON
+						let hookMetadata: {
+							hookName: string
+							toolName?: string
+							status: string
+							exitCode?: number
+							hasJsonResponse?: boolean
+						}
+						try {
+							hookMetadata = JSON.parse(metadataStr)
+						} catch {
+							// If parsing fails, still show something
+							hookMetadata = { hookName: "Unknown", status: "unknown" }
+						}
+
+						const isRunning = hookMetadata?.status === "running"
+						const isCompleted = hookMetadata?.status === "completed"
+						const isFailed = hookMetadata?.status === "failed"
+
+						return (
+							<>
+								<div style={headerStyle}>
+									<span
+										className="codicon codicon-symbol-event"
+										style={{
+											color: normalColor,
+											marginBottom: "-1.5px",
+										}}></span>
+									<span style={{ color: normalColor, fontWeight: "bold" }}>Hook:</span>
+									<span style={{ color: normalColor }}>{hookMetadata.hookName}</span>
+									{hookMetadata.toolName && (
+										<span style={{ color: "var(--vscode-descriptionForeground)", fontSize: "0.9em" }}>
+											({hookMetadata.toolName})
+										</span>
+									)}
+								</div>
+								<div
+									style={{
+										borderRadius: 6,
+										border: "1px solid var(--vscode-editorGroup-border)",
+										overflow: "hidden",
+										backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+										transition: "all 0.3s ease-in-out",
+									}}>
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											justifyContent: "space-between",
+											padding: "8px 10px",
+											backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+											borderBottom:
+												output.length > 0 ? "1px solid var(--vscode-editorGroup-border)" : "none",
+											borderTopLeftRadius: "6px",
+											borderTopRightRadius: "6px",
+										}}>
+										<div
+											style={{
+												display: "flex",
+												alignItems: "center",
+												gap: "8px",
+												flex: 1,
+												minWidth: 0,
+											}}>
+											<div
+												style={{
+													width: "8px",
+													height: "8px",
+													borderRadius: "50%",
+													backgroundColor: isRunning
+														? successColor
+														: isFailed
+															? errorColor
+															: successColor,
+													animation: isRunning ? "pulse 2s ease-in-out infinite" : "none",
+													flexShrink: 0,
+												}}
+											/>
+											<span
+												style={{
+													color: isRunning ? successColor : isFailed ? errorColor : successColor,
+													fontWeight: 500,
+													fontSize: "13px",
+													flexShrink: 0,
+												}}>
+												{isRunning
+													? "Running"
+													: isFailed
+														? "Failed"
+														: isCompleted
+															? "Completed"
+															: "Unknown"}
+											</span>
+											{hookMetadata.exitCode !== undefined && hookMetadata.exitCode !== 0 && (
+												<span
+													style={{
+														color: "var(--vscode-descriptionForeground)",
+														fontSize: "12px",
+													}}>
+													(exit: {hookMetadata.exitCode})
+												</span>
+											)}
+										</div>
+									</div>
+									{output.length > 0 && (
+										<CommandOutput
+											isContainerExpanded={true}
+											isOutputFullyExpanded={isHookOutputExpanded}
+											onToggle={() => setIsHookOutputExpanded(!isHookOutputExpanded)}
+											output={output}
+										/>
+									)}
+								</div>
+							</>
+						)
+					}
+					case "hook_output":
+						// hook_output messages are combined with hook messages, so we don't render them separately
+						return null
 					case "shell_integration_warning_with_suggestion":
 						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"
 						return (

@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process"
 import fs from "fs/promises"
 import path from "path"
 import { version as clineVersion } from "../../../package.json"
@@ -17,6 +16,7 @@ import {
 } from "../../shared/proto/cline/hooks"
 import { getAllHooksDirs } from "../storage/disk"
 import { StateManager } from "../storage/StateManager"
+import { HookProcess } from "./HookProcess"
 
 // Hook execution timeout (30 seconds)
 const HOOK_EXECUTION_TIMEOUT_MS = 30000
@@ -121,63 +121,51 @@ class NoOpRunner<Name extends HookName> extends HookRunner<Name> {
 	}
 }
 
-// Actually runs a hook by executing a script and passing JSON into it.
+/**
+ * Callback type for streaming hook output
+ */
+export type HookStreamCallback = (line: string, stream: "stdout" | "stderr") => void
+
+/**
+ * Actually runs a hook by executing a script with streaming support.
+ */
 class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 	constructor(
 		hookName: Name,
 		public readonly scriptPath: string,
+		private readonly streamCallback?: HookStreamCallback,
 	) {
 		super(hookName)
 	}
 
 	override async [exec](input: HookInput): Promise<HookOutput> {
-		return new Promise((resolve, reject) => {
-			// Serialize input to JSON
-			const inputJson = JSON.stringify(HookInput.toJSON(input))
+		// Serialize input to JSON
+		const inputJson = JSON.stringify(HookInput.toJSON(input))
 
-			// Spawn the hook process
-			const child = spawn(this.scriptPath, [], {
-				stdio: ["pipe", "pipe", "pipe"],
-				shell: process.platform === "win32",
+		// Create HookProcess for execution with streaming
+		const hookProcess = new HookProcess(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS)
+
+		// Set up streaming if callback is provided
+		if (this.streamCallback) {
+			const callback = this.streamCallback
+			hookProcess.on("line", (line: string, stream: "stdout" | "stderr") => {
+				callback(line, stream)
 			})
+		}
 
-			let stdout = ""
-			let stderr = ""
-			let timeoutHandle: NodeJS.Timeout | undefined
+		try {
+			// Execute the hook and wait for completion
+			await hookProcess.run(inputJson)
 
-			// Set up timeout
-			timeoutHandle = setTimeout(() => {
-				child.kill("SIGTERM")
-				reject(
-					new Error(
-						`Hook ${this.hookName} timed out after ${HOOK_EXECUTION_TIMEOUT_MS}ms. The hook script at '${this.scriptPath}' took too long to complete.`,
-					),
-				)
-			}, HOOK_EXECUTION_TIMEOUT_MS)
+			// Get the complete stdout for JSON parsing
+			const stdout = hookProcess.getStdout()
+			const stderr = hookProcess.getStderr()
+			const exitCode = hookProcess.getExitCode()
 
-			// Collect stdout
-			child.stdout?.on("data", (data) => {
-				stdout += data.toString()
-			})
-
-			// Collect stderr
-			child.stderr?.on("data", (data) => {
-				stderr += data.toString()
-			})
-
-			// Handle process completion
-			child.on("close", (code) => {
-				if (timeoutHandle) {
-					clearTimeout(timeoutHandle)
-				}
-
-				if (code !== 0) {
-					reject(new Error(`Hook ${this.hookName} exited with code ${code}. stderr: ${stderr}`))
-					return
-				}
-
+			// Hook status is determined by exit code
+			if (exitCode === 0) {
+				// Hook succeeded - try to parse JSON output
 				try {
-					// Parse and validate output
 					const outputData = JSON.parse(stdout)
 					const output = HookOutput.fromJSON(outputData)
 
@@ -192,24 +180,77 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 							"\n\n[... context truncated due to size limit ...]"
 					}
 
-					resolve(output)
-				} catch (error) {
-					reject(new Error(`Failed to parse hook output: ${error}. stdout: ${stdout}`))
-				}
-			})
+					return output
+				} catch (parseError) {
+					// JSON parsing failed, but hook succeeded (exit code 0)
+					// Try to extract JSON from stdout (it might have debug output before/after)
+					const jsonMatch = stdout.match(/\{[\s\S]*\}/)
+					if (jsonMatch) {
+						try {
+							const outputData = JSON.parse(jsonMatch[0])
+							const output = HookOutput.fromJSON(outputData)
 
-			// Handle process errors
-			child.on("error", (error) => {
-				if (timeoutHandle) {
-					clearTimeout(timeoutHandle)
-				}
-				reject(new Error(`Failed to execute hook ${this.hookName}: ${error.message}`))
-			})
+							// Validate and truncate context modification if too large
+							if (output.contextModification && output.contextModification.length > MAX_CONTEXT_MODIFICATION_SIZE) {
+								console.warn(
+									`Hook ${this.hookName} returned contextModification of ${output.contextModification.length} bytes, ` +
+										`truncating to ${MAX_CONTEXT_MODIFICATION_SIZE} bytes`,
+								)
+								output.contextModification =
+									output.contextModification.slice(0, MAX_CONTEXT_MODIFICATION_SIZE) +
+									"\n\n[... context truncated due to size limit ...]"
+							}
 
-			// Send input to the process
-			child.stdin?.write(inputJson)
-			child.stdin?.end()
-		})
+							return output
+						} catch (extractError) {
+							// Could not extract valid JSON, but hook succeeded
+							// Append JSON parsing error to stderr for display
+							if (this.streamCallback) {
+								this.streamCallback(
+									`\n⚠️  Warning: Hook completed successfully but JSON response could not be parsed.`,
+									"stderr",
+								)
+								this.streamCallback(`    No context will be added to the conversation.`, "stderr")
+								this.streamCallback(
+									`    Error: ${extractError instanceof Error ? extractError.message : String(extractError)}`,
+									"stderr",
+								)
+							}
+							return HookOutput.create({
+								shouldContinue: true,
+							})
+						}
+					} else {
+						// No JSON found in output, but hook succeeded
+						if (this.streamCallback) {
+							this.streamCallback(
+								`\n⚠️  Warning: Hook completed successfully but no JSON response found in output.`,
+								"stderr",
+							)
+							this.streamCallback(`    No context will be added to the conversation.`, "stderr")
+						}
+						return HookOutput.create({
+							shouldContinue: true,
+						})
+					}
+				}
+			} else {
+				// Hook failed with non-zero exit code
+				const errorDetails = stderr ? `. stderr: ${stderr}` : ""
+				throw new Error(`Hook exited with code ${exitCode}${errorDetails}`)
+			}
+		} catch (error) {
+			// Hook execution failed
+			const stderr = hookProcess.getStderr()
+			const exitCode = hookProcess.getExitCode()
+
+			if (error instanceof Error) {
+				// Include stderr in error message if available
+				const errorDetails = stderr ? `. stderr: ${stderr}` : ""
+				throw new Error(`${error.message}${errorDetails}`)
+			}
+			throw error
+		}
 	}
 }
 
@@ -285,9 +326,31 @@ function isExpectedHookError(error: unknown): boolean {
 }
 
 export class HookFactory {
-	async create<Name extends HookName>(hookName: Name): Promise<HookRunner<Name>> {
+	/**
+	 * Check if any hook scripts exist for the given hook name
+	 * @returns true if at least one hook script exists, false otherwise
+	 */
+	async hasHook<Name extends HookName>(hookName: Name): Promise<boolean> {
 		const scripts = await HookFactory.findHookScripts(hookName)
-		const runners = scripts.map((script) => new StdioHookRunner(hookName, script))
+		return scripts.length > 0
+	}
+
+	/**
+	 * Create a hook runner without streaming support (backwards compatible)
+	 */
+	async create<Name extends HookName>(hookName: Name): Promise<HookRunner<Name>> {
+		return this.createWithStreaming(hookName)
+	}
+
+	/**
+	 * Create a hook runner with optional streaming callback support
+	 */
+	async createWithStreaming<Name extends HookName>(
+		hookName: Name,
+		streamCallback?: HookStreamCallback,
+	): Promise<HookRunner<Name>> {
+		const scripts = await HookFactory.findHookScripts(hookName)
+		const runners = scripts.map((script) => new StdioHookRunner(hookName, script, streamCallback))
 		if (runners.length === 0) {
 			return new NoOpRunner(hookName)
 		}

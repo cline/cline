@@ -753,10 +753,29 @@ export class Task {
 			return { shouldContinue: true }
 		}
 
+		const { HookFactory } = await import("../hooks/hook-factory")
+		const hookFactory = new HookFactory()
+		const hasUserPromptSubmitHook = await hookFactory.hasHook("UserPromptSubmit")
+
+		if (!hasUserPromptSubmitHook) {
+			return { shouldContinue: true }
+		}
+
+		let hookMessageTs: number | undefined
 		try {
-			const { HookFactory } = await import("../hooks/hook-factory")
-			const hookFactory = new HookFactory()
-			const hook = await hookFactory.create("UserPromptSubmit")
+			// Show hook execution indicator and capture timestamp
+			const hookMetadata = {
+				hookName: "UserPromptSubmit",
+				status: "running",
+			}
+			hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
+
+			// Create streaming callback
+			const streamCallback = async (line: string, stream: "stdout" | "stderr") => {
+				await this.say("hook_output", line)
+			}
+
+			const hook = await hookFactory.createWithStreaming("UserPromptSubmit", streamCallback)
 
 			// Serialize UserContent to string for the hook
 			const promptText = userContent
@@ -779,12 +798,45 @@ export class Task {
 				},
 			})
 
+			// Update hook status to completed (update the same message)
+			if (hookMessageTs !== undefined) {
+				const clineMessages = this.messageStateHandler.getClineMessages()
+				const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
+				if (hookMessageIndex !== -1) {
+					const completedMetadata = {
+						hookName: "UserPromptSubmit",
+						status: "completed",
+						exitCode: 0,
+						hasJsonResponse: true,
+					}
+					await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+						text: JSON.stringify(completedMetadata),
+					})
+				}
+			}
+
 			return {
 				shouldContinue: result.shouldContinue,
 				contextModification: result.contextModification,
 				errorMessage: result.errorMessage,
 			}
 		} catch (error) {
+			// Update hook status to failed (update the same message if it exists)
+			if (hookMessageTs !== undefined) {
+				const clineMessages = this.messageStateHandler.getClineMessages()
+				const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
+				if (hookMessageIndex !== -1) {
+					const failedMetadata = {
+						hookName: "UserPromptSubmit",
+						status: "failed",
+						exitCode: error instanceof Error ? 1 : undefined,
+					}
+					await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+						text: JSON.stringify(failedMetadata),
+					})
+				}
+			}
+
 			console.error("UserPromptSubmit hook failed:", error)
 			return { shouldContinue: true }
 		}
@@ -834,47 +886,97 @@ export class Task {
 		// This follows the same pattern as PreToolUse, PostToolUse, and UserPromptSubmit hooks
 		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
-			try {
-				const { HookFactory } = await import("../hooks/hook-factory")
-				const hookFactory = new HookFactory()
-				const taskStartHook = await hookFactory.create("TaskStart")
+			const { HookFactory } = await import("../hooks/hook-factory")
+			const hookFactory = new HookFactory()
+			const hasTaskStartHook = await hookFactory.hasHook("TaskStart")
 
-				const taskStartResult = await taskStartHook.run({
-					taskId: this.taskId,
-					taskStart: {
-						taskMetadata: {
-							taskId: this.taskId,
-							ulid: this.ulid,
-							initialTask: task || "",
-						},
-					},
-				})
-
-				if (!taskStartResult.shouldContinue) {
-					const errorMessage = taskStartResult.errorMessage || "TaskStart hook prevented task from starting"
-					await this.say("error", errorMessage)
-					// Ensure the error message is saved and posted before aborting
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-					await this.postStateToWebview()
-					this.abortTask()
-					return
-				}
-
-				// Add context modification to the conversation if provided
-				if (taskStartResult.contextModification) {
-					const contextText = taskStartResult.contextModification.trim()
-					if (contextText) {
-						userContent.push({
-							type: "text",
-							text: `<hook_context source="TaskStart">\n${contextText}\n</hook_context>`,
-						})
+			if (hasTaskStartHook) {
+				let hookMessageTs: number | undefined
+				try {
+					// Show hook execution indicator and capture timestamp
+					const hookMetadata = {
+						hookName: "TaskStart",
+						status: "running",
 					}
+					hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
+
+					// Create streaming callback
+					const streamCallback = async (line: string, stream: "stdout" | "stderr") => {
+						await this.say("hook_output", line)
+					}
+
+					const taskStartHook = await hookFactory.createWithStreaming("TaskStart", streamCallback)
+
+					const taskStartResult = await taskStartHook.run({
+						taskId: this.taskId,
+						taskStart: {
+							taskMetadata: {
+								taskId: this.taskId,
+								ulid: this.ulid,
+								initialTask: task || "",
+							},
+						},
+					})
+
+					// Update hook status to completed (update the same message)
+					if (hookMessageTs !== undefined) {
+						const clineMessages = this.messageStateHandler.getClineMessages()
+						const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
+						if (hookMessageIndex !== -1) {
+							const completedMetadata = {
+								hookName: "TaskStart",
+								status: "completed",
+								exitCode: 0,
+								hasJsonResponse: true,
+							}
+							await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+								text: JSON.stringify(completedMetadata),
+							})
+						}
+					}
+
+					if (!taskStartResult.shouldContinue) {
+						const errorMessage = taskStartResult.errorMessage || "TaskStart hook prevented task from starting"
+						await this.say("error", errorMessage)
+						// Ensure the error message is saved and posted before aborting
+						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+						await this.postStateToWebview()
+						this.abortTask()
+						return
+					}
+
+					// Add context modification to the conversation if provided
+					if (taskStartResult.contextModification) {
+						const contextText = taskStartResult.contextModification.trim()
+						if (contextText) {
+							userContent.push({
+								type: "text",
+								text: `<hook_context source="TaskStart">\n${contextText}\n</hook_context>`,
+							})
+						}
+					}
+				} catch (hookError) {
+					// Update hook status to failed (update the same message if it exists)
+					if (hookMessageTs !== undefined) {
+						const clineMessages = this.messageStateHandler.getClineMessages()
+						const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
+						if (hookMessageIndex !== -1) {
+							const failedMetadata = {
+								hookName: "TaskStart",
+								status: "failed",
+								exitCode: hookError instanceof Error ? 1 : undefined,
+							}
+							await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+								text: JSON.stringify(failedMetadata),
+							})
+						}
+					}
+
+					const errorMessage = `TaskStart hook failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`
+					Logger.error(errorMessage, hookError)
+					// Show error to user but continue with task (non-fatal)
+					await this.say("error", errorMessage)
 				}
-			} catch (hookError) {
-				const errorMessage = `TaskStart hook failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`
-				Logger.error(errorMessage, hookError)
-				// Show error to user but continue with task (non-fatal)
-				await this.say("error", errorMessage)
 			}
 		}
 
