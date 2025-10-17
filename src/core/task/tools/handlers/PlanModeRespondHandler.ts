@@ -73,6 +73,8 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 
 			if (switchSuccessful) {
 				// Complete the plan mode response tool call (this is a unique case where we auto-respond to the user with an ask response)
+				// Create the ask in case it wasn't streamed
+				await config.callbacks.ask(this.name, JSON.stringify(sharedMessage), true).catch(() => {})
 				const lastPlanMessage = findLast(config.messageState.getClineMessages(), (m: any) => m.ask === this.name)
 				if (lastPlanMessage) {
 					lastPlanMessage.text = JSON.stringify({
