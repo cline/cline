@@ -358,7 +358,11 @@ export class SapAiCoreHandler implements ApiHandler {
 	private isAiCoreEnvSetup: boolean = false
 
 	constructor(options: SapAiCoreHandlerOptions) {
-		this.options = options
+		this.options = {
+			...options,
+			sapAiCoreTokenUrl: options.sapAiCoreTokenUrl?.replace(/\/+$/, ""),
+			sapAiCoreBaseUrl: options.sapAiCoreBaseUrl?.replace(/\/+$/, ""),
+		}
 	}
 
 	private validateCredentials(): void {
@@ -381,7 +385,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			client_secret: this.options.sapAiCoreClientSecret,
 		}
 
-		const tokenUrl = this.options.sapAiCoreTokenUrl!.replace(/\/+$/, "") + "/oauth/token"
+		const tokenUrl = this.options.sapAiCoreTokenUrl! + "/oauth/token"
 		const response = await axios.post(tokenUrl, payload, {
 			headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		})
