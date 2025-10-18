@@ -18,7 +18,7 @@ interface RunOptions {
  */
 export async function runHandler(options: RunOptions): Promise<void> {
 	// Determine which benchmarks to run
-	const benchmarks = options.benchmark ? [options.benchmark] : ["exercism"] // Default to exercism for now
+	const benchmarks = options.benchmark ? [options.benchmark] : ["exercism"] // Default to exercism
 	const model = options.model
 	const count = options.count || Infinity
 

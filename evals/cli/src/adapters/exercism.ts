@@ -360,7 +360,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 	 * Hide test files by moving them to temp directory
 	 * @param task The task to hide test files for
 	 */
-	hideTestFiles(task: Task): void {
+	private hideTestFiles(task: Task): void {
 		const tempDir = task.metadata.tempDir
 		const config = task.metadata.config
 
@@ -397,7 +397,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 	 * Restore test files by moving them from temp directory
 	 * @param task The task to restore test files for
 	 */
-	restoreTestFiles(task: Task): void {
+	private restoreTestFiles(task: Task): void {
 		const tempDir = task.metadata.tempDir
 		const config = task.metadata.config
 
