@@ -7,6 +7,7 @@ import {
 	OcaModelInfo as ProtoOcaModelInfo,
 	ThinkingConfig,
 } from "@shared/proto/cline/models"
+import { normalizeReasoningEffort } from "@shared/reasoning"
 import {
 	ApiConfiguration,
 	ApiProvider,
@@ -203,6 +204,9 @@ function convertOpenAiCompatibleModelInfoToProto(
 		tiers: info.tiers || [],
 		temperature: info.temperature,
 		isR1FormatRequired: info.isR1FormatRequired,
+		isReasoningModelFamily: info.isReasoningModelFamily,
+		reasoningEffort: info.reasoningEffort,
+		setReasoningEffort: info.setReasoningEffort,
 	}
 }
 
@@ -229,6 +233,9 @@ function convertProtoToOpenAiCompatibleModelInfo(
 		tiers: info.tiers.length > 0 ? info.tiers : undefined,
 		temperature: info.temperature,
 		isR1FormatRequired: info.isR1FormatRequired,
+		isReasoningModelFamily: info.isReasoningModelFamily,
+		reasoningEffort: normalizeReasoningEffort(info.reasoningEffort),
+		setReasoningEffort: info.setReasoningEffort,
 	}
 }
 

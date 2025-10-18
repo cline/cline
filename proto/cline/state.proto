@@ -138,7 +138,6 @@ message Settings {
    optional bool yolo_mode_toggled = 47;
    optional bool use_auto_condense = 48;
    optional string preferred_language = 49;
-   optional OpenaiReasoningEffort openai_reasoning_effort = 50;
    optional PlanActMode mode = 51;
    optional DictationSettings dictation_settings = 52;
    optional FocusChainSettings focus_chain_settings = 53;
@@ -254,13 +253,6 @@ enum PlanActMode {
   ACT = 1;
 }
 
-enum OpenaiReasoningEffort {
-  LOW = 0;
-  MEDIUM = 1;
-  HIGH = 2;
-  MINIMAL = 3;
-}
-
 enum McpDisplayMode {
   RICH = 0;
   PLAIN = 1;
@@ -336,7 +328,6 @@ message UpdateSettingsRequest {
   optional int32 terminal_output_line_limit = 12;
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
-  optional OpenaiReasoningEffort openai_reasoning_effort = 15;
   optional bool strict_plan_mode_enabled = 16;
   optional FocusChainSettings focus_chain_settings = 17;
   optional bool use_auto_condense = 18;

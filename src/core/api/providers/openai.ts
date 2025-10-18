@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { resolveReasoningEffort, supportsReasoningEffortForModel } from "@shared/reasoning"
 import OpenAI, { AzureOpenAI } from "openai"
 import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
@@ -64,36 +65,41 @@ export class OpenAiHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.options.openAiModelId ?? ""
+		const modelInfo = this.options.openAiModelInfo
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
-		const isR1FormatRequired = this.options.openAiModelInfo?.isR1FormatRequired ?? false
-		const isReasoningModelFamily =
-			modelId.includes("o1") ||
-			modelId.includes("o3") ||
-			modelId.includes("o4") ||
-			(modelId.includes("gpt-5") && !modelId.includes("chat"))
+		const isR1FormatRequired = modelInfo?.isR1FormatRequired ?? false
+		// Determine if this is an OpenAI Reasoning model family using heuristics
+		const heuristicOpenAiReasoningFamily = supportsReasoningEffortForModel(modelId)
+		const isOpenAiReasoningModelFamily = modelInfo?.isReasoningModelFamily ?? heuristicOpenAiReasoningFamily
 
+		const convertedMessages = convertToOpenAiMessages(messages)
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
-			...convertToOpenAiMessages(messages),
+			...convertedMessages,
 		]
-		let temperature: number | undefined = this.options.openAiModelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
+		let temperature: number | undefined = modelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined
 		let maxTokens: number | undefined
 
-		if (this.options.openAiModelInfo?.maxTokens && this.options.openAiModelInfo.maxTokens > 0) {
-			maxTokens = Number(this.options.openAiModelInfo.maxTokens)
+		if (modelInfo?.maxTokens && modelInfo.maxTokens > 0) {
+			maxTokens = Number(modelInfo.maxTokens)
 		} else {
 			maxTokens = undefined
 		}
 
-		if (isDeepseekReasoner || isR1FormatRequired) {
-			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		// Always resolve reasoning effort if setReasoningEffort option is enabled
+		if (modelInfo?.setReasoningEffort) {
+			reasoningEffort = resolveReasoningEffort(this.options.reasoningEffort, modelInfo?.reasoningEffort) as
+				| ChatCompletionReasoningEffort
+				| undefined
 		}
 
-		if (isReasoningModelFamily) {
-			openAiMessages = [{ role: "developer", content: systemPrompt }, ...convertToOpenAiMessages(messages)]
-			temperature = undefined // does not support temperature
-			reasoningEffort = (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium"
+		if (isDeepseekReasoner || isR1FormatRequired) {
+			openAiMessages = convertToR1Format([{ role: "user", content: systemPrompt }, ...messages])
+		} else if (isOpenAiReasoningModelFamily) {
+			// OpenAI Reasoning model family: use developer role and disable temperature
+			openAiMessages = [{ role: "developer", content: systemPrompt }, ...convertedMessages]
+			temperature = undefined // OpenAI reasoning models do not support temperature
 		}
 
 		const stream = await client.chat.completions.create({
@@ -101,7 +107,7 @@ export class OpenAiHandler implements ApiHandler {
 			messages: openAiMessages,
 			temperature,
 			max_tokens: maxTokens,
-			reasoning_effort: reasoningEffort,
+			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 			stream: true,
 			stream_options: { include_usage: true },
 		})
