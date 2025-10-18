@@ -22,7 +22,7 @@ const HeroTooltip: React.FC<HeroTooltipProps> = ({
 	className,
 	showArrow = false,
 	delay = 0,
-	closeDelay = 500,
+	closeDelay = 100,
 	placement = "top",
 	disabled = false,
 }) => {
@@ -46,15 +46,20 @@ const HeroTooltip: React.FC<HeroTooltipProps> = ({
 	return (
 		<Tooltip
 			classNames={{
-				content: "hero-tooltip-content pointer-events-none", // Prevent hovering over tooltip
+				base: "pointer-events-none", // Prevent hovering over tooltip container
+				content: "hero-tooltip-content pointer-events-none", // Prevent hovering over tooltip content
 			}}
 			closeDelay={closeDelay}
-			content={formattedContent} // Immediate close when cursor moves away
+			content={formattedContent}
 			delay={delay}
 			disableAnimation={true}
 			isDisabled={disabled}
-			placement={placement} // Disable animation for immediate appearance/disappearance
-			showArrow={showArrow}>
+			placement={placement}
+			showArrow={showArrow}
+			// Inline style to override any library styles - above classNames aren't applying correctly
+			style={{
+				pointerEvents: "none",
+			}}>
 			{children}
 		</Tooltip>
 	)
