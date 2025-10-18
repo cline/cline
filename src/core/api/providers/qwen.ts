@@ -10,11 +10,13 @@ import {
 	QwenApiRegions,
 } from "@shared/api"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface QwenHandlerOptions extends CommonApiHandlerOptions {
 	qwenApiKey?: string
@@ -77,7 +79,7 @@ export class QwenHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
 		const isDeepseekReasoner = model.id.includes("deepseek-r1")
@@ -112,7 +114,10 @@ export class QwenHandler implements ApiHandler {
 			stream_options: { include_usage: true },
 			temperature,
 			...thinkingArgs,
+			...getOpenAIToolParams(tools),
 		})
+
+		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
@@ -120,6 +125,14 @@ export class QwenHandler implements ApiHandler {
 				yield {
 					type: "text",
 					text: delta.content,
+				}
+			}
+
+			if (delta?.tool_calls) {
+				try {
+					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+				} catch (error) {
+					console.error("Error processing tool call delta:", error, delta.tool_calls)
 				}
 			}
 

@@ -2,11 +2,12 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, OpenAiNativeModelId, openAiNativeDefaultModelId, openAiNativeModels } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
-import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
+import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface OpenAiNativeHandlerOptions extends CommonApiHandlerOptions {
 	openAiNativeApiKey?: string
@@ -56,7 +57,11 @@ export class OpenAiNativeHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		tools?: ChatCompletionTool[],
+	): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
@@ -114,7 +119,10 @@ export class OpenAiNativeHandler implements ApiHandler {
 					stream: true,
 					stream_options: { include_usage: true },
 					reasoning_effort: (this.options.reasoningEffort as ChatCompletionReasoningEffort) || "medium",
+					...getOpenAIToolParams(tools),
 				})
+
+				const toolCallProcessorGpt5 = new ToolCallProcessor()
 
 				for await (const chunk of stream) {
 					const delta = chunk.choices[0]?.delta
@@ -124,8 +132,17 @@ export class OpenAiNativeHandler implements ApiHandler {
 							text: delta.content,
 						}
 					}
+
+					if (delta?.tool_calls) {
+						try {
+							yield* toolCallProcessorGpt5.processToolCallDeltas(delta.tool_calls)
+						} catch (error) {
+							console.error("Error processing tool call delta:", error, delta.tool_calls)
+						}
+					}
+
 					if (chunk.usage) {
-						// Only last chunk contains usage
+						// Only last chunk contains usage - stream is ending
 						yield* this.yieldUsage(model.info, chunk.usage)
 					}
 				}
@@ -138,7 +155,10 @@ export class OpenAiNativeHandler implements ApiHandler {
 					messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
+					tools,
 				})
+
+				const toolCallProcessorDefault = new ToolCallProcessor()
 
 				for await (const chunk of stream) {
 					const delta = chunk.choices[0]?.delta
@@ -148,8 +168,13 @@ export class OpenAiNativeHandler implements ApiHandler {
 							text: delta.content,
 						}
 					}
+
+					if (delta?.tool_calls) {
+						yield* toolCallProcessorDefault.processToolCallDeltas(delta.tool_calls)
+					}
+
 					if (chunk.usage) {
-						// Only last chunk contains usage
+						// Only last chunk contains usage - stream is ending
 						yield* this.yieldUsage(model.info, chunk.usage)
 					}
 				}

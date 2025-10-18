@@ -8,12 +8,14 @@
 
 export { config as genericConfig, type GenericVariantConfig } from "./generic/config"
 export { config as gpt5Config, type GPT5VariantConfig } from "./gpt-5/config"
+export { config as nativeNextGenConfig, type NativeNextGenVariantConfig } from "./native-next-gen/config"
 export { config as nextGenConfig, type NextGenVariantConfig } from "./next-gen/config"
 export { config as xsConfig, type XsVariantConfig } from "./xs/config"
 
 import { ModelFamily } from "@/shared/prompts"
 import { config as genericConfig } from "./generic/config"
 import { config as gpt5Config } from "./gpt-5/config"
+import { config as NativeNextGenVariantConfig } from "./native-next-gen/config"
 import { config as nextGenConfig } from "./next-gen/config"
 import { config as xsConfig } from "./xs/config"
 
@@ -42,6 +44,11 @@ export const VARIANT_CONFIGS = {
 	 * Streamlined for efficiency with essential tools only
 	 */
 	[ModelFamily.XS]: xsConfig,
+	/**
+	 * XS variant - Compact models with limited context windows
+	 * Streamlined for efficiency with essential tools only
+	 */
+	[ModelFamily.NATIVE_NEXT_GEN]: NativeNextGenVariantConfig,
 } as const
 
 /**

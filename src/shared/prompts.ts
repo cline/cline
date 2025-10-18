@@ -7,4 +7,5 @@ export enum ModelFamily {
 	NEXT_GEN = "next-gen",
 	GENERIC = "generic",
 	XS = "xs",
+	NATIVE_NEXT_GEN = "native-next-gen",
 }

@@ -26,6 +26,24 @@ const nextGen: ClineToolSpec = {
 	],
 }
 
-const gpt = { ...nextGen, variant: ModelFamily.GPT }
+const GPT_5: ClineToolSpec = {
+	variant: ModelFamily.GPT_5,
+	id: ClineDefaultTool.WEB_FETCH,
+	name: "web_fetch",
+	description: "Fetches content from a specified URL. Only used for gathering needed information relevant to the task.",
+	parameters: [
+		{
+			name: "url",
+			required: true,
+			instruction: "The URL to fetch content from",
+		},
+		TASK_PROGRESS_PARAMETER,
+	],
+}
 
-export const web_fetch_variants = [nextGen, gpt]
+const NATIVE_NEXT_GEN: ClineToolSpec = {
+	...GPT_5,
+	variant: ModelFamily.NATIVE_NEXT_GEN,
+}
+
+export const web_fetch_variants = [nextGen, GPT_5, NATIVE_NEXT_GEN]

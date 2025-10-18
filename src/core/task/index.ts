@@ -1,7 +1,9 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
+import { StreamingToolCallHandler } from "@core/api/transform/StreamingToolCallHandler"
 import { ApiStream } from "@core/api/transform/stream"
+import { ToolUseHandler } from "@core/api/transform/ToolUseHandler"
 import { parseAssistantMessageV2 } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
@@ -151,6 +153,15 @@ export class Task {
 	public checkpointManager?: ICheckpointManager
 	private clineIgnoreController: ClineIgnoreController
 	private toolExecutor: ToolExecutor
+	/**
+	 * Whether the task is using native tool calls.
+	 * This is used to determine how we would format response.
+	 * Example: We don't add noToolsUsed response when native tool call is used
+	 * because of the expected format from the tool calls is different.
+	 */
+	private useNativeToolCalls: boolean = false
+	private toolCallHandler: StreamingToolCallHandler
+	private toolUseHandler: ToolUseHandler
 
 	private terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	private activeBackgroundCommand?: {
@@ -264,6 +275,8 @@ export class Task {
 		this.browserSession = new BrowserSession(stateManager)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
+		this.toolCallHandler = new StreamingToolCallHandler()
+		this.toolUseHandler = new ToolUseHandler()
 		this.cwd = cwd
 		this.stateManager = stateManager
 		this.workspaceManager = workspaceManager
@@ -881,6 +894,57 @@ export class Task {
 		await this.initiateTaskLoop(userContent)
 	}
 
+	/**
+	 * Reconstructs assistant messages from stored tool call chunks.
+	 * When tool calls are stored separately, this method processes them back into XML format
+	 * and updates the message text, then parses it into structured AssistantMessageContent.
+	 */
+	private reconstructAssistantMessagesFromToolCallChunks(history: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+		return history.map((message) => {
+			if (message.role === "assistant" && Array.isArray(message.content)) {
+				const updatedContent = message.content.map((block) => {
+					// @ts-ignore-next-line - tool_call_chunks is a custom property
+					if (block.type === "text" && block.tool_call_chunks && Array.isArray(block.tool_call_chunks)) {
+						// Reconstruct XML from tool call chunks
+						const tempHandler = new StreamingToolCallHandler()
+						let reconstructedXml = ""
+
+						// @ts-ignore-next-line
+						for (const toolCallChunk of block.tool_call_chunks) {
+							const xml = tempHandler.processToolCallDelta(toolCallChunk)
+							if (xml) {
+								reconstructedXml += xml
+							}
+						}
+
+						// Finalize any pending tool calls
+						const finalizedXml = tempHandler.finalizePendingToolCalls()
+						for (const xml of finalizedXml) {
+							reconstructedXml += xml
+						}
+
+						// If we have reconstructed XML, replace the text
+						// @ts-ignore-next-line
+						const originalText = block.text || ""
+						const updatedText = originalText + reconstructedXml
+
+						return {
+							...block,
+							text: updatedText,
+						}
+					}
+					return block
+				})
+
+				return {
+					...message,
+					content: updatedContent,
+				}
+			}
+			return message
+		})
+	}
+
 	private async resumeTaskFromHistory() {
 		try {
 			await this.clineIgnoreController.initialize()
@@ -917,7 +981,11 @@ export class Task {
 		// Now present the cline messages to the user and ask if they want to resume (NOTE: we ran into a bug before where the apiconversationhistory wouldn't be initialized when opening a old task, and it was because we were waiting for resume)
 		// This is important in case the user deletes messages without resuming the task first
 		const savedApiConversationHistory = await getSavedApiConversationHistory(this.taskId)
-		this.messageStateHandler.setApiConversationHistory(savedApiConversationHistory)
+
+		// Reconstruct assistant messages from stored tool call chunks
+		const reconstructedHistory = this.reconstructAssistantMessagesFromToolCallChunks(savedApiConversationHistory)
+
+		this.messageStateHandler.setApiConversationHistory(reconstructedHistory)
 
 		// load the context history state
 		await ensureTaskDirectoryExists(this.taskId)
@@ -1118,7 +1186,7 @@ export class Task {
 				// For now a task never 'completes'. This will only happen if the user hits max requests and denies resetting the count.
 				//this.say("task_completed", `Task completed. Total API usage cost: ${totalCost}`)
 				break
-			} else {
+			} else if (!this.useNativeToolCalls) {
 				// this.say(
 				// 	"tool",
 				// 	"Cline responded with only text blocks but has not called attempt_completion yet. Forcing him to continue with task..."
@@ -1817,7 +1885,8 @@ export class Task {
 			isCliSubagent,
 		}
 
-		const systemPrompt = await getSystemPrompt(promptContext)
+		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
+		this.useNativeToolCalls = !!tools?.length
 
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
@@ -1835,7 +1904,7 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
-		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory)
+		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory, tools)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -1851,9 +1920,7 @@ export class Task {
 			const clineError = ErrorService.get().toClineError(error, model.id, providerId)
 
 			// Capture provider failure telemetry using clineError
-			// TODO: Move into errorService
 			ErrorService.get().logMessage(clineError.message)
-			ErrorService.get().logException(clineError)
 
 			if (isContextWindowExceededError && !this.taskState.didAutomaticallyRetryFailedApiRequest) {
 				await this.handleContextWindowExceededError()
@@ -2548,9 +2615,13 @@ export class Task {
 			this.taskState.presentAssistantMessageHasPendingUpdates = false
 			this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			await this.diffViewProvider.reset()
+			this.toolCallHandler.reset()
+			this.toolUseHandler.reset()
+			this.taskState.toolUseIdMap.clear()
 
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
-			let assistantMessage = ""
+			let assistantMessage = "" // For UI display (includes XML)
+			let assistantTextOnly = "" // For API history (text only, no tool XML)
 			let reasoningMessage = ""
 			const reasoningDetails = []
 			const antThinkingContent: (Anthropic.Messages.RedactedThinkingBlock | Anthropic.Messages.ThinkingBlock)[] = []
@@ -2601,12 +2672,48 @@ export class Task {
 								data: chunk.data,
 							})
 							break
+						case "tool_calls": {
+							if (!chunk.tool_call) {
+								console.log("no tool call in chunk, skipping...", chunk)
+								break
+							}
+							// Accumulate tool use blocks in proper Anthropic format
+							this.toolUseHandler.processToolUseDelta({
+								id: chunk.tool_call.id,
+								type: "tool_use",
+								name: chunk.tool_call.function?.name,
+								input: chunk.tool_call.function?.arguments,
+							})
+
+							// Extract and store tool_use_id for creating proper ToolResultBlockParam
+							if (chunk.tool_call.id && chunk.tool_call.function?.name) {
+								this.taskState.toolUseIdMap.set(chunk.tool_call.function.name, chunk.tool_call.id)
+							}
+
+							// Process tool call delta and convert to XML format for display
+							const streamingXml = this.toolCallHandler.processToolCallDelta(chunk.tool_call)
+							if (streamingXml) {
+								assistantMessage += streamingXml
+								// parse raw assistant message into content blocks
+								const prevLength = this.taskState.assistantMessageContent.length
+
+								this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
+
+								if (this.taskState.assistantMessageContent.length > prevLength) {
+									this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
+								}
+								// present content to user
+								this.presentAssistantMessage()
+							}
+							break
+						}
 						case "text": {
 							if (reasoningMessage && assistantMessage.length === 0) {
 								// complete reasoning message
 								await this.say("reasoning", reasoningMessage, undefined, undefined, false)
 							}
 							assistantMessage += chunk.text
+							assistantTextOnly += chunk.text // Accumulate text separately
 							// parse raw assistant message into content blocks
 							const prevLength = this.taskState.assistantMessageContent.length
 
@@ -2644,6 +2751,19 @@ export class Task {
 							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
 						break
 					}
+				}
+
+				// Finalize any remaining tool calls at the end of the stream
+				const finalizedXmlResults = this.toolCallHandler.finalizePendingToolCalls()
+				for (const finalXml of finalizedXmlResults) {
+					assistantMessage += finalXml
+					// parse and update assistant message content with finalized tool calls
+					const prevLength = this.taskState.assistantMessageContent.length
+					this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
+					if (this.taskState.assistantMessageContent.length > prevLength) {
+						this.taskState.userMessageContentReady = false
+					}
+					this.presentAssistantMessage()
 				}
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
@@ -2768,23 +2888,41 @@ export class Task {
 					totalCost,
 				})
 
+				// Get finalized tool use blocks from the handler
+				const toolUseBlocks = this.toolUseHandler.getAllFinalizedToolUses()
+
+				// Build content array with thinking blocks, text (if any), and tool use blocks
+				const assistantContent: Array<
+					| Anthropic.Messages.RedactedThinkingBlock
+					| Anthropic.Messages.ThinkingBlock
+					| Anthropic.Messages.TextBlockParam
+					| Anthropic.ToolUseBlockParam
+				> = [
+					// This is critical for maintaining the model's reasoning flow and conversation integrity.
+					// "When providing thinking blocks, the entire sequence of consecutive thinking blocks must match the outputs generated by the model during the original request; you cannot rearrange or modify the sequence of these blocks." The signature_delta is used to verify that the thinking was generated by Claude, and the thinking blocks will be ignored if it's incorrect or missing.
+					// https://docs.claude.com/en/docs/build-with-claude/extended-thinking#preserving-thinking-blocks
+					...antThinkingContent,
+				]
+
+				// Only add text block if there's actual text (not just tool XML)
+				if (assistantTextOnly.trim().length > 0) {
+					assistantContent.push({
+						type: "text",
+						text: assistantTextOnly,
+						// reasoning_details only exists for cline/openrouter providers
+						// @ts-ignore-next-line
+						reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
+					})
+				}
+
+				// Append tool use blocks if any exist
+				if (toolUseBlocks.length > 0) {
+					assistantContent.push(...toolUseBlocks)
+				}
+
 				await this.messageStateHandler.addToApiConversationHistory({
 					role: "assistant",
-					content: [
-						// This is critical for maintaining the model’s reasoning flow and conversation integrity.
-						// "When providing thinking blocks, the entire sequence of consecutive thinking blocks must match the outputs generated by the model during the original request; you cannot rearrange or modify the sequence of these blocks." The signature_delta is used to verify that the thinking was generated by Claude, and the thinking blocks will be ignored if it's incorrect or missing.
-						// https://docs.claude.com/en/docs/build-with-claude/extended-thinking#preserving-thinking-blocks
-						...antThinkingContent,
-						{
-							type: "text",
-							text: assistantMessage,
-							// reasoning_details only exists for cline/openrouter providers
-							// @ts-ignore-next-line
-							reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
-						},
-					] as Array<
-						Anthropic.Messages.RedactedThinkingBlock | Anthropic.Messages.ThinkingBlock | Anthropic.Messages.TextBlock
-					>,
+					content: assistantContent,
 				})
 
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
@@ -2800,7 +2938,7 @@ export class Task {
 				// if the model did not tool use, then we need to tell it to either use a tool or attempt_completion
 				const didToolUse = this.taskState.assistantMessageContent.some((block) => block.type === "tool_use")
 
-				if (!didToolUse) {
+				if (!didToolUse && !this.useNativeToolCalls) {
 					// normal request where tool use is required
 					this.taskState.userMessageContent.push({
 						type: "text",
@@ -2973,13 +3111,15 @@ export class Task {
 			clinerulesError = await ensureLocalClineDirExists(this.cwd, GlobalFileNames.clineRules)
 		}
 
-		// Add focu chain list instructions if needed
+		// Add focus chain list instructions if needed
 		if (!useCompactPrompt && this.FocusChainManager?.shouldIncludeFocusChainInstructions()) {
 			const focusChainInstructions = this.FocusChainManager.generateFocusChainInstructions()
-			processedUserContent.push({
-				type: "text",
-				text: focusChainInstructions,
-			})
+			if (focusChainInstructions.trim()) {
+				processedUserContent.push({
+					type: "text",
+					text: focusChainInstructions,
+				})
+			}
 
 			this.taskState.apiRequestsSinceLastTodoUpdate = 0
 			this.taskState.todoListWasUpdatedByUser = false

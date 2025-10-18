@@ -27,10 +27,6 @@ export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
-{{${SystemPromptSection.CLI_SUBAGENTS}}}
-
-====
-
 {{${SystemPromptSection.CAPABILITIES}}}
 
 ====
@@ -95,7 +91,7 @@ const FEEDBACK = (_context: SystemPromptContext) => `FEEDBACK
 
 When user is providing you with feedback on how you could improve, you can let the user know to report new issue using the '/reportbug' slash command.`
 
-export const GPT_5_TEMPLATE_OVERRIDES = {
+export const TEMPLATE_OVERRIDES = {
 	BASE,
 	RULES,
 	TOOL_USE,

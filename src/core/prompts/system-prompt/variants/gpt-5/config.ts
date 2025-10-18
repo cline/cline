@@ -1,30 +1,37 @@
+import { isGPT5ModelFamily } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
 import { validateVariant } from "../variant-validator"
-import { baseTemplate, rules_template } from "./template"
+import { GPT_5_TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
 export const config = createVariant(ModelFamily.GPT_5)
-	.description("Prompt tailored to GPT-5")
+	.description("Prompt tailored to GPT-5 with native tool use support")
 	.version(1)
-	.tags("gpt", "gpt-5", "advanced", "production")
+	.tags("gpt", "gpt-5", "advanced", "production", "native_tools")
 	.labels({
 		stable: 1,
 		production: 1,
 		advanced: 1,
+		tool_functions: 1,
 	})
-	.template(baseTemplate)
+	.matcher((providerInfo) => {
+		// Match GPT-5 models from providers that support native tools
+		return (
+			isGPT5ModelFamily(providerInfo.model.id) &&
+			["cline", "openai", "openrouter"].some((substring) => providerInfo.providerId.includes(substring))
+		)
+	})
+	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
 		SystemPromptSection.TODO,
 		SystemPromptSection.MCP,
-		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.ACT_VS_PLAN,
 		SystemPromptSection.CLI_SUBAGENTS,
-		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.CAPABILITIES,
 		SystemPromptSection.FEEDBACK,
 		SystemPromptSection.RULES,
@@ -35,8 +42,7 @@ export const config = createVariant(ModelFamily.GPT_5)
 	.tools(
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
-		ClineDefaultTool.FILE_NEW,
-		ClineDefaultTool.FILE_EDIT,
+		ClineDefaultTool.APPLY_PATCH,
 		ClineDefaultTool.SEARCH,
 		ClineDefaultTool.LIST_FILES,
 		ClineDefaultTool.LIST_CODE_DEF,
@@ -57,7 +63,19 @@ export const config = createVariant(ModelFamily.GPT_5)
 	.config({})
 	// Override the RULES component with custom template
 	.overrideComponent(SystemPromptSection.RULES, {
-		template: rules_template,
+		template: GPT_5_TEMPLATE_OVERRIDES.RULES,
+	})
+	.overrideComponent(SystemPromptSection.TOOL_USE, {
+		template: GPT_5_TEMPLATE_OVERRIDES.TOOL_USE,
+	})
+	.overrideComponent(SystemPromptSection.ACT_VS_PLAN, {
+		template: GPT_5_TEMPLATE_OVERRIDES.ACT_VS_PLAN,
+	})
+	.overrideComponent(SystemPromptSection.OBJECTIVE, {
+		template: GPT_5_TEMPLATE_OVERRIDES.OBJECTIVE,
+	})
+	.overrideComponent(SystemPromptSection.FEEDBACK, {
+		template: GPT_5_TEMPLATE_OVERRIDES.FEEDBACK,
 	})
 	.build()
 

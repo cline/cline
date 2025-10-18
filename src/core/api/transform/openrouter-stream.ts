@@ -6,6 +6,7 @@ import {
 	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
 import OpenAI from "openai"
+import { ChatCompletionTool } from "openai/resources/chat/completions"
 import { convertToOpenAiMessages } from "./openai-format"
 import { convertToR1Format } from "./r1-format"
 
@@ -17,6 +18,11 @@ export async function createOpenRouterStream(
 	reasoningEffort?: string,
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
+	tools?: {
+		tools?: Array<ChatCompletionTool>
+		tool_choice?: "auto" | "manual"
+		parallel_tool_calls?: boolean
+	},
 ) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -178,6 +184,7 @@ export async function createOpenRouterStream(
 		stream: true,
 		stream_options: { include_usage: true },
 		include_reasoning: true,
+		...tools,
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
