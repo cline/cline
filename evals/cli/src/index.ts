@@ -4,7 +4,6 @@ import chalk from "chalk"
 import { setupHandler } from "./commands/setup"
 import { runHandler } from "./commands/run"
 import { reportHandler } from "./commands/report"
-import { evalsEnvHandler } from "./commands/evals-env"
 import { runDiffEvalHandler } from "./commands/runDiffEval"
 
 // Create the CLI program
@@ -59,21 +58,6 @@ program
 			await reportHandler(options)
 		} catch (error) {
 			console.error(chalk.red(`Error generating report: ${error instanceof Error ? error.message : String(error)}`))
-			process.exit(1)
-		}
-	})
-
-// Evals-env command
-program
-	.command("evals-env")
-	.description("Manage evals.env files for test mode activation")
-	.argument("<action>", "Action to perform: create, remove, or check")
-	.option("-d, --directory <directory>", "Directory to create/remove/check evals.env file in (defaults to current directory)")
-	.action(async (action, options) => {
-		try {
-			await evalsEnvHandler({ action, ...options })
-		} catch (error) {
-			console.error(chalk.red(`Error managing evals.env file: ${error instanceof Error ? error.message : String(error)}`))
 			process.exit(1)
 		}
 	})

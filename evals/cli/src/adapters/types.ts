@@ -32,4 +32,10 @@ export interface BenchmarkAdapter {
 	verifyResult(task: Task, result: any): Promise<VerificationResult>
 	hideTestFiles?(task: Task): void
 	restoreTestFiles?(task: Task): void
+	runTask(task: Task): Promise<{
+		exitCode: number
+		duration: number
+		attempts: number
+		finalVerification: VerificationResult | null
+	}>
 }

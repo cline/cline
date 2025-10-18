@@ -3,7 +3,6 @@ import chalk from "chalk"
 import ora from "ora"
 import { getAdapter } from "../adapters"
 import { ResultsDatabase } from "../db"
-import { runClineTask } from "../utils/cline-harness"
 import { storeTaskResult } from "../utils/results"
 
 interface RunOptions {
@@ -67,35 +66,8 @@ export async function runHandler(options: RunOptions): Promise<void> {
 					// Run Cline CLI task with retry mechanism
 					console.log(`Running task with Cline CLI... Task ID: ${preparedTask.id}`)
 
-					// Create test file manager callbacks
-					const testFileManager = {
-						hide: () => {
-							if (adapter.hideTestFiles) {
-								console.log(chalk.blue("Hiding test files..."))
-								adapter.hideTestFiles(preparedTask)
-							}
-						},
-						restore: () => {
-							if (adapter.restoreTestFiles) {
-								console.log(chalk.blue("Restoring test files..."))
-								adapter.restoreTestFiles(preparedTask)
-							}
-						},
-					}
-
-					// Create verify function callback
-					const verifyFn = async () => {
-						return await adapter.verifyResult(preparedTask, {})
-					}
-
-					// Run task with new interface
-					const { exitCode, duration, attempts, finalVerification } = await runClineTask({
-						workingDirectory: preparedTask.workspacePath,
-						initialTask: preparedTask.description,
-						solutionFiles: preparedTask.metadata.solutionFiles || [],
-						testFileManager,
-						verifyFn,
-					})
+					// Run task using adapter's execution strategy
+					const { exitCode, duration, attempts, finalVerification } = await adapter.runTask(preparedTask)
 
 					// Create a result object
 					const result = {
@@ -111,7 +83,7 @@ export async function runHandler(options: RunOptions): Promise<void> {
 					cleanedUp = true
 					cleanupSpinner.succeed("Cleanup complete")
 
-					// Use final verification from runClineTask
+					// Use final verification from runTask
 					const verification = finalVerification || (await adapter.verifyResult(preparedTask, result))
 
 					if (verification.success) {

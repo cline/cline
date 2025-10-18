@@ -1,6 +1,7 @@
 import * as path from "path"
 import * as fs from "fs"
 import execa from "execa"
+import chalk from "chalk"
 import { BenchmarkAdapter, Task, VerificationResult } from "./types"
 
 const EVALS_DIR = path.resolve(__dirname, "../../../")
@@ -155,7 +156,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 		const solutionFiles = config.files.solution || []
 		const fileList = solutionFiles.join(", ")
 		description += `\n\nUse the above instructions to modify the supplied files: ${fileList}. Don't change the names of existing functions or classes, as they may be referenced from other code like unit tests, etc. Only use standard libraries, don't suggest installing any packages.`
-		description += "You should ignore all test or test related files in this directory. The test file itself has been removed and will be used to evaluate your work after your implementation is complete. Think deeply about the problem prior to working on the implementation. Consider all edge cases and test your solution prior to finalizing."
+		description += "You should ignore all test or test related files in this directory. The final test file has been removed and will be used to evaluate your work after your implementation is complete. Think deeply about the problem prior to working on the implementation. Consider all edge cases and test your solution prior to finalizing."
 
 		// Move test files to temp directory
 		if (config.files.test) {
@@ -423,6 +424,141 @@ export class ExercismAdapter implements BenchmarkAdapter {
 					}
 				}
 			})
+		}
+	}
+
+	/**
+	 * Builds retry message with test errors and fix instructions
+	 * @param testOutput The raw test output showing errors
+	 * @param solutionFiles List of solution files to fix
+	 * @returns Formatted retry message
+	 */
+	private buildRetryMessage(testOutput: string, solutionFiles: string[]): string {
+		const fileList = solutionFiles.join(", ")
+		return `${testOutput}\n\nSee the testing errors above. The tests are correct, don't try and change them. Fix the code in ${fileList} to resolve the errors.`
+	}
+
+	/**
+	 * Runs a Cline task with automatic retry on test failure
+	 * Creates a new Cline instance, runs the task, verifies with tests,
+	 * and optionally retries once if tests fail
+	 * @param task The task to execute
+	 * @returns Exit code, duration, attempts, and final verification result
+	 */
+	async runTask(task: Task): Promise<{
+		exitCode: number
+		duration: number
+		attempts: number
+		finalVerification: VerificationResult | null
+	}> {
+		const startTime = Date.now()
+		let instanceAddress: string | null = null
+		let attempts = 0
+		let finalVerification: VerificationResult | null = null
+
+		try {
+			// Step 1: Start a new Cline instance in the working directory
+			console.log(chalk.blue(`Starting new Cline instance in ${task.workspacePath}`))
+			const instanceResult = await execa("cline", ["instance", "new"], {
+				cwd: task.workspacePath,
+				stdin: "ignore",
+			})
+
+			// Step 2: Parse the instance address from output
+			const addressMatch = instanceResult.stdout.match(/Address:\s*([\d.]+:\d+)/)
+			if (!addressMatch) {
+				throw new Error("Failed to parse instance address from output")
+			}
+			instanceAddress = addressMatch[1]
+			console.log(chalk.blue(`Instance started: ${instanceAddress}`))
+
+			// Step 3: Create the initial task on this specific instance
+			console.log(chalk.blue(`Creating task using instance ${instanceAddress}`))
+			await execa("cline", ["task", "new", "--yolo", "--address", instanceAddress, task.description], {
+				cwd: task.workspacePath,
+				stdin: "ignore",
+			})
+
+			// Step 4: Wait for initial implementation to complete
+			console.log(chalk.blue(`Waiting for initial implementation to complete...`))
+			await execa("cline", ["task", "view", "--follow-complete", "--address", instanceAddress], {
+				cwd: task.workspacePath,
+				stdin: "ignore",
+			})
+
+			// Step 5: Run first test attempt
+			console.log(chalk.blue(`Running tests (attempt 1)...`))
+			this.restoreTestFiles(task)
+			attempts = 1
+			const firstVerification = await this.verifyResult(task, {})
+			finalVerification = firstVerification
+
+			// Step 6: Retry if tests failed
+			if (!firstVerification.success && attempts < 2) {
+				console.log(chalk.blue(`Tests failed on first attempt. Preparing retry...`))
+
+				// Hide test files again for retry
+				this.hideTestFiles(task)
+
+				attempts = 2
+				const solutionFiles = task.metadata.solutionFiles || []
+				const retryMessage = this.buildRetryMessage(firstVerification.rawOutput || "", solutionFiles)
+
+				// Send retry task
+				console.log(chalk.blue(`Sending retry task to instance ${instanceAddress}...`))
+				await execa("cline", ["task", "send", "--yolo", "--address", instanceAddress, retryMessage], {
+					cwd: task.workspacePath,
+					stdin: "ignore",
+				})
+
+				// Follow retry until complete
+				console.log(chalk.blue(`Waiting for retry implementation to complete...`))
+				await execa("cline", ["task", "view", "--follow-complete", "--address", instanceAddress], {
+					cwd: task.workspacePath,
+					stdin: "ignore",
+				})
+
+				// Run second test attempt (FINAL)
+				console.log(chalk.blue(`Running tests (attempt 2)...`))
+				this.restoreTestFiles(task)
+				const secondVerification = await this.verifyResult(task, {})
+				finalVerification = secondVerification
+			}
+
+			const duration = Date.now() - startTime
+			console.log(
+				chalk.green(`Task completed in ${(duration / 1000).toFixed(1)}s after ${attempts} attempt${attempts > 1 ? "s" : ""}`),
+			)
+
+			return {
+				exitCode: 0,
+				duration,
+				attempts,
+				finalVerification,
+			}
+		} catch (error: any) {
+			const duration = Date.now() - startTime
+			console.error(chalk.red(`Task failed after ${(duration / 1000).toFixed(1)}s: ${error.message}`))
+
+			return {
+				exitCode: error.exitCode || 1,
+				duration,
+				attempts: attempts || 0,
+				finalVerification,
+			}
+		} finally {
+			// Step 7: Always clean up the instance, even if task failed
+			if (instanceAddress) {
+				try {
+					console.log(chalk.blue(`Cleaning up instance ${instanceAddress}...`))
+					await execa("cline", ["instance", "kill", instanceAddress], {
+						stdin: "ignore",
+					})
+					console.log(chalk.blue(`Instance ${instanceAddress} cleaned up`))
+				} catch (cleanupError: any) {
+					console.error(chalk.yellow(`Warning: Failed to kill instance ${instanceAddress}: ${cleanupError.message}`))
+				}
+			}
 		}
 	}
 }
