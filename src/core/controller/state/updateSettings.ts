@@ -18,6 +18,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
+import { accountLogoutClicked } from "../account/accountLogoutClicked"
 
 /**
  * Updates multiple extension settings in a single request
@@ -29,7 +30,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 	try {
 		if (request.clineEnv !== undefined) {
 			ClineEnv.setEnvironment(request.clineEnv)
-			await controller.handleSignOut()
+			await accountLogoutClicked(controller, Empty.create())
 		}
 
 		if (request.apiConfiguration) {
