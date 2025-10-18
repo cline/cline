@@ -64,17 +64,44 @@ export async function runHandler(options: RunOptions): Promise<void> {
 				let cleanedUp = false
 
 				try {
-					// Run Cline CLI task
+					// Run Cline CLI task with retry mechanism
 					console.log(`Running task with Cline CLI... Task ID: ${preparedTask.id}`)
-					const { exitCode, duration } = await runClineTask(
-						preparedTask.workspacePath,
-						preparedTask.description,
-					)
+
+					// Create test file manager callbacks
+					const testFileManager = {
+						hide: () => {
+							if (adapter.hideTestFiles) {
+								console.log(chalk.blue("Hiding test files..."))
+								adapter.hideTestFiles(preparedTask)
+							}
+						},
+						restore: () => {
+							if (adapter.restoreTestFiles) {
+								console.log(chalk.blue("Restoring test files..."))
+								adapter.restoreTestFiles(preparedTask)
+							}
+						},
+					}
+
+					// Create verify function callback
+					const verifyFn = async () => {
+						return await adapter.verifyResult(preparedTask, {})
+					}
+
+					// Run task with new interface
+					const { exitCode, duration, attempts, finalVerification } = await runClineTask({
+						workingDirectory: preparedTask.workspacePath,
+						initialTask: preparedTask.description,
+						solutionFiles: preparedTask.metadata.solutionFiles || [],
+						testFileManager,
+						verifyFn,
+					})
 
 					// Create a result object
 					const result = {
 						exitCode,
 						duration,
+						attempts,
 						completed: exitCode === 0,
 					}
 
@@ -84,17 +111,20 @@ export async function runHandler(options: RunOptions): Promise<void> {
 					cleanedUp = true
 					cleanupSpinner.succeed("Cleanup complete")
 
-					// Verify result (run tests)
-					const verifySpinner = ora("Running tests...").start()
-					const verification = await adapter.verifyResult(preparedTask, result)
+					// Use final verification from runClineTask
+					const verification = finalVerification || (await adapter.verifyResult(preparedTask, result))
 
 					if (verification.success) {
-						verifySpinner.succeed(
-							`Tests passed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal}`,
+						console.log(
+							chalk.green(
+								`Tests passed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal} (${attempts} attempt${attempts > 1 ? "s" : ""})`,
+							),
 						)
 					} else {
-						verifySpinner.fail(
-							`Tests failed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal}`,
+						console.log(
+							chalk.red(
+								`Tests failed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal} (${attempts} attempt${attempts > 1 ? "s" : ""})`,
+							),
 						)
 					}
 

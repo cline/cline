@@ -17,6 +17,7 @@ export interface Task {
 export interface VerificationResult {
 	success: boolean
 	metrics: Record<string, any>
+	rawOutput?: string
 }
 
 /**
@@ -29,4 +30,6 @@ export interface BenchmarkAdapter {
 	prepareTask(taskId: string): Promise<Task>
 	cleanupTask(task: Task): Promise<void>
 	verifyResult(task: Task, result: any): Promise<VerificationResult>
+	hideTestFiles?(task: Task): void
+	restoreTestFiles?(task: Task): void
 }

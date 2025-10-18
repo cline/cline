@@ -152,17 +152,10 @@ export class ExercismAdapter implements BenchmarkAdapter {
 		}
 
 		// Add solution files constraint to description
-		if (config.files.solution && config.files.solution.length > 0) {
-			description += "\n\n## Files to Implement\n"
-			description += "You must implement the function stubs in the following files:\n"
-			config.files.solution.forEach((file: string) => {
-				description += `- ${file}\n`
-			})
-		}
-
-		description += "\n\n## Additional instructions\n"
-		description += "You should ignore all test or test related files in this directory. The test file itself has been removed and will be used to evaluate your work after your implementation is complete.\n"
-		description += "Think deeply about the problem prior to working on the implementation. Consider all edge cases and test your solution prior to finalizing."
+		const solutionFiles = config.files.solution || []
+		const fileList = solutionFiles.join(", ")
+		description += `\n\nUse the above instructions to modify the supplied files: ${fileList}. Don't change the names of existing functions or classes, as they may be referenced from other code like unit tests, etc. Only use standard libraries, don't suggest installing any packages.`
+		description += "You should ignore all test or test related files in this directory. The test file itself has been removed and will be used to evaluate your work after your implementation is complete. Think deeply about the problem prior to working on the implementation. Consider all edge cases and test your solution prior to finalizing."
 
 		// Move test files to temp directory
 		if (config.files.test) {
@@ -218,7 +211,16 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			console.warn("Continuing without Git initialization")
 		}
 
-		return { ...task, description }
+		return {
+			...task,
+			description,
+			metadata: {
+				...task.metadata,
+				solutionFiles,
+				tempDir,
+				config,
+			},
+		}
 	}
 
 	/**
@@ -233,7 +235,10 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			items.forEach((item) => {
 				const src = path.join(tempDir, item)
 				const dest = path.join(task.workspacePath, item)
-				fs.renameSync(src, dest)
+				// Only move if destination doesn't exist (keeps newer test artifacts like .pytest_cache)
+				if (!fs.existsSync(dest)) {
+					fs.renameSync(src, dest)
+				}
 			})
 
 			// Clean up temp directory
@@ -340,12 +345,84 @@ export class ExercismAdapter implements BenchmarkAdapter {
 
 		return {
 			success,
+			rawOutput: output,
 			metrics: {
 				testsPassed,
 				testsFailed,
 				testsTotal,
 				functionalCorrectness: testsTotal > 0 ? testsPassed / testsTotal : 0,
 			},
+		}
+	}
+
+	/**
+	 * Hide test files by moving them to temp directory
+	 * @param task The task to hide test files for
+	 */
+	hideTestFiles(task: Task): void {
+		const tempDir = task.metadata.tempDir
+		const config = task.metadata.config
+
+		if (config?.files?.test) {
+			config.files.test.forEach((testFile: string) => {
+				const src = path.join(task.workspacePath, testFile)
+				if (fs.existsSync(src)) {
+					const dest = path.join(tempDir, testFile)
+					fs.mkdirSync(path.dirname(dest), { recursive: true })
+					fs.renameSync(src, dest)
+				}
+			})
+		}
+
+		// Hide dot directories again (except .git)
+		const items = fs.readdirSync(task.workspacePath)
+		items.forEach((item) => {
+			if (item.startsWith(".") && item !== ".git") {
+				const src = path.join(task.workspacePath, item)
+				if (fs.existsSync(src)) {
+					const stat = fs.statSync(src)
+					if (stat.isDirectory()) {
+						const dest = path.join(tempDir, item)
+						if (!fs.existsSync(dest)) {
+							fs.renameSync(src, dest)
+						}
+					}
+				}
+			}
+		})
+	}
+
+	/**
+	 * Restore test files by moving them from temp directory
+	 * @param task The task to restore test files for
+	 */
+	restoreTestFiles(task: Task): void {
+		const tempDir = task.metadata.tempDir
+		const config = task.metadata.config
+
+		if (config?.files?.test) {
+			config.files.test.forEach((testFile: string) => {
+				const src = path.join(tempDir, testFile)
+				if (fs.existsSync(src)) {
+					const dest = path.join(task.workspacePath, testFile)
+					fs.mkdirSync(path.dirname(dest), { recursive: true })
+					fs.renameSync(src, dest)
+				}
+			})
+		}
+
+		// Restore dot directories (except .git)
+		if (fs.existsSync(tempDir)) {
+			const items = fs.readdirSync(tempDir)
+			items.forEach((item) => {
+				if (item.startsWith(".") && item !== ".git") {
+					const src = path.join(tempDir, item)
+					const dest = path.join(task.workspacePath, item)
+					if (fs.existsSync(src) && !fs.existsSync(dest)) {
+						fs.renameSync(src, dest)
+					}
+				}
+			})
 		}
 	}
 }
