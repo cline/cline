@@ -108,7 +108,8 @@ For advanced users, Cline stores MCP server configurations in a JSON file that c
 			"url": "https://example.com/mcp-sse",
 			"disabled": false,
 			"autoApprove": ["tool1", "tool2"],
-			"timeout": 30
+			"timeout": 30,
+			"type": "streamableHttp"
 		}
 	}
 }
@@ -120,6 +121,7 @@ Key configuration options:
 -   **disabled**: Whether the server is currently enabled (true/false)
 -   **autoApprove**: List of tool names that don't require confirmation
 -   **timeout**: Maximum time in seconds to wait for server responses
+-   **type**: The protocol to use with the MCP server, options are `sse` and `streamableHttp`
 
 For additional MCP settings, click the "Advanced MCP Settings" link to access VSCode settings.
 
