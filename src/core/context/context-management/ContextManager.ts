@@ -513,7 +513,7 @@ export class ContextManager {
 				}
 
 				if (firstUserMessage) {
-					const processedFirstUserMessage = formatResponse.processFirstUserMessageForTruncation(firstUserMessage)
+					const processedFirstUserMessage = formatResponse.processFirstUserMessageForTruncation()
 
 					const innerMap = new Map<number, ContextUpdate[]>()
 					innerMap.set(0, [[timestamp, "text", [processedFirstUserMessage], []]])
