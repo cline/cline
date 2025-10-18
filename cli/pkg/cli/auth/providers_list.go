@@ -320,7 +320,7 @@ func GetProviderDisplayName(provider cline.ApiProvider) string {
 	case cline.ApiProvider_XAI:
 		return "X AI (Grok)"
 	case cline.ApiProvider_BEDROCK:
-		return "AWS Bedrock"
+		return "Amazon Bedrock"
 	case cline.ApiProvider_GEMINI:
 		return "Google Gemini"
 	case cline.ApiProvider_OLLAMA:

@@ -858,7 +858,7 @@ function getProviderDisplayName(providerId) {
 		anthropic: "Anthropic (Claude)",
 		"claude-code": "Claude Code",
 		openrouter: "OpenRouter",
-		bedrock: "AWS Bedrock",
+		bedrock: "Amazon Bedrock",
 		vertex: "Google Vertex AI",
 		openai: "OpenAI Compatible",
 		ollama: "Ollama",

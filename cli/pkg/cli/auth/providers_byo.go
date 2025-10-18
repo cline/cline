@@ -22,7 +22,7 @@ func GetBYOProviderList() []BYOProviderOption {
 		{Name: "OpenAI Native", Provider: cline.ApiProvider_OPENAI_NATIVE},
 		{Name: "OpenRouter", Provider: cline.ApiProvider_OPENROUTER},
 		{Name: "X AI (Grok)", Provider: cline.ApiProvider_XAI},
-		{Name: "AWS Bedrock", Provider: cline.ApiProvider_BEDROCK},
+		{Name: "Amazon Bedrock", Provider: cline.ApiProvider_BEDROCK},
 		{Name: "Google Gemini", Provider: cline.ApiProvider_GEMINI},
 		{Name: "Ollama", Provider: cline.ApiProvider_OLLAMA},
 		{Name: "Cerebras", Provider: cline.ApiProvider_CEREBRAS},
