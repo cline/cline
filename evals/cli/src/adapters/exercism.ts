@@ -58,7 +58,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			.readdirSync(exercisesDir)
 			.filter((dir) => fs.statSync(path.join(exercisesDir, dir)).isDirectory())
 			.filter((dir) => !dir.startsWith(".") && !["node_modules", ".git"].includes(dir))
-			.filter((dir) => dir === "javascript")
+			.filter((dir) => dir === "java")
 
 		for (const language of languages) {
 			const languageDir = path.join(exercisesDir, language, "exercises", "practice")
