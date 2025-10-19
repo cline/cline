@@ -252,7 +252,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			}
 		}
 
-		// Log the raw output for debugging
+		// Log the raw output
 		// console.log("\n=== TEST OUTPUT START ===")
 		// console.log(output)
 		// console.log("=== TEST OUTPUT END ===\n")
@@ -534,7 +534,6 @@ export class ExercismAdapter implements BenchmarkAdapter {
 
 		try {
 			// Step 1: Start a new Cline instance in the working directory
-			console.log(chalk.blue(`Starting new Cline instance in ${task.workspacePath}`))
 			const instanceResult = await execa("cline", ["instance", "new"], {
 				cwd: task.workspacePath,
 				stdin: "ignore",
@@ -548,8 +547,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			instanceAddress = addressMatch[1]
 
 			// Step 3: Create the initial task on this specific instance
-			console.log(chalk.blue(`Running task with Cline CLI... Task ID: ${task.id}`))
-			console.log(chalk.blue(`Using instance: ${instanceAddress}`))
+			console.log(chalk.blue(`Running task with Cline CLI (ID: ${task.id})...`))
 			await execa("cline", ["task", "new", "--yolo", "--address", instanceAddress, task.description], {
 				cwd: task.workspacePath,
 				stdin: "ignore",
@@ -571,7 +569,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 
 			// Step 6: Retry if tests failed
 			if (!firstVerification.success) {
-				console.log(chalk.blue(`Tests failed on first attempt. Preparing retry...`))
+				console.log(chalk.blue(`Tests failed on first attempt. Retrying...`))
 
 				// Hide test files again for retry
 				this.hideTestFiles(task)
@@ -580,7 +578,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 				const solutionFiles = task.metadata.solutionFiles || []
 				const retryMessage = this.buildRetryMessage(firstVerification.rawOutput || "", solutionFiles)
 
-				// Send retry task
+				// Send retry task message
 				await execa("cline", ["task", "send", "--yolo", "--address", instanceAddress, retryMessage], {
 					cwd: task.workspacePath,
 					stdin: "ignore",
@@ -593,7 +591,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 					stdin: "ignore",
 				})
 
-				// Run second test attempt (FINAL)
+				// Run second test attempt (final)
 				console.log(chalk.blue(`Running tests (attempt 2)...`))
 				this.restoreTestFiles(task)
 				const secondVerification = await this.verifyResult(task)
@@ -615,11 +613,9 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			// Step 7: Always clean up the instance, even if task failed
 			if (instanceAddress) {
 				try {
-					console.log(chalk.blue(`Cleaning up instance ${instanceAddress}...`))
 					await execa("cline", ["instance", "kill", instanceAddress], {
 						stdin: "ignore",
 					})
-					console.log(chalk.blue(`Instance ${instanceAddress} cleaned up`))
 				} catch (cleanupError: any) {
 					console.error(chalk.yellow(`Warning: Failed to kill instance ${instanceAddress}: ${cleanupError.message}`))
 				}

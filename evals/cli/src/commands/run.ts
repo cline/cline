@@ -89,11 +89,8 @@ export async function runHandler(options: RunOptions): Promise<void> {
 					const storeSpinner = ora("Storing result...").start()
 					await storeTaskResult(runId, preparedTask, {}, verification)
 					storeSpinner.succeed("Result stored")
-
-					console.log(chalk.green(`Task completed. Success: ${verification.success}`))
 				} catch (error: any) {
 					console.error(chalk.red(`Task failed: ${error.message}`))
-					console.error(chalk.red(error.stack))
 				} finally {
 					// Ensure cleanup always happens
 					if (!cleanedUp) {
@@ -114,7 +111,6 @@ export async function runHandler(options: RunOptions): Promise<void> {
 			console.log(chalk.green(`\nRun complete for benchmark: ${benchmark}`))
 		} catch (error: any) {
 			console.error(chalk.red(`Error running benchmark ${benchmark}: ${error.message}`))
-			console.error(error.stack)
 		}
 	}
 
