@@ -1,8 +1,6 @@
 repositories
-
 temp-files
-
-results/evals.db
+results
 
 diff-edits/cases/
 diff-edits/results/
