@@ -7,7 +7,6 @@ import { storeTaskResult } from "../utils/results"
 
 interface RunOptions {
 	benchmark?: string
-	model: string
 	count?: number
 	apiKey?: string
 }
@@ -19,11 +18,9 @@ interface RunOptions {
 export async function runHandler(options: RunOptions): Promise<void> {
 	// Determine which benchmarks to run
 	const benchmarks = options.benchmark ? [options.benchmark] : ["exercism"] // Default to exercism
-	const model = options.model
 	const count = options.count || Infinity
 
-	console.log(chalk.blue(`Running evaluations for model: ${model}`))
-	console.log(chalk.blue(`Benchmarks: ${benchmarks.join(", ")}`))
+	console.log(chalk.blue(`Running evaluations for the following benchmarks: ${benchmarks.join(", ")}`))
 
 	// Create a run for each benchmark
 	for (const benchmark of benchmarks) {
@@ -33,7 +30,7 @@ export async function runHandler(options: RunOptions): Promise<void> {
 		console.log(chalk.green(`\nStarting run for benchmark: ${benchmark}`))
 
 		// Create run in database
-		db.createRun(runId, model, benchmark)
+		db.createRun(runId, benchmark)
 
 		// Get adapter for this benchmark
 		try {

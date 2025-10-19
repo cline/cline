@@ -464,8 +464,6 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			console.log("JavaScript exercises directory not found, skipping test unskipping")
 			return
 		}
-
-		console.log("Unskipping JavaScript tests...")
 		
 		// Walk through all exercise directories
 		const exercises = fs.readdirSync(jsDir).filter(dir => {
@@ -509,8 +507,6 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			console.log("Java exercises directory not found, skipping test unskipping")
 			return
 		}
-
-		console.log("Unskipping Java tests...")
 		
 		// Walk through all exercise directories
 		const exercises = fs.readdirSync(javaDir).filter(dir => {
@@ -581,7 +577,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			instanceAddress = addressMatch[1]
 
 			// Step 3: Create the initial task on this specific instance
-			console.log(chalk.blue(`Creating task using instance ${instanceAddress}`))
+			console.log(chalk.blue(`Using instance: ${instanceAddress}`))
 			await execa("cline", ["task", "new", "--yolo", "--address", instanceAddress, task.description], {
 				cwd: task.workspacePath,
 				stdin: "ignore",

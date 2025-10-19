@@ -35,7 +35,6 @@ program
 	.command("run")
 	.description("Run evaluations")
 	.option("-b, --benchmark <benchmark>", "Specific benchmark to run")
-	.option("-m, --model <model>", "Model to evaluate", "claude-sonnet-4-5-20250929")
 	.option("-c, --count <count>", "Number of tasks to run", parseInt)
 	.action(async (options) => {
 		try {
