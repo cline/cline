@@ -23,6 +23,10 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			console.log(`Cloning Exercism repository to ${exercismDir}...`)
 			await execa("git", ["clone", "https://github.com/Aider-AI/polyglot-benchmark.git", exercismDir])
 			console.log("Exercism repository cloned successfully")
+			
+			// Unskip all JavaScript and Java tests after cloning
+			this.unskipAllJavaScriptTests(exercismDir)
+			this.unskipAllJavaTests(exercismDir)
 		} else {
 			console.log(`Exercism repository already exists at ${exercismDir}`)
 
@@ -30,6 +34,10 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			console.log("Pulling latest changes...")
 			await execa("git", ["pull"], { cwd: exercismDir })
 			console.log("Repository updated successfully")
+			
+			// Unskip again after pulling in case new tests were added
+			this.unskipAllJavaScriptTests(exercismDir)
+			this.unskipAllJavaTests(exercismDir)
 		}
 	}
 
@@ -50,7 +58,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			.readdirSync(exercisesDir)
 			.filter((dir) => fs.statSync(path.join(exercisesDir, dir)).isDirectory())
 			.filter((dir) => !dir.startsWith(".") && !["node_modules", ".git"].includes(dir))
-			.filter((dir) => dir === "python")
+			.filter((dir) => dir === "javascript")
 
 		for (const language of languages) {
 			const languageDir = path.join(exercisesDir, language, "exercises", "practice")
@@ -297,8 +305,15 @@ export class ExercismAdapter implements BenchmarkAdapter {
 				break
 
 			case "javascript":
-				testsPassed = (output.match(/PASS/g) || []).length
-				testsFailed = (output.match(/FAIL/g) || []).length
+				const jestMatch = output.match(/Tests:\s+(?:\d+ skipped,\s+)?(\d+) passed(?:,\s+(\d+) failed)?/)
+				if (jestMatch) {
+					testsPassed = parseInt(jestMatch[1])
+					testsFailed = jestMatch[2] ? parseInt(jestMatch[2]) : 0
+				} else {
+					// Fallback to counting test suites
+					testsPassed = (output.match(/PASS/g) || []).length
+					testsFailed = (output.match(/FAIL/g) || []).length
+				}
 				break
 
 			case "go":
@@ -439,6 +454,100 @@ export class ExercismAdapter implements BenchmarkAdapter {
 	}
 
 	/**
+	 * Unskip all JavaScript tests in the repository by replacing xtest with test
+	 * @param repoPath Path to the exercism repository
+	 */
+	private unskipAllJavaScriptTests(repoPath: string): void {
+		const jsDir = path.join(repoPath, "javascript", "exercises", "practice")
+		
+		if (!fs.existsSync(jsDir)) {
+			console.log("JavaScript exercises directory not found, skipping test unskipping")
+			return
+		}
+
+		console.log("Unskipping JavaScript tests...")
+		
+		// Walk through all exercise directories
+		const exercises = fs.readdirSync(jsDir).filter(dir => {
+			const fullPath = path.join(jsDir, dir)
+			return fs.statSync(fullPath).isDirectory()
+		})
+
+		let filesModified = 0
+		for (const exercise of exercises) {
+			const exerciseDir = path.join(jsDir, exercise)
+			
+			// Find all .spec.js files
+			const files = fs.readdirSync(exerciseDir).filter(file => file.endsWith('.spec.js'))
+			
+			for (const file of files) {
+				const filePath = path.join(exerciseDir, file)
+				let content = fs.readFileSync(filePath, 'utf-8')
+				const originalContent = content
+				
+				// Replace xtest with test to unskip tests
+				content = content.replace(/xtest\(/g, 'test(')
+				
+				if (content !== originalContent) {
+					fs.writeFileSync(filePath, content)
+					filesModified++
+				}
+			}
+		}
+		
+		console.log(`Unskipped tests in ${filesModified} JavaScript test files`)
+	}
+
+	/**
+	 * Unskip all Java tests in the repository by removing @Disabled annotations
+	 * @param repoPath Path to the exercism repository
+	 */
+	private unskipAllJavaTests(repoPath: string): void {
+		const javaDir = path.join(repoPath, "java", "exercises", "practice")
+		
+		if (!fs.existsSync(javaDir)) {
+			console.log("Java exercises directory not found, skipping test unskipping")
+			return
+		}
+
+		console.log("Unskipping Java tests...")
+		
+		// Walk through all exercise directories
+		const exercises = fs.readdirSync(javaDir).filter(dir => {
+			const fullPath = path.join(javaDir, dir)
+			return fs.statSync(fullPath).isDirectory()
+		})
+
+		let filesModified = 0
+		for (const exercise of exercises) {
+			const testDir = path.join(javaDir, exercise, "src", "test", "java")
+			
+			if (!fs.existsSync(testDir)) {
+				continue
+			}
+			
+			// Find all .java test files
+			const files = fs.readdirSync(testDir).filter(file => file.endsWith('.java'))
+			
+			for (const file of files) {
+				const filePath = path.join(testDir, file)
+				let content = fs.readFileSync(filePath, 'utf-8')
+				const originalContent = content
+				
+				// Remove @Disabled("Remove to run test") annotations
+				content = content.replace(/@Disabled\("Remove to run test"\)\s*\n/g, '')
+				
+				if (content !== originalContent) {
+					fs.writeFileSync(filePath, content)
+					filesModified++
+				}
+			}
+		}
+		
+		console.log(`Unskipped tests in ${filesModified} Java test files`)
+	}
+
+	/**
 	 * Runs a Cline task with automatic retry on test failure
 	 * Creates a new Cline instance, runs the task, verifies with tests,
 	 * and optionally retries once if tests fail
@@ -470,7 +579,6 @@ export class ExercismAdapter implements BenchmarkAdapter {
 				throw new Error("Failed to parse instance address from output")
 			}
 			instanceAddress = addressMatch[1]
-			console.log(chalk.blue(`Instance started: ${instanceAddress}`))
 
 			// Step 3: Create the initial task on this specific instance
 			console.log(chalk.blue(`Creating task using instance ${instanceAddress}`))
@@ -480,7 +588,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			})
 
 			// Step 4: Wait for initial implementation to complete
-			console.log(chalk.blue(`Waiting for initial implementation to complete...`))
+			console.log(chalk.blue(`Waiting for first attempt to complete...`))
 			await execa("cline", ["task", "view", "--follow-complete", "--address", instanceAddress], {
 				cwd: task.workspacePath,
 				stdin: "ignore",
@@ -494,7 +602,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			finalVerification = firstVerification
 
 			// Step 6: Retry if tests failed
-			if (!firstVerification.success && attempts < 2) {
+			if (!firstVerification.success) {
 				console.log(chalk.blue(`Tests failed on first attempt. Preparing retry...`))
 
 				// Hide test files again for retry
@@ -505,14 +613,13 @@ export class ExercismAdapter implements BenchmarkAdapter {
 				const retryMessage = this.buildRetryMessage(firstVerification.rawOutput || "", solutionFiles)
 
 				// Send retry task
-				console.log(chalk.blue(`Sending retry task to instance ${instanceAddress}...`))
 				await execa("cline", ["task", "send", "--yolo", "--address", instanceAddress, retryMessage], {
 					cwd: task.workspacePath,
 					stdin: "ignore",
 				})
 
 				// Follow retry until complete
-				console.log(chalk.blue(`Waiting for retry implementation to complete...`))
+				console.log(chalk.blue(`Waiting for retry attempt to complete...`))
 				await execa("cline", ["task", "view", "--follow-complete", "--address", instanceAddress], {
 					cwd: task.workspacePath,
 					stdin: "ignore",
