@@ -16,34 +16,31 @@ The Cline Evaluation System allows you to:
 The evaluation system consists of two main components:
 
 1. **CLI Tool**: Command-line interface in `evals/cli/` for orchestrating evaluations
-2. **Diff Edit Benchmark**: Separate command using the CLI tool that runs a comprehensive diff editing benchmark suite on real world cases, along with a streamlit dashboard displaying the results. For more details, see the [Diff Edit Benchmark README](./diff-edits/README.md). Make sure you add a `evals/diff-edits/cases` folder with all the conversation jsons.
+2. **Diff Edit Benchmark**: Separate command using the CLI tool that runs a comprehensive diff editing benchmark suite on real world cases, along with a streamlit dashboard displaying the results. For more details, see the Diff Edit Benchmark [README](./diff-edits/README.md). Make sure you add a `evals/diff-edits/cases` folder with all the conversation jsons.
 
 ## Directory Structure
 
 ```
 evals/                            # Main directory for evaluation system
-│   ├── cli/                          # CLI tool for orchestrating evaluations
-│   │   ├── src/
-│   │   │   ├── index.ts              # CLI entry point
-│   │   │   ├── commands/             # CLI commands (setup, run, report)
-│   │   │   ├── adapters/             # Benchmark adapters
-│   │   │   ├── db/                   # Database management
-│   │   │   └── utils/                # Utility functions
-│   │   ├── package.json
-│   │   └── tsconfig.json
-│   ├── diff-edits/                   # Diff editing evaluation suite
-│   │   ├── cases/                    # Test case JSON files
-│   │   ├── results/                  # Evaluation results
-│   │   ├── diff-apply/               # Diff application logic
-│   │   ├── parsing/                  # Assistant message parsing
-│   │   └── prompts/                  # System prompts
-│   ├── repositories/                 # Cloned benchmark repositories
-│   │   └── exercism/                 # Exercism (Aider Polyglot)
-│   ├── results/                      # Evaluation results storage
-│   │   ├── runs/                     # Individual run results
-│   │   └── reports/                  # Generated reports
-│   └── README.md                     # This file
-└── ...
+├── cli/                          # CLI tool for orchestrating evaluations
+│   └── src/
+│       ├── index.ts              # CLI entry point
+│       ├── commands/             # CLI commands (setup, run, report)
+│       ├── adapters/             # Benchmark adapters
+│       ├── db/                   # Database management
+│       └── utils/                # Utility functions
+├── diff-edits/                   # Diff editing evaluation suite
+│   ├── cases/                    # Test case JSON files
+│   ├── results/                  # Evaluation results
+│   ├── diff-apply/               # Diff application logic
+│   ├── parsing/                  # Assistant message parsing
+│   └── prompts/                  # System prompts
+├── repositories/                 # Cloned benchmark repositories
+│   └── exercism/                 # Exercism (Aider Polyglot)
+├── results/                      # Evaluation results storage
+│   ├── runs/                     # Individual run results
+│   └── reports/                  # Generated reports
+└── README.md                     # This file
 ```
 
 ## Getting Started
@@ -59,9 +56,9 @@ evals/                            # Main directory for evaluation system
 1. Build the CLI tool:
 
 ```bash
-cd evals/cli
+cd evals
 npm install
-npm run build
+npm run build:cli
 ```
 
 ### Usage
