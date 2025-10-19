@@ -187,35 +187,6 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			}
 		})
 
-		// Check if Git repository is already initialized
-		const gitDirExists = fs.existsSync(path.join(task.workspacePath, ".git"))
-
-		try {
-			// Initialize Git repository if needed
-			if (!gitDirExists) {
-				await execa("git", ["init"], { cwd: task.workspacePath })
-			}
-
-			// Create a dummy file to ensure there's something to commit
-			const dummyFilePath = path.join(task.workspacePath, ".eval-timestamp")
-			fs.writeFileSync(dummyFilePath, new Date().toISOString())
-
-			// Add all files and commit
-			await execa("git", ["add", "."], { cwd: task.workspacePath })
-
-			try {
-				await execa("git", ["commit", "-m", "Initial commit"], { cwd: task.workspacePath })
-			} catch (error: any) {
-				// If commit fails because there are no changes, that's okay
-				if (!error.stderr?.includes("nothing to commit")) {
-					throw error
-				}
-			}
-		} catch (error: any) {
-			console.warn(`Warning: Git operations failed: ${error.message}`)
-			console.warn("Continuing without Git initialization")
-		}
-
 		return {
 			...task,
 			description,
@@ -256,7 +227,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 	 * @param task The task that was executed
 	 * @param result The result of the task execution
 	 */
-	async verifyResult(task: Task, result: any): Promise<VerificationResult> {
+	async verifyResult(task: Task): Promise<VerificationResult> {
 		// Run verification commands
 		let success = true
 		let output = ""
@@ -598,7 +569,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			console.log(chalk.blue(`Running tests (attempt 1)...`))
 			this.restoreTestFiles(task)
 			attempts = 1
-			const firstVerification = await this.verifyResult(task, {})
+			const firstVerification = await this.verifyResult(task)
 			finalVerification = firstVerification
 
 			// Step 6: Retry if tests failed
@@ -628,7 +599,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 				// Run second test attempt (FINAL)
 				console.log(chalk.blue(`Running tests (attempt 2)...`))
 				this.restoreTestFiles(task)
-				const secondVerification = await this.verifyResult(task, {})
+				const secondVerification = await this.verifyResult(task)
 				finalVerification = secondVerification
 			}
 

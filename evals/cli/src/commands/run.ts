@@ -60,13 +60,7 @@ export async function runHandler(options: RunOptions): Promise<void> {
 
 				try {
 					// Run task using adapter's execution strategy
-					const { exitCode, finalVerification } = await adapter.runTask(preparedTask)
-
-					// Create a result object
-					const result = {
-						exitCode,
-						completed: exitCode === 0,
-					}
+					const finalVerification = await adapter.runTask(preparedTask)
 
 					// Cleanup task
 					const cleanupSpinner = ora("Cleaning up task...").start()
@@ -75,7 +69,7 @@ export async function runHandler(options: RunOptions): Promise<void> {
 					cleanupSpinner.succeed("Cleanup complete")
 
 					// Use final verification from runTask
-					const verification = finalVerification || (await adapter.verifyResult(preparedTask, result))
+					const verification = finalVerification || (await adapter.verifyResult(preparedTask))
 
 					if (verification.success) {
 						console.log(
@@ -93,7 +87,7 @@ export async function runHandler(options: RunOptions): Promise<void> {
 
 					// Store result
 					const storeSpinner = ora("Storing result...").start()
-					await storeTaskResult(runId, preparedTask, result, verification)
+					await storeTaskResult(runId, preparedTask, {}, verification)
 					storeSpinner.succeed("Result stored")
 
 					console.log(chalk.green(`Task completed. Success: ${verification.success}`))
