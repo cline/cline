@@ -45,7 +45,7 @@ export async function getAihubmixModels(_controller: Controller, _request: Empty
 			const modelId = modelData.model
 			modelsMap[modelId] = OpenRouterModelInfo.create({
 				maxTokens: modelData.max_output ?? 8192,
-				contextWindow: modelData.context_length ?? 128000,
+				contextWindow: modelData.context_window ?? 128000,
 				supportsImages: supportsImages,
 				supportsPromptCache: supportsPromptCache,
 				inputPrice: pricing.input ?? 0,
