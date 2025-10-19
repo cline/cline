@@ -1,6 +1,5 @@
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
+import { ModelInfo } from "@shared/api"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
@@ -10,17 +9,16 @@ import { groqModels } from "../../../shared/api"
 import { Controller } from ".."
 
 /**
- * Refreshes the Groq models and returns the updated model list
+ * Core function: Refreshes the Groq models and returns application types
  * @param controller The controller instance
- * @param request Empty request object
- * @returns Response containing the Groq models
+ * @returns Record of model ID to ModelInfo (application types)
  */
-export async function refreshGroqModels(controller: Controller, _request: EmptyRequest): Promise<OpenRouterCompatibleModelInfo> {
+export async function refreshGroqModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.groqModels)
 
 	const groqApiKey = controller.stateManager.getSecretKey("groqApiKey")
 
-	let models: Record<string, Partial<OpenRouterModelInfo>> = {}
+	let models: Record<string, Partial<ModelInfo>> = {}
 	try {
 		if (!groqApiKey) {
 			console.log("No Groq API key found, using static models as fallback")
@@ -68,7 +66,7 @@ export async function refreshGroqModels(controller: Controller, _request: EmptyR
 					// Check if we have static pricing information for this model
 					const staticModelInfo = groqModels[rawModel.id as keyof typeof groqModels]
 
-					const modelInfo: Partial<OpenRouterModelInfo> = {
+					const modelInfo: Partial<ModelInfo> = {
 						maxTokens: rawModel.max_completion_tokens || staticModelInfo?.maxTokens || 8192,
 						contextWindow: rawModel.context_window || staticModelInfo?.contextWindow || 8192,
 						supportsImages: detectImageSupport(rawModel, staticModelInfo),
@@ -117,7 +115,7 @@ export async function refreshGroqModels(controller: Controller, _request: EmptyR
 		})
 
 		// If we failed to fetch models, try to read cached models first
-		const cachedModels = await readGroqModels(controller)
+		const cachedModels = await readGroqModels()
 		if (cachedModels && Object.keys(cachedModels).length > 0) {
 			console.log("Using cached Groq models")
 			models = cachedModels
@@ -140,9 +138,9 @@ export async function refreshGroqModels(controller: Controller, _request: EmptyR
 		}
 	}
 
-	// Convert the Record<string, Partial<OpenRouterModelInfo>> to Record<string, OpenRouterModelInfo>
+	// Convert the Record<string, Partial<ModelInfo>> to Record<string, ModelInfo>
 	// by filling in any missing required fields with defaults
-	const typedModels: Record<string, OpenRouterModelInfo> = {}
+	const typedModels: Record<string, ModelInfo> = {}
 	for (const [key, model] of Object.entries(models)) {
 		typedModels[key] = {
 			maxTokens: model.maxTokens ?? 8192,
@@ -154,17 +152,17 @@ export async function refreshGroqModels(controller: Controller, _request: EmptyR
 			cacheWritesPrice: model.cacheWritesPrice ?? 0,
 			cacheReadsPrice: model.cacheReadsPrice ?? 0,
 			description: model.description ?? "",
-			tiers: model.tiers ?? [],
+			tiers: model.tiers,
 		}
 	}
 
-	return OpenRouterCompatibleModelInfo.create({ models: typedModels })
+	return typedModels
 }
 
 /**
- * Reads cached Groq models from disk
+ * Reads cached Groq models from disk (application types)
  */
-async function readGroqModels(controller: Controller): Promise<Record<string, Partial<OpenRouterModelInfo>> | undefined> {
+async function readGroqModels(): Promise<Record<string, Partial<ModelInfo>> | undefined> {
 	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.groqModels)
 	const fileExists = await fileExistsAtPath(groqModelsFilePath)
 	if (fileExists) {
