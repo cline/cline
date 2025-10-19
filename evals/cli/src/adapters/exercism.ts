@@ -546,7 +546,6 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			instanceAddress = addressMatch[1]
 
 			// Step 3: Create the initial task on this specific instance
-			console.log(chalk.blue(`Running task with Cline CLI (ID: ${task.id})...`))
 			await execa("cline", ["task", "new", "--yolo", "--address", instanceAddress, task.description], {
 				cwd: task.workspacePath,
 				stdin: "ignore",
@@ -578,13 +577,12 @@ export class ExercismAdapter implements BenchmarkAdapter {
 				const retryMessage = this.buildRetryMessage(firstVerification.rawOutput || "", solutionFiles)
 
 				// Send retry task message
-				await execa("cline", ["task", "send", "--yolo", "--address", instanceAddress, retryMessage], {
+				await execa("cline", ["task", "send", "--yolo", "--address", instanceAddress], {
 					cwd: task.workspacePath,
-					stdin: "ignore",
+					input: retryMessage,
 				})
 
 				// Follow retry until complete
-				console.log(chalk.blue(`Waiting for retry attempt to complete...`))
 				await execa("cline", ["task", "view", "--follow-complete", "--address", instanceAddress], {
 					cwd: task.workspacePath,
 					stdin: "ignore",
