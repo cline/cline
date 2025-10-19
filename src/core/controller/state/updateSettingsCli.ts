@@ -212,7 +212,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 			}
 
 			// Update default terminal profile (requires terminal manager updates and notifications)
-			if (defaultTerminalProfile !== undefined) {
+			if (defaultTerminalProfile !== undefined && defaultTerminalProfile !== "") {
 				const profileId = defaultTerminalProfile
 
 				// Update the terminal profile in the state
@@ -222,11 +222,13 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				let busyTerminals: TerminalInfo[] = []
 
 				// Update the terminal manager of the current task if it exists
-				if (controller.task) {
+				if (controller.task && controller.task.terminalManager) {
 					// Call the updated setDefaultTerminalProfile method that returns closed terminal info
 					const result = controller.task.terminalManager.setDefaultTerminalProfile(profileId)
-					closedCount = result.closedCount
-					busyTerminals = result.busyTerminals
+					if (result) {
+						closedCount = result.closedCount
+						busyTerminals = result.busyTerminals
+					}
 
 					// Show information message if terminals were closed
 					if (closedCount > 0) {
