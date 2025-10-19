@@ -9,12 +9,12 @@ import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client
 import { getAsVar, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
-export const CURRENT_MODEL_BANNER_VERSION = 1
+export const CURRENT_MODEL_BANNER_VERSION = 2
 
 export const NewModelBanner: React.FC = () => {
 	const { clineUser } = useClineAuth()
-	const { apiConfiguration, openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
-	const user = apiConfiguration?.clineAccountId ? clineUser : undefined
+	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
+	const user = clineUser || undefined
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	// Need to get latest model list in case user hits shortcut button to set model
@@ -31,7 +31,7 @@ export const NewModelBanner: React.FC = () => {
 	}, [])
 
 	const setNewModel = () => {
-		const modelId = "anthropic/claude-sonnet-4.5"
+		const modelId = "anthropic/claude-haiku-4.5"
 		// set both plan and act modes to use new model
 		handleFieldsChange({
 			planModeOpenRouterModelId: modelId,
@@ -76,10 +76,10 @@ export const NewModelBanner: React.FC = () => {
 			}}>
 			<h4 className="m-0 flex items-center gap-2" style={{ paddingRight: "18px" }}>
 				<Megaphone className="w-4 h-4" />
-				Claude Sonnet 4.5
+				Claude Haiku 4.5
 			</h4>
 			<p className="m-0">
-				Anthropic's latest model excels at complex planning and long-horizon coding tasks.{" "}
+				Anthropic's fastest model with frontier-level coding intelligence at a fraction of the cost.{" "}
 				<span className="text-link cursor-pointer">{user ? "Try new model" : "Try with Cline account"} →</span>
 			</p>
 

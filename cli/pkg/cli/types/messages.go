@@ -3,22 +3,26 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
-    "strconv"
+
 	"github.com/cline/grpc-go/cline"
 )
 
 // ClineMessage represents a conversation message in the CLI
 type ClineMessage struct {
-	Type      MessageType `json:"type"`
-	Text      string      `json:"text"`
-	Timestamp int64       `json:"ts"`
-	Reasoning string      `json:"reasoning,omitempty"`
-	Say       string      `json:"say,omitempty"`
-	Ask       string      `json:"ask,omitempty"`
-	Partial   bool        `json:"partial,omitempty"`
-	Images    []string    `json:"images,omitempty"`
-	Files     []string    `json:"files,omitempty"`
+	Type                        MessageType `json:"type"`
+	Text                        string      `json:"text"`
+	Timestamp                   int64       `json:"ts"`
+	Reasoning                   string      `json:"reasoning,omitempty"`
+	Say                         string      `json:"say,omitempty"`
+	Ask                         string      `json:"ask,omitempty"`
+	Partial                     bool        `json:"partial,omitempty"`
+	Images                      []string    `json:"images,omitempty"`
+	Files                       []string    `json:"files,omitempty"`
+	LastCheckpointHash          string      `json:"lastCheckpointHash,omitempty"`
+	IsCheckpointCheckedOut      bool        `json:"isCheckpointCheckedOut,omitempty"`
+	IsOperationOutsideWorkspace bool        `json:"isOperationOutsideWorkspace,omitempty"`
 }
 
 // MessageType represents the type of message
@@ -65,6 +69,7 @@ const (
 	SayTypeUserFeedback            SayType = "user_feedback"
 	SayTypeUserFeedbackDiff        SayType = "user_feedback_diff"
 	SayTypeAPIReqRetried           SayType = "api_req_retried"
+	SayTypeErrorRetry              SayType = "error_retry"
 	SayTypeCommand                 SayType = "command"
 	SayTypeCommandOutput           SayType = "command_output"
 	SayTypeTool                    SayType = "tool"
@@ -206,13 +211,16 @@ func ConvertProtoToMessage(protoMsg *cline.ClineMessage) *ClineMessage {
 	}
 
 	return &ClineMessage{
-		Type:      msgType,
-		Text:      protoMsg.Text,
-		Timestamp: protoMsg.Ts,
-		Reasoning: protoMsg.Reasoning,
-		Say:       say,
-		Ask:       ask,
-		Partial:   protoMsg.Partial,
+		Type:                        msgType,
+		Text:                        protoMsg.Text,
+		Timestamp:                   protoMsg.Ts,
+		Reasoning:                   protoMsg.Reasoning,
+		Say:                         say,
+		Ask:                         ask,
+		Partial:                     protoMsg.Partial,
+		LastCheckpointHash:          protoMsg.LastCheckpointHash,
+		IsCheckpointCheckedOut:      protoMsg.IsCheckpointCheckedOut,
+		IsOperationOutsideWorkspace: protoMsg.IsOperationOutsideWorkspace,
 	}
 }
 
@@ -279,6 +287,8 @@ func convertProtoSayType(sayType cline.ClineSay) string {
 		return string(SayTypeUserFeedbackDiff)
 	case cline.ClineSay_API_REQ_RETRIED:
 		return string(SayTypeAPIReqRetried)
+	case cline.ClineSay_ERROR_RETRY:
+		return string(SayTypeErrorRetry)
 	case cline.ClineSay_COMMAND_SAY:
 		return string(SayTypeCommand)
 	case cline.ClineSay_COMMAND_OUTPUT_SAY:

@@ -89,6 +89,7 @@ export interface ApiHandlerOptions {
 	openRouterProviderSorting?: string
 	awsRegion?: string
 	awsUseCrossRegionInference?: boolean
+	awsUseGlobalInference?: boolean
 	awsBedrockUsePromptCache?: boolean
 	awsAuthentication?: string
 	awsUseProfile?: boolean
@@ -122,6 +123,7 @@ export interface ApiHandlerOptions {
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
 	minimaxApiLine?: string
+	ocaMode?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -289,6 +291,16 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
+	"claude-haiku-4-5-20251001": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
+	},
 	"claude-sonnet-4-20250514": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -398,6 +410,11 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"claude-haiku-4-5-20251001": {
+		...anthropicModels["claude-haiku-4-5-20251001"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	"claude-sonnet-4-5-20250929": {
 		...anthropicModels["claude-sonnet-4-5-20250929"],
 		supportsImages: false,
@@ -440,6 +457,7 @@ export const bedrockModels = {
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -450,17 +468,29 @@ export const bedrockModels = {
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
+	"anthropic.claude-haiku-4-5-20251001-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
+	},
 	"anthropic.claude-sonnet-4-20250514-v1:0": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -471,6 +501,7 @@ export const bedrockModels = {
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -687,6 +718,16 @@ export const vertexModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
+	},
+	"claude-haiku-4-5@20251001": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
 	},
 	"claude-opus-4-1@20250805": {
 		maxTokens: 8192,
@@ -3379,17 +3420,6 @@ export const basetenModels = {
 		cacheReadsPrice: 0,
 		description: "Mixture-of-experts LLM with math and reasoning capabilities",
 	},
-	"meta-llama/Llama-4-Maverick-17B-128E-Instruct": {
-		maxTokens: 131072,
-		contextWindow: 1000000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.19,
-		outputPrice: 0.72,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
-		description: "High-efficiency language processing",
-	},
 	"deepseek-ai/DeepSeek-R1": {
 		maxTokens: 131072,
 		contextWindow: 163840,
@@ -3411,17 +3441,6 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "Fast general-purpose LLM with enhanced reasoning capabilities",
-	},
-	"meta-llama/Llama-4-Scout-17B-16E-Instruct": {
-		maxTokens: 131072,
-		contextWindow: 1000000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.13,
-		outputPrice: 0.5,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
-		description: "Precise context understanding with efficient reasoning capabilities",
 	},
 	"deepseek-ai/DeepSeek-V3.1": {
 		maxTokens: 131072,
@@ -3467,17 +3486,6 @@ export const basetenModels = {
 		cacheReadsPrice: 0,
 		description: "State of the art language model for agentic and coding tasks. Septemeber Update.",
 	},
-	"moonshotai/Kimi-K2-Instruct": {
-		maxTokens: 131000,
-		contextWindow: 131000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.6,
-		outputPrice: 2.5,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
-		description: "State of the art language model for agentic and coding tasks",
-	},
 	"deepseek-ai/DeepSeek-R1-0528": {
 		maxTokens: 131072,
 		contextWindow: 163840,
@@ -3491,7 +3499,7 @@ export const basetenModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 export type BasetenModelId = keyof typeof basetenModels
-export const basetenDefaultModelId = "moonshotai/Kimi-K2-Instruct" satisfies BasetenModelId
+export const basetenDefaultModelId = "moonshotai/Kimi-K2-Instruct-0905" satisfies BasetenModelId
 
 // Z AI
 // https://docs.z.ai/guides/llm/glm-4.5

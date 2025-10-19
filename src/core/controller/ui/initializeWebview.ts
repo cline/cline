@@ -1,7 +1,8 @@
-import { McpMarketplaceCatalog } from "@shared/mcp"
 import { Empty, EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
+import { readMcpMarketplaceCatalogFromCache } from "@/core/storage/disk"
 import { telemetryService } from "@/services/telemetry"
+import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
 import type { Controller } from "../index"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
@@ -39,32 +40,28 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 					const modelId = apiConfiguration[modelIdField]
 
 					if (modelId && response.models[modelId]) {
-						const updatedConfig = {
-							...apiConfiguration,
-							[modelInfoField]: response.models[modelId],
-						}
-						controller.stateManager.setApiConfiguration(updatedConfig)
+						controller.stateManager.setGlobalState(modelInfoField, response.models[modelId])
 						await controller.postStateToWebview()
 					}
 				} else {
 					// Shared models: update both plan and act modes
 					const planModelId = apiConfiguration.planModeOpenRouterModelId
 					const actModelId = apiConfiguration.actModeOpenRouterModelId
-					const updatedConfig = { ...apiConfiguration }
+					const updates: Partial<GlobalStateAndSettings> = {}
 
 					// Update plan mode model info if we have a model ID
 					if (planModelId && response.models[planModelId]) {
-						updatedConfig.planModeOpenRouterModelInfo = response.models[planModelId]
+						updates.planModeOpenRouterModelInfo = response.models[planModelId]
 					}
 
 					// Update act mode model info if we have a model ID
 					if (actModelId && response.models[actModelId]) {
-						updatedConfig.actModeOpenRouterModelInfo = response.models[actModelId]
+						updates.actModeOpenRouterModelInfo = response.models[actModelId]
 					}
 
 					// Post state update if we updated any model info
-					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
-						controller.stateManager.setApiConfiguration(updatedConfig)
+					if (Object.keys(updates).length > 0) {
+						controller.stateManager.setGlobalStateBatch(updates)
 						await controller.postStateToWebview()
 					}
 				}
@@ -85,32 +82,28 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 					const modelId = apiConfiguration[modelIdField]
 
 					if (modelId && response.models[modelId]) {
-						const updatedConfig = {
-							...apiConfiguration,
-							[modelInfoField]: response.models[modelId],
-						}
-						controller.stateManager.setApiConfiguration(updatedConfig)
+						controller.stateManager.setGlobalState(modelInfoField, response.models[modelId])
 						await controller.postStateToWebview()
 					}
 				} else {
 					// Shared models: update both plan and act modes
 					const planModelId = apiConfiguration.planModeGroqModelId
 					const actModelId = apiConfiguration.actModeGroqModelId
-					const updatedConfig = { ...apiConfiguration }
+					const updates: Partial<GlobalStateAndSettings> = {}
 
 					// Update plan mode model info if we have a model ID
 					if (planModelId && response.models[planModelId]) {
-						updatedConfig.planModeGroqModelInfo = response.models[planModelId]
+						updates.planModeGroqModelInfo = response.models[planModelId]
 					}
 
 					// Update act mode model info if we have a model ID
 					if (actModelId && response.models[actModelId]) {
-						updatedConfig.actModeGroqModelInfo = response.models[actModelId]
+						updates.actModeGroqModelInfo = response.models[actModelId]
 					}
 
 					// Post state update if we updated any model info
-					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
-						controller.stateManager.setApiConfiguration(updatedConfig)
+					if (Object.keys(updates).length > 0) {
+						controller.stateManager.setGlobalStateBatch(updates)
 						await controller.postStateToWebview()
 					}
 				}
@@ -175,32 +168,28 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 					const modelId = apiConfiguration[modelIdField]
 
 					if (modelId && response.models[modelId]) {
-						const updatedConfig = {
-							...apiConfiguration,
-							[modelInfoField]: response.models[modelId],
-						}
-						controller.stateManager.setApiConfiguration(updatedConfig)
+						controller.stateManager.setGlobalState(modelInfoField, response.models[modelId])
 						await controller.postStateToWebview()
 					}
 				} else {
 					// Shared models: update both plan and act modes
 					const planModelId = apiConfiguration.planModeVercelAiGatewayModelId
 					const actModelId = apiConfiguration.actModeVercelAiGatewayModelId
-					const updatedConfig = { ...apiConfiguration }
+					const updates: Partial<GlobalStateAndSettings> = {}
 
 					// Update plan mode model info if we have a model ID
 					if (planModelId && response.models[planModelId]) {
-						updatedConfig.planModeVercelAiGatewayModelInfo = response.models[planModelId]
+						updates.planModeVercelAiGatewayModelInfo = response.models[planModelId]
 					}
 
 					// Update act mode model info if we have a model ID
 					if (actModelId && response.models[actModelId]) {
-						updatedConfig.actModeVercelAiGatewayModelInfo = response.models[actModelId]
+						updates.actModeVercelAiGatewayModelInfo = response.models[actModelId]
 					}
 
 					// Post state update if we updated any model info
-					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
-						controller.stateManager.setApiConfiguration(updatedConfig)
+					if (Object.keys(updates).length > 0) {
+						controller.stateManager.setGlobalStateBatch(updates)
 						await controller.postStateToWebview()
 					}
 				}
@@ -213,10 +202,10 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		// Prefetch marketplace and OpenRouter models
 
 		// Send stored MCP marketplace catalog if available
-		const mcpMarketplaceCatalog = controller.stateManager.getGlobalStateKey("mcpMarketplaceCatalog")
+		const mcpMarketplaceCatalog = await readMcpMarketplaceCatalogFromCache()
 
 		if (mcpMarketplaceCatalog) {
-			sendMcpMarketplaceCatalogEvent(mcpMarketplaceCatalog as McpMarketplaceCatalog)
+			sendMcpMarketplaceCatalogEvent(mcpMarketplaceCatalog)
 		}
 
 		// Silently refresh MCP marketplace catalog

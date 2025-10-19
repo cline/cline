@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/cline/cli/pkg/common"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/glebarez/go-sqlite"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -60,7 +60,7 @@ func NewLockManager(clineDir string) (*LockManager, error) {
 	}
 
 	// Database exists - open it normally (no schema creation)
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		// If we can't open existing database, return nil db manager
 		return &LockManager{dbPath: dbPath, db: nil}, nil
@@ -92,7 +92,7 @@ func (lm *LockManager) ensureConnection() error {
 	}
 
 	// Database exists, try to connect
-	db, err := sql.Open("sqlite3", lm.dbPath)
+	db, err := sql.Open("sqlite", lm.dbPath)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -160,7 +160,7 @@ func (lm *LockManager) RemoveInstanceLock(address string) error {
 // HasInstanceAtAddress checks if an instance exists at the given address
 func (lm *LockManager) HasInstanceAtAddress(address string) (bool, error) {
 	if err := lm.ensureConnection(); err != nil {
-		return false, nil
+		return false, err
 	}
 
 	query := common.CountInstanceLockSQL

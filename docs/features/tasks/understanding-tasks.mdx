@@ -1,0 +1,132 @@
+---
+title: "Understanding Tasks"
+description: "Learn what tasks are in Cline, how they work, and how to create effective prompts for better results."
+---
+
+## What are Tasks?
+
+Most users interact with Cline through **tasks** - the fundamental unit of work that drives every coding session. Whether you're building a new feature, fixing a bug, refactoring code, or exploring a codebase, every interaction with Cline happens within the context of a task. A task represents a complete conversation and work session between you and the AI agent, created through **prompts** - the instructions you provide to tell Cline what you want to accomplish. Tasks serve as self-contained work sessions that capture your entire conversation with Cline, including all the code changes, command executions, and decisions made along the way.
+
+This approach ensures that your work is organized, traceable, and resumable. Each task maintains its own isolated context, allowing you to work on multiple projects simultaneously without confusion. The beauty of Cline's task system lies in its flexibility and persistence, providing a collaborative coding session where you provide the direction through prompts, and Cline executes your vision with precision.
+
+### Key Characteristics
+
+Each task in Cline:
+
+- **Has a unique identifier**: Every task gets its own ID and dedicated storage directory
+- **Contains the full conversation**: All messages, tool uses, and results are preserved
+- **Tracks resources used**: Token usage, API costs, and execution time are monitored
+- **Can be interrupted and resumed**: Tasks maintain their state across VSCode sessions
+- **Creates checkpoints**: File changes are tracked through Git-based snapshots
+- **Enables documentation**: Tasks can be exported as markdown for team documentation
+- **Provides cost management**: Resource tracking helps monitor API usage and costs
+
+These features make Cline not just a coding tool, but a comprehensive development agent that understands the full lifecycle of your work.
+
+## Creating Tasks with Prompts
+
+Tasks begin with prompts - your instructions to Cline. The quality of your results depends heavily on how you describe what you want.
+
+### Prompt Components
+
+A well-structured prompt typically includes:
+
+- **Goal**: What you want to accomplish
+- **Context**: Background information and constraints
+- **Requirements**: Specific features or functionality needed
+- **Preferences**: Technology choices, coding style, etc.
+- **Examples**: References to guide the implementation
+
+<Note>
+**Want to master the art of prompting?** 
+
+Deep dive into **Module 1: "Prompting"** in [Cline Learn](https://clinelearn.com) to become an expert at creating effective prompts. The module covers:
+- Structured prompting techniques
+- Context optimization strategies
+- Common prompting patterns
+- Advanced prompt engineering
+- Real-world examples and exercises
+
+Good prompting skills lead to faster task completion, more accurate results, fewer iterations needed, and better code quality.
+</Note>
+
+## Task Execution Modes
+
+Cline operates in two distinct modes that help structure your workflow:
+
+- **Plan Mode**: For information gathering, discussing approaches, and creating strategies without making changes
+- **Act Mode**: For actual implementation where Cline executes file modifications, runs commands, and uses tools
+
+→ **[Learn more about Plan and Act modes](/features/plan-and-act)** to understand when and how to use each mode effectively.
+
+## Task Resources
+
+Each task consumes resources that are tracked:
+
+- **Tokens**: The amount of text processed (input and output)
+- **API Costs**: Monetary cost based on the model and token usage
+- **Time**: Duration from start to completion
+- **Checkpoints**: Number of file state snapshots created
+
+## Common Task Patterns
+
+### Code Generation
+```
+Create a TypeScript function that validates email addresses using regex. 
+Include unit tests using Jest and handle edge cases like international domains.
+```
+
+### Bug Fixing
+```
+@terminal The app crashes when clicking the submit button. 
+Fix the error and ensure proper error handling is in place.
+```
+
+### Refactoring
+```
+Refactor the authentication logic in @auth.ts to use async/await 
+instead of callbacks. Maintain all existing functionality.
+```
+
+### Feature Implementation
+```
+Add a dark mode toggle to the settings page. Use the existing theme 
+context and persist the preference to localStorage.
+```
+
+## Task Resumption
+
+One of Cline's powerful features is the ability to resume interrupted tasks:
+
+### When Tasks Get Interrupted
+
+- You stop a long-running task
+- An error occurs that needs intervention
+- You need to switch to another task
+
+### Resuming a Task
+
+1. Open the task from history
+2. Cline loads the complete conversation
+3. File states are checked against checkpoints
+4. The task continues with awareness of the interruption
+5. You can provide additional context if needed
+
+## Understanding Task Context
+
+Tasks maintain context throughout their lifecycle:
+
+- **Conversation History**: All previous messages and responses
+- **File Changes**: Tracked modifications and their order
+- **Tool Results**: Output from commands and operations
+- **Checkpoint States**: Snapshots of file states at key points
+
+This context allows Cline to:
+- Understand what has been done
+- Maintain consistency in approach
+- Resume work intelligently
+- Learn from previous attempts
+
+→ **[Learn more about Context Management](/getting-started/understanding-context-management)** to understand how Cline manages and optimizes context across tasks.
+
+Understanding how tasks work is fundamental to using Cline effectively. With well-crafted prompts and an understanding of the task lifecycle, you can leverage Cline's full potential to accelerate your development workflow.
