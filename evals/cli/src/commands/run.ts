@@ -8,7 +8,6 @@ import { storeTaskResult } from "../utils/results"
 interface RunOptions {
 	benchmark?: string
 	count?: number
-	apiKey?: string
 }
 
 /**
@@ -60,17 +59,12 @@ export async function runHandler(options: RunOptions): Promise<void> {
 				let cleanedUp = false
 
 				try {
-					// Run Cline CLI task with retry mechanism
-					console.log(`Running task with Cline CLI... Task ID: ${preparedTask.id}`)
-
 					// Run task using adapter's execution strategy
-					const { exitCode, duration, attempts, finalVerification } = await adapter.runTask(preparedTask)
+					const { exitCode, finalVerification } = await adapter.runTask(preparedTask)
 
 					// Create a result object
 					const result = {
 						exitCode,
-						duration,
-						attempts,
 						completed: exitCode === 0,
 					}
 
@@ -86,13 +80,13 @@ export async function runHandler(options: RunOptions): Promise<void> {
 					if (verification.success) {
 						console.log(
 							chalk.green(
-								`Tests passed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal} (${attempts} attempt${attempts > 1 ? "s" : ""})`,
+								`Tests passed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal}`,
 							),
 						)
 					} else {
 						console.log(
 							chalk.red(
-								`Tests failed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal} (${attempts} attempt${attempts > 1 ? "s" : ""})`,
+								`Tests failed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal}`,
 							),
 						)
 					}

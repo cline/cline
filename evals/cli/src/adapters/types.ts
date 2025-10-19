@@ -32,8 +32,6 @@ export interface BenchmarkAdapter {
 	verifyResult(task: Task, result: any): Promise<VerificationResult>
 	runTask(task: Task): Promise<{
 		exitCode: number
-		duration: number
-		attempts: number
 		finalVerification: VerificationResult | null
 	}>
 }

@@ -35,7 +35,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			await execa("git", ["pull"], { cwd: exercismDir })
 			console.log("Repository updated successfully")
 			
-			// Unskip again after pulling in case new tests were added
+			// Unskip tests again after pulling
 			this.unskipAllJavaScriptTests(exercismDir)
 			this.unskipAllJavaTests(exercismDir)
 		}
@@ -58,7 +58,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			.readdirSync(exercisesDir)
 			.filter((dir) => fs.statSync(path.join(exercisesDir, dir)).isDirectory())
 			.filter((dir) => !dir.startsWith(".") && !["node_modules", ".git"].includes(dir))
-			.filter((dir) => dir === "java")
+			.filter((dir) => dir === "rust")
 
 		for (const language of languages) {
 			const languageDir = path.join(exercisesDir, language, "exercises", "practice")
@@ -83,22 +83,18 @@ export class ExercismAdapter implements BenchmarkAdapter {
 						testCommands = ["cmake -DEXERCISM_RUN_ALL_TESTS=1 .", "make"]
 						break
 					case "javascript":
-						// Run all tests including those marked with xtest (skipped)
 						testCommands = ["npm install", "npm test -- --testNamePattern=."]
 						break
-				case "python":
-					testCommands = ["python3 -m pytest -o markers=task *_test.py"]
-					break
+					case "python":
+						testCommands = ["python3 -m pytest -o markers=task *_test.py"]
+						break
 					case "go":
-						// Go runs all tests by default, use -v for verbose output with subtest details
-						testCommands = ["go test -v"]
+						testCommands = ["GOWORK=off go test -v"]
 						break
 					case "java":
-						// Remove @Disabled annotations is not possible via command, tests run as-is
 						testCommands = ["./gradlew test"]
 						break
 					case "rust":
-						// Run all tests including ignored ones
 						testCommands = ["cargo test -- --include-ignored"]
 						break
 					default:
@@ -322,10 +318,19 @@ export class ExercismAdapter implements BenchmarkAdapter {
 				break
 
 			case "rust":
-				const rustMatch = output.match(/(\d+) passed; (\d+) failed/)
-				if (rustMatch) {
-					testsPassed = parseInt(rustMatch[1])
-					testsFailed = parseInt(rustMatch[2])
+				// Rust runs multiple test suites (unit, integration, doc tests)
+				// Sum results across all test result lines
+				const resultLines = output.match(/test result:.*?(\d+) passed; (\d+) failed/g)
+				if (resultLines) {
+					testsPassed = 0
+					testsFailed = 0
+					for (const line of resultLines) {
+						const match = line.match(/(\d+) passed; (\d+) failed/)
+						if (match) {
+							testsPassed += parseInt(match[1])
+							testsFailed += parseInt(match[2])
+						}
+					}
 				}
 				break
 
@@ -552,8 +557,6 @@ export class ExercismAdapter implements BenchmarkAdapter {
 	 */
 	async runTask(task: Task): Promise<{
 		exitCode: number
-		duration: number
-		attempts: number
 		finalVerification: VerificationResult | null
 	}> {
 		const startTime = Date.now()
@@ -577,6 +580,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			instanceAddress = addressMatch[1]
 
 			// Step 3: Create the initial task on this specific instance
+			console.log(chalk.blue(`Running task with Cline CLI... Task ID: ${task.id}`))
 			console.log(chalk.blue(`Using instance: ${instanceAddress}`))
 			await execa("cline", ["task", "new", "--yolo", "--address", instanceAddress, task.description], {
 				cwd: task.workspacePath,
@@ -635,8 +639,6 @@ export class ExercismAdapter implements BenchmarkAdapter {
 
 			return {
 				exitCode: 0,
-				duration,
-				attempts,
 				finalVerification,
 			}
 		} catch (error: any) {
@@ -645,8 +647,6 @@ export class ExercismAdapter implements BenchmarkAdapter {
 
 			return {
 				exitCode: error.exitCode || 1,
-				duration,
-				attempts: attempts || 0,
 				finalVerification,
 			}
 		} finally {
