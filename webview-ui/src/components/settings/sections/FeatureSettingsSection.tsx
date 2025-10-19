@@ -9,6 +9,7 @@ import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayMode
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
+import { isMacOSOrLinux } from "@/utils/platformUtils"
 import Section from "../Section"
 import SubagentOutputLineLimitSlider from "../SubagentOutputLineLimitSlider"
 import { updateSetting } from "../utils/settingsHandlers"
@@ -33,10 +34,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		hooksEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
-		platform,
 	} = useExtensionState()
-
-	const isMacOSOrLinux = platform === "darwin" || platform === "linux"
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
 
@@ -71,8 +69,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 			<Section>
 				<div style={{ marginBottom: 20 }}>
 					{/* Subagents - Only show on macOS and Linux */}
-					{isMacOSOrLinux && PLATFORM_CONFIG.type === PlatformType.VSCODE && (
-
+					{isMacOSOrLinux() && PLATFORM_CONFIG.type === PlatformType.VSCODE && (
 						<div
 							className="relative p-3 mb-3 rounded-md"
 							id="subagents-section"
