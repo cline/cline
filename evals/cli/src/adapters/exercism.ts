@@ -58,7 +58,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			.readdirSync(exercisesDir)
 			.filter((dir) => fs.statSync(path.join(exercisesDir, dir)).isDirectory())
 			.filter((dir) => !dir.startsWith(".") && !["node_modules", ".git"].includes(dir))
-			.filter((dir) => dir === "rust")
+			.filter((dir) => dir === "python")
 
 		for (const language of languages) {
 			const languageDir = path.join(exercisesDir, language, "exercises", "practice")
@@ -160,7 +160,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 		const solutionFiles = config.files.solution || []
 		const fileList = solutionFiles.join(", ")
 		description += `\n\nUse the above instructions to modify the supplied files: ${fileList}. Don't change the names of existing functions or classes, as they may be referenced from other code like unit tests, etc. Only use standard libraries, don't suggest installing any packages.`
-		description += "You should ignore all test or test related files in this directory. The final test file has been removed and will be used to evaluate your work after your implementation is complete. Think deeply about the problem prior to working on the implementation. Consider all edge cases and test your solution prior to finalizing."
+		description += " You should ignore all test or test related files in this directory. The final test file has been removed and will be used to evaluate your work after your implementation is complete. Think deeply about the problem prior to working on the implementation. Consider all edge cases and test your solution prior to finalizing."
 
 		// Move test files to temp directory
 		if (config.files.test) {
@@ -225,7 +225,6 @@ export class ExercismAdapter implements BenchmarkAdapter {
 	/**
 	 * Verify the result of a task execution by running tests
 	 * @param task The task that was executed
-	 * @param result The result of the task execution
 	 */
 	async verifyResult(task: Task): Promise<VerificationResult> {
 		// Run verification commands
@@ -254,9 +253,9 @@ export class ExercismAdapter implements BenchmarkAdapter {
 		}
 
 		// Log the raw output for debugging
-		console.log("\n=== TEST OUTPUT START ===")
-		console.log(output)
-		console.log("=== TEST OUTPUT END ===\n")
+		// console.log("\n=== TEST OUTPUT START ===")
+		// console.log(output)
+		// console.log("=== TEST OUTPUT END ===\n")
 
 		// Parse test results based on language
 		const language = task.metadata.language
@@ -284,6 +283,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 				break
 
 			case "go":
+				// This incorrectly counts the parent, but minor and doesn't affect final boolean metric
 				testsPassed = (output.match(/--- PASS:/g) || []).length
 				testsFailed = (output.match(/--- FAIL:/g) || []).length
 				break
@@ -522,14 +522,11 @@ export class ExercismAdapter implements BenchmarkAdapter {
 	/**
 	 * Runs a Cline task with automatic retry on test failure
 	 * Creates a new Cline instance, runs the task, verifies with tests,
-	 * and optionally retries once if tests fail
+	 * and retries once if tests fail
 	 * @param task The task to execute
-	 * @returns Exit code, duration, attempts, and final verification result
+	 * @returns The final verification result, or null
 	 */
-	async runTask(task: Task): Promise<{
-		exitCode: number
-		finalVerification: VerificationResult | null
-	}> {
+	async runTask(task: Task): Promise<VerificationResult | null> {
 		const startTime = Date.now()
 		let instanceAddress: string | null = null
 		let attempts = 0
@@ -608,18 +605,12 @@ export class ExercismAdapter implements BenchmarkAdapter {
 				chalk.green(`Task completed in ${(duration / 1000).toFixed(1)}s after ${attempts} attempt${attempts > 1 ? "s" : ""}`),
 			)
 
-			return {
-				exitCode: 0,
-				finalVerification,
-			}
+			return finalVerification
 		} catch (error: any) {
 			const duration = Date.now() - startTime
 			console.error(chalk.red(`Task failed after ${(duration / 1000).toFixed(1)}s: ${error.message}`))
 
-			return {
-				exitCode: error.exitCode || 1,
-				finalVerification,
-			}
+			return finalVerification
 		} finally {
 			// Step 7: Always clean up the instance, even if task failed
 			if (instanceAddress) {
