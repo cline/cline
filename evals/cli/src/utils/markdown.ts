@@ -18,7 +18,11 @@ export function generateMarkdownReport(
 	markdown += `- **Total Runs:** ${summary.runs}\n`
 	markdown += `- **Benchmarks:** ${summary.benchmarks.join(", ")}\n`
 	markdown += `- **Total Tasks:** ${summary.tasks}\n`
-	markdown += `- **Success Rate:** ${(summary.successRate * 100).toFixed(2)}%\n`
+	markdown += `- **Task Success Rate:** ${(summary.successRate * 100).toFixed(2)}%\n`
+	markdown += `- **Total Tests:** ${summary.totalTests}\n`
+	markdown += `- **Tests Passed:** ${summary.totalTestsPassed}\n`
+	markdown += `- **Tests Failed:** ${summary.totalTestsFailed}\n`
+	markdown += `- **Test Success Rate:** ${(summary.testSuccessRate * 100).toFixed(2)}%\n`
 	markdown += `- **Average Tokens:** ${Math.round(summary.averageTokens)}\n`
 	markdown += `- **Average Cost:** $${summary.averageCost.toFixed(4)}\n`
 	markdown += `- **Average Duration:** ${(summary.averageDuration / 1000).toFixed(2)}s\n`
@@ -45,7 +49,11 @@ export function generateMarkdownReport(
 		markdown += `### ${benchmark}\n\n`
 		markdown += `- **Runs:** ${report.runs}\n`
 		markdown += `- **Tasks:** ${report.tasks}\n`
-		markdown += `- **Success Rate:** ${(report.successRate * 100).toFixed(2)}%\n`
+		markdown += `- **Task Success Rate:** ${(report.successRate * 100).toFixed(2)}%\n`
+		markdown += `- **Total Tests:** ${report.totalTests}\n`
+		markdown += `- **Tests Passed:** ${report.totalTestsPassed}\n`
+		markdown += `- **Tests Failed:** ${report.totalTestsFailed}\n`
+		markdown += `- **Test Success Rate:** ${(report.testSuccessRate * 100).toFixed(2)}%\n`
 		markdown += `- **Average Tokens:** ${Math.round(report.averageTokens)}\n`
 		markdown += `- **Average Cost:** $${report.averageCost.toFixed(4)}\n`
 		markdown += `- **Average Duration:** ${(report.averageDuration / 1000).toFixed(2)}s\n\n`
