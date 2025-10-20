@@ -339,9 +339,10 @@ func (tr *ToolRenderer) RenderUserResponse(approved bool, feedback string) strin
 	return fmt.Sprintf("%s %s\n", symbol, status)
 }
 
-// renderMarkdown renders markdown if not in plain mode
+// renderMarkdown renders markdown if not in plain mode and in a TTY
 func (tr *ToolRenderer) renderMarkdown(markdown string) string {
-	if tr.outputFormat == "plain" {
+	// Skip markdown rendering if plain mode or not in TTY
+	if tr.outputFormat == "plain" || !isTTY() {
 		return markdown
 	}
 

@@ -229,10 +229,12 @@ func (r *Renderer) GetMdRenderer() *MarkdownRenderer {
 
 // RenderMarkdown renders markdown text to terminal format with ANSI codes
 // Falls back to plaintext if markdown rendering is unavailable or fails
-// Respects output format - skips rendering in plain mode
+// Respects output format - skips rendering in plain mode or non-TTY contexts
 func (r *Renderer) RenderMarkdown(markdown string) string {
-	// Skip markdown rendering in plain mode
-	if r.outputFormat == "plain" {
+	// Skip markdown rendering if:
+	// 1. Output format is explicitly "plain"
+	// 2. Not in a TTY (piped output, file redirect, CI, etc.)
+	if r.outputFormat == "plain" || !isTTY() {
 		return markdown
 	}
 
