@@ -1,5 +1,9 @@
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
+import { HookProcessRegistry } from "./HookProcessRegistry"
+
+// Maximum total output size (stdout + stderr combined)
+const MAX_HOOK_OUTPUT_SIZE = 1024 * 1024 // 1MB
 
 /**
  * HookProcess manages the execution of a hook script with streaming output capabilities.
@@ -9,6 +13,7 @@ import { EventEmitter } from "events"
  * - Real-time stdout/stderr streaming via line events
  * - Separate handling of visual output vs. JSON response
  * - 30-second execution timeout
+ * - 1MB output size limit (prevents memory issues)
  * - Hot state tracking (actively outputting)
  * - Process lifecycle management
  */
@@ -27,6 +32,11 @@ export class HookProcess extends EventEmitter {
 	private stdoutBuffer = ""
 	private stderrBuffer = ""
 
+	// Output size tracking
+	private stdoutSize = 0
+	private stderrSize = 0
+	private outputTruncated = false
+
 	constructor(
 		private readonly scriptPath: string,
 		private readonly timeoutMs: number = 30000,
@@ -41,8 +51,12 @@ export class HookProcess extends EventEmitter {
 	 */
 	async run(inputJson: string): Promise<void> {
 		return new Promise((resolve, reject) => {
+			// Register this process for tracking
+			HookProcessRegistry.register(this)
+
 			// Check if already aborted
 			if (this.abortSignal?.aborted) {
+				HookProcessRegistry.unregister(this)
 				reject(new Error("Hook execution cancelled"))
 				return
 			}
@@ -107,6 +121,9 @@ export class HookProcess extends EventEmitter {
 				this.isCompleted = true
 				this.emitRemainingBuffer()
 
+				// Unregister from active processes
+				HookProcessRegistry.unregister(this)
+
 				// Clear timers
 				if (this.hotTimer) {
 					clearTimeout(this.hotTimer)
@@ -133,6 +150,9 @@ export class HookProcess extends EventEmitter {
 
 			// Handle process errors
 			this.childProcess.on("error", (error) => {
+				// Unregister from active processes
+				HookProcessRegistry.unregister(this)
+
 				if (this.timeoutHandle) {
 					clearTimeout(this.timeoutHandle)
 					this.timeoutHandle = null
@@ -156,9 +176,31 @@ export class HookProcess extends EventEmitter {
 	}
 
 	/**
-	 * Handle output data and emit line events
+	 * Handle output data and emit line events.
+	 * Enforces 1MB total output limit to prevent memory issues.
 	 */
 	private handleOutput(data: string, _didEmitEmptyLine: boolean, stream: "stdout" | "stderr"): void {
+		// Check output size limit
+		const dataSize = Buffer.byteLength(data)
+		const currentTotalSize = this.stdoutSize + this.stderrSize
+
+		if (currentTotalSize + dataSize > MAX_HOOK_OUTPUT_SIZE) {
+			if (!this.outputTruncated) {
+				this.outputTruncated = true
+				const truncationMsg = "\n\n[Output truncated: exceeded 1MB limit]"
+				this.emit("line", truncationMsg, stream)
+				console.warn(`[HookProcess] Output exceeded ${MAX_HOOK_OUTPUT_SIZE} bytes, truncating`)
+			}
+			return // Drop further output
+		}
+
+		// Track size by stream
+		if (stream === "stdout") {
+			this.stdoutSize += dataSize
+		} else {
+			this.stderrSize += dataSize
+		}
+
 		// Set process as hot (actively outputting)
 		this.isHot = true
 		if (this.hotTimer) {
@@ -253,24 +295,56 @@ export class HookProcess extends EventEmitter {
 	}
 
 	/**
-	 * Terminate the process if still running
+	 * Terminate the process and its entire process tree.
+	 * Uses process groups on Unix to kill child processes.
+	 * Implements graceful shutdown with 2-second timeout before force kill.
 	 */
-	terminate(): void {
-		if (this.childProcess && !this.isCompleted) {
-			this.childProcess.kill("SIGTERM")
-
-			// Force kill after timeout
-			setTimeout(() => {
-				if (!this.isCompleted && this.childProcess) {
-					this.childProcess.kill("SIGKILL")
-				}
-			}, 5000)
+	async terminate(): Promise<void> {
+		if (!this.childProcess || this.isCompleted) {
+			return
 		}
 
-		// Clear timeout
-		if (this.timeoutHandle) {
-			clearTimeout(this.timeoutHandle)
-			this.timeoutHandle = null
+		const pid = this.childProcess.pid
+		if (!pid) {
+			return
+		}
+
+		try {
+			// On Unix, kill process group (negative PID kills all children)
+			// On Windows, just kill the process (tree-kill would be better but adds dependency)
+			if (process.platform !== "win32") {
+				// Kill process group with SIGTERM for graceful shutdown
+				process.kill(-pid, "SIGTERM")
+			} else {
+				// On Windows, just kill the process
+				this.childProcess.kill("SIGTERM")
+			}
+
+			// Wait up to 2 seconds for graceful shutdown
+			const gracefulTimeout = new Promise((resolve) => setTimeout(resolve, 2000))
+			const processExit = new Promise((resolve) => {
+				this.childProcess?.once("exit", resolve)
+			})
+
+			await Promise.race([processExit, gracefulTimeout])
+
+			// Force kill if still running
+			if (!this.isCompleted) {
+				if (process.platform !== "win32") {
+					process.kill(-pid, "SIGKILL")
+				} else {
+					this.childProcess?.kill("SIGKILL")
+				}
+			}
+		} catch (error) {
+			// Process might already be dead, which is fine
+			console.debug(`[HookProcess] Error during termination: ${error}`)
+		} finally {
+			// Clear timeout regardless
+			if (this.timeoutHandle) {
+				clearTimeout(this.timeoutHandle)
+				this.timeoutHandle = null
+			}
 		}
 	}
 }
