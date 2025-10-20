@@ -102,6 +102,9 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 							const { absolutePath, displayPath } =
 								typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relPath } : pathResult
 
+							// Increment counter for successful auto-approved read
+							config.taskState.consecutiveAutoApprovedRequestsCount++
+
 							// Read file content, we dont allow images to be read here
 							// This throws if an image or if we can't read the file, implicitly skipping
 							const fileContent = await extractFileContent(absolutePath, false)
