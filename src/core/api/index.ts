@@ -103,6 +103,7 @@ function createHandlerForProvider(
 				awsAuthentication: options.awsAuthentication,
 				awsBedrockApiKey: options.awsBedrockApiKey,
 				awsUseCrossRegionInference: options.awsUseCrossRegionInference,
+				awsUseGlobalInference: options.awsUseGlobalInference,
 				awsBedrockUsePromptCache: options.awsBedrockUsePromptCache,
 				awsUseProfile: options.awsUseProfile,
 				awsProfile: options.awsProfile,
@@ -379,6 +380,7 @@ function createHandlerForProvider(
 			})
 		case "oca":
 			return new OcaHandler({
+				ocaMode: options.ocaMode || "internal",
 				ocaBaseUrl: options.ocaBaseUrl,
 				ocaModelId: mode === "plan" ? options.planModeOcaModelId : options.actModeOcaModelId,
 				ocaModelInfo: mode === "plan" ? options.planModeOcaModelInfo : options.actModeOcaModelInfo,

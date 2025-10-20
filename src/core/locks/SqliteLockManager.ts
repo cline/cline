@@ -2,7 +2,7 @@ import Database from "better-sqlite3"
 import * as fs from "fs"
 import { existsSync, mkdirSync, unlinkSync } from "fs"
 import * as path from "path"
-import type { SqliteLockManagerOptions } from "./types"
+import type { LockRow, SqliteLockManagerOptions } from "./types"
 export class SqliteLockManager {
 	private db!: Database.Database
 	private instanceAddress: string
@@ -209,6 +209,83 @@ export class SqliteLockManager {
 		`)
 
 		deleteLock.run(instanceAddress)
+	}
+
+	/**
+	 * Check if another instance has a conflicting folder lock
+	 */
+	async getFolderLockByTarget(lockTarget: string): Promise<LockRow | null> {
+		const query = this.db.prepare(`
+			SELECT * FROM locks 
+			WHERE lock_type = 'folder' 
+			AND lock_target = ? 
+		`)
+
+		const result = query.get(lockTarget) as LockRow | undefined
+		return result || null
+	}
+
+	/**
+	 * Release a folder lock
+	 */
+	releaseFolderLockByTarget(heldBy: string, lockTarget: string): void {
+		const deleteLock = this.db.prepare(`
+			DELETE FROM locks 
+			WHERE held_by = ? AND lock_type = 'folder' AND lock_target = ?
+		`)
+
+		// swap instance address in place of taskID
+		heldBy = this.instanceAddress
+		deleteLock.run(heldBy, lockTarget)
+	}
+
+	/**
+	 * Register a folder lock
+	 * @returns null if lock was successfully acquired, or the conflicting LockRow if lock already exists
+	 */
+	async registerFolderLock(heldBy: string, lockTarget: string): Promise<LockRow | null> {
+		const now = Date.now()
+		const insertLock = this.db.prepare(`
+			INSERT OR IGNORE INTO locks (held_by, lock_type, lock_target, locked_at)
+			VALUES (?, 'folder', ?, ?)
+		`)
+
+		// swap instance address in place of taskID
+		heldBy = this.instanceAddress
+		const insertedCount = insertLock.run(this.instanceAddress, lockTarget, now).changes
+
+		if (insertedCount > 0) {
+			return null // lock acquired
+		} else {
+			const existingLock = await this.getFolderLockByTarget(lockTarget)
+			if (existingLock && existingLock.held_by === heldBy) {
+				return null // existing lock is held by the same task
+			}
+			// existing lock held by other task, return the conflicting lock
+			return await this.getFolderLockByTarget(lockTarget)
+		}
+	}
+
+	/**
+	 * Clean up folder locks that are held by tasks whose instances no longer exist.
+	 * This removes locks where held_by doesn't exist in any instance-type lock.
+	 */
+	cleanupOrphanedFolderLocks(): void {
+		const deleteOrphans = this.db.prepare(`
+			DELETE FROM locks 
+			WHERE lock_type = 'folder' 
+			AND held_by NOT IN (
+				SELECT DISTINCT held_by 
+				FROM locks 
+				WHERE lock_type = 'instance'
+			)
+		`)
+
+		const deletedCount = deleteOrphans.run().changes
+
+		if (deletedCount > 0) {
+			console.log(`Cleaned up ${deletedCount} orphaned folder lock(s)`)
+		}
 	}
 
 	/**

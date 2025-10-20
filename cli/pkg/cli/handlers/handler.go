@@ -22,12 +22,16 @@ type MessageHandler interface {
 
 // DisplayContext provides context and utilities for message handlers
 type DisplayContext struct {
-	State        *types.ConversationState
-	Renderer     *display.Renderer
-	IsLast       bool
-	IsPartial    bool
-	Verbose      bool
-	MessageIndex int
+	State          *types.ConversationState
+	Renderer       *display.Renderer
+	ToolRenderer   *display.ToolRenderer
+	SystemRenderer *display.SystemMessageRenderer
+	IsLast          bool
+	IsPartial       bool
+	Verbose         bool
+	MessageIndex    int
+	IsStreamingMode bool
+	IsInteractive   bool
 }
 
 // BaseHandler provides common functionality for message handlers
@@ -94,15 +98,13 @@ func (r *HandlerRegistry) Handle(msg *types.ClineMessage, dc *DisplayContext) er
 
 // handleDefault provides default handling for unrecognized messages
 func (r *HandlerRegistry) handleDefault(msg *types.ClineMessage, dc *DisplayContext) error {
-	timestamp := msg.GetTimestamp()
-
 	if msg.Text == "" {
 		return nil
 	}
 
 	prefix := "RESPONSE:"
 
-	return dc.Renderer.RenderMessage(timestamp, prefix, msg.Text)
+	return dc.Renderer.RenderMessage(prefix, msg.Text, true)
 }
 
 // GetHandlers returns all registered handlers

@@ -609,7 +609,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							selectedOption.type !== ContextMenuOptionType.URL &&
 							selectedOption.type !== ContextMenuOptionType.NoResults
 						) {
-							handleMentionSelect(selectedOption.type, selectedOption.value)
+							// Use label if it contains workspace prefix, otherwise use value
+							const mentionValue = selectedOption.label?.includes(":") ? selectedOption.label : selectedOption.value
+							handleMentionSelect(selectedOption.type, mentionValue)
 						}
 						return
 					}
@@ -796,13 +798,23 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									? FileSearchType.FOLDER
 									: undefined
 
+						// Parse workspace hint from query (e.g., "@frontend:/filename")
+						let workspaceHint: string | undefined
+						let searchQuery = query
+						const workspaceHintMatch = query.match(/^([\w-]+):\/(.*)$/)
+						if (workspaceHintMatch) {
+							workspaceHint = workspaceHintMatch[1]
+							searchQuery = workspaceHintMatch[2]
+						}
+
 						// Set a timeout to debounce the search requests
 						searchTimeoutRef.current = setTimeout(() => {
 							FileServiceClient.searchFiles(
 								FileSearchRequest.create({
-									query: query,
+									query: searchQuery,
 									mentionsRequestId: query,
 									selectedType: searchType,
+									workspaceHint: workspaceHint,
 								}),
 							)
 								.then((results) => {

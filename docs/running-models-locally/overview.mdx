@@ -1,0 +1,226 @@
+---
+title: "Local Models Overview"
+---
+
+## Running Models Locally with Cline
+
+Run Cline completely offline with genuinely capable models on your own hardware. No API costs, no data leaving your machine, no internet dependency.
+
+Local models have reached a turning point where they're now practical for real development work. This guide covers everything you need to know about running Cline with local models.
+
+## Quick Start
+
+1. **Check your hardware** - 32GB+ RAM minimum
+2. **Choose your runtime** - [LM Studio](/running-models-locally/lm-studio) or [Ollama](/running-models-locally/ollama)
+3. **Download Qwen3 Coder 30B** - The recommended model
+4. **Configure settings** - Enable compact prompts, set max context
+5. **Start coding** - Completely offline
+
+## Hardware Requirements
+
+Your RAM determines which models you can run effectively:
+
+| RAM | Recommended Model | Quantization | Performance Level |
+| --- | --- | --- | --- |
+| 32GB | Qwen3 Coder 30B | 4-bit | Entry-level local coding |
+| 64GB | Qwen3 Coder 30B | 8-bit | Full Cline features |
+| 128GB+ | GLM-4.5-Air | 4-bit | Cloud-competitive performance |
+
+## Recommended Models
+
+### Primary Recommendation: Qwen3 Coder 30B
+
+After extensive testing, **Qwen3 Coder 30B** is the most reliable model under 70B parameters for Cline:
+
+- **256K native context window** - Handle entire repositories
+- **Strong tool-use capabilities** - Reliable command execution
+- **Repository-scale understanding** - Maintains context across files
+- **Proven reliability** - Consistent outputs with Cline's tool format
+
+Download sizes:
+- 4-bit: ~17GB (recommended for 32GB RAM)
+- 8-bit: ~32GB (recommended for 64GB RAM)
+- 16-bit: ~60GB (requires 128GB+ RAM)
+
+### Why Not Smaller Models?
+
+Most models under 30B parameters (7B-20B) fail with Cline because they:
+- Produce broken tool-use outputs
+- Refuse to execute commands
+- Can't maintain conversation context
+- Struggle with complex coding tasks
+
+## Runtime Options
+
+### LM Studio
+- **Pros**: User-friendly GUI, easy model management, built-in server
+- **Cons**: Memory overhead from UI, limited to single model at a time
+- **Best for**: Desktop users who want simplicity
+- [Setup Guide →](/running-models-locally/lm-studio)
+
+### Ollama
+- **Pros**: Command-line based, lower memory overhead, scriptable
+- **Cons**: Requires terminal comfort, manual model management
+- **Best for**: Power users and server deployments
+- [Setup Guide →](/running-models-locally/ollama)
+
+## Critical Configuration
+
+### Required Settings
+
+**In Cline:**
+- ✅ Enable "Use Compact Prompt" - Reduces prompt size by 90%
+- ✅ Set appropriate model in settings
+- ✅ Configure Base URL to match your server
+
+**In LM Studio:**
+- Context Length: `262144` (maximum)
+- KV Cache Quantization: `OFF` (critical for proper function)
+- Flash Attention: `ON` (if available on your hardware)
+
+**In Ollama:**
+- Set context window: `num_ctx 262144`
+- Enable flash attention if supported
+
+### Understanding Quantization
+
+Quantization reduces model precision to fit on consumer hardware:
+
+| Type | Size Reduction | Quality | Use Case |
+| --- | --- | --- | --- |
+| 4-bit | ~75% | Good | Most coding tasks, limited RAM |
+| 8-bit | ~50% | Better | Professional work, more nuance |
+| 16-bit | None | Best | Maximum quality, requires high RAM |
+
+### Model Formats
+
+**GGUF (Universal)**
+- Works on all platforms (Windows, Linux, Mac)
+- Extensive quantization options
+- Broader tool compatibility
+- Recommended for most users
+
+**MLX (Mac only)**
+- Optimized for Apple Silicon (M1/M2/M3)
+- Leverages Metal and AMX acceleration
+- Faster inference on Mac
+- Requires macOS 13+
+
+## Performance Expectations
+
+### What's Normal
+
+- **Initial load time**: 10-30 seconds for model warmup
+- **Token generation**: 5-20 tokens/second on consumer hardware
+- **Context processing**: Slower with large codebases
+- **Memory usage**: Close to your quantization size
+
+### Performance Tips
+
+1. **Use compact prompts** - Essential for local inference
+2. **Limit context when possible** - Start with smaller windows
+3. **Choose right quantization** - Balance quality vs speed
+4. **Close other applications** - Free up RAM for the model
+5. **Use SSD storage** - Faster model loading
+
+## Use Case Comparison
+
+### When to Use Local Models
+
+✅ **Perfect for:**
+- Offline development environments
+- Privacy-sensitive projects
+- Learning without API costs
+- Unlimited experimentation
+- Air-gapped environments
+- Cost-conscious development
+
+### When to Use Cloud Models
+
+☁️ **Better for:**
+- Very large codebases (>256K tokens)
+- Multi-hour refactoring sessions
+- Teams needing consistent performance
+- Latest model capabilities
+- Time-critical projects
+
+## Troubleshooting
+
+### Common Issues & Solutions
+
+**"Shell integration unavailable"**
+- Switch to bash in Cline Settings → Terminal → Default Terminal Profile
+- Resolves 90% of terminal integration problems
+
+**"No connection could be made"**
+- Verify server is running (LM Studio or Ollama)
+- Check Base URL matches server address
+- Ensure no firewall blocking connection
+- Default ports: LM Studio (1234), Ollama (11434)
+
+**Slow or incomplete responses**
+- Normal for local models (5-20 tokens/sec typical)
+- Try smaller quantization (4-bit instead of 8-bit)
+- Enable compact prompts if not already
+- Reduce context window size
+
+**Model confusion or errors**
+- Verify KV Cache Quantization is OFF (LM Studio)
+- Ensure compact prompts enabled
+- Check context length set to maximum
+- Confirm sufficient RAM for quantization
+
+### Performance Optimization
+
+**For faster inference:**
+1. Use 4-bit quantization
+2. Enable Flash Attention
+3. Reduce context window if not needed
+4. Close unnecessary applications
+5. Use NVMe SSD for model storage
+
+**For better quality:**
+1. Use 8-bit or higher quantization
+2. Maximize context window
+3. Ensure adequate cooling
+4. Allocate maximum RAM to model
+
+## Advanced Configuration
+
+### Multi-GPU Setup
+If you have multiple GPUs, you can split model layers:
+- LM Studio: Automatic GPU detection
+- Ollama: Set `num_gpu` parameter
+
+### Custom Models
+While Qwen3 Coder 30B is recommended, you can experiment with:
+- DeepSeek Coder V2
+- Codestral 22B
+- StarCoder2 15B
+
+Note: These may require additional configuration and testing.
+
+## Community & Support
+
+- **Discord**: [Join our community](https://discord.gg/cline) for real-time help
+- **Reddit**: [r/cline](https://www.reddit.com/r/CLine/) for discussions
+- **GitHub**: [Report issues](https://github.com/cline/cline/issues)
+
+## Next Steps
+
+Ready to get started? Choose your path:
+
+<CardGroup cols={2}>
+  <Card title="LM Studio Setup" icon="desktop" href="/running-models-locally/lm-studio">
+    User-friendly GUI approach with detailed configuration guide
+  </Card>
+  <Card title="Ollama Setup" icon="terminal" href="/running-models-locally/ollama">
+    Command-line setup for power users and automation
+  </Card>
+</CardGroup>
+
+## Summary
+
+Local models with Cline are now genuinely practical. While they won't match top-tier cloud APIs in speed, they offer complete privacy, zero costs, and offline capability. With proper configuration and the right hardware, Qwen3 Coder 30B can handle most coding tasks effectively.
+
+The key is proper setup: adequate RAM, correct configuration, and realistic expectations. Follow this guide, and you'll have a capable coding assistant running entirely on your hardware.
