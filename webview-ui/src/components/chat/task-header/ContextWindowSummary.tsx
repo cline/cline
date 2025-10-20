@@ -48,9 +48,9 @@ const AccordionItem = memo<{
 				onClick={handleClick}>
 				<div className="flex items-center gap-1">
 					{isExpanded ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
-					<div className="font-semibold text-sm">{title}</div>
+					<div className="font-semibold">{title}</div>
 				</div>
-				<div className="text-muted-foreground text-sm">{value}</div>
+				<div className="text-muted-foreground">{value}</div>
 			</div>
 			{isExpanded && children && <div className="ml-5 my-1 text-xs text-muted-foreground">{children}</div>}
 		</div>

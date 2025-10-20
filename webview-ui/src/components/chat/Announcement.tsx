@@ -1,8 +1,10 @@
 import { Accordion, AccordionItem } from "@heroui/react"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { XIcon } from "lucide-react"
 import { CSSProperties, memo, useState } from "react"
 import { useMount } from "react-use"
+import { Button } from "@/components/ui/button"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
@@ -23,10 +25,8 @@ const containerStyle: CSSProperties = {
 	position: "relative",
 	flexShrink: 0,
 }
-const closeIconStyle: CSSProperties = { position: "absolute", top: "8px", right: "8px" }
-const h3TitleStyle: CSSProperties = { margin: "0 0 8px", fontWeight: "bold" }
+const h4TitleStyle: CSSProperties = { margin: "0 0 8px", fontWeight: "bold" }
 const ulStyle: CSSProperties = { margin: "0 0 8px", paddingLeft: "12px", listStyleType: "disc" }
-const _accountIconStyle: CSSProperties = { fontSize: 11 }
 const hrStyle: CSSProperties = {
 	height: "1px",
 	background: getAsVar(VSC_DESCRIPTION_FOREGROUND),
@@ -98,12 +98,17 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 
 	return (
 		<div style={containerStyle}>
-			<VSCodeButton appearance="icon" data-testid="close-button" onClick={hideAnnouncement} style={closeIconStyle}>
-				<span className="codicon codicon-close"></span>
-			</VSCodeButton>
-			<h3 style={h3TitleStyle}>
+			<Button
+				className="absolute top-2.5 right-2"
+				data-testid="close-button"
+				onClick={hideAnnouncement}
+				size="icon"
+				variant="icon">
+				<XIcon />
+			</Button>
+			<h4 style={h4TitleStyle}>
 				🎉{"  "}New in v{minorVersion}
-			</h3>
+			</h4>
 			<ul style={ulStyle}>
 				<li>
 					<b>UI Improvements:</b> New task header and focus chain design to take up less space for a cleaner experience

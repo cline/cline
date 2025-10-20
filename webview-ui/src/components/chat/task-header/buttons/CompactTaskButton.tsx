@@ -9,7 +9,7 @@ const CompactTaskButton: React.FC<{
 }> = ({ onClick, className }) => {
 	return (
 		<Tooltip>
-			<TooltipContent side="bottom">Compact Task</TooltipContent>
+			<TooltipContent side="left">Compact Task</TooltipContent>
 			<TooltipTrigger className={cn("flex items-center", className)}>
 				<Button
 					aria-label="Compact Task"
