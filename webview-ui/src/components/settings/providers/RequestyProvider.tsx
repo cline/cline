@@ -32,7 +32,7 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 	const apiKeyUrl = resolvedUrl != null ? new URL("api-keys", resolvedUrl).toString() : undefined
 
 	return (
-		<div>
+		<div style={{ display: "flex", flexDirection: "column" }}>
 			<ApiKeyField
 				initialValue={apiConfiguration?.requestyApiKey || ""}
 				onChange={(value) => handleFieldChange("requestyApiKey", value)}
@@ -45,7 +45,9 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 					onClick={async () => {
 						try {
 							await AccountServiceClient.requestyAuthClicked(
-								StringRequest.create({ value: apiConfiguration?.requestyBaseUrl || "" }),
+								StringRequest.create({
+									value: apiConfiguration?.requestyBaseUrl || "",
+								}),
 							)
 						} catch (error) {
 							console.error("Failed to open Requesty auth:", error)
