@@ -44,10 +44,10 @@ message AutoApprovalActions {
 // Auto approval settings for task execution
 message AutoApprovalSettings {
   int32 version = 1;
-  bool enabled = 2;
+  optional bool enabled = 2;
   AutoApprovalActions actions = 3;
   int32 max_requests = 4;
-  bool enable_notifications = 5;
+  optional bool enable_notifications = 5;
   repeated string favorites = 6;
 }
 

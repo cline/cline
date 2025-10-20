@@ -142,8 +142,8 @@ unspecified fields. Only the fields you explicitly set will be updated.`,
 				return err
 			}
 
-			// Update settings with partial merge
-			return configManager.UpdateSettingsPartial(ctx, settings, secrets)
+			// Update settings (server-side merge handles preserving existing values)
+			return configManager.UpdateSettings(ctx, settings, secrets)
 		},
 	}
 

@@ -421,7 +421,7 @@ func setAutoApprovalSettings(settings *cline.AutoApprovalSettings, fields map[st
 			if err != nil {
 				return err
 			}
-			settings.Enabled = val
+			settings.Enabled = boolPtr(val)
 		case "max_requests":
 			val, err := parseInt32(value)
 			if err != nil {
@@ -433,7 +433,7 @@ func setAutoApprovalSettings(settings *cline.AutoApprovalSettings, fields map[st
 			if err != nil {
 				return err
 			}
-			settings.EnableNotifications = val
+			settings.EnableNotifications = boolPtr(val)
 		case "actions":
 			return fmt.Errorf("auto_approval_settings.actions requires nested dot notation (e.g., auto-approval-settings.actions.read-files=true)")
 		default:

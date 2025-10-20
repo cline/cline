@@ -65,26 +65,6 @@ func (m *Manager) UpdateSettings(ctx context.Context, settings *cline.Settings, 
 	return nil
 }
 
-// UpdateSettingsPartial performs a read-merge-write operation to update settings
-// This ensures that only the specified fields are updated while preserving all other settings
-func (m *Manager) UpdateSettingsPartial(ctx context.Context, partialSettings *cline.Settings, partialSecrets *cline.Secrets) error {
-	// Get current state
-	stateData, err := m.GetState(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get current state: %w", err)
-	}
-
-	// Extract current settings and secrets from state
-	currentSettings, currentSecrets := extractSettingsAndSecrets(stateData)
-
-	// Merge partial updates with current values
-	mergedSettings := mergeSettings(currentSettings, partialSettings)
-	mergedSecrets := mergeSecrets(currentSecrets, partialSecrets)
-
-	// Update with the merged values
-	return m.UpdateSettings(ctx, mergedSettings, mergedSecrets)
-}
-
 func (m *Manager) GetState(ctx context.Context) (map[string]interface{}, error) {
 	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
 	if err != nil {
