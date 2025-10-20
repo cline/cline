@@ -186,7 +186,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 					}
 
 					return output
-				} catch (parseError) {
+				} catch (_parseError) {
 					// Try to extract JSON from stdout (it might have debug output before/after)
 					const jsonMatch = stdout.match(/\{[\s\S]*\}/)
 					if (jsonMatch) {
@@ -206,7 +206,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 							}
 
 							return output
-						} catch (extractError) {
+						} catch (_extractError) {
 							return null
 						}
 					}
@@ -252,7 +252,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 		} catch (error) {
 			// Hook execution failed (timeout, cancellation, or fatal error)
 			const stderr = hookProcess.getStderr()
-			const exitCode = hookProcess.getExitCode()
+			const _exitCode = hookProcess.getExitCode()
 
 			// Re-throw the error so ToolExecutor sees "Failed" status in UI
 			// ToolExecutor will catch this and decide whether to block tool execution
@@ -362,7 +362,10 @@ export class HookFactory {
 		streamCallback?: HookStreamCallback,
 		abortSignal?: AbortSignal,
 	): Promise<HookRunner<Name>> {
-		const scripts = await HookFactory.findHookScripts(hookName)
+		// Use cache for hook discovery instead of direct file system scan
+		const { HookDiscoveryCache } = await import("./HookDiscoveryCache")
+		const scripts = await HookDiscoveryCache.getInstance().get(hookName)
+
 		const runners = scripts.map((script) => new StdioHookRunner(hookName, script, streamCallback, abortSignal))
 		if (runners.length === 0) {
 			return new NoOpRunner(hookName)
@@ -392,7 +395,7 @@ export class HookFactory {
 	 * @returns the path to the hook to execute, or undefined if none found
 	 * @throws Error if an unexpected file system error occurs
 	 */
-	private static async findHookInHooksDir(hookName: HookName, hooksDir: string): Promise<string | undefined> {
+	static async findHookInHooksDir(hookName: HookName, hooksDir: string): Promise<string | undefined> {
 		return process.platform === "win32"
 			? HookFactory.findWindowsHook(hookName, hooksDir)
 			: HookFactory.findUnixHook(hookName, hooksDir)
