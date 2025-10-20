@@ -430,7 +430,4 @@ message ModelsApiConfiguration {
   optional OcaModelInfo act_mode_oca_model_info = 232;
   optional string act_mode_hicap_model_id = 233;
   optional OpenRouterModelInfo act_mode_hicap_model_info = 234;
-
-
-  repeated string favorited_model_ids = 300;
 }

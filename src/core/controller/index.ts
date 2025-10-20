@@ -746,23 +746,23 @@ export class Controller {
 		return undefined
 	}
 
-	// Read Hicap models from disk cache
-	async readHicapModels(): Promise<Record<string, ModelInfo> | undefined> {
-		const hicapModelsFilePath = path.join(await this.ensureCacheDirectoryExists(), GlobalFileNames.hicapModels)
-		const fileExists = await fileExistsAtPath(hicapModelsFilePath)
-		if (fileExists) {
-			const fileContents = await fs.readFile(hicapModelsFilePath, "utf8")
-			return JSON.parse(fileContents)
-		}
-		return undefined
-	}
-
 	// Read Vercel AI Gateway models from disk cache
 	async readVercelAiGatewayModels(): Promise<Record<string, ModelInfo> | undefined> {
 		const vercelAiGatewayModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.vercelAiGatewayModels)
 		const fileExists = await fileExistsAtPath(vercelAiGatewayModelsFilePath)
 		if (fileExists) {
 			const fileContents = await fs.readFile(vercelAiGatewayModelsFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	}
+
+	// Read Hicap models from disk cache
+	async readHicapModels(): Promise<Record<string, ModelInfo> | undefined> {
+		const hicapModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.hicapModels)
+		const fileExists = await fileExistsAtPath(hicapModelsFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(hicapModelsFilePath, "utf8")
 			return JSON.parse(fileContents)
 		}
 		return undefined

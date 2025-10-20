@@ -78,6 +78,7 @@ export interface ApiHandlerSecrets {
 	vercelAiGatewayApiKey?: string
 	difyApiKey?: string
 	minimaxApiKey?: string
+	hicapApiKey?: string
 }
 
 export interface ApiHandlerOptions {

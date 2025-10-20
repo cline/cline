@@ -756,6 +756,8 @@ func setSecretField(secrets *cline.Secrets, key, value string) error {
 		secrets.OcaApiKey = strPtr(value)
 	case "oca_refresh_token":
 		secrets.OcaRefreshToken = strPtr(value)
+	case "hicap_api_key":
+		secrets.HicapAiApiKey = strPtr(value)
 	default:
 		return fmt.Errorf("unsupported secret field '%s'", key)
 	}
