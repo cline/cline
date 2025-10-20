@@ -457,6 +457,13 @@ export class Controller {
 		}
 	}
 
+	async cancelHookExecution(): Promise<boolean> {
+		if (!this.task) {
+			return false
+		}
+		return await this.task.cancelHookExecution()
+	}
+
 	/**
 	 * Check if we should show the background terminal suggestion based on shell integration warning frequency
 	 * @returns true if we should show the suggestion, false otherwise

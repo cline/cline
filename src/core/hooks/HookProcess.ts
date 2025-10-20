@@ -30,6 +30,7 @@ export class HookProcess extends EventEmitter {
 	constructor(
 		private readonly scriptPath: string,
 		private readonly timeoutMs: number = 30000,
+		private readonly abortSignal?: AbortSignal,
 	) {
 		super()
 	}
@@ -40,6 +41,24 @@ export class HookProcess extends EventEmitter {
 	 */
 	async run(inputJson: string): Promise<void> {
 		return new Promise((resolve, reject) => {
+			// Check if already aborted
+			if (this.abortSignal?.aborted) {
+				reject(new Error("Hook execution cancelled"))
+				return
+			}
+
+			// Set up abort handler
+			const abortHandler = () => {
+				if (this.childProcess && !this.isCompleted) {
+					this.childProcess.kill("SIGTERM")
+					reject(new Error("Hook execution cancelled by user"))
+				}
+			}
+
+			if (this.abortSignal) {
+				this.abortSignal.addEventListener("abort", abortHandler)
+			}
+
 			// Spawn the hook process
 			this.childProcess = spawn(this.scriptPath, [], {
 				stdio: ["pipe", "pipe", "pipe"],
@@ -98,6 +117,11 @@ export class HookProcess extends EventEmitter {
 					this.timeoutHandle = null
 				}
 
+				// Remove abort listener
+				if (this.abortSignal) {
+					this.abortSignal.removeEventListener("abort", abortHandler)
+				}
+
 				this.emit("completed", code, signal)
 
 				if (code === 0) {
@@ -112,6 +136,10 @@ export class HookProcess extends EventEmitter {
 				if (this.timeoutHandle) {
 					clearTimeout(this.timeoutHandle)
 					this.timeoutHandle = null
+				}
+				// Remove abort listener
+				if (this.abortSignal) {
+					this.abortSignal.removeEventListener("abort", abortHandler)
 				}
 				this.emit("error", error)
 				reject(error)

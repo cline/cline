@@ -1,211 +1,329 @@
 import { ClineMessage } from "./ExtensionMessage"
 
 /**
- * Combines sequences of hook and hook_output messages in an array of ClineMessages,
- * and reorders PreToolUse hooks to appear before their associated tool messages.
- *
- * This function:
- * 1. Combines 'hook' messages with their following 'hook_output' messages
- * 2. Reorders PreToolUse hooks to appear BEFORE their associated tool messages
- * 3. Keeps PostToolUse hooks AFTER their associated tool messages
- *
- * @param messages - An array of ClineMessage objects to process.
- * @returns A new array of ClineMessage objects with hook sequences combined and reordered.
+ * Hook metadata extracted from hook message text.
+ * Mirrors the ClineSayHook interface but represents parsed data.
  */
-export function combineHookSequences(messages: ClineMessage[]): ClineMessage[] {
-	// Filter out partial tool/command messages to prevent duplicates during React render cycles
-	// (partial messages are removed and replaced with complete versions, but may briefly coexist)
-	// IMPORTANT: Only filter tool/command messages, NOT reasoning or other message types
-	const filteredMessages = messages.filter((msg) => {
-		// NEVER filter reasoning messages, even if they have partial: true
+interface HookMetadata {
+	hookName: string // e.g., "PreToolUse", "PostToolUse"
+	toolName?: string
+	status?: "running" | "completed" | "failed" | "cancelled"
+	exitCode?: number
+	hasJsonResponse?: boolean
+	shouldContinue?: boolean
+}
+
+// ============================================================================
+// PART 1: TYPE GUARDS & UTILITIES
+// ============================================================================
+
+/**
+ * Type guard to check if a message is a tool or command.
+ */
+function isToolOrCommandMessage(msg: ClineMessage): boolean {
+	return msg.ask === "tool" || msg.say === "tool" || msg.ask === "command" || msg.say === "command"
+}
+
+/**
+ * Safely parses hook metadata from a hook message.
+ * Returns null if parsing fails or message is not a hook.
+ */
+function parseHookMetadata(hookMessage: ClineMessage): HookMetadata | null {
+	if (hookMessage.say !== "hook" || !hookMessage.text) {
+		return null
+	}
+
+	try {
+		const outputIndex = hookMessage.text.indexOf(HOOK_OUTPUT_STRING)
+		const metadataStr = outputIndex !== -1 ? hookMessage.text.slice(0, outputIndex).trim() : hookMessage.text.trim()
+
+		return JSON.parse(metadataStr) as HookMetadata
+	} catch {
+		return null
+	}
+}
+
+// ============================================================================
+// PART 2: FILTERING & COMBINING
+// ============================================================================
+
+/**
+ * Filters out partial tool/command messages while preserving all other types.
+ * Reasoning messages are always kept, even if marked partial.
+ *
+ * This prevents duplicate messages during React render cycles where partial
+ * messages are removed and replaced with complete versions.
+ */
+function filterPartialToolMessages(messages: ClineMessage[]): ClineMessage[] {
+	return messages.filter((msg) => {
+		// Always keep reasoning messages
 		if (msg.say === "reasoning") {
-			return true // Always keep reasoning messages
+			return true
 		}
 
-		// Only check tool and command messages for partial filtering
-		const isToolMessage = msg.ask === "tool" || msg.say === "tool"
-		const isCommandMessage = msg.ask === "command" || msg.say === "command"
-		const isToolOrCommand = isToolMessage || isCommandMessage
-
-		// Keep all messages EXCEPT partial tool/command messages
-		// This preserves: reasoning (explicitly checked above), text, hooks, and complete tool/command messages
-		if (isToolOrCommand && msg.partial === true) {
-			return false // Filter out partial tool/command messages
-		}
-		return true // Keep everything else
+		// Filter out partial tool/command messages only
+		const isToolOrCommand = isToolOrCommandMessage(msg)
+		return !(isToolOrCommand && msg.partial === true)
 	})
+}
 
-	const combinedHooks: ClineMessage[] = []
+/**
+ * Combines a single hook message with all subsequent hook_output messages.
+ *
+ * @param hookMessage The hook message to start combining from
+ * @param startIndex The index of the hook message in the messages array
+ * @param messages The full messages array
+ * @returns Object containing the combined message and the next index to process
+ */
+function combineHookWithOutputs(
+	hookMessage: ClineMessage,
+	startIndex: number,
+	messages: ClineMessage[],
+): { combined: ClineMessage; nextIndex: number } {
+	let combinedText = hookMessage.text || ""
+	let hasOutput = false
+	let i = startIndex + 1
 
-	// First pass: combine hooks with their outputs (using filtered messages)
-	for (let i = 0; i < filteredMessages.length; i++) {
-		if (filteredMessages[i].say === "hook") {
-			let combinedText = filteredMessages[i].text || ""
-			let didAddOutput = false
-			let j = i + 1
-
-			while (j < filteredMessages.length) {
-				if (filteredMessages[j].say === "hook") {
-					// Stop if we encounter the next hook
-					break
-				}
-				if (filteredMessages[j].say === "hook_output") {
-					if (!didAddOutput) {
-						// Add a marker before the first output
-						combinedText += `\n${HOOK_OUTPUT_STRING}`
-						didAddOutput = true
-					}
-					// Handle cases where we receive empty hook_output
-					const output = filteredMessages[j].text || ""
-					if (output.length > 0) {
-						combinedText += "\n" + output
-					}
-				}
-				j++
+	// Collect all hook_output messages until we hit another hook or end of array
+	while (i < messages.length && messages[i].say !== "hook") {
+		if (messages[i].say === "hook_output") {
+			// Add marker before first output
+			if (!hasOutput) {
+				combinedText += `\n${HOOK_OUTPUT_STRING}`
+				hasOutput = true
 			}
 
-			combinedHooks.push({
-				...filteredMessages[i],
-				text: combinedText,
-			})
+			// Append output if not empty
+			const output = messages[i].text || ""
+			if (output.length > 0) {
+				combinedText += "\n" + output
+			}
+		}
+		i++
+	}
 
-			i = j - 1 // Move to the index just before the next hook or end of array
+	return {
+		combined: { ...hookMessage, text: combinedText },
+		nextIndex: i,
+	}
+}
+
+/**
+ * Combines all hooks with their outputs and removes hook_output messages.
+ *
+ * This is a two-pass process:
+ * 1. Scan through and combine each hook with its outputs
+ * 2. Build final array without hook_output messages, using combined hooks
+ */
+function combineAllHooks(messages: ClineMessage[]): ClineMessage[] {
+	// Pass 1: Build map of combined hooks by timestamp
+	const combinedHooksByTs = new Map<number, ClineMessage>()
+
+	for (let i = 0; i < messages.length; i++) {
+		if (messages[i].say === "hook") {
+			const { combined, nextIndex } = combineHookWithOutputs(messages[i], i, messages)
+			combinedHooksByTs.set(combined.ts, combined)
+			i = nextIndex - 1 // Adjust for loop increment
 		}
 	}
 
-	// Second pass: remove hook_outputs and replace original hooks with combined ones (using filtered messages)
-	const processedMessages = filteredMessages
-		.filter((msg) => msg.say !== "hook_output")
-		.map((msg) => {
-			if (msg.say === "hook") {
-				const combinedHook = combinedHooks.find((hook) => hook.ts === msg.ts)
-				return combinedHook || msg
-			}
-			return msg
-		})
+	// Pass 2: Build result array
+	const result: ClineMessage[] = []
 
-	// Third pass: reorder PreToolUse hooks to appear before their associated tool/command messages
-	// Build a map of tool timestamps to their PreToolUse hooks
-	const preToolUseHooksByNextTool = new Map<number, ClineMessage[]>()
-
-	// First scan: identify PreToolUse hooks and map them to the next tool/command
-	// IMPORTANT: We look for tools in the ORIGINAL messages array to match hooks immediately,
-	// even if the tool is still partial. This prevents delays in showing hooks.
-	for (let i = 0; i < processedMessages.length; i++) {
-		const msg = processedMessages[i]
-
-		if (msg.say === "hook") {
-			try {
-				const outputIndex = msg.text?.indexOf(HOOK_OUTPUT_STRING) ?? -1
-				const metadataStr = outputIndex !== -1 ? msg.text?.slice(0, outputIndex).trim() : msg.text?.trim()
-				const metadata = JSON.parse(metadataStr || "{}")
-
-				if (metadata.hookName === "PreToolUse") {
-					// Find the corresponding tool in the ORIGINAL messages array (not filtered)
-					// Look backwards from the hook's position in the original array
-					const hookIndexInOriginal = messages.findIndex((m) => m.ts === msg.ts)
-
-					for (let j = hookIndexInOriginal - 1; j >= 0; j--) {
-						const prevMsg = messages[j]
-						const isToolOrCommand =
-							prevMsg.ask === "tool" ||
-							prevMsg.say === "tool" ||
-							prevMsg.ask === "command" ||
-							prevMsg.say === "command"
-
-						if (isToolOrCommand) {
-							// Map this hook to appear before this tool
-							// Use the tool's timestamp even if it's still partial
-							if (!preToolUseHooksByNextTool.has(prevMsg.ts)) {
-								preToolUseHooksByNextTool.set(prevMsg.ts, [])
-							}
-							preToolUseHooksByNextTool.get(prevMsg.ts)!.push(msg)
-							break
-						}
-					}
-				}
-			} catch (e) {
-				// If parsing fails, continue
-			}
+	for (const msg of messages) {
+		if (msg.say === "hook_output") {
+		} else if (msg.say === "hook") {
+			// Use combined version
+			result.push(combinedHooksByTs.get(msg.ts) || msg)
+		} else {
+			// Keep all other messages as-is
+			result.push(msg)
 		}
 	}
 
-	// Second scan: build the reordered array
-	const reorderedMessages: ClineMessage[] = []
-	const processedHookTimestamps = new Set<number>()
-	const processedToolTimestamps = new Set<number>()
+	return result
+}
 
-	// Find which tool timestamps actually exist in processedMessages
-	const availableToolTimestamps = new Set<number>()
+// ============================================================================
+// PART 3: PRETOOLUSE REORDERING
+// ============================================================================
+
+/**
+ * Finds the timestamp of the next tool/command after a given index.
+ *
+ * Searches in the original messages array (not filtered) to catch tools
+ * that might still be partial. This ensures PreToolUse hooks are matched
+ * immediately even if their tool hasn't fully arrived yet.
+ *
+ * @param hookIndex The starting index to search from
+ * @param messages The original messages array (may include partial tools)
+ * @returns The timestamp of the next tool, or null if none found
+ */
+function findNextToolTimestamp(hookIndex: number, messages: ClineMessage[]): number | null {
+	for (let i = hookIndex + 1; i < messages.length; i++) {
+		if (isToolOrCommandMessage(messages[i])) {
+			return messages[i].ts
+		}
+	}
+	return null
+}
+
+/**
+ * Builds a map of tool timestamps to their PreToolUse hooks.
+ *
+ * This map indicates which hooks should be moved to appear before which tools.
+ * Only PreToolUse hooks are included; PostToolUse hooks stay in their original position.
+ *
+ * @param processedMessages Messages after filtering and combining
+ * @param originalMessages Original messages array (used to find tools)
+ * @returns Map of tool timestamp -> array of PreToolUse hooks for that tool
+ */
+function buildPreToolUseMap(processedMessages: ClineMessage[], originalMessages: ClineMessage[]): Map<number, ClineMessage[]> {
+	const map = new Map<number, ClineMessage[]>()
+
+	// Build timestamp-to-index map once to avoid O(n) findIndex calls
+	const timestampToIndex = new Map<number, number>()
+	for (let i = 0; i < originalMessages.length; i++) {
+		timestampToIndex.set(originalMessages[i].ts, i)
+	}
+
 	for (const msg of processedMessages) {
-		const isToolOrCommand = msg.ask === "tool" || msg.say === "tool" || msg.ask === "command" || msg.say === "command"
-		if (isToolOrCommand) {
-			availableToolTimestamps.add(msg.ts)
-		}
-	}
-
-	for (const msg of processedMessages) {
-		// Check if this tool/command has PreToolUse hooks that should appear before it
-		const hooksForThisTool = preToolUseHooksByNextTool.get(msg.ts)
-		if (hooksForThisTool && hooksForThisTool.length > 0) {
-			// Only insert hooks that haven't been added yet
-			const hooksToAdd = hooksForThisTool.filter((hook) => !processedHookTimestamps.has(hook.ts))
-
-			if (hooksToAdd.length > 0) {
-				// Insert hooks before the tool
-				reorderedMessages.push(...hooksToAdd)
-				// Mark these hooks as processed
-				hooksToAdd.forEach((hook) => processedHookTimestamps.add(hook.ts))
-			}
-
-			// Mark this tool as having been processed
-			processedToolTimestamps.add(msg.ts)
-			// Add the tool immediately after its hooks
-			reorderedMessages.push(msg)
-			continue // Skip the default add at the end
-		}
-
-		// Check if this tool was already added with its hooks
-		if (processedToolTimestamps.has(msg.ts)) {
-			// Skip this tool, it's already been added with its PreToolUse hooks
+		// Only process PreToolUse hooks
+		const metadata = parseHookMetadata(msg)
+		if (metadata?.hookName !== "PreToolUse") {
 			continue
 		}
 
-		// Check if this is a PreToolUse hook that will be moved before its tool
-		if (msg.say === "hook") {
-			try {
-				const outputIndex = msg.text?.indexOf(HOOK_OUTPUT_STRING) ?? -1
-				const metadataStr = outputIndex !== -1 ? msg.text?.slice(0, outputIndex).trim() : msg.text?.trim()
-				const metadata = JSON.parse(metadataStr || "{}")
-
-				if (metadata.hookName === "PreToolUse") {
-					// Find which tool (if any) this hook is mapped to
-					let matchedToolTimestamp: number | undefined
-					for (const [toolTs, hooks] of preToolUseHooksByNextTool.entries()) {
-						if (hooks.some((h) => h.ts === msg.ts)) {
-							matchedToolTimestamp = toolTs
-							break
-						}
-					}
-
-					// Only skip this hook if its tool is present AND we'll process it before the tool
-					if (matchedToolTimestamp !== undefined && availableToolTimestamps.has(matchedToolTimestamp)) {
-						// Skip - already inserted before its tool
-						continue
-					}
-					// Otherwise fall through to add in normal position
-				}
-			} catch (e) {
-				// If parsing fails, fall through to normal processing
-			}
+		// Find this hook's position in the original array using the index map
+		const hookIndexInOriginal = timestampToIndex.get(msg.ts)
+		if (hookIndexInOriginal === undefined) {
+			continue // Shouldn't happen, but be safe
 		}
 
-		// Add the message in its normal position
-		// This includes: PreToolUse hooks whose tools aren't available yet, PostToolUse hooks, reasoning, text, etc.
-		reorderedMessages.push(msg)
+		// Find the next tool after this hook in the original array
+		const toolTimestamp = findNextToolTimestamp(hookIndexInOriginal, originalMessages)
+		if (toolTimestamp === null) {
+			// No tool found - hook will stay in original position
+			continue
+		}
+
+		// Map this hook to appear before that tool
+		if (!map.has(toolTimestamp)) {
+			map.set(toolTimestamp, [])
+		}
+		map.get(toolTimestamp)!.push(msg)
 	}
 
-	return reorderedMessages
+	return map
+}
+
+/**
+ * Reorders messages so PreToolUse hooks appear before their associated tools.
+ *
+ * Algorithm:
+ * 1. When we encounter a tool, check if it has PreToolUse hooks mapped to it
+ * 2. If yes, insert those hooks BEFORE the tool
+ * 3. Track which hooks and tools we've already added to avoid duplicates
+ * 4. For PreToolUse hooks encountered in their original position:
+ *    - If their tool is available and we'll process them before it, skip them
+ *    - Otherwise, add them in their current position (tool not available yet)
+ *
+ * @param messages Messages after filtering and combining
+ * @param preToolUseMap Map of tool timestamp -> PreToolUse hooks
+ * @returns Reordered messages array
+ */
+function reorderWithPreToolUseHooks(messages: ClineMessage[], preToolUseMap: Map<number, ClineMessage[]>): ClineMessage[] {
+	const result: ClineMessage[] = []
+	const addedHooks = new Set<number>()
+	const addedTools = new Set<number>()
+
+	// Build set of available tool timestamps for quick lookup
+	const availableTools = new Set<number>()
+	for (const msg of messages) {
+		if (isToolOrCommandMessage(msg)) {
+			availableTools.add(msg.ts)
+		}
+	}
+
+	for (const msg of messages) {
+		// Case 1: This is a tool with PreToolUse hooks
+		if (isToolOrCommandMessage(msg) && preToolUseMap.has(msg.ts)) {
+			const hooksForTool = preToolUseMap.get(msg.ts)!
+
+			// Insert hooks that haven't been added yet
+			const newHooks = hooksForTool.filter((h) => !addedHooks.has(h.ts))
+			result.push(...newHooks)
+			newHooks.forEach((h) => addedHooks.add(h.ts))
+
+			// Add the tool
+			result.push(msg)
+			addedTools.add(msg.ts)
+			continue
+		}
+
+		// Case 2: This tool was already added with its hooks
+		if (addedTools.has(msg.ts)) {
+			continue
+		}
+
+		// Case 3: This is a PreToolUse hook in its original position
+		const metadata = parseHookMetadata(msg)
+		if (metadata?.hookName === "PreToolUse") {
+			// Find which tool (if any) this hook is mapped to
+			let mappedToolTs: number | undefined
+			for (const [toolTs, hooks] of preToolUseMap) {
+				if (hooks.some((h) => h.ts === msg.ts)) {
+					mappedToolTs = toolTs
+					break
+				}
+			}
+
+			// If this hook's tool is available and we'll insert it before that tool, skip it here
+			if (mappedToolTs !== undefined && availableTools.has(mappedToolTs)) {
+				continue
+			}
+
+			// Otherwise, keep hook in original position (tool not available yet)
+		}
+
+		// Case 4: All other messages (text, PostToolUse hooks, reasoning, etc.)
+		result.push(msg)
+	}
+
+	return result
+}
+
+// ============================================================================
+// MAIN FUNCTION
+// ============================================================================
+
+/**
+ * Combines sequences of hook and hook_output messages, and reorders
+ * PreToolUse hooks to appear before their associated tool messages.
+ *
+ * Process:
+ * 1. Filter out partial tool/command messages (React render cycle cleanup)
+ * 2. Combine hooks with their hook_output messages
+ * 3. Build mapping of tools to their PreToolUse hooks
+ * 4. Reorder so PreToolUse hooks appear before their tools
+ *
+ * @param messages Array of ClineMessage objects to process
+ * @returns New array with hooks combined and PreToolUse hooks reordered
+ */
+export function combineHookSequences(messages: ClineMessage[]): ClineMessage[] {
+	// Phase 1: Filter out partial tool/command messages
+	const filtered = filterPartialToolMessages(messages)
+
+	// Phase 2: Combine hooks with their outputs
+	const combined = combineAllHooks(filtered)
+
+	// Phase 3: Build PreToolUse hook mapping
+	const preToolUseMap = buildPreToolUseMap(combined, messages)
+
+	// Phase 4: Reorder to place PreToolUse hooks before tools
+	const reordered = reorderWithPreToolUseHooks(combined, preToolUseMap)
+
+	return reordered
 }
 
 export const HOOK_OUTPUT_STRING = "__HOOK_OUTPUT__"
