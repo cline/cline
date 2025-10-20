@@ -202,6 +202,19 @@ export interface ClineSayHook {
 		path?: string // File path for file operations
 		command?: string // Command for execute_command
 		content?: string // Content preview (first 200 chars)
+		diff?: string // Diff preview (first 200 chars)
+		regex?: string // Regex pattern for search_files
+		url?: string // URL for web_fetch or browser_action
+		mcpTool?: string // MCP tool name
+		mcpServer?: string // MCP server name
+		resourceUri?: string // MCP resource URI
+	}
+	// Structured error information (only present when status is "failed")
+	error?: {
+		type: "timeout" | "validation" | "execution" | "cancellation" // Type of error
+		message: string // User-friendly error message
+		details?: string // Technical details for expansion
+		scriptPath?: string // Path to the hook script
 	}
 }
 

@@ -13,6 +13,7 @@ import * as vscode from "vscode"
 import { modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
+import { HookExecutionError } from "../hooks/HookError"
 import { HookFactory } from "../hooks/hook-factory"
 import { formatResponse } from "../prompts/responses"
 import { StateManager } from "../storage/StateManager"
@@ -620,19 +621,24 @@ export class ToolExecutor {
 					// Clear active hook execution
 					this.taskState.activeHookExecution = undefined
 
-					// Check if this was a cancellation
-					const wasCancelled = hookError instanceof Error && hookError.message.includes("cancelled")
+					// Extract structured error info if available
+					const isStructuredError = HookExecutionError.isHookError(hookError)
+					const errorInfo = isStructuredError ? hookError.errorInfo : null
 
-					// Extract exit code from error message if present
-					let exitCode: number | undefined
-					if (hookError instanceof Error) {
-						const exitCodeMatch = hookError.message.match(/exited with code (\d+)/)
-						if (exitCodeMatch) {
-							exitCode = parseInt(exitCodeMatch[1], 10)
+					// Log technical details to console for developers
+					if (errorInfo) {
+						console.error(`[PreToolUse Hook] ${errorInfo.type} error:`, errorInfo.message)
+						if (errorInfo.details) {
+							console.error(`[PreToolUse Hook] Details:`, errorInfo.details)
 						}
+						if (errorInfo.stderr) {
+							console.error(`[PreToolUse Hook] stderr:`, errorInfo.stderr)
+						}
+					} else {
+						console.error(`[PreToolUse Hook] Error:`, hookError)
 					}
 
-					// Update hook status to failed or cancelled (update the same message if it exists)
+					// Update hook status with structured error info (update the same message if it exists)
 					if (hookMessageTs !== undefined) {
 						const clineMessages = this.messageStateHandler.getClineMessages()
 						const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
@@ -640,8 +646,16 @@ export class ToolExecutor {
 							const failedMetadata: ClineSayHook = {
 								hookName: "PreToolUse",
 								toolName: block.name,
-								status: wasCancelled ? "cancelled" : "failed",
-								exitCode: wasCancelled ? 130 : (exitCode ?? 1),
+								status: errorInfo?.type === "cancellation" ? "cancelled" : "failed",
+								exitCode: errorInfo?.exitCode ?? 1,
+								...(errorInfo && {
+									error: {
+										type: errorInfo.type,
+										message: errorInfo.message,
+										details: errorInfo.details,
+										scriptPath: errorInfo.scriptPath,
+									},
+								}),
 							}
 							await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
 								text: JSON.stringify(failedMetadata),
@@ -651,10 +665,6 @@ export class ToolExecutor {
 
 					// Hook errors never block tool execution (fail-open)
 					// Only explicit shouldContinue: false in JSON blocks execution
-					const errorMessage = wasCancelled
-						? "Hook cancelled by user"
-						: `PreToolUse hook failed: ${hookError.toString()}`
-					await this.say("hook_output", `\n${errorMessage} - continuing with tool execution`)
 					// Don't return - continue to tool execution below
 				}
 			}
@@ -754,28 +764,41 @@ export class ToolExecutor {
 						// Clear active hook execution
 						this.taskState.activeHookExecution = undefined
 
-						// Check if this was a cancellation
-						const wasCancelled = hookError instanceof Error && hookError.message.includes("cancelled")
+						// Extract structured error info if available
+						const isStructuredError = HookExecutionError.isHookError(hookError)
+						const errorInfo = isStructuredError ? hookError.errorInfo : null
 
-						// Extract exit code from error message if present
-						let exitCode: number | undefined
-						if (hookError instanceof Error) {
-							const exitCodeMatch = hookError.message.match(/exited with code (\d+)/)
-							if (exitCodeMatch) {
-								exitCode = parseInt(exitCodeMatch[1], 10)
+						// Log technical details to console for developers
+						if (errorInfo) {
+							console.error(`[PostToolUse Hook] ${errorInfo.type} error:`, errorInfo.message)
+							if (errorInfo.details) {
+								console.error(`[PostToolUse Hook] Details:`, errorInfo.details)
 							}
+							if (errorInfo.stderr) {
+								console.error(`[PostToolUse Hook] stderr:`, errorInfo.stderr)
+							}
+						} else {
+							console.error(`[PostToolUse Hook] Error:`, hookError)
 						}
 
-						// Update hook status to failed or cancelled (update the same message if it exists)
+						// Update hook status with structured error info (update the same message if it exists)
 						if (hookMessageTs !== undefined) {
 							const clineMessages = this.messageStateHandler.getClineMessages()
 							const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
 							if (hookMessageIndex !== -1) {
-								const failedMetadata = {
+								const failedMetadata: ClineSayHook = {
 									hookName: "PostToolUse",
 									toolName: block.name,
-									status: wasCancelled ? "cancelled" : "failed",
-									exitCode: wasCancelled ? 130 : (exitCode ?? 1),
+									status: errorInfo?.type === "cancellation" ? "cancelled" : "failed",
+									exitCode: errorInfo?.exitCode ?? 1,
+									...(errorInfo && {
+										error: {
+											type: errorInfo.type,
+											message: errorInfo.message,
+											details: errorInfo.details,
+											scriptPath: errorInfo.scriptPath,
+										},
+									}),
 								}
 								await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
 									text: JSON.stringify(failedMetadata),
@@ -783,11 +806,7 @@ export class ToolExecutor {
 							}
 						}
 
-						// PostToolUse hook failure is non-fatal, just log it (don't display in UI)
-						const errorMessage = wasCancelled
-							? "PostToolUse hook cancelled by user"
-							: `PostToolUse hook failed: ${hookError.toString()}`
-						console.error(`[PostToolUse Hook] ${errorMessage}`)
+						// PostToolUse hook failure is non-fatal (observation only)
 					}
 				}
 			}

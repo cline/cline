@@ -16,6 +16,7 @@ import {
 } from "../../shared/proto/cline/hooks"
 import { getAllHooksDirs } from "../storage/disk"
 import { StateManager } from "../storage/StateManager"
+import { HookExecutionError } from "./HookError"
 import { HookProcess } from "./HookProcess"
 
 // Hook execution timeout (30 seconds)
@@ -231,7 +232,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 	override async [exec](input: HookInput): Promise<HookOutput> {
 		// Check if already aborted before starting
 		if (this.abortSignal?.aborted) {
-			throw new Error("Hook execution cancelled before start")
+			throw HookExecutionError.cancellation(this.scriptPath)
 		}
 
 		// Serialize input to JSON
@@ -265,10 +266,13 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 					// Validate structure before creating HookOutput
 					const validation = validateHookOutput(outputData)
 					if (!validation.valid) {
-						if (this.streamCallback) {
-							this.streamCallback(`\n❌ ${validation.error}`, "stderr")
-						}
-						return null
+						// Don't use streamCallback - it creates red text
+						// Throw validation error instead
+						throw HookExecutionError.validation(
+							validation.error!,
+							this.scriptPath,
+							stdout.slice(0, 500) + (stdout.length > 500 ? "..." : ""),
+						)
 					}
 
 					const output = HookOutput.fromJSON(outputData)
@@ -286,14 +290,9 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 					return output
 				} catch (parseError) {
-					// Enhanced parse error message
-					if (this.streamCallback) {
-						this.streamCallback(
-							`\n❌ Failed to parse hook JSON output.\n` +
-								`Error: ${parseError instanceof Error ? parseError.message : String(parseError)}\n\n` +
-								`Stdout preview:\n${stdout.slice(0, 500)}${stdout.length > 500 ? "..." : ""}`,
-							"stderr",
-						)
+					// If it's already a HookExecutionError, re-throw it
+					if (HookExecutionError.isHookError(parseError)) {
+						throw parseError
 					}
 
 					// Try to extract JSON from stdout (it might have debug output before/after)
@@ -305,10 +304,11 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 							// Validate structure
 							const validation = validateHookOutput(outputData)
 							if (!validation.valid) {
-								if (this.streamCallback) {
-									this.streamCallback(`\n❌ ${validation.error}`, "stderr")
-								}
-								return null
+								throw HookExecutionError.validation(
+									validation.error!,
+									this.scriptPath,
+									stdout.slice(0, 500) + (stdout.length > 500 ? "..." : ""),
+								)
 							}
 
 							const output = HookOutput.fromJSON(outputData)
@@ -326,10 +326,17 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 							return output
 						} catch (_extractError) {
-							return null
+							// Fall through to validation error below
 						}
 					}
-					return null
+
+					// Couldn't parse JSON at all
+					const errorMsg = parseError instanceof Error ? parseError.message : String(parseError)
+					throw HookExecutionError.validation(
+						`Failed to parse JSON output: ${errorMsg}`,
+						this.scriptPath,
+						stdout.slice(0, 500) + (stdout.length > 500 ? "..." : ""),
+					)
 				}
 			}
 
@@ -337,14 +344,11 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 			// If we have valid JSON, honor it regardless of exit code
 			if (parsedOutput) {
-				if (exitCode !== 0 && this.streamCallback) {
-					// Log that hook exited non-zero but we're using the JSON
-					this.streamCallback(
-						`\n⚠️  Note: Hook exited with code ${exitCode} but provided valid JSON response.`,
-						"stderr",
-					)
+				// Log warning if non-zero exit but valid JSON (for developers)
+				if (exitCode !== 0) {
+					console.warn(`[Hook ${this.hookName}] Exited with code ${exitCode} but provided valid JSON response`)
 					if (stderr) {
-						this.streamCallback(`    stderr: ${stderr}`, "stderr")
+						console.warn(`[Hook ${this.hookName}] stderr: ${stderr}`)
 					}
 				}
 				return parsedOutput
@@ -352,59 +356,37 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 			// No valid JSON found
 			if (exitCode === 0) {
-				// Hook succeeded but didn't provide JSON
-				if (this.streamCallback) {
-					this.streamCallback(
-						`\n⚠️  Warning: Hook completed successfully but no JSON response found in output.`,
-						"stderr",
-					)
-					this.streamCallback(`    No context will be added to the conversation.`, "stderr")
-				}
+				// Hook succeeded but didn't provide JSON - allow execution
+				console.warn(`[Hook ${this.hookName}] Completed successfully but no JSON response found`)
 				return HookOutput.create({
 					shouldContinue: true,
 				})
 			} else {
-				// Hook failed - throw error so UI shows "Failed" status
-				const errorDetails = stderr ? `. stderr: ${stderr}` : ""
-				throw new Error(`Hook exited with code ${exitCode}${errorDetails}`)
+				// Hook failed with non-zero exit
+				throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr)
 			}
 		} catch (error) {
-			// Hook execution failed (timeout, cancellation, or fatal error)
+			// If it's already a HookExecutionError, re-throw it
+			if (HookExecutionError.isHookError(error)) {
+				throw error
+			}
+
+			// Hook execution failed - categorize the error
 			const stderr = hookProcess.getStderr()
-			const _exitCode = hookProcess.getExitCode()
+			const exitCode = hookProcess.getExitCode()
 
-			// Enhance timeout errors with actionable advice
+			// Check for timeout
 			if (error instanceof Error && error.message.includes("timed out")) {
-				const enhancedMessage =
-					`${this.hookName} hook timed out after ${HOOK_EXECUTION_TIMEOUT_MS}ms.\n\n` +
-					`Possible causes:\n` +
-					`  - Infinite loop in hook script\n` +
-					`  - Network request hanging\n` +
-					`  - File I/O operation stuck\n` +
-					`  - Heavy computation taking too long\n\n` +
-					`Script: ${this.scriptPath}\n\n` +
-					`Recommendations:\n` +
-					`  1. Check your hook script for infinite loops\n` +
-					`  2. Add timeouts to any network requests\n` +
-					`  3. Use background jobs for long operations\n` +
-					`  4. Test your hook script independently`
-
-				if (stderr) {
-					throw new Error(`${enhancedMessage}\n\nStderr: ${stderr}`)
-				}
-				throw new Error(enhancedMessage)
+				throw HookExecutionError.timeout(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, stderr)
 			}
 
-			// Re-throw the error so ToolExecutor sees "Failed" status in UI
-			// ToolExecutor will catch this and decide whether to block tool execution
-			// (Only shouldContinue: false blocks execution)
-			if (error instanceof Error) {
-				const errorDetails = stderr ? `. stderr: ${stderr}` : ""
-				// Include hook name in error message for better debugging
-				const hookPrefix = this.hookName ? `${this.hookName} hook: ` : ""
-				throw new Error(`${hookPrefix}${error.message}${errorDetails}`)
+			// Check for cancellation
+			if (error instanceof Error && error.message.includes("cancelled")) {
+				throw HookExecutionError.cancellation(this.scriptPath)
 			}
-			throw error
+
+			// Generic execution error
+			throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr)
 		}
 	}
 }
