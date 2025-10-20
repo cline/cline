@@ -35,6 +35,7 @@ import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { ExtensionRegistryInfo } from "./registry"
 import { AuthService } from "./services/auth/AuthService"
+import { LogoutReason } from "./services/auth/types"
 import { telemetryService } from "./services/telemetry"
 import { SharedUriHandler } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
@@ -378,9 +379,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		context.secrets.onDidChange(async (event) => {
-			if (event.key === "clineAccountId") {
+			if (event.key === "clineAccountId" || event.key === "cline:clineAccountId") {
 				// Check if the secret was removed (logout) or added/updated (login)
-				const secretValue = await context.secrets.get("clineAccountId")
+				const secretValue = await context.secrets.get(event.key)
 				const activeWebview = WebviewProvider.getVisibleInstance()
 				const controller = activeWebview?.controller
 
@@ -390,7 +391,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					authService?.restoreRefreshTokenAndRetrieveAuthInfo()
 				} else {
 					// Secret was removed - handle logout for all windows
-					authService?.handleDeauth()
+					authService?.handleDeauth(LogoutReason.CROSS_WINDOW_SYNC)
 				}
 			}
 		}),

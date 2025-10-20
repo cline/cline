@@ -110,6 +110,43 @@ func (r *ClientRegistry) GetDefaultClient(ctx context.Context) (*client.ClineCli
 		return nil, fmt.Errorf("no default instance configured")
 	}
 
+	// Check if the default instance actually exists in the database
+	if r.lockManager != nil {
+		exists, err := r.lockManager.HasInstanceAtAddress(defaultAddr)
+		if err != nil {
+			// Database is unavailable - Return error instead of attempting cleanup
+			return nil, fmt.Errorf("cannot verify default instance: database unavailable: %w", err)
+		}
+		
+		if !exists {
+			// Instance doesn't exist in database but config file references it
+			// This is a stale config - remove it and try to find another instance
+			settingsPath := filepath.Join(r.configPath, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
+			if removeErr := os.Remove(settingsPath); removeErr != nil && !os.IsNotExist(removeErr) {
+				fmt.Printf("Warning: Failed to remove stale default instance config: %v\n", removeErr)
+			} else {
+				fmt.Printf("Removed stale default instance config (instance %s not found in database)\n", defaultAddr)
+			}
+			
+			// Try to find and set a new default instance
+			instances := r.ListInstances()
+			if len(instances) > 0 {
+				if err := r.EnsureDefaultInstance(instances); err != nil {
+					return nil, fmt.Errorf("failed to set new default instance: %w", err)
+				}
+				
+				// Retry with the new default
+				newDefaultAddr := r.GetDefaultInstance()
+				if newDefaultAddr != "" {
+					fmt.Printf("Set new default instance: %s\n", newDefaultAddr)
+					return r.GetClient(ctx, newDefaultAddr)
+				}
+			}
+			
+			return nil, fmt.Errorf("no default instance configured")
+		}
+	}
+
 	return r.GetClient(ctx, defaultAddr)
 }
 
@@ -223,15 +260,15 @@ func (r *ClientRegistry) ListInstancesCleaned(ctx context.Context) ([]*common.Co
 	instances := r.ListInstances()
 
 	// 3. Ensure default is set if instances exist
-	if err := r.ensureDefaultInstance(instances); err != nil {
+	if err := r.EnsureDefaultInstance(instances); err != nil {
 		fmt.Printf("Warning: Failed to ensure default instance: %v\n", err)
 	}
 
 	return instances, nil
 }
 
-// ensureDefaultInstance ensures a default instance is set if instances exist but no default is configured
-func (r *ClientRegistry) ensureDefaultInstance(instances []*common.CoreInstanceInfo) error {
+// EnsureDefaultInstance ensures a default instance is set if instances exist but no default is configured
+func (r *ClientRegistry) EnsureDefaultInstance(instances []*common.CoreInstanceInfo) error {
 	currentDefault := r.GetDefaultInstance()
 
 	// If we have no instances, clear any stale default and remove settings file

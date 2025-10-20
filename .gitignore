@@ -26,6 +26,7 @@ coverage-unit
 !.github/scripts/coverage/
 
 *evals.env
+.env
 
 ## Generated files ##
 src/generated/

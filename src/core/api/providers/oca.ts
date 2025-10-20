@@ -3,7 +3,11 @@ import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults }
 import OpenAI, { APIError, OpenAIError } from "openai"
 import type { FinalRequestOptions, Headers as OpenAIHeaders } from "openai/core"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
-import { DEFAULT_OCA_BASE_URL, OCI_HEADER_OPC_REQUEST_ID } from "@/services/auth/oca/utils/constants"
+import {
+	DEFAULT_EXTERNAL_OCA_BASE_URL,
+	DEFAULT_INTERNAL_OCA_BASE_URL,
+	OCI_HEADER_OPC_REQUEST_ID,
+} from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
 import { Logger } from "@/services/logging/Logger"
 import { ApiHandler, type CommonApiHandlerOptions } from ".."
@@ -18,6 +22,7 @@ export interface OcaHandlerOptions extends CommonApiHandlerOptions {
 	thinkingBudgetTokens?: number
 	ocaUsePromptCache?: boolean
 	taskId?: string
+	ocaMode?: string // "internal" or "external"
 }
 
 export class OcaHandler implements ApiHandler {
@@ -70,7 +75,9 @@ export class OcaHandler implements ApiHandler {
 				return super.makeStatusError(status, error, ociErrorMessage, headers)
 			}
 		})({
-			baseURL: options.ocaBaseUrl || DEFAULT_OCA_BASE_URL,
+			baseURL:
+				options.ocaBaseUrl ||
+				(options.ocaMode === "internal" ? DEFAULT_INTERNAL_OCA_BASE_URL : DEFAULT_EXTERNAL_OCA_BASE_URL),
 			apiKey: "noop",
 		})
 	}
