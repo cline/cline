@@ -199,6 +199,9 @@ jobs:
             - name: Build CLI binaries
               run: npm run compile-cli
 
+            - name: Download ripgrep binaries
+              run: npm run download-ripgrep
+
             - name: Compile standalone CLI
               run: npm run compile-standalone-cli
 

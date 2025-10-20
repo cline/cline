@@ -28,7 +28,7 @@ type MarkdownRenderer struct {
 // i figure we just make things as beautiful as possible 
 // and if you resize the terminal, you'll learn real quick.
 // anyway, you can set this to true or false to experiment
-const USETERMINALWORDWRAP = false
+const USETERMINALWORDWRAP = true
 
 
 // seems like a reliable way to check for terminals

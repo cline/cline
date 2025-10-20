@@ -186,6 +186,6 @@ describe("Hostbridge - Window - getVisibleTabs", () => {
 		)
 
 		// Clean up temp directory
-		await fs.rmdir(tempDir, { recursive: true }).catch(() => {})
+		await fs.rm(tempDir, { recursive: true }).catch(() => {})
 	})
 })

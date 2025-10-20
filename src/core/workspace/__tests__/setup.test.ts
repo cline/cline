@@ -4,7 +4,6 @@ import { expect } from "chai"
 import * as path from "path"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
-import * as featureFlags from "@/services/feature-flags"
 import * as telemetry from "@/services/telemetry"
 import * as pathUtils from "@/utils/path"
 import { setupWorkspaceManager } from "../setup"
@@ -98,10 +97,7 @@ describe("setupWorkspaceManager", () => {
 		const stateManager = makeStateManager({ multiRootEnabled: true })
 		const detectRoots = sandbox.stub().resolves(defaultRoots)
 
-		// Stub featureFlagsService to return true for multi-root (both feature flag and user setting)
-		sandbox.stub(featureFlags, "featureFlagsService").value({
-			getMultiRootEnabled: () => true,
-		})
+		// Multi-root workspace is now always enabled, no feature flag stub needed
 
 		const manager = await setupWorkspaceManager({
 			stateManager: stateManager as any,
@@ -168,10 +164,7 @@ describe("setupWorkspaceManager", () => {
 		const stateManager = makeStateManager({ multiRootEnabled: true })
 		const detectRoots = sandbox.stub().rejects(new Error("boom"))
 
-		// Stub featureFlagsService to return true for multi-root (both feature flag and user setting)
-		sandbox.stub(featureFlags, "featureFlagsService").value({
-			getMultiRootEnabled: () => true,
-		})
+		// Multi-root workspace is now always enabled, no feature flag stub needed
 
 		const manager = await setupWorkspaceManager({
 			stateManager: stateManager as any,

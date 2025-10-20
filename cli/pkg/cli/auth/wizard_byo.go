@@ -20,11 +20,8 @@ type ProviderWizard struct {
 
 // NewProviderWizard prepares a new provider configuration wizard
 func NewProviderWizard(ctx context.Context) (*ProviderWizard, error) {
-	if err := global.EnsureDefaultInstance(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ensure Cline Core instance: %w", err)
-	}
-
-	manager, err := task.NewManagerForDefault(ctx)
+	// Create task manager using auth instance from context
+	manager, err := createTaskManager(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task manager: %w", err)
 	}
