@@ -1,32 +1,29 @@
-import * as vscode from "vscode"
+import { WorkspaceChangeEvent } from "@/core/workspace/WorkspaceChangeEvent"
 import { Controller } from ".."
 
 /**
  * Updates workspaceMetadata when workspace folders change
- * Called by workspace.onDidChangeWorkspaceFolders listener
+ * Called by workspace change listeners (platform-agnostic)
+ * Platform-agnostic: works with both VSCode and JetBrains
  */
-export async function updateWorkspaceMetadataFromEvent(
-	controller: Controller,
-	event: vscode.WorkspaceFoldersChangeEvent,
-): Promise<void> {
+export async function updateWorkspaceMetadataFromEvent(controller: Controller, event: WorkspaceChangeEvent): Promise<void> {
 	try {
 		const metadata = controller.stateManager.getGlobalStateKey("workspaceMetadata") || {}
 
 		// Add new workspaces
-		for (const folder of event.added) {
-			const path = folder.uri.fsPath
-			metadata[path] = {
-				path,
-				name: folder.name,
+		for (const workspace of event.added) {
+			metadata[workspace.path] = {
+				path: workspace.path,
+				name: workspace.name,
 				lastOpened: Date.now(),
 			}
-			console.log(`[updateWorkspaceMetadata] Added workspace: ${folder.name}`)
+			console.log(`[updateWorkspaceMetadata] Added workspace: ${workspace.name}`)
 		}
 
 		// Note: We DON'T remove workspaces on removal - keep history
 		// Just log the removal
-		for (const folder of event.removed) {
-			console.log(`[updateWorkspaceMetadata] Workspace removed (keeping metadata): ${folder.name}`)
+		for (const workspace of event.removed) {
+			console.log(`[updateWorkspaceMetadata] Workspace removed (keeping metadata): ${workspace.name}`)
 		}
 
 		controller.stateManager.setGlobalState("workspaceMetadata", metadata)
