@@ -1677,6 +1677,19 @@ export const ChatRowContent = memo(
 							status: string
 							exitCode?: number
 							hasJsonResponse?: boolean
+							shouldContinue?: boolean
+							pendingToolInfo?: {
+								tool: string
+								path?: string
+								command?: string
+								content?: string
+								diff?: string
+								regex?: string
+								url?: string
+								mcpTool?: string
+								mcpServer?: string
+								resourceUri?: string
+							}
 						}
 						try {
 							hookMetadata = JSON.parse(metadataStr)
@@ -1688,6 +1701,9 @@ export const ChatRowContent = memo(
 						const isRunning = hookMetadata?.status === "running"
 						const isCompleted = hookMetadata?.status === "completed"
 						const isFailed = hookMetadata?.status === "failed"
+						const isCancelled = hookMetadata?.status === "cancelled"
+						const pendingToolInfo = hookMetadata?.pendingToolInfo
+						const cancelledColor = "var(--vscode-descriptionForeground)"
 
 						return (
 							<>
@@ -1722,7 +1738,9 @@ export const ChatRowContent = memo(
 											padding: "8px 10px",
 											backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
 											borderBottom:
-												output.length > 0 ? "1px solid var(--vscode-editorGroup-border)" : "none",
+												pendingToolInfo || output.length > 0
+													? "1px solid var(--vscode-editorGroup-border)"
+													: "none",
 											borderTopLeftRadius: "6px",
 											borderTopRightRadius: "6px",
 										}}>
@@ -1750,7 +1768,13 @@ export const ChatRowContent = memo(
 											/>
 											<span
 												style={{
-													color: isRunning ? successColor : isFailed ? errorColor : successColor,
+													color: isRunning
+														? successColor
+														: isFailed
+															? errorColor
+															: isCancelled
+																? cancelledColor
+																: successColor,
 													fontWeight: 500,
 													fontSize: "13px",
 													flexShrink: 0,
@@ -1759,9 +1783,11 @@ export const ChatRowContent = memo(
 													? "Running"
 													: isFailed
 														? "Failed"
-														: isCompleted
-															? "Completed"
-															: "Unknown"}
+														: isCancelled
+															? "Cancelled"
+															: isCompleted
+																? "Completed"
+																: "Unknown"}
 											</span>
 											{hookMetadata.exitCode !== undefined && hookMetadata.exitCode !== 0 && (
 												<span
@@ -1772,8 +1798,171 @@ export const ChatRowContent = memo(
 													(exit: {hookMetadata.exitCode})
 												</span>
 											)}
+											{hookMetadata.shouldContinue === false && (
+												<span
+													style={{
+														color: "var(--vscode-descriptionForeground)",
+														fontSize: "12px",
+													}}>
+													(shouldContinue: false)
+												</span>
+											)}
 										</div>
+										{isRunning && (
+											<button
+												onClick={(e) => {
+													e.stopPropagation()
+													TaskServiceClient.cancelHookExecution({}).catch((err) =>
+														console.error("Failed to cancel hook:", err),
+													)
+												}}
+												onMouseEnter={(e) => {
+													e.currentTarget.style.background =
+														"var(--vscode-button-secondaryHoverBackground)"
+												}}
+												onMouseLeave={(e) => {
+													e.currentTarget.style.background = "var(--vscode-button-secondaryBackground)"
+												}}
+												style={{
+													background: "var(--vscode-button-secondaryBackground)",
+													color: "var(--vscode-button-secondaryForeground)",
+													border: "none",
+													borderRadius: "2px",
+													padding: "4px 10px",
+													fontSize: "12px",
+													cursor: "pointer",
+													fontFamily: "inherit",
+												}}>
+												cancel
+											</button>
+										)}
 									</div>
+									{/* Show pending tool info when hook is running */}
+									{isRunning && pendingToolInfo && (
+										<div
+											style={{
+												padding: "12px",
+												backgroundColor: "var(--vscode-editor-background)",
+												borderBottom:
+													output.length > 0 ? "1px solid var(--vscode-editorGroup-border)" : "none",
+												opacity: 0.8,
+											}}>
+											<div style={{ marginBottom: 6 }}>
+												<span style={{ fontWeight: 500 }}>Tool:</span>
+												<span style={{ marginLeft: 6, fontFamily: "monospace", fontSize: "0.9em" }}>
+													{pendingToolInfo.tool}
+												</span>
+											</div>
+											{pendingToolInfo.path && (
+												<div style={{ marginBottom: 6 }}>
+													<span style={{ fontWeight: 500 }}>Path:</span>
+													<span
+														className="ph-no-capture"
+														style={{ marginLeft: 6, fontFamily: "monospace", fontSize: "0.9em" }}>
+														{pendingToolInfo.path}
+													</span>
+												</div>
+											)}
+											{pendingToolInfo.command && (
+												<div style={{ marginBottom: 6 }}>
+													<span style={{ fontWeight: 500 }}>Command:</span>
+													<span
+														className="ph-no-capture"
+														style={{ marginLeft: 6, fontFamily: "monospace", fontSize: "0.9em" }}>
+														{pendingToolInfo.command}
+													</span>
+												</div>
+											)}
+											{pendingToolInfo.content && (
+												<div style={{ marginBottom: 6 }}>
+													<span style={{ fontWeight: 500 }}>Content Preview:</span>
+													<div
+														style={{
+															marginTop: 4,
+															padding: 6,
+															backgroundColor: CODE_BLOCK_BG_COLOR,
+															borderRadius: 3,
+															fontFamily: "monospace",
+															fontSize: "0.85em",
+															whiteSpace: "pre-wrap",
+															wordBreak: "break-word",
+														}}>
+														{pendingToolInfo.content}
+														{pendingToolInfo.content.length >= 200 && "..."}
+													</div>
+												</div>
+											)}
+											{pendingToolInfo.diff && (
+												<div style={{ marginBottom: 6 }}>
+													<span style={{ fontWeight: 500 }}>Diff Preview:</span>
+													<div
+														style={{
+															marginTop: 4,
+															padding: 6,
+															backgroundColor: CODE_BLOCK_BG_COLOR,
+															borderRadius: 3,
+															fontFamily: "monospace",
+															fontSize: "0.85em",
+															whiteSpace: "pre-wrap",
+															wordBreak: "break-word",
+														}}>
+														{pendingToolInfo.diff}
+														{pendingToolInfo.diff.length >= 200 && "..."}
+													</div>
+												</div>
+											)}
+											{pendingToolInfo.regex && (
+												<div style={{ marginBottom: 6 }}>
+													<span style={{ fontWeight: 500 }}>Regex:</span>
+													<span
+														className="ph-no-capture"
+														style={{ marginLeft: 6, fontFamily: "monospace", fontSize: "0.9em" }}>
+														{pendingToolInfo.regex}
+													</span>
+												</div>
+											)}
+											{pendingToolInfo.url && (
+												<div style={{ marginBottom: 6 }}>
+													<span style={{ fontWeight: 500 }}>URL:</span>
+													<span
+														className="ph-no-capture"
+														style={{ marginLeft: 6, fontFamily: "monospace", fontSize: "0.9em" }}>
+														{pendingToolInfo.url}
+													</span>
+												</div>
+											)}
+											{pendingToolInfo.mcpServer && (
+												<div style={{ marginBottom: 6 }}>
+													<span style={{ fontWeight: 500 }}>MCP Server:</span>
+													<span
+														className="ph-no-capture"
+														style={{ marginLeft: 6, fontFamily: "monospace", fontSize: "0.9em" }}>
+														{pendingToolInfo.mcpServer}
+													</span>
+												</div>
+											)}
+											{pendingToolInfo.mcpTool && (
+												<div style={{ marginBottom: 6 }}>
+													<span style={{ fontWeight: 500 }}>MCP Tool:</span>
+													<span
+														className="ph-no-capture"
+														style={{ marginLeft: 6, fontFamily: "monospace", fontSize: "0.9em" }}>
+														{pendingToolInfo.mcpTool}
+													</span>
+												</div>
+											)}
+											{pendingToolInfo.resourceUri && (
+												<div style={{ marginBottom: 6 }}>
+													<span style={{ fontWeight: 500 }}>Resource URI:</span>
+													<span
+														className="ph-no-capture"
+														style={{ marginLeft: 6, fontFamily: "monospace", fontSize: "0.9em" }}>
+														{pendingToolInfo.resourceUri}
+													</span>
+												</div>
+											)}
+										</div>
+									)}
 									{output.length > 0 && (
 										<CommandOutput
 											isContainerExpanded={true}

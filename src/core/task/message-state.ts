@@ -139,4 +139,16 @@ export class MessageStateHandler {
 		// Save changes and update history
 		await this.saveClineMessagesAndUpdateHistory()
 	}
+
+	async deleteClineMessage(index: number): Promise<void> {
+		if (index < 0 || index >= this.clineMessages.length) {
+			throw new Error(`Invalid message index: ${index}`)
+		}
+
+		// Remove the message at the specified index
+		this.clineMessages.splice(index, 1)
+
+		// Save changes and update history
+		await this.saveClineMessagesAndUpdateHistory()
+	}
 }
