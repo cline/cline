@@ -42,10 +42,19 @@ describe("TaskCancel Hook", () => {
 		} as any)
 
 		getEnv = () => ({ tempDir })
+
+		// Reset hook discovery cache for clean test state
+		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
+		HookDiscoveryCache.resetForTesting()
 	})
 
 	afterEach(async () => {
 		sandbox.restore()
+
+		// Clean up hook discovery cache
+		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
+		HookDiscoveryCache.resetForTesting()
+
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		} catch (error) {
@@ -351,21 +360,21 @@ console.log("not valid json")`
 			const factory = new HookFactory()
 			const runner = await factory.create("TaskCancel")
 
-			try {
-				await runner.run({
-					taskId: "test-task-id",
-					taskCancel: {
-						taskMetadata: {
-							taskId: "test-task-id",
-							ulid: "test-ulid",
-							completionStatus: "cancelled",
-						},
+			// When hook exits 0 but has malformed JSON, it returns success without context
+			const result = await runner.run({
+				taskId: "test-task-id",
+				taskCancel: {
+					taskMetadata: {
+						taskId: "test-task-id",
+						ulid: "test-ulid",
+						completionStatus: "cancelled",
 					},
-				})
-				throw new Error("Should have thrown")
-			} catch (error: any) {
-				error.message.should.match(/Failed to parse hook output/)
-			}
+				},
+			})
+
+			// Hook succeeded (exit 0) but couldn't parse JSON, so returns success without context
+			result.shouldContinue.should.be.true()
+			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
 		})
 	})
 
