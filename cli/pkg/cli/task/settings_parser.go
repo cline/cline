@@ -427,7 +427,7 @@ func setAutoApprovalSettings(settings *cline.AutoApprovalSettings, fields map[st
 			if err != nil {
 				return err
 			}
-			settings.MaxRequests = val
+			settings.MaxRequests = int32Ptr(val)
 		case "enable_notifications":
 			val, err := parseBool(value)
 			if err != nil {

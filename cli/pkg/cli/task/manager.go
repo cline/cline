@@ -1243,9 +1243,8 @@ func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey st
 	
 	settings := &cline.Settings{
 		AutoApprovalSettings: &cline.AutoApprovalSettings{
-			Enabled:     boolPtr(true),
-			MaxRequests: 20, // Important: avoid maxRequests=0 bug
-			Actions:     &cline.AutoApprovalActions{},
+			Enabled: boolPtr(true),
+			Actions: &cline.AutoApprovalActions{},
 		},
 	}
 

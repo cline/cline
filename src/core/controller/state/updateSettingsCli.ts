@@ -225,10 +225,8 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				if (controller.task && controller.task.terminalManager) {
 					// Call the updated setDefaultTerminalProfile method that returns closed terminal info
 					const result = controller.task.terminalManager.setDefaultTerminalProfile(profileId)
-					if (result) {
-						closedCount = result.closedCount
-						busyTerminals = result.busyTerminals
-					}
+					closedCount = result.closedCount
+					busyTerminals = result.busyTerminals
 
 					// Show information message if terminals were closed
 					if (closedCount > 0) {

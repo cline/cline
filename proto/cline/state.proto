@@ -46,7 +46,7 @@ message AutoApprovalSettings {
   int32 version = 1;
   optional bool enabled = 2;
   AutoApprovalActions actions = 3;
-  int32 max_requests = 4;
+  optional int32 max_requests = 4;
   optional bool enable_notifications = 5;
   repeated string favorites = 6;
 }
