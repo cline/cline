@@ -5,7 +5,7 @@ import { Controller } from ".."
 import { refreshGroqModels } from "./refreshGroqModels"
 
 /**
- * RPC wrapper: Handles protobuf conversion for gRPC service
+ * Handles protobuf conversion for gRPC service
  * @param controller The controller instance
  * @param request Empty request object
  * @returns Response containing Groq models (protobuf types)
