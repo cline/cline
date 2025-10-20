@@ -3,7 +3,7 @@
 Automated GitHub issue analysis using Cline CLI. This script uses Cline's
 autonomous AI capabilities to fetch, analyze, and identify root causes of GitHub
 issues. It also uses Cline's JSON output capability to filter for just the
-summary at the end for bevity.
+summary at the end for brevity.
 
 ## Usage
 
