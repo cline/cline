@@ -99,7 +99,9 @@ see the manual page: man cline`,
 
 				// Check if user has credentials configured
 				if !isUserReadyToUse(ctx, instanceAddress) {
-					fmt.Printf("\n\033[90mHey there! Looks like you're new here. Let's get you set up\033[0m\n\n")
+					// Create renderer for welcome messages
+				renderer := display.NewRenderer(global.Config.OutputFormat)
+				fmt.Printf("\n%s\n\n", renderer.Dim("Hey there! Looks like you're new here. Let's get you set up"))
 
 					if err := auth.HandleAuthMenuNoArgs(ctx); err != nil {
 						// Check if user cancelled - exit cleanly
@@ -114,7 +116,7 @@ see the manual page: man cline`,
 						return fmt.Errorf("credentials still not configured - please run 'cline auth' to complete setup")
 					}
 
-					fmt.Printf("\n\033[90m✓ Setup complete, you can now use the Cline CLI\033[0m\n\n")
+					fmt.Printf("\n%s\n\n", renderer.Dim("✓ Setup complete, you can now use the Cline CLI"))
 				}
 			} else {
 				// User specified --address flag, use that

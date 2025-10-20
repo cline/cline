@@ -340,6 +340,7 @@ func renderLogsTable(logs []logFileInfo, markForDeletion bool) error {
 	}
 
 	// Use markdown table for rich output
+	colorRenderer := display.NewRenderer(global.Config.OutputFormat)
 	var markdown strings.Builder
 	markdown.WriteString("| **FILENAME** | **SIZE** | **CREATED** | **AGE** |\n")
 	markdown.WriteString("|--------------|----------|-------------|---------|")
@@ -352,9 +353,9 @@ func renderLogsTable(logs []logFileInfo, markForDeletion bool) error {
 			row.age,
 		)
 
-		// If marking for deletion, wrap in red ANSI codes
+		// If marking for deletion, wrap in red
 		if markForDeletion {
-			line = "\033[31m" + line + "\033[0m"
+			line = colorRenderer.Red(line)
 		}
 
 		markdown.WriteString(line)
