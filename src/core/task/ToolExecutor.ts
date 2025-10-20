@@ -228,7 +228,14 @@ export class ToolExecutor {
 	}
 
 	/**
-	 * Handles errors during tool execution
+	 * Handles errors during tool execution.
+	 *
+	 * Logs the error, displays it to the user via the UI, and adds an error
+	 * result to the conversation context so the AI can see what went wrong.
+	 *
+	 * @param action Description of what was being attempted (e.g., "executing read_file")
+	 * @param error The error that occurred
+	 * @param block The tool use block that caused the error
 	 */
 	private async handleError(action: string, error: Error, block: ToolUse): Promise<void> {
 		console.log(error)
@@ -240,6 +247,17 @@ export class ToolExecutor {
 		this.pushToolResult(errorResponse, block)
 	}
 
+	/**
+	 * Pushes a tool result to the user message content.
+	 *
+	 * This is a critical method that:
+	 * - Formats the tool result appropriately for the API
+	 * - Adds it to the conversation context
+	 * - Marks that a tool has been used in this turn
+	 *
+	 * @param content The tool response content to add
+	 * @param block The tool use block that generated this result
+	 */
 	private pushToolResult = (content: ToolResponse, block: ToolUse) => {
 		// Use the ToolResultUtils to properly format and push the tool result
 		ToolResultUtils.pushToolResult(
@@ -265,7 +283,18 @@ export class ToolExecutor {
 	]
 
 	/**
-	 * Execute a tool through the coordinator if it's registered
+	 * Execute a tool through the coordinator if it's registered.
+	 *
+	 * This is the main entry point for tool execution, called by the Task class.
+	 * It handles:
+	 * - Checking if the tool is registered with the coordinator
+	 * - Validating tool execution is allowed (not rejected, not already used, etc.)
+	 * - Enforcing plan mode restrictions on file modification tools
+	 * - Delegating to partial or complete block handlers
+	 * - Error handling and checkpointing
+	 *
+	 * @param block The tool use block to execute
+	 * @returns true if the tool was handled (even if execution failed), false if not registered
 	 */
 	private async execute(block: ToolUse): Promise<boolean> {
 		if (!this.coordinator.has(block.name)) {
@@ -330,14 +359,27 @@ export class ToolExecutor {
 	}
 
 	/**
-	 * Check if a tool is restricted in plan mode
+	 * Check if a tool is restricted in plan mode.
+	 *
+	 * In strict plan mode, file modification tools (write_to_file, editedExistingFile, etc.)
+	 * are blocked. The AI must switch to Act mode to use these tools.
+	 *
+	 * @param toolName The name of the tool to check
+	 * @returns true if the tool is restricted in plan mode, false otherwise
 	 */
 	private isPlanModeToolRestricted(toolName: ClineDefaultTool): boolean {
 		return ToolExecutor.PLAN_MODE_RESTRICTED_TOOLS.includes(toolName)
 	}
 
 	/**
-	 * Create a tool rejection message and add it to user message content
+	 * Create a tool rejection message and add it to user message content.
+	 *
+	 * Used when a tool cannot be executed (e.g., user rejected a previous tool,
+	 * tool was interrupted, etc.). Adds a text message to the conversation explaining
+	 * why the tool was not executed.
+	 *
+	 * @param block The tool use block that was rejected
+	 * @param reason Human-readable explanation of why the tool was rejected
 	 */
 	private createToolRejectionMessage(block: ToolUse, reason: string): void {
 		this.taskState.userMessageContent.push({
@@ -385,7 +427,16 @@ export class ToolExecutor {
 	}
 
 	/**
-	 * Handle partial block streaming UI updates
+	 * Handle partial block streaming UI updates.
+	 *
+	 * During streaming API responses, the AI sends partial tool use blocks as they're
+	 * generated. This method updates the UI to show the tool being constructed in real-time.
+	 *
+	 * NOTE: This is ONLY for UI updates. No tool results are pushed to the conversation
+	 * during partial block handling. The complete block handler will add the final result.
+	 *
+	 * @param block The partial tool use block with incomplete parameters
+	 * @param config The task configuration containing all necessary context
 	 */
 	private async handlePartialBlock(block: ToolUse, config: TaskConfig): Promise<void> {
 		// NOTE: We don't push tool results in partial blocks because this is only for UI streaming.
@@ -402,7 +453,21 @@ export class ToolExecutor {
 	}
 
 	/**
-	 * Handle complete block execution
+	 * Handle complete block execution.
+	 *
+	 * This is the main execution flow for a tool:
+	 * 1. Run PreToolUse hooks (if enabled) - can block execution
+	 * 2. Execute the actual tool
+	 * 3. Run PostToolUse hooks (if enabled) - cannot block, only observe
+	 * 4. Add hook context modifications to the conversation
+	 * 5. Update focus chain tracking
+	 *
+	 * Hooks are executed with streaming output to provide real-time feedback.
+	 * PreToolUse hooks can prevent tool execution by returning shouldContinue: false.
+	 * PostToolUse hooks are for observation/logging only and cannot block.
+	 *
+	 * @param block The complete tool use block with all parameters
+	 * @param config The task configuration containing all necessary context
 	 */
 	private async handleCompleteBlock(block: ToolUse, config: any): Promise<void> {
 		// Check if hooks are enabled (both feature flag and user setting must be true)
