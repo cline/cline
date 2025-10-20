@@ -670,9 +670,7 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 													请选择本地的CAN功能矩阵定义Excel文件，支持格式：.xlsx, .xls
 												</Text>
 											</div>
-											<Button onClick={() => setShowMcpDemo(true)} style={{ flexShrink: 0 }} type="link">
-												MCP演示
-											</Button>
+										
 										</div>
 
 										<div>
