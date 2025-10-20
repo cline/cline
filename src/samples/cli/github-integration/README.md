@@ -29,7 +29,7 @@ Edit the `GITORG` and `GITREPO` variables in the "Download analyze script"
 script so that your github action downloads the script it executes from the
 correct spot.
 
-The workflow will look for new or issues updates, check for `@cline` and then
+The workflow will look for new or updated issues, check for `@cline` and then
 start up an instance of the Cline CLI to dig into the issue, providing feedback
 as a reply to the issue.
 
