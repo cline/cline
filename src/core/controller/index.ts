@@ -8,6 +8,7 @@ import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMi
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
+import { PluginHub } from "@services/plugins/PluginHub"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ExtensionState, Platform } from "@shared/ExtensionMessage"
@@ -63,6 +64,7 @@ export class Controller {
 	task?: Task
 
 	mcpHub: McpHub
+	pluginHub: PluginHub
 	accountService: ClineAccountService
 	authService: AuthService
 	ocaAuthService: OcaAuthService
@@ -160,6 +162,9 @@ export class Controller {
 			ExtensionRegistryInfo.version,
 			telemetryService,
 		)
+
+		// Initialize Plugin Hub
+		this.pluginHub = new PluginHub(context)
 
 		// Clean up legacy checkpoints
 		cleanupLegacyCheckpoints().catch((error) => {

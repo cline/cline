@@ -13,7 +13,7 @@ import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
 import { Logger } from "./services/logging/Logger"
 import { cleanupTestMode, initializeTestMode } from "./services/test/TestMode"
-import "./utils/path" // necessary to have access to String.prototype.toPosix
+import "./utils/path"; // necessary to have access to String.prototype.toPosix
 
 import path from "node:path"
 import type { ExtensionContext } from "vscode"
@@ -392,6 +392,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		}),
 	)
+
+	// Initialize plugin system - discover plugins that depend on Cline
+	await webview.controller.pluginHub.discoverPlugins()
 
 	return createClineAPI(webview.controller)
 }

@@ -2,6 +2,7 @@ import { Controller } from "@core/controller"
 import { sendChatButtonClickedEvent } from "@core/controller/ui/subscribeToChatButtonClicked"
 import { HostProvider } from "@/hosts/host-provider"
 import { ClineAPI } from "./cline"
+import { createPluginAPI } from "./plugin-api"
 
 export function createClineAPI(sidebarController: Controller): ClineAPI {
 	const api: ClineAPI = {
@@ -45,6 +46,9 @@ export function createClineAPI(sidebarController: Controller): ClineAPI {
 				HostProvider.get().logToChannel("No active task to press button for")
 			}
 		},
+
+		// Plugin API
+		plugins: createPluginAPI(sidebarController.pluginHub),
 	}
 
 	return api

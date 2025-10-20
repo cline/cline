@@ -8,6 +8,7 @@ import { getEditingFilesSection } from "./editing_files"
 import { getFeedbackSection } from "./feedback"
 import { getMcp } from "./mcp"
 import { getObjectiveSection } from "./objective"
+import { getPluginSection } from "./plugins"
 import { getRulesSection } from "./rules"
 import { getSystemInfo } from "./system_info"
 import { getUpdatingTaskProgress } from "./task_progress"
@@ -24,6 +25,7 @@ export function getSystemPromptComponents() {
 		{ id: SystemPromptSection.AGENT_ROLE, fn: getAgentRoleSection },
 		{ id: SystemPromptSection.SYSTEM_INFO, fn: getSystemInfo },
 		{ id: SystemPromptSection.MCP, fn: getMcp },
+		{ id: SystemPromptSection.PLUGINS, fn: getPluginSection },
 		{ id: SystemPromptSection.TODO, fn: getTodoListSection },
 		{
 			id: SystemPromptSection.USER_INSTRUCTIONS,

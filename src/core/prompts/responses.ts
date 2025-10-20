@@ -56,6 +56,15 @@ Otherwise, if you have not completed the task and do not need additional informa
 	invalidMcpToolArgumentError: (serverName: string, toolName: string) =>
 		`Invalid JSON argument used with ${serverName} for ${toolName}. Please retry with a properly formatted JSON argument.`,
 
+	invalidPluginArgumentError: (pluginId: string, capabilityName: string) =>
+		`Invalid JSON parameter used with plugin '${pluginId}' for capability '${capabilityName}'. Please retry with a properly formatted JSON parameter.`,
+
+	pluginSuccess: (pluginId: string, capabilityName: string, result: string) =>
+		`Plugin '${pluginId}' capability '${capabilityName}' executed successfully.\n\nResult:\n${result}`,
+
+	pluginError: (pluginId: string, capabilityName: string, error: string) =>
+		`Plugin '${pluginId}' capability '${capabilityName}' failed with error:\n${error}`,
+
 	toolResult: (
 		text: string,
 		images?: string[],

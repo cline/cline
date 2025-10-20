@@ -22,6 +22,7 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 		auto_approval_max_req_reached: ClineAsk.AUTO_APPROVAL_MAX_REQ_REACHED,
 		browser_action_launch: ClineAsk.BROWSER_ACTION_LAUNCH,
 		use_mcp_server: ClineAsk.USE_MCP_SERVER,
+		use_plugin: ClineAsk.USE_MCP_SERVER, // Reuse MCP enum for now
 		new_task: ClineAsk.NEW_TASK,
 		condense: ClineAsk.CONDENSE,
 		summarize_task: ClineAsk.SUMMARIZE_TASK,
@@ -55,7 +56,7 @@ function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 		[ClineAsk.MISTAKE_LIMIT_REACHED]: "mistake_limit_reached",
 		[ClineAsk.AUTO_APPROVAL_MAX_REQ_REACHED]: "auto_approval_max_req_reached",
 		[ClineAsk.BROWSER_ACTION_LAUNCH]: "browser_action_launch",
-		[ClineAsk.USE_MCP_SERVER]: "use_mcp_server",
+		[ClineAsk.USE_MCP_SERVER]: "use_mcp_server", // Note: use_plugin also maps here
 		[ClineAsk.NEW_TASK]: "new_task",
 		[ClineAsk.CONDENSE]: "condense",
 		[ClineAsk.SUMMARIZE_TASK]: "summarize_task",
@@ -94,6 +95,11 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		mcp_server_response: ClineSay.MCP_SERVER_RESPONSE,
 		mcp_notification: ClineSay.MCP_NOTIFICATION,
 		use_mcp_server: ClineSay.USE_MCP_SERVER_SAY,
+		plugin_request_started: ClineSay.MCP_SERVER_REQUEST_STARTED, // Reuse MCP enum
+		plugin_response: ClineSay.MCP_SERVER_RESPONSE, // Reuse MCP enum
+		plugin_notification: ClineSay.MCP_NOTIFICATION, // Reuse MCP enum
+		plugin_error: ClineSay.ERROR, // Reuse ERROR enum
+		use_plugin: ClineSay.USE_MCP_SERVER_SAY, // Reuse MCP enum
 		diff_error: ClineSay.DIFF_ERROR,
 		deleted_api_reqs: ClineSay.DELETED_API_REQS,
 		clineignore_error: ClineSay.CLINEIGNORE_ERROR,

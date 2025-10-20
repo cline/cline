@@ -13,6 +13,7 @@ export enum ClineDefaultTool {
 	MCP_USE = "use_mcp_tool",
 	MCP_ACCESS = "access_mcp_resource",
 	MCP_DOCS = "load_mcp_documentation",
+	PLUGIN_EXECUTE = "plugin_execute",
 	NEW_TASK = "new_task",
 	PLAN_MODE = "plan_mode_respond",
 	TODO = "focus_chain",

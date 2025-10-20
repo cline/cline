@@ -5,6 +5,7 @@ import type { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import type { BrowserSession } from "@services/browser/BrowserSession"
 import type { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import type { McpHub } from "@services/mcp/McpHub"
+import type { PluginHub } from "@services/plugins/PluginHub"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { BrowserSettings } from "@shared/BrowserSettings"
 import type { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
@@ -65,6 +66,7 @@ export interface TaskConfig {
  */
 export interface TaskServices {
 	mcpHub: McpHub
+	pluginHub?: PluginHub
 	browserSession: BrowserSession
 	urlContentFetcher: UrlContentFetcher
 	diffViewProvider: DiffViewProvider

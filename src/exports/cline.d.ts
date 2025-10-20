@@ -1,3 +1,5 @@
+import type { ClinePluginAPI } from "../services/plugins/types"
+
 export interface ClineAPI {
 	/**
 	 * Starts a new task with an optional initial message and images.
@@ -22,4 +24,10 @@ export interface ClineAPI {
 	 * Simulates pressing the secondary button in the chat interface.
 	 */
 	pressSecondaryButton(): Promise<void>
+
+	/**
+	 * Plugin API for registering and managing Cline plugins.
+	 * Third-party VS Code extensions can use this to extend Cline's capabilities.
+	 */
+	plugins: ClinePluginAPI
 }

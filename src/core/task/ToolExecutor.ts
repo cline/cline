@@ -6,6 +6,7 @@ import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { featureFlagsService } from "@services/feature-flags"
 import { McpHub } from "@services/mcp/McpHub"
+import { PluginHub } from "@services/plugins/PluginHub"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
@@ -32,6 +33,7 @@ import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
 import { LoadMcpDocumentationHandler } from "./tools/handlers/LoadMcpDocumentationHandler"
 import { NewTaskHandler } from "./tools/handlers/NewTaskHandler"
 import { PlanModeRespondHandler } from "./tools/handlers/PlanModeRespondHandler"
+import { PluginToolHandler } from "./tools/handlers/PluginToolHandler"
 import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
 import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
 import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
@@ -72,6 +74,7 @@ export class ToolExecutor {
 		private browserSession: BrowserSession,
 		private diffViewProvider: DiffViewProvider,
 		private mcpHub: McpHub,
+		private pluginHub: PluginHub,
 		private fileContextTracker: FileContextTracker,
 		private clineIgnoreController: ClineIgnoreController,
 		private contextManager: ContextManager,
@@ -142,6 +145,7 @@ export class ToolExecutor {
 			focusChainSettings: this.stateManager.getGlobalSettingsKey("focusChainSettings"),
 			services: {
 				mcpHub: this.mcpHub,
+				pluginHub: this.pluginHub,
 				browserSession: this.browserSession,
 				urlContentFetcher: this.urlContentFetcher,
 				diffViewProvider: this.diffViewProvider,
@@ -201,6 +205,7 @@ export class ToolExecutor {
 		this.coordinator.register(new UseMcpToolHandler())
 		this.coordinator.register(new AccessMcpResourceHandler())
 		this.coordinator.register(new LoadMcpDocumentationHandler())
+		this.coordinator.register(new PluginToolHandler())
 		this.coordinator.register(new PlanModeRespondHandler())
 		this.coordinator.register(new NewTaskHandler())
 		this.coordinator.register(new AttemptCompletionHandler())
