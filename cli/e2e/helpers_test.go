@@ -57,9 +57,26 @@ func runCLI(ctx context.Context, t *testing.T, args ...string) (string, string, 
 
 	// Ensure CLI uses the same CLINE_DIR as the tests by passing --config=<CLINE_DIR>
 	// (InitializeGlobalConfig uses ConfigPath as the base directory for registry.)
-	if clineDir := os.Getenv("CLINE_DIR"); clineDir != "" && !contains(args, "--config") {
-		// Prepend persistent flag so Cobra sees it regardless of subcommand position
-		args = append([]string{"--config", clineDir}, args...)
+	// Also allow overriding host/core paths for tests via env: CLINE_HOST_PATH and CLINE_CORE_PATH
+	{
+		var prepend []string
+
+		if clineDir := os.Getenv("CLINE_DIR"); clineDir != "" && !contains(args, "--config") {
+			prepend = append(prepend, "--config", clineDir)
+		}
+
+		if hostPath := os.Getenv("CLINE_HOST_PATH"); hostPath != "" && !contains(args, "--hostPath") {
+			prepend = append(prepend, "--hostPath", hostPath)
+		}
+
+		if corePath := os.Getenv("CLINE_CORE_PATH"); corePath != "" && !contains(args, "--corePath") {
+			prepend = append(prepend, "--corePath", corePath)
+		}
+
+		// Prepend persistent flags so Cobra sees them regardless of subcommand position
+		if len(prepend) > 0 {
+			args = append(prepend, args...)
+		}
 	}
 
 	cmd := exec.CommandContext(ctx, bin, args...)
