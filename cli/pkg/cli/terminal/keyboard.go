@@ -134,7 +134,7 @@ func setupKeyboardInternal() {
 		if modified {
 			fmt.Printf("\033[90mConfigured shift+enter for\033[0m Ghostty \033[90mterminal\033[0m\n")
 			fmt.Printf("\033[90m  →\033[0m %s\n", path)
-			fmt.Printf("\033[90m  Restart Ghostty (Cmd+Q) for changes to take effect\033[0m\n")
+			fmt.Printf("\033[90m  Fully restart Ghostty (quit all windows) for changes to take effect\033[0m\n")
 		} else if path != "" {
 			fmt.Printf("\033[90m✓ Ghostty shift+enter already configured\033[0m\n")
 			fmt.Printf("\033[90m  →\033[0m %s\n", path)
