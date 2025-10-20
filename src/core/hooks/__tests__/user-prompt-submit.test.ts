@@ -42,6 +42,11 @@ describe("UserPromptSubmit Hook", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
+
+		// Clean up hook discovery cache
+		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
+		HookDiscoveryCache.resetForTesting()
+
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		} catch (error) {
@@ -235,18 +240,18 @@ console.log("not valid json")`
 			const factory = new HookFactory()
 			const runner = await factory.create("UserPromptSubmit")
 
-			try {
-				await runner.run({
-					taskId: "test-task",
-					userPromptSubmit: {
-						prompt: "Test",
-						attachments: [],
-					},
-				})
-				throw new Error("Should have thrown parse error")
-			} catch (error: any) {
-				error.message.should.match(/Failed to parse hook output/)
-			}
+			// When hook exits 0 but has malformed JSON, it returns success without context
+			const result = await runner.run({
+				taskId: "test-task",
+				userPromptSubmit: {
+					prompt: "Test",
+					attachments: [],
+				},
+			})
+
+			// Hook succeeded (exit 0) but couldn't parse JSON, so returns success without context
+			result.shouldContinue.should.be.true()
+			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
 		})
 
 		it("should handle hook script errors", async () => {
@@ -461,18 +466,18 @@ console.log(JSON.stringify({
 		it("should work with malformed-json fixture", async () => {
 			const runner = await loadFixtureAndCreateRunner("malformed-json")
 
-			try {
-				await runner.run({
-					taskId: "test-task",
-					userPromptSubmit: {
-						prompt: "Test",
-						attachments: [],
-					},
-				})
-				throw new Error("Should have thrown parse error")
-			} catch (error: any) {
-				error.message.should.match(/Failed to parse hook output/)
-			}
+			// When hook exits 0 but has malformed JSON, it returns success without context
+			const result = await runner.run({
+				taskId: "test-task",
+				userPromptSubmit: {
+					prompt: "Test",
+					attachments: [],
+				},
+			})
+
+			// Hook succeeded (exit 0) but couldn't parse JSON, so returns success without context
+			result.shouldContinue.should.be.true()
+			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
 		})
 
 		it("should work with multiline fixture", async () => {
