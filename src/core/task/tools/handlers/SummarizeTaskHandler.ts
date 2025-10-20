@@ -66,7 +66,7 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 				let filesProcessed = 0
 				let filesLoaded = 0
 				let totalChars = 0
-				const MAX_FILES_LOADED = 5
+				const MAX_FILES_LOADED = 8
 				const MAX_FILES_PROCESSED = 10
 				const MAX_CHARS = 100_000
 
@@ -99,7 +99,8 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 						try {
 							// Resolve path (handles multi-root workspaces)
 							const pathResult = resolveWorkspacePath(config, relPath, "SummarizeTaskHandler")
-							const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
+							const { absolutePath, displayPath } =
+								typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relPath } : pathResult
 
 							// Read file content, we dont allow images to be read here
 							// This throws if an image or if we can't read the file, implicitly skipping
@@ -114,8 +115,8 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 							await config.services.fileContextTracker.trackFileContext(relPath, "file_mentioned")
 
 							// Append file content in the same format as file mentions
-							fileContents += `\n\n<file_content path="${relPath}">\n${fileContent.text}\n</file_content>`
-							loadedFilePaths.push(relPath)
+							fileContents += `\n\n<file_content path="${displayPath}">\n${fileContent.text}\n</file_content>`
+							loadedFilePaths.push(displayPath)
 
 							totalChars += fileContent.text.length
 							filesLoaded++
