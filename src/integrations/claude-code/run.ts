@@ -195,6 +195,7 @@ function runProcess(
 		shouldUseFile ? "--system-prompt-file" : "--system-prompt",
 		systemPrompt,
 		"--verbose",
+		"--include-partial-messages",
 		"--output-format",
 		"stream-json",
 		"--disallowedTools",
