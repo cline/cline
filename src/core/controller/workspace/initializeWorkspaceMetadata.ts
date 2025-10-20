@@ -1,25 +1,29 @@
-import * as vscode from "vscode"
+import { HostProvider } from "@/hosts/host-provider"
 import { Controller } from ".."
 
 /**
  * Initializes workspaceMetadata from currently open workspace folders
  * Called on extension activation
+ * Platform-agnostic: works with both VSCode and JetBrains
  */
 export async function initializeWorkspaceMetadata(controller: Controller): Promise<void> {
 	try {
-		// biome-ignore lint: Direct vscode.workspace access needed for initialization
-		const workspaceFolders = vscode.workspace.workspaceFolders || []
+		// Use gRPC WorkspaceService instead of vscode.workspace
+		const response = await HostProvider.workspace.getWorkspacePaths({})
+		const workspacePaths = response.paths || []
+
 		const existingMetadata = controller.stateManager.getGlobalStateKey("workspaceMetadata") || {}
 
 		// Update metadata for currently open workspaces
-		for (const folder of workspaceFolders) {
-			const path = folder.uri.fsPath
+		for (const path of workspacePaths) {
+			// Extract name from path (works on Windows and Unix)
+			const name = path.split("/").pop() || path.split("\\").pop() || path
 
 			// Only update if not already present or update lastOpened
 			if (!existingMetadata[path]) {
 				existingMetadata[path] = {
 					path,
-					name: folder.name,
+					name,
 					lastOpened: Date.now(),
 				}
 			} else {
@@ -29,7 +33,7 @@ export async function initializeWorkspaceMetadata(controller: Controller): Promi
 		}
 
 		controller.stateManager.setGlobalState("workspaceMetadata", existingMetadata)
-		console.log(`[initializeWorkspaceMetadata] Initialized ${workspaceFolders.length} workspace(s)`)
+		console.log(`[initializeWorkspaceMetadata] Initialized ${workspacePaths.length} workspace(s)`)
 	} catch (error) {
 		console.error("[initializeWorkspaceMetadata] Error:", error)
 	}

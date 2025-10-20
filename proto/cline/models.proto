@@ -16,13 +16,13 @@ service ModelsService {
   // Fetches available models from VS Code LM API
   rpc getVsCodeLmModels(EmptyRequest) returns (VsCodeLmModelsArray);
   // Refreshes and returns OpenRouter models
-  rpc refreshOpenRouterModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  rpc refreshOpenRouterModelsRPC(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Hugging Face models
   rpc refreshHuggingFaceModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns OpenAI models
   rpc refreshOpenAiModels(OpenAiModelsRequest) returns (StringArray);
   // Refreshes and returns Vercel AI Gateway models
-  rpc refreshVercelAiGatewayModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  rpc refreshVercelAiGatewayModelsRPC(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Requesty models
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Subscribe to OpenRouter models updates
@@ -32,9 +32,9 @@ service ModelsService {
   // Updates API configuration with partial values (only updates fields that are explicitly set)
   rpc updateApiConfigurationPartial(UpdateApiConfigurationPartialRequest) returns (Empty);
   // Refreshes and returns Groq models
-  rpc refreshGroqModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  rpc refreshGroqModelsRPC(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Baseten models
-  rpc refreshBasetenModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  rpc refreshBasetenModelsRPC(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Fetches available models from SAP AI Core
   rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (SapAiCoreModelsResponse);
   // Fetches available models from OCA

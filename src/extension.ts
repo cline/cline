@@ -28,11 +28,11 @@ import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
 import { initializeWorkspaceMetadata } from "./core/controller/workspace/initializeWorkspaceMetadata"
-import { updateWorkspaceMetadataFromEvent } from "./core/controller/workspace/updateWorkspaceMetadataFromEvent"
 import { migrateTaskHistoryToWorkspaceState, migrateWorkspaceMetadata } from "./core/storage/state-migrations"
 import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMessage } from "./hosts/vscode/commit-message-generator"
+import { initializeVSCodeWorkspace } from "./hosts/vscode/initializeWorkspace"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { ExtensionRegistryInfo } from "./registry"
@@ -67,16 +67,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Initialize workspace metadata from current folders
 	await initializeWorkspaceMetadata(webview.controller)
 
-	// Listen for workspace folder changes
-	context.subscriptions.push(
-		vscode.workspace.onDidChangeWorkspaceFolders(async (event) => {
-			await updateWorkspaceMetadataFromEvent(webview.controller, event)
-			// Update workspace manager with new folders
-			await webview.controller.ensureWorkspaceManager()
-			// CRITICAL: Notify frontend of workspace change
-			await webview.controller.postStateToWebview()
-		}),
-	)
+	// Set up VSCode-specific workspace tracking
+	initializeVSCodeWorkspace(context, webview.controller)
 
 	Logger.log("Cline extension activated")
 
