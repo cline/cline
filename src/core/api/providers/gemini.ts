@@ -2,6 +2,8 @@ import type { Anthropic } from "@anthropic-ai/sdk"
 // Restore GenerateContentConfig import and add GenerateContentResponseUsageMetadata
 import { ApiError, type GenerateContentConfig, type GenerateContentResponseUsageMetadata, GoogleGenAI, Part } from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import * as fs from "fs"
+import * as path from "path"
 import { telemetryService } from "@/services/telemetry"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { RetriableError, withRetry } from "../retry"
@@ -107,6 +109,9 @@ export class GeminiHandler implements ApiHandler {
 		const { id: modelId, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)
 
+		// Write trace information
+		this.writeTrace("Request", modelId, contents)
+
 		// Configure thinking budget if supported
 		const thinkingBudget = this.options.thinkingBudgetTokens ?? 0
 		const _maxBudget = info.thinkingConfig?.maxBudget ?? 0
@@ -139,6 +144,7 @@ export class GeminiHandler implements ApiHandler {
 		let cacheReadTokens = 0
 		let thoughtsTokenCount = 0 // Initialize thought token counts
 		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
+		let responseText = "" // Collect all response text chunks
 
 		try {
 			const result = await client.models.generateContentStream({
@@ -183,6 +189,7 @@ export class GeminiHandler implements ApiHandler {
 				}
 
 				if (chunk.text) {
+					responseText += chunk.text // Collect response text
 					yield {
 						type: "text",
 						text: chunk.text,
@@ -216,6 +223,11 @@ export class GeminiHandler implements ApiHandler {
 					cacheWriteTokens: 0,
 					totalCost,
 				}
+			}
+
+			// Write response trace after successful completion
+			if (responseText) {
+				this.writeTrace("Response", modelId, responseText)
 			}
 		} catch (error) {
 			apiSuccess = false
@@ -467,6 +479,31 @@ export class GeminiHandler implements ApiHandler {
 			return JSON.parse(str)
 		} catch (_) {
 			return null
+		}
+	}
+
+	/**
+	 * Writes trace information to trace.md file
+	 * @param type The type of trace entry ("Request" or "Response")
+	 * @param modelId The model ID used for the request
+	 * @param contents The contents to trace (request contents or response text)
+	 */
+	private writeTrace(type: "Request" | "Response", modelId: string, contents: any): void {
+		try {
+			const traceContent = `Type: ${type}
+ModelId: ${modelId}
+Timestamp: ${Date.now()}
+contents: ${JSON.stringify(contents)}
+
+`
+
+			const traceFilePath = path.join(process.cwd(), "trace.md")
+
+			// Append to file if it exists, otherwise create it
+			fs.appendFileSync(traceFilePath, traceContent, "utf8")
+		} catch (error) {
+			// Silently fail to avoid disrupting the main functionality
+			console.warn(`Failed to write ${type.toLowerCase()} trace information:`, error)
 		}
 	}
 }
