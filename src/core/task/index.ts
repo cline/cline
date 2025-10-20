@@ -1238,6 +1238,13 @@ export class Task {
 
 	async abortTask() {
 		try {
+			// Cancel any running hook execution first
+			try {
+				await this.cancelHookExecution()
+			} catch (error) {
+				Logger.error("Failed to cancel hook during task abort", error)
+			}
+
 			// Run TaskCancel hook
 			const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
 			if (hooksEnabled) {
@@ -1783,6 +1790,49 @@ export class Task {
 			Logger.error("Failed to notify command cancellation", error)
 		}
 		return true
+	}
+
+	/**
+	 * Cancel a currently running hook execution
+	 * @returns true if a hook was cancelled, false if no hook was running
+	 */
+	public async cancelHookExecution(): Promise<boolean> {
+		if (!this.taskState.activeHookExecution) {
+			return false
+		}
+
+		const { hookName, toolName, messageTs, abortController } = this.taskState.activeHookExecution
+
+		try {
+			// Signal cancellation to abort the hook process
+			abortController.abort()
+
+			// Clear active hook execution state
+			this.taskState.activeHookExecution = undefined
+
+			// Update hook message status to "cancelled"
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const hookMessageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
+			if (hookMessageIndex !== -1) {
+				const cancelledMetadata = {
+					hookName,
+					toolName,
+					status: "cancelled",
+					exitCode: 130, // Standard SIGTERM exit code
+				}
+				await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+					text: JSON.stringify(cancelledMetadata),
+				})
+			}
+
+			// Notify UI that hook was cancelled
+			await this.say("hook_output", "\nHook execution cancelled by user")
+
+			return true
+		} catch (error) {
+			Logger.error("Failed to cancel hook execution", error)
+			return false
+		}
 	}
 
 	/**
