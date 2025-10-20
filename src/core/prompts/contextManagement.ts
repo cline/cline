@@ -40,7 +40,7 @@ Your summary should include the following sections:
 8. Next Step: List the next step that you will take that is related to the most recent work you were doing. IMPORTANT: ensure that this step is DIRECTLY in line with the user's explicit requests, and the task you were working on immediately before this summary request. If your last task was concluded, then only list next steps if they are explicitly in line with the users request. Do not start on tangential requests without confirming with the user first.
                      If there is a next step, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off. This should be verbatim to ensure there's no drift in task interpretation.
 9. Required Files: List the most important files needed for continuing the work you laid out in Next Step. This is optional and if no files are required or there is no next step then simply don't include this section. List each file path on a new line starting with "- " such as: - src/main.js. List the files from most important to least important. You must list the minimum number of files necessary to continue with the task.
-                     Only list files you know will forsure be necessary, rather than speculating. The file paths must be relative to the current working directory ${CWD}.${MULTI_ROOT_HINT}
+                     Only list files you know will for sure be necessary, rather than speculating. The file paths must be relative to the current working directory ${CWD}.${MULTI_ROOT_HINT}
 10. You should pay special attention to the most recent user message, as it indicates the user's most recent intent.
 
 ${
