@@ -39,6 +39,7 @@ export class HookDiscoveryCache {
 
 	// For disposal
 	private context: vscode.ExtensionContext | null = null
+	private createFileWatcher: ((dir: string) => vscode.FileSystemWatcher | null) | null = null
 	private disposed = false
 
 	// Debug logging (enabled via DEBUG_HOOKS env var)
@@ -56,8 +57,9 @@ export class HookDiscoveryCache {
 	/**
 	 * Initialize with extension context for proper cleanup
 	 */
-	initialize(context: vscode.ExtensionContext): void {
+	initialize(context: vscode.ExtensionContext, createFileWatcher?: (dir: string) => vscode.FileSystemWatcher | null): void {
 		this.context = context
+		this.createFileWatcher = createFileWatcher || null
 
 		// Watch for workspace changes to invalidate cache
 		context.subscriptions.push(
@@ -147,10 +149,20 @@ export class HookDiscoveryCache {
 			return
 		}
 
+		// If no watcher creation function provided, skip watching
+		if (!this.createFileWatcher) {
+			this.log(`No watcher creator available, skipping watcher for ${dir}`)
+			return
+		}
+
 		try {
-			// Create watcher pattern for any file in this directory
-			const pattern = new vscode.RelativePattern(dir, "*")
-			const watcher = this.context.createFileSystemWatcher(pattern)
+			// Create watcher using the provided function
+			const watcher = this.createFileWatcher(dir)
+
+			if (!watcher) {
+				this.log(`Watcher creation returned null for ${dir}`)
+				return
+			}
 
 			// Invalidate cache on any change
 			const invalidate = () => {
@@ -162,7 +174,10 @@ export class HookDiscoveryCache {
 			watcher.onDidChange(invalidate)
 			watcher.onDidDelete(invalidate)
 
-			this.context.subscriptions.push(watcher)
+			// Add to context subscriptions for proper cleanup
+			if (this.context) {
+				this.context.subscriptions.push(watcher)
+			}
 			this.watchers.set(dir, watcher)
 
 			this.log(`Created watcher for ${dir}`)
