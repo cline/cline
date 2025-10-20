@@ -490,6 +490,9 @@
 		"web-tree-sitter": "^0.22.6",
 		"zod": "^3.24.2"
 	},
+	"overrides": {
+		"tar-fs": ">=3.1.1"
+	},
 	"c8": {
 		"reporter": [
 			"lcov",
