@@ -110,6 +110,7 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 		cline.ApiProvider_GEMINI,
 		cline.ApiProvider_OLLAMA,
 		cline.ApiProvider_CEREBRAS,
+		cline.ApiProvider_SAPAICORE,
 	}
 
 	// Check each provider to see if it's ready to use
@@ -225,6 +226,8 @@ func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
 		return cline.ApiProvider_CEREBRAS, true
 	case "cline":
 		return cline.ApiProvider_CLINE, true
+	case "sapaicore":
+		return cline.ApiProvider_SAPAICORE, true
 	default:
 		return cline.ApiProvider_ANTHROPIC, false // Return 0 value with false
 	}
@@ -254,6 +257,8 @@ func GetProviderIDForEnum(provider cline.ApiProvider) string {
 		return "cerebras"
 	case cline.ApiProvider_CLINE:
 		return "cline"
+	case cline.ApiProvider_SAPAICORE:
+		return "sapaicore"
 	default:
 		return ""
 	}
@@ -329,6 +334,8 @@ func GetProviderDisplayName(provider cline.ApiProvider) string {
 		return "Cerebras"
 	case cline.ApiProvider_CLINE:
 		return "Cline (Official)"
+	case cline.ApiProvider_SAPAICORE:
+		return "SAP AI Core"
 	default:
 		return "Unknown"
 	}
@@ -444,6 +451,7 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 		{cline.ApiProvider_GEMINI, "geminiApiKey"},
 		{cline.ApiProvider_OLLAMA, "ollamaBaseUrl"}, // Ollama uses baseUrl instead of API key
 		{cline.ApiProvider_CEREBRAS, "cerebrasApiKey"},
+		{cline.ApiProvider_SAPAICORE, "sapAiCoreClientId"}, // SAP AI Core uses client credentials
 	}
 
 	for _, providerCheck := range providersToCheck {

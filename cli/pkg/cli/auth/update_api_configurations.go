@@ -131,6 +131,13 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 			ActModeModelIDField:  "actModeApiModelId",
 		}, nil
 
+	case cline.ApiProvider_SAPAICORE:
+		return ProviderFields{
+			APIKeyField:          "sapAiCoreClientId",
+			PlanModeModelIDField: "planModeApiModelId",
+			ActModeModelIDField:  "actModeApiModelId",
+		}, nil
+
 	case cline.ApiProvider_CLINE:
 		return ProviderFields{
 			APIKeyField:                          "clineApiKey",
@@ -243,6 +250,10 @@ func setAPIKeyField(apiConfig *cline.ModelsApiConfiguration, fieldName string, v
 		apiConfig.OllamaBaseUrl = value
 	case "cerebrasApiKey":
 		apiConfig.CerebrasApiKey = value
+	case "sapAiCoreClientId":
+		apiConfig.SapAiCoreClientId = value
+	case "sapAiCoreClientSecret":
+		apiConfig.SapAiCoreClientSecret = value
 	case "clineApiKey":
 		apiConfig.ClineApiKey = value
 	}
@@ -403,6 +414,10 @@ func RemoveProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	fieldPaths := []string{fields.APIKeyField}
 	if provider == cline.ApiProvider_BEDROCK {
 		fieldPaths = append(fieldPaths, "awsSecretKey")
+	}
+	// For SAP AI Core, include both client ID and client secret
+	if provider == cline.ApiProvider_SAPAICORE {
+		fieldPaths = append(fieldPaths, "sapAiCoreClientSecret")
 	}
 
 	// Create field mask
