@@ -3,8 +3,6 @@ title: CLI Samples
 description: Example implementations demonstrating Cline CLI capabilities
 ---
 
-# CLI Samples
-
 This page provides an overview of sample implementations that demonstrate
 various Cline CLI features and capabilities.
 
@@ -37,6 +35,34 @@ script outputs concise summaries by filtering JSON output.
 
 # Custom prompt
 ./analyze-issue.sh https://github.com/owner/repo/issues/123 "What is the security impact?"
+```
+
+**Sample Output:**
+```
+$ ./analyze-issue.sh https://github.com/owner/repo/issues/2
+
+**Root Cause Analysis of Issue #2: "setState isn't cutting it"**
+
+After examining the GitHub issue and analyzing the Flutter counter codebase, 
+I've identified the root cause of why setState() is insufficient for this 
+project's needs:
+
+## Current Implementation Problems
+[details elided]
+
+## Recommended Solutions
+
+The issue mentions "Provider or Bloc" - both are excellent alternatives:
+
+1. **Provider**: Simple, lightweight state management using InheritedWidget
+2. **Bloc**: More structured approach with clear separation between events, 
+   states, and business logic
+3. **Riverpod**: Modern alternative to Provider with better performance
+4. **GetX**: Full-featured solution with state management, routing, and 
+   dependency injection
+
+The current codebase needs refactoring to implement proper state management 
+architecture to handle more complex state scenarios effectively.
 ```
 
 **Setup & Documentation:** [github-issue-rca
@@ -72,6 +98,32 @@ AI-powered issue assistant that analyzes and responds to issues autonomously.
 @cline analyze the root cause
 
 @cline what are the security implications?
+```
+
+**Sample Output:**
+
+When you mention `@cline` in an issue comment, it automatically analyzes the issue and posts a detailed response:
+
+```
+## Analysis Results
+
+I've analyzed issue #123 and here are my findings:
+
+### Root Cause
+The error occurs because [detailed analysis of the underlying problem]...
+
+### Technical Details
+- The issue stems from [specific code or configuration problem]
+- This affects [impacted components or functionality]
+- The error manifests when [triggering conditions]
+
+### Recommended Solutions
+1. [Primary solution with implementation approach]
+2. [Alternative approach with trade-offs]
+3. [Quick fix for immediate mitigation]
+
+### Next Steps
+[Actionable recommendations for resolving the issue]
 ```
 
 **How It Works:**
