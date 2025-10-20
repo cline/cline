@@ -1,0 +1,93 @@
+---
+title: CLI Samples
+description: Example implementations demonstrating Cline CLI capabilities
+---
+
+# CLI Samples
+
+This page provides an overview of sample implementations that demonstrate
+various Cline CLI features and capabilities.
+
+## GitHub Root Cause Analysis
+
+**Description:** A command-line script that uses Cline's autonomous AI
+capabilities to fetch, analyze, and identify root causes of GitHub issues. The
+script outputs concise summaries by filtering JSON output.
+
+**CLI Features Used:**
+- `-y` / `--yolo` - Yolo mode (non-interactive, auto-approves all actions)
+- `--mode act` - Act mode to actively investigate (reads files, runs commands,
+  etc.)
+- `--address` - Specify which Cline instance to use
+- `-F json` - JSON output format for parsing
+
+**Input:**
+- GitHub issue URL (required)
+- Custom analysis prompt (optional)
+- Cline instance address (optional)
+
+**Output:**
+- Detailed text analysis of the issue including root cause identification and
+  recommended solutions
+
+**Example Usage:**
+```bash
+# Basic usage
+./analyze-issue.sh https://github.com/owner/repo/issues/123
+
+# Custom prompt
+./analyze-issue.sh https://github.com/owner/repo/issues/123 "What is the security impact?"
+```
+
+**Setup & Documentation:** [github-issue-rca
+README](https://github.com/cline/cline/tree/main/src/samples/cli/github-issue-rca)
+
+---
+
+## GitHub Integration (GitHub Actions)
+
+**Description:** Automatically respond to GitHub issues by mentioning `@cline`
+in comments. This sample uses Cline CLI in GitHub Actions to create an
+AI-powered issue assistant that analyzes and responds to issues autonomously.
+
+**CLI Features Used:**
+- `cline instance new` - Create a new Cline instance
+- `cline config set` - Configure API keys and settings
+- `-y` / `--yolo` - Yolo mode (non-interactive, auto-approves all actions)
+- `--mode act` - Act mode to actively investigate
+- `--address` - Specify which Cline instance to use
+- `-F json` - JSON output format for parsing
+
+**Input:**
+- GitHub issue comments containing `@cline` mentions
+- Issue context and history
+
+**Output:**
+- Automated analysis posted as a new comment on the issue
+
+**Example Usage:** Simply mention `@cline` in any issue comment:
+```
+@cline what's causing this error?
+
+@cline analyze the root cause
+
+@cline what are the security implications?
+```
+
+**How It Works:**
+1. GitHub Actions detects `@cline` mention in issue comment
+2. Workflow installs Cline CLI and creates an instance
+3. Configures authentication with API keys
+4. Downloads and runs the analysis script (from github-issue-rca sample)
+5. Posts Cline's analysis as a new comment
+
+**Setup & Documentation:** [github-integration
+README](https://github.com/cline/cline/tree/main/src/samples/cli/github-integration)
+
+---
+
+## Additional Resources
+
+- [CLI Installation Guide](/cline-cli/installation)
+- [CLI Reference Documentation](/cline-cli/cli-reference)
+- [Three Core Flows](/cline-cli/three-core-flows)
