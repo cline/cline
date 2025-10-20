@@ -94,8 +94,23 @@ export abstract class HookRunner<Name extends HookName> {
 
 	abstract [exec](params: HookInput): Promise<HookOutput>
 
-	// Completes the hook input parameters by adding the common hook parameters to the
-	// hook-specific parameters provided by the caller.
+	/**
+	 * Completes the hook input by adding common metadata to caller-provided parameters.
+	 *
+	 * This method enriches the hook-specific input (like preToolUse or postToolUse data)
+	 * with standard information that all hooks receive:
+	 * - clineVersion: Current Cline extension version
+	 * - hookName: The type of hook being executed (e.g., "PreToolUse")
+	 * - timestamp: Execution time in milliseconds since epoch
+	 * - workspaceRoots: Array of workspace folder paths
+	 * - userId: Cline user ID, machine ID, or generated UUID
+	 *
+	 * This separation allows hook scripts to receive consistent metadata without
+	 * requiring callers to manually provide it each time.
+	 *
+	 * @param params The hook-specific input parameters (taskId + hook data)
+	 * @returns Complete HookInput ready to be serialized and sent to the hook script
+	 */
 	protected async completeParams(params: NamedHookInput<Name>): Promise<HookInput> {
 		const workspaceRoots =
 			StateManager.get()
@@ -112,8 +127,21 @@ export abstract class HookRunner<Name extends HookName> {
 	}
 }
 
-// The NoOpRunner is used when there's no hook to run. It immediately succeeds.
+/**
+ * NoOpRunner is a null-object pattern implementation used when no hook scripts are found.
+ *
+ * Instead of returning null or requiring null checks everywhere, we return a NoOpRunner
+ * that always succeeds immediately without any side effects. This simplifies the calling
+ * code and ensures hooks are always optional/gracefully degraded.
+ *
+ * @template Name The type of hook this runner represents
+ */
 class NoOpRunner<Name extends HookName> extends HookRunner<Name> {
+	/**
+	 * Executes a no-op hook that always succeeds.
+	 * @param _ Hook input (ignored)
+	 * @returns A successful hook output with shouldContinue: true
+	 */
 	override async [exec](_: HookInput): Promise<HookOutput> {
 		return HookOutput.create({
 			shouldContinue: true,
@@ -127,7 +155,23 @@ class NoOpRunner<Name extends HookName> extends HookRunner<Name> {
 export type HookStreamCallback = (line: string, stream: "stdout" | "stderr") => void
 
 /**
- * Actually runs a hook by executing a script with streaming support.
+ * Executes a hook script as a child process with real-time output streaming.
+ *
+ * Key features:
+ * - Spawns the hook script and communicates via stdin/stdout/stderr
+ * - Streams output line-by-line via callback for real-time UI updates
+ * - Enforces 30-second timeout (configurable via HOOK_EXECUTION_TIMEOUT_MS)
+ * - Supports cancellation via AbortSignal
+ * - Parses JSON output from stdout, attempting to extract it even if mixed with debug output
+ * - Truncates context modifications that exceed 50KB to prevent prompt overflow
+ * - Handles both successful and failed executions gracefully
+ *
+ * Error handling:
+ * - Treats hooks as "fail-open": only shouldContinue:false blocks tool execution
+ * - Hook script errors (non-zero exit) don't block tools, only explicit JSON response does
+ * - Timeout/cancellation errors are propagated to show "Failed" status in UI
+ *
+ * @template Name The type of hook this runner represents
  */
 class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 	constructor(
@@ -268,8 +312,24 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 	}
 }
 
-// CombinedHookRunner runs multiple hooks and combines the results. Used when a workspace
-// has multiple roots contributing the same hook.
+/**
+ * Combines multiple hook runners and executes them in parallel.
+ *
+ * Used in multi-root workspaces where both global hooks (from ~/Documents/Cline/Rules/Hooks/)
+ * and workspace-specific hooks (from each workspace's .clinerules/hooks/) exist for the
+ * same hook type.
+ *
+ * Behavior:
+ * - Executes all hooks concurrently using Promise.all
+ * - Combines all shouldContinue flags with logical AND (all must be true to continue)
+ * - Concatenates all contextModification strings with double newlines
+ * - Concatenates all errorMessage strings with single newlines
+ *
+ * This means if ANY hook returns shouldContinue: false, tool execution is blocked.
+ * All hooks' context contributions are merged into the conversation.
+ *
+ * @template Name The type of hook this runner represents
+ */
 class CombinedHookRunner<Name extends HookName> extends HookRunner<Name> {
 	constructor(
 		hookName: Name,
@@ -357,7 +417,22 @@ export class HookFactory {
 	}
 
 	/**
-	 * Create a hook runner with optional streaming callback and abort signal support
+	 * Create a hook runner with optional streaming callback and abort signal support.
+	 *
+	 * This is the primary factory method for creating hooks. It:
+	 * 1. Uses HookDiscoveryCache to find hook scripts (fast O(1) lookup after first scan)
+	 * 2. Creates StdioHookRunner instances for each discovered script
+	 * 3. Returns NoOpRunner if no scripts found (null-object pattern)
+	 * 4. Returns CombinedHookRunner if multiple scripts found (parallel execution)
+	 *
+	 * The streaming callback receives hook output line-by-line in real-time, allowing
+	 * the UI to display progress as the hook executes. The abort signal enables
+	 * cancellation of long-running hooks.
+	 *
+	 * @param hookName The type of hook to create (e.g., "PreToolUse", "PostToolUse")
+	 * @param streamCallback Optional callback for real-time output streaming
+	 * @param abortSignal Optional signal to cancel hook execution
+	 * @returns A HookRunner that executes the hook(s), or NoOpRunner if none found
 	 */
 	async createWithStreaming<Name extends HookName>(
 		hookName: Name,
