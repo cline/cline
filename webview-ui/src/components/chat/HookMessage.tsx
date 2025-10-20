@@ -40,6 +40,12 @@ interface HookMetadata {
 		mcpServer?: string
 		resourceUri?: string
 	}
+	error?: {
+		type: "timeout" | "validation" | "execution" | "cancellation"
+		message: string
+		details?: string
+		scriptPath?: string
+	}
 }
 
 /**
@@ -95,7 +101,10 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 		return { metadata: hookMetadata, output }
 	}, [message.text])
 
-	// Smart default: expand if failed or cancelled, collapse if successful
+	// Smart defaults:
+	// - Expand if failed/cancelled (show error details)
+	// - Collapse if successful (minimize clutter)
+	// - Show hook output if present
 	const shouldExpandByDefault = metadata.status === "failed" || metadata.status === "cancelled"
 	const [isHookOutputExpanded, setIsHookOutputExpanded] = useState(shouldExpandByDefault)
 
@@ -236,6 +245,41 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 				</div>
 				{/* Show pending tool info when hook is running */}
 				{isRunning && metadata.pendingToolInfo && <PendingToolInfo pendingToolInfo={metadata.pendingToolInfo} />}
+
+				{/* Show concise error message for specific error types */}
+				{isFailed && metadata.error && metadata.error.type === "timeout" && (
+					<div
+						style={{
+							padding: "12px",
+							borderBottom: output.length > 0 ? "1px solid var(--vscode-editorGroup-border)" : "none",
+							fontSize: "13px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Took longer than 30 seconds. Check for infinite loops or add timeouts to network requests.
+					</div>
+				)}
+
+				{isFailed && metadata.error && metadata.error.type === "validation" && (
+					<div
+						style={{
+							padding: "12px",
+							borderBottom: output.length > 0 ? "1px solid var(--vscode-editorGroup-border)" : "none",
+							fontSize: "13px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Hook must return JSON with{" "}
+						<code
+							style={{
+								backgroundColor: "var(--vscode-textCodeBlock-background)",
+								padding: "2px 4px",
+								borderRadius: "3px",
+							}}>
+							shouldContinue
+						</code>{" "}
+						boolean field.
+					</div>
+				)}
+
 				{/* Show hook output if present */}
 				{output.length > 0 && (
 					<CommandOutput
