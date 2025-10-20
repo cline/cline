@@ -1,3 +1,4 @@
+import { HistoryItem } from "@shared/HistoryItem"
 import { GetTaskHistoryRequest, TaskHistoryArray } from "@shared/proto/cline/task"
 import { arePathsEqual, getWorkspacePath } from "../../../utils/path"
 import { readTaskHistoryFromState } from "../../storage/disk"
@@ -15,19 +16,31 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 
 		// Get task history - from workspace state if filtering by current workspace,
 		// otherwise from global aggregated history to support cross-workspace view
-		let taskHistory
-		const workspacePath = await getWorkspacePath()
+		let taskHistory: HistoryItem[]
+		// CRITICAL FIX: Use workspace manager's primary root instead of active file's workspace
+		// This fixes the bug where switching workspaces didn't update the filter because
+		// getWorkspacePath() returns the workspace of the currently active file, not the
+		// actual current workspace root. The workspace manager is updated when workspaces
+		// change (see extension.ts onDidChangeWorkspaceFolders).
+		const workspaceManagerPath = controller.getWorkspaceManager()?.getPrimaryRoot()?.path
+		const activeFilePath = await getWorkspacePath()
+		const workspacePath = workspaceManagerPath || activeFilePath
 
 		// Read from global task history (single source of truth)
 		const allTasks = await readTaskHistoryFromState()
 
-		// PHASE 1: Comprehensive Diagnostics
+		// PHASE 1: Comprehensive Diagnostics with workspace resolution details
 		console.log("[TaskHistory] Loading task history", {
 			totalTasksInGlobalFile: allTasks.length,
 			currentWorkspaceOnly,
 			filterByWorkspaceId,
 			favoritesOnly,
-			workspacePath,
+			workspaceResolution: {
+				fromWorkspaceManager: workspaceManagerPath,
+				fromActiveFile: activeFilePath,
+				usingPath: workspacePath,
+				source: workspaceManagerPath ? "workspace-manager" : "active-file-fallback",
+			},
 		})
 
 		// Log data quality statistics

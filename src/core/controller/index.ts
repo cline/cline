@@ -903,10 +903,8 @@ export class Controller {
 		const clineMessages = this.task?.messageStateHandler.getClineMessages() || []
 		const checkpointManagerErrorMessage = this.task?.taskState.checkpointManagerErrorMessage
 
-		const processedTaskHistory = (taskHistory || [])
-			.filter((item) => item.ts && item.task)
-			.sort((a, b) => b.ts - a.ts)
-			.slice(0, 100) // for now we're only getting the latest 100 tasks, but a better solution here is to only pass in 3 for recent task history, and then get the full task history on demand when going to the task history view (maybe with pagination?)
+		const processedTaskHistory = (taskHistory || []).filter((item) => item.ts && item.task).sort((a, b) => b.ts - a.ts)
+		// Removed .slice(0, 100) limit to show all historical tasks
 
 		const latestAnnouncementId = getLatestAnnouncementId()
 		const shouldShowAnnouncement = lastShownAnnouncementId !== latestAnnouncementId

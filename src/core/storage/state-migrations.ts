@@ -10,6 +10,7 @@ import {
 	writeTaskHistoryToState,
 } from "./disk"
 import { populateWorkspaceIds } from "./migrations/populateWorkspaceIds"
+import { recoverMissingTaskHistory, shouldRunRecoveryMigration } from "./migrations/recoverMissingTaskHistory"
 
 export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionContext) {
 	// Keys to migrate from workspace storage back to global storage
@@ -427,6 +428,21 @@ export async function migrateTaskHistoryToWorkspaceState(context: vscode.Extensi
 		// Fall back to running migration if check fails
 		console.log("[Migration] Running populateWorkspaceIds migration due to check failure...")
 		await populateWorkspaceIds()
+	}
+
+	// Check if task history recovery should run
+	// This detects missing entries by comparing task directory count vs indexed entries
+	try {
+		const shouldRecover = await shouldRunRecoveryMigration()
+		if (shouldRecover) {
+			console.log("[Migration] Detected missing task history entries, running automatic recovery...")
+			await recoverMissingTaskHistory()
+		} else {
+			console.log("[Migration] Task history is complete, skipping recovery")
+		}
+	} catch (error) {
+		console.error("[Migration] Failed to check or run task history recovery:", error)
+		console.error("[Migration] Skipping automatic recovery, manual recovery script is available")
 	}
 
 	if (migrationVersion >= CURRENT_MIGRATION_VERSION) {
