@@ -42,9 +42,14 @@ const createMockProcess = () => {
 const createMockReadlineInterface = () => {
 	const mockInterface = {
 		async *[Symbol.asyncIterator]() {
-			// Simulate Claude CLI JSON output - yield a few chunks then end
-			yield '{"type":"text","text":"Hello"}'
-			yield '{"type":"text","text":" world"}'
+			// Simulate Claude CLI JSON output with streaming events from --include-partial-messages
+			yield '{\"type\":\"stream_event\",\"event\":{\"type\":\"message_start\",\"message\":{\"model\":\"claude-sonnet-4-5\",\"id\":\"msg_123\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":100,\"output_tokens\":0}}},\"session_id\":\"test\",\"parent_tool_use_id\":null,\"uuid\":\"uuid1\"}'
+			yield '{\"type\":\"stream_event\",\"event\":{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}},\"session_id\":\"test\",\"parent_tool_use_id\":null,\"uuid\":\"uuid2\"}'
+			yield '{\"type\":\"stream_event\",\"event\":{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}},\"session_id\":\"test\",\"parent_tool_use_id\":null,\"uuid\":\"uuid3\"}'
+			yield '{\"type\":\"stream_event\",\"event\":{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" world\"}},\"session_id\":\"test\",\"parent_tool_use_id\":null,\"uuid\":\"uuid4\"}'
+			yield '{\"type\":\"stream_event\",\"event\":{\"type\":\"content_block_stop\",\"index\":0},\"session_id\":\"test\",\"parent_tool_use_id\":null,\"uuid\":\"uuid5\"}'
+			yield '{\"type\":\"stream_event\",\"event\":{\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":5}},\"session_id\":\"test\",\"parent_tool_use_id\":null,\"uuid\":\"uuid6\"}'
+			yield '{\"type\":\"stream_event\",\"event\":{\"type\":\"message_stop\"},\"session_id\":\"test\",\"parent_tool_use_id\":null,\"uuid\":\"uuid7\"}'
 			// Iterator ends naturally when function returns
 			return
 		},
