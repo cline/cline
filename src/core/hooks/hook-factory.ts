@@ -134,16 +134,22 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 		hookName: Name,
 		public readonly scriptPath: string,
 		private readonly streamCallback?: HookStreamCallback,
+		private readonly abortSignal?: AbortSignal,
 	) {
 		super(hookName)
 	}
 
 	override async [exec](input: HookInput): Promise<HookOutput> {
+		// Check if already aborted before starting
+		if (this.abortSignal?.aborted) {
+			throw new Error("Hook execution cancelled before start")
+		}
+
 		// Serialize input to JSON
 		const inputJson = JSON.stringify(HookInput.toJSON(input))
 
 		// Create HookProcess for execution with streaming
-		const hookProcess = new HookProcess(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS)
+		const hookProcess = new HookProcess(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, this.abortSignal)
 
 		// Set up streaming if callback is provided
 		if (this.streamCallback) {
@@ -162,9 +168,8 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 			const stderr = hookProcess.getStderr()
 			const exitCode = hookProcess.getExitCode()
 
-			// Hook status is determined by exit code
-			if (exitCode === 0) {
-				// Hook succeeded - try to parse JSON output
+			// Try to parse JSON output
+			const parseJsonOutput = (): HookOutput | null => {
 				try {
 					const outputData = JSON.parse(stdout)
 					const output = HookOutput.fromJSON(outputData)
@@ -182,7 +187,6 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 					return output
 				} catch (parseError) {
-					// JSON parsing failed, but hook succeeded (exit code 0)
 					// Try to extract JSON from stdout (it might have debug output before/after)
 					const jsonMatch = stdout.match(/\{[\s\S]*\}/)
 					if (jsonMatch) {
@@ -203,49 +207,57 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 							return output
 						} catch (extractError) {
-							// Could not extract valid JSON, but hook succeeded
-							// Append JSON parsing error to stderr for display
-							if (this.streamCallback) {
-								this.streamCallback(
-									`\n⚠️  Warning: Hook completed successfully but JSON response could not be parsed.`,
-									"stderr",
-								)
-								this.streamCallback(`    No context will be added to the conversation.`, "stderr")
-								this.streamCallback(
-									`    Error: ${extractError instanceof Error ? extractError.message : String(extractError)}`,
-									"stderr",
-								)
-							}
-							return HookOutput.create({
-								shouldContinue: true,
-							})
+							return null
 						}
-					} else {
-						// No JSON found in output, but hook succeeded
-						if (this.streamCallback) {
-							this.streamCallback(
-								`\n⚠️  Warning: Hook completed successfully but no JSON response found in output.`,
-								"stderr",
-							)
-							this.streamCallback(`    No context will be added to the conversation.`, "stderr")
-						}
-						return HookOutput.create({
-							shouldContinue: true,
-						})
+					}
+					return null
+				}
+			}
+
+			const parsedOutput = parseJsonOutput()
+
+			// If we have valid JSON, honor it regardless of exit code
+			if (parsedOutput) {
+				if (exitCode !== 0 && this.streamCallback) {
+					// Log that hook exited non-zero but we're using the JSON
+					this.streamCallback(
+						`\n⚠️  Note: Hook exited with code ${exitCode} but provided valid JSON response.`,
+						"stderr",
+					)
+					if (stderr) {
+						this.streamCallback(`    stderr: ${stderr}`, "stderr")
 					}
 				}
+				return parsedOutput
+			}
+
+			// No valid JSON found
+			if (exitCode === 0) {
+				// Hook succeeded but didn't provide JSON
+				if (this.streamCallback) {
+					this.streamCallback(
+						`\n⚠️  Warning: Hook completed successfully but no JSON response found in output.`,
+						"stderr",
+					)
+					this.streamCallback(`    No context will be added to the conversation.`, "stderr")
+				}
+				return HookOutput.create({
+					shouldContinue: true,
+				})
 			} else {
-				// Hook failed with non-zero exit code
+				// Hook failed - throw error so UI shows "Failed" status
 				const errorDetails = stderr ? `. stderr: ${stderr}` : ""
 				throw new Error(`Hook exited with code ${exitCode}${errorDetails}`)
 			}
 		} catch (error) {
-			// Hook execution failed
+			// Hook execution failed (timeout, cancellation, or fatal error)
 			const stderr = hookProcess.getStderr()
 			const exitCode = hookProcess.getExitCode()
 
+			// Re-throw the error so ToolExecutor sees "Failed" status in UI
+			// ToolExecutor will catch this and decide whether to block tool execution
+			// (Only shouldContinue: false blocks execution)
 			if (error instanceof Error) {
-				// Include stderr in error message if available
 				const errorDetails = stderr ? `. stderr: ${stderr}` : ""
 				throw new Error(`${error.message}${errorDetails}`)
 			}
@@ -343,14 +355,15 @@ export class HookFactory {
 	}
 
 	/**
-	 * Create a hook runner with optional streaming callback support
+	 * Create a hook runner with optional streaming callback and abort signal support
 	 */
 	async createWithStreaming<Name extends HookName>(
 		hookName: Name,
 		streamCallback?: HookStreamCallback,
+		abortSignal?: AbortSignal,
 	): Promise<HookRunner<Name>> {
 		const scripts = await HookFactory.findHookScripts(hookName)
-		const runners = scripts.map((script) => new StdioHookRunner(hookName, script, streamCallback))
+		const runners = scripts.map((script) => new StdioHookRunner(hookName, script, streamCallback, abortSignal))
 		if (runners.length === 0) {
 			return new NoOpRunner(hookName)
 		}

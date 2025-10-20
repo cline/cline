@@ -192,9 +192,17 @@ export interface ClineSayTool {
 export interface ClineSayHook {
 	hookName: string // Name of the hook (e.g., "PreToolUse", "PostToolUse")
 	toolName?: string // Tool name if applicable (for PreToolUse/PostToolUse)
-	status: "running" | "completed" | "failed" // Execution status
+	status: "running" | "completed" | "failed" | "cancelled" // Execution status
 	exitCode?: number // Exit code when completed
 	hasJsonResponse?: boolean // Whether a JSON response was parsed
+	shouldContinue?: boolean // Whether hook allowed tool execution to proceed (false = blocked)
+	// Pending tool information (only present during PreToolUse "running" status)
+	pendingToolInfo?: {
+		tool: string // Tool name (e.g., "write_to_file", "execute_command")
+		path?: string // File path for file operations
+		command?: string // Command for execute_command
+		content?: string // Content preview (first 200 chars)
+	}
 }
 
 // must keep in sync with system prompt
