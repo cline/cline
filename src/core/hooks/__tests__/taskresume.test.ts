@@ -42,6 +42,12 @@ describe("TaskResume Hook", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
+
+		// Clean up hook discovery cache
+		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
+		HookDiscoveryCache.resetForTesting()
+
+		sandbox.restore()
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		} catch (error) {
@@ -386,22 +392,22 @@ console.log("not valid json")`
 			const factory = new HookFactory()
 			const runner = await factory.create("TaskResume")
 
-			try {
-				await runner.run({
-					taskId: "test-task",
-					taskResume: {
-						taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
-						previousState: {
-							lastMessageTs: Date.now().toString(),
-							messageCount: "5",
-							conversationHistoryDeleted: "false",
-						},
+			// When hook exits 0 but has malformed JSON, it returns success without context
+			const result = await runner.run({
+				taskId: "test-task",
+				taskResume: {
+					taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
+					previousState: {
+						lastMessageTs: Date.now().toString(),
+						messageCount: "5",
+						conversationHistoryDeleted: "false",
 					},
-				})
-				throw new Error("Should have thrown parse error")
-			} catch (error: any) {
-				error.message.should.match(/Failed to parse hook output/)
-			}
+				},
+			})
+
+			// Hook succeeded (exit 0) but couldn't parse JSON, so returns success without context
+			result.shouldContinue.should.be.true()
+			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
 		})
 
 		it("should handle invalid timestamp gracefully", async () => {

@@ -286,8 +286,6 @@ export const ChatRowContent = memo(
 		// Command output expansion state (for all messages, but only used by command messages)
 		const [isOutputFullyExpanded, setIsOutputFullyExpanded] = useState(false)
 		const prevCommandExecutingRef = useRef<boolean>(false)
-		// Hook output expansion state (for all messages, but only used by hook messages)
-		const [isHookOutputExpanded, setIsHookOutputExpanded] = useState(false)
 		const [cost, apiReqCancelReason, apiReqStreamingFailedMessage, retryStatus] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
 				const info: ClineApiReqInfo = JSON.parse(message.text)
@@ -310,23 +308,6 @@ export const ChatRowContent = memo(
 		// A command is pending if it hasn't started (no output) and hasn't completed
 		const isCommandPending = isCommandMessage && isLast && !message.commandCompleted && !commandHasOutput
 		const isCommandCompleted = isCommandMessage && message.commandCompleted === true
-
-		// Hook message detection and parsing
-		const isHookStatusMessage = message.say === "hook"
-		const isHookOutputMessage = message.say === "hook_output"
-		const HOOK_OUTPUT_STRING = "__HOOK_OUTPUT__"
-
-		// Parse hook metadata if this is a hook status message
-		const hookMetadata = useMemo(() => {
-			if (isHookStatusMessage && message.text) {
-				try {
-					return JSON.parse(message.text)
-				} catch {
-					return null
-				}
-			}
-			return null
-		}, [isHookStatusMessage, message.text])
 
 		const isMcpServerResponding = isLast && lastModifiedMessage?.say === "mcp_server_request_started"
 

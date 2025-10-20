@@ -259,7 +259,9 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 			// (Only shouldContinue: false blocks execution)
 			if (error instanceof Error) {
 				const errorDetails = stderr ? `. stderr: ${stderr}` : ""
-				throw new Error(`${error.message}${errorDetails}`)
+				// Include hook name in error message for better debugging
+				const hookPrefix = this.hookName ? `${this.hookName} hook: ` : ""
+				throw new Error(`${hookPrefix}${error.message}${errorDetails}`)
 			}
 			throw error
 		}
