@@ -61,6 +61,7 @@ export const config: Omit<PromptVariant, "id"> = createVariant(ModelFamily.GENER
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
+		ClineDefaultTool.DOWNLOAD_FILE,
 	)
 	.placeholders({
 		MODEL_FAMILY: "your-model-family", // Replace with appropriate model family
@@ -147,4 +148,5 @@ export const createAdvancedVariant = (family: ModelFamily) =>
 			ClineDefaultTool.PLAN_MODE,
 			ClineDefaultTool.MCP_DOCS,
 			ClineDefaultTool.TODO,
+			ClineDefaultTool.DOWNLOAD_FILE,
 		)

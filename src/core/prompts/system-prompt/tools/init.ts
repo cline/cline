@@ -17,6 +17,7 @@ import { search_files_variants } from "./search_files"
 import { use_mcp_tool_variants } from "./use_mcp_tool"
 import { web_fetch_variants } from "./web_fetch"
 import { write_to_file_variants } from "./write_to_file"
+import { download_file_variants } from "./download_file"
 
 /**
  * Registers all tool variants with the ClineToolSet provider.
@@ -43,6 +44,7 @@ export function registerClineToolSets(): void {
 		...use_mcp_tool_variants,
 		...web_fetch_variants,
 		...write_to_file_variants,
+		...download_file_variants,
 	]
 
 	// Register each variant

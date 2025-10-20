@@ -32,6 +32,9 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 	let currentParamValueStart = 0 // Index *after* the opening tag of the current param
 	let currentParamName: ToolParamName | undefined
 
+
+	console.log("parseAssistantMessageV2",assistantMessage)
+
 	// Precompute tags for faster lookups
 	const toolUseOpenTags = new Map<string, ToolUseName>()
 	const toolParamOpenTags = new Map<string, ToolParamName>()
@@ -41,6 +44,8 @@ export function parseAssistantMessageV2(assistantMessage: string): AssistantMess
 	for (const name of toolParamNames) {
 		toolParamOpenTags.set(`<${name}>`, name)
 	}
+
+	
 
 	const len = assistantMessage.length
 	for (let i = 0; i < len; i++) {

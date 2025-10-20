@@ -49,6 +49,7 @@ export const config = createVariant(ModelFamily.GPT_5)
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
+		ClineDefaultTool.DOWNLOAD_FILE,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.GPT_5,

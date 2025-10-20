@@ -17,4 +17,5 @@ export enum ClineDefaultTool {
 	PLAN_MODE = "plan_mode_respond",
 	TODO = "focus_chain",
 	WEB_FETCH = "web_fetch",
+	DOWNLOAD_FILE = "download_file",
 }

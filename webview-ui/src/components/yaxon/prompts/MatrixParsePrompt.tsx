@@ -47,61 +47,32 @@ export const MatrixFileParsePrompt=()=>
   调用 MCP 服务处理上传的矩阵文件将其转换为DBC文件，此调用会返回一个url，存储在变量dbc_file_url中，这个变量后续的步骤用$dbcFileUrl来代表。
 
   <use_mcp_tool>
-  <server_name>
-  can-tools
-  </server_name>
-  <tool_name>
-  handle_matrix_file
-  </tool_name>
-  <arguments>
-  {
-    "fileUrl": "$TASK_FILES",
-    "sheetName": "$sheet_name"
-  }
-  </arguments>
+    <server_name>
+      can-tools
+    </server_name>
+    <tool_name>
+      handle_matrix_file
+    </tool_name>
+    <arguments>
+    {
+      "fileUrl": "$TASK_FILES",
+      "sheetName": "$sheet_name"
+    }
+    </arguments>
   </use_mcp_tool>
 
 ## 步骤 3: 将生成的DBC文件下载到本地项目的指定目录
   -先让用户选择/输入本地项目的一个目录路径,将此目录路径存储在变量dbc_file_path中(检查该目录是否存在，不存在则创建)，
   这个变量后续的步骤用$dbc_file_path来代表
-  -然后调用**Fetch**MCP服务的**fetch_txt**工具(如果还未安装则自动下载并安装)将生成的DBC文件下载到本地项目的指定目录：
-  <use_mcp_tool>
-  <server_name>
-  Fetch
-  </server_name>
-  <tool_name>
-  fetch_txt
-  </tool_name>
-  <arguments>
-  {
-    "url": "$dbcFileUrl",
-    "max_length": 10485760,
-  }
-  </arguments>
-  </use_mcp_tool>
-
-  - 这个Mcp调用会返回该文件的**文本内容**，文本内容保存在变量dbc_file_content中，后续使用$dbc_file_content访问;
-  将获取的文件内容,使用Mcp **File System**的**write_file**工具保存到**$dbc_file_path**的下的一个.dbc文件中(如果该文件不存在，则新建后将内容写入；
-  如果文件已存在，用一个新的文件名新建文件后写入获取的内容)，文件的文件名与上传的矩阵文件同名但扩展名为.dbc。
-   - 这个dbc文件的完整路径存储在变量$dbc_file_path中。   
-   
-      <use_mcp_tool>
-        <server_name>
-        File System
-        </server_name>
-        <tool_name>
-        write_file
-        </tool_name>
-        <arguments>
-        {
-          "path": "$dbc_file_path",
-          "content": $dbc_file_content,
-        }
-        </arguments>
-      </use_mcp_tool>
+  -然后调用内置工具**download_file**工具将生成的DBC文件下载到本地项目的指定目录：
+    <download_file>
+      <fileUrl>$dbcFileUrl</fileUrl>
+      <savePath>$dbc_file_path</savePath>
+    </download_file>
   
- 
-  - **注意！！！**：获取的dbc文件请按原始内容写入本地文件中，**不要**进行任何处理，**不要**自行去掉换行，空格符，制表符等。
+  -**注意！！！**：请必须确保下载文件成功，不要略过此步骤！！！。
+  -**注意！！！**：请**必须保直接下载文件保存到本地文件，不要试图fetch 文件内容返回！！**。  
+     
 
 ## 步骤 4: 调用Mcp将DBC文件转换为C/Java代码
   让用户选择生成C代码还是Java代码：
@@ -140,12 +111,16 @@ export const MatrixFileParsePrompt=()=>
 ## 步骤 5: 将生成的代码保存到本地项目的指定目录
   -先让用户选择/输入**当前打开**的项目的**根目录**下一个目录路径,将此目录路径存储在变量code_file_path中(检查该目录是否存在，不存在则创建)；
    将这些代码文件的完整路径存储在变量$code_file_paths中，这个变量后续的步骤用$code_file_paths来代表。  
-  -然后调用**Fetch**MCP服务的**fetch_txt**工具(参数**max_length**设置为10485760)将**所有**生成的代码文件(即存储在$code_result中的文件url)获取，
-   并写入到$code_file_paths下的新建文件中。
-  -请简化文件名，去掉url文件名下划线后面的Md5。
-  - **注意！！！**：获取的代码文件请按原始内容写入本地文件中。**不要**进行任何处理，**不要**自行去掉换行，空格符，制表符等。
+  -然后调用内置工具**download_file**工具将**所有**生成的代码文件(即存储在$code_result中的文件url)下载到$code_file_paths中。
+  -文件保存到本地时，请简化本地文件名，去掉文件名下划线后面的Md5。
+   <download_file>
+    <fileUrl>(header_file_url and source_file_url) or (signal_file_url and parser_file_url) </fileUrl>
+    <savePath>$code_file_paths</savePath>
+   </download_file>
 
-  - **注意！！！**：最后生成的代码请检查是否有语法错误，如有语法错误请修正后再保存。
+  -**注意！！！**：请必须确保下载文件成功，不要略过此步骤！！！。
+  -**注意！！！**：请**必须保直接下载文件保存到本地文件，不要试图fetch 文件内容返回！！**。  
+  -**注意！！！**：文件下载完成后，请**一定**要打开刚才下载的代码文件，**检查**代码中的错误并进行**修正**！！！。
  
 
 ## 步骤 6: 任务完成

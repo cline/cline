@@ -26,6 +26,7 @@ import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQues
 import { AttemptCompletionHandler } from "./tools/handlers/AttemptCompletionHandler"
 import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
 import { CondenseHandler } from "./tools/handlers/CondenseHandler"
+import { DownloadFileHandler } from "./tools/handlers/DownloadFileHandler"
 import { ExecuteCommandToolHandler } from "./tools/handlers/ExecuteCommandToolHandler"
 import { ListCodeDefinitionNamesToolHandler } from "./tools/handlers/ListCodeDefinitionNamesToolHandler"
 import { ListFilesToolHandler } from "./tools/handlers/ListFilesToolHandler"
@@ -202,6 +203,7 @@ export class ToolExecutor {
 		this.coordinator.register(new CondenseHandler())
 		this.coordinator.register(new SummarizeTaskHandler())
 		this.coordinator.register(new ReportBugHandler())
+		this.coordinator.register(new DownloadFileHandler())
 	}
 
 	/**
