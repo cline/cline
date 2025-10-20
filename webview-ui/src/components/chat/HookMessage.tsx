@@ -1,0 +1,254 @@
+import { ClineMessage } from "@shared/ExtensionMessage"
+import { memo, useMemo, useState } from "react"
+import { TaskServiceClient } from "@/services/grpc-client"
+import { CHAT_ROW_EXPANDED_BG_COLOR } from "../common/CodeBlock"
+import PendingToolInfo from "./PendingToolInfo"
+
+const normalColor = "var(--vscode-foreground)"
+const errorColor = "var(--vscode-errorForeground)"
+const successColor = "var(--vscode-charts-green)"
+const cancelledColor = "var(--vscode-descriptionForeground)"
+
+const HOOK_OUTPUT_STRING = "__HOOK_OUTPUT__"
+
+interface HookMessageProps {
+	message: ClineMessage
+	// CommandOutput component - we'll import and use it here
+	CommandOutput: React.ComponentType<{
+		output: string
+		isOutputFullyExpanded: boolean
+		onToggle: () => void
+		isContainerExpanded: boolean
+	}>
+}
+
+interface HookMetadata {
+	hookName: string
+	toolName?: string
+	status: string
+	exitCode?: number
+	hasJsonResponse?: boolean
+	shouldContinue?: boolean
+	pendingToolInfo?: {
+		tool: string
+		path?: string
+		command?: string
+		content?: string
+		diff?: string
+		regex?: string
+		url?: string
+		mcpTool?: string
+		mcpServer?: string
+		resourceUri?: string
+	}
+}
+
+/**
+ * Displays a hook execution message with status, pending tool info, and output.
+ *
+ * Smart expansion defaults:
+ * - Failed hooks: Expanded by default (show error details)
+ * - Cancelled hooks: Expanded by default (show what happened)
+ * - Successful hooks: Collapsed by default (minimize clutter)
+ * - Running hooks: Always shows pending tool info
+ */
+const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
+	// Parse hook metadata and output
+	const { metadata, output } = useMemo(() => {
+		const splitMessage = (text: string) => {
+			const outputIndex = text.indexOf(HOOK_OUTPUT_STRING)
+			if (outputIndex === -1) {
+				return { metadata: text, output: "" }
+			}
+			return {
+				metadata: text.slice(0, outputIndex).trim(),
+				output: text
+					.slice(outputIndex + HOOK_OUTPUT_STRING.length)
+					.trim()
+					.split("")
+					.map((char) => {
+						switch (char) {
+							case "\t":
+								return "→   "
+							case "\b":
+								return "⌫"
+							case "\f":
+								return "⏏"
+							case "\v":
+								return "⇳"
+							default:
+								return char
+						}
+					})
+					.join(""),
+			}
+		}
+
+		const { metadata: metadataStr, output } = splitMessage(message.text || "")
+
+		let hookMetadata: HookMetadata
+		try {
+			hookMetadata = JSON.parse(metadataStr)
+		} catch {
+			hookMetadata = { hookName: "Unknown", status: "unknown" }
+		}
+
+		return { metadata: hookMetadata, output }
+	}, [message.text])
+
+	// Smart default: expand if failed or cancelled, collapse if successful
+	const shouldExpandByDefault = metadata.status === "failed" || metadata.status === "cancelled"
+	const [isHookOutputExpanded, setIsHookOutputExpanded] = useState(shouldExpandByDefault)
+
+	const isRunning = metadata.status === "running"
+	const isCompleted = metadata.status === "completed"
+	const isFailed = metadata.status === "failed"
+	const isCancelled = metadata.status === "cancelled"
+
+	const headerStyle: React.CSSProperties = {
+		display: "flex",
+		alignItems: "center",
+		gap: "10px",
+		marginBottom: "12px",
+	}
+
+	return (
+		<>
+			<div style={headerStyle}>
+				<span
+					className="codicon codicon-symbol-event"
+					style={{
+						color: normalColor,
+						marginBottom: "-1.5px",
+					}}></span>
+				<span style={{ color: normalColor, fontWeight: "bold" }}>Hook:</span>
+				<span style={{ color: normalColor }}>{metadata.hookName}</span>
+				{metadata.toolName && (
+					<span style={{ color: "var(--vscode-descriptionForeground)", fontSize: "0.9em" }}>({metadata.toolName})</span>
+				)}
+			</div>
+			<div
+				style={{
+					borderRadius: 6,
+					border: "1px solid var(--vscode-editorGroup-border)",
+					overflow: "hidden",
+					backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+					transition: "all 0.3s ease-in-out",
+				}}>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "space-between",
+						padding: "8px 10px",
+						backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
+						borderBottom:
+							metadata.pendingToolInfo || output.length > 0 ? "1px solid var(--vscode-editorGroup-border)" : "none",
+						borderTopLeftRadius: "6px",
+						borderTopRightRadius: "6px",
+					}}>
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							gap: "8px",
+							flex: 1,
+							minWidth: 0,
+						}}>
+						<div
+							style={{
+								width: "8px",
+								height: "8px",
+								borderRadius: "50%",
+								backgroundColor: isRunning ? successColor : isFailed ? errorColor : successColor,
+								animation: isRunning ? "pulse 2s ease-in-out infinite" : "none",
+								flexShrink: 0,
+							}}
+						/>
+						<span
+							style={{
+								color: isRunning
+									? successColor
+									: isFailed
+										? errorColor
+										: isCancelled
+											? cancelledColor
+											: successColor,
+								fontWeight: 500,
+								fontSize: "13px",
+								flexShrink: 0,
+							}}>
+							{isRunning
+								? "Running"
+								: isFailed
+									? "Failed"
+									: isCancelled
+										? "Cancelled"
+										: isCompleted
+											? "Completed"
+											: "Unknown"}
+						</span>
+						{metadata.exitCode !== undefined && metadata.exitCode !== 0 && (
+							<span
+								style={{
+									color: "var(--vscode-descriptionForeground)",
+									fontSize: "12px",
+								}}>
+								(exit: {metadata.exitCode})
+							</span>
+						)}
+						{metadata.shouldContinue === false && (
+							<span
+								style={{
+									color: "var(--vscode-descriptionForeground)",
+									fontSize: "12px",
+								}}>
+								(shouldContinue: false)
+							</span>
+						)}
+					</div>
+					{isRunning && (
+						<button
+							onClick={(e) => {
+								e.stopPropagation()
+								TaskServiceClient.cancelHookExecution({}).catch((err) =>
+									console.error("Failed to cancel hook:", err),
+								)
+							}}
+							onMouseEnter={(e) => {
+								e.currentTarget.style.background = "var(--vscode-button-secondaryHoverBackground)"
+							}}
+							onMouseLeave={(e) => {
+								e.currentTarget.style.background = "var(--vscode-button-secondaryBackground)"
+							}}
+							style={{
+								background: "var(--vscode-button-secondaryBackground)",
+								color: "var(--vscode-button-secondaryForeground)",
+								border: "none",
+								borderRadius: "2px",
+								padding: "4px 10px",
+								fontSize: "12px",
+								cursor: "pointer",
+								fontFamily: "inherit",
+							}}>
+							cancel
+						</button>
+					)}
+				</div>
+				{/* Show pending tool info when hook is running */}
+				{isRunning && metadata.pendingToolInfo && <PendingToolInfo pendingToolInfo={metadata.pendingToolInfo} />}
+				{/* Show hook output if present */}
+				{output.length > 0 && (
+					<CommandOutput
+						isContainerExpanded={true}
+						isOutputFullyExpanded={isHookOutputExpanded}
+						onToggle={() => setIsHookOutputExpanded(!isHookOutputExpanded)}
+						output={output}
+					/>
+				)}
+			</div>
+		</>
+	)
+})
+
+export default HookMessage
