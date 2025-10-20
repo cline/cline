@@ -24,6 +24,51 @@ const HOOK_EXECUTION_TIMEOUT_MS = 30000
 // Maximum size for context modification (to prevent prompt overflow)
 const MAX_CONTEXT_MODIFICATION_SIZE = 50000 // ~50KB
 
+/**
+ * Validates hook output JSON structure.
+ * Ensures required fields are present and have correct types.
+ */
+function validateHookOutput(output: any): { valid: boolean; error?: string } {
+	// Check shouldContinue field
+	if (typeof output.shouldContinue !== "boolean") {
+		return {
+			valid: false,
+			error:
+				"Invalid hook output: Missing or invalid 'shouldContinue' field.\n\n" +
+				"Expected: {'shouldContinue': true}\n" +
+				"Required: shouldContinue must be a boolean (true or false)\n\n" +
+				"Example valid response:\n" +
+				JSON.stringify(
+					{
+						shouldContinue: true,
+						contextModification: "Optional context here",
+						errorMessage: "Optional error message",
+					},
+					null,
+					2,
+				),
+		}
+	}
+
+	// Check contextModification if present
+	if (output.contextModification !== undefined && typeof output.contextModification !== "string") {
+		return {
+			valid: false,
+			error: "Invalid hook output: 'contextModification' must be a string if provided",
+		}
+	}
+
+	// Check errorMessage if present
+	if (output.errorMessage !== undefined && typeof output.errorMessage !== "string") {
+		return {
+			valid: false,
+			error: "Invalid hook output: 'errorMessage' must be a string if provided",
+		}
+	}
+
+	return { valid: true }
+}
+
 export interface Hooks {
 	PreToolUse: {
 		preToolUse: PreToolUseData
@@ -216,6 +261,16 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 			const parseJsonOutput = (): HookOutput | null => {
 				try {
 					const outputData = JSON.parse(stdout)
+
+					// Validate structure before creating HookOutput
+					const validation = validateHookOutput(outputData)
+					if (!validation.valid) {
+						if (this.streamCallback) {
+							this.streamCallback(`\n❌ ${validation.error}`, "stderr")
+						}
+						return null
+					}
+
 					const output = HookOutput.fromJSON(outputData)
 
 					// Validate and truncate context modification if too large
@@ -230,12 +285,32 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 					}
 
 					return output
-				} catch (_parseError) {
+				} catch (parseError) {
+					// Enhanced parse error message
+					if (this.streamCallback) {
+						this.streamCallback(
+							`\n❌ Failed to parse hook JSON output.\n` +
+								`Error: ${parseError instanceof Error ? parseError.message : String(parseError)}\n\n` +
+								`Stdout preview:\n${stdout.slice(0, 500)}${stdout.length > 500 ? "..." : ""}`,
+							"stderr",
+						)
+					}
+
 					// Try to extract JSON from stdout (it might have debug output before/after)
 					const jsonMatch = stdout.match(/\{[\s\S]*\}/)
 					if (jsonMatch) {
 						try {
 							const outputData = JSON.parse(jsonMatch[0])
+
+							// Validate structure
+							const validation = validateHookOutput(outputData)
+							if (!validation.valid) {
+								if (this.streamCallback) {
+									this.streamCallback(`\n❌ ${validation.error}`, "stderr")
+								}
+								return null
+							}
+
 							const output = HookOutput.fromJSON(outputData)
 
 							// Validate and truncate context modification if too large
@@ -297,6 +372,28 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 			// Hook execution failed (timeout, cancellation, or fatal error)
 			const stderr = hookProcess.getStderr()
 			const _exitCode = hookProcess.getExitCode()
+
+			// Enhance timeout errors with actionable advice
+			if (error instanceof Error && error.message.includes("timed out")) {
+				const enhancedMessage =
+					`${this.hookName} hook timed out after ${HOOK_EXECUTION_TIMEOUT_MS}ms.\n\n` +
+					`Possible causes:\n` +
+					`  - Infinite loop in hook script\n` +
+					`  - Network request hanging\n` +
+					`  - File I/O operation stuck\n` +
+					`  - Heavy computation taking too long\n\n` +
+					`Script: ${this.scriptPath}\n\n` +
+					`Recommendations:\n` +
+					`  1. Check your hook script for infinite loops\n` +
+					`  2. Add timeouts to any network requests\n` +
+					`  3. Use background jobs for long operations\n` +
+					`  4. Test your hook script independently`
+
+				if (stderr) {
+					throw new Error(`${enhancedMessage}\n\nStderr: ${stderr}`)
+				}
+				throw new Error(enhancedMessage)
+			}
 
 			// Re-throw the error so ToolExecutor sees "Failed" status in UI
 			// ToolExecutor will catch this and decide whether to block tool execution
