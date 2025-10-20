@@ -12,6 +12,7 @@ import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { type TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { Environment } from "../../../src/config"
@@ -481,7 +482,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		openRouterModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToOpenRouterModels(EmptyRequest.create({}), {
 			onResponse: (response: OpenRouterCompatibleModelInfo) => {
 				console.log("[DEBUG] Received OpenRouter models update from gRPC stream")
-				const models = response.models
+				const models = fromProtobufModels(response.models)
 				setOpenRouterModels({
 					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
 					...models,
@@ -619,9 +620,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [])
 
 	const refreshOpenRouterModels = useCallback(() => {
-		ModelsServiceClient.refreshOpenRouterModels(EmptyRequest.create({}))
+		ModelsServiceClient.refreshOpenRouterModelsRPC(EmptyRequest.create({}))
 			.then((response: OpenRouterCompatibleModelInfo) => {
-				const models = response.models
+				const models = fromProtobufModels(response.models)
 				setOpenRouterModels({
 					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
 					...models,
