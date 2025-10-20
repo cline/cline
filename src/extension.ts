@@ -27,7 +27,9 @@ import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
-import { migrateTaskHistoryToWorkspaceState } from "./core/storage/state-migrations"
+import { initializeWorkspaceMetadata } from "./core/controller/workspace/initializeWorkspaceMetadata"
+import { updateWorkspaceMetadataFromEvent } from "./core/controller/workspace/updateWorkspaceMetadataFromEvent"
+import { migrateTaskHistoryToWorkspaceState, migrateWorkspaceMetadata } from "./core/storage/state-migrations"
 import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMessage } from "./hosts/vscode/commit-message-generator"
@@ -58,6 +60,19 @@ export async function activate(context: vscode.ExtensionContext) {
 	await migrateTaskHistoryToWorkspaceState(context)
 
 	const webview = (await initialize(context)) as VscodeWebviewProvider
+
+	// Migrate workspace metadata from task history (one-time)
+	await migrateWorkspaceMetadata(webview.controller.stateManager)
+
+	// Initialize workspace metadata from current folders
+	await initializeWorkspaceMetadata(webview.controller)
+
+	// Listen for workspace folder changes
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeWorkspaceFolders((event) => {
+			updateWorkspaceMetadataFromEvent(webview.controller, event)
+		}),
+	)
 
 	Logger.log("Cline extension activated")
 

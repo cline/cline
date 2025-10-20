@@ -376,7 +376,7 @@ async function performPreMigrationCheck(context: vscode.ExtensionContext): Promi
 
 		// Validate workspace state is accessible
 		try {
-			const testValue = context.workspaceState.get<any>("__migration_test__")
+			const _testValue = context.workspaceState.get<any>("__migration_test__")
 			await context.workspaceState.update("__migration_test__", null)
 		} catch (error) {
 			result.validationErrors.push(`Workspace state is not accessible: ${error}`)
@@ -528,6 +528,69 @@ export async function migrateTaskHistoryToWorkspaceState(context: vscode.Extensi
 		console.error("[Migration] Your data is safe - original files are preserved")
 		// Don't throw - allow extension to continue
 		// Don't mark as migrated so we can try again on next activation
+	}
+}
+
+/**
+ * Migrate workspaceMetadata from existing task history
+ * Backfills workspace metadata by extracting unique workspace paths from all tasks
+ * Idempotent - safe to re-run
+ */
+export async function migrateWorkspaceMetadata(stateManager: any): Promise<void> {
+	try {
+		const existingMetadata = stateManager.getGlobalStateKey("workspaceMetadata") || {}
+
+		// If already populated, skip migration
+		if (Object.keys(existingMetadata).length > 0) {
+			console.log("[Migration] workspaceMetadata already populated, skipping migration")
+			return
+		}
+
+		// Read all tasks from taskHistory.json
+		const taskHistory = await readTaskHistoryFromState()
+
+		if (taskHistory.length === 0) {
+			console.log("[Migration] No task history found, skipping workspaceMetadata migration")
+			return
+		}
+
+		// Extract unique workspace paths
+		const workspacePaths = new Set<string>()
+		for (const task of taskHistory) {
+			if (task.workspaceIds && task.workspaceIds.length > 0) {
+				task.workspaceIds.forEach((path: string) => workspacePaths.add(path))
+			}
+			// Fallback to legacy fields
+			if (task.cwdOnTaskInitialization) {
+				workspacePaths.add(task.cwdOnTaskInitialization)
+			}
+			if (task.shadowGitConfigWorkTree) {
+				workspacePaths.add(task.shadowGitConfigWorkTree)
+			}
+		}
+
+		if (workspacePaths.size === 0) {
+			console.log("[Migration] No workspace paths found in task history, skipping workspaceMetadata migration")
+			return
+		}
+
+		// Create metadata entries
+		const metadata: Record<string, any> = {}
+		for (const workspacePath of workspacePaths) {
+			const name = workspacePath.split("/").pop() || workspacePath
+			metadata[workspacePath] = {
+				path: workspacePath,
+				name,
+				lastOpened: Date.now(),
+			}
+		}
+
+		// Save to global state
+		stateManager.setGlobalState("workspaceMetadata", metadata)
+		console.log(`[Migration] Populated workspaceMetadata with ${Object.keys(metadata).length} workspaces`)
+	} catch (error) {
+		console.error("[Migration] Failed to migrate workspaceMetadata:", error)
+		// Continue execution - migration failure shouldn't break extension startup
 	}
 }
 
