@@ -2,14 +2,13 @@ import { ClineMessage } from "@shared/ExtensionMessage"
 import { memo, useMemo, useState } from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { CHAT_ROW_EXPANDED_BG_COLOR } from "../common/CodeBlock"
+import { HOOK_OUTPUT_STRING } from "./constants"
 import PendingToolInfo from "./PendingToolInfo"
 
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
 const successColor = "var(--vscode-charts-green)"
 const cancelledColor = "var(--vscode-descriptionForeground)"
-
-const HOOK_OUTPUT_STRING = "__HOOK_OUTPUT__"
 
 interface HookMessageProps {
 	message: ClineMessage

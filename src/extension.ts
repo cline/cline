@@ -55,7 +55,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Initialize hook discovery cache for performance optimization
 	const { HookDiscoveryCache } = await import("./core/hooks/HookDiscoveryCache")
-	HookDiscoveryCache.getInstance().initialize(context)
+	HookDiscoveryCache.getInstance().initialize(context, (dir: string) => {
+		try {
+			const pattern = new vscode.RelativePattern(dir, "*")
+			return vscode.workspace.createFileSystemWatcher(pattern)
+		} catch {
+			return null
+		}
+	})
 
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
