@@ -974,6 +974,7 @@ export class Controller {
 			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
 			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
 			isMultiRootWorkspace: (this.workspaceManager?.getRoots().length ?? 0) > 1,
+			currentWorkspacePath: this.workspaceManager?.getPrimaryRoot()?.path,
 			multiRootSetting: {
 				user: this.stateManager.getGlobalStateKey("multiRootEnabled"),
 				featureFlag: true, // Multi-root workspace is now always enabled

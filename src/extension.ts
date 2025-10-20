@@ -69,8 +69,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Listen for workspace folder changes
 	context.subscriptions.push(
-		vscode.workspace.onDidChangeWorkspaceFolders((event) => {
-			updateWorkspaceMetadataFromEvent(webview.controller, event)
+		vscode.workspace.onDidChangeWorkspaceFolders(async (event) => {
+			await updateWorkspaceMetadataFromEvent(webview.controller, event)
+			// Update workspace manager with new folders
+			await webview.controller.ensureWorkspaceManager()
+			// CRITICAL: Notify frontend of workspace change
+			await webview.controller.postStateToWebview()
 		}),
 	)
 

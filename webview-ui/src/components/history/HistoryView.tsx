@@ -57,7 +57,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [deleteAllDisabled, setDeleteAllDisabled] = useState(false)
 	const [selectedItems, setSelectedItems] = useState<string[]>([])
 	const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
-	const [showCurrentWorkspaceOnly, setShowCurrentWorkspaceOnly] = useState(false)
 
 	// Keep track of pending favorite toggle operations
 	const [pendingFavoriteToggles, setPendingFavoriteToggles] = useState<Record<string, boolean>>({})
@@ -72,8 +71,6 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	// Handle workspace selection changes
 	const handleWorkspaceChange = useCallback((workspaceId: string | null) => {
 		setSelectedWorkspaceId(workspaceId)
-		// Update showCurrentWorkspaceOnly based on selection
-		setShowCurrentWorkspaceOnly(workspaceId === "")
 	}, [])
 	const [crossWorkspaceModal, setCrossWorkspaceModal] = useState({
 		open: false,
@@ -88,22 +85,37 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 			const response = await TaskServiceClient.getTaskHistory(
 				GetTaskHistoryRequest.create({
 					favoritesOnly: showFavoritesOnly,
-					currentWorkspaceOnly: showCurrentWorkspaceOnly,
+					currentWorkspaceOnly: selectedWorkspaceId === "",
 					searchQuery: searchQuery || undefined,
 					sortBy: sortOption,
-					filterByWorkspaceId: selectedWorkspaceId ?? undefined,
+					filterByWorkspaceId:
+						typeof selectedWorkspaceId === "string" && selectedWorkspaceId !== "" ? selectedWorkspaceId : undefined,
 				}),
 			)
 			setTasks(response.tasks || [])
 		} catch (error) {
 			console.error("Error loading task history:", error)
 		}
-	}, [showFavoritesOnly, showCurrentWorkspaceOnly, selectedWorkspaceId, searchQuery, sortOption])
+	}, [showFavoritesOnly, selectedWorkspaceId, searchQuery, sortOption])
 
 	// Load when filters change
 	useEffect(() => {
 		loadTaskHistory()
 	}, [loadTaskHistory])
+
+	// Refresh task history when workspace changes
+	useEffect(() => {
+		// When workspaceRoots or primaryRootIndex changes, reload history
+		loadTaskHistory()
+	}, [extensionStateContext.workspaceRoots, extensionStateContext.primaryRootIndex, loadTaskHistory])
+
+	// Reset filter to "Current Workspace" when workspace switches
+	useEffect(() => {
+		// When the actual workspace path changes, reset to current workspace filter
+		if (extensionStateContext.currentWorkspacePath) {
+			setSelectedWorkspaceId("")
+		}
+	}, [extensionStateContext.currentWorkspacePath])
 
 	const toggleFavorite = useCallback(
 		async (taskId: string, currentValue: boolean) => {
@@ -119,7 +131,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 				)
 
 				// Refresh if either filter is active to ensure proper combined filtering
-				if (showFavoritesOnly || showCurrentWorkspaceOnly) {
+				if (showFavoritesOnly || selectedWorkspaceId === "") {
 					loadTaskHistory()
 				}
 			} catch (err) {
