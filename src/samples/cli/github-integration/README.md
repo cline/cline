@@ -7,7 +7,7 @@ The goal is to go from a comment on an issue like this:
 
 ![alt text](readme/ss0a-comment.png)
 
-And ask Cline to give provide his thoughts like this:
+And ask Cline to provide his thoughts like this:
 
 ![alt text](readme/ss0b-final.png)
 
