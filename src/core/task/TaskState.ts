@@ -62,6 +62,14 @@ export class TaskState {
 	didFinishAbortingStream = false
 	abandoned = false
 
+	// Hook execution tracking for cancellation
+	activeHookExecution?: {
+		hookName: string
+		toolName?: string
+		messageTs: number
+		abortController: AbortController
+	}
+
 	// Auto-context summarization
 	currentlySummarizing: boolean = false
 	lastAutoCompactTriggerIndex?: number

@@ -12,6 +12,8 @@ service TaskService {
   rpc cancelTask(EmptyRequest) returns (Empty);
   // Cancels the currently running background command
   rpc cancelBackgroundCommand(EmptyRequest) returns (Empty);
+  // Cancels the currently running hook execution
+  rpc cancelHookExecution(EmptyRequest) returns (Boolean);
   // Clears the current task
   rpc clearTask(EmptyRequest) returns (Empty);
   // Gets the total size of all tasks
