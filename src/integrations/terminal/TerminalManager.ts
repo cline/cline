@@ -97,6 +97,7 @@ export class TerminalManager {
 	private shellIntegrationTimeout: number = 4000
 	private terminalReuseEnabled: boolean = true
 	private terminalOutputLineLimit: number = 500
+	private subagentTerminalOutputLineLimit: number = 2000
 	private defaultTerminalProfile: string = "default"
 
 	constructor() {
@@ -350,9 +351,18 @@ export class TerminalManager {
 		this.terminalOutputLineLimit = limit
 	}
 
-	public processOutput(outputLines: string[]): string {
-		if (outputLines.length > this.terminalOutputLineLimit) {
-			const halfLimit = Math.floor(this.terminalOutputLineLimit / 2)
+	setSubagentTerminalOutputLineLimit(limit: number): void {
+		this.subagentTerminalOutputLineLimit = limit
+	}
+
+	public processOutput(outputLines: string[], overrideLimit?: number, isSubagentCommand?: boolean): string {
+		const limit = isSubagentCommand
+			? overrideLimit !== undefined
+				? overrideLimit
+				: this.subagentTerminalOutputLineLimit
+			: this.terminalOutputLineLimit
+		if (outputLines.length > limit) {
+			const halfLimit = Math.floor(limit / 2)
 			const start = outputLines.slice(0, halfLimit)
 			const end = outputLines.slice(outputLines.length - halfLimit)
 			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()

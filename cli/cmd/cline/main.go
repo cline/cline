@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/cline/cli/pkg/cli"
 	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/display"
@@ -23,12 +25,12 @@ var (
 	outputFormat string
 
 	// Task creation flags (for root command)
-	images     []string
-	files      []string
-	workspaces []string
-	mode       string
-	settings   []string
-	yolo       bool
+	images   []string
+	files    []string
+	mode     string
+	settings []string
+	yolo     bool
+	oneshot  bool
 )
 
 func main() {
@@ -40,10 +42,17 @@ func main() {
 Start a new task by providing a prompt:
   cline "Create a new Python script that prints hello world"
 
+Or pipe a prompt via stdin:
+  echo "Create a todo app" | cline
+  cat prompt.txt | cline --yolo
+
 Or run with no arguments to enter interactive mode:
   cline
 
-This CLI also provides task management, configuration, and monitoring capabilities.`,
+This CLI also provides task management, configuration, and monitoring capabilities.
+
+For detailed documentation including all commands, options, and examples,
+see the manual page: man cline`,
 		Args: cobra.ArbitraryArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if outputFormat != "rich" && outputFormat != "json" && outputFormat != "plain" {
@@ -98,6 +107,10 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 					fmt.Printf("\n%s\n\n", rendered)
 
 					if err := auth.HandleAuthMenuNoArgs(ctx); err != nil {
+						// Check if user cancelled - exit cleanly
+						if err == huh.ErrUserAborted {
+							return nil
+						}
 						return fmt.Errorf("auth setup failed: %w", err)
 					}
 
@@ -115,16 +128,21 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 				instanceAddress = coreAddress
 			}
 
-			var prompt string
+			// Get content from both args and stdin
+			prompt, err := getContentFromStdinAndArgs(args)
+			if err != nil {
+				return fmt.Errorf("failed to read prompt: %w", err)
+			}
 
-			// If args provided, use as prompt
-			if len(args) > 0 {
-				prompt = strings.Join(args, " ")
-			} else {
-				// Show interactive input to get prompt
-				var err error
-				prompt, err = promptForInitialTask()
+			// If no prompt from args or stdin, show interactive input
+			if prompt == "" {
+				// Pass the mode flag to banner so it shows correct mode
+				prompt, err = promptForInitialTask(ctx, instanceAddress, mode)
 				if err != nil {
+					// Check if user cancelled - exit cleanly without error
+					if err == huh.ErrUserAborted {
+						return nil
+					}
 					return err
 				}
 				if prompt == "" {
@@ -132,36 +150,42 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 				}
 			}
 
+			// If oneshot mode, force plan mode and yolo
+			if oneshot {
+				mode = "plan"
+				yolo = true
+			}
+
 			return cli.CreateAndFollowTask(ctx, prompt, cli.TaskOptions{
-				Images:     images,
-				Files:      files,
-				Workspaces: workspaces,
-				Mode:       mode,
-				Settings:   settings,
-				Yolo:       yolo,
-				Address:    instanceAddress,
+				Images:   images,
+				Files:    files,
+				Mode:     mode,
+				Settings: settings,
+				Yolo:     yolo,
+				Address:  instanceAddress,
+				Verbose:  verbose,
 			})
 		},
 	}
 
 	rootCmd.PersistentFlags().StringVar(&coreAddress, "address", fmt.Sprintf("localhost:%d", common.DEFAULT_CLINE_CORE_PORT), "Cline Core gRPC address")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
-	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output-format", "o", "rich", "output format (rich|json|plain)")
+	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output-format", "F", "rich", "output format (rich|json|plain)")
 
 	// Task creation flags (only apply when using root command with prompt)
 	rootCmd.Flags().StringSliceVarP(&images, "image", "i", nil, "attach image files")
 	rootCmd.Flags().StringSliceVarP(&files, "file", "f", nil, "attach files")
-	rootCmd.Flags().StringSliceVarP(&workspaces, "workdir", "w", nil, "workdir directory paths")
 	rootCmd.Flags().StringVarP(&mode, "mode", "m", "plan", "mode (act|plan) - defaults to plan")
 	rootCmd.Flags().StringSliceVarP(&settings, "setting", "s", nil, "task settings (key=value format)")
 	rootCmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
+	rootCmd.Flags().BoolVar(&yolo, "no-interactive", false, "enable yolo mode (non-interactive)")
+	rootCmd.Flags().BoolVarP(&oneshot, "oneshot", "o", false, "full autonomous mode")
 
 	rootCmd.AddCommand(cli.NewTaskCommand())
 	rootCmd.AddCommand(cli.NewInstanceCommand())
 	rootCmd.AddCommand(cli.NewConfigCommand())
 	rootCmd.AddCommand(cli.NewVersionCommand())
 	rootCmd.AddCommand(cli.NewAuthCommand())
-	rootCmd.AddCommand(cli.NewTaskSendCommand())
 	rootCmd.AddCommand(cli.NewLogsCommand())
 
 	if err := rootCmd.ExecuteContext(context.Background()); err != nil {
@@ -169,8 +193,23 @@ This CLI also provides task management, configuration, and monitoring capabiliti
 	}
 }
 
-func promptForInitialTask() (string, error) {
+func promptForInitialTask(ctx context.Context, instanceAddress, modeFlag string) (string, error) {
+	// Show session banner before the initial input
+	showSessionBanner(ctx, instanceAddress, modeFlag)
+
 	var prompt string
+
+	// Create custom theme with mode-colored cursor and title
+	theme := huh.ThemeCharm()
+
+	// Set cursor and title color based on mode
+	modeColor := lipgloss.Color("3") // Yellow for plan
+	if modeFlag == "act" {
+		modeColor = lipgloss.Color("39") // Blue for act
+	}
+
+	theme.Focused.TextInput.Cursor = theme.Focused.TextInput.Cursor.Foreground(modeColor)
+	theme.Focused.Title = theme.Focused.Title.Foreground(modeColor)
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -181,14 +220,62 @@ func promptForInitialTask() (string, error) {
 				Lines(5).
 				Value(&prompt),
 		),
-	)
+	).WithWidth(48).WithTheme(theme)
 
 	err := form.Run()
 	if err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			// Return a special error that indicates clean cancellation
+			// This allows deferred cleanup to run
+			return "", huh.ErrUserAborted
+		}
 		return "", err
 	}
 
 	return strings.TrimSpace(prompt), nil
+}
+
+// showSessionBanner displays session info before initial prompt
+func showSessionBanner(ctx context.Context, instanceAddress, modeFlag string) {
+	bannerInfo := display.BannerInfo{
+		Version: global.CliVersion,
+		Mode:    modeFlag, // Use the mode from command flag, not state
+	}
+
+	// If mode is empty, default to "plan"
+	if bannerInfo.Mode == "" {
+		bannerInfo.Mode = "plan"
+	}
+
+	// Get current working directory (this is what Cline will use)
+	if cwd, err := os.Getwd(); err == nil {
+		bannerInfo.Workdir = cwd
+	}
+
+	// Get provider/model using auth functions (same logic as auth menu)
+	manager, err := cli.NewTaskManagerForAddress(ctx, instanceAddress)
+	if err == nil {
+		if providerList, err := auth.GetProviderConfigurations(ctx, manager); err == nil {
+			// Show provider/model for the mode we'll be using
+			var providerDisplay *auth.ProviderDisplay
+			if bannerInfo.Mode == "plan" && providerList.PlanProvider != nil {
+				providerDisplay = providerList.PlanProvider
+			} else if bannerInfo.Mode == "act" && providerList.ActProvider != nil {
+				providerDisplay = providerList.ActProvider
+			}
+
+			if providerDisplay != nil {
+				bannerInfo.Provider = auth.GetProviderIDForEnum(providerDisplay.Provider)
+				bannerInfo.ModelID = providerDisplay.ModelID
+			}
+		}
+	}
+
+	// Render and display banner
+	banner := display.RenderSessionBanner(bannerInfo)
+	fmt.Println(banner)
+	fmt.Println() // Extra spacing before form
 }
 
 // isUserReadyToUse checks if the user has completed initial setup
@@ -225,4 +312,38 @@ func isUserReadyToUse(ctx context.Context, instanceAddress string) bool {
 	}
 
 	return false
+}
+
+// getContentFromStdinAndArgs reads content from both command line args and stdin, and combines them
+func getContentFromStdinAndArgs(args []string) (string, error) {
+	var content strings.Builder
+
+	// Add command line args first (if any)
+	if len(args) > 0 {
+		content.WriteString(strings.Join(args, " "))
+	}
+
+	// Check if stdin has data
+	stat, err := os.Stdin.Stat()
+	if err != nil {
+		return "", fmt.Errorf("failed to stat stdin: %w", err)
+	}
+
+	// Check if data is being piped to stdin
+	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		stdinBytes, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return "", fmt.Errorf("failed to read from stdin: %w", err)
+		}
+
+		stdinContent := strings.TrimSpace(string(stdinBytes))
+		if stdinContent != "" {
+			if content.Len() > 0 {
+				content.WriteString(" ")
+			}
+			content.WriteString(stdinContent)
+		}
+	}
+
+	return content.String(), nil
 }

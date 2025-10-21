@@ -40,6 +40,18 @@ const XS_OBJECTIVES = `EXECUTION FLOW
 - Prefer replace_in_file; respect final formatted state.
 - When all steps succeed and are confirmed, call attempt_completion (optional demo command).`
 
+const XS_CLI_SUBAGENTS = `USING THE CLINE CLI TOOL
+
+The Cline CLI tool is installed and available for you to use to handle focused tasks without polluting your main context window. This can be done using 
+\`\`\`bash
+cline t o "your prompt here"
+
+This must only be used for searching and exploring code. It cannot be used to edit files or execute commands.
+Example:
+  # Find specific patterns
+  cline t o "find all React components that use the useState hook and list their names" 
+\`\`\``
+
 export const xsComponentOverrides: PromptVariant["componentOverrides"] = {
 	[SystemPromptSection.AGENT_ROLE]: {
 		template:
@@ -59,6 +71,9 @@ export const xsComponentOverrides: PromptVariant["componentOverrides"] = {
 	},
 	[SystemPromptSection.RULES]: {
 		template: XS_RULES,
+	},
+	[SystemPromptSection.CLI_SUBAGENTS]: {
+		template: XS_CLI_SUBAGENTS,
 	},
 	[SystemPromptSection.ACT_VS_PLAN]: {
 		template: XS_ACT_PLAN_MODE,

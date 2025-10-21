@@ -88,8 +88,8 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 								debouncedRefreshOpenAiModels(value, apiConfiguration?.openAiApiKey)
 							}}
 							placeholder={"Enter base URL..."}
-							style={{ width: "100%" }}
-							type="url"
+							style={{ width: "100%", marginBottom: 10 }}
+							type="text"
 						/>
 					</div>
 				</TooltipTrigger>

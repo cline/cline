@@ -13,7 +13,6 @@ import { rmrf } from "./file-utils.mjs"
 const BUILD_DIR = "dist-standalone"
 const BINARIES_DIR = `${BUILD_DIR}/binaries`
 const RUNTIME_DEPS_DIR = "standalone/runtime-files"
-const NODE_BINARIES_DIR = `${BUILD_DIR}/node-binaries`
 const RIPGREP_BINARIES_DIR = `${BUILD_DIR}/ripgrep-binaries`
 const CLI_BINARIES_DIR = "cli/bin"
 const IS_DEBUG_BUILD = process.env.IS_DEBUG_BUILD === "true"
@@ -31,12 +30,12 @@ const SUPPORTED_BINARY_MODULES = ["better-sqlite3"]
 const UNIVERSAL_BUILD = !process.argv.includes("-s")
 const IS_VERBOSE = process.argv.includes("-v") || process.argv.includes("--verbose")
 
-// Parse --target flag (e.g., --target=cli)
+// Parse --target flag (e.g., --target=npm)
 // Default behavior is JetBrains build (no binaries)
-// Use --target=cli for standalone CLI build (with binaries)
+// Use --target=npm for npm package build (CLI binaries but no Node.js)
 const targetArg = process.argv.find((arg) => arg.startsWith("--target="))
 const BUILD_TARGET = targetArg ? targetArg.split("=")[1] : "jetbrains"
-const IS_CLI_BUILD = BUILD_TARGET === "cli"
+const IS_NPM_BUILD = BUILD_TARGET === "npm"
 
 // Detect current platform
 function getCurrentPlatform() {
@@ -54,35 +53,40 @@ function getCurrentPlatform() {
 }
 
 async function main() {
-	console.log(`🚀 Building Cline ${IS_CLI_BUILD ? "Standalone CLI" : "JetBrains"} Package\n`)
+	const buildType = IS_NPM_BUILD ? "NPM Package" : "JetBrains"
+	console.log(`🚀 Building Cline ${buildType} Package\n`)
 
-	// Step 1: Install Node.js dependencies
 	await installNodeDependencies()
 
-	// Step 2: Copy Node.js binary (only for CLI builds)
-	// Step 3: Copy CLI binaries (only for CLI builds)
-	// Step 4: Copy ripgrep binary (only for CLI builds)
-	// Step 5: Create VERSION file (only for CLI builds)
-	if (IS_CLI_BUILD) {
-		await copyNodeBinary()
+	if (IS_NPM_BUILD) {
 		await copyCliBinaries()
 		await copyRipgrepBinary()
-		await createVersionFile()
+		await copyProtoDescriptors()
+		await createNpmPackageFiles()
+		await createFakeNodeModules()
+		await createNpmIgnoreFile()
+		await createPostinstallScript()
 	}
 
-	// Step 6: Package platform-specific binary modules
-	if (UNIVERSAL_BUILD) {
+	if (UNIVERSAL_BUILD && !IS_NPM_BUILD) {
 		console.log("\nBuilding universal package for all platforms...")
 		await packageAllBinaryDeps()
+	} else if (IS_NPM_BUILD) {
+		console.log("\nNPM build: Keeping native modules in node_modules for npm to handle...")
 	} else {
 		console.log(`\nBuilding package for ${os.platform()}-${os.arch()}...`)
 	}
 
-	// Step 7: Create final package
-	console.log("\n📦 Creating final package...")
-	await zipDistribution()
+	if (!IS_NPM_BUILD) {
+		console.log("\n📦 Creating final package...")
+		await zipDistribution()
+	}
 
 	console.log("\n✅ Build complete!")
+	if (IS_NPM_BUILD) {
+		console.log(`\n📦 NPM package ready in ${BUILD_DIR}/`)
+		console.log(`To publish: cd ${BUILD_DIR} && npm publish`)
+	}
 }
 
 async function installNodeDependencies() {
@@ -101,69 +105,89 @@ async function installNodeDependencies() {
 }
 
 /**
- * Copy Node.js binary for the current platform
- */
-async function copyNodeBinary() {
-	const currentPlatform = getCurrentPlatform()
-	const nodeBinarySource = path.join(NODE_BINARIES_DIR, currentPlatform, "bin", "node")
-	const nodeBinaryDest = path.join(BUILD_DIR, "bin", "node")
-
-	console.log(`Copying Node.js binary for ${currentPlatform}...`)
-
-	// Check if Node.js binaries exist
-	if (!fs.existsSync(nodeBinarySource)) {
-		console.error(`Error: Node.js binary not found at ${nodeBinarySource}`)
-		console.error(`Please run: npm run download-node`)
-		process.exit(1)
-	}
-
-	// Create bin directory
-	fs.mkdirSync(path.join(BUILD_DIR, "bin"), { recursive: true })
-
-	// Copy Node.js binary
-	await cpr(nodeBinarySource, nodeBinaryDest)
-
-	// Make it executable
-	fs.chmodSync(nodeBinaryDest, 0o755)
-
-	console.log(`✓ Node.js binary copied to ${nodeBinaryDest}`)
-}
-
-/**
- * Copy CLI binaries (cline and cline-host)
- * The Go binary is named 'cline' and includes service management
+ * Copy CLI binaries (cline and cline-host) for all platforms
+ * The Go binaries are cross-compiled for darwin/linux arm64/amd64
  */
 async function copyCliBinaries() {
-	console.log("Copying CLI binaries...")
+	console.log("Copying CLI binaries for all platforms...")
 
-	const binaries = [
-		{ source: "cline", dest: "cline" },
-		{ source: "cline-host", dest: "cline-host" },
+	const platforms = [
+		{ os: "darwin", arch: "arm64" },
+		{ os: "darwin", arch: "amd64" },
+		{ os: "linux", arch: "amd64" },
+		{ os: "linux", arch: "arm64" },
 	]
+
 	const binDir = path.join(BUILD_DIR, "bin")
 
 	// Create bin directory
 	fs.mkdirSync(binDir, { recursive: true })
 
-	for (const { source, dest } of binaries) {
-		const sourcePath = path.join(CLI_BINARIES_DIR, source)
-		const destPath = path.join(binDir, dest)
+	// Copy all platform-specific binaries
+	for (const { os, arch } of platforms) {
+		const platformSuffix = `${os}-${arch}`
 
-		// Check if binary exists
-		if (!fs.existsSync(sourcePath)) {
-			console.error(`Error: CLI binary not found at ${sourcePath}`)
+		// Copy cline binary
+		const clineSource = path.join(CLI_BINARIES_DIR, `cline-${platformSuffix}`)
+		const clineDest = path.join(binDir, `cline-${platformSuffix}`)
+
+		if (!fs.existsSync(clineSource)) {
+			console.error(`Error: CLI binary not found at ${clineSource}`)
 			console.error(`Please run: npm run compile-cli`)
 			process.exit(1)
 		}
 
-		// Copy binary
-		await cpr(sourcePath, destPath)
+		await cpr(clineSource, clineDest)
+		fs.chmodSync(clineDest, 0o755)
+		console.log(`✓ cline-${platformSuffix} copied`)
 
-		// Make it executable
-		fs.chmodSync(destPath, 0o755)
+		// Copy cline-host binary
+		const hostSource = path.join(CLI_BINARIES_DIR, `cline-host-${platformSuffix}`)
+		const hostDest = path.join(binDir, `cline-host-${platformSuffix}`)
 
-		console.log(`✓ ${source} copied to ${destPath}`)
+		if (!fs.existsSync(hostSource)) {
+			console.error(`Error: CLI binary not found at ${hostSource}`)
+			console.error(`Please run: npm run compile-cli`)
+			process.exit(1)
+		}
+
+		await cpr(hostSource, hostDest)
+		fs.chmodSync(hostDest, 0o755)
+		console.log(`✓ cline-host-${platformSuffix} copied`)
 	}
+
+	console.log(`✓ All platform binaries copied to ${binDir}`)
+}
+
+/**
+ * Copy proto descriptors directory
+ * The proto/descriptor_set.pb file is needed by cline-core for gRPC reflection
+ */
+async function copyProtoDescriptors() {
+	console.log("Copying proto descriptors...")
+
+	const protoSource = "proto"
+	const protoDest = path.join(BUILD_DIR, "proto")
+
+	// Check if proto directory exists
+	if (!fs.existsSync(protoSource)) {
+		console.error(`Error: proto directory not found at ${protoSource}`)
+		console.error(`Please ensure the proto files have been generated`)
+		process.exit(1)
+	}
+
+	// Check if descriptor_set.pb exists
+	const descriptorPath = path.join(protoSource, "descriptor_set.pb")
+	if (!fs.existsSync(descriptorPath)) {
+		console.error(`Error: proto/descriptor_set.pb not found at ${descriptorPath}`)
+		console.error(`Please run: npm run protos`)
+		process.exit(1)
+	}
+
+	// Copy the entire proto directory
+	await cpr(protoSource, protoDest)
+
+	console.log(`✓ Proto descriptors copied to ${protoDest}`)
 }
 
 /**
@@ -178,11 +202,23 @@ async function copyRipgrepBinary() {
 
 	console.log(`Copying ripgrep binary for ${currentPlatform}...`)
 
-	// Check if ripgrep binaries exist
+	// Check if ripgrep binaries exist, download if missing
 	if (!fs.existsSync(ripgrepBinarySource)) {
-		console.error(`Error: Ripgrep binary not found at ${ripgrepBinarySource}`)
-		console.error(`Please run: npm run download-ripgrep`)
-		process.exit(1)
+		console.log(`Ripgrep binary not found, downloading...`)
+		try {
+			execSync("npm run download-ripgrep", { stdio: "inherit" })
+		} catch (error) {
+			console.error(`Error downloading ripgrep: ${error.message}`)
+			console.error(`Please run: npm run download-ripgrep`)
+			process.exit(1)
+		}
+
+		// Check again after download
+		if (!fs.existsSync(ripgrepBinarySource)) {
+			console.error(`Error: Ripgrep binary still not found at ${ripgrepBinarySource}`)
+			console.error(`Download may have failed. Please run: npm run download-ripgrep`)
+			process.exit(1)
+		}
 	}
 
 	// Copy ripgrep binary to the root of dist-standalone (where cline-core.js is)
@@ -216,6 +252,239 @@ async function createVersionFile() {
 	fs.writeFileSync(versionPath, JSON.stringify(versionInfo, null, 2))
 
 	console.log(`✓ VERSION file created: ${version} (${platform})`)
+}
+
+/**
+ * Copy NPM package files (package.json, README.md, and man page) from cli/ directory
+ */
+async function createNpmPackageFiles() {
+	console.log("Copying NPM package files...")
+
+	// Copy package.json from cli/ directory
+	const packageJsonSource = path.join("cli", "package.json")
+	const packageJsonDest = path.join(BUILD_DIR, "package.json")
+
+	if (!fs.existsSync(packageJsonSource)) {
+		console.error(`Error: NPM package.json not found at ${packageJsonSource}`)
+		process.exit(1)
+	}
+
+	await cpr(packageJsonSource, packageJsonDest)
+	console.log(`✓ package.json copied from ${packageJsonSource}`)
+
+	// Copy README.md from cli/ directory
+	const readmeSource = path.join("cli", "README.md")
+	const readmeDest = path.join(BUILD_DIR, "README.md")
+
+	if (!fs.existsSync(readmeSource)) {
+		console.error(`Error: NPM README.md not found at ${readmeSource}`)
+		process.exit(1)
+	}
+
+	await cpr(readmeSource, readmeDest)
+	console.log(`✓ README.md copied from ${readmeSource}`)
+
+	// Copy man page from cli/man/ directory
+	const manPageSource = path.join("cli", "man", "cline.1")
+	const manDir = path.join(BUILD_DIR, "man")
+	const manPageDest = path.join(manDir, "cline.1")
+
+	if (!fs.existsSync(manPageSource)) {
+		console.error(`Error: Man page not found at ${manPageSource}`)
+		process.exit(1)
+	}
+
+	// Create man directory if it doesn't exist
+	fs.mkdirSync(manDir, { recursive: true })
+
+	await cpr(manPageSource, manPageDest)
+	console.log(`✓ Man page copied from ${manPageSource}`)
+}
+
+/**
+ * Create fake_node_modules directory with vscode stub
+ * This directory will be added to NODE_PATH so Node.js can find the vscode module
+ * without npm interfering with the real node_modules directory
+ */
+async function createFakeNodeModules() {
+	console.log("Creating fake_node_modules with vscode stub...")
+
+	const vscodeSource = path.join(BUILD_DIR, "node_modules", "vscode")
+	const fakeNodeModulesDir = path.join(BUILD_DIR, "fake_node_modules")
+	const vscodeDest = path.join(fakeNodeModulesDir, "vscode")
+
+	if (!fs.existsSync(vscodeSource)) {
+		console.error(`Error: vscode stub module not found at ${vscodeSource}`)
+		process.exit(1)
+	}
+
+	// Create fake_node_modules directory
+	fs.mkdirSync(fakeNodeModulesDir, { recursive: true })
+
+	// Copy vscode stub into fake_node_modules
+	await cpr(vscodeSource, vscodeDest)
+
+	console.log(`✓ fake_node_modules/vscode created at ${vscodeDest}`)
+}
+
+/**
+ * Create .npmignore file to ensure necessary files are included
+ */
+async function createNpmIgnoreFile() {
+	console.log("Creating .npmignore file...")
+
+	// Create .npmignore that excludes build artifacts
+	// Note: proto/ directory is NOT excluded because proto/descriptor_set.pb is needed at runtime
+	const npmignoreContent = `# Exclude build artifacts and unnecessary files
+binaries/
+ripgrep-binaries/
+standalone.zip
+cline-core.js.map
+package-lock.json
+tree-sitter*.wasm
+node_modules/vscode
+`
+
+	const npmignorePath = path.join(BUILD_DIR, ".npmignore")
+	fs.writeFileSync(npmignorePath, npmignoreContent)
+
+	console.log(`✓ .npmignore created`)
+}
+
+/**
+ * Create postinstall script for NPM package
+ * This script selects the correct platform-specific binary and creates symlinks
+ */
+async function createPostinstallScript() {
+	console.log("Creating postinstall script...")
+
+	const postinstallScript = `#!/usr/bin/env node
+
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+// Detect current platform and architecture
+function getPlatformInfo() {
+	const platform = os.platform();
+	const arch = os.arch();
+
+	// Map Node.js arch names to Go arch names
+	let goArch = arch;
+	if (arch === 'x64') {
+		goArch = 'amd64';
+	}
+
+	let goPlatform = platform;
+	
+	return { platform: goPlatform, arch: goArch };
+}
+
+// Setup platform-specific binaries
+function setupBinaries() {
+	const { platform, arch } = getPlatformInfo();
+	const platformSuffix = \`\${platform}-\${arch}\`;
+	
+	console.log(\`Setting up Cline CLI for \${platformSuffix}...\`);
+
+	const binDir = path.join(__dirname, 'bin');
+	
+	// Check if platform-specific binaries exist
+	const clineSource = path.join(binDir, \`cline-\${platformSuffix}\`);
+	const clineHostSource = path.join(binDir, \`cline-host-\${platformSuffix}\`);
+	
+	if (!fs.existsSync(clineSource)) {
+		console.error(\`Error: Binary not found for platform \${platformSuffix}\`);
+		console.error(\`Expected: \${clineSource}\`);
+		console.error(\`Supported platforms: darwin-arm64, darwin-amd64, linux-amd64, linux-arm64\`);
+		process.exit(1);
+	}
+	
+	if (!fs.existsSync(clineHostSource)) {
+		console.error(\`Error: Binary not found for platform \${platformSuffix}\`);
+		console.error(\`Expected: \${clineHostSource}\`);
+		process.exit(1);
+	}
+
+	// Create symlinks or copies to the generic names
+	const clineTarget = path.join(binDir, 'cline');
+	const clineHostTarget = path.join(binDir, 'cline-host');
+	
+	// Remove existing files if they exist
+	[clineTarget, clineHostTarget].forEach(target => {
+		if (fs.existsSync(target)) {
+			try {
+				fs.unlinkSync(target);
+			} catch (e) {
+				console.warn(\`Warning: Could not remove existing file \${target}: \${e.message}\`);
+			}
+		}
+	});
+	
+	// On Unix, create symlinks; on Windows, copy files
+	if (platform === 'win32') {
+		// Windows: copy files
+		fs.copyFileSync(clineSource, clineTarget);
+		fs.copyFileSync(clineHostSource, clineHostTarget);
+		console.log('✓ Copied platform-specific binaries');
+	} else {
+		// Unix: create symlinks
+		fs.symlinkSync(path.basename(clineSource), clineTarget);
+		fs.symlinkSync(path.basename(clineHostSource), clineHostTarget);
+		console.log('✓ Created symlinks to platform-specific binaries');
+		
+		// Make binaries executable
+		try {
+			fs.chmodSync(clineSource, 0o755);
+			fs.chmodSync(clineHostSource, 0o755);
+			fs.chmodSync(clineTarget, 0o755);
+			fs.chmodSync(clineHostTarget, 0o755);
+		} catch (error) {
+			console.warn(\`Warning: Could not set executable permissions: \${error.message}\`);
+		}
+	}
+
+	// Check ripgrep binary
+	const rgBinary = platform === 'win32' ? 'rg.exe' : 'rg';
+	const rgPath = path.join(__dirname, rgBinary);
+	
+	if (!fs.existsSync(rgPath)) {
+		console.error(\`Error: ripgrep binary not found at \${rgPath}\`);
+		process.exit(1);
+	}
+
+	// Make ripgrep executable (Unix only)
+	if (platform !== 'win32') {
+		try {
+			fs.chmodSync(rgPath, 0o755);
+		} catch (error) {
+			console.warn(\`Warning: Could not set ripgrep executable permissions: \${error.message}\`);
+		}
+	}
+
+	console.log('✓ Cline CLI installation complete');
+	console.log('');
+	console.log('Usage:');
+	console.log('  cline        - Start Cline CLI');
+	console.log('  cline-host   - Start Cline host service');
+	console.log('');
+	console.log('Documentation: https://docs.cline.bot');
+}
+
+try {
+	setupBinaries();
+} catch (error) {
+	console.error(\`Installation failed: \${error.message}\`);
+	console.error('Please report this issue at: https://github.com/cline/cline/issues');
+	process.exit(1);
+}
+`
+
+	const postinstallPath = path.join(BUILD_DIR, "postinstall.js")
+	fs.writeFileSync(postinstallPath, postinstallScript)
+	fs.chmodSync(postinstallPath, 0o755)
+
+	console.log(`✓ postinstall.js created`)
 }
 
 /**
@@ -270,9 +539,8 @@ async function packageAllBinaryDeps() {
 }
 
 async function zipDistribution() {
-	// Use different filename for CLI builds
-	// Default (JetBrains) = standalone.zip, CLI = standalone-cli.zip
-	const zipFilename = IS_CLI_BUILD ? "standalone-cli.zip" : "standalone.zip"
+	// Default JetBrains build
+	const zipFilename = "standalone.zip"
 	const zipPath = path.join(BUILD_DIR, zipFilename)
 	const output = fs.createWriteStream(zipPath)
 	const startTime = Date.now()
@@ -296,19 +564,17 @@ async function zipDistribution() {
 	const ignorePatterns = ["standalone.zip", "standalone-cli.zip"]
 	const extensionIgnores = ["dist/**"]
 
-	// For JetBrains (default) builds, exclude binaries from both directories
-	if (!IS_CLI_BUILD) {
-		// JetBrains provides their own Node.js, so exclude all binaries
-		ignorePatterns.push(
-			"bin/**", // Exclude entire bin directory
-			"node-binaries/**", // Exclude all platform-specific Node.js binaries
-		)
-		extensionIgnores.push(
-			"cli/bin/**", // Exclude CLI binaries from extension
-			"node-binaries/**", // Exclude node-binaries from extension
-		)
-		console.log("JetBrains build: Excluding Node.js and CLI binaries (JetBrains provides its own Node.js)")
-	}
+	// For JetBrains builds, exclude binaries from both directories
+	// JetBrains provides their own Node.js, so exclude all binaries
+	ignorePatterns.push(
+		"bin/**", // Exclude entire bin directory
+		"node-binaries/**", // Exclude all platform-specific Node.js binaries
+	)
+	extensionIgnores.push(
+		"cli/bin/**", // Exclude CLI binaries from extension
+		"node-binaries/**", // Exclude node-binaries from extension
+	)
+	console.log("JetBrains build: Excluding Node.js and CLI binaries (JetBrains provides its own Node.js)")
 
 	// Add all the files from the standalone build dir.
 	archive.glob("**/*", {

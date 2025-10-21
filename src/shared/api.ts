@@ -288,6 +288,16 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
+	"claude-haiku-4-5-20251001": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
+	},
 	"claude-sonnet-4-20250514": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -397,6 +407,11 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"claude-haiku-4-5-20251001": {
+		...anthropicModels["claude-haiku-4-5-20251001"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	"claude-sonnet-4-5-20250929": {
 		...anthropicModels["claude-sonnet-4-5-20250929"],
 		supportsImages: false,
@@ -456,6 +471,16 @@ export const bedrockModels = {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
+	},
+	"anthropic.claude-haiku-4-5-20251001-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
 	},
 	"anthropic.claude-sonnet-4-20250514-v1:0": {
 		maxTokens: 8192,
@@ -690,6 +715,16 @@ export const vertexModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
+	},
+	"claude-haiku-4-5@20251001": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
 	},
 	"claude-opus-4-1@20250805": {
 		maxTokens: 8192,

@@ -14,6 +14,17 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 // Z-index constants for proper dropdown layering
 const DROPDOWN_Z_INDEX = 1000
 
+const ClaudeModels = [
+	"anthropic.claude-3-7-sonnet-20250219-v1:0",
+	"anthropic.claude-sonnet-4-20250514-v1:0",
+	"anthropic.claude-sonnet-4-5-20250929-v1:0",
+	`anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_1M_SUFFIX}`,
+	`anthropic.claude-sonnet-4-5-20250929-v1:0${CLAUDE_SONNET_1M_SUFFIX}`,
+	"anthropic.claude-opus-4-1-20250805-v1:0",
+	"anthropic.claude-opus-4-20250514-v1:0",
+	"anthropic.claude-haiku-4-5-20251001-v1:0",
+]
+
 interface BedrockProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
@@ -130,6 +141,10 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							<VSCodeOption value="ap-northeast-3">ap-northeast-3</VSCodeOption>
 							<VSCodeOption value="ap-southeast-1">ap-southeast-1</VSCodeOption>
 							<VSCodeOption value="ap-southeast-2">ap-southeast-2</VSCodeOption>
+							<VSCodeOption value="ap-southeast-3">ap-southeast-3</VSCodeOption>
+							<VSCodeOption value="ap-southeast-4">ap-southeast-4</VSCodeOption>
+							<VSCodeOption value="ap-southeast-5">ap-southeast-5</VSCodeOption>
+							<VSCodeOption value="ap-southeast-7">ap-southeast-7</VSCodeOption>
 							<VSCodeOption value="ca-central-1">ca-central-1</VSCodeOption>
 							<VSCodeOption value="eu-central-1">eu-central-1</VSCodeOption>
 							<VSCodeOption value="eu-central-2">eu-central-2</VSCodeOption>
@@ -382,29 +397,10 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						</div>
 					)}
 
-					{(selectedModelId === "anthropic.claude-3-7-sonnet-20250219-v1:0" ||
-						selectedModelId === "anthropic.claude-sonnet-4-20250514-v1:0" ||
-						selectedModelId === "anthropic.claude-sonnet-4-5-20250929-v1:0" ||
-						selectedModelId === `anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_1M_SUFFIX}` ||
-						selectedModelId === `anthropic.claude-sonnet-4-5-20250929-v1:0${CLAUDE_SONNET_1M_SUFFIX}` ||
-						selectedModelId === "anthropic.claude-opus-4-1-20250805-v1:0" ||
-						selectedModelId === "anthropic.claude-opus-4-20250514-v1:0" ||
+					{(ClaudeModels.includes(selectedModelId) ||
 						(modeFields.awsBedrockCustomSelected &&
-							modeFields.awsBedrockCustomModelBaseId === "anthropic.claude-3-7-sonnet-20250219-v1:0") ||
-						(modeFields.awsBedrockCustomSelected &&
-							modeFields.awsBedrockCustomModelBaseId === "anthropic.claude-sonnet-4-20250514-v1:0") ||
-						(modeFields.awsBedrockCustomSelected &&
-							modeFields.awsBedrockCustomModelBaseId === "anthropic.claude-sonnet-4-5-20250929-v1:0") ||
-						(modeFields.awsBedrockCustomSelected &&
-							modeFields.awsBedrockCustomModelBaseId ===
-								`anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_1M_SUFFIX}`) ||
-						(modeFields.awsBedrockCustomSelected &&
-							modeFields.awsBedrockCustomModelBaseId ===
-								`anthropic.claude-sonnet-4-5-20250929-v1:0${CLAUDE_SONNET_1M_SUFFIX}`) ||
-						(modeFields.awsBedrockCustomSelected &&
-							modeFields.awsBedrockCustomModelBaseId === "anthropic.claude-opus-4-1-20250805-v1:0") ||
-						(modeFields.awsBedrockCustomSelected &&
-							modeFields.awsBedrockCustomModelBaseId === "anthropic.claude-opus-4-20250514-v1:0")) && (
+							modeFields.awsBedrockCustomModelBaseId &&
+							ClaudeModels.includes(modeFields.awsBedrockCustomModelBaseId))) && (
 						<ThinkingBudgetSlider currentMode={currentMode} />
 					)}
 

@@ -52,7 +52,7 @@ export const BaseUrlField = ({
 					onInput={(e: any) => setLocalValue(e.target.value.trim())}
 					placeholder={placeholder}
 					style={{ width: "100%", marginTop: 3 }}
-					type={disabled ? "text" : "url"}
+					type="text"
 					value={localValue}
 				/>
 			)}

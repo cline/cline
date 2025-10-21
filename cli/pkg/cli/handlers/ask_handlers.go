@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/cline/cli/pkg/cli/clerror"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
@@ -70,22 +71,25 @@ func (h *AskHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 
 // handleFollowup handles followup questions
 func (h *AskHandler) handleFollowup(msg *types.ClineMessage, dc *DisplayContext) error {
-	// Use ToolRenderer for unified rendering
-	header := dc.ToolRenderer.GenerateAskFollowupHeader()
 	body := dc.ToolRenderer.GenerateAskFollowupBody(msg.Text)
 
 	if body == "" {
 		return nil
 	}
 
-	// Render header
-	rendered := dc.Renderer.RenderMarkdown(header)
-	fmt.Print("\n")
-	fmt.Print(rendered)
-	fmt.Print("\n")
-
-	// Render body
-	fmt.Print(body)
+	if dc.IsStreamingMode {
+		// In streaming mode, header was already shown by partial stream
+		// Just render the body content
+		output.Print(body)
+	} else {
+		// Non-streaming mode: render header + body together
+		header := dc.ToolRenderer.GenerateAskFollowupHeader()
+		rendered := dc.Renderer.RenderMarkdown(header)
+		output.Print("\n")
+		output.Print(rendered)
+		output.Print("\n")
+		output.Print(body)
+	}
 
 	return nil
 }
@@ -97,7 +101,7 @@ func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayC
 		// Just render the body content
 		body := dc.ToolRenderer.GeneratePlanModeRespondBody(msg.Text)
 		if body != "" {
-			fmt.Print(body)
+			output.Print(body)
 		}
 	} else {
 		// In non-streaming mode, render header + body together
@@ -110,15 +114,23 @@ func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayC
 
 		// Render header
 		rendered := dc.Renderer.RenderMarkdown(header)
-		fmt.Print("\n")
-		fmt.Print(rendered)
-		fmt.Print("\n")
+		output.Print("\n")
+		output.Print(rendered)
+		output.Print("\n")
 
 		// Render body
-		fmt.Print(body)
+		output.Print(body)
 	}
 
 	return nil
+}
+
+// showApprovalHint displays a hint in non-interactive mode about how to approve/deny
+func (h *AskHandler) showApprovalHint(dc *DisplayContext) {
+	if !dc.IsInteractive {
+		output.Printf("\n\033[90mCline is requesting approval to use this tool\033[0m\n")
+		output.Printf("\033[90mUse \033[0mcline task send --approve\033[90m or \033[0m--deny\033[90m to respond\033[0m\n")
+	}
 }
 
 // handleCommand handles command execution requests
@@ -131,9 +143,10 @@ func (h *AskHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) 
 	autoApprovalConflict := strings.HasSuffix(msg.Text, "REQ_APP")
 
 	// Use unified ToolRenderer
-	output := dc.ToolRenderer.RenderCommandApprovalRequest(msg.Text, autoApprovalConflict)
-	fmt.Print(output)
+	rendered := dc.ToolRenderer.RenderCommandApprovalRequest(msg.Text, autoApprovalConflict)
+	output.Print(rendered)
 
+	h.showApprovalHint(dc)
 	return nil
 }
 
@@ -167,10 +180,21 @@ func (h *AskHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 		return dc.Renderer.RenderMessage("TOOL", msg.Text, true)
 	}
 
-	// Use unified ToolRenderer
-	output := dc.ToolRenderer.RenderToolApprovalRequest(&tool)
-	fmt.Print(output)
+	if dc.IsStreamingMode {
+		// In streaming mode, header was already shown by partial stream
+		// Just render the content preview
+		contentPreview := dc.ToolRenderer.GenerateToolContentPreview(&tool)
+		if contentPreview != "" {
+			output.Print("\n")
+			output.Print(contentPreview)
+		}
+	} else {
+		// Non-streaming mode: render full approval (header + preview)
+		rendered := dc.ToolRenderer.RenderToolApprovalRequest(&tool)
+		output.Print(rendered)
+	}
 
+	h.showApprovalHint(dc)
 	return nil
 }
 
@@ -253,7 +277,9 @@ func (h *AskHandler) handleAutoApprovalMaxReached(msg *types.ClineMessage, dc *D
 // handleBrowserActionLaunch handles browser action launch requests
 func (h *AskHandler) handleBrowserActionLaunch(msg *types.ClineMessage, dc *DisplayContext) error {
 	url := strings.TrimSpace(msg.Text)
-	return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Cline wants to launch browser and navigate to: %s. Approval required.", url), true)
+	err := dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Cline wants to launch browser and navigate to: %s. Approval required.", url), true)
+	h.showApprovalHint(dc)
+	return err
 }
 
 // handleUseMcpServer handles MCP server usage requests
@@ -282,8 +308,11 @@ func (h *AskHandler) handleUseMcpServer(msg *types.ClineMessage, dc *DisplayCont
 		}
 	}
 
-	return dc.Renderer.RenderMessage("MCP",
+	err := dc.Renderer.RenderMessage("MCP",
 		fmt.Sprintf("Cline wants to %s on the %s MCP server", operation, mcpReq.ServerName), true)
+
+	h.showApprovalHint(dc)
+	return err
 }
 
 // handleNewTask handles new task creation requests
