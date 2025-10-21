@@ -757,17 +757,6 @@ export class Controller {
 		return undefined
 	}
 
-	// Read Hicap models from disk cache
-	async readHicapModels(): Promise<Record<string, ModelInfo> | undefined> {
-		const hicapModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.hicapModels)
-		const fileExists = await fileExistsAtPath(hicapModelsFilePath)
-		if (fileExists) {
-			const fileContents = await fs.readFile(hicapModelsFilePath, "utf8")
-			return JSON.parse(fileContents)
-		}
-		return undefined
-	}
-
 	// Task history
 
 	async getTaskWithId(id: string): Promise<{

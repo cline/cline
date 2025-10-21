@@ -34,7 +34,6 @@ export async function migrateWorkspaceToGlobalStorage(context: vscode.ExtensionC
 		"groqModelInfo",
 		"huggingFaceModelId",
 		"huggingFaceModelInfo",
-		"hicapModelId",
 
 		// Previous mode settings
 		"previousModeApiProvider",

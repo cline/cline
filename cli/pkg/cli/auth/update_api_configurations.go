@@ -157,8 +157,6 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 	case cline.ApiProvider_HICAP:
 		return ProviderFields{
 			APIKeyField:                          "hicapApiKey",
-			PlanModeModelIDField:                 "planModeApiModelId",
-			ActModeModelIDField:                  "actModeApiModelId",
 			PlanModeModelInfoField:               "planModeHicapModelInfo",
 			ActModeModelInfoField:                "actModeHicapModelInfo",
 			PlanModeProviderSpecificModelIDField: "planModeHicapModelId",

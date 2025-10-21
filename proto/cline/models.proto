@@ -43,8 +43,6 @@ service ModelsService {
   rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (SapAiCoreModelsResponse);
   // Fetches available models from OCA
   rpc refreshOcaModels(StringRequest) returns (OcaCompatibleModelInfo);
-  // Subscribe to Hicap models updates
-  rpc subscribeToHicapModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models

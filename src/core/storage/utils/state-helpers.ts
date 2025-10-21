@@ -265,7 +265,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const autoCondenseThreshold =
 			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
 		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
-		const hicapModelId = context.globalState.get("hicapModelId") as string | undefined
+		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
 
 		// OpenTelemetry configuration
 		const openTelemetryEnabled =
