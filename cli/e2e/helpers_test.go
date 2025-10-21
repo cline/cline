@@ -55,13 +55,7 @@ func runCLI(ctx context.Context, t *testing.T, args ...string) (string, string, 
 	t.Helper()
 	bin := repoAwareBinPath(t)
 
-	// Ensure CLI uses the same CLINE_DIR as the tests by passing --config=<CLINE_DIR>
-	// (InitializeGlobalConfig uses ConfigPath as the base directory for registry.)
-	if clineDir := os.Getenv("CLINE_DIR"); clineDir != "" && !contains(args, "--config") {
-		// Prepend persistent flag so Cobra sees it regardless of subcommand position
-		args = append([]string{"--config", clineDir}, args...)
-	}
-
+	// CLI uses CLINE_DIR environment variable which is already set by setTempClineDir
 	cmd := exec.CommandContext(ctx, bin, args...)
 	// Run CLI from repo root so relative paths inside CLI (./cli/bin/...) resolve
 	if wd, err := os.Getwd(); err == nil {

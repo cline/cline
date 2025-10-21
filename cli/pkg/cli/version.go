@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/spf13/cobra"
 )
 
@@ -20,10 +21,27 @@ func NewVersionCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Versions are injected at build time via ldflags
 			if short {
+				// --short flag always outputs plain version, even in JSON mode
 				fmt.Println(global.CliVersion)
 				return nil
 			}
 
+			// Check for JSON output mode
+			if global.Config.OutputFormat == "json" {
+				data := map[string]string{
+					"cliVersion":  global.CliVersion,
+					"coreVersion": global.Version,
+					"commit":      global.Commit,
+					"date":        global.Date,
+					"builtBy":     global.BuiltBy,
+					"goVersion":   runtime.Version(),
+					"os":          runtime.GOOS,
+					"arch":        runtime.GOARCH,
+				}
+				return output.OutputJSONSuccess("version", data)
+			}
+
+			// Existing rich/plain output
 			fmt.Printf("Cline CLI\n")
 			fmt.Printf("Cline CLI Version:  %s\n", global.CliVersion)
 			fmt.Printf("Cline Core Version: %s\n", global.Version)
