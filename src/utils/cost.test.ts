@@ -183,7 +183,7 @@ describe("Cost Utilities", () => {
 			cost.should.equal(0.00224)
 		})
 
-		it("should handle cache tokens correctly (OpenAI-style)", () => {
+		it("should handle cache tokens correctly (Qwen-style)", () => {
 			const modelInfo: ModelInfo = {
 				supportsPromptCache: true,
 				inputPrice: 0.15,
@@ -192,7 +192,7 @@ describe("Cost Utilities", () => {
 				cacheReadsPrice: 0.05,
 			}
 
-			// OpenAI-style: inputTokens includes cached tokens
+			// Qwen-style: inputTokens includes cached tokens
 			const cost = calculateApiCostQwen(modelInfo, 2100, 1000, 1500, 500)
 			// Cache writes: (0.2 / 1_000_000) * 1500 = 0.0003
 			// Cache reads: (0.05 / 1_000_000) * 500 = 0.000025
