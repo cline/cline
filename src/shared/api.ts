@@ -711,7 +711,7 @@ export const clineCodeSupernovaModelInfo: ModelInfo = {
 	description: "A versatile agentic coding stealth model that supports image inputs.",
 }
 
-export const OPEN_SOURCE_MODEL_PROVIDER_PREFERENCES: Record<string, { order: string[]; allowFallbacks: boolean }> = {
+export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; allowFallbacks: boolean }> = {
 	"moonshotai/kimi-k2": {
 		order: ["groq", "fireworks", "baseten", "parasail", "novita", "deepinfra"],
 		allowFallbacks: false,
@@ -720,23 +720,11 @@ export const OPEN_SOURCE_MODEL_PROVIDER_PREFERENCES: Record<string, { order: str
 		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
 		allowFallbacks: false,
 	},
-	"qwen/qwen3-coder:free": {
-		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
-		allowFallbacks: false,
-	},
 	"qwen/qwen3-235b-a22b-thinking-2507": {
 		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
 		allowFallbacks: false,
 	},
 	"qwen/qwen3-235b-a22b-07-25": {
-		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
-		allowFallbacks: false,
-	},
-	"qwen/qwen3-235b-a22b-07-25:free": {
-		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
-		allowFallbacks: false,
-	},
-	"qwen/qwen3-235b-a22b:free": {
 		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
 		allowFallbacks: false,
 	},
@@ -781,14 +769,6 @@ export const OPEN_SOURCE_MODEL_PROVIDER_PREFERENCES: Record<string, { order: str
 		allowFallbacks: false,
 	},
 	"z-ai/glm-4.5-air": {
-		order: ["z-ai", "baseten", "fireworks", "chutes"],
-		allowFallbacks: false,
-	},
-	"z-ai/glm-4.5-air:free": {
-		order: ["z-ai", "baseten", "fireworks", "chutes"],
-		allowFallbacks: false,
-	},
-	"thudm/glm-z1-32b:free": {
 		order: ["z-ai", "baseten", "fireworks", "chutes"],
 		allowFallbacks: false,
 	},

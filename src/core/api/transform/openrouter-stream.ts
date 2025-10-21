@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import {
 	CLAUDE_SONNET_1M_SUFFIX,
 	ModelInfo,
-	OPEN_SOURCE_MODEL_PROVIDER_PREFERENCES,
+	OPENROUTER_PROVIDER_PREFERENCES,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
@@ -165,7 +165,7 @@ export async function createOpenRouterStream(
 			}
 	}
 
-	const providerPreferences = OPEN_SOURCE_MODEL_PROVIDER_PREFERENCES[model.id]
+	const providerPreferences = OPENROUTER_PROVIDER_PREFERENCES[model.id]
 	if (providerPreferences) {
 		openRouterProviderSorting = undefined
 	}
