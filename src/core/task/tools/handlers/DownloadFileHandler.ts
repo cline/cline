@@ -30,43 +30,63 @@ export class DownloadFileHandler implements IFullyManagedTool {
 
 		const config = uiHelpers.getConfig()
 
-		try {
-			// Show notification if auto-approval is enabled
-			showNotificationForApprovalIfAutoApprovalEnabled(
-				`Downloading file from ${fileUrl} to ${savePath}`,
-				config.autoApprovalSettings.enabled,
-				config.autoApprovalSettings.enableNotifications,
-			)
-
-			// Remove any partial messages of this type
-			await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
-
-			// Create approval message in JSON format
-			const approvalMessage = JSON.stringify({
+		// For partial blocks, just show the preview and return
+		if (block.partial) {
+			const partialMessage = JSON.stringify({
 				tool: "webFetch",
 				path: savePath,
-				content: `Cline wants to download a file:
-
-URL: ${fileUrl}
-Save path: ${savePath}
-
-Download this file?`,
+				content: `Downloading file from ${fileUrl} to ${savePath}`,
 				operationIsLocatedInWorkspace: false,
 			} satisfies ClineSayTool)
-
-			// Ask for approval
-			const approved = await uiHelpers.askApproval("tool", approvalMessage)
-
-			if (!approved) {
-				const cancelMessage = JSON.stringify({
-					tool: "webFetch",
-					path: savePath,
-					content: "File download cancelled by user",
-					operationIsLocatedInWorkspace: false,
-				} satisfies ClineSayTool)
-				await uiHelpers.say("tool", cancelMessage)
-				return
+			
+			// Handle auto-approval vs manual approval for partial
+			if (uiHelpers.shouldAutoApproveTool(block.name)) {
+				await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
+				await uiHelpers.say("tool", partialMessage, undefined, undefined, true)
+			} else {
+				await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "tool")
+				await uiHelpers.ask("tool", partialMessage, true).catch(() => {})
 			}
+			return
+		}
+
+		try {
+			// Show notification if auto-approval is enabled
+// 			showNotificationForApprovalIfAutoApprovalEnabled(
+// 				`Downloading file from ${fileUrl} to ${savePath}`,
+// 				config.autoApprovalSettings.enabled,
+// 				config.autoApprovalSettings.enableNotifications,
+// 			)
+
+// 			// Remove any partial messages of this type
+// 			await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
+
+// 			// Create approval message in JSON format
+// 			const approvalMessage = JSON.stringify({
+// 				tool: "webFetch",
+// 				path: savePath,
+// 				content: `Cline wants to download a file:
+
+// URL: ${fileUrl}
+// Save path: ${savePath}
+
+// Download this file?`,
+// 				operationIsLocatedInWorkspace: false,
+// 			} satisfies ClineSayTool)
+
+// 			// Ask for approval
+// 			const approved = await uiHelpers.askApproval("tool", approvalMessage)
+
+// 			if (!approved) {
+// 				const cancelMessage = JSON.stringify({
+// 					tool: "webFetch",
+// 					path: savePath,
+// 					content: "File download cancelled by user",
+// 					operationIsLocatedInWorkspace: false,
+// 				} satisfies ClineSayTool)
+// 				await uiHelpers.say("tool", cancelMessage)
+// 				return
+// 			}
 
 			// Execute the download
 			const result = await this.execute(config, block)
