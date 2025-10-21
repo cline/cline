@@ -713,27 +713,83 @@ export const clineCodeSupernovaModelInfo: ModelInfo = {
 
 export const OPEN_SOURCE_MODEL_PROVIDER_PREFERENCES: Record<string, { order: string[]; allowFallbacks: boolean }> = {
 	"moonshotai/kimi-k2": {
-		order: ["groq", "together", "baseten", "parasail", "novita", "deepinfra"],
+		order: ["groq", "fireworks", "baseten", "parasail", "novita", "deepinfra"],
 		allowFallbacks: false,
 	},
 	"qwen/qwen3-coder": {
-		order: ["baseten", "fireworks", "together", "deepinfra"],
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
 		allowFallbacks: false,
 	},
 	"qwen/qwen3-coder:free": {
-		order: ["baseten", "fireworks", "together", "deepinfra"],
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
 		allowFallbacks: false,
 	},
-	"deepseek/deepseek-chat": {
-		order: ["fireworks", "nebius", "chutes", "together"],
+	"qwen/qwen3-235b-a22b-thinking-2507": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
 		allowFallbacks: false,
 	},
-	"deepseek/deepseek-v3.1-terminus": {
-		order: ["fireworks", "nebius", "chutes", "together"],
+	"qwen/qwen3-235b-a22b-07-25": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
 		allowFallbacks: false,
 	},
-	"deepseek/deepseek-r1": {
-		order: ["fireworks", "nebius", "chutes", "together"],
+	"qwen/qwen3-235b-a22b-07-25:free": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allowFallbacks: false,
+	},
+	"qwen/qwen3-235b-a22b:free": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allowFallbacks: false,
+	},
+	"qwen/qwen3-30b-a3b-thinking-2507": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allowFallbacks: false,
+	},
+	"qwen/qwen3-30b-a3b-instruct-2507": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allowFallbacks: false,
+	},
+	"qwen/qwen3-30b-a3b:free": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allowFallbacks: false,
+	},
+	"qwen/qwen3-next-80b-a3b-thinking": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allowFallbacks: false,
+	},
+	"qwen/qwen3-next-80b-a3b-instruct": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allowFallbacks: false,
+	},
+	"qwen/qwen3-max": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allowFallbacks: false,
+	},
+	"deepseek/deepseek-v3.2-exp": {
+		order: ["deepseek", "novita", "fireworks", "nebius"],
+		allowFallbacks: false,
+	},
+	"z-ai/glm-4.6": {
+		order: ["zai", "baseten", "fireworks", "chutes"],
+		allowFallbacks: false,
+	},
+	"z-ai/glm-4.5v": {
+		order: ["zai", "baseten", "fireworks", "chutes"],
+		allowFallbacks: false,
+	},
+	"z-ai/glm-4.5": {
+		order: ["zai", "baseten", "fireworks", "chutes"],
+		allowFallbacks: false,
+	},
+	"z-ai/glm-4.5-air": {
+		order: ["zai", "baseten", "fireworks", "chutes"],
+		allowFallbacks: false,
+	},
+	"z-ai/glm-4.5-air:free": {
+		order: ["zai", "baseten", "fireworks", "chutes"],
+		allowFallbacks: false,
+	},
+	"thudm/glm-z1-32b:free": {
+		order: ["zai", "baseten", "fireworks", "chutes"],
 		allowFallbacks: false,
 	},
 }
