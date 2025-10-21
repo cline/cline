@@ -18,9 +18,7 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 		tool_functions: 1,
 	})
 	.matcher((providerInfo) => {
-		const isSupportedProvider = ["cline", "anthropic"].some(
-			(id) => providerInfo.providerId === id || providerInfo.providerId.includes(id),
-		)
+		const isSupportedProvider = ["cline", "anthropic"].some((id) => providerInfo.providerId.toLowerCase() === id)
 		if (!isSupportedProvider) {
 			return false
 		}
@@ -42,6 +40,7 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 		SystemPromptSection.USER_INSTRUCTIONS,
 	)
 	.tools(
+		ClineDefaultTool.ASK,
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
 		ClineDefaultTool.FILE_NEW,
@@ -53,7 +52,6 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 		ClineDefaultTool.WEB_FETCH,
 		ClineDefaultTool.MCP_USE,
 		ClineDefaultTool.MCP_ACCESS,
-		ClineDefaultTool.ASK,
 		ClineDefaultTool.ATTEMPT,
 		ClineDefaultTool.NEW_TASK,
 		ClineDefaultTool.PLAN_MODE,
@@ -83,7 +81,7 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 	.build()
 
 // Compile-time validation
-const validationResult = validateVariant({ ...config, id: "native-next-gen" }, { strict: true })
+const validationResult = validateVariant({ ...config, id: ModelFamily.NATIVE_NEXT_GEN }, { strict: true })
 if (!validationResult.isValid) {
 	console.error("Native Next Gen variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid Native Next Gen variant configuration: ${validationResult.errors.join(", ")}`)

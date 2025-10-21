@@ -44,7 +44,8 @@ const GPT_5: ClineToolSpec = {
 		{
 			name: "command",
 			required: true,
-			instruction: "The CLI command to execute. This should be valid for the current operating system.",
+			instruction:
+				"The CLI command to execute. This should be valid for the current operating system. Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths.",
 			usage: "Your command here",
 		},
 	],

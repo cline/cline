@@ -51,9 +51,7 @@ export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 const RULES = (_context: SystemPromptContext) => `RULES
 
-- Your current working directory is: {{CWD}} - this is where you will be using tools from.
-- Do not use the ~ character or $HOME to refer to the home directory. Use absolute paths instead.
-- MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.`
+- The current working directory is \`{{CWD}}\` - this is the directory where all the tools will be executed from.`
 
 const TOOL_USE = (_context: SystemPromptContext) => `TOOL USE
 
