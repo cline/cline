@@ -28,7 +28,7 @@ message HookInput {
 // Output message for all hooks
 message HookOutput {
   string context_modification = 1;
-  bool should_continue = 2;
+  bool cancel = 2;
   string error_message = 3;
 }
 

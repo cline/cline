@@ -195,7 +195,6 @@ export interface ClineSayHook {
 	status: "running" | "completed" | "failed" | "cancelled" // Execution status
 	exitCode?: number // Exit code when completed
 	hasJsonResponse?: boolean // Whether a JSON response was parsed
-	shouldContinue?: boolean // Whether hook allowed tool execution to proceed (false = blocked)
 	// Pending tool information (only present during PreToolUse "running" status)
 	pendingToolInfo?: {
 		tool: string // Tool name (e.g., "write_to_file", "execute_command")

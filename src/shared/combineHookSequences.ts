@@ -5,12 +5,11 @@ import { ClineMessage } from "./ExtensionMessage"
  * Mirrors the ClineSayHook interface but represents parsed data.
  */
 interface HookMetadata {
-	hookName: string // e.g., "PreToolUse", "PostToolUse"
+	hookName: string
 	toolName?: string
-	status?: "running" | "completed" | "failed" | "cancelled"
+	status: string
 	exitCode?: number
 	hasJsonResponse?: boolean
-	shouldContinue?: boolean
 }
 
 // ============================================================================

@@ -30,20 +30,22 @@ const MAX_CONTEXT_MODIFICATION_SIZE = 50000 // ~50KB
  * Ensures required fields are present and have correct types.
  */
 function validateHookOutput(output: any): { valid: boolean; error?: string } {
-	// Check shouldContinue field
-	if (typeof output.shouldContinue !== "boolean") {
+	// Check if deprecated shouldContinue field is present
+	if (output.shouldContinue !== undefined) {
 		return {
 			valid: false,
 			error:
-				"Invalid hook output: Missing or invalid 'shouldContinue' field.\n\n" +
-				"Expected: {'shouldContinue': true}\n" +
-				"Required: shouldContinue must be a boolean (true or false)\n\n" +
+				"Invalid hook output: The 'shouldContinue' field has been removed.\n\n" +
+				"Use 'cancel: true' instead to trigger task cancellation.\n\n" +
+				"Migration guide:\n" +
+				"  Before: { shouldContinue: false, errorMessage: '...' }\n" +
+				"  After:  { cancel: true, errorMessage: '...' }\n\n" +
 				"Example valid response:\n" +
 				JSON.stringify(
 					{
-						shouldContinue: true,
+						cancel: false,
 						contextModification: "Optional context here",
-						errorMessage: "Optional error message",
+						errorMessage: "",
 					},
 					null,
 					2,
@@ -51,19 +53,39 @@ function validateHookOutput(output: any): { valid: boolean; error?: string } {
 		}
 	}
 
-	// Check contextModification if present
-	if (output.contextModification !== undefined && typeof output.contextModification !== "string") {
+	// cancel is optional, but if provided must be a boolean
+	if (output.cancel !== undefined && typeof output.cancel !== "boolean") {
 		return {
 			valid: false,
-			error: "Invalid hook output: 'contextModification' must be a string if provided",
+			error:
+				"Invalid hook output: 'cancel' must be a boolean.\n\n" +
+				`Received type: ${typeof output.cancel}\n\n` +
+				"Example valid response:\n" +
+				JSON.stringify({ cancel: true, errorMessage: "Cancelling task" }, null, 2),
 		}
 	}
 
-	// Check errorMessage if present
+	// contextModification is optional, but if provided must be a string
+	if (output.contextModification !== undefined && typeof output.contextModification !== "string") {
+		return {
+			valid: false,
+			error:
+				"Invalid hook output: 'contextModification' must be a string.\n\n" +
+				`Received type: ${typeof output.contextModification}\n\n` +
+				"Example valid response:\n" +
+				JSON.stringify({ contextModification: "Context here" }, null, 2),
+		}
+	}
+
+	// errorMessage is optional, but if provided must be a string
 	if (output.errorMessage !== undefined && typeof output.errorMessage !== "string") {
 		return {
 			valid: false,
-			error: "Invalid hook output: 'errorMessage' must be a string if provided",
+			error:
+				"Invalid hook output: 'errorMessage' must be a string.\n\n" +
+				`Received type: ${typeof output.errorMessage}\n\n` +
+				"Example valid response:\n" +
+				JSON.stringify({ cancel: true, errorMessage: "Error description" }, null, 2),
 		}
 	}
 
@@ -186,11 +208,11 @@ class NoOpRunner<Name extends HookName> extends HookRunner<Name> {
 	/**
 	 * Executes a no-op hook that always succeeds.
 	 * @param _ Hook input (ignored)
-	 * @returns A successful hook output with shouldContinue: true
+	 * @returns A successful hook output (no cancellation)
 	 */
 	override async [exec](_: HookInput): Promise<HookOutput> {
 		return HookOutput.create({
-			shouldContinue: true,
+			cancel: false,
 		})
 	}
 }
@@ -356,10 +378,10 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 			// No valid JSON found
 			if (exitCode === 0) {
-				// Hook succeeded but didn't provide JSON - allow execution
+				// Hook succeeded but didn't provide JSON - allow execution (no cancellation)
 				console.warn(`[Hook ${this.hookName}] Completed successfully but no JSON response found`)
 				return HookOutput.create({
-					shouldContinue: true,
+					cancel: false,
 				})
 			} else {
 				// Hook failed with non-zero exit
@@ -400,11 +422,11 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
  *
  * Behavior:
  * - Executes all hooks concurrently using Promise.all
- * - Combines all shouldContinue flags with logical AND (all must be true to continue)
+ * - If ANY hook returns cancel: true, the merged result will have cancel: true
  * - Concatenates all contextModification strings with double newlines
  * - Concatenates all errorMessage strings with single newlines
  *
- * This means if ANY hook returns shouldContinue: false, tool execution is blocked.
+ * This means if ANY hook requests cancellation, the task will be cancelled.
  * All hooks' context contributions are merged into the conversation.
  *
  * @template Name The type of hook this runner represents
@@ -422,11 +444,11 @@ class CombinedHookRunner<Name extends HookName> extends HookRunner<Name> {
 		const results = await Promise.all(this.runners.map((runner) => runner[exec](input)))
 
 		// Merge results:
-		// - If any hook indicates execution should stop, then stop
+		// - If any hook requests cancellation, set cancel to true
 		// - Combine context contributions from all hooks
 		// - Collect any error messages
 
-		const shouldContinue = results.every((result) => result.shouldContinue)
+		const cancel = results.some((result) => result.cancel === true)
 		const contextModification = results
 			.map((result) => result.contextModification?.trim())
 			.filter((mod) => mod)
@@ -437,7 +459,7 @@ class CombinedHookRunner<Name extends HookName> extends HookRunner<Name> {
 			.join("\n")
 
 		return HookOutput.create({
-			shouldContinue,
+			cancel,
 			contextModification,
 			errorMessage,
 		})
