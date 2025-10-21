@@ -769,27 +769,27 @@ export const OPEN_SOURCE_MODEL_PROVIDER_PREFERENCES: Record<string, { order: str
 		allowFallbacks: false,
 	},
 	"z-ai/glm-4.6": {
-		order: ["zai", "baseten", "fireworks", "chutes"],
+		order: ["z-ai", "baseten", "fireworks", "chutes"],
 		allowFallbacks: false,
 	},
 	"z-ai/glm-4.5v": {
-		order: ["zai", "baseten", "fireworks", "chutes"],
+		order: ["z-ai", "baseten", "fireworks", "chutes"],
 		allowFallbacks: false,
 	},
 	"z-ai/glm-4.5": {
-		order: ["zai", "baseten", "fireworks", "chutes"],
+		order: ["z-ai", "baseten", "fireworks", "chutes"],
 		allowFallbacks: false,
 	},
 	"z-ai/glm-4.5-air": {
-		order: ["zai", "baseten", "fireworks", "chutes"],
+		order: ["z-ai", "baseten", "fireworks", "chutes"],
 		allowFallbacks: false,
 	},
 	"z-ai/glm-4.5-air:free": {
-		order: ["zai", "baseten", "fireworks", "chutes"],
+		order: ["z-ai", "baseten", "fireworks", "chutes"],
 		allowFallbacks: false,
 	},
 	"thudm/glm-z1-32b:free": {
-		order: ["zai", "baseten", "fireworks", "chutes"],
+		order: ["z-ai", "baseten", "fireworks", "chutes"],
 		allowFallbacks: false,
 	},
 }
