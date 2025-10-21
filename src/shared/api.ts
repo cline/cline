@@ -3406,6 +3406,17 @@ export interface BasetenModelInfo extends ModelInfo {
 }
 
 export const basetenModels = {
+	"zai-org/GLM-4.6": {
+		maxTokens: 200000,
+		contextWindow: 200000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Frontier open model with advanced agentic, reasoning and coding capabilities",
+	},
 	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
 		maxTokens: 262144,
 		contextWindow: 262144,
@@ -3496,7 +3507,7 @@ export const basetenModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 export type BasetenModelId = keyof typeof basetenModels
-export const basetenDefaultModelId = "moonshotai/Kimi-K2-Instruct-0905" satisfies BasetenModelId
+export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
 
 // Z AI
 // https://docs.z.ai/guides/llm/glm-4.5
