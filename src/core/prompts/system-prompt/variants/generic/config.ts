@@ -46,6 +46,7 @@ export const config = createVariant(ModelFamily.GENERIC)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.DOWNLOAD_FILE,
+		ClineDefaultTool.SELECT_FILE,
 	)
 	.placeholders({
 		MODEL_FAMILY: "generic",

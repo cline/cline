@@ -36,6 +36,7 @@ import { PlanModeRespondHandler } from "./tools/handlers/PlanModeRespondHandler"
 import { ReadFileToolHandler } from "./tools/handlers/ReadFileToolHandler"
 import { ReportBugHandler } from "./tools/handlers/ReportBugHandler"
 import { SearchFilesToolHandler } from "./tools/handlers/SearchFilesToolHandler"
+import { SelectFileHandler } from "./tools/handlers/SelectFileHandler"
 import { SummarizeTaskHandler } from "./tools/handlers/SummarizeTaskHandler"
 import { UseMcpToolHandler } from "./tools/handlers/UseMcpToolHandler"
 import { WebFetchToolHandler } from "./tools/handlers/WebFetchToolHandler"
@@ -204,6 +205,7 @@ export class ToolExecutor {
 		this.coordinator.register(new SummarizeTaskHandler())
 		this.coordinator.register(new ReportBugHandler())
 		this.coordinator.register(new DownloadFileHandler())
+		this.coordinator.register(new SelectFileHandler())
 	}
 
 	/**

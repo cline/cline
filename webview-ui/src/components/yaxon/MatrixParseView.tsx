@@ -644,7 +644,7 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 									marginBottom: "8px",
 								}}>
 								<CodeOutlined />
-								矩阵报文解析:
+								矩阵报文解析2:
 							</Title>
 							<Text style={{ color: "var(--vscode-descriptionForeground)" }}>矩阵文件解析与CAN报文分析工具</Text>
 						</div>

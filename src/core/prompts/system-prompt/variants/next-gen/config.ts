@@ -50,6 +50,7 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
 		ClineDefaultTool.DOWNLOAD_FILE,
+		ClineDefaultTool.SELECT_FILE,
 	)
 	.placeholders({
 		MODEL_FAMILY: ModelFamily.NEXT_GEN,

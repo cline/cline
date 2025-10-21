@@ -14,6 +14,7 @@ import { plan_mode_respond_variants } from "./plan_mode_respond"
 import { read_file_variants } from "./read_file"
 import { replace_in_file_variants } from "./replace_in_file"
 import { search_files_variants } from "./search_files"
+import { select_file_variants } from "./select_file"
 import { use_mcp_tool_variants } from "./use_mcp_tool"
 import { web_fetch_variants } from "./web_fetch"
 import { write_to_file_variants } from "./write_to_file"
@@ -45,6 +46,7 @@ export function registerClineToolSets(): void {
 		...web_fetch_variants,
 		...write_to_file_variants,
 		...download_file_variants,
+		...select_file_variants,
 	]
 
 	// Register each variant

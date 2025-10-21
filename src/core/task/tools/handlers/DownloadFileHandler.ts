@@ -32,21 +32,21 @@ export class DownloadFileHandler implements IFullyManagedTool {
 
 		// For partial blocks, just show the preview and return
 		if (block.partial) {
-			const partialMessage = JSON.stringify({
-				tool: "webFetch",
-				path: savePath,
-				content: `Downloading file from ${fileUrl} to ${savePath}`,
-				operationIsLocatedInWorkspace: false,
-			} satisfies ClineSayTool)
+			// const partialMessage = JSON.stringify({
+			// 	tool: "webFetch",
+			// 	path: savePath,
+			// 	content: `Downloading file from ${fileUrl} to ${savePath}`,
+			// 	operationIsLocatedInWorkspace: false,
+			// } satisfies ClineSayTool)
 			
-			// Handle auto-approval vs manual approval for partial
-			if (uiHelpers.shouldAutoApproveTool(block.name)) {
-				await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
-				await uiHelpers.say("tool", partialMessage, undefined, undefined, true)
-			} else {
-				await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "tool")
-				await uiHelpers.ask("tool", partialMessage, true).catch(() => {})
-			}
+			// // Handle auto-approval vs manual approval for partial
+			// if (uiHelpers.shouldAutoApproveTool(block.name)) {
+			// 	await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
+			// 	await uiHelpers.say("tool", partialMessage, undefined, undefined, true)
+			// } else {
+			// 	await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "tool")
+			// 	await uiHelpers.ask("tool", partialMessage, true).catch(() => {})
+			// }
 			return
 		}
 

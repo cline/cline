@@ -18,4 +18,5 @@ export enum ClineDefaultTool {
 	TODO = "focus_chain",
 	WEB_FETCH = "web_fetch",
 	DOWNLOAD_FILE = "download_file",
+	SELECT_FILE = "select_file",
 }

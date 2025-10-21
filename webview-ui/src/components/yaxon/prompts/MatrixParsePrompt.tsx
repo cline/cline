@@ -62,8 +62,16 @@ export const MatrixFileParsePrompt=()=>
   </use_mcp_tool>
 
 ## 步骤 3: 将生成的DBC文件下载到本地项目的指定目录
-  -先让用户选择/输入本地项目的一个目录路径,将此目录路径存储在变量dbc_file_path中(检查该目录是否存在，不存在则创建)，
-  这个变量后续的步骤用$dbc_file_path来代表
+  -先使用内置工具**select_file**让用户选择/输入本地项目的一个目录路径:
+    <select_file>
+      <title>请选择要处理的文件</title>
+      <canSelectFiles>false</canSelectFiles>
+      <canSelectFolders>true</canSelectFolders>
+      <canSelectMany>false</canSelectMany>
+    </select_file>
+    将此目录路径存储在变量dbc_file_path中(检查该目录是否存在，不存在则创建)，
+    这个变量后续的步骤用$dbc_file_path来代表:
+
   -然后调用内置工具**download_file**工具将生成的DBC文件下载到本地项目的指定目录：
     <download_file>
       <fileUrl>$dbcFileUrl</fileUrl>
@@ -109,7 +117,15 @@ export const MatrixFileParsePrompt=()=>
   将此JSON对象存储在变量$code_result中，这个变量后续的步骤用$code_result来代表。
 
 ## 步骤 5: 将生成的代码保存到本地项目的指定目录
-  -先让用户选择/输入**当前打开**的项目的**根目录**下一个目录路径,将此目录路径存储在变量code_file_path中(检查该目录是否存在，不存在则创建)；
+  -先先使用内置工具**select_file**,让用户选择/输入**当前打开**的项目的**根目录**下一个目录路径:
+    <select_file>
+      <title>请选择要处理的文件</title>
+      <canSelectFiles>false</canSelectFiles>
+      <canSelectFolders>true</canSelectFolders>
+      <canSelectMany>false</canSelectMany>
+    </select_file>
+
+   将此目录路径存储在变量code_file_path中(检查该目录是否存在，不存在则创建)；
    将这些代码文件的完整路径存储在变量$code_file_paths中，这个变量后续的步骤用$code_file_paths来代表。  
   -然后调用内置工具**download_file**工具将**所有**生成的代码文件(即存储在$code_result中的文件url)下载到$code_file_paths中。
   -文件保存到本地时，请简化本地文件名，去掉文件名下划线后面的Md5。
@@ -120,8 +136,6 @@ export const MatrixFileParsePrompt=()=>
 
   -**注意！！！**：请必须确保下载文件成功，不要略过此步骤！！！。
   -**注意！！！**：请**必须保直接下载文件保存到本地文件，不要试图fetch 文件内容返回！！**。  
-  -**注意！！！**：文件下载完成后，请**一定**要打开刚才下载的代码文件，**检查**代码中的错误并进行**修正**！！！。
- 
 
 ## 步骤 6: 任务完成
   通知用户任务已完成,并输出前面步骤中生成的dbc文件url与代码文件的url 链接，让用户能够下载。

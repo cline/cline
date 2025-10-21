@@ -8,6 +8,18 @@ export async function showOpenDialogue(request: ShowOpenDialogueRequest): Promis
 		options.canSelectMany = request.canSelectMany
 	}
 
+	if (request.canSelectFiles !== undefined) {
+		options.canSelectFiles = request.canSelectFiles
+	}
+
+	if (request.canSelectFolders !== undefined) {
+		options.canSelectFolders = request.canSelectFolders
+	}
+
+	if (request.title !== undefined) {
+		options.title = request.title
+	}
+
 	if (request.openLabel !== undefined) {
 		options.openLabel = request.openLabel
 	}
