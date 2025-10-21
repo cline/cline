@@ -177,7 +177,7 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
  * Scans all user organizations, switches to the one with remote config if found,
  * and applies the configuration.
  *
- * It catches any exceptions, logs them and does not propogate them to the caller.
+ * It catches any exceptions, logs them and does not propagate them to the caller.
  *
  * This function is called periodically to ensure users stay in
  * organizations with remote configuration enabled.
