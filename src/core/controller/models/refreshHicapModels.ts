@@ -52,14 +52,9 @@ export async function refreshHicapModels(controller: Controller, _request: Empty
 					description: "",
 				}
 			}
-		} else {
-			console.error("Invalid response from Hicap API")
 		}
 		await fs.writeFile(hicapModelsFilePath, JSON.stringify(models))
-		console.log("Hicap models fetched and saved", JSON.stringify(models).slice(0, 300))
 	} catch (error) {
-		console.error("Error fetching Hicap models:", error)
-
 		// If we failed to fetch models, try to read cached models
 		/* const cachedModels = await readHicapModels(controller)
 		if (cachedModels) {
@@ -81,7 +76,6 @@ async function readHicapModels(controller: Controller): Promise<Record<string, O
 			const fileContents = await fs.readFile(hicapModelsFilePath, "utf8")
 			return JSON.parse(fileContents)
 		} catch (error) {
-			console.error("Error reading cached Hicap models:", error)
 			return undefined
 		}
 	}

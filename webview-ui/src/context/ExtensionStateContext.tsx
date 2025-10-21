@@ -492,29 +492,8 @@ export const ExtensionStateContextProvider: React.FC<{
 					...models,
 				})
 			},
-			onError: (error) => {
-				console.error("Error in OpenRouter models subscription:", error)
-			},
-			onComplete: () => {
-				console.log("OpenRouter models subscription completed")
-			},
-		})
-
-		// Subscribe to hicap models updates
-		hicapModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToHicapModels(EmptyRequest.create({}), {
-			onResponse: (response: OpenRouterCompatibleModelInfo) => {
-				console.log("[DEBUG] Received OpenRouter models update from gRPC stream")
-				const models = response.models
-				setHicapModels({
-					...models,
-				})
-			},
-			onError: (error) => {
-				console.error("Error in OpenRouter models subscription:", error)
-			},
-			onComplete: () => {
-				console.log("OpenRouter models subscription completed")
-			},
+			onError: (error) => {},
+			onComplete: () => {},
 		})
 
 		// Initialize webview using gRPC
