@@ -1294,7 +1294,12 @@ export class Task {
 					}
 					hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
 
-					const taskResumeHook = await hookFactory.create("TaskResume")
+					// Create streaming callback
+					const streamCallback = async (line: string, stream: "stdout" | "stderr") => {
+						await this.say("hook_output", line)
+					}
+
+					const taskResumeHook = await hookFactory.createWithStreaming("TaskResume", streamCallback)
 
 					const clineMessages = this.messageStateHandler.getClineMessages()
 					const taskResumeResult = await taskResumeHook.run({
@@ -1552,7 +1557,12 @@ export class Task {
 							hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
 						}
 
-						const taskCancelHook = await hookFactory.create("TaskCancel")
+						// Create streaming callback
+						const streamCallback = async (line: string, stream: "stdout" | "stderr") => {
+							await this.say("hook_output", line)
+						}
+
+						const taskCancelHook = await hookFactory.createWithStreaming("TaskCancel", streamCallback)
 
 						const taskCancelResult = await taskCancelHook.run({
 							taskId: this.taskId,
