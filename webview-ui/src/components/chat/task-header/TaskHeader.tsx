@@ -62,14 +62,28 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	} = useExtensionState()
 
 	const [isHighlightedTextExpanded, setIsHighlightedTextExpanded] = useState(false)
-	const { highlightedText, displayTextExpanded } = useMemo(() => {
-		const taskTextLines = task.text?.split("\n") || []
-		const highlightedText = isHighlightedTextExpanded
-			? highlightText(task.text, false)
-			: highlightText(taskTextLines.slice(0, 3).join("\n"), false)
+	const highlightedTextRef = React.useRef<HTMLDivElement>(null)
 
-		return { highlightedText, displayTextExpanded: taskTextLines.length > 3 }
-	}, [task.text, isHighlightedTextExpanded])
+	const { highlightedText, displayTextExpandable } = useMemo(() => {
+		const taskTextLines = task.text?.split("\n") || []
+		const highlightedText = highlightText(task.text, false)
+
+		return { highlightedText, displayTextExpandable: taskTextLines.length > 3 }
+	}, [task.text])
+
+	// Handle click outside to collapse
+	React.useEffect(() => {
+		if (!isHighlightedTextExpanded) return
+
+		const handleClickOutside = (event: MouseEvent) => {
+			if (highlightedTextRef.current && !highlightedTextRef.current.contains(event.target as Node)) {
+				setIsHighlightedTextExpanded(false)
+			}
+		}
+
+		document.addEventListener("mousedown", handleClickOutside)
+		return () => document.removeEventListener("mousedown", handleClickOutside)
+	}, [isHighlightedTextExpanded])
 
 	// Simplified computed values
 	const { selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, mode)
@@ -158,22 +172,26 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				{/* Expand/Collapse Task Details */}
 				{isTaskExpanded && (
 					<div className="flex flex-col break-words" key={`task-details-${currentTaskItem?.id}`}>
-						<div className="max-h-[25vh] whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0 overflow-y-auto scroll-smooth">
-							<div
-								className={
-									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer mt-1"
-								}>
-								{highlightedText}
-							</div>
+						<div
+							className={cn(
+								"ph-no-capture whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer mt-1 relative",
+								{
+									"max-h-[25vh] overflow-y-auto scroll-smooth": isHighlightedTextExpanded,
+									"max-h-[4.5rem] overflow-hidden": !isHighlightedTextExpanded && displayTextExpandable,
+								},
+							)}
+							onClick={() => displayTextExpandable && setIsHighlightedTextExpanded(true)}
+							ref={highlightedTextRef}
+							style={
+								!isHighlightedTextExpanded && displayTextExpandable
+									? {
+											WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+											maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+										}
+									: undefined
+							}>
+							{highlightedText}
 						</div>
-
-						{displayTextExpanded && (
-							<div
-								className="text-link/50 hover:text-link text-right text-xs"
-								onClick={() => setIsHighlightedTextExpanded((prev) => !prev)}>
-								{isHighlightedTextExpanded ? "Show Less" : "Read More"}
-							</div>
-						)}
 
 						{((task.images && task.images.length > 0) || (task.files && task.files.length > 0)) && (
 							<Thumbnails files={task.files ?? []} images={task.images ?? []} />
