@@ -663,6 +663,7 @@ export class ToolExecutor {
 		let executionSuccess = true
 		let toolResult: any = null
 		const executionStartTime = Date.now()
+		let shouldCancelAfterHook = false
 
 		try {
 			// Execute the actual tool
@@ -753,31 +754,31 @@ export class ToolExecutor {
 							const errorMessage = postToolUseResult.errorMessage || "Hook requested task cancellation"
 							await this.say("error", errorMessage)
 
-							// Trigger task cancellation
+							// Trigger task cancellation and set flag to exit early
 							await config.callbacks.cancelTask()
-							// Note: Task cancellation will be handled by cancelTask, no explicit return needed
-						}
-
-						// Update hook status to completed (only if not cancelled)
-						if (hookMessageTs !== undefined) {
-							const clineMessages = this.messageStateHandler.getClineMessages()
-							const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
-							if (hookMessageIndex !== -1) {
-								const completedMetadata = {
-									hookName: "PostToolUse",
-									toolName: block.name,
-									status: "completed",
-									exitCode: 0,
-									hasJsonResponse: true,
+							shouldCancelAfterHook = true
+						} else {
+							// Update hook status to completed (only if not cancelled)
+							if (hookMessageTs !== undefined) {
+								const clineMessages = this.messageStateHandler.getClineMessages()
+								const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
+								if (hookMessageIndex !== -1) {
+									const completedMetadata = {
+										hookName: "PostToolUse",
+										toolName: block.name,
+										status: "completed",
+										exitCode: 0,
+										hasJsonResponse: true,
+									}
+									await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+										text: JSON.stringify(completedMetadata),
+									})
 								}
-								await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
-									text: JSON.stringify(completedMetadata),
-								})
 							}
-						}
 
-						// Add context modification to the conversation if provided by the hook
-						this.addHookContextToConversation(postToolUseResult.contextModification, "PostToolUse")
+							// Add context modification to the conversation if provided by the hook
+							this.addHookContextToConversation(postToolUseResult.contextModification, "PostToolUse")
+						}
 					} catch (hookError) {
 						// Clear active hook execution
 						this.taskState.activeHookExecution = undefined
@@ -815,6 +816,11 @@ export class ToolExecutor {
 					}
 				}
 			}
+		}
+
+		// Early return if hook requested cancellation
+		if (shouldCancelAfterHook) {
+			return
 		}
 
 		// Handle focus chain updates
