@@ -164,8 +164,27 @@ export class ClaudeCodeHandler implements ApiHandler {
 						break
 
 					case "content_block_stop":
+						// Flush any remaining thinking delta if signature_delta wasn't received
+						if (thinkingDeltaAccumulator) {
+							yield {
+								type: "ant_thinking",
+								thinking: thinkingDeltaAccumulator,
+								signature: "", // No signature received
+							}
+							thinkingDeltaAccumulator = ""
+						}
+						break
+
 					case "message_stop":
-						// No action needed
+						// Final safety net: flush any remaining thinking delta
+						if (thinkingDeltaAccumulator) {
+							yield {
+								type: "ant_thinking",
+								thinking: thinkingDeltaAccumulator,
+								signature: "", // No signature received
+							}
+							thinkingDeltaAccumulator = ""
+						}
 						break
 				}
 
