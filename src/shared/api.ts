@@ -228,11 +228,6 @@ export interface ModelInfo {
 		cacheWritesPrice?: number
 		cacheReadsPrice?: number
 	}[]
-	// OpenRouter provider preferences - used to route to high-quality providers instead of random routing
-	preferredProviders?: {
-		order: string[] // Priority list of providers to use, e.g., ["baseten", "fireworks", "together"]
-		allowFallbacks?: boolean // Whether to allow fallback to other providers if preferred ones fail (default: false)
-	}
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
@@ -715,6 +710,34 @@ export const clineCodeSupernovaModelInfo: ModelInfo = {
 	cacheWritesPrice: 0,
 	description: "A versatile agentic coding stealth model that supports image inputs.",
 }
+
+export const OPEN_SOURCE_MODEL_PROVIDER_PREFERENCES: Record<string, { order: string[]; allowFallbacks: boolean }> = {
+	"moonshotai/kimi-k2": {
+		order: ["groq", "together", "baseten", "parasail", "novita", "deepinfra"],
+		allowFallbacks: false,
+	},
+	"qwen/qwen3-coder": {
+		order: ["baseten", "fireworks", "together", "deepinfra"],
+		allowFallbacks: false,
+	},
+	"qwen/qwen3-coder:free": {
+		order: ["baseten", "fireworks", "together", "deepinfra"],
+		allowFallbacks: false,
+	},
+	"deepseek/deepseek-chat": {
+		order: ["fireworks", "nebius", "chutes", "together"],
+		allowFallbacks: false,
+	},
+	"deepseek/deepseek-v3.1-terminus": {
+		order: ["fireworks", "nebius", "chutes", "together"],
+		allowFallbacks: false,
+	},
+	"deepseek/deepseek-r1": {
+		order: ["fireworks", "nebius", "chutes", "together"],
+		allowFallbacks: false,
+	},
+}
+
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 // https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models

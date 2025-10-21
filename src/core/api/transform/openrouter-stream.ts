@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import {
 	CLAUDE_SONNET_1M_SUFFIX,
 	ModelInfo,
+	OPEN_SOURCE_MODEL_PROVIDER_PREFERENCES,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
@@ -9,17 +10,6 @@ import OpenAI from "openai"
 import { convertToOpenAiMessages } from "./openai-format"
 import { convertToR1Format } from "./r1-format"
 
-/**
- * Creates an OpenRouter stream with intelligent provider routing.
- *
- * Provider Routing Strategy:
- * 1. If model has `preferredProviders` configured, route to those providers exclusively
- *    (e.g., Qwen3 Coder → baseten, fireworks for high-quality deployments)
- * 2. Otherwise, use `openRouterProviderSorting` if provided by user
- * 3. Otherwise, OpenRouter routes to any available provider (random routing)
- *
- * This prevents routing to "crappy providers" with poor tool calling, slow inference, or parse failures.
- */
 export async function createOpenRouterStream(
 	client: OpenAI,
 	systemPrompt: string,
@@ -175,11 +165,8 @@ export async function createOpenRouterStream(
 			}
 	}
 
-	// Check if model has preferred providers configured
-	const hasPreferredProviders = model.info.preferredProviders?.order && model.info.preferredProviders.order.length > 0
-
-	// If model has preferred providers, ignore user's provider sorting preference
-	if (hasPreferredProviders) {
+	const providerPreferences = OPEN_SOURCE_MODEL_PROVIDER_PREFERENCES[model.id]
+	if (providerPreferences) {
 		openRouterProviderSorting = undefined
 	}
 
@@ -195,18 +182,8 @@ export async function createOpenRouterStream(
 		include_reasoning: true,
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
-		// Use provider sorting only if no preferred providers configured
-		...(openRouterProviderSorting && !hasPreferredProviders ? { provider: { sort: openRouterProviderSorting } } : {}),
-		// Apply preferred providers from model config (takes precedence over user sorting)
-		...(hasPreferredProviders
-			? {
-					provider: {
-						order: model.info.preferredProviders!.order,
-						allow_fallbacks: model.info.preferredProviders!.allowFallbacks ?? false,
-					},
-				}
-			: {}),
-		// limit providers to only those that support the 1m context window (overrides preferred providers)
+		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
+		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaudeSonnet1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
 	})
 
