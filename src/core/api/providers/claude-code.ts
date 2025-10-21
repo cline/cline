@@ -44,6 +44,7 @@ export class ClaudeCodeHandler implements ApiHandler {
 			outputTokens: 0,
 			cacheReadTokens: 0,
 			cacheWriteTokens: 0,
+			totalCost: 0, // Initialize to 0, will be updated if paid
 		}
 
 		let isPaidUsage = true
@@ -76,6 +77,8 @@ export class ClaudeCodeHandler implements ApiHandler {
 						usage.cacheWriteTokens = event.message.usage.cache_creation_input_tokens || 0
 						usage.cacheReadTokens = event.message.usage.cache_read_input_tokens || 0
 						usage.outputTokens = event.message.usage.output_tokens || 0
+						// Keep totalCost at 0 until we get the result chunk with actual cost
+						usage.totalCost = 0
 						yield usage
 						break
 
@@ -160,12 +163,33 @@ export class ClaudeCodeHandler implements ApiHandler {
 					case "message_delta":
 						// Update output tokens (cumulative count, not delta)
 						usage.outputTokens = event.usage.output_tokens || 0
+						// Keep totalCost at 0 until we get the result chunk with actual cost
+						usage.totalCost = 0
 						yield usage
 						break
 
 					case "content_block_stop":
+						// Flush any remaining thinking delta if signature_delta wasn't received
+						if (thinkingDeltaAccumulator) {
+							yield {
+								type: "ant_thinking",
+								thinking: thinkingDeltaAccumulator,
+								signature: "", // No signature received
+							}
+							thinkingDeltaAccumulator = ""
+						}
+						break
+
 					case "message_stop":
-						// No action needed
+						// Final safety net: flush any remaining thinking delta
+						if (thinkingDeltaAccumulator) {
+							yield {
+								type: "ant_thinking",
+								thinking: thinkingDeltaAccumulator,
+								signature: "", // No signature received
+							}
+							thinkingDeltaAccumulator = ""
+						}
 						break
 				}
 
