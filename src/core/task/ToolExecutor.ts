@@ -566,6 +566,7 @@ export class ToolExecutor {
 							parameters: block.params,
 						},
 					})
+					console.log("[PreToolUse Hook]", preToolUseResult)
 
 					// Clear active hook execution
 					this.taskState.activeHookExecution = undefined
@@ -624,19 +625,6 @@ export class ToolExecutor {
 					// Extract structured error info if available
 					const isStructuredError = HookExecutionError.isHookError(hookError)
 					const errorInfo = isStructuredError ? hookError.errorInfo : null
-
-					// Log technical details to console for developers
-					if (errorInfo) {
-						console.error(`[PreToolUse Hook] ${errorInfo.type} error:`, errorInfo.message)
-						if (errorInfo.details) {
-							console.error(`[PreToolUse Hook] Details:`, errorInfo.details)
-						}
-						if (errorInfo.stderr) {
-							console.error(`[PreToolUse Hook] stderr:`, errorInfo.stderr)
-						}
-					} else {
-						console.error(`[PreToolUse Hook] Error:`, hookError)
-					}
 
 					// Update hook status with structured error info (update the same message if it exists)
 					if (hookMessageTs !== undefined) {
@@ -731,6 +719,7 @@ export class ToolExecutor {
 								executionTimeMs,
 							},
 						})
+						console.log("[PostToolUse Hook]", postToolUseResult)
 
 						// Update hook status to completed (update the same message)
 						if (hookMessageTs !== undefined) {
@@ -755,11 +744,6 @@ export class ToolExecutor {
 
 						// Clear active hook execution
 						this.taskState.activeHookExecution = undefined
-
-						// Log any error messages from the hook (don't display as UI error)
-						if (postToolUseResult.errorMessage) {
-							console.error(`[PostToolUse Hook] ${postToolUseResult.errorMessage}`)
-						}
 					} catch (hookError) {
 						// Clear active hook execution
 						this.taskState.activeHookExecution = undefined
@@ -767,19 +751,6 @@ export class ToolExecutor {
 						// Extract structured error info if available
 						const isStructuredError = HookExecutionError.isHookError(hookError)
 						const errorInfo = isStructuredError ? hookError.errorInfo : null
-
-						// Log technical details to console for developers
-						if (errorInfo) {
-							console.error(`[PostToolUse Hook] ${errorInfo.type} error:`, errorInfo.message)
-							if (errorInfo.details) {
-								console.error(`[PostToolUse Hook] Details:`, errorInfo.details)
-							}
-							if (errorInfo.stderr) {
-								console.error(`[PostToolUse Hook] stderr:`, errorInfo.stderr)
-							}
-						} else {
-							console.error(`[PostToolUse Hook] Error:`, hookError)
-						}
 
 						// Update hook status with structured error info (update the same message if it exists)
 						if (hookMessageTs !== undefined) {
