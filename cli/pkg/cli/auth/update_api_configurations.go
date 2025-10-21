@@ -267,7 +267,7 @@ func setProviderSpecificModelID(apiConfig *cline.ModelsApiConfiguration, fieldNa
 }
 
 // AddProviderPartial configures a new provider with all necessary fields using partial updates.
-func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cline.ApiProvider, modelID string, apiKey string, modelInfo interface{}) error {
+func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cline.ApiProvider, modelID string, apiKey string, modelInfo interface{}, baseURL ...string) error {
 	// Get field mapping for this provider
 	fields, err := GetProviderFields(provider)
 	if err != nil {
@@ -280,6 +280,11 @@ func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cli
 	// Set API key field
 	if apiKey != "" || fields.APIKeyField != "ollamaBaseUrl" {
 		setAPIKeyField(apiConfig, fields.APIKeyField, proto.String(apiKey))
+	}
+
+	// Set base URL for OpenAI Native provider if provided
+	if provider == cline.ApiProvider_OPENAI_NATIVE && len(baseURL) > 0 && baseURL[0] != "" {
+		apiConfig.OpenAiBaseUrl = proto.String(baseURL[0])
 	}
 
 	// Set model ID fields
@@ -302,6 +307,11 @@ func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cli
 	// Build field mask including all fields we're setting (without provider enums)
 	includeModelInfo := fields.PlanModeModelInfoField != "" && modelInfo != nil
 	fieldPaths := buildProviderFieldMask(fields, true, true, includeModelInfo, false)
+
+	// Add base URL to field mask if it was set for OpenAI Native
+	if provider == cline.ApiProvider_OPENAI_NATIVE && len(baseURL) > 0 && baseURL[0] != "" {
+		fieldPaths = append(fieldPaths, "openAiBaseUrl")
+	}
 
 	// Create field mask
 	fieldMask := &fieldmaskpb.FieldMask{Paths: fieldPaths}
