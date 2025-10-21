@@ -59,7 +59,9 @@ function calculateApiCostInternal(
 	const outputCost = (effectiveOutputPrice / 1_000_000) * outputTokens
 
 	const totalCost = cacheWritesCost + cacheReadsCost + baseInputCost + outputCost
-	return totalCost
+	// Round to 12 decimal places to eliminate floating-point precision errors
+	// This is more than sufficient for financial calculations (fractions of cents at billionth level)
+	return Math.round(totalCost * 1e12) / 1e12
 }
 // For Anthropic compliant usage, the input tokens count does NOT include the cached tokens
 export function calculateApiCostAnthropic(
