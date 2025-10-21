@@ -751,12 +751,12 @@ export class Task {
 
 	private async runUserPromptSubmitHook(
 		userContent: UserContent,
-		context: "initial_task" | "resume" | "feedback",
-	): Promise<{ shouldContinue: boolean; contextModification?: string; errorMessage?: string }> {
+		_context: "initial_task" | "resume" | "feedback",
+	): Promise<{ cancel?: boolean; contextModification?: string; errorMessage?: string }> {
 		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
 
 		if (!hooksEnabled) {
-			return { shouldContinue: true }
+			return {}
 		}
 
 		const { HookFactory } = await import("../hooks/hook-factory")
@@ -764,7 +764,7 @@ export class Task {
 		const hasUserPromptSubmitHook = await hookFactory.hasHook("UserPromptSubmit")
 
 		if (!hasUserPromptSubmitHook) {
-			return { shouldContinue: true }
+			return {}
 		}
 
 		let hookMessageTs: number | undefined
@@ -777,7 +777,7 @@ export class Task {
 			hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
 
 			// Create streaming callback
-			const streamCallback = async (line: string, stream: "stdout" | "stderr") => {
+			const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
 				await this.say("hook_output", line)
 			}
 
@@ -805,7 +805,33 @@ export class Task {
 			})
 			console.log("[UserPromptSubmit Hook]", result)
 
-			// Update hook status to completed (update the same message)
+			// Check if hook wants to cancel
+			if (result.cancel === true) {
+				// Update hook status to cancelled
+				if (hookMessageTs !== undefined) {
+					const clineMessages = this.messageStateHandler.getClineMessages()
+					const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
+					if (hookMessageIndex !== -1) {
+						const cancelledMetadata = {
+							hookName: "UserPromptSubmit",
+							status: "cancelled",
+							exitCode: 130,
+							hasJsonResponse: true,
+						}
+						await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+							text: JSON.stringify(cancelledMetadata),
+						})
+					}
+				}
+
+				return {
+					cancel: true,
+					contextModification: result.contextModification,
+					errorMessage: result.errorMessage,
+				}
+			}
+
+			// Update hook status to completed (only if not cancelled)
 			if (hookMessageTs !== undefined) {
 				const clineMessages = this.messageStateHandler.getClineMessages()
 				const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
@@ -823,7 +849,7 @@ export class Task {
 			}
 
 			return {
-				shouldContinue: result.shouldContinue,
+				cancel: result.cancel,
 				contextModification: result.contextModification,
 				errorMessage: result.errorMessage,
 			}
@@ -845,7 +871,7 @@ export class Task {
 			}
 
 			console.error("UserPromptSubmit hook failed:", error)
-			return { shouldContinue: true }
+			return {}
 		}
 	}
 
@@ -909,7 +935,7 @@ export class Task {
 					hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
 
 					// Create streaming callback
-					const streamCallback = async (line: string, stream: "stdout" | "stderr") => {
+					const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
 						await this.say("hook_output", line)
 					}
 
@@ -927,7 +953,36 @@ export class Task {
 					})
 					console.log("[TaskStart Hook]", taskStartResult)
 
-					// Update hook status to completed (update the same message)
+					// Check if hook wants to cancel the task
+					if (taskStartResult.cancel === true) {
+						// Update hook status to cancelled BEFORE aborting
+						if (hookMessageTs !== undefined) {
+							const clineMessages = this.messageStateHandler.getClineMessages()
+							const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
+							if (hookMessageIndex !== -1) {
+								const cancelledMetadata = {
+									hookName: "TaskStart",
+									status: "cancelled",
+									exitCode: 130,
+									hasJsonResponse: true,
+								}
+								await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+									text: JSON.stringify(cancelledMetadata),
+								})
+							}
+						}
+
+						const errorMessage = taskStartResult.errorMessage || "TaskStart hook requested task cancellation"
+						await this.say("error", errorMessage)
+
+						// Ensure the changes are saved and posted before aborting
+						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+						await this.postStateToWebview()
+						this.abortTask()
+						return
+					}
+
+					// Update hook status to completed (only if not cancelled)
 					if (hookMessageTs !== undefined) {
 						const clineMessages = this.messageStateHandler.getClineMessages()
 						const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
@@ -942,34 +997,6 @@ export class Task {
 								text: JSON.stringify(completedMetadata),
 							})
 						}
-					}
-
-					if (!taskStartResult.shouldContinue) {
-						const errorMessage = taskStartResult.errorMessage || "TaskStart hook prevented task from starting"
-
-						// Update hook status to show blocking
-						if (hookMessageTs !== undefined) {
-							const clineMessages = this.messageStateHandler.getClineMessages()
-							const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
-							if (hookMessageIndex !== -1) {
-								const blockedMetadata = {
-									hookName: "TaskStart",
-									status: "completed",
-									exitCode: 0,
-									hasJsonResponse: true,
-									shouldContinue: false,
-								}
-								await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
-									text: JSON.stringify(blockedMetadata),
-								})
-							}
-						}
-
-						// Ensure the changes are saved and posted before aborting
-						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-						await this.postStateToWebview()
-						this.abortTask()
-						return
 					}
 
 					// Add context modification to the conversation if provided
@@ -1080,7 +1107,7 @@ export class Task {
 		}
 
 		// Wait for user to click resume button
-		const { response, text, images, files } = await this.ask(askType)
+		const { response } = await this.ask(askType)
 
 		if (response !== "yesButtonClicked") {
 			// Task was cleared (user started new task)
@@ -1276,7 +1303,7 @@ export class Task {
 					hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
 
 					// Create streaming callback
-					const streamCallback = async (line: string, stream: "stdout" | "stderr") => {
+					const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
 						await this.say("hook_output", line)
 					}
 
@@ -1539,7 +1566,7 @@ export class Task {
 						}
 
 						// Create streaming callback
-						const streamCallback = async (line: string, stream: "stdout" | "stderr") => {
+						const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
 							await this.say("hook_output", line)
 						}
 
@@ -2893,11 +2920,12 @@ export class Task {
 			this.taskState.apiRequestCount === 1 ? "initial_task" : "feedback",
 		)
 
-		// Handle hook blocking
-		if (!hookResult.shouldContinue) {
-			const errorMessage = hookResult.errorMessage || "UserPromptSubmit hook prevented this request"
+		// Handle hook cancellation request
+		if (hookResult.cancel === true) {
+			const errorMessage = hookResult.errorMessage || "UserPromptSubmit hook requested task cancellation"
 			await this.say("error", errorMessage)
-			// Return true to end the loop gracefully
+			// Trigger task cancellation
+			this.abortTask()
 			return true
 		}
 
