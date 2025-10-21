@@ -32,8 +32,10 @@ export const formatResponse = {
 	clineIgnoreError: (path: string) =>
 		`Access to ${path} is blocked by the .clineignore file settings. You must try to continue in the task without using this file, or ask the user to update the .clineignore file.`,
 
-	noToolsUsed: () =>
-		`[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
+	noToolsUsed: (usingNativeToolCalls: boolean) =>
+		usingNativeToolCalls
+			? "[ERROR] You did not use a tool in your previous response! Please retry with a tool use."
+			: `[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
 
 ${toolUseInstructionsReminder}
 
