@@ -245,6 +245,7 @@ export class Controller {
 		files?: string[],
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
+		skipResume?: boolean,
 	) {
 		await fetchRemoteConfig(this)
 
@@ -331,6 +332,7 @@ export class Controller {
 			historyItem,
 			taskId,
 			taskLockAcquired,
+			skipResume,
 		})
 
 		return this.task.taskId
@@ -434,7 +436,8 @@ export class Controller {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 				this.task.taskState.abandoned = true
 			}
-			await this.initTask(undefined, undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
+			// Re-initialize task to keep it visible in UI, but skip resuming the workflow
+			await this.initTask(undefined, undefined, undefined, historyItem, undefined, true)
 			// Dont send the state to the webview, the new Cline instance will send state when it's ready.
 			// Sending the state here sent an empty messages array to webview leading to virtuoso having to reload the entire list
 		}
