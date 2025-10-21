@@ -166,11 +166,6 @@ const baseContext: SystemPromptContext = {
 	providerInfo: mockProviderInfo,
 }
 
-const makeMockContext = (modelId: string, providerId: string = "test"): SystemPromptContext => ({
-	...baseContext,
-	providerInfo: makeMockProviderInfo(modelId, providerId),
-})
-
 describe("Prompt System Integration Tests", () => {
 	beforeEach(() => {
 		// Reset any necessary state before each test
@@ -218,6 +213,12 @@ describe("Prompt System Integration Tests", () => {
 			modelGroup: ModelFamily.XS,
 			modelIds: ["qwen3_coder"],
 			providerId: "lmstudio",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.NATIVE_NEXT_GEN,
+			modelIds: ["claude-4-5-sonnet"],
+			providerId: "cline",
 			contextVariations,
 		},
 	]

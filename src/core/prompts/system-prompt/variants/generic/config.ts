@@ -15,10 +15,15 @@ export const config = createVariant(ModelFamily.GENERIC)
 		fallback: 1,
 	})
 	.matcher((providerInfo) => {
+		if (!providerInfo.providerId || !providerInfo.model.id) {
+			return true
+		}
+		const isSupportedProvider = ["cline", "anthropic"].some((id) => providerInfo.providerId?.toLowerCase() === id)
 		// Generic matcher - fallback for everything that doesn't match other variants
 		// This will match anything that doesn't match the other specific variants
 		return (
 			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
+			!isSupportedProvider &&
 			!isNextGenModelFamily(providerInfo.model.id) &&
 			!isGPT5ModelFamily(providerInfo.model.id)
 		)

@@ -1,6 +1,8 @@
 import { ApiHandlerModel, ApiProviderInfo } from "@core/api"
 import { AnthropicModelId, anthropicModels } from "@/shared/api"
 
+const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d](?:\.[05])?)[-_ ]?/
+
 export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()
 	return modelId.includes("grok")
@@ -18,20 +20,23 @@ export function shouldSkipReasoningForModel(modelId?: string): boolean {
 }
 
 export function isAnthropicModelId(modelId: string): modelId is AnthropicModelId {
-	return modelId in anthropicModels || isClaude4ModelFamily(modelId)
+	const CLAUDE_MODELS = ["sonnet", "opus", "haiku"]
+	return modelId in anthropicModels || CLAUDE_MODELS.some((substring) => modelId.includes(substring))
 }
 
-export function isClaude4ModelFamily(id: string): boolean {
+export function isNewClaudeModelFamily(id: string): boolean {
 	const modelId = normalize(id)
-	return (
-		modelId.includes("sonnet-4") ||
-		modelId.includes("opus-4") ||
-		modelId.includes("4-sonnet") ||
-		modelId.includes("4-opus") ||
-		modelId.includes("haiku-4") ||
-		modelId.includes("4-5-haiku") ||
-		modelId.includes("4.5-haiku")
-	)
+	if (!isAnthropicModelId(modelId)) {
+		return false
+	}
+	// Get model version number
+	const versionMatch = modelId.match(CLAUDE_VERSION_MATCH_REGEX)
+	if (!versionMatch) {
+		return false
+	}
+	const version = parseFloat(versionMatch[1])
+	// Check if version is 4.0 or higher
+	return version >= 4
 }
 
 export function isGemini2dot5ModelFamily(id: string): boolean {
@@ -52,7 +57,7 @@ export function isGPT5ModelFamily(id: string): boolean {
 export function isNextGenModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
-		isClaude4ModelFamily(modelId) ||
+		isNewClaudeModelFamily(modelId) ||
 		isGemini2dot5ModelFamily(modelId) ||
 		isGrok4ModelFamily(modelId) ||
 		isGPT5ModelFamily(modelId)
