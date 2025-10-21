@@ -100,8 +100,8 @@ see the manual page: man cline`,
 				// Check if user has credentials configured
 				if !isUserReadyToUse(ctx, instanceAddress) {
 					// Create renderer for welcome messages
-				renderer := display.NewRenderer(global.Config.OutputFormat)
-				fmt.Printf("\n%s\n\n", renderer.Dim("Hey there! Looks like you're new here. Let's get you set up"))
+					renderer := display.NewRenderer(global.Config.OutputFormat)
+					fmt.Printf("\n%s\n\n", renderer.Dim("Hey there! Looks like you're new here. Let's get you set up"))
 
 					if err := auth.HandleAuthMenuNoArgs(ctx); err != nil {
 						// Check if user cancelled - exit cleanly

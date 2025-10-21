@@ -1,6 +1,5 @@
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
+import { ModelInfo } from "@shared/api"
 import { fileExistsAtPath } from "@utils/fs"
 import { parsePrice } from "@utils/model-utils"
 import axios from "axios"
@@ -10,25 +9,19 @@ import { basetenModels } from "../../../shared/api"
 import { Controller } from ".."
 
 /**
- * Refreshes the Baseten models and returns the updated model list
+ * Core function: Refreshes the Baseten models and returns application types
  * @param controller The controller instance
- * @param request Empty request object
- * @returns Response containing the Baseten models
+ * @returns Record of model ID to ModelInfo (application types)
  */
-export async function refreshBasetenModels(
-	controller: Controller,
-	_request: EmptyRequest,
-): Promise<OpenRouterCompatibleModelInfo> {
-	console.log("=== refreshBasetenModels called ===")
+export async function refreshBasetenModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.basetenModels)
 
 	// Get the Baseten API key from the controller's state
 	const basetenApiKey = controller.stateManager.getSecretKey("basetenApiKey")
 
-	const models: Record<string, Partial<OpenRouterModelInfo> & { supportedFeatures?: string[] }> = {}
+	const models: Record<string, Partial<ModelInfo> & { supportedFeatures?: string[] }> = {}
 	try {
 		if (!basetenApiKey) {
-			console.log("No Baseten API key found, using static models as fallback")
 			// Don't throw an error, just use static models, althought this might be slightly out of date
 			for (const [modelId, modelInfo] of Object.entries(basetenModels)) {
 				models[modelId] = {
@@ -49,8 +42,6 @@ export async function refreshBasetenModels(
 			if (!cleanApiKey) {
 				throw new Error("Invalid Baseten API key format")
 			}
-
-			console.log("Fetching Baseten models with API key:", cleanApiKey.substring(0, 10) + "...")
 
 			const response = await axios.get("https://inference.baseten.co/v1/models", {
 				headers: {
@@ -73,7 +64,7 @@ export async function refreshBasetenModels(
 					// Check if we have static pricing information for this model
 					const staticModelInfo = basetenModels[rawModel.id as keyof typeof basetenModels]
 
-					const modelInfo: Partial<OpenRouterModelInfo> & { supportedFeatures?: string[] } = {
+					const modelInfo: Partial<ModelInfo> & { supportedFeatures?: string[] } = {
 						maxTokens: rawModel.max_completion_tokens || staticModelInfo?.maxTokens,
 						contextWindow: rawModel.context_length || staticModelInfo?.contextWindow,
 						supportsImages: false, // Baseten model APIs does not support image input
@@ -92,7 +83,6 @@ export async function refreshBasetenModels(
 				console.error("Invalid response from Baseten API")
 			}
 			await fs.writeFile(basetenModelsFilePath, JSON.stringify(models))
-			console.log("Baseten models fetched and saved:", Object.keys(models))
 		}
 	} catch (error) {
 		console.error("Error fetching Baseten models:", error)
@@ -120,14 +110,12 @@ export async function refreshBasetenModels(
 		// If we failed to fetch models, try to read cached models first
 		const cachedModels = await readBasetenModels()
 		if (cachedModels && Object.keys(cachedModels).length > 0) {
-			console.log("Using cached Baseten models")
 			// Use all cached models (no filtering)
 			for (const [modelId, modelInfo] of Object.entries(cachedModels)) {
 				models[modelId] = modelInfo
 			}
 		} else {
 			// Fall back to static models from shared/api.ts
-			console.log("Using static Baseten models as fallback")
 			for (const [modelId, modelInfo] of Object.entries(basetenModels)) {
 				models[modelId] = {
 					maxTokens: modelInfo.maxTokens,
@@ -144,9 +132,9 @@ export async function refreshBasetenModels(
 		}
 	}
 
-	// Convert the Record<string, Partial<OpenRouterModelInfo>> to Record<string, OpenRouterModelInfo>
+	// Convert the Record<string, Partial<ModelInfo>> to Record<string, ModelInfo>
 	// by filling in any missing required fields with defaults
-	const typedModels: Record<string, OpenRouterModelInfo> = {}
+	const typedModels: Record<string, ModelInfo> = {}
 	for (const [key, model] of Object.entries(models)) {
 		typedModels[key] = {
 			maxTokens: model.maxTokens ?? 8192,
@@ -158,18 +146,17 @@ export async function refreshBasetenModels(
 			cacheWritesPrice: model.cacheWritesPrice ?? 0,
 			cacheReadsPrice: model.cacheReadsPrice ?? 0,
 			description: model.description ?? "",
-			tiers: model.tiers ?? [],
-			// Note: supportedFeatures is preserved as custom property but not part of OpenRouterModelInfo proto
+			tiers: model.tiers,
 		}
 	}
 
-	return OpenRouterCompatibleModelInfo.create({ models: typedModels })
+	return typedModels
 }
 
 /**
- * Reads cached Baseten models from disk
+ * Reads cached Baseten models from disk (application types)
  */
-async function readBasetenModels(): Promise<Record<string, Partial<OpenRouterModelInfo>> | undefined> {
+async function readBasetenModels(): Promise<Record<string, Partial<ModelInfo>> | undefined> {
 	const basetenModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.basetenModels)
 	const fileExists = await fileExistsAtPath(basetenModelsFilePath)
 	if (fileExists) {

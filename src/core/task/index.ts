@@ -938,6 +938,52 @@ export class Task {
 
 		this.taskState.isInitialized = true
 
+		// Initialize newUserContent array for hook context
+		const newUserContent: UserContent = []
+
+		// Run TaskResume hook
+		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		if (hooksEnabled) {
+			try {
+				const { HookFactory } = await import("../hooks/hook-factory")
+				const hookFactory = new HookFactory()
+				const taskResumeHook = await hookFactory.create("TaskResume")
+
+				const clineMessages = this.messageStateHandler.getClineMessages()
+				const taskResumeResult = await taskResumeHook.run({
+					taskId: this.taskId,
+					taskResume: {
+						taskMetadata: {
+							taskId: this.taskId,
+							ulid: this.ulid,
+						},
+						previousState: {
+							lastMessageTs: lastClineMessage?.ts?.toString() || "",
+							messageCount: clineMessages.length.toString(),
+							conversationHistoryDeleted: (this.taskState.conversationHistoryDeletedRange !== undefined).toString(),
+						},
+					},
+				})
+
+				// Check if hook indicates an error condition (non-blocking)
+				if (!taskResumeResult.shouldContinue && taskResumeResult.errorMessage) {
+					await this.say("error", taskResumeResult.errorMessage)
+				}
+
+				// Add context if provided
+				if (taskResumeResult.contextModification) {
+					newUserContent.push({
+						type: "text",
+						text: `<hook_context source="TaskResume" type="general">\n${taskResumeResult.contextModification}\n</hook_context>`,
+					})
+				}
+			} catch (hookError) {
+				const errorMessage = `TaskResume hook failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`
+				await this.say("error", errorMessage)
+				// Non-fatal: continue with resume
+			}
+		}
+
 		const { response, text, images, files } = await this.ask(askType) // calls poststatetowebview
 		let responseText: string | undefined
 		let responseImages: string[] | undefined
@@ -977,7 +1023,8 @@ export class Task {
 			throw new Error("Unexpected: No existing API conversation history")
 		}
 
-		const newUserContent: UserContent = [...modifiedOldUserContent]
+		// Add previous content to newUserContent array
+		newUserContent.push(...modifiedOldUserContent)
 
 		const agoText = (() => {
 			const timestamp = lastClineMessage?.ts ?? Date.now()
@@ -1089,6 +1136,64 @@ export class Task {
 
 	async abortTask() {
 		try {
+			// Run TaskCancel hook
+			const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+			if (hooksEnabled) {
+				try {
+					const { HookFactory } = await import("../hooks/hook-factory")
+					const hookFactory = new HookFactory()
+					const taskCancelHook = await hookFactory.create("TaskCancel")
+
+					const taskCancelResult = await taskCancelHook.run({
+						taskId: this.taskId,
+						taskCancel: {
+							taskMetadata: {
+								taskId: this.taskId,
+								ulid: this.ulid,
+								completionStatus: this.taskState.abandoned ? "abandoned" : "cancelled",
+							},
+						},
+					})
+
+					// Surface errors from hook but don't block cancellation
+					// Only try to display errors if not already aborted (to prevent blocking cleanup)
+					if (!this.taskState.abort) {
+						// Display error message if present, or default message if shouldContinue is false
+						if (taskCancelResult.errorMessage) {
+							await this.say("error", taskCancelResult.errorMessage).catch(() => {
+								// If say() fails, log to console instead
+								console.error("TaskCancel hook error:", taskCancelResult.errorMessage)
+							})
+						} else if (!taskCancelResult.shouldContinue) {
+							// For consistency with other hooks, show a default error when shouldContinue: false with no message
+							await this.say("error", "TaskCancel hook indicated an issue but provided no error message").catch(
+								() => {
+									console.error("TaskCancel hook indicated an issue (shouldContinue: false)")
+								},
+							)
+						}
+					} else {
+						// Already aborted, just log to console
+						if (taskCancelResult.errorMessage) {
+							console.error("TaskCancel hook error (already aborted):", taskCancelResult.errorMessage)
+						} else if (!taskCancelResult.shouldContinue) {
+							console.error("TaskCancel hook indicated an issue (already aborted, shouldContinue: false)")
+						}
+					}
+					// TaskCancel is fire-and-forget - we don't block cancellation based on hook result
+				} catch (hookError) {
+					const errorMessage = `TaskCancel hook failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`
+					Logger.error(errorMessage, hookError)
+					// Show error to user but continue with abort (non-fatal)
+					// Only display if not already aborted
+					if (!this.taskState.abort) {
+						await this.say("error", errorMessage).catch(() => {
+							// If say() fails, already logged above
+						})
+					}
+				}
+			}
+
 			// Check for incomplete progress before aborting
 			if (this.FocusChainManager) {
 				this.FocusChainManager.checkIncompleteProgressOnCompletion()
@@ -2293,7 +2398,11 @@ export class Task {
 			if (shouldCompact) {
 				userContent.push({
 					type: "text",
-					text: summarizeTask(this.stateManager.getGlobalSettingsKey("focusChainSettings")),
+					text: summarizeTask(
+						this.stateManager.getGlobalSettingsKey("focusChainSettings"),
+						this.cwd,
+						isMultiRootEnabled(this.stateManager),
+					),
 				})
 			}
 		} else {
