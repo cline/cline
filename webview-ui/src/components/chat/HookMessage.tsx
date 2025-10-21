@@ -8,7 +8,7 @@ import PendingToolInfo from "./PendingToolInfo"
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
 const successColor = "var(--vscode-charts-green)"
-const cancelledColor = "var(--vscode-descriptionForeground)"
+const _cancelledColor = "var(--vscode-descriptionForeground)"
 
 interface HookMessageProps {
 	message: ClineMessage
@@ -27,7 +27,6 @@ interface HookMetadata {
 	status: string
 	exitCode?: number
 	hasJsonResponse?: boolean
-	shouldContinue?: boolean
 	pendingToolInfo?: {
 		tool: string
 		path?: string
@@ -199,15 +198,6 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 								(exit: {metadata.exitCode})
 							</span>
 						)}
-						{metadata.shouldContinue === false && (
-							<span
-								style={{
-									color: "var(--vscode-descriptionForeground)",
-									fontSize: "12px",
-								}}>
-								(shouldContinue: false)
-							</span>
-						)}
 					</div>
 					{isRunning && (
 						<button
@@ -261,16 +251,7 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 							fontSize: "13px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Hook must return JSON with{" "}
-						<code
-							style={{
-								backgroundColor: "var(--vscode-textCodeBlock-background)",
-								padding: "2px 4px",
-								borderRadius: "3px",
-							}}>
-							shouldContinue
-						</code>{" "}
-						boolean field.
+						Hook returned invalid JSON. See error details below for more information.
 					</div>
 				)}
 
