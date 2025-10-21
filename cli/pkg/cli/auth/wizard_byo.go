@@ -108,19 +108,22 @@ func (pw *ProviderWizard) handleAddProvider() error {
 	}
 
 	// Step 3: Get API key first (for non-Bedrock providers)
-	apiKey, err := PromptForAPIKey(provider)
+	apiKeyResult, err := PromptForAPIKey(provider)
 	if err != nil {
 		return fmt.Errorf("failed to get API key: %w", err)
 	}
 
+	// Parse the result - for OpenAI provider, it may contain both API key and base URL
+	apiKey, baseURL := parseAPIKeyResult(apiKeyResult)
+
 	// Step 4: Try to fetch models and let user select (with fallback to manual entry for providers that don't support fetch)
-	modelID, modelInfo, err := pw.selectModel(provider, apiKey)
+	modelID, modelInfo, err := pw.selectModel(provider, apiKey, baseURL)
 	if err != nil {
 		return fmt.Errorf("model selection failed: %w", err)
 	}
 
 	// Step 5: Apply configuration using AddProviderPartial
-	if err := AddProviderPartial(pw.ctx, pw.manager, provider, modelID, apiKey, modelInfo); err != nil {
+	if err := AddProviderPartialWithBaseURL(pw.ctx, pw.manager, provider, modelID, apiKey, baseURL, modelInfo); err != nil {
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
@@ -144,7 +147,7 @@ func (pw *ProviderWizard) handleAddBedrockProvider() error {
 	}
 
 	// Step 2: Select model
-	modelID, modelInfo, err := pw.selectModel(cline.ApiProvider_BEDROCK, "")
+	modelID, modelInfo, err := pw.selectModel(cline.ApiProvider_BEDROCK, "", "")
 	if err != nil {
 		return fmt.Errorf("model selection failed: %w", err)
 	}
@@ -175,14 +178,29 @@ func (pw *ProviderWizard) handleListProviders() error {
 	return nil
 }
 
+// parseAPIKeyResult parses the API key result which may contain both API key and base URL
+func parseAPIKeyResult(result string) (apiKey string, baseURL string) {
+	// Check if result contains the special format with base URL
+	if strings.HasPrefix(result, "APIKEY:") && strings.Contains(result, "|BASEURL:") {
+		parts := strings.SplitN(result, "|BASEURL:", 2)
+		apiKey = strings.TrimPrefix(parts[0], "APIKEY:")
+		if len(parts) > 1 {
+			baseURL = parts[1]
+		}
+		return apiKey, baseURL
+	}
+	// Otherwise, it's just the API key
+	return result, ""
+}
+
 // selectModel attempts to fetch available models and let user select, or falls back to manual entry
-func (pw *ProviderWizard) selectModel(provider cline.ApiProvider, apiKey string) (string, interface{}, error) {
+func (pw *ProviderWizard) selectModel(provider cline.ApiProvider, apiKey string, baseURL string) (string, interface{}, error) {
 	// For providers that support model fetching, try to fetch and display models
 	canFetchModels := pw.supportsModelFetching(provider)
 
 	if canFetchModels {
 		fmt.Println("Fetching available models...")
-		models, modelInfoMap, err := pw.fetchModelsForProvider(provider, apiKey)
+		models, modelInfoMap, err := pw.fetchModelsForProvider(provider, apiKey, baseURL)
 
 		if err != nil {
 			fmt.Println("\n⚠ Unable to fetch model list from the provider. Please enter the model ID manually instead.")
@@ -229,7 +247,7 @@ func (pw *ProviderWizard) supportsModelFetching(provider cline.ApiProvider) bool
 
 // fetchModelsForProvider fetches models for a given provider
 // Supports both dynamic API fetching (OpenRouter, OpenAI, Ollama) and static model lists (Anthropic, Bedrock, Gemini, X AI)
-func (pw *ProviderWizard) fetchModelsForProvider(provider cline.ApiProvider, apiKey string) ([]string, map[string]interface{}, error) {
+func (pw *ProviderWizard) fetchModelsForProvider(provider cline.ApiProvider, apiKey string, baseURL string) ([]string, map[string]interface{}, error) {
 	// Try dynamic/remote model fetching first
 	switch provider {
 	case cline.ApiProvider_OPENROUTER:
@@ -241,8 +259,10 @@ func (pw *ProviderWizard) fetchModelsForProvider(provider cline.ApiProvider, api
 		return ConvertModelsMapToSlice(interfaceMap), interfaceMap, nil
 
 	case cline.ApiProvider_OPENAI:
-		// For OpenAI, we need to pass the base URL and API key
-		baseURL := "https://api.openai.com/v1" // Default OpenAI API base URL
+		// For OpenAI, use the provided base URL or default to standard OpenAI API
+		if baseURL == "" {
+			baseURL = "https://api.openai.com/v1"
+		}
 		modelIDs, err := FetchOpenAiModels(pw.ctx, pw.manager, baseURL, apiKey)
 		if err != nil {
 			return nil, nil, err
@@ -410,8 +430,8 @@ func (pw *ProviderWizard) handleChangeModel() error {
 	fmt.Printf("\nChanging model for %s\n", GetProviderDisplayName(provider))
 	fmt.Printf("Current model: %s\n\n", selectedProvider.ModelID)
 
-	// Step 5: Retrieve API key if needed for model fetching
-	var apiKey string
+	// Step 5: Retrieve API key and base URL if needed for model fetching
+	var apiKey, baseURL string
 	if pw.supportsModelFetching(provider) {
 		// For providers that support fetching, we need to retrieve the API key from state
 		state, err := pw.manager.GetClient().State.GetLatestState(pw.ctx, &cline.EmptyRequest{})
@@ -433,9 +453,16 @@ func (pw *ProviderWizard) handleChangeModel() error {
 		if apiKey == "" {
 			return fmt.Errorf("no API key found for provider %s", GetProviderDisplayName(provider))
 		}
+
+		// For OpenAI provider, also retrieve base URL if configured
+		if provider == cline.ApiProvider_OPENAI {
+			if url, ok := apiConfig["openAiBaseUrl"].(string); ok {
+				baseURL = url
+			}
+		}
 	}
 
-	modelID, modelInfo, err := pw.selectModel(provider, apiKey)
+	modelID, modelInfo, err := pw.selectModel(provider, apiKey, baseURL)
 	if err != nil {
 		return fmt.Errorf("model selection failed: %w", err)
 	}

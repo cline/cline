@@ -18,8 +18,8 @@ type BYOProviderOption struct {
 func GetBYOProviderList() []BYOProviderOption {
 	return []BYOProviderOption{
 		{Name: "Anthropic", Provider: cline.ApiProvider_ANTHROPIC},
-		{Name: "OpenAI", Provider: cline.ApiProvider_OPENAI},
-		{Name: "OpenAI Native", Provider: cline.ApiProvider_OPENAI_NATIVE},
+		{Name: "OpenAI (including compatible endpoints)", Provider: cline.ApiProvider_OPENAI},
+		{Name: "OpenAI (standard API only)", Provider: cline.ApiProvider_OPENAI_NATIVE},
 		{Name: "OpenRouter", Provider: cline.ApiProvider_OPENROUTER},
 		{Name: "X AI (Grok)", Provider: cline.ApiProvider_XAI},
 		{Name: "AWS Bedrock", Provider: cline.ApiProvider_BEDROCK},
@@ -82,9 +82,9 @@ func GetBYOProviderPlaceholder(provider cline.ApiProvider) string {
 	case cline.ApiProvider_ANTHROPIC:
 		return "e.g., claude-sonnet-4-5-20250929"
 	case cline.ApiProvider_OPENAI:
-		return "e.g., gpt-5-2025-08-07"
+		return "e.g., gpt-4o or custom model name"
 	case cline.ApiProvider_OPENAI_NATIVE:
-		return "e.g., openai/gpt-oss-120b"
+		return "e.g., gpt-5-2025-08-07"
 	case cline.ApiProvider_OPENROUTER:
 		return "e.g., google/gemini-2.0-flash-exp:free"
 	case cline.ApiProvider_XAI:
@@ -127,7 +127,7 @@ func GetBYOAPIKeyFieldConfig(provider cline.ApiProvider) APIKeyFieldConfig {
 }
 
 // PromptForAPIKey prompts the user to enter an API key (or base URL for Ollama).
-// For OpenAI Native provider, also prompts for an optional base URL.
+// For OpenAI provider (not Native), also prompts for an optional base URL for OpenAI-compatible endpoints.
 func PromptForAPIKey(provider cline.ApiProvider) (string, error) {
 	var apiKey string
 	config := GetBYOAPIKeyFieldConfig(provider)
@@ -152,13 +152,13 @@ func PromptForAPIKey(provider cline.ApiProvider) (string, error) {
 		return "", fmt.Errorf("failed to get API key: %w", err)
 	}
 
-	// For OpenAI Native provider, also prompt for base URL
-	if provider == cline.ApiProvider_OPENAI_NATIVE {
+	// For OpenAI provider (not Native), also prompt for base URL for OpenAI-compatible endpoints
+	if provider == cline.ApiProvider_OPENAI {
 		var baseURL string
 		baseURLForm := huh.NewForm(
 			huh.NewGroup(
 				huh.NewInput().
-					Title("Base URL (optional, for OpenAI-compatible providers)").
+					Title("Base URL (optional, for OpenAI-compatible endpoints)").
 					Placeholder("e.g., https://api.example.com/v1").
 					Value(&baseURL).
 					Description("Press Enter to skip if using standard OpenAI API"),
@@ -169,8 +169,12 @@ func PromptForAPIKey(provider cline.ApiProvider) (string, error) {
 			return "", fmt.Errorf("failed to get base URL: %w", err)
 		}
 
-		// TODO - connect baseURL
-		_ = baseURL
+		// Store the base URL if provided
+		if baseURL != "" {
+			// Return a special format that includes both API key and base URL
+			// The caller will need to parse this and store both values
+			return fmt.Sprintf("APIKEY:%s|BASEURL:%s", apiKey, baseURL), nil
+		}
 	}
 
 	return apiKey, nil
