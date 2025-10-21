@@ -54,6 +54,6 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 		name: /^🎉 New in v\d/,
 	})
 	await expect(releaseBanner).toBeVisible()
-	await sidebar.getByTestId("close-button").locator("span").first().click()
+	await sidebar.getByTestId("close-announcement-button").click()
 	await expect(releaseBanner).not.toBeVisible()
 })
