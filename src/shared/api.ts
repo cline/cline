@@ -228,6 +228,11 @@ export interface ModelInfo {
 		cacheWritesPrice?: number
 		cacheReadsPrice?: number
 	}[]
+	// OpenRouter provider preferences - used to route to high-quality providers instead of random routing
+	preferredProviders?: {
+		order: string[] // Priority list of providers to use, e.g., ["baseten", "fireworks", "together"]
+		allowFallbacks?: boolean // Whether to allow fallback to other providers if preferred ones fail (default: false)
+	}
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {

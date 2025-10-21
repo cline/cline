@@ -173,6 +173,11 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 						modelInfo.inputPrice = 0
 						modelInfo.cacheWritesPrice = 0.14
 						modelInfo.cacheReadsPrice = 0.014
+						// Route DeepSeek models to providers with good deployments
+						modelInfo.preferredProviders = {
+							order: ["fireworks", "nebius", "chutes", "together"],
+							allowFallbacks: false,
+						}
 						break
 					case "x-ai/grok-3-beta":
 						modelInfo.supportsPromptCache = true
@@ -180,10 +185,14 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 						modelInfo.cacheReadsPrice = 0
 						break
 					case "moonshotai/kimi-k2":
-						// forcing kimi-k2 to use the together provider for full context and best throughput
+						// forcing kimi-k2 to use specific providers for full context and best throughput
 						modelInfo.inputPrice = 1
 						modelInfo.outputPrice = 3
 						modelInfo.contextWindow = 131_000
+						modelInfo.preferredProviders = {
+							order: ["groq", "together", "baseten", "parasail", "novita", "deepinfra"],
+							allowFallbacks: false,
+						}
 						break
 					case "openai/gpt-5":
 					case "openai/gpt-5-chat":
@@ -195,6 +204,48 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 					case "x-ai/grok-code-fast-1":
 						modelInfo.supportsPromptCache = true
 						modelInfo.cacheReadsPrice = 0.02
+						break
+					case "qwen/qwen3-coder":
+					case "qwen/qwen3-coder:free":
+					case "qwen/qwen3-235b-a22b-thinking-2507":
+					case "qwen/qwen3-235b-a22b-07-25":
+					case "qwen/qwen3-235b-a22b-07-25:free":
+					case "qwen/qwen3-235b-a22b:free":
+					case "qwen/qwen3-30b-a3b-thinking-2507":
+					case "qwen/qwen3-30b-a3b-instruct-2507":
+					case "qwen/qwen3-30b-a3b:free":
+					case "qwen/qwen3-next-80b-a3b-thinking":
+					case "qwen/qwen3-next-80b-a3b-instruct":
+					case "qwen/qwen3-max":
+						// Route Qwen3 models to high-quality providers (Baseten primary, Fireworks fallback)
+						modelInfo.preferredProviders = {
+							order: ["baseten", "fireworks", "together", "deepinfra"],
+							allowFallbacks: false,
+						}
+						break
+					case "deepseek/deepseek-v3.1-terminus":
+					case "deepseek/deepseek-r1":
+					case "deepseek/deepseek-r1-distill-llama-70b":
+					case "deepseek/deepseek-r1-distill-qwen-14b":
+					case "deepseek/deepseek-r1-0528-qwen3-8b:free":
+					case "deepseek/deepseek-v3-base:free":
+						// Route DeepSeek models to providers with good deployments
+						modelInfo.preferredProviders = {
+							order: ["fireworks", "nebius", "chutes", "together"],
+							allowFallbacks: false,
+						}
+						break
+					case "z-ai/glm-4.6":
+					case "z-ai/glm-4.5v":
+					case "z-ai/glm-4.5":
+					case "z-ai/glm-4.5-air":
+					case "z-ai/glm-4.5-air:free":
+					case "thudm/glm-z1-32b:free":
+						// Route GLM models to providers with good deployments
+						modelInfo.preferredProviders = {
+							order: ["baseten", "fireworks", "chutes"],
+							allowFallbacks: false,
+						}
 						break
 					default:
 						if (rawModel.id.startsWith("openai/")) {
