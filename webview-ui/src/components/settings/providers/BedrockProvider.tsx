@@ -144,7 +144,9 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 						<label htmlFor="aws-region-dropdown">
 							<span className="font-medium">AWS Region</span>
 						</label>
-						<i className="codicon codicon-lock text-description text-sm flex items-center" />
+						{remoteConfigSettings?.awsRegion !== undefined && (
+							<i className="codicon codicon-lock text-description text-sm flex items-center" />
+						)}
 					</div>
 					<VSCodeDropdown
 						className="w-full"
@@ -181,7 +183,9 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								}}>
 								Use custom VPC endpoint
 							</VSCodeCheckbox>
-							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+							{remoteConfigSettings?.awsBedrockEndpoint !== undefined && (
+								<i className="codicon codicon-lock text-description text-sm flex items-center" />
+							)}
 						</div>
 
 						{awsEndpointSelected && (
@@ -211,7 +215,9 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 							}}>
 							Use cross-region inference
 						</VSCodeCheckbox>
-						<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+						{remoteConfigSettings?.awsUseCrossRegionInference !== undefined && (
+							<i className="codicon codicon-lock text-description text-sm flex items-center" />
+						)}
 					</div>
 				</HeroTooltip>
 
@@ -229,7 +235,9 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 								}}>
 								Use global inference profile
 							</VSCodeCheckbox>
-							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
+							{remoteConfigSettings?.awsUseGlobalInference !== undefined && (
+								<i className="codicon codicon-lock text-description text-sm" />
+							)}
 						</div>
 					</HeroTooltip>
 				)}
@@ -247,8 +255,10 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 									handleFieldChange("awsBedrockUsePromptCache", isChecked)
 								}}>
 								Use prompt caching
-							</VSCodeCheckbox>
-							<i className="codicon codicon-lock text-description text-sm" />
+							</VSCodeCheckbox>{" "}
+							{remoteConfigSettings?.awsBedrockUsePromptCache !== undefined && (
+								<i className="codicon codicon-lock text-description text-sm" />
+							)}
 						</div>
 					</HeroTooltip>
 				)}
@@ -377,8 +387,8 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					)}
 
 					{(CLAUDE_MODELS.includes(selectedModelId) ||
-						(modeFields.awsBedrockCustomModelBaseId &&
-							modeFields.awsBedrockCustomSelected &&
+						(modeFields.awsBedrockCustomSelected &&
+							modeFields.awsBedrockCustomModelBaseId &&
 							CLAUDE_MODELS.includes(modeFields.awsBedrockCustomModelBaseId))) && (
 						<ThinkingBudgetSlider currentMode={currentMode} />
 					)}
