@@ -492,8 +492,12 @@ export const ExtensionStateContextProvider: React.FC<{
 					...models,
 				})
 			},
-			onError: (error) => {},
-			onComplete: () => {},
+			onError: (error) => {
+				console.error("Error in OpenRouter models subscription:", error)
+			},
+			onComplete: () => {
+				console.log("OpenRouter models subscription completed")
+			},
 		})
 
 		// Initialize webview using gRPC
@@ -639,7 +643,7 @@ export const ExtensionStateContextProvider: React.FC<{
 					...models,
 				})
 			})
-			.catch((error: Error) => console.error("Failed to refresh OpenRouter models:", error))
+			.catch((error: Error) => console.error("Failed to refresh Hicap models:", error))
 	}, [])
 
 	const contextValue: ExtensionStateContextType = {
