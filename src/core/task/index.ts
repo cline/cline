@@ -786,6 +786,8 @@ export class Task {
 		}
 
 		let hookMessageTs: number | undefined
+		const abortController = new AbortController()
+
 		try {
 			// Show hook execution indicator and capture timestamp
 			const hookMetadata = {
@@ -794,12 +796,22 @@ export class Task {
 			}
 			hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
 
+			// Track active hook execution for cancellation (only if message was created)
+			if (hookMessageTs !== undefined) {
+				this.taskState.activeHookExecution = {
+					hookName: "UserPromptSubmit",
+					toolName: undefined,
+					messageTs: hookMessageTs,
+					abortController,
+				}
+			}
+
 			// Create streaming callback
 			const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
 				await this.say("hook_output", line)
 			}
 
-			const hook = await hookFactory.createWithStreaming("UserPromptSubmit", streamCallback)
+			const hook = await hookFactory.createWithStreaming("UserPromptSubmit", streamCallback, abortController.signal)
 
 			// Serialize UserContent to string for the hook
 			const promptText = userContent
@@ -1313,6 +1325,8 @@ export class Task {
 
 			if (hasTaskResumeHook) {
 				let hookMessageTs: number | undefined
+				const abortController = new AbortController()
+
 				try {
 					// Show hook execution indicator
 					const hookMetadata = {
@@ -1321,12 +1335,26 @@ export class Task {
 					}
 					hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
 
+					// Track active hook execution for cancellation (only if message was created)
+					if (hookMessageTs !== undefined) {
+						this.taskState.activeHookExecution = {
+							hookName: "TaskResume",
+							toolName: undefined,
+							messageTs: hookMessageTs,
+							abortController,
+						}
+					}
+
 					// Create streaming callback
 					const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
 						await this.say("hook_output", line)
 					}
 
-					const taskResumeHook = await hookFactory.createWithStreaming("TaskResume", streamCallback)
+					const taskResumeHook = await hookFactory.createWithStreaming(
+						"TaskResume",
+						streamCallback,
+						abortController.signal,
+					)
 
 					const clineMessages = this.messageStateHandler.getClineMessages()
 					const taskResumeResult = await taskResumeHook.run({
@@ -1346,6 +1374,9 @@ export class Task {
 						},
 					})
 					console.log("[TaskResume Hook]", taskResumeResult)
+
+					// Clear active hook execution
+					this.taskState.activeHookExecution = undefined
 
 					// Update hook status to completed
 					if (hookMessageTs !== undefined) {
@@ -1372,6 +1403,9 @@ export class Task {
 						})
 					}
 				} catch (hookError) {
+					// Clear active hook execution
+					this.taskState.activeHookExecution = undefined
+
 					// Extract structured error info if available
 					const isStructuredError = HookExecutionError.isHookError(hookError)
 					const errorInfo = isStructuredError ? hookError.errorInfo : null
