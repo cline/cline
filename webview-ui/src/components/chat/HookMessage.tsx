@@ -168,20 +168,14 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 								width: "8px",
 								height: "8px",
 								borderRadius: "50%",
-								backgroundColor: isRunning ? successColor : isFailed ? errorColor : successColor,
+								backgroundColor: isRunning ? successColor : isFailed || isCancelled ? errorColor : successColor,
 								animation: isRunning ? "pulse 2s ease-in-out infinite" : "none",
 								flexShrink: 0,
 							}}
 						/>
 						<span
 							style={{
-								color: isRunning
-									? successColor
-									: isFailed
-										? errorColor
-										: isCancelled
-											? cancelledColor
-											: successColor,
+								color: isRunning ? successColor : isFailed || isCancelled ? errorColor : successColor,
 								fontWeight: 500,
 								fontSize: "13px",
 								flexShrink: 0,
