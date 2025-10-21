@@ -119,6 +119,7 @@ type TaskParams = {
 	historyItem?: HistoryItem
 	taskId: string
 	taskLockAcquired: boolean
+	skipResume?: boolean
 }
 
 export class Task {
@@ -208,6 +209,7 @@ export class Task {
 			historyItem,
 			taskId,
 			taskLockAcquired,
+			skipResume,
 		} = params
 
 		this.taskInitializationStartTime = performance.now()
@@ -427,8 +429,12 @@ export class Task {
 		this.browserSession.setUlid(this.ulid)
 
 		// Continue with task initialization
-		if (historyItem) {
+		if (historyItem && !skipResume) {
+			// Normal resume - load state and start workflow
 			this.resumeTaskFromHistory()
+		} else if (historyItem && skipResume) {
+			// Cancel scenario - load state but don't start workflow
+			this.loadTaskStateWithoutWorkflow()
 		} else if (task || images || files) {
 			this.startTask(task, images, files)
 		}
@@ -797,6 +803,7 @@ export class Task {
 					attachments: [], // Images are inline in UserContent
 				},
 			})
+			console.log("[UserPromptSubmit Hook]", result)
 
 			// Update hook status to completed (update the same message)
 			if (hookMessageTs !== undefined) {
@@ -918,6 +925,7 @@ export class Task {
 							},
 						},
 					})
+					console.log("[TaskStart Hook]", taskStartResult)
 
 					// Update hook status to completed (update the same message)
 					if (hookMessageTs !== undefined) {
@@ -938,8 +946,6 @@ export class Task {
 
 					if (!taskStartResult.shouldContinue) {
 						const errorMessage = taskStartResult.errorMessage || "TaskStart hook prevented task from starting"
-						// Log to console for developers
-						console.error("[TaskStart Hook] Prevented task start:", errorMessage)
 
 						// Update hook status to show blocking
 						if (hookMessageTs !== undefined) {
@@ -981,19 +987,6 @@ export class Task {
 					const isStructuredError = HookExecutionError.isHookError(hookError)
 					const errorInfo = isStructuredError ? hookError.errorInfo : null
 
-					// Log technical details to console for developers
-					if (errorInfo) {
-						console.error(`[TaskStart Hook] ${errorInfo.type} error:`, errorInfo.message)
-						if (errorInfo.details) {
-							console.error(`[TaskStart Hook] Details:`, errorInfo.details)
-						}
-						if (errorInfo.stderr) {
-							console.error(`[TaskStart Hook] stderr:`, errorInfo.stderr)
-						}
-					} else {
-						console.error(`[TaskStart Hook] Error:`, hookError)
-					}
-
 					// Update hook status with structured error info (update the same message if it exists)
 					if (hookMessageTs !== undefined) {
 						const clineMessages = this.messageStateHandler.getClineMessages()
@@ -1024,6 +1017,184 @@ export class Task {
 		}
 
 		await this.initiateTaskLoop(userContent)
+	}
+
+	/**
+	 * Loads task state without starting the workflow
+	 * Used when cancelling a task to keep it visible without triggering TaskResume hook
+	 * When the user clicks resume, this will continue the workflow directly
+	 */
+	private async loadTaskStateWithoutWorkflow() {
+		try {
+			await this.clineIgnoreController.initialize()
+		} catch (error) {
+			console.error("Failed to initialize ClineIgnoreController:", error)
+		}
+
+		const savedClineMessages = await getSavedClineMessages(this.taskId)
+
+		// Remove any resume messages that may have been added before
+		const lastRelevantMessageIndex = findLastIndex(
+			savedClineMessages,
+			(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"),
+		)
+		if (lastRelevantMessageIndex !== -1) {
+			savedClineMessages.splice(lastRelevantMessageIndex + 1)
+		}
+
+		// Remove incomplete api_req_started messages
+		const lastApiReqStartedIndex = findLastIndex(savedClineMessages, (m) => m.type === "say" && m.say === "api_req_started")
+		if (lastApiReqStartedIndex !== -1) {
+			const lastApiReqStarted = savedClineMessages[lastApiReqStartedIndex]
+			const { cost, cancelReason }: ClineApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
+			if (cost === undefined && cancelReason === undefined) {
+				savedClineMessages.splice(lastApiReqStartedIndex, 1)
+			}
+		}
+
+		await this.messageStateHandler.overwriteClineMessages(savedClineMessages)
+		this.messageStateHandler.setClineMessages(await getSavedClineMessages(this.taskId))
+
+		// Load API conversation history
+		const savedApiConversationHistory = await getSavedApiConversationHistory(this.taskId)
+		this.messageStateHandler.setApiConversationHistory(savedApiConversationHistory)
+
+		// Load context history state
+		await ensureTaskDirectoryExists(this.taskId)
+		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.taskId))
+
+		this.taskState.isInitialized = true
+
+		// Present the resume ask to show the resume button
+		const lastClineMessage = this.messageStateHandler
+			.getClineMessages()
+			.slice()
+			.reverse()
+			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"))
+
+		let askType: ClineAsk
+		if (lastClineMessage?.ask === "completion_result") {
+			askType = "resume_completed_task"
+		} else {
+			askType = "resume_task"
+		}
+
+		// Wait for user to click resume button
+		const { response, text, images, files } = await this.ask(askType)
+
+		if (response !== "yesButtonClicked") {
+			// Task was cleared (user started new task)
+			return
+		}
+
+		// User clicked resume - continue with workflow directly (without calling resumeTaskFromHistory to avoid double-ask)
+		// Note: In this flow, the response is always "yesButtonClicked" without additional feedback
+		// If we want to support feedback later, we would need to modify the ask interaction
+		let responseText: string | undefined
+		let responseImages: string[] | undefined
+		let responseFiles: string[] | undefined
+
+		// Prepare to continue the workflow
+		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] = await getSavedApiConversationHistory(
+			this.taskId,
+		)
+
+		// Remove the last user message so we can update it with the resume message
+		let modifiedOldUserContent: UserContent
+		let modifiedApiConversationHistory: Anthropic.Messages.MessageParam[]
+		if (existingApiConversationHistory.length > 0) {
+			const lastMessage = existingApiConversationHistory[existingApiConversationHistory.length - 1]
+			if (lastMessage.role === "assistant") {
+				modifiedApiConversationHistory = [...existingApiConversationHistory]
+				modifiedOldUserContent = []
+			} else if (lastMessage.role === "user") {
+				const existingUserContent: UserContent = Array.isArray(lastMessage.content)
+					? lastMessage.content
+					: [{ type: "text", text: lastMessage.content }]
+				modifiedApiConversationHistory = existingApiConversationHistory.slice(0, -1)
+				modifiedOldUserContent = [...existingUserContent]
+			} else {
+				throw new Error("Unexpected: Last message is not a user or assistant message")
+			}
+		} else {
+			throw new Error("Unexpected: No existing API conversation history")
+		}
+
+		const newUserContent: UserContent = [...modifiedOldUserContent]
+
+		const agoText = (() => {
+			const timestamp = lastClineMessage?.ts ?? Date.now()
+			const now = Date.now()
+			const diff = now - timestamp
+			const minutes = Math.floor(diff / 60000)
+			const hours = Math.floor(minutes / 60)
+			const days = Math.floor(hours / 24)
+
+			if (days > 0) {
+				return `${days} day${days > 1 ? "s" : ""} ago`
+			}
+			if (hours > 0) {
+				return `${hours} hour${hours > 1 ? "s" : ""} ago`
+			}
+			if (minutes > 0) {
+				return `${minutes} minute${minutes > 1 ? "s" : ""} ago`
+			}
+			return "just now"
+		})()
+
+		const wasRecent = lastClineMessage?.ts && Date.now() - lastClineMessage.ts < 30_000
+
+		const pendingContextWarning = await this.fileContextTracker.retrieveAndClearPendingFileContextWarning()
+		const hasPendingFileContextWarnings = pendingContextWarning && pendingContextWarning.length > 0
+
+		const mode = this.stateManager.getGlobalSettingsKey("mode")
+		const [taskResumptionMessage, userResponseMessage] = formatResponse.taskResumption(
+			mode === "plan" ? "plan" : "act",
+			agoText,
+			this.cwd,
+			wasRecent,
+			responseText,
+			hasPendingFileContextWarnings,
+		)
+
+		if (taskResumptionMessage !== "") {
+			newUserContent.push({
+				type: "text",
+				text: taskResumptionMessage,
+			})
+		}
+
+		if (userResponseMessage !== "") {
+			newUserContent.push({
+				type: "text",
+				text: userResponseMessage,
+			})
+		}
+
+		if (responseImages && responseImages.length > 0) {
+			newUserContent.push(...formatResponse.imageBlocks(responseImages))
+		}
+
+		if (responseFiles && responseFiles.length > 0) {
+			const fileContentString = await processFilesIntoText(responseFiles)
+			if (fileContentString) {
+				newUserContent.push({
+					type: "text",
+					text: fileContentString,
+				})
+			}
+		}
+
+		if (pendingContextWarning && pendingContextWarning.length > 0) {
+			const fileContextWarning = formatResponse.fileContextWarning(pendingContextWarning)
+			newUserContent.push({
+				type: "text",
+				text: fileContextWarning,
+			})
+		}
+
+		await this.messageStateHandler.overwriteApiConversationHistory(modifiedApiConversationHistory)
+		await this.initiateTaskLoop(newUserContent)
 	}
 
 	private async resumeTaskFromHistory() {
@@ -1123,6 +1294,7 @@ export class Task {
 							},
 						},
 					})
+					console.log("[TaskResume Hook]", taskResumeResult)
 
 					// Update hook status to completed
 					if (hookMessageTs !== undefined) {
@@ -1141,11 +1313,6 @@ export class Task {
 						}
 					}
 
-					// Check if hook indicates an error condition (non-blocking)
-					if (!taskResumeResult.shouldContinue && taskResumeResult.errorMessage) {
-						console.error("[TaskResume Hook] Error indicated:", taskResumeResult.errorMessage)
-					}
-
 					// Add context if provided
 					if (taskResumeResult.contextModification) {
 						newUserContent.push({
@@ -1157,19 +1324,6 @@ export class Task {
 					// Extract structured error info if available
 					const isStructuredError = HookExecutionError.isHookError(hookError)
 					const errorInfo = isStructuredError ? hookError.errorInfo : null
-
-					// Log technical details to console for developers
-					if (errorInfo) {
-						console.error(`[TaskResume Hook] ${errorInfo.type} error:`, errorInfo.message)
-						if (errorInfo.details) {
-							console.error(`[TaskResume Hook] Details:`, errorInfo.details)
-						}
-						if (errorInfo.stderr) {
-							console.error(`[TaskResume Hook] stderr:`, errorInfo.stderr)
-						}
-					} else {
-						console.error(`[TaskResume Hook] Error:`, hookError)
-					}
 
 					// Update hook status with structured error info
 					if (hookMessageTs !== undefined) {
@@ -1391,6 +1545,7 @@ export class Task {
 								},
 							},
 						})
+						console.log("[TaskCancel Hook]", taskCancelResult)
 
 						// Update hook status to completed (only if not already aborted)
 						if (!this.taskState.abort && hookMessageTs !== undefined) {
@@ -1408,30 +1563,10 @@ export class Task {
 								})
 							}
 						}
-
-						// Log any errors to console but don't block cancellation
-						if (taskCancelResult.errorMessage) {
-							console.error("[TaskCancel Hook] Error indicated:", taskCancelResult.errorMessage)
-						} else if (!taskCancelResult.shouldContinue) {
-							console.error("[TaskCancel Hook] shouldContinue: false")
-						}
 					} catch (hookError) {
 						// Extract structured error info if available
 						const isStructuredError = HookExecutionError.isHookError(hookError)
 						const errorInfo = isStructuredError ? hookError.errorInfo : null
-
-						// Log technical details to console for developers
-						if (errorInfo) {
-							console.error(`[TaskCancel Hook] ${errorInfo.type} error:`, errorInfo.message)
-							if (errorInfo.details) {
-								console.error(`[TaskCancel Hook] Details:`, errorInfo.details)
-							}
-							if (errorInfo.stderr) {
-								console.error(`[TaskCancel Hook] stderr:`, errorInfo.stderr)
-							}
-						} else {
-							console.error(`[TaskCancel Hook] Error:`, hookError)
-						}
 
 						// Update hook status with structured error info (only if not already aborted)
 						if (!this.taskState.abort && hookMessageTs !== undefined) {
