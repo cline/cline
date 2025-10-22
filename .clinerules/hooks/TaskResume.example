@@ -10,6 +10,6 @@ cat <<EOF
 {
   "cancel": false,
   "contextModification": "WORKSPACE_RULES: This is from the local bar/ workspace.",
-  "errorMessage": "PostToolUse hook custom errorMessage: foo"
+  "errorMessage": "TaskResume hook custom errorMessage: foo"
 }
 EOF
