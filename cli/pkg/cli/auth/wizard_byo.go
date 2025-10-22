@@ -40,7 +40,7 @@ func (pw *ProviderWizard) showMainMenu() (string, error) {
 			huh.NewSelect[string]().
 				Title("What would you like to do?").
 				Options(
-					huh.NewOption("Configure a new provider", "add"),
+					huh.NewOption("Add or change an API provider", "add"),
 					huh.NewOption("Change model for API provider", "change-model"),
 					huh.NewOption("Remove a provider", "remove"),
 					huh.NewOption("List configured providers", "list"),
@@ -107,8 +107,8 @@ func (pw *ProviderWizard) handleAddProvider() error {
 		return pw.handleAddBedrockProvider()
 	}
 
-	// Step 3: Get API key first (for non-Bedrock providers)
-	apiKey, err := PromptForAPIKey(provider)
+	// Step 3: Get API key and optional baseURL (for non-Bedrock providers)
+	apiKey, baseURL, err := PromptForAPIKey(provider)
 	if err != nil {
 		return fmt.Errorf("failed to get API key: %w", err)
 	}
@@ -120,7 +120,7 @@ func (pw *ProviderWizard) handleAddProvider() error {
 	}
 
 	// Step 5: Apply configuration using AddProviderPartial
-	if err := AddProviderPartial(pw.ctx, pw.manager, provider, modelID, apiKey, modelInfo); err != nil {
+	if err := AddProviderPartial(pw.ctx, pw.manager, provider, modelID, apiKey, baseURL, modelInfo); err != nil {
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
