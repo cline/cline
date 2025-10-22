@@ -476,6 +476,9 @@ export class ToolExecutor {
 		const userEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		const hooksEnabled = featureFlagEnabled && userEnabled
 
+		// Track if we need to cancel after hooks complete
+		let shouldCancelAfterHook = false
+
 		// ============================================================
 		// PHASE 1: Run PreToolUse hook (OUTSIDE try-catch-finally)
 		// This allows early return on cancellation without triggering finally block
@@ -649,6 +652,11 @@ export class ToolExecutor {
 						}
 					}
 
+					// If task was aborted (e.g., via cancel button), stop execution
+					if (this.taskState.abort) {
+						shouldCancelAfterHook = true
+					}
+
 					// Hook errors never block tool execution (fail-open)
 					// Only explicit cancel: true blocks execution
 					// Don't return - continue to tool execution below
@@ -663,7 +671,6 @@ export class ToolExecutor {
 		let executionSuccess = true
 		let toolResult: any = null
 		const executionStartTime = Date.now()
-		let shouldCancelAfterHook = false
 
 		try {
 			// Execute the actual tool
@@ -810,6 +817,11 @@ export class ToolExecutor {
 									text: JSON.stringify(failedMetadata),
 								})
 							}
+						}
+
+						// If task was aborted (e.g., via cancel button), stop execution
+						if (this.taskState.abort) {
+							shouldCancelAfterHook = true
 						}
 
 						// PostToolUse hook failure is non-fatal (observation only)

@@ -1,4 +1,5 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { memo, useMemo, useState } from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { CHAT_ROW_EXPANDED_BG_COLOR } from "../common/CodeBlock"
@@ -203,8 +204,10 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 						<button
 							onClick={(e) => {
 								e.stopPropagation()
-								TaskServiceClient.cancelHookExecution({}).catch((err) =>
-									console.error("Failed to cancel hook:", err),
+								// Use cancelTask instead of cancelHookExecution to trigger full cancel flow
+								// This ensures task is re-initialized and resume button appears immediately
+								TaskServiceClient.cancelTask(EmptyRequest.create({})).catch((err) =>
+									console.error("Failed to cancel task:", err),
 								)
 							}}
 							onMouseEnter={(e) => {
