@@ -28,6 +28,7 @@
 		unicode-bidi: isolate;
 	}
 	span {
+		@apply leading-5;
 		font-size: inherit;
 		color: inherit;
 	}

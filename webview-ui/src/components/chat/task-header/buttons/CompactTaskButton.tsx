@@ -13,7 +13,7 @@ const CompactTaskButton: React.FC<{
 			<TooltipTrigger className={cn("flex items-center", className)}>
 				<Button
 					aria-label="Compact Task"
-					className="[&_svg]:size-4"
+					className="[&_svg]:size-3"
 					onClick={(e) => {
 						e.preventDefault()
 						e.stopPropagation()

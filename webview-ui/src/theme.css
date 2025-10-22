@@ -94,7 +94,8 @@
 	--color-sidebar-ring: var(--sidebar-ring);
 	--size-1: calc(0.5 * var(--vscode-font-size));
 	--size-2: calc(1 * var(--vscode-font-size));
-	--size-3: calc(1.5 * var(--vscode-font-size));
+	--size-3: calc(1.25 * var(--vscode-font-size));
+	--size-4: calc(1.5 * var(--vscode-font-size));
 }
 
 :root {

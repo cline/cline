@@ -30,6 +30,7 @@ import McpResourceRow from "@/components/mcp/configuration/tabs/installed/server
 import McpToolRow from "@/components/mcp/configuration/tabs/installed/server-row/McpToolRow"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { cn } from "@/lib/utils"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
@@ -1234,6 +1235,10 @@ export const ChatRowContent = memo(
 										{title}
 										{/* Need to render this every time since it affects height of row by 2px */}
 										<VSCodeBadge
+											className={cn("text-sm", {
+												"opacity-100": cost != null && cost > 0,
+												"opacity-0": cost == null || cost <= 0,
+											})}
 											style={{
 												opacity: cost != null && cost > 0 ? 1 : 0,
 											}}>

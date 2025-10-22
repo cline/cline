@@ -26,7 +26,7 @@ const OpenDiskConversationHistoryButton: React.FC<{
 				<Button
 					aria-label="Open Disk Conversation History"
 					onClick={() => handleOpenDiskConversationHistory()}
-					size="xs"
+					size="icon"
 					variant="icon">
 					<ArrowDownToLineIcon />
 				</Button>
