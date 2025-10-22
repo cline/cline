@@ -594,7 +594,7 @@ func TestJSONOutputInstanceDefault(t *testing.T) {
 // TestJSONOutputTaskList tests task list JSON output
 func TestJSONOutputTaskList(t *testing.T) {
 	ctx := context.Background()
-	setTempClineDir(t)
+	setTempClineDirWithManualCleanup(t) // Use manual cleanup to avoid git checkpoint cleanup errors
 
 	// Create a task first
 	_ = mustRunCLI(ctx, t, "instance", "new")
@@ -618,7 +618,7 @@ func TestJSONOutputTaskList(t *testing.T) {
 // TestJSONOutputTaskOpen tests task open JSON output
 func TestJSONOutputTaskOpen(t *testing.T) {
 	ctx := context.Background()
-	setTempClineDir(t)
+	setTempClineDirWithManualCleanup(t) // Use manual cleanup to avoid git checkpoint cleanup errors
 
 	// Create a task first
 	_ = mustRunCLI(ctx, t, "instance", "new")
@@ -661,7 +661,7 @@ func TestJSONOutputTaskOpen(t *testing.T) {
 // TestJSONOutputTaskView tests task view JSON output
 func TestJSONOutputTaskView(t *testing.T) {
 	ctx := context.Background()
-	setTempClineDir(t)
+	setTempClineDirWithManualCleanup(t) // Use manual cleanup to avoid git checkpoint cleanup errors
 
 	// Create a task first
 	_ = mustRunCLI(ctx, t, "instance", "new")
