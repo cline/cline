@@ -1,5 +1,5 @@
 import { Logger } from "@/services/logging/Logger"
-import { FEATURE_FLAGS, FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
+import { FEATURE_FLAGS, FeatureFlag, FeatureFlagDefaultValue } from "@/shared/services/feature-flags/feature-flags"
 import type { IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 
 // Default cache time-to-live (TTL) for feature flags - an hour
@@ -43,7 +43,8 @@ export class FeatureFlagsService {
 	private async getFeatureFlag(flagName: FeatureFlag): Promise<boolean> {
 		try {
 			const flagValue = await this.provider.getFeatureFlag(flagName)
-			const enabled = flagValue === true
+			const defaultValue = FeatureFlagDefaultValue[flagName]
+			const enabled = flagValue === true || (flagValue === undefined && defaultValue === true)
 			this.cache.set(flagName, enabled)
 			return enabled
 		} catch (error) {
@@ -75,20 +76,20 @@ export class FeatureFlagsService {
 	 * Cache is updated periodically via poll(), and is generated on extension startup,
 	 * and whenever the user logs in.
 	 */
-	public getBooleanFlagEnabled(flagName: FeatureFlag, defaultValue = false): boolean {
-		return this.cache.get(flagName) ?? defaultValue
+	public getBooleanFlagEnabled(flagName: FeatureFlag): boolean {
+		return this.cache.get(flagName) ?? false
 	}
 
 	public getWorkOsAuthEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.WORKOS_AUTH, false)
+		return this.getBooleanFlagEnabled(FeatureFlag.WORKOS_AUTH)
 	}
 
 	public getDoNothingFlag(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.DO_NOTHING, false)
+		return this.getBooleanFlagEnabled(FeatureFlag.DO_NOTHING)
 	}
 
 	public getHooksEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.HOOKS, false)
+		return this.getBooleanFlagEnabled(FeatureFlag.HOOKS)
 	}
 
 	/**
