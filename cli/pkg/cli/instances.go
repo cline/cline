@@ -11,6 +11,7 @@ import (
 
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/common"
 	client2 "github.com/cline/grpc-go/client"
 	"github.com/cline/grpc-go/cline"
@@ -297,27 +298,21 @@ func newInstanceListCommand() *cobra.Command {
 			}
 
 			// Build instance data
-			type instanceRow struct {
-				address   string
-				status    string
-				version   string
-				lastSeen  string
-				pid       string
-				platform  string
-				isDefault string
+			type instanceData struct {
+				Address   string `json:"address"`
+				Status    string `json:"status"`
+				Version   string `json:"version"`
+				LastSeen  string `json:"lastSeen"`
+				PID       string `json:"pid"`
+				Platform  string `json:"platform"`
+				IsDefault bool   `json:"isDefault"`
 			}
 
-			var rows []instanceRow
+			var instanceList []instanceData
 			for _, instance := range instances {
-				isDefault := ""
-				if instance.Address == defaultInstance {
-					isDefault = "✓"
-				}
+				isDefaultBool := instance.Address == defaultInstance
 
-				lastSeen := instance.LastSeen.Format("15:04:05")
-				if time.Since(instance.LastSeen) > 24*time.Hour {
-					lastSeen = instance.LastSeen.Format("2006-01-02")
-				}
+				lastSeen := instance.LastSeen.Format(time.RFC3339)
 
 				// Get PID and platform via RPC if instance is healthy
 				pid := platformNA
@@ -340,32 +335,52 @@ func newInstanceListCommand() *cobra.Command {
 					}
 				}
 
-				rows = append(rows, instanceRow{
-					address:   instance.Address,
-					status:    instance.Status.String(),
-					version:   instance.Version,
-					lastSeen:  lastSeen,
-					pid:       pid,
-					platform:  platform,
-					isDefault: isDefault,
+				instanceList = append(instanceList, instanceData{
+					Address:   instance.Address,
+					Status:    instance.Status.String(),
+					Version:   instance.Version,
+					LastSeen:  lastSeen,
+					PID:       pid,
+					Platform:  platform,
+					IsDefault: isDefaultBool,
 				})
 			}
 
-			// Check output format
+			// Check for JSON output mode first
+			if global.Config.OutputFormat == "json" {
+				data := map[string]interface{}{
+					"defaultInstance": defaultInstance,
+					"instances":       instanceList,
+				}
+				return output.OutputJSONSuccess("instance list", data)
+			}
+
+			// Check output format for plain/rich
 			if global.Config.OutputFormat == "plain" {
 				// Use tabwriter for plain output
 				w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 				fmt.Fprintln(w, "ADDRESS\tSTATUS\tVERSION\tLAST SEEN\tPID\tPLATFORM\tDEFAULT")
 
-				for _, row := range rows {
+				for _, inst := range instanceList {
+					isDefaultStr := ""
+					if inst.IsDefault {
+						isDefaultStr = "✓"
+					}
+					// Format lastSeen for display
+					lastSeenTime, _ := time.Parse(time.RFC3339, inst.LastSeen)
+					lastSeenDisplay := lastSeenTime.Format("15:04:05")
+					if time.Since(lastSeenTime) > 24*time.Hour {
+						lastSeenDisplay = lastSeenTime.Format("2006-01-02")
+					}
+
 					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-						row.address,
-						row.status,
-						row.version,
-						row.lastSeen,
-						row.pid,
-						row.platform,
-						row.isDefault,
+						inst.Address,
+						inst.Status,
+						inst.Version,
+						lastSeenDisplay,
+						inst.PID,
+						inst.Platform,
+						isDefaultStr,
 					)
 				}
 
@@ -376,15 +391,26 @@ func newInstanceListCommand() *cobra.Command {
 				markdown.WriteString("| **ADDRESS (ID)** | **STATUS** | **VERSION** | **LAST SEEN** | **PID** | **PLATFORM** | **DEFAULT** |\n")
 				markdown.WriteString("|---------|--------|---------|-----------|-----|----------|---------|")
 
-				for _, row := range rows {
+				for _, inst := range instanceList {
+					isDefaultStr := ""
+					if inst.IsDefault {
+						isDefaultStr = "✓"
+					}
+					// Format lastSeen for display
+					lastSeenTime, _ := time.Parse(time.RFC3339, inst.LastSeen)
+					lastSeenDisplay := lastSeenTime.Format("15:04:05")
+					if time.Since(lastSeenTime) > 24*time.Hour {
+						lastSeenDisplay = lastSeenTime.Format("2006-01-02")
+					}
+
 					markdown.WriteString(fmt.Sprintf("\n| %s | %s | %s | %s | %s | %s | %s |",
-						row.address,
-						row.status,
-						row.version,
-						row.lastSeen,
-						row.pid,
-						row.platform,
-						row.isDefault,
+						inst.Address,
+						inst.Status,
+						inst.Version,
+						lastSeenDisplay,
+						inst.PID,
+						inst.Platform,
+						isDefaultStr,
 					))
 				}
 
@@ -468,32 +494,50 @@ func newInstanceNewCommand() *cobra.Command {
 				return fmt.Errorf("clients not initialized")
 			}
 
-			fmt.Println("Starting new Cline instance...")
+			if global.Config.OutputFormat != "json" {
+				fmt.Println("Starting new Cline instance...")
+			}
 
 			instance, err := global.Clients.StartNewInstance(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to start instance: %w", err)
 			}
 
-			fmt.Printf("Successfully started new instance:\n")
-			fmt.Printf("  Address: %s\n", instance.Address)
-			fmt.Printf("  Core Port: %d\n", instance.CorePort())
-			fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
-
 			registry := global.Clients.GetRegistry()
 
 			// If --default flag provided, set this instance as the default
 			if setDefault {
 				if err := registry.SetDefaultInstance(instance.Address); err != nil {
-					fmt.Printf("Warning: Failed to set as default: %v\n", err)
-				} else {
-					fmt.Printf("  Status: Set as default instance\n")
+					if global.Config.OutputFormat != "json" {
+						fmt.Printf("Warning: Failed to set as default: %v\n", err)
+					}
 				}
-			} else {
-				// Otherwise, check if EnsureDefaultInstance already set it as default
-				if registry.GetDefaultInstance() == instance.Address {
-					fmt.Printf("  Status: Default instance\n")
+			}
+
+			// Check if this is the default instance
+			isDefault := registry.GetDefaultInstance() == instance.Address
+
+			// Check for JSON output mode
+			if global.Config.OutputFormat == "json" {
+				data := map[string]interface{}{
+					"address":   instance.Address,
+					"corePort":  instance.CorePort(),
+					"hostPort":  instance.HostPort(),
+					"isDefault": isDefault,
 				}
+				return output.OutputJSONSuccess("instance new", data)
+			}
+
+			// Existing rich/plain output
+			fmt.Printf("Successfully started new instance:\n")
+			fmt.Printf("  Address: %s\n", instance.Address)
+			fmt.Printf("  Core Port: %d\n", instance.CorePort())
+			fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
+
+			if setDefault {
+				fmt.Printf("  Status: Set as default instance\n")
+			} else if isDefault {
+				fmt.Printf("  Status: Default instance\n")
 			}
 
 			return nil

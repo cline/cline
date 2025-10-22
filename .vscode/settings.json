@@ -27,5 +27,10 @@
 		"source.removeUnused.biome": "always",
 		"source.removeUnusedImports": "always",
 		"source.organizeImports.biome": "always"
+	},
+	"workbench.colorCustomizations": {
+		"activityBar.background": "#063603",
+		"titleBar.activeBackground": "#084B04",
+		"titleBar.activeForeground": "#F1FEF0"
 	}
 }

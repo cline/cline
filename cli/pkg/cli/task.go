@@ -12,6 +12,7 @@ import (
 
 	"github.com/cline/cli/pkg/cli/config"
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/task"
 	"github.com/cline/cli/pkg/cli/updater"
 	"github.com/cline/grpc-go/cline"
@@ -161,6 +162,15 @@ func newTaskNewCommand() *cobra.Command {
 				return fmt.Errorf("failed to create task: %w", err)
 			}
 
+			// Check for JSON output mode
+			if global.Config.OutputFormat == "json" {
+				data := map[string]interface{}{
+					"taskId":   taskID,
+					"instance": taskManager.GetCurrentInstance(),
+				}
+				return output.OutputJSONSuccess("task new", data)
+			}
+
 			if global.Config.Verbose {
 				fmt.Printf("Task created successfully with ID: %s\n", taskID)
 			}
@@ -196,6 +206,15 @@ func newTaskPauseCommand() *cobra.Command {
 
 			if err := taskManager.CancelTask(ctx); err != nil {
 				return err
+			}
+
+			// Check for JSON output mode
+			if global.Config.OutputFormat == "json" {
+				data := map[string]interface{}{
+					"cancelled": true,
+					"instance":  taskManager.GetCurrentInstance(),
+				}
+				return output.OutputJSONSuccess("task pause", data)
 			}
 
 			fmt.Println("Task paused successfully")
@@ -295,6 +314,17 @@ func newTaskSendCommand() *cobra.Command {
 				if err := taskManager.SetModeAndSendMessage(ctx, mode, message, images, files); err != nil {
 					return fmt.Errorf("failed to set mode and send message: %w", err)
 				}
+				
+				// Check for JSON output mode
+				if global.Config.OutputFormat == "json" {
+					data := map[string]interface{}{
+						"sent":     true,
+						"mode":     mode,
+						"instance": taskManager.GetCurrentInstance(),
+					}
+					return output.OutputJSONSuccess("task send", data)
+				}
+				
 				fmt.Printf("Mode set to %s and message sent successfully.\n", mode)
 
 			} else {
@@ -310,6 +340,16 @@ func newTaskSendCommand() *cobra.Command {
 				if err := taskManager.SendMessage(ctx, message, images, files, approveStr); err != nil {
 					return err
 				}
+				
+				// Check for JSON output mode
+				if global.Config.OutputFormat == "json" {
+					data := map[string]interface{}{
+						"sent":     true,
+						"instance": taskManager.GetCurrentInstance(),
+					}
+					return output.OutputJSONSuccess("task send", data)
+				}
+				
 				fmt.Printf("Message sent successfully.\n")
 			}
 
@@ -340,6 +380,11 @@ func newTaskChatCommand() *cobra.Command {
 		Long:    `Chat with the current task, displaying messages in real-time with interactive input enabled.`,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check for JSON output mode - not supported for interactive commands
+			if global.Config.OutputFormat == "json" {
+				return output.OutputJSONError("task chat", fmt.Errorf("task chat is an interactive command and cannot be used with --output-format json"))
+			}
+
 			ctx := cmd.Context()
 
 			if err := ensureTaskManager(ctx, address); err != nil {

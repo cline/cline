@@ -197,6 +197,51 @@ func TestJSONOutputLogsPath(t *testing.T) {
 	}
 }
 
+// TestInteractiveCommandsErrorInJSONMode tests that interactive commands reject JSON mode
+func TestInteractiveCommandsErrorInJSONMode(t *testing.T) {
+	ctx := context.Background()
+	setTempClineDir(t)
+
+	// Test auth command
+	stdout, stderr, _ := runCLI(ctx, t, "auth", "--output-format", "json")
+
+	// Error should be in JSON format (check both stdout and stderr)
+	output := stdout
+	if output == "" {
+		output = stderr
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &response); err != nil {
+		t.Fatalf("error output should be valid JSON: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+	if response["status"] != "error" {
+		t.Errorf("expected status=error, got %v", response["status"])
+	}
+	errorMsg, ok := response["error"].(string)
+	if !ok {
+		t.Error("error field should be a string")
+	}
+	if !strings.Contains(errorMsg, "interactive") {
+		t.Errorf("error message should mention interactive mode, got: %s", errorMsg)
+	}
+
+	// Test root command (interactive when no args)
+	stdout, stderr, _ = runCLI(ctx, t, "--output-format", "json")
+
+	output = stdout
+	if output == "" {
+		output = stderr
+	}
+
+	if err := json.Unmarshal([]byte(output), &response); err != nil {
+		t.Fatalf("error output should be valid JSON: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	}
+	if response["status"] != "error" {
+		t.Errorf("expected status=error, got %v", response["status"])
+	}
+}
+
 // TestJSONOutputLogsList tests logs list JSON output
 func TestJSONOutputLogsList(t *testing.T) {
 	ctx := context.Background()
