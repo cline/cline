@@ -894,57 +894,6 @@ export class Task {
 		await this.initiateTaskLoop(userContent)
 	}
 
-	/**
-	 * Reconstructs assistant messages from stored tool call chunks.
-	 * When tool calls are stored separately, this method processes them back into XML format
-	 * and updates the message text, then parses it into structured AssistantMessageContent.
-	 */
-	private reconstructAssistantMessagesFromToolCallChunks(history: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
-		return history.map((message) => {
-			if (message.role === "assistant" && Array.isArray(message.content)) {
-				const updatedContent = message.content.map((block) => {
-					// @ts-ignore-next-line - tool_call_chunks is a custom property
-					if (block.type === "text" && block.tool_call_chunks && Array.isArray(block.tool_call_chunks)) {
-						// Reconstruct XML from tool call chunks
-						const tempHandler = new StreamingToolCallHandler()
-						let reconstructedXml = ""
-
-						// @ts-ignore-next-line
-						for (const toolCallChunk of block.tool_call_chunks) {
-							const xml = tempHandler.processToolCallDelta(toolCallChunk)
-							if (xml) {
-								reconstructedXml += xml
-							}
-						}
-
-						// Finalize any pending tool calls
-						const finalizedXml = tempHandler.finalizePendingToolCalls()
-						for (const xml of finalizedXml) {
-							reconstructedXml += xml
-						}
-
-						// If we have reconstructed XML, replace the text
-						// @ts-ignore-next-line
-						const originalText = block.text || ""
-						const updatedText = originalText + reconstructedXml
-
-						return {
-							...block,
-							text: updatedText,
-						}
-					}
-					return block
-				})
-
-				return {
-					...message,
-					content: updatedContent,
-				}
-			}
-			return message
-		})
-	}
-
 	private async resumeTaskFromHistory() {
 		try {
 			await this.clineIgnoreController.initialize()
@@ -982,10 +931,7 @@ export class Task {
 		// This is important in case the user deletes messages without resuming the task first
 		const savedApiConversationHistory = await getSavedApiConversationHistory(this.taskId)
 
-		// Reconstruct assistant messages from stored tool call chunks
-		const reconstructedHistory = this.reconstructAssistantMessagesFromToolCallChunks(savedApiConversationHistory)
-
-		this.messageStateHandler.setApiConversationHistory(reconstructedHistory)
+		this.messageStateHandler.setApiConversationHistory(savedApiConversationHistory)
 
 		// load the context history state
 		await ensureTaskDirectoryExists(this.taskId)
@@ -2585,42 +2531,21 @@ export class Task {
 								this.taskState.toolUseIdMap.set(chunk.tool_call.function.name, chunk.tool_call.id)
 							}
 
-							// For native tool calls, directly use the tool use data without XML conversion
-							// For non-native (XML-based), convert to XML and parse back
-							if (this.useNativeToolCalls) {
-								// Skip XML conversion - directly get tool uses from handler
-								const prevLength = this.taskState.assistantMessageContent.length
+							const prevLength = this.taskState.assistantMessageContent.length
 
-								// Combine any text content with tool uses
-								const textContent = assistantTextOnly.trim()
-								const textBlocks: AssistantMessageContent[] = textContent
-									? [{ type: "text", content: textContent, partial: false }]
-									: []
-								const toolBlocks = this.toolUseHandler.getPartialToolUsesAsContent()
-								assistantMessage += toolBlocks.map((block) => JSON.stringify(block)).join("\n")
-								this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
+							// Combine any text content with tool uses
+							const textContent = assistantTextOnly.trim()
+							const textBlocks: AssistantMessageContent[] = textContent
+								? [{ type: "text", content: textContent, partial: false }]
+								: []
+							const toolBlocks = this.toolUseHandler.getPartialToolUsesAsContent()
+							assistantMessage += toolBlocks.map((block) => JSON.stringify(block)).join("\n")
+							this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 
-								if (this.taskState.assistantMessageContent.length > prevLength) {
-									this.taskState.userMessageContentReady = false
-								}
-								this.presentAssistantMessage()
-							} else {
-								// Legacy XML-based path
-								const streamingXml = this.toolCallHandler.processToolCallDelta(chunk.tool_call)
-								if (streamingXml) {
-									assistantMessage += streamingXml
-									// parse raw assistant message into content blocks
-									const prevLength = this.taskState.assistantMessageContent.length
-
-									this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
-
-									if (this.taskState.assistantMessageContent.length > prevLength) {
-										this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
-									}
-									// present content to user
-									this.presentAssistantMessage()
-								}
+							if (this.taskState.assistantMessageContent.length > prevLength) {
+								this.taskState.userMessageContentReady = false
 							}
+							this.presentAssistantMessage()
 							break
 						}
 						case "text": {
@@ -2691,19 +2616,6 @@ export class Task {
 						this.taskState.userMessageContentReady = false
 					}
 					this.presentAssistantMessage()
-				} else {
-					// Legacy XML-based path
-					const finalizedXmlResults = this.toolCallHandler.finalizePendingToolCalls()
-					for (const finalXml of finalizedXmlResults) {
-						assistantMessage += finalXml
-						// parse and update assistant message content with finalized tool calls
-						const prevLength = this.taskState.assistantMessageContent.length
-						this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
-						if (this.taskState.assistantMessageContent.length > prevLength) {
-							this.taskState.userMessageContentReady = false
-						}
-						this.presentAssistantMessage()
-					}
 				}
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
