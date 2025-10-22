@@ -176,7 +176,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				throw new Error("Failed to exchange authorization code for access token")
 			}
 
-			const userInfo = await this.fetchRemoteUserInfo(data.data.accessToken)
+			const userInfo = await this.fetchRemoteUserInfo(data.data)
 
 			return {
 				idToken: data.data.accessToken,
@@ -275,7 +275,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				throw new Error("Invalid token response from server")
 			}
 
-			const userInfo = await this.fetchRemoteUserInfo(tokenData.accessToken)
+			const userInfo = await this.fetchRemoteUserInfo(tokenData)
 
 			// Store the tokens and user info
 			const clineAuthInfo = {
@@ -295,13 +295,26 @@ export class ClineAuthProvider implements IAuthProvider {
 		}
 	}
 
-	private async fetchRemoteUserInfo(token: string): Promise<ClineAccountUserInfo> {
-		const userResponse = await axios.get(`${ClineEnv.config().apiBaseUrl}/api/v1/users/me`, {
-			headers: {
-				Authorization: `Bearer workos:${token}`,
-			},
-		})
+	private async fetchRemoteUserInfo(tokenData: ClineAuthApiTokenExchangeResponse["data"]): Promise<ClineAccountUserInfo> {
+		try {
+			const userResponse = await axios.get(`${ClineEnv.config().apiBaseUrl}/api/v1/users/me`, {
+				headers: {
+					Authorization: `Bearer workos:${tokenData.accessToken}`,
+				},
+			})
 
-		return userResponse.data.data
+			return userResponse.data.data
+		} catch (error) {
+			console.error("Error fetching user info:", error)
+
+			// If fetching user info fail for whatever reason, fallback to the token data and refetch on token expiry (10 minutes)
+			return {
+				id: tokenData.userInfo.clineUserId || "",
+				email: tokenData.userInfo.email || "",
+				displayName: tokenData.userInfo.name || "",
+				createdAt: new Date().toISOString(),
+				organizations: [],
+			}
+		}
 	}
 }
