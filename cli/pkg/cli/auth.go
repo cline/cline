@@ -1,7 +1,11 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/cline/cli/pkg/cli/auth"
+	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +21,10 @@ This command opens an interactive menu where you can:
   - Select and switch between AI models
   - Manage provider settings`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check for JSON output mode - not supported for interactive commands
+			if global.Config.OutputFormat == "json" {
+				return output.OutputJSONError("auth", fmt.Errorf("auth is an interactive command and cannot be used with --output-format json"))
+			}
 			return auth.RunAuthFlow(cmd.Context(), args)
 		},
 	}
