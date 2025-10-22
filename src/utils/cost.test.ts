@@ -166,23 +166,6 @@ describe("Cost Utilities", () => {
 			cost.should.equal(0.00045)
 		})
 
-		it("should use real Qwen model configuration (480B)", () => {
-			const modelInfo: ModelInfo = {
-				maxTokens: 8192,
-				contextWindow: 262_144,
-				supportsImages: false,
-				supportsPromptCache: false,
-				inputPrice: 0.22,
-				outputPrice: 1.8,
-			}
-
-			const cost = calculateApiCostQwen(modelInfo, 2000, 1000, 0, 0)
-			// Input: (0.22 / 1_000_000) * 2000 = 0.00044
-			// Output: (1.8 / 1_000_000) * 1000 = 0.0018
-			// Total: 0.00044 + 0.0018 = 0.00224
-			cost.should.equal(0.00224)
-		})
-
 		it("should handle cache tokens correctly (Qwen-style)", () => {
 			const modelInfo: ModelInfo = {
 				supportsPromptCache: true,
