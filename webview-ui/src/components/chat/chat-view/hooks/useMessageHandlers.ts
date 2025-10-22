@@ -94,6 +94,25 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								break
 						}
 					}
+				} else if (messages.length > 0) {
+					// No clineAsk set - check if task is actively running
+					// If so, allow interrupting it with feedback
+					const lastMessage = messages[messages.length - 1]
+					const isTaskRunning =
+						lastMessage.partial === true || (lastMessage.type === "say" && lastMessage.say === "api_req_started")
+
+					if (isTaskRunning) {
+						// Task is running - send message as interruption/feedback
+						await TaskServiceClient.askResponse(
+							AskResponseRequest.create({
+								responseType: "messageResponse",
+								text: messageToSend,
+								images,
+								files,
+							}),
+						)
+						messageSent = true
+					}
 				}
 
 				// Only clear input and disable UI if message was actually sent
