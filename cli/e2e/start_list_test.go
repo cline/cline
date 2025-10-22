@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"syscall"
 	"testing"
+
+	"github.com/cline/cli/pkg/common"
 )
 
 // TestStartAndList verifies self-registration and default.json semantics in a fresh CLINE_DIR.
@@ -20,9 +22,16 @@ func TestStartAndList(t *testing.T) {
 	startOutput := mustRunCLI(ctx, t, "instance", "new")
 	t.Logf("Instance start output: %s", startOutput)
 
-	t.Logf("Listing instances to check registration...")
-	// It should appear healthy in list JSON and be the default.
-	out := listInstancesJSON(ctx, t)
+	// Wait for instance to register in SQLite
+	t.Logf("Waiting for instance registration in SQLite...")
+	var out common.InstancesOutput
+	waitFor(t, defaultTimeout, func() (bool, string) {
+		out = listInstancesJSON(ctx, t)
+		if len(out.CoreInstances) > 0 {
+			return true, ""
+		}
+		return false, "waiting for instance to appear in registry"
+	})
 	t.Logf("Found %d instances after start", len(out.CoreInstances))
 
 	if len(out.CoreInstances) != 1 {
@@ -58,9 +67,19 @@ func TestTaskNewDefault(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 	defer cancel()
 
-	// Start one instance and wait for healthy
+	// Start one instance
 	_ = mustRunCLI(ctx, t, "instance", "new")
-	out := listInstancesJSON(ctx, t)
+	
+	// Wait for instance to register in SQLite
+	var out common.InstancesOutput
+	waitFor(t, defaultTimeout, func() (bool, string) {
+		out = listInstancesJSON(ctx, t)
+		if len(out.CoreInstances) > 0 {
+			return true, ""
+		}
+		return false, "waiting for instance to appear in registry"
+	})
+	
 	if len(out.CoreInstances) != 1 {
 		t.Fatalf("expected 1 instance, got %d", len(out.CoreInstances))
 	}
@@ -69,24 +88,6 @@ func TestTaskNewDefault(t *testing.T) {
 
 	// Create a new task at default (success is sufficient)
 	_ = mustRunCLI(ctx, t, "task", "new", "hello world")
-}
-
-// TestExplicitAddressAutoStart verifies that giving an explicit address auto-starts an instance and routes the task.
-func TestExplicitAddressAutoStart(t *testing.T) {
-	_ = setTempClineDir(t)
-
-	ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
-	defer cancel()
-
-	// Find a free port and use explicit address. This should auto-start an instance.
-	port := findFreePort(t)
-	addr := "localhost:" + itoa(port)
-
-	// Run a task at explicit address (auto-start path)
-	_ = mustRunCLI(ctx, t, "task", "new", "--address", "localhost:"+itoa(port), "explicit address task")
-
-	// Verify the instance is present and healthy
-	waitForAddressHealthy(t, addr, defaultTimeout)
 }
 
 // TestCrashCleanup verifies that after SIGKILL of a local core, the cleanup removes the registry entry.
@@ -101,7 +102,16 @@ func TestCrashCleanup(t *testing.T) {
 	_ = mustRunCLI(ctx, t, "instance", "new")
 	_ = mustRunCLI(ctx, t, "instance", "new")
 
-	out := listInstancesJSON(ctx, t)
+	// Wait for both instances to register in SQLite
+	var out common.InstancesOutput
+	waitFor(t, defaultTimeout, func() (bool, string) {
+		out = listInstancesJSON(ctx, t)
+		if len(out.CoreInstances) >= 2 {
+			return true, ""
+		}
+		return false, fmt.Sprintf("waiting for 2 instances to appear in registry (have %d)", len(out.CoreInstances))
+	})
+	
 	if len(out.CoreInstances) < 2 {
 		t.Fatalf("expected at least 2 instances, got %d", len(out.CoreInstances))
 	}

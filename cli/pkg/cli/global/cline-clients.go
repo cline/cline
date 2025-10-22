@@ -220,8 +220,15 @@ func (c *ClineClients) EnsureInstanceAtAddress(ctx context.Context, address stri
 	}
 
 	// Check if instance already exists at this address
-	if c.registry.HasInstanceAtAddress(normalized) {
-		return nil
+	// HasInstanceAtAddress may fail if database doesn't exist yet (fresh CLINE_DIR)
+	// In that case, we should proceed to start an instance
+	hasInstance := c.registry.HasInstanceAtAddress(normalized)
+	if hasInstance {
+		// Instance exists and is registered, verify it's healthy
+		if common.IsInstanceHealthy(ctx, normalized) {
+			return nil
+		}
+		// Instance is registered but not healthy, proceed to start a new one
 	}
 
 	// Parse host:port

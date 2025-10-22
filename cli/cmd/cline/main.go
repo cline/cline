@@ -14,7 +14,6 @@ import (
 	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/common"
 	"github.com/cline/grpc-go/cline"
 	"github.com/spf13/cobra"
@@ -67,11 +66,6 @@ see the manual page: man cline`,
 			})
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Check for JSON output mode - not supported for interactive root command
-			if global.Config.OutputFormat == "json" {
-				return output.OutputJSONError("cline", fmt.Errorf("the root command is interactive and cannot be used with --output-format json. Use specific subcommands instead (e.g., 'cline task new', 'cline config list')"))
-			}
-
 			ctx := cmd.Context()
 
 			var instanceAddress string
@@ -142,6 +136,12 @@ see the manual page: man cline`,
 
 			// If no prompt from args or stdin, show interactive input
 			if prompt == "" {
+				// Check for JSON output mode - not supported for interactive prompting
+				// Per the plan: Interactive commands output PLAIN TEXT errors, not JSON
+				if global.Config.OutputFormat == "json" {
+					return fmt.Errorf("the root command is interactive and cannot be used with --output-format json when no prompt is provided. Provide a prompt as an argument or use 'cline task new' instead")
+				}
+
 				// Pass the mode flag to banner so it shows correct mode
 				prompt, err = promptForInitialTask(ctx, instanceAddress, mode)
 				if err != nil {

@@ -7,6 +7,44 @@ import (
 	"testing"
 )
 
+// assertPureJSON validates that output is pure JSON with ZERO text leakage
+// Any non-JSON text will cause the test to fail
+func assertPureJSON(t *testing.T, output string, commandDesc string) {
+	t.Helper()
+	
+	trimmed := strings.TrimSpace(output)
+	
+	// Check for empty output
+	if trimmed == "" {
+		t.Fatalf("%s: output is empty", commandDesc)
+	}
+	
+	// Must start with { or [
+	if !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "[") {
+		// Show first 100 chars of output for debugging
+		preview := trimmed
+		if len(preview) > 100 {
+			preview = preview[:100] + "..."
+		}
+		t.Fatalf("%s: JSON output has leading text (text leakage):\n%s", commandDesc, preview)
+	}
+	
+	// Must end with } or ]
+	if !strings.HasSuffix(trimmed, "}") && !strings.HasSuffix(trimmed, "]") {
+		// Show last 100 chars of output for debugging
+		preview := trimmed
+		if len(preview) > 100 {
+			preview = "..." + preview[len(preview)-100:]
+		}
+		t.Fatalf("%s: JSON output has trailing text (text leakage):\n%s", commandDesc, preview)
+	}
+	
+	// Must be valid JSON
+	if !json.Valid([]byte(trimmed)) {
+		t.Fatalf("%s: output is not valid JSON:\n%s", commandDesc, trimmed)
+	}
+}
+
 // TestJSONOutputVersion tests version command JSON output
 func TestJSONOutputVersion(t *testing.T) {
 	ctx := context.Background()
@@ -14,6 +52,9 @@ func TestJSONOutputVersion(t *testing.T) {
 
 	// Test JSON output
 	out := mustRunCLI(ctx, t, "version", "--output-format", "json")
+
+	// STRICT: Assert pure JSON with ZERO text leakage
+	assertPureJSON(t, out, "version --output-format json")
 
 	// Parse JSON
 	var response map[string]interface{}
@@ -91,6 +132,9 @@ func TestJSONOutputInstanceList(t *testing.T) {
 	// Test JSON output
 	out := mustRunCLI(ctx, t, "instance", "list", "--output-format", "json")
 
+	// STRICT: Assert pure JSON with ZERO text leakage
+	assertPureJSON(t, out, "instance list --output-format json")
+
 	// Parse JSON
 	var response map[string]interface{}
 	if err := json.Unmarshal([]byte(out), &response); err != nil {
@@ -144,6 +188,9 @@ func TestJSONOutputInstanceNew(t *testing.T) {
 	// Create new instance with JSON output
 	out := mustRunCLI(ctx, t, "instance", "new", "--output-format", "json")
 
+	// STRICT: Assert pure JSON with ZERO text leakage
+	assertPureJSON(t, out, "instance new --output-format json")
+
 	// Parse JSON
 	var response map[string]interface{}
 	if err := json.Unmarshal([]byte(out), &response); err != nil {
@@ -176,6 +223,9 @@ func TestJSONOutputLogsPath(t *testing.T) {
 	// Test JSON output
 	out := mustRunCLI(ctx, t, "logs", "path", "--output-format", "json")
 
+	// STRICT: Assert pure JSON with ZERO text leakage
+	assertPureJSON(t, out, "logs path --output-format json")
+
 	// Parse JSON
 	var response map[string]interface{}
 	if err := json.Unmarshal([]byte(out), &response); err != nil {
@@ -197,48 +247,55 @@ func TestJSONOutputLogsPath(t *testing.T) {
 	}
 }
 
-// TestInteractiveCommandsErrorInJSONMode tests that interactive commands reject JSON mode
+// TestInteractiveCommandsErrorInJSONMode tests that interactive commands reject JSON mode with plain text errors
 func TestInteractiveCommandsErrorInJSONMode(t *testing.T) {
 	ctx := context.Background()
 	setTempClineDir(t)
 
-	// Test auth command
-	stdout, stderr, _ := runCLI(ctx, t, "auth", "--output-format", "json")
-
-	// Error should be in JSON format (check both stdout and stderr)
-	output := stdout
-	if output == "" {
-		output = stderr
+	// Test auth command - should output PLAIN TEXT error, not JSON
+	_, errOut, exit := runCLI(ctx, t, "auth", "--output-format", "json")
+	if exit == 0 {
+		t.Error("auth command should error in JSON mode")
+	}
+	
+	// Per the plan: Interactive commands output **plain text errors**, NOT JSON
+	// Error should be plain text
+	if json.Valid([]byte(errOut)) {
+		t.Error("interactive command error should be plain text, not JSON")
+	}
+	
+	// Should mention it's interactive
+	if !strings.Contains(errOut, "interactive") {
+		t.Error("error should mention interactive mode")
+	}
+	
+	// Should be formatted as a standard CLI error
+	if !strings.Contains(errOut, "Error:") {
+		t.Error("error should start with 'Error:'")
 	}
 
-	var response map[string]interface{}
-	if err := json.Unmarshal([]byte(output), &response); err != nil {
-		t.Fatalf("error output should be valid JSON: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	// Test task chat command - should also output plain text error
+	_, errOut, exit = runCLI(ctx, t, "task", "chat", "--output-format", "json")
+	if exit == 0 {
+		t.Error("task chat command should error in JSON mode")
 	}
-	if response["status"] != "error" {
-		t.Errorf("expected status=error, got %v", response["status"])
+	
+	if json.Valid([]byte(errOut)) {
+		t.Error("task chat error should be plain text, not JSON")
 	}
-	errorMsg, ok := response["error"].(string)
-	if !ok {
-		t.Error("error field should be a string")
-	}
-	if !strings.Contains(errorMsg, "interactive") {
-		t.Errorf("error message should mention interactive mode, got: %s", errorMsg)
-	}
-
-	// Test root command (interactive when no args)
-	stdout, stderr, _ = runCLI(ctx, t, "--output-format", "json")
-
-	output = stdout
-	if output == "" {
-		output = stderr
+	
+	if !strings.Contains(errOut, "interactive") {
+		t.Error("task chat error should mention interactive mode")
 	}
 
-	if err := json.Unmarshal([]byte(output), &response); err != nil {
-		t.Fatalf("error output should be valid JSON: %v\nStdout: %s\nStderr: %s", err, stdout, stderr)
+	// Test root command (interactive) - should also output plain text error
+	_, errOut, exit = runCLI(ctx, t, "--output-format", "json")
+	if exit == 0 {
+		t.Error("root command without args should error in JSON mode")
 	}
-	if response["status"] != "error" {
-		t.Errorf("expected status=error, got %v", response["status"])
+	
+	if json.Valid([]byte(errOut)) {
+		t.Error("root command error should be plain text, not JSON")
 	}
 }
 
@@ -249,6 +306,9 @@ func TestJSONOutputLogsList(t *testing.T) {
 
 	// Test JSON output (may have no logs)
 	out := mustRunCLI(ctx, t, "logs", "list", "--output-format", "json")
+
+	// STRICT: Assert pure JSON with ZERO text leakage
+	assertPureJSON(t, out, "logs list --output-format json")
 
 	// Parse JSON
 	var response map[string]interface{}
@@ -287,6 +347,9 @@ func TestJSONOutputConfigList(t *testing.T) {
 	// Test JSON output
 	out := mustRunCLI(ctx, t, "config", "list", "--output-format", "json")
 
+	// STRICT: Assert pure JSON with ZERO text leakage
+	assertPureJSON(t, out, "config list --output-format json")
+
 	// Parse JSON
 	var response map[string]interface{}
 	if err := json.Unmarshal([]byte(out), &response); err != nil {
@@ -313,30 +376,19 @@ func TestJSONOutputNoLeakage(t *testing.T) {
 	ctx := context.Background()
 	setTempClineDir(t)
 
-	commands := [][]string{
-		{"version", "--output-format", "json"},
-		{"logs", "path", "--output-format", "json"},
+	commands := []struct {
+		desc string
+		args []string
+	}{
+		{"version --output-format json", []string{"version", "--output-format", "json"}},
+		{"logs path --output-format json", []string{"logs", "path", "--output-format", "json"}},
 	}
 
 	for _, cmd := range commands {
-		out := mustRunCLI(ctx, t, cmd...)
+		out := mustRunCLI(ctx, t, cmd.args...)
 
-		trimmed := strings.TrimSpace(out)
-
-		// Should start with {
-		if !strings.HasPrefix(trimmed, "{") {
-			t.Errorf("command %v: JSON output has leading text: %s", cmd, out[:min(50, len(out))])
-		}
-
-		// Should end with }
-		if !strings.HasSuffix(trimmed, "}") {
-			t.Errorf("command %v: JSON output has trailing text", cmd)
-		}
-
-		// Should be valid JSON
-		if !json.Valid([]byte(trimmed)) {
-			t.Errorf("command %v: output is not valid JSON", cmd)
-		}
+		// STRICT: Assert pure JSON with ZERO text leakage
+		assertPureJSON(t, out, cmd.desc)
 	}
 }
 
@@ -347,6 +399,9 @@ func TestJSONOutputWithVerboseFlag(t *testing.T) {
 
 	// Test with verbose flag
 	out := mustRunCLI(ctx, t, "version", "--output-format", "json", "--verbose")
+
+	// STRICT: Assert pure JSON with ZERO text leakage (even with verbose!)
+	assertPureJSON(t, out, "version --output-format json --verbose")
 
 	// Should still be valid JSON
 	var response map[string]interface{}
@@ -380,9 +435,8 @@ func TestAllCommandsJSONValidity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			out := mustRunCLI(ctx, t, tt.args...)
 
-			if !json.Valid([]byte(out)) {
-				t.Errorf("command produced invalid JSON:\n%s", out)
-			}
+			// STRICT: Assert pure JSON with ZERO text leakage
+			assertPureJSON(t, out, strings.Join(tt.args, " "))
 
 			// Parse and validate structure
 			var response map[string]interface{}

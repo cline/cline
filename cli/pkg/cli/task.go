@@ -57,10 +57,11 @@ func ensureTaskManager(ctx context.Context, address string) error {
 		var instanceAddress string
 
 		if address != "" {
-			// Ensure instance exists at the specified address
+			// Ensure instance exists at the specified address (waits for registration)
 			if err := ensureInstanceAtAddress(ctx, address); err != nil {
 				return fmt.Errorf("failed to ensure instance at address %s: %w", address, err)
 			}
+			
 			taskManager, err = task.NewManagerForAddress(ctx, address)
 			instanceAddress = address
 		} else {
@@ -380,8 +381,9 @@ func newTaskChatCommand() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Check for JSON output mode - not supported for interactive commands
+			// Per the plan: Interactive commands output PLAIN TEXT errors, not JSON
 			if global.Config.OutputFormat == "json" {
-				return output.OutputJSONError("task chat", fmt.Errorf("task chat is an interactive command and cannot be used with --output-format json"))
+				return fmt.Errorf("task chat is an interactive command and cannot be used with --output-format json")
 			}
 
 			ctx := cmd.Context()

@@ -212,7 +212,19 @@ func (m *Manager) cancelExistingTaskIfNeeded(ctx context.Context) error {
 					m.renderer.RenderDebug("Cancel task returned error: %v", err)
 				}
 			} else {
-				fmt.Println("Cancelled existing task to start new one")
+				// Output cancellation message in appropriate format
+				if global.Config.OutputFormat == "json" {
+					// Output as JSON status message
+					statusMsg := map[string]interface{}{
+						"type": "status",
+						"message": "Cancelled existing task to start new one",
+					}
+					if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
+						fmt.Println(string(jsonBytes))
+					}
+				} else {
+					fmt.Println("Cancelled existing task to start new one")
+				}
 			}
 		}
 	}
@@ -661,16 +673,29 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	m.isInteractive = interactive
 	m.mu.Unlock()
 
-	if global.Config.OutputFormat != "plain" {
-		markdown := fmt.Sprintf("*Using instance: %s*\n*Press Ctrl+C to exit*", instanceAddress)
-		rendered := m.renderer.RenderMarkdown(markdown)
-		fmt.Printf("%s", rendered)
+	// Output headers in appropriate format
+	if global.Config.OutputFormat == "json" {
+		statusMsg := map[string]interface{}{
+			"type":        "status",
+			"message":     "Following task conversation",
+			"instance":    instanceAddress,
+			"interactive": interactive,
+		}
+		if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
+			fmt.Println(string(jsonBytes))
+		}
 	} else {
-		fmt.Printf("Using instance: %s\n", instanceAddress)
-		if interactive {
-			fmt.Println("Following task conversation in interactive mode... (Press Ctrl+C to exit)")
+		if global.Config.OutputFormat != "plain" {
+			markdown := fmt.Sprintf("*Using instance: %s*\n*Press Ctrl+C to exit*", instanceAddress)
+			rendered := m.renderer.RenderMarkdown(markdown)
+			fmt.Printf("%s", rendered)
 		} else {
-			fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
+			fmt.Printf("Using instance: %s\n", instanceAddress)
+			if interactive {
+				fmt.Println("Following task conversation in interactive mode... (Press Ctrl+C to exit)")
+			} else {
+				fmt.Println("Following task conversation... (Press Ctrl+C to exit)")
+			}
 		}
 	}
 
@@ -760,7 +785,18 @@ func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
 	m.isStreamingMode = true
 	m.mu.Unlock()
 
-	fmt.Println("Following task conversation until completion... (Press Ctrl+C to exit)")
+	// Output header in appropriate format
+	if global.Config.OutputFormat == "json" {
+		statusMsg := map[string]interface{}{
+			"type":    "status",
+			"message": "Following task conversation until completion",
+		}
+		if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
+			fmt.Println(string(jsonBytes))
+		}
+	} else {
+		fmt.Println("Following task conversation until completion... (Press Ctrl+C to exit)")
+	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -1144,7 +1180,18 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 	}
 
 	if len(messages) == 0 {
-		fmt.Println("No conversation history found.")
+		// Output "no history" message in appropriate format
+		if global.Config.OutputFormat == "json" {
+			statusMsg := map[string]interface{}{
+				"type":    "status",
+				"message": "No conversation history found",
+			}
+			if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
+				fmt.Println(string(jsonBytes))
+			}
+		} else {
+			fmt.Println("No conversation history found.")
+		}
 		return 0, nil
 	}
 
@@ -1153,22 +1200,41 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 	totalMessages := len(messages)
 	startIndex := 0
 
-	if totalMessages > maxHistoryMessages {
-		startIndex = totalMessages - maxHistoryMessages
-		if global.Config.OutputFormat != "plain" {
-			markdown := fmt.Sprintf("*Conversation history (%d of %d messages)*", maxHistoryMessages, totalMessages)
-			rendered := m.renderer.RenderMarkdown(markdown)
-			fmt.Printf("\n%s\n\n", rendered)
+	// Output history headers in appropriate format
+	if global.Config.OutputFormat == "json" {
+		// In JSON mode, output structured status with counts
+		statusMsg := map[string]interface{}{
+			"type":             "status",
+			"message":          "Conversation history",
+			"totalMessages":    totalMessages,
+			"displayedMessages": maxHistoryMessages,
+		}
+		if totalMessages <= maxHistoryMessages {
+			statusMsg["displayedMessages"] = totalMessages
 		} else {
-			fmt.Printf("--- Conversation history (%d of %d messages) ---\n", maxHistoryMessages, totalMessages)
+			startIndex = totalMessages - maxHistoryMessages
+		}
+		if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
+			fmt.Println(string(jsonBytes))
 		}
 	} else {
-		if global.Config.OutputFormat != "plain" {
-			markdown := fmt.Sprintf("*Conversation history (%d messages)*", totalMessages)
-			rendered := m.renderer.RenderMarkdown(markdown)
-			fmt.Printf("\n%s\n\n", rendered)
+		if totalMessages > maxHistoryMessages {
+			startIndex = totalMessages - maxHistoryMessages
+			if global.Config.OutputFormat != "plain" {
+				markdown := fmt.Sprintf("*Conversation history (%d of %d messages)*", maxHistoryMessages, totalMessages)
+				rendered := m.renderer.RenderMarkdown(markdown)
+				fmt.Printf("\n%s\n\n", rendered)
+			} else {
+				fmt.Printf("--- Conversation history (%d of %d messages) ---\n", maxHistoryMessages, totalMessages)
+			}
 		} else {
-			fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
+			if global.Config.OutputFormat != "plain" {
+				markdown := fmt.Sprintf("*Conversation history (%d messages)*", totalMessages)
+				rendered := m.renderer.RenderMarkdown(markdown)
+				fmt.Printf("\n%s\n\n", rendered)
+			} else {
+				fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
+			}
 		}
 	}
 

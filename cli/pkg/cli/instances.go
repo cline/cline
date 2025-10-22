@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -493,6 +494,8 @@ func newInstanceNewCommand() *cobra.Command {
 				return fmt.Errorf("clients not initialized")
 			}
 
+			// Output starting message only in rich/plain mode
+			// In JSON mode, we'll only output the final result
 			if global.Config.OutputFormat != "json" {
 				fmt.Println("Starting new Cline instance...")
 			}
@@ -507,7 +510,16 @@ func newInstanceNewCommand() *cobra.Command {
 			// If --default flag provided, set this instance as the default
 			if setDefault {
 				if err := registry.SetDefaultInstance(instance.Address); err != nil {
-					if global.Config.OutputFormat != "json" {
+					// Output warning in appropriate format
+					if global.Config.OutputFormat == "json" {
+						statusMsg := map[string]interface{}{
+							"type":    "status",
+							"message": fmt.Sprintf("Warning: Failed to set as default: %v", err),
+						}
+						if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
+							fmt.Println(string(jsonBytes))
+						}
+					} else {
 						fmt.Printf("Warning: Failed to set as default: %v\n", err)
 					}
 				}
