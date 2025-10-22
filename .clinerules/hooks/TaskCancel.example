@@ -8,8 +8,8 @@ sleep 3
 
 cat <<EOF
 {
-  "cancel": false,
+  "cancel", false,
   "contextModification": "WORKSPACE_RULES: This is from the local bar/ workspace.",
-  "errorMessage": "PostToolUse hook custom errorMessage: foo"
+  "errorMessage": "TaskCancel hook custom errorMessage: foo"
 }
 EOF

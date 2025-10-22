@@ -4,12 +4,12 @@ for i in {1..100}; do
   echo "$i"
 done
 
-sleep 3
+sleep 1
 
 cat <<EOF
 {
   "cancel": false,
   "contextModification": "WORKSPACE_RULES: This is from the local bar/ workspace.",
-  "errorMessage": "PostToolUse hook custom errorMessage: foo"
+  "errorMessage": "TaskStart hook custom errorMessage: foo"
 }
 EOF
