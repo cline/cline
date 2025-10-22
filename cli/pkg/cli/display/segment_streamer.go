@@ -36,8 +36,8 @@ func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, s
 		toolParser:     NewToolResultParser(mdRenderer),
 	}
 
-	// Render rich header immediately when creating segment (if in rich mode)
-	if shouldMarkdown && outputFormat != "plain" {
+	// Render rich header immediately when creating segment (if in rich mode and TTY)
+	if shouldMarkdown && outputFormat != "plain" && isTTY() {
 		header := ss.generateRichHeader()
 		rendered, _ := mdRenderer.Render(header)
 		output.Println("")
@@ -113,8 +113,8 @@ func (ss *StreamingSegment) renderFinal(currentBuffer string) {
 	} else if ss.sayType == string(types.SayTypeCommand) {
 		// Command output
 		bodyContent = "```shell\n" + currentBuffer + "\n```"
-		// Render markdown
-		if ss.shouldMarkdown && ss.outputFormat != "plain" {
+		// Render markdown only in rich mode and TTY
+		if ss.shouldMarkdown && ss.outputFormat != "plain" && isTTY() {
 			rendered, err := ss.mdRenderer.Render(bodyContent)
 			if err == nil {
 				bodyContent = rendered
@@ -122,7 +122,7 @@ func (ss *StreamingSegment) renderFinal(currentBuffer string) {
 		}
 	} else {
 		// For other types (reasoning, text, etc.), render markdown as-is
-		if ss.shouldMarkdown && ss.outputFormat != "plain" {
+		if ss.shouldMarkdown && ss.outputFormat != "plain" && isTTY() {
 			rendered, err := ss.mdRenderer.Render(currentBuffer)
 			if err == nil {
 				bodyContent = rendered
