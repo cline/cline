@@ -319,6 +319,7 @@ message UpdateSettingsRequestCli {
 message UpdateTaskSettingsRequest {
   Metadata metadata = 1;
   optional Settings settings = 2;
+  optional string task_id = 3;
 }
 
 // Message for updating settings
