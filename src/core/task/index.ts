@@ -952,6 +952,8 @@ export class Task {
 
 			if (hasTaskStartHook) {
 				let hookMessageTs: number | undefined
+				const abortController = new AbortController()
+
 				try {
 					// Show hook execution indicator and capture timestamp
 					const hookMetadata = {
@@ -960,12 +962,26 @@ export class Task {
 					}
 					hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
 
+					// Track active hook execution for cancellation (only if message was created)
+					if (hookMessageTs !== undefined) {
+						this.taskState.activeHookExecution = {
+							hookName: "TaskStart",
+							toolName: undefined,
+							messageTs: hookMessageTs,
+							abortController,
+						}
+					}
+
 					// Create streaming callback
 					const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
 						await this.say("hook_output", line)
 					}
 
-					const taskStartHook = await hookFactory.createWithStreaming("TaskStart", streamCallback)
+					const taskStartHook = await hookFactory.createWithStreaming(
+						"TaskStart",
+						streamCallback,
+						abortController.signal,
+					)
 
 					const taskStartResult = await taskStartHook.run({
 						taskId: this.taskId,
@@ -978,6 +994,9 @@ export class Task {
 						},
 					})
 					console.log("[TaskStart Hook]", taskStartResult)
+
+					// Clear active hook execution
+					this.taskState.activeHookExecution = undefined
 
 					// Check if hook wants to cancel the task
 					if (taskStartResult.cancel === true) {
@@ -999,7 +1018,6 @@ export class Task {
 						}
 
 						const errorMessage = taskStartResult.errorMessage || "TaskStart hook requested task cancellation"
-						await this.say("error", errorMessage)
 
 						// Ensure the changes are saved and posted before aborting
 						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
@@ -1036,6 +1054,9 @@ export class Task {
 						}
 					}
 				} catch (hookError) {
+					// Clear active hook execution
+					this.taskState.activeHookExecution = undefined
+
 					// Extract structured error info if available
 					const isStructuredError = HookExecutionError.isHookError(hookError)
 					const errorInfo = isStructuredError ? hookError.errorInfo : null
@@ -1603,6 +1624,8 @@ export class Task {
 
 				if (hasTaskCancelHook) {
 					let hookMessageTs: number | undefined
+					const abortController = new AbortController()
+
 					try {
 						// Show hook execution indicator (only if not already aborted)
 						if (!this.taskState.abort) {
@@ -1611,6 +1634,16 @@ export class Task {
 								status: "running",
 							}
 							hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
+
+							// Track active hook execution for cancellation (only if message was created)
+							if (hookMessageTs !== undefined) {
+								this.taskState.activeHookExecution = {
+									hookName: "TaskCancel",
+									toolName: undefined,
+									messageTs: hookMessageTs,
+									abortController,
+								}
+							}
 						}
 
 						// Create streaming callback
@@ -1618,7 +1651,11 @@ export class Task {
 							await this.say("hook_output", line)
 						}
 
-						const taskCancelHook = await hookFactory.createWithStreaming("TaskCancel", streamCallback)
+						const taskCancelHook = await hookFactory.createWithStreaming(
+							"TaskCancel",
+							streamCallback,
+							abortController.signal,
+						)
 
 						const taskCancelResult = await taskCancelHook.run({
 							taskId: this.taskId,
@@ -1631,6 +1668,9 @@ export class Task {
 							},
 						})
 						console.log("[TaskCancel Hook]", taskCancelResult)
+
+						// Clear active hook execution
+						this.taskState.activeHookExecution = undefined
 
 						// Update hook status to completed (only if not already aborted)
 						if (!this.taskState.abort && hookMessageTs !== undefined) {
@@ -1649,6 +1689,9 @@ export class Task {
 							}
 						}
 					} catch (hookError) {
+						// Clear active hook execution
+						this.taskState.activeHookExecution = undefined
+
 						// Extract structured error info if available
 						const isStructuredError = HookExecutionError.isHookError(hookError)
 						const errorInfo = isStructuredError ? hookError.errorInfo : null
@@ -2206,6 +2249,13 @@ export class Task {
 
 			// Notify UI that hook was cancelled
 			await this.say("hook_output", "\nHook execution cancelled by user")
+
+			// Save state before aborting task
+			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			await this.postStateToWebview()
+
+			// Trigger task cancellation (same as clicking task cancel button, pressing escape, or hook returning cancel:true)
+			this.abortTask()
 
 			return true
 		} catch (error) {
@@ -2925,7 +2975,6 @@ export class Task {
 		// Handle hook cancellation request
 		if (hookResult.cancel === true) {
 			const errorMessage = hookResult.errorMessage || "UserPromptSubmit hook requested task cancellation"
-			await this.say("error", errorMessage)
 			// Trigger task cancellation
 			this.abortTask()
 			return true
