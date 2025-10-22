@@ -2574,10 +2574,10 @@ export class Task {
 					switch (chunk.type) {
 						case "usage":
 							didReceiveUsageChunk = true
-							inputTokens += chunk.inputTokens
-							outputTokens += chunk.outputTokens
-							cacheWriteTokens += chunk.cacheWriteTokens ?? 0
-							cacheReadTokens += chunk.cacheReadTokens ?? 0
+							inputTokens = chunk.inputTokens
+							outputTokens = chunk.outputTokens
+							cacheWriteTokens = chunk.cacheWriteTokens ?? 0
+							cacheReadTokens = chunk.cacheReadTokens ?? 0
 							totalCost = chunk.totalCost
 							break
 						case "reasoning":
@@ -2714,10 +2714,10 @@ export class Task {
 			if (!didReceiveUsageChunk) {
 				this.api.getApiStreamUsage?.().then(async (apiStreamUsage) => {
 					if (apiStreamUsage) {
-						inputTokens += apiStreamUsage.inputTokens
-						outputTokens += apiStreamUsage.outputTokens
-						cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
-						cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
+						inputTokens = apiStreamUsage.inputTokens
+						outputTokens = apiStreamUsage.outputTokens
+						cacheWriteTokens = apiStreamUsage.cacheWriteTokens ?? 0
+						cacheReadTokens = apiStreamUsage.cacheReadTokens ?? 0
 						totalCost = apiStreamUsage.totalCost
 					}
 					await updateApiReqMsg({
@@ -2789,7 +2789,6 @@ export class Task {
 							type: "text",
 							text: assistantMessage,
 							// reasoning_details only exists for cline/openrouter providers
-							// @ts-ignore-next-line
 							reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
 						},
 					] as Array<
