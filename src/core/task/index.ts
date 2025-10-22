@@ -819,6 +819,9 @@ export class Task {
 
 			// Check if hook wants to cancel
 			if (result.cancel === true) {
+				// Clear active hook execution
+				this.taskState.activeHookExecution = undefined
+
 				// Update hook status to cancelled
 				if (hookMessageTs !== undefined) {
 					const clineMessages = this.messageStateHandler.getClineMessages()
@@ -842,6 +845,9 @@ export class Task {
 					errorMessage: result.errorMessage,
 				}
 			}
+
+			// Clear active hook execution (only after checking for cancellation)
+			this.taskState.activeHookExecution = undefined
 
 			// Update hook status to completed (only if not cancelled)
 			if (hookMessageTs !== undefined) {
@@ -1731,7 +1737,7 @@ export class Task {
 
 	/**
 	 * Determines if the TaskCancel hook should run.
-	 * Only runs if there's active work happening right now (streaming, hook running, or work in progress).
+	 * Only runs if there's actual active work happening or if work was started in this session.
 	 * Does NOT run when just showing the resume button with no active work.
 	 * @returns true if the hook should run, false otherwise
 	 */
@@ -1741,36 +1747,44 @@ export class Task {
 			return false
 		}
 
-		// Don't run if we're just showing the resume button (no work happening yet)
-		// Check if the last message is a resume ask
-		const clineMessages = this.messageStateHandler.getClineMessages()
-		const lastMessage = clineMessages.at(-1)
-		if (lastMessage?.type === "ask" && (lastMessage.ask === "resume_task" || lastMessage.ask === "resume_completed_task")) {
-			return false
-		}
-
-		// Run if there's an active hook execution
+		// Run if there's an active hook execution (work happening now)
 		if (this.taskState.activeHookExecution) {
 			return true
 		}
 
-		// Run if the API is currently streaming
+		// Run if the API is currently streaming (work happening now)
 		if (this.taskState.isStreaming) {
 			return true
 		}
 
-		// Run if we're waiting for the first chunk (API request in progress)
+		// Run if we're waiting for the first chunk (work happening now)
 		if (this.taskState.isWaitingForFirstChunk) {
 			return true
 		}
 
-		// Run if there's active background command
+		// Run if there's active background command (work happening now)
 		if (this.activeBackgroundCommand) {
 			return true
 		}
 
-		// Otherwise, no active work - don't run TaskCancel
-		return false
+		// Check if we're at the resume button state (no active work, just waiting)
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const lastMessage = clineMessages.at(-1)
+		const isAtResumeButton =
+			lastMessage?.type === "ask" && (lastMessage.ask === "resume_task" || lastMessage.ask === "resume_completed_task")
+
+		if (isAtResumeButton) {
+			// At resume button - DON'T run hook because we're just waiting for user input
+			// The resume button appears in two scenarios:
+			// 1. Opening from history (no new work)
+			// 2. After cancelling during active work (but work already stopped)
+			// In both cases, we shouldn't run TaskCancel hook
+			return false
+		}
+
+		// Not at resume button - we're in the middle of work or just finished something
+		// Run the hook since cancelling would interrupt actual work
+		return true
 	}
 
 	async abortTask() {
@@ -1844,8 +1858,34 @@ export class Task {
 									await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
 										text: JSON.stringify(completedMetadata),
 									})
+									// Save and post state to update UI
+									await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+									await this.postStateToWebview()
 								}
 							}
+
+							// Present resume button after successful TaskCancel hook
+							// Determine which ask type to use based on the last message
+							const lastClineMessage = this.messageStateHandler
+								.getClineMessages()
+								.slice()
+								.reverse()
+								.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"))
+
+							let askType: ClineAsk
+							if (lastClineMessage?.ask === "completion_result") {
+								askType = "resume_completed_task"
+							} else {
+								askType = "resume_task"
+							}
+
+							// Present the resume ask - this will show the resume button in the UI
+							// We don't await this because we want to set the abort flag immediately
+							// The ask will be waiting when the user decides to resume
+							this.ask(askType).catch((error) => {
+								// If ask fails (e.g., task was cleared), that's okay - just log it
+								console.log("[TaskCancel] Resume ask failed (task may have been cleared):", error)
+							})
 						} catch (hookError) {
 							// TaskCancel hook failure is non-fatal, just log
 							console.error("[TaskCancel Hook] Failed (non-fatal):", hookError)
@@ -1863,6 +1903,9 @@ export class Task {
 									await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
 										text: JSON.stringify(failedMetadata),
 									})
+									// Save and post state to update UI
+									await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+									await this.postStateToWebview()
 								}
 							}
 						}
@@ -1876,6 +1919,14 @@ export class Task {
 			// PHASE 3: Set abort flag AFTER running TaskCancel
 			// This allows the hook to complete and its UI to appear
 			this.taskState.abort = true
+
+			// Immediately update UI to reflect abort state
+			try {
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				await this.postStateToWebview()
+			} catch (error) {
+				Logger.error("Failed to post state after setting abort flag", error)
+			}
 
 			// PHASE 4: Check for incomplete progress
 			if (this.FocusChainManager) {
@@ -1906,6 +1957,13 @@ export class Task {
 				} catch (error) {
 					console.error(`[Task ${this.taskId}] Failed to release task lock:`, error)
 				}
+			}
+
+			// Final state update to notify UI that abort is complete
+			try {
+				await this.postStateToWebview()
+			} catch (error) {
+				Logger.error("Failed to post final state after abort", error)
 			}
 		}
 	}
