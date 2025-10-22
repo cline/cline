@@ -110,3 +110,28 @@ export function calculateApiCostOpenAI(
 		thinkingBudgetTokens,
 	)
 }
+
+// For Qwen compliant usage, follows OpenAI-style token counting where input tokens include cached tokens
+export function calculateApiCostQwen(
+	modelInfo: ModelInfo,
+	inputTokens: number, // For Qwen-style, this includes cached tokens
+	outputTokens: number,
+	cacheCreationInputTokens?: number,
+	cacheReadInputTokens?: number,
+	thinkingBudgetTokens?: number,
+): number {
+	const cacheCreationInputTokensNum = cacheCreationInputTokens || 0
+	const cacheReadInputTokensNum = cacheReadInputTokens || 0
+	// Calculate non-cached tokens for the internal function's 'inputTokens' parameter
+	const nonCachedInputTokens = Math.max(0, inputTokens - cacheCreationInputTokensNum - cacheReadInputTokensNum)
+	// Pass the original 'inputTokens' as 'totalInputTokensForPricing' for tier lookup
+	return calculateApiCostInternal(
+		modelInfo,
+		nonCachedInputTokens,
+		outputTokens,
+		cacheCreationInputTokensNum,
+		cacheReadInputTokensNum,
+		inputTokens,
+		thinkingBudgetTokens,
+	)
+}

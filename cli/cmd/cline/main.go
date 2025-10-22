@@ -99,7 +99,9 @@ see the manual page: man cline`,
 
 				// Check if user has credentials configured
 				if !isUserReadyToUse(ctx, instanceAddress) {
-					fmt.Printf("\n\033[90mHey there! Looks like you're new here. Let's get you set up\033[0m\n\n")
+					// Create renderer for welcome messages
+					renderer := display.NewRenderer(global.Config.OutputFormat)
+					fmt.Printf("\n%s\n\n", renderer.Dim("Hey there! Looks like you're new here. Let's get you set up"))
 
 					if err := auth.HandleAuthMenuNoArgs(ctx); err != nil {
 						// Check if user cancelled - exit cleanly
@@ -114,7 +116,7 @@ see the manual page: man cline`,
 						return fmt.Errorf("credentials still not configured - please run 'cline auth' to complete setup")
 					}
 
-					fmt.Printf("\n\033[90m✓ Setup complete, you can now use the Cline CLI\033[0m\n\n")
+					fmt.Printf("\n%s\n\n", renderer.Dim("✓ Setup complete, you can now use the Cline CLI"))
 				}
 			} else {
 				// User specified --address flag, use that
@@ -325,17 +327,20 @@ func getContentFromStdinAndArgs(args []string) (string, error) {
 
 	// Check if data is being piped to stdin
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		stdinBytes, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			return "", fmt.Errorf("failed to read from stdin: %w", err)
-		}
-
-		stdinContent := strings.TrimSpace(string(stdinBytes))
-		if stdinContent != "" {
-			if content.Len() > 0 {
-				content.WriteString(" ")
+		// Only try to read if there's actually data available
+		if stat.Size() > 0 {
+			stdinBytes, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				return "", fmt.Errorf("failed to read from stdin: %w", err)
 			}
-			content.WriteString(stdinContent)
+
+			stdinContent := strings.TrimSpace(string(stdinBytes))
+			if stdinContent != "" {
+				if content.Len() > 0 {
+					content.WriteString(" ")
+				}
+				content.WriteString(stdinContent)
+			}
 		}
 	}
 

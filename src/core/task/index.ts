@@ -2783,7 +2783,6 @@ export class Task {
 							type: "text",
 							text: assistantMessage,
 							// reasoning_details only exists for cline/openrouter providers
-							// @ts-expect-error-next-line
 							reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
 						},
 					] as Array<
