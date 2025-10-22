@@ -36,7 +36,7 @@ Params: path, content (complete).
 <task_progress>Checklist here (optional)</task_progress>
 </write_to_file>
 
-**replace_in_file** — Targeted edits to perform on existing files. You should use replace_in_file when editing a file that already exsits.
+**replace_in_file** — Targeted edits to perform on existing files. You should use replace_in_file when editing a file that already exists.
 Params: path, diff
 Important information on "diff" parameter: (required) One or more SEARCH/REPLACE blocks following this exact format:
 '''
