@@ -17,6 +17,30 @@ Hooks run automatically when enabled.
 
 ## Available Hooks
 
+### TaskStart Hook
+- **When**: Runs when a NEW task is started (not when resuming)
+- **Purpose**: Initialize task context, validate task requirements, set up environment
+- **Global Location**: `~/Documents/Cline/Rules/Hooks/TaskStart` (all platforms)
+- **Workspace Location**: `.clinerules/hooks/TaskStart` (all platforms)
+
+### TaskResume Hook
+- **When**: Runs when an EXISTING task is resumed
+- **Purpose**: Validate resumed task state, restore context, check for changes since last run
+- **Global Location**: `~/Documents/Cline/Rules/Hooks/TaskResume` (all platforms)
+- **Workspace Location**: `.clinerules/hooks/TaskResume` (all platforms)
+
+### TaskCancel Hook
+- **When**: Runs when a task is cancelled by the user
+- **Purpose**: Clean up resources, log cancellation, save state
+- **Global Location**: `~/Documents/Cline/Rules/Hooks/TaskCancel` (all platforms)
+- **Workspace Location**: `.clinerules/hooks/TaskCancel` (all platforms)
+
+### UserPromptSubmit Hook
+- **When**: Runs when the user submits a prompt/message
+- **Purpose**: Validate user input, preprocess prompts, add context to user messages
+- **Global Location**: `~/Documents/Cline/Rules/Hooks/UserPromptSubmit` (all platforms)
+- **Workspace Location**: `.clinerules/hooks/UserPromptSubmit` (all platforms)
+
 ### PreToolUse Hook
 - **When**: Runs BEFORE a tool is executed
 - **Purpose**: Validate parameters, block execution, or add context
@@ -107,11 +131,23 @@ All hooks receive:
 ```json
 {
   "clineVersion": "string",
-  "hookName": "PreToolUse" | "PostToolUse",
+  "hookName": "TaskStart" | "TaskResume" | "TaskCancel" | "UserPromptSubmit" | "PreToolUse" | "PostToolUse",
   "timestamp": "string",
   "taskId": "string",
   "workspaceRoots": ["string"],
   "userId": "string",
+  "taskStart": {  // Only for TaskStart
+    "task": "string"
+  },
+  "taskResume": {  // Only for TaskResume
+    "task": "string"
+  },
+  "taskCancel": {  // Only for TaskCancel
+    "reason": "string"
+  },
+  "userPromptSubmit": {  // Only for UserPromptSubmit
+    "prompt": "string"
+  },
   "preToolUse": {  // Only for PreToolUse
     "toolName": "string",
     "parameters": {}
@@ -131,11 +167,15 @@ All hooks receive:
 All hooks must return:
 ```json
 {
-  "shouldContinue": boolean,           // Required: Allow or block execution
-  "contextModification": "string",      // Optional: Context for future tool uses
+  "cancel": boolean,                   // Required: false to continue, true to block execution
+  "contextModification": "string",     // Optional: Context for future AI decisions
   "errorMessage": "string"             // Optional: Error details if blocking
 }
 ```
+
+**Note**: The `cancel` field works as follows:
+- `false` (or omitted): Allow execution to continue
+- `true`: Block execution and show error message to user
 
 ## Context Modification Format
 
@@ -152,7 +192,7 @@ Example:
 ```bash
 cat <<EOF
 {
-  "shouldContinue": true,
+  "cancel": false,
   "contextModification": "WORKSPACE_RULES: This is a TypeScript project. All new files must use .ts or .tsx extensions."
 }
 EOF
@@ -177,7 +217,7 @@ path=$(echo "$input" | jq -r '.preToolUse.parameters.path // ""')
 if [[ "$tool_name" == "write_to_file" && "$path" == *.js ]]; then
   cat <<EOF
 {
-  "shouldContinue": false,
+  "cancel": true,
   "errorMessage": "Cannot create .js files in TypeScript project",
   "contextModification": "WORKSPACE_RULES: Use .ts/.tsx extensions only"
 }
@@ -185,7 +225,7 @@ EOF
   exit 0
 fi
 
-echo '{"shouldContinue": true}'
+echo '{"cancel": false}'
 ```
 
 ### 2. Context Building - Learn from Operations
@@ -200,12 +240,12 @@ path=$(echo "$input" | jq -r '.postToolUse.parameters.path // ""')
 if [[ "$tool_name" == "write_to_file" && "$success" == "true" ]]; then
   cat <<EOF
 {
-  "shouldContinue": true,
+  "cancel": false,
   "contextModification": "FILE_OPERATIONS: Created '$path'. Maintain consistency with this file's patterns in future operations."
 }
 EOF
 else
-  echo '{"shouldContinue": true}'
+  echo '{"cancel": false}'
 fi
 ```
 
@@ -220,12 +260,12 @@ tool_name=$(echo "$input" | jq -r '.postToolUse.toolName')
 if [[ "$execution_time" -gt 5000 ]]; then
   cat <<EOF
 {
-  "shouldContinue": true,
+  "cancel": false,
   "contextModification": "PERFORMANCE: Tool '$tool_name' took ${execution_time}ms. Consider optimizing future similar operations."
 }
 EOF
 else
-  echo '{"shouldContinue": true}'
+  echo '{"cancel": false}'
 fi
 ```
 
@@ -239,7 +279,7 @@ input=$(cat)
 echo "$input" >> ~/.cline/hook-logs/tool-usage.jsonl
 
 # Allow execution
-echo '{"shouldContinue": true}'
+echo '{"cancel": false}'
 ```
 
 ## Global vs Workspace Hooks
@@ -261,13 +301,13 @@ Cline supports two levels of hooks:
 ### Hook Execution
 
 When multiple hooks exist (global and/or workspace):
-- All hooks for a given step (PreToolUse or PostToolUse) are executed
+- All hooks for a given step are executed
 - **Execution order is not guaranteed** - hooks may run concurrently
-- If ALL hooks allow execution (`shouldContinue: true`), the tool proceeds
-- If ANY hook blocks (`shouldContinue: false`), execution is blocked
+- If ALL hooks allow execution (`cancel: false`), the tool proceeds
+- If ANY hook blocks (`cancel: true`), execution is blocked
 
 **Result Combination:**
-- `shouldContinue`: Must be `true` from ALL hooks for execution to proceed
+- `cancel`: If ANY hook returns `true`, execution is blocked
 - `contextModification`: All context strings are concatenated
 - `errorMessage`: All error messages are concatenated
 
@@ -301,11 +341,11 @@ tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
 path=$(echo "$input" | jq -r '.preToolUse.parameters.path // ""')
 
 if [[ "$tool_name" == "write_to_file" && "$path" == *"package.json"* ]]; then
-  echo '{"shouldContinue": false, "errorMessage": "Global policy: Cannot modify package.json"}'
+  echo '{"cancel": true, "errorMessage": "Global policy: Cannot modify package.json"}'
   exit 0
 fi
 
-echo '{"shouldContinue": true}'
+echo '{"cancel": false}'
 ```
 
 **Workspace Hook** (applies to specific project):
@@ -318,11 +358,11 @@ tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
 path=$(echo "$input" | jq -r '.preToolUse.parameters.path // ""')
 
 if [[ "$tool_name" == "write_to_file" && "$path" == *.js ]]; then
-  echo '{"shouldContinue": false, "errorMessage": "Project rule: Use .ts files only"}'
+  echo '{"cancel": true, "errorMessage": "Project rule: Use .ts files only"}'
   exit 0
 fi
 
-echo '{"shouldContinue": true}'
+echo '{"cancel": false}'
 ```
 
 **All hooks must allow execution for the tool to proceed.** Hooks may execute concurrently.
@@ -331,7 +371,7 @@ echo '{"shouldContinue": true}'
 
 If you have multiple workspace roots, you can place hooks in each root's `.clinerules/hooks/` directory. All hooks (global and workspace) may execute concurrently. Their results will be combined:
 
-- **shouldContinue**: If ANY hook returns false, execution is blocked
+- **cancel**: If ANY hook returns `true`, execution is blocked
 - **contextModification**: All context modifications are concatenated
 - **errorMessage**: All error messages are concatenated
 
