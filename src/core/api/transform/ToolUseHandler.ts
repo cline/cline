@@ -1,4 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import type { ToolUse } from "@core/assistant-message"
 import { JSONParser } from "@streamparser/json"
 
 export interface PendingToolUse {
@@ -106,6 +107,51 @@ export class ToolUseHandler {
 	}
 
 	/**
+	 * Get all pending tool uses as AssistantMessageContent blocks
+	 * Used for streaming UI updates with native tool calls
+	 * @returns Array of partial ToolUse blocks
+	 */
+	getPartialToolUsesAsContent(): ToolUse[] {
+		const results: ToolUse[] = []
+		for (const pendingToolUse of this.pendingToolUses.values()) {
+			if (!pendingToolUse.name) {
+				continue
+			}
+
+			// Try to parse accumulated input as params
+			const params: Record<string, string> = {}
+			if (pendingToolUse.parsedInput !== undefined && pendingToolUse.parsedInput !== null) {
+				// Convert parsed JSON object to string params
+				if (typeof pendingToolUse.parsedInput === "object") {
+					for (const [key, value] of Object.entries(pendingToolUse.parsedInput)) {
+						params[key] = typeof value === "string" ? value : JSON.stringify(value)
+					}
+				}
+			} else if (pendingToolUse.input) {
+				// Try to parse the partial input
+				try {
+					const parsed = JSON.parse(pendingToolUse.input)
+					if (typeof parsed === "object") {
+						for (const [key, value] of Object.entries(parsed)) {
+							params[key] = typeof value === "string" ? value : JSON.stringify(value)
+						}
+					}
+				} catch {
+					// Input is incomplete JSON, leave params empty
+				}
+			}
+
+			results.push({
+				type: "tool_use",
+				name: pendingToolUse.name as any,
+				params: params as any, // Cast to Partial<Record<ToolParamName, string>>
+				partial: true, // Always partial during streaming
+			})
+		}
+		return results
+	}
+
+	/**
 	 * Reset all pending tool uses (call this at the start of a new request)
 	 */
 	reset(): void {
@@ -143,7 +189,7 @@ export class ToolUseHandler {
 		}
 		try {
 			pendingToolUse.jsonParser.write(input)
-		} catch (error) {
+		} catch {
 			// Expected during streaming - parser will error on incomplete JSON
 		}
 	}

@@ -4,7 +4,7 @@ import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { StreamingToolCallHandler } from "@core/api/transform/StreamingToolCallHandler"
 import { ApiStream } from "@core/api/transform/stream"
 import { ToolUseHandler } from "@core/api/transform/ToolUseHandler"
-import { parseAssistantMessageV2 } from "@core/assistant-message"
+import { AssistantMessageContent, parseAssistantMessageV2 } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
@@ -2585,20 +2585,41 @@ export class Task {
 								this.taskState.toolUseIdMap.set(chunk.tool_call.function.name, chunk.tool_call.id)
 							}
 
-							// Process tool call delta and convert to XML format for display
-							const streamingXml = this.toolCallHandler.processToolCallDelta(chunk.tool_call)
-							if (streamingXml) {
-								assistantMessage += streamingXml
-								// parse raw assistant message into content blocks
+							// For native tool calls, directly use the tool use data without XML conversion
+							// For non-native (XML-based), convert to XML and parse back
+							if (this.useNativeToolCalls) {
+								// Skip XML conversion - directly get tool uses from handler
 								const prevLength = this.taskState.assistantMessageContent.length
 
-								this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
+								// Combine any text content with tool uses
+								const textContent = assistantTextOnly.trim()
+								const textBlocks: AssistantMessageContent[] = textContent
+									? [{ type: "text", content: textContent, partial: false }]
+									: []
+								const toolBlocks = this.toolUseHandler.getPartialToolUsesAsContent()
+								assistantMessage += toolBlocks.map((block) => JSON.stringify(block)).join("\n")
+								this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 
 								if (this.taskState.assistantMessageContent.length > prevLength) {
-									this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
+									this.taskState.userMessageContentReady = false
 								}
-								// present content to user
 								this.presentAssistantMessage()
+							} else {
+								// Legacy XML-based path
+								const streamingXml = this.toolCallHandler.processToolCallDelta(chunk.tool_call)
+								if (streamingXml) {
+									assistantMessage += streamingXml
+									// parse raw assistant message into content blocks
+									const prevLength = this.taskState.assistantMessageContent.length
+
+									this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
+
+									if (this.taskState.assistantMessageContent.length > prevLength) {
+										this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
+									}
+									// present content to user
+									this.presentAssistantMessage()
+								}
 							}
 							break
 						}
@@ -2649,16 +2670,40 @@ export class Task {
 				}
 
 				// Finalize any remaining tool calls at the end of the stream
-				const finalizedXmlResults = this.toolCallHandler.finalizePendingToolCalls()
-				for (const finalXml of finalizedXmlResults) {
-					assistantMessage += finalXml
-					// parse and update assistant message content with finalized tool calls
+				if (this.useNativeToolCalls) {
+					// For native tool calls, mark all pending tool uses as complete
 					const prevLength = this.taskState.assistantMessageContent.length
-					this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
+
+					// Get finalized tool uses and mark them as complete
+					const textContent = assistantTextOnly.trim()
+					const textBlocks: AssistantMessageContent[] = textContent
+						? [{ type: "text", content: textContent, partial: false }]
+						: []
+
+					// Get all finalized tool uses and mark as complete
+					const toolBlocks = this.toolUseHandler
+						.getPartialToolUsesAsContent()
+						.map((block) => ({ ...block, partial: false }))
+
+					this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
+
 					if (this.taskState.assistantMessageContent.length > prevLength) {
 						this.taskState.userMessageContentReady = false
 					}
 					this.presentAssistantMessage()
+				} else {
+					// Legacy XML-based path
+					const finalizedXmlResults = this.toolCallHandler.finalizePendingToolCalls()
+					for (const finalXml of finalizedXmlResults) {
+						assistantMessage += finalXml
+						// parse and update assistant message content with finalized tool calls
+						const prevLength = this.taskState.assistantMessageContent.length
+						this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
+						if (this.taskState.assistantMessageContent.length > prevLength) {
+							this.taskState.userMessageContentReady = false
+						}
+						this.presentAssistantMessage()
+					}
 				}
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
@@ -2774,7 +2819,7 @@ export class Task {
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
-			if (assistantMessage.length > 0) {
+			if (assistantMessage.length > 0 || this.useNativeToolCalls) {
 				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
