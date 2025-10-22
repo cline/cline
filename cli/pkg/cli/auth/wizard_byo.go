@@ -108,19 +108,19 @@ func (pw *ProviderWizard) handleAddProvider() error {
 	}
 
 	// Step 3: Get API key first (for non-Bedrock providers)
-	apiKey, err := PromptForAPIKey(provider)
+	credentials, err := PromptForAPIKey(provider)
 	if err != nil {
 		return fmt.Errorf("failed to get API key: %w", err)
 	}
 
 	// Step 4: Try to fetch models and let user select (with fallback to manual entry for providers that don't support fetch)
-	modelID, modelInfo, err := pw.selectModel(provider, apiKey)
+	modelID, modelInfo, err := pw.selectModel(provider, credentials.APIKey)
 	if err != nil {
 		return fmt.Errorf("model selection failed: %w", err)
 	}
 
 	// Step 5: Apply configuration using AddProviderPartial
-	if err := AddProviderPartial(pw.ctx, pw.manager, provider, modelID, apiKey, modelInfo); err != nil {
+	if err := AddProviderPartial(pw.ctx, pw.manager, provider, modelID, credentials, modelInfo); err != nil {
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 

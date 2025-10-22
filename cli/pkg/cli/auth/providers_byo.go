@@ -109,6 +109,12 @@ type APIKeyFieldConfig struct {
 	IsRequired bool
 }
 
+// ProviderCredentials holds API credentials and optional configuration for a provider
+type ProviderCredentials struct {
+	APIKey  string
+	BaseURL string
+}
+
 // GetBYOAPIKeyFieldConfig returns the configuration for the API key field based on provider.
 func GetBYOAPIKeyFieldConfig(provider cline.ApiProvider) APIKeyFieldConfig {
 	if provider == cline.ApiProvider_OLLAMA {
@@ -128,7 +134,7 @@ func GetBYOAPIKeyFieldConfig(provider cline.ApiProvider) APIKeyFieldConfig {
 
 // PromptForAPIKey prompts the user to enter an API key (or base URL for Ollama).
 // For OpenAI Native provider, also prompts for an optional base URL.
-func PromptForAPIKey(provider cline.ApiProvider) (string, error) {
+func PromptForAPIKey(provider cline.ApiProvider) (*ProviderCredentials, error) {
 	var apiKey string
 	config := GetBYOAPIKeyFieldConfig(provider)
 
@@ -149,10 +155,13 @@ func PromptForAPIKey(provider cline.ApiProvider) (string, error) {
 	form := huh.NewForm(huh.NewGroup(apiKeyField))
 
 	if err := form.Run(); err != nil {
-		return "", fmt.Errorf("failed to get API key: %w", err)
+		return nil, fmt.Errorf("failed to get API key: %w", err)
 	}
 
-	// For OpenAI Native provider, also prompt for base URL
+	credentials := &ProviderCredentials{
+		APIKey: apiKey,
+	}
+
 	if provider == cline.ApiProvider_OPENAI_NATIVE {
 		var baseURL string
 		baseURLForm := huh.NewForm(
@@ -166,12 +175,11 @@ func PromptForAPIKey(provider cline.ApiProvider) (string, error) {
 		)
 
 		if err := baseURLForm.Run(); err != nil {
-			return "", fmt.Errorf("failed to get base URL: %w", err)
+			return nil, fmt.Errorf("failed to get base URL: %w", err)
 		}
 
-		// TODO - connect baseURL
-		_ = baseURL
+		credentials.BaseURL = baseURL
 	}
 
-	return apiKey, nil
+	return credentials, nil
 }
