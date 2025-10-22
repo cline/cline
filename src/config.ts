@@ -37,7 +37,7 @@ function getEnvironmentConfig(env: Environment): EnvironmentConfig {
 		case Environment.staging:
 			return {
 				appBaseUrl: "https://staging-app.cline.bot",
-				apiBaseUrl: "https://core-api.staging.int.cline.bot",
+				apiBaseUrl: "https://core-api-internal.staging.cline.bot",
 				mcpBaseUrl: "https://api.cline.bot/v1/mcp",
 				firebase: {
 					apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
