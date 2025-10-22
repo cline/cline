@@ -1,34 +1,23 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
-import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import React, { KeyboardEvent, memo, useEffect, useMemo, useRef, useState } from "react"
-import { useRemark } from "react-remark"
+import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
-import styled from "styled-components"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
+export const HICAP_MODEL_PICKER_Z_INDEX = 1_000
+
 // Star icon for favorites
 const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
 	return (
 		<div
-			onClick={onClick}
-			style={{
-				cursor: "pointer",
-				color: isFavorite ? "var(--vscode-terminal-ansiBlue)" : "var(--vscode-descriptionForeground)",
-				marginLeft: "8px",
-				fontSize: "16px",
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-				userSelect: "none",
-				WebkitUserSelect: "none",
-			}}>
+			className={`cursor-pointer ${isFavorite ? "text-[var(--vscode-terminal-ansiBlue)]" : "text-[var(--vscode-descriptionForeground)]"} ml-[8px] text-[16px] flex items-center justify-center select-none`}
+			onClick={onClick}>
 			{isFavorite ? "★" : "☆"}
 		</div>
 	)
@@ -173,22 +162,15 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 	}, [selectedIndex])
 
 	return (
-		<div style={{ width: "100%" }}>
-			<style>
-				{`
-				.model-item-highlight {
-					background-color: var(--vscode-editor-findMatchHighlightBackground);
-					color: inherit;
-				}
-				`}
-			</style>
-			<div style={{ display: "flex", flexDirection: "column" }}>
+		<div className="w-full">
+			<div className="flex flex-col">
 				<label htmlFor="model-search">
-					<span style={{ fontWeight: 500 }}>Model ID</span>
+					<span className="font-medium">Model ID</span>
 				</label>
 
-				<DropdownWrapper ref={dropdownRef}>
+				<div className="relative w-full" ref={dropdownRef}>
 					<VSCodeTextField
+						className={`w-full z-[${HICAP_MODEL_PICKER_Z_INDEX}] relative`}
 						disabled={apiConfiguration?.hicapApiKey?.length !== 32 || Object.keys(hicapModels).length === 0}
 						id="model-search"
 						onFocus={() => setIsDropdownVisible(true)}
@@ -198,37 +180,33 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 						}}
 						onKeyDown={handleKeyDown}
 						placeholder="Search and select a model..."
-						style={{
-							width: "100%",
-							zIndex: HICAP_MODEL_PICKER_Z_INDEX,
-							position: "relative",
-						}}
 						value={searchTerm}>
 						{searchTerm && (
 							<div
 								aria-label="Clear search"
-								className="input-icon-button codicon codicon-close"
+								className="flex justify-center items-center h-full input-icon-button codicon codicon-close"
 								onClick={() => {
 									setSearchTerm("")
 									setIsDropdownVisible(true)
 								}}
 								slot="end"
-								style={{
-									display: "flex",
-									justifyContent: "center",
-									alignItems: "center",
-									height: "100%",
-								}}
 							/>
 						)}
 					</VSCodeTextField>
 					{isDropdownVisible && (
-						<DropdownList ref={dropdownListRef}>
+						<div
+							className={`absolute top-[calc(100%-3px)] left-0 w-[calc(100%-2px)]
+							max-h-[200px] overflow-y-auto bg-[var(--vscode-dropdown-background)]
+							border border-[var(--vscode-list-activeSelectionBackground)]
+							z-[${HICAP_MODEL_PICKER_Z_INDEX - 1}] rounded-b-[3px]`}
+							ref={dropdownListRef}>
 							{modelSearchResults.map((item, index) => {
 								const isFavorite = (favoritedModelIds || []).includes(item.id)
 								return (
-									<DropdownItem
-										isSelected={index === selectedIndex}
+									<div
+										className={`p-[5px_10px] cursor-pointer break-all whitespace-normal ${
+											index === selectedIndex ? "bg-[var(--vscode-list-activeSelectionBackground)]" : ""
+										} hover:bg-[var(--vscode-list-activeSelectionBackground)]`}
 										key={item.id}
 										onClick={() => {
 											handleModelChange(item.id)
@@ -236,7 +214,7 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 										}}
 										onMouseEnter={() => setSelectedIndex(index)}
 										ref={(el) => (itemRefs.current[index] = el)}>
-										<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+										<div className="flex justify-between items-center [&_.model-item-highlight]:bg-[var(--vscode-editor-findMatchHighlightBackground)] [&_.model-item-highlight]:text-inherit">
 											<span dangerouslySetInnerHTML={{ __html: item.html }} />
 											<StarIcon
 												isFavorite={isFavorite}
@@ -248,193 +226,15 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 												}}
 											/>
 										</div>
-									</DropdownItem>
+									</div>
 								)
 							})}
-						</DropdownList>
+						</div>
 					)}
-				</DropdownWrapper>
+				</div>
 			</div>
 		</div>
 	)
 }
 
 export default HicapModelPicker
-
-// Dropdown
-
-const DropdownWrapper = styled.div`
-	position: relative;
-	width: 100%;
-`
-
-export const HICAP_MODEL_PICKER_Z_INDEX = 1_000
-
-const DropdownList = styled.div`
-	position: absolute;
-	top: calc(100% - 3px);
-	left: 0;
-	width: calc(100% - 2px);
-	max-height: 200px;
-	overflow-y: auto;
-	background-color: var(--vscode-dropdown-background);
-	border: 1px solid var(--vscode-list-activeSelectionBackground);
-	z-index: ${HICAP_MODEL_PICKER_Z_INDEX - 1};
-	border-bottom-left-radius: 3px;
-	border-bottom-right-radius: 3px;
-`
-
-const DropdownItem = styled.div<{ isSelected: boolean }>`
-	padding: 5px 10px;
-	cursor: pointer;
-	word-break: break-all;
-	white-space: normal;
-
-	background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
-
-	&:hover {
-		background-color: var(--vscode-list-activeSelectionBackground);
-	}
-`
-
-// Markdown
-
-const StyledMarkdown = styled.div`
-	font-family:
-		var(--vscode-font-family),
-		system-ui,
-		-apple-system,
-		BlinkMacSystemFont,
-		"Segoe UI",
-		Roboto,
-		Oxygen,
-		Ubuntu,
-		Cantarell,
-		"Open Sans",
-		"Helvetica Neue",
-		sans-serif;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-
-	p,
-	li,
-	ol,
-	ul {
-		line-height: 1.25;
-		margin: 0;
-	}
-
-	ol,
-	ul {
-		padding-left: 1.5em;
-		margin-left: 0;
-	}
-
-	p {
-		white-space: pre-wrap;
-	}
-
-	a {
-		text-decoration: none;
-	}
-	a {
-		&:hover {
-			text-decoration: underline;
-		}
-	}
-`
-
-export const ModelDescriptionMarkdown = memo(
-	({
-		markdown,
-		key,
-		isExpanded,
-		setIsExpanded,
-		isPopup,
-	}: {
-		markdown?: string
-		key: string
-		isExpanded: boolean
-		setIsExpanded: (isExpanded: boolean) => void
-		isPopup?: boolean
-	}) => {
-		const [reactContent, setMarkdown] = useRemark()
-		// const [isExpanded, setIsExpanded] = useState(false)
-		const [showSeeMore, setShowSeeMore] = useState(false)
-		const textContainerRef = useRef<HTMLDivElement>(null)
-		const textRef = useRef<HTMLDivElement>(null)
-
-		useEffect(() => {
-			setMarkdown(markdown || "")
-		}, [markdown, setMarkdown])
-
-		useEffect(() => {
-			if (textRef.current && textContainerRef.current) {
-				const { scrollHeight } = textRef.current
-				const { clientHeight } = textContainerRef.current
-				const isOverflowing = scrollHeight > clientHeight
-				setShowSeeMore(isOverflowing)
-				// if (!isOverflowing) {
-				// 	setIsExpanded(false)
-				// }
-			}
-		}, [reactContent, setIsExpanded])
-
-		return (
-			<StyledMarkdown key={key} style={{ display: "inline-block", marginBottom: 0 }}>
-				<div
-					ref={textContainerRef}
-					style={{
-						overflowY: isExpanded ? "auto" : "hidden",
-						position: "relative",
-						wordBreak: "break-word",
-						overflowWrap: "anywhere",
-					}}>
-					<div
-						ref={textRef}
-						style={{
-							display: "-webkit-box",
-							WebkitLineClamp: isExpanded ? "unset" : 3,
-							WebkitBoxOrient: "vertical",
-							overflow: "hidden",
-							// whiteSpace: "pre-wrap",
-							// wordBreak: "break-word",
-							// overflowWrap: "anywhere",
-						}}>
-						{reactContent}
-					</div>
-					{!isExpanded && showSeeMore && (
-						<div
-							style={{
-								position: "absolute",
-								right: 0,
-								bottom: 0,
-								display: "flex",
-								alignItems: "center",
-							}}>
-							<div
-								style={{
-									width: 30,
-									height: "1.2em",
-									background: "linear-gradient(to right, transparent, var(--vscode-sideBar-background))",
-								}}
-							/>
-							<VSCodeLink
-								onClick={() => setIsExpanded(true)}
-								style={{
-									// cursor: "pointer",
-									// color: "var(--vscode-textLink-foreground)",
-									fontSize: "inherit",
-									paddingRight: 0,
-									paddingLeft: 3,
-									backgroundColor: isPopup ? CODE_BLOCK_BG_COLOR : "var(--vscode-sideBar-background)",
-								}}>
-								See more
-							</VSCodeLink>
-						</div>
-					)}
-				</div>
-			</StyledMarkdown>
-		)
-	},
-)

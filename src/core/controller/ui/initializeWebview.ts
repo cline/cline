@@ -212,32 +212,28 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 					const modelId = apiConfiguration[modelIdField]
 
 					if (modelId && response.models[modelId]) {
-						const updatedConfig = {
-							...apiConfiguration,
-							[modelInfoField]: response.models[modelId],
-						}
-						controller.stateManager.setApiConfiguration(updatedConfig)
+						controller.stateManager.setGlobalState(modelInfoField, response.models[modelId])
 						await controller.postStateToWebview()
 					}
 				} else {
 					// Shared models: update both plan and act modes
 					const planModelId = apiConfiguration.planModeHicapModelId
 					const actModelId = apiConfiguration.actModeHicapModelId
-					const updatedConfig = { ...apiConfiguration }
+					const updates: Partial<GlobalStateAndSettings> = {}
 
 					// Update plan mode model info if we have a model ID
 					if (planModelId && response.models[planModelId]) {
-						updatedConfig.planModeHicapModelInfo = response.models[planModelId]
+						updates.planModeHicapModelInfo = response.models[planModelId]
 					}
 
 					// Update act mode model info if we have a model ID
 					if (actModelId && response.models[actModelId]) {
-						updatedConfig.actModeHicapModelInfo = response.models[actModelId]
+						updates.actModeHicapModelInfo = response.models[actModelId]
 					}
 
 					// Post state update if we updated any model info
 					if ((planModelId && response.models[planModelId]) || (actModelId && response.models[actModelId])) {
-						controller.stateManager.setApiConfiguration(updatedConfig)
+						controller.stateManager.setGlobalStateBatch(updates)
 						await controller.postStateToWebview()
 					}
 				}
