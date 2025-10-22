@@ -18,7 +18,7 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 		tool_functions: 1,
 	})
 	.matcher((providerInfo) => {
-		const isSupportedProvider = ["cline", "anthropic"].some((id) => providerInfo.providerId.toLowerCase() === id)
+		const isSupportedProvider = ["cline", "anthropic", "gemini"].some((id) => providerInfo.providerId.toLowerCase() === id)
 		if (!isSupportedProvider) {
 			return false
 		}

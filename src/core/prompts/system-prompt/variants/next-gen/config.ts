@@ -20,7 +20,7 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		// Match next-gen models
 		return (
 			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
-			providerInfo.providerId !== "cline" &&
+			!["cline", "anthropic", "gemini"].some((id) => providerInfo.providerId?.toLowerCase() === id) &&
 			isNextGenModelFamily(providerInfo.model.id) &&
 			!(
 				isGPT5ModelFamily(providerInfo.model.id) &&

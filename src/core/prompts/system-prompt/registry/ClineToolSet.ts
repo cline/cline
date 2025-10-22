@@ -1,5 +1,5 @@
 import { ModelFamily } from "@/shared/prompts"
-import { type ClineToolSpec, toolSpecFunctionDefinition, toolSpecInputSchema } from "../spec"
+import { type ClineToolSpec, toolSpecFunctionDeclarations, toolSpecFunctionDefinition, toolSpecInputSchema } from "../spec"
 import { PromptVariant, SystemPromptContext } from "../types"
 
 export class ClineToolSet {
@@ -112,6 +112,9 @@ export class ClineToolSet {
 		const enabledTools = ClineToolSet.getEnabledTools(variant, context)
 		if (context.providerInfo.providerId === "anthropic") {
 			return enabledTools.map((tool) => toolSpecInputSchema(tool.config, context))
+		}
+		if (context.providerInfo.providerId === "gemini") {
+			return enabledTools.map((tool) => toolSpecFunctionDeclarations(tool.config, context))
 		}
 		return enabledTools.map((tool) => toolSpecFunctionDefinition(tool.config, context))
 	}

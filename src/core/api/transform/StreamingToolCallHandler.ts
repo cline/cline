@@ -282,7 +282,7 @@ export class StreamingToolCallHandler {
 
 	private log(...args: any[]): void {
 		if (this.debug) {
-			console.log(...args)
+			console.log("[StreamingToolCallHandler]", ...args)
 		}
 	}
 }

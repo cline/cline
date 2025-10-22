@@ -18,7 +18,7 @@ export const config = createVariant(ModelFamily.GENERIC)
 		if (!providerInfo.providerId || !providerInfo.model.id) {
 			return true
 		}
-		const isSupportedProvider = ["cline", "anthropic"].some((id) => providerInfo.providerId?.toLowerCase() === id)
+		const isSupportedProvider = ["cline", "anthropic", "gemini"].some((id) => providerInfo.providerId?.toLowerCase() === id)
 		// Generic matcher - fallback for everything that doesn't match other variants
 		// This will match anything that doesn't match the other specific variants
 		return (

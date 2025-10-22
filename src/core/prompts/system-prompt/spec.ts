@@ -1,4 +1,5 @@
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
+import { FunctionDeclaration as GoogleTool, Type as GoogleToolParamType } from "@google/genai"
 import { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import type { ModelFamily } from "@/shared/prompts"
 import type { ClineDefaultTool } from "@/shared/tools"
@@ -94,6 +95,9 @@ export function toolSpecFunctionDefinition(tool: ClineToolSpec, context: SystemP
 	return chatCompletionTool
 }
 
+/**
+ * Converts a ClineToolSpec into an Anthropic Tool definition
+ */
 export function toolSpecInputSchema(tool: ClineToolSpec, context: SystemPromptContext): AnthropicTool {
 	// Check if the tool should be included based on context requirements
 	if (tool.contextRequirements && !tool.contextRequirements(context)) {
@@ -150,6 +154,59 @@ export function toolSpecInputSchema(tool: ClineToolSpec, context: SystemPromptCo
 }
 
 /**
+ * Converts a ClineToolSpec into a Google Gemini function.
+ * Docs: https://ai.google.dev/gemini-api/docs/function-calling
+ */
+export function toolSpecFunctionDeclarations(tool: ClineToolSpec, context: SystemPromptContext): GoogleTool {
+	// Check if the tool should be included based on context requirements
+	if (tool.contextRequirements && !tool.contextRequirements(context)) {
+		throw new Error(`Tool ${tool.name} does not meet context requirements`)
+	}
+
+	// Build the parameters object for parameters
+	const properties: Record<string, any> = {}
+	const required: string[] = []
+
+	if (tool.parameters) {
+		for (const param of tool.parameters) {
+			// Check if parameter should be included based on context requirements
+			if (param.contextRequirements && !param.contextRequirements(context)) {
+				continue
+			}
+
+			// Add to required array if parameter is required
+			if (param.required) {
+				required.push(param.name)
+			}
+
+			// Determine parameter type - use explicit type if provided.
+			// Default to string
+			const paramType: string = param.type || GoogleToolParamType.STRING
+
+			// Build parameter schema
+			const paramSchema: any = {
+				type: paramType,
+				items: paramType === GoogleToolParamType.ARRAY ? { type: GoogleToolParamType.STRING } : undefined,
+				description: param.description || param.instruction,
+			}
+			properties[param.name] = paramSchema
+		}
+	}
+
+	const googleTool: GoogleTool = {
+		name: tool.name,
+		description: tool.description,
+		parameters: {
+			type: GoogleToolParamType.OBJECT,
+			properties,
+			required,
+		},
+	}
+
+	return googleTool
+}
+
+/**
  * Converts an OpenAI ChatCompletionTool into an Anthropic Tool definition
  */
 export function openAIToolToAnthropic(openAITool: OpenAITool): AnthropicTool {
@@ -166,27 +223,36 @@ export function openAIToolToAnthropic(openAITool: OpenAITool): AnthropicTool {
 	}
 }
 
-// export function toOpenAIResponsesAPITool(openAITool: OpenAITool): OpenAITool {
-// 	// {
-// 	// 	"type": "function",
-// 	// 	"function": {
-// 	// 		"name": "get_weather",
-// 	// 		"description": "Determine weather in my location",
-// 	// 		"strict": true,
-// 	// 		"parameters": {
-// 	// 		"type": "object",
-// 	// 		"properties": {
-// 	// 			"location": {
-// 	// 			"type": "string",
-// 	// 			},
-// 	// 		},
-// 	// 		"additionalProperties": false,
-// 	// 		"required": [
-// 	// 			"location",
-// 	// 			"unit"
-// 	// 		]
-// 	// 		}
-// 	// 	}
-// 	// }
+type OpenAIResponseTool = {
+	type: "function"
+	function: {
+		name: string
+		description: string
+		strict: boolean
+		parameters: {
+			type: "object"
+			properties: Record<string, any>
+			required: string[]
+			additionalProperties?: boolean
+		}
+	}
+}
 
-// }
+/**
+ * Converts an OpenAI ChatCompletionTool into Response API format.
+ */
+export function toOpenAIResponsesAPITool(openAITool: OpenAITool): OpenAIResponseTool {
+	return {
+		type: "function",
+		function: {
+			name: openAITool.function.name,
+			description: openAITool.function.description || "",
+			strict: openAITool.function.strict || false,
+			parameters: {
+				type: "object",
+				properties: openAITool.function.parameters?.properties || {},
+				required: openAITool.function.parameters?.required ? (openAITool.function.parameters?.required as string[]) : [],
+			},
+		},
+	} satisfies OpenAIResponseTool
+}
