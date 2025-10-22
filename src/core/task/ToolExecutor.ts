@@ -683,7 +683,8 @@ export class ToolExecutor {
 			throw error
 		} finally {
 			// Run PostToolUse hook if enabled (only runs if we entered the try block)
-			if (hooksEnabled) {
+			// Skip PostToolUse for attempt_completion since it marks task completion, not actual work
+			if (hooksEnabled && block.name !== "attempt_completion") {
 				const hookFactory = new HookFactory()
 				const hasPostToolUseHook = await hookFactory.hasHook("PostToolUse")
 
