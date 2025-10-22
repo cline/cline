@@ -3005,15 +3005,6 @@ export class Task {
 		// Save checkpoint if this is the first API request
 		const isFirstRequest = this.messageStateHandler.getClineMessages().filter((m) => m.say === "api_req_started").length === 0
 
-		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
-		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
-		await this.say(
-			"api_req_started",
-			JSON.stringify({
-				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
-			}),
-		)
-
 		// Initialize checkpointManager first if enabled and it's the first request
 		if (
 			isFirstRequest &&
@@ -3187,7 +3178,8 @@ export class Task {
 			userContent.push({ type: "text", text: environmentDetails })
 		}
 
-		// Run UserPromptSubmit hook before sending to API
+		// Run UserPromptSubmit hook BEFORE creating api_req_started message
+		// This ensures the hook UI appears before the API request in the chat
 		const hookResult = await this.runUserPromptSubmitHook(
 			userContent,
 			this.taskState.apiRequestCount === 1 ? "initial_task" : "feedback",
@@ -3206,6 +3198,15 @@ export class Task {
 				text: `<hook_context source="UserPromptSubmit">\n${hookResult.contextModification}\n</hook_context>`,
 			})
 		}
+
+		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
+		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
+		await this.say(
+			"api_req_started",
+			JSON.stringify({
+				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
+			}),
+		)
 
 		await this.messageStateHandler.addToApiConversationHistory({
 			role: "user",
