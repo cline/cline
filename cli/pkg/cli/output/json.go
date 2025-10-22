@@ -3,9 +3,34 @@ package output
 import (
 	"encoding/json"
 	"fmt"
-
-	"github.com/cline/cli/pkg/cli/global"
 )
+
+// OutputJSONLine outputs a single JSON object as a line (JSONL format)
+func OutputJSONLine(obj map[string]interface{}) error {
+	jsonBytes, err := json.Marshal(obj)
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+	fmt.Println(string(jsonBytes))
+	return nil
+}
+
+// OutputStatusMessage outputs a status message in JSONL format
+// Caller should check output mode before calling this function
+func OutputStatusMessage(msgType, message string, data map[string]interface{}) error {
+	obj := map[string]interface{}{
+		"type":    msgType,
+		"message": message,
+	}
+	
+	if data != nil {
+		for k, v := range data {
+			obj[k] = v
+		}
+	}
+	
+	return OutputJSONLine(obj)
+}
 
 // JSONResponse represents a standard CLI JSON response
 type JSONResponse struct {
@@ -43,9 +68,14 @@ func OutputJSON(status, command string, data interface{}, errMsg string) error {
 	return nil
 }
 
-// OutputJSONSuccess outputs a successful JSON response
+// OutputJSONSuccess outputs a successful JSON response as a single JSONL line
 func OutputJSONSuccess(command string, data interface{}) error {
-	return OutputJSON("success", command, data, "")
+	response := map[string]interface{}{
+		"status":  "success",
+		"command": command,
+		"data":    data,
+	}
+	return OutputJSONLine(response)
 }
 
 // OutputJSONError outputs an error JSON response
@@ -55,12 +85,4 @@ func OutputJSONError(command string, err error) error {
 		errMsg = err.Error()
 	}
 	return OutputJSON("error", command, nil, errMsg)
-}
-
-// IsJSONMode returns true if global output format is set to JSON
-func IsJSONMode() bool {
-	if global.Config == nil {
-		return false
-	}
-	return global.Config.OutputFormat == "json"
 }

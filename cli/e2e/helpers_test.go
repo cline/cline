@@ -70,6 +70,11 @@ func runCLI(ctx context.Context, t *testing.T, args ...string) (string, string, 
 	err := cmd.Run()
 	exit := 0
 	if err != nil {
+		// Check for timeout first - this should fail the test
+		if ctx.Err() == context.DeadlineExceeded {
+			t.Fatalf("Command timed out (context deadline exceeded): %v\nCommand: %s %v\nStdout: %s\nStderr: %s", 
+				err, bin, args, outB.String(), errB.String())
+		}
 		// Extract exit code if possible
 		if ee, ok := err.(*exec.ExitError); ok {
 			exit = ee.ExitCode()

@@ -68,6 +68,11 @@ see the manual page: man cline`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
+			// Check for JSON output mode - not supported for interactive mode
+			if global.Config.OutputFormat == "json" {
+				return fmt.Errorf("interactive mode (running without arguments) cannot be used with --output-format json")
+			}
+
 			var instanceAddress string
 
 			// If --address flag not provided, start instance BEFORE getting prompt

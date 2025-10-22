@@ -19,6 +19,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// outputVerbose outputs a verbose message either as JSONL (in JSON mode) or as plain text
+func outputVerbose(format string, args ...interface{}) {
+	if !global.Config.Verbose {
+		return
+	}
+	
+	message := fmt.Sprintf(format, args...)
+	
+	if global.Config.OutputFormat == "json" {
+		// Output as JSONL immediately
+		output.OutputStatusMessage("verbose", message, nil)
+	} else {
+		fmt.Println(message)
+	}
+}
+
 // TaskOptions contains options for creating a task
 type TaskOptions struct {
 	Images   []string
@@ -144,9 +160,7 @@ func newTaskNewCommand() *cobra.Command {
 				if err := taskManager.SetMode(ctx, mode, nil, nil, nil); err != nil {
 					return fmt.Errorf("failed to set mode: %w", err)
 				}
-				if global.Config.Verbose {
-					fmt.Printf("Mode set to: %s\n", mode)
-				}
+				outputVerbose("Mode set to: %s", mode)
 			}
 
 			// Inject yolo_mode_toggled setting if --yolo flag is set
@@ -172,9 +186,7 @@ func newTaskNewCommand() *cobra.Command {
 				return output.OutputJSONSuccess("task new", data)
 			}
 
-			if global.Config.Verbose {
-				fmt.Printf("Task created successfully with ID: %s\n", taskID)
-			}
+			outputVerbose("Task created successfully with ID: %s", taskID)
 
 			return nil
 		},
@@ -434,7 +446,14 @@ func newTaskViewCommand() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
+			// Output instance info
+			if global.Config.OutputFormat == "json" {
+				output.OutputStatusMessage("status", "Using instance", map[string]interface{}{
+					"instance": taskManager.GetCurrentInstance(),
+				})
+			} else {
+				fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
+			}
 
 			if follow {
 				// Follow conversation forever (non-interactive)
@@ -495,7 +514,10 @@ func newTaskOpenCommand() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
+			// Output instance info
+			if global.Config.OutputFormat != "json" {
+				fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
+			}
 
 			// Resume the task
 			if err := taskManager.ResumeTask(ctx, taskID); err != nil {
@@ -507,9 +529,7 @@ func newTaskOpenCommand() *cobra.Command {
 				if err := taskManager.SetMode(ctx, mode, nil, nil, nil); err != nil {
 					return fmt.Errorf("failed to set mode: %w", err)
 				}
-				if global.Config.Verbose {
-					fmt.Printf("Mode set to: %s\n", mode)
-				}
+				outputVerbose("Mode set to: %s", mode)
 			}
 
 			// Process yolo flag and apply settings
@@ -555,6 +575,17 @@ func newTaskOpenCommand() *cobra.Command {
 				}
 			}
 
+			// Output success in JSON or plain text
+			if global.Config.OutputFormat == "json" {
+				data := map[string]interface{}{
+					"taskId":   taskID,
+					"resumed":  true,
+					"instance": taskManager.GetCurrentInstance(),
+				}
+				return output.OutputJSONSuccess("task open", data)
+			}
+
+			fmt.Printf("Task %s opened successfully\n", taskID)
 			return nil
 		},
 	}
@@ -689,9 +720,7 @@ func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) e
 		if err := taskManager.SetMode(ctx, opts.Mode, nil, nil, nil); err != nil {
 			return fmt.Errorf("failed to set mode: %w", err)
 		}
-		if global.Config.Verbose {
-			fmt.Printf("Mode set to: %s\n", opts.Mode)
-		}
+		outputVerbose("Mode set to: %s", opts.Mode)
 	}
 
 	// Inject yolo_mode_toggled setting if --yolo flag is set
@@ -705,9 +734,7 @@ func CreateAndFollowTask(ctx context.Context, prompt string, opts TaskOptions) e
 		return fmt.Errorf("failed to create task: %w", err)
 	}
 
-	if global.Config.Verbose {
-		fmt.Printf("Task created successfully with ID: %s\n\n", taskID)
-	}
+	outputVerbose("Task created successfully with ID: %s\n", taskID)
 
 	// Check for updates in background after task is created
 	updater.CheckAndUpdate(opts.Verbose)

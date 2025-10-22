@@ -104,7 +104,22 @@ func newInstanceKillCommand() *cobra.Command {
 			if killAllCLI {
 				return killAllCLIInstances(ctx, registry)
 			} else {
-				return global.KillInstanceByAddress(ctx, registry, args[0])
+				address := args[0]
+				if err := global.KillInstanceByAddress(ctx, registry, address); err != nil {
+					return err
+				}
+
+				// Output success in JSON or plain text
+				if global.Config.OutputFormat == "json" {
+					data := map[string]interface{}{
+						"killedCount": 1,
+						"addresses":   []string{address},
+					}
+					return output.OutputJSONSuccess("instance kill", data)
+				}
+
+				fmt.Printf("Successfully killed instance at %s\n", address)
+				return nil
 			}
 		},
 	}
@@ -470,6 +485,14 @@ func newInstanceDefaultCommand() *cobra.Command {
 			// Set as default
 			if err := registry.SetDefaultInstance(address); err != nil {
 				return fmt.Errorf("failed to set default instance: %w", err)
+			}
+
+			// Output success in JSON or plain text
+			if global.Config.OutputFormat == "json" {
+				data := map[string]interface{}{
+					"defaultInstance": address,
+				}
+				return output.OutputJSONSuccess("instance default", data)
 			}
 
 			fmt.Printf("Switched to instance: %s\n", address)

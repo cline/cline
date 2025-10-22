@@ -560,7 +560,9 @@ func (m *Manager) ReinitExistingTaskFromId(ctx context.Context, taskId string) e
 		return fmt.Errorf("Failed to reinitialize task %s: %w", taskId, err)
 	}
 
-	fmt.Printf("Successfully reinitialized task: %s (ID: %s)\n", taskId, resp.Id)
+	if global.Config.OutputFormat != "json" {
+		fmt.Printf("Successfully reinitialized task: %s (ID: %s)\n", taskId, resp.Id)
+	}
 
 	return nil
 }
@@ -579,7 +581,9 @@ func (m *Manager) ResumeTask(ctx context.Context, taskID string) error {
 		return fmt.Errorf("failed to resume task %s: %w", taskID, err)
 	}
 
-	fmt.Printf("Task %s resumed successfully\n", taskID)
+	if global.Config.OutputFormat != "json" {
+		fmt.Printf("Task %s resumed successfully\n", taskID)
+	}
 
 	return nil
 }
@@ -1154,9 +1158,9 @@ func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool
 	}
 }
 
-// outputMessageAsJSON prints a single cline message as json
+// outputMessageAsJSON prints a single cline message as json (compact JSONL format)
 func (m *Manager) outputMessageAsJSON(msg *types.ClineMessage) error {
-	jsonBytes, err := json.MarshalIndent(msg, "", "  ")
+	jsonBytes, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message as JSON: %w", err)
 	}
