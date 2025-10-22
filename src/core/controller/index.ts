@@ -438,8 +438,9 @@ export class Controller {
 			}
 			// Re-initialize task to keep it visible in UI, but skip resuming the workflow
 			await this.initTask(undefined, undefined, undefined, historyItem, undefined, true)
-			// Dont send the state to the webview, the new Cline instance will send state when it's ready.
-			// Sending the state here sent an empty messages array to webview leading to virtuoso having to reload the entire list
+
+			// Ensure state is sent to webview after re-initialization to trigger UI updates
+			await this.postStateToWebview()
 		}
 	}
 
@@ -461,10 +462,13 @@ export class Controller {
 	}
 
 	async cancelHookExecution(): Promise<boolean> {
+		// For backwards compatibility, cancelHookExecution now calls cancelTask
+		// which properly handles hook cancellation AND task re-initialization
 		if (!this.task) {
 			return false
 		}
-		return await this.task.cancelHookExecution()
+		await this.cancelTask()
+		return true
 	}
 
 	/**
