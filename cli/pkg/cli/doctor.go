@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/terminal"
 	"github.com/cline/cli/pkg/cli/updater"
@@ -44,19 +45,21 @@ npm availability, Cline Core connectivity, database integrity, and more.`,
 
 // runDoctorChecks performs all doctor diagnostics and configuration
 func runDoctorChecks() error {
-	fmt.Println("\n\033[1mCline Doctor - System Health Check\033[0m\n")
+	renderer := display.NewRenderer(global.Config.OutputFormat)
+
+	fmt.Printf("\n%s\n\n", renderer.Bold("Cline Doctor - System Health Check"))
 
 	// Configure terminal keybindings (terminal.go prints its own status)
-	fmt.Println("\033[90m━━━ Terminal Configuration ━━━\033[0m\n")
+	fmt.Printf("%s\n\n", renderer.Dim("━━━ Terminal Configuration ━━━"))
 	terminal.SetupKeyboardSync()
 
 	// Check for updates (updater.go prints its own status)
-	fmt.Println("\n\033[90m━━━ CLI Updates ━━━\033[0m\n")
+	fmt.Printf("\n%s\n\n", renderer.Dim("━━━ CLI Updates ━━━"))
 	updater.CheckAndUpdateSync(global.Config.Verbose, true)
 
 	// Summary
-	fmt.Println("\n\033[90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m")
-	fmt.Println("\n\033[32m✓ Health check complete\033[0m\n")
+	fmt.Printf("\n%s\n", renderer.Dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"))
+	fmt.Printf("\n%s\n\n", renderer.SuccessWithCheckmark("Health check complete"))
 
 	return nil
 }

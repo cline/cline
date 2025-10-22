@@ -8,6 +8,9 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/cline/cli/pkg/cli/display"
+	"github.com/cline/cli/pkg/cli/global"
 )
 
 // KeyboardProtocol manages enhanced keyboard protocol support for detecting
@@ -96,16 +99,20 @@ func isatty(fd uintptr) bool {
 // SetupKeyboard detects the current terminal and configures keybindings if needed.
 // Runs in background and doesn't block. Prints status when configs are modified.
 func SetupKeyboard() {
-	go setupKeyboardInternal()
+	go func() {
+		renderer := display.NewRenderer(global.Config.OutputFormat)
+		setupKeyboardInternal(renderer)
+	}()
 }
 
 // SetupKeyboardSync is the synchronous version used by doctor command.
 // Blocks until complete and prints status for all terminals.
 func SetupKeyboardSync() {
-	setupKeyboardInternal()
+	renderer := display.NewRenderer(global.Config.OutputFormat)
+	setupKeyboardInternal(renderer)
 }
 
-func setupKeyboardInternal() {
+func setupKeyboardInternal(renderer *display.Renderer) {
 	terminalName := DetectTerminal()
 
 	switch terminalName {
@@ -113,72 +120,72 @@ func setupKeyboardInternal() {
 		// VS Code and Cursor use the same TERM_PROGRAM value
 		modified, path := SetupVSCodeKeybindings()
 		if modified {
-			fmt.Printf("\033[90mConfigured shift+enter for\033[0m VS Code \033[90mterminal\033[0m\n")
-			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+			fmt.Printf("%s VS Code %s\n", renderer.Dim("Configured shift+enter for"), renderer.Dim("terminal"))
+			fmt.Printf("%s %s\n", renderer.Dim("  →"), path)
 		} else if path != "" {
-			fmt.Printf("\033[90m✓ VS Code shift+enter already configured\033[0m\n")
-			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+			fmt.Printf("%s\n", renderer.Dim("✓ VS Code shift+enter already configured"))
+			fmt.Printf("%s %s\n", renderer.Dim("  →"), path)
 		}
 
 		modified, path = SetupCursorKeybindings()
 		if modified {
-			fmt.Printf("\033[90mConfigured shift+enter for\033[0m Cursor \033[90mterminal\033[0m\n")
-			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+			fmt.Printf("%s Cursor %s\n", renderer.Dim("Configured shift+enter for"), renderer.Dim("terminal"))
+			fmt.Printf("%s %s\n", renderer.Dim("  →"), path)
 		} else if path != "" {
-			fmt.Printf("\033[90m✓ Cursor shift+enter already configured\033[0m\n")
-			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+			fmt.Printf("%s\n", renderer.Dim("✓ Cursor shift+enter already configured"))
+			fmt.Printf("%s %s\n", renderer.Dim("  →"), path)
 		}
 
 	case "ghostty":
 		modified, path := SetupGhosttyKeybindings()
 		if modified {
-			fmt.Printf("\033[90mConfigured shift+enter for\033[0m Ghostty \033[90mterminal\033[0m\n")
-			fmt.Printf("\033[90m  →\033[0m %s\n", path)
-			fmt.Printf("\033[90m  Fully restart Ghostty (quit all windows) for changes to take effect\033[0m\n")
+			fmt.Printf("%s Ghostty %s\n", renderer.Dim("Configured shift+enter for"), renderer.Dim("terminal"))
+			fmt.Printf("%s %s\n", renderer.Dim("  →"), path)
+			fmt.Printf("%s\n", renderer.Dim("  Fully restart Ghostty (quit all windows) for changes to take effect"))
 		} else if path != "" {
-			fmt.Printf("\033[90m✓ Ghostty shift+enter already configured\033[0m\n")
-			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+			fmt.Printf("%s\n", renderer.Dim("✓ Ghostty shift+enter already configured"))
+			fmt.Printf("%s %s\n", renderer.Dim("  →"), path)
 		}
 
 	case "wezterm":
 		modified, path := SetupWezTermKeybindings()
 		if modified {
-			fmt.Printf("\033[90mConfigured shift+enter for\033[0m WezTerm \033[90mterminal\033[0m\n")
-			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+			fmt.Printf("%s WezTerm %s\n", renderer.Dim("Configured shift+enter for"), renderer.Dim("terminal"))
+			fmt.Printf("%s %s\n", renderer.Dim("  →"), path)
 		} else if path != "" {
-			fmt.Printf("\033[90m✓ WezTerm shift+enter already configured\033[0m\n")
-			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+			fmt.Printf("%s\n", renderer.Dim("✓ WezTerm shift+enter already configured"))
+			fmt.Printf("%s %s\n", renderer.Dim("  →"), path)
 		}
 
 	case "alacritty":
 		modified, path := SetupAlacrittyKeybindings()
 		if modified {
-			fmt.Printf("\033[90mConfigured shift+enter for\033[0m Alacritty \033[90mterminal\033[0m\n")
-			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+			fmt.Printf("%s Alacritty %s\n", renderer.Dim("Configured shift+enter for"), renderer.Dim("terminal"))
+			fmt.Printf("%s %s\n", renderer.Dim("  →"), path)
 		} else if path != "" {
-			fmt.Printf("\033[90m✓ Alacritty shift+enter already configured\033[0m\n")
-			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+			fmt.Printf("%s\n", renderer.Dim("✓ Alacritty shift+enter already configured"))
+			fmt.Printf("%s %s\n", renderer.Dim("  →"), path)
 		}
 
 	case "kitty":
 		modified, path := SetupKittyKeybindings()
 		if modified {
-			fmt.Printf("\033[90mConfigured shift+enter for\033[0m Kitty \033[90mterminal\033[0m\n")
-			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+			fmt.Printf("%s Kitty %s\n", renderer.Dim("Configured shift+enter for"), renderer.Dim("terminal"))
+			fmt.Printf("%s %s\n", renderer.Dim("  →"), path)
 		} else if path != "" {
-			fmt.Printf("\033[90m✓ Kitty shift+enter already configured\033[0m\n")
-			fmt.Printf("\033[90m  →\033[0m %s\n", path)
+			fmt.Printf("%s\n", renderer.Dim("✓ Kitty shift+enter already configured"))
+			fmt.Printf("%s %s\n", renderer.Dim("  →"), path)
 		}
 
 	case "iterm2":
-		fmt.Printf("\033[90m✓ iTerm2 shift+enter works by default (maps to alt+enter)\033[0m\n")
+		fmt.Printf("%s\n", renderer.Dim("✓ iTerm2 shift+enter works by default (maps to alt+enter)"))
 
 	case "terminal.app":
-		fmt.Printf("\033[90m⚠ Terminal.app requires manual configuration\033[0m\n")
-		fmt.Printf("\033[90m  See: Terminal → Preferences → Profiles → Keyboard\033[0m\n")
+		fmt.Printf("%s\n", renderer.Dim("⚠ Terminal.app requires manual configuration"))
+		fmt.Printf("%s\n", renderer.Dim("  See: Terminal → Preferences → Profiles → Keyboard"))
 
 	case "unknown":
-		fmt.Printf("\033[90mℹ Terminal not detected - use alt+enter or ctrl+j for newlines\033[0m\n")
+		fmt.Printf("%s\n", renderer.Dim("ℹ Terminal not detected - use alt+enter or ctrl+j for newlines"))
 	}
 }
 

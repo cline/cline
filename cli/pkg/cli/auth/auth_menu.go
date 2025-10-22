@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/huh"
+	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/task"
 	"github.com/cline/grpc-go/cline"
@@ -179,18 +180,20 @@ func ShowAuthMenuWithStatus(isClineAuthenticated bool, hasOrganizations bool, cu
 
 	// Determine menu title based on status
 	var title string
+	renderer := display.NewRenderer(global.Config.OutputFormat)
 
 	// Always show Cline authentication status
 	if isClineAuthenticated {
-		title = "Cline Account: \033[32m✓\033[0m Authenticated\n"
+		title = fmt.Sprintf("Cline Account: %s Authenticated\n", renderer.Green("✓"))
 	} else {
-		title = "Cline Account: \033[31m✗\033[0m Not authenticated\n"
+		title = fmt.Sprintf("Cline Account: %s Not authenticated\n", renderer.Red("✗"))
 	}
 
 	// Show active provider and model if configured (regardless of Cline auth status)
-	// ANSI color codes: Normal intensity = \033[22m, White = \033[37m, Reset = \033[0m
 	if currentProvider != "" && currentModel != "" {
-		title += fmt.Sprintf("Active Provider: \033[22m\033[37m%s\033[0m\nActive Model: \033[22m\033[37m%s\033[0m\n", currentProvider, currentModel)
+		title += fmt.Sprintf("Active Provider: %s\nActive Model: %s\n",
+			renderer.White(currentProvider),
+			renderer.White(currentModel))
 	}
 
 	// Always end with a huh?
