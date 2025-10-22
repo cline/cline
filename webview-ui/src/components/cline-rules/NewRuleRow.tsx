@@ -92,13 +92,13 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 			onClick={() => !isExpanded && setIsExpanded(true)}
 			ref={componentRef}>
 			<div
-				className={`flex items-center p-2 rounded bg-(--vscode-input-background) transition-all duration-300 ease-in-out h-[18px] ${
+				className={`flex items-center p-2 py-4 rounded bg-input-background transition-all duration-300 ease-in-out h-[18px] ${
 					isExpanded ? "shadow-sm" : ""
 				}`}>
 				{isExpanded ? (
 					<form className="flex flex-1 items-center" onSubmit={handleSubmit}>
 						<input
-							className="flex-1 bg-(--vscode-input-background) text-(--vscode-input-foreground) border-0 outline-0 rounded focus:outline-none focus:ring-0 focus:border-transparent"
+							className="flex-1 bg-input-background text-(--vscode-input-foreground) border-0 outline-0 rounded focus:outline-none focus:ring-0 focus:border-transparent"
 							onChange={(e) => setFilename(e.target.value)}
 							onKeyDown={handleKeyDown}
 							placeholder={
@@ -127,7 +127,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 					</form>
 				) : (
 					<>
-						<span className="flex-1 text-(--vscode-descriptionForeground) bg-(--vscode-input-background) italic text-xs">
+						<span className="flex-1 text-(--vscode-descriptionForeground) bg-input-background italic text-xs">
 							{ruleType === "workflow" ? "New workflow file..." : "New rule file..."}
 						</span>
 						<div className="flex items-center ml-2 space-x-2">

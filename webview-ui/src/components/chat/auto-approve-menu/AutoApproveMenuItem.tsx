@@ -60,7 +60,7 @@ const AutoApproveMenuItem = ({
 							variant="icon">
 							{onToggleFavorite && !condensed && (
 								<Tooltip>
-									<TooltipContent>
+									<TooltipContent showArrow={false}>
 										{favorited ? "Remove from quick-access menu" : "Add to quick-access menu"}
 									</TooltipContent>
 									<TooltipTrigger asChild>

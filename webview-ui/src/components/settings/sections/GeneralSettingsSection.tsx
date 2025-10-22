@@ -20,7 +20,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 
 				<div className="mb-[5px]">
 					<Tooltip>
-						<TooltipContent hidden={!!remoteConfigSettings?.telemetrySetting}>
+						<TooltipContent hidden={remoteConfigSettings?.telemetrySetting === undefined}>
 							This setting is managed by your organization's remote configuration
 						</TooltipContent>
 						<TooltipTrigger asChild>
@@ -41,7 +41,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 						</TooltipTrigger>
 					</Tooltip>
 
-					<p className="text-xs mt-[5px] text-description">
+					<p className="text-sm mt-[5px] text-description">
 						Help improve Cline by sending usage data and error reports. No code, prompts, or personal information are
 						ever sent. See our{" "}
 						<VSCodeLink

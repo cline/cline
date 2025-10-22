@@ -24,9 +24,10 @@ function TooltipTrigger({ ...props }: React.ComponentProps<typeof TooltipPrimiti
 function TooltipContent({
 	className,
 	sideOffset = 0,
+	showArrow = true,
 	children,
 	...props
-}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+}: React.ComponentProps<typeof TooltipPrimitive.Content> & { showArrow?: boolean }) {
 	return (
 		<TooltipPrimitive.Portal>
 			<TooltipPrimitive.Content
@@ -38,7 +39,9 @@ function TooltipContent({
 				sideOffset={sideOffset}
 				{...props}>
 				<span className="text-xs leading-tight wrap-break-word">{children}</span>
-				<TooltipPrimitive.Arrow className="bg-background fill-background z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-xs border-b border-r border-muted-foreground/30" />
+				{showArrow && (
+					<TooltipPrimitive.Arrow className="bg-background fill-background z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-xs border-b border-r border-muted-foreground/30" />
+				)}
 			</TooltipPrimitive.Content>
 		</TooltipPrimitive.Portal>
 	)

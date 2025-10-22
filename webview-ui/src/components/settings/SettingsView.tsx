@@ -305,7 +305,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		<Tab>
 			<TabHeader className="flex justify-between items-center gap-2">
 				<div className="flex items-center gap-1">
-					<h3 className="m-0" style={{ color: titleColor }}>
+					<h3 className="text-md m-0" style={{ color: titleColor }}>
 						Settings
 					</h3>
 				</div>
