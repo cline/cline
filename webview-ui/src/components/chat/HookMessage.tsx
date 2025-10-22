@@ -1,4 +1,5 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { memo, useMemo, useState } from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { CHAT_ROW_EXPANDED_BG_COLOR } from "../common/CodeBlock"
@@ -8,6 +9,7 @@ import PendingToolInfo from "./PendingToolInfo"
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
 const successColor = "var(--vscode-charts-green)"
+const runningColor = "var(--vscode-charts-orange)"
 const _cancelledColor = "var(--vscode-descriptionForeground)"
 
 interface HookMessageProps {
@@ -101,10 +103,10 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 	}, [message.text])
 
 	// Smart defaults:
-	// - Expand if failed/cancelled (show error details)
-	// - Collapse if successful (minimize clutter)
-	// - Show hook output if present
-	const shouldExpandByDefault = metadata.status === "failed" || metadata.status === "cancelled"
+	// - Historical messages (>5 seconds old): Always collapsed for better UX
+	// - Fresh messages: Expand if failed/cancelled, collapse if successful
+	const isHistoricalMessage = message.ts && Date.now() - message.ts > 5000
+	const shouldExpandByDefault = !isHistoricalMessage && (metadata.status === "failed" || metadata.status === "cancelled")
 	const [isHookOutputExpanded, setIsHookOutputExpanded] = useState(shouldExpandByDefault)
 
 	const isRunning = metadata.status === "running"
@@ -167,14 +169,14 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 								width: "8px",
 								height: "8px",
 								borderRadius: "50%",
-								backgroundColor: isRunning ? successColor : isFailed || isCancelled ? errorColor : successColor,
+								backgroundColor: isRunning ? runningColor : isFailed || isCancelled ? errorColor : successColor,
 								animation: isRunning ? "pulse 2s ease-in-out infinite" : "none",
 								flexShrink: 0,
 							}}
 						/>
 						<span
 							style={{
-								color: isRunning ? successColor : isFailed || isCancelled ? errorColor : successColor,
+								color: isRunning ? runningColor : isFailed || isCancelled ? errorColor : successColor,
 								fontWeight: 500,
 								fontSize: "13px",
 								flexShrink: 0,
@@ -203,8 +205,10 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 						<button
 							onClick={(e) => {
 								e.stopPropagation()
-								TaskServiceClient.cancelHookExecution({}).catch((err) =>
-									console.error("Failed to cancel hook:", err),
+								// Use cancelTask instead of cancelHookExecution to trigger full cancel flow
+								// This ensures task is re-initialized and resume button appears immediately
+								TaskServiceClient.cancelTask(EmptyRequest.create({})).catch((err) =>
+									console.error("Failed to cancel task:", err),
 								)
 							}}
 							onMouseEnter={(e) => {
