@@ -44,7 +44,7 @@ export class FeatureFlagsService {
 		try {
 			const flagValue = await this.provider.getFeatureFlag(flagName)
 			const defaultValue = FeatureFlagDefaultValue[flagName]
-			const enabled = flagValue === true || (flagValue === undefined && defaultValue === true)
+			const enabled = flagValue ?? FeatureFlagDefaultValue[flagName] ?? false
 			this.cache.set(flagName, enabled)
 			return enabled
 		} catch (error) {
