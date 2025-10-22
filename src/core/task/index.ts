@@ -1329,7 +1329,7 @@ export class Task {
 		Logger.info("Executing command in terminal: " + command)
 
 		let terminalManager: TerminalManager
-		if (useBackgroundTerminal) {
+		if (isSubagent) {
 			// Create a background TerminalManager for CLI subagents
 			try {
 				const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
