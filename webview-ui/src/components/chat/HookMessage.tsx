@@ -201,7 +201,7 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 							</span>
 						)}
 					</div>
-					{isRunning && (
+					{isRunning && metadata.hookName !== "TaskCancel" && (
 						<button
 							onClick={(e) => {
 								e.stopPropagation()
