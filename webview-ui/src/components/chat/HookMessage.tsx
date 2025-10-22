@@ -205,10 +205,10 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 						<button
 							onClick={(e) => {
 								e.stopPropagation()
-								// Use cancelTask instead of cancelHookExecution to trigger full cancel flow
-								// This ensures task is re-initialized and resume button appears immediately
-								TaskServiceClient.cancelTask(EmptyRequest.create({})).catch((err) =>
-									console.error("Failed to cancel task:", err),
+								// Cancel the hook execution, which will trigger task cancellation through the backend
+								// This matches the behavior of other hook cancel buttons (e.g., PreToolUse)
+								TaskServiceClient.cancelHookExecution(EmptyRequest.create({})).catch((err) =>
+									console.error("Failed to cancel hook:", err),
 								)
 							}}
 							onMouseEnter={(e) => {
