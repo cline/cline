@@ -202,13 +202,10 @@ const ClineRulesToggleModal: React.FC = () => {
 						<VSCodeButton
 							appearance="icon"
 							aria-label={isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows"}
-							onClick={() => setIsVisible(!isVisible)}
-							style={{ padding: "0px 0px", height: "20px" }}>
+							className="h-6"
+							onClick={() => setIsVisible(!isVisible)}>
 							<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-								<span
-									className="codicon codicon-law flex items-center"
-									style={{ fontSize: "12.5px", marginBottom: 1 }}
-								/>
+								<span className="codicon codicon-law flex items-center" style={{ fontSize: "12.5px" }} />
 							</div>
 						</VSCodeButton>
 					</TooltipTrigger>

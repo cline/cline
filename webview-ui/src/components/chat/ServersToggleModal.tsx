@@ -29,48 +29,49 @@ const ServersToggleModal: React.FC = () => {
 	}, [isVisible])
 
 	return (
-		<Popover onOpenChange={(isModalOpened) => setIsVisible(isModalOpened)}>
-			<PopoverTrigger>
-				<Tooltip>
-					<TooltipContent hidden={isVisible} side="top">
-						Manage MCP Servers
-					</TooltipContent>
-					<TooltipTrigger asChild>
-						<VSCodeButton
-							appearance="icon"
-							aria-label={isVisible ? "Hide MCP Servers" : "Show MCP Servers"}
-							onClick={() => setIsVisible(!isVisible)}
-							style={{ padding: "0px 0px", height: "20px" }}>
+		<Tooltip>
+			<TooltipContent hidden={isVisible} side="top">
+				Manage MCP Servers
+			</TooltipContent>
+			<TooltipTrigger>
+				<VSCodeButton
+					appearance="icon"
+					aria-label={isVisible ? "Hide MCP Servers" : "Show MCP Servers"}
+					className="p-0 m-0 flex items-center mt-1 cursor-pointer hover:cursor-pointer">
+					<Popover onOpenChange={() => setIsVisible(isVisible)}>
+						<PopoverTrigger>
 							<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-								<span
-									className="codicon codicon-server flex items-center"
-									style={{ fontSize: "12.5px", marginBottom: 1 }}
+								<i className="codicon codicon-server flex items-center" style={{ fontSize: "12.5px" }} />
+							</div>
+						</PopoverTrigger>
+
+						<PopoverContent className="mx-3 h-full wrap-break-word text-foreground w-[94vw]" side="top">
+							<div className="flex justify-between items-center mb-2.5">
+								<div className="m-0 text-base font-semibold">MCP Servers</div>
+								<VSCodeButton
+									appearance="icon"
+									aria-label="Go to MCP server settings"
+									onClick={() => {
+										setIsVisible(false)
+										navigateToMcp("configure")
+									}}>
+									<span className="codicon codicon-gear text-[10px]"></span>
+								</VSCodeButton>
+							</div>
+
+							<div style={{ marginBottom: -10 }}>
+								<ServersToggleList
+									hasTrashIcon={false}
+									isExpandable={false}
+									listGap="small"
+									servers={mcpServers}
 								/>
 							</div>
-						</VSCodeButton>
-					</TooltipTrigger>
-				</Tooltip>
-			</PopoverTrigger>
-
-			<PopoverContent className="mx-3 h-full wrap-break-word text-foreground w-[94vw]" side="top">
-				<div className="flex justify-between items-center mb-2.5">
-					<div className="m-0 text-base font-semibold">MCP Servers</div>
-					<VSCodeButton
-						appearance="icon"
-						aria-label="Go to MCP server settings"
-						onClick={() => {
-							setIsVisible(false)
-							navigateToMcp("configure")
-						}}>
-						<span className="codicon codicon-gear text-[10px]"></span>
-					</VSCodeButton>
-				</div>
-
-				<div style={{ marginBottom: -10 }}>
-					<ServersToggleList hasTrashIcon={false} isExpandable={false} listGap="small" servers={mcpServers} />
-				</div>
-			</PopoverContent>
-		</Popover>
+						</PopoverContent>
+					</Popover>
+				</VSCodeButton>{" "}
+			</TooltipTrigger>
+		</Tooltip>
 	)
 }
 

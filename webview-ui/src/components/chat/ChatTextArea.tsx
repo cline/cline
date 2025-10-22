@@ -1728,8 +1728,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									</VSCodeButton>
 								</TooltipTrigger>
 							</Tooltip>
+
 							<ServersToggleModal />
+
 							<ClineRulesToggleModal />
+
 							<ModelContainer ref={modelSelectorRef}>
 								<ModelButtonWrapper ref={buttonRef}>
 									<ModelDisplayButton

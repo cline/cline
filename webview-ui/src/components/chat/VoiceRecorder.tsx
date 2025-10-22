@@ -2,6 +2,7 @@ import { TranscribeAudioRequest } from "@shared/proto/cline/dictation"
 import { EmptyRequest } from "@shared/proto/index.cline"
 import { SquareIcon, StopCircleIcon } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { DictationServiceClient } from "@/services/grpc-client"
@@ -223,7 +224,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 		stopRecording()
 	}, [stopRecording, disabled, isProcessing])
 
-	const iconAnimation = isProcessing || isStarting ? "animate-spin" : ""
 	const iconAdjustment = isProcessing || isStarting ? "mt-0" : error ? "mt-1" : "mt-0.5"
 	// When not recording, show single mic button
 	if (!isRecording) {
@@ -247,7 +247,11 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<div
-						className={`input-icon-button mr-1.5 text-base ${iconAdjustment} ${iconAnimation} ${disabled || isProcessing || isStarting ? "disabled" : ""}`}
+						className={cn("pt-1 input-icon-button mr-1.5 text-base", iconAdjustment, {
+							disabled: disabled || isProcessing || isStarting,
+							"animate-spin": isProcessing || isStarting,
+						})}
+						data-testid="voice-recorder-start-button"
 						onClick={handleStartClick}
 						style={{ color: iconColor }}>
 						<span className={`codicon ${iconClass}`} />
@@ -259,16 +263,20 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 	}
 
 	return (
-		<div className={`flex items-center ${isRecording ? "mr-0.5" : "mr-1.5"}`}>
+		<div className={cn("flex items-center mb-2", { "mr-0.5": isRecording, "mr-1.5": !isRecording })}>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<div
-						className={cn("input-icon-button mr-1.5 text-base", iconAdjustment, iconAnimation, {
+					<Button
+						className={cn("input-icon-button p-1 m-0 mr-1.5 text-base", iconAdjustment, {
 							disabled: disabled || isProcessing,
+							"animate-spin": isProcessing || isStarting,
 						})}
-						onClick={handleStopClick}>
+						data-testid="info-banner-close-button"
+						onClick={handleStopClick}
+						size="sm"
+						variant="icon">
 						<StopCircleIcon />
-					</div>
+					</Button>
 				</TooltipTrigger>
 				<TooltipContent side="top">
 					Stop Recording ({formatSeconds(recordingDuration)}/{formatSeconds(MAX_DURATION)})
@@ -277,11 +285,17 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<div
-						className={`input-icon-button text-base mt-1 text-foreground ${disabled || isProcessing ? "disabled" : ""}`}
-						onClick={handleCancelClick}>
+					<Button
+						className={cn("input-icon-button p-1 m-0 text-base text-error", iconAdjustment, {
+							"animate-spin": isProcessing || isStarting,
+							disabled: disabled || isProcessing,
+						})}
+						data-testid="info-banner-close-button"
+						onClick={handleCancelClick}
+						size="sm"
+						variant="icon">
 						<SquareIcon />
-					</div>
+					</Button>
 				</TooltipTrigger>
 				<TooltipContent side="top">Cancel Recording</TooltipContent>
 			</Tooltip>
