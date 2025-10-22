@@ -64,7 +64,7 @@ export class FeatureFlagsService {
 	public async isFeatureFlagEnabled(flagName: FeatureFlag): Promise<boolean> {
 		const value = this.cache.has(flagName) ? this.cache.get(flagName) : await this.getFeatureFlag(flagName)
 
-		return value !== null && value !== undefined
+		return !!value
 	}
 
 	/**
