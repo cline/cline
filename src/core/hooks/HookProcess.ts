@@ -74,9 +74,12 @@ export class HookProcess extends EventEmitter {
 			}
 
 			// Spawn the hook process
+			// On Unix: detached=true creates a process group, allowing us to kill all children
+			// On Windows: shell=true handles script execution
 			this.childProcess = spawn(this.scriptPath, [], {
 				stdio: ["pipe", "pipe", "pipe"],
 				shell: process.platform === "win32",
+				detached: process.platform !== "win32", // Create process group on Unix
 			})
 
 			let didEmitEmptyLine = false

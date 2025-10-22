@@ -215,6 +215,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					} else {
 						await TaskServiceClient.cancelTask(EmptyRequest.create({}))
 					}
+					// Clear any pending state that might interfere with resume
+					setSendingDisabled(false)
+					setEnableButtons(true)
+					clearInputState()
 					break
 
 				case "utility":

@@ -218,6 +218,11 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 		return BUTTON_CONFIGS.default
 	}
 
+	// Add debugging for resume messages
+	if (message.type === "ask" && (message.ask === "resume_task" || message.ask === "resume_completed_task")) {
+		console.log("[ButtonConfig] Processing resume message:", message.ask, "at", new Date().toISOString())
+	}
+
 	const isStreaming = message.partial === true
 	const isError = message?.ask ? errorTypes.includes(message.ask) : false
 
