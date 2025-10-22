@@ -113,7 +113,10 @@ export class ClineAuthProvider implements IAuthProvider {
 			if (await this.shouldRefreshIdToken(storedAuthData.refreshToken, storedAuthData.expiresAt)) {
 				// Try to refresh the token using the refresh token
 				const authInfo = await this.refreshToken(storedAuthData.refreshToken)
-				controller.stateManager.setSecret("cline:clineAccountId", JSON.stringify(authInfo))
+				const newAuthInfoString = JSON.stringify(authInfo)
+				if (newAuthInfoString !== storedAuthDataString) {
+					controller.stateManager.setSecret("cline:clineAccountId", newAuthInfoString)
+				}
 				return authInfo || null
 			}
 
