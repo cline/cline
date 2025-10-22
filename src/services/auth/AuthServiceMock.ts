@@ -1,5 +1,5 @@
 import { String } from "@shared/proto/cline/common"
-import { clineEnvConfig } from "@/config"
+import { ClineEnv } from "@/config"
 import { Controller } from "@/core/controller"
 import { WebviewProvider } from "@/core/webview"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
@@ -46,7 +46,7 @@ export class AuthServiceMock extends AuthService {
 
 	override async createAuthRequest(): Promise<String> {
 		// Use URL object for more graceful query construction
-		const authUrl = new URL(clineEnvConfig.apiBaseUrl)
+		const authUrl = new URL(ClineEnv.config().apiBaseUrl)
 		const authUrlString = authUrl.toString()
 		// Call the parent implementation
 		if (this._authenticated && this._clineAuthInfo) {
@@ -56,7 +56,7 @@ export class AuthServiceMock extends AuthService {
 
 		try {
 			// Use token exchange endpoint like ClineAuthProvider
-			const tokenExchangeUri = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, clineEnvConfig.apiBaseUrl)
+			const tokenExchangeUri = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, ClineEnv.config().apiBaseUrl)
 			const tokenType = "personal"
 			const testCode = `test-${tokenType}-token`
 
@@ -94,7 +94,7 @@ export class AuthServiceMock extends AuthService {
 					displayName: authData.userInfo.name,
 					createdAt: new Date().toISOString(),
 					organizations: authData.organizations,
-					appBaseUrl: clineEnvConfig.appBaseUrl,
+					appBaseUrl: ClineEnv.config().appBaseUrl,
 					subject: authData.userInfo.subject,
 				},
 				provider: this._provider?.name || "mock",

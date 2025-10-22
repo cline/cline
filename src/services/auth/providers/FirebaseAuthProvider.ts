@@ -2,7 +2,7 @@ import axios from "axios"
 import { initializeApp } from "firebase/app"
 import { GithubAuthProvider, GoogleAuthProvider, getAuth, type OAuthCredential, signInWithCredential, User } from "firebase/auth"
 import { jwtDecode } from "jwt-decode"
-import { clineEnvConfig, EnvironmentConfig } from "@/config"
+import { ClineEnv, EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { ErrorService } from "@/services/error"
 import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
@@ -12,18 +12,8 @@ export class FirebaseAuthProvider implements IAuthProvider {
 	readonly name = "firebase"
 	readonly callbackEndpoint = "/auth"
 
-	private _config: EnvironmentConfig
-
-	constructor(config: EnvironmentConfig) {
-		this._config = config || {}
-	}
-
-	get config(): any {
-		return this._config
-	}
-
-	set config(value: any) {
-		this._config = value
+	get config(): EnvironmentConfig {
+		return ClineEnv.config()
 	}
 
 	async shouldRefreshIdToken(existingIdToken: string, _expiresAt?: number): Promise<boolean> {
@@ -61,7 +51,7 @@ export class FirebaseAuthProvider implements IAuthProvider {
 			// Now retrieve the user info from the backend (this was an easy solution to keep providing user profile details like name and email, but we should move to using the fetchMe() function instead)
 			// Fetch user info from Cline API
 			// TODO: consolidate with fetchMe() instead of making the call directly here
-			const userResponse = await axios.get(`${clineEnvConfig.apiBaseUrl}/api/v1/users/me`, {
+			const userResponse = await axios.get(`${ClineEnv.config().apiBaseUrl}/api/v1/users/me`, {
 				headers: {
 					Authorization: `Bearer ${idToken}`,
 				},
@@ -80,7 +70,7 @@ export class FirebaseAuthProvider implements IAuthProvider {
 	async refreshToken(userRefreshToken: string): Promise<Partial<ClineAuthInfo>> {
 		// Exchange refresh token for new access token using Firebase's secure token endpoint
 		// https://stackoverflow.com/questions/38233687/how-to-use-the-firebase-refreshtoken-to-reauthenticate/57119131#57119131
-		const firebaseApiKey = this._config.firebase.apiKey
+		const firebaseApiKey = this.config.firebase.apiKey
 		const googleAccessTokenResponse = await axios.post(
 			`https://securetoken.googleapis.com/v1/token?key=${firebaseApiKey}`,
 			`grant_type=refresh_token&refresh_token=${encodeURIComponent(userRefreshToken)}`,
@@ -98,7 +88,7 @@ export class FirebaseAuthProvider implements IAuthProvider {
 
 	getAuthRequest(callbackUrl: string): Promise<string> {
 		// Use URL object for more graceful query construction
-		const authUrl = new URL(`${clineEnvConfig.appBaseUrl}/auth`)
+		const authUrl = new URL(`${ClineEnv.config().appBaseUrl}/auth`)
 		authUrl.searchParams.set("callback_url", callbackUrl)
 
 		return Promise.resolve(authUrl.toString())
@@ -118,7 +108,7 @@ export class FirebaseAuthProvider implements IAuthProvider {
 					throw new Error(`Unsupported provider: ${provider}`)
 			}
 			// we've received the short-lived tokens from google/github, now we need to sign in to firebase with them
-			const firebaseConfig = Object.assign({}, this._config.firebase)
+			const firebaseConfig = Object.assign({}, this.config.firebase)
 			const app = initializeApp(firebaseConfig)
 			const auth = getAuth(app)
 			// this signs the user into firebase sdk internally

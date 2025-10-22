@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/huh"
+	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/task"
 	"github.com/cline/grpc-go/cline"
@@ -103,7 +104,7 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 	if manager, err := createTaskManager(ctx); err == nil {
 		if providerList, err := GetProviderConfigurations(ctx, manager); err == nil {
 			if providerList.ActProvider != nil {
-				currentProvider = getProviderDisplayName(providerList.ActProvider.Provider)
+				currentProvider = GetProviderDisplayName(providerList.ActProvider.Provider)
 				currentModel = providerList.ActProvider.ModelID
 			}
 		}
@@ -121,6 +122,10 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 
 	action, err := ShowAuthMenuWithStatus(isClineAuth, hasOrganizations, currentProvider, currentModel)
 	if err != nil {
+		// Check if user cancelled - propagate for clean exit
+		if err == huh.ErrUserAborted {
+			return huh.ErrUserAborted
+		}
 		return err
 	}
 
@@ -175,18 +180,20 @@ func ShowAuthMenuWithStatus(isClineAuthenticated bool, hasOrganizations bool, cu
 
 	// Determine menu title based on status
 	var title string
+	renderer := display.NewRenderer(global.Config.OutputFormat)
 
 	// Always show Cline authentication status
 	if isClineAuthenticated {
-		title = "Cline Account: \033[32m✓\033[0m Authenticated\n"
+		title = fmt.Sprintf("Cline Account: %s Authenticated\n", renderer.Green("✓"))
 	} else {
-		title = "Cline Account: \033[31m✗\033[0m Not authenticated\n"
+		title = fmt.Sprintf("Cline Account: %s Not authenticated\n", renderer.Red("✗"))
 	}
 
 	// Show active provider and model if configured (regardless of Cline auth status)
-	// ANSI color codes: Normal intensity = \033[22m, White = \033[37m, Reset = \033[0m
 	if currentProvider != "" && currentModel != "" {
-		title += fmt.Sprintf("Active Provider: \033[22m\033[37m%s\033[0m\nActive Model: \033[22m\033[37m%s\033[0m\n", currentProvider, currentModel)
+		title += fmt.Sprintf("Active Provider: %s\nActive Model: %s\n",
+			renderer.White(currentProvider),
+			renderer.White(currentModel))
 	}
 
 	// Always end with a huh?
@@ -202,6 +209,11 @@ func ShowAuthMenuWithStatus(isClineAuthenticated bool, hasOrganizations bool, cu
 	)
 
 	if err := form.Run(); err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			// Return the error to allow deferred cleanup to run
+			return "", huh.ErrUserAborted
+		}
 		return "", fmt.Errorf("failed to get menu choice: %w", err)
 	}
 
@@ -238,7 +250,7 @@ func HandleSelectProvider(ctx context.Context) error {
 
 	// Add each configured provider to the selection menu
 	for _, provider := range availableProviders {
-		providerName := getProviderDisplayName(provider)
+		providerName := GetProviderDisplayName(provider)
 		providerKey := fmt.Sprintf("provider_%d", provider)
 		providerOptions = append(providerOptions, huh.NewOption(providerName, providerKey))
 		providerMapping[providerKey] = provider
@@ -268,6 +280,10 @@ func HandleSelectProvider(ctx context.Context) error {
 	)
 
 	if err := form.Run(); err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			return huh.ErrUserAborted
+		}
 		return fmt.Errorf("failed to select provider: %w", err)
 	}
 

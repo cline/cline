@@ -11,26 +11,35 @@ interface DebouncedTextFieldProps {
 
 	// Common VSCodeTextField props
 	style?: React.CSSProperties
-	type?: "text" | "password" | "url"
+	type?: "text" | "password"
 	placeholder?: string
 	id?: string
 	children?: React.ReactNode
 	disabled?: boolean
+	className?: string
 }
 
 /**
  * A wrapper around VSCodeTextField that automatically handles debounced input
  * to prevent excessive API calls while typing
  */
-export const DebouncedTextField = ({ initialValue, onChange, children, type, ...otherProps }: DebouncedTextFieldProps) => {
+export const DebouncedTextField = ({
+	initialValue,
+	onChange,
+	children,
+	type,
+	className,
+	...otherProps
+}: DebouncedTextFieldProps) => {
 	const [localValue, setLocalValue] = useDebouncedInput(initialValue, onChange)
 
 	return (
 		<VSCodeTextField
 			{...otherProps}
+			className={className}
 			onInput={(e: any) => {
 				const value = e.target.value
-				setLocalValue(type === "url" ? value.trim() : value)
+				setLocalValue(value)
 			}}
 			type={type}
 			value={localValue}>

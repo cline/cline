@@ -67,7 +67,7 @@ func NewInstanceCommand() *cobra.Command {
 	}
 
 	cmd.AddCommand(newInstanceListCommand())
-	cmd.AddCommand(newInstanceUseCommand())
+	cmd.AddCommand(newInstanceDefaultCommand())
 	cmd.AddCommand(newInstanceNewCommand())
 	cmd.AddCommand(newInstanceKillCommand())
 
@@ -156,6 +156,7 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 	}
 
 	var killResults []killResult
+	killedAddresses := make(map[string]bool)
 
 	// Kill all CLI instances
 	for _, instance := range cliInstances {
@@ -168,31 +169,42 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 			fmt.Printf("⚠ Instance %s appears to be already dead\n", instance.Address)
 		} else {
 			fmt.Printf("✓ Killed %s (PID %d)\n", instance.Address, result.pid)
+			killedAddresses[instance.Address] = true
 		}
 	}
 
-	// Wait for all instances to clean up their registry entries
-	fmt.Printf("Waiting for instances to clean up registry entries...\n")
+	// Wait for killed instances to clean up their registry entries
+	if len(killedAddresses) > 0 {
+		fmt.Printf("Waiting for instances to clean up registry entries...\n")
 
-	maxWaitTime := 10 // seconds
-	for i := 0; i < maxWaitTime; i++ {
-		time.Sleep(1 * time.Second)
+		maxWaitTime := 10 // seconds
+		for i := 0; i < maxWaitTime; i++ {
+			time.Sleep(1 * time.Second)
 
-		remainingInstances, err := registry.ListInstancesCleaned(ctx)
-		if err != nil {
-			fmt.Printf("Warning: failed to check registry status: %v\n", err)
-			continue
-		}
+			remainingInstances, err := registry.ListInstancesCleaned(ctx)
+			if err != nil {
+				fmt.Printf("Warning: failed to check registry status: %v\n", err)
+				continue
+			}
 
-		if len(remainingInstances) == 0 {
-			fmt.Printf("✓ All instances successfully removed from registry.\n")
-			break
-		}
-
-		if i == maxWaitTime-1 {
-			fmt.Printf("⚠ %d instances still in registry after %d seconds\n", len(remainingInstances), maxWaitTime)
+			// Check if any of the killed instances are still in the registry
+			stillPresent := []string{}
 			for _, remaining := range remainingInstances {
-				fmt.Printf("  - %s\n", remaining.Address)
+				if killedAddresses[remaining.Address] {
+					stillPresent = append(stillPresent, remaining.Address)
+				}
+			}
+
+			if len(stillPresent) == 0 {
+				fmt.Printf("✓ All killed instances successfully removed from registry.\n")
+				break
+			}
+
+			if i == maxWaitTime-1 {
+				fmt.Printf("⚠ %d killed instance(s) still in registry after %d seconds\n", len(stillPresent), maxWaitTime)
+				for _, addr := range stillPresent {
+					fmt.Printf("  - %s\n", addr)
+				}
 			}
 		}
 	}
@@ -286,12 +298,12 @@ func newInstanceListCommand() *cobra.Command {
 
 			// Build instance data
 			type instanceRow struct {
-				address  string
-				status   string
-				version  string
-				lastSeen string
-				pid      string
-				platform string
+				address   string
+				status    string
+				version   string
+				lastSeen  string
+				pid       string
+				platform  string
 				isDefault string
 			}
 
@@ -329,12 +341,12 @@ func newInstanceListCommand() *cobra.Command {
 				}
 
 				rows = append(rows, instanceRow{
-					address:  instance.Address,
-					status:   instance.Status.String(),
-					version:  instance.Version,
-					lastSeen: lastSeen,
-					pid:      pid,
-					platform: platform,
+					address:   instance.Address,
+					status:    instance.Status.String(),
+					version:   instance.Version,
+					lastSeen:  lastSeen,
+					pid:       pid,
+					platform:  platform,
 					isDefault: isDefault,
 				})
 			}
@@ -377,21 +389,21 @@ func newInstanceListCommand() *cobra.Command {
 				}
 
 				// Render the markdown table with terminal width for nice table layout
-				renderer, err := display.NewMarkdownRendererForTerminal()
+				mdRenderer, err := display.NewMarkdownRendererForTerminal()
 				if err != nil {
 					// Fallback to plain table if markdown renderer fails
 					fmt.Println(markdown.String())
 				} else {
-					rendered, err := renderer.Render(markdown.String())
+					rendered, err := mdRenderer.Render(markdown.String())
 					if err != nil {
 						fmt.Println(markdown.String())
 					} else {
 						// Post-process to colorize status values
-						rendered = strings.ReplaceAll(rendered, "SERVING", "\033[32mSERVING\033[0m")       		// Green
-						rendered = strings.ReplaceAll(rendered, "✓", "\033[32m✓\033[0m")       			   		// Green
-						rendered = strings.ReplaceAll(rendered, "NOT_SERVING", "\033[31mNOT_SERVING\033[0m") 	// Red
-						rendered = strings.ReplaceAll(rendered, "UNKNOWN", "\033[33mUNKNOWN\033[0m")      		// Yellow
-
+						colorRenderer := display.NewRenderer(global.Config.OutputFormat)
+						rendered = strings.ReplaceAll(rendered, "SERVING", colorRenderer.Green("SERVING"))
+						rendered = strings.ReplaceAll(rendered, "✓", colorRenderer.Green("✓"))
+						rendered = strings.ReplaceAll(rendered, "NOT_SERVING", colorRenderer.Red("NOT_SERVING"))
+						rendered = strings.ReplaceAll(rendered, "UNKNOWN", colorRenderer.Yellow("UNKNOWN"))
 
 						fmt.Print(strings.TrimLeft(rendered, "\n"))
 					}
@@ -406,10 +418,10 @@ func newInstanceListCommand() *cobra.Command {
 	return cmd
 }
 
-func newInstanceUseCommand() *cobra.Command {
+func newInstanceDefaultCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "use <address>",
-		Aliases: []string{"u"},
+		Use:     "default <address>",
+		Aliases: []string{"d"},
 		Short:   "Set the default Cline instance",
 		Long:    `Set the default Cline instance to use for subsequent commands.`,
 		Args:    cobra.ExactArgs(1),
@@ -442,6 +454,8 @@ func newInstanceUseCommand() *cobra.Command {
 }
 
 func newInstanceNewCommand() *cobra.Command {
+	var setDefault bool
+
 	cmd := &cobra.Command{
 		Use:     "new",
 		Aliases: []string{"n"},
@@ -466,15 +480,27 @@ func newInstanceNewCommand() *cobra.Command {
 			fmt.Printf("  Core Port: %d\n", instance.CorePort())
 			fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
 
-			// Check if this is now the default instance
 			registry := global.Clients.GetRegistry()
-			if registry.GetDefaultInstance() == instance.Address {
-				fmt.Printf("  Status: Default instance\n")
+
+			// If --default flag provided, set this instance as the default
+			if setDefault {
+				if err := registry.SetDefaultInstance(instance.Address); err != nil {
+					fmt.Printf("Warning: Failed to set as default: %v\n", err)
+				} else {
+					fmt.Printf("  Status: Set as default instance\n")
+				}
+			} else {
+				// Otherwise, check if EnsureDefaultInstance already set it as default
+				if registry.GetDefaultInstance() == instance.Address {
+					fmt.Printf("  Status: Default instance\n")
+				}
 			}
 
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVarP(&setDefault, "default", "d", false, "set as default instance")
 
 	return cmd
 }

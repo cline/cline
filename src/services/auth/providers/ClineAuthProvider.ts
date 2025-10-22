@@ -1,9 +1,10 @@
-import { clineEnvConfig, EnvironmentConfig } from "@/config"
+import axios from "axios"
+import { ClineEnv, EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/services/logging/Logger"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
-import type { ClineAuthInfo } from "../AuthService"
+import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 import { IAuthProvider } from "./IAuthProvider"
 
 interface ClineAuthApiUser {
@@ -52,18 +53,9 @@ export interface ClineAuthApiTokenRefreshResponse {
 
 export class ClineAuthProvider implements IAuthProvider {
 	readonly name = "cline"
-	private _config
 
-	constructor(config: EnvironmentConfig) {
-		this._config = config
-	}
-
-	get config(): any {
-		return this._config
-	}
-
-	set config(value: any) {
-		this._config = value
+	get config(): EnvironmentConfig {
+		return ClineEnv.config()
 	}
 
 	/**
@@ -157,7 +149,7 @@ export class ClineAuthProvider implements IAuthProvider {
 	async refreshToken(refreshToken: string): Promise<ClineAuthInfo> {
 		try {
 			// Get the callback URL that was used during the initial auth request
-			const endpoint = new URL(CLINE_API_ENDPOINT.REFRESH_TOKEN, this._config.apiBaseUrl)
+			const endpoint = new URL(CLINE_API_ENDPOINT.REFRESH_TOKEN, this.config.apiBaseUrl)
 			const response = await fetch(endpoint.toString(), {
 				method: "POST",
 				headers: {
@@ -184,20 +176,14 @@ export class ClineAuthProvider implements IAuthProvider {
 				throw new Error("Failed to exchange authorization code for access token")
 			}
 
+			const userInfo = await this.fetchRemoteUserInfo(data.data)
+
 			return {
 				idToken: data.data.accessToken,
 				// data.data.expiresAt example: "2025-09-17T03:43:57Z"; store in seconds
 				expiresAt: new Date(data.data.expiresAt).getTime() / 1000,
 				refreshToken: data.data.refreshToken || refreshToken,
-				userInfo: {
-					createdAt: new Date().toISOString(),
-					email: data.data.userInfo.email || "",
-					id: data.data.userInfo.clineUserId || "",
-					displayName: data.data.userInfo.name || "",
-					organizations: [],
-					appBaseUrl: this._config.appBaseUrl,
-					subject: data.data.userInfo.subject || "",
-				},
+				userInfo,
 				provider: this.name,
 			}
 		} catch (error: any) {
@@ -206,7 +192,7 @@ export class ClineAuthProvider implements IAuthProvider {
 	}
 
 	async getAuthRequest(callbackUrl: string): Promise<string> {
-		const authUrl = new URL(CLINE_API_ENDPOINT.AUTH, clineEnvConfig.apiBaseUrl)
+		const authUrl = new URL(CLINE_API_ENDPOINT.AUTH, this.config.apiBaseUrl)
 		authUrl.searchParams.set("client_type", "extension")
 		authUrl.searchParams.set("callback_url", callbackUrl)
 		// Ensure the redirect_uri is properly encoded and included
@@ -257,7 +243,7 @@ export class ClineAuthProvider implements IAuthProvider {
 			const callbackUrl = `${callbackHost}/auth`
 
 			// Exchange the authorization code for tokens
-			const tokenUrl = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, clineEnvConfig.apiBaseUrl)
+			const tokenUrl = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, this.config.apiBaseUrl)
 
 			const response = await fetch(tokenUrl.toString(), {
 				method: "POST",
@@ -289,17 +275,13 @@ export class ClineAuthProvider implements IAuthProvider {
 				throw new Error("Invalid token response from server")
 			}
 
+			const userInfo = await this.fetchRemoteUserInfo(tokenData)
+
 			// Store the tokens and user info
 			const clineAuthInfo = {
 				idToken: tokenData.accessToken,
 				refreshToken: tokenData.refreshToken,
-				userInfo: {
-					id: tokenData.userInfo.clineUserId || "",
-					email: tokenData.userInfo.email || "",
-					displayName: tokenData.userInfo.name || "",
-					createdAt: new Date().toISOString(),
-					organizations: [],
-				},
+				userInfo,
 				expiresAt: new Date(tokenData.expiresAt).getTime() / 1000, // "2025-09-17T04:32:24.842636548Z"
 				provider: this.name,
 			}
@@ -310,6 +292,29 @@ export class ClineAuthProvider implements IAuthProvider {
 		} catch (error) {
 			console.error("Error handling auth callback:", error)
 			throw error
+		}
+	}
+
+	private async fetchRemoteUserInfo(tokenData: ClineAuthApiTokenExchangeResponse["data"]): Promise<ClineAccountUserInfo> {
+		try {
+			const userResponse = await axios.get(`${ClineEnv.config().apiBaseUrl}/api/v1/users/me`, {
+				headers: {
+					Authorization: `Bearer workos:${tokenData.accessToken}`,
+				},
+			})
+
+			return userResponse.data.data
+		} catch (error) {
+			console.error("Error fetching user info:", error)
+
+			// If fetching user info fail for whatever reason, fallback to the token data and refetch on token expiry (10 minutes)
+			return {
+				id: tokenData.userInfo.clineUserId || "",
+				email: tokenData.userInfo.email || "",
+				displayName: tokenData.userInfo.name || "",
+				createdAt: new Date().toISOString(),
+				organizations: [],
+			}
 		}
 	}
 }

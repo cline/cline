@@ -288,6 +288,16 @@ export const anthropicModels = {
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
+	"claude-haiku-4-5-20251001": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
+	},
 	"claude-sonnet-4-20250514": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -397,6 +407,11 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
+	"claude-haiku-4-5-20251001": {
+		...anthropicModels["claude-haiku-4-5-20251001"],
+		supportsImages: false,
+		supportsPromptCache: false,
+	},
 	"claude-sonnet-4-5-20250929": {
 		...anthropicModels["claude-sonnet-4-5-20250929"],
 		supportsImages: false,
@@ -456,6 +471,16 @@ export const bedrockModels = {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
+	},
+	"anthropic.claude-haiku-4-5-20251001-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
 	},
 	"anthropic.claude-sonnet-4-20250514-v1:0": {
 		maxTokens: 8192,
@@ -634,6 +659,26 @@ export const bedrockModels = {
 		description:
 			"A compact 20B open-weight Mixture-of-Experts language model designed for strong reasoning and tool use, ideal for edge devices and local inference.",
 	},
+	"qwen.qwen3-coder-30b-a3b-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 262_144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		description:
+			"Qwen3 Coder 30B MoE model with 3.3B activated parameters, optimized for code generation and analysis with 256K context window.",
+	},
+	"qwen.qwen3-coder-480b-a35b-v1:0": {
+		maxTokens: 8192,
+		contextWindow: 262_144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.22,
+		outputPrice: 1.8,
+		description:
+			"Qwen3 Coder 480B flagship MoE model with 35B activated parameters, designed for complex coding tasks with advanced reasoning capabilities and 256K context window.",
+	},
 } as const satisfies Record<string, ModelInfo>
 
 // OpenRouter
@@ -690,6 +735,16 @@ export const vertexModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
+	},
+	"claude-haiku-4-5@20251001": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
 	},
 	"claude-opus-4-1@20250805": {
 		maxTokens: 8192,
@@ -3371,6 +3426,17 @@ export interface BasetenModelInfo extends ModelInfo {
 }
 
 export const basetenModels = {
+	"zai-org/GLM-4.6": {
+		maxTokens: 200000,
+		contextWindow: 200000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 2.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Frontier open model with advanced agentic, reasoning and coding capabilities",
+	},
 	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
 		maxTokens: 262144,
 		contextWindow: 262144,
@@ -3461,7 +3527,7 @@ export const basetenModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 export type BasetenModelId = keyof typeof basetenModels
-export const basetenDefaultModelId = "moonshotai/Kimi-K2-Instruct-0905" satisfies BasetenModelId
+export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
 
 // Z AI
 // https://docs.z.ai/guides/llm/glm-4.5

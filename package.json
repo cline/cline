@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.32.7",
+	"version": "3.33.1",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -295,14 +295,15 @@
 		"vscode:prepublish": "npm run package",
 		"compile": "npm run check-types && npm run lint && node esbuild.mjs",
 		"compile-standalone": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
-		"compile-standalone-cli": "npm run check-types && npm run lint && node esbuild.mjs --standalone",
+		"compile-standalone-npm": "npm run protos && npm run protos-go && npm run check-types && npm run lint && node esbuild.mjs --standalone",
 		"compile-cli": "scripts/build-cli.sh",
-		"download-node": "node scripts/download-node.mjs",
-		"download-ripgrep": "node scripts/download-ripgrep.mjs",
+		"compile-cli-all-platforms": "scripts/build-cli-all-platforms.sh",
+		"compile-cli-man-page": "pandoc cli/man/cline.1.md -s -t man -o cli/man/cline.1",
+		"build:npm": "scripts/build-npm-package.sh",
 		"test:install": "bash scripts/test-install.sh",
 		"dev:cli:watch": "node scripts/dev-cli-watch.mjs",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",
-		"postcompile-standalone-cli": "node scripts/package-standalone.mjs --target=cli",
+		"postcompile-standalone-npm": "node scripts/package-standalone.mjs --target=npm",
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node esbuild.mjs --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
@@ -310,6 +311,7 @@
 		"protos": "node scripts/build-proto.mjs",
 		"protos-go": "node scripts/build-go-proto.mjs",
 		"cli-providers": "node scripts/cli-providers.mjs",
+		"download-ripgrep": "node scripts/download-ripgrep.mjs",
 		"postprotos": "biome format src/shared/proto src/core/controller src/hosts/ webview-ui/src/services src/generated --write --no-errors-on-unmatched",
 		"clean:build": "rimraf dist dist-standalone webview-ui/build src/generated out/",
 		"clean:deps": "rimraf node_modules webview-ui/node_modules",
@@ -430,7 +432,7 @@
 		"@opentelemetry/sdk-trace-base": "^2.1.0",
 		"@opentelemetry/sdk-trace-node": "^1.30.1",
 		"@opentelemetry/semantic-conventions": "^1.37.0",
-		"@playwright/test": "^1.53.2",
+		"@playwright/test": "^1.55.1",
 		"@sap-ai-sdk/ai-api": "^1.17.0",
 		"@sap-ai-sdk/orchestration": "^1.17.0",
 		"@sentry/browser": "^9.12.0",
@@ -461,7 +463,7 @@
 		"isbinaryfile": "^5.0.2",
 		"jschardet": "^3.1.4",
 		"jwt-decode": "^4.0.0",
-		"mammoth": "^1.8.0",
+		"mammoth": "^1.11.0",
 		"nice-grpc": "^2.1.12",
 		"node-machine-id": "^1.1.12",
 		"ollama": "^0.5.13",
@@ -487,6 +489,9 @@
 		"vscode-uri": "^3.1.0",
 		"web-tree-sitter": "^0.22.6",
 		"zod": "^3.24.2"
+	},
+	"overrides": {
+		"tar-fs": ">=3.1.1"
 	},
 	"c8": {
 		"reporter": [

@@ -2,7 +2,11 @@
 
 ## Overview
 
-Cline hooks allow you to execute custom scripts at specific points in the agentic workflow. Hooks are placed in the `.clinerules/hooks/` directory and run automatically when enabled.
+Cline hooks allow you to execute custom scripts at specific points in the agentic workflow. Hooks can be placed in either:
+- **Global hooks directory**: `~/Documents/Cline/Rules/Hooks/` (applies to all workspaces)
+- **Workspace hooks directory**: `.clinerules/hooks/` (applies to specific workspace)
+
+Hooks run automatically when enabled.
 
 ## Enabling Hooks
 
@@ -16,58 +20,52 @@ Cline hooks allow you to execute custom scripts at specific points in the agenti
 ### PreToolUse Hook
 - **When**: Runs BEFORE a tool is executed
 - **Purpose**: Validate parameters, block execution, or add context
-- **File**: `.clinerules/hooks/PreToolUse` (Unix/Linux/macOS) or `.clinerules/hooks/PreToolUse.bat/.cmd/.exe` (Windows)
+- **Global Location**: `~/Documents/Cline/Rules/Hooks/PreToolUse` (all platforms)
+- **Workspace Location**: `.clinerules/hooks/PreToolUse` (all platforms)
 
 ### PostToolUse Hook
 - **When**: Runs AFTER a tool completes
 - **Purpose**: Observe results, track patterns, or add context
-- **File**: `.clinerules/hooks/PostToolUse` (Unix/Linux/macOS) or `.clinerules/hooks/PostToolUse.bat/.cmd/.exe` (Windows)
+- **Global Location**: `~/Documents/Cline/Rules/Hooks/PostToolUse` (all platforms)
+- **Workspace Location**: `.clinerules/hooks/PostToolUse` (all platforms)
 
-## Platform-Specific Guidance
+## Cross-Platform Hook Format
 
-### Windows Hooks
+Cline uses a git-style approach for hooks that works consistently across all platforms:
 
-Windows hooks use different file extensions and syntax than Unix hooks. Cline automatically searches for hooks using your system's `PATHEXT` environment variable (typically `.COM;.EXE;.BAT;.CMD;.VBS;.JS;.WSF;.MSC`).
+### Hook Files (All Platforms)
+- **No file extensions**: Hooks are named exactly `PreToolUse` or `PostToolUse` (no `.bat`, `.cmd`, `.sh` etc.)
+- **Shebang required**: First line must be a shebang (e.g., `#!/usr/bin/env bash` or `#!/usr/bin/env node`)
+- **Executable on Unix**: On Unix/Linux/macOS, hooks must be executable: `chmod +x PreToolUse`
+- **Windows**: No special permissions needed - hooks are executed through the shell
 
-**Recommended approach for Windows:**
-- Use `.cmd` or `.bat` batch files (most compatible)
-- See `PreToolUse.example.cmd` and `PostToolUse.example.cmd` for simple examples
-- See `PreToolUse.advanced.example.cmd` for PowerShell-based JSON parsing
+### How It Works
 
-**Simple Windows Hook Example:**
-```batch
-@echo off
-REM Always allow execution with context
-echo {"shouldContinue": true, "contextModification": "WORKSPACE_RULES: TypeScript project"}
+Like git hooks, Cline executes hook files through a shell that interprets the shebang line:
+- On Unix/Linux/macOS: Native shell execution with shebang support
+- On Windows: Shell execution handles shebang interpretation
+
+This means:
+- ✅ Same hook script works on all platforms
+- ✅ Write once, run anywhere
+- ✅ Use any scripting language (bash, node, python, etc.)
+
+### Creating Hooks
+
+**On Unix/Linux/macOS:**
+```bash
+# Create hook file
+nano ~/Documents/Cline/Rules/Hooks/PreToolUse
+
+# Make executable
+chmod +x ~/Documents/Cline/Rules/Hooks/PreToolUse
 ```
 
-**Advanced Windows Hook with Input Parsing:**
+**On Windows:**
 ```batch
-@echo off
-setlocal enabledelayedexpansion
-
-REM Read stdin using PowerShell
-for /f "usebackq delims=" %%i in (`powershell -Command "[Console]::In.ReadToEnd()"`) do set "INPUT=%%i"
-
-REM Parse and process JSON
-powershell -Command ^
-  "$json = '%INPUT%' | ConvertFrom-Json; ^
-   $output = @{shouldContinue = $true}; ^
-   $output | ConvertTo-Json -Compress"
+REM Create hook file (note: no file extension)
+notepad %USERPROFILE%\Documents\Cline\Rules\Hooks\PreToolUse
 ```
-
-**Tips for Windows:**
-- Batch files don't require `chmod +x` - they're executable by default
-- Use `REM` for comments instead of `#`
-- PowerShell is available on all modern Windows systems
-- For complex logic, consider PowerShell scripts (`.ps1`) or compiled executables (`.exe`)
-
-### Unix/Linux/macOS Hooks
-
-Unix hooks are shell scripts without file extensions:
-- Must be executable: `chmod +x PreToolUse`
-- Must include shebang: `#!/usr/bin/env bash` or `#!/usr/bin/env node`
-- See `PreToolUse.example` and `PostToolUse.example` for bash examples
 
 ## Context Injection Timing
 
@@ -244,13 +242,100 @@ echo "$input" >> ~/.cline/hook-logs/tool-usage.jsonl
 echo '{"shouldContinue": true}'
 ```
 
+## Global vs Workspace Hooks
+
+Cline supports two levels of hooks:
+
+### Global Hooks
+- **Location**: `~/Documents/Cline/Rules/Hooks/` (macOS/Linux) or `%USERPROFILE%\Documents\Cline\Rules\Hooks\` (Windows)
+- **Scope**: Apply to ALL workspaces and projects
+- **Use Case**: Organization-wide policies, personal preferences, universal validations
+- **Priority**: Execute FIRST, before workspace hooks
+
+### Workspace Hooks
+- **Location**: `.clinerules/hooks/` in each workspace root
+- **Scope**: Apply only to the specific workspace
+- **Use Case**: Project-specific rules, team conventions, repository requirements
+- **Priority**: Execute AFTER global hooks
+
+### Hook Execution
+
+When multiple hooks exist (global and/or workspace):
+- All hooks for a given step (PreToolUse or PostToolUse) are executed
+- **Execution order is not guaranteed** - hooks may run concurrently
+- If ALL hooks allow execution (`shouldContinue: true`), the tool proceeds
+- If ANY hook blocks (`shouldContinue: false`), execution is blocked
+
+**Result Combination:**
+- `shouldContinue`: Must be `true` from ALL hooks for execution to proceed
+- `contextModification`: All context strings are concatenated
+- `errorMessage`: All error messages are concatenated
+
+### Setting Up Global Hooks
+
+1. The global hooks directory is automatically created at:
+   - macOS/Linux: `~/Documents/Cline/Rules/Hooks/`
+   - Windows: `%USERPROFILE%\Documents\Cline\Rules\Hooks\`
+
+2. Add your hook script:
+   ```bash
+   # Unix/Linux/macOS
+   nano ~/Documents/Cline/Rules/Hooks/PreToolUse
+   chmod +x ~/Documents/Cline/Rules/Hooks/PreToolUse
+   
+   # Windows
+   notepad %USERPROFILE%\Documents\Cline\Rules\Hooks\PreToolUse
+   ```
+
+3. Enable hooks in Cline settings
+
+### Example: Global + Workspace Hooks
+
+**Global Hook** (applies to all projects):
+```bash
+#!/usr/bin/env bash
+# ~/Documents/Cline/Rules/Hooks/PreToolUse
+# Universal rule: Never delete package.json
+input=$(cat)
+tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
+path=$(echo "$input" | jq -r '.preToolUse.parameters.path // ""')
+
+if [[ "$tool_name" == "write_to_file" && "$path" == *"package.json"* ]]; then
+  echo '{"shouldContinue": false, "errorMessage": "Global policy: Cannot modify package.json"}'
+  exit 0
+fi
+
+echo '{"shouldContinue": true}'
+```
+
+**Workspace Hook** (applies to specific project):
+```bash
+#!/usr/bin/env bash
+# .clinerules/hooks/PreToolUse
+# Project rule: Only TypeScript files
+input=$(cat)
+tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
+path=$(echo "$input" | jq -r '.preToolUse.parameters.path // ""')
+
+if [[ "$tool_name" == "write_to_file" && "$path" == *.js ]]; then
+  echo '{"shouldContinue": false, "errorMessage": "Project rule: Use .ts files only"}'
+  exit 0
+fi
+
+echo '{"shouldContinue": true}'
+```
+
+**All hooks must allow execution for the tool to proceed.** Hooks may execute concurrently.
+
 ## Multi-Root Workspaces
 
-If you have multiple workspace roots, you can place hooks in each root's `.clinerules/hooks/` directory. All hooks will run and their results will be combined:
+If you have multiple workspace roots, you can place hooks in each root's `.clinerules/hooks/` directory. All hooks (global and workspace) may execute concurrently. Their results will be combined:
 
 - **shouldContinue**: If ANY hook returns false, execution is blocked
 - **contextModification**: All context modifications are concatenated
 - **errorMessage**: All error messages are concatenated
+
+**Note:** No execution order is guaranteed between hooks from different directories.
 
 ## Troubleshooting
 

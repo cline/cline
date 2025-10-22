@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -125,7 +126,7 @@ func (m *Manager) GetCurrentInstance() string {
 }
 
 // CreateTask creates a new task
-func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files []string, workspacePaths []string, settingsFlags []string) (string, error) {
+func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files []string, settingsFlags []string) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -136,9 +137,6 @@ func (m *Manager) CreateTask(ctx context.Context, prompt string, images, files [
 		}
 		if len(images) > 0 {
 			m.renderer.RenderDebug("Images: %v", images)
-		}
-		if len(workspacePaths) > 0 {
-			m.renderer.RenderDebug("Workspaces: %v", workspacePaths)
 		}
 		if len(settingsFlags) > 0 {
 			m.renderer.RenderDebug("Settings: %v", settingsFlags)
@@ -307,8 +305,18 @@ func (m *Manager) CheckSendEnabled(ctx context.Context) error {
 		return ErrTaskBusy
 	}
 
-	// All ask messages allow sending
+	// All ask messages allow sending, EXCEPT command_output
 	if lastMessage.Type == types.MessageTypeAsk {
+		// Special case: command_output means command is actively streaming
+		// In the CLI, we don't want to show input during streaming output (too messy)
+		// The webview can show "Proceed While Running" button, but CLI should wait
+		if lastMessage.Ask == string(types.AskTypeCommandOutput) {
+			if global.Config.Verbose {
+				m.renderer.RenderDebug("Send disabled: command output is streaming")
+			}
+			return ErrTaskBusy
+		}
+
 		if global.Config.Verbose {
 			m.renderer.RenderDebug("Send enabled: ask message")
 		}
@@ -598,60 +606,19 @@ func (m *Manager) CancelTask(ctx context.Context) error {
 	return nil
 }
 
-// ListTasks retrieves and displays task history
-func (m *Manager) ListTasks(ctx context.Context) error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	req := &cline.GetTaskHistoryRequest{
-		FavoritesOnly:        false,
-		SearchQuery:          "",
-		SortBy:               "oldest",
-		CurrentWorkspaceOnly: false,
-	}
-
-	resp, err := m.client.Task.GetTaskHistory(ctx, req)
-	if err != nil {
-		return fmt.Errorf("failed to get task history: %w", err)
-	}
-
-	if len(resp.Tasks) == 0 {
-		fmt.Println("No task history found.")
-		return nil
-	}
-
-	return m.renderer.RenderTaskList(resp.Tasks)
-}
-
-// GatherFinalSummary attempts to gather the latest completion_result output and display it
-func (m *Manager) GatherFinalSummary(ctx context.Context) error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	state, err := m.client.State.GetLatestState(ctx, &cline.EmptyRequest{})
-	if err != nil {
-		return fmt.Errorf("failed to get state: %w", err)
-	}
-
-	messages, err := m.extractMessagesFromState(state.StateJson)
-	if err != nil {
-		return fmt.Errorf("failed to extract messages: %w", err)
-	}
-
-	for i := len(messages) - 1; i >= 0; i-- {
-		msg := messages[i]
-
-		// Check if this is a completion result SAY message
-		if msg.IsSay() && msg.Say == string(types.SayTypeCompletionResult) {
-			return m.displayMessage(msg, false, false, i)
-		}
-	}
-
-	return nil
-}
-
 // ShowConversation displays the current conversation
 func (m *Manager) ShowConversation(ctx context.Context) error {
+	// Check if there's an active task before showing conversation
+	err := m.CheckSendEnabled(ctx)
+	if err != nil {
+		// Handle specific error cases
+		if errors.Is(err, ErrNoActiveTask) {
+			fmt.Println("No active task found. Use 'cline task new' to create a task first.")
+			return nil
+		}
+		// For other errors (like task busy), we can still show the conversation
+	}
+
 	// Disable streaming mode for static view
 	m.mu.Lock()
 	m.isStreamingMode = false
@@ -741,21 +708,32 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-sigChan:
-			// Check if input is currently being shown
-			if coordinator.IsInputAllowed() {
-				// Input form is showing - huh will handle the signal via ErrUserAborted
-				// Do nothing here, let the input handler deal with it
-			} else {
-				// Streaming mode - cancel the task and stay in follow mode
-				m.renderer.RenderTaskCancelled()
-				if err := m.CancelTask(context.Background()); err != nil {
-					fmt.Printf("Error cancelling task: %v\n", err)
+		defer signal.Stop(sigChan) // Clean up signal handler when goroutine exits
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-sigChan:
+				if interactive {
+					// Interactive mode (task chat)
+					// Check if input is currently being shown
+					if coordinator.IsInputAllowed() {
+						// Input form is showing - huh will handle the signal via ErrUserAborted
+						// Do nothing here, let the input handler deal with it
+					} else {
+						// Streaming mode - cancel the task and stay in follow mode
+						m.renderer.RenderTaskCancelled()
+						if err := m.CancelTask(context.Background()); err != nil {
+							fmt.Printf("Error cancelling task: %v\n", err)
+						}
+						// Don't cancel main context - stay in follow mode
+					}
+				} else {
+					// Non-interactive mode (task view --follow)
+					// Just exit without canceling the task
+					cancel()
+					return // Exit the loop after canceling in non-interactive mode
 				}
-				// Don't cancel main context - stay in follow mode
 			}
 		}
 	}()
@@ -907,9 +885,7 @@ func (m *Manager) processStateUpdateJsonMode(stateUpdate *cline.State, coordinat
 		// Display valid messages, exit as soon as we hit a non-valid message
 		if shouldDisplay {
 			coordinator.CompleteTurn(i + 1) // Mark the message as complete as soon as we print it
-			coordinator.WithOutputLock(func() {
-				m.displayMessage(msg, false, false, i)
-			})
+			m.displayMessage(msg, false, false, i)
 		} else {
 			break
 		}
@@ -955,59 +931,52 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 		case msg.Say == string(types.SayTypeUserFeedback):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCommand):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCommandOutput):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					m.displayMessage(msg, false, false, i)
-				})
+				m.displayMessage(msg, false, false, i)
+
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeBrowserActionLaunch):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeMcpServerRequestStarted):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Say == string(types.SayTypeCheckpointCreated):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+				fmt.Println()
+				m.displayMessage(msg, false, false, i)
+
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
@@ -1016,10 +985,9 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 			apiInfo := types.APIRequestInfo{Cost: -1}
 			if err := json.Unmarshal([]byte(msg.Text), &apiInfo); err == nil && apiInfo.Cost >= 0 {
 				if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-					coordinator.WithOutputLock(func() {
-						fmt.Println() // adds a separator between cline message and usage message
-						m.displayMessage(msg, false, false, i)
-					})
+					fmt.Println() // adds a separator between cline message and usage message
+					m.displayMessage(msg, false, false, i)
+
 					coordinator.MarkProcessedInCurrentTurn(msgKey)
 					coordinator.CompleteTurn(len(messages))
 					displayedUsage = true
@@ -1029,36 +997,25 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 		case msg.Ask == string(types.AskTypeCommandOutput):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					m.displayMessage(msg, false, false, i)
-				})
+				m.displayMessage(msg, false, false, i)
+
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Ask == string(types.AskTypePlanModeRespond):
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
-			// In streaming mode, partial stream handles this message
-			// State stream should skip to avoid duplication
-			if m.isStreamingMode {
-				// Skip - partial stream already handled this
-			} else {
-				// Non-streaming mode: render normally when message is complete
-				if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
-					coordinator.WithOutputLock(func() {
-						m.displayMessage(msg, false, false, i)
-					})
-					coordinator.MarkProcessedInCurrentTurn(msgKey)
-				}
+			// Non-streaming mode: render normally when message is complete
+			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				m.displayMessage(msg, false, false, i)
+
+				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 
 		case msg.Type == types.MessageTypeAsk:
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			// Only render if not already handled by partial stream
-			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				coordinator.WithOutputLock(func() {
-					fmt.Println()
-					m.displayMessage(msg, false, false, i)
-				})
+			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
+				m.displayMessage(msg, false, false, i)
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 		}
@@ -1117,15 +1074,12 @@ func (m *Manager) handleStreamingMessage(msg *types.ClineMessage, coordinator *S
 	m.renderer.RenderDebug("Processing message: timestamp=%d, partial=%v, type=%s, text_preview=%s",
 		msg.Timestamp, msg.Partial, msg.Type, m.truncateText(msg.Text, 50))
 
-	// Lock output to prevent race with input forms
-	coordinator.WithOutputLock(func() {
-		// Use streaming display which handles deduplication internally
-		if err := m.streamingDisplay.HandlePartialMessage(msg); err != nil {
-			m.renderer.RenderDebug("Streaming display failed, using fallback: %v", err)
-			// Fallback to regular display
-			m.displayMessage(msg, true, false, -1)
-		}
-	})
+	// Use streaming display which handles deduplication internally
+	if err := m.streamingDisplay.HandlePartialMessage(msg); err != nil {
+		m.renderer.RenderDebug("Streaming display failed, using fallback: %v", err)
+		// Fallback to regular display
+		m.displayMessage(msg, true, false, -1)
+	}
 
 	return nil
 }
@@ -1281,6 +1235,44 @@ func (m *Manager) updateMode(stateJson string) {
 	m.mu.Lock()
 	m.currentMode = mode
 	m.mu.Unlock()
+}
+
+// UpdateTaskAutoApprovalAction enables a specific auto-approval action for the current task
+func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey string) error {
+	settings := &cline.Settings{
+		AutoApprovalSettings: &cline.AutoApprovalSettings{
+			Enabled:     true,
+			MaxRequests: 20, // Important: avoid maxRequests=0 bug
+			Actions:     &cline.AutoApprovalActions{},
+		},
+	}
+
+	// Set the specific action to true based on actionKey
+	truePtr := func() *bool { b := true; return &b }()
+	
+	switch actionKey {
+	case "read_files":
+		settings.AutoApprovalSettings.Actions.ReadFiles = truePtr
+	case "edit_files":
+		settings.AutoApprovalSettings.Actions.EditFiles = truePtr
+	case "execute_all_commands":
+		settings.AutoApprovalSettings.Actions.ExecuteAllCommands = truePtr
+	case "use_browser":
+		settings.AutoApprovalSettings.Actions.UseBrowser = truePtr
+	case "use_mcp":
+		settings.AutoApprovalSettings.Actions.UseMcp = truePtr
+	default:
+		return fmt.Errorf("unknown auto-approval action: %s", actionKey)
+	}
+
+	_, err := m.client.State.UpdateTaskSettings(ctx, &cline.UpdateTaskSettingsRequest{
+		Settings: settings,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update task settings: %w", err)
+	}
+
+	return nil
 }
 
 // Cleanup cleans up resources

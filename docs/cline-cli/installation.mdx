@@ -1,0 +1,50 @@
+---
+title: "Installation"
+description: "Install Cline CLI and authenticate with your account"
+---
+
+## Prerequisites
+
+Cline CLI requires Node.js version 20 or higher. We recommend using Node.js 22 for the best experience.
+
+To check your Node.js version:
+
+```bash
+node --version
+```
+
+## Installation
+
+```bash
+npm install -g cline
+```
+
+After installation, authenticate with your Cline account:
+
+```bash
+cline auth
+```
+
+This starts an authentication wizard to sign you in and configure your preferred AI model provider.
+
+## Quick Start
+
+Get started with Cline in seconds:
+
+```bash
+cline
+```
+
+That's it! Running `cline` in any directory starts an interactive session where you can chat with the AI agent. Type your task, review the plan, and type `/act` when ready to execute.
+
+For even faster execution without interaction:
+
+```bash
+cline "Add unit tests to utils.js"
+```
+
+This runs Cline with a single command, perfect for quick tasks or automation.
+
+<Tip>
+New to Cline CLI? Start with interactive mode (`cline`) to see how it works. Once comfortable, explore [the three core flows](/cline-cli/three-core-flows) for advanced usage patterns.
+</Tip>
