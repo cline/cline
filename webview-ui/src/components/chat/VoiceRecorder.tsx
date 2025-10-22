@@ -271,7 +271,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 							disabled: disabled || isProcessing,
 							"animate-spin": isProcessing || isStarting,
 						})}
-						data-testid="info-banner-close-button"
+						data-testid="stop-recording-button"
 						onClick={handleStopClick}
 						size="sm"
 						variant="icon">
@@ -290,7 +290,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 							"animate-spin": isProcessing || isStarting,
 							disabled: disabled || isProcessing,
 						})}
-						data-testid="info-banner-close-button"
+						data-testid="cancel-recording-button"
 						onClick={handleCancelClick}
 						size="sm"
 						variant="icon">
