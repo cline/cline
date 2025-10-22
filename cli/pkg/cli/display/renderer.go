@@ -125,6 +125,39 @@ func (r *Renderer) RenderTaskList(tasks []*cline.TaskItem) error {
 
 	recentTasks := tasks[startIndex:]
 
+	// Check for JSON output mode
+	if r.outputFormat == "json" {
+		// Build JSON structure
+		taskList := make([]map[string]interface{}, len(recentTasks))
+		for i, taskItem := range recentTasks {
+			description := taskItem.Task
+			if len(description) > 1000 {
+				description = description[:1000] + "..."
+			}
+			
+			taskList[i] = map[string]interface{}{
+				"id":          taskItem.Id,
+				"task":        description,
+				"ts":          taskItem.Ts,
+				"isFavorited": taskItem.IsFavorited,
+				"size":        taskItem.Size,
+				"totalCost":   taskItem.TotalCost,
+				"tokensIn":    taskItem.TokensIn,
+				"tokensOut":   taskItem.TokensOut,
+				"cacheWrites": taskItem.CacheWrites,
+				"cacheReads":  taskItem.CacheReads,
+			}
+		}
+		
+		data := map[string]interface{}{
+			"tasks":      taskList,
+			"totalCount": len(tasks),
+			"shown":      len(recentTasks),
+		}
+		return output.OutputJSONSuccess("task list", data)
+	}
+
+	// Rich/plain output
 	r.typewriter.PrintfLn("=== Task History (showing last %d of %d total tasks) ===\n", len(recentTasks), len(tasks))
 
 	for i, taskItem := range recentTasks {
@@ -151,6 +184,13 @@ func (r *Renderer) RenderTaskList(tasks []*cline.TaskItem) error {
 func (r *Renderer) RenderDebug(format string, args ...interface{}) error {
 	if global.Config.Verbose {
 		message := fmt.Sprintf(format, args...)
+		
+		// In JSON mode, output as JSONL immediately
+		if global.Config.OutputFormat == "json" {
+			return output.OutputStatusMessage("debug", message, nil)
+		}
+		
+		// In plain/rich mode, output as text
 		r.typewriter.PrintMessageLine("[DEBUG]", message)
 	}
 	return nil
