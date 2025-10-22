@@ -18,7 +18,7 @@ export class FeatureFlagsService {
 	 */
 	public constructor(private provider: IFeatureFlagsProvider) {}
 
-	private cache: Map<FeatureFlag, boolean> = new Map()
+	private cache: Map<FeatureFlag, unknown> = new Map()
 	private lastCacheUpdateTime: number = 0
 
 	/**
@@ -40,13 +40,12 @@ export class FeatureFlagsService {
 		Logger.log(`do_nothing flag: ${this.getDoNothingFlag()}`)
 	}
 
-	private async getFeatureFlag(flagName: FeatureFlag): Promise<boolean> {
+	private async getFeatureFlag(flagName: FeatureFlag): Promise<unknown> {
 		try {
 			const flagValue = await this.provider.getFeatureFlag(flagName)
-			const defaultValue = FeatureFlagDefaultValue[flagName]
-			const enabled = flagValue ?? FeatureFlagDefaultValue[flagName] ?? false
-			this.cache.set(flagName, enabled)
-			return enabled
+			const value = flagValue ?? FeatureFlagDefaultValue[flagName]
+			this.cache.set(flagName, value)
+			return value
 		} catch (error) {
 			console.error(`Error checking if feature flag ${flagName} is enabled:`, error)
 			this.cache.set(flagName, false)
@@ -63,10 +62,9 @@ export class FeatureFlagsService {
 	 * @returns Boolean indicating if the feature is enabled
 	 */
 	public async isFeatureFlagEnabled(flagName: FeatureFlag): Promise<boolean> {
-		if (this.cache.has(flagName)) {
-			return this.cache.get(flagName)!
-		}
-		return this.getFeatureFlag(flagName)
+		const value = this.cache.has(flagName) ? this.cache.get(flagName) : await this.getFeatureFlag(flagName)
+
+		return value !== null && value !== undefined
 	}
 
 	/**
@@ -77,7 +75,7 @@ export class FeatureFlagsService {
 	 * and whenever the user logs in.
 	 */
 	public getBooleanFlagEnabled(flagName: FeatureFlag): boolean {
-		return this.cache.get(flagName) ?? false
+		return this.cache.get(flagName) === true
 	}
 
 	public getWorkOsAuthEnabled(): boolean {
