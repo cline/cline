@@ -2,10 +2,12 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { GroqModelId, groqDefaultModelId, groqModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface GroqHandlerOptions extends CommonApiHandlerOptions {
 	groqApiKey?: string
@@ -188,7 +190,7 @@ export class GroqHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
 		const modelFamily = this.detectModelFamily(model.id)
@@ -213,6 +215,7 @@ export class GroqHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 			temperature,
+			...getOpenAIToolParams(tools),
 		}
 
 		// Add any special parameters for specific model families
@@ -220,6 +223,7 @@ export class GroqHandler implements ApiHandler {
 			Object.assign(requestParams, modelFamily.specialParams)
 		}
 
+		const toolCallProcessor = new ToolCallProcessor()
 		const stream = await client.chat.completions.create(requestParams)
 
 		for await (const chunk of stream) {
@@ -233,6 +237,10 @@ export class GroqHandler implements ApiHandler {
 					reasoning: reasoningContent,
 				}
 				continue
+			}
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			// Handle content field - trust the parsed output from Groq
