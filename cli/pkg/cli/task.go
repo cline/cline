@@ -572,17 +572,20 @@ func getContentFromStdinAndArgs(args []string) (string, error) {
 
 	// Check if data is being piped to stdin
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		stdinBytes, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			return "", fmt.Errorf("failed to read from stdin: %w", err)
-		}
-
-		stdinContent := strings.TrimSpace(string(stdinBytes))
-		if stdinContent != "" {
-			if content.Len() > 0 {
-				content.WriteString(" ")
+		// Only try to read if there's actually data available
+		if stat.Size() > 0 {
+			stdinBytes, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				return "", fmt.Errorf("failed to read from stdin: %w", err)
 			}
-			content.WriteString(stdinContent)
+
+			stdinContent := strings.TrimSpace(string(stdinBytes))
+			if stdinContent != "" {
+				if content.Len() > 0 {
+					content.WriteString(" ")
+				}
+				content.WriteString(stdinContent)
+			}
 		}
 	}
 
