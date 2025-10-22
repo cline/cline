@@ -51,6 +51,37 @@ func setTempClineDir(t *testing.T) string {
 	return clineDir
 }
 
+// setTempClineDirWithManualCleanup creates a temp CLINE_DIR and registers
+// a cleanup handler that attempts to remove the directory tree but ignores
+// errors. This is useful for tests that create git checkpoints or other
+// async file operations that may not complete before test cleanup.
+func setTempClineDirWithManualCleanup(t *testing.T) string {
+	t.Helper()
+	// Create temp dir but don't use t.TempDir() to avoid automatic cleanup
+	dir, err := os.MkdirTemp("", "cline-test-*")
+	if err != nil {
+		t.Fatalf("create temp dir: %v", err)
+	}
+	
+	clineDir := filepath.Join(dir, ".cline")
+	if err := os.MkdirAll(clineDir, 0o755); err != nil {
+		t.Fatalf("mkdir clineDir: %v", err)
+	}
+	t.Setenv("CLINE_DIR", clineDir)
+	
+	// Register cleanup that attempts removal but ignores errors
+	t.Cleanup(func() {
+		// Give async operations time to complete
+		time.Sleep(100 * time.Millisecond)
+		
+		// Attempt to remove, but don't fail if it errors
+		// (git checkpoints may still have open file handles)
+		_ = os.RemoveAll(dir)
+	})
+	
+	return clineDir
+}
+
 func runCLI(ctx context.Context, t *testing.T, args ...string) (string, string, int) {
 	t.Helper()
 	bin := repoAwareBinPath(t)
