@@ -1,7 +1,8 @@
-import { buildApiHandler } from "@core/api"
 import { Empty } from "@shared/proto/cline/common"
 import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
-import { convertProtoToApiConfiguration } from "@shared/proto-conversions/models/api-configuration-conversion"
+import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
+import { fromProtobufModelInfo, fromProtobufOpenAiCompatibleModelInfo } from "@shared/proto-conversions/models/typeConversion"
+import { buildApiHandler } from "@/core/api"
 import type { Controller } from "../index"
 
 /**
@@ -20,16 +21,48 @@ export async function updateApiConfigurationProto(
 			throw new Error("API configuration is required")
 		}
 
-		// Convert proto ApiConfiguration to application ApiConfiguration
-		const appApiConfiguration = convertProtoToApiConfiguration(request.apiConfiguration)
+		const protoApiConfiguration = request.apiConfiguration
+
+		const convertedApiConfigurationFromProto = {
+			...protoApiConfiguration,
+			// Convert proto ApiProvider enums to native string types
+			planModeApiProvider:
+				protoApiConfiguration.planModeApiProvider !== undefined
+					? convertProtoToApiProvider(protoApiConfiguration.planModeApiProvider!)
+					: undefined,
+			actModeApiProvider:
+				protoApiConfiguration.actModeApiProvider !== undefined
+					? convertProtoToApiProvider(protoApiConfiguration.actModeApiProvider!)
+					: undefined,
+
+			// Convert ModelInfo objects (empty arrays → undefined)
+			planModeOpenRouterModelInfo: protoApiConfiguration.planModeOpenRouterModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.planModeOpenRouterModelInfo)
+				: undefined,
+			planModeOpenAiModelInfo: protoApiConfiguration.planModeOpenAiModelInfo
+				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.planModeOpenAiModelInfo)
+				: undefined,
+			planModeHuggingFaceModelInfo: protoApiConfiguration.planModeHuggingFaceModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.planModeHuggingFaceModelInfo)
+				: undefined,
+			actModeOpenRouterModelInfo: protoApiConfiguration.actModeOpenRouterModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.actModeOpenRouterModelInfo)
+				: undefined,
+			actModeOpenAiModelInfo: protoApiConfiguration.actModeOpenAiModelInfo
+				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.actModeOpenAiModelInfo)
+				: undefined,
+		}
 
 		// Update the API configuration in storage
-		controller.stateManager.setApiConfiguration(appApiConfiguration)
+		controller.stateManager.setApiConfiguration(convertedApiConfigurationFromProto)
 
 		// Update the task's API handler if there's an active task
 		if (controller.task) {
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-			controller.task.api = buildApiHandler({ ...appApiConfiguration, ulid: controller.task.ulid }, currentMode)
+			controller.task.api = buildApiHandler(
+				{ ...convertedApiConfigurationFromProto, ulid: controller.task.ulid },
+				currentMode,
+			)
 		}
 
 		// Post updated state to webview
