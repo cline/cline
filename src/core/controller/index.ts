@@ -34,6 +34,7 @@ import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { AuthState } from "@/shared/proto/index.cline"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
@@ -47,6 +48,7 @@ import {
 import { fetchRemoteConfig } from "../storage/remote-config/fetch"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
 import { Task } from "../task"
+import { StreamingResponseHandler } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
 import { checkCliInstallation } from "./state/checkCliInstallation"
@@ -108,16 +110,9 @@ export class Controller {
 	 */
 	private startRemoteConfigTimer() {
 		// Initial fetch
-		fetchRemoteConfig(this).catch((error) => {
-			console.error("Failed to fetch remote config:", error)
-		})
-
+		fetchRemoteConfig(this)
 		// Set up 30-second interval
-		this.remoteConfigTimer = setInterval(() => {
-			fetchRemoteConfig(this).catch((error) => {
-				console.error("Failed to fetch remote config:", error)
-			})
-		}, 30000) // 30 seconds
+		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 30000) // 30 seconds
 	}
 
 	constructor(readonly context: vscode.ExtensionContext) {
@@ -149,6 +144,13 @@ export class Controller {
 		this.authService = AuthService.getInstance(this)
 		this.ocaAuthService = OcaAuthService.initialize(this)
 		this.accountService = ClineAccountService.getInstance()
+
+		const authStatusHandler: StreamingResponseHandler<AuthState> = async (response, _isLast, _seqNumber): Promise<void> => {
+			if (response.user) {
+				fetchRemoteConfig(this)
+			}
+		}
+		this.authService.subscribeToAuthStatusUpdate(this, {}, authStatusHandler, undefined)
 
 		this.authService.restoreRefreshTokenAndRetrieveAuthInfo().then(() => {
 			this.startRemoteConfigTimer()
@@ -244,11 +246,7 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	) {
-		try {
-			await fetchRemoteConfig(this)
-		} catch (error) {
-			console.error("Failed to fetch remote config on task init:", error)
-		}
+		await fetchRemoteConfig(this)
 
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
