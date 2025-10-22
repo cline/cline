@@ -1325,7 +1325,6 @@ export class Task {
 		}
 
 		// Force subagents to use background terminal (hidden execution)
-		const useBackgroundTerminal = isSubagent
 
 		Logger.info("Executing command in terminal: " + command)
 
