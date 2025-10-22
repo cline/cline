@@ -149,6 +149,17 @@ Example:
 </task_progress>
 </execute_command>`
 
+export const mcp_template = `MCP SERVERS
+
+The Model Context Protocol (MCP) enables communication between the system and locally running MCP servers that provide additional tools and resources to extend your capabilities.
+When using use_mcp_tool, you must specify the server_name, tool_name, and required arguments in your request.
+
+# Connected MCP Servers
+
+When a server is connected, you can use the server's tools via the \`use_mcp_tool\` tool, and access the server's resources via the \`access_mcp_resource\` tool.
+
+{{MCP_SERVERS_LIST}}`
+
 // Simplified and shortened RULES section- Less confusing
 export const rules_template = (context: SystemPromptContext) => `RULES
 
