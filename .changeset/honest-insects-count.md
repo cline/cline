@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-Fix: Add back read more button for long task displayed in task header.
+Feat: makes long task header text expandable.
