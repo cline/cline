@@ -710,6 +710,93 @@ export const clineCodeSupernovaModelInfo: ModelInfo = {
 	cacheWritesPrice: 0,
 	description: "A versatile agentic coding stealth model that supports image inputs.",
 }
+
+export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; allow_fallbacks: boolean }> = {
+	// Exacto Providers
+	"moonshotai/kimi-k2:exacto": {
+		order: ["groq", "moonshotai"],
+		allow_fallbacks: false,
+	},
+	"z-ai/glm-4.6:exacto": {
+		order: ["z-ai", "novita"],
+		allow_fallbacks: false,
+	},
+	"deepseek/deepseek-v3.1-terminus:exacto": {
+		order: ["novita", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-coder:exacto": {
+		order: ["baseten", "cerebras"],
+		allow_fallbacks: false,
+	},
+	"openai/gpt-oss-120b:exacto": {
+		order: ["groq", "novita"],
+		allow_fallbacks: false,
+	},
+
+	// Normal Providers
+	"moonshotai/kimi-k2": {
+		order: ["groq", "fireworks", "baseten", "parasail", "novita", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-coder": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-235b-a22b-thinking-2507": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-235b-a22b-07-25": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-30b-a3b-thinking-2507": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-30b-a3b-instruct-2507": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-30b-a3b:free": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-next-80b-a3b-thinking": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-next-80b-a3b-instruct": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-max": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"deepseek/deepseek-v3.2-exp": {
+		order: ["deepseek", "novita", "fireworks", "nebius"],
+		allow_fallbacks: false,
+	},
+	"z-ai/glm-4.6": {
+		order: ["z-ai", "novita", "baseten", "fireworks", "chutes"],
+		allow_fallbacks: false,
+	},
+	"z-ai/glm-4.5v": {
+		order: ["z-ai", "novita", "baseten", "fireworks", "chutes"],
+		allow_fallbacks: false,
+	},
+	"z-ai/glm-4.5": {
+		order: ["z-ai", "novita", "baseten", "fireworks", "chutes"],
+		allow_fallbacks: false,
+	},
+	"z-ai/glm-4.5-air": {
+		order: ["z-ai", "novita", "baseten", "fireworks", "chutes"],
+		allow_fallbacks: false,
+	},
+}
+
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 // https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models
