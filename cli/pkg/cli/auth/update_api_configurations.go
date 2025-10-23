@@ -46,6 +46,7 @@ func updateApiConfigurationPartial(ctx context.Context, manager *task.Manager, r
 // ProviderFields defines all the field names associated with a specific provider
 type ProviderFields struct {
 	APIKeyField            string // API key field name (e.g., "apiKey", "openAiApiKey")
+	BaseURLField           string // Base URL field name (optional, empty if not applicable)
 	PlanModeModelIDField   string // Plan mode model ID field (e.g., "planModeApiModelId")
 	ActModeModelIDField    string // Act mode model ID field (e.g., "actModeApiModelId")
 	PlanModeModelInfoField string // Plan mode model info field (optional, empty if not applicable)
@@ -68,6 +69,7 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 	case cline.ApiProvider_OPENAI:
 		return ProviderFields{
 			APIKeyField:                          "openAiApiKey",
+			BaseURLField:                         "openAiBaseUrl",
 			PlanModeModelIDField:                 "planModeApiModelId",
 			ActModeModelIDField:                  "actModeApiModelId",
 			PlanModeProviderSpecificModelIDField: "planModeOpenAiModelId",
@@ -182,7 +184,7 @@ func GetModelIDFieldName(provider cline.ApiProvider, mode string) (string, error
 // buildProviderFieldMask builds a list of camelCase field paths for the field mask.
 // When includeProviderEnums is true, the provider enum fields are included (for setting active provider).
 // When false, only the data fields are included (for configuring without activating).
-func buildProviderFieldMask(fields ProviderFields, includeAPIKey bool, includeModelID bool, includeModelInfo bool, includeProviderEnums bool) []string {
+func buildProviderFieldMask(fields ProviderFields, includeAPIKey bool, includeModelID bool, includeModelInfo bool, includeBaseURL bool, includeProviderEnums bool) []string {
 	var fieldPaths []string
 
 	// Include provider enums if requested (used when setting active provider)
@@ -197,6 +199,11 @@ func buildProviderFieldMask(fields ProviderFields, includeAPIKey bool, includeMo
 		if fields.APIKeyField == "awsAccessKey" {
 			fieldPaths = append(fieldPaths, "awsSecretKey")
 		}
+	}
+
+	// Add base URL field if requested and applicable
+	if includeBaseURL && fields.BaseURLField != "" {
+		fieldPaths = append(fieldPaths, fields.BaseURLField)
 	}
 
 	// Add model ID fields if requested
@@ -266,8 +273,16 @@ func setProviderSpecificModelID(apiConfig *cline.ModelsApiConfiguration, fieldNa
 	}
 }
 
+// setBaseURLField sets the appropriate base URL field in the config based on the field name
+func setBaseURLField(apiConfig *cline.ModelsApiConfiguration, fieldName string, value *string) {
+	switch fieldName {
+	case "openAiBaseUrl":
+		apiConfig.OpenAiBaseUrl = value
+	}
+}
+
 // AddProviderPartial configures a new provider with all necessary fields using partial updates.
-func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cline.ApiProvider, modelID string, apiKey string, modelInfo interface{}) error {
+func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cline.ApiProvider, modelID string, apiKey string, baseURL string, modelInfo interface{}) error {
 	// Get field mapping for this provider
 	fields, err := GetProviderFields(provider)
 	if err != nil {
@@ -280,6 +295,13 @@ func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cli
 	// Set API key field
 	if apiKey != "" || fields.APIKeyField != "ollamaBaseUrl" {
 		setAPIKeyField(apiConfig, fields.APIKeyField, proto.String(apiKey))
+	}
+
+	// Set base URL field if provided and applicable
+	includeBaseURL := false
+	if baseURL != "" && fields.BaseURLField != "" {
+		setBaseURLField(apiConfig, fields.BaseURLField, proto.String(baseURL))
+		includeBaseURL = true
 	}
 
 	// Set model ID fields
@@ -301,7 +323,7 @@ func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cli
 
 	// Build field mask including all fields we're setting (without provider enums)
 	includeModelInfo := fields.PlanModeModelInfoField != "" && modelInfo != nil
-	fieldPaths := buildProviderFieldMask(fields, true, true, includeModelInfo, false)
+	fieldPaths := buildProviderFieldMask(fields, true, true, includeModelInfo, includeBaseURL, false)
 
 	// Create field mask
 	fieldMask := &fieldmaskpb.FieldMask{Paths: fieldPaths}
@@ -368,7 +390,7 @@ func UpdateProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	}
 
 	// Build field mask for only the fields being updated
-	fieldPaths := buildProviderFieldMask(fields, includeAPIKey, includeModelID, includeModelInfo, setAsActive)
+	fieldPaths := buildProviderFieldMask(fields, includeAPIKey, includeModelID, includeModelInfo, false, setAsActive)
 
 	// Create field mask
 	fieldMask := &fieldmaskpb.FieldMask{Paths: fieldPaths}

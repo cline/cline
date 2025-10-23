@@ -177,12 +177,17 @@ async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<
  * Scans all user organizations, switches to the one with remote config if found,
  * and applies the configuration.
  *
+ * It catches any exceptions, logs them and does not propagate them to the caller.
+ *
  * This function is called periodically to ensure users stay in
  * organizations with remote configuration enabled.
  *
  * @param controller The controller instance
- * @returns Promise resolving to the RemoteConfig object, or undefined if no organization has remote config
  */
-export async function fetchRemoteConfig(controller: Controller): Promise<RemoteConfig | undefined> {
-	return ensureUserInOrgWithRemoteConfig(controller)
+export async function fetchRemoteConfig(controller: Controller) {
+	try {
+		await ensureUserInOrgWithRemoteConfig(controller)
+	} catch (error) {
+		console.error("Failed to fetch remote config", error)
+	}
 }

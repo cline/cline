@@ -39,7 +39,7 @@ const (
 //	┃   Change Cline model (only if authenticated)				- hidden if not authenticated
 //	┃   Authenticate with Cline account / Sign out of Cline		- changes based on auth status
 //	┃   Select active provider (Cline or BYO)					- always shown. Used to switch between Cline and BYO providers
-//	┃   Configure API provider									- always shown. Launches provider setup wizard
+//	┃   Configure BYO API providers								- always shown. Launches provider setup wizard
 //	┃   Exit authorization wizard								- always shown. Exits the auth menu
 
 // RunAuthFlow is the entry point for the entire auth flow with instance management
@@ -69,18 +69,25 @@ func RunAuthFlow(ctx context.Context, args []string) error {
 // Main entry point for handling the `cline auth` command
 // HandleAuthCommand routes the auth command based on the number of arguments
 func HandleAuthCommand(ctx context.Context, args []string) error {
+
+	// Check if flags are provided for quick setup
+	if QuickProvider != "" || QuickAPIKey != "" || QuickModelID != "" || QuickBaseURL != "" {
+		if QuickProvider == "" || QuickAPIKey == "" || QuickModelID == "" {
+			return fmt.Errorf("quick setup requires --provider, --apikey, and --modelid flags. Use 'cline auth --help' for more information")
+		}
+		return QuickSetupFromFlags(ctx, QuickProvider, QuickAPIKey, QuickModelID, QuickBaseURL)
+	}
+
 	switch len(args) {
 	case 0:
-		// No args: Show menu (ShowAuthMenuNoArgs)
+		// No args: Show uth wizard
 		return HandleAuthMenuNoArgs(ctx)
-	case 1:
-		// One arg: Provider ID only, prompt for API key
-		return QuickAPISetup(args[0], "")
-	case 2:
-		// Two args: Provider ID and API key
-		return QuickAPISetup(args[0], args[1])
+	case 1, 2, 3, 4:
+		fmt.Println("Invalid positional arguments. Correct usage:")
+		fmt.Println("  cline auth --provider <provider> --apikey <key> --modelid <model> --baseurl <optional>")
+		return nil
 	default:
-		return fmt.Errorf("quick BYO API setup is currently stubbed - not yet implemented")
+		return fmt.Errorf("too many arguments. Use flags for quick setup: --provider, --apikey, --modelid --baseurl(optional)")
 	}
 }
 
@@ -166,14 +173,14 @@ func ShowAuthMenuWithStatus(isClineAuthenticated bool, hasOrganizations bool, cu
 		options = append(options,
 			huh.NewOption("Sign out of Cline", AuthActionClineLogin),
 			huh.NewOption("Select active provider (Cline or BYO)", AuthActionSelectProvider),
-			huh.NewOption("Configure API provider", AuthActionBYOSetup),
+			huh.NewOption("Configure BYO API providers", AuthActionBYOSetup),
 			huh.NewOption("Exit authorization wizard", AuthActionExit),
 		)
 	} else {
 		options = []huh.Option[AuthAction]{
 			huh.NewOption("Authenticate with Cline account", AuthActionClineLogin),
 			huh.NewOption("Select active provider (Cline or BYO)", AuthActionSelectProvider),
-			huh.NewOption("Configure API provider", AuthActionBYOSetup),
+			huh.NewOption("Configure BYO API providers", AuthActionBYOSetup),
 			huh.NewOption("Exit authorization wizard", AuthActionExit),
 		}
 	}
@@ -258,11 +265,6 @@ func HandleSelectProvider(ctx context.Context) error {
 
 	if len(providerOptions) == 0 {
 		fmt.Println("No providers available. Please configure a provider first.")
-		return HandleAuthMenuNoArgs(ctx)
-	}
-
-	if len(providerOptions) == 1 {
-		fmt.Println("Only one provider is configured. Configure another provider to switch between them.")
 		return HandleAuthMenuNoArgs(ctx)
 	}
 

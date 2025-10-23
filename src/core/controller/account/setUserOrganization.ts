@@ -14,17 +14,10 @@ export async function setUserOrganization(controller: Controller, request: UserO
 		if (!controller.accountService) {
 			throw new Error("Account service not available")
 		}
-
 		// Switch to the specified organization using the account service
 		await controller.accountService.switchAccount(request.organizationId)
-
-		try {
-			await fetchRemoteConfig(controller)
-		} catch (error) {
-			console.error("Failed to fetch remote config after org switch:", error)
-		}
-
-		return Empty.create({})
+		await fetchRemoteConfig(controller)
+		return {}
 	} catch (error) {
 		throw error
 	}
