@@ -14,7 +14,7 @@ import (
 
 // FetchOpenRouterModels fetches available OpenRouter models from Cline Core
 func FetchOpenRouterModels(ctx context.Context, manager *task.Manager) (map[string]*cline.OpenRouterModelInfo, error) {
-	resp, err := manager.GetClient().Models.RefreshOpenRouterModelsRPC(ctx, &cline.EmptyRequest{})
+	resp, err := manager.GetClient().Models.RefreshOpenRouterModelsRpc(ctx, &cline.EmptyRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch OpenRouter models: %w", err)
 	}

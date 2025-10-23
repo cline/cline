@@ -10,7 +10,7 @@ import { refreshGroqModels } from "./refreshGroqModels"
  * @param request Empty request object
  * @returns Response containing Groq models (protobuf types)
  */
-export async function refreshGroqModelsRPC(
+export async function refreshGroqModelsRpc(
 	controller: Controller,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
