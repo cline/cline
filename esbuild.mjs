@@ -177,12 +177,11 @@ const e2eBuildConfig = {
 
 async function main() {
 	const config = standalone ? standaloneConfig : e2eBuild ? e2eBuildConfig : extensionConfig
-	const extensionCtx = await esbuild.context(config)
 	if (watch) {
+		const extensionCtx = await esbuild.context(config)
 		await extensionCtx.watch()
 	} else {
-		await extensionCtx.rebuild()
-		await extensionCtx.dispose()
+		await esbuild.build(config)
 	}
 }
 

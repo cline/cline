@@ -3,7 +3,9 @@ syntax = "proto3";
 package cline;
 
 import "cline/common.proto";
-import "cline/mcp.proto";
+
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
 
 // Matrix service for processing CAN matrix files
 service MatrixService {
@@ -17,15 +19,15 @@ service MatrixService {
 // Request message for processing a matrix file
 message ProcessMatrixRequest {
   cline.Metadata metadata = 1;
-  string fileName = 2;
-  bytes fileContent = 3;
-  int64 fileSize = 4;
+  string file_name = 2;
+  bytes file_content = 3;
+  int64 file_size = 4;
 }
 
 // Response message for processing a matrix file
 message ProcessMatrixResponse {
-  string fileUrl = 1;
-  repeated string sheetNames = 4;
+  string file_url = 1;
+  repeated string sheet_names = 4;
   string status = 2;  // "success" or "error"
   string error = 3;   // Error message if status is "error"
 }
@@ -33,12 +35,12 @@ message ProcessMatrixResponse {
 // Request message for getting a matrix file
 message GetMatrixFileRequest {
   cline.Metadata metadata = 1;
-  string fileName = 2;
+  string file_name = 2;
 }
 
 // Response message for getting a matrix file
 message GetMatrixFileResponse {
-  bytes fileContent = 1;
+  bytes file_content = 1;
   string status = 2;  // "success" or "error"
   string error = 3;   // Error message if status is "error"
 }
