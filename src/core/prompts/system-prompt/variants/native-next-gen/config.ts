@@ -25,9 +25,6 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 			return false
 		}
 		const modelId = providerInfo.model.id.toLowerCase()
-		if (modelId.includes("z-ai")) {
-			return true
-		}
 		return !isGPT5ModelFamily(modelId) && isNextGenModelFamily(modelId)
 	})
 	.template(TEMPLATE_OVERRIDES.BASE)

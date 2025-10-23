@@ -2,7 +2,7 @@ import { cn } from "@heroui/react"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
-import React, { useCallback, useMemo } from "react"
+import React, { useCallback, useMemo, useState } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -55,12 +55,35 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		checkpointManagerErrorMessage,
 		clineMessages,
 		navigateToSettings,
-		useAutoCondense,
 		mode,
 		expandTaskHeader: isTaskExpanded,
 		setExpandTaskHeader: setIsTaskExpanded,
 		environment,
 	} = useExtensionState()
+
+	const [isHighlightedTextExpanded, setIsHighlightedTextExpanded] = useState(false)
+	const highlightedTextRef = React.useRef<HTMLDivElement>(null)
+
+	const { highlightedText, displayTextExpandable } = useMemo(() => {
+		const taskTextLines = task.text?.split("\n") || []
+		const highlightedText = highlightText(task.text, false)
+
+		return { highlightedText, displayTextExpandable: taskTextLines.length > 3 }
+	}, [task.text])
+
+	// Handle click outside to collapse
+	React.useEffect(() => {
+		if (!isHighlightedTextExpanded) return
+
+		const handleClickOutside = (event: MouseEvent) => {
+			if (highlightedTextRef.current && !highlightedTextRef.current.contains(event.target as Node)) {
+				setIsHighlightedTextExpanded(false)
+			}
+		}
+
+		document.addEventListener("mousedown", handleClickOutside)
+		return () => document.removeEventListener("mousedown", handleClickOutside)
+	}, [isHighlightedTextExpanded])
 
 	// Simplified computed values
 	const { selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, mode)
@@ -87,7 +110,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		}, 300)
 	}, [navigateToSettings])
 
-	const highlightedText = useMemo(() => highlightText(task.text, false), [task.text])
 	const environmentBorderColor = getEnvironmentColor(environment, "border")
 
 	return (
@@ -150,13 +172,25 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 				{/* Expand/Collapse Task Details */}
 				{isTaskExpanded && (
 					<div className="flex flex-col break-words" key={`task-details-${currentTaskItem?.id}`}>
-						<div className="whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0 max-h-20 overflow-y-auto scroll-smooth">
-							<div
-								className={
-									"ph-no-capture overflow-hidden whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer mt-1"
-								}>
-								{highlightedText}
-							</div>
+						<div
+							className={cn(
+								"ph-no-capture whitespace-pre-wrap break-words px-0.5 text-sm cursor-pointer mt-1 relative",
+								{
+									"max-h-[25vh] overflow-y-auto scroll-smooth": isHighlightedTextExpanded,
+									"max-h-[4.5rem] overflow-hidden": !isHighlightedTextExpanded && displayTextExpandable,
+								},
+							)}
+							onClick={() => displayTextExpandable && setIsHighlightedTextExpanded(true)}
+							ref={highlightedTextRef}
+							style={
+								!isHighlightedTextExpanded && displayTextExpandable
+									? {
+											WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+											maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+										}
+									: undefined
+							}>
+							{highlightedText}
 						</div>
 
 						{((task.images && task.images.length > 0) || (task.files && task.files.length > 0)) && (

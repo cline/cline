@@ -62,6 +62,25 @@ describe("updateSettings platform validation", () => {
 		)
 	})
 
+	it("should allow enabling subagents on Linux", async () => {
+		// Set platform to Linux
+		Object.defineProperty(process, "platform", { value: "linux" })
+
+		;(mockController.stateManager.getGlobalSettingsKey as sinon.SinonStub).returns(false)
+
+		const request = UpdateSettingsRequest.create({
+			subagentsEnabled: true,
+		})
+
+		// Should not throw
+		await updateSettings(mockController, request)
+
+		assert.ok(
+			(mockController.stateManager.setGlobalState as sinon.SinonStub).calledWith("subagentsEnabled", true),
+			"Should enable subagents on Linux",
+		)
+	})
+
 	it("should throw error when trying to enable subagents on Windows", async () => {
 		// Set platform to Windows
 		Object.defineProperty(process, "platform", { value: "win32" })
@@ -78,34 +97,7 @@ describe("updateSettings platform validation", () => {
 		} catch (error) {
 			assert.strictEqual(
 				(error as Error).message,
-				"CLI subagents are only supported on macOS platforms",
-				"Should throw platform restriction error",
-			)
-		}
-
-		assert.ok(
-			!(mockController.stateManager.setGlobalState as sinon.SinonStub).called,
-			"Should not call setGlobalState when platform validation fails",
-		)
-	})
-
-	it("should throw error when trying to enable subagents on Linux", async () => {
-		// Set platform to Linux
-		Object.defineProperty(process, "platform", { value: "linux" })
-
-		;(mockController.stateManager.getGlobalSettingsKey as sinon.SinonStub).returns(false)
-
-		const request = UpdateSettingsRequest.create({
-			subagentsEnabled: true,
-		})
-
-		try {
-			await updateSettings(mockController, request)
-			assert.fail("Should have thrown an error")
-		} catch (error) {
-			assert.strictEqual(
-				(error as Error).message,
-				"CLI subagents are only supported on macOS platforms",
+				"CLI subagents are only supported on macOS and Linux platforms",
 				"Should throw platform restriction error",
 			)
 		}
