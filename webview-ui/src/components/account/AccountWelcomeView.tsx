@@ -3,9 +3,6 @@ import { handleSignIn } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import ClineLogoVariable from "../../assets/ClineLogoVariable"
 
-// export const AccountWelcomeView = () => (
-// 	<div className="flex flex-col items-center pr-3 gap-2.5">
-// 		<ClineLogoWhite className="size-16 mb-4" />
 export const AccountWelcomeView = () => {
 	const { environment } = useExtensionState()
 
@@ -22,7 +19,7 @@ export const AccountWelcomeView = () => {
 				Sign up with Cline
 			</VSCodeButton>
 
-			<p className="text-(--vscode-descriptionForeground) text-xs text-center m-0">
+			<p className="text-description text-xs text-center m-0">
 				By continuing, you agree to the <VSCodeLink href="https://cline.bot/tos">Terms of Service</VSCodeLink> and{" "}
 				<VSCodeLink href="https://cline.bot/privacy">Privacy Policy.</VSCodeLink>
 			</p>

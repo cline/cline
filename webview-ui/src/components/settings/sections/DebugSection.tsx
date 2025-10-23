@@ -1,4 +1,6 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useCallback } from "react"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 import Section from "../Section"
 
 interface DebugSectionProps {
@@ -7,6 +9,13 @@ interface DebugSectionProps {
 }
 
 const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) => {
+	const { hideSettings, setShowWelcome } = useExtensionState()
+
+	const resetOnboardingView = useCallback(() => {
+		hideSettings()
+		setShowWelcome(true)
+	}, [])
+
 	return (
 		<div>
 			{renderSectionHeader("debug")}
@@ -26,6 +35,12 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 				<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
 					This will reset all global state and secret storage in the extension.
 				</p>
+			</Section>
+
+			<Section>
+				<VSCodeButton className="mt-[5px] w-auto" onClick={resetOnboardingView}>
+					Reset Onboarding View
+				</VSCodeButton>
 			</Section>
 		</div>
 	)

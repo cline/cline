@@ -61,6 +61,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	expandTaskHeader: boolean
 
 	// Setters
+	setShowWelcome: (value: boolean) => void
 	setDictationSettings: (value: DictationSettings) => void
 	setShowAnnouncement: (value: boolean) => void
 	setShowChatModelSelector: (value: boolean) => void
@@ -315,8 +316,10 @@ export const ExtensionStateContextProvider: React.FC<{
 									: prevState.autoApprovalSettings,
 							}
 
-							// Update welcome screen state based on API configuration
-							setShowWelcome(!newState.welcomeViewCompleted)
+							// Update welcome screen state based on API configuration if welcome view not in progress
+							if (!newState.welcomeViewCompleted && !showWelcome) {
+								setShowWelcome(true)
+							}
 							setDidHydrateState(true)
 
 							console.log("[DEBUG] returning new state in ESC")
@@ -677,6 +680,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowAnnouncement,
 		hideChatModelSelector,
 		setShowChatModelSelector,
+		setShowWelcome,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({
 				...prevState,
