@@ -52,7 +52,7 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "z-ai/glm-4.6",
+		id: "z-ai/glm-4.6:exacto",
 		description: "Fast open-source model with improved performance in Cline",
 		label: "Trending",
 	},
