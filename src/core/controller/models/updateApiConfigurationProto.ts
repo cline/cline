@@ -1,7 +1,12 @@
 import { Empty } from "@shared/proto/cline/common"
 import { UpdateApiConfigurationRequest } from "@shared/proto/cline/models"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import { fromProtobufModelInfo, fromProtobufOpenAiCompatibleModelInfo } from "@shared/proto-conversions/models/typeConversion"
+import {
+	fromProtobufLiteLLMModelInfo,
+	fromProtobufModelInfo,
+	fromProtobufOcaModelInfo,
+	fromProtobufOpenAiCompatibleModelInfo,
+} from "@shared/proto-conversions/models/typeConversion"
 import { buildApiHandler } from "@/core/api"
 import type { Controller } from "../index"
 
@@ -36,6 +41,7 @@ export async function updateApiConfigurationProto(
 					: undefined,
 
 			// Convert ModelInfo objects (empty arrays → undefined)
+			// Plan Mode
 			planModeOpenRouterModelInfo: protoApiConfiguration.planModeOpenRouterModelInfo
 				? fromProtobufModelInfo(protoApiConfiguration.planModeOpenRouterModelInfo)
 				: undefined,
@@ -45,11 +51,58 @@ export async function updateApiConfigurationProto(
 			planModeHuggingFaceModelInfo: protoApiConfiguration.planModeHuggingFaceModelInfo
 				? fromProtobufModelInfo(protoApiConfiguration.planModeHuggingFaceModelInfo)
 				: undefined,
+			planModeLiteLlmModelInfo: protoApiConfiguration.planModeLiteLlmModelInfo
+				? fromProtobufLiteLLMModelInfo(protoApiConfiguration.planModeLiteLlmModelInfo)
+				: undefined,
+			planModeRequestyModelInfo: protoApiConfiguration.planModeRequestyModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.planModeRequestyModelInfo)
+				: undefined,
+			planModeGroqModelInfo: protoApiConfiguration.planModeGroqModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.planModeGroqModelInfo)
+				: undefined,
+			planModeHuaweiCloudMaasModelInfo: protoApiConfiguration.planModeHuaweiCloudMaasModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.planModeHuaweiCloudMaasModelInfo)
+				: undefined,
+			planModeBasetenModelInfo: protoApiConfiguration.planModeBasetenModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.planModeBasetenModelInfo)
+				: undefined,
+			planModeVercelAiGatewayModelInfo: protoApiConfiguration.planModeVercelAiGatewayModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.planModeVercelAiGatewayModelInfo)
+				: undefined,
+			planModeOcaModelInfo: protoApiConfiguration.planModeOcaModelInfo
+				? fromProtobufOcaModelInfo(protoApiConfiguration.planModeOcaModelInfo)
+				: undefined,
+
+			// Act Mode
 			actModeOpenRouterModelInfo: protoApiConfiguration.actModeOpenRouterModelInfo
 				? fromProtobufModelInfo(protoApiConfiguration.actModeOpenRouterModelInfo)
 				: undefined,
 			actModeOpenAiModelInfo: protoApiConfiguration.actModeOpenAiModelInfo
 				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.actModeOpenAiModelInfo)
+				: undefined,
+			actModeLiteLlmModelInfo: protoApiConfiguration.actModeLiteLlmModelInfo
+				? fromProtobufLiteLLMModelInfo(protoApiConfiguration.actModeLiteLlmModelInfo)
+				: undefined,
+			actModeRequestyModelInfo: protoApiConfiguration.actModeRequestyModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.actModeRequestyModelInfo)
+				: undefined,
+			actModeGroqModelInfo: protoApiConfiguration.actModeGroqModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.actModeGroqModelInfo)
+				: undefined,
+			actModeHuggingFaceModelInfo: protoApiConfiguration.actModeHuggingFaceModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.actModeHuggingFaceModelInfo)
+				: undefined,
+			actModeHuaweiCloudMaasModelInfo: protoApiConfiguration.actModeHuaweiCloudMaasModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.actModeHuaweiCloudMaasModelInfo)
+				: undefined,
+			actModeBasetenModelInfo: protoApiConfiguration.actModeBasetenModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.actModeBasetenModelInfo)
+				: undefined,
+			actModeVercelAiGatewayModelInfo: protoApiConfiguration.actModeVercelAiGatewayModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.actModeVercelAiGatewayModelInfo)
+				: undefined,
+			actModeOcaModelInfo: protoApiConfiguration.actModeOcaModelInfo
+				? fromProtobufOcaModelInfo(protoApiConfiguration.actModeOcaModelInfo)
 				: undefined,
 		}
 
