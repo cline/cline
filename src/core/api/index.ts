@@ -12,6 +12,7 @@ import { DeepSeekHandler } from "./providers/deepseek"
 import { DifyHandler } from "./providers/dify"
 import { DoubaoHandler } from "./providers/doubao"
 import { FireworksHandler } from "./providers/fireworks"
+import { GatewayzHandler } from "./providers/gatewayz"
 import { GeminiHandler } from "./providers/gemini"
 import { GroqHandler } from "./providers/groq"
 import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
@@ -388,6 +389,17 @@ function createHandlerForProvider(
 						? options.planModeOcaModelInfo?.supportsPromptCache
 						: options.actModeOcaModelInfo?.supportsPromptCache,
 				taskId: options.ulid,
+			})
+		case "gatewayz":
+			return new GatewayzHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				gatewayzBaseUrl: options.gatewayzBaseUrl,
+				gatewayzApiKey: options.gatewayzApiKey,
+				gatewayzModelId: mode === "plan" ? options.planModeGatewayzModelId : options.actModeGatewayzModelId,
+				gatewayzModelInfo: mode === "plan" ? options.planModeGatewayzModelInfo : options.actModeGatewayzModelInfo,
+				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})
 		default:
 			return new AnthropicHandler({

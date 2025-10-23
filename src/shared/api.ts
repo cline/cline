@@ -37,6 +37,7 @@ export type ApiProvider =
 	| "vercel-ai-gateway"
 	| "zai"
 	| "oca"
+	| "gatewayz"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -75,6 +76,7 @@ export interface ApiHandlerSecrets {
 	basetenApiKey?: string
 	vercelAiGatewayApiKey?: string
 	difyApiKey?: string
+	gatewayzApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -117,6 +119,7 @@ export interface ApiHandlerOptions {
 	sapAiCoreBaseUrl?: string
 	sapAiCoreUseOrchestrationMode?: boolean
 	difyBaseUrl?: string
+	gatewayzBaseUrl?: string
 	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
@@ -155,6 +158,8 @@ export interface ApiHandlerOptions {
 	planModeVercelAiGatewayModelInfo?: ModelInfo
 	planModeOcaModelId?: string
 	planModeOcaModelInfo?: OcaModelInfo
+	planModeGatewayzModelId?: string
+	planModeGatewayzModelInfo?: ModelInfo
 	// Act mode configurations
 
 	// Act mode configurations
@@ -190,6 +195,8 @@ export interface ApiHandlerOptions {
 	actModeVercelAiGatewayModelInfo?: ModelInfo
 	actModeOcaModelId?: string
 	actModeOcaModelInfo?: OcaModelInfo
+	actModeGatewayzModelId?: string
+	actModeGatewayzModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -3826,3 +3833,20 @@ export const qwenCodeModels = {
 } as const satisfies Record<string, ModelInfo>
 export type QwenCodeModelId = keyof typeof qwenCodeModels
 export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
+
+// Gatewayz
+// https://gatewayz.io
+export type GatewayzModelId = keyof typeof gatewayzModels
+export const gatewayzDefaultModelId: GatewayzModelId = "gatewayz/default"
+export const gatewayzDefaultModelInfo: ModelInfo = {
+	maxTokens: 8192,
+	contextWindow: 32768,
+	supportsImages: false,
+	supportsPromptCache: false,
+	inputPrice: 0.0,
+	outputPrice: 0.0,
+	description: "Gatewayz default model",
+}
+export const gatewayzModels = {
+	"gatewayz/default": gatewayzDefaultModelInfo,
+} as const satisfies Record<string, ModelInfo>

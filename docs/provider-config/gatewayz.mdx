@@ -1,0 +1,25 @@
+---
+title: "Gatewayz"
+description: "Configure Gatewayz with Cline (API key, base URL, model selection)."
+---
+
+**Website:** https://gatewayz.io
+
+### Getting an API Key
+
+1. Sign up or sign in at the Gatewayz console.
+2. Find API keys under the account or developer section.
+3. Create a key (name it e.g. "Cline") and copy it.
+
+### Configuration in Cline
+
+1. Open Cline settings.
+2. Choose "Gatewayz" from the API Provider dropdown.
+3. Paste your Gatewayz API key into the "Gatewayz API Key" field.
+4. (Optional) Enable a custom base URL and paste your Gatewayz endpoint.
+5. Select a model from the Model dropdown.
+
+### Notes
+
+- Gatewayz exposes a unified OpenAI-compatible endpoint. Cline uses the OpenAI client to connect. If Gatewayz requires special headers, request parameters, or a model naming pattern, we can adjust the handler to match.
+- Monitor Gatewayz billing. Cline creates usage chunks but prices in docs/provider-config reflect placeholders; update with Gatewayz pricing when available.

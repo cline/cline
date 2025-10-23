@@ -94,6 +94,7 @@ const ENABLED_PROVIDERS = [
 	"gemini", // Google Gemini
 	"ollama", // Ollama local models
 	"cerebras", // Cerebras models
+	"gatewayz", // Gatewayz
 ]
 
 /**
@@ -116,9 +117,9 @@ function extractDefaultModelIds(content) {
 	for (const regex of patterns) {
 		// Reset regex state for each pattern
 		regex.lastIndex = 0
-		let match
+		let match = regex.exec(content)
 
-		while ((match = regex.exec(content)) !== null) {
+		while (match !== null) {
 			const [, providerPrefix, modelId] = match
 			// Map prefix to provider ID (e.g., "anthropic" -> "anthropic", "openAiNative" -> "openai-native")
 			const providerId = providerPrefix
@@ -132,6 +133,7 @@ function extractDefaultModelIds(content) {
 				const cleanModelId = modelId.split(":")[0]
 				defaultIds[providerId] = cleanModelId
 			}
+			match = regex.exec(content)
 		}
 	}
 
@@ -263,7 +265,6 @@ function parseConfigurationFields(optionsContent, providerApiKeyMap, apiSecretsF
 	// These are the actual authentication fields that need to be collected
 	for (const fieldName of apiSecretsFields.fieldNames) {
 		const fieldInfo = apiSecretsFields.fields[fieldName]
-		const lowerName = fieldName.toLowerCase()
 
 		// Determine which provider this field belongs to
 		let category = "general"
@@ -373,7 +374,7 @@ function parseConfigurationFields(optionsContent, providerApiKeyMap, apiSecretsF
 
 		// Check if this field is required for any provider using the auto-discovered API key map
 		// A field is marked as required if it appears in any provider's required fields list
-		for (const [providerId, requiredFields] of Object.entries(providerApiKeyMap)) {
+		for (const [_providerId, requiredFields] of Object.entries(providerApiKeyMap)) {
 			if (requiredFields.includes(name)) {
 				required = true
 				break
@@ -826,7 +827,7 @@ func getFieldsByProvider(providerID string, allFields []ConfigField, required bo
 /**
  * Generate provider metadata for each provider
  */
-function generateProviderMetadata(providers, configFields, modelDefinitions, defaultModelIds) {
+function generateProviderMetadata(providers, _configFields, modelDefinitions, defaultModelIds) {
 	return providers
 		.map((providerId) => {
 			const displayName = getProviderDisplayName(providerId)
@@ -906,14 +907,18 @@ function getDefaultModelId(providerId, models, defaultModelIds) {
 
 	// Fallback to pattern matching if no explicit default was found
 	const modelIds = Object.keys(models)
-	if (modelIds.length === 0) return ""
+	if (modelIds.length === 0) {
+		return ""
+	}
 
 	// Look for common default patterns
 	const defaultPatterns = ["latest", "default", "sonnet", "gpt-4", "claude-3", "gemini-pro"]
 
 	for (const pattern of defaultPatterns) {
 		const match = modelIds.find((id) => id.toLowerCase().includes(pattern))
-		if (match) return match
+		if (match) {
+			return match
+		}
 	}
 
 	// Return first model if no pattern matches
@@ -1002,7 +1007,7 @@ async function main() {
 }
 
 // Add helper function to the generated Go code
-const helperFunction = `
+const _helperFunction = `
 // getFieldsByProvider filters configuration fields by provider and requirement
 func getFieldsByProvider(providerID string, allFields []ConfigField, required bool) []ConfigField {
 	var fields []ConfigField
