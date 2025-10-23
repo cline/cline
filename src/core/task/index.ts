@@ -121,7 +121,6 @@ type TaskParams = {
 	historyItem?: HistoryItem
 	taskId: string
 	taskLockAcquired: boolean
-	skipResume?: boolean
 }
 
 export class Task {
@@ -219,7 +218,6 @@ export class Task {
 			historyItem,
 			taskId,
 			taskLockAcquired,
-			skipResume,
 		} = params
 
 		this.taskInitializationStartTime = performance.now()
@@ -440,12 +438,8 @@ export class Task {
 		this.browserSession.setUlid(this.ulid)
 
 		// Continue with task initialization
-		if (historyItem && !skipResume) {
-			// Normal resume - load state and start workflow
+		if (historyItem) {
 			this.resumeTaskFromHistory()
-		} else if (historyItem && skipResume) {
-			// Cancel scenario - load state but don't start workflow
-			this.loadTaskStateWithoutWorkflow()
 		} else if (task || images || files) {
 			this.startTask(task, images, files)
 		}
@@ -1102,314 +1096,6 @@ export class Task {
 		await this.initiateTaskLoop(userContent)
 	}
 
-	/**
-	 * Loads task state without starting the workflow
-	 * Used when cancelling a task to keep it visible without triggering TaskResume hook
-	 * When the user clicks resume, this will continue the workflow directly
-	 */
-	private async loadTaskStateWithoutWorkflow() {
-		try {
-			await this.clineIgnoreController.initialize()
-		} catch (error) {
-			console.error("Failed to initialize ClineIgnoreController:", error)
-		}
-
-		const savedClineMessages = await getSavedClineMessages(this.taskId)
-
-		// Remove any resume messages that may have been added before
-		const lastRelevantMessageIndex = findLastIndex(
-			savedClineMessages,
-			(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"),
-		)
-		if (lastRelevantMessageIndex !== -1) {
-			savedClineMessages.splice(lastRelevantMessageIndex + 1)
-		}
-
-		// Remove incomplete api_req_started messages
-		const lastApiReqStartedIndex = findLastIndex(savedClineMessages, (m) => m.type === "say" && m.say === "api_req_started")
-		if (lastApiReqStartedIndex !== -1) {
-			const lastApiReqStarted = savedClineMessages[lastApiReqStartedIndex]
-			const { cost, cancelReason }: ClineApiReqInfo = JSON.parse(lastApiReqStarted.text || "{}")
-			if (cost === undefined && cancelReason === undefined) {
-				savedClineMessages.splice(lastApiReqStartedIndex, 1)
-			}
-		}
-
-		await this.messageStateHandler.overwriteClineMessages(savedClineMessages)
-		this.messageStateHandler.setClineMessages(await getSavedClineMessages(this.taskId))
-
-		// Load API conversation history
-		const savedApiConversationHistory = await getSavedApiConversationHistory(this.taskId)
-		this.messageStateHandler.setApiConversationHistory(savedApiConversationHistory)
-
-		// Load context history state
-		await ensureTaskDirectoryExists(this.taskId)
-		await this.contextManager.initializeContextHistory(await ensureTaskDirectoryExists(this.taskId))
-
-		this.taskState.isInitialized = true
-
-		// Present the resume ask to show the resume button
-		const lastClineMessage = this.messageStateHandler
-			.getClineMessages()
-			.slice()
-			.reverse()
-			.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"))
-
-		let askType: ClineAsk
-		if (lastClineMessage?.ask === "completion_result") {
-			askType = "resume_completed_task"
-		} else {
-			askType = "resume_task"
-		}
-
-		// Wait for user to click resume button
-		const { response } = await this.ask(askType)
-
-		if (response !== "yesButtonClicked") {
-			// Task was cleared (user started new task)
-			return
-		}
-
-		// User clicked resume - run TaskResume hook before continuing
-		const newUserContent: UserContent = []
-
-		// Run TaskResume hook (consistent with normal resume flow)
-		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
-		if (hooksEnabled) {
-			const { HookFactory } = await import("../hooks/hook-factory")
-			const { HookExecutionError } = await import("../hooks/HookError")
-			const hookFactory = new HookFactory()
-			const hasTaskResumeHook = await hookFactory.hasHook("TaskResume")
-
-			if (hasTaskResumeHook) {
-				let hookMessageTs: number | undefined
-				const abortController = new AbortController()
-
-				try {
-					// Show hook execution indicator
-					const hookMetadata = {
-						hookName: "TaskResume",
-						status: "running",
-					}
-					hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
-
-					// Track active hook execution for cancellation (only if message was created)
-					if (hookMessageTs !== undefined) {
-						this.taskState.activeHookExecution = {
-							hookName: "TaskResume",
-							toolName: undefined,
-							messageTs: hookMessageTs,
-							abortController,
-						}
-					}
-
-					// Create streaming callback
-					const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
-						await this.say("hook_output", line)
-					}
-
-					const taskResumeHook = await hookFactory.createWithStreaming(
-						"TaskResume",
-						streamCallback,
-						abortController.signal,
-					)
-
-					const clineMessages = this.messageStateHandler.getClineMessages()
-					const taskResumeResult = await taskResumeHook.run({
-						taskId: this.taskId,
-						taskResume: {
-							taskMetadata: {
-								taskId: this.taskId,
-								ulid: this.ulid,
-							},
-							previousState: {
-								lastMessageTs: lastClineMessage?.ts?.toString() || "",
-								messageCount: clineMessages.length.toString(),
-								conversationHistoryDeleted: (
-									this.taskState.conversationHistoryDeletedRange !== undefined
-								).toString(),
-							},
-						},
-					})
-					console.log("[TaskResume Hook]", taskResumeResult)
-
-					// Clear active hook execution
-					this.taskState.activeHookExecution = undefined
-
-					// Update hook status to completed
-					if (hookMessageTs !== undefined) {
-						const clineMessagesUpdated = this.messageStateHandler.getClineMessages()
-						const hookMessageIndex = clineMessagesUpdated.findIndex((m) => m.ts === hookMessageTs)
-						if (hookMessageIndex !== -1) {
-							const completedMetadata = {
-								hookName: "TaskResume",
-								status: "completed",
-								exitCode: 0,
-								hasJsonResponse: true,
-							}
-							await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
-								text: JSON.stringify(completedMetadata),
-							})
-						}
-					}
-
-					// Add context if provided
-					if (taskResumeResult.contextModification) {
-						newUserContent.push({
-							type: "text",
-							text: `<hook_context source="TaskResume" type="general">\n${taskResumeResult.contextModification}\n</hook_context>`,
-						})
-					}
-				} catch (hookError) {
-					// Clear active hook execution
-					this.taskState.activeHookExecution = undefined
-
-					// Extract structured error info if available
-					const isStructuredError = HookExecutionError.isHookError(hookError)
-					const errorInfo = isStructuredError ? hookError.errorInfo : null
-
-					// Update hook status with structured error info
-					if (hookMessageTs !== undefined) {
-						const clineMessagesUpdated = this.messageStateHandler.getClineMessages()
-						const hookMessageIndex = clineMessagesUpdated.findIndex((m) => m.ts === hookMessageTs)
-						if (hookMessageIndex !== -1) {
-							const failedMetadata = {
-								hookName: "TaskResume",
-								status: errorInfo?.type === "cancellation" ? "cancelled" : "failed",
-								exitCode: errorInfo?.exitCode ?? 1,
-								...(errorInfo && {
-									error: {
-										type: errorInfo.type,
-										message: errorInfo.message,
-										details: errorInfo.details,
-										scriptPath: errorInfo.scriptPath,
-									},
-								}),
-							}
-							await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
-								text: JSON.stringify(failedMetadata),
-							})
-						}
-					}
-
-					// If task was aborted (e.g., via cancel button), stop execution
-					if (this.taskState.abort) {
-						return
-					}
-
-					// TaskResume hook failure is non-fatal - continue with resume
-				}
-			}
-		}
-
-		// Prepare to continue the workflow
-		let responseText: string | undefined
-		let responseImages: string[] | undefined
-		let responseFiles: string[] | undefined
-
-		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] = await getSavedApiConversationHistory(
-			this.taskId,
-		)
-
-		// Remove the last user message so we can update it with the resume message
-		let modifiedOldUserContent: UserContent
-		let modifiedApiConversationHistory: Anthropic.Messages.MessageParam[]
-		if (existingApiConversationHistory.length > 0) {
-			const lastMessage = existingApiConversationHistory[existingApiConversationHistory.length - 1]
-			if (lastMessage.role === "assistant") {
-				modifiedApiConversationHistory = [...existingApiConversationHistory]
-				modifiedOldUserContent = []
-			} else if (lastMessage.role === "user") {
-				const existingUserContent: UserContent = Array.isArray(lastMessage.content)
-					? lastMessage.content
-					: [{ type: "text", text: lastMessage.content }]
-				modifiedApiConversationHistory = existingApiConversationHistory.slice(0, -1)
-				modifiedOldUserContent = [...existingUserContent]
-			} else {
-				throw new Error("Unexpected: Last message is not a user or assistant message")
-			}
-		} else {
-			throw new Error("Unexpected: No existing API conversation history")
-		}
-
-		// Add previous content to newUserContent array
-		newUserContent.push(...modifiedOldUserContent)
-
-		const agoText = (() => {
-			const timestamp = lastClineMessage?.ts ?? Date.now()
-			const now = Date.now()
-			const diff = now - timestamp
-			const minutes = Math.floor(diff / 60000)
-			const hours = Math.floor(minutes / 60)
-			const days = Math.floor(hours / 24)
-
-			if (days > 0) {
-				return `${days} day${days > 1 ? "s" : ""} ago`
-			}
-			if (hours > 0) {
-				return `${hours} hour${hours > 1 ? "s" : ""} ago`
-			}
-			if (minutes > 0) {
-				return `${minutes} minute${minutes > 1 ? "s" : ""} ago`
-			}
-			return "just now"
-		})()
-
-		const wasRecent = lastClineMessage?.ts && Date.now() - lastClineMessage.ts < 30_000
-
-		const pendingContextWarning = await this.fileContextTracker.retrieveAndClearPendingFileContextWarning()
-		const hasPendingFileContextWarnings = pendingContextWarning && pendingContextWarning.length > 0
-
-		const mode = this.stateManager.getGlobalSettingsKey("mode")
-		const [taskResumptionMessage, userResponseMessage] = formatResponse.taskResumption(
-			mode === "plan" ? "plan" : "act",
-			agoText,
-			this.cwd,
-			wasRecent,
-			responseText,
-			hasPendingFileContextWarnings,
-		)
-
-		if (taskResumptionMessage !== "") {
-			newUserContent.push({
-				type: "text",
-				text: taskResumptionMessage,
-			})
-		}
-
-		if (userResponseMessage !== "") {
-			newUserContent.push({
-				type: "text",
-				text: userResponseMessage,
-			})
-		}
-
-		if (responseImages && responseImages.length > 0) {
-			newUserContent.push(...formatResponse.imageBlocks(responseImages))
-		}
-
-		if (responseFiles && responseFiles.length > 0) {
-			const fileContentString = await processFilesIntoText(responseFiles)
-			if (fileContentString) {
-				newUserContent.push({
-					type: "text",
-					text: fileContentString,
-				})
-			}
-		}
-
-		if (pendingContextWarning && pendingContextWarning.length > 0) {
-			const fileContextWarning = formatResponse.fileContextWarning(pendingContextWarning)
-			newUserContent.push({
-				type: "text",
-				text: fileContextWarning,
-			})
-		}
-
-		await this.messageStateHandler.overwriteApiConversationHistory(modifiedApiConversationHistory)
-		await this.initiateTaskLoop(newUserContent)
-	}
-
 	private async resumeTaskFromHistory() {
 		try {
 			await this.clineIgnoreController.initialize()
@@ -1468,10 +1154,12 @@ export class Task {
 
 		this.taskState.isInitialized = true
 
+		const { response, text, images, files } = await this.ask(askType) // calls poststatetowebview
+
 		// Initialize newUserContent array for hook context
 		const newUserContent: UserContent = []
 
-		// Run TaskResume hook
+		// Run TaskResume hook AFTER user clicks resume button
 		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
 			const { HookFactory } = await import("../hooks/hook-factory")
@@ -1599,8 +1287,6 @@ export class Task {
 				}
 			}
 		}
-
-		const { response, text, images, files } = await this.ask(askType) // calls poststatetowebview
 		let responseText: string | undefined
 		let responseImages: string[] | undefined
 		let responseFiles: string[] | undefined
