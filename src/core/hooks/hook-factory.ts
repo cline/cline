@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process"
 import fs from "fs/promises"
 import path from "path"
 import { version as clineVersion } from "../../../package.json"
@@ -17,12 +16,59 @@ import {
 } from "../../shared/proto/cline/hooks"
 import { getAllHooksDirs } from "../storage/disk"
 import { StateManager } from "../storage/StateManager"
+import { HookExecutionError } from "./HookError"
+import { HookProcess } from "./HookProcess"
 
 // Hook execution timeout (30 seconds)
 const HOOK_EXECUTION_TIMEOUT_MS = 30000
 
 // Maximum size for context modification (to prevent prompt overflow)
 const MAX_CONTEXT_MODIFICATION_SIZE = 50000 // ~50KB
+
+/**
+ * Validates hook output JSON structure.
+ * Ensures required fields are present and have correct types.
+ */
+function validateHookOutput(output: any): { valid: boolean; error?: string } {
+	// Check shouldContinue field
+	if (typeof output.shouldContinue !== "boolean") {
+		return {
+			valid: false,
+			error:
+				"Invalid hook output: Missing or invalid 'shouldContinue' field.\n\n" +
+				"Expected: {'shouldContinue': true}\n" +
+				"Required: shouldContinue must be a boolean (true or false)\n\n" +
+				"Example valid response:\n" +
+				JSON.stringify(
+					{
+						shouldContinue: true,
+						contextModification: "Optional context here",
+						errorMessage: "Optional error message",
+					},
+					null,
+					2,
+				),
+		}
+	}
+
+	// Check contextModification if present
+	if (output.contextModification !== undefined && typeof output.contextModification !== "string") {
+		return {
+			valid: false,
+			error: "Invalid hook output: 'contextModification' must be a string if provided",
+		}
+	}
+
+	// Check errorMessage if present
+	if (output.errorMessage !== undefined && typeof output.errorMessage !== "string") {
+		return {
+			valid: false,
+			error: "Invalid hook output: 'errorMessage' must be a string if provided",
+		}
+	}
+
+	return { valid: true }
+}
 
 export interface Hooks {
 	PreToolUse: {
@@ -94,8 +140,23 @@ export abstract class HookRunner<Name extends HookName> {
 
 	abstract [exec](params: HookInput): Promise<HookOutput>
 
-	// Completes the hook input parameters by adding the common hook parameters to the
-	// hook-specific parameters provided by the caller.
+	/**
+	 * Completes the hook input by adding common metadata to caller-provided parameters.
+	 *
+	 * This method enriches the hook-specific input (like preToolUse or postToolUse data)
+	 * with standard information that all hooks receive:
+	 * - clineVersion: Current Cline extension version
+	 * - hookName: The type of hook being executed (e.g., "PreToolUse")
+	 * - timestamp: Execution time in milliseconds since epoch
+	 * - workspaceRoots: Array of workspace folder paths
+	 * - userId: Cline user ID, machine ID, or generated UUID
+	 *
+	 * This separation allows hook scripts to receive consistent metadata without
+	 * requiring callers to manually provide it each time.
+	 *
+	 * @param params The hook-specific input parameters (taskId + hook data)
+	 * @returns Complete HookInput ready to be serialized and sent to the hook script
+	 */
 	protected async completeParams(params: NamedHookInput<Name>): Promise<HookInput> {
 		const workspaceRoots =
 			StateManager.get()
@@ -112,8 +173,21 @@ export abstract class HookRunner<Name extends HookName> {
 	}
 }
 
-// The NoOpRunner is used when there's no hook to run. It immediately succeeds.
+/**
+ * NoOpRunner is a null-object pattern implementation used when no hook scripts are found.
+ *
+ * Instead of returning null or requiring null checks everywhere, we return a NoOpRunner
+ * that always succeeds immediately without any side effects. This simplifies the calling
+ * code and ensures hooks are always optional/gracefully degraded.
+ *
+ * @template Name The type of hook this runner represents
+ */
 class NoOpRunner<Name extends HookName> extends HookRunner<Name> {
+	/**
+	 * Executes a no-op hook that always succeeds.
+	 * @param _ Hook input (ignored)
+	 * @returns A successful hook output with shouldContinue: true
+	 */
 	override async [exec](_: HookInput): Promise<HookOutput> {
 		return HookOutput.create({
 			shouldContinue: true,
@@ -121,64 +195,86 @@ class NoOpRunner<Name extends HookName> extends HookRunner<Name> {
 	}
 }
 
-// Actually runs a hook by executing a script and passing JSON into it.
+/**
+ * Callback type for streaming hook output
+ */
+export type HookStreamCallback = (line: string, stream: "stdout" | "stderr") => void
+
+/**
+ * Executes a hook script as a child process with real-time output streaming.
+ *
+ * Key features:
+ * - Spawns the hook script and communicates via stdin/stdout/stderr
+ * - Streams output line-by-line via callback for real-time UI updates
+ * - Enforces 30-second timeout (configurable via HOOK_EXECUTION_TIMEOUT_MS)
+ * - Supports cancellation via AbortSignal
+ * - Parses JSON output from stdout, attempting to extract it even if mixed with debug output
+ * - Truncates context modifications that exceed 50KB to prevent prompt overflow
+ * - Handles both successful and failed executions gracefully
+ *
+ * Error handling:
+ * - Treats hooks as "fail-open": only shouldContinue:false blocks tool execution
+ * - Hook script errors (non-zero exit) don't block tools, only explicit JSON response does
+ * - Timeout/cancellation errors are propagated to show "Failed" status in UI
+ *
+ * @template Name The type of hook this runner represents
+ */
 class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 	constructor(
 		hookName: Name,
 		public readonly scriptPath: string,
+		private readonly streamCallback?: HookStreamCallback,
+		private readonly abortSignal?: AbortSignal,
 	) {
 		super(hookName)
 	}
 
 	override async [exec](input: HookInput): Promise<HookOutput> {
-		return new Promise((resolve, reject) => {
-			// Serialize input to JSON
-			const inputJson = JSON.stringify(HookInput.toJSON(input))
+		// Check if already aborted before starting
+		if (this.abortSignal?.aborted) {
+			throw HookExecutionError.cancellation(this.scriptPath)
+		}
 
-			// Spawn the hook process
-			const child = spawn(this.scriptPath, [], {
-				stdio: ["pipe", "pipe", "pipe"],
-				shell: process.platform === "win32",
+		// Serialize input to JSON
+		const inputJson = JSON.stringify(HookInput.toJSON(input))
+
+		// Create HookProcess for execution with streaming
+		const hookProcess = new HookProcess(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, this.abortSignal)
+
+		// Set up streaming if callback is provided
+		if (this.streamCallback) {
+			const callback = this.streamCallback
+			hookProcess.on("line", (line: string, stream: "stdout" | "stderr") => {
+				callback(line, stream)
 			})
+		}
 
-			let stdout = ""
-			let stderr = ""
-			let timeoutHandle: NodeJS.Timeout | undefined
+		try {
+			// Execute the hook and wait for completion
+			await hookProcess.run(inputJson)
 
-			// Set up timeout
-			timeoutHandle = setTimeout(() => {
-				child.kill("SIGTERM")
-				reject(
-					new Error(
-						`Hook ${this.hookName} timed out after ${HOOK_EXECUTION_TIMEOUT_MS}ms. The hook script at '${this.scriptPath}' took too long to complete.`,
-					),
-				)
-			}, HOOK_EXECUTION_TIMEOUT_MS)
+			// Get the complete stdout for JSON parsing
+			const stdout = hookProcess.getStdout()
+			const stderr = hookProcess.getStderr()
+			const exitCode = hookProcess.getExitCode()
 
-			// Collect stdout
-			child.stdout?.on("data", (data) => {
-				stdout += data.toString()
-			})
-
-			// Collect stderr
-			child.stderr?.on("data", (data) => {
-				stderr += data.toString()
-			})
-
-			// Handle process completion
-			child.on("close", (code) => {
-				if (timeoutHandle) {
-					clearTimeout(timeoutHandle)
-				}
-
-				if (code !== 0) {
-					reject(new Error(`Hook ${this.hookName} exited with code ${code}. stderr: ${stderr}`))
-					return
-				}
-
+			// Try to parse JSON output
+			const parseJsonOutput = (): HookOutput | null => {
 				try {
-					// Parse and validate output
 					const outputData = JSON.parse(stdout)
+
+					// Validate structure before creating HookOutput
+					const validation = validateHookOutput(outputData)
+					if (!validation.valid) {
+						// Don't use streamCallback - it creates red text
+						// Throw validation error instead
+						throw HookExecutionError.validation(
+							validation.error!,
+							this.scriptPath,
+							stdout.slice(0, 500) + (stdout.length > 500 ? "..." : ""),
+						)
+					}
+
 					const output = HookOutput.fromJSON(outputData)
 
 					// Validate and truncate context modification if too large
@@ -192,29 +288,127 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 							"\n\n[... context truncated due to size limit ...]"
 					}
 
-					resolve(output)
-				} catch (error) {
-					reject(new Error(`Failed to parse hook output: ${error}. stdout: ${stdout}`))
-				}
-			})
+					return output
+				} catch (parseError) {
+					// If it's already a HookExecutionError, re-throw it
+					if (HookExecutionError.isHookError(parseError)) {
+						throw parseError
+					}
 
-			// Handle process errors
-			child.on("error", (error) => {
-				if (timeoutHandle) {
-					clearTimeout(timeoutHandle)
-				}
-				reject(new Error(`Failed to execute hook ${this.hookName}: ${error.message}`))
-			})
+					// Try to extract JSON from stdout (it might have debug output before/after)
+					const jsonMatch = stdout.match(/\{[\s\S]*\}/)
+					if (jsonMatch) {
+						try {
+							const outputData = JSON.parse(jsonMatch[0])
 
-			// Send input to the process
-			child.stdin?.write(inputJson)
-			child.stdin?.end()
-		})
+							// Validate structure
+							const validation = validateHookOutput(outputData)
+							if (!validation.valid) {
+								throw HookExecutionError.validation(
+									validation.error!,
+									this.scriptPath,
+									stdout.slice(0, 500) + (stdout.length > 500 ? "..." : ""),
+								)
+							}
+
+							const output = HookOutput.fromJSON(outputData)
+
+							// Validate and truncate context modification if too large
+							if (output.contextModification && output.contextModification.length > MAX_CONTEXT_MODIFICATION_SIZE) {
+								console.warn(
+									`Hook ${this.hookName} returned contextModification of ${output.contextModification.length} bytes, ` +
+										`truncating to ${MAX_CONTEXT_MODIFICATION_SIZE} bytes`,
+								)
+								output.contextModification =
+									output.contextModification.slice(0, MAX_CONTEXT_MODIFICATION_SIZE) +
+									"\n\n[... context truncated due to size limit ...]"
+							}
+
+							return output
+						} catch (_extractError) {
+							// Fall through to validation error below
+						}
+					}
+
+					// Couldn't parse JSON at all
+					const errorMsg = parseError instanceof Error ? parseError.message : String(parseError)
+					throw HookExecutionError.validation(
+						`Failed to parse JSON output: ${errorMsg}`,
+						this.scriptPath,
+						stdout.slice(0, 500) + (stdout.length > 500 ? "..." : ""),
+					)
+				}
+			}
+
+			const parsedOutput = parseJsonOutput()
+
+			// If we have valid JSON, honor it regardless of exit code
+			if (parsedOutput) {
+				// Log warning if non-zero exit but valid JSON (for developers)
+				if (exitCode !== 0) {
+					console.warn(`[Hook ${this.hookName}] Exited with code ${exitCode} but provided valid JSON response`)
+					if (stderr) {
+						console.warn(`[Hook ${this.hookName}] stderr: ${stderr}`)
+					}
+				}
+				return parsedOutput
+			}
+
+			// No valid JSON found
+			if (exitCode === 0) {
+				// Hook succeeded but didn't provide JSON - allow execution
+				console.warn(`[Hook ${this.hookName}] Completed successfully but no JSON response found`)
+				return HookOutput.create({
+					shouldContinue: true,
+				})
+			} else {
+				// Hook failed with non-zero exit
+				throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr)
+			}
+		} catch (error) {
+			// If it's already a HookExecutionError, re-throw it
+			if (HookExecutionError.isHookError(error)) {
+				throw error
+			}
+
+			// Hook execution failed - categorize the error
+			const stderr = hookProcess.getStderr()
+			const exitCode = hookProcess.getExitCode()
+
+			// Check for timeout
+			if (error instanceof Error && error.message.includes("timed out")) {
+				throw HookExecutionError.timeout(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, stderr)
+			}
+
+			// Check for cancellation
+			if (error instanceof Error && error.message.includes("cancelled")) {
+				throw HookExecutionError.cancellation(this.scriptPath)
+			}
+
+			// Generic execution error
+			throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr)
+		}
 	}
 }
 
-// CombinedHookRunner runs multiple hooks and combines the results. Used when a workspace
-// has multiple roots contributing the same hook.
+/**
+ * Combines multiple hook runners and executes them in parallel.
+ *
+ * Used in multi-root workspaces where both global hooks (from ~/Documents/Cline/Rules/Hooks/)
+ * and workspace-specific hooks (from each workspace's .clinerules/hooks/) exist for the
+ * same hook type.
+ *
+ * Behavior:
+ * - Executes all hooks concurrently using Promise.all
+ * - Combines all shouldContinue flags with logical AND (all must be true to continue)
+ * - Concatenates all contextModification strings with double newlines
+ * - Concatenates all errorMessage strings with single newlines
+ *
+ * This means if ANY hook returns shouldContinue: false, tool execution is blocked.
+ * All hooks' context contributions are merged into the conversation.
+ *
+ * @template Name The type of hook this runner represents
+ */
 class CombinedHookRunner<Name extends HookName> extends HookRunner<Name> {
 	constructor(
 		hookName: Name,
@@ -285,9 +479,50 @@ function isExpectedHookError(error: unknown): boolean {
 }
 
 export class HookFactory {
-	async create<Name extends HookName>(hookName: Name): Promise<HookRunner<Name>> {
+	/**
+	 * Check if any hook scripts exist for the given hook name
+	 * @returns true if at least one hook script exists, false otherwise
+	 */
+	async hasHook<Name extends HookName>(hookName: Name): Promise<boolean> {
 		const scripts = await HookFactory.findHookScripts(hookName)
-		const runners = scripts.map((script) => new StdioHookRunner(hookName, script))
+		return scripts.length > 0
+	}
+
+	/**
+	 * Create a hook runner without streaming support (backwards compatible)
+	 */
+	async create<Name extends HookName>(hookName: Name): Promise<HookRunner<Name>> {
+		return this.createWithStreaming(hookName)
+	}
+
+	/**
+	 * Create a hook runner with optional streaming callback and abort signal support.
+	 *
+	 * This is the primary factory method for creating hooks. It:
+	 * 1. Uses HookDiscoveryCache to find hook scripts (fast O(1) lookup after first scan)
+	 * 2. Creates StdioHookRunner instances for each discovered script
+	 * 3. Returns NoOpRunner if no scripts found (null-object pattern)
+	 * 4. Returns CombinedHookRunner if multiple scripts found (parallel execution)
+	 *
+	 * The streaming callback receives hook output line-by-line in real-time, allowing
+	 * the UI to display progress as the hook executes. The abort signal enables
+	 * cancellation of long-running hooks.
+	 *
+	 * @param hookName The type of hook to create (e.g., "PreToolUse", "PostToolUse")
+	 * @param streamCallback Optional callback for real-time output streaming
+	 * @param abortSignal Optional signal to cancel hook execution
+	 * @returns A HookRunner that executes the hook(s), or NoOpRunner if none found
+	 */
+	async createWithStreaming<Name extends HookName>(
+		hookName: Name,
+		streamCallback?: HookStreamCallback,
+		abortSignal?: AbortSignal,
+	): Promise<HookRunner<Name>> {
+		// Use cache for hook discovery instead of direct file system scan
+		const { HookDiscoveryCache } = await import("./HookDiscoveryCache")
+		const scripts = await HookDiscoveryCache.getInstance().get(hookName)
+
+		const runners = scripts.map((script) => new StdioHookRunner(hookName, script, streamCallback, abortSignal))
 		if (runners.length === 0) {
 			return new NoOpRunner(hookName)
 		}
@@ -316,7 +551,7 @@ export class HookFactory {
 	 * @returns the path to the hook to execute, or undefined if none found
 	 * @throws Error if an unexpected file system error occurs
 	 */
-	private static async findHookInHooksDir(hookName: HookName, hooksDir: string): Promise<string | undefined> {
+	static async findHookInHooksDir(hookName: HookName, hooksDir: string): Promise<string | undefined> {
 		return process.platform === "win32"
 			? HookFactory.findWindowsHook(hookName, hooksDir)
 			: HookFactory.findUnixHook(hookName, hooksDir)

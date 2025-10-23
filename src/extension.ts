@@ -53,6 +53,17 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 export async function activate(context: vscode.ExtensionContext) {
 	setupHostProvider(context)
 
+	// Initialize hook discovery cache for performance optimization
+	const { HookDiscoveryCache } = await import("./core/hooks/HookDiscoveryCache")
+	HookDiscoveryCache.getInstance().initialize(context, (dir: string) => {
+		try {
+			const pattern = new vscode.RelativePattern(dir, "*")
+			return vscode.workspace.createFileSystemWatcher(pattern)
+		} catch {
+			return null
+		}
+	})
+
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
 	Logger.log("Cline extension activated")
@@ -446,10 +457,20 @@ async function getBinaryLocation(name: string): Promise<string> {
 
 // This method is called when your extension is deactivated
 export async function deactivate() {
+	Logger.log("Cline extension deactivating, cleaning up resources...")
+
 	tearDown()
 
 	// Clean up test mode
 	cleanupTestMode()
+
+	// Kill any running hook processes to prevent zombies
+	const { HookProcessRegistry } = await import("./core/hooks/HookProcessRegistry")
+	await HookProcessRegistry.terminateAll()
+
+	// Clean up hook discovery cache
+	const { HookDiscoveryCache } = await import("./core/hooks/HookDiscoveryCache")
+	HookDiscoveryCache.getInstance().dispose()
 
 	Logger.log("Cline extension deactivated")
 }

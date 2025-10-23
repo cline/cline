@@ -36,6 +36,7 @@ import { CheckpointControls } from "../common/CheckpointControls"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
+import HookMessage from "./HookMessage"
 import NewTaskPreview from "./NewTaskPreview"
 import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
@@ -53,6 +54,22 @@ const ChatRowContainer = styled.div`
 
 	&:hover ${CheckpointControls} {
 		opacity: 1;
+	}
+
+	/* Fade-in animation for hook messages being inserted */
+	&.hook-message-animate {
+		animation: hookFadeSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	@keyframes hookFadeSlideIn {
+		from {
+			opacity: 0;
+			transform: translateY(-12px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
 	}
 `
 
@@ -1602,6 +1619,11 @@ export const ChatRowContent = memo(
 								</div>
 							)
 						}
+					case "hook":
+						return <HookMessage CommandOutput={CommandOutput} message={message} />
+					case "hook_output":
+						// hook_output messages are combined with hook messages, so we don't render them separately
+						return null
 					case "shell_integration_warning_with_suggestion":
 						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"
 						return (
