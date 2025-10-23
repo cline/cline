@@ -9,10 +9,10 @@ implementation will ensure 100% of CLI output can be formatted as valid JSON,
 making the CLI fully scriptable and integration-friendly.
 
 The scope includes all non-interactive commands (task, instance, config,
-version, logs). Interactive commands (auth, task chat) will gracefully error 
-with **plain text error messages** (not JSON) when `--output-format json` is used, 
-since interactive commands cannot meaningfully work with JSON output. All existing 
-"rich" and "plain" output formats will remain completely unchanged.
+version, logs). Interactive commands (auth, task chat) will gracefully error
+with **plain text error messages** (not JSON) when `--output-format json` is
+used, since interactive commands cannot meaningfully work with JSON output. All
+existing "rich" and "plain" output formats will remain completely unchanged.
 
 Key principles:
 - Test-driven development: Write comprehensive e2e tests first that call the CLI
@@ -23,30 +23,129 @@ Key principles:
 - No output leakage: Only valid JSON in JSON mode (no stray text)
 - Compose with Verbose: Verbose output will still be shown in JSON mode; it will
   show as JSON
-- Graceful degradation: Clear **plain text** errors for interactive commands that don't support JSON
-- **JSONL format for ALL commands**: ALL commands (both streaming and non-streaming) output in 
-  JSONL (JSON Lines) format when `--output-format json` is specified. Each line is a complete, 
-  independently-parseable JSON object. This includes:
+- Graceful degradation: Clear **plain text** errors for interactive commands
+  that don't support JSON
+- **JSONL format for ALL commands**: ALL commands (both streaming and
+  non-streaming) output in JSONL (JSON Lines) format when `--output-format json`
+  is specified. Each line is a complete, independently-parseable JSON object.
+  This includes:
   - Debug messages (when `--verbose` is set)
   - Verbose status messages (when `--verbose` is set)
   - Final command result
-- **Immediate output**: Status, debug, and verbose messages are output immediately as JSONL lines
-  as they occur, not buffered
-  - **Informational messages in JSON mode**: All informational messages (like "Cancelled existing task", "Switching to instance", etc.) MUST be output as valid JSON. They should NEVER be suppressed. Instead:
-  1. **For NON-STREAMING commands** (instance new, config set, etc.): Include all information 
-     in the SINGLE final JSON response object. Do NOT output intermediate status messages 
-     as separate JSON objects.
-  2. **For STREAMING commands** (task view --follow): Output as separate JSON status messages 
-     with standard format (JSONL):
+- **Immediate output**: Status, debug, and verbose messages are output
+  immediately as JSONL lines as they occur, not buffered
+  - **Informational messages in JSON mode**: All informational messages (like
+    "Cancelled existing task", "Switching to instance", etc.) MUST be output as
+    valid JSON. They should NEVER be suppressed. Instead:
+  1. **For NON-STREAMING commands** (instance new, config set, etc.): Include
+     all information in the SINGLE final JSON response object. Do NOT output
+     intermediate status messages as separate JSON objects.
+  2. **For STREAMING commands** (task view --follow): Output as separate JSON
+     status messages with standard format (JSONL):
      ```json
      {"type": "status", "message": "Following task conversation...", "data": {...}}
      ```
   3. **Never use**: `if global.Config.OutputFormat != "json"` to suppress output
   4. **Always do**: Convert ALL text output to equivalent JSON structure
 
+## [Principles]
+
+The JSON output implementation follows these core principles:
+
+### 1. Universal JSONL Format
+**All commands output JSONL (JSON Lines) format** when `--output-format json` is
+specified - both streaming and non-streaming commands. Each line is a complete,
+independently-parseable JSON object.
+
+**For non-streaming (batch) commands:**
+- Multiple lines only when verbose mode is enabled
+- Debug messages: `{"type":"debug","message":"..."}`
+- Final result: `{"status":"success","command":"...","data":{...}}`
+
+**For streaming commands:**
+- Status messages: `{"type":"status","message":"...", "data":{...}}`
+- Content messages: `{"type":"content","content":"..."}`
+- Final result: `{"status":"success","command":"...","data":{...}}`
+
+### 2. Verbose Mode Composition
+**All commands that support `--verbose` compose with JSON output.** Verbose
+output is never suppressed in JSON mode - it's converted to structured JSONL
+debug messages.
+
+Example:
+```bash
+$ cline instance new -v -F json
+{"message":"Starting new Cline instance...","type":"debug"}
+{"message":"Starting cline-host on port 58953","type":"debug"}
+...21 debug messages...
+{"command":"instance new","data":{...},"status":"success"}
+```
+
+### 3. Zero Text Leakage
+**Only valid JSON in JSON mode.** No plain text, no headers, no status messages
+as text. Everything must be structured JSON. This enables reliable parsing and
+scripting.
+
+### 4. Interactive Command Rejection
+**Interactive commands reject JSON mode with plain text errors** (not JSON),
+because:
+- They require TTY/terminal interaction
+- JSON output would be meaningless for interactive workflows
+- Users need clear, readable error messages
+
+Commands that reject JSON:
+- `cline auth`
+- `cline task chat`
+- `cline` (no args - interactive prompt)
+
+### 5. Never Suppress Information
+**Convert ALL informational messages to JSON - never suppress them.** Users
+expect the same information in all output modes.
+
+❌ **Wrong - Suppresses output:**
+```go
+if global.Config.OutputFormat != "json" {
+    fmt.Printf("Using instance: %s\n", instanceAddress)
+}
+```
+
+✅ **Correct - Converts to JSON:**
+```go
+if global.Config.OutputFormat == "json" {
+    output.OutputStatusMessage("status", "Using instance", 
+        map[string]interface{}{"instance": instanceAddress})
+} else {
+    fmt.Printf("Using instance: %s\n", instanceAddress)
+}
+```
+
+### 6. Immediate Output (Not Buffered)
+**Status, debug, and verbose messages output immediately** as JSONL lines as
+they occur. This enables real-time monitoring and progress tracking.
+
+### 7. Backward Compatibility
+**Rich and plain output formats remain completely unchanged.** JSON is an
+additive feature - existing workflows continue to work exactly as before.
+
+### 8. Consistent Structure
+**All JSON responses follow a standard format:**
+```json
+{
+  "status": "success|error",
+  "command": "command-name",
+  "data": { ... },
+  "error": "error message (if status=error)"
+}
+```
+
+### 9. Test-Driven Development
+**Tests written FIRST** that call the actual CLI binary via shell. This ensures
+tests record accurate results and catch implementation issues early.
+
 ### Current Violations in task/manager.go
 
-The following locations currently suppress output in JSON mode and MUST be fixed:
+The following locations currently suppress output in JSON mode and MUST be
+fixed:
 
 1. **FollowConversation() headers** (~line 670):
    ```go
@@ -70,7 +169,8 @@ The following locations currently suppress output in JSON mode and MUST be fixed
        fmt.Printf("Using instance: %s\n", instanceAddress)
    }
    ```
-   **Note**: FollowConversation is a STREAMING command, so multiple JSON objects (JSONL) are appropriate.
+   **Note**: FollowConversation is a STREAMING command, so multiple JSON objects
+   (JSONL) are appropriate.
 
 2. **FollowConversationUntilCompletion() header** (~line 735):
    - Same pattern: Output JSON status message instead of suppressing
@@ -360,7 +460,8 @@ Usage:
   cline auth [flags]
 ```
 
-Interactive commands (auth, task chat) output **plain text errors**, NOT JSON, because:
+Interactive commands (auth, task chat) output **plain text errors**, NOT JSON,
+because:
 - They require TTY/terminal interaction
 - JSON output would be meaningless for interactive workflows
 - Users need clear, readable error messages
@@ -856,7 +957,8 @@ Generate Go code from protobuf definitions:
 npm run protos-go
 ```
 
-This creates the gRPC client code in `src/generated/grpc-go/` that the CLI depends on.
+This creates the gRPC client code in `src/generated/grpc-go/` that the CLI
+depends on.
 
 ### 2. Build Standalone Package
 
@@ -1045,6 +1147,90 @@ func TestJSONErrors(t *testing.T) {
 5. **No Leakage Tests** - No text outside JSON in JSON mode
 6. **Compose with Verbose Tests** - JSON mode works with --verbose flag
 7. **Error Handling Tests** - Errors formatted as JSON
+
+## [Command Coverage Matrix]
+
+### Complete CLI Command Coverage
+
+Comprehensive validation that ALL CLI commands properly support or reject JSON
+mode as appropriate:
+
+| Command | JSON Support | Test Coverage | Verbose Support | Interactive |
+|---------|-------------|---------------|-----------------|-------------|
+| **Main Commands** | | `cline version` | ✅ JSON | TestJSONOutputVersion | ✅
+Tested | No | | `cline version --short` | ❌ Plain only |
+TestJSONOutputVersionShort | N/A | No | | `cline auth` | ❌ Rejects JSON |
+TestInteractiveCommandsErrorInJSONMode | N/A | Yes | | `cline` (no args) | ❌
+Rejects JSON | TestInteractiveCommandsErrorInJSONMode | N/A | Yes | | **Instance
+Commands** | | `cline instance list` | ✅ JSON | TestJSONOutputInstanceList | ✅
+Tested | No | | `cline instance new` | ✅ JSON | TestJSONOutputInstanceNew,
+TestJSONOutputInstanceNewWithVerbose | ✅ Tested | No | | `cline instance kill` |
+✅ JSON | TestJSONOutputInstanceKill | N/A | No | | `cline instance default` | ✅
+JSON | TestJSONOutputInstanceDefault | N/A | No | | **Config Commands** | |
+`cline config list` | ✅ JSON | TestJSONOutputConfigList | ✅ Tested | No | |
+`cline config get` | ✅ JSON | TestJSONOutputConfigGet | N/A | No | | `cline
+config set` | ✅ JSON | TestJSONOutputConfigSet | N/A | No | | **Task Commands**
+| | `cline task new` | ✅ JSON | TestJSONOutputWithVerboseFlag | ✅ Tested | No |
+| `cline task list` | ✅ JSON | TestJSONOutputTaskList | N/A | No | | `cline task
+open` | ✅ JSON | TestJSONOutputTaskOpen | N/A | No | | `cline task view` | ✅
+JSON (JSONL) | TestJSONOutputTaskView | N/A | Streaming | | `cline task pause` |
+✅ JSON | TestJSONOutputTaskPause | N/A | No | | `cline task send` | ✅ JSON |
+TestJSONOutputTaskSend | N/A | No | | `cline task restore` | ✅ JSON |
+TestJSONOutputTaskRestore | N/A | No | | `cline task chat` | ❌ Rejects JSON |
+TestInteractiveCommandsErrorInJSONMode | N/A | Yes | | **Logs Commands** | |
+`cline logs path` | ✅ JSON | TestJSONOutputLogsPath | ✅ Tested | No | | `cline
+logs list` | ✅ JSON | TestJSONOutputLogsList | ✅ Tested | No | | `cline logs
+clean` | ✅ JSON | TestJSONOutputLogsClean | N/A | No |
+
+### Coverage Summary
+
+- **Total Commands:** 22
+- **JSON Supported:** 19 (batch/streaming commands)
+- **JSON Rejected:** 3 (interactive commands: auth, task chat, root)
+- **Verbose Tested:** 6 commands with dedicated verbose+JSON tests
+- **Test Coverage:** 100% - all commands tested
+
+### Verbose Output Coverage
+
+Commands tested with `--verbose` flag in JSON mode
+(TestJSONOutputWithVerboseFlag):
+1. `version --verbose --output-format json` - ✅ JSONL debug messages
+2. `instance list --verbose --output-format json` - ✅ JSONL debug messages
+3. `logs path --verbose --output-format json` - ✅ JSONL debug messages
+4. `logs list --verbose --output-format json` - ✅ JSONL debug messages
+5. `config list --verbose --output-format json` - ✅ JSONL debug messages
+6. `task new --verbose --output-format json` - ✅ JSONL debug messages
+
+Additional verbose-specific test:
+- `instance new --verbose --output-format json`
+  (TestJSONOutputInstanceNewWithVerbose)
+  - ✅ Validates ~21 debug messages in JSONL format
+  - ✅ Confirms final success response
+
+### Interactive Command Handling
+
+All interactive commands properly reject JSON mode with **plain text errors**
+(NOT JSON):
+- ❌ `cline auth --output-format json` → "auth is an interactive command..."
+- ❌ `cline task chat --output-format json` → "task chat is an interactive
+  command..."
+- ❌ `cline --output-format json` → "the root command is interactive..."
+
+### Output Format Validation
+
+Every command tested with all three output formats:
+- ✅ **JSON mode** (`--output-format json`) - Pure JSON, no text leakage
+- ✅ **Rich mode** (`--output-format rich`) - Formatted tables, unchanged
+- ✅ **Plain mode** (`--output-format plain`) - Simple text, unchanged
+
+### JSONL Format
+
+Commands that output multiple JSON objects (one per line):
+- Verbose debug messages: `{"type":"debug","message":"..."}` 
+- Streaming commands: Each message is independent JSON object
+- Final response: `{"status":"success","command":"...","data":{...}}`
+
+**All 22 commands have comprehensive JSON output handling.**
 
 ## [Testing]
 
@@ -1718,17 +1904,20 @@ cd cli && go test ./e2e/... -v
 
 ### Step 10: Fix Verbose Output JSONL Implementation (0.5 day) ✅ COMPLETE
 
-**10.1 Issue Discovered** ✅
-After Step 9, discovered that verbose output (`--verbose` flag) was being suppressed in JSON mode instead of converted to JSONL format, violating the design principle that "verbose output will still be shown in JSON mode; it will show as JSON".
+**10.1 Issue Discovered** ✅ After Step 9, discovered that verbose output
+(`--verbose` flag) was being suppressed in JSON mode instead of converted to
+JSONL format, violating the design principle that "verbose output will still be
+shown in JSON mode; it will show as JSON".
 
 **10.2 Root Cause Analysis** ✅
-- Found 42+ locations using pattern: `if Config.Verbose && Config.OutputFormat != "json"`
+- Found 42+ locations using pattern: `if Config.Verbose && Config.OutputFormat
+  != "json"`
 - These were **suppressing** output instead of **converting** to JSONL
 - All locations were in `cli/pkg/cli/global/cline-clients.go`
 - This created text leakage when using `-v -F json` together
 
-**10.3 Solution Implemented** ✅
-Created helper functions to centralize verbose output logic:
+**10.3 Solution Implemented** ✅ Created helper functions to centralize verbose
+output logic:
 ```go
 // verboseLog outputs a verbose message in the appropriate format
 func verboseLog(message string) {
@@ -1757,7 +1946,8 @@ func verboseLogf(format string, args ...interface{}) {
 - Modified `cli/pkg/cli/global/cline-clients.go`
   - Added `verboseLog()` and `verboseLogf()` helper functions
   - Replaced ALL 42+ verbose output checks with helper calls
-  - Functions in StartNewInstance(), StartNewInstanceAtPort(), startClineHost(), startClineCore(), KillInstanceByAddress()
+  - Functions in StartNewInstance(), StartNewInstanceAtPort(), startClineHost(),
+    startClineCore(), KillInstanceByAddress()
 
 **10.5 Test Updates** ✅
 - Updated `TestJSONOutputInstanceNewWithVerbose` to expect JSONL format
