@@ -46,7 +46,13 @@ const GPT_5: ClineToolSpec = {
 			required: true,
 			instruction:
 				"The CLI command to execute. This should be valid for the current operating system. Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths.",
-			usage: "Your command here",
+		},
+		{
+			name: "requires_approval",
+			required: true,
+			instruction:
+				"To indicate whether this command requires explicit user approval or interaction before it should be executed. For system/file altering operations like installing/uninstalling packages, removing/overwriting files, system configuration changes, network operations, or any commands that are considered potentially dangerous must be set to true. False for safe operations like running development servers, building projects, and other non-destructive operations.",
+			type: "boolean",
 		},
 	],
 }

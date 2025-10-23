@@ -201,6 +201,20 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			return `Successfully applied patch to files: ${finalResponses.join(", ")}`
 		} catch (error) {
+			const errorResponse = formatResponse.toolError(`${(error as Error)?.message}`)
+			ToolResultUtils.pushToolResult(
+				errorResponse,
+				block,
+				config.taskState.userMessageContent,
+				ToolDisplayUtils.getToolDescription,
+				config.api,
+				() => {
+					config.taskState.didAlreadyUseTool = true
+				},
+				config.coordinator,
+				config.taskState.toolUseIdMap,
+			)
+
 			throw error
 		}
 	}
@@ -225,6 +239,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		if (hasBegin && hasEnd) {
 			return lines
 		}
+
 		throw new DiffError("Invalid patch text - incomplete sentinels (missing either Begin or End)")
 	}
 
@@ -261,6 +276,11 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			if (insidePatch || (!foundBegin && isPatchContent) || (line === "" && foundContent)) {
 				result.push(line)
 			}
+		}
+
+		// Trim trailing empty lines that may remain after stripping bash wrappers
+		while (result.length > 0 && result[result.length - 1] === "") {
+			result.pop()
 		}
 
 		return !foundBegin && !foundContent ? lines : result
