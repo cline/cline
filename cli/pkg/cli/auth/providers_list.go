@@ -207,9 +207,9 @@ func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
 	switch providerStr {
 	case "anthropic":
 		return cline.ApiProvider_ANTHROPIC, true
-	case "openai":
+	case "openai-compatible": // internal name is 'openai', but this is actually the openai-compatible provider
 		return cline.ApiProvider_OPENAI, true
-	case "openai-native":
+	case "openai", "openai-native": // This is the native, official Open AI provider
 		return cline.ApiProvider_OPENAI_NATIVE, true
 	case "openrouter":
 		return cline.ApiProvider_OPENROUTER, true
@@ -237,7 +237,7 @@ func GetProviderIDForEnum(provider cline.ApiProvider) string {
 	case cline.ApiProvider_ANTHROPIC:
 		return "anthropic"
 	case cline.ApiProvider_OPENAI:
-		return "openai"
+		return "openai-compatible"
 	case cline.ApiProvider_OPENAI_NATIVE:
 		return "openai-native"
 	case cline.ApiProvider_OPENROUTER:
@@ -306,15 +306,15 @@ func capitalizeMode(mode string) string {
 	return strings.ToUpper(mode[:1]) + mode[1:]
 }
 
-// getProviderDisplayName returns a user-friendly name for the provider
-func getProviderDisplayName(provider cline.ApiProvider) string {
+// GetProviderDisplayName returns a user-friendly name for the provider
+func GetProviderDisplayName(provider cline.ApiProvider) string {
 	switch provider {
 	case cline.ApiProvider_ANTHROPIC:
 		return "Anthropic"
 	case cline.ApiProvider_OPENAI:
-		return "OpenAI"
+		return "OpenAI Compatible"
 	case cline.ApiProvider_OPENAI_NATIVE:
-		return "OpenAI Native"
+		return "OpenAI (Official)"
 	case cline.ApiProvider_OPENROUTER:
 		return "OpenRouter"
 	case cline.ApiProvider_XAI:
@@ -364,9 +364,9 @@ func FormatProviderList(result *ProviderListResult) string {
 			isActive := activeProviderSet && display.Provider == activeProvider
 
 			if isActive {
-				output.WriteString(fmt.Sprintf("  ✓ %s (ACTIVE)\n", getProviderDisplayName(display.Provider)))
+				output.WriteString(fmt.Sprintf("  ✓ %s (ACTIVE)\n", GetProviderDisplayName(display.Provider)))
 			} else {
-				output.WriteString(fmt.Sprintf("  • %s\n", getProviderDisplayName(display.Provider)))
+				output.WriteString(fmt.Sprintf("  • %s\n", GetProviderDisplayName(display.Provider)))
 			}
 
 			output.WriteString(fmt.Sprintf("    Model:    %s\n", display.ModelID))
@@ -447,12 +447,12 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 	}
 
 	for _, providerCheck := range providersToCheck {
-		verboseLog("[DEBUG] Checking for %s key: %s", getProviderDisplayName(providerCheck.provider), providerCheck.keyField)
+		verboseLog("[DEBUG] Checking for %s key: %s", GetProviderDisplayName(providerCheck.provider), providerCheck.keyField)
 		if value, ok := apiConfig[providerCheck.keyField]; ok {
 			verboseLog("[DEBUG]   Found key, value type: %T, is empty: %v", value, value == "")
 			if str, ok := value.(string); ok && str != "" {
 				configuredProviders = append(configuredProviders, providerCheck.provider)
-				verboseLog("[DEBUG]   ✓ Provider %s is configured", getProviderDisplayName(providerCheck.provider))
+				verboseLog("[DEBUG]   ✓ Provider %s is configured", GetProviderDisplayName(providerCheck.provider))
 			}
 		} else {
 			verboseLog("[DEBUG]   Key %s not found", providerCheck.keyField)
@@ -461,7 +461,7 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 
 	verboseLog("[DEBUG] Total configured providers: %d", len(configuredProviders))
 	for _, p := range configuredProviders {
-		verboseLog("[DEBUG]   - %s", getProviderDisplayName(p))
+		verboseLog("[DEBUG]   - %s", GetProviderDisplayName(p))
 	}
 
 	return configuredProviders, nil

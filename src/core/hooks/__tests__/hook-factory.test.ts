@@ -4,38 +4,30 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import sinon from "sinon"
+import { setDistinctId } from "@/services/logging/distinctId"
 import { StateManager } from "../../storage/StateManager"
 import { HookFactory } from "../hook-factory"
 
 describe("Hook System", () => {
+	// These tests assume uniform executable script execution via embedded shell
+	// Windows support pending embedded shell implementation
+	before(function () {
+		if (process.platform === "win32") {
+			this.skip()
+		}
+	})
+
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 
-	// Helper to get platform-appropriate hook filename
-	const getHookFilename = (hookName: string): string => {
-		return process.platform === "win32" ? `${hookName}.cmd` : hookName
-	}
-
-	// Helper to write hook script with platform-specific wrapper
+	// Helper to write executable hook script
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
-		if (process.platform === "win32") {
-			// On Windows, create both a .js file and a .cmd wrapper
-			// This avoids command line length limits and complex escaping issues
-			const jsPath = hookPath.replace(/\.cmd$/, ".js")
-			await fs.writeFile(jsPath, nodeScript)
-
-			// Create .cmd wrapper that calls the .js file
-			const batchScript = `@echo off
-node "%~dp0${path.basename(jsPath)}"`
-			await fs.writeFile(hookPath, batchScript)
-		} else {
-			// On Unix, write the script directly with shebang
-			await fs.writeFile(hookPath, nodeScript)
-			await fs.chmod(hookPath, 0o755)
-		}
+		await fs.writeFile(hookPath, nodeScript)
+		await fs.chmod(hookPath, 0o755)
 	}
 
 	beforeEach(async () => {
+		setDistinctId("test-id")
 		sandbox = sinon.createSandbox()
 		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 		await fs.mkdir(tempDir, { recursive: true })
@@ -80,7 +72,7 @@ node "%~dp0${path.basename(jsPath)}"`
 	describe("StdioHookRunner", () => {
 		it("should execute hook script and parse output", async () => {
 			// Create a test hook script
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
 const input = require('fs').readFileSync(0, 'utf-8');
 console.log(JSON.stringify({
@@ -107,7 +99,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should handle script that blocks execution", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
   shouldContinue: false,
@@ -132,7 +124,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should truncate large context modifications", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			// Create context larger than 50KB
 			const largeContext = "x".repeat(60000)
 			const hookScript = `#!/usr/bin/env node
@@ -159,7 +151,7 @@ console.log(JSON.stringify({
 		})
 
 		it("should handle script errors", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
 process.exit(1)`
 
@@ -183,7 +175,7 @@ process.exit(1)`
 		})
 
 		it("should handle malformed JSON output", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
 console.log("not valid json")`
 
@@ -207,7 +199,7 @@ console.log("not valid json")`
 		})
 
 		it("should pass hook input via stdin", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 console.log(JSON.stringify({
@@ -234,7 +226,7 @@ console.log(JSON.stringify({
 
 	describe("PostToolUse Hook", () => {
 		it("should receive execution results", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PostToolUse"))
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PostToolUse")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 console.log(JSON.stringify({
@@ -263,12 +255,7 @@ console.log(JSON.stringify({
 	})
 
 	describe("Hook Discovery", () => {
-		it("should find executable hook on Unix", async function () {
-			if (process.platform === "win32") {
-				this.skip()
-				return
-			}
-
+		it("should find executable hook", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({ shouldContinue: true }))`
@@ -291,12 +278,7 @@ console.log(JSON.stringify({ shouldContinue: true }))`
 			result.shouldContinue.should.be.true()
 		})
 
-		it("should not find non-executable file on Unix", async function () {
-			if (process.platform === "win32") {
-				this.skip()
-				return
-			}
-
+		it("should not find non-executable file", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({ shouldContinue: true }))`
@@ -359,7 +341,7 @@ console.log(JSON.stringify({ shouldContinue: true }))`
 		})
 
 		it("should handle hook input with all parameters", async () => {
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", getHookFilename("PreToolUse"))
+			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasAllFields = input.clineVersion && input.hookName && input.timestamp && 
@@ -383,6 +365,202 @@ console.log(JSON.stringify({
 			})
 
 			result.contextModification!.should.equal("All fields present")
+		})
+	})
+
+	describe("Global Hooks", () => {
+		let globalHooksDir: string
+		let originalGetAllHooksDirs: any
+
+		beforeEach(async () => {
+			// Create global hooks directory
+			globalHooksDir = path.join(tempDir, "global-hooks")
+			await fs.mkdir(globalHooksDir, { recursive: true })
+
+			// Mock getAllHooksDirs to include our test global directory
+			const diskModule = require("../../storage/disk")
+			originalGetAllHooksDirs = diskModule.getAllHooksDirs
+			sandbox.stub(diskModule, "getAllHooksDirs").callsFake(async () => {
+				// Get workspace dirs from original function
+				const workspaceDirs = await originalGetAllHooksDirs()
+				// Return global first, then workspace
+				return [globalHooksDir, ...workspaceDirs]
+			})
+		})
+
+		it("should execute both global and workspace hooks", async () => {
+			// Create global hook
+			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
+			const globalHookScript = `#!/usr/bin/env node
+const input = require('fs').readFileSync(0, 'utf-8');
+console.log(JSON.stringify({
+  shouldContinue: true,
+  contextModification: "GLOBAL: Context added"
+}))`
+			await writeHookScript(globalHookPath, globalHookScript)
+
+			// Create workspace hook
+			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const workspaceHookScript = `#!/usr/bin/env node
+const input = require('fs').readFileSync(0, 'utf-8');
+console.log(JSON.stringify({
+  shouldContinue: true,
+  contextModification: "WORKSPACE: Context added"
+}))`
+			await writeHookScript(workspaceHookPath, workspaceHookScript)
+
+			// Execute
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: { toolName: "test_tool", parameters: {} },
+			})
+
+			// Both contexts should be present (order not guaranteed)
+			result.shouldContinue.should.be.true()
+			result.contextModification!.should.match(/GLOBAL: Context added/)
+			result.contextModification!.should.match(/WORKSPACE: Context added/)
+		})
+
+		it("should block execution if global hook blocks", async () => {
+			// Create blocking global hook
+			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
+			const globalHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: false,
+  errorMessage: "Global policy violation"
+}))`
+			await writeHookScript(globalHookPath, globalHookScript)
+
+			// Create allowing workspace hook
+			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const workspaceHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: true
+}))`
+			await writeHookScript(workspaceHookPath, workspaceHookScript)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: { toolName: "test_tool", parameters: {} },
+			})
+
+			result.shouldContinue.should.be.false()
+			result.errorMessage!.should.match(/Global policy violation/)
+		})
+
+		it("should work with only global hooks (no workspace hooks)", async () => {
+			// Create global hook only
+			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
+			const globalHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: true,
+  contextModification: "Global hook only"
+}))`
+			await writeHookScript(globalHookPath, globalHookScript)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: { toolName: "test_tool", parameters: {} },
+			})
+
+			result.shouldContinue.should.be.true()
+			result.contextModification!.should.equal("Global hook only")
+		})
+
+		it("should block if workspace hook blocks even when global allows", async () => {
+			// Create allowing global hook
+			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
+			const globalHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: true,
+  contextModification: "Global allows"
+}))`
+			await writeHookScript(globalHookPath, globalHookScript)
+
+			// Create blocking workspace hook
+			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const workspaceHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: false,
+  errorMessage: "Workspace blocks"
+}))`
+			await writeHookScript(workspaceHookPath, workspaceHookScript)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: { toolName: "test_tool", parameters: {} },
+			})
+
+			result.shouldContinue.should.be.false()
+			result.errorMessage!.should.match(/Workspace blocks/)
+			// Context from global should still be included
+			result.contextModification!.should.match(/Global allows/)
+		})
+
+		it("should combine error messages from global and workspace hooks", async () => {
+			// Create blocking global hook
+			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
+			const globalHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: false,
+  errorMessage: "Global error"
+}))`
+			await writeHookScript(globalHookPath, globalHookScript)
+
+			// Create blocking workspace hook
+			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
+			const workspaceHookScript = `#!/usr/bin/env node
+console.log(JSON.stringify({
+  shouldContinue: false,
+  errorMessage: "Workspace error"
+}))`
+			await writeHookScript(workspaceHookPath, workspaceHookScript)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PreToolUse")
+			const result = await runner.run({
+				taskId: "test-task",
+				preToolUse: { toolName: "test_tool", parameters: {} },
+			})
+
+			result.shouldContinue.should.be.false()
+			result.errorMessage!.should.match(/Global error/)
+			result.errorMessage!.should.match(/Workspace error/)
+		})
+
+		it("should work with global PostToolUse hooks", async () => {
+			// Create global PostToolUse hook
+			const globalHookPath = path.join(globalHooksDir, "PostToolUse")
+			const globalHookScript = `#!/usr/bin/env node
+const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
+console.log(JSON.stringify({
+  shouldContinue: true,
+  contextModification: "Global observed: " + input.postToolUse.success
+}))`
+			await writeHookScript(globalHookPath, globalHookScript)
+
+			const factory = new HookFactory()
+			const runner = await factory.create("PostToolUse")
+			const result = await runner.run({
+				taskId: "test-task",
+				postToolUse: {
+					toolName: "test_tool",
+					parameters: {},
+					result: "success",
+					success: true,
+					executionTimeMs: 100,
+				},
+			})
+
+			result.contextModification!.should.equal("Global observed: true")
 		})
 	})
 })

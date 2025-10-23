@@ -10,6 +10,8 @@ option java_multiple_files = true;
 service TaskService {
   // Cancels the currently running task
   rpc cancelTask(EmptyRequest) returns (Empty);
+  // Cancels the currently running background command
+  rpc cancelBackgroundCommand(EmptyRequest) returns (Empty);
   // Clears the current task
   rpc clearTask(EmptyRequest) returns (Empty);
   // Gets the total size of all tasks

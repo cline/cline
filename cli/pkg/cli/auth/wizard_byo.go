@@ -20,11 +20,8 @@ type ProviderWizard struct {
 
 // NewProviderWizard prepares a new provider configuration wizard
 func NewProviderWizard(ctx context.Context) (*ProviderWizard, error) {
-	if err := global.EnsureDefaultInstance(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ensure Cline Core instance: %w", err)
-	}
-
-	manager, err := task.NewManagerForDefault(ctx)
+	// Create task manager using auth instance from context
+	manager, err := createTaskManager(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task manager: %w", err)
 	}
@@ -43,7 +40,7 @@ func (pw *ProviderWizard) showMainMenu() (string, error) {
 			huh.NewSelect[string]().
 				Title("What would you like to do?").
 				Options(
-					huh.NewOption("Configure a new provider", "add"),
+					huh.NewOption("Add or change an API provider", "add"),
 					huh.NewOption("Change model for API provider", "change-model"),
 					huh.NewOption("Remove a provider", "remove"),
 					huh.NewOption("List configured providers", "list"),
@@ -110,8 +107,8 @@ func (pw *ProviderWizard) handleAddProvider() error {
 		return pw.handleAddBedrockProvider()
 	}
 
-	// Step 3: Get API key first (for non-Bedrock providers)
-	apiKey, err := PromptForAPIKey(provider)
+	// Step 3: Get API key and optional baseURL (for non-Bedrock providers)
+	apiKey, baseURL, err := PromptForAPIKey(provider)
 	if err != nil {
 		return fmt.Errorf("failed to get API key: %w", err)
 	}
@@ -123,8 +120,12 @@ func (pw *ProviderWizard) handleAddProvider() error {
 	}
 
 	// Step 5: Apply configuration using AddProviderPartial
-	if err := AddProviderPartial(pw.ctx, pw.manager, provider, modelID, apiKey, modelInfo); err != nil {
+	if err := AddProviderPartial(pw.ctx, pw.manager, provider, modelID, apiKey, baseURL, modelInfo); err != nil {
 		return fmt.Errorf("failed to save configuration: %w", err)
+	}
+
+	if err := setWelcomeViewCompleted(pw.ctx, pw.manager); err != nil {
+		verboseLog("Warning: Failed to mark welcome view as completed: %v", err)
 	}
 
 	fmt.Println("✓ Provider configured successfully!")
@@ -151,6 +152,10 @@ func (pw *ProviderWizard) handleAddBedrockProvider() error {
 	// Step 3: Apply Bedrock configuration
 	if err := ApplyBedrockConfig(pw.ctx, pw.manager, config, modelID, modelInfo); err != nil {
 		return fmt.Errorf("failed to save Bedrock configuration: %w", err)
+	}
+
+	if err := setWelcomeViewCompleted(pw.ctx, pw.manager); err != nil {
+		verboseLog("Warning: Failed to mark welcome view as completed: %v", err)
 	}
 
 	fmt.Println("✓ Bedrock provider configured successfully!")
@@ -376,7 +381,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 	options := make([]huh.Option[int], len(configurableProviders)+1)
 	for i, providerDisplay := range configurableProviders {
 		displayName := fmt.Sprintf("%s (current: %s)",
-			getProviderDisplayName(providerDisplay.Provider),
+			GetProviderDisplayName(providerDisplay.Provider),
 			providerDisplay.ModelID)
 		options[i] = huh.NewOption(displayName, i)
 	}
@@ -402,7 +407,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 	selectedProvider := configurableProviders[selectedIndex]
 	provider := selectedProvider.Provider
 
-	fmt.Printf("\nChanging model for %s\n", getProviderDisplayName(provider))
+	fmt.Printf("\nChanging model for %s\n", GetProviderDisplayName(provider))
 	fmt.Printf("Current model: %s\n\n", selectedProvider.ModelID)
 
 	// Step 5: Retrieve API key if needed for model fetching
@@ -426,7 +431,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 
 		apiKey = getProviderAPIKeyFromState(apiConfig, provider)
 		if apiKey == "" {
-			return fmt.Errorf("no API key found for provider %s", getProviderDisplayName(provider))
+			return fmt.Errorf("no API key found for provider %s", GetProviderDisplayName(provider))
 		}
 	}
 
@@ -479,7 +484,7 @@ func SwitchToBYOProvider(ctx context.Context, manager *task.Manager, provider cl
 	// Get the model ID for the selected provider
 	modelID := getProviderModelIDFromState(apiConfig, provider)
 	if modelID == "" {
-		return fmt.Errorf("no model configured for provider %s", getProviderDisplayName(provider))
+		return fmt.Errorf("no model configured for provider %s", GetProviderDisplayName(provider))
 	}
 
 	// Get model info if available (for OpenRouter/Cline)
@@ -500,7 +505,7 @@ func SwitchToBYOProvider(ctx context.Context, manager *task.Manager, provider cl
 		return fmt.Errorf("failed to switch provider: %w", err)
 	}
 
-	verboseLog("✓ Switched to %s\n", getProviderDisplayName(provider))
+	verboseLog("✓ Switched to %s\n", GetProviderDisplayName(provider))
 	verboseLog("  Using model: %s\n", modelID)
 
 	return HandleAuthMenuNoArgs(ctx)
@@ -602,7 +607,7 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 	options := make([]huh.Option[int], len(removableProviders))
 	for i, provider := range removableProviders {
 		// Mark active provider
-		displayName := getProviderDisplayName(provider.Provider)
+		displayName := GetProviderDisplayName(provider.Provider)
 		if result.ActProvider != nil && provider.Provider == result.ActProvider.Provider {
 			displayName += " (ACTIVE)"
 		}
@@ -626,7 +631,7 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 
 	// Step 5: Check if trying to remove the active provider
 	if result.ActProvider != nil && selectedProvider.Provider == result.ActProvider.Provider {
-		fmt.Printf("\nCannot remove %s because it is currently active.\n", getProviderDisplayName(selectedProvider.Provider))
+		fmt.Printf("\nCannot remove %s because it is currently active.\n", GetProviderDisplayName(selectedProvider.Provider))
 		fmt.Println("Please switch to a different provider first, then try again.")
 		return nil
 	}
@@ -636,7 +641,7 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 	confirmForm := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
-				Title(fmt.Sprintf("Are you sure you want to remove %s?", getProviderDisplayName(selectedProvider.Provider))).
+				Title(fmt.Sprintf("Are you sure you want to remove %s?", GetProviderDisplayName(selectedProvider.Provider))).
 				Description("This will clear the API key but preserve the model configuration.").
 				Value(&confirm),
 		),
@@ -656,11 +661,16 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 		return fmt.Errorf("failed to remove provider: %w", err)
 	}
 
-	fmt.Printf("\n✓ %s removed successfully\n", getProviderDisplayName(selectedProvider.Provider))
+	fmt.Printf("\n✓ %s removed successfully\n", GetProviderDisplayName(selectedProvider.Provider))
 	return nil
 }
 
 // clearProviderAPIKey clears the API key field for a specific provider using RemoveProviderPartial
 func (pw *ProviderWizard) clearProviderAPIKey(provider cline.ApiProvider) error {
 	return RemoveProviderPartial(pw.ctx, pw.manager, provider)
+}
+
+func setWelcomeViewCompleted(ctx context.Context, manager *task.Manager) error {
+	_, err := manager.GetClient().State.SetWelcomeViewCompleted(ctx, &cline.BooleanRequest{Value: true})
+	return err
 }

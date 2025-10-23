@@ -1,4 +1,5 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
+import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
 import { Mode } from "@shared/storage/types"
 import { useCallback, useMemo, useState } from "react"
 import { useMount } from "react-use"
@@ -34,10 +35,10 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 	useMount(() => {
 		if (showModelOptions) {
 			setIsLoadingModels(true)
-			ModelsServiceClient.refreshVercelAiGatewayModels(EmptyRequest.create({}))
+			ModelsServiceClient.refreshVercelAiGatewayModelsRPC(EmptyRequest.create({}))
 				.then((response) => {
 					if (response && response.models) {
-						setVercelAiGatewayModels(response.models)
+						setVercelAiGatewayModels(fromProtobufModels(response.models))
 					}
 					setIsLoadingModels(false)
 				})

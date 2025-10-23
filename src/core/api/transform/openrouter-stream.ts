@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import {
 	CLAUDE_SONNET_1M_SUFFIX,
 	ModelInfo,
+	OPENROUTER_PROVIDER_PREFERENCES,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
@@ -34,6 +35,8 @@ export async function createOpenRouterStream(
 	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
 	// handles direct model.id match logic
 	switch (model.id) {
+		case "anthropic/claude-haiku-4.5":
+		case "anthropic/claude-4.5-haiku":
 		case "anthropic/claude-sonnet-4.5":
 		case "anthropic/claude-4.5-sonnet": // OpenRouter accidentally included this in model list for a brief moment, and users may be using this model id. And to support prompt caching, we need to add it here.
 		case "anthropic/claude-sonnet-4":
@@ -95,6 +98,8 @@ export async function createOpenRouterStream(
 	// (models usually default to max tokens allowed)
 	let maxTokens: number | undefined
 	switch (model.id) {
+		case "anthropic/claude-haiku-4.5":
+		case "anthropic/claude-4.5-haiku":
 		case "anthropic/claude-sonnet-4.5":
 		case "anthropic/claude-4.5-sonnet":
 		case "anthropic/claude-sonnet-4":
@@ -133,6 +138,8 @@ export async function createOpenRouterStream(
 
 	let reasoning: { max_tokens: number } | undefined
 	switch (model.id) {
+		case "anthropic/claude-haiku-4.5":
+		case "anthropic/claude-4.5-haiku":
 		case "anthropic/claude-sonnet-4.5":
 		case "anthropic/claude-4.5-sonnet":
 		case "anthropic/claude-sonnet-4":
@@ -158,9 +165,10 @@ export async function createOpenRouterStream(
 			}
 	}
 
-	// hardcoded provider sorting for kimi-k2
-	const isKimiK2 = model.id === "moonshotai/kimi-k2"
-	openRouterProviderSorting = isKimiK2 ? undefined : openRouterProviderSorting
+	const providerPreferences = OPENROUTER_PROVIDER_PREFERENCES[model.id]
+	if (providerPreferences) {
+		openRouterProviderSorting = undefined
+	}
 
 	// @ts-ignore-next-line
 	const stream = await client.chat.completions.create({
@@ -174,12 +182,8 @@ export async function createOpenRouterStream(
 		include_reasoning: true,
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
-		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
-		// limit providers to only those that support the 131k context window
-		...(isKimiK2
-			? { provider: { order: ["groq", "together", "baseten", "parasail", "novita", "deepinfra"], allow_fallbacks: false } }
-			: {}),
-		// limit providers to only those that support the 1m context window
+		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
+		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaudeSonnet1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
 	})
 

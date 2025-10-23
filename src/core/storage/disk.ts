@@ -106,6 +106,19 @@ export async function ensureMcpServersDirectoryExists(): Promise<string> {
 	return mcpServersDir
 }
 
+export async function ensureHooksDirectoryExists(): Promise<string> {
+	const rulesDir = await ensureRulesDirectoryExists()
+	const clineHooksDir = path.join(rulesDir, "Hooks")
+	try {
+		await fs.mkdir(clineHooksDir, { recursive: true })
+		return clineHooksDir
+	} catch (_error) {
+		// If mkdir fails, return a fallback path based on the Rules directory fallback
+		// This matches the pattern of other ensure*DirectoryExists functions
+		return path.join(rulesDir, "Hooks")
+	}
+}
+
 export async function ensureSettingsDirectoryExists(): Promise<string> {
 	return getGlobalStorageDir("settings")
 }
@@ -313,6 +326,53 @@ export async function writeRemoteConfigToCache(organizationId: string, config: R
 	} catch (error) {
 		console.error("Failed to write remote config to cache:", error)
 	}
+}
+
+export async function deleteRemoteConfigFromCache(organizationId: string): Promise<void> {
+	try {
+		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
+		const fileExists = await fileExistsAtPath(remoteConfigFilePath)
+		if (fileExists) {
+			await fs.unlink(remoteConfigFilePath)
+		}
+	} catch (error) {
+		console.error("Failed to delete remote config from cache:", error)
+	}
+}
+
+/**
+ * Gets the path to the global hooks directory if it exists.
+ * Returns undefined if the directory doesn't exist.
+ */
+export async function getGlobalHooksDir(): Promise<string | undefined> {
+	const globalHooksDir = await ensureHooksDirectoryExists()
+	return (await isDirectory(globalHooksDir)) ? globalHooksDir : undefined
+}
+
+/**
+ * Gets the paths to all hooks directories to search for hooks, including:
+ * 1. The global hooks directory (if it exists)
+ * 2. Each workspace root's .clinerules/hooks directory (if they exist)
+ *
+ * Note: Hooks from different directories may be executed concurrently.
+ * No execution order is guaranteed between hooks from different directories.
+ * A workspace may not use hooks, and the resulting array will be empty. A
+ * multi-root workspace may have multiple hooks directories.
+ */
+export async function getAllHooksDirs(): Promise<string[]> {
+	const hooksDirs: string[] = []
+
+	// Add global hooks directory (if it exists)
+	const globalHooksDir = await getGlobalHooksDir()
+	if (globalHooksDir) {
+		hooksDirs.push(globalHooksDir)
+	}
+
+	// Add workspace hooks directories
+	const workspaceHooksDirs = await getWorkspaceHooksDirs()
+	hooksDirs.push(...workspaceHooksDirs)
+
+	return hooksDirs
 }
 
 /**

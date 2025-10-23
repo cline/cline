@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -42,7 +43,9 @@ func (c *ClineClients) StartNewInstance(ctx context.Context) (*common.CoreInstan
 		return nil, fmt.Errorf("failed to find available ports: %w", err)
 	}
 
-	fmt.Printf("Starting new Cline instance on ports %d (core) and %d (host bridge)\n", corePort, hostPort)
+	if Config.Verbose {
+		fmt.Printf("Starting new Cline instance on ports %d (core) and %d (host bridge)\n", corePort, hostPort)
+	}
 
 	// Start cline-host first
 	hostCmd, err := startClineHost(hostPort, corePort)
@@ -61,7 +64,9 @@ func (c *ClineClients) StartNewInstance(ctx context.Context) (*common.CoreInstan
 	}
 
 	fullAddress := fmt.Sprintf("localhost:%d", corePort)
-	fmt.Println("Waiting for services to start and self-register in SQLite...")
+	if Config.Verbose {
+		fmt.Println("Waiting for services to start and self-register in SQLite...")
+	}
 
 	// Use RetryOperation to wait for instance to be ready
 	var instance *common.CoreInstanceInfo
@@ -95,11 +100,22 @@ func (c *ClineClients) StartNewInstance(ctx context.Context) (*common.CoreInstan
 		return nil, fmt.Errorf("failed to start instance: %w", err)
 	}
 
-	fmt.Println("Services started and registered successfully!")
-	fmt.Printf("  Address: %s\n", instance.Address)
-	fmt.Printf("  Core Port: %d\n", instance.CorePort())
-	fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
-	fmt.Printf("  Process PID: %d\n", coreCmd.Process.Pid)
+	if Config.Verbose {
+		fmt.Println("Services started and registered successfully!")
+		fmt.Printf("  Address: %s\n", instance.Address)
+		fmt.Printf("  Core Port: %d\n", instance.CorePort())
+		fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
+		fmt.Printf("  Process PID: %d\n", coreCmd.Process.Pid)
+	}
+
+	// If this is the first instance, set it as default
+	instances := c.registry.ListInstances()
+	if err := c.registry.EnsureDefaultInstance(instances); err != nil {
+		if Config.Verbose {
+			fmt.Printf("Warning: Failed to set default instance: %v\n", err)
+		}
+	}
+
 	return instance, nil
 }
 
@@ -114,7 +130,9 @@ func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int)
 		return nil, fmt.Errorf("port %d is already in use by another Cline instance", corePort)
 	}
 
-	fmt.Printf("Starting new Cline instance on ports %d (core) and %d (host bridge)\n", corePort, hostPort)
+	if Config.Verbose {
+		fmt.Printf("Starting new Cline instance on ports %d (core) and %d (host bridge)\n", corePort, hostPort)
+	}
 
 	// Start cline-host first
 	hostCmd, err := startClineHost(hostPort, corePort)
@@ -133,7 +151,9 @@ func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int)
 	}
 
 	fullAddress := fmt.Sprintf("localhost:%d", corePort)
-	fmt.Println("Waiting for services to start and self-register in SQLite...")
+	if Config.Verbose {
+		fmt.Println("Waiting for services to start and self-register in SQLite...")
+	}
 
 	// Use RetryOperation to wait for instance to be ready
 	var instance *common.CoreInstanceInfo
@@ -167,11 +187,22 @@ func (c *ClineClients) StartNewInstanceAtPort(ctx context.Context, corePort int)
 		return nil, fmt.Errorf("failed to start instance at port %d: %w", corePort, err)
 	}
 
-	fmt.Println("Services started and registered successfully!")
-	fmt.Printf("  Address: %s\n", instance.Address)
-	fmt.Printf("  Core Port: %d\n", instance.CorePort())
-	fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
-	fmt.Printf("  Process PID: %d\n", coreCmd.Process.Pid)
+	if Config.Verbose {
+		fmt.Println("Services started and registered successfully!")
+		fmt.Printf("  Address: %s\n", instance.Address)
+		fmt.Printf("  Core Port: %d\n", instance.CorePort())
+		fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
+		fmt.Printf("  Process PID: %d\n", coreCmd.Process.Pid)
+	}
+
+	// If this is the first instance, set it as default
+	instances := c.registry.ListInstances()
+	if err := c.registry.EnsureDefaultInstance(instances); err != nil {
+		if Config.Verbose {
+			fmt.Printf("Warning: Failed to set default instance: %v\n", err)
+		}
+	}
+
 	return instance, nil
 }
 
@@ -212,7 +243,9 @@ func (c *ClineClients) EnsureInstanceAtAddress(ctx context.Context, address stri
 }
 
 func startClineHost(hostPort, corePort int) (*exec.Cmd, error) {
-	fmt.Printf("Starting cline-host on port %d\n", hostPort)
+	if Config.Verbose {
+		fmt.Printf("Starting cline-host on port %d\n", hostPort)
+	}
 
 	// Get the directory where the cline binary is located
 	execPath, err := os.Executable()
@@ -256,8 +289,10 @@ func startClineHost(hostPort, corePort int) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("failed to start cline-host: %w", err)
 	}
 
-	fmt.Printf("Started cline-host (PID: %d)\n", cmd.Process.Pid)
-	fmt.Printf("Logging cline-host output to: %s\n", logFilePath)
+	if Config.Verbose {
+		fmt.Printf("Started cline-host (PID: %d)\n", cmd.Process.Pid)
+		fmt.Printf("Logging cline-host output to: %s\n", logFilePath)
+	}
 	return cmd, nil
 }
 
@@ -269,7 +304,9 @@ func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, addres
 		return fmt.Errorf("instance %s not found in registry", address)
 	}
 
-	fmt.Printf("Killing instance: %s\n", address)
+	if Config.Verbose {
+		fmt.Printf("Killing instance: %s\n", address)
+	}
 
 	// Get gRPC client and process info
 	client, err := registry.GetClient(ctx, address)
@@ -283,7 +320,9 @@ func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, addres
 	}
 
 	pid := int(processInfo.ProcessId)
-	fmt.Printf("Terminating process PID %d...\n", pid)
+	if Config.Verbose {
+		fmt.Printf("Terminating process PID %d...\n", pid)
+	}
 
 	// Kill the process
 	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
@@ -291,11 +330,15 @@ func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, addres
 	}
 
 	// Wait for the instance to remove itself from registry
-	fmt.Printf("Waiting for instance to clean up registry entry...\n")
+	if Config.Verbose {
+		fmt.Printf("Waiting for instance to clean up registry entry...\n")
+	}
 	for i := 0; i < 5; i++ {
 		time.Sleep(1 * time.Second)
 		if !registry.HasInstanceAtAddress(address) {
-			fmt.Printf("Instance %s successfully killed and removed from registry.\n", address)
+			if Config.Verbose {
+				fmt.Printf("Instance %s successfully killed and removed from registry.\n", address)
+			}
 
 			// Update default instance if needed
 			instances, err := registry.ListInstancesCleaned(ctx)
@@ -305,7 +348,9 @@ func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, addres
 				if defaultInstance == address || defaultInstance == "" {
 					if len(instances) > 0 {
 						if err := registry.SetDefaultInstance(instances[0].Address); err == nil {
-							fmt.Printf("Updated default instance to: %s\n", instances[0].Address)
+							if Config.Verbose {
+								fmt.Printf("Updated default instance to: %s\n", instances[0].Address)
+							}
 						}
 					}
 				}
@@ -319,17 +364,71 @@ func KillInstanceByAddress(ctx context.Context, registry *ClientRegistry, addres
 }
 
 func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
-	fmt.Printf("Starting cline-core on port %d (with hostbridge on %d)\n", corePort, hostPort)
+	if Config.Verbose {
+		fmt.Printf("Starting cline-core on port %d (with hostbridge on %d)\n", corePort, hostPort)
+	}
 
-	// Get paths relative to the cline binary location
+	// Get the executable path and resolve symlinks (for npm global installs)
 	execPath, err := os.Executable()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get executable path: %w", err)
 	}
-	binDir := path.Dir(execPath)
+
+	// Resolve symlinks to get the real path
+	// For npm global installs, execPath might be a symlink like:
+	// /opt/homebrew/bin/cline -> /opt/homebrew/lib/node_modules/cline/bin/cline
+	realPath, err := filepath.EvalSymlinks(execPath)
+	if err != nil {
+		// If we can't resolve symlinks, fall back to the original path
+		realPath = execPath
+		if Config.Verbose {
+			fmt.Printf("Warning: Could not resolve symlinks for %s: %v\n", execPath, err)
+		}
+	}
+
+	binDir := path.Dir(realPath)
 	installDir := path.Dir(binDir)
-	nodePath := path.Join(binDir, "node")
 	clineCorePath := path.Join(installDir, "cline-core.js")
+
+	if Config.Verbose {
+		fmt.Printf("Executable path: %s\n", execPath)
+		if realPath != execPath {
+			fmt.Printf("Real path (after resolving symlinks): %s\n", realPath)
+		}
+		fmt.Printf("Bin directory: %s\n", binDir)
+		fmt.Printf("Install directory: %s\n", installDir)
+		fmt.Printf("Looking for cline-core.js at: %s\n", clineCorePath)
+	}
+
+	// Check if cline-core.js exists at the primary location
+	var finalClineCorePath string
+	var finalInstallDir string
+	if _, err := os.Stat(clineCorePath); os.IsNotExist(err) {
+		// Development mode: Try ../../dist-standalone/cline-core.js
+		// This handles the case where we're running from cli/bin/cline
+		devClineCorePath := path.Join(binDir, "..", "..", "dist-standalone", "cline-core.js")
+		devInstallDir := path.Join(binDir, "..", "..", "dist-standalone")
+		
+		if Config.Verbose {
+			fmt.Printf("Primary location not found, trying development path: %s\n", devClineCorePath)
+		}
+		
+		if _, err := os.Stat(devClineCorePath); os.IsNotExist(err) {
+			return nil, fmt.Errorf("cline-core.js not found at '%s' or '%s'. Please ensure you're running from the correct location or reinstall with 'npm install -g cline'", clineCorePath, devClineCorePath)
+		}
+		
+		finalClineCorePath = devClineCorePath
+		finalInstallDir = devInstallDir
+		if Config.Verbose {
+			fmt.Printf("Using development mode: cline-core.js found at %s\n", finalClineCorePath)
+		}
+	} else {
+		finalClineCorePath = clineCorePath
+		finalInstallDir = installDir
+		if Config.Verbose {
+			fmt.Printf("Using production mode: cline-core.js found at %s\n", finalClineCorePath)
+		}
+	}
 
 	// Create logs directory in ~/.cline/logs
 	logsDir := path.Join(Config.ConfigPath, "logs")
@@ -346,20 +445,20 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("failed to create log file: %w", err)
 	}
 
-	// Start the cline-core process with --config flag
-	args := []string{clineCorePath,
+	// Start the cline-core process with --config flag using system node
+	args := []string{finalClineCorePath,
 		"--port", fmt.Sprintf("%d", corePort),
 		"--host-bridge-port", fmt.Sprintf("%d", hostPort),
 		"--config", Config.ConfigPath}
 
-	fmt.Printf("DEBUG: Starting cline-core with command: %s %v\n", nodePath, args)
-	fmt.Printf("DEBUG: Working directory: %s\n", installDir)
-	fmt.Printf("DEBUG: Config path: %s\n", Config.ConfigPath)
+	if Config.Verbose {
+		fmt.Printf("Using system node\n")
+	}
 
-	cmd := exec.Command(nodePath, args...)
+	cmd := exec.Command("node", args...)
 
 	// Set working directory to installation root
-	cmd.Dir = installDir
+	cmd.Dir = finalInstallDir
 
 	// Redirect stdout and stderr to log file
 	cmd.Stdout = logFile
@@ -370,22 +469,33 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		Setpgid: true,
 	}
 
-	// Set environment variables with NODE_PATH for node_modules
+	// Set environment variables with NODE_PATH for both real and fake node_modules
+	// The fake node_modules contains the vscode stub that can't be in the real node_modules
 	env := os.Environ()
+	realNodeModules := path.Join(finalInstallDir, "node_modules")
+	fakeNodeModules := path.Join(finalInstallDir, "fake_node_modules")
+	nodePath := fmt.Sprintf("%s%c%s", realNodeModules, os.PathListSeparator, fakeNodeModules)
+	
 	env = append(env,
-		fmt.Sprintf("NODE_PATH=%s", path.Join(installDir, "node_modules")),
+		fmt.Sprintf("NODE_PATH=%s", nodePath),
 		"GRPC_TRACE=all",
 		"GRPC_VERBOSITY=DEBUG",
 		"NODE_ENV=development",
 	)
 	cmd.Env = env
+	
+	if Config.Verbose {
+		fmt.Printf("NODE_PATH set to: %s\n", nodePath)
+	}
 
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
 		return nil, fmt.Errorf("failed to start cline-core: %w", err)
 	}
 
-	fmt.Printf("Started cline-core (PID: %d)\n", cmd.Process.Pid)
-	fmt.Printf("Logging cline-core output to: %s\n", logFilePath)
+	if Config.Verbose {
+		fmt.Printf("Started cline-core (PID: %d)\n", cmd.Process.Pid)
+		fmt.Printf("Logging cline-core output to: %s\n", logFilePath)
+	}
 	return cmd, nil
 }

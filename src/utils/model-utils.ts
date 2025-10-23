@@ -24,7 +24,13 @@ export function isAnthropicModelId(modelId: string): modelId is AnthropicModelId
 export function isClaude4ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
-		modelId.includes("sonnet-4") || modelId.includes("opus-4") || modelId.includes("4-sonnet") || modelId.includes("4-opus")
+		modelId.includes("sonnet-4") ||
+		modelId.includes("opus-4") ||
+		modelId.includes("4-sonnet") ||
+		modelId.includes("4-opus") ||
+		modelId.includes("haiku-4") ||
+		modelId.includes("4-5-haiku") ||
+		modelId.includes("4.5-haiku")
 	)
 }
 
@@ -41,6 +47,16 @@ export function isGrok4ModelFamily(id: string): boolean {
 export function isGPT5ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gpt-5") || modelId.includes("gpt5")
+}
+
+export function isGLMModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return (
+		modelId.includes("glm-4.6") ||
+		modelId.includes("glm-4.5") ||
+		modelId.includes("z-ai/glm") ||
+		modelId.includes("zai-org/glm")
+	)
 }
 
 export function isNextGenModelFamily(id: string): boolean {

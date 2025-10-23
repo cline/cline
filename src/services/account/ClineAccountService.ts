@@ -7,14 +7,14 @@ import type {
 	UserResponse,
 } from "@shared/ClineAccount"
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
-import { clineEnvConfig } from "@/config"
+import { ClineEnv } from "@/config"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { AuthService } from "../auth/AuthService"
 
 export class ClineAccountService {
 	private static instance: ClineAccountService
 	private _authService: AuthService
-	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
+	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 
 	constructor() {
 		this._authService = AuthService.getInstance()
