@@ -10,10 +10,12 @@ import { MatrixParseMessageFactory } from "./matrixParseMessages"
 import { MatrixFileParsePrompt } from "./prompts/MatrixParsePrompt"
 import { ChatState, MessageHandlers, ScrollBehavior } from "@/components/chat/chat-view/types/chatTypes"
 import {  getTaskMessage,  MessagesArea, useChatState, useMessageHandlers } from "../chat/chat-view"
+import { DbcFileParsePrompt } from "./prompts/DbcParsePrompt"
+import { Dbc2MatrixFileParsePrompt } from "./prompts/Dbc2MatrixParsePrompt"
 
 const { Title, Text } = Typography
 
-interface MatrixParseViewProps {
+interface DbcParseViewProps {
 	onBack?: () => void,
 	onSwitchToChat: () => void,
 	task: ClineMessage | undefined,
@@ -22,10 +24,11 @@ interface MatrixParseViewProps {
 	scrollBehavior: ScrollBehavior,
 	chatState: ChatState,
 	messageHandlers: MessageHandlers,
+	type: "dbc2code" | "dbc2matrix"
 }
 
 // 创建与ChatLayout类似的布局容器
-const MatrixLayoutContainer = styled.div.withConfig({
+const DbcLayoutContainer = styled.div.withConfig({
 	shouldForwardProp: (prop) => !["isHidden"].includes(prop),
 })<{ isHidden?: boolean }>`
 	display: ${(props) => (props.isHidden ? "none" : "grid")};
@@ -57,7 +60,7 @@ const UploadCard = styled(Card)`
   }
 `
 
-const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat,task,groupedMessages,modifiedMessages,scrollBehavior,chatState,messageHandlers}) => {
+const DbcParseView: React.FC<DbcParseViewProps> = ({ onBack,onSwitchToChat,task,groupedMessages,modifiedMessages,scrollBehavior,chatState,messageHandlers,type}) => {
 	const [messages, setMessages] = useState<ClineMessage[]>([])
 	const [isProcessing, setIsProcessing] = useState(false)
 	const [selectedFileName, setSelectedFileName] = useState<string>("")
@@ -149,17 +152,13 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 		setMessages([initialMessage])
 	}, [])
 
-	// 消息处理
-
-
-
-	// 处理文件选择
+		// 处理文件选择
 	const handleFileSelect = async () => {
 		try {
 			// 创建文件输入元素
 			const input = document.createElement("input")
 			input.type = "file"
-			input.accept = ".xlsx,.xls"
+			input.accept = ".dbc,.DBC"
 			input.style.display = "none"
 
 			// 设置文件选择回调
@@ -167,8 +166,8 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 				const file = (event.target as HTMLInputElement).files?.[0]
 				if (file) {
 					// 验证文件类型
-					if (!file.name.toLowerCase().endsWith(".xlsx") && !file.name.toLowerCase().endsWith(".xls")) {
-						message.error("请选择Excel文件 (.xlsx 或 .xls)")
+					if ( !file.name.toLowerCase().endsWith(".dbc")) {
+						message.error("请选择Excel文件 (.dbc)")
 						return
 					}
 
@@ -197,7 +196,6 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 					setMessages((prev) => [...prev, processingMessage])
 
 					// 调用 MatrixService 处理文件
-					console.log("[MatrixParseView] Calling MatrixService to process file:", file.name)
 
 					// 将ArrayBuffer转换为Uint8Array
 					const uint8Array = new Uint8Array(fileContent)
@@ -211,9 +209,7 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 
 					// 创建一个临时的MatrixServiceClient类来调用服务
 					try {
-						const response = await MatrixServiceClient.processMatrixFile(request)
-
-						
+						const response = await MatrixServiceClient.processMatrixFile(request)				
 					
 						
 
@@ -284,11 +280,13 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 
 				// 创建新任务请求，使用工作流文件作为驱动逻辑
 				// 将文件URL作为参数传递给工作流
+
+				const prompt=(type==="dbc2code")?DbcFileParsePrompt():Dbc2MatrixFileParsePrompt();	
 				
 				await TaskServiceClient.newTask(
 					NewTaskRequest.create({
-						text: `${MatrixFileParsePrompt()}\n处理上传的CAN矩阵文件，
-						在每一步与用户进行交互\n\n文件URL: ${fileUrl}\n\n**矩阵文件的Sheet列表**: ${sheetNames}`,
+						text: `${prompt}\n处理上传的DBC文件，
+						在每一步与用户进行交互\n\n文件URL: ${fileUrl}\n\n**DBC文件的Sheet列表**: ${sheetNames}`,
 						images: [],
 					}),
 				)
@@ -311,7 +309,7 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 	}
 
 	return (
-		<MatrixLayoutContainer>
+		<DbcLayoutContainer>
 			{header}
 			<MainContent>
 				<div style={{ padding: "20px", height: "100%", display: "flex", flexDirection: "column" }}>
@@ -327,9 +325,9 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 									marginBottom: "8px",
 								}}>
 								<CodeOutlined />
-								矩阵报文解析:
+								DBC解析2:
 							</Title>
-							<Text style={{ color: "var(--vscode-descriptionForeground)" }}>矩阵文件解析与CAN报文分析工具</Text>
+							<Text style={{ color: "var(--vscode-descriptionForeground)" }}>DBC分析工具</Text>
 						</div>
 
 						{showMcpDemo ? (
@@ -347,10 +345,10 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 														marginTop: 0,
 														marginBottom: "16px",
 													}}>
-													选择CAN功能矩阵定义文件
+													选择Dbc文件
 												</Title>
 												<Text style={{ color: "var(--vscode-descriptionForeground)" }}>
-													请选择本地的CAN功能矩阵定义Excel文件，支持格式：.xlsx, .xls
+													请选择本地的Dbc文件，支持格式：.dbc
 												</Text>
 											</div>
 										
@@ -426,8 +424,8 @@ const MatrixParseView: React.FC<MatrixParseViewProps> = ({ onBack,onSwitchToChat
 					</Space>
 				</div>
 			</MainContent>
-		</MatrixLayoutContainer>
+		</DbcLayoutContainer>
 	)
 }
 
-export default MatrixParseView
+export default DbcParseView

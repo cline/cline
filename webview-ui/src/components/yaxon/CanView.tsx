@@ -19,6 +19,7 @@ import UdsDiagView from "./UdsDiagView"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { filterVisibleMessages, groupMessages, useChatState, useMessageHandlers, useScrollBehavior } from "../chat/chat-view"
+import DbcParseView from "./DbcParseView"
 
 interface CanViewProps {
 	isHidden?: boolean
@@ -83,6 +84,14 @@ const CanView: React.FC<CanViewProps> = ({ isHidden = false, onSwitchToChat }) =
 				// 在当前面板中显示矩阵报文解析组件
 				setActiveTool("matrix-parse")
 				break
+			case "dbc-parse":
+				// 在当前面板中显示DBC解析组件
+				setActiveTool("dbc-parse")
+				break
+			case "dbc-matrix-parse":
+				// 在当前面板中显示DBC矩阵解析组件
+				setActiveTool("dbc-matrix-parse")
+				break	
 			case "uds-diag":
 				// 在当前面板中显示UDS诊断组件
 				setActiveTool("uds-diag")
@@ -120,7 +129,19 @@ const CanView: React.FC<CanViewProps> = ({ isHidden = false, onSwitchToChat }) =
 			navigateToChat()
 	}
 
+	const baseConfig={
+		
+		 task:{task} ,
+		 chatState:{chatState},
+		 modifiedMessages:{modifiedMessages},	 
+		 scrollBehavior:{scrollBehavior},
+		 messageHandlers:{messageHandlers},
+		 groupedMessages:{groupedMessages},
+		 onSwitchToChat:{handleSwitchToChat},
+		 onBack:{handleBackToMenu}
 
+	}
+        
 	// 如果已选择工具，则显示对应组件而不是菜单
 	if (activeTool === "matrix-parse") {
 		return <MatrixParseView
@@ -131,8 +152,37 @@ const CanView: React.FC<CanViewProps> = ({ isHidden = false, onSwitchToChat }) =
 		 messageHandlers={messageHandlers}
 		 groupedMessages={groupedMessages}
 		 onSwitchToChat={handleSwitchToChat}
-		 onBack={handleBackToMenu} />
+		 onBack={handleBackToMenu} 
+		 
+		 />
 	}
+	else if (activeTool === "dbc-parse") {
+		return <DbcParseView
+		 task={task} 
+		 chatState={chatState}
+		 modifiedMessages={modifiedMessages}	 
+		 scrollBehavior={scrollBehavior}
+		 messageHandlers={messageHandlers}
+		 groupedMessages={groupedMessages}
+		 onSwitchToChat={handleSwitchToChat}
+		 onBack={handleBackToMenu}
+		 type="dbc2code"
+		 />
+	}
+	else if(activeTool === "dbc-matrix-parse"){
+		return <DbcParseView
+		 task={task} 
+		 chatState={chatState}
+		 modifiedMessages={modifiedMessages}	 
+		 scrollBehavior={scrollBehavior}
+		 messageHandlers={messageHandlers}
+		 groupedMessages={groupedMessages}
+		 onSwitchToChat={handleSwitchToChat}
+		 onBack={handleBackToMenu}
+		 type="dbc2matrix"
+		 />
+	}
+	
 
 	if (activeTool === "uds-diag") {
 		return <UdsDiagView onBack={handleBackToMenu} />
@@ -144,8 +194,18 @@ const CanView: React.FC<CanViewProps> = ({ isHidden = false, onSwitchToChat }) =
 			key: "can-dev",
 			children: [
 				{
-					label: "矩阵报文解析",
+					label: "矩阵文件生成代码",
 					key: "matrix-parse",
+					icon: <CodeOutlined />,
+				},
+				{
+					label: "DBC生成代码",
+					key: "dbc-parse",
+					icon: <CodeOutlined />,
+				},
+				{
+					label: "DBC转换矩阵文件",
+					key: "dbc-matrix-parse",
 					icon: <CodeOutlined />,
 				},
 				{
