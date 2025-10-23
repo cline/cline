@@ -778,7 +778,7 @@ func TestJSONOutputTaskPause(t *testing.T) {
 // TestJSONOutputTaskSend tests task send JSON output
 func TestJSONOutputTaskSend(t *testing.T) {
 	ctx := context.Background()
-	setTempClineDir(t)
+	setTempClineDirWithManualCleanup(t) // Use manual cleanup to avoid git checkpoint cleanup errors
 
 	// Create a task first
 	_ = mustRunCLI(ctx, t, "instance", "new")
