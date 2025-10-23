@@ -192,7 +192,12 @@ const OnboardingStepContent = ({
 	return null
 }
 
-const OnboardingView = () => {
+type OnboardingViewProps = {
+	showOnboarding: (value: boolean) => void
+	onDone: () => void
+}
+
+const OnboardingView = ({ showOnboarding, onDone }: OnboardingViewProps) => {
 	const [stepNumber, setStepNumber] = useState(0)
 	const [userType, setUserType] = useState<USER_TYPE>(USER_TYPE.FREE)
 	const [selectedModelId, setSelectedModelId] = useState("")
@@ -205,6 +210,8 @@ const OnboardingView = () => {
 	}, [userType])
 
 	const finishOnboarding = useCallback(async () => {
+		showOnboarding(false)
+		onDone()
 		await StateServiceClient.setWelcomeViewCompleted(BooleanRequest.create({ value: true })).catch((err) =>
 			console.error("Failed to set welcome view completed:", err),
 		)
