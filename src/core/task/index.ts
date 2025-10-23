@@ -1727,7 +1727,10 @@ export class Task {
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
-		this.useNativeToolCalls = !!tools?.length
+
+		if (featureFlagsService.getNativeToolCallEnabled()) {
+			this.useNativeToolCalls = !!tools?.length
+		}
 
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
