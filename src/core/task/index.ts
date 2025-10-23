@@ -1324,20 +1324,26 @@ export class Task {
 			return this.executeCommandInNode(command)
 		}
 
-		// CRITICAL: CLI subagent commands MUST use VSCode terminal mode (not backgroundExec)
-		// Reason: Creates a three-way deadlock when using backgroundExec:
-		//   1. Extension blocks in 'await process' waiting for CLI to exit
-		//   2. CLI blocks waiting for gRPC messages from its child gRPC server
-		//   3. gRPC server (child of CLI) needs extension to process tasks
-		// Solution: Always use VSCode terminal for CLI commands
-		const useVscodeTerminal = isSubagent
+		// Force subagents to use background terminal (hidden execution)
 
 		Logger.info("Executing command in terminal: " + command)
 
 		let terminalManager: TerminalManager
-		if (useVscodeTerminal) {
-			// Create a VSCode TerminalManager for CLI subagents
-			terminalManager = new TerminalManager()
+		if (isSubagent) {
+			// Create a background TerminalManager for CLI subagents
+			try {
+				const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
+					StandaloneTerminalManager?: new () => TerminalManager
+				}
+				if (StandaloneTerminalManager) {
+					terminalManager = new StandaloneTerminalManager()
+				} else {
+					terminalManager = new TerminalManager()
+				}
+			} catch (error) {
+				console.error("[DEBUG] Failed to load standalone terminal manager for subagent", error)
+				terminalManager = new TerminalManager()
+			}
 			terminalManager.setShellIntegrationTimeout(this.terminalManager["shellIntegrationTimeout"] || 4000)
 			terminalManager.setTerminalReuseEnabled(this.terminalManager["terminalReuseEnabled"] ?? true)
 			terminalManager.setTerminalOutputLineLimit(this.terminalManager["terminalOutputLineLimit"] || 500)

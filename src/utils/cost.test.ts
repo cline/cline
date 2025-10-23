@@ -1,7 +1,7 @@
 import { describe, it } from "mocha"
 import "should"
 import { ModelInfo } from "@shared/api"
-import { calculateApiCostAnthropic, calculateApiCostOpenAI } from "@utils/cost"
+import { calculateApiCostAnthropic, calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 
 describe("Cost Utilities", () => {
 	describe("calculateApiCostAnthropic", () => {
@@ -120,6 +120,81 @@ describe("Cost Utilities", () => {
 			}
 
 			const cost = calculateApiCostOpenAI(modelInfo, 0, 0, 0, 0)
+			cost.should.equal(0)
+		})
+	})
+
+	describe("calculateApiCostQwen", () => {
+		it("should calculate basic input/output costs", () => {
+			const modelInfo: ModelInfo = {
+				supportsPromptCache: false,
+				inputPrice: 0.15, // Qwen 30B pricing
+				outputPrice: 0.6,
+			}
+
+			const cost = calculateApiCostQwen(modelInfo, 1000, 500)
+			// Input: (0.15 / 1_000_000) * 1000 = 0.00015
+			// Output: (0.6 / 1_000_000) * 500 = 0.0003
+			// Total: 0.00015 + 0.0003 = 0.00045
+			cost.should.equal(0.00045)
+		})
+
+		it("should handle missing prices", () => {
+			const modelInfo: ModelInfo = {
+				supportsPromptCache: true,
+				// No prices specified
+			}
+
+			const cost = calculateApiCostQwen(modelInfo, 1000, 500)
+			cost.should.equal(0)
+		})
+
+		it("should use real Qwen model configuration (30B)", () => {
+			const modelInfo: ModelInfo = {
+				maxTokens: 8192,
+				contextWindow: 262_144,
+				supportsImages: false,
+				supportsPromptCache: false,
+				inputPrice: 0.15,
+				outputPrice: 0.6,
+			}
+
+			const cost = calculateApiCostQwen(modelInfo, 1000, 500, 0, 0)
+			// Input: (0.15 / 1_000_000) * 1000 = 0.00015
+			// Output: (0.6 / 1_000_000) * 500 = 0.0003
+			// Total: 0.00015 + 0.0003 = 0.00045
+			cost.should.equal(0.00045)
+		})
+
+		it("should handle cache tokens correctly (Qwen-style)", () => {
+			const modelInfo: ModelInfo = {
+				supportsPromptCache: true,
+				inputPrice: 0.15,
+				outputPrice: 0.6,
+				cacheWritesPrice: 0.2,
+				cacheReadsPrice: 0.05,
+			}
+
+			// Qwen-style: inputTokens includes cached tokens
+			const cost = calculateApiCostQwen(modelInfo, 2100, 1000, 1500, 500)
+			// Cache writes: (0.2 / 1_000_000) * 1500 = 0.0003
+			// Cache reads: (0.05 / 1_000_000) * 500 = 0.000025
+			// Input: (0.15 / 1_000_000) * (2100 - 1500 - 500) = 0.000015
+			// Output: (0.6 / 1_000_000) * 1000 = 0.0006
+			// Total: 0.0003 + 0.000025 + 0.000015 + 0.0006 = 0.00094
+			cost.should.equal(0.00094)
+		})
+
+		it("should handle zero token counts", () => {
+			const modelInfo: ModelInfo = {
+				supportsPromptCache: true,
+				inputPrice: 0.15,
+				outputPrice: 0.6,
+				cacheWritesPrice: 0.2,
+				cacheReadsPrice: 0.05,
+			}
+
+			const cost = calculateApiCostQwen(modelInfo, 0, 0, 0, 0)
 			cost.should.equal(0)
 		})
 	})

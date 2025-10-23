@@ -104,17 +104,15 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h3>
 			<ul style={ulStyle}>
 				<li>
-					<b>Cline CLI (Preview):</b> Run Cline from the command line with experimental Subagent support.{" "}
-					<VSCodeLink href="http://cline.bot/blog/cline-cli-my-undying-love-of-cline-core" style={linkStyle}>
-						Learn more
+					Cline Teams is now free through the end of the year for unlimited users. Includes Jetbrains, RBAC, centralized
+					billing and more.{" "}
+					<VSCodeLink href="https://app.cline.bot/login" style={linkStyle}>
+						Start using teams
 					</VSCodeLink>
 				</li>
 				<li>
-					<b>Multi-Root Workspaces:</b> Work across multiple projects simultaneously (Enable in feature settings)
-				</li>
-
-				<li>
-					<b>Auto-Retry Failed API Requests:</b> No more interrupted auto-approved tasks due to server errors
+					Use the “exacto” versions of GLM-4.6, Kimi-K2, and Qwen3-Coder in the Cline provider model picker for the best
+					balance of cost, speed, accuracy and tool-calling.
 				</li>
 			</ul>
 			<div style={hrStyle} />

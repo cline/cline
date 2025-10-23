@@ -14,6 +14,7 @@ import (
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/task"
 	"github.com/cline/cli/pkg/cli/updater"
+	"github.com/cline/grpc-go/cline"
 	"github.com/spf13/cobra"
 )
 
@@ -476,15 +477,34 @@ func newTaskOpenCommand() *cobra.Command {
 					return fmt.Errorf("failed to parse settings: %w", err)
 				}
 
-				// Create config manager to apply settings
-				configManager, err := config.NewManager(ctx, taskManager.GetCurrentInstance())
-				if err != nil {
-					return fmt.Errorf("failed to create config manager: %w", err)
+				// Apply task-specific settings using UpdateTaskSettings RPC
+				if parsedSettings != nil {
+					_, err = taskManager.GetClient().State.UpdateTaskSettings(ctx, &cline.UpdateTaskSettingsRequest{
+						Settings: parsedSettings,
+						TaskId:   &taskID,
+					})
+					if err != nil {
+						return fmt.Errorf("failed to apply task settings: %w", err)
+					}
+					if global.Config.Verbose {
+						fmt.Println("Task-specific settings applied successfully")
+					}
 				}
 
-				// Apply the settings to the instance
-				if err := configManager.UpdateSettings(ctx, parsedSettings, secrets); err != nil {
-					return fmt.Errorf("failed to apply settings: %w", err)
+				// Handle secrets separately if provided (they must go to global config)
+				if secrets != nil {
+					// Secrets are always global, not task-specific
+					configManager, err := config.NewManager(ctx, taskManager.GetCurrentInstance())
+					if err != nil {
+						return fmt.Errorf("failed to create config manager: %w", err)
+					}
+
+					if err := configManager.UpdateSettings(ctx, nil, secrets); err != nil {
+						return fmt.Errorf("failed to apply secrets: %w", err)
+					}
+					if global.Config.Verbose {
+						fmt.Println("Global secrets applied successfully")
+					}
 				}
 			}
 

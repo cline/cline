@@ -1,4 +1,4 @@
-import { isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
+import { isGLMModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { ApiProviderInfo } from "@/core/api"
 import { ModelFamily } from "@/shared/prompts"
 import { PromptRegistry } from "./registry/PromptRegistry"
@@ -23,6 +23,10 @@ export function getModelFamily(providerInfo: ApiProviderInfo): ModelFamily {
 	// Check for next-gen models first
 	if (isNextGenModelFamily(providerInfo.model.id)) {
 		return ModelFamily.NEXT_GEN
+	}
+	// Check for GLM models
+	if (isGLMModelFamily(providerInfo.model.id)) {
+		return ModelFamily.GLM
 	}
 	if (providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) {
 		return ModelFamily.XS

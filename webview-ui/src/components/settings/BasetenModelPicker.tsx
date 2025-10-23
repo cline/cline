@@ -53,7 +53,7 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 	}, [apiConfiguration, currentMode])
 
 	useMount(() => {
-		ModelsServiceClient.refreshBasetenModelsRPC(EmptyRequest.create({}))
+		ModelsServiceClient.refreshBasetenModelsRpc(EmptyRequest.create({}))
 			.then((response) => {
 				setBasetenModels({
 					[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],

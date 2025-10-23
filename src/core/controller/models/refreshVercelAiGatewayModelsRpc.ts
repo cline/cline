@@ -10,7 +10,7 @@ import { refreshVercelAiGatewayModels } from "./refreshVercelAiGatewayModels"
  * @param request Empty request object
  * @returns Response containing Vercel AI Gateway models (protobuf types)
  */
-export async function refreshVercelAiGatewayModelsRPC(
+export async function refreshVercelAiGatewayModelsRpc(
 	controller: Controller,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {

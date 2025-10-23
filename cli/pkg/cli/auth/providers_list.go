@@ -208,9 +208,9 @@ func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
 	switch providerStr {
 	case "anthropic":
 		return cline.ApiProvider_ANTHROPIC, true
-	case "openai":
+	case "openai-compatible": // internal name is 'openai', but this is actually the openai-compatible provider
 		return cline.ApiProvider_OPENAI, true
-	case "openai-native":
+	case "openai", "openai-native": // This is the native, official Open AI provider
 		return cline.ApiProvider_OPENAI_NATIVE, true
 	case "openrouter":
 		return cline.ApiProvider_OPENROUTER, true
@@ -240,7 +240,7 @@ func GetProviderIDForEnum(provider cline.ApiProvider) string {
 	case cline.ApiProvider_ANTHROPIC:
 		return "anthropic"
 	case cline.ApiProvider_OPENAI:
-		return "openai"
+		return "openai-compatible"
 	case cline.ApiProvider_OPENAI_NATIVE:
 		return "openai-native"
 	case cline.ApiProvider_OPENROUTER:
@@ -317,9 +317,9 @@ func GetProviderDisplayName(provider cline.ApiProvider) string {
 	case cline.ApiProvider_ANTHROPIC:
 		return "Anthropic"
 	case cline.ApiProvider_OPENAI:
-		return "OpenAI"
+		return "OpenAI Compatible"
 	case cline.ApiProvider_OPENAI_NATIVE:
-		return "OpenAI Native"
+		return "OpenAI (Official)"
 	case cline.ApiProvider_OPENROUTER:
 		return "OpenRouter"
 	case cline.ApiProvider_XAI:

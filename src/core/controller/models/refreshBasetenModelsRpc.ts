@@ -10,7 +10,7 @@ import { refreshBasetenModels } from "./refreshBasetenModels"
  * @param request Empty request object
  * @returns Response containing Baseten models (protobuf types)
  */
-export async function refreshBasetenModelsRPC(
+export async function refreshBasetenModelsRpc(
 	controller: Controller,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {

@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import {
 	CLAUDE_SONNET_1M_SUFFIX,
 	ModelInfo,
+	OPENROUTER_PROVIDER_PREFERENCES,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@shared/api"
@@ -164,9 +165,10 @@ export async function createOpenRouterStream(
 			}
 	}
 
-	// hardcoded provider sorting for kimi-k2
-	const isKimiK2 = model.id === "moonshotai/kimi-k2"
-	openRouterProviderSorting = isKimiK2 ? undefined : openRouterProviderSorting
+	const providerPreferences = OPENROUTER_PROVIDER_PREFERENCES[model.id]
+	if (providerPreferences) {
+		openRouterProviderSorting = undefined
+	}
 
 	// @ts-ignore-next-line
 	const stream = await client.chat.completions.create({
@@ -180,12 +182,8 @@ export async function createOpenRouterStream(
 		include_reasoning: true,
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
-		...(openRouterProviderSorting ? { provider: { sort: openRouterProviderSorting } } : {}),
-		// limit providers to only those that support the 131k context window
-		...(isKimiK2
-			? { provider: { order: ["groq", "together", "baseten", "parasail", "novita", "deepinfra"], allow_fallbacks: false } }
-			: {}),
-		// limit providers to only those that support the 1m context window
+		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
+		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaudeSonnet1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
 	})
 

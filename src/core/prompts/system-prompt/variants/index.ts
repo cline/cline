@@ -7,12 +7,14 @@
  */
 
 export { config as genericConfig, type GenericVariantConfig } from "./generic/config"
+export { config as glmConfig, type GLMVariantConfig } from "./glm/config"
 export { config as gpt5Config, type GPT5VariantConfig } from "./gpt-5/config"
 export { config as nextGenConfig, type NextGenVariantConfig } from "./next-gen/config"
 export { config as xsConfig, type XsVariantConfig } from "./xs/config"
 
 import { ModelFamily } from "@/shared/prompts"
 import { config as genericConfig } from "./generic/config"
+import { config as glmConfig } from "./glm/config"
 import { config as gpt5Config } from "./gpt-5/config"
 import { config as nextGenConfig } from "./next-gen/config"
 import { config as xsConfig } from "./xs/config"
@@ -28,6 +30,11 @@ export const VARIANT_CONFIGS = {
 	 * Optimized for broad compatibility and stable performance
 	 */
 	[ModelFamily.GENERIC]: genericConfig,
+	/**
+	 * GLM variant - Optimized for GLM-4.6 model
+	 * Configured for advanced agentic coding capabilities
+	 */
+	[ModelFamily.GLM]: glmConfig,
 	/**
 	 * Next-gen variant - Advanced models with enhanced capabilities
 	 * Includes additional features like feedback loops and web fetching

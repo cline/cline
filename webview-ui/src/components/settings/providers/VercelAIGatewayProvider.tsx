@@ -35,7 +35,7 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 	useMount(() => {
 		if (showModelOptions) {
 			setIsLoadingModels(true)
-			ModelsServiceClient.refreshVercelAiGatewayModelsRPC(EmptyRequest.create({}))
+			ModelsServiceClient.refreshVercelAiGatewayModelsRpc(EmptyRequest.create({}))
 				.then((response) => {
 					if (response && response.models) {
 						setVercelAiGatewayModels(fromProtobufModels(response.models))
