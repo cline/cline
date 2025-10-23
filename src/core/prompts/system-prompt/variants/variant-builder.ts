@@ -1,8 +1,7 @@
-import { ApiProviderInfo } from "@/core/api"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../templates/placeholders"
-import type { ConfigOverride, PromptVariant } from "../types"
+import type { ConfigOverride, PromptVariant, SystemPromptContext } from "../types"
 
 /**
  * Type-safe builder for creating prompt variants
@@ -71,9 +70,9 @@ export class VariantBuilder {
 	}
 
 	/**
-	 * Set the matcher function to determine if this variant should be used for a given providerInfo
+	 * Set the matcher function to determine if this variant should be used for a given context
 	 */
-	matcher(matcherFn: (providerInfo: ApiProviderInfo) => boolean): this {
+	matcher(matcherFn: (context: SystemPromptContext) => boolean): this {
 		this.variant = {
 			...this.variant,
 			matcher: matcherFn,

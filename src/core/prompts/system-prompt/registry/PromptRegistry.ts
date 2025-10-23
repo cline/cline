@@ -1,4 +1,3 @@
-import { ApiProviderInfo } from "@/core/api"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineTool } from "@/shared/tools"
 import { ClineToolSet } from ".."
@@ -68,11 +67,11 @@ export class PromptRegistry {
 		)
 	}
 
-	getModelFamily(providerInfo: ApiProviderInfo) {
+	getModelFamily(context: SystemPromptContext) {
 		// Loop through all registered variants to find the first one that matches
 		for (const [id, v] of this.variants.entries()) {
 			try {
-				if (v.matcher(providerInfo)) {
+				if (v.matcher(context)) {
 					return v.family
 				}
 			} catch (error) {
@@ -90,7 +89,7 @@ export class PromptRegistry {
 		await this.load()
 
 		// Loop through all registered variants to find the first one that matches
-		const family = this.getModelFamily(context.providerInfo)
+		const family = this.getModelFamily(context)
 
 		// Fallback to generic variant if no match found
 

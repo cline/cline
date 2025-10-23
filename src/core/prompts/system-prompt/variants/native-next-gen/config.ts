@@ -17,7 +17,11 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 		advanced: 1,
 		use_native_tools: 1,
 	})
-	.matcher((providerInfo) => {
+	.matcher((context) => {
+		if (!context.allowNativeToolCalls) {
+			return false
+		}
+		const providerInfo = context.providerInfo
 		const isSupportedProvider = ["cline", "anthropic", "gemini", "openrouter"].some(
 			(id) => providerInfo.providerId.toLowerCase() === id,
 		)

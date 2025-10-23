@@ -17,7 +17,11 @@ export const config = createVariant(ModelFamily.GPT_5)
 		advanced: 1,
 		use_native_tools: 1,
 	})
-	.matcher((providerInfo) => {
+	.matcher((context) => {
+		if (!context.allowNativeToolCalls) {
+			return false
+		}
+		const providerInfo = context.providerInfo
 		// Match GPT-5 models from providers that support native tools
 		return (
 			isGPT5ModelFamily(providerInfo.model.id) &&

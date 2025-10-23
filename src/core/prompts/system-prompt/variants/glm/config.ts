@@ -13,10 +13,9 @@ export const config = createVariant(ModelFamily.GLM)
 	.labels({
 		stable: 1,
 		production: 1,
-		use_native_tools: 1,
 	})
 	.matcher((context) => {
-		return isGLMModelFamily(context.model.id)
+		return isGLMModelFamily(context.providerInfo.model.id)
 	})
 	.template(baseTemplate)
 	.components(

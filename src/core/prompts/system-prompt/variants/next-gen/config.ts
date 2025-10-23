@@ -16,8 +16,12 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		production: 1,
 		advanced: 1,
 	})
-	.matcher((providerInfo) => {
+	.matcher((context) => {
 		// Match next-gen models
+		const providerInfo = context.providerInfo
+		if (isNextGenModelFamily(providerInfo.model.id) && !context.allowNativeToolCalls) {
+			return true
+		}
 		return (
 			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
 			!["cline", "anthropic", "gemini", "openrouter"].some((id) => providerInfo.providerId?.toLowerCase() === id) &&

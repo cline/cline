@@ -17,7 +17,8 @@ export const config = createVariant(ModelFamily.XS)
 		production: 1,
 		advanced: 1,
 	})
-	.matcher((providerInfo) => {
+	.matcher((context) => {
+		const providerInfo = context.providerInfo
 		// Match compact local models
 		return providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)
 	})

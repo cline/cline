@@ -30,7 +30,7 @@ export interface PromptVariant {
 	readonly labels: Readonly<Record<string, number>> // Immutable labels mapping
 	readonly family: ModelFamily // Model family enum
 	readonly description: string // Brief description of the variant
-	readonly matcher: (providerInfo: ApiProviderInfo) => boolean // Function to determine if this variant should be used for the given providerInfo
+	readonly matcher: (context: SystemPromptContext) => boolean // Function to determine if this variant should be used for the given providerInfo
 
 	// Prompt configuration
 	readonly config: PromptConfig // Model-specific config
@@ -112,6 +112,7 @@ export interface SystemPromptContext {
 	readonly workspaceRoots?: Array<{ path: string; name: string; vcs?: string }>
 	readonly isSubagentsEnabledAndCliInstalled?: boolean
 	readonly isCliSubagent?: boolean
+	readonly allowNativeToolCalls?: boolean
 }
 
 /**

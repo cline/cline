@@ -1,4 +1,4 @@
-import { isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
+import { isGLMModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -14,22 +14,21 @@ export const config = createVariant(ModelFamily.GENERIC)
 		stable: 1,
 		fallback: 1,
 	})
-	.matcher((providerInfo) => {
+	.matcher((context) => {
+		const providerInfo = context.providerInfo
 		if (!providerInfo.providerId || !providerInfo.model.id) {
 			return true
 		}
 		const modelId = providerInfo.model.id.toLowerCase()
-		if (modelId.includes("z-ai")) {
-			return false
-		}
 		const isSupportedProvider = ["cline", "anthropic", "gemini"].some((id) => providerInfo.providerId?.toLowerCase() === id)
 		// Generic matcher - fallback for everything that doesn't match other variants
 		// This will match anything that doesn't match the other specific variants
 		return (
 			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
 			!isSupportedProvider &&
-			!isNextGenModelFamily(providerInfo.model.id) &&
-			!isGPT5ModelFamily(providerInfo.model.id)
+			!isNextGenModelFamily(modelId) &&
+			!isGPT5ModelFamily(modelId) &&
+			!isGLMModelFamily(modelId)
 		)
 	})
 	.template(baseTemplate)

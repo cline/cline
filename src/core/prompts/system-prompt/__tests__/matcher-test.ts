@@ -3,7 +3,9 @@
  */
 
 import { ApiProviderInfo } from "@/core/api"
+import { McpHub } from "@/services/mcp/McpHub"
 import { ModelFamily } from "@/shared/prompts"
+import { SystemPromptContext } from "../types"
 import { VARIANT_CONFIGS } from "../variants"
 
 // Mock provider info objects for testing
@@ -60,8 +62,48 @@ export function testVariantMatching() {
 
 		// Test each variant's matcher function
 		for (const [familyId, config] of Object.entries(VARIANT_CONFIGS)) {
+			const mockContext = {
+				cwd: "/test/project",
+				ide: "TestIde",
+				supportsBrowserUse: true,
+				mcpHub: {
+					getServers: () => [
+						{
+							name: "test-server",
+							status: "connected",
+							config: '{"command": "test"}',
+							tools: [
+								{
+									name: "test_tool",
+									description: "A test tool",
+									inputSchema: { type: "object", properties: {} },
+								},
+							],
+							resources: [],
+							resourceTemplates: [],
+						},
+					],
+				} as unknown as McpHub,
+				focusChainSettings: {
+					enabled: true,
+					remindClineInterval: 6,
+				},
+				browserSettings: {
+					viewport: {
+						width: 1280,
+						height: 720,
+					},
+				},
+				globalClineRulesFileInstructions: "Follow global rules",
+				localClineRulesFileInstructions: "Follow local rules",
+				preferredLanguageInstructions: "Prefer TypeScript",
+				isTesting: true,
+				allowNativeToolCalls: false,
+				providerInfo,
+			} satisfies SystemPromptContext
+
 			try {
-				if (config.matcher(providerInfo)) {
+				if (config.matcher(mockContext)) {
 					matchedFamily = familyId as ModelFamily
 					console.log(`   ✅ Matched: ${familyId}`)
 					break

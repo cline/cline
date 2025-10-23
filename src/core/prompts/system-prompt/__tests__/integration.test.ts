@@ -164,6 +164,7 @@ const baseContext: SystemPromptContext = {
 	preferredLanguageInstructions: "Prefer TypeScript",
 	isTesting: true,
 	providerInfo: mockProviderInfo,
+	allowNativeToolCalls: false,
 }
 
 describe("Prompt System Integration Tests", () => {
@@ -250,6 +251,7 @@ describe("Prompt System Integration Tests", () => {
 							...baseContext,
 							providerInfo: makeMockProviderInfo(modelId, providerId),
 							isTesting: true,
+							allowNativeToolCalls: modelGroup === ModelFamily.NATIVE_NEXT_GEN,
 						}
 						it(`should generate consistent prompt for ${providerId}/${modelId} with ${contextName} context`, async function () {
 							this.timeout(30000) // Allow more time for prompt generation

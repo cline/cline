@@ -1835,13 +1835,11 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
+			allowNativeToolCalls: featureFlagsService.getNativeToolCallEnabled(),
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
-
-		if (featureFlagsService.getNativeToolCallEnabled()) {
-			this.useNativeToolCalls = !!tools?.length
-		}
+		this.useNativeToolCalls = !!tools?.length
 
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
