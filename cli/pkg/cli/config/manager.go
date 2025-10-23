@@ -100,7 +100,6 @@ func (m *Manager) ListSettings(ctx context.Context) error {
 		"terminalOutputLineLimit",
 		"mode",
 		"preferredLanguage",
-		"openaiReasoningEffort",
 		"strictPlanModeEnabled",
 		"focusChainSettings",
 		"useAutoCondense",

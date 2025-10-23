@@ -233,6 +233,9 @@ export interface ModelInfo {
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
 	isR1FormatRequired?: boolean
+	isReasoningModelFamily?: boolean
+	reasoningEffort?: "minimal" | "low" | "medium" | "high"
+	setReasoningEffort?: boolean
 }
 
 export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
@@ -1144,9 +1147,12 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	supportsImages: true,
 	supportsPromptCache: false,
 	isR1FormatRequired: false,
+	isReasoningModelFamily: false,
 	inputPrice: 0,
 	outputPrice: 0,
 	temperature: 0,
+	reasoningEffort: undefined,
+	setReasoningEffort: false,
 }
 
 // Gemini
@@ -1336,6 +1342,7 @@ export const openAiNativeModels = {
 		inputPrice: 1.25,
 		outputPrice: 10.0,
 		cacheReadsPrice: 0.125,
+		isReasoningModelFamily: true,
 	},
 	"gpt-5-mini-2025-08-07": {
 		maxTokens: 8_192,
@@ -1345,6 +1352,7 @@ export const openAiNativeModels = {
 		inputPrice: 0.25,
 		outputPrice: 2.0,
 		cacheReadsPrice: 0.025,
+		isReasoningModelFamily: true,
 	},
 	"gpt-5-nano-2025-08-07": {
 		maxTokens: 8_192,
@@ -1354,6 +1362,7 @@ export const openAiNativeModels = {
 		inputPrice: 0.05,
 		outputPrice: 0.4,
 		cacheReadsPrice: 0.005,
+		isReasoningModelFamily: true,
 	},
 	"gpt-5-chat-latest": {
 		maxTokens: 8_192,
@@ -1372,6 +1381,7 @@ export const openAiNativeModels = {
 		inputPrice: 2.0,
 		outputPrice: 8.0,
 		cacheReadsPrice: 0.5,
+		isReasoningModelFamily: true,
 	},
 	"o4-mini": {
 		maxTokens: 100_000,
@@ -1381,6 +1391,7 @@ export const openAiNativeModels = {
 		inputPrice: 1.1,
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.275,
+		isReasoningModelFamily: true,
 	},
 	"gpt-4.1": {
 		maxTokens: 32_768,
@@ -1417,6 +1428,7 @@ export const openAiNativeModels = {
 		inputPrice: 1.1,
 		outputPrice: 4.4,
 		cacheReadsPrice: 0.55,
+		isReasoningModelFamily: true,
 	},
 	// don't support tool use yet
 	o1: {
@@ -1472,7 +1484,7 @@ export const openAiNativeModels = {
 		inputPrice: 5,
 		outputPrice: 15,
 	},
-} as const satisfies Record<string, ModelInfo>
+} as const satisfies Record<string, OpenAiCompatibleModelInfo>
 
 // Azure OpenAI
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
