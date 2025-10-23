@@ -389,20 +389,21 @@ func newInstanceListCommand() *cobra.Command {
 				}
 
 				// Render the markdown table with terminal width for nice table layout
-				renderer, err := display.NewMarkdownRendererForTerminal()
+				mdRenderer, err := display.NewMarkdownRendererForTerminal()
 				if err != nil {
 					// Fallback to plain table if markdown renderer fails
 					fmt.Println(markdown.String())
 				} else {
-					rendered, err := renderer.Render(markdown.String())
+					rendered, err := mdRenderer.Render(markdown.String())
 					if err != nil {
 						fmt.Println(markdown.String())
 					} else {
 						// Post-process to colorize status values
-						rendered = strings.ReplaceAll(rendered, "SERVING", "\033[32mSERVING\033[0m")         // Green
-						rendered = strings.ReplaceAll(rendered, "✓", "\033[32m✓\033[0m")                     // Green
-						rendered = strings.ReplaceAll(rendered, "NOT_SERVING", "\033[31mNOT_SERVING\033[0m") // Red
-						rendered = strings.ReplaceAll(rendered, "UNKNOWN", "\033[33mUNKNOWN\033[0m")         // Yellow
+						colorRenderer := display.NewRenderer(global.Config.OutputFormat)
+						rendered = strings.ReplaceAll(rendered, "SERVING", colorRenderer.Green("SERVING"))
+						rendered = strings.ReplaceAll(rendered, "✓", colorRenderer.Green("✓"))
+						rendered = strings.ReplaceAll(rendered, "NOT_SERVING", colorRenderer.Red("NOT_SERVING"))
+						rendered = strings.ReplaceAll(rendered, "UNKNOWN", colorRenderer.Yellow("UNKNOWN"))
 
 						fmt.Print(strings.TrimLeft(rendered, "\n"))
 					}
