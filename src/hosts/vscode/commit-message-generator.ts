@@ -1,4 +1,5 @@
 import { buildApiHandler } from "@core/api"
+import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import * as vscode from "vscode"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
@@ -67,6 +68,15 @@ async function performCommitGeneration(stateManager: StateManager, gitDiff: stri
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
 
 		const prompts = [PROMPT.instruction]
+
+		// Respect user's preferred language setting for commit messages
+		const preferredLanguageRaw = stateManager.getGlobalSettingsKey("preferredLanguage")
+		const preferredLanguage = getLanguageKey(preferredLanguageRaw as LanguageDisplay)
+		if (preferredLanguage && preferredLanguage !== DEFAULT_LANGUAGE_SETTINGS) {
+			// Follow existing pattern used in task system: "Speak in <langKey>."
+			// This keeps conventional commit type prefixes intact while changing body language.
+			prompts.push(`# Preferred Language\n\nSpeak in ${preferredLanguage}.`)
+		}
 
 		const currentInput = inputBox?.value?.trim() || ""
 		if (currentInput) {
