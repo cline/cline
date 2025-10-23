@@ -91,6 +91,7 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	 * To move code: Use two SEARCH/REPLACE blocks (one to delete from original + one to insert at new location)
 	 * To delete code: Use empty REPLACE section`,
 		},
+		TASK_PROGRESS_PARAMETER,
 	],
 }
 

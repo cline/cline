@@ -66,6 +66,7 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 			instruction:
 				"After providing the path so a file can be created, then use this to provide the content to write to the file.",
 		},
+		TASK_PROGRESS_PARAMETER,
 	],
 }
 

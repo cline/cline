@@ -35,6 +35,7 @@ const GPT_5: ClineToolSpec = {
 			instruction: `The path of the directory (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}} to list top level source code definitions for.`,
 			usage: "Directory path here",
 		},
+		TASK_PROGRESS_PARAMETER,
 	],
 }
 

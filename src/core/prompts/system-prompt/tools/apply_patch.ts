@@ -1,6 +1,7 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ClineToolSpec } from "../spec"
+import { TASK_PROGRESS_PARAMETER } from "../types"
 
 // {
 //     "name": "apply_patch",
@@ -77,12 +78,14 @@ const GPT_5: ClineToolSpec = {
 	id: ClineDefaultTool.APPLY_PATCH,
 	name: "apply_patch",
 	description: APPLY_PATCH_TOOL_DESC,
+	contextRequirements: (context) => context.providerInfo.model.id.includes("gpt-5"),
 	parameters: [
 		{
 			name: "input",
 			required: true,
 			instruction: "The apply_patch command that you wish to execute.",
 		},
+		TASK_PROGRESS_PARAMETER,
 	],
 }
 

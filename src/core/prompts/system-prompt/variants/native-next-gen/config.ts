@@ -8,21 +8,27 @@ import { TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
 export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
-	.description("Cline next gen models with native tool calling")
+	.description("Next gen models with native tool calling")
 	.version(1)
 	.tags("advanced", "production", "native_tools")
 	.labels({
 		stable: 1,
 		production: 1,
 		advanced: 1,
-		tool_functions: 1,
+		use_native_tools: 1,
 	})
 	.matcher((providerInfo) => {
-		const isSupportedProvider = ["cline", "anthropic", "gemini"].some((id) => providerInfo.providerId.toLowerCase() === id)
+		const isSupportedProvider = ["cline", "anthropic", "gemini", "openrouter"].some(
+			(id) => providerInfo.providerId.toLowerCase() === id,
+		)
 		if (!isSupportedProvider) {
 			return false
 		}
-		return !isGPT5ModelFamily(providerInfo.model.id) && isNextGenModelFamily(providerInfo.model.id)
+		const modelId = providerInfo.model.id.toLowerCase()
+		if (modelId.includes("z-ai")) {
+			return true
+		}
+		return !isGPT5ModelFamily(modelId) && isNextGenModelFamily(modelId)
 	})
 	.template(TEMPLATE_OVERRIDES.BASE)
 	.components(

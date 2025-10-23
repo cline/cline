@@ -26,29 +26,28 @@ import { config as xsConfig } from "./xs/config"
  */
 export const VARIANT_CONFIGS = {
 	/**
-	 * Generic variant - Fallback for all model types
-	 * Optimized for broad compatibility and stable performance
+	 * GPT-5 variant with native tool support.
 	 */
-	[ModelFamily.GENERIC]: genericConfig,
+	[ModelFamily.GPT_5]: gpt5Config,
+	/**
+	 * Next-gen variant with native tool support.
+	 */
+	[ModelFamily.NATIVE_NEXT_GEN]: NativeNextGenVariantConfig,
 	/**
 	 * Next-gen variant - Advanced models with enhanced capabilities
 	 * Includes additional features like feedback loops and web fetching
 	 */
 	[ModelFamily.NEXT_GEN]: nextGenConfig,
 	/**
-	 * GPT-5 variant
-	 */
-	[ModelFamily.GPT_5]: gpt5Config,
-	/**
 	 * XS variant - Compact models with limited context windows
 	 * Streamlined for efficiency with essential tools only
 	 */
 	[ModelFamily.XS]: xsConfig,
 	/**
-	 * XS variant - Compact models with limited context windows
-	 * Streamlined for efficiency with essential tools only
+	 * Generic variant - Fallback for any model types not specifically covered above.
+	 * Optimized for broad compatibility and stable performance.
 	 */
-	[ModelFamily.NATIVE_NEXT_GEN]: NativeNextGenVariantConfig,
+	[ModelFamily.GENERIC]: genericConfig,
 } as const
 
 /**

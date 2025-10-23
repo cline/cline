@@ -68,6 +68,11 @@ However, if while writing your response you realize you actually need to do more
 			instruction: `The response to provide to the user. Do not try to use tools in this parameter, this is simply a chat response. (You MUST use the response parameter, do not simply place the response text directly within <plan_mode_respond> tags.)`,
 			usage: "Your response here",
 		},
+		{
+			name: "task_progress",
+			required: false,
+			instruction: "A checklist showing task progress with the latest status of each subtasks included previously if any.",
+		},
 	],
 }
 

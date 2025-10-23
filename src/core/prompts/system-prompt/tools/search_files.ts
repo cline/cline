@@ -76,6 +76,7 @@ const GPT_5: ClineToolSpec = {
 				"Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).",
 			usage: "file pattern here (optional)",
 		},
+		TASK_PROGRESS_PARAMETER,
 	],
 }
 

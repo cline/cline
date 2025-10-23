@@ -18,6 +18,10 @@ export const config = createVariant(ModelFamily.GENERIC)
 		if (!providerInfo.providerId || !providerInfo.model.id) {
 			return true
 		}
+		const modelId = providerInfo.model.id.toLowerCase()
+		if (modelId.includes("z-ai")) {
+			return false
+		}
 		const isSupportedProvider = ["cline", "anthropic", "gemini"].some((id) => providerInfo.providerId?.toLowerCase() === id)
 		// Generic matcher - fallback for everything that doesn't match other variants
 		// This will match anything that doesn't match the other specific variants

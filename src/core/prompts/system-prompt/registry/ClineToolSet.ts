@@ -103,10 +103,10 @@ export class ClineToolSet {
 	}
 	public static getNativeTools(variant: PromptVariant, context: SystemPromptContext) {
 		// Only return tool functions if the variant explicitly enables them
-		// via the "tool_functions" label set to 1
+		// via the "use_native_tools" label set to 1
 		// This avoids exposing tools to models that don't support them
 		// or variants that aren't designed for tool use
-		if (variant.labels["tool_functions"] !== 1) {
+		if (variant.labels["use_native_tools"] !== 1) {
 			return undefined
 		}
 		const enabledTools = ClineToolSet.getEnabledTools(variant, context)

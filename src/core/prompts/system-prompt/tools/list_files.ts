@@ -43,6 +43,7 @@ const GPT_5: ClineToolSpec = {
 			instruction: "The path of the directory to list contents for.",
 			usage: "Directory path here",
 		},
+		TASK_PROGRESS_PARAMETER,
 	],
 }
 

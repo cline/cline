@@ -15,7 +15,7 @@ export const config = createVariant(ModelFamily.GPT_5)
 		stable: 1,
 		production: 1,
 		advanced: 1,
-		tool_functions: 1,
+		use_native_tools: 1,
 	})
 	.matcher((providerInfo) => {
 		// Match GPT-5 models from providers that support native tools
@@ -80,7 +80,7 @@ export const config = createVariant(ModelFamily.GPT_5)
 	.build()
 
 // Compile-time validation
-const validationResult = validateVariant({ ...config, id: "gpt-5" }, { strict: true })
+const validationResult = validateVariant({ ...config, id: ModelFamily.GPT_5 }, { strict: true })
 if (!validationResult.isValid) {
 	console.error("GPT-5 variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid GPT-5 variant configuration: ${validationResult.errors.join(", ")}`)

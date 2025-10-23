@@ -56,7 +56,7 @@ export const config = createVariant(ModelFamily.XS)
 Object.assign(config.componentOverrides, xsComponentOverrides)
 
 // Compile-time validation
-const validationResult = validateVariant({ ...config, id: "xs" }, { strict: true })
+const validationResult = validateVariant({ ...config, id: ModelFamily.XS }, { strict: true })
 if (!validationResult.isValid) {
 	console.error("XS variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid XS variant configuration: ${validationResult.errors.join(", ")}`)

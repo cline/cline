@@ -35,6 +35,7 @@ const GPT_5: ClineToolSpec = {
 			instruction: `The path of the file to read (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}`,
 			usage: "File path here",
 		},
+		TASK_PROGRESS_PARAMETER,
 	],
 }
 
