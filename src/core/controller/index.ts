@@ -245,7 +245,6 @@ export class Controller {
 		files?: string[],
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
-		skipResume?: boolean,
 	) {
 		await fetchRemoteConfig(this)
 
@@ -332,7 +331,6 @@ export class Controller {
 			historyItem,
 			taskId,
 			taskLockAcquired,
-			skipResume,
 		})
 
 		return this.task.taskId
@@ -436,8 +434,8 @@ export class Controller {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 				this.task.taskState.abandoned = true
 			}
-			// Re-initialize task to keep it visible in UI, but skip resuming the workflow
-			await this.initTask(undefined, undefined, undefined, historyItem, undefined, true)
+			// Re-initialize task to keep it visible in UI
+			await this.initTask(undefined, undefined, undefined, historyItem, undefined)
 
 			// Ensure state is sent to webview after re-initialization to trigger UI updates
 			await this.postStateToWebview()
