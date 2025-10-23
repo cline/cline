@@ -3719,8 +3719,8 @@ export type MinimaxModelId = keyof typeof minimaxModels
 export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M1"
 export const minimaxModels = {
 	"MiniMax-M1": {
-		maxTokens: 25_600,
-		contextWindow: 1_000_192,
+		maxTokens: 40_000,
+		contextWindow: 1_000_000,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.4,
