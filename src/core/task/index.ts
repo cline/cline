@@ -515,8 +515,8 @@ export class Task {
 		files?: string[]
 		askTs?: number
 	}> {
-		// If this Cline instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of Cline now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set Cline = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
-		if (this.taskState.abort) {
+		// Allow resume asks even when aborted to enable resume button after cancellation
+		if (this.taskState.abort && type !== "resume_task" && type !== "resume_completed_task") {
 			throw new Error("Cline instance aborted")
 		}
 		let askTs: number
@@ -650,7 +650,8 @@ export class Task {
 		files?: string[],
 		partial?: boolean,
 	): Promise<number | undefined> {
-		if (this.taskState.abort) {
+		// Allow hook messages even when aborted to enable proper cleanup
+		if (this.taskState.abort && type !== "hook" && type !== "hook_output") {
 			throw new Error("Cline instance aborted")
 		}
 
@@ -820,20 +821,42 @@ export class Task {
 				})
 				.join("\n\n")
 
-			const result = await hook.run({
-				taskId: this.taskId,
-				userPromptSubmit: {
-					prompt: promptText,
-					attachments: [], // Images are inline in UserContent
-				},
+			// Create promise that resolves when task is aborted via UI
+			const cancellationPromise = new Promise<never>((_, reject) => {
+				const checkInterval = setInterval(() => {
+					if (this.taskState.abort) {
+						clearInterval(checkInterval)
+						abortController.abort()
+						reject(new Error("Hook cancelled by user"))
+					}
+				}, 100)
+
+				// Clean up interval when hook completes
+				const hookPromise = hook.run({
+					taskId: this.taskId,
+					userPromptSubmit: {
+						prompt: promptText,
+						attachments: [],
+					},
+				})
+				hookPromise.finally(() => clearInterval(checkInterval))
 			})
+
+			// Race hook execution against cancellation
+			const result = await Promise.race([
+				hook.run({
+					taskId: this.taskId,
+					userPromptSubmit: {
+						prompt: promptText,
+						attachments: [],
+					},
+				}),
+				cancellationPromise,
+			])
 			console.log("[UserPromptSubmit Hook]", result)
 
 			// Check if hook wants to cancel
 			if (result.cancel === true) {
-				// Clear active hook execution
-				this.taskState.activeHookExecution = undefined
-
 				// Update hook status to cancelled
 				if (hookMessageTs !== undefined) {
 					const clineMessages = this.messageStateHandler.getClineMessages()
@@ -851,6 +874,7 @@ export class Task {
 					}
 				}
 
+				// Caller (startTask/resumeTaskFromHistory) will handle save/post before calling abortTask
 				return {
 					cancel: true,
 					contextModification: result.contextModification,
@@ -987,20 +1011,45 @@ export class Task {
 						abortController.signal,
 					)
 
-					const taskStartResult = await taskStartHook.run({
-						taskId: this.taskId,
-						taskStart: {
-							taskMetadata: {
-								taskId: this.taskId,
-								ulid: this.ulid,
-								initialTask: task || "",
-							},
-						},
-					})
-					console.log("[TaskStart Hook]", taskStartResult)
+					// Create promise that resolves when task is aborted via UI
+					const cancellationPromise = new Promise<never>((_, reject) => {
+						const checkInterval = setInterval(() => {
+							if (this.taskState.abort) {
+								clearInterval(checkInterval)
+								abortController.abort()
+								reject(new Error("Hook cancelled by user"))
+							}
+						}, 100)
 
-					// Clear active hook execution
-					this.taskState.activeHookExecution = undefined
+						// Clean up interval when hook completes
+						const hookPromise = taskStartHook.run({
+							taskId: this.taskId,
+							taskStart: {
+								taskMetadata: {
+									taskId: this.taskId,
+									ulid: this.ulid,
+									initialTask: task || "",
+								},
+							},
+						})
+						hookPromise.finally(() => clearInterval(checkInterval))
+					})
+
+					// Race hook execution against cancellation
+					const taskStartResult = await Promise.race([
+						taskStartHook.run({
+							taskId: this.taskId,
+							taskStart: {
+								taskMetadata: {
+									taskId: this.taskId,
+									ulid: this.ulid,
+									initialTask: task || "",
+								},
+							},
+						}),
+						cancellationPromise,
+					])
+					console.log("[TaskStart Hook]", taskStartResult)
 
 					// Check if hook wants to cancel the task
 					if (taskStartResult.cancel === true) {
@@ -1021,12 +1070,13 @@ export class Task {
 							}
 						}
 
-						// Ensure the changes are saved and posted before aborting
-						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-						await this.postStateToWebview()
+						// abortTask will handle save/post state, no need to duplicate here
 						this.abortTask()
 						return
 					}
+
+					// Clear active hook execution after successful completion
+					this.taskState.activeHookExecution = undefined
 
 					// Update hook status to completed (only if not cancelled)
 					if (hookMessageTs !== undefined) {
@@ -1095,6 +1145,24 @@ export class Task {
 					// TaskStart hook failure is non-fatal - continue with task
 				}
 			}
+		}
+
+		// Run UserPromptSubmit hook for initial task (after TaskStart for UI ordering)
+		const userPromptHookResult = await this.runUserPromptSubmitHook(userContent, "initial_task")
+
+		// Handle hook cancellation request
+		if (userPromptHookResult.cancel === true) {
+			// The hook already updated its status to "cancelled" internally and saved state
+			this.abortTask()
+			return
+		}
+
+		// Add hook context if provided
+		if (userPromptHookResult.contextModification) {
+			userContent.push({
+				type: "text",
+				text: `<hook_context source="UserPromptSubmit">\n${userPromptHookResult.contextModification}\n</hook_context>`,
+			})
 		}
 
 		await this.initiateTaskLoop(userContent)
@@ -1205,22 +1273,57 @@ export class Task {
 					)
 
 					const clineMessages = this.messageStateHandler.getClineMessages()
-					const taskResumeResult = await taskResumeHook.run({
-						taskId: this.taskId,
-						taskResume: {
-							taskMetadata: {
-								taskId: this.taskId,
-								ulid: this.ulid,
+
+					// Create promise that resolves when task is aborted via UI
+					const cancellationPromise = new Promise<never>((_, reject) => {
+						const checkInterval = setInterval(() => {
+							if (this.taskState.abort) {
+								clearInterval(checkInterval)
+								abortController.abort()
+								reject(new Error("Hook cancelled by user"))
+							}
+						}, 100)
+
+						// Clean up interval when hook completes
+						const hookPromise = taskResumeHook.run({
+							taskId: this.taskId,
+							taskResume: {
+								taskMetadata: {
+									taskId: this.taskId,
+									ulid: this.ulid,
+								},
+								previousState: {
+									lastMessageTs: lastClineMessage?.ts?.toString() || "",
+									messageCount: clineMessages.length.toString(),
+									conversationHistoryDeleted: (
+										this.taskState.conversationHistoryDeletedRange !== undefined
+									).toString(),
+								},
 							},
-							previousState: {
-								lastMessageTs: lastClineMessage?.ts?.toString() || "",
-								messageCount: clineMessages.length.toString(),
-								conversationHistoryDeleted: (
-									this.taskState.conversationHistoryDeletedRange !== undefined
-								).toString(),
-							},
-						},
+						})
+						hookPromise.finally(() => clearInterval(checkInterval))
 					})
+
+					// Race hook execution against cancellation
+					const taskResumeResult = await Promise.race([
+						taskResumeHook.run({
+							taskId: this.taskId,
+							taskResume: {
+								taskMetadata: {
+									taskId: this.taskId,
+									ulid: this.ulid,
+								},
+								previousState: {
+									lastMessageTs: lastClineMessage?.ts?.toString() || "",
+									messageCount: clineMessages.length.toString(),
+									conversationHistoryDeleted: (
+										this.taskState.conversationHistoryDeletedRange !== undefined
+									).toString(),
+								},
+							},
+						}),
+						cancellationPromise,
+					])
 					console.log("[TaskResume Hook]", taskResumeResult)
 
 					// Clear active hook execution
@@ -1327,6 +1430,24 @@ export class Task {
 			}
 		} else {
 			throw new Error("Unexpected: No existing API conversation history")
+		}
+
+		// Run UserPromptSubmit hook for task resumption
+		const userPromptHookResult = await this.runUserPromptSubmitHook(newUserContent, "resume")
+
+		// Handle hook cancellation request
+		if (userPromptHookResult.cancel === true) {
+			// The hook already updated its status to "cancelled" internally and saved state
+			this.abortTask()
+			return
+		}
+
+		// Add hook context if provided (before other resume content)
+		if (userPromptHookResult.contextModification) {
+			newUserContent.push({
+				type: "text",
+				text: `<hook_context source="UserPromptSubmit">\n${userPromptHookResult.contextModification}\n</hook_context>`,
+			})
 		}
 
 		// Add previous content to newUserContent array
@@ -1495,10 +1616,16 @@ export class Task {
 	async abortTask() {
 		try {
 			// PHASE 1: Cancel any running hook execution
-			try {
-				await this.cancelHookExecution()
-			} catch (error) {
-				Logger.error("Failed to cancel hook during task abort", error)
+			if (this.taskState.activeHookExecution) {
+				try {
+					await this.cancelHookExecution()
+					// Clear activeHookExecution after hook is signaled
+					this.taskState.activeHookExecution = undefined
+				} catch (error) {
+					Logger.error("Failed to cancel hook during task abort", error)
+					// Still clear state even on error to prevent stuck state
+					this.taskState.activeHookExecution = undefined
+				}
 			}
 
 			// PHASE 2: Run TaskCancel hook BEFORE setting abort flag
@@ -2144,9 +2271,6 @@ export class Task {
 			// Signal cancellation to abort the hook process
 			abortController.abort()
 
-			// Clear active hook execution state
-			this.taskState.activeHookExecution = undefined
-
 			// Update hook message status to "cancelled"
 			const clineMessages = this.messageStateHandler.getClineMessages()
 			const hookMessageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
@@ -2165,13 +2289,8 @@ export class Task {
 			// Notify UI that hook was cancelled
 			await this.say("hook_output", "\nHook execution cancelled by user")
 
-			// Save state before aborting task
-			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-			await this.postStateToWebview()
-
-			// Trigger task cancellation (same as clicking task cancel button, pressing escape, or hook returning cancel:true)
-			await this.abortTask()
-
+			// Return success - let caller (abortTask) handle next steps
+			// DON'T call abortTask() here to avoid infinite recursion
 			return true
 		} catch (error) {
 			Logger.error("Failed to cancel hook execution", error)
@@ -2626,8 +2745,9 @@ export class Task {
 	}
 
 	async recursivelyMakeClineRequests(userContent: UserContent, includeFileDetails: boolean = false): Promise<boolean> {
+		// Check abort flag at the very start to prevent any execution after cancellation
 		if (this.taskState.abort) {
-			throw new Error("Cline instance aborted")
+			throw new Error("Task instance aborted")
 		}
 
 		// Increment API request counter for focus chain list management
@@ -2920,27 +3040,6 @@ export class Task {
 			userContent = parsedUserContent
 
 			userContent.push({ type: "text", text: environmentDetails })
-		}
-
-		// Run UserPromptSubmit hook BEFORE creating api_req_started message
-		// This ensures the hook UI appears before the API request in the chat
-		const hookResult = await this.runUserPromptSubmitHook(
-			userContent,
-			this.taskState.apiRequestCount === 1 ? "initial_task" : "feedback",
-		)
-
-		// Handle hook cancellation request
-		if (hookResult.cancel === true) {
-			this.abortTask()
-			return true
-		}
-
-		// Add hook context if provided
-		if (hookResult.contextModification) {
-			userContent.push({
-				type: "text",
-				text: `<hook_context source="UserPromptSubmit">\n${hookResult.contextModification}\n</hook_context>`,
-			})
 		}
 
 		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
