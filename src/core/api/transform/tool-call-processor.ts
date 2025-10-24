@@ -48,9 +48,9 @@ export class ToolCallProcessor {
 					type: "tool_calls",
 					tool_call: {
 						...toolCallDelta,
-						id: this.lastToolCall.id,
 						function: {
 							...toolCallDelta.function,
+							id: this.lastToolCall.id,
 							name: this.lastToolCall.name,
 						},
 					},

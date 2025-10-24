@@ -1835,7 +1835,7 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
-			allowNativeToolCalls: featureFlagsService.getNativeToolCallEnabled(),
+			enableNativeToolCalls: featureFlagsService.getNativeToolCallEnabled(),
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
@@ -2636,15 +2636,15 @@ export class Task {
 							}
 							// Accumulate tool use blocks in proper Anthropic format
 							this.toolUseHandler.processToolUseDelta({
-								id: chunk.tool_call.id,
+								id: chunk.tool_call.function?.id,
 								type: "tool_use",
 								name: chunk.tool_call.function?.name,
 								input: chunk.tool_call.function?.arguments,
 							})
 
 							// Extract and store tool_use_id for creating proper ToolResultBlockParam
-							if (chunk.tool_call.id && chunk.tool_call.function?.name) {
-								this.taskState.toolUseIdMap.set(chunk.tool_call.function.name, chunk.tool_call.id)
+							if (chunk.tool_call.function?.id && chunk.tool_call.function?.name) {
+								this.taskState.toolUseIdMap.set(chunk.tool_call.function.name, chunk.tool_call.function.id)
 							}
 
 							const prevLength = this.taskState.assistantMessageContent.length

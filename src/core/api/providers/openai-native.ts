@@ -64,6 +64,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
+		const toolCallProcessor = new ToolCallProcessor()
 
 		switch (model.id) {
 			case "o1":
@@ -122,8 +123,6 @@ export class OpenAiNativeHandler implements ApiHandler {
 					...getOpenAIToolParams(tools),
 				})
 
-				const toolCallProcessorGpt5 = new ToolCallProcessor()
-
 				for await (const chunk of stream) {
 					const delta = chunk.choices[0]?.delta
 					if (delta?.content) {
@@ -135,7 +134,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 
 					if (delta?.tool_calls) {
 						try {
-							yield* toolCallProcessorGpt5.processToolCallDeltas(delta.tool_calls)
+							yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 						} catch (error) {
 							console.error("Error processing tool call delta:", error, delta.tool_calls)
 						}
@@ -155,10 +154,8 @@ export class OpenAiNativeHandler implements ApiHandler {
 					messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 					stream: true,
 					stream_options: { include_usage: true },
-					tools,
+					...getOpenAIToolParams(tools),
 				})
-
-				const toolCallProcessorDefault = new ToolCallProcessor()
 
 				for await (const chunk of stream) {
 					const delta = chunk.choices[0]?.delta
@@ -170,7 +167,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					}
 
 					if (delta?.tool_calls) {
-						yield* toolCallProcessorDefault.processToolCallDeltas(delta.tool_calls)
+						yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 					}
 
 					if (chunk.usage) {

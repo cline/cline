@@ -8,6 +8,7 @@ export interface PendingToolUse {
 	input: string
 	parsedInput?: unknown
 	jsonParser?: JSONParser
+	call_id?: string
 }
 
 /**
@@ -20,7 +21,7 @@ export class ToolUseHandler {
 	 * Process a tool use delta chunk and accumulate it
 	 * @param delta - The streaming delta containing tool use information
 	 */
-	processToolUseDelta(delta: { id?: string; type?: string; name?: string; input?: string }): void {
+	processToolUseDelta(delta: { id?: string; type?: string; name?: string; input?: string }, call_id?: string): void {
 		if (delta.type !== "tool_use") {
 			return
 		}
@@ -33,7 +34,7 @@ export class ToolUseHandler {
 		// Get or create pending tool use
 		let pendingToolUse = this.pendingToolUses.get(id)
 		if (!pendingToolUse) {
-			pendingToolUse = this.createPendingToolUse(id, delta.name || "")
+			pendingToolUse = this.createPendingToolUse(id, delta.name || "", call_id)
 		}
 
 		// Update name if provided
@@ -158,7 +159,7 @@ export class ToolUseHandler {
 		this.pendingToolUses.clear()
 	}
 
-	private createPendingToolUse(id: string, name: string): PendingToolUse {
+	private createPendingToolUse(id: string, name: string, call_id?: string): PendingToolUse {
 		const jsonParser = new JSONParser()
 		const pendingToolUse: PendingToolUse = {
 			id,
@@ -166,6 +167,7 @@ export class ToolUseHandler {
 			input: "",
 			parsedInput: undefined,
 			jsonParser,
+			call_id,
 		}
 
 		jsonParser.onValue = (parsedElementInfo: any) => {

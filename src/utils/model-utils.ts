@@ -3,6 +3,11 @@ import { AnthropicModelId, anthropicModels } from "@/shared/api"
 
 const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d](?:\.[05])?)[-_ ]?/
 
+export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
+	const providerId = normalize(providerInfo.providerId)
+	return ["cline", "anthropic", "gemini", "openrouter", "xai", "openai"].some((id) => providerId === id)
+}
+
 export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()
 	return modelId.includes("grok")
@@ -24,7 +29,7 @@ export function isAnthropicModelId(modelId: string): modelId is AnthropicModelId
 	return modelId in anthropicModels || CLAUDE_MODELS.some((substring) => modelId.includes(substring))
 }
 
-export function isNewClaudeModelFamily(id: string): boolean {
+export function isClaude4PlusModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	if (!isAnthropicModelId(modelId)) {
 		return false
@@ -67,7 +72,7 @@ export function isGLMModelFamily(id: string): boolean {
 export function isNextGenModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
-		isNewClaudeModelFamily(modelId) ||
+		isClaude4PlusModelFamily(modelId) ||
 		isGemini2dot5ModelFamily(modelId) ||
 		isGrok4ModelFamily(modelId) ||
 		isGPT5ModelFamily(modelId)

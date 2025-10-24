@@ -106,7 +106,7 @@ export class ClineToolSet {
 		// via the "use_native_tools" label set to 1
 		// This avoids exposing tools to models that don't support them
 		// or variants that aren't designed for tool use
-		if (variant.labels["use_native_tools"] !== 1 || !context.allowNativeToolCalls) {
+		if (variant.labels["use_native_tools"] !== 1 || !context.enableNativeToolCalls) {
 			return undefined
 		}
 		const enabledTools = ClineToolSet.getEnabledTools(variant, context)

@@ -98,7 +98,7 @@ export function testVariantMatching() {
 				localClineRulesFileInstructions: "Follow local rules",
 				preferredLanguageInstructions: "Prefer TypeScript",
 				isTesting: true,
-				allowNativeToolCalls: false,
+				enableNativeToolCalls: false,
 				providerInfo,
 			} satisfies SystemPromptContext
 

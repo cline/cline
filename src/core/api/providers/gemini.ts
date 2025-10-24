@@ -214,9 +214,8 @@ export class GeminiHandler implements ApiHandler {
 							yield {
 								type: "tool_calls",
 								tool_call: {
-									id: functionCall.name,
-									type: "function",
 									function: {
+										id: functionCall.id || functionCall.name,
 										name: functionCall.name,
 										arguments: JSON.stringify(functionCall.args),
 									},

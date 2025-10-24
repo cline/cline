@@ -287,10 +287,8 @@ export class VertexHandler implements ApiHandler {
 									type: "tool_calls",
 									tool_call: {
 										...lastStartedToolCall,
-										id: lastStartedToolCall.id,
-										type: "function",
 										function: {
-											...lastStartedToolCall,
+											id: lastStartedToolCall.id,
 											name: lastStartedToolCall.name,
 											arguments: chunk.delta.partial_json,
 										},

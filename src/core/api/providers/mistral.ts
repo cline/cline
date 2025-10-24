@@ -67,11 +67,10 @@ export class MistralHandler implements ApiHandler {
 					yield {
 						type: "tool_calls",
 						tool_call: {
-							id: toolCall.id,
-							type: "function",
 							function: {
-								...toolCall.function,
+								id: toolCall.id,
 								name: toolCall.function.name,
+								arguments: JSON.stringify(toolCall.function.arguments),
 							},
 						},
 					}

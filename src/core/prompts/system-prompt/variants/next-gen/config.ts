@@ -19,7 +19,7 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 	.matcher((context) => {
 		// Match next-gen models
 		const providerInfo = context.providerInfo
-		if (isNextGenModelFamily(providerInfo.model.id) && !context.allowNativeToolCalls) {
+		if (isNextGenModelFamily(providerInfo.model.id) && !context.enableNativeToolCalls) {
 			return true
 		}
 		return (

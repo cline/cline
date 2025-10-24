@@ -41,7 +41,12 @@ const GPT_5: ClineToolSpec = {
 			name: "path",
 			required: true,
 			instruction: "The path of the directory to list contents for.",
-			usage: "Directory path here",
+		},
+		{
+			name: "recursive",
+			required: false,
+			instruction: "Whether to list files recursively. Use true for recursive listing, false or omit for top-level only.",
+			type: "boolean",
 		},
 		TASK_PROGRESS_PARAMETER,
 	],

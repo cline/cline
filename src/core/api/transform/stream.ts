@@ -46,14 +46,15 @@ export interface ApiStreamUsageChunk {
 
 export interface ApiStreamToolCallsChunk {
 	type: "tool_calls"
-	tool_call: any
+	tool_call: ApiStreamToolCall
 }
 
 export interface ApiStreamToolCall {
-	id: string
-	type: "function"
+	call_id?: string // The call / request ID associated with this tool call
+	// Information about the tool being called
 	function: {
-		name: string
-		arguments: any
+		id?: string // The tool call ID
+		name?: string
+		arguments?: any
 	}
 }

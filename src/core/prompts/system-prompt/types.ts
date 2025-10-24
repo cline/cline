@@ -112,7 +112,7 @@ export interface SystemPromptContext {
 	readonly workspaceRoots?: Array<{ path: string; name: string; vcs?: string }>
 	readonly isSubagentsEnabledAndCliInstalled?: boolean
 	readonly isCliSubagent?: boolean
-	readonly allowNativeToolCalls?: boolean
+	readonly enableNativeToolCalls?: boolean
 }
 
 /**

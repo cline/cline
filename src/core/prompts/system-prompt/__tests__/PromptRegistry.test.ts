@@ -72,7 +72,7 @@ describe("PromptRegistry", () => {
 				const result = registry.getModelFamily({
 					...mockContext,
 					providerInfo,
-					allowNativeToolCalls: useNativeTools ?? false,
+					enableNativeToolCalls: useNativeTools ?? false,
 				})
 				expect(result).to.equal(expected, `Failed for model ${id} with provider ${providerId}`)
 			}

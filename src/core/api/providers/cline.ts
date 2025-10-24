@@ -197,7 +197,15 @@ export class ClineHandler implements ApiHandler {
 
 				if (!didOutputUsage && chunk.usage) {
 					// @ts-ignore-next-line
-					const totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
+					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
+
+					if (this.getModel().id === "cline/code-supernova-1-million") {
+						totalCost = 0
+					}
+
+					if (this.getModel().id === "x-ai/grok-code-fast-1") {
+						totalCost = 0
+					}
 
 					yield {
 						type: "usage",
@@ -205,8 +213,7 @@ export class ClineHandler implements ApiHandler {
 						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
 						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
 						outputTokens: chunk.usage.completion_tokens || 0,
-						// @ts-ignore-next-line
-						totalCost: ClineHandler.FreeModelIDs.includes(this.getModel().id) ? 0 : totalCost,
+						totalCost,
 					}
 					didOutputUsage = true
 				}
