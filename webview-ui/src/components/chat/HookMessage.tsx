@@ -205,10 +205,9 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 						<button
 							onClick={(e) => {
 								e.stopPropagation()
-								// Cancel the hook execution, which will trigger task cancellation through the backend
-								// This matches the behavior of other hook cancel buttons (e.g., PreToolUse)
-								TaskServiceClient.cancelHookExecution(EmptyRequest.create({})).catch((err) =>
-									console.error("Failed to cancel hook:", err),
+								// Cancel the task - cancelling a hook always cancels the entire task
+								TaskServiceClient.cancelTask(EmptyRequest.create({})).catch((err) =>
+									console.error("Failed to cancel task:", err),
 								)
 							}}
 							onMouseEnter={(e) => {
