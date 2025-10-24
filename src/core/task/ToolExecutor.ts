@@ -471,6 +471,11 @@ export class ToolExecutor {
 	 * @param config The task configuration containing all necessary context
 	 */
 	private async handleCompleteBlock(block: ToolUse, config: any): Promise<void> {
+		// Check abort flag at the very start to prevent execution after cancellation
+		if (this.taskState.abort) {
+			return
+		}
+
 		// Check if hooks are enabled (both feature flag and user setting must be true)
 		const featureFlagEnabled = featureFlagsService.getHooksEnabled()
 		const userEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
@@ -668,11 +673,22 @@ export class ToolExecutor {
 		// PHASE 2: Execute tool with PostToolUse hook in finally block
 		// This only runs if PreToolUse didn't cancel above
 		// ============================================================
+
+		// Check abort again before tool execution (could have been set by PreToolUse hook)
+		if (this.taskState.abort) {
+			return
+		}
+
 		let executionSuccess = true
 		let toolResult: any = null
 		const executionStartTime = Date.now()
 
 		try {
+			// Final abort check immediately before tool execution
+			if (this.taskState.abort) {
+				return
+			}
+
 			// Execute the actual tool
 			toolResult = await this.coordinator.execute(config, block)
 			this.pushToolResult(toolResult, block)
@@ -682,9 +698,9 @@ export class ToolExecutor {
 			this.pushToolResult(toolResult, block)
 			throw error
 		} finally {
-			// Run PostToolUse hook if enabled (only runs if we entered the try block)
+			// Run PostToolUse hook if enabled and task not aborted (only runs if we entered the try block)
 			// Skip PostToolUse for attempt_completion since it marks task completion, not actual work
-			if (hooksEnabled && block.name !== "attempt_completion") {
+			if (!this.taskState.abort && hooksEnabled && block.name !== "attempt_completion") {
 				const hookFactory = new HookFactory()
 				const hasPostToolUseHook = await hookFactory.hasHook("PostToolUse")
 
