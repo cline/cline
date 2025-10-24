@@ -119,7 +119,8 @@ export class BannerService {
 
 			// Check version rule
 			if (rules.version) {
-				const { version } = require("../../../package.json")
+				const { ExtensionRegistryInfo } = require("@/registry")
+				const version = ExtensionRegistryInfo.version
 				if (rules.version.min && this.compareVersions(version, rules.version.min) < 0) {
 					Logger.log(
 						`BannerService: Banner ${banner.id} filtered out by version rule (requires >= ${rules.version.min}, current: ${version})`,
@@ -232,18 +233,13 @@ export class BannerService {
 			const { EmptyRequest } = require("@shared/proto/cline/common")
 			const hostVersion = await HostProvider.env.getHostVersion(EmptyRequest.create({}))
 
-			// Map platform name to standard IDE identifiers
-			const platform = hostVersion.platform?.toLowerCase() || ""
+			// Use clineType field which contains values like "VSCode Extension", "Cline for JetBrains", etc.
+			const clineType = hostVersion.clineType?.toLowerCase() || ""
 
-			if (platform.includes("code") || platform.includes("vscode")) {
+			if (clineType.includes("vscode")) {
 				return "vscode"
 			}
-			if (
-				platform.includes("jetbrains") ||
-				platform.includes("intellij") ||
-				platform.includes("pycharm") ||
-				platform.includes("webstorm")
-			) {
+			if (clineType.includes("jetbrains")) {
 				return "jetbrains"
 			}
 
