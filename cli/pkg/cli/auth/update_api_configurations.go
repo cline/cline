@@ -144,6 +144,15 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 			ActModeProviderSpecificModelIDField:  "actModeOpenRouterModelId",
 		}, nil
 
+	case cline.ApiProvider_HICAP:
+		return ProviderFields{
+			APIKeyField:                          "hicapApiKey",
+			PlanModeModelInfoField:               "planModeHicapModelInfo",
+			ActModeModelInfoField:                "actModeHicapModelInfo",
+			PlanModeProviderSpecificModelIDField: "planModeHicapModelId",
+			ActModeProviderSpecificModelIDField:  "actModeHicapModelId",
+		}, nil
+
 	default:
 		return ProviderFields{}, fmt.Errorf("unsupported provider: %v", provider)
 	}
@@ -252,6 +261,8 @@ func setAPIKeyField(apiConfig *cline.ModelsApiConfiguration, fieldName string, v
 		apiConfig.CerebrasApiKey = value
 	case "clineApiKey":
 		apiConfig.ClineApiKey = value
+	case "hicapApiKey":
+		apiConfig.HicapApiKey = value
 	}
 }
 
@@ -270,6 +281,9 @@ func setProviderSpecificModelID(apiConfig *cline.ModelsApiConfiguration, fieldNa
 	case "planModeAwsBedrockCustomModelBaseId":
 		apiConfig.PlanModeAwsBedrockCustomModelBaseId = value
 		apiConfig.ActModeAwsBedrockCustomModelBaseId = value
+	case "planModeHicapModelId":
+		apiConfig.PlanModeHicapModelId = value
+		apiConfig.ActModeHicapModelId = value
 	}
 }
 

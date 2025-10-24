@@ -23,6 +23,7 @@ import {
 	geminiModels,
 	groqDefaultModelId,
 	groqModels,
+	hicapModelInfoSaneDefaults,
 	huaweiCloudMaasDefaultModelId,
 	huaweiCloudMaasModels,
 	huggingFaceDefaultModelId,
@@ -193,6 +194,14 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: openAiModelId || "",
 				selectedModelInfo: openAiModelInfo || openAiModelInfoSaneDefaults,
+			}
+		case "hicap":
+			const hicapModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeHicapModelId : apiConfiguration?.actModeHicapModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: hicapModelId || "",
+				selectedModelInfo: hicapModelInfoSaneDefaults,
 			}
 		case "ollama":
 			const ollamaModelId =
@@ -389,6 +398,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			huggingFaceModelId: undefined,
 			huaweiCloudMaasModelId: undefined,
 			vercelAiGatewayModelId: undefined,
+			hicapModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
@@ -438,6 +448,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		vercelAiGatewayModelId:
 			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelId : apiConfiguration.actModeVercelAiGatewayModelId,
 		ocaModelId: mode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
+		hicapModelId: mode === "plan" ? apiConfiguration.planModeHicapModelId : apiConfiguration.actModeHicapModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -456,6 +467,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 				: apiConfiguration.actModeVercelAiGatewayModelInfo,
 		vsCodeLmModelSelector:
 			mode === "plan" ? apiConfiguration.planModeVsCodeLmModelSelector : apiConfiguration.actModeVsCodeLmModelSelector,
+		hicapModelInfo: mode === "plan" ? apiConfiguration.planModeHicapModelInfo : apiConfiguration.actModeHicapModelInfo,
 
 		// AWS Bedrock fields
 		awsBedrockCustomSelected:
@@ -608,6 +620,13 @@ export async function syncModeConfigurations(
 		case "dify":
 			// Dify doesn't have mode-specific model configurations
 			// The model is configured in the Dify application itself
+			break
+
+		case "hicap":
+			updates.planModeHicapModelId = sourceFields.hicapModelId
+			updates.actModeHicapModelId = sourceFields.hicapModelId
+			updates.planModeHicapModelInfo = sourceFields.hicapModelInfo
+			updates.actModeHicapModelInfo = sourceFields.hicapModelInfo
 			break
 
 		case "vercel-ai-gateway":
