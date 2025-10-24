@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/types"
@@ -164,6 +165,10 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 				// Check for mode switch commands first
 				newMode, remainingMessage, isModeSwitch := ih.parseModeSwitch(message)
 				if isModeSwitch {
+					// Create styles for mode switch messages (respect global color profile)
+					actStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
+					planStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
+
 					if remainingMessage != "" {
 						// Switching with a message - behavior differs by mode
 						if newMode == "act" {
@@ -172,16 +177,14 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 								output.Printf("\nError switching to act mode with message: %v\n", err)
 								continue
 							}
-							// 256-color index 39 for act mode (matches lipgloss color "39" in input form)
-							output.Printf("\n\033[38;5;39m\033[1mSwitched to act mode\033[0m\n")
+							output.Printf("\n%s\n", actStyle.Render("Switched to act mode"))
 						} else {
 							// Plan mode: must switch first, then send message separately
 							if err := ih.manager.SetMode(ctx, newMode, nil, nil, nil); err != nil {
 								output.Printf("\nError switching to plan mode: %v\n", err)
 								continue
 							}
-							// Yellow color for plan mode (ANSI color 3)
-							output.Printf("\n\033[33m\033[1mSwitched to plan mode\033[0m\n")
+							output.Printf("\n%s\n", planStyle.Render("Switched to plan mode"))
 
 							// Now send the message separately
 							time.Sleep(500 * time.Millisecond) // Give mode switch time to process
@@ -198,9 +201,9 @@ func (ih *InputHandler) Start(ctx context.Context, errChan chan error) {
 						}
 						// Color based on mode
 						if newMode == "act" {
-							output.Printf("\n\033[38;5;39m\033[1mSwitched to act mode\033[0m\n")
+							output.Printf("\n%s\n", actStyle.Render("Switched to act mode"))
 						} else {
-							output.Printf("\n\033[33m\033[1mSwitched to plan mode\033[0m\n")
+							output.Printf("\n%s\n", planStyle.Render("Switched to plan mode"))
 						}
 					}
 

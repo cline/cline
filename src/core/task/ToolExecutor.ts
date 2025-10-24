@@ -205,7 +205,7 @@ export class ToolExecutor {
 		this.coordinator.register(new NewTaskHandler())
 		this.coordinator.register(new AttemptCompletionHandler())
 		this.coordinator.register(new CondenseHandler())
-		this.coordinator.register(new SummarizeTaskHandler())
+		this.coordinator.register(new SummarizeTaskHandler(validator))
 		this.coordinator.register(new ReportBugHandler())
 	}
 
