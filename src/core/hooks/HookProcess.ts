@@ -64,13 +64,38 @@ export class HookProcess extends EventEmitter {
 			// Set up abort handler
 			const abortHandler = () => {
 				if (this.childProcess && !this.isCompleted) {
-					this.childProcess.kill("SIGTERM")
+					this.isCompleted = true // Mark as completed immediately
+
+					// Remove abort listener immediately to prevent double-rejection
+					if (this.abortSignal) {
+						this.abortSignal.removeEventListener("abort", abortHandler)
+					}
+
+					// Clean up timers
+					if (this.hotTimer) {
+						clearTimeout(this.hotTimer)
+						this.isHot = false
+					}
+					if (this.timeoutHandle) {
+						clearTimeout(this.timeoutHandle)
+						this.timeoutHandle = null
+					}
+
+					// Unregister from active processes
+					HookProcessRegistry.unregister(this)
+
+					// Kill the process (async, fire-and-forget)
+					if (this.childProcess.pid) {
+						this.childProcess.kill("SIGTERM")
+					}
+
+					// Reject immediately - don't wait for process to die
 					reject(new Error("Hook execution cancelled by user"))
 				}
 			}
 
 			if (this.abortSignal) {
-				this.abortSignal.addEventListener("abort", abortHandler)
+				this.abortSignal.addEventListener("abort", abortHandler, { once: true })
 			}
 
 			// Spawn the hook process

@@ -437,12 +437,9 @@ export class Task {
 		// Set ulid on browserSession for telemetry tracking
 		this.browserSession.setUlid(this.ulid)
 
-		// Continue with task initialization
-		if (historyItem) {
-			this.resumeTaskFromHistory()
-		} else if (task || images || files) {
-			this.startTask(task, images, files)
-		}
+		// Note: Task initialization (startTask/resumeTaskFromHistory) is now called
+		// from Controller.initTask() AFTER the task instance is fully assigned.
+		// This prevents race conditions where hooks run before controller.task is ready.
 
 		// Set up focus chain file watcher (async, runs in background) only if focus chain is enabled
 		if (this.FocusChainManager) {
@@ -889,6 +886,9 @@ export class Task {
 
 			// Check if this was a user cancellation via abort controller
 			if (abortController.signal.aborted) {
+				// Set flag to allow Controller.cancelTask() to proceed
+				this.taskState.didFinishAbortingStream = true
+
 				// Update hook status to cancelled
 				if (hookMessageTs !== undefined) {
 					const clineMessages = this.messageStateHandler.getClineMessages()
@@ -931,7 +931,7 @@ export class Task {
 
 	// Task lifecycle
 
-	private async startTask(task?: string, images?: string[], files?: string[]): Promise<void> {
+	public async startTask(task?: string, images?: string[], files?: string[]): Promise<void> {
 		try {
 			await this.clineIgnoreController.initialize()
 		} catch (error) {
@@ -1084,6 +1084,11 @@ export class Task {
 
 					// Check if this was a user cancellation via abort controller
 					if (abortController.signal.aborted) {
+						console.log(`[TaskStart Hook] User cancelled, saving messages for task ${this.taskId}`)
+
+						// Set flag to allow Controller.cancelTask() to proceed
+						this.taskState.didFinishAbortingStream = true
+
 						// Update hook status to cancelled
 						if (hookMessageTs !== undefined) {
 							const clineMessages = this.messageStateHandler.getClineMessages()
@@ -1099,7 +1104,20 @@ export class Task {
 								})
 							}
 						}
-						// Return without continuing task - cancellation was handled by abortTask()
+
+						// Save BOTH clineMessages AND apiConversationHistory so Controller.cancelTask() can find the task
+						console.log(
+							`[TaskStart Hook] Saving ${this.messageStateHandler.getClineMessages().length} messages to disk`,
+						)
+						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+						// Also save API conversation history (required by getTaskWithId)
+						await this.messageStateHandler.overwriteApiConversationHistory(
+							this.messageStateHandler.getApiConversationHistory(),
+						)
+						await this.postStateToWebview()
+						console.log(`[TaskStart Hook] Messages saved successfully, returning from hook`)
+
+						// Return without continuing task - Controller.cancelTask() will handle showing resume button
 						return
 					}
 
@@ -1158,7 +1176,7 @@ export class Task {
 		await this.initiateTaskLoop(userContent)
 	}
 
-	private async resumeTaskFromHistory() {
+	public async resumeTaskFromHistory() {
 		try {
 			await this.clineIgnoreController.initialize()
 		} catch (error) {
@@ -1316,6 +1334,9 @@ export class Task {
 
 					// Check if this was a user cancellation via abort controller
 					if (abortController.signal.aborted) {
+						// Set flag to allow Controller.cancelTask() to proceed
+						this.taskState.didFinishAbortingStream = true
+
 						// Update hook status to cancelled
 						if (hookMessageTs !== undefined) {
 							const clineMessagesUpdated = this.messageStateHandler.getClineMessages()
@@ -1331,7 +1352,16 @@ export class Task {
 								})
 							}
 						}
-						// Return without continuing task - cancellation was handled by abortTask()
+
+						// Save BOTH clineMessages AND apiConversationHistory so Controller.cancelTask() can find the task
+						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+						// Also save API conversation history (required by getTaskWithId)
+						await this.messageStateHandler.overwriteApiConversationHistory(
+							this.messageStateHandler.getApiConversationHistory(),
+						)
+						await this.postStateToWebview()
+
+						// Return without continuing task - Controller.cancelTask() will handle showing resume button
 						return
 					}
 
