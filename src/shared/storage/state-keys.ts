@@ -104,6 +104,7 @@ export interface Settings {
 	focusChainSettings: FocusChainSettings
 	customPrompt: "compact" | undefined
 	difyBaseUrl: string | undefined
+	databricksBaseUrl: string | undefined
 	autoCondenseThreshold: number | undefined // number from 0 to 1
 	ocaBaseUrl: string | undefined
 	ocaMode: string | undefined
@@ -233,6 +234,7 @@ export interface Secrets {
 	basetenApiKey: string | undefined
 	vercelAiGatewayApiKey: string | undefined
 	difyApiKey: string | undefined
+	databricksApiKey: string | undefined
 	ocaApiKey: string | undefined
 	ocaRefreshToken: string | undefined
 }
