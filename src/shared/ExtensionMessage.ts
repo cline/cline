@@ -167,8 +167,8 @@ export type ClineSay =
 	| "load_mcp_documentation"
 	| "info" // Added for general informational messages like retry status
 	| "task_progress"
-	| "hook" // Hook execution indicator
-	| "hook_output" // Hook streaming output
+	| "hook"
+	| "hook_output"
 
 export interface ClineSayTool {
 	tool:
