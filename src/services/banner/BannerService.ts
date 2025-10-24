@@ -117,24 +117,6 @@ export class BannerService {
 				}
 			}
 
-			// Check version rule
-			if (rules.version) {
-				const { ExtensionRegistryInfo } = require("@/registry")
-				const version = ExtensionRegistryInfo.version
-				if (rules.version.min && this.compareVersions(version, rules.version.min) < 0) {
-					Logger.log(
-						`BannerService: Banner ${banner.id} filtered out by version rule (requires >= ${rules.version.min}, current: ${version})`,
-					)
-					return false
-				}
-				if (rules.version.max && this.compareVersions(version, rules.version.max) > 0) {
-					Logger.log(
-						`BannerService: Banner ${banner.id} filtered out by version rule (requires <= ${rules.version.max}, current: ${version})`,
-					)
-					return false
-				}
-			}
-
 			// Check auth provider rule
 			if (rules.auth && rules.auth.length > 0 && this._controller) {
 				const authProvider = this.getAuthProvider()
@@ -146,43 +128,109 @@ export class BannerService {
 				}
 			}
 
-			// Check API providers rule
+			// Check API providers rule - show banner if user has ANY of the specified providers configured
 			if (rules.providers && rules.providers.length > 0 && this._controller) {
 				const apiConfiguration = this._controller.stateManager.getApiConfiguration()
-				const currentMode = this._controller.stateManager.getGlobalSettingsKey("mode") || "act"
-				const currentProvider =
-					currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider
-				if (currentProvider && !rules.providers.includes(currentProvider)) {
+				const hasAnyProvider = rules.providers.some((provider) => {
+					switch (provider) {
+						case "anthropic":
+						case "claude-code":
+							return !!apiConfiguration?.apiKey
+						case "openai":
+						case "openai-native":
+							return !!apiConfiguration?.openAiApiKey || !!apiConfiguration?.openAiNativeApiKey
+						case "openrouter":
+							return !!apiConfiguration?.openRouterApiKey
+						case "bedrock":
+							return !!apiConfiguration?.awsAccessKey || !!apiConfiguration?.awsBedrockApiKey
+						case "gemini":
+							return !!apiConfiguration?.geminiApiKey
+						case "deepseek":
+							return !!apiConfiguration?.deepSeekApiKey
+						case "qwen":
+						case "qwen-code":
+							return !!apiConfiguration?.qwenApiKey
+						case "mistral":
+							return !!apiConfiguration?.mistralApiKey
+						case "ollama":
+							return !!apiConfiguration?.ollamaApiKey
+						case "xai":
+							return !!apiConfiguration?.xaiApiKey
+						case "cerebras":
+							return !!apiConfiguration?.cerebrasApiKey
+						case "groq":
+							return !!apiConfiguration?.groqApiKey
+						default:
+							return false
+					}
+				})
+
+				if (!hasAnyProvider) {
 					Logger.log(
-						`BannerService: Banner ${banner.id} filtered out by providers rule (requires: ${rules.providers.join(", ")}, current: ${currentProvider})`,
+						`BannerService: Banner ${banner.id} filtered out - user doesn't have any of these providers configured: ${rules.providers.join(", ")}`,
 					)
 					return false
 				}
 			}
 
-			// Check audience segments
+			// Check employee only rule
+			if (rules.employee_only && this._controller) {
+				const isEmployee = this.isEmployee()
+				if (!isEmployee) {
+					Logger.log(`BannerService: Banner ${banner.id} filtered out - employee only`)
+					return false
+				}
+			}
+
+			// Check audience segment
 			if (rules.audience && this._controller) {
-				// If audience.all is true, always show
-				if (rules.audience.all) {
-					Logger.log(`BannerService: Banner ${banner.id} targets all users`)
-				}
+				switch (rules.audience) {
+					case "all":
+						// Show to all users
+						Logger.log(`BannerService: Banner ${banner.id} targets all users`)
+						break
 
-				// Check if user has never used workspaces
-				if (rules.audience.no_workspaces) {
-					const taskHistory = this._controller.stateManager.getGlobalStateKey("taskHistory") || []
-					const hasUsedWorkspaces = Array.isArray(taskHistory) && taskHistory.length > 0
-					if (hasUsedWorkspaces) {
-						Logger.log(`BannerService: Banner ${banner.id} filtered out - user has used workspaces`)
-						return false
-					}
-				}
+					case "team admin only":
+						// Show only to team admins
+						const isTeamAdmin = this.isUserTeamAdmin()
+						if (!isTeamAdmin) {
+							Logger.log(`BannerService: Banner ${banner.id} filtered out - user is not a team admin`)
+							return false
+						}
+						break
 
-				// Check if user is a team admin
-				if (rules.audience.team_admins) {
-					const isTeamAdmin = this.isUserTeamAdmin()
-					if (!isTeamAdmin) {
-						Logger.log(`BannerService: Banner ${banner.id} filtered out - user is not a team admin`)
-						return false
+					case "team members":
+						// Show only to users who are part of a team (have organizations)
+						const hasOrganizations = this.hasOrganizations()
+						if (!hasOrganizations) {
+							Logger.log(`BannerService: Banner ${banner.id} filtered out - user is not a team member`)
+							return false
+						}
+						break
+
+					case "personal":
+						// Show only to users who are NOT part of a team
+						const hasOrgs = this.hasOrganizations()
+						if (hasOrgs) {
+							Logger.log(`BannerService: Banner ${banner.id} filtered out - user is part of a team`)
+							return false
+						}
+						break
+				}
+			}
+
+			// Check features, currently the spec only mentions workplace usage feature.
+			// This can be made more robust in the future.
+			// We should also specify whether to show banner if the feature is enabled or not enabled,
+			// Here we assume to show banner if worksapce is enabled for the user.
+			if (rules.features && rules.features.length > 0 && this._controller) {
+				for (const feature of rules.features) {
+					if (feature === "workspace_used") {
+						const hasUsedWorkspace = this.hasUsedWorkspace()
+						if (!hasUsedWorkspace) {
+							Logger.log(`BannerService: Banner ${banner.id} filtered out - workspace not used`)
+							return false
+						}
 					}
 				}
 			}
@@ -267,7 +315,7 @@ export class BannerService {
 
 			// Check if user is authenticated
 			if (!authInfo.user) {
-				return "unknown"
+				return "other"
 			}
 
 			// Determine provider based on authentication state
@@ -285,6 +333,32 @@ export class BannerService {
 		} catch (error) {
 			Logger.log(`BannerService: Error getting auth provider: ${error instanceof Error ? error.message : String(error)}`)
 			return "unknown"
+		}
+	}
+
+	/**
+	 * Checks if the current user is a Cline employee
+	 * @returns true if user has a @cline.bot email or is a trusted tester
+	 */
+	private isEmployee(): boolean {
+		try {
+			if (!this._controller) {
+				return false
+			}
+
+			const { AuthService } = require("../auth/AuthService")
+			const authService = AuthService.getInstance(this._controller)
+			const authInfo = authService.getInfo()
+
+			if (!authInfo.user || !authInfo.user.email) {
+				return false
+			}
+
+			const { isClineInternalTester } = require("@shared/internal/account")
+			return isClineInternalTester(authInfo.user.email)
+		} catch (error) {
+			Logger.log(`BannerService: Error checking employee status: ${error instanceof Error ? error.message : String(error)}`)
+			return false
 		}
 	}
 
@@ -317,28 +391,43 @@ export class BannerService {
 	}
 
 	/**
-	 * Compares two semantic version strings
-	 * @param v1 First version
-	 * @param v2 Second version
-	 * @returns -1 if v1 < v2, 0 if v1 === v2, 1 if v1 > v2
+	 * Checks if the current user is part of any organization
+	 * @returns true if user has one or more organizations
 	 */
-	private compareVersions(v1: string, v2: string): number {
-		const parts1 = v1.split(".").map(Number)
-		const parts2 = v2.split(".").map(Number)
-
-		for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-			const part1 = parts1[i] || 0
-			const part2 = parts2[i] || 0
-
-			if (part1 < part2) {
-				return -1
+	private hasOrganizations(): boolean {
+		try {
+			if (!this._controller) {
+				return false
 			}
-			if (part1 > part2) {
-				return 1
-			}
+
+			const { AuthService } = require("../auth/AuthService")
+			const authService = AuthService.getInstance(this._controller)
+			const organizations = authService.getUserOrganizations()
+
+			return organizations && organizations.length > 0
+		} catch (error) {
+			Logger.log(`BannerService: Error checking organizations: ${error instanceof Error ? error.message : String(error)}`)
+			return false
 		}
+	}
 
-		return 0
+	/**
+	 * Checks if the user has used workspace features
+	 * @returns true if user has any tasks stored (indicating workspace usage)
+	 */
+	private hasUsedWorkspace(): boolean {
+		try {
+			if (!this._controller) {
+				return false
+			}
+
+			// Check if user has any task history
+			const taskHistory = this._controller.stateManager.getGlobalStateKey("taskHistory") as any[]
+			return taskHistory && taskHistory.length > 0
+		} catch (error) {
+			Logger.log(`BannerService: Error checking workspace usage: ${error instanceof Error ? error.message : String(error)}`)
+			return false
+		}
 	}
 
 	/**

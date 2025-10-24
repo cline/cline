@@ -23,6 +23,11 @@ export interface BannersResponse {
 }
 
 /**
+ * Audience targeting options
+ */
+export type BannerAudience = "all" | "team admin only" | "team members" | "personal"
+
+/**
  * Rules that can be evaluated for banner targeting
  */
 export interface BannerRules {
@@ -34,20 +39,8 @@ export interface BannerRules {
 	employee_only?: boolean
 	/** Target users with specific API providers (e.g., "anthropic", "openai") */
 	providers?: string[]
-	/** Target users with specific features enabled */
+	/** Target specific audience segment */
+	audience?: BannerAudience
+	/** Target users based on feature usage */
 	features?: string[]
-	/** Target specific version range */
-	version?: {
-		min?: string
-		max?: string
-	}
-	/** Target specific audience segments */
-	audience?: {
-		/** Target all users */
-		all?: boolean
-		/** Target users who have never used workspaces */
-		no_workspaces?: boolean
-		/** Target team admins */
-		team_admins?: boolean
-	}
 }
