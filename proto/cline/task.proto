@@ -1,11 +1,13 @@
 syntax = "proto3";
 
 package cline;
+
 import "cline/common.proto";
 import "cline/state.proto";
+
 option go_package = "github.com/cline/grpc-go/cline";
-option java_package = "bot.cline.proto";
 option java_multiple_files = true;
+option java_package = "bot.cline.proto";
 
 service TaskService {
   // Cancels the currently running task
@@ -102,7 +104,7 @@ message TaskItem {
 // Request for ask response operation
 message AskResponseRequest {
   Metadata metadata = 1;
-  string response_type = 2; 
+  string response_type = 2;
   string text = 3;
   repeated string images = 4;
   repeated string files = 5;
