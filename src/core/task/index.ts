@@ -817,38 +817,14 @@ export class Task {
 				})
 				.join("\n\n")
 
-			// Create promise that resolves when task is aborted via UI
-			const cancellationPromise = new Promise<never>((_, reject) => {
-				const checkInterval = setInterval(() => {
-					if (this.taskState.abort) {
-						clearInterval(checkInterval)
-						abortController.abort()
-						reject(new Error("Hook cancelled by user"))
-					}
-				}, 100)
-
-				// Clean up interval when hook completes
-				const hookPromise = hook.run({
-					taskId: this.taskId,
-					userPromptSubmit: {
-						prompt: promptText,
-						attachments: [],
-					},
-				})
-				hookPromise.finally(() => clearInterval(checkInterval))
+			// Execute hook - abort controller will handle cancellation
+			const result = await hook.run({
+				taskId: this.taskId,
+				userPromptSubmit: {
+					prompt: promptText,
+					attachments: [],
+				},
 			})
-
-			// Race hook execution against cancellation
-			const result = await Promise.race([
-				hook.run({
-					taskId: this.taskId,
-					userPromptSubmit: {
-						prompt: promptText,
-						attachments: [],
-					},
-				}),
-				cancellationPromise,
-			])
 			console.log("[UserPromptSubmit Hook]", result)
 
 			// Check if hook wants to cancel
@@ -904,7 +880,31 @@ export class Task {
 				errorMessage: result.errorMessage,
 			}
 		} catch (error) {
-			// Update hook status to failed (update the same message if it exists)
+			// Clear active hook execution
+			this.taskState.activeHookExecution = undefined
+
+			// Check if this was a user cancellation via abort controller
+			if (abortController.signal.aborted) {
+				// Update hook status to cancelled
+				if (hookMessageTs !== undefined) {
+					const clineMessages = this.messageStateHandler.getClineMessages()
+					const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
+					if (hookMessageIndex !== -1) {
+						const cancelledMetadata = {
+							hookName: "UserPromptSubmit",
+							status: "cancelled",
+							exitCode: 130, // Standard cancellation exit code
+						}
+						await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+							text: JSON.stringify(cancelledMetadata),
+						})
+					}
+				}
+				// Return without cancelling task - cancellation was handled by abortTask()
+				return {}
+			}
+
+			// Update hook status to failed for actual errors
 			if (hookMessageTs !== undefined) {
 				const clineMessages = this.messageStateHandler.getClineMessages()
 				const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
@@ -1007,44 +1007,17 @@ export class Task {
 						abortController.signal,
 					)
 
-					// Create promise that resolves when task is aborted via UI
-					const cancellationPromise = new Promise<never>((_, reject) => {
-						const checkInterval = setInterval(() => {
-							if (this.taskState.abort) {
-								clearInterval(checkInterval)
-								abortController.abort()
-								reject(new Error("Hook cancelled by user"))
-							}
-						}, 100)
-
-						// Clean up interval when hook completes
-						const hookPromise = taskStartHook.run({
-							taskId: this.taskId,
-							taskStart: {
-								taskMetadata: {
-									taskId: this.taskId,
-									ulid: this.ulid,
-									initialTask: task || "",
-								},
+					// Execute hook - abort controller will handle cancellation
+					const taskStartResult = await taskStartHook.run({
+						taskId: this.taskId,
+						taskStart: {
+							taskMetadata: {
+								taskId: this.taskId,
+								ulid: this.ulid,
+								initialTask: task || "",
 							},
-						})
-						hookPromise.finally(() => clearInterval(checkInterval))
+						},
 					})
-
-					// Race hook execution against cancellation
-					const taskStartResult = await Promise.race([
-						taskStartHook.run({
-							taskId: this.taskId,
-							taskStart: {
-								taskMetadata: {
-									taskId: this.taskId,
-									ulid: this.ulid,
-									initialTask: task || "",
-								},
-							},
-						}),
-						cancellationPromise,
-					])
 					console.log("[TaskStart Hook]", taskStartResult)
 
 					// Check if hook wants to cancel the task
@@ -1105,18 +1078,39 @@ export class Task {
 					// Clear active hook execution
 					this.taskState.activeHookExecution = undefined
 
+					// Check if this was a user cancellation via abort controller
+					if (abortController.signal.aborted) {
+						// Update hook status to cancelled
+						if (hookMessageTs !== undefined) {
+							const clineMessages = this.messageStateHandler.getClineMessages()
+							const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
+							if (hookMessageIndex !== -1) {
+								const cancelledMetadata = {
+									hookName: "TaskStart",
+									status: "cancelled",
+									exitCode: 130,
+								}
+								await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+									text: JSON.stringify(cancelledMetadata),
+								})
+							}
+						}
+						// Return without continuing task - cancellation was handled by abortTask()
+						return
+					}
+
+					// Update hook status to failed for actual errors
 					// Extract structured error info if available
 					const isStructuredError = HookExecutionError.isHookError(hookError)
 					const errorInfo = isStructuredError ? hookError.errorInfo : null
 
-					// Update hook status with structured error info (update the same message if it exists)
 					if (hookMessageTs !== undefined) {
 						const clineMessages = this.messageStateHandler.getClineMessages()
 						const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
 						if (hookMessageIndex !== -1) {
 							const failedMetadata = {
 								hookName: "TaskStart",
-								status: errorInfo?.type === "cancellation" ? "cancelled" : "failed",
+								status: "failed",
 								exitCode: errorInfo?.exitCode ?? 1,
 								...(errorInfo && {
 									error: {
@@ -1133,12 +1127,8 @@ export class Task {
 						}
 					}
 
-					// If task was aborted (e.g., via cancel button), stop execution
-					if (this.taskState.abort) {
-						return
-					}
-
 					// TaskStart hook failure is non-fatal - continue with task
+					console.error("TaskStart hook failed:", hookError)
 				}
 			}
 		}
@@ -1270,56 +1260,23 @@ export class Task {
 
 					const clineMessages = this.messageStateHandler.getClineMessages()
 
-					// Create promise that resolves when task is aborted via UI
-					const cancellationPromise = new Promise<never>((_, reject) => {
-						const checkInterval = setInterval(() => {
-							if (this.taskState.abort) {
-								clearInterval(checkInterval)
-								abortController.abort()
-								reject(new Error("Hook cancelled by user"))
-							}
-						}, 100)
-
-						// Clean up interval when hook completes
-						const hookPromise = taskResumeHook.run({
-							taskId: this.taskId,
-							taskResume: {
-								taskMetadata: {
-									taskId: this.taskId,
-									ulid: this.ulid,
-								},
-								previousState: {
-									lastMessageTs: lastClineMessage?.ts?.toString() || "",
-									messageCount: clineMessages.length.toString(),
-									conversationHistoryDeleted: (
-										this.taskState.conversationHistoryDeletedRange !== undefined
-									).toString(),
-								},
+					// Execute hook - abort controller will handle cancellation
+					const taskResumeResult = await taskResumeHook.run({
+						taskId: this.taskId,
+						taskResume: {
+							taskMetadata: {
+								taskId: this.taskId,
+								ulid: this.ulid,
 							},
-						})
-						hookPromise.finally(() => clearInterval(checkInterval))
+							previousState: {
+								lastMessageTs: lastClineMessage?.ts?.toString() || "",
+								messageCount: clineMessages.length.toString(),
+								conversationHistoryDeleted: (
+									this.taskState.conversationHistoryDeletedRange !== undefined
+								).toString(),
+							},
+						},
 					})
-
-					// Race hook execution against cancellation
-					const taskResumeResult = await Promise.race([
-						taskResumeHook.run({
-							taskId: this.taskId,
-							taskResume: {
-								taskMetadata: {
-									taskId: this.taskId,
-									ulid: this.ulid,
-								},
-								previousState: {
-									lastMessageTs: lastClineMessage?.ts?.toString() || "",
-									messageCount: clineMessages.length.toString(),
-									conversationHistoryDeleted: (
-										this.taskState.conversationHistoryDeletedRange !== undefined
-									).toString(),
-								},
-							},
-						}),
-						cancellationPromise,
-					])
 					console.log("[TaskResume Hook]", taskResumeResult)
 
 					// Clear active hook execution
@@ -1353,18 +1310,39 @@ export class Task {
 					// Clear active hook execution
 					this.taskState.activeHookExecution = undefined
 
+					// Check if this was a user cancellation via abort controller
+					if (abortController.signal.aborted) {
+						// Update hook status to cancelled
+						if (hookMessageTs !== undefined) {
+							const clineMessagesUpdated = this.messageStateHandler.getClineMessages()
+							const hookMessageIndex = clineMessagesUpdated.findIndex((m) => m.ts === hookMessageTs)
+							if (hookMessageIndex !== -1) {
+								const cancelledMetadata = {
+									hookName: "TaskResume",
+									status: "cancelled",
+									exitCode: 130,
+								}
+								await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+									text: JSON.stringify(cancelledMetadata),
+								})
+							}
+						}
+						// Return without continuing task - cancellation was handled by abortTask()
+						return
+					}
+
+					// Update hook status to failed for actual errors
 					// Extract structured error info if available
 					const isStructuredError = HookExecutionError.isHookError(hookError)
 					const errorInfo = isStructuredError ? hookError.errorInfo : null
 
-					// Update hook status with structured error info
 					if (hookMessageTs !== undefined) {
 						const clineMessagesUpdated = this.messageStateHandler.getClineMessages()
 						const hookMessageIndex = clineMessagesUpdated.findIndex((m) => m.ts === hookMessageTs)
 						if (hookMessageIndex !== -1) {
 							const failedMetadata = {
 								hookName: "TaskResume",
-								status: errorInfo?.type === "cancellation" ? "cancelled" : "failed",
+								status: "failed",
 								exitCode: errorInfo?.exitCode ?? 1,
 								...(errorInfo && {
 									error: {
@@ -1381,12 +1359,8 @@ export class Task {
 						}
 					}
 
-					// If task was aborted (e.g., via cancel button), stop execution
-					if (this.taskState.abort) {
-						return
-					}
-
 					// TaskResume hook failure is non-fatal - continue with resume
+					console.error("TaskResume hook failed:", hookError)
 				}
 			}
 		}
