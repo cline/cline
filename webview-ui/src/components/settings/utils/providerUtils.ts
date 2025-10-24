@@ -19,6 +19,8 @@ import {
 	doubaoModels,
 	fireworksDefaultModelId,
 	fireworksModels,
+	gatewayzDefaultModelId,
+	gatewayzModels,
 	geminiDefaultModelId,
 	geminiModels,
 	groqDefaultModelId,
@@ -357,6 +359,8 @@ export function normalizeApiConfiguration(
 				selectedModelId: ocaModelId || "",
 				selectedModelInfo: ocaModelInfo || liteLlmModelInfoSaneDefaults,
 			}
+		case "gatewayz":
+			return getProviderData(gatewayzModels, gatewayzDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -624,6 +628,7 @@ export async function syncModeConfigurations(
 			break
 
 		// Providers that use apiProvider + apiModelId fields
+		case "gatewayz":
 		case "anthropic":
 		case "claude-code":
 		case "vertex":

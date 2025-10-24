@@ -23,6 +23,7 @@ import { DeepSeekProvider } from "./providers/DeepSeekProvider"
 import { DifyProvider } from "./providers/DifyProvider"
 import { DoubaoProvider } from "./providers/DoubaoProvider"
 import { FireworksProvider } from "./providers/FireworksProvider"
+import { GatewayzProvider } from "./providers/GatewayzProvider"
 import { GeminiProvider } from "./providers/GeminiProvider"
 import { GroqProvider } from "./providers/GroqProvider"
 import { HuaweiCloudMaasProvider } from "./providers/HuaweiCloudMaasProvider"
@@ -163,6 +164,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "huawei-cloud-maas", label: "Huawei Cloud MaaS" },
 			{ value: "dify", label: "Dify.ai" },
 			{ value: "oca", label: "Oracle Code Assist" },
+			{ value: "gatewayz", label: "Gatewayz" },
 		]
 
 		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
@@ -505,6 +507,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{apiConfiguration && selectedProvider === "oca" && <OcaProvider currentMode={currentMode} isPopup={isPopup} />}
+
+			{apiConfiguration && selectedProvider === "gatewayz" && (
+				<GatewayzProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
 
 			{apiErrorMessage && (
 				<p

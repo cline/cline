@@ -144,6 +144,7 @@ const (
 	OPENAI_NATIVE = "openai-native"
 	XAI = "xai"
 	CEREBRAS = "cerebras"
+	GATEWAYZ = "gatewayz"
 )
 
 // AllProviders returns a slice of enabled provider IDs for the CLI build.
@@ -159,6 +160,7 @@ var AllProviders = []string{
 	"openai-native",
 	"xai",
 	"cerebras",
+	"gatewayz",
 }
 
 // ConfigField represents a configuration field requirement
@@ -317,6 +319,15 @@ var rawConfigFields = `	[
 	    "placeholder": "Enter your API key"
 	  },
 	  {
+	    "name": "gatewayzApiKey",
+	    "type": "string",
+	    "comment": "",
+	    "category": "gatewayz",
+	    "required": true,
+	    "fieldType": "password",
+	    "placeholder": "Enter your API key"
+	  },
+	  {
 	    "name": "ulid",
 	    "type": "string",
 	    "comment": "Used to identify the task in API requests",
@@ -416,6 +427,15 @@ var rawConfigFields = `	[
 	    "placeholder": ""
 	  },
 	  {
+	    "name": "gatewayzBaseUrl",
+	    "type": "string",
+	    "comment": "",
+	    "category": "general",
+	    "required": false,
+	    "fieldType": "url",
+	    "placeholder": "https://api.example.com"
+	  },
+	  {
 	    "name": "onRetryAttempt",
 	    "type": "(attempt: number, maxRetries: number, delay: number, error: any) => void",
 	    "comment": "",
@@ -463,6 +483,16 @@ var rawModelDefinitions = `	{
 	      "inputPrice": 3,
 	      "outputPrice": 15,
 	      "cacheWritesPrice": 3,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "claude-haiku-4-5-20251001": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "inputPrice": 1,
+	      "outputPrice": 5,
+	      "cacheWritesPrice": 1,
 	      "cacheReadsPrice": 0,
 	      "supportsImages": true,
 	      "supportsPromptCache": true
@@ -575,6 +605,16 @@ var rawModelDefinitions = `	{
 	      "inputPrice": 3,
 	      "outputPrice": 15,
 	      "cacheWritesPrice": 3,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "anthropic.claude-haiku-4-5-20251001-v1:0": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "inputPrice": 1,
+	      "outputPrice": 5,
+	      "cacheWritesPrice": 1,
 	      "cacheReadsPrice": 0,
 	      "supportsImages": true,
 	      "supportsPromptCache": true
@@ -744,6 +784,24 @@ var rawModelDefinitions = `	{
 	      "supportsImages": false,
 	      "supportsPromptCache": false,
 	      "description": "A compact 20B open-weight Mixture-of-Experts language model designed for strong reasoning and tool use, ideal for edge devices and local inference."
+	    },
+	    "qwen.qwen3-coder-30b-a3b-v1:0": {
+	      "maxTokens": 8192,
+	      "contextWindow": 262144,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": false,
+	      "supportsPromptCache": false,
+	      "description": "Qwen3 Coder 30B MoE model with 3.3B activated parameters, optimized for code generation and analysis with 256K context window."
+	    },
+	    "qwen.qwen3-coder-480b-a35b-v1:0": {
+	      "maxTokens": 8192,
+	      "contextWindow": 262144,
+	      "inputPrice": 0,
+	      "outputPrice": 1,
+	      "supportsImages": false,
+	      "supportsPromptCache": false,
+	      "description": "Qwen3 Coder 480B flagship MoE model with 35B activated parameters, designed for complex coding tasks with advanced reasoning capabilities and 256K context window."
 	    }
 	  },
 	  "gemini": {
@@ -1389,6 +1447,18 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		HasDynamicModels: false,
 		SetupInstructions: `Get your API key from https://cloud.cerebras.ai/`,
 	}
+
+	// Gatewayz
+	definitions["gatewayz"] = ProviderDefinition{
+		ID:              "gatewayz",
+		Name:            "Gatewayz",
+		RequiredFields:  getFieldsByProvider("gatewayz", configFields, true),
+		OptionalFields:  getFieldsByProvider("gatewayz", configFields, false),
+		Models:          modelDefinitions["gatewayz"],
+		DefaultModelID:  "gatewayz/default",
+		HasDynamicModels: false,
+		SetupInstructions: `Configure Gatewayz API credentials`,
+	}
 	
 	return definitions, nil
 }
@@ -1415,6 +1485,7 @@ func GetProviderDisplayName(providerID string) string {
 		"openai-native": "OpenAI",
 		"xai": "X AI (Grok)",
 		"cerebras": "Cerebras",
+		"gatewayz": "Gatewayz",
 	}
 	
 	if name, exists := displayNames[providerID]; exists {
