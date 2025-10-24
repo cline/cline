@@ -333,6 +333,17 @@ export class Controller {
 			taskLockAcquired,
 		})
 
+		// IMPORTANT: Now that the task instance is fully assigned to controller.task,
+		// we can safely start the task initialization. This prevents race conditions
+		// where hooks (especially TaskStart) run before the task is ready to be cancelled.
+		if (historyItem) {
+			// Resume an existing task - this will show the resume button first
+			this.task.resumeTaskFromHistory()
+		} else if (task || images || files) {
+			// Start a new task - this will run TaskStart hook immediately
+			this.task.startTask(task, images, files)
+		}
+
 		return this.task.taskId
 	}
 
@@ -411,13 +422,17 @@ export class Controller {
 
 	async cancelTask() {
 		if (this.task) {
+			console.log(`[Controller.cancelTask] Starting cancellation for task ${this.task.taskId}`)
 			this.updateBackgroundCommandState(false)
-			const { historyItem } = await this.getTaskWithId(this.task.taskId)
+
 			try {
+				console.log(`[Controller.cancelTask] Calling abortTask()`)
 				await this.task.abortTask()
 			} catch (error) {
 				console.error("Failed to abort task", error)
 			}
+
+			console.log(`[Controller.cancelTask] Waiting for abort to complete...`)
 			await pWaitFor(
 				() =>
 					this.task === undefined ||
@@ -430,15 +445,50 @@ export class Controller {
 			).catch(() => {
 				console.error("Failed to abort task")
 			})
+
+			console.log(
+				`[Controller.cancelTask] Abort complete, didFinishAbortingStream=${this.task?.taskState.didFinishAbortingStream}`,
+			)
+
 			if (this.task) {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 				this.task.taskState.abandoned = true
 			}
-			// Re-initialize task to keep it visible in UI
-			await this.initTask(undefined, undefined, undefined, historyItem, undefined)
 
-			// Ensure state is sent to webview after re-initialization to trigger UI updates
+			// Small delay to ensure state manager has persisted the history update
+			await new Promise((resolve) => setTimeout(resolve, 100))
+
+			// NOW try to get history after abort has finished (hook may have saved messages)
+			let historyItem: HistoryItem | undefined
+			try {
+				console.log(`[Controller.cancelTask] Attempting to get task history for ${this.task.taskId}`)
+				console.log(
+					`[Controller.cancelTask] Current taskHistory has ${this.stateManager.getGlobalStateKey("taskHistory").length} items`,
+				)
+				const result = await this.getTaskWithId(this.task.taskId)
+				historyItem = result.historyItem
+				console.log(
+					`[Controller.cancelTask] Found history item with ${result.apiConversationHistory.length} API messages`,
+				)
+			} catch (error) {
+				// Task not in history yet (new task with no messages)
+				console.log(`[Controller.cancelTask] Task not found in history: ${error}`)
+			}
+
+			// Only re-initialize if we found a history item, otherwise just clear
+			if (historyItem) {
+				console.log(`[Controller.cancelTask] Re-initializing task with history`)
+				// Re-initialize task to keep it visible in UI with resume button
+				await this.initTask(undefined, undefined, undefined, historyItem, undefined)
+			} else {
+				console.log(`[Controller.cancelTask] No history found, clearing task`)
+				// No history to restore, just clear the task
+				await this.clearTask()
+			}
+
+			// Ensure state is sent to webview after cancellation
 			await this.postStateToWebview()
+			console.log(`[Controller.cancelTask] Cancellation complete`)
 		}
 	}
 
@@ -952,14 +1002,18 @@ export class Controller {
 	*/
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
+		console.log(`[Controller.updateTaskHistory] Updating history for task ${item.id}`)
 		const history = this.stateManager.getGlobalStateKey("taskHistory")
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
+			console.log(`[Controller.updateTaskHistory] Updating existing item at index ${existingItemIndex}`)
 			history[existingItemIndex] = item
 		} else {
+			console.log(`[Controller.updateTaskHistory] Adding new item to history`)
 			history.push(item)
 		}
 		this.stateManager.setGlobalState("taskHistory", history)
+		console.log(`[Controller.updateTaskHistory] History now has ${history.length} items`)
 		return history
 	}
 }
