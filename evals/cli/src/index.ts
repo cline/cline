@@ -4,7 +4,6 @@ import chalk from "chalk"
 import { setupHandler } from "./commands/setup"
 import { runHandler } from "./commands/run"
 import { reportHandler } from "./commands/report"
-import { evalsEnvHandler } from "./commands/evals-env"
 import { runDiffEvalHandler } from "./commands/runDiffEval"
 
 // Create the CLI program
@@ -20,7 +19,7 @@ program
 	.option(
 		"-b, --benchmarks <benchmarks>",
 		"Comma-separated list of benchmarks to set up",
-		"exercism,swe-bench,swelancer,multi-swe",
+		"exercism",
 	)
 	.action(async (options) => {
 		try {
@@ -36,9 +35,7 @@ program
 	.command("run")
 	.description("Run evaluations")
 	.option("-b, --benchmark <benchmark>", "Specific benchmark to run")
-	.option("-m, --model <model>", "Model to evaluate", "claude-3-opus-20240229")
 	.option("-c, --count <count>", "Number of tasks to run", parseInt)
-	.option("-k, --api-key <apiKey>", "Cline API key to use for evaluations")
 	.action(async (options) => {
 		try {
 			await runHandler(options)
@@ -63,21 +60,6 @@ program
 		}
 	})
 
-// Evals-env command
-program
-	.command("evals-env")
-	.description("Manage evals.env files for test mode activation")
-	.argument("<action>", "Action to perform: create, remove, or check")
-	.option("-d, --directory <directory>", "Directory to create/remove/check evals.env file in (defaults to current directory)")
-	.action(async (action, options) => {
-		try {
-			await evalsEnvHandler({ action, ...options })
-		} catch (error) {
-			console.error(chalk.red(`Error managing evals.env file: ${error instanceof Error ? error.message : String(error)}`))
-			process.exit(1)
-		}
-	})
-
 // Run-diff-eval command
 program
 	.command("run-diff-eval")
@@ -90,7 +72,7 @@ program
 	.option("--max-attempts-per-case <number>", "Maximum total attempts per test case (default: 10x valid attempts)")
 	.option("--max-cases <number>", "Maximum number of test cases to run (limits total cases loaded)")
 	.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")
-	.option("--diff-edit-function <name>", "The diff editing function to use", "constructNewFileContentV2")
+	.option("--diff-edit-function <name>", "The diff editing function to use", "diff-06-26-25")
 	.option("--thinking-budget <tokens>", "Set the thinking tokens budget", "0")
 	.option("--provider <provider>", "API provider to use (openrouter, openai)", "openrouter")
 	.option("--parallel", "Run tests in parallel", false)
