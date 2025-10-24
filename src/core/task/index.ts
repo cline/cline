@@ -1423,9 +1423,9 @@ export class Task {
 
 		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
 
-		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] = await getSavedApiConversationHistory(
-			this.taskId,
-		)
+		// Use the already-loaded API conversation history from memory instead of reloading from disk
+		// This prevents issues where the file might be empty or stale after hook execution
+		const existingApiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
 		// Remove the last user message so we can update it with the resume message
 		let modifiedOldUserContent: UserContent // either the last message if its user message, or the user message before the last (assistant) message
