@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import type { ToolUse } from "@core/assistant-message"
 import { JSONParser } from "@streamparser/json"
+import { ClineDefaultTool } from "@/shared/tools"
 
 export interface PendingToolUse {
 	id: string
@@ -115,7 +116,8 @@ export class ToolUseHandler {
 	getPartialToolUsesAsContent(): ToolUse[] {
 		const results: ToolUse[] = []
 		for (const pendingToolUse of this.pendingToolUses.values()) {
-			if (!pendingToolUse.name) {
+			let toolName = pendingToolUse.name
+			if (!toolName) {
 				continue
 			}
 
@@ -142,9 +144,26 @@ export class ToolUseHandler {
 				}
 			}
 
+			if (toolName.includes("cline_mcp")) {
+				toolName = ClineDefaultTool.MCP_USE
+				const mcpToolParts = toolName.split("cline_mcp")
+
+				results.push({
+					type: "tool_use",
+					name: ClineDefaultTool.MCP_USE,
+					params: {
+						server_name: mcpToolParts[0],
+						tool_name: mcpToolParts[1],
+						arguments: JSON.stringify(params),
+					},
+					partial: true, // Always partial during streaming
+				})
+				continue
+			}
+
 			results.push({
 				type: "tool_use",
-				name: pendingToolUse.name as any,
+				name: toolName as ClineDefaultTool,
 				params: params as any, // Cast to Partial<Record<ToolParamName, string>>
 				partial: true, // Always partial during streaming
 			})

@@ -1,4 +1,6 @@
+import { CLINE_MCP_TOOL_IDENTIFIER, McpServer } from "@/shared/mcp"
 import { ModelFamily } from "@/shared/prompts"
+import { ClineDefaultTool } from "@/shared/tools"
 import { type ClineToolSpec, toolSpecFunctionDeclarations, toolSpecFunctionDefinition, toolSpecInputSchema } from "../spec"
 import { PromptVariant, SystemPromptContext } from "../types"
 
@@ -101,6 +103,21 @@ export class ClineToolSet {
 
 		return enabledTools
 	}
+
+	/**
+	 * Get the appropriate native tool converter for the given provider
+	 */
+	public static getNativeConverter(providerId: string) {
+		switch (providerId) {
+			case "anthropic":
+				return toolSpecInputSchema
+			case "gemini":
+				return toolSpecFunctionDeclarations
+			default:
+				return toolSpecFunctionDefinition
+		}
+	}
+
 	public static getNativeTools(variant: PromptVariant, context: SystemPromptContext) {
 		// Only return tool functions if the variant explicitly enables them
 		// via the "use_native_tools" label set to 1
@@ -109,13 +126,40 @@ export class ClineToolSet {
 		if (variant.labels["use_native_tools"] !== 1 || !context.enableNativeToolCalls) {
 			return undefined
 		}
-		const enabledTools = ClineToolSet.getEnabledTools(variant, context)
-		if (context.providerInfo.providerId === "anthropic") {
-			return enabledTools.map((tool) => toolSpecInputSchema(tool.config, context))
-		}
-		if (context.providerInfo.providerId === "gemini") {
-			return enabledTools.map((tool) => toolSpecFunctionDeclarations(tool.config, context))
-		}
-		return enabledTools.map((tool) => toolSpecFunctionDefinition(tool.config, context))
+
+		// Base set
+		const toolsets = ClineToolSet.getEnabledTools(variant, context)
+		const toolConfigs = toolsets.map((tool) => tool.config)
+
+		// MCP tools
+		const mcpServers = context.mcpHub?.getServers()?.filter((s) => s.disabled !== true) || []
+		const mcpTools = mcpServers?.flatMap((server) => mcpToolToClineToolSpec(server))
+
+		const enabledTools = [...toolConfigs, ...mcpTools]
+		const converter = ClineToolSet.getNativeConverter(context.providerInfo.providerId)
+
+		return enabledTools.map((tool) => converter(tool, context))
 	}
+}
+
+/**
+ * Convert an MCP server's tools to ClineToolSpec format
+ */
+export function mcpToolToClineToolSpec(server: McpServer): ClineToolSpec[] {
+	const tools = server.tools || []
+	return tools.map((mcpTool) => ({
+		variant: ModelFamily.GENERIC,
+		id: ClineDefaultTool.MCP_USE,
+		name: server.name + CLINE_MCP_TOOL_IDENTIFIER + mcpTool.name,
+		description: mcpTool.description || "",
+		parameters:
+			mcpTool.inputSchema && "properties" in mcpTool.inputSchema
+				? Object.entries(mcpTool.inputSchema.properties as Record<string, any>).map(([name, schema]) => ({
+						name,
+						instruction: schema.description || "",
+						type: schema.type || "string",
+						required: schema.required || false,
+					}))
+				: [],
+	}))
 }
