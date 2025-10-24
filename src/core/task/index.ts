@@ -879,15 +879,23 @@ export class Task {
 						const cancelledMetadata = {
 							hookName: "UserPromptSubmit",
 							status: "cancelled",
-							exitCode: 130, // Standard cancellation exit code
+							exitCode: 130,
 						}
 						await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
 							text: JSON.stringify(cancelledMetadata),
 						})
 					}
 				}
-				// Return without cancelling task - cancellation was handled by abortTask()
-				return {}
+
+				// Save BOTH files so Controller.cancelTask() can find the task
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				await this.messageStateHandler.overwriteApiConversationHistory(
+					this.messageStateHandler.getApiConversationHistory(),
+				)
+				await this.postStateToWebview()
+
+				// Signal cancellation to caller - prevents API request from starting
+				return { cancel: true }
 			}
 
 			// Update hook status to failed for actual errors
@@ -1140,10 +1148,14 @@ export class Task {
 		// Run UserPromptSubmit hook for initial task (after TaskStart for UI ordering)
 		const userPromptHookResult = await this.runUserPromptSubmitHook(userContent, "initial_task")
 
-		// Handle hook cancellation request
+		// Defensive check: Verify task wasn't aborted during hook execution (handles async cancellation)
+		if (this.taskState.abort) {
+			return
+		}
+
+		// Handle hook cancellation - but DON'T call abortTask()
+		// Controller.cancelTask() already called it, calling again causes double TaskCancel
 		if (userPromptHookResult.cancel === true) {
-			// The hook already updated its status to "cancelled" internally and saved state
-			this.abortTask()
 			return
 		}
 
@@ -1419,6 +1431,11 @@ export class Task {
 
 		// Run UserPromptSubmit hook for task resumption
 		const userPromptHookResult = await this.runUserPromptSubmitHook(newUserContent, "resume")
+
+		// Defensive check: Verify task wasn't aborted during hook execution (handles async cancellation)
+		if (this.taskState.abort) {
+			return
+		}
 
 		// Handle hook cancellation request
 		if (userPromptHookResult.cancel === true) {
