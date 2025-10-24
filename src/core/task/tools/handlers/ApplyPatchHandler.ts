@@ -5,7 +5,6 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
-import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import { isLocatedInWorkspace } from "@/utils/path"
@@ -151,7 +150,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		const provider = new FileEditProvider()
+		const provider = config.services.diffViewProvider
 		const rawInput = block.params.input
 
 		if (!rawInput) {
