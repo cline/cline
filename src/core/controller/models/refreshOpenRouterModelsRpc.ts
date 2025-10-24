@@ -10,7 +10,7 @@ import { refreshOpenRouterModels } from "./refreshOpenRouterModels"
  * @param request Empty request (unused but required for gRPC signature)
  * @returns OpenRouterCompatibleModelInfo with protobuf types
  */
-export async function refreshOpenRouterModelsRPC(
+export async function refreshOpenRouterModelsRpc(
 	controller: Controller,
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {

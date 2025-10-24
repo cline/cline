@@ -52,9 +52,9 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "anthropic/claude-haiku-4.5",
-		description: "Fast frontier intelligence at low cost",
-		label: "New",
+		id: "z-ai/glm-4.6:exacto",
+		description: "Fast open-source model with improved performance in Cline",
+		label: "Trending",
 	},
 	{
 		id: "x-ai/grok-code-fast-1",
