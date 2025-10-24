@@ -94,6 +94,7 @@ const ENABLED_PROVIDERS = [
 	"gemini", // Google Gemini
 	"ollama", // Ollama local models
 	"cerebras", // Cerebras models
+	"sapaicore", // SAP AI Core
 ]
 
 /**
@@ -962,6 +963,7 @@ function getSetupInstructions(providerId) {
 		groq: "Get your API key from https://console.groq.com/keys",
 		cerebras: "Get your API key from https://cloud.cerebras.ai/",
 		fireworks: "Get your API key from https://fireworks.ai/",
+		sapaicore: "Configure SAP AI Core client credentials (Client ID, Client Secret, Auth URL, Base URL)",
 	}
 
 	return instructions[providerId] || `Configure ${getProviderDisplayName(providerId)} API credentials`

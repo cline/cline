@@ -26,6 +26,7 @@ func GetBYOProviderList() []BYOProviderOption {
 		{Name: "Google Gemini", Provider: cline.ApiProvider_GEMINI},
 		{Name: "Ollama", Provider: cline.ApiProvider_OLLAMA},
 		{Name: "Cerebras", Provider: cline.ApiProvider_CEREBRAS},
+		{Name: "SAP AI Core", Provider: cline.ApiProvider_SAPAICORE},
 	}
 }
 
@@ -97,6 +98,8 @@ func GetBYOProviderPlaceholder(provider cline.ApiProvider) string {
 		return "e.g., qwen3-coder:30b"
 	case cline.ApiProvider_CEREBRAS:
 		return "e.g., gpt-oss-120b"
+	case cline.ApiProvider_SAPAICORE:
+		return "e.g., anthropic--claude-4-sonnet"
 	default:
 		return "Enter model ID"
 	}
