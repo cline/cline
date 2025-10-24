@@ -7,13 +7,13 @@ export type BannerPlacement = "top" | "bottom"
 
 export interface Banner {
 	id: string
-	title_md: string
-	body_md: string
+	titleMd: string
+	bodyMd: string
 	severity: BannerSeverity
 	placement: BannerPlacement
-	rules_json: string
-	active_from?: string
-	active_to?: string
+	rulesJson: string
+	activeFrom?: string
+	activeTo?: string
 }
 
 export interface BannersResponse {
@@ -26,13 +26,28 @@ export interface BannersResponse {
  * Rules that can be evaluated for banner targeting
  */
 export interface BannerRules {
+	/** Target specific IDEs (e.g., "vscode", "jetbrains") */
 	ide?: string[]
+	/** Target specific auth providers (e.g., "firebase", "workos") */
 	auth?: string[]
-	employee_only?: boolean[]
+	/** Target employees only */
+	employee_only?: boolean
+	/** Target users with specific API providers (e.g., "anthropic", "openai") */
 	providers?: string[]
+	/** Target users with specific features enabled */
 	features?: string[]
+	/** Target specific version range */
 	version?: {
 		min?: string
 		max?: string
+	}
+	/** Target specific audience segments */
+	audience?: {
+		/** Target all users */
+		all?: boolean
+		/** Target users who have never used workspaces */
+		no_workspaces?: boolean
+		/** Target team admins */
+		team_admins?: boolean
 	}
 }
