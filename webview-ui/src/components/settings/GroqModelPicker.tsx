@@ -53,7 +53,7 @@ const GroqModelPicker: React.FC<GroqModelPickerProps> = ({ isPopup, currentMode 
 	}, [apiConfiguration, currentMode])
 
 	useMount(() => {
-		ModelsServiceClient.refreshGroqModelsRPC(EmptyRequest.create({}))
+		ModelsServiceClient.refreshGroqModelsRpc(EmptyRequest.create({}))
 			.then((response) => {
 				setGroqModels({
 					[groqDefaultModelId]: groqModels[groqDefaultModelId],
