@@ -329,8 +329,74 @@ export class ContextManager {
 
 		const updatedMessages = this.applyContextHistoryUpdates(messages, deletedRange ? deletedRange[1] + 1 : 2)
 
+		// Validate and fix tool_use/tool_result pairing
+		this.ensureToolResultsFollowToolUse(updatedMessages)
+
 		// OLD NOTE: if you try to console log these, don't forget that logging a reference to an array may not provide the same result as logging a slice() snapshot of that array at that exact moment. The following DOES in fact include the latest assistant message.
 		return updatedMessages
+	}
+
+	/**
+	 * Ensures that every tool_use block in assistant messages has a corresponding tool_result in the next user message
+	 */
+	private ensureToolResultsFollowToolUse(messages: Anthropic.Messages.MessageParam[]): void {
+		for (let i = 0; i < messages.length; i++) {
+			const message = messages[i]
+
+			// Check if this is an assistant message
+			if (message.role === "assistant" && Array.isArray(message.content)) {
+				// Collect all tool_use IDs from this assistant message
+				const toolUseIds: string[] = []
+				for (const block of message.content) {
+					if (block.type === "tool_use" && block.id) {
+						toolUseIds.push(block.id)
+					}
+				}
+
+				// If there are tool_use blocks, check the next message
+				if (toolUseIds.length > 0 && i + 1 < messages.length) {
+					const nextMessage = messages[i + 1]
+
+					// Ensure the next message is a user message
+					if (nextMessage.role === "user") {
+						// Collect existing tool_result IDs
+						const existingToolResultIds = new Set<string>()
+						if (Array.isArray(nextMessage.content)) {
+							for (const block of nextMessage.content) {
+								if (block.type === "tool_result" && block.tool_use_id) {
+									existingToolResultIds.add(block.tool_use_id)
+								}
+							}
+						}
+
+						// Find missing tool_result blocks
+						const missingToolUseIds = toolUseIds.filter((id) => !existingToolResultIds.has(id))
+
+						// Add missing tool_result blocks
+						if (missingToolUseIds.length > 0) {
+							// Clone the message to avoid mutating the original
+							const clonedMessage = cloneDeep(nextMessage)
+
+							if (!Array.isArray(clonedMessage.content)) {
+								clonedMessage.content = []
+							}
+
+							// Add a tool_result for each missing tool_use
+							for (const toolUseId of missingToolUseIds) {
+								clonedMessage.content.push({
+									type: "tool_result",
+									tool_use_id: toolUseId,
+									content: "result missing",
+								})
+							}
+
+							// Replace the message in the array
+							messages[i + 1] = clonedMessage
+						}
+					}
+				}
+			}
+		}
 	}
 
 	/**
