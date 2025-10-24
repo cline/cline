@@ -460,21 +460,6 @@ export class Controller {
 	}
 
 	/**
-	 * @deprecated Use cancelTask() directly. This method cancels the entire task, not just the hook.
-	 * Kept for backwards compatibility with webview UI components.
-	 */
-	async cancelHookExecution(): Promise<boolean> {
-		// This method name is misleading - it actually cancels the entire task
-		// The Task.cancelHookExecution() method only signals the hook to stop
-		// This Controller method then calls cancelTask() which re-initializes everything
-		if (!this.task) {
-			return false
-		}
-		await this.cancelTask()
-		return true
-	}
-
-	/**
 	 * Check if we should show the background terminal suggestion based on shell integration warning frequency
 	 * @returns true if we should show the suggestion, false otherwise
 	 */
