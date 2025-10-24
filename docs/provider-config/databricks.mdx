@@ -1,0 +1,61 @@
+# Databricks
+
+Databricks provides API endpoints for running Claude (Anthropic) models through their ML inference platform.
+
+## Configuration
+
+To use Databricks with Cline:
+
+1. **Obtain your Databricks API Key**: Get your authentication token from your Databricks workspace
+2. **Get your Base URL**: Enter your Databricks base URL ending with `/serving-endpoints`
+   - Example: `https://your-workspace.cloud.databricks.com/serving-endpoints`
+   - **Note**: Cline will automatically append `/anthropic` for Claude models
+3. **Configure in Cline**:
+   - Open Cline settings
+   - Select "Databricks" from the API Provider dropdown
+   - Enter your API key
+   - Enter your Databricks base URL
+   - Select your preferred Claude model
+
+## Supported Models
+
+Databricks provides access to the following Claude models:
+
+- **databricks-claude-sonnet-4-5** (default) - Claude 4.5 Sonnet
+  - Context: 200K tokens
+  - Max Output: 8K tokens
+  - Supports images and prompt caching
+  - Latest Sonnet model with enhanced capabilities
+
+- **databricks-claude-sonnet-4** - Claude 4.0 Sonnet
+  - Context: 200K tokens
+  - Max Output: 8K tokens
+  - Supports images and prompt caching
+  - Balanced performance and speed
+
+- **databricks-claude-opus-4-1** - Claude Opus 4.1
+  - Context: 200K tokens
+  - Max Output: 8K tokens
+  - Supports images and prompt caching
+  - Premium reasoning model for complex tasks
+
+## Authentication
+
+Databricks uses Bearer token authentication. Your API key will be automatically formatted as `Authorization: Bearer <your-token>` in API requests.
+
+## Features
+
+- ✅ Streaming responses (simulated from non-streaming API due to Databricks limitations)
+- ✅ Prompt caching for efficient token usage
+- ✅ Extended thinking mode support for complex reasoning
+- ✅ Image input support across all models
+- ✅ Full Anthropic API compatibility
+- ✅ Bearer token authentication
+
+## Notes
+
+- Full Anthropic API compatibility with all Claude 4 series features
+- The handler automatically appends `/anthropic` to your base URL
+- Prompt caching can significantly reduce costs for repeated context
+- Extended thinking mode (controlled by thinking budget) is available for Sonnet 4.5, Sonnet 4, and Opus 4.1
+- Databricks' streaming endpoint has issues, so the handler uses non-streaming with simulated streaming for reliability
