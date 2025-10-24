@@ -623,7 +623,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [])
 
 	const refreshOpenRouterModels = useCallback(() => {
-		ModelsServiceClient.refreshOpenRouterModelsRPC(EmptyRequest.create({}))
+		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
 			.then((response: OpenRouterCompatibleModelInfo) => {
 				const models = fromProtobufModels(response.models)
 				setOpenRouterModels({
