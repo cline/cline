@@ -1,15 +1,34 @@
 @layer theme, base, components, utilities;
+
+/*
+Import order matters for Tailwind CSS v4 compatibility
+
+External @import statements MUST come before Tailwind imports because:
+1. CSS spec requires ALL @import statements to precede other CSS rules (except @charset/@layer)
+2. Tailwind CSS v4 expands its imports into thousands of lines of generated utility CSS
+3. If external imports come after Tailwind imports, they end up after the generated CSS
+4. This causes PostCSS to throw: "@import must precede all other statements"
+
+The correct order is:
+- @layer declarations (empty)
+- External @import statements (fonts, icons, etc.)
+- Tailwind @import statements (theme, utilities)
+- @config directives
+- Regular CSS rules
+*/
+
+/* External imports must come first, before Tailwind imports */
+@import url("../../node_modules/@vscode/codicons/dist/codicon.css");
+@import url("../node_modules/@fontsource/azeret-mono/index.css");
+
+/* Tailwind imports come after external imports */
 @import "tailwindcss/theme.css" layer(theme);
 /* Disable Tailwind's CSS reset to preserve existing styles */
 /* @import "tailwindcss/preflight.css" layer(base); */
 @import "tailwindcss/utilities.css" layer(utilities);
 
+/* Configuration directives come after all imports */
 @config "../tailwind.config.mjs";
-
-/* Import Azeret Mono font from local package */
-@import "@fontsource/azeret-mono/300.css";
-@import "@fontsource/azeret-mono/400.css";
-@import "@fontsource/azeret-mono/700.css";
 
 textarea:focus {
 	outline: 1.5px solid var(--vscode-focusBorder, #007fd4);
@@ -193,4 +212,15 @@ vscode-dropdown::part(listbox) {
 	border-radius: 3px;
 	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent);
 	color: transparent;
+}
+
+/* Pulse animation for running command indicator */
+@keyframes pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.5;
+	}
 }

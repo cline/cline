@@ -184,11 +184,9 @@ describe("ErrorRow", () => {
 
 			render(<ErrorRow apiRequestFailedMessage="Some API error" errorType="error" message={mockMessage} />)
 
-			// When ClineError.parse returns null, clineErrorMessage is undefined, so it renders an empty paragraph
-			// The fallback to message.text only happens when there's no apiRequestFailedMessage at all
-			const paragraph = screen.getByRole("paragraph")
-			expect(paragraph).toBeInTheDocument()
-			expect(paragraph).toBeEmptyDOMElement()
+			// When ClineError.parse returns null, we display the raw error message for non-Cline providers
+			// Since clineError is undefined, isClineProvider is false, so we show the raw apiRequestFailedMessage
+			expect(screen.getByText("Some API error")).toBeInTheDocument()
 		})
 
 		it("renders regular error message when no API error messages are provided", () => {

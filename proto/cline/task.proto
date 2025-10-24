@@ -1,13 +1,19 @@
 syntax = "proto3";
 
 package cline;
+
 import "cline/common.proto";
-option java_package = "bot.cline.proto";
+import "cline/state.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
 option java_multiple_files = true;
+option java_package = "bot.cline.proto";
 
 service TaskService {
   // Cancels the currently running task
   rpc cancelTask(EmptyRequest) returns (Empty);
+  // Cancels the currently running background command
+  rpc cancelBackgroundCommand(EmptyRequest) returns (Empty);
   // Clears the current task
   rpc clearTask(EmptyRequest) returns (Empty);
   // Gets the total size of all tasks
@@ -15,7 +21,7 @@ service TaskService {
   // Deletes multiple tasks with the given IDs
   rpc deleteTasksWithIds(StringArrayRequest) returns (Empty);
   // Creates a new task with the given text and optional images
-  rpc newTask(NewTaskRequest) returns (Empty);
+  rpc newTask(NewTaskRequest) returns (String);
   // Shows a task with the specified ID
   rpc showTaskWithId(StringRequest) returns (TaskResponse);
   // Exports a task with the given ID to markdown
@@ -42,6 +48,7 @@ message NewTaskRequest {
   string text = 2;
   repeated string images = 3;
   repeated string files = 4;
+  optional Settings task_settings = 5;
 }
 
 // Request message for toggling task favorite status
@@ -97,7 +104,7 @@ message TaskItem {
 // Request for ask response operation
 message AskResponseRequest {
   Metadata metadata = 1;
-  string response_type = 2; 
+  string response_type = 2;
   string text = 3;
   repeated string images = 4;
   repeated string files = 5;

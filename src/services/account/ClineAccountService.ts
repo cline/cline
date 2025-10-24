@@ -7,13 +7,14 @@ import type {
 	UserResponse,
 } from "@shared/ClineAccount"
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
-import { clineEnvConfig } from "@/config"
+import { ClineEnv } from "@/config"
+import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { AuthService } from "../auth/AuthService"
 
 export class ClineAccountService {
 	private static instance: ClineAccountService
 	private _authService: AuthService
-	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
+	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 
 	constructor() {
 		this._authService = AuthService.getInstance()
@@ -46,10 +47,12 @@ export class ClineAccountService {
 	 * @throws Error if the API key is not found or the request fails
 	 */
 	private async authenticatedRequest<T>(endpoint: string, config: AxiosRequestConfig = {}): Promise<T> {
-		const url = `${this._baseUrl}${endpoint}`
-
+		const url = new URL(endpoint, this._baseUrl).toString() // Validate URL
+		// IMPORTANT: Prefixed with 'workos:' so backend can route verification to WorkOS provider
 		const clineAccountAuthToken = await this._authService.getAuthToken()
-
+		if (!clineAccountAuthToken) {
+			throw new Error("No Cline account auth token found")
+		}
 		const requestConfig: AxiosRequestConfig = {
 			...config,
 			headers: {
@@ -145,7 +148,7 @@ export class ClineAccountService {
 	 */
 	async fetchMe(): Promise<UserResponse | undefined> {
 		try {
-			const data = await this.authenticatedRequest<UserResponse>(`/api/v1/users/me`)
+			const data = await this.authenticatedRequest<UserResponse>(CLINE_API_ENDPOINT.USER_INFO)
 			return data
 		} catch (error) {
 			console.error("Failed to fetch user data (RPC):", error)
@@ -223,7 +226,7 @@ export class ClineAccountService {
 		// Call API to switch account
 		try {
 			// make XHR request to switch account
-			const _response = await this.authenticatedRequest<string>(`/api/v1/users/active-account`, {
+			const _response = await this.authenticatedRequest<string>(CLINE_API_ENDPOINT.ACTIVE_ACCOUNT, {
 				method: "PUT",
 				headers: {
 					"Content-Type": "application/json",
@@ -239,5 +242,23 @@ export class ClineAccountService {
 			// After user switches account, we will force a refresh of the id token by calling this function that restores the refresh token and retrieves new auth info
 			await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
 		}
+	}
+
+	/**
+	 * Transcribes audio using the Cline transcription service
+	 * @param audioBase64 - Base64 encoded audio data
+	 * @param language - Optional language hint for transcription
+	 * @returns Promise with transcribed text or error
+	 */
+	async transcribeAudio(audioBase64: string, language = "en"): Promise<{ text: string }> {
+		const response = await this.authenticatedRequest<{ text: string }>(`/api/v1/chat/transcriptions`, {
+			method: "POST",
+			data: {
+				audioData: audioBase64,
+				language: language,
+			},
+		})
+
+		return response
 	}
 }

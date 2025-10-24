@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Important:** All bug reports must be reproducible using Claude Sonnet 4. Cline uses complex prompts so less capable models may not work as expected.
+        **Important:** All bug reports must be reproducible using Claude Sonnet 4.5. Cline uses complex prompts so less capable models may not work as expected.
   - type: dropdown
     id: plugin-type
     attributes:
@@ -14,6 +14,7 @@ body:
       options:
         - VSCode Extension
         - JetBrains Plugin
+        - CLI
       default: 0
     validations:
       required: true
@@ -49,7 +50,7 @@ body:
     attributes:
       label: Provider/Model
       description: What provider and model were you using when the issue occurred?
-      placeholder: 'e.g., cline:anthropic/claude-sonnet-4, gemini:gemini-2.5-pro-exp-03-25'
+      placeholder: 'e.g., cline:anthropic/claude-sonnet-4.5, gemini:gemini-2.5-pro-exp-03-25'
     validations:
       required: false
   - type: textarea

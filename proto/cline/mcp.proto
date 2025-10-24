@@ -1,9 +1,12 @@
 syntax = "proto3";
 
 package cline;
+
 import "cline/common.proto";
-option java_package = "bot.cline.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
 option java_multiple_files = true;
+option java_package = "bot.cline.proto";
 
 service McpService {
   rpc toggleMcpServer(ToggleMcpServerRequest) returns (McpServers);
@@ -15,11 +18,11 @@ service McpService {
   rpc toggleToolAutoApprove(ToggleToolAutoApproveRequest) returns (McpServers);
   rpc refreshMcpMarketplace(EmptyRequest) returns (McpMarketplaceCatalog);
   rpc openMcpSettings(EmptyRequest) returns (Empty);
-  
+
   // Subscribe to MCP marketplace catalog updates
   rpc subscribeToMcpMarketplaceCatalog(EmptyRequest) returns (stream McpMarketplaceCatalog);
   rpc getLatestMcpServers(Empty) returns (McpServers);
-  
+
   // Subscribe to MCP server updates
   rpc subscribeToMcpServers(EmptyRequest) returns (stream McpServers);
 }
@@ -71,7 +74,7 @@ message McpResourceTemplate {
 }
 
 enum McpServerStatus {
-  // Protobuf enums (in proto3) must have a zero value defined, which serves as the default if the field isn't explicitly set. 
+  // Protobuf enums (in proto3) must have a zero value defined, which serves as the default if the field isn't explicitly set.
   // To align with the required nature of the TypeScript type and avoid an unnecessary UNSPECIFIED state, we map one of the existing statuses to this zero value.
   MCP_SERVER_STATUS_DISCONNECTED = 0; // default
   MCP_SERVER_STATUS_CONNECTED = 1;

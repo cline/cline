@@ -10,12 +10,16 @@ const replaceCname = (baseUrl: string, type: URLType): string => {
 	}
 }
 
-export const toRequestyServiceUrl = (baseUrl?: string, service: URLType = "router"): URL => {
-	const url = replaceCname(baseUrl ?? REQUESTY_BASE_URL, service)
+export const toRequestyServiceUrl = (baseUrl?: string, service: URLType = "router"): URL | undefined => {
+	const url = replaceCname(baseUrl || REQUESTY_BASE_URL, service)
 
-	return new URL(url)
+	try {
+		return new URL(url)
+	} catch (e) {
+		return undefined
+	}
 }
 
-export const toRequestyServiceStringUrl = (baseUrl?: string, service: URLType = "router"): string => {
-	return toRequestyServiceUrl(baseUrl, service).toString()
+export const toRequestyServiceStringUrl = (baseUrl?: string, service: URLType = "router"): string | undefined => {
+	return toRequestyServiceUrl(baseUrl, service)?.toString()
 }

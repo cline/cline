@@ -1,4 +1,5 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
+import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
 import { Mode } from "@shared/storage/types"
 import { useCallback, useMemo, useState } from "react"
 import { useMount } from "react-use"
@@ -34,10 +35,10 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 	useMount(() => {
 		if (showModelOptions) {
 			setIsLoadingModels(true)
-			ModelsServiceClient.refreshVercelAiGatewayModels(EmptyRequest.create({}))
+			ModelsServiceClient.refreshVercelAiGatewayModelsRpc(EmptyRequest.create({}))
 				.then((response) => {
 					if (response && response.models) {
-						setVercelAiGatewayModels(response.models)
+						setVercelAiGatewayModels(fromProtobufModels(response.models))
 					}
 					setIsLoadingModels(false)
 				})
@@ -102,7 +103,7 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 						<span>
 							{" "}
 							<a
-								href="https://vercel.com/"
+								href="https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai"
 								style={{
 									color: "var(--vscode-textLink-foreground)",
 									textDecoration: "none",
@@ -171,16 +172,6 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 					)}
 				</>
 			)}
-
-			<p
-				style={{
-					fontSize: "12px",
-					marginTop: "15px",
-					color: "var(--vscode-descriptionForeground)",
-					fontStyle: "italic",
-				}}>
-				Note: Free tier users will see $0 costs as these requests are provided at no charge by Vercel AI Gateway.
-			</p>
 		</div>
 	)
 }

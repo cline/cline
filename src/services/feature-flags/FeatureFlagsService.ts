@@ -1,4 +1,5 @@
-import { FEATURE_FLAGS, FeatureFlag } from "@/shared/services/feature-flags/feature-flags"
+import { Logger } from "@/services/logging/Logger"
+import { FEATURE_FLAGS, FeatureFlag, FeatureFlagDefaultValue } from "@/shared/services/feature-flags/feature-flags"
 import type { IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 
 // Default cache time-to-live (TTL) for feature flags - an hour
@@ -17,7 +18,7 @@ export class FeatureFlagsService {
 	 */
 	public constructor(private provider: IFeatureFlagsProvider) {}
 
-	private cache: Map<FeatureFlag, boolean> = new Map()
+	private cache: Map<FeatureFlag, unknown> = new Map()
 	private lastCacheUpdateTime: number = 0
 
 	/**
@@ -34,14 +35,17 @@ export class FeatureFlagsService {
 			const flagEnabled = await this.getFeatureFlag(flag).catch(() => false)
 			this.cache.set(flag, flagEnabled === true)
 		}
+
+		// Print DO_NOTHING flag status after polling
+		Logger.log(`do_nothing flag: ${this.getDoNothingFlag()}`)
 	}
 
-	private async getFeatureFlag(flagName: FeatureFlag): Promise<boolean> {
+	private async getFeatureFlag(flagName: FeatureFlag): Promise<unknown> {
 		try {
 			const flagValue = await this.provider.getFeatureFlag(flagName)
-			const enabled = flagValue === true
-			this.cache.set(flagName, enabled)
-			return enabled
+			const value = flagValue ?? FeatureFlagDefaultValue[flagName]
+			this.cache.set(flagName, value)
+			return value
 		} catch (error) {
 			console.error(`Error checking if feature flag ${flagName} is enabled:`, error)
 			this.cache.set(flagName, false)
@@ -58,10 +62,9 @@ export class FeatureFlagsService {
 	 * @returns Boolean indicating if the feature is enabled
 	 */
 	public async isFeatureFlagEnabled(flagName: FeatureFlag): Promise<boolean> {
-		if (this.cache.has(flagName)) {
-			return this.cache.get(flagName)!
-		}
-		return this.getFeatureFlag(flagName)
+		const value = this.cache.has(flagName) ? this.cache.get(flagName) : await this.getFeatureFlag(flagName)
+
+		return !!value
 	}
 
 	/**
@@ -71,15 +74,20 @@ export class FeatureFlagsService {
 	 * Cache is updated periodically via poll(), and is generated on extension startup,
 	 * and whenever the user logs in.
 	 */
-	public getBooleanFlagEnabled(flagName: FeatureFlag, defaultValue = false): boolean {
-		return this.cache.get(flagName) ?? defaultValue
+	public getBooleanFlagEnabled(flagName: FeatureFlag): boolean {
+		return this.cache.get(flagName) === true
 	}
 
-	/**
-	 * Convenience: multi-root workspace remote gate
-	 */
-	public getMultiRootEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.MULTI_ROOT_WORKSPACE, false)
+	public getWorkOsAuthEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.WORKOS_AUTH)
+	}
+
+	public getDoNothingFlag(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.DO_NOTHING)
+	}
+
+	public getHooksEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.HOOKS)
 	}
 
 	/**

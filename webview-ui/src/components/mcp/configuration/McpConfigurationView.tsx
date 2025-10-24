@@ -7,8 +7,9 @@ import { useEffect, useState } from "react"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
+import { getEnvironmentColor } from "@/utils/environmentColors"
 import AddRemoteServerForm from "./tabs/add-server/AddRemoteServerForm"
-import InstalledServersView from "./tabs/installed/InstalledServersView"
+import ConfigureServersView from "./tabs/installed/ConfigureServersView"
 import McpMarketplaceView from "./tabs/marketplace/McpMarketplaceView"
 
 type McpViewProps = {
@@ -17,8 +18,8 @@ type McpViewProps = {
 }
 
 const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
-	const { mcpMarketplaceEnabled, setMcpServers } = useExtensionState()
-	const [activeTab, setActiveTab] = useState<McpViewTab>(initialTab || (mcpMarketplaceEnabled ? "marketplace" : "installed"))
+	const { mcpMarketplaceEnabled, setMcpServers, environment } = useExtensionState()
+	const [activeTab, setActiveTab] = useState<McpViewTab>(initialTab || (mcpMarketplaceEnabled ? "marketplace" : "configure"))
 
 	const handleTabChange = (tab: McpViewTab) => {
 		setActiveTab(tab)
@@ -26,8 +27,8 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 
 	useEffect(() => {
 		if (!mcpMarketplaceEnabled && activeTab === "marketplace") {
-			// If marketplace is disabled and we're on marketplace tab, switch to installed
-			setActiveTab("installed")
+			// If marketplace is disabled and we're on marketplace tab, switch to configure
+			setActiveTab("configure")
 		}
 	}, [mcpMarketplaceEnabled, activeTab])
 
@@ -75,7 +76,13 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 					alignItems: "center",
 					padding: "10px 17px 5px 20px",
 				}}>
-				<h3 style={{ color: "var(--vscode-foreground)", margin: 0 }}>MCP Servers</h3>
+				<h3
+					style={{
+						color: getEnvironmentColor(environment),
+						margin: 0,
+					}}>
+					MCP Servers
+				</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
 
@@ -96,16 +103,16 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 					<TabButton isActive={activeTab === "addRemote"} onClick={() => handleTabChange("addRemote")}>
 						Remote Servers
 					</TabButton>
-					<TabButton isActive={activeTab === "installed"} onClick={() => handleTabChange("installed")}>
-						Installed
+					<TabButton isActive={activeTab === "configure"} onClick={() => handleTabChange("configure")}>
+						Configure
 					</TabButton>
 				</div>
 
 				{/* Content container */}
 				<div style={{ width: "100%" }}>
 					{mcpMarketplaceEnabled && activeTab === "marketplace" && <McpMarketplaceView />}
-					{activeTab === "addRemote" && <AddRemoteServerForm onServerAdded={() => handleTabChange("installed")} />}
-					{activeTab === "installed" && <InstalledServersView />}
+					{activeTab === "addRemote" && <AddRemoteServerForm onServerAdded={() => handleTabChange("configure")} />}
+					{activeTab === "configure" && <ConfigureServersView />}
 				</div>
 			</div>
 		</div>

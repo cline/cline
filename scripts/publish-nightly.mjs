@@ -207,7 +207,16 @@ class NightlyPublisher {
 
 		log.info("Packaging extension")
 
-		const args = ["package", "--pre-release", "--no-update-package-json", "--no-git-tag-version", "--out", config.vsixPath]
+		const args = [
+			"package",
+			"--pre-release",
+			"--no-update-package-json",
+			"--no-git-tag-version",
+			"--allow-package-secrets",
+			"sendgrid",
+			"--out",
+			config.vsixPath,
+		]
 
 		try {
 			execFileSync("vsce", args, {

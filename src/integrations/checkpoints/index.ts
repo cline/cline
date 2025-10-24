@@ -13,7 +13,6 @@ import { getApiMetrics } from "@shared/getApiMetrics"
 import { HistoryItem } from "@shared/HistoryItem"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import pTimeout from "p-timeout"
-import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { MessageStateHandler } from "../../core/task/message-state"
@@ -40,7 +39,6 @@ interface CheckpointManagerServices {
 	readonly fileContextTracker: FileContextTracker
 	readonly diffViewProvider: DiffViewProvider
 	readonly messageStateHandler: MessageStateHandler
-	readonly context: vscode.ExtensionContext
 	readonly taskState: TaskState
 	readonly workspaceManager?: WorkspaceRootManager
 }
@@ -664,6 +662,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 			case "taskAndWorkspace":
 				// Update conversation history deleted range in our state
 				this.state.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
+				this.taskState.conversationHistoryDeletedRange = message.conversationHistoryDeletedRange
 
 				const apiConversationHistory = this.services.messageStateHandler.getApiConversationHistory()
 				const newConversationHistory = apiConversationHistory.slice(0, (message.conversationHistoryIndex || 0) + 2) // +1 since this index corresponds to the last user message, and another +1 since slice end index is exclusive
@@ -671,10 +670,7 @@ export class TaskCheckpointManager implements ICheckpointManager {
 
 				// update the context history state
 				const contextManager = new ContextManager()
-				await contextManager.truncateContextHistory(
-					message.ts,
-					await ensureTaskDirectoryExists(this.getContext(), this.task.taskId),
-				)
+				await contextManager.truncateContextHistory(message.ts, await ensureTaskDirectoryExists(this.task.taskId))
 
 				// aggregate deleted api reqs info so we don't lose costs/tokens
 				const clineMessages = this.services.messageStateHandler.getClineMessages()
@@ -895,16 +891,6 @@ export class TaskCheckpointManager implements ICheckpointManager {
 		// Fallback to the legacy CheckpointUtils implementation
 		const { getWorkingDirectory: getWorkingDirectoryImpl } = await import("./CheckpointUtils")
 		return getWorkingDirectoryImpl()
-	}
-
-	/**
-	 * Gets the extension context with proper error handling
-	 */
-	private getContext(): vscode.ExtensionContext {
-		if (!this.services.context) {
-			throw new Error("Unable to access extension context")
-		}
-		return this.services.context
 	}
 
 	/**

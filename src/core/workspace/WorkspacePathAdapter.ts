@@ -59,6 +59,10 @@ export class WorkspacePathAdapter {
 			}
 
 			if (root) {
+				// If no relative path specified, return the workspace root itself
+				if (!relativePath) {
+					return root.path
+				}
 				return path.join(root.path, relativePath)
 			}
 
@@ -68,6 +72,10 @@ export class WorkspacePathAdapter {
 		// Default to primary workspace
 		const primaryRoot = manager.getPrimaryRoot()
 		if (primaryRoot) {
+			// If no relative path specified, return the workspace root itself
+			if (!relativePath) {
+				return primaryRoot.path
+			}
 			return path.join(primaryRoot.path, relativePath)
 		}
 

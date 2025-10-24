@@ -1,10 +1,11 @@
 import { String } from "@shared/proto/cline/common"
-import { clineEnvConfig } from "@/config"
+import { ClineEnv } from "@/config"
 import { Controller } from "@/core/controller"
 import { WebviewProvider } from "@/core/webview"
-import type { UserResponse } from "@/shared/ClineAccount"
+import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { AuthService } from "./AuthService"
 
+// TODO: Consider adding a mock auth provider implementing IAuthProvider for more realistic testing
 export class AuthServiceMock extends AuthService {
 	protected constructor(controller: Controller) {
 		super(controller)
@@ -13,8 +14,9 @@ export class AuthServiceMock extends AuthService {
 			throw new Error("AuthServiceMock should only be used in local environment for testing purposes.")
 		}
 
-		this._config = { URI: clineEnvConfig.apiBaseUrl }
-		this._setProvider("firebase")
+		// Support both auth providers, default to firebase for compatibility
+		const authProvider = process.env.E2E_TEST_AUTH_PROVIDER || "firebase"
+		this._setProvider(authProvider)
 		this._controller = controller
 	}
 
@@ -44,7 +46,7 @@ export class AuthServiceMock extends AuthService {
 
 	override async createAuthRequest(): Promise<String> {
 		// Use URL object for more graceful query construction
-		const authUrl = new URL(clineEnvConfig.apiBaseUrl)
+		const authUrl = new URL(ClineEnv.config().apiBaseUrl)
 		const authUrlString = authUrl.toString()
 		// Call the parent implementation
 		if (this._authenticated && this._clineAuthInfo) {
@@ -53,16 +55,20 @@ export class AuthServiceMock extends AuthService {
 		}
 
 		try {
-			// Fetch user data from mock server
-			const meUri = new URL("/api/v1/users/me", clineEnvConfig.apiBaseUrl)
+			// Use token exchange endpoint like ClineAuthProvider
+			const tokenExchangeUri = new URL(CLINE_API_ENDPOINT.TOKEN_EXCHANGE, ClineEnv.config().apiBaseUrl)
 			const tokenType = "personal"
-			const testToken = `test-${tokenType}-token`
-			const response = await fetch(meUri, {
-				method: "GET",
+			const testCode = `test-${tokenType}-token`
+
+			const response = await fetch(tokenExchangeUri, {
+				method: "POST",
 				headers: {
-					Authorization: `Bearer ${testToken}`,
 					"Content-Type": "application/json",
 				},
+				body: JSON.stringify({
+					code: testCode,
+					grantType: "authorization_code",
+				}),
 			})
 
 			if (!response.ok) {
@@ -75,30 +81,33 @@ export class AuthServiceMock extends AuthService {
 				throw new Error("Invalid response from mock server")
 			}
 
-			const userData = responseData.data as UserResponse
+			const authData = responseData.data
 
-			// Convert UserResponse to ClineAuthInfo format
+			// Convert to ClineAuthInfo format matching ClineAuthProvider
 			this._clineAuthInfo = {
-				idToken: testToken,
+				idToken: authData.accessToken,
+				refreshToken: authData.refreshToken,
+				expiresAt: new Date(authData.expiresAt).getTime() / 1000,
 				userInfo: {
-					id: userData.id,
-					email: userData.email,
-					displayName: userData.displayName,
-					createdAt: userData.createdAt,
-					organizations: userData.organizations.map((org) => ({
-						active: org.active,
-						memberId: org.memberId,
-						name: org.name,
-						organizationId: org.organizationId,
-						roles: org.roles,
-					})),
+					id: authData.userInfo.clineUserId || authData.userInfo.subject,
+					email: authData.userInfo.email,
+					displayName: authData.userInfo.name,
+					createdAt: new Date().toISOString(),
+					organizations: authData.organizations,
+					appBaseUrl: ClineEnv.config().appBaseUrl,
+					subject: authData.userInfo.subject,
 				},
+				provider: this._provider?.name || "mock",
 			}
 
-			console.log(`Successfully authenticated with mock server as ${userData.displayName} (${userData.email})`)
+			console.log(`Successfully authenticated with mock server as ${authData.userInfo.name} (${authData.userInfo.email})`)
 
 			const visibleWebview = WebviewProvider.getVisibleInstance()
-			await visibleWebview?.controller.handleAuthCallback(testToken, "mock")
+
+			// Use appropriate provider name for callback
+			const providerName = this._provider?.name || "mock"
+			// Simulate handling the auth callback as if from a real provider
+			await visibleWebview?.controller.handleAuthCallback(authData.accessToken, providerName)
 		} catch (error) {
 			console.error("Error signing in with mock server:", error)
 			this._authenticated = false

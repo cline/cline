@@ -5,8 +5,8 @@ import { log } from "./utils"
 
 export const HOSTBRIDGE_PORT = 26041
 
-export async function waitForHostBridgeReady(timeoutMs = 60000, intervalMs = 500): Promise<void> {
-	const address = process.env.HOST_BRIDGE_ADDRESS || `localhost:${HOSTBRIDGE_PORT}`
+export async function waitForHostBridgeReady(timeoutMs = 60000, intervalMs = 500): Promise<string> {
+	const address = process.env.HOST_BRIDGE_ADDRESS || `127.0.0.1:${HOSTBRIDGE_PORT}`
 	const client = createHealthClient(address)
 	const deadline = Date.now() + timeoutMs
 	try {
@@ -14,7 +14,7 @@ export async function waitForHostBridgeReady(timeoutMs = 60000, intervalMs = 500
 			const ok = await checkHealthOnce(client)
 			if (ok) {
 				log(`HostBridge serving at ${address}; continuing startup`)
-				return
+				return address
 			}
 			log("Waiting for hostbridge to be ready...")
 			await new Promise((r) => setTimeout(r, intervalMs))
@@ -22,8 +22,7 @@ export async function waitForHostBridgeReady(timeoutMs = 60000, intervalMs = 500
 	} finally {
 		client.close()
 	}
-	log("HostBridge health check timed out")
-	process.exit(1)
+	throw new Error(`HostBridge health check timed out after ${timeoutMs}ms`)
 }
 
 // Client-side health check for the hostbridge service (kept at bottom for clarity)
@@ -32,7 +31,8 @@ function createHealthClient(address: string) {
 	const healthDef = protoLoader.loadSync(health.protoPath)
 	const grpcObj = grpc.loadPackageDefinition(healthDef) as unknown as any
 	const Health = grpcObj.grpc.health.v1.Health
-	return new Health(address, grpc.credentials.createInsecure())
+	const opts: grpc.ChannelOptions = { "grpc.enable_http_proxy": 0 }
+	return new Health(address, grpc.credentials.createInsecure(), opts)
 }
 
 async function checkHealthOnce(client: any): Promise<boolean> {

@@ -19,7 +19,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "axios": "^1.8.2",
+    "axios": "^1.12.0",
     "better-sqlite3": "^11.10.0",
     "chalk": "5.6.2",
     "dotenv": "^16.5.0",
@@ -30,7 +30,8 @@
     "sqlite": "^4.1.2",
     "tiktoken": "^1.0.21",
     "uuid": "^9.0.0",
-    "yargs": "^17.6.2"
+    "yargs": "^17.6.2",
+    "cline": "^1.0.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.3",

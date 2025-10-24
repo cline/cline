@@ -9,6 +9,7 @@ import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels }
 import axios from "axios"
 import OpenAI from "openai"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
+import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
 
@@ -454,6 +455,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		return this.deployments?.some((d) => d.name.split(":")[0].toLowerCase() === modelId.split(":")[0].toLowerCase()) ?? false
 	}
 
+	@withRetry()
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		if (this.options.sapAiCoreUseOrchestrationMode) {
 			yield* this.createMessageWithOrchestration(systemPrompt, messages)
@@ -823,16 +825,13 @@ export class SapAiCoreHandler implements ApiHandler {
 
 							// Handle metadata (token usage)
 							if (data.metadata?.usage) {
+								// inputTokens does not include cached write/read tokens
 								let inputTokens = data.metadata.usage.inputTokens || 0
 								const outputTokens = data.metadata.usage.outputTokens || 0
 
-								// calibrate input token
-								const totalTokens = data.metadata.usage.totalTokens || 0
 								const cacheReadInputTokens = data.metadata.usage.cacheReadInputTokens || 0
-								const cacheWriteOutputTokens = data.metadata.usage.cacheWriteOutputTokens || 0
-								if (inputTokens + outputTokens + cacheReadInputTokens + cacheWriteOutputTokens !== totalTokens) {
-									inputTokens = totalTokens - outputTokens - cacheReadInputTokens - cacheWriteOutputTokens
-								}
+								const cacheWriteInputTokens = data.metadata.usage.cacheWriteInputTokens || 0
+								inputTokens = inputTokens + cacheReadInputTokens + cacheWriteInputTokens
 
 								yield {
 									type: "usage",

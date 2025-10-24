@@ -10,32 +10,36 @@ import { getPackageDefinition, log } from "./utils"
 
 export const PROTOBUS_PORT = 26040
 
-export function startProtobusService(controller: Controller) {
-	const server = new grpc.Server()
+export function startProtobusService(controller: Controller): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const server = new grpc.Server()
 
-	// Set up health check.
-	const healthImpl = new health.HealthImplementation({ "": "SERVING" })
-	healthImpl.addToServer(server)
+		// Set up health check.
+		const healthImpl = new health.HealthImplementation({ "": "SERVING" })
+		healthImpl.addToServer(server)
 
-	// Add all the handlers for the ProtoBus services to the server.
-	addProtobusServices(server, controller, wrapHandler, wrapStreamingResponseHandler)
+		// Add all the handlers for the ProtoBus services to the server.
+		addProtobusServices(server, controller, wrapHandler, wrapStreamingResponseHandler)
 
-	// Create reflection service with protobus service names
-	const packageDefinition = getPackageDefinition()
-	const reflection = new ReflectionService(packageDefinition, {
-		services: getProtobusServiceNames(packageDefinition),
-	})
-	reflection.addToServer(server)
+		// Create reflection service with protobus service names
+		const packageDefinition = getPackageDefinition()
+		const reflection = new ReflectionService(packageDefinition, {
+			services: getProtobusServiceNames(packageDefinition),
+		})
+		reflection.addToServer(server)
 
-	// Start the server.
-	const host = process.env.PROTOBUS_ADDRESS || `127.0.0.1:${PROTOBUS_PORT}`
-	server.bindAsync(host, grpc.ServerCredentials.createInsecure(), (err) => {
-		if (err) {
-			log(`Could not start ProtoBus service: Failed to bind to ${host}, port may be unavailable. ${err.message}`)
-			process.exit(1)
-		}
-		server.start()
-		log(`ProtoBus gRPC server listening on ${host}`)
+		// Start the server.
+		const host = process.env.PROTOBUS_ADDRESS || `127.0.0.1:${PROTOBUS_PORT}`
+		server.bindAsync(host, grpc.ServerCredentials.createInsecure(), (err) => {
+			if (err) {
+				log(`Could not start ProtoBus service: Failed to bind to ${host}, port may be unavailable. ${err.message}`)
+				reject(new Error(`Failed to bind ProtoBus to ${host}: ${err.message}`))
+				return
+			}
+			server.start()
+			log(`ProtoBus gRPC server listening on ${host}`)
+			resolve(host)
+		})
 	})
 }
 

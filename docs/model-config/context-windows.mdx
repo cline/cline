@@ -1,0 +1,159 @@
+---
+title: "Context Window Guide"
+description: "Understanding and managing AI model context windows"
+---
+
+## What is a Context Window?
+
+A context window is the maximum amount of text an AI model can process at once. Think of it as the model's "working memory" - it determines how much of your conversation and code the model can consider when generating responses.
+
+<Note>
+**Key Point**: Larger context windows allow the model to understand more of your codebase at once, but may increase costs and response times.
+</Note>
+
+## Context Window Sizes
+
+### Quick Reference
+
+| Size | Tokens | Approximate Words | Use Case |
+|------|--------|------------------|----------|
+| **Small** | 8K-32K | 6,000-24,000 | Single files, quick fixes |
+| **Medium** | 128K | ~96,000 | Most coding projects |
+| **Large** | 200K | ~150,000 | Complex codebases |
+| **Extra Large** | 400K+ | ~300,000+ | Entire applications |
+| **Massive** | 1M+ | ~750,000+ | Multi-project analysis |
+
+### Model Context Windows
+
+| Model | Context Window | Effective Window* | Notes |
+|-------|---------------|------------------|-------|
+| **Claude Sonnet 4.5** | 1M tokens | ~500K tokens | Best quality at high context |
+| **GPT-5** | 400K tokens | ~300K tokens | Three modes affect performance |
+| **Gemini 2.5 Pro** | 1M+ tokens | ~600K tokens | Excellent for documents |
+| **DeepSeek V3** | 128K tokens | ~100K tokens | Optimal for most tasks |
+| **Qwen3 Coder** | 256K tokens | ~200K tokens | Good balance |
+
+*Effective window is where model maintains high quality
+
+## Managing Context Efficiently
+
+### What Counts Toward Context
+
+1. **Your current conversation** - All messages in the chat
+2. **File contents** - Any files you've shared or Cline has read
+3. **Tool outputs** - Results from executed commands
+4. **System prompts** - Cline's instructions (minimal impact)
+
+### Optimization Strategies
+
+#### 1. Start Fresh for New Features
+```
+/new - Creates a new task with clean context
+```
+Benefits:
+- Maximum context available
+- No irrelevant history
+- Better model focus
+
+#### 2. Use @ Mentions Strategically
+Instead of including entire files:
+- `@filename.ts` - Include only when needed
+- Use search instead of reading large files
+- Reference specific functions rather than whole files
+
+#### 3. Enable Auto-compact
+Cline can automatically summarize long conversations:
+- Settings → Features → Auto-compact
+- Preserves important context
+- Reduces token usage
+
+## Context Window Warnings
+
+### Signs You're Hitting Limits
+
+| Warning Sign | What It Means | Solution |
+|-------------|---------------|----------|
+| **"Context window exceeded"** | Hard limit reached | Start new task or enable auto-compact |
+| **Slower responses** | Model struggling with context | Reduce included files |
+| **Repetitive suggestions** | Context fragmentation | Summarize and start fresh |
+| **Missing recent changes** | Context overflow | Use checkpoints to track changes |
+
+### Best Practices by Project Size
+
+#### Small Projects (< 50 files)
+- Any model works well
+- Include relevant files freely
+- No special optimization needed
+
+#### Medium Projects (50-500 files)
+- Use 128K+ context models
+- Include only working set of files
+- Clear context between features
+
+#### Large Projects (500+ files)
+- Use 200K+ context models
+- Focus on specific modules
+- Use search instead of reading many files
+- Break work into smaller tasks
+
+## Advanced Context Management
+
+### Plan/Act Mode Optimization
+
+Leverage Plan/Act mode for better context usage:
+- **Plan Mode**: Use smaller context for discussion
+- **Act Mode**: Include necessary files for implementation
+
+Configuration:
+```
+Plan Mode: DeepSeek V3 (128K) - Lower cost planning
+Act Mode: Claude Sonnet (1M) - Maximum context for coding
+```
+
+### Context Pruning Strategies
+
+1. **Temporal Pruning**: Remove old conversation parts
+2. **Semantic Pruning**: Keep only relevant code sections
+3. **Hierarchical Pruning**: Maintain high-level structure, prune details
+
+### Token Counting Tips
+
+#### Rough Estimates
+- **1 token ≈ 0.75 words**
+- **1 token ≈ 4 characters**
+- **100 lines of code ≈ 500-1000 tokens**
+
+#### File Size Guidelines
+| File Type | Tokens per KB |
+|-----------|---------------|
+| **Code** | ~250-400 |
+| **JSON** | ~300-500 |
+| **Markdown** | ~200-300 |
+| **Plain text** | ~200-250 |
+
+## Context Window FAQ
+
+### Q: Why do responses get worse with very long conversations?
+**A:** Models can lose focus with too much context. The "effective window" is typically 50-70% of the advertised limit.
+
+### Q: Should I use the largest context window available?
+**A:** Not always. Larger contexts increase cost and can reduce response quality. Match the context to your task size.
+
+### Q: How can I tell how much context I'm using?
+**A:** Cline shows token usage in the interface. Watch for the context meter approaching limits.
+
+### Q: What happens when I exceed the context limit?
+**A:** Cline will either:
+- Automatically compact the conversation (if enabled)
+- Show an error and suggest starting a new task
+- Truncate older messages (with warning)
+
+## Recommendations by Use Case
+
+| Use Case | Recommended Context | Model Suggestion |
+|----------|-------------------|------------------|
+| **Quick fixes** | 32K-128K | DeepSeek V3 |
+| **Feature development** | 128K-200K | Qwen3 Coder |
+| **Large refactoring** | 400K+ | Claude Sonnet 4.5 |
+| **Code review** | 200K-400K | GPT-5 |
+| **Documentation** | 128K | Any budget model |

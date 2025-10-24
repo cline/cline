@@ -1,5 +1,6 @@
 import { basetenDefaultModelId, basetenModels } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
+import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
@@ -52,11 +53,11 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 	}, [apiConfiguration, currentMode])
 
 	useMount(() => {
-		ModelsServiceClient.refreshBasetenModels(EmptyRequest.create({}))
+		ModelsServiceClient.refreshBasetenModelsRpc(EmptyRequest.create({}))
 			.then((response) => {
 				setBasetenModels({
 					[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
-					...response.models,
+					...fromProtobufModels(response.models),
 				})
 			})
 			.catch((err) => {
