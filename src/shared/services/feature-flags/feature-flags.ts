@@ -8,4 +8,10 @@ export enum FeatureFlag {
 	HOOKS = "hooks",
 }
 
+export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, boolean>> = {
+	[FeatureFlag.WORKOS_AUTH]: true,
+	[FeatureFlag.DO_NOTHING]: false,
+	[FeatureFlag.HOOKS]: false,
+}
+
 export const FEATURE_FLAGS = Object.values(FeatureFlag)
