@@ -1,4 +1,4 @@
-import { isGLMModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
+import { isGLMModelFamily, isLocalModel, isNextGenModelFamily, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -14,20 +14,20 @@ export const config = createVariant(ModelFamily.GENERIC)
 		stable: 1,
 		fallback: 1,
 	})
+	// Generic matcher - fallback for everything that doesn't match other variants
+	// This will match anything that doesn't match the other specific variants
 	.matcher((context) => {
 		const providerInfo = context.providerInfo
 		if (!providerInfo.providerId || !providerInfo.model.id) {
 			return true
 		}
 		const modelId = providerInfo.model.id.toLowerCase()
-		const isSupportedProvider = ["cline", "anthropic", "gemini"].some((id) => providerInfo.providerId?.toLowerCase() === id)
-		// Generic matcher - fallback for everything that doesn't match other variants
-		// This will match anything that doesn't match the other specific variants
 		return (
+			// Not a local model with compact prompt enabled
 			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
-			!isSupportedProvider &&
-			!isNextGenModelFamily(modelId) &&
-			!isGPT5ModelFamily(modelId) &&
+			// Not a next-gen model
+			!(isNextGenModelProvider(providerInfo) && isNextGenModelFamily(modelId)) &&
+			// Not a GLM model
 			!isGLMModelFamily(modelId)
 		)
 	})

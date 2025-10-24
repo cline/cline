@@ -60,6 +60,7 @@ export class VariantBuilder {
 
 	/**
 	 * Set labels with version mapping
+	 * e.g., use_native_tools: 1 to indicate support for native tools
 	 */
 	labels(labels: Record<string, number>): this {
 		this.variant = {
