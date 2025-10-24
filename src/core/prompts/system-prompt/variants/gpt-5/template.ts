@@ -15,10 +15,6 @@ export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
-{{${SystemPromptSection.MCP}}}
-
-====
-
 {{${SystemPromptSection.EDITING_FILES}}}
 
 ====
