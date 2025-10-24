@@ -149,6 +149,10 @@
 			"label": "MiniMax"
 		},
 		{
+			"value": "databricks",
+			"label": "Databricks"
+		},
+		{
 			"value": "hicap",
 			"label": "Hicap"
 		},

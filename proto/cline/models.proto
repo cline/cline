@@ -432,6 +432,7 @@ enum ApiProvider {
   HICAP = 37;
   AIHUBMIX = 38;
   NOUSRESEARCH = 39;
+  DATABRICKS = 40;
 }
 
 enum ApiFormat {
@@ -567,6 +568,8 @@ message ModelsApiConfiguration {
   optional string aihubmix_base_url = 83;
   optional string aihubmix_app_code = 84;
   optional string nous_research_api_key = 85;
+  optional string databricks_api_key = 86;
+  optional string databricks_base_url = 87;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

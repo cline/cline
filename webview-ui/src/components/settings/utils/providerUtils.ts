@@ -13,6 +13,8 @@ import {
 	cerebrasModels,
 	claudeCodeDefaultModelId,
 	claudeCodeModels,
+	databricksDefaultModelId,
+	databricksModels,
 	deepSeekDefaultModelId,
 	deepSeekModels,
 	doubaoDefaultModelId,
@@ -229,6 +231,8 @@ export function normalizeApiConfiguration(
 			return getProviderData(qwenModels, qwenDefaultId)
 		case "qwen-code":
 			return getProviderData(qwenCodeModels, qwenCodeDefaultModelId)
+		case "databricks":
+			return getProviderData(databricksModels, databricksDefaultModelId)
 		case "doubao":
 			return getProviderData(doubaoModels, doubaoDefaultModelId)
 		case "mistral":
@@ -766,6 +770,7 @@ export async function syncModeConfigurations(
 
 		// Providers that use apiProvider + apiModelId fields
 		case "anthropic":
+		case "databricks":
 		case "claude-code":
 		case "vertex":
 		case "gemini":
