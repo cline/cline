@@ -1,11 +1,11 @@
-import { promises as fs } from "node:fs"
-import { dirname } from "node:path"
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
+import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
+import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import { isLocatedInWorkspace } from "@/utils/path"
@@ -76,6 +76,8 @@ const BASH_WRAPPERS = ["%%bash", "apply_patch", "EOF", "```"] as const
 
 export class ApplyPatchHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.APPLY_PATCH
+	private appliedCommit?: Commit
+	private config?: TaskConfig
 
 	constructor(private validator: ToolValidator) {}
 
@@ -149,6 +151,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
+		const provider = new FileEditProvider()
 		const rawInput = block.params.input
 
 		if (!rawInput) {
@@ -170,11 +173,17 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			// Load existing files for update/delete operations
 			const filesToLoad = this.extractFilesForOperations(rawInput, [PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE])
-			const currentFiles = await this.loadFiles(config, filesToLoad)
+			const currentFiles = await this.loadFiles(provider, config, filesToLoad)
 
-			// Convert patch to commit and apply
+			// Convert patch to commit
 			const commit = this.patchToCommit(patch, currentFiles)
-			await this.applyCommit(config, commit)
+
+			// Store state for potential revert
+			this.appliedCommit = commit
+			this.config = config
+
+			// Apply the commit and get results
+			const applyResults = await this.applyCommit(commit, provider)
 
 			// Generate summary
 			const changedFiles = Object.keys(commit.changes)
@@ -186,6 +195,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				// Handle approval flow
 				const approved = await this.handleApproval(config, block, message, changedFiles[0] || "")
 				if (!approved) {
+					// Revert all changes on rejection
+					await this.revertChanges(provider)
 					return "The user denied this patch operation."
 				}
 
@@ -199,8 +210,25 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				finalResponses.push(message.path)
 			}
 
-			return `Successfully applied patch to files: ${finalResponses.join(", ")}`
+			// Clear state after successful application
+			this.appliedCommit = undefined
+			this.config = undefined
+
+			// Build detailed response with file contents
+			const responseLines = ["Successfully applied patch to the following files:"]
+			for (const [path, result] of Object.entries(applyResults)) {
+				if (result.deleted) {
+					responseLines.push(`\n${path}: [deleted]`)
+				} else if (result.finalContent !== undefined) {
+					responseLines.push(`\n${path}:\n${result.finalContent}`)
+				}
+			}
+
+			return responseLines.join("\n")
 		} catch (error) {
+			// Revert any changes that may have been applied before the error
+			await this.revertChanges(provider)
+
 			const errorResponse = formatResponse.toolError(`${(error as Error)?.message}`)
 			ToolResultUtils.pushToolResult(
 				errorResponse,
@@ -326,7 +354,11 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 	}
 
 	// File operations
-	private async loadFiles(config: TaskConfig, filePaths: string[]): Promise<Record<string, string>> {
+	private async loadFiles(
+		provider: DiffViewProvider,
+		config: TaskConfig,
+		filePaths: string[],
+	): Promise<Record<string, string>> {
 		const files: Record<string, string> = {}
 
 		for (const filePath of filePaths) {
@@ -357,7 +389,11 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				throw new DiffError(`File not found: ${filePath}`)
 			}
 
-			files[filePath] = await fs.readFile(absolutePath, "utf-8")
+			provider.editType = "modify"
+			await provider.open(filePath)
+			const content = provider.originalContent || ""
+			await provider.reset()
+			files[filePath] = content
 		}
 
 		return files
@@ -413,40 +449,131 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return result.join("\n")
 	}
 
-	private async applyCommit(config: TaskConfig, commit: Commit): Promise<void> {
-		for (const [path, change] of Object.entries(commit.changes)) {
-			const pathResult = resolveWorkspacePath(config, path, "ApplyPatchHandler.applyCommit")
-			const absolutePath = typeof pathResult === "string" ? pathResult : pathResult.absolutePath
+	private async applyCommit(
+		commit: Commit,
+		provider: DiffViewProvider,
+	): Promise<Record<string, { finalContent?: string; deleted?: boolean }>> {
+		const results: Record<string, { finalContent?: string; deleted?: boolean }> = {}
 
+		for (const [path, change] of Object.entries(commit.changes)) {
 			switch (change.type) {
 				case ActionType.DELETE:
-					await fs.unlink(absolutePath).catch(() => {})
+					// For delete operations, open and then revert (which deletes the file)
+					provider.editType = "modify"
+					await provider.open(path)
+					await provider.revertChanges()
+					results[path] = { deleted: true }
 					break
 				case ActionType.ADD:
 					if (!change.newContent) {
 						throw new DiffError(`Cannot create ${path} with no content`)
 					}
-					await fs.mkdir(dirname(absolutePath), { recursive: true })
-					await fs.writeFile(absolutePath, change.newContent, "utf-8")
+					// For add operations, use create edit type
+					provider.editType = "create"
+					await provider.open(path)
+					await provider.update(change.newContent, true)
+					const addResult = await provider.saveChanges()
+					await provider.reset()
+					results[path] = { finalContent: addResult.finalContent }
 					break
 				case ActionType.UPDATE:
 					if (!change.newContent) {
 						throw new DiffError(`UPDATE change for ${path} has no new content`)
 					}
-					const targetPath = change.movePath ? this.resolveAbsolutePath(config, change.movePath) : absolutePath
-					await fs.mkdir(dirname(targetPath), { recursive: true })
-					await fs.writeFile(targetPath, change.newContent, "utf-8")
 					if (change.movePath) {
-						await fs.unlink(absolutePath).catch(() => {})
+						// For move operations, create new file then delete old
+						provider.editType = "create"
+						await provider.open(change.movePath)
+						await provider.update(change.newContent, true)
+						const moveResult = await provider.saveChanges()
+						await provider.reset()
+						results[change.movePath] = { finalContent: moveResult.finalContent }
+
+						// Delete the old file
+						provider.editType = "modify"
+						await provider.open(path)
+						await provider.revertChanges()
+						results[path] = { deleted: true }
+					} else {
+						// For regular updates, use modify edit type
+						provider.editType = "modify"
+						await provider.open(path)
+						await provider.update(change.newContent, true)
+						const updateResult = await provider.saveChanges()
+						await provider.reset()
+						results[path] = { finalContent: updateResult.finalContent }
 					}
 					break
 			}
 		}
+
+		return results
 	}
 
-	private resolveAbsolutePath(config: TaskConfig, path: string): string {
-		const result = resolveWorkspacePath(config, path, "ApplyPatchHandler.resolveAbsolutePath")
-		return typeof result === "string" ? result : result.absolutePath
+	/**
+	 * Reverts all changes made by the last applyCommit operation.
+	 * This method restores files to their original state before the patch was applied.
+	 * Uses FileEditProvider to handle file operations similar to diffViewProvider.revertChanges()
+	 */
+	private async revertChanges(provider: DiffViewProvider): Promise<void> {
+		if (!this.appliedCommit || !this.config) {
+			return
+		}
+
+		// Revert changes for each file
+		for (const [path, change] of Object.entries(this.appliedCommit.changes)) {
+			try {
+				switch (change.type) {
+					case ActionType.DELETE:
+						// Restore deleted file using FileEditProvider
+						if (change.oldContent !== undefined) {
+							provider.editType = "create"
+							await provider.open(path)
+							await provider.update(change.oldContent, true)
+							await provider.saveChanges()
+							await provider.reset()
+						}
+						break
+					case ActionType.ADD:
+						// Remove newly created file using FileEditProvider
+						provider.editType = "modify"
+						await provider.open(path)
+						await provider.revertChanges()
+						break
+					case ActionType.UPDATE:
+						// Restore original content using FileEditProvider
+						if (change.movePath) {
+							// If file was moved, delete the new file and restore the original
+							provider.editType = "modify"
+							await provider.open(change.movePath)
+							await provider.revertChanges()
+
+							if (change.oldContent !== undefined) {
+								provider.editType = "create"
+								await provider.open(path)
+								await provider.update(change.oldContent, true)
+								await provider.saveChanges()
+								await provider.reset()
+							}
+						} else if (change.oldContent !== undefined) {
+							// Restore original content at same location
+							provider.editType = "modify"
+							await provider.open(path)
+							await provider.update(change.oldContent, true)
+							await provider.saveChanges()
+							await provider.reset()
+						}
+						break
+				}
+			} catch (error) {
+				// Continue reverting other files even if one fails
+				console.error(`Failed to revert ${path}:`, error)
+			}
+		}
+
+		// Clear state after reverting
+		this.appliedCommit = undefined
+		this.config = undefined
 	}
 
 	// Promise all for generateChangeSummary
