@@ -34,16 +34,15 @@ export class ResultsDatabase {
 	/**
 	 * Create a new evaluation run
 	 * @param id Run ID
-	 * @param model Model name
 	 * @param benchmark Benchmark name
 	 */
-	createRun(id: string, model: string, benchmark: string): void {
+	createRun(id: string, benchmark: string): void {
 		const stmt = this.db.prepare(`
-      INSERT INTO runs (id, timestamp, model, benchmark)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO runs (id, timestamp, benchmark)
+      VALUES (?, ?, ?)
     `)
 
-		stmt.run(id, Date.now(), model, benchmark)
+		stmt.run(id, Date.now(), benchmark)
 	}
 
 	/**
