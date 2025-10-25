@@ -113,6 +113,11 @@ export class ToolExecutor {
 		private doesLatestTaskCompletionHaveNewChanges: () => Promise<boolean>,
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
 		private switchToActMode: () => Promise<boolean>,
+
+		// Atomic hook state helpers from Task
+		private setActiveHookExecution: (hookExecution: NonNullable<typeof taskState.activeHookExecution>) => Promise<void>,
+		private clearActiveHookExecution: () => Promise<void>,
+		private getActiveHookExecution: () => Promise<typeof taskState.activeHookExecution>,
 	) {
 		this.autoApprover = new AutoApprove(this.stateManager)
 
@@ -546,12 +551,12 @@ export class ToolExecutor {
 
 					// Track active hook execution for cancellation (only if message was created)
 					if (hookMessageTs !== undefined) {
-						this.taskState.activeHookExecution = {
+						await this.setActiveHookExecution({
 							hookName: "PreToolUse",
 							toolName: block.name,
 							messageTs: hookMessageTs,
 							abortController,
-						}
+						})
 					}
 
 					// Create streaming callback that displays hook output in real-time
@@ -576,7 +581,7 @@ export class ToolExecutor {
 					console.log("[PreToolUse Hook]", preToolUseResult)
 
 					// Clear active hook execution
-					this.taskState.activeHookExecution = undefined
+					await this.clearActiveHookExecution()
 
 					// Check if hook wants to cancel the task
 					if (preToolUseResult.cancel === true) {
@@ -626,7 +631,7 @@ export class ToolExecutor {
 					this.addHookContextToConversation(preToolUseResult.contextModification, "PreToolUse")
 				} catch (hookError) {
 					// Clear active hook execution
-					this.taskState.activeHookExecution = undefined
+					await this.clearActiveHookExecution()
 
 					// Extract structured error info if available
 					const isStructuredError = HookExecutionError.isHookError(hookError)
@@ -719,12 +724,12 @@ export class ToolExecutor {
 
 						// Track active hook execution for cancellation (only if message was created)
 						if (hookMessageTs !== undefined) {
-							this.taskState.activeHookExecution = {
+							await this.setActiveHookExecution({
 								hookName: "PostToolUse",
 								toolName: block.name,
 								messageTs: hookMessageTs,
 								abortController,
-							}
+							})
 						}
 
 						// Create streaming callback that displays hook output in real-time
@@ -752,7 +757,7 @@ export class ToolExecutor {
 						console.log("[PostToolUse Hook]", postToolUseResult)
 
 						// Clear active hook execution
-						this.taskState.activeHookExecution = undefined
+						await this.clearActiveHookExecution()
 
 						// Check if hook wants to cancel the task
 						if (postToolUseResult.cancel === true) {
@@ -805,7 +810,7 @@ export class ToolExecutor {
 						}
 					} catch (hookError) {
 						// Clear active hook execution
-						this.taskState.activeHookExecution = undefined
+						await this.clearActiveHookExecution()
 
 						// Extract structured error info if available
 						const isStructuredError = HookExecutionError.isHookError(hookError)
