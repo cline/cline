@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.35.0
+
+- a8027dc: Adding oca as a provider to cline cli
+- f91769b: Fixed proto naming issue - RPC >>> Rpc
+- ee1bb2f: Support Feature Flags default values
+- 535b29f: Changes to allow users to manually enter model names (eg. presets) when using OpenRouter
+
 ## [3.34.0]
 
 - Cline Teams is now free through 2025 for unlimited users. Includes Jetbrains, RBAC, centralized billing and more.
