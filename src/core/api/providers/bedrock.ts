@@ -784,7 +784,12 @@ export class AwsBedrockHandler implements ApiHandler {
 		const formattedMessages = this.formatMessagesForConverseAPI(messages)
 
 		// Get model info and message indices for caching
-		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
+		const userMsgIndices = messages.reduce((acc, msg, index) => {
+			if (msg.role === "user") {
+				acc.push(index)
+			}
+			return acc
+		}, [] as number[])
 		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
@@ -899,9 +904,10 @@ export class AwsBedrockHandler implements ApiHandler {
 				// Handle base64 encoded data
 				const base64Data = item.source.data.replace(/^data:image\/\w+;base64,/, "")
 				imageData = new Uint8Array(Buffer.from(base64Data, "base64"))
-			} else if (item.source.data && typeof item.source.data === "object") {
-				// Try to convert to Uint8Array
-				imageData = new Uint8Array(Buffer.from(item.source.data as Buffer | Uint8Array))
+			} else if (item.source.data instanceof Uint8Array) {
+				imageData = item.source.data
+			} else if (item.source.data instanceof Buffer) {
+				imageData = new Uint8Array(item.source.data.buffer, item.source.data.byteOffset, item.source.data.byteLength)
 			} else {
 				throw new Error("Unsupported image data format")
 			}
@@ -972,7 +978,12 @@ export class AwsBedrockHandler implements ApiHandler {
 		const formattedMessages = this.formatMessagesForConverseAPI(messages)
 
 		// Get model info and message indices for caching (for Nova models that support it)
-		const userMsgIndices = messages.reduce((acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc), [] as number[])
+		const userMsgIndices = messages.reduce((acc, msg, index) => {
+			if (msg.role === "user") {
+				acc.push(index)
+			}
+			return acc
+		}, [] as number[])
 		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 

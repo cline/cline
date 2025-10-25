@@ -27,9 +27,12 @@ import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
+import { initializeWorkspaceMetadata } from "./core/controller/workspace/initializeWorkspaceMetadata"
+import { migrateTaskHistoryToWorkspaceState, migrateWorkspaceMetadata } from "./core/storage/state-migrations"
 import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMessage } from "./hosts/vscode/commit-message-generator"
+import { initializeVSCodeWorkspace } from "./hosts/vscode/initializeWorkspace"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { ExtensionRegistryInfo } from "./registry"
@@ -53,7 +56,19 @@ https://github.com/microsoft/vscode-webview-ui-toolkit-samples/tree/main/framewo
 export async function activate(context: vscode.ExtensionContext) {
 	setupHostProvider(context)
 
+	// Run migration before initializing StateManager
+	await migrateTaskHistoryToWorkspaceState(context)
+
 	const webview = (await initialize(context)) as VscodeWebviewProvider
+
+	// Migrate workspace metadata from task history (one-time)
+	await migrateWorkspaceMetadata(webview.controller.stateManager)
+
+	// Initialize workspace metadata from current folders
+	await initializeWorkspaceMetadata(webview.controller)
+
+	// Set up VSCode-specific workspace tracking
+	initializeVSCodeWorkspace(context, webview.controller)
 
 	Logger.log("Cline extension activated")
 

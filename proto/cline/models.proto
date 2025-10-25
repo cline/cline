@@ -201,34 +201,35 @@ enum ApiProvider {
   OLLAMA = 5;
   LMSTUDIO = 6;
   GEMINI = 7;
-  OPENAI_NATIVE = 8;
-  REQUESTY = 9;
-  TOGETHER = 10;
-  DEEPSEEK = 11;
-  QWEN = 12;
-  DOUBAO = 13;
-  MISTRAL = 14;
-  VSCODE_LM = 15;
-  CLINE = 16;
-  LITELLM = 17;
-  NEBIUS = 18;
-  FIREWORKS = 19;
-  ASKSAGE = 20;
-  XAI = 21;
-  SAMBANOVA = 22;
-  CEREBRAS = 23;
-  GROQ = 24;
-  SAPAICORE = 25;
-  CLAUDE_CODE = 26;
-  MOONSHOT = 27;
-  HUGGINGFACE = 28;
-  HUAWEI_CLOUD_MAAS = 29;
-  BASETEN = 30;
-  ZAI = 31;
-  VERCEL_AI_GATEWAY = 32;
-  QWEN_CODE = 33;
-  DIFY = 34;
-  OCA = 35;
+  GEMINI_CLI = 8;
+  OPENAI_NATIVE = 9;
+  REQUESTY = 10;
+  TOGETHER = 11;
+  DEEPSEEK = 12;
+  QWEN = 13;
+  DOUBAO = 14;
+  MISTRAL = 15;
+  VSCODE_LM = 16;
+  CLINE = 17;
+  LITELLM = 18;
+  NEBIUS = 19;
+  FIREWORKS = 20;
+  ASKSAGE = 21;
+  XAI = 22;
+  SAMBANOVA = 23;
+  CEREBRAS = 24;
+  GROQ = 25;
+  SAPAICORE = 26;
+  CLAUDE_CODE = 27;
+  MOONSHOT = 28;
+  HUGGINGFACE = 29;
+  HUAWEI_CLOUD_MAAS = 30;
+  BASETEN = 31;
+  ZAI = 32;
+  VERCEL_AI_GATEWAY = 33;
+  QWEN_CODE = 34;
+  DIFY = 35;
+  OCA = 36;
 }
 
 // Model info for OpenAI-compatible models
@@ -346,6 +347,8 @@ message ModelsApiConfiguration {
   optional string oca_refresh_token = 75;
   optional string oca_mode = 76;
   optional bool aws_use_global_inference = 77;
+  optional string gemini_cli_oauth_path = 78;
+  optional string gemini_cli_project_id = 79;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

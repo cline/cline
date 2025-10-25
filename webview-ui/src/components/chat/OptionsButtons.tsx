@@ -58,7 +58,7 @@ export const OptionsButtons = ({
 					id={`options-button-${index}`}
 					isNotSelectable={hasSelected || !isActive}
 					isSelected={option === selected}
-					key={index}
+					key={option}
 					onClick={async () => {
 						if (hasSelected || !isActive) {
 							return

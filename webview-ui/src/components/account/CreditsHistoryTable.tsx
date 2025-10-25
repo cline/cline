@@ -54,8 +54,8 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 										</VSCodeDataGridCell>
 									</VSCodeDataGridRow>
 
-									{usageData.map((row, index) => (
-										<VSCodeDataGridRow key={index}>
+									{usageData.map((row) => (
+										<VSCodeDataGridRow key={row.createdAt}>
 											<VSCodeDataGridCell grid-column="1">
 												{formatTimestamp(row.createdAt)}
 											</VSCodeDataGridCell>
@@ -87,8 +87,8 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 										</VSCodeDataGridCell>
 									</VSCodeDataGridRow>
 
-									{paymentsData.map((row, index) => (
-										<VSCodeDataGridRow key={index}>
+									{paymentsData.map((row) => (
+										<VSCodeDataGridRow key={row.paidAt}>
 											<VSCodeDataGridCell grid-column="1">{formatTimestamp(row.paidAt)}</VSCodeDataGridCell>
 											<VSCodeDataGridCell grid-column="2">{`$${formatDollars(row.amountCents)}`}</VSCodeDataGridCell>
 											<VSCodeDataGridCell grid-column="3">{`${row.credits}`}</VSCodeDataGridCell>
