@@ -251,8 +251,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 				case "cancel":
 					if (backgroundCommandRunning) {
+						console.log("[HOOK-UI CANCEL] Background command cancel button clicked")
 						await TaskServiceClient.cancelBackgroundCommand(EmptyRequest.create({}))
 					} else {
+						console.log("[HOOK-UI CANCEL] Task cancel button clicked")
 						await TaskServiceClient.cancelTask(EmptyRequest.create({}))
 					}
 					// Clear any pending state that might interfere with resume
@@ -286,6 +288,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 	// Handle task close button click
 	const handleTaskCloseButtonClick = useCallback(() => {
+		console.log("[HOOK-UI CANCEL] Task close (X) button clicked")
 		startNewTask()
 	}, [startNewTask])
 

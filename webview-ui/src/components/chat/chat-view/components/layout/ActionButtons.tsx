@@ -84,6 +84,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const handleKeyDown = useCallback(
 		(event: KeyboardEvent) => {
 			if (event.key === "Escape") {
+				console.log("[HOOK-UI CANCEL] Escape key pressed")
 				event.preventDefault()
 				event.stopPropagation()
 				messageHandlers.executeButtonAction("cancel")

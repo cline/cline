@@ -506,7 +506,9 @@ export class ToolExecutor {
 				toolName: block.name,
 				status: "running",
 			}
+			console.log(`[HOOK-UI] PostToolUse creating UI block for tool: ${block.name}`)
 			hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
+			console.log(`[HOOK-UI] PostToolUse UI block created with ts: ${hookMessageTs}`)
 
 			if (hookMessageTs !== undefined) {
 				await this.setActiveHookExecution({
@@ -539,14 +541,18 @@ export class ToolExecutor {
 			await this.clearActiveHookExecution()
 
 			if (postToolUseResult.cancel === true) {
+				console.log(`[HOOK-UI] PostToolUse updating status to cancelled for tool: ${block.name}`)
 				await this.updateHookStatus(hookMessageTs, "PostToolUse", block.name, "cancelled", 130)
+				console.log(`[HOOK-UI] PostToolUse status updated to cancelled for tool: ${block.name}`)
 
 				const errorMessage = postToolUseResult.errorMessage || "Hook requested task cancellation"
 				await this.say("error", errorMessage)
 				return true
 			}
 
+			console.log(`[HOOK-UI] PostToolUse updating status to completed for tool: ${block.name}`)
 			await this.updateHookStatus(hookMessageTs, "PostToolUse", block.name, "completed", 0)
+			console.log(`[HOOK-UI] PostToolUse status updated to completed for tool: ${block.name}`)
 			this.addHookContextToConversation(postToolUseResult.contextModification, "PostToolUse")
 			return false
 		} catch (hookError) {
@@ -687,7 +693,9 @@ export class ToolExecutor {
 						status: "running",
 						pendingToolInfo, // Include tool info in hook message
 					}
+					console.log(`[HOOK-UI] PreToolUse creating UI block for tool: ${block.name}`)
 					hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
+					console.log(`[HOOK-UI] PreToolUse UI block created with ts: ${hookMessageTs}`)
 
 					// Track active hook execution for cancellation (only if message was created)
 					if (hookMessageTs !== undefined) {
@@ -751,6 +759,7 @@ export class ToolExecutor {
 
 					// Update hook status to completed (only if not cancelled)
 					if (hookMessageTs !== undefined) {
+						console.log(`[HOOK-UI] PreToolUse updating status to completed for tool: ${block.name}`)
 						const clineMessages = this.messageStateHandler.getClineMessages()
 						const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
 						if (hookMessageIndex !== -1) {
@@ -764,6 +773,7 @@ export class ToolExecutor {
 							await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
 								text: JSON.stringify(completedMetadata),
 							})
+							console.log(`[HOOK-UI] PreToolUse status updated to completed for tool: ${block.name}`)
 						}
 					}
 
