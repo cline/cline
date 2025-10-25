@@ -320,30 +320,24 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</div>
 					)}
 					{dictationSettings?.featureEnabled && (
-						<>
-							<div className="mt-2.5">
-								<VSCodeCheckbox
-									checked={dictationSettings?.dictationEnabled}
-									onChange={(e: any) => {
-										const checked = e.target.checked === true
-										const updatedDictationSettings = {
-											...dictationSettings,
-											dictationEnabled: checked,
-										}
-										updateSetting("dictationSettings", updatedDictationSettings)
-									}}>
-									Enable Dictation
-								</VSCodeCheckbox>
-								<p className="text-xs text-description mt-1">
-									Enables speech-to-text transcription using your Cline account. Uses the Whisper model, at
-									$0.006 credits per minute of audio processed. 5 minutes max per message.
-								</p>
-							</div>
-
-							{/* TODO: Fix and use CollapsibleContent, the animation is good but it breaks the dropdown
-							<CollapsibleContent isOpen={dictationSettings?.dictationEnabled}> */}
-							{dictationSettings?.dictationEnabled}
-						</>
+						<div className="mt-2.5">
+							<VSCodeCheckbox
+								checked={dictationSettings?.dictationEnabled}
+								onChange={(e: any) => {
+									const checked = e.target.checked === true
+									const updatedDictationSettings = {
+										...dictationSettings,
+										dictationEnabled: checked,
+									}
+									updateSetting("dictationSettings", updatedDictationSettings)
+								}}>
+								Enable Dictation
+							</VSCodeCheckbox>
+							<p className="text-xs text-description mt-1">
+								Enables speech-to-text transcription using your Cline account. Uses the Whisper model, at $0.006
+								credits per minute of audio processed. 5 minutes max per message.
+							</p>
+						</div>
 					)}
 					<div style={{ marginTop: 10 }}>
 						<VSCodeCheckbox
