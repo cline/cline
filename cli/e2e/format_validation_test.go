@@ -910,6 +910,66 @@ func TestJSONOutputInstanceNewWithVerbose(t *testing.T) {
 	t.Logf("✓ Validated %d debug messages and 1 success response in JSONL format", debugCount)
 }
 
+// TestRegistryTextLeakage tests that registry operations don't leak text in JSON mode
+func TestRegistryTextLeakage(t *testing.T) {
+	ctx := context.Background()
+	setTempClineDir(t)
+
+	// Create multiple instances to trigger cleanup operations
+	for i := 0; i < 5; i++ {
+		_ = mustRunCLI(ctx, t, "instance", "new", "-F", "json")
+	}
+
+	// Kill all instances - this triggers registry cleanup logic that was leaking text
+	out := mustRunCLI(ctx, t, "instance", "kill", "--all-cli", "-F", "json")
+
+	// STRICT: Verify ONLY JSON output, no text leakage
+	assertPureJSON(t, out, "instance kill --all-cli -F json")
+
+	// Parse the JSON response
+	var response map[string]interface{}
+	if err := json.Unmarshal([]byte(out), &response); err != nil {
+		t.Fatalf("failed to parse JSON: %v\nOutput: %s", err, out)
+	}
+
+	// Should be successful
+	if response["status"] != "success" {
+		t.Errorf("expected status=success, got %v", response["status"])
+	}
+
+	// Verify no plain text messages leaked through
+	// These are messages that were being output by registry.go before the fixes
+	forbidden := []string{
+		"Attempting to shutdown",
+		"Warning: Failed to request",
+		"Removed stale instance",
+		"Host bridge shutdown",
+		"Set new default instance",
+		"Warning:",
+		"Removed stale default",
+	}
+
+	for _, text := range forbidden {
+		if strings.Contains(out, text) {
+			t.Errorf("JSON output contains forbidden text (text leakage): %q\nFull output: %s", text, out)
+		}
+	}
+
+	// The output should ONLY contain valid JSON structure
+	// No stray text from registryLog() or registryWarning() calls
+	if data, ok := response["data"].(map[string]interface{}); ok {
+		// Verify we got structured data about the kill operation
+		if _, ok := data["killedCount"]; !ok {
+			t.Error("response should include killedCount")
+		}
+		if _, ok := data["addresses"]; !ok {
+			t.Error("response should include addresses array")
+		}
+	} else {
+		t.Error("response should have data field")
+	}
+}
+
 // min returns the minimum of two integers
 func min(a, b int) int {
 	if a < b {
