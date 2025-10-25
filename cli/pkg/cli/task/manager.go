@@ -1239,16 +1239,17 @@ func (m *Manager) updateMode(stateJson string) {
 
 // UpdateTaskAutoApprovalAction enables a specific auto-approval action for the current task
 func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey string) error {
+	boolPtr := func(b bool) *bool { return &b }
+	
 	settings := &cline.Settings{
 		AutoApprovalSettings: &cline.AutoApprovalSettings{
-			Enabled:     true,
-			MaxRequests: 20, // Important: avoid maxRequests=0 bug
-			Actions:     &cline.AutoApprovalActions{},
+			Enabled: boolPtr(true),
+			Actions: &cline.AutoApprovalActions{},
 		},
 	}
 
 	// Set the specific action to true based on actionKey
-	truePtr := func() *bool { b := true; return &b }()
+	truePtr := boolPtr(true)
 	
 	switch actionKey {
 	case "read_files":
