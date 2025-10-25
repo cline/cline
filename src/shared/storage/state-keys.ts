@@ -106,6 +106,7 @@ export interface Settings {
 	difyBaseUrl: string | undefined
 	autoCondenseThreshold: number | undefined // number from 0 to 1
 	ocaBaseUrl: string | undefined
+	minimaxApiLine: string | undefined
 	ocaMode: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
@@ -235,6 +236,7 @@ export interface Secrets {
 	difyApiKey: string | undefined
 	ocaApiKey: string | undefined
 	ocaRefreshToken: string | undefined
+	minimaxApiKey: string | undefined
 }
 
 export interface LocalState {
