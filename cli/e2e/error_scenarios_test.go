@@ -309,3 +309,158 @@ func TestConcurrentErrors(t *testing.T) {
 		}
 	}
 }
+
+// TestJSONErrorInstanceKillNotInRegistry tests error when killing instance not in registry
+func TestJSONErrorInstanceKillNotInRegistry(t *testing.T) {
+	ctx := context.Background()
+	setTempClineDir(t)
+
+	// Try to kill instance that doesn't exist in registry
+	// Use a valid address format but not a registered instance
+	_, errOut, exitCode := runCLI(ctx, t, "instance", "kill", "localhost:5000", "--output-format", "json")
+
+	// Should fail
+	if exitCode == 0 {
+		t.Error("killing non-existent instance should fail")
+	}
+
+	// Error should be JSON
+	var errorData map[string]interface{}
+	if err := json.Unmarshal([]byte(errOut), &errorData); err != nil {
+		t.Fatalf("error output should be valid JSON: %v\nOutput: %s", err, errOut)
+	}
+
+	// Should have error status
+	if status, ok := errorData["status"].(string); !ok || status != "error" {
+		t.Errorf("expected status=error, got %v", errorData["status"])
+	}
+
+	// Should have error message mentioning "not found"
+	if errMsg, ok := errorData["error"].(string); ok {
+		if !strings.Contains(strings.ToLower(errMsg), "not found") {
+			t.Errorf("error message should mention 'not found', got: %s", errMsg)
+		}
+	}
+}
+
+// TestJSONErrorConfigGetInvalid tests error when getting invalid config key
+func TestJSONErrorConfigGetInvalid(t *testing.T) {
+	ctx := context.Background()
+	setTempClineDir(t)
+
+	// Start instance
+	_ = mustRunCLI(ctx, t, "instance", "new")
+
+	// Try to get non-existent config key
+	_, errOut, exitCode := runCLI(ctx, t, "config", "get", "invalid.nonexistent.key", "--output-format", "json")
+
+	// Should fail
+	if exitCode == 0 {
+		t.Error("getting invalid config key should fail")
+	}
+
+	// Error should be JSON
+	var errorData map[string]interface{}
+	if err := json.Unmarshal([]byte(errOut), &errorData); err != nil {
+		t.Fatalf("error output should be valid JSON: %v\nOutput: %s", err, errOut)
+	}
+
+	// Should have error status
+	if status, ok := errorData["status"].(string); !ok || status != "error" {
+		t.Errorf("expected status=error, got %v", errorData["status"])
+	}
+
+	// Should have error field
+	if _, ok := errorData["error"]; !ok {
+		t.Error("error response should have error field")
+	}
+}
+
+// TestJSONErrorTaskOpenNonexistent tests error when opening nonexistent task
+func TestJSONErrorTaskOpenNonexistent(t *testing.T) {
+	ctx := context.Background()
+	setTempClineDir(t)
+
+	// Start instance
+	_ = mustRunCLI(ctx, t, "instance", "new")
+
+	// Try to open non-existent task with high ID that won't exist
+	_, errOut, exitCode := runCLI(ctx, t, "task", "open", "99999", "--output-format", "json")
+
+	// Should fail
+	if exitCode == 0 {
+		t.Error("opening non-existent task should fail")
+	}
+
+	// Error should be JSON
+	var errorData map[string]interface{}
+	if err := json.Unmarshal([]byte(errOut), &errorData); err != nil {
+		t.Fatalf("error output should be valid JSON: %v\nOutput: %s", err, errOut)
+	}
+
+	// Should have error status
+	if status, ok := errorData["status"].(string); !ok || status != "error" {
+		t.Errorf("expected status=error, got %v", errorData["status"])
+	}
+
+	// Should have error message
+	if errMsg, ok := errorData["error"].(string); ok {
+		if !strings.Contains(strings.ToLower(errMsg), "not found") && 
+		   !strings.Contains(strings.ToLower(errMsg), "does not exist") {
+			t.Logf("Note: error message format: %s", errMsg)
+		}
+	}
+}
+
+// TestJSONErrorInstanceDefaultDetailed tests comprehensive error scenarios for instance default
+func TestJSONErrorInstanceDefaultDetailed(t *testing.T) {
+	ctx := context.Background()
+	setTempClineDir(t)
+
+	tests := []struct {
+		name          string
+		address       string
+		shouldContain string
+	}{
+		{
+			name:          "invalid-port",
+			address:       "localhost:99999",
+			shouldContain: "not found",
+		},
+		{
+			name:          "invalid-address",
+			address:       "nonexistent:9999",
+			shouldContain: "not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Try to set invalid instance as default
+			_, errOut, exitCode := runCLI(ctx, t, "instance", "default", tt.address, "--output-format", "json")
+
+			// Should fail
+			if exitCode == 0 {
+				t.Errorf("setting invalid default %s should fail", tt.address)
+			}
+
+			// Error should be JSON
+			var errorData map[string]interface{}
+			if err := json.Unmarshal([]byte(errOut), &errorData); err != nil {
+				t.Fatalf("error output should be valid JSON: %v", err)
+			}
+
+			// Should have error status
+			if status, ok := errorData["status"].(string); !ok || status != "error" {
+				t.Errorf("expected status=error, got %v", errorData["status"])
+			}
+
+			// Check error message content
+			if errMsg, ok := errorData["error"].(string); ok {
+				if !strings.Contains(strings.ToLower(errMsg), tt.shouldContain) {
+					t.Errorf("error message should contain '%s', got: %s", tt.shouldContain, errMsg)
+				}
+			}
+		})
+	}
+}
