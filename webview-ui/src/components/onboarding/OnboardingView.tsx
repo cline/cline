@@ -153,7 +153,7 @@ const UserTypeSelectionStep = ({ userType, onSelectUserType }: UserTypeSelection
 						</ItemMedia>
 						<ItemContent className="w-full">
 							<ItemTitle>{option.title}</ItemTitle>
-							<ItemDescription>{isSelected ? option.description : null}</ItemDescription>
+							<ItemDescription>{option.description}</ItemDescription>
 						</ItemContent>
 					</Item>
 				)
