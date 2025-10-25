@@ -2,6 +2,7 @@ import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
 import axios from "axios"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
+import type { AuthService } from "../auth/AuthService"
 import { Logger } from "../logging/Logger"
 
 /**
@@ -14,6 +15,7 @@ export class BannerService {
 	private _lastFetchTime: number = 0
 	private readonly CACHE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
 	private _controller?: Controller
+	private _authService?: AuthService
 
 	private constructor() {}
 
@@ -32,6 +34,14 @@ export class BannerService {
 	 */
 	public setController(controller: Controller): void {
 		this._controller = controller
+	}
+
+	/**
+	 * Sets the AuthService instance for testing purposes
+	 * In production, AuthService is loaded dynamically when needed
+	 */
+	public setAuthService(authService: AuthService): void {
+		this._authService = authService
 	}
 
 	/**
@@ -308,9 +318,11 @@ export class BannerService {
 				return "unknown"
 			}
 
-			// Try to get auth provider from AuthService
-			const { AuthService } = require("../auth/AuthService")
-			const authService = AuthService.getInstance(this._controller)
+			// Get auth provider from AuthService
+			const authService = this.getAuthServiceInstance()
+			if (!authService) {
+				return "unknown"
+			}
 			const authInfo = authService.getInfo()
 
 			// Check if user is authenticated
@@ -346,8 +358,10 @@ export class BannerService {
 				return false
 			}
 
-			const { AuthService } = require("../auth/AuthService")
-			const authService = AuthService.getInstance(this._controller)
+			const authService = this.getAuthServiceInstance()
+			if (!authService) {
+				return false
+			}
 			const authInfo = authService.getInfo()
 
 			if (!authInfo.user || !authInfo.user.email) {
@@ -372,8 +386,10 @@ export class BannerService {
 				return false
 			}
 
-			const { AuthService } = require("../auth/AuthService")
-			const authService = AuthService.getInstance(this._controller)
+			const authService = this.getAuthServiceInstance()
+			if (!authService) {
+				return false
+			}
 			const organizations = authService.getUserOrganizations()
 
 			if (!organizations || organizations.length === 0) {
@@ -400,11 +416,13 @@ export class BannerService {
 				return false
 			}
 
-			const { AuthService } = require("../auth/AuthService")
-			const authService = AuthService.getInstance(this._controller)
+			const authService = this.getAuthServiceInstance()
+			if (!authService) {
+				return false
+			}
 			const organizations = authService.getUserOrganizations()
 
-			return organizations && organizations.length > 0
+			return !!(organizations && organizations.length > 0)
 		} catch (error) {
 			Logger.log(`BannerService: Error checking organizations: ${error instanceof Error ? error.message : String(error)}`)
 			return false
@@ -427,6 +445,28 @@ export class BannerService {
 		} catch (error) {
 			Logger.log(`BannerService: Error checking workspace usage: ${error instanceof Error ? error.message : String(error)}`)
 			return false
+		}
+	}
+
+	/**
+	 * Gets the AuthService instance
+	 * @returns AuthService instance or undefined if not available
+	 */
+	private getAuthServiceInstance(): AuthService | undefined {
+		// Use injected instance if available (for testing)
+		if (this._authService) {
+			return this._authService
+		}
+
+		// Otherwise, load dynamically
+		try {
+			if (!this._controller) {
+				return undefined
+			}
+			const { AuthService } = require("../auth/AuthService")
+			return AuthService.getInstance(this._controller)
+		} catch {
+			return undefined
 		}
 	}
 
