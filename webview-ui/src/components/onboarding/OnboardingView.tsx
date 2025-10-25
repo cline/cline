@@ -9,66 +9,16 @@ import { cn } from "@/lib/utils"
 import { StateServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { ONBOARDING_MODEL_SELECTIONS } from "./models"
-
-enum USER_TYPE {
-	FREE = "free",
-	POWER = "power",
-	BYOK = "byok",
-}
-
-type UserTypeSelection = {
-	title: string
-	description: string
-	type: USER_TYPE
-}
-
-const STEP_CONFIG = {
-	0: {
-		title: "Become a CLINE user!",
-		description:
-			"Cline is free for individual developers. Pay only for AI inference on a usage basis - no subscriptions, no vendor lock-in. You can change this later!",
-		buttons: [
-			{ text: "Continue", action: "next", variant: "default" },
-			{ text: "Login", action: "auth", variant: "secondary" },
-		],
-	},
-	[USER_TYPE.FREE]: {
-		title: "Select a free model",
-		buttons: [
-			{ text: "Sign Up for Cline", action: "auth", variant: "default" },
-			{ text: "Back", action: "back", variant: "secondary" },
-		],
-	},
-	[USER_TYPE.POWER]: {
-		title: "Select your model",
-		buttons: [
-			{ text: "Sign Up for Cline", action: "auth", variant: "default" },
-			{ text: "Back", action: "back", variant: "secondary" },
-		],
-	},
-	[USER_TYPE.BYOK]: {
-		title: "Configure your provider",
-		buttons: [
-			{ text: "Ready", action: "done", variant: "default" },
-			{ text: "Back", action: "back", variant: "secondary" },
-		],
-	},
-} as const
-
-const USER_TYPE_SELECTIONS: UserTypeSelection[] = [
-	{ title: "Absolutely Free", description: "More context of this key feature", type: USER_TYPE.FREE },
-	{ title: "Power User", description: "Unlock advanced features and capabilities", type: USER_TYPE.POWER },
-	{ title: "I have my own key", description: "Use your own API credentials", type: USER_TYPE.BYOK },
-]
+import { NEW_USER_TYPE, STEP_CONFIG, USER_TYPE_SELECTIONS } from "./steps"
 
 type ModelSelectionProps = {
-	userType: USER_TYPE.FREE | USER_TYPE.POWER
+	userType: NEW_USER_TYPE.FREE | NEW_USER_TYPE.POWER
 	selectedModelId: string
 	onSelectModel: (modelId: string) => void
 }
 
 const ModelSelection = ({ userType, selectedModelId, onSelectModel }: ModelSelectionProps) => {
-	const modelGroups = ONBOARDING_MODEL_SELECTIONS[userType === USER_TYPE.FREE ? "free" : "power"]
+	const modelGroups = ONBOARDING_MODEL_SELECTIONS[userType === NEW_USER_TYPE.FREE ? "free" : "power"]
 
 	const selectedModel = useMemo(() => {
 		for (const group of modelGroups) {
@@ -130,8 +80,8 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel }: ModelSelec
 }
 
 type UserTypeSelectionProps = {
-	userType: USER_TYPE | undefined
-	onSelectUserType: (type: USER_TYPE) => void
+	userType: NEW_USER_TYPE | undefined
+	onSelectUserType: (type: NEW_USER_TYPE) => void
 }
 
 const UserTypeSelectionStep = ({ userType, onSelectUserType }: UserTypeSelectionProps) => (
@@ -164,9 +114,9 @@ const UserTypeSelectionStep = ({ userType, onSelectUserType }: UserTypeSelection
 
 type OnboardingStepContentProps = {
 	step: number
-	userType: USER_TYPE | undefined
+	userType: NEW_USER_TYPE | undefined
 	selectedModelId: string
-	onSelectUserType: (type: USER_TYPE) => void
+	onSelectUserType: (type: NEW_USER_TYPE) => void
 	onSelectModel: (modelId: string) => void
 }
 
@@ -181,11 +131,11 @@ const OnboardingStepContent = ({
 		return <UserTypeSelectionStep onSelectUserType={onSelectUserType} userType={userType} />
 	}
 
-	if (userType === USER_TYPE.BYOK) {
+	if (userType === NEW_USER_TYPE.BYOK) {
 		return <ApiConfigurationSection />
 	}
 
-	if (userType === USER_TYPE.FREE || userType === USER_TYPE.POWER) {
+	if (userType === NEW_USER_TYPE.FREE || userType === NEW_USER_TYPE.POWER) {
 		return <ModelSelection onSelectModel={onSelectModel} selectedModelId={selectedModelId} userType={userType} />
 	}
 
@@ -199,11 +149,11 @@ type OnboardingViewProps = {
 
 const OnboardingView = ({ showOnboarding, onDone }: OnboardingViewProps) => {
 	const [stepNumber, setStepNumber] = useState(0)
-	const [userType, setUserType] = useState<USER_TYPE>(USER_TYPE.FREE)
+	const [userType, setUserType] = useState<NEW_USER_TYPE>(NEW_USER_TYPE.FREE)
 	const [selectedModelId, setSelectedModelId] = useState("")
 
 	useEffect(() => {
-		const userGroup = userType === USER_TYPE.POWER ? USER_TYPE.POWER : USER_TYPE.FREE
+		const userGroup = userType === NEW_USER_TYPE.POWER ? NEW_USER_TYPE.POWER : NEW_USER_TYPE.FREE
 		const modelGroup = ONBOARDING_MODEL_SELECTIONS[userGroup][0]
 		const userGroupInitModel = modelGroup.models[0]
 		setSelectedModelId(modelGroup.group + "-" + userGroupInitModel.title)
