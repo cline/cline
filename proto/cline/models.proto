@@ -229,7 +229,7 @@ enum ApiProvider {
   QWEN_CODE = 33;
   DIFY = 34;
   OCA = 35;
-  MiniMax = 36;
+  MINIMAX = 36;
 }
 
 // Model info for OpenAI-compatible models
