@@ -54,10 +54,11 @@ export class HookExecutionError extends Error {
 	/**
 	 * Create a timeout error
 	 */
-	static timeout(scriptPath: string, timeoutMs: number, stderr?: string): HookExecutionError {
+	static timeout(scriptPath: string, timeoutMs: number, stderr?: string, hookName?: string): HookExecutionError {
+		const hookPrefix = hookName ? `${hookName} hook` : "Hook"
 		return new HookExecutionError({
 			type: HookErrorType.TIMEOUT,
-			message: `Hook execution timed out after ${timeoutMs}ms`,
+			message: `${hookPrefix} execution timed out after ${timeoutMs}ms`,
 			details:
 				`The hook took longer than ${timeoutMs / 1000} seconds to complete.\n\n` +
 				`Common causes:\n` +
@@ -90,8 +91,9 @@ export class HookExecutionError extends Error {
 	/**
 	 * Create an execution error
 	 */
-	static execution(scriptPath: string, exitCode: number, stderr?: string): HookExecutionError {
-		const message = `Hook script exited with code ${exitCode}`
+	static execution(scriptPath: string, exitCode: number, stderr?: string, hookName?: string): HookExecutionError {
+		const hookPrefix = hookName ? `${hookName} hook` : "Hook script"
+		const message = `${hookPrefix} exited with code ${exitCode}`
 		return new HookExecutionError(
 			{
 				type: HookErrorType.EXECUTION,
@@ -108,10 +110,11 @@ export class HookExecutionError extends Error {
 	/**
 	 * Create a cancellation error
 	 */
-	static cancellation(scriptPath: string): HookExecutionError {
+	static cancellation(scriptPath: string, hookName?: string): HookExecutionError {
+		const hookPrefix = hookName ? `${hookName} hook` : "Hook"
 		return new HookExecutionError({
 			type: HookErrorType.CANCELLATION,
-			message: "Hook execution was cancelled",
+			message: `${hookPrefix} execution was cancelled`,
 			details: "The hook was cancelled by the user before completion",
 			scriptPath,
 			exitCode: 130, // Standard SIGINT exit code

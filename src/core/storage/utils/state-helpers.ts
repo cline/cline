@@ -263,6 +263,9 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
 		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
 
+		// Force hooks to false on Windows (not yet supported)
+		const hooksEnabledSafe = process.platform === "win32" ? false : (hooksEnabled ?? false)
+
 		// OpenTelemetry configuration
 		const openTelemetryEnabled =
 			context.globalState.get<GlobalStateAndSettings["openTelemetryEnabled"]>("openTelemetryEnabled")
@@ -619,8 +622,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			qwenCodeOauthPath,
 			customPrompt,
 			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
-			// Hooks require explicit user opt-in
-			hooksEnabled: hooksEnabled ?? false,
+			// Hooks require explicit user opt-in and are only supported on macOS/Linux
+			hooksEnabled: hooksEnabledSafe,
 			subagentsEnabled: subagentsEnabled ?? false,
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,

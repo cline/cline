@@ -71,7 +71,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 			// Special handling for cancel action
 			if (action === "cancel") {
-				// Reset processing state immediately for cancel to ensure UI responsiveness
 				setIsProcessing(false)
 			}
 

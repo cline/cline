@@ -14,19 +14,16 @@ const MAX_HOOK_OUTPUT_SIZE = 1024 * 1024 // 1MB
  * - Separate handling of visual output vs. JSON response
  * - 30-second execution timeout
  * - 1MB output size limit (prevents memory issues)
- * - Hot state tracking (actively outputting)
- * - Process lifecycle management
+ * - Process lifecycle management with abort support
  */
 export class HookProcess extends EventEmitter {
 	private childProcess: ChildProcess | null = null
 	private buffer = ""
 	private fullOutput = ""
 	private lastRetrievedIndex = 0
-	private isHot = false
-	private hotTimer: NodeJS.Timeout | null = null
 	private exitCode: number | null = null
 	private isCompleted = false
-	private timeoutHandle: NodeJS.Timeout | null = null
+	private timeoutHandle: NodeJS.Timeout | null = null // 30-second execution timeout
 
 	// Separate buffers for stdout and stderr
 	private stdoutBuffer = ""
@@ -36,6 +33,9 @@ export class HookProcess extends EventEmitter {
 	private stdoutSize = 0
 	private stderrSize = 0
 	private outputTruncated = false
+
+	// Track registration state to prevent leaks and ensure cleanup
+	private isRegistered = false
 
 	constructor(
 		private readonly scriptPath: string,
@@ -50,157 +50,168 @@ export class HookProcess extends EventEmitter {
 	 * @param inputJson The JSON string to pass to the hook via stdin
 	 */
 	async run(inputJson: string): Promise<void> {
-		return new Promise((resolve, reject) => {
-			// Register this process for tracking
-			HookProcessRegistry.register(this)
+		// Wrap in try/finally to guarantee cleanup even if errors occur
+		try {
+			return await new Promise((resolve, reject) => {
+				// Register this process for tracking
+				HookProcessRegistry.register(this)
+				this.isRegistered = true
 
-			// Check if already aborted
-			if (this.abortSignal?.aborted) {
-				HookProcessRegistry.unregister(this)
-				reject(new Error("Hook execution cancelled"))
-				return
-			}
+				// Check if already aborted
+				if (this.abortSignal?.aborted) {
+					this.safeUnregister()
+					reject(new Error("Hook execution cancelled"))
+					return
+				}
 
-			// Set up abort handler
-			const abortHandler = () => {
-				if (this.childProcess && !this.isCompleted) {
-					this.isCompleted = true // Mark as completed immediately
+				// Set up abort handler
+				const abortHandler = () => {
+					if (this.childProcess && !this.isCompleted) {
+						this.isCompleted = true // Mark as completed immediately
 
-					// Remove abort listener immediately to prevent double-rejection
-					if (this.abortSignal) {
-						this.abortSignal.removeEventListener("abort", abortHandler)
+						// Remove abort listener immediately to prevent double-rejection
+						if (this.abortSignal) {
+							this.abortSignal.removeEventListener("abort", abortHandler)
+						}
+
+						// Clean up execution timeout timer
+						if (this.timeoutHandle) {
+							clearTimeout(this.timeoutHandle)
+							this.timeoutHandle = null
+						}
+
+						// Unregister from active processes
+						this.safeUnregister()
+
+						// Kill the process (async, fire-and-forget)
+						if (this.childProcess.pid) {
+							this.childProcess.kill("SIGTERM")
+						}
+
+						// Reject immediately - don't wait for process to die
+						reject(new Error("Hook execution cancelled by user"))
 					}
+				}
 
-					// Clean up timers
-					if (this.hotTimer) {
-						clearTimeout(this.hotTimer)
-						this.isHot = false
+				if (this.abortSignal) {
+					this.abortSignal.addEventListener("abort", abortHandler, { once: true })
+				}
+
+				// Spawn the hook process through shell on all platforms
+				// This is the git-style approach: the shell interprets the shebang line
+				// and executes the appropriate interpreter (bash, node, python, etc.)
+				// On Unix: detached=true creates a process group, allowing us to kill all children
+				this.childProcess = spawn(this.scriptPath, [], {
+					stdio: ["pipe", "pipe", "pipe"],
+					shell: true, // Use shell on all platforms for shebang interpretation
+					detached: process.platform !== "win32", // Create process group on Unix
+				})
+
+				let didEmitEmptyLine = false
+
+				// Set up timeout
+				this.timeoutHandle = setTimeout(() => {
+					if (this.childProcess && !this.isCompleted) {
+						this.childProcess.kill("SIGTERM")
+						reject(
+							new Error(
+								`Hook execution timed out after ${this.timeoutMs}ms. The hook script at '${this.scriptPath}' took too long to complete.`,
+							),
+						)
 					}
+				}, this.timeoutMs)
+
+				// Handle stdout
+				this.childProcess.stdout?.on("data", (data) => {
+					const output = data.toString()
+					this.stdoutBuffer += output
+					this.handleOutput(output, didEmitEmptyLine, "stdout")
+					if (!didEmitEmptyLine && output) {
+						this.emit("line", "", "stdout") // Signal start of output
+						didEmitEmptyLine = true
+					}
+				})
+
+				// Handle stderr
+				this.childProcess.stderr?.on("data", (data) => {
+					const output = data.toString()
+					this.stderrBuffer += output
+					this.handleOutput(output, didEmitEmptyLine, "stderr")
+					if (!didEmitEmptyLine && output) {
+						this.emit("line", "", "stderr") // Signal start of output
+						didEmitEmptyLine = true
+					}
+				})
+
+				// Handle process completion
+				this.childProcess.on("close", (code, signal) => {
+					this.exitCode = code
+					this.isCompleted = true
+					this.emitRemainingBuffer()
+
+					// Unregister from active processes
+					this.safeUnregister()
+
+					// Clear execution timeout timer
 					if (this.timeoutHandle) {
 						clearTimeout(this.timeoutHandle)
 						this.timeoutHandle = null
 					}
 
-					// Unregister from active processes
-					HookProcessRegistry.unregister(this)
-
-					// Kill the process (async, fire-and-forget)
-					if (this.childProcess.pid) {
-						this.childProcess.kill("SIGTERM")
+					// Remove abort listener
+					if (this.abortSignal) {
+						this.abortSignal.removeEventListener("abort", abortHandler)
 					}
 
-					// Reject immediately - don't wait for process to die
-					reject(new Error("Hook execution cancelled by user"))
-				}
-			}
+					this.emit("completed", code, signal)
 
-			if (this.abortSignal) {
-				this.abortSignal.addEventListener("abort", abortHandler, { once: true })
-			}
+					if (code === 0) {
+						resolve()
+					} else {
+						reject(new Error(`Hook exited with code ${code}${signal ? `, signal ${signal}` : ""}`))
+					}
+				})
 
-			// Spawn the hook process
-			// On Unix: detached=true creates a process group, allowing us to kill all children
-			// On Windows: shell=true handles script execution
-			this.childProcess = spawn(this.scriptPath, [], {
-				stdio: ["pipe", "pipe", "pipe"],
-				shell: process.platform === "win32",
-				detached: process.platform !== "win32", // Create process group on Unix
-			})
+				// Handle process errors
+				this.childProcess.on("error", (error) => {
+					// Unregister from active processes
+					this.safeUnregister()
 
-			let didEmitEmptyLine = false
+					if (this.timeoutHandle) {
+						clearTimeout(this.timeoutHandle)
+						this.timeoutHandle = null
+					}
+					// Remove abort listener
+					if (this.abortSignal) {
+						this.abortSignal.removeEventListener("abort", abortHandler)
+					}
+					this.emit("error", error)
+					reject(error)
+				})
 
-			// Set up timeout
-			this.timeoutHandle = setTimeout(() => {
-				if (this.childProcess && !this.isCompleted) {
-					this.childProcess.kill("SIGTERM")
-					reject(
-						new Error(
-							`Hook execution timed out after ${this.timeoutMs}ms. The hook script at '${this.scriptPath}' took too long to complete.`,
-						),
-					)
-				}
-			}, this.timeoutMs)
-
-			// Handle stdout
-			this.childProcess.stdout?.on("data", (data) => {
-				const output = data.toString()
-				this.stdoutBuffer += output
-				this.handleOutput(output, didEmitEmptyLine, "stdout")
-				if (!didEmitEmptyLine && output) {
-					this.emit("line", "", "stdout") // Signal start of output
-					didEmitEmptyLine = true
+				// Send input to the process
+				try {
+					this.childProcess.stdin?.write(inputJson)
+					this.childProcess.stdin?.end()
+				} catch (error) {
+					reject(new Error(`Failed to write input to hook: ${error}`))
 				}
 			})
+		} finally {
+			// Guaranteed cleanup even if process setup fails or throws
+			this.safeUnregister()
+		}
+	}
 
-			// Handle stderr
-			this.childProcess.stderr?.on("data", (data) => {
-				const output = data.toString()
-				this.stderrBuffer += output
-				this.handleOutput(output, didEmitEmptyLine, "stderr")
-				if (!didEmitEmptyLine && output) {
-					this.emit("line", "", "stderr") // Signal start of output
-					didEmitEmptyLine = true
-				}
-			})
-
-			// Handle process completion
-			this.childProcess.on("close", (code, signal) => {
-				this.exitCode = code
-				this.isCompleted = true
-				this.emitRemainingBuffer()
-
-				// Unregister from active processes
-				HookProcessRegistry.unregister(this)
-
-				// Clear timers
-				if (this.hotTimer) {
-					clearTimeout(this.hotTimer)
-					this.isHot = false
-				}
-				if (this.timeoutHandle) {
-					clearTimeout(this.timeoutHandle)
-					this.timeoutHandle = null
-				}
-
-				// Remove abort listener
-				if (this.abortSignal) {
-					this.abortSignal.removeEventListener("abort", abortHandler)
-				}
-
-				this.emit("completed", code, signal)
-
-				if (code === 0) {
-					resolve()
-				} else {
-					reject(new Error(`Hook exited with code ${code}${signal ? `, signal ${signal}` : ""}`))
-				}
-			})
-
-			// Handle process errors
-			this.childProcess.on("error", (error) => {
-				// Unregister from active processes
-				HookProcessRegistry.unregister(this)
-
-				if (this.timeoutHandle) {
-					clearTimeout(this.timeoutHandle)
-					this.timeoutHandle = null
-				}
-				// Remove abort listener
-				if (this.abortSignal) {
-					this.abortSignal.removeEventListener("abort", abortHandler)
-				}
-				this.emit("error", error)
-				reject(error)
-			})
-
-			// Send input to the process
-			try {
-				this.childProcess.stdin?.write(inputJson)
-				this.childProcess.stdin?.end()
-			} catch (error) {
-				reject(new Error(`Failed to write input to hook: ${error}`))
-			}
-		})
+	/**
+	 * Safely unregister from the process registry.
+	 * This is idempotent and prevents double-unregistration issues.
+	 */
+	private safeUnregister(): void {
+		if (this.isRegistered) {
+			HookProcessRegistry.unregister(this)
+			this.isRegistered = false
+		}
 	}
 
 	/**
@@ -228,18 +239,6 @@ export class HookProcess extends EventEmitter {
 		} else {
 			this.stderrSize += dataSize
 		}
-
-		// Set process as hot (actively outputting)
-		this.isHot = true
-		if (this.hotTimer) {
-			clearTimeout(this.hotTimer)
-		}
-
-		// Use a shorter hot timeout for hooks since they typically complete quickly
-		const hotTimeout = 1000 // 1 second
-		this.hotTimer = setTimeout(() => {
-			this.isHot = false
-		}, hotTimeout)
 
 		// Store full output
 		this.fullOutput += data
@@ -288,13 +287,6 @@ export class HookProcess extends EventEmitter {
 	}
 
 	/**
-	 * Check if process is actively outputting
-	 */
-	isProcessHot(): boolean {
-		return this.isHot
-	}
-
-	/**
 	 * Get the complete stdout buffer (for JSON parsing)
 	 */
 	getStdout(): string {
@@ -329,6 +321,8 @@ export class HookProcess extends EventEmitter {
 	 */
 	async terminate(): Promise<void> {
 		if (!this.childProcess || this.isCompleted) {
+			// Still ensure unregistration even if process already completed
+			this.safeUnregister()
 			return
 		}
 
@@ -373,6 +367,8 @@ export class HookProcess extends EventEmitter {
 				clearTimeout(this.timeoutHandle)
 				this.timeoutHandle = null
 			}
+			// Ensure unregistration even if termination fails
+			this.safeUnregister()
 		}
 	}
 }
