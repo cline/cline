@@ -2,12 +2,7 @@
 
 ## 3.35.0
 
-### Minor Changes
-
 - a8027dc: Adding oca as a provider to cline cli
-
-### Patch Changes
-
 - f91769b: Fixed proto naming issue - RPC >>> Rpc
 - ee1bb2f: Support Feature Flags default values
 - 535b29f: Changes to allow users to manually enter model names (eg. presets) when using OpenRouter
