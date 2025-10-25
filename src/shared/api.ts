@@ -2327,6 +2327,22 @@ export const doubaoModels = {
 export type MistralModelId = keyof typeof mistralModels
 export const mistralDefaultModelId: MistralModelId = "devstral-small-2505"
 export const mistralModels = {
+	"magistral-medium-latest": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.0,
+		outputPrice: 5.0,
+	},
+	"magistral-small-latest": {
+		maxTokens: 128_000,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 1.5,
+	},
 	"mistral-large-2411": {
 		maxTokens: 128_000,
 		contextWindow: 128_000,
@@ -2407,7 +2423,7 @@ export const mistralModels = {
 		inputPrice: 0.15,
 		outputPrice: 0.15,
 	},
-	"codestral-2501": {
+	"codestral-latest": {
 		maxTokens: 256_000,
 		contextWindow: 256_000,
 		supportsImages: false,
