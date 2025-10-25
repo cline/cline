@@ -10,6 +10,7 @@ import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import * as vscode from "vscode"
+import { CLINE_MCP_TOOL_IDENTIFIER } from "@/shared/mcp"
 import { modelDoesntSupportWebp } from "@/utils/model-utils"
 import { ToolUse } from "../assistant-message"
 import { ContextManager } from "../context/context-management/ContextManager"
@@ -22,6 +23,7 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
 import { AccessMcpResourceHandler } from "./tools/handlers/AccessMcpResourceHandler"
+import { ApplyPatchHandler } from "./tools/handlers/ApplyPatchHandler"
 import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQuestionToolHandler"
 import { AttemptCompletionHandler } from "./tools/handlers/AttemptCompletionHandler"
 import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
@@ -207,6 +209,7 @@ export class ToolExecutor {
 		this.coordinator.register(new CondenseHandler())
 		this.coordinator.register(new SummarizeTaskHandler(validator))
 		this.coordinator.register(new ReportBugHandler())
+		this.coordinator.register(new ApplyPatchHandler(validator))
 	}
 
 	/**
@@ -252,6 +255,7 @@ export class ToolExecutor {
 				this.taskState.didAlreadyUseTool = true
 			},
 			this.coordinator,
+			this.taskState.toolUseIdMap,
 		)
 	}
 
@@ -268,6 +272,13 @@ export class ToolExecutor {
 	 * Execute a tool through the coordinator if it's registered
 	 */
 	private async execute(block: ToolUse): Promise<boolean> {
+		if (block.name.includes(CLINE_MCP_TOOL_IDENTIFIER)) {
+			const mcpToolParts = block.name.split(CLINE_MCP_TOOL_IDENTIFIER)
+			block.name = ClineDefaultTool.MCP_USE
+			block.params.server_name = mcpToolParts[0]
+			block.params.tool_name = mcpToolParts[1]
+		}
+
 		if (!this.coordinator.has(block.name)) {
 			return false // Tool not handled by coordinator
 		}

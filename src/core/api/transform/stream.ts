@@ -6,6 +6,7 @@ export type ApiStreamChunk =
 	| ApiStreamAnthropicThinkingChunk
 	| ApiStreamAnthropicRedactedThinkingChunk
 	| ApiStreamUsageChunk
+	| ApiStreamToolCallsChunk
 
 export interface ApiStreamTextChunk {
 	type: "text"
@@ -41,4 +42,19 @@ export interface ApiStreamUsageChunk {
 	cacheReadTokens?: number
 	thoughtsTokenCount?: number // openrouter
 	totalCost?: number // openrouter
+}
+
+export interface ApiStreamToolCallsChunk {
+	type: "tool_calls"
+	tool_call: ApiStreamToolCall
+}
+
+export interface ApiStreamToolCall {
+	call_id?: string // The call / request ID associated with this tool call
+	// Information about the tool being called
+	function: {
+		id?: string // The tool call ID
+		name?: string
+		arguments?: any
+	}
 }

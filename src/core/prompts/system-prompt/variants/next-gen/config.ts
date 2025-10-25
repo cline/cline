@@ -1,3 +1,4 @@
+import { isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -14,6 +15,22 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		stable: 1,
 		production: 1,
 		advanced: 1,
+	})
+	.matcher((context) => {
+		// Match next-gen models
+		const providerInfo = context.providerInfo
+		if (isNextGenModelFamily(providerInfo.model.id) && !context.enableNativeToolCalls) {
+			return true
+		}
+		return (
+			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
+			!["cline", "anthropic", "gemini", "openrouter"].some((id) => providerInfo.providerId?.toLowerCase() === id) &&
+			isNextGenModelFamily(providerInfo.model.id) &&
+			!(
+				isGPT5ModelFamily(providerInfo.model.id) &&
+				["cline", "openai", "openrouter"].some((substring) => providerInfo.providerId.includes(substring))
+			)
+		)
 	})
 	.template(baseTemplate)
 	.components(
@@ -62,7 +79,7 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 	.build()
 
 // Compile-time validation
-const validationResult = validateVariant({ ...config, id: "next-gen" }, { strict: true })
+const validationResult = validateVariant({ ...config, id: ModelFamily.NEXT_GEN }, { strict: true })
 if (!validationResult.isValid) {
 	console.error("Next-gen variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid next-gen variant configuration: ${validationResult.errors.join(", ")}`)

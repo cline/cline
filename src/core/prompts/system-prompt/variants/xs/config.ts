@@ -1,3 +1,4 @@
+import { isLocalModel } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -15,6 +16,11 @@ export const config = createVariant(ModelFamily.XS)
 		stable: 1,
 		production: 1,
 		advanced: 1,
+	})
+	.matcher((context) => {
+		const providerInfo = context.providerInfo
+		// Match compact local models
+		return providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)
 	})
 	.template(baseTemplate)
 	.components(
@@ -51,7 +57,7 @@ export const config = createVariant(ModelFamily.XS)
 Object.assign(config.componentOverrides, xsComponentOverrides)
 
 // Compile-time validation
-const validationResult = validateVariant({ ...config, id: "xs" }, { strict: true })
+const validationResult = validateVariant({ ...config, id: ModelFamily.XS }, { strict: true })
 if (!validationResult.isValid) {
 	console.error("XS variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid XS variant configuration: ${validationResult.errors.join(", ")}`)

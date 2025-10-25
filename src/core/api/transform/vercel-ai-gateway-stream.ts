@@ -1,13 +1,16 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo } from "@shared/api"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { convertToOpenAiMessages } from "../transform/openai-format"
+import { getOpenAIToolParams } from "./tool-call-processor"
 
 export async function createVercelAIGatewayStream(
 	client: OpenAI,
 	systemPrompt: string,
 	messages: Anthropic.Messages.MessageParam[],
 	model: { id: string; info: ModelInfo },
+	tools?: OpenAITool[],
 ) {
 	// Convert Anthropic messages to OpenAI format
 	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -49,6 +52,7 @@ export async function createVercelAIGatewayStream(
 		temperature: 0.7,
 		messages: openAiMessages,
 		stream: true,
+		...getOpenAIToolParams(tools),
 	})
 
 	return stream
