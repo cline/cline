@@ -88,7 +88,14 @@
 							"cline-cli/overview",
 							"cline-cli/installation",
 							"cline-cli/three-core-flows",
-							"cline-cli/samples",
+							{
+								"group": "Samples",
+								"pages": [
+									"cline-cli/samples/overview",
+									"cline-cli/samples/github-issue-rca",
+									"cline-cli/samples/github-integration"
+								]
+							},
 							"cline-cli/cli-reference"
 						]
 					},
@@ -316,6 +323,10 @@
 		{
 			"source": "/getting-started/your-first-task",
 			"destination": "/getting-started/your-first-project"
+		},
+		{
+			"source": "/cline-cli/samples",
+			"destination": "/cline-cli/samples/overview"
 		}
 	],
 	"search": {
