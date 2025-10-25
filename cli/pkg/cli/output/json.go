@@ -71,6 +71,7 @@ func OutputJSON(status, command string, data interface{}, errMsg string) error {
 // OutputJSONSuccess outputs a successful JSON response as a single JSONL line
 func OutputJSONSuccess(command string, data interface{}) error {
 	response := map[string]interface{}{
+		"type":    "response",
 		"status":  "success",
 		"command": command,
 		"data":    data,

@@ -441,20 +441,26 @@ func TestJSONOutputWithVerboseFlag(t *testing.T) {
 					t.Fatalf("failed to parse JSON line: %v\nLine: %s", err, line)
 				}
 				
-				// Check message type
-				if msgType, ok := obj["type"].(string); ok {
-					if msgType == "verbose" {
-						verboseMessages = append(verboseMessages, obj["message"].(string))
-					} else if msgType == "debug" {
-						debugMessages = append(debugMessages, obj["message"].(string))
-					}
-				} else if status, ok := obj["status"].(string); ok {
-					// This is the final result
+			// Check message type
+			if msgType, ok := obj["type"].(string); ok {
+				if msgType == "verbose" {
+					verboseMessages = append(verboseMessages, obj["message"].(string))
+				} else if msgType == "debug" {
+					debugMessages = append(debugMessages, obj["message"].(string))
+				} else if msgType == "response" {
+					// This is the final response
 					finalResult = obj
-					if status != "success" {
+					if status, ok := obj["status"].(string); ok && status != "success" {
 						t.Errorf("expected status=success, got %v", status)
 					}
 				}
+			} else if status, ok := obj["status"].(string); ok {
+				// Fallback: final result without type field (legacy)
+				finalResult = obj
+				if status != "success" {
+					t.Errorf("expected status=success, got %v", status)
+				}
+			}
 			}
 			
 			// Should have at least a final result

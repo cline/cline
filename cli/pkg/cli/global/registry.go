@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/sqlite"
 	"github.com/cline/cli/pkg/common"
 	"github.com/cline/grpc-go/client"
@@ -17,6 +18,56 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
+
+// registryLog outputs a message respecting the current output format
+func registryLog(message string, data map[string]interface{}) {
+	if Config.OutputFormat == "json" {
+		output.OutputStatusMessage("info", message, data)
+	} else {
+		if len(data) > 0 {
+			// Format data for plain text output
+			fmt.Printf("%s:", message)
+			for k, v := range data {
+				fmt.Printf(" %s=%v", k, v)
+			}
+			fmt.Println()
+		} else {
+			fmt.Println(message)
+		}
+	}
+}
+
+// registryWarning outputs a warning message respecting the current output format
+func registryWarning(message string, err error, data map[string]interface{}) {
+	if Config.OutputFormat == "json" {
+		errData := data
+		if errData == nil {
+			errData = make(map[string]interface{})
+		}
+		if err != nil {
+			errData["error"] = err.Error()
+		}
+		output.OutputStatusMessage("warning", message, errData)
+	} else {
+		fmt.Printf("Warning: %s", message)
+		if err != nil {
+			fmt.Printf(": %v", err)
+		}
+		if len(data) > 0 {
+			fmt.Printf(" (")
+			first := true
+			for k, v := range data {
+				if !first {
+					fmt.Printf(", ")
+				}
+				fmt.Printf("%s=%v", k, v)
+				first = false
+			}
+			fmt.Printf(")")
+		}
+		fmt.Println()
+	}
+}
 
 // ClientRegistry manages Cline client connections using direct SQLite operations
 type ClientRegistry struct {
@@ -123,9 +174,12 @@ func (r *ClientRegistry) GetDefaultClient(ctx context.Context) (*client.ClineCli
 			// This is a stale config - remove it and try to find another instance
 			settingsPath := filepath.Join(r.configPath, common.SETTINGS_SUBFOLDER, "settings", "cli-default-instance.json")
 			if removeErr := os.Remove(settingsPath); removeErr != nil && !os.IsNotExist(removeErr) {
-				fmt.Printf("Warning: Failed to remove stale default instance config: %v\n", removeErr)
+				registryWarning("Failed to remove stale default instance config", removeErr, nil)
 			} else {
-				fmt.Printf("Removed stale default instance config (instance %s not found in database)\n", defaultAddr)
+				registryLog("Removed stale default instance config", map[string]interface{}{
+					"instance": defaultAddr,
+					"reason": "not found in database",
+				})
 			}
 			
 			// Try to find and set a new default instance
@@ -138,7 +192,9 @@ func (r *ClientRegistry) GetDefaultClient(ctx context.Context) (*client.ClineCli
 				// Retry with the new default
 				newDefaultAddr := r.GetDefaultInstance()
 				if newDefaultAddr != "" {
-					fmt.Printf("Set new default instance: %s\n", newDefaultAddr)
+					registryLog("Set new default instance", map[string]interface{}{
+						"instance": newDefaultAddr,
+					})
 					return r.GetClient(ctx, newDefaultAddr)
 				}
 			}
@@ -162,7 +218,7 @@ func (r *ClientRegistry) ListInstances() []*common.CoreInstanceInfo {
 
 	instances, err := r.lockManager.ListInstancesWithHealthCheck(ctx)
 	if err != nil {
-		fmt.Printf("Warning: Failed to list instances: %v\n", err)
+		registryWarning("Failed to list instances", err, nil)
 		return []*common.CoreInstanceInfo{}
 	}
 
@@ -177,7 +233,7 @@ func (r *ClientRegistry) HasInstanceAtAddress(address string) bool {
 
 	exists, err := r.lockManager.HasInstanceAtAddress(address)
 	if err != nil {
-		fmt.Printf("Warning: Failed to check instance existence: %v\n", err)
+		registryWarning("Failed to check instance existence", err, nil)
 		return false
 	}
 
@@ -200,9 +256,10 @@ func (r *ClientRegistry) CleanupStaleInstances(ctx context.Context) error {
 	for _, instance := range instances {
 		if instance.Status != grpc_health_v1.HealthCheckResponse_SERVING {
 			// Try to gracefully shutdown the paired host process before cleanup
-
-			fmt.Printf("Attempting to shutdown dangling host service %s for stale cline core instance %s\n",
-				instance.HostServiceAddress, instance.Address)
+			registryLog("Attempting to shutdown dangling host service", map[string]interface{}{
+				"hostServiceAddress": instance.HostServiceAddress,
+				"coreInstance": instance.Address,
+			})
 			r.tryShutdownHostProcess(instance.HostServiceAddress)
 
 			// Remove from SQLite database
@@ -210,7 +267,9 @@ func (r *ClientRegistry) CleanupStaleInstances(ctx context.Context) error {
 				return fmt.Errorf("failed to remove stale instance %s: %w", instance.Address, err)
 			}
 
-			fmt.Printf("Removed stale instance: %s\n", instance.Address)
+			registryLog("Removed stale instance", map[string]interface{}{
+				"instance": instance.Address,
+			})
 		}
 	}
 
@@ -245,9 +304,13 @@ func (r *ClientRegistry) tryShutdownHostProcess(hostServiceAddress string) {
 	})
 
 	if err != nil {
-		fmt.Printf("Warning: Failed to request host bridge shutdown on port %s: %v\n", hostServiceAddress, err)
+		registryWarning("Failed to request host bridge shutdown", err, map[string]interface{}{
+			"hostServiceAddress": hostServiceAddress,
+		})
 	} else {
-		fmt.Printf("Host bridge shutdown requested successfully on port %s\n", hostServiceAddress)
+		registryLog("Host bridge shutdown requested successfully", map[string]interface{}{
+			"hostServiceAddress": hostServiceAddress,
+		})
 	}
 }
 
@@ -261,7 +324,7 @@ func (r *ClientRegistry) ListInstancesCleaned(ctx context.Context) ([]*common.Co
 
 	// 3. Ensure default is set if instances exist
 	if err := r.EnsureDefaultInstance(instances); err != nil {
-		fmt.Printf("Warning: Failed to ensure default instance: %v\n", err)
+		registryWarning("Failed to ensure default instance", err, nil)
 	}
 
 	return instances, nil
