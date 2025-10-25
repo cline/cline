@@ -221,8 +221,8 @@ export class AuthService {
 		})
 	}
 
-	async createAuthRequest(): Promise<String> {
-		if (this._authenticated) {
+	async createAuthRequest(force = true): Promise<String> {
+		if (this._authenticated && !force) {
 			this.sendAuthStatusUpdate()
 			return String.create({ value: "Already authenticated" })
 		}

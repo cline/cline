@@ -2,6 +2,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
+import { ChevronsUpDownIcon } from "lucide-react"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
@@ -11,6 +12,7 @@ import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
+import { Button } from "../ui/button"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { AnthropicProvider } from "./providers/AnthropicProvider"
 import { AskSageProvider } from "./providers/AskSageProvider"
@@ -314,6 +316,12 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					</label>
 				)}
 				<ProviderDropdownWrapper ref={dropdownRef}>
+					<Button
+						className="right-2 absolute pb-1 top-1 z-2000 w-4 shrink-0 opacity-50"
+						onClick={() => setIsDropdownVisible(true)}
+						variant="icon">
+						<ChevronsUpDownIcon />
+					</Button>
 					<VSCodeTextField
 						data-testid="provider-selector-input"
 						disabled={remoteConfigSettings?.planModeApiProvider !== undefined}
