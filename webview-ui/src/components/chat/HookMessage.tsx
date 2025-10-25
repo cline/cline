@@ -12,6 +12,30 @@ const successColor = "var(--vscode-charts-green)"
 const runningColor = "var(--vscode-charts-orange)"
 const _cancelledColor = "var(--vscode-descriptionForeground)"
 
+/**
+ * Determines if a hook message should be expanded by default.
+ *
+ * Expansion logic:
+ * - Historical messages (>5 seconds old): Always collapsed for better UX
+ * - Fresh failed/cancelled hooks: Expanded to show error details
+ * - Fresh successful hooks: Collapsed to minimize clutter
+ * - Running hooks: Not applicable (handled separately)
+ *
+ * @param message The message containing timestamp information
+ * @param metadata The hook metadata containing status
+ * @returns true if the hook output should be expanded by default
+ */
+function shouldExpandHookByDefault(message: ClineMessage, metadata: HookMetadata): boolean {
+	// Always collapse historical messages (>5 seconds old) for better UX
+	const isHistorical = message.ts && Date.now() - message.ts > 5000
+	if (isHistorical) {
+		return false
+	}
+
+	// Expand fresh failed/cancelled hooks to show error details
+	return metadata.status === "failed" || metadata.status === "cancelled"
+}
+
 interface HookMessageProps {
 	message: ClineMessage
 	// CommandOutput component - we'll import and use it here
@@ -102,12 +126,8 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 		return { metadata: hookMetadata, output }
 	}, [message.text])
 
-	// Smart defaults:
-	// - Historical messages (>5 seconds old): Always collapsed for better UX
-	// - Fresh messages: Expand if failed/cancelled, collapse if successful
-	const isHistoricalMessage = message.ts && Date.now() - message.ts > 5000
-	const shouldExpandByDefault = !isHistoricalMessage && (metadata.status === "failed" || metadata.status === "cancelled")
-	const [isHookOutputExpanded, setIsHookOutputExpanded] = useState(shouldExpandByDefault)
+	// Determine initial expansion state using pure function
+	const [isHookOutputExpanded, setIsHookOutputExpanded] = useState(() => shouldExpandHookByDefault(message, metadata))
 
 	const isRunning = metadata.status === "running"
 	const isCompleted = metadata.status === "completed"

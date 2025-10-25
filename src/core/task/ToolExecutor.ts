@@ -395,6 +395,50 @@ export class ToolExecutor {
 	}
 
 	/**
+	 * Updates the status of a hook message in the message history.
+	 * Provides a centralized way to update hook status UI consistently.
+	 *
+	 * @param hookMessageTs The timestamp of the hook message to update
+	 * @param hookName The name of the hook ("PreToolUse", "PostToolUse", etc.)
+	 * @param toolName The name of the tool being executed
+	 * @param status The current status of the hook
+	 * @param exitCode Optional exit code for completed/failed/cancelled hooks
+	 * @param error Optional structured error information
+	 */
+	private async updateHookStatus(
+		hookMessageTs: number | undefined,
+		hookName: string,
+		toolName: string,
+		status: "running" | "completed" | "cancelled" | "failed",
+		exitCode?: number,
+		error?: {
+			type: "timeout" | "validation" | "execution" | "cancellation"
+			message: string
+			details?: string
+			scriptPath?: string
+		},
+	): Promise<void> {
+		if (hookMessageTs === undefined) return
+
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
+		if (hookMessageIndex === -1) return
+
+		const metadata: ClineSayHook = {
+			hookName,
+			toolName,
+			status,
+			exitCode,
+			hasJsonResponse: status === "completed" || status === "cancelled",
+			...(error && { error }),
+		}
+
+		await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+			text: JSON.stringify(metadata),
+		})
+	}
+
+	/**
 	 * Adds hook context modification to the conversation if provided.
 	 * Parses the context to extract type prefix and formats as XML.
 	 *
@@ -430,6 +474,102 @@ export class ToolExecutor {
 			type: "text",
 			text: `<hook_context source="${source}" type="${contextType}">\n${content}\n</hook_context>`,
 		})
+	}
+
+	/**
+	 * Runs the PostToolUse hook after tool execution.
+	 * This is extracted from handleCompleteBlock to eliminate code duplication
+	 * between success and error paths.
+	 *
+	 * @param block The tool use block that was executed
+	 * @param toolResult The result from the tool execution
+	 * @param executionSuccess Whether the tool executed successfully
+	 * @param executionStartTime The timestamp when tool execution started
+	 * @returns true if hook requested cancellation, false otherwise
+	 */
+	private async runPostToolUseHook(
+		block: ToolUse,
+		toolResult: any,
+		executionSuccess: boolean,
+		executionStartTime: number,
+	): Promise<boolean> {
+		const hookFactory = new HookFactory()
+		const hasPostToolUseHook = await hookFactory.hasHook("PostToolUse")
+		if (!hasPostToolUseHook) return false
+
+		let hookMessageTs: number | undefined
+		const abortController = new AbortController()
+
+		try {
+			const hookMetadata = {
+				hookName: "PostToolUse",
+				toolName: block.name,
+				status: "running",
+			}
+			hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
+
+			if (hookMessageTs !== undefined) {
+				await this.setActiveHookExecution({
+					hookName: "PostToolUse",
+					toolName: block.name,
+					messageTs: hookMessageTs,
+					abortController,
+				})
+			}
+
+			const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
+				await this.say("hook_output", line)
+			}
+
+			const postToolUseHook = await hookFactory.createWithStreaming("PostToolUse", streamCallback, abortController.signal)
+
+			const executionTimeMs = Date.now() - executionStartTime
+			const postToolUseResult = await postToolUseHook.run({
+				taskId: this.taskId,
+				postToolUse: {
+					toolName: block.name,
+					parameters: block.params,
+					result: typeof toolResult === "string" ? toolResult : JSON.stringify(toolResult),
+					success: executionSuccess,
+					executionTimeMs,
+				},
+			})
+			console.log("[PostToolUse Hook]", postToolUseResult)
+
+			await this.clearActiveHookExecution()
+
+			if (postToolUseResult.cancel === true) {
+				await this.updateHookStatus(hookMessageTs, "PostToolUse", block.name, "cancelled", 130)
+
+				const errorMessage = postToolUseResult.errorMessage || "Hook requested task cancellation"
+				await this.say("error", errorMessage)
+				return true
+			}
+
+			await this.updateHookStatus(hookMessageTs, "PostToolUse", block.name, "completed", 0)
+			this.addHookContextToConversation(postToolUseResult.contextModification, "PostToolUse")
+			return false
+		} catch (hookError) {
+			await this.clearActiveHookExecution()
+
+			const isStructuredError = HookExecutionError.isHookError(hookError)
+			const errorInfo = isStructuredError ? hookError.errorInfo : null
+
+			await this.updateHookStatus(
+				hookMessageTs,
+				"PostToolUse",
+				block.name,
+				errorInfo?.type === "cancellation" ? "cancelled" : "failed",
+				errorInfo?.exitCode ?? 1,
+				errorInfo || undefined,
+			)
+
+			if (this.taskState.abort) {
+				return true
+			}
+
+			return false
+		}
 	}
 
 	/**
@@ -698,157 +838,18 @@ export class ToolExecutor {
 			toolResult = await this.coordinator.execute(config, block)
 			this.pushToolResult(toolResult, block)
 
-			// RC-7: Check abort before running PostToolUse (success path)
+			// Check abort before running PostToolUse hook (success path)
 			if (this.taskState.abort) {
 				return
 			}
 
-			// RC-7: Run PostToolUse hook in explicit success path (not in finally)
-			// This ensures PostToolUse doesn't run if task was aborted during tool execution
-			// Skip PostToolUse for attempt_completion since it marks task completion, not actual work
+			// Run PostToolUse hook for successful tool execution
+			// Skip for attempt_completion since it marks task completion, not actual work
 			if (hooksEnabled && block.name !== "attempt_completion") {
-				const hookFactory = new HookFactory()
-				const hasPostToolUseHook = await hookFactory.hasHook("PostToolUse")
-
-				if (hasPostToolUseHook) {
-					let hookMessageTs: number | undefined
-					const abortController = new AbortController()
-
-					try {
-						// Show hook execution indicator and capture timestamp
-						const hookMetadata = {
-							hookName: "PostToolUse",
-							toolName: block.name,
-							status: "running",
-						}
-						hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
-
-						// Track active hook execution for cancellation (only if message was created)
-						if (hookMessageTs !== undefined) {
-							await this.setActiveHookExecution({
-								hookName: "PostToolUse",
-								toolName: block.name,
-								messageTs: hookMessageTs,
-								abortController,
-							})
-						}
-
-						// Create streaming callback that displays hook output in real-time
-						const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
-							await this.say("hook_output", line)
-						}
-
-						const postToolUseHook = await hookFactory.createWithStreaming(
-							"PostToolUse",
-							streamCallback,
-							abortController.signal,
-						)
-
-						const executionTimeMs = Date.now() - executionStartTime
-						const postToolUseResult = await postToolUseHook.run({
-							taskId: this.taskId,
-							postToolUse: {
-								toolName: block.name,
-								parameters: block.params,
-								result: typeof toolResult === "string" ? toolResult : JSON.stringify(toolResult),
-								success: executionSuccess,
-								executionTimeMs,
-							},
-						})
-						console.log("[PostToolUse Hook]", postToolUseResult)
-
-						// Clear active hook execution
-						await this.clearActiveHookExecution()
-
-						// Check if hook wants to cancel the task
-						if (postToolUseResult.cancel === true) {
-							// Update hook status to cancelled
-							if (hookMessageTs !== undefined) {
-								const clineMessages = this.messageStateHandler.getClineMessages()
-								const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
-								if (hookMessageIndex !== -1) {
-									const cancelledMetadata = {
-										hookName: "PostToolUse",
-										toolName: block.name,
-										status: "cancelled",
-										exitCode: 130,
-										hasJsonResponse: true,
-									}
-									await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
-										text: JSON.stringify(cancelledMetadata),
-									})
-								}
-							}
-
-							// Hook requested cancellation - trigger task abort
-							const errorMessage = postToolUseResult.errorMessage || "Hook requested task cancellation"
-							await this.say("error", errorMessage)
-
-							// Trigger task cancellation and set flag to exit early
-							await config.callbacks.cancelTask()
-							shouldCancelAfterHook = true
-						} else {
-							// Update hook status to completed (only if not cancelled)
-							if (hookMessageTs !== undefined) {
-								const clineMessages = this.messageStateHandler.getClineMessages()
-								const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
-								if (hookMessageIndex !== -1) {
-									const completedMetadata = {
-										hookName: "PostToolUse",
-										toolName: block.name,
-										status: "completed",
-										exitCode: 0,
-										hasJsonResponse: true,
-									}
-									await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
-										text: JSON.stringify(completedMetadata),
-									})
-								}
-							}
-
-							// Add context modification to the conversation if provided by the hook
-							this.addHookContextToConversation(postToolUseResult.contextModification, "PostToolUse")
-						}
-					} catch (hookError) {
-						// Clear active hook execution
-						await this.clearActiveHookExecution()
-
-						// Extract structured error info if available
-						const isStructuredError = HookExecutionError.isHookError(hookError)
-						const errorInfo = isStructuredError ? hookError.errorInfo : null
-
-						// Update hook status with structured error info (update the same message if it exists)
-						if (hookMessageTs !== undefined) {
-							const clineMessages = this.messageStateHandler.getClineMessages()
-							const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
-							if (hookMessageIndex !== -1) {
-								const failedMetadata: ClineSayHook = {
-									hookName: "PostToolUse",
-									toolName: block.name,
-									status: errorInfo?.type === "cancellation" ? "cancelled" : "failed",
-									exitCode: errorInfo?.exitCode ?? 1,
-									...(errorInfo && {
-										error: {
-											type: errorInfo.type,
-											message: errorInfo.message,
-											details: errorInfo.details,
-											scriptPath: errorInfo.scriptPath,
-										},
-									}),
-								}
-								await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
-									text: JSON.stringify(failedMetadata),
-								})
-							}
-						}
-
-						// If task was aborted (e.g., via cancel button), stop execution
-						if (this.taskState.abort) {
-							shouldCancelAfterHook = true
-						}
-
-						// PostToolUse hook failure is non-fatal (observation only)
-					}
+				const hookRequestedCancel = await this.runPostToolUseHook(block, toolResult, executionSuccess, executionStartTime)
+				if (hookRequestedCancel) {
+					await config.callbacks.cancelTask()
+					shouldCancelAfterHook = true
 				}
 			}
 		} catch (error) {
@@ -856,157 +857,18 @@ export class ToolExecutor {
 			toolResult = formatResponse.toolError(`Tool execution failed: ${error}`)
 			this.pushToolResult(toolResult, block)
 
-			// RC-7: Check abort before running PostToolUse (error path)
+			// Check abort before running PostToolUse hook (error path)
 			if (this.taskState.abort) {
 				throw error
 			}
 
-			// RC-7: Run PostToolUse hook in explicit error path (not in finally)
-			// This ensures PostToolUse doesn't run if task was aborted during error handling
-			// Skip PostToolUse for attempt_completion since it marks task completion, not actual work
+			// Run PostToolUse hook for failed tool execution
+			// Skip for attempt_completion since it marks task completion, not actual work
 			if (hooksEnabled && block.name !== "attempt_completion") {
-				const hookFactory = new HookFactory()
-				const hasPostToolUseHook = await hookFactory.hasHook("PostToolUse")
-
-				if (hasPostToolUseHook) {
-					let hookMessageTs: number | undefined
-					const abortController = new AbortController()
-
-					try {
-						// Show hook execution indicator and capture timestamp
-						const hookMetadata = {
-							hookName: "PostToolUse",
-							toolName: block.name,
-							status: "running",
-						}
-						hookMessageTs = await this.say("hook", JSON.stringify(hookMetadata))
-
-						// Track active hook execution for cancellation (only if message was created)
-						if (hookMessageTs !== undefined) {
-							await this.setActiveHookExecution({
-								hookName: "PostToolUse",
-								toolName: block.name,
-								messageTs: hookMessageTs,
-								abortController,
-							})
-						}
-
-						// Create streaming callback that displays hook output in real-time
-						const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
-							await this.say("hook_output", line)
-						}
-
-						const postToolUseHook = await hookFactory.createWithStreaming(
-							"PostToolUse",
-							streamCallback,
-							abortController.signal,
-						)
-
-						const executionTimeMs = Date.now() - executionStartTime
-						const postToolUseResult = await postToolUseHook.run({
-							taskId: this.taskId,
-							postToolUse: {
-								toolName: block.name,
-								parameters: block.params,
-								result: typeof toolResult === "string" ? toolResult : JSON.stringify(toolResult),
-								success: executionSuccess,
-								executionTimeMs,
-							},
-						})
-						console.log("[PostToolUse Hook]", postToolUseResult)
-
-						// Clear active hook execution
-						await this.clearActiveHookExecution()
-
-						// Check if hook wants to cancel the task
-						if (postToolUseResult.cancel === true) {
-							// Update hook status to cancelled
-							if (hookMessageTs !== undefined) {
-								const clineMessages = this.messageStateHandler.getClineMessages()
-								const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
-								if (hookMessageIndex !== -1) {
-									const cancelledMetadata = {
-										hookName: "PostToolUse",
-										toolName: block.name,
-										status: "cancelled",
-										exitCode: 130,
-										hasJsonResponse: true,
-									}
-									await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
-										text: JSON.stringify(cancelledMetadata),
-									})
-								}
-							}
-
-							// Hook requested cancellation - trigger task abort
-							const errorMessage = postToolUseResult.errorMessage || "Hook requested task cancellation"
-							await this.say("error", errorMessage)
-
-							// Trigger task cancellation and set flag to exit early
-							await config.callbacks.cancelTask()
-							shouldCancelAfterHook = true
-						} else {
-							// Update hook status to completed (only if not cancelled)
-							if (hookMessageTs !== undefined) {
-								const clineMessages = this.messageStateHandler.getClineMessages()
-								const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
-								if (hookMessageIndex !== -1) {
-									const completedMetadata = {
-										hookName: "PostToolUse",
-										toolName: block.name,
-										status: "completed",
-										exitCode: 0,
-										hasJsonResponse: true,
-									}
-									await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
-										text: JSON.stringify(completedMetadata),
-									})
-								}
-							}
-
-							// Add context modification to the conversation if provided by the hook
-							this.addHookContextToConversation(postToolUseResult.contextModification, "PostToolUse")
-						}
-					} catch (hookError) {
-						// Clear active hook execution
-						await this.clearActiveHookExecution()
-
-						// Extract structured error info if available
-						const isStructuredError = HookExecutionError.isHookError(hookError)
-						const errorInfo = isStructuredError ? hookError.errorInfo : null
-
-						// Update hook status with structured error info (update the same message if it exists)
-						if (hookMessageTs !== undefined) {
-							const clineMessages = this.messageStateHandler.getClineMessages()
-							const hookMessageIndex = clineMessages.findIndex((m) => m.ts === hookMessageTs)
-							if (hookMessageIndex !== -1) {
-								const failedMetadata: ClineSayHook = {
-									hookName: "PostToolUse",
-									toolName: block.name,
-									status: errorInfo?.type === "cancellation" ? "cancelled" : "failed",
-									exitCode: errorInfo?.exitCode ?? 1,
-									...(errorInfo && {
-										error: {
-											type: errorInfo.type,
-											message: errorInfo.message,
-											details: errorInfo.details,
-											scriptPath: errorInfo.scriptPath,
-										},
-									}),
-								}
-								await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
-									text: JSON.stringify(failedMetadata),
-								})
-							}
-						}
-
-						// If task was aborted (e.g., via cancel button), stop execution
-						if (this.taskState.abort) {
-							shouldCancelAfterHook = true
-						}
-
-						// PostToolUse hook failure is non-fatal (observation only)
-					}
+				const hookRequestedCancel = await this.runPostToolUseHook(block, toolResult, executionSuccess, executionStartTime)
+				if (hookRequestedCancel) {
+					await config.callbacks.cancelTask()
+					shouldCancelAfterHook = true
 				}
 			}
 
