@@ -105,6 +105,15 @@ export interface ITelemetryProvider {
 	recordHistogram?(name: string, value: number, attributes?: TelemetryProperties): void
 
 	/**
+	 * Reinitialize the provider if configuration has changed.
+	 * Provider internally compares current config with new config
+	 * and only reinitializes if necessary.
+	 *
+	 * @returns Promise<boolean> - true if reinitialized, false if no change needed
+	 */
+	reinitializeIfNeeded(): Promise<boolean>
+
+	/**
 	 * Clean up resources when the provider is disposed
 	 */
 	dispose(): Promise<void>

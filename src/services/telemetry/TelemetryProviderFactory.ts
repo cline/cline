@@ -131,6 +131,11 @@ export class NoOpTelemetryProvider implements ITelemetryProvider {
 		}
 	}
 
+	public async reinitializeIfNeeded(): Promise<boolean> {
+		Logger.info("[NoOpTelemetryProvider] reinitializeIfNeeded called (no-op)")
+		return false
+	}
+
 	public async dispose(): Promise<void> {
 		Logger.info("[NoOpTelemetryProvider] Disposing")
 	}

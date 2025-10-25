@@ -14,6 +14,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	private client: PostHog
 	private telemetrySettings: TelemetrySettings
 	private isSharedClient: boolean
+	private currentConfig: any = null
 
 	constructor(sharedClient?: PostHog) {
 		this.isSharedClient = !!sharedClient
@@ -137,6 +138,23 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 
 	public recordHistogram(name: string, value: number, attributes?: TelemetryProperties): void {
 		// no-op
+	}
+
+	public async reinitializeIfNeeded(): Promise<boolean> {
+		// Get new config from posthog-config
+		const newConfig = posthogConfig
+
+		// Compare with current config
+		if (JSON.stringify(this.currentConfig) === JSON.stringify(newConfig)) {
+			return false
+		}
+
+		// Update current config
+		this.currentConfig = { ...newConfig }
+
+		// For now, just log - actual reinitialization can be added later
+		console.log("[PostHogTelemetryProvider] Config changed, would reinitialize")
+		return false
 	}
 
 	public async dispose(): Promise<void> {
