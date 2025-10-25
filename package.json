@@ -436,6 +436,7 @@
 		"@playwright/test": "^1.55.1",
 		"@sap-ai-sdk/ai-api": "^1.17.0",
 		"@sap-ai-sdk/orchestration": "^1.17.0",
+		"@sap-cloud-sdk/connectivity": "^4.1.2",
 		"@sentry/browser": "^9.12.0",
 		"@streamparser/json": "^0.0.22",
 		"@types/uuid": "^10.0.0",
