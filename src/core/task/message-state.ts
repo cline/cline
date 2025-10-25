@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import getFolderSize from "get-folder-size"
+import Mutex from "p-mutex"
 import { findLastIndex } from "@/shared/array"
 import { combineApiRequests } from "@/shared/combineApiRequests"
 import { combineCommandSequences } from "@/shared/combineCommandSequences"
@@ -29,6 +30,11 @@ export class MessageStateHandler {
 	private taskId: string
 	private ulid: string
 	private taskState: TaskState
+
+	// Mutex to prevent concurrent save operations (RC-4)
+	// Protects against data loss from race conditions when multiple
+	// operations try to save messages simultaneously
+	private saveMutex = new Mutex()
 
 	constructor(params: MessageStateHandlerParams) {
 		this.taskId = params.taskId
@@ -59,59 +65,68 @@ export class MessageStateHandler {
 	}
 
 	async saveClineMessagesAndUpdateHistory(): Promise<void> {
-		try {
-			await saveClineMessages(this.taskId, this.clineMessages)
-
-			// combined as they are in ChatView
-			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
-			const taskMessage = this.clineMessages[0] // first message is always the task say
-			const lastRelevantMessage =
-				this.clineMessages[
-					findLastIndex(
-						this.clineMessages,
-						(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
-					)
-				]
-			const taskDir = await ensureTaskDirectoryExists(this.taskId)
-			let taskDirSize = 0
+		// Protect with mutex to prevent concurrent saves from corrupting data (RC-4)
+		return await this.saveMutex.withLock(async () => {
 			try {
-				// getFolderSize.loose silently ignores errors
-				// returns # of bytes, size/1000/1000 = MB
-				taskDirSize = await getFolderSize.loose(taskDir)
+				await saveClineMessages(this.taskId, this.clineMessages)
+
+				// combined as they are in ChatView
+				const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
+				const taskMessage = this.clineMessages[0] // first message is always the task say
+				const lastRelevantMessage =
+					this.clineMessages[
+						findLastIndex(
+							this.clineMessages,
+							(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
+						)
+					]
+				const taskDir = await ensureTaskDirectoryExists(this.taskId)
+				let taskDirSize = 0
+				try {
+					// getFolderSize.loose silently ignores errors
+					// returns # of bytes, size/1000/1000 = MB
+					taskDirSize = await getFolderSize.loose(taskDir)
+				} catch (error) {
+					console.error("Failed to get task directory size:", taskDir, error)
+				}
+				const cwd = await getCwd(getDesktopDir())
+				await this.updateTaskHistory({
+					id: this.taskId,
+					ulid: this.ulid,
+					ts: lastRelevantMessage.ts,
+					task: taskMessage.text ?? "",
+					tokensIn: apiMetrics.totalTokensIn,
+					tokensOut: apiMetrics.totalTokensOut,
+					cacheWrites: apiMetrics.totalCacheWrites,
+					cacheReads: apiMetrics.totalCacheReads,
+					totalCost: apiMetrics.totalCost,
+					size: taskDirSize,
+					shadowGitConfigWorkTree: await this.checkpointTracker?.getShadowGitConfigWorkTree(),
+					cwdOnTaskInitialization: cwd,
+					conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
+					isFavorited: this.taskIsFavorited,
+					checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
+				})
 			} catch (error) {
-				console.error("Failed to get task directory size:", taskDir, error)
+				console.error("Failed to save cline messages:", error)
 			}
-			const cwd = await getCwd(getDesktopDir())
-			await this.updateTaskHistory({
-				id: this.taskId,
-				ulid: this.ulid,
-				ts: lastRelevantMessage.ts,
-				task: taskMessage.text ?? "",
-				tokensIn: apiMetrics.totalTokensIn,
-				tokensOut: apiMetrics.totalTokensOut,
-				cacheWrites: apiMetrics.totalCacheWrites,
-				cacheReads: apiMetrics.totalCacheReads,
-				totalCost: apiMetrics.totalCost,
-				size: taskDirSize,
-				shadowGitConfigWorkTree: await this.checkpointTracker?.getShadowGitConfigWorkTree(),
-				cwdOnTaskInitialization: cwd,
-				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
-				isFavorited: this.taskIsFavorited,
-				checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
-			})
-		} catch (error) {
-			console.error("Failed to save cline messages:", error)
-		}
+		})
 	}
 
 	async addToApiConversationHistory(message: Anthropic.MessageParam) {
-		this.apiConversationHistory.push(message)
-		await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+		// Protect with mutex to prevent concurrent saves from corrupting data (RC-4)
+		return await this.saveMutex.withLock(async () => {
+			this.apiConversationHistory.push(message)
+			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+		})
 	}
 
 	async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]): Promise<void> {
-		this.apiConversationHistory = newHistory
-		await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+		// Protect with mutex to prevent concurrent saves from corrupting data (RC-4)
+		return await this.saveMutex.withLock(async () => {
+			this.apiConversationHistory = newHistory
+			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+		})
 	}
 
 	async addToClineMessages(message: ClineMessage) {

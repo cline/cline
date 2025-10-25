@@ -75,6 +75,9 @@ export class Controller {
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
 
+	// RC-9: Flag to prevent duplicate cancellations from spam clicking
+	private cancelInProgress = false
+
 	// Shell integration warning tracker
 	private shellIntegrationWarningTracker: {
 		timestamps: number[]
@@ -423,7 +426,20 @@ export class Controller {
 	}
 
 	async cancelTask() {
-		if (this.task) {
+		// RC-9: Prevent duplicate cancellations from spam clicking
+		if (this.cancelInProgress) {
+			console.log(`[Controller.cancelTask] Cancellation already in progress, ignoring duplicate request`)
+			return
+		}
+
+		if (!this.task) {
+			return
+		}
+
+		// Set flag to prevent concurrent cancellations
+		this.cancelInProgress = true
+
+		try {
 			console.log(`[Controller.cancelTask] Starting cancellation for task ${this.task.taskId}`)
 			this.updateBackgroundCommandState(false)
 
@@ -491,6 +507,9 @@ export class Controller {
 			// Ensure state is sent to webview after cancellation
 			await this.postStateToWebview()
 			console.log(`[Controller.cancelTask] Cancellation complete`)
+		} finally {
+			// Always clear the flag, even if cancellation fails
+			this.cancelInProgress = false
 		}
 	}
 
