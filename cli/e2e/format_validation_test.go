@@ -652,6 +652,10 @@ func TestJSONOutputTaskOpen(t *testing.T) {
 	// Open task with JSON output
 	out = mustRunCLI(ctx, t, "task", "open", taskID, "--output-format", "json")
 
+	// STRICT: Assert pure JSON with ZERO text leakage
+	// This catches the "Successfully reinitialized task" message that was being suppressed
+	assertPureJSON(t, out, "task open --output-format json")
+
 	// Parse JSON
 	var response map[string]interface{}
 	if err := json.Unmarshal([]byte(out), &response); err != nil {

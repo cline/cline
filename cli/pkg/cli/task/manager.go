@@ -560,7 +560,19 @@ func (m *Manager) ReinitExistingTaskFromId(ctx context.Context, taskId string) e
 		return fmt.Errorf("Failed to reinitialize task %s: %w", taskId, err)
 	}
 
-	if global.Config.OutputFormat != "json" {
+	// Output success message in appropriate format
+	if global.Config.OutputFormat == "json" {
+		response := map[string]interface{}{
+			"status":  "success",
+			"command": "task open",
+			"data": map[string]interface{}{
+				"taskId": resp.Id,
+			},
+		}
+		if jsonBytes, err := json.MarshalIndent(response, "", "  "); err == nil {
+			fmt.Println(string(jsonBytes))
+		}
+	} else {
 		fmt.Printf("Successfully reinitialized task: %s (ID: %s)\n", taskId, resp.Id)
 	}
 
@@ -576,14 +588,13 @@ func (m *Manager) ResumeTask(ctx context.Context, taskID string) error {
 		m.renderer.RenderDebug("Resuming task: %s", taskID)
 	}
 
-	// This call handles cancellation of any active task
+	// This call handles cancellation of any active task and outputs success message
 	if err := m.ReinitExistingTaskFromId(ctx, taskID); err != nil {
 		return fmt.Errorf("failed to resume task %s: %w", taskID, err)
 	}
 
-	if global.Config.OutputFormat != "json" {
-		fmt.Printf("Task %s resumed successfully\n", taskID)
-	}
+	// Note: ReinitExistingTaskFromId already outputs success message in both JSON and plain formats
+	// No additional output needed here to avoid duplication
 
 	return nil
 }

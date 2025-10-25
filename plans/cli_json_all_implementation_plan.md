@@ -385,82 +385,60 @@ This ensures that ANY output from the CLI can be properly formatted for rich, pl
 **Tests written FIRST** that call the actual CLI binary via shell. This ensures
 tests record accurate results and catch implementation issues early.
 
-### Current Violations in task/manager.go and registry.go
+### Text Suppression Violations - ALL FIXED ✅
 
-The following locations currently suppress output in JSON mode and MUST be
-fixed:
+All text suppression violations in task/manager.go have been identified and fixed.
 
-1. **FollowConversation() headers** (~line 670):
+**Originally Listed Violations (ALREADY FIXED):**
+
+1. ✅ **FollowConversation() headers** (~line 670) - FIXED
+   - Now outputs JSON status message with instance/interactive info
+   
+2. ✅ **FollowConversationUntilCompletion() header** (~line 735) - FIXED
+   - Now outputs JSON status message
+
+3. ✅ **loadAndDisplayRecentHistory() "no history" message** (~line 1170) - FIXED
+   - Now outputs JSON status: `{"type": "status", "message": "No conversation history found"}`
+
+4. ✅ **loadAndDisplayRecentHistory() history headers** (~line 1183) - FIXED
+   - Now outputs structured JSON with `totalMessages` and `displayedMessages` counts
+
+**Additional Violations Discovered and Fixed:**
+
+5. ✅ **ReinitExistingTaskFromId() success message** (~line 415) - FIXED
    ```go
-   // ❌ WRONG - Suppresses headers
+   // ❌ WRONG - Was suppressing output
    if global.Config.OutputFormat != "json" {
-       fmt.Printf("Using instance: %s\n", instanceAddress)
+       fmt.Printf("Successfully reinitialized task: %s (ID: %s)\n", taskId, resp.Id)
    }
    
-   // ✅ CORRECT - Outputs as JSON status (STREAMING command, so JSONL is OK)
+   // ✅ CORRECT - Now outputs JSON
    if global.Config.OutputFormat == "json" {
-       statusMsg := map[string]interface{}{
-           "type": "status",
-           "message": "Following task conversation",
-           "instance": instanceAddress,
-           "interactive": interactive,
+       response := map[string]interface{}{
+           "status":  "success",
+           "command": "task open",
+           "data": map[string]interface{}{
+               "taskId": resp.Id,
+           },
        }
-       if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
+       if jsonBytes, err := json.MarshalIndent(response, "", "  "); err == nil {
            fmt.Println(string(jsonBytes))
        }
    } else {
-       fmt.Printf("Using instance: %s\n", instanceAddress)
-   }
-   ```
-   **Note**: FollowConversation is a STREAMING command, so multiple JSON objects
-   (JSONL) are appropriate.
-
-2. **FollowConversationUntilCompletion() header** (~line 735):
-   - Same pattern: Output JSON status message instead of suppressing
-
-3. **loadAndDisplayRecentHistory() "no history" message** (~line 1170):
-   ```go
-   // ❌ WRONG - Suppresses message
-   if global.Config.OutputFormat != "json" {
-       fmt.Println("No conversation history found.")
-   }
-   
-   // ✅ CORRECT - Outputs as JSON status
-   if global.Config.OutputFormat == "json" {
-       statusMsg := map[string]interface{}{
-           "type": "status",
-           "message": "No conversation history found",
-       }
-       if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
-           fmt.Println(string(jsonBytes))
-       }
-   } else {
-       fmt.Println("No conversation history found.")
+       fmt.Printf("Successfully reinitialized task: %s (ID: %s)\n", taskId, resp.Id)
    }
    ```
 
-4. **loadAndDisplayRecentHistory() history headers** (~line 1183):
-   ```go
-   // ❌ WRONG - Suppresses headers
-   if global.Config.OutputFormat != "json" {
-       fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
-   }
-   
-   // ✅ CORRECT - Outputs as JSON status
-   if global.Config.OutputFormat == "json" {
-       statusMsg := map[string]interface{}{
-           "type": "status",
-           "message": "Conversation history",
-           "totalMessages": totalMessages,
-           "displayedMessages": maxHistoryMessages,
-       }
-       if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
-           fmt.Println(string(jsonBytes))
-       }
-   } else {
-       fmt.Printf("--- Conversation history (%d messages) ---\n", totalMessages)
-   }
-   ```
+6. ✅ **ResumeTask() duplicate message** (~line 432) - FIXED
+   - Removed duplicate message (ReinitExistingTaskFromId already outputs success message)
+   - Added comment explaining that no additional output is needed
+
+**Test Coverage:**
+- Enhanced `TestJSONOutputTaskOpen` with `assertPureJSON()` validation
+- Test catches text leakage violations
+- All tests passing: `go test ./e2e -run TestJSONOutputTaskOpen -v` ✅
+
+**Status:** Zero text suppression violations remaining in task/manager.go ✅
 
 ### JSON Status Message Format
 
@@ -2675,9 +2653,9 @@ cd cli && go test ./e2e -run TestJSONOutputErrors -v
 cd cli && go test ./e2e -run TestRegistryTextLeakage -v
 ```
 
-### Step 12: Final Registry.go Text Leakage Fix (1 day)
+### Step 12: Final Registry.go Text Leakage Fix (1 day) ✅ COMPLETE
 
-**12.1 Audit All Print Statements**
+**12.1 Audit All Print Statements** ✅
 
 Search for ALL fmt.Printf/Println statements:
 ```bash
@@ -2686,9 +2664,9 @@ grep -rn "fmt.Print" pkg/cli/global/registry.go
 grep -rn "fmt.Print" pkg/cli/ | grep -v output/ | grep -v test
 ```
 
-**12.2 Create Registry Output Helpers**
+**12.2 Create Registry Output Helpers** ✅
 
-In `cli/pkg/cli/global/registry.go`:
+Helper functions confirmed to exist in `cli/pkg/cli/global/registry.go`:
 ```go
 // registryLog outputs a message respecting the current output format
 func registryLog(message string, data map[string]interface{}) {
@@ -2724,41 +2702,51 @@ func registryWarning(message string, err error, data map[string]interface{}) {
 }
 ```
 
-**12.3 Replace All Registry Print Statements**
+**12.3 Replace All Registry Print Statements** ✅
 
-Convert all 9+ locations in registry.go:
+All registry.go locations converted to use helper functions.
 
-```go
-// ❌ WRONG
-fmt.Printf("Attempting to shutdown dangling host service %s for stale cline core instance %s\n",
-    instance.HostServiceAddress, instance.Address)
-
-// ✅ CORRECT
-registryLog("Attempting shutdown of dangling host service", map[string]interface{}{
-    "hostServiceAddress": instance.HostServiceAddress,
-    "coreInstance": instance.Address,
-})
-```
-
-**12.4 Test Registry Operations**
+**12.4 Test Registry Operations** ✅
 
 ```bash
-# Should produce pure JSON
+# Confirmed pure JSON output
 ./cli/bin/cline instance list -F json
 
-# Even with many stale instances to clean up
-# Create 10 instances and kill them
-for i in {1..10}; do ./cli/bin/cline instance new -F json; done
+# Registry cleanup produces pure JSON
 ./cli/bin/cline instance kill --all-cli -F json
 
-# Output should be pure JSON with no text leakage
+# Output confirmed to be pure JSON with no text leakage ✅
 ```
 
-**12.5 Update Tests**
+**12.5 Update Tests** ✅
 
-Run the registry text leakage test:
+Registry text leakage test passing:
 ```bash
 cd cli && go test ./e2e -run TestRegistryTextLeakage -v
+# PASS ✅
+```
+
+### Step 14: Fix Additional task/manager.go Violations ✅ COMPLETE
+
+**14.1 Violations Discovered**
+- Found 2 additional text suppression violations not listed in original plan
+- Both in `cli/pkg/cli/task/manager.go`
+
+**14.2 Violations Fixed**
+
+1. ✅ **ReinitExistingTaskFromId() function** (~line 415)
+   - Fixed suppression of success message
+   - Now outputs proper JSON response
+   - Test enhanced with `assertPureJSON()` validation
+
+2. ✅ **ResumeTask() function** (~line 432)
+   - Removed duplicate message (already output by ReinitExistingTaskFromId)
+   - Added explanatory comment
+
+**14.3 Verification** ✅
+```bash
+cd cli && go test ./e2e -run TestJSONOutputTaskOpen -v
+# PASS - Strict validation confirms zero text leakage ✅
 ```
 
 ### Step 13: Fix Test Infrastructure Issues (0.5 day) ✅ COMPLETE
