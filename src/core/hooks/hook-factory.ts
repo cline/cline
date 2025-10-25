@@ -288,13 +288,8 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 					// Validate structure before creating HookOutput
 					const validation = validateHookOutput(outputData)
 					if (!validation.valid) {
-						// Don't use streamCallback - it creates red text
-						// Throw validation error instead
-						throw HookExecutionError.validation(
-							validation.error!,
-							this.scriptPath,
-							stdout.slice(0, 500) + (stdout.length > 500 ? "..." : ""),
-						)
+						// Return null to indicate parsing failed, let caller decide what to do based on exit code
+						return null
 					}
 
 					const output = HookOutput.fromJSON(outputData)
@@ -312,11 +307,6 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 					return output
 				} catch (parseError) {
-					// If it's already a HookExecutionError, re-throw it
-					if (HookExecutionError.isHookError(parseError)) {
-						throw parseError
-					}
-
 					// Try to extract JSON from stdout (it might have debug output before/after)
 					const jsonMatch = stdout.match(/\{[\s\S]*\}/)
 					if (jsonMatch) {
@@ -326,11 +316,8 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 							// Validate structure
 							const validation = validateHookOutput(outputData)
 							if (!validation.valid) {
-								throw HookExecutionError.validation(
-									validation.error!,
-									this.scriptPath,
-									stdout.slice(0, 500) + (stdout.length > 500 ? "..." : ""),
-								)
+								// Return null to indicate parsing failed
+								return null
 							}
 
 							const output = HookOutput.fromJSON(outputData)
@@ -348,17 +335,13 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 							return output
 						} catch (_extractError) {
-							// Fall through to validation error below
+							// Couldn't extract valid JSON, return null
+							return null
 						}
 					}
 
-					// Couldn't parse JSON at all
-					const errorMsg = parseError instanceof Error ? parseError.message : String(parseError)
-					throw HookExecutionError.validation(
-						`Failed to parse JSON output: ${errorMsg}`,
-						this.scriptPath,
-						stdout.slice(0, 500) + (stdout.length > 500 ? "..." : ""),
-					)
+					// Couldn't parse JSON at all, return null
+					return null
 				}
 			}
 
@@ -373,6 +356,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 						console.warn(`[Hook ${this.hookName}] stderr: ${stderr}`)
 					}
 				}
+
 				return parsedOutput
 			}
 
@@ -384,8 +368,8 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 					cancel: false,
 				})
 			} else {
-				// Hook failed with non-zero exit
-				throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr)
+				// Hook failed with non-zero exit - include hook name in error
+				throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 			}
 		} catch (error) {
 			// If it's already a HookExecutionError, re-throw it
@@ -399,16 +383,16 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 			// Check for timeout
 			if (error instanceof Error && error.message.includes("timed out")) {
-				throw HookExecutionError.timeout(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, stderr)
+				throw HookExecutionError.timeout(this.scriptPath, HOOK_EXECUTION_TIMEOUT_MS, stderr, this.hookName)
 			}
 
 			// Check for cancellation
 			if (error instanceof Error && error.message.includes("cancelled")) {
-				throw HookExecutionError.cancellation(this.scriptPath)
+				throw HookExecutionError.cancellation(this.scriptPath, this.hookName)
 			}
 
-			// Generic execution error
-			throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr)
+			// Generic execution error - include hook name
+			throw HookExecutionError.execution(this.scriptPath, exitCode ?? 1, stderr, this.hookName)
 		}
 	}
 }

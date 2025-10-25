@@ -24,19 +24,26 @@ Hooks run automatically when enabled.
 - **Workspace Location**: `.clinerules/hooks/TaskStart` (all platforms)
 
 ### TaskResume Hook
-- **When**: Runs when an EXISTING task is resumed
+- **When**: Runs when an EXISTING task is resumed (after user clicks resume button)
 - **Purpose**: Validate resumed task state, restore context, check for changes since last run
 - **Global Location**: `~/Documents/Cline/Rules/Hooks/TaskResume` (all platforms)
 - **Workspace Location**: `.clinerules/hooks/TaskResume` (all platforms)
 
 ### TaskCancel Hook
-- **When**: Runs when a task is cancelled by the user
+- **When**: Runs when a task is cancelled by the user (only if there's actual active work or work was started)
 - **Purpose**: Clean up resources, log cancellation, save state
 - **Global Location**: `~/Documents/Cline/Rules/Hooks/TaskCancel` (all platforms)
 - **Workspace Location**: `.clinerules/hooks/TaskCancel` (all platforms)
+- **Note**: This hook is NOT cancellable and will complete even if the task is being aborted
+
+### TaskComplete Hook
+- **When**: Runs when a task is marked as complete
+- **Purpose**: Log completion status, perform final cleanup, generate reports
+- **Global Location**: `~/Documents/Cline/Rules/Hooks/TaskComplete` (all platforms)
+- **Workspace Location**: `.clinerules/hooks/TaskComplete` (all platforms)
 
 ### UserPromptSubmit Hook
-- **When**: Runs when the user submits a prompt/message
+- **When**: Runs when the user submits a prompt/message (initial task, resume, or feedback)
 - **Purpose**: Validate user input, preprocess prompts, add context to user messages
 - **Global Location**: `~/Documents/Cline/Rules/Hooks/UserPromptSubmit` (all platforms)
 - **Workspace Location**: `.clinerules/hooks/UserPromptSubmit` (all platforms)
@@ -52,6 +59,12 @@ Hooks run automatically when enabled.
 - **Purpose**: Observe results, track patterns, or add context
 - **Global Location**: `~/Documents/Cline/Rules/Hooks/PostToolUse` (all platforms)
 - **Workspace Location**: `.clinerules/hooks/PostToolUse` (all platforms)
+
+### PreCompact Hook
+- **When**: Runs BEFORE the conversation context is compacted/truncated
+- **Purpose**: Observe compaction events, log context management, track token usage
+- **Global Location**: `~/Documents/Cline/Rules/Hooks/PreCompact` (all platforms)
+- **Workspace Location**: `.clinerules/hooks/PreCompact` (all platforms)
 
 ## Cross-Platform Hook Format
 
@@ -131,22 +144,45 @@ All hooks receive:
 ```json
 {
   "clineVersion": "string",
-  "hookName": "TaskStart" | "TaskResume" | "TaskCancel" | "UserPromptSubmit" | "PreToolUse" | "PostToolUse",
+  "hookName": "TaskStart" | "TaskResume" | "TaskCancel" | "TaskComplete" | "UserPromptSubmit" | "PreToolUse" | "PostToolUse" | "PreCompact",
   "timestamp": "string",
   "taskId": "string",
   "workspaceRoots": ["string"],
   "userId": "string",
   "taskStart": {  // Only for TaskStart
-    "task": "string"
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string",
+      "initialTask": "string"
+    }
   },
   "taskResume": {  // Only for TaskResume
-    "task": "string"
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string"
+    },
+    "previousState": {
+      "lastMessageTs": "string",
+      "messageCount": "string",
+      "conversationHistoryDeleted": "string"
+    }
   },
   "taskCancel": {  // Only for TaskCancel
-    "reason": "string"
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string",
+      "completionStatus": "string"
+    }
+  },
+  "taskComplete": {  // Only for TaskComplete
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string"
+    }
   },
   "userPromptSubmit": {  // Only for UserPromptSubmit
-    "prompt": "string"
+    "prompt": "string",
+    "attachments": ["string"]
   },
   "preToolUse": {  // Only for PreToolUse
     "toolName": "string",
@@ -158,6 +194,11 @@ All hooks receive:
     "result": "string",
     "success": boolean,
     "executionTimeMs": number
+  },
+  "preCompact": {  // Only for PreCompact
+    "contextSize": number,
+    "messagesToCompact": number,
+    "compactionStrategy": "string"
   }
 }
 ```
@@ -200,9 +241,9 @@ EOF
 
 ## Hook Execution Limits
 
-- **Timeout**: Hooks must complete within 30 seconds
-- **Context Size**: Context modifications are limited to 50KB
-- **Error Handling**: Unexpected file system errors are propagated; expected errors (file not found, permission denied) are handled silently
+- **Timeout**: Hooks must complete within 30 seconds (configurable via `HOOK_EXECUTION_TIMEOUT_MS`)
+- **Context Size**: Context modifications are limited to 50KB (configurable via `MAX_CONTEXT_MODIFICATION_SIZE`)
+- **Error Handling**: Expected errors (file not found, permission denied, not a directory) are handled silently; unexpected file system errors are propagated
 
 ## Common Use Cases
 
@@ -290,26 +331,26 @@ Cline supports two levels of hooks:
 - **Location**: `~/Documents/Cline/Rules/Hooks/` (macOS/Linux) or `%USERPROFILE%\Documents\Cline\Rules\Hooks\` (Windows)
 - **Scope**: Apply to ALL workspaces and projects
 - **Use Case**: Organization-wide policies, personal preferences, universal validations
-- **Priority**: Execute FIRST, before workspace hooks
+- **Priority**: Order not guaranteed when combined with workspace hooks
 
 ### Workspace Hooks
 - **Location**: `.clinerules/hooks/` in each workspace root
 - **Scope**: Apply only to the specific workspace
 - **Use Case**: Project-specific rules, team conventions, repository requirements
-- **Priority**: Execute AFTER global hooks
+- **Priority**: Order not guaranteed when combined with global hooks
 
 ### Hook Execution
 
 When multiple hooks exist (global and/or workspace):
-- All hooks for a given step are executed
-- **Execution order is not guaranteed** - hooks may run concurrently
+- All hooks for a given step are executed **concurrently** using `Promise.all`
+- **Execution order is not guaranteed** - hooks run in parallel
 - If ALL hooks allow execution (`cancel: false`), the tool proceeds
 - If ANY hook blocks (`cancel: true`), execution is blocked
 
 **Result Combination:**
 - `cancel`: If ANY hook returns `true`, execution is blocked
-- `contextModification`: All context strings are concatenated
-- `errorMessage`: All error messages are concatenated
+- `contextModification`: All context strings are concatenated with double newlines (`\n\n`)
+- `errorMessage`: All error messages are concatenated with single newlines (`\n`)
 
 ### Setting Up Global Hooks
 

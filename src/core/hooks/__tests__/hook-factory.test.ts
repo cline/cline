@@ -73,7 +73,7 @@ describe("Hook System", () => {
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
 		})
 	})
@@ -85,7 +85,7 @@ describe("Hook System", () => {
 			const hookScript = `#!/usr/bin/env node
 const input = require('fs').readFileSync(0, 'utf-8');
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "TEST_CONTEXT: Added by hook"
 }))`
 
@@ -103,7 +103,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("TEST_CONTEXT: Added by hook")
 		})
 
@@ -111,7 +111,7 @@ console.log(JSON.stringify({
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: false,
+  cancel: true,
   errorMessage: "Hook blocked execution"
 }))`
 
@@ -128,7 +128,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.false()
+			result.cancel.should.be.true()
 			result.errorMessage!.should.equal("Hook blocked execution")
 		})
 
@@ -138,7 +138,7 @@ console.log(JSON.stringify({
 			const largeContext = "x".repeat(60000)
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "${largeContext}"
 }))`
 
@@ -203,7 +203,7 @@ console.log("not valid json")`
 			})
 
 			// Hook succeeded (exit 0) but couldn't parse JSON, so returns success without context
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
 		})
 
@@ -212,7 +212,7 @@ console.log("not valid json")`
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Received tool: " + input.preToolUse.toolName
 }))`
 
@@ -239,7 +239,7 @@ console.log(JSON.stringify({
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Tool succeeded: " + input.postToolUse.success
 }))`
 
@@ -267,7 +267,7 @@ console.log(JSON.stringify({
 		it("should find executable hook", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
-console.log(JSON.stringify({ shouldContinue: true }))`
+console.log(JSON.stringify({ cancel: false }))`
 
 			await fs.writeFile(hookPath, hookScript)
 			await fs.chmod(hookPath, 0o755)
@@ -284,13 +284,13 @@ console.log(JSON.stringify({ shouldContinue: true }))`
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 		})
 
 		it("should not find non-executable file", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const hookScript = `#!/usr/bin/env node
-console.log(JSON.stringify({ shouldContinue: true }))`
+console.log(JSON.stringify({ cancel: false }))`
 
 			// Write but don't make executable
 			await fs.writeFile(hookPath, hookScript)
@@ -310,7 +310,7 @@ console.log(JSON.stringify({ shouldContinue: true }))`
 			})
 
 			// NoOpRunner always returns success
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 		})
 
 		it("should handle missing hooks gracefully", async () => {
@@ -327,7 +327,7 @@ console.log(JSON.stringify({ shouldContinue: true }))`
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 		})
 	})
 
@@ -346,7 +346,7 @@ console.log(JSON.stringify({ shouldContinue: true }))`
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 		})
 
 		it("should handle hook input with all parameters", async () => {
@@ -356,7 +356,7 @@ const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasAllFields = input.clineVersion && input.hookName && input.timestamp && 
                      input.taskId && input.workspaceRoots !== undefined;
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: hasAllFields ? "All fields present" : "Missing fields"
 }))`
 
@@ -403,7 +403,7 @@ console.log(JSON.stringify({
 			const globalHookScript = `#!/usr/bin/env node
 const input = require('fs').readFileSync(0, 'utf-8');
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "GLOBAL: Context added"
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
@@ -413,7 +413,7 @@ console.log(JSON.stringify({
 			const workspaceHookScript = `#!/usr/bin/env node
 const input = require('fs').readFileSync(0, 'utf-8');
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "WORKSPACE: Context added"
 }))`
 			await writeHookScript(workspaceHookPath, workspaceHookScript)
@@ -427,7 +427,7 @@ console.log(JSON.stringify({
 			})
 
 			// Both contexts should be present (order not guaranteed)
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.match(/GLOBAL: Context added/)
 			result.contextModification!.should.match(/WORKSPACE: Context added/)
 		})
@@ -437,7 +437,7 @@ console.log(JSON.stringify({
 			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
 			const globalHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: false,
+  cancel: true,
   errorMessage: "Global policy violation"
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
@@ -446,7 +446,7 @@ console.log(JSON.stringify({
 			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true
+  cancel: false
 }))`
 			await writeHookScript(workspaceHookPath, workspaceHookScript)
 
@@ -457,7 +457,7 @@ console.log(JSON.stringify({
 				preToolUse: { toolName: "test_tool", parameters: {} },
 			})
 
-			result.shouldContinue.should.be.false()
+			result.cancel.should.be.true()
 			result.errorMessage!.should.match(/Global policy violation/)
 		})
 
@@ -466,7 +466,7 @@ console.log(JSON.stringify({
 			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
 			const globalHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Global hook only"
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
@@ -478,7 +478,7 @@ console.log(JSON.stringify({
 				preToolUse: { toolName: "test_tool", parameters: {} },
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("Global hook only")
 		})
 
@@ -487,7 +487,7 @@ console.log(JSON.stringify({
 			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
 			const globalHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Global allows"
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
@@ -496,7 +496,7 @@ console.log(JSON.stringify({
 			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: false,
+  cancel: true,
   errorMessage: "Workspace blocks"
 }))`
 			await writeHookScript(workspaceHookPath, workspaceHookScript)
@@ -508,7 +508,7 @@ console.log(JSON.stringify({
 				preToolUse: { toolName: "test_tool", parameters: {} },
 			})
 
-			result.shouldContinue.should.be.false()
+			result.cancel.should.be.true()
 			result.errorMessage!.should.match(/Workspace blocks/)
 			// Context from global should still be included
 			result.contextModification!.should.match(/Global allows/)
@@ -519,7 +519,7 @@ console.log(JSON.stringify({
 			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
 			const globalHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: false,
+  cancel: true,
   errorMessage: "Global error"
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
@@ -528,7 +528,7 @@ console.log(JSON.stringify({
 			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "PreToolUse")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: false,
+  cancel: true,
   errorMessage: "Workspace error"
 }))`
 			await writeHookScript(workspaceHookPath, workspaceHookScript)
@@ -540,7 +540,7 @@ console.log(JSON.stringify({
 				preToolUse: { toolName: "test_tool", parameters: {} },
 			})
 
-			result.shouldContinue.should.be.false()
+			result.cancel.should.be.true()
 			result.errorMessage!.should.match(/Global error/)
 			result.errorMessage!.should.match(/Workspace error/)
 		})
@@ -551,7 +551,7 @@ console.log(JSON.stringify({
 			const globalHookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Global observed: " + input.postToolUse.success
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)

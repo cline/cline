@@ -4,13 +4,35 @@ import { memo, useMemo, useState } from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { CHAT_ROW_EXPANDED_BG_COLOR } from "../common/CodeBlock"
 import { HOOK_OUTPUT_STRING } from "./constants"
-import PendingToolInfo from "./PendingToolInfo"
 
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
 const successColor = "var(--vscode-charts-green)"
-const runningColor = "var(--vscode-charts-orange)"
-const _cancelledColor = "var(--vscode-descriptionForeground)"
+const completedColor = "var(--vscode-descriptionForeground)"
+
+/**
+ * Determines if a hook message should be expanded by default.
+ *
+ * Expansion logic:
+ * - Historical messages (>5 seconds old): Always collapsed for better UX
+ * - Fresh failed/cancelled hooks: Expanded to show error details
+ * - Fresh successful hooks: Collapsed to minimize clutter
+ * - Running hooks: Not applicable (handled separately)
+ *
+ * @param message The message containing timestamp information
+ * @param metadata The hook metadata containing status
+ * @returns true if the hook output should be expanded by default
+ */
+function shouldExpandHookByDefault(message: ClineMessage, metadata: HookMetadata): boolean {
+	// Always collapse historical messages (>5 seconds old) for better UX
+	const isHistorical = message.ts && Date.now() - message.ts > 5000
+	if (isHistorical) {
+		return false
+	}
+
+	// Expand fresh failed/cancelled hooks to show error details
+	return metadata.status === "failed" || metadata.status === "cancelled"
+}
 
 interface HookMessageProps {
 	message: ClineMessage
@@ -54,11 +76,16 @@ interface HookMetadata {
  *
  * Smart expansion defaults:
  * - Failed hooks: Expanded by default (show error details)
- * - Cancelled hooks: Expanded by default (show what happened)
+ * - Aborted hooks: Expanded by default (show what happened)
  * - Successful hooks: Collapsed by default (minimize clutter)
  * - Running hooks: Always shows pending tool info
  */
 const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
+	// Log when component mounts/updates
+	console.log(
+		`[HOOK-UI RENDER] HookMessage rendering: ${JSON.stringify({ hookName: message.text?.substring(0, 100), ts: message.ts })}`,
+	)
+
 	// Parse hook metadata and output
 	const { metadata, output } = useMemo(() => {
 		const splitMessage = (text: string) => {
@@ -102,12 +129,8 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 		return { metadata: hookMetadata, output }
 	}, [message.text])
 
-	// Smart defaults:
-	// - Historical messages (>5 seconds old): Always collapsed for better UX
-	// - Fresh messages: Expand if failed/cancelled, collapse if successful
-	const isHistoricalMessage = message.ts && Date.now() - message.ts > 5000
-	const shouldExpandByDefault = !isHistoricalMessage && (metadata.status === "failed" || metadata.status === "cancelled")
-	const [isHookOutputExpanded, setIsHookOutputExpanded] = useState(shouldExpandByDefault)
+	// Determine initial expansion state using pure function
+	const [isHookOutputExpanded, setIsHookOutputExpanded] = useState(() => shouldExpandHookByDefault(message, metadata))
 
 	const isRunning = metadata.status === "running"
 	const isCompleted = metadata.status === "completed"
@@ -140,7 +163,7 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 				style={{
 					borderRadius: 6,
 					border: "1px solid var(--vscode-editorGroup-border)",
-					overflow: "hidden",
+					overflow: "visible",
 					backgroundColor: CHAT_ROW_EXPANDED_BG_COLOR,
 					transition: "all 0.3s ease-in-out",
 				}}>
@@ -169,14 +192,14 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 								width: "8px",
 								height: "8px",
 								borderRadius: "50%",
-								backgroundColor: isRunning ? runningColor : isFailed || isCancelled ? errorColor : successColor,
+								backgroundColor: isRunning ? successColor : isFailed || isCancelled ? errorColor : completedColor,
 								animation: isRunning ? "pulse 2s ease-in-out infinite" : "none",
 								flexShrink: 0,
 							}}
 						/>
 						<span
 							style={{
-								color: isRunning ? runningColor : isFailed || isCancelled ? errorColor : successColor,
+								color: isRunning ? successColor : isFailed || isCancelled ? errorColor : completedColor,
 								fontWeight: 500,
 								fontSize: "13px",
 								flexShrink: 0,
@@ -186,7 +209,7 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 								: isFailed
 									? "Failed"
 									: isCancelled
-										? "Cancelled"
+										? "Aborted"
 										: isCompleted
 											? "Completed"
 											: "Unknown"}
@@ -205,6 +228,9 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 						<button
 							onClick={(e) => {
 								e.stopPropagation()
+								console.log(
+									`[HOOK-UI CANCEL] Hook cancel button clicked for ${metadata.hookName}${metadata.toolName ? ` (${metadata.toolName})` : ""}`,
+								)
 								// Cancel the task - cancelling a hook always cancels the entire task
 								TaskServiceClient.cancelTask(EmptyRequest.create({})).catch((err) =>
 									console.error("Failed to cancel task:", err),
@@ -226,12 +252,10 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 								cursor: "pointer",
 								fontFamily: "inherit",
 							}}>
-							cancel
+							Abort
 						</button>
 					)}
 				</div>
-				{/* Show pending tool info when hook is running */}
-				{isRunning && metadata.pendingToolInfo && <PendingToolInfo pendingToolInfo={metadata.pendingToolInfo} />}
 
 				{/* Show concise error message for specific error types */}
 				{isFailed && metadata.error && metadata.error.type === "timeout" && (

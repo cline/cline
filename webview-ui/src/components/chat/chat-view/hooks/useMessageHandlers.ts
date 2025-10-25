@@ -40,7 +40,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			}
 
 			if (hasContent) {
-				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend, "clineAsk:", clineAsk)
+				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
 				let messageSent = false
 
 				if (messages.length === 0) {
@@ -258,7 +258,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					// Clear any pending state that might interfere with resume
 					setSendingDisabled(false)
 					setEnableButtons(true)
-					clearInputState()
 					break
 
 				case "utility":

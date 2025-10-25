@@ -17,6 +17,7 @@ import styled from "styled-components"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
+import { CheckpointControls } from "@/components/common/CheckpointControls"
 import CodeBlock, {
 	CHAT_ROW_EXPANDED_BG_COLOR,
 	CODE_BLOCK_BG_COLOR,
