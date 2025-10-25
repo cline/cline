@@ -336,12 +336,14 @@ export class Controller {
 		// IMPORTANT: Now that the task instance is fully assigned to controller.task,
 		// we can safely start the task initialization. This prevents race conditions
 		// where hooks (especially TaskStart) run before the task is ready to be cancelled.
+		// We MUST await these calls to ensure hooks complete (or at least start properly)
+		// before returning, making cancellation reliable at any point.
 		if (historyItem) {
 			// Resume an existing task - this will show the resume button first
-			this.task.resumeTaskFromHistory()
+			await this.task.resumeTaskFromHistory()
 		} else if (task || images || files) {
 			// Start a new task - this will run TaskStart hook immediately
-			this.task.startTask(task, images, files)
+			await this.task.startTask(task, images, files)
 		}
 
 		return this.task.taskId

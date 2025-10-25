@@ -71,6 +71,7 @@ import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
 import { execa } from "execa"
+import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
@@ -136,6 +137,17 @@ export class Task {
 	private taskInitializationStartTime: number
 
 	taskState: TaskState
+
+	// ONE mutex for ALL state modifications to prevent race conditions
+	private stateMutex = new Mutex()
+
+	/**
+	 * Execute function with exclusive lock on all task state
+	 * Use this for ANY state modification to prevent races
+	 */
+	private async withStateLock<T>(fn: () => T | Promise<T>): Promise<T> {
+		return await this.stateMutex.withLock(fn)
+	}
 
 	// Core dependencies
 	private controller: Controller
