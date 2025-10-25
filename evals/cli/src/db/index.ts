@@ -1,6 +1,6 @@
-import * as path from "path"
-import * as fs from "fs"
 import Database from "better-sqlite3"
+import * as fs from "fs"
+import * as path from "path"
 import { SCHEMA } from "./schema"
 
 const EVALS_DIR = path.resolve(__dirname, "../../../")

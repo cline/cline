@@ -1,7 +1,7 @@
-import * as fs from "fs"
-import * as path from "path"
 import chalk from "chalk"
+import * as fs from "fs"
 import ora from "ora"
+import * as path from "path"
 import { ResultsDatabase } from "../db"
 import { generateMarkdownReport } from "../utils/markdown"
 
