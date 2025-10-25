@@ -1,0 +1,89 @@
+---
+title: Python gRPC Codegen (proto → Python)
+description: Generate Python protobuf and gRPC stubs with a Go-like client layout using the repo script
+---
+
+This page documents how to generate Python stubs from the repo's `.proto` files. All output goes under `src/generated/` and is produced by scripts only (no manually checked-in generated files).
+
+## What gets generated
+
+- `src/generated/grpc-python/`
+  - `cline/*_pb2.py`, `*_pb2_grpc.py`
+  - `host/*_pb2.py`, `*_pb2_grpc.py`
+  - `client/`
+    - `connection.py` (ConnectionManager)
+    - `cline_client.py` (unified client that composes per-service wrappers)
+    - `services/<service>_client.py` (thin per-service wrappers)
+
+This mirrors the directory structure used by the Go generator (`src/generated/grpc-go/client`) but uses Python modules and naming.
+
+## Prerequisites
+
+- Python 3.9+
+- `grpcio-tools` available in the Python environment used to run the generator
+
+Recommended to use a local virtual environment to avoid system Python issues on macOS (PEP 668):
+
+```bash
+python3 -m venv .venv-proto
+. .venv-proto/bin/activate
+pip install -U pip grpcio-tools
+```
+
+## Generate stubs
+
+There are two ways to run generation. Both produce the same output and are fully script-driven.
+
+### Option A: Use the repo Node script
+
+This script discovers all `proto/**/*.proto` and invokes `grpc_tools.protoc`.
+
+```bash
+# Ensure your venv Python is used (recommended)
+PYTHON="$(pwd)/.venv-proto/bin/python" npm run protos-python
+```
+
+- Script location: `scripts/build-python-proto.mjs`
+- Output: `src/generated/grpc-python` (created/overwritten by the script)
+
+### Option B: Use your Python directly
+
+If your Python has `grpcio-tools` installed, you can call the generator from the script directly:
+
+```bash
+npm run protos-python
+```
+
+or with the venv explicitly:
+
+```bash
+PYTHON="$(pwd)/.venv-proto/bin/python" npm run protos-python
+```
+
+## Import examples
+
+Ensure `src/generated/grpc-python` is on `PYTHONPATH` (or package/install it as desired):
+
+```python
+from client.cline_client import ClineClient
+from cline import state_pb2
+
+client = ClineClient("localhost:17611")
+client.connect()
+# Example usage (stubs/wrappers vary by service):
+# resp = client.State.SomeRpc(state_pb2.SomeRequest(...))
+client.disconnect()
+```
+
+You can also import the generated protobuf modules directly:
+
+```python
+from cline import state_pb2, state_pb2_grpc
+from host import window_pb2, window_pb2_grpc
+```
+
+## Notes
+
+- Only the scripts generate `src/generated/grpc-python`. Do not manually check in changes to `src/generated/*`.
+- If you see missing well-known type errors (e.g., `google/protobuf/field_mask.proto`), ensure `grpcio-tools` is installed and the script is using the correct Python interpreter (via the `PYTHON` env var).
+- The Go client layout is mirrored (client folder and per-service wrappers) for parity, while keeping the code idiomatic to Python.
