@@ -1,5 +1,7 @@
+import { HistoryItem } from "@shared/HistoryItem"
 import { GetTaskHistoryRequest, TaskHistoryArray } from "@shared/proto/cline/task"
 import { arePathsEqual, getWorkspacePath } from "../../../utils/path"
+import { readTaskHistoryFromState } from "../../storage/disk"
 import { Controller } from ".."
 
 /**
@@ -10,17 +12,104 @@ import { Controller } from ".."
  */
 export async function getTaskHistory(controller: Controller, request: GetTaskHistoryRequest): Promise<TaskHistoryArray> {
 	try {
-		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy } = request
+		const { favoritesOnly, currentWorkspaceOnly, searchQuery, sortBy, filterByWorkspaceId } = request
 
-		// Get task history from global state
-		const taskHistory = controller.stateManager.getGlobalStateKey("taskHistory")
-		const workspacePath = await getWorkspacePath()
+		// Get task history - from workspace state if filtering by current workspace,
+		// otherwise from global aggregated history to support cross-workspace view
+		let taskHistory: HistoryItem[]
+		// CRITICAL FIX: Use workspace manager's primary root instead of active file's workspace
+		// This fixes the bug where switching workspaces didn't update the filter because
+		// getWorkspacePath() returns the workspace of the currently active file, not the
+		// actual current workspace root. The workspace manager is updated when workspaces
+		// change (see extension.ts onDidChangeWorkspaceFolders).
+		const workspaceManagerPath = controller.getWorkspaceManager()?.getPrimaryRoot()?.path
+		const activeFilePath = await getWorkspacePath()
+		const workspacePath = workspaceManagerPath || activeFilePath
+
+		// Read from global task history (single source of truth)
+		const allTasks = await readTaskHistoryFromState()
+
+		// PHASE 1: Comprehensive Diagnostics with workspace resolution details
+		console.log("[TaskHistory] Loading task history", {
+			totalTasksInGlobalFile: allTasks.length,
+			currentWorkspaceOnly,
+			filterByWorkspaceId,
+			favoritesOnly,
+			workspaceResolution: {
+				fromWorkspaceManager: workspaceManagerPath,
+				fromActiveFile: activeFilePath,
+				usingPath: workspacePath,
+				source: workspaceManagerPath ? "workspace-manager" : "active-file-fallback",
+			},
+		})
+
+		// Log data quality statistics
+		const dataQuality = {
+			totalTasks: allTasks.length,
+			tasksWithWorkspaceIds: allTasks.filter((t) => t.workspaceIds && t.workspaceIds.length > 0).length,
+			tasksWithoutWorkspaceIds: allTasks.filter((t) => !t.workspaceIds || t.workspaceIds.length === 0).length,
+			tasksWithCwdOnTaskInit: allTasks.filter((t) => t.cwdOnTaskInitialization).length,
+			tasksWithShadowGit: allTasks.filter((t) => t.shadowGitConfigWorkTree).length,
+			tasksMissingTs: allTasks.filter((t) => !t.ts || t.ts === 0).length,
+			tasksMissingTask: allTasks.filter((t) => !t.task || t.task === "").length,
+		}
+		console.log("[TaskHistory] Data quality statistics:", dataQuality)
+
+		if (currentWorkspaceOnly) {
+			// Only show current workspace tasks
+			taskHistory = allTasks.filter((item) => {
+				if (item.workspaceIds && item.workspaceIds.length > 0) {
+					return item.workspaceIds.some((wsPath) => arePathsEqual(wsPath, workspacePath))
+				}
+				// Legacy tasks - check old fields
+				const taskWorkspacePath = item.cwdOnTaskInitialization || item.shadowGitConfigWorkTree
+				return taskWorkspacePath ? arePathsEqual(taskWorkspacePath, workspacePath) : false
+			})
+			console.log("[TaskHistory] After workspace filtering (currentWorkspaceOnly):", {
+				filteredCount: taskHistory.length,
+				workspacePath,
+			})
+		} else if (filterByWorkspaceId) {
+			// Filter by specific workspace ID
+			taskHistory = allTasks.filter((item) => {
+				if (!item.workspaceIds || item.workspaceIds.length === 0) {
+					// Legacy tasks without workspaceIds - check old fields
+					return (
+						(item.cwdOnTaskInitialization && arePathsEqual(item.cwdOnTaskInitialization, filterByWorkspaceId)) ||
+						(item.shadowGitConfigWorkTree && arePathsEqual(item.shadowGitConfigWorkTree, filterByWorkspaceId))
+					)
+				}
+				// Check if workspace is in task's workspaceIds
+				return item.workspaceIds.some((wsPath) => arePathsEqual(wsPath, filterByWorkspaceId))
+			})
+			console.log("[TaskHistory] After workspace filtering (filterByWorkspaceId):", {
+				filteredCount: taskHistory.length,
+				filterByWorkspaceId,
+			})
+		} else {
+			// Show all workspaces
+			taskHistory = allTasks
+			console.log("[TaskHistory] No workspace filtering (All Workspaces mode):", {
+				taskCount: taskHistory.length,
+			})
+		}
 
 		// Apply filters
 		let filteredTasks = taskHistory.filter((item) => {
-			// Basic filter: must have timestamp and task content
-			const hasRequiredFields = item.ts && item.task
-			if (!hasRequiredFields) {
+			// PHASE 2: Basic filter with comprehensive logging
+			// Check for required fields (lenient - only truly invalid data)
+			const hasValidTs = item.ts !== null && item.ts !== undefined && typeof item.ts === "number"
+			const hasValidTask =
+				item.task !== null && item.task !== undefined && typeof item.task === "string" && item.task.length > 0
+
+			if (!hasValidTs || !hasValidTask) {
+				console.warn("[TaskHistory] Task filtered out due to missing required fields:", {
+					id: item.id,
+					hasValidTs,
+					hasValidTask,
+					ts: item.ts,
+					taskPreview: item.task?.substring(0, 50),
+				})
 				return false
 			}
 
@@ -29,41 +118,37 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 				return false
 			}
 
-			// Apply current workspace filter if requested
-			if (currentWorkspaceOnly) {
-				let isInWorkspace = false
-
-				// First check the cwdOnTaskInitialization property - Only present on tasks from this change forward
-				if (item.cwdOnTaskInitialization) {
-					if (arePathsEqual(item.cwdOnTaskInitialization, workspacePath)) {
-						isInWorkspace = true
-					}
-				}
-
-				// For tasks without cwdOnTaskInitialization, check the older shadowGitConfigWorkTree property
-				if (!isInWorkspace && item.shadowGitConfigWorkTree) {
-					if (arePathsEqual(item.shadowGitConfigWorkTree, workspacePath)) {
-						isInWorkspace = true
-					}
-				}
-
-				if (!isInWorkspace) {
-					return false
-				}
-			}
+			// Note: currentWorkspaceOnly filtering is already handled in the initial fetch logic above
+			// No need for redundant filtering here
 
 			return true
+		})
+
+		console.log("[TaskHistory] After basic filter:", {
+			filteredCount: filteredTasks.length,
+			removedByBasicFilter: taskHistory.length - filteredTasks.length,
 		})
 
 		// Apply search if provided
 		if (searchQuery) {
 			// Simple search implementation
 			const query = searchQuery.toLowerCase()
+			const beforeSearchCount = filteredTasks.length
 			filteredTasks = filteredTasks.filter((item) => item.task.toLowerCase().includes(query))
+			console.log("[TaskHistory] After search filter:", {
+				searchQuery,
+				beforeCount: beforeSearchCount,
+				afterCount: filteredTasks.length,
+			})
 		}
 
 		// Calculate total count before sorting
 		const totalCount = filteredTasks.length
+
+		console.log("[TaskHistory] Final result:", {
+			totalCount,
+			sortBy: sortBy || "newest (default)",
+		})
 
 		// Apply sorting
 		if (sortBy) {
@@ -91,19 +176,44 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 			filteredTasks.sort((a, b) => b.ts - a.ts)
 		}
 
+		// Get workspace metadata for display names
+		const workspaceMetadata = controller.stateManager.getGlobalStateKey("workspaceMetadata") || {}
+
 		// Map to response format
-		const tasks = filteredTasks.map((item) => ({
-			id: item.id,
-			task: item.task,
-			ts: item.ts,
-			isFavorited: item.isFavorited || false,
-			size: item.size || 0,
-			totalCost: item.totalCost || 0,
-			tokensIn: item.tokensIn || 0,
-			tokensOut: item.tokensOut || 0,
-			cacheWrites: item.cacheWrites || 0,
-			cacheReads: item.cacheReads || 0,
-		}))
+		const tasks = filteredTasks.map((item) => {
+			// Determine workspace IDs (use legacy fields if workspaceIds not present)
+			let workspaceIds = item.workspaceIds || []
+			if (workspaceIds.length === 0 && (item.cwdOnTaskInitialization || item.shadowGitConfigWorkTree)) {
+				// Legacy task - use the path from cwdOnTaskInitialization or shadowGitConfigWorkTree
+				const legacyPath = item.cwdOnTaskInitialization || item.shadowGitConfigWorkTree
+				if (legacyPath) {
+					workspaceIds = [legacyPath]
+				}
+			}
+
+			// Get primary workspace name (first workspace in list)
+			let workspaceName = ""
+			if (workspaceIds.length > 0) {
+				const primaryWorkspacePath = workspaceIds[0]
+				const metadata = workspaceMetadata[primaryWorkspacePath]
+				workspaceName = metadata?.name || primaryWorkspacePath.split("/").pop() || ""
+			}
+
+			return {
+				id: item.id,
+				task: item.task,
+				ts: item.ts,
+				isFavorited: item.isFavorited || false,
+				size: item.size || 0,
+				totalCost: item.totalCost || 0,
+				tokensIn: item.tokensIn || 0,
+				tokensOut: item.tokensOut || 0,
+				cacheWrites: item.cacheWrites || 0,
+				cacheReads: item.cacheReads || 0,
+				workspaceIds,
+				workspaceName,
+			}
+		})
 
 		return TaskHistoryArray.create({
 			tasks,
