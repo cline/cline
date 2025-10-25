@@ -46,6 +46,15 @@ export class SharedUriHandler {
 					console.warn("SharedUriHandler: Missing code parameter for OpenRouter callback")
 					return false
 				}
+				case "/requesty": {
+					const code = query.get("code")
+					if (code) {
+						await visibleWebview.controller.handleRequestyCallback(code)
+						return true
+					}
+					console.warn("SharedUriHandler: Missing code parameter for Requesty callback")
+					return false
+				}
 				case "/auth": {
 					const provider = query.get("provider")
 
