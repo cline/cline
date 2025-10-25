@@ -293,10 +293,16 @@ func newTaskSendCommand() *cobra.Command {
 			if err != nil {
 				// Handle specific error cases
 				if errors.Is(err, task.ErrNoActiveTask) {
+					if global.Config.OutputFormat == "json" {
+						return output.OutputJSONError("task send", fmt.Errorf("no active task"))
+					}
 					fmt.Println("Cannot send message: no active task")
 					return nil
 				}
 				if errors.Is(err, task.ErrTaskBusy) {
+					if global.Config.OutputFormat == "json" {
+						return output.OutputJSONError("task send", fmt.Errorf("task is currently busy"))
+					}
 					fmt.Println("Cannot send message: task is currently busy")
 					return nil
 				}
