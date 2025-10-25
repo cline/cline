@@ -1,11 +1,13 @@
 syntax = "proto3";
 
 package cline;
+
 import "cline/common.proto";
 import "google/protobuf/field_mask.proto";
+
 option go_package = "github.com/cline/grpc-go/cline";
-option java_package = "bot.cline.proto";
 option java_multiple_files = true;
+option java_package = "bot.cline.proto";
 
 // Service for model-related operations
 service ModelsService {
@@ -16,13 +18,13 @@ service ModelsService {
   // Fetches available models from VS Code LM API
   rpc getVsCodeLmModels(EmptyRequest) returns (VsCodeLmModelsArray);
   // Refreshes and returns OpenRouter models
-  rpc refreshOpenRouterModelsRPC(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  rpc refreshOpenRouterModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Hugging Face models
   rpc refreshHuggingFaceModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns OpenAI models
   rpc refreshOpenAiModels(OpenAiModelsRequest) returns (StringArray);
   // Refreshes and returns Vercel AI Gateway models
-  rpc refreshVercelAiGatewayModelsRPC(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  rpc refreshVercelAiGatewayModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Requesty models
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Subscribe to OpenRouter models updates
@@ -32,9 +34,9 @@ service ModelsService {
   // Updates API configuration with partial values (only updates fields that are explicitly set)
   rpc updateApiConfigurationPartial(UpdateApiConfigurationPartialRequest) returns (Empty);
   // Refreshes and returns Groq models
-  rpc refreshGroqModelsRPC(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  rpc refreshGroqModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Baseten models
-  rpc refreshBasetenModelsRPC(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  rpc refreshBasetenModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Fetches available models from SAP AI Core
   rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (SapAiCoreModelsResponse);
   // Fetches available models from OCA
@@ -56,15 +58,15 @@ message LanguageModelChatSelector {
 
 // Price tier for tiered pricing models
 message PriceTier {
-  int64 token_limit = 1;  // Upper limit (inclusive) of input tokens for this price
-  double price = 2;       // Price per million tokens for this tier
+  int64 token_limit = 1; // Upper limit (inclusive) of input tokens for this price
+  double price = 2; // Price per million tokens for this tier
 }
 
 // Thinking configuration for models that support thinking/reasoning
 message ThinkingConfig {
-  optional int64 max_budget = 1;                    // Max allowed thinking budget tokens
-  optional double output_price = 2;                 // Output price per million tokens when budget > 0
-  repeated PriceTier output_price_tiers = 3;        // Optional: Tiered output price when budget > 0
+  optional int64 max_budget = 1; // Max allowed thinking budget tokens
+  optional double output_price = 2; // Output price per million tokens when budget > 0
+  repeated PriceTier output_price_tiers = 3; // Optional: Tiered output price when budget > 0
 }
 
 // Model tier for tiered pricing structures
@@ -120,7 +122,6 @@ message SapAiCoreModelDeployment {
   string deployment_id = 2;
 }
 
-
 // Response for SAP AI Core models with orchestration availability
 message SapAiCoreModelsResponse {
   repeated SapAiCoreModelDeployment deployments = 1;
@@ -137,18 +138,18 @@ message UpdateApiConfigurationRequest {
 // Only fields specified in update_mask will be updated from api_configuration
 message UpdateApiConfigurationPartialRequest {
   Metadata metadata = 1;
-  
+
   // The API configuration with values to update.
   // Only fields listed in update_mask will be applied from this configuration.
   ModelsApiConfiguration api_configuration = 2;
-  
+
   // Mask specifying which top-level fields from api_configuration to update.
   // Field names should use camelCase (e.g., "apiKey", "planModeApiProvider").
   // If a field is in the mask but not set in api_configuration, it will be cleared (set to undefined).
   google.protobuf.FieldMask update_mask = 3;
 }
 
- // Model info for OCA (OpenAI-compatible) models exposed by the OCA provider
+// Model info for OCA (OpenAI-compatible) models exposed by the OCA provider
 message OcaModelInfo {
   // Maximum completion tokens per request supported by this model
   optional int64 max_tokens = 1;
@@ -182,7 +183,7 @@ message OcaModelInfo {
   string model_name = 17;
 }
 
- // Aggregated OCA model catalog keyed by model identifier
+// Aggregated OCA model catalog keyed by model identifier
 message OcaCompatibleModelInfo {
   // key: canonical model id as reported by OCA (e.g., "openai/gpt-4o-mini")
   // value: OcaModelInfo describing that model
@@ -373,14 +374,13 @@ message ModelsApiConfiguration {
   optional string plan_mode_hugging_face_model_id = 123;
   optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 124;
   optional string plan_mode_huawei_cloud_maas_model_id = 125;
-  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 126; 
+  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 126;
   optional string plan_mode_baseten_model_id = 127;
   optional OpenRouterModelInfo plan_mode_baseten_model_info = 128;
   optional string plan_mode_vercel_ai_gateway_model_id = 129;
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 130;
   optional string plan_mode_oca_model_id = 131;
   optional OcaModelInfo plan_mode_oca_model_info = 132;
-
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
