@@ -64,7 +64,7 @@ export const MatrixFileParsePrompt=()=>
 ## 步骤 3: 将生成的DBC文件下载到本地项目的指定目录
   -先使用内置工具**select_file**让用户选择/输入本地项目的一个目录路径:
     <select_file>
-      <title>请选择要处理的文件</title>
+      <title>请选择要保存DBC文件的目录</title>
       <canSelectFiles>false</canSelectFiles>
       <canSelectFolders>true</canSelectFolders>
       <canSelectMany>false</canSelectMany>
@@ -119,7 +119,7 @@ export const MatrixFileParsePrompt=()=>
 ## 步骤 5: 将生成的代码保存到本地项目的指定目录
   -先先使用内置工具**select_file**,让用户选择/输入**当前打开**的项目的**根目录**下一个目录路径:
     <select_file>
-      <title>请选择要处理的文件</title>
+      <title>请选择要保存代码文件的目录</title>
       <canSelectFiles>false</canSelectFiles>
       <canSelectFolders>true</canSelectFolders>
       <canSelectMany>false</canSelectMany>

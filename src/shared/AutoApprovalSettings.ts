@@ -22,18 +22,18 @@ export interface AutoApprovalSettings {
 
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	version: 1,
-	enabled: true,
+	enabled: true, // Enable auto-approval by default (YOLO mode)
 	actions: {
 		readFiles: true,
-		readFilesExternally: false,
-		editFiles: false,
-		editFilesExternally: false,
-		executeSafeCommands: true,
-		executeAllCommands: false,
-		useBrowser: false,
-		useMcp: false,
+		readFilesExternally: true, // Allow reading files externally
+		editFiles: true, // Allow editing files
+		editFilesExternally: true, // Allow editing files externally
+		executeSafeCommands: true, // Allow executing safe commands
+		executeAllCommands: true, // Allow executing all commands (true YOLO mode)
+		useBrowser: true, // Allow using browser
+		useMcp: true, // Allow using MCP servers
 	},
-	maxRequests: 20,
-	enableNotifications: false,
-	favorites: ["enableAutoApprove", "readFiles", "editFiles"],
+	maxRequests: 50, // Increase max requests for YOLO mode
+	enableNotifications: false, // Disable notifications for a cleaner YOLO experience
+	favorites: ["enableAutoApprove", "readFiles", "editFiles", "executeAllCommands"],
 }

@@ -8,7 +8,7 @@ import {
 import { WebviewProvider } from "./core/webview"
 import { Logger } from "./services/logging/Logger"
 import { WebviewProviderType } from "./shared/webview/types"
-import "./utils/path" // necessary to have access to String.prototype.toPosix
+import "./utils/path" // necessary to have access to String.prototype.toPosix"
 
 import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
@@ -50,6 +50,24 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	const sidebarWebview = HostProvider.get().createWebviewProvider(WebviewProviderType.SIDEBAR)
 
 	await showVersionUpdateAnnouncement(context)
+
+	// 检查是否是首次安装，如果是则配置默认远程MCP服务器
+	const hasRunInitialMcpSetup = context.globalState.get<boolean>('hasRunInitialMcpSetup')
+	if (!hasRunInitialMcpSetup) {
+		// 延迟执行MCP初始配置，确保系统已完全初始化
+		setTimeout(async () => {
+			try {
+				const sidebarInstance = WebviewProvider.getSidebarInstance()
+				if (sidebarInstance?.controller.mcpHub) {
+					const { registerDefaultRemoteMcpServer } = await import("./services/mcp/register-default-remote-server")
+					await registerDefaultRemoteMcpServer(sidebarInstance.controller.mcpHub)
+					await context.globalState.update('hasRunInitialMcpSetup', true)
+				}
+			} catch (error) {
+				console.error("Failed to run initial MCP setup:", error)
+			}
+		}, 5000) // 等待5秒确保系统初始化完成
+	}
 
 	telemetryService.captureExtensionActivated()
 

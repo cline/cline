@@ -7,5 +7,5 @@ export interface FocusChainSettings {
 
 export const DEFAULT_FOCUS_CHAIN_SETTINGS: FocusChainSettings = {
 	enabled: true,
-	remindClineInterval: 6,
+	remindClineInterval: 16, // Changed from 6 to 16 as requested
 }

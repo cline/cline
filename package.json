@@ -367,7 +367,8 @@
 		"docs": "cd docs && npm run dev",
 		"docs:check-links": "cd docs && npm run check",
 		"docs:rename-file": "cd docs && npm run rename",
-		"report-issue": "node scripts/report-issue.js"
+		"report-issue": "node scripts/report-issue.js",
+		"vsix": "npm run package && npx vsce package --no-dependencies"
 	},
 	"lint-staged": {
 		"*": [

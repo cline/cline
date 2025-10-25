@@ -5,6 +5,10 @@ import { resolve } from "path"
 import { MATRIX_FILES_BUCKET, minioClient,minioConfig } from "./minioClient"
 import * as XLSX from "xlsx"
 
+// Windows illegal characters: < > : " | ? * and control characters 0-31
+// Allow all other characters including Chinese, Japanese, etc.
+const WINDOWS_ILLEGAL_CHARS = /[<>:"|?*\x00-\x1F]/g
+
 /**
  * Process a matrix file and store it in MinIO
  * @param request The process matrix request containing file data
@@ -35,7 +39,9 @@ export async function uploadMatrixFile(request: ProcessMatrixRequest): Promise<P
 		// Generate a unique file name
 		const timestamp = Date.now()
 		const fileExtension = request.fileName.split(".").pop() || "xlsx"
-		const uniqueFileName = `${request.fileName.replace(/\.[^/.]+$/, "")}_${timestamp}.${fileExtension}`
+		// Sanitize filename to remove only Windows illegal characters, allow all other characters including Chinese
+		const sanitizedFileName = request.fileName.replace(WINDOWS_ILLEGAL_CHARS, "_")
+		const uniqueFileName = `${sanitizedFileName.replace(/\.[^/.]+$/, "")}_${timestamp}.${fileExtension}`
 
 		// Upload the file to MinIO
 		// Convert Uint8Array to Buffer for MinIO

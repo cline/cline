@@ -37,6 +37,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { TelemetryService } from "../telemetry"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { registerFileSelectorMcpServer } from "./register-file-selector"
+import { registerDefaultRemoteMcpServer } from "./register-default-remote-server"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig, Transport } from "./types"
 
@@ -167,6 +168,9 @@ export class McpHub {
 	private async initializeMcpServers(): Promise<void> {
 		// 自动注册文件选择MCP服务器
 		await registerFileSelectorMcpServer(this)
+		
+		// 自动注册默认远程MCP服务器
+		await registerDefaultRemoteMcpServer(this)
 
 		const settings = await this.readAndValidateMcpSettingsFile()
 		if (settings) {
