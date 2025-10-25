@@ -29,10 +29,10 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// Determine which models to use based on API line selection
-	const zaiModels = useMemo(
-		() => (apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels),
-		[apiConfiguration?.zaiApiLine],
-	)
+	const zaiModels = useMemo(() => {
+		const isChinaRegion = apiConfiguration?.zaiApiLine?.startsWith("china") ?? false
+		return isChinaRegion ? mainlandZAiModels : internationalZAiModels
+	}, [apiConfiguration?.zaiApiLine])
 
 	return (
 		<div>
@@ -48,8 +48,10 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 						position: "relative",
 					}}
 					value={apiConfiguration?.zaiApiLine || "international"}>
-					<VSCodeOption value="international">api.z.ai</VSCodeOption>
-					<VSCodeOption value="china">open.bigmodel.cn</VSCodeOption>
+					<VSCodeOption value="international">International Standard (api.z.ai)</VSCodeOption>
+					<VSCodeOption value="international-coding">International Coding Plan (api.z.ai/coding)</VSCodeOption>
+					<VSCodeOption value="china">China Standard (open.bigmodel.cn)</VSCodeOption>
+					<VSCodeOption value="china-coding">China Coding Plan (open.bigmodel.cn/coding)</VSCodeOption>
 				</VSCodeDropdown>
 			</DropdownContainer>
 			<p
@@ -58,15 +60,16 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 					marginTop: 3,
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Please select the appropriate API entrypoint based on your location. If you are in China, choose open.bigmodel.cn
-				. Otherwise, choose api.z.ai.
+				Select the appropriate API entrypoint based on your location and subscription type. Choose "Coding Plan" if you
+				have subscribed to a GLM Coding Plan (Lite/Pro), or "Standard" for pay-as-you-go API usage. Select "China"
+				endpoints if you are in mainland China, otherwise choose "International" endpoints.
 			</p>
 			<ApiKeyField
 				initialValue={apiConfiguration?.zaiApiKey || ""}
 				onChange={(value) => handleFieldChange("zaiApiKey", value)}
 				providerName="Z AI"
 				signupUrl={
-					apiConfiguration?.zaiApiLine === "china"
+					apiConfiguration?.zaiApiLine?.startsWith("china")
 						? "https://open.bigmodel.cn/console/overview"
 						: "https://z.ai/manage-apikey/apikey-list"
 				}
