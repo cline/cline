@@ -47,6 +47,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ollamaApiKey,
 		vercelAiGatewayApiKey,
 		difyApiKey,
+		databricksApiKey,
 		authNonce,
 		ocaApiKey,
 		ocaRefreshToken,
@@ -86,6 +87,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("ollamaApiKey") as Promise<Secrets["ollamaApiKey"]>,
 		context.secrets.get("vercelAiGatewayApiKey") as Promise<Secrets["vercelAiGatewayApiKey"]>,
 		context.secrets.get("difyApiKey") as Promise<Secrets["difyApiKey"]>,
+		context.secrets.get("databricksApiKey") as Promise<Secrets["databricksApiKey"]>,
 		context.secrets.get("authNonce") as Promise<Secrets["authNonce"]>,
 		context.secrets.get("ocaApiKey") as Promise<string | undefined>,
 		context.secrets.get("ocaRefreshToken") as Promise<string | undefined>,
@@ -104,6 +106,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ollamaApiKey,
 		vercelAiGatewayApiKey,
 		difyApiKey,
+		databricksApiKey,
 		sapAiCoreClientId,
 		sapAiCoreClientSecret,
 		xaiApiKey,
@@ -237,6 +240,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const sapAiResourceGroup = context.globalState.get<GlobalStateAndSettings["sapAiResourceGroup"]>("sapAiResourceGroup")
 		const claudeCodePath = context.globalState.get<GlobalStateAndSettings["claudeCodePath"]>("claudeCodePath")
 		const difyBaseUrl = context.globalState.get<GlobalStateAndSettings["difyBaseUrl"]>("difyBaseUrl")
+		const databricksBaseUrl = context.globalState.get<GlobalStateAndSettings["databricksBaseUrl"]>("databricksBaseUrl")
 		const ocaBaseUrl = context.globalState.get("ocaBaseUrl") as string | undefined
 		const ocaMode = context.globalState.get("ocaMode") as string | undefined
 		const openaiReasoningEffort =
@@ -503,6 +507,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			sapAiCoreTokenUrl,
 			sapAiResourceGroup,
 			difyBaseUrl,
+			databricksBaseUrl,
 			sapAiCoreUseOrchestrationMode: sapAiCoreUseOrchestrationMode ?? true,
 			ocaBaseUrl,
 			ocaMode: ocaMode || "internal",

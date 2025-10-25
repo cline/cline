@@ -37,6 +37,7 @@ export type ApiProvider =
 	| "vercel-ai-gateway"
 	| "zai"
 	| "oca"
+	| "databricks"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -75,6 +76,7 @@ export interface ApiHandlerSecrets {
 	basetenApiKey?: string
 	vercelAiGatewayApiKey?: string
 	difyApiKey?: string
+	databricksApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -118,6 +120,7 @@ export interface ApiHandlerOptions {
 	sapAiCoreUseOrchestrationMode?: boolean
 	difyBaseUrl?: string
 	zaiApiLine?: string
+	databricksBaseUrl?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
 	ocaMode?: string
@@ -3795,6 +3798,43 @@ export const fireworksModels = {
 		outputPrice: 0.9,
 		description:
 			"A strong Mixture-of-Experts (MoE) language model with 671B total parameters with 37B activated for each token from Deepseek. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// Databricks
+// https://docs.databricks.com/en/machine-learning/foundation-models/index.html
+export type DatabricksModelId = keyof typeof databricksModels
+export const databricksDefaultModelId: DatabricksModelId = "databricks-claude-sonnet-4-5"
+export const databricksModels = {
+	"databricks-claude-sonnet-4-5": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
+	"databricks-claude-sonnet-4": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
+	"databricks-claude-opus-4-1": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
 	},
 } as const satisfies Record<string, ModelInfo>
 

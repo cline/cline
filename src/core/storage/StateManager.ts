@@ -487,6 +487,8 @@ export class StateManager {
 			huaweiCloudMaasApiKey,
 			difyApiKey,
 			difyBaseUrl,
+			databricksApiKey,
+			databricksBaseUrl,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 			requestTimeoutMs,
@@ -671,6 +673,7 @@ export class StateManager {
 			sapAiCoreUseOrchestrationMode,
 			claudeCodePath,
 			difyBaseUrl,
+			databricksBaseUrl,
 			qwenCodeOauthPath,
 			ocaBaseUrl,
 			ocaMode,
@@ -710,6 +713,7 @@ export class StateManager {
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
 			difyApiKey,
+			databricksApiKey,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 		})
@@ -981,6 +985,7 @@ export class StateManager {
 			huggingFaceApiKey: this.secretsCache["huggingFaceApiKey"],
 			huaweiCloudMaasApiKey: this.secretsCache["huaweiCloudMaasApiKey"],
 			difyApiKey: this.secretsCache["difyApiKey"],
+			databricksApiKey: this.secretsCache["databricksApiKey"],
 			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
 			zaiApiKey: this.secretsCache["zaiApiKey"],
 
@@ -1051,6 +1056,7 @@ export class StateManager {
 			claudeCodePath: this.taskStateCache["claudeCodePath"] || this.globalStateCache["claudeCodePath"],
 			qwenCodeOauthPath: this.taskStateCache["qwenCodeOauthPath"] || this.globalStateCache["qwenCodeOauthPath"],
 			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
+			databricksBaseUrl: this.taskStateCache["databricksBaseUrl"] || this.globalStateCache["databricksBaseUrl"],
 			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
 			ocaMode: this.globalStateCache["ocaMode"],
 
