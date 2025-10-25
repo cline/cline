@@ -62,6 +62,14 @@ export const ACTION_METADATA: ActionMetadata[] = [
 		},
 	},
 	{
+		id: "executePartialToolCalls",
+		label: "Execute partial tool calls",
+		shortName: "Partial Tool Calls",
+		description:
+			"Allows Cline to execute partial tool calls in reasoning messages if assistant message is empty (allows the model to be more fast-and-loose with its tool calls)",
+		icon: "codicon-terminal",
+	},
+	{
 		id: "useBrowser",
 		label: "Use the browser",
 		shortName: "Browser",
