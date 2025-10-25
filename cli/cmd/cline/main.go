@@ -199,7 +199,72 @@ see the manual page: man cline`,
 	rootCmd.AddCommand(cli.NewAuthCommand())
 	rootCmd.AddCommand(cli.NewLogsCommand())
 
+	// Suppress Cobra's default error printing - we'll handle it ourselves
+	rootCmd.SilenceErrors = true
+	rootCmd.SilenceUsage = true
+
 	if err := rootCmd.ExecuteContext(context.Background()); err != nil {
+		// Check if JSON mode is enabled
+		// If global.Config is nil (error during early validation), check os.Args directly
+		isJSONMode := false
+		if global.Config != nil {
+			isJSONMode = global.Config.OutputFormat == "json"
+		} else {
+			// Check os.Args for --output-format json flag
+			for i, arg := range os.Args {
+				if (arg == "--output-format" || arg == "-F") && i+1 < len(os.Args) {
+					isJSONMode = os.Args[i+1] == "json"
+					break
+				}
+				// Handle --output-format=json format
+				if strings.HasPrefix(arg, "--output-format=") {
+					isJSONMode = strings.TrimPrefix(arg, "--output-format=") == "json"
+					break
+				}
+			}
+		}
+
+		// Per the plan: Interactive commands output **plain text errors**, NOT JSON
+		// Check if this is an interactive command error
+		errMsg := err.Error()
+		isInteractiveError := strings.Contains(errMsg, "interactive")
+
+		// Output error in appropriate format
+		if isJSONMode && !isInteractiveError {
+			// Try to extract command name from os.Args
+			commandName := "unknown"
+			if len(os.Args) > 1 {
+				// First arg after binary name is typically the command
+				// Skip flags (starting with -)
+				for i := 1; i < len(os.Args); i++ {
+					arg := os.Args[i]
+					if !strings.HasPrefix(arg, "-") {
+						commandName = arg
+						// For subcommands like "instance kill", join them
+						if i+1 < len(os.Args) && !strings.HasPrefix(os.Args[i+1], "-") {
+							commandName = arg + " " + os.Args[i+1]
+						}
+						break
+					}
+				}
+			}
+
+			// Output error as JSON to stderr
+			errorResponse := map[string]interface{}{
+				"status":  "error",
+				"command": commandName,
+				"error":   err.Error(),
+			}
+			if jsonBytes, marshalErr := json.MarshalIndent(errorResponse, "", "  "); marshalErr == nil {
+				fmt.Fprintln(os.Stderr, string(jsonBytes))
+			} else {
+				// Fallback if JSON marshaling fails
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			}
+		} else {
+			// Output error as plain text in non-JSON modes
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		}
 		os.Exit(1)
 	}
 }

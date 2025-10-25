@@ -137,6 +137,16 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 	}
 
 	if len(instances) == 0 {
+		if global.Config.OutputFormat == "json" {
+			data := map[string]interface{}{
+				"killedCount":      0,
+				"alreadyDeadCount": 0,
+				"failedCount":      0,
+				"skippedCount":     0,
+				"addresses":        []string{},
+			}
+			return output.OutputJSONSuccess("instance kill", data)
+		}
 		fmt.Println("No Cline instances found to kill.")
 		return nil
 	}
@@ -144,6 +154,7 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 	// Filter to only CLI instances
 	var cliInstances []*common.CoreInstanceInfo
 	var skippedNonCLI int
+	var skippedAddresses []string
 	for _, instance := range instances {
 		if instance.Status == grpc_health_v1.HealthCheckResponse_SERVING {
 			platform, err := detectInstancePlatform(ctx, instance)
@@ -152,13 +163,28 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 					cliInstances = append(cliInstances, instance)
 				} else {
 					skippedNonCLI++
-					fmt.Printf("⊘ Skipping %s instance: %s\n", platform, instance.Address)
+					skippedAddresses = append(skippedAddresses, instance.Address)
+					if global.Config.OutputFormat != "json" {
+						fmt.Printf("⊘ Skipping %s instance: %s\n", platform, instance.Address)
+					}
 				}
 			}
 		}
 	}
 
 	if len(cliInstances) == 0 {
+		if global.Config.OutputFormat == "json" {
+			data := map[string]interface{}{
+				"killedCount":      0,
+				"alreadyDeadCount": 0,
+				"failedCount":      0,
+				"skippedCount":     skippedNonCLI,
+				"addresses":        []string{},
+				"skippedAddresses": skippedAddresses,
+			}
+			return output.OutputJSONSuccess("instance kill", data)
+		}
+		
 		if skippedNonCLI > 0 {
 			fmt.Printf("No CLI instances to kill. Skipped %d JetBrains instance(s).\n", skippedNonCLI)
 		} else {
@@ -167,32 +193,45 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 		return nil
 	}
 
-	fmt.Printf("Killing %d CLI instance(s)...\n", len(cliInstances))
-	if skippedNonCLI > 0 {
-		fmt.Printf("Skipping %d JetBrains instance(s).\n", skippedNonCLI)
+	if global.Config.OutputFormat != "json" {
+		fmt.Printf("Killing %d CLI instance(s)...\n", len(cliInstances))
+		if skippedNonCLI > 0 {
+			fmt.Printf("Skipping %d JetBrains instance(s).\n", skippedNonCLI)
+		}
 	}
 
 	var killResults []killResult
 	killedAddresses := make(map[string]bool)
+	var killedAddressList []string
 
 	// Kill all CLI instances
 	for _, instance := range cliInstances {
 		result := killInstanceProcess(ctx, registry, instance.Address)
 		killResults = append(killResults, result)
 
-		if result.err != nil {
-			fmt.Printf("✗ Failed to kill %s: %v\n", instance.Address, result.err)
-		} else if result.alreadyDead {
-			fmt.Printf("⚠ Instance %s appears to be already dead\n", instance.Address)
+		if global.Config.OutputFormat != "json" {
+			if result.err != nil {
+				fmt.Printf("✗ Failed to kill %s: %v\n", instance.Address, result.err)
+			} else if result.alreadyDead {
+				fmt.Printf("⚠ Instance %s appears to be already dead\n", instance.Address)
+			} else {
+				fmt.Printf("✓ Killed %s (PID %d)\n", instance.Address, result.pid)
+				killedAddresses[instance.Address] = true
+				killedAddressList = append(killedAddressList, instance.Address)
+			}
 		} else {
-			fmt.Printf("✓ Killed %s (PID %d)\n", instance.Address, result.pid)
-			killedAddresses[instance.Address] = true
+			if !result.alreadyDead && result.err == nil {
+				killedAddresses[instance.Address] = true
+				killedAddressList = append(killedAddressList, instance.Address)
+			}
 		}
 	}
 
 	// Wait for killed instances to clean up their registry entries
 	if len(killedAddresses) > 0 {
-		fmt.Printf("Waiting for instances to clean up registry entries...\n")
+		if global.Config.OutputFormat != "json" {
+			fmt.Printf("Waiting for instances to clean up registry entries...\n")
+		}
 
 		maxWaitTime := 10 // seconds
 		for i := 0; i < maxWaitTime; i++ {
@@ -200,7 +239,9 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 
 			remainingInstances, err := registry.ListInstancesCleaned(ctx)
 			if err != nil {
-				fmt.Printf("Warning: failed to check registry status: %v\n", err)
+				if global.Config.OutputFormat != "json" {
+					fmt.Printf("Warning: failed to check registry status: %v\n", err)
+				}
 				continue
 			}
 
@@ -213,11 +254,13 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 			}
 
 			if len(stillPresent) == 0 {
-				fmt.Printf("✓ All killed instances successfully removed from registry.\n")
+				if global.Config.OutputFormat != "json" {
+					fmt.Printf("✓ All killed instances successfully removed from registry.\n")
+				}
 				break
 			}
 
-			if i == maxWaitTime-1 {
+			if i == maxWaitTime-1 && global.Config.OutputFormat != "json" {
 				fmt.Printf("⚠ %d killed instance(s) still in registry after %d seconds\n", len(stillPresent), maxWaitTime)
 				for _, addr := range stillPresent {
 					fmt.Printf("  - %s\n", addr)
@@ -226,7 +269,7 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 		}
 	}
 
-	// Print summary
+	// Count results
 	successful := 0
 	failed := 0
 	alreadyDead := 0
@@ -241,6 +284,25 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 		}
 	}
 
+	// Output results
+	if global.Config.OutputFormat == "json" {
+		data := map[string]interface{}{
+			"killedCount":      successful,
+			"alreadyDeadCount": alreadyDead,
+			"failedCount":      failed,
+			"skippedCount":     skippedNonCLI,
+			"addresses":        killedAddressList,
+		}
+		if len(skippedAddresses) > 0 {
+			data["skippedAddresses"] = skippedAddresses
+		}
+		if failed > 0 {
+			return fmt.Errorf("failed to kill %d out of %d instances", failed, len(cliInstances))
+		}
+		return output.OutputJSONSuccess("instance kill", data)
+	}
+
+	// Plain text summary
 	fmt.Printf("\nSummary: ")
 	if successful > 0 {
 		fmt.Printf("Successfully killed %d instances. ", successful)
@@ -250,7 +312,7 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 	}
 	if failed > 0 {
 		fmt.Printf("%d failures.", failed)
-		return fmt.Errorf("failed to kill %d out of %d instances", failed, len(instances))
+		return fmt.Errorf("failed to kill %d out of %d instances", failed, len(cliInstances))
 	}
 	fmt.Println()
 
@@ -308,6 +370,13 @@ func newInstanceListCommand() *cobra.Command {
 			defaultInstance := registry.GetDefaultInstance()
 
 			if len(instances) == 0 {
+				if global.Config.OutputFormat == "json" {
+					data := map[string]interface{}{
+						"defaultInstance": defaultInstance,
+						"instances":       []interface{}{},
+					}
+					return output.OutputJSONSuccess("instance list", data)
+				}
 				fmt.Println("No Cline instances found.")
 				fmt.Println("Run 'cline instance new' to start a new instance, or 'cline task new \"...\"' to auto-start one.")
 				return nil
