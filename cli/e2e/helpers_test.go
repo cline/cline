@@ -95,6 +95,12 @@ func runCLI(ctx context.Context, t *testing.T, args ...string) (string, string, 
 	}
 	// propagate env including CLINE_DIR
 	cmd.Env = os.Environ()
+	
+	// Set stdin to empty reader to prevent hanging on stdin reads
+	// Without this, commands that try to read stdin (like root command with invalid args)
+	// will block forever waiting for input
+	cmd.Stdin = strings.NewReader("")
+	
 	outB, errB := &strings.Builder{}, &strings.Builder{}
 	cmd.Stdout = outB
 	cmd.Stderr = errB
@@ -206,19 +212,6 @@ func waitForAddressRemoved(t *testing.T, addr string, timeout time.Duration) {
 		}
 		return true, ""
 	})
-}
-
-func findFreePort(t *testing.T) int {
-	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen 127.0.0.1:0: %v", err)
-	}
-	defer l.Close()
-	_, portStr, _ := net.SplitHostPort(l.Addr().String())
-	var port int
-	fmt.Sscanf(portStr, "%d", &port)
-	return port
 }
 
 func getClineDir(t *testing.T) string {

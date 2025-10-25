@@ -138,11 +138,254 @@ additive feature - existing workflows continue to work exactly as before.
 }
 ```
 
-### 9. Test-Driven Development
+### 9. Output Abstraction Layer
+**Use an abstraction layer instead of littering code with format checks.** Rather than scattering `if global.Config.OutputFormat == "json"` checks throughout the codebase, create helper functions that encapsulate format-aware output.
+
+**Benefits:**
+- Cleaner, more maintainable code
+- Single source of truth for format logic
+- Easier to add new output formats in the future
+- Reduces code duplication
+
+**Implementation:**
+```go
+// Helper functions handle format selection internally
+func PrintMessage(message string) {
+    if global.Config.OutputFormat == "json" {
+        output.OutputStatusMessage("info", message, nil)
+    } else {
+        fmt.Println(message)
+    }
+}
+
+func PrintVerbose(message string) {
+    if !global.Config.Verbose {
+        return
+    }
+    if global.Config.OutputFormat == "json" {
+        output.OutputStatusMessage("debug", message, nil)
+    } else {
+        fmt.Println(message)
+    }
+}
+```
+
+**Usage:**
+```go
+// ❌ WRONG - Format checks scattered everywhere
+if global.Config.OutputFormat == "json" {
+    output.OutputJSON(...)
+} else {
+    fmt.Printf("Starting instance %s\n", addr)
+}
+
+if global.Config.Verbose && global.Config.OutputFormat != "json" {
+    fmt.Println("Connecting to server...")
+}
+
+// ✅ CORRECT - Clean abstraction
+PrintMessage(fmt.Sprintf("Starting instance %s", addr))
+PrintVerbose("Connecting to server...")
+```
+
+This abstraction layer has already been implemented for verbose output with `verboseLog()` and `verboseLogf()` helper functions in `cli/pkg/cli/global/cline-clients.go`.
+
+### 10. Universal Output Abstraction - No Raw Print Statements
+**ALL output must go through the output abstraction layer.** There should be NO raw `fmt.Printf`, `fmt.Println`, `fmt.Fprintf` statements anywhere in the CLI code except within the output abstraction implementation itself.
+
+**Core Principle:**
+Every print function in the CLI must be replaced with a call to a shared output function that can render in rich, plain, or JSON format based on `global.Config.OutputFormat`.
+
+**Benefits:**
+- **Single source of truth** - One place to change output behavior
+- **Guaranteed consistency** - Impossible to leak text in JSON mode
+- **Complete coverage** - Every message type handled uniformly
+- **Testability** - Easy to verify no raw output exists
+
+**Implementation Pattern:**
+
+Create comprehensive output functions that handle all three formats:
+
+```go
+// pkg/cli/output/output.go
+
+// OutputInfo outputs an informational message
+func OutputInfo(message string, data map[string]interface{}) {
+    switch global.Config.OutputFormat {
+    case "json":
+        OutputStatusMessage("info", message, data)
+    default:
+        if len(data) > 0 {
+            fmt.Printf("%s: %v\n", message, data)
+        } else {
+            fmt.Println(message)
+        }
+    }
+}
+
+// OutputWarning outputs a warning message
+func OutputWarning(message string, data map[string]interface{}) {
+    switch global.Config.OutputFormat {
+    case "json":
+        OutputStatusMessage("warning", message, data)
+    default:
+        fmt.Printf("Warning: %s\n", message)
+        if len(data) > 0 {
+            fmt.Printf("  Details: %v\n", data)
+        }
+    }
+}
+
+// OutputError outputs an error message
+func OutputError(message string, err error, data map[string]interface{}) {
+    switch global.Config.OutputFormat {
+    case "json":
+        errData := data
+        if errData == nil {
+            errData = make(map[string]interface{})
+        }
+        if err != nil {
+            errData["error"] = err.Error()
+        }
+        OutputStatusMessage("error", message, errData)
+    default:
+        fmt.Fprintf(os.Stderr, "Error: %s\n", message)
+        if err != nil {
+            fmt.Fprintf(os.Stderr, "  Reason: %v\n", err)
+        }
+    }
+}
+
+// OutputDebug outputs a debug/verbose message (respects --verbose flag)
+func OutputDebug(message string, data map[string]interface{}) {
+    if !global.Config.Verbose {
+        return
+    }
+    switch global.Config.OutputFormat {
+    case "json":
+        OutputStatusMessage("debug", message, data)
+    default:
+        if len(data) > 0 {
+            fmt.Printf("[DEBUG] %s: %v\n", message, data)
+        } else {
+            fmt.Printf("[DEBUG] %s\n", message)
+        }
+    }
+}
+
+// OutputVerbose outputs a verbose message (respects --verbose flag)
+// This is an alias for OutputDebug for clarity
+func OutputVerbose(message string, data map[string]interface{}) {
+    OutputDebug(message, data)
+}
+
+// OutputVerboseF outputs a formatted verbose message (respects --verbose flag)
+func OutputVerboseF(format string, args ...interface{}) {
+    OutputVerbose(fmt.Sprintf(format, args...), nil)
+}
+
+// OutputStream outputs a streaming message (for task view, etc.)
+// In JSON mode, outputs as JSONL. In rich/plain mode, prints directly.
+func OutputStream(messageType string, content string, data map[string]interface{}) {
+    switch global.Config.OutputFormat {
+    case "json":
+        // Output as JSONL for streaming
+        msg := map[string]interface{}{
+            "type": messageType,
+            "content": content,
+        }
+        if data != nil {
+            for k, v := range data {
+                msg[k] = v
+            }
+        }
+        jsonBytes, err := json.Marshal(msg)
+        if err != nil {
+            return
+        }
+        fmt.Println(string(jsonBytes))
+    default:
+        // In rich/plain mode, just print the content
+        fmt.Print(content)
+    }
+}
+
+// OutputStreamJSON outputs a pre-formatted JSON object for streaming
+// Use this when you already have a JSON object to stream (like API responses)
+func OutputStreamJSON(obj interface{}) {
+    jsonBytes, err := json.Marshal(obj)
+    if err != nil {
+        return
+    }
+    fmt.Println(string(jsonBytes))
+}
+```
+
+**Error Output in JSON:**
+
+All errors must be output as JSON when in JSON mode:
+
+```json
+{
+  "type": "error",
+  "message": "Failed to connect to instance",
+  "data": {
+    "address": "localhost:5678",
+    "error": "connection refused",
+    "attemptCount": 3
+  }
+}
+```
+
+**Enforcement:**
+
+1. Create linter rule or code review checklist to catch raw print statements
+2. Search codebase for `fmt.Print` outside of `cli/pkg/cli/output/`
+3. Replace ALL instances with appropriate abstraction calls
+4. Document the pattern in CONTRIBUTING.md
+
+**Example Conversion:**
+
+```go
+// ❌ WRONG - Raw print statements scattered everywhere
+fmt.Printf("Starting instance at %s\n", address)
+fmt.Printf("Warning: Connection failed: %v\n", err)
+if verbose {
+    fmt.Println("Connecting to database...")
+}
+
+// For streaming output
+fmt.Printf("[Assistant] %s\n", content)
+
+// ✅ CORRECT - Using output abstraction
+output.OutputInfo("Starting instance", map[string]interface{}{"address": address})
+output.OutputWarning("Connection failed", map[string]interface{}{"error": err.Error()})
+output.OutputVerbose("Connecting to database", nil)
+
+// For streaming output
+output.OutputStream("assistant", content, nil)
+```
+
+**Helper Functions Summary:**
+
+| Function | Purpose | Respects --verbose | Output Format |
+|----------|---------|-------------------|---------------|
+| `OutputInfo()` | Informational messages | No | Status/plain text |
+| `OutputWarning()` | Warning messages | No | Warning/plain text |
+| `OutputError()` | Error messages | No | Error/stderr |
+| `OutputDebug()` | Debug messages | Yes | Debug/plain text |
+| `OutputVerbose()` | Verbose messages | Yes | Debug/plain text |
+| `OutputVerboseF()` | Formatted verbose | Yes | Debug/plain text |
+| `OutputStream()` | Streaming content | No | JSONL/plain text |
+| `OutputStreamJSON()` | Pre-formatted JSON | No | JSONL only |
+
+This ensures that ANY output from the CLI can be properly formatted for rich, plain, or JSON modes without exception.
+
+### 11. Test-Driven Development
 **Tests written FIRST** that call the actual CLI binary via shell. This ensures
 tests record accurate results and catch implementation issues early.
 
-### Current Violations in task/manager.go
+### Current Violations in task/manager.go and registry.go
 
 The following locations currently suppress output in JSON mode and MUST be
 fixed:
@@ -1150,6 +1393,52 @@ func TestJSONErrors(t *testing.T) {
 
 ## [Command Coverage Matrix]
 
+### Comprehensive Test Matrix for All Output Formats
+
+Testing must validate ALL three output formats (JSON, plain, rich) across ALL command types to ensure the universal output abstraction doesn't break existing functionality.
+
+#### Test Dimensions
+
+Every command must be tested across these dimensions:
+1. **Output Format**: JSON, Plain, Rich
+2. **Command Type**: Batch, Interactive, Streaming
+3. **Execution State**: Success, Error
+4. **Verbosity**: Normal, Verbose (--verbose flag)
+
+#### Complete Test Coverage Matrix
+
+| Command | Format | Type | Success | Error | Verbose | Interactive |
+|---------|--------|------|---------|-------|---------|-------------|
+| `cline version` | JSON/Plain/Rich | Batch | ✓ | ✓ | ✓ | No |
+| `cline version --short` | Plain only | Batch | ✓ | N/A | N/A | No |
+| `cline instance list` | JSON/Plain/Rich | Batch | ✓ | ✓ | ✓ | No |
+| `cline instance new` | JSON/Plain/Rich | Batch | ✓ | ✓ | ✓ | No |
+| `cline instance kill` | JSON/Plain/Rich | Batch | ✓ | ✓ | N/A | No |
+| `cline instance default` | JSON/Plain/Rich | Batch | ✓ | ✓ | N/A | No |
+| `cline config list` | JSON/Plain/Rich | Batch | ✓ | ✓ | ✓ | No |
+| `cline config get` | JSON/Plain/Rich | Batch | ✓ | ✓ | N/A | No |
+| `cline config set` | JSON/Plain/Rich | Batch | ✓ | ✓ | N/A | No |
+| `cline logs list` | JSON/Plain/Rich | Batch | ✓ | N/A | ✓ | No |
+| `cline logs path` | JSON/Plain/Rich | Batch | ✓ | N/A | ✓ | No |
+| `cline logs clean` | JSON/Plain/Rich | Batch | ✓ | N/A | N/A | No |
+| `cline task new` | JSON/Plain/Rich | Batch | ✓ | ✓ | ✓ | No |
+| `cline task list` | JSON/Plain/Rich | Batch | ✓ | N/A | N/A | No |
+| `cline task open` | JSON/Plain/Rich | Batch | ✓ | ✓ | N/A | No |
+| `cline task send` | JSON/Plain/Rich | Batch | ✓ | ✓ | N/A | No |
+| `cline task pause` | JSON/Plain/Rich | Batch | ✓ | ✓ | N/A | No |
+| `cline task restore` | JSON/Plain/Rich | Batch | ✓ | ✓ | N/A | No |
+| `cline task view` | JSON/Plain/Rich | Streaming | ✓ | ✓ | N/A | No |
+| `cline task chat` | Plain/Rich | Interactive | N/A | ✓ (JSON reject) | N/A | Yes |
+| `cline auth` | Plain/Rich | Interactive | N/A | ✓ (JSON reject) | N/A | Yes |
+| `cline` (no args) | Plain/Rich | Interactive | N/A | ✓ (JSON reject) | N/A | Yes |
+
+**Test Coverage Requirements:**
+- **Total Commands**: 22
+- **Batch Commands**: 18 (need all 3 formats × 2 states × 2 verbosity modes = 216 tests)
+- **Streaming Commands**: 1 (need all 3 formats × 2 states = 6 tests)
+- **Interactive Commands**: 3 (need Plain/Rich × error only = 6 tests)
+- **Total Test Cases**: ~228 tests across all dimensions
+
 ### Complete CLI Command Coverage
 
 Comprehensive validation that ALL CLI commands properly support or reject JSON
@@ -1231,6 +1520,59 @@ Commands that output multiple JSON objects (one per line):
 - Final response: `{"status":"success","command":"...","data":{...}}`
 
 **All 22 commands have comprehensive JSON output handling.**
+
+### JSON-Specific Test Matrix
+
+| Test Category | Commands | Success Tests | Error Tests | Verbose Tests |
+|---------------|----------|---------------|-------------|---------------|
+| Version | 2 | ✓ | ✓ | ✓ |
+| Instance | 4 | ✓ | ✓ | ✓ |
+| Logs | 3 | ✓ | N/A | ✓ |
+| Config | 3 | ✓ | ✓ | ✓ |
+| Task | 7 | ✓ | ✓ | ✓ |
+| Interactive Rejection | 3 | N/A | ✓ (Plain text) | N/A |
+
+**Total JSON Tests**: ~80 test cases covering all success/error/verbose combinations
+
+### Plain Output Test Matrix
+
+| Test Category | Commands | Success Tests | Error Tests | Verbose Tests |
+|---------------|----------|---------------|-------------|---------------|
+| Version | 2 | ✓ | ✓ | ✓ |
+| Instance | 4 | ✓ | ✓ | ✓ |
+| Logs | 3 | ✓ | N/A | ✓ |
+| Config | 3 | ✓ | ✓ | ✓ |
+| Task | 7 | ✓ | ✓ | ✓ |
+| Interactive | 3 | ✓ | ✓ | N/A |
+
+**Total Plain Tests**: ~80 test cases covering all success/error/verbose combinations
+
+### Rich Output Test Matrix
+
+| Test Category | Commands | Success Tests | Error Tests | Verbose Tests |
+|---------------|----------|---------------|-------------|---------------|
+| Version | 2 | ✓ | ✓ | ✓ |
+| Instance | 4 | ✓ | ✓ | ✓ |
+| Logs | 3 | ✓ | N/A | ✓ |
+| Config | 3 | ✓ | ✓ | ✓ |
+| Task | 7 | ✓ | ✓ | ✓ |
+| Interactive | 3 | ✓ | ✓ | N/A |
+
+**Total Rich Tests**: ~80 test cases covering all success/error/verbose combinations
+
+### Grand Total Test Coverage
+
+**Total Test Cases**: ~240 tests
+- JSON format: ~80 tests
+- Plain format: ~80 tests  
+- Rich format: ~80 tests
+
+This comprehensive coverage ensures that:
+1. Universal output abstraction works for all formats
+2. JSON mode has zero text leakage
+3. Plain/Rich modes remain unchanged
+4. Error handling works consistently
+5. Verbose mode composes properly with all formats
 
 ## [Testing]
 
@@ -1977,9 +2319,441 @@ PASS
 - `cli/pkg/cli/global/cline-clients.go` - Fixed 42+ verbose locations  
 - `cli/e2e/json_output_test.go` - Updated test for JSONL
 
+### Step 11: Reorganize Test Files for Clarity (0.5 day)
+
+**11.1 Rename Existing Test File**
+
+The current `cli/e2e/json_output_test.go` is actually doing **cross-format validation** (regression testing), not just JSON testing. Each test validates JSON works AND that plain/rich aren't broken.
+
+**Action:** Rename for accuracy
+```bash
+cd cli/e2e
+mv json_output_test.go format_validation_test.go
+```
+
+**Why:** The file tests the universal output abstraction across ALL formats, ensuring they coexist correctly.
+
+**11.2 Create Format-Specific Test Files**
+
+Now create separate files for comprehensive format testing:
+
+**File: `cli/e2e/json_complete_test.go`** (NEW)
+- Comprehensive JSON-only testing
+- Success scenarios
+- Error scenarios  
+- Verbose scenarios (JSONL)
+- No cross-format validation (that's in format_validation_test.go)
+
+**File: `cli/e2e/plain_complete_test.go`** (NEW)
+- Comprehensive plain format testing
+- Success scenarios
+- Error scenarios
+- Verbose scenarios
+- Tests plain format in isolation
+
+**File: `cli/e2e/rich_complete_test.go`** (NEW)
+- Comprehensive rich format testing
+- Success scenarios
+- Error scenarios
+- Verbose scenarios
+- Tests rich format in isolation
+
+**11.3 Write Comprehensive JSON Tests**
+
+Create `cli/e2e/json_complete_test.go` with:
+
+```go
+// TestJSONErrorInstanceKillNonexistent tests error when killing nonexistent instance
+func TestJSONErrorInstanceKillNonexistent(t *testing.T) {
+    ctx := context.Background()
+    setTempClineDir(t)
+
+    _, errOut, exit := runCLI(ctx, t, "instance", "kill", "nonexistent:9999", "-F", "json")
+
+    if exit == 0 {
+        t.Error("expected non-zero exit code for error")
+    }
+
+    // Error output should be valid JSON
+    var response map[string]interface{}
+    if err := json.Unmarshal([]byte(errOut), &response); err != nil {
+        t.Fatalf("error output should be valid JSON: %v\nOutput: %s", err, errOut)
+    }
+
+    if response["status"] != "error" {
+        t.Errorf("expected status=error, got %v", response["status"])
+    }
+
+    errMsg, ok := response["error"].(string)
+    if !ok {
+        t.Fatal("error response should have error field")
+    }
+
+    if !strings.Contains(errMsg, "not found") {
+        t.Errorf("error message should mention 'not found', got: %s", errMsg)
+    }
+}
+
+// TestJSONErrorConfigGetInvalid tests error when getting invalid config key
+func TestJSONErrorConfigGetInvalid(t *testing.T) {
+    ctx := context.Background()
+    setTempClineDir(t)
+
+    _ = mustRunCLI(ctx, t, "instance", "new")
+    
+    _, errOut, exit := runCLI(ctx, t, "config", "get", "invalid.key.path", "-F", "json")
+
+    if exit == 0 {
+        t.Error("expected non-zero exit code for error")
+    }
+
+    var response map[string]interface{}
+    if err := json.Unmarshal([]byte(errOut), &response); err != nil {
+        t.Fatalf("error output should be valid JSON: %v\nOutput: %s", err, errOut)
+    }
+
+    if response["status"] != "error" {
+        t.Errorf("expected status=error, got %v", response["status"])
+    }
+}
+
+// TestJSONErrorTaskOpenNonexistent tests error when opening nonexistent task
+func TestJSONErrorTaskOpenNonexistent(t *testing.T) {
+    ctx := context.Background()
+    setTempClineDir(t)
+
+    _ = mustRunCLI(ctx, t, "instance", "new")
+    
+    _, errOut, exit := runCLI(ctx, t, "task", "open", "99999", "-F", "json")
+
+    if exit == 0 {
+        t.Error("expected non-zero exit code for error")
+    }
+
+    var response map[string]interface{}
+    if err := json.Unmarshal([]byte(errOut), &response); err != nil {
+        t.Fatalf("error output should be valid JSON: %v\nOutput: %s", err, errOut)
+    }
+
+    if response["status"] != "error" {
+        t.Errorf("expected status=error, got %v", response["status"])
+    }
+}
+
+// TestJSONErrorInstanceDefaultInvalid tests error when setting invalid default
+func TestJSONErrorInstanceDefaultInvalid(t *testing.T) {
+    ctx := context.Background()
+    setTempClineDir(t)
+
+    _, errOut, exit := runCLI(ctx, t, "instance", "default", "localhost:99999", "-F", "json")
+
+    if exit == 0 {
+        t.Error("expected non-zero exit code for error")
+    }
+
+    var response map[string]interface{}
+    if err := json.Unmarshal([]byte(errOut), &response); err != nil {
+        t.Fatalf("error output should be valid JSON: %v\nOutput: %s", err, errOut)
+    }
+
+    if response["status"] != "error" {
+        t.Errorf("expected status=error, got %v", response["status"])
+    }
+}
+
+// Additional error tests following same pattern:
+// - TestJSONErrorRegistryTextLeakage
+// - TestJSONErrorVerboseMode  
+// - TestJSONErrorStreamingCommands
+        {
+            name:        "instance kill nonexistent",
+            args:        []string{"instance", "kill", "nonexistent:9999", "-F", "json"},
+            expectError: true,
+            errorField:  "instance.*not found",
+        },
+        {
+            name:        "config get invalid key",
+            args:        []string{"config", "get", "invalid.key.path", "-F", "json"},
+            expectError: true,
+            errorField:  "not found",
+        },
+        {
+            name:        "task open nonexistent",
+            args:        []string{"task", "open", "99999", "-F", "json"},
+            expectError: true,
+            errorField:  "not found",
+        },
+        {
+            name:        "instance default without instances",
+            args:        []string{"instance", "default", "localhost:99999", "-F", "json"},
+            expectError: true,
+            errorField:  "not found",
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            _, errOut, exit := runCLI(ctx, t, tt.args...)
+
+            if !tt.expectError {
+                if exit != 0 {
+                    t.Errorf("unexpected error: %s", errOut)
+                }
+                return
+            }
+
+            // Should have non-zero exit code
+            if exit == 0 {
+                t.Error("expected non-zero exit code for error")
+            }
+
+            // Error output should be valid JSON
+            var response map[string]interface{}
+            if err := json.Unmarshal([]byte(errOut), &response); err != nil {
+                t.Fatalf("error output should be valid JSON: %v\nOutput: %s", err, errOut)
+            }
+
+            // Should have error status
+            if response["status"] != "error" {
+                t.Errorf("expected status=error, got %v", response["status"])
+            }
+
+            // Should have error message
+            errMsg, ok := response["error"].(string)
+            if !ok {
+                t.Fatal("error response should have error field")
+            }
+
+            // Check error message matches expected pattern
+            if tt.errorField != "" {
+                matched, _ := regexp.MatchString(tt.errorField, errMsg)
+                if !matched {
+                    t.Errorf("error message %q doesn't match pattern %q", errMsg, tt.errorField)
+                }
+            }
+        })
+    }
+}
+
+// TestRegistryTextLeakage tests that registry operations don't leak text in JSON mode
+func TestRegistryTextLeakage(t *testing.T) {
+    ctx := context.Background()
+    setTempClineDir(t)
+
+    // Create and kill instances to trigger cleanup
+    for i := 0; i < 5; i++ {
+        mustRunCLI(ctx, t, "instance", "new", "-F", "json")
+    }
+
+    // Kill all instances - this triggers cleanup logic
+    out := mustRunCLI(ctx, t, "instance", "kill", "--all-cli", "-F", "json")
+
+    // Verify ONLY JSON output, no text about shutting down processes
+    if !json.Valid([]byte(out)) {
+        t.Errorf("output is not valid JSON: %s", out)
+    }
+
+    // Should not contain any plain text messages
+    forbidden := []string{
+        "Attempting to shutdown",
+        "Warning: Failed to request",
+        "Removed stale instance",
+        "Host bridge shutdown",
+    }
+
+    for _, text := range forbidden {
+        if strings.Contains(out, text) {
+            t.Errorf("JSON output contains forbidden text: %q", text)
+        }
+    }
+}
+
+// TestWarningOutputInJSON tests that warnings are formatted as JSON
+func TestWarningOutputInJSON(t *testing.T) {
+    ctx := context.Background()
+    setTempClineDir(t)
+
+    // Trigger operations that might produce warnings
+    // (exact test depends on what warnings can be reliably triggered)
+    
+    // Any output in JSON mode should be valid JSON
+    // No "Warning:" prefix text allowed
+}
+```
+
+**11.4 Final Test File Structure**
+
+```
+cli/e2e/
+├── format_validation_test.go      (renamed from json_output_test.go - 22 tests)
+│   └── Cross-format validation: tests JSON + ensures plain/rich work
+├── json_complete_test.go          (NEW - ~30 tests)
+│   └── Comprehensive JSON: success + error + verbose + JSONL
+├── plain_complete_test.go         (NEW - ~25 tests)
+│   └── Comprehensive plain: success + error + verbose
+├── rich_complete_test.go          (NEW - ~25 tests)
+│   └── Comprehensive rich: success + error + verbose
+├── default_update_test.go         (existing)
+├── start_list_test.go             (existing)
+├── mixed_stress_test.go           (existing)
+├── helpers_test.go                (existing)
+└── main_test.go                   (existing)
+```
+
+**Total Test Coverage:**
+- Format validation (cross-format): 22 tests ✅
+- JSON comprehensive: ~30 tests 🆕
+- Plain comprehensive: ~25 tests 🆕
+- Rich comprehensive: ~25 tests 🆕
+- **Grand Total: ~102 tests** covering all output formats comprehensively
+
+**11.5 Implement Error Output Helpers**
+
+Add error handling to the output abstraction:
+
+```go
+// cli/pkg/cli/output/json.go
+
+// OutputErrorJSON outputs an error response in JSON format
+func OutputErrorJSON(command string, err error, details map[string]interface{}) error {
+    errData := details
+    if errData == nil {
+        errData = make(map[string]interface{})
+    }
+    errData["error"] = err.Error()
+    
+    response := JSONResponse{
+        Status:  "error",
+        Command: command,
+        Data:    errData,
+        Error:   err.Error(),
+    }
+    
+    jsonBytes, marshalErr := json.MarshalIndent(response, "", "  ")
+    if marshalErr != nil {
+        return marshalErr
+    }
+    
+    fmt.Fprintln(os.Stderr, string(jsonBytes))
+    return nil
+}
+```
+
+**11.3 Update Error Handling Throughout Codebase**
+
+Replace all error output with abstraction:
+
+```go
+// ❌ WRONG - Raw error output
+return fmt.Errorf("instance %s not found", address)
+
+// ✅ CORRECT - JSON-aware error output  
+if global.Config.OutputFormat == "json" {
+    output.OutputErrorJSON("instance kill", 
+        fmt.Errorf("instance not found"),
+        map[string]interface{}{"address": address})
+    return fmt.Errorf("instance not found") // Still return error for exit code
+} else {
+    return fmt.Errorf("instance %s not found", address)
+}
+```
+
+**11.4 Test All Error Paths**
+
+```bash
+cd cli && go test ./e2e -run TestJSONOutputErrors -v
+cd cli && go test ./e2e -run TestRegistryTextLeakage -v
+```
+
+### Step 12: Final Registry.go Text Leakage Fix (1 day)
+
+**12.1 Audit All Print Statements**
+
+Search for ALL fmt.Printf/Println statements:
+```bash
+cd cli
+grep -rn "fmt.Print" pkg/cli/global/registry.go
+grep -rn "fmt.Print" pkg/cli/ | grep -v output/ | grep -v test
+```
+
+**12.2 Create Registry Output Helpers**
+
+In `cli/pkg/cli/global/registry.go`:
+```go
+// registryLog outputs a message respecting the current output format
+func registryLog(message string, data map[string]interface{}) {
+    if Config.OutputFormat == "json" {
+        output.OutputStatusMessage("info", message, data)
+    } else {
+        if len(data) > 0 {
+            fmt.Printf("%s: %v\n", message, data)
+        } else {
+            fmt.Println(message)
+        }
+    }
+}
+
+// registryWarning outputs a warning respecting the current output format
+func registryWarning(message string, err error, data map[string]interface{}) {
+    if Config.OutputFormat == "json" {
+        errData := data
+        if errData == nil {
+            errData = make(map[string]interface{})
+        }
+        if err != nil {
+            errData["error"] = err.Error()
+        }
+        output.OutputStatusMessage("warning", message, errData)
+    } else {
+        fmt.Printf("Warning: %s", message)
+        if err != nil {
+            fmt.Printf(": %v", err)
+        }
+        fmt.Println()
+    }
+}
+```
+
+**12.3 Replace All Registry Print Statements**
+
+Convert all 9+ locations in registry.go:
+
+```go
+// ❌ WRONG
+fmt.Printf("Attempting to shutdown dangling host service %s for stale cline core instance %s\n",
+    instance.HostServiceAddress, instance.Address)
+
+// ✅ CORRECT
+registryLog("Attempting shutdown of dangling host service", map[string]interface{}{
+    "hostServiceAddress": instance.HostServiceAddress,
+    "coreInstance": instance.Address,
+})
+```
+
+**12.4 Test Registry Operations**
+
+```bash
+# Should produce pure JSON
+./cli/bin/cline instance list -F json
+
+# Even with many stale instances to clean up
+# Create 10 instances and kill them
+for i in {1..10}; do ./cli/bin/cline instance new -F json; done
+./cli/bin/cline instance kill --all-cli -F json
+
+# Output should be pure JSON with no text leakage
+```
+
+**12.5 Update Tests**
+
+Run the registry text leakage test:
+```bash
+cd cli && go test ./e2e -run TestRegistryTextLeakage -v
+```
+
 ### Total Time: Implementation Complete! ✅
 
-**Implementation Status: COMPLETE**
+**Implementation Status: COMPLETE (with documented remaining work)**
 - All JSON output tests passing (22/22, including verbose JSONL test)
 - All e2e tests passing (17/17)
 - Interactive commands properly reject JSON mode with plain text errors
