@@ -308,7 +308,7 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 		case "oca":
 			return ProtoApiProvider.OCA
 		case "minimax":
-			return ProtoApiProvider.MiniMax
+			return ProtoApiProvider.MINIMAX
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -389,7 +389,7 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "dify"
 		case ProtoApiProvider.OCA:
 			return "oca"
-		case ProtoApiProvider.MiniMax:
+		case ProtoApiProvider.MINIMAX:
 			return "minimax"
 		default:
 			return "anthropic"
