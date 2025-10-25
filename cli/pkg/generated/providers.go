@@ -813,6 +813,24 @@ var rawModelDefinitions = `	{
 	      "supportsImages": false,
 	      "supportsPromptCache": false,
 	      "description": "A compact 20B open-weight Mixture-of-Experts language model designed for strong reasoning and tool use, ideal for edge devices and local inference."
+	    },
+	    "qwen.qwen3-coder-30b-a3b-v1:0": {
+	      "maxTokens": 8192,
+	      "contextWindow": 262144,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": false,
+	      "supportsPromptCache": false,
+	      "description": "Qwen3 Coder 30B MoE model with 3.3B activated parameters, optimized for code generation and analysis with 256K context window."
+	    },
+	    "qwen.qwen3-coder-480b-a35b-v1:0": {
+	      "maxTokens": 8192,
+	      "contextWindow": 262144,
+	      "inputPrice": 0,
+	      "outputPrice": 1,
+	      "supportsImages": false,
+	      "supportsPromptCache": false,
+	      "description": "Qwen3 Coder 480B flagship MoE model with 35B activated parameters, designed for complex coding tasks with advanced reasoning capabilities and 256K context window."
 	    }
 	  },
 	  "gemini": {
@@ -1595,8 +1613,8 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		OptionalFields:  getFieldsByProvider("sapaicore", configFields, false),
 		Models:          modelDefinitions["sapaicore"],
 		DefaultModelID:  "anthropic--claude-4-sonnet",
-		HasDynamicModels: false,
-		SetupInstructions: `Configure SAP AI Core client credentials (Client ID, Client Secret, Token URL, Base URL)`,
+		HasDynamicModels: true,
+		SetupInstructions: `Configure SAP AI Core client credentials (Client ID, Client Secret, Auth URL, Base URL)`,
 	}
 	
 	return definitions, nil

@@ -937,6 +937,7 @@ function hasDynamicModelsSupport(providerId) {
 		"together",
 		"fireworks",
 		"groq",
+		"sapaicore",
 	]
 
 	return dynamicProviders.includes(providerId)
