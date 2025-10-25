@@ -22,7 +22,7 @@ type SapAiCoreConfig struct {
 	
 	// Optional fields
 	ResourceGroup                string // Optional: SAP AI resource group
-	UseOrchestrationMode         bool   // Optional: Use orchestration mode
+	UseOrchestrationMode         bool   // Use orchestration mode (required: true/false)
 }
 
 // PromptForSapAiCoreConfig displays a configuration form for SAP AI Core
@@ -72,6 +72,13 @@ func PromptForSapAiCoreConfig() (*SapAiCoreConfig, error) {
 					}
 					return nil
 				}),
+
+			huh.NewConfirm().
+				Title("Use Orchestration Mode?").
+				Value(&config.UseOrchestrationMode).
+				Affirmative("Yes").
+				Negative("No").
+				Inline(false),
 		),
 	)
 
@@ -87,13 +94,6 @@ func PromptForSapAiCoreConfig() (*SapAiCoreConfig, error) {
 				Placeholder("e.g., default").
 				Value(&config.ResourceGroup).
 				Description("Press Enter to skip"),
-
-			huh.NewConfirm().
-				Title("Use Orchestration Mode?").
-				Value(&config.UseOrchestrationMode).
-				Affirmative("Yes").
-				Negative("No").
-				Inline(true),
 		),
 	)
 
@@ -135,9 +135,8 @@ func ApplySapAiCoreConfig(ctx context.Context, manager *task.Manager, config *Sa
 	if config.ResourceGroup != "" {
 		apiConfig.SapAiResourceGroup = proto.String(config.ResourceGroup)
 	}
-	if config.UseOrchestrationMode {
-		apiConfig.SapAiCoreUseOrchestrationMode = proto.Bool(true)
-	}
+	// Always set orchestration mode field (both true and false are valid)
+	apiConfig.SapAiCoreUseOrchestrationMode = proto.Bool(config.UseOrchestrationMode)
 
 	// Build field mask including all fields we're setting
 	fieldPaths := []string{
@@ -149,14 +148,12 @@ func ApplySapAiCoreConfig(ctx context.Context, manager *task.Manager, config *Sa
 		"actModeApiProvider",
 		"planModeApiModelId",
 		"actModeApiModelId",
+		"sapAiCoreUseOrchestrationMode",
 	}
 
 	// Add optional fields to mask if they were set
 	if config.ResourceGroup != "" {
 		fieldPaths = append(fieldPaths, "sapAiResourceGroup")
-	}
-	if config.UseOrchestrationMode {
-		fieldPaths = append(fieldPaths, "sapAiCoreUseOrchestrationMode")
 	}
 
 	// Create field mask
