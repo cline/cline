@@ -307,6 +307,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.DIFY
 		case "oca":
 			return ProtoApiProvider.OCA
+		case "databricks":
+			return ProtoApiProvider.DATABRICKS
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -387,6 +389,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "dify"
 		case ProtoApiProvider.OCA:
 			return "oca"
+		case ProtoApiProvider.DATABRICKS:
+			return "databricks"
 		default:
 			return "anthropic"
 	}
@@ -470,6 +474,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		difyBaseUrl: config.difyBaseUrl,
 		ocaBaseUrl: config.ocaBaseUrl,
 		ocaMode: config.ocaMode,
+		databricksApiKey: config.databricksApiKey,
+		databricksBaseUrl: config.databricksBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -621,6 +627,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		difyBaseUrl: protoConfig.difyBaseUrl,
 		ocaBaseUrl: protoConfig.ocaBaseUrl,
 		ocaMode: protoConfig.ocaMode,
+		databricksApiKey: protoConfig.databricksApiKey,
+		databricksBaseUrl: protoConfig.databricksBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider:

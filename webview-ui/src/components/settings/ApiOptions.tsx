@@ -19,6 +19,7 @@ import { BedrockProvider } from "./providers/BedrockProvider"
 import { CerebrasProvider } from "./providers/CerebrasProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { ClineProvider } from "./providers/ClineProvider"
+import { DatabricksProvider } from "./providers/DatabricksProvider"
 import { DeepSeekProvider } from "./providers/DeepSeekProvider"
 import { DifyProvider } from "./providers/DifyProvider"
 import { DoubaoProvider } from "./providers/DoubaoProvider"
@@ -133,6 +134,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "openai", label: "OpenAI Compatible" },
 			{ value: "anthropic", label: "Anthropic" },
 			{ value: "bedrock", label: "Amazon Bedrock" },
+			{ value: "databricks", label: "Databricks" },
 			{ value: "vscode-lm", label: "VS Code LM API" },
 			{ value: "deepseek", label: "DeepSeek" },
 			{ value: "openai-native", label: "OpenAI" },
@@ -430,6 +432,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "bedrock" && (
 				<BedrockProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "databricks" && (
+				<DatabricksProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "vertex" && (
