@@ -126,7 +126,7 @@ func (r *Renderer) RenderTaskList(tasks []*cline.TaskItem) error {
 	recentTasks := tasks[startIndex:]
 
 	// Check for JSON output mode
-	if r.outputFormat == "json" {
+	if global.Config.JsonFormat() {
 		// Build JSON structure
 		taskList := make([]map[string]interface{}, len(recentTasks))
 		for i, taskItem := range recentTasks {
@@ -186,7 +186,7 @@ func (r *Renderer) RenderDebug(format string, args ...interface{}) error {
 		message := fmt.Sprintf(format, args...)
 		
 		// In JSON mode, output as JSONL immediately
-		if global.Config.OutputFormat == "json" {
+		if global.Config.JsonFormat() {
 			return output.OutputStatusMessage("debug", message, nil)
 		}
 		
@@ -249,7 +249,7 @@ func (r *Renderer) GetMdRenderer() *MarkdownRenderer {
 // Respects output format - skips rendering in plain mode
 func (r *Renderer) RenderMarkdown(markdown string) string {
 	// Skip markdown rendering in plain mode
-	if r.outputFormat == "plain" {
+	if global.Config.PlainFormat() {
 		return markdown
 	}
 	

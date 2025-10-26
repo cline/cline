@@ -42,7 +42,7 @@ func verboseLog(message string) {
 		return
 	}
 	
-	if Config.OutputFormat == "json" {
+	if Config.JsonFormat(){
 		output.OutputStatusMessage("debug", message, nil)
 	} else {
 		fmt.Println(message)

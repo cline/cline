@@ -27,7 +27,7 @@ func NewVersionCommand() *cobra.Command {
 			}
 
 			// Check for JSON output mode
-			if global.Config.OutputFormat == "json" {
+			if global.Config.JsonFormat() {
 				data := map[string]string{
 					"cliVersion":  global.CliVersion,
 					"coreVersion": global.Version,

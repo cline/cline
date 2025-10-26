@@ -73,7 +73,7 @@ func (m *Manager) UpdateSettings(ctx context.Context, settings *cline.Settings, 
 	}
 
 	// Check for JSON output mode
-	if global.Config.OutputFormat == "json" {
+	if global.Config.JsonFormat() {
 		data := map[string]interface{}{
 			"updated":  updated,
 			"instance": m.clientAddress,
@@ -135,7 +135,7 @@ func (m *Manager) ListSettings(ctx context.Context) error {
 	}
 
 	// Check for JSON output mode
-	if global.Config.OutputFormat == "json" {
+	if global.Config.JsonFormat() {
 		// Filter to settings fields
 		settings := make(map[string]interface{})
 		for _, field := range settingsFields {
@@ -180,7 +180,7 @@ func (m *Manager) GetSetting(ctx context.Context, key string) error {
 	}
 
 	// Check for JSON output mode
-	if global.Config.OutputFormat == "json" {
+	if global.Config.JsonFormat() {
 		data := map[string]interface{}{
 			"key":   key,
 			"value": value,

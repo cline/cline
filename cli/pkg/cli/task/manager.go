@@ -213,7 +213,7 @@ func (m *Manager) cancelExistingTaskIfNeeded(ctx context.Context) error {
 				}
 			} else {
 				// Output cancellation message in appropriate format
-				if global.Config.OutputFormat == "json" {
+				if global.Config.JsonFormat() {
 					// Output as JSON status message
 					statusMsg := map[string]interface{}{
 						"type": "status",
@@ -553,6 +553,7 @@ func (m *Manager) getCurrentTaskId(ctx context.Context) (string, error) {
 }
 
 // ReinitExistingTaskFromId reinitializes an existing task from the given task ID
+// In plain/rich modes, outputs a success message. In JSON mode, outputs nothing (caller handles it).
 func (m *Manager) ReinitExistingTaskFromId(ctx context.Context, taskId string) error {
 	req := &cline.StringRequest{Value: taskId}
 	resp, err := m.client.Task.ShowTaskWithId(ctx, req)
@@ -560,19 +561,9 @@ func (m *Manager) ReinitExistingTaskFromId(ctx context.Context, taskId string) e
 		return fmt.Errorf("Failed to reinitialize task %s: %w", taskId, err)
 	}
 
-	// Output success message in appropriate format
-	if global.Config.OutputFormat == "json" {
-		response := map[string]interface{}{
-			"status":  "success",
-			"command": "task open",
-			"data": map[string]interface{}{
-				"taskId": resp.Id,
-			},
-		}
-		if jsonBytes, err := json.MarshalIndent(response, "", "  "); err == nil {
-			fmt.Println(string(jsonBytes))
-		}
-	} else {
+	// In plain/rich modes, output success message (original behavior)
+	// In JSON mode, don't output anything - let the caller handle it to avoid duplicates
+	if !global.Config.JsonFormat() {
 		fmt.Printf("Successfully reinitialized task: %s (ID: %s)\n", taskId, resp.Id)
 	}
 
@@ -689,7 +680,7 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	m.mu.Unlock()
 
 	// Output headers in appropriate format
-	if global.Config.OutputFormat == "json" {
+	if global.Config.JsonFormat() {
 		statusMsg := map[string]interface{}{
 			"type":        "status",
 			"message":     "Following task conversation",
@@ -700,7 +691,7 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 			fmt.Println(string(jsonBytes))
 		}
 	} else {
-		if global.Config.OutputFormat != "plain" {
+		if !global.Config.PlainFormat() {
 			markdown := fmt.Sprintf("*Using instance: %s*\n*Press Ctrl+C to exit*", instanceAddress)
 			rendered := m.renderer.RenderMarkdown(markdown)
 			fmt.Printf("%s", rendered)
@@ -731,7 +722,7 @@ func (m *Manager) FollowConversation(ctx context.Context, instanceAddress string
 	// Start both streams concurrently
 	errChan := make(chan error, 3)
 
-	if global.Config.OutputFormat == "json" {
+	if global.Config.JsonFormat() {
 		go m.handleStateStream(ctx, coordinator, errChan, nil)
 	} else {
 		go m.handleStateStream(ctx, coordinator, errChan, nil)
@@ -801,7 +792,7 @@ func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
 	m.mu.Unlock()
 
 	// Output header in appropriate format
-	if global.Config.OutputFormat == "json" {
+	if global.Config.JsonFormat() {
 		statusMsg := map[string]interface{}{
 			"type":    "status",
 			"message": "Following task conversation until completion",
@@ -831,7 +822,7 @@ func (m *Manager) FollowConversationUntilCompletion(ctx context.Context) error {
 	errChan := make(chan error, 2)
 	completionChan := make(chan bool, 1)
 
-	if global.Config.OutputFormat == "json" {
+	if global.Config.JsonFormat() {
 		go m.handleStateStream(ctx, coordinator, errChan, completionChan)
 	} else {
 		go m.handleStateStream(ctx, coordinator, errChan, completionChan)
@@ -873,7 +864,7 @@ func (m *Manager) handleStateStream(ctx context.Context, coordinator *StreamCoor
 
 			var pErr error
 
-			if global.Config.OutputFormat == "json" {
+			if global.Config.JsonFormat() {
 				pErr = m.processStateUpdateJsonMode(stateUpdate, coordinator, completionChan)
 			} else {
 				pErr = m.processStateUpdate(stateUpdate, coordinator, completionChan)
@@ -1145,7 +1136,7 @@ func (m *Manager) truncateText(text string, maxLen int) string {
 
 // displayMessage displays a single message using the handler system
 func (m *Manager) displayMessage(msg *types.ClineMessage, isLast, isPartial bool, messageIndex int) error {
-	if global.Config.OutputFormat == "json" {
+	if global.Config.JsonFormat() {
 		return m.outputMessageAsJSON(msg)
 	} else {
 		m.mu.RLock()
@@ -1196,7 +1187,7 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 
 	if len(messages) == 0 {
 		// Output "no history" message in appropriate format
-		if global.Config.OutputFormat == "json" {
+		if global.Config.JsonFormat() {
 			statusMsg := map[string]interface{}{
 				"type":    "status",
 				"message": "No conversation history found",
@@ -1216,7 +1207,7 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 	startIndex := 0
 
 	// Output history headers in appropriate format
-	if global.Config.OutputFormat == "json" {
+	if global.Config.JsonFormat() {
 		// In JSON mode, output structured status with counts
 		statusMsg := map[string]interface{}{
 			"type":             "status",
@@ -1235,7 +1226,7 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 	} else {
 		if totalMessages > maxHistoryMessages {
 			startIndex = totalMessages - maxHistoryMessages
-			if global.Config.OutputFormat != "plain" {
+			if !global.Config.PlainFormat() {
 				markdown := fmt.Sprintf("*Conversation history (%d of %d messages)*", maxHistoryMessages, totalMessages)
 				rendered := m.renderer.RenderMarkdown(markdown)
 				fmt.Printf("\n%s\n\n", rendered)
@@ -1243,7 +1234,7 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 				fmt.Printf("--- Conversation history (%d of %d messages) ---\n", maxHistoryMessages, totalMessages)
 			}
 		} else {
-			if global.Config.OutputFormat != "plain" {
+			if !global.Config.PlainFormat() {
 				markdown := fmt.Sprintf("*Conversation history (%d messages)*", totalMessages)
 				rendered := m.renderer.RenderMarkdown(markdown)
 				fmt.Printf("\n%s\n\n", rendered)
