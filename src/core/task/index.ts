@@ -2322,6 +2322,11 @@ export class Task {
 		const { hookName, toolName, messageTs, abortController } = activeHook
 
 		try {
+			// SET ABORT FLAG FIRST - before signaling hook
+			// This ensures the subsequent abort check in ToolExecutor will catch it
+			// and prevent tool execution after hook cancellation
+			this.taskState.abort = true
+
 			// Signal cancellation to abort the hook process
 			abortController.abort()
 
