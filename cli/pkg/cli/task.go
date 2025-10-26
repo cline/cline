@@ -504,7 +504,28 @@ func newTaskListCommand() *cobra.Command {
 				return fmt.Errorf("failed to get task history: %w", err)
 			}
 
-			// Render the task list
+			// Check for JSON output mode
+			if global.Config.JsonFormat() {
+				// Convert tasks to simple map format
+				tasks := make([]map[string]interface{}, 0, len(resp.Tasks))
+				for _, taskItem := range resp.Tasks {
+					taskData := map[string]interface{}{
+						"id":        taskItem.Id,
+						"task":      taskItem.Task,
+						"ts":        taskItem.Ts,
+						"totalCost": taskItem.TotalCost,
+					}
+					tasks = append(tasks, taskData)
+				}
+				
+				data := map[string]interface{}{
+					"tasks": tasks,
+					"total": len(resp.Tasks),
+				}
+				return output.OutputJSONSuccess("task list", data)
+			}
+
+			// Render the task list (plain/rich mode)
 			return taskManager.GetRenderer().RenderTaskList(resp.Tasks)
 		},
 	}

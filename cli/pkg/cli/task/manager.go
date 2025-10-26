@@ -14,6 +14,7 @@ import (
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/handlers"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/grpc-go/client"
 	"github.com/cline/grpc-go/cline"
@@ -631,8 +632,14 @@ func (m *Manager) ShowConversation(ctx context.Context) error {
 	if err != nil {
 		// Handle specific error cases
 		if errors.Is(err, ErrNoActiveTask) {
+		if global.Config.JsonFormat() {
+			output.OutputStatusMessage("status", "No active task found", map[string]interface{}{
+				"suggestion": "Use 'cline task new' to create a task first",
+			})
+		} else {
 			fmt.Println("No active task found. Use 'cline task new' to create a task first.")
-			return nil
+		}
+		return nil
 		}
 		// For other errors (like task busy), we can still show the conversation
 	}

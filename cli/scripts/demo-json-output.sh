@@ -54,13 +54,13 @@ print_test() {
 
 # Function to run command and show output
 run_cmd() {
-    echo -e "${YELLOW}$${NC} cline $*"
+    echo -e "${YELLOW}\$${NC} cline $*"
     "$CLI_BIN" "$@" || echo -e "${RED}(Command failed with exit code $?)${NC}"
 }
 
 # Function to run command that should fail
 run_cmd_error() {
-    echo -e "${YELLOW}$${NC} cline $* ${RED}(expected to fail)${NC}"
+    echo -e "${YELLOW}\$${NC} cline $* ${RED}(expected to fail)${NC}"
     "$CLI_BIN" "$@" 2>&1 || echo -e "${GREEN}✓ Failed as expected (exit code $?)${NC}"
 }
 

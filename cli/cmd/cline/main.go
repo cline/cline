@@ -14,6 +14,7 @@ import (
 	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/common"
 	"github.com/cline/grpc-go/cline"
 	"github.com/spf13/cobra"
@@ -68,9 +69,19 @@ see the manual page: man cline`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
-			// Check for JSON output mode - not supported for interactive mode
-			if err := global.Config.MustNotBeJSON("interactive mode"); err != nil {
-				return err
+			// Get content from both args and stdin FIRST to determine if this is batch or interactive
+			prompt, err := getContentFromStdinAndArgs(args)
+			if err != nil {
+				return fmt.Errorf("failed to read prompt: %w", err)
+			}
+
+			// If no prompt provided, this is interactive mode - reject JSON
+			if prompt == "" {
+				// Check for JSON output mode - not supported for interactive mode
+				// Per the plan: Interactive commands output PLAIN TEXT errors, not JSON
+				if err := global.Config.MustNotBeJSON("interactive mode"); err != nil {
+					return fmt.Errorf("%w when no prompt is provided. Provide a prompt as an argument or use 'cline task new' instead", err)
+				}
 			}
 
 			var instanceAddress string
@@ -78,7 +89,11 @@ see the manual page: man cline`,
 			// If --address flag not provided, start instance BEFORE getting prompt
 			if !cmd.Flags().Changed("address") {
 				if global.Config.Verbose {
-					fmt.Println("Starting new Cline instance...")
+					if global.Config.JsonFormat() {
+						output.OutputStatusMessage("verbose", "Starting new Cline instance", nil)
+					} else {
+						fmt.Println("Starting new Cline instance...")
+					}
 				}
 				instance, err := global.Clients.StartNewInstance(ctx)
 				if err != nil {
@@ -86,24 +101,36 @@ see the manual page: man cline`,
 				}
 				instanceAddress = instance.Address
 				if global.Config.Verbose {
-					fmt.Printf("Started instance at %s\n\n", instanceAddress)
+					if global.Config.JsonFormat() {
+						output.OutputStatusMessage("verbose", "Started instance", map[string]interface{}{"address": instanceAddress})
+					} else {
+						fmt.Printf("Started instance at %s\n\n", instanceAddress)
+					}
 				}
 
 				// Set up cleanup on exit
 				defer func() {
 					if global.Config.Verbose {
-						fmt.Println("\nCleaning up instance...")
+						if global.Config.JsonFormat() {
+							output.OutputStatusMessage("verbose", "Cleaning up instance", nil)
+						} else {
+							fmt.Println("\nCleaning up instance...")
+						}
 					}
 					registry := global.Clients.GetRegistry()
 					if err := global.KillInstanceByAddress(context.Background(), registry, instanceAddress); err != nil {
 						if global.Config.Verbose {
-							fmt.Printf("Warning: Failed to clean up instance: %v\n", err)
+							if global.Config.JsonFormat() {
+								output.OutputStatusMessage("warning", "Failed to clean up instance", map[string]interface{}{"error": err.Error()})
+							} else {
+								fmt.Printf("Warning: Failed to clean up instance: %v\n", err)
+							}
 						}
 					}
 				}()
 
-				// Check if user has credentials configured
-				if !isUserReadyToUse(ctx, instanceAddress) {
+				// Check if user has credentials configured (only needed in interactive mode)
+				if prompt == "" && !isUserReadyToUse(ctx, instanceAddress) {
 					// Create renderer for welcome messages
 					renderer := display.NewRenderer(global.Config.OutputFormat)
 					fmt.Printf("\n%s\n\n", renderer.Dim("Hey there! Looks like you're new here. Let's get you set up"))
@@ -128,20 +155,8 @@ see the manual page: man cline`,
 				instanceAddress = coreAddress
 			}
 
-			// Get content from both args and stdin
-			prompt, err := getContentFromStdinAndArgs(args)
-			if err != nil {
-				return fmt.Errorf("failed to read prompt: %w", err)
-			}
-
 			// If no prompt from args or stdin, show interactive input
 			if prompt == "" {
-				// Check for JSON output mode - not supported for interactive prompting
-				// Per the plan: Interactive commands output PLAIN TEXT errors, not JSON
-				if err := global.Config.MustNotBeJSON("root command"); err != nil {
-					return fmt.Errorf("%w. Provide a prompt as an argument or use 'cline task new' instead", err)
-				}
-
 				// Pass the mode flag to banner so it shows correct mode
 				prompt, err = promptForInitialTask(ctx, instanceAddress, mode)
 				if err != nil {

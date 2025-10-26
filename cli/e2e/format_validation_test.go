@@ -609,6 +609,9 @@ func TestJSONOutputTaskList(t *testing.T) {
 	// List tasks with JSON output
 	out := mustRunCLI(ctx, t, "task", "list", "--output-format", "json")
 
+	// STRICT: Assert pure JSON with ZERO text leakage
+	assertPureJSON(t, out, "task list --output-format json")
+
 	// Parse JSON
 	var response map[string]interface{}
 	if err := json.Unmarshal([]byte(out), &response); err != nil {
@@ -680,15 +683,22 @@ func TestJSONOutputTaskView(t *testing.T) {
 	// View task with JSON output
 	out := mustRunCLI(ctx, t, "task", "view", "--output-format", "json")
 
-	// Should produce JSONL (multiple lines of JSON)
+	// Should produce JSONL (multiple lines of JSON) - validate ENTIRE output first
 	lines := strings.Split(strings.TrimSpace(out), "\n")
-	for _, line := range lines {
+	
+	// STRICT: Every line must be valid JSON - no plain text allowed
+	for i, line := range lines {
 		if line == "" {
 			continue
 		}
 		if !json.Valid([]byte(line)) {
-			t.Fatalf("Line is not valid JSON: %s", line)
+			t.Fatalf("Line %d is not valid JSON (text leakage): %s", i, line)
 		}
+	}
+	
+	// Additional check: should have at least one JSON line
+	if len(lines) == 0 {
+		t.Fatal("expected at least one line of output")
 	}
 }
 

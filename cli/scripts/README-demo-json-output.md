@@ -94,17 +94,21 @@ Error: auth is an interactive command and cannot be used with -F json
 
 The script demonstrates **100% JSON command coverage** from the e2e test suite:
 
-| Category | Commands | Format |
-|----------|----------|--------|
-| Version | 2 | JSON only |
-| Instance | 4 | JSON only |
-| Logs | 3 | JSON only |
-| Config | 3 | JSON only |
-| Task | 7 | JSON only |
-| Verbose | 6 | JSON with debug messages |
-| Interactive | 3 | Error rejection |
+| Category | Commands | Combinations | Details |
+|----------|----------|--------------|---------|
+| Version | 1 | 3 | standard, verbose, short |
+| Instance | 4 | 7 | new (std, verbose), list (std, verbose), default, kill, kill --all-cli |
+| Instance Errors | 2 | 2 | kill nonexistent, default nonexistent |
+| Logs | 3 | 5 | path (std, verbose), list (std, verbose), clean |
+| Config | 3 | 4 | list (std, verbose), get, set |
+| Config Errors | 1 | 1 | get invalid key |
+| Task | 6 | 8 | new (std, verbose), list, open, send, pause, view, restore |
+| Task Errors | 2 | 2 | open nonexistent, restore invalid |
+| Interactive | 3 | 3 | auth, task chat, root (all reject JSON) |
 
-**Total**: 28 command combinations demonstrated (all with JSON output)
+**Total**: 34 command combinations demonstrated (all with JSON output or proper rejection)
+
+**Note**: Numbers show base commands vs. total combinations when including verbose variants and error scenarios.
 
 ## Exit Status
 
