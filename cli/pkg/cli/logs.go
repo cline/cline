@@ -56,7 +56,7 @@ func newLogsListCommand() *cobra.Command {
 
 			if len(logs) == 0 {
 				// Check for JSON output mode
-				if global.Config.OutputFormat == "json" {
+				if global.Config.JsonFormat() {
 					data := map[string]interface{}{
 						"logsDir": logsDir,
 						"logs":    []interface{}{},
@@ -69,7 +69,7 @@ func newLogsListCommand() *cobra.Command {
 			}
 
 			// Check for JSON output mode
-			if global.Config.OutputFormat == "json" {
+			if global.Config.JsonFormat() {
 				type logData struct {
 					Filename      string `json:"filename"`
 					Size          int64  `json:"size"`
@@ -131,7 +131,7 @@ func newLogsCleanCommand() *cobra.Command {
 
 			if len(toDelete) == 0 {
 				// Check for JSON output mode
-				if global.Config.OutputFormat == "json" {
+				if global.Config.JsonFormat() {
 					data := map[string]interface{}{
 						"deletedCount":  0,
 						"bytesFreed":    0,
@@ -156,7 +156,7 @@ func newLogsCleanCommand() *cobra.Command {
 
 			if dryRun {
 				// Check for JSON output mode
-				if global.Config.OutputFormat == "json" {
+				if global.Config.JsonFormat() {
 					data := map[string]interface{}{
 						"deletedCount":  len(toDelete),
 						"bytesFreed":    totalSize,
@@ -185,7 +185,7 @@ func newLogsCleanCommand() *cobra.Command {
 			}
 
 			// Check for JSON output mode
-			if global.Config.OutputFormat == "json" {
+			if global.Config.JsonFormat() {
 				data := map[string]interface{}{
 					"deletedCount":  count,
 					"bytesFreed":    bytesFreed,
@@ -224,7 +224,7 @@ func newLogsPathCommand() *cobra.Command {
 			logsDir := filepath.Join(global.Config.ConfigPath, "logs")
 
 			// Check for JSON output mode
-			if global.Config.OutputFormat == "json" {
+			if global.Config.JsonFormat() {
 				data := map[string]interface{}{
 					"path": logsDir,
 				}
@@ -396,7 +396,7 @@ func renderLogsTable(logs []logFileInfo, markForDeletion bool) error {
 	}
 
 	// Check output format
-	if global.Config.OutputFormat == "plain" {
+	if global.Config.PlainFormat() {
 		// Use tabwriter for plain output
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "FILENAME\tSIZE\tCREATED\tAGE")

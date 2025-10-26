@@ -21,7 +21,7 @@ import (
 
 // registryLog outputs a message respecting the current output format
 func registryLog(message string, data map[string]interface{}) {
-	if Config.OutputFormat == "json" {
+	if Config.JsonFormat(){
 		output.OutputStatusMessage("info", message, data)
 	} else {
 		if len(data) > 0 {
@@ -39,7 +39,7 @@ func registryLog(message string, data map[string]interface{}) {
 
 // registryWarning outputs a warning message respecting the current output format
 func registryWarning(message string, err error, data map[string]interface{}) {
-	if Config.OutputFormat == "json" {
+	if Config.JsonFormat(){
 		errData := data
 		if errData == nil {
 			errData = make(map[string]interface{})

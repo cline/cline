@@ -3,7 +3,6 @@ package cli
 import (
 	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/output"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +32,7 @@ Quick Setup Mode:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Check for JSON output mode - not supported for interactive commands
 			// Per the plan: Interactive commands output PLAIN TEXT errors, not JSON
-			if err := output.MustNotBeJSON(global.Config.OutputFormat, "auth"); err != nil {
+			if err := global.Config.MustNotBeJSON("auth"); err != nil {
 				return err
 			}
 			return auth.RunAuthFlow(cmd.Context(), args)

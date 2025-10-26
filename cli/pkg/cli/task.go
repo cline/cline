@@ -27,7 +27,7 @@ func outputVerbose(format string, args ...interface{}) {
 	
 	message := fmt.Sprintf(format, args...)
 	
-	if global.Config.OutputFormat == "json" {
+	if global.Config.JsonFormat() {
 		// Output as JSONL immediately
 		output.OutputStatusMessage("verbose", message, nil)
 	} else {
@@ -178,7 +178,7 @@ func newTaskNewCommand() *cobra.Command {
 			}
 
 			// Check for JSON output mode
-			if global.Config.OutputFormat == "json" {
+			if global.Config.JsonFormat() {
 				data := map[string]interface{}{
 					"taskId":   taskID,
 					"instance": taskManager.GetCurrentInstance(),
@@ -222,7 +222,7 @@ func newTaskPauseCommand() *cobra.Command {
 			}
 
 			// Check for JSON output mode
-			if global.Config.OutputFormat == "json" {
+			if global.Config.JsonFormat() {
 				data := map[string]interface{}{
 					"cancelled": true,
 					"instance":  taskManager.GetCurrentInstance(),
@@ -294,14 +294,14 @@ func newTaskSendCommand() *cobra.Command {
 			if err != nil {
 				// Handle specific error cases
 				if errors.Is(err, task.ErrNoActiveTask) {
-					if global.Config.OutputFormat == "json" {
+					if global.Config.JsonFormat() {
 						return output.OutputJSONError("task send", fmt.Errorf("no active task"))
 					}
 					fmt.Println("Cannot send message: no active task")
 					return nil
 				}
 				if errors.Is(err, task.ErrTaskBusy) {
-					if global.Config.OutputFormat == "json" {
+					if global.Config.JsonFormat() {
 						return output.OutputJSONError("task send", fmt.Errorf("task is currently busy"))
 					}
 					fmt.Println("Cannot send message: task is currently busy")
@@ -335,7 +335,7 @@ func newTaskSendCommand() *cobra.Command {
 				}
 				
 				// Check for JSON output mode
-				if global.Config.OutputFormat == "json" {
+				if global.Config.JsonFormat() {
 					data := map[string]interface{}{
 						"sent":     true,
 						"mode":     mode,
@@ -361,7 +361,7 @@ func newTaskSendCommand() *cobra.Command {
 				}
 				
 				// Check for JSON output mode
-				if global.Config.OutputFormat == "json" {
+				if global.Config.JsonFormat() {
 					data := map[string]interface{}{
 						"sent":     true,
 						"instance": taskManager.GetCurrentInstance(),
@@ -401,7 +401,7 @@ func newTaskChatCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Check for JSON output mode - not supported for interactive commands
 			// Per the plan: Interactive commands output PLAIN TEXT errors, not JSON
-			if err := output.MustNotBeJSON(global.Config.OutputFormat, "task chat"); err != nil {
+			if err := global.Config.MustNotBeJSON("task chat"); err != nil {
 				return err
 			}
 
@@ -453,7 +453,7 @@ func newTaskViewCommand() *cobra.Command {
 			}
 
 			// Output instance info
-			if global.Config.OutputFormat == "json" {
+			if global.Config.JsonFormat() {
 				output.OutputStatusMessage("status", "Using instance", map[string]interface{}{
 					"instance": taskManager.GetCurrentInstance(),
 				})
@@ -482,6 +482,8 @@ func newTaskViewCommand() *cobra.Command {
 }
 
 func newTaskListCommand() *cobra.Command {
+	var address string
+
 	cmd := &cobra.Command{
 		Use:     "list",
 		Aliases: []string{"l"},
@@ -489,11 +491,25 @@ func newTaskListCommand() *cobra.Command {
 		Long:    `Display recent tasks from task history.`,
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Read directly from disk
-			return task.ListTasksFromDisk()
+			ctx := cmd.Context()
+
+			// Ensure task manager is initialized
+			if err := ensureTaskManager(ctx, address); err != nil {
+				return err
+			}
+
+			// Fetch task history from the server
+			resp, err := taskManager.GetClient().Task.GetTaskHistory(ctx, &cline.GetTaskHistoryRequest{})
+			if err != nil {
+				return fmt.Errorf("failed to get task history: %w", err)
+			}
+
+			// Render the task list
+			return taskManager.GetRenderer().RenderTaskList(resp.Tasks)
 		},
 	}
 
+	cmd.Flags().StringVar(&address, "address", "", "specific Cline instance address to use")
 	return cmd
 }
 
@@ -521,7 +537,7 @@ func newTaskOpenCommand() *cobra.Command {
 			}
 
 			// Output instance info
-			if global.Config.OutputFormat != "json" {
+			if !global.Config.JsonFormat() {
 				fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
 			}
 
@@ -582,7 +598,7 @@ func newTaskOpenCommand() *cobra.Command {
 			}
 
 			// Output success in JSON or plain text
-			if global.Config.OutputFormat == "json" {
+			if global.Config.JsonFormat() {
 				data := map[string]interface{}{
 					"taskId":   taskID,
 					"resumed":  true,

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/types"
@@ -15,16 +14,6 @@ type Renderer struct {
 	typewriter   *TypewriterPrinter
 	mdRenderer   *MarkdownRenderer
 	outputFormat string
-
-	// Lipgloss styles that respect outputFormat
-	dimStyle     lipgloss.Style
-	greenStyle   lipgloss.Style
-	redStyle     lipgloss.Style
-	yellowStyle  lipgloss.Style
-	blueStyle    lipgloss.Style
-	whiteStyle   lipgloss.Style
-	boldStyle    lipgloss.Style
-	successStyle lipgloss.Style
 }
 
 func NewRenderer(outputFormat string) *Renderer {
@@ -33,23 +22,11 @@ func NewRenderer(outputFormat string) *Renderer {
 		mdRenderer = nil
 	}
 
-	r := &Renderer{
+	return &Renderer{
 		typewriter:   NewTypewriterPrinter(DefaultTypewriterConfig()),
 		mdRenderer:   mdRenderer,
 		outputFormat: outputFormat,
 	}
-
-	// Initialize lipgloss styles (will respect the global color profile)
-	r.dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	r.greenStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
-	r.redStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	r.yellowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-	r.blueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
-	r.whiteStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
-	r.boldStyle = lipgloss.NewStyle().Bold(true)
-	r.successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
-
-	return r
 }
 
 func (r *Renderer) RenderMessage(prefix, text string, newline bool) error {
@@ -149,7 +126,7 @@ func (r *Renderer) RenderTaskList(tasks []*cline.TaskItem) error {
 	recentTasks := tasks[startIndex:]
 
 	// Check for JSON output mode
-	if r.outputFormat == "json" {
+	if global.Config.JsonFormat() {
 		// Build JSON structure
 		taskList := make([]map[string]interface{}, len(recentTasks))
 		for i, taskItem := range recentTasks {
@@ -209,7 +186,7 @@ func (r *Renderer) RenderDebug(format string, args ...interface{}) error {
 		message := fmt.Sprintf(format, args...)
 		
 		// In JSON mode, output as JSONL immediately
-		if global.Config.OutputFormat == "json" {
+		if global.Config.JsonFormat() {
 			return output.OutputStatusMessage("debug", message, nil)
 		}
 		
@@ -269,76 +246,21 @@ func (r *Renderer) GetMdRenderer() *MarkdownRenderer {
 
 // RenderMarkdown renders markdown text to terminal format with ANSI codes
 // Falls back to plaintext if markdown rendering is unavailable or fails
-// Respects output format - skips rendering in plain mode or non-TTY contexts
+// Respects output format - skips rendering in plain mode
 func (r *Renderer) RenderMarkdown(markdown string) string {
-	// Skip markdown rendering if:
-	// 1. Output format is explicitly "plain"
-	// 2. Not in a TTY (piped output, file redirect, CI, etc.)
-	if r.outputFormat == "plain" || !isTTY() {
+	// Skip markdown rendering in plain mode
+	if global.Config.PlainFormat() {
 		return markdown
 	}
-
+	
 	if r.mdRenderer == nil {
 		return markdown
 	}
-
+	
 	rendered, err := r.mdRenderer.Render(markdown)
 	if err != nil {
 		return markdown
 	}
-
+	
 	return rendered
-}
-
-// Lipgloss-based color rendering methods
-// These automatically respect the output format via lipgloss color profile
-
-// Dim renders text in dim gray (bright black)
-func (r *Renderer) Dim(text string) string {
-	return r.dimStyle.Render(text)
-}
-
-// Green renders text in green
-func (r *Renderer) Green(text string) string {
-	return r.greenStyle.Render(text)
-}
-
-// Red renders text in red
-func (r *Renderer) Red(text string) string {
-	return r.redStyle.Render(text)
-}
-
-// Yellow renders text in yellow
-func (r *Renderer) Yellow(text string) string {
-	return r.yellowStyle.Render(text)
-}
-
-// Blue renders text in 256-color blue (index 39)
-func (r *Renderer) Blue(text string) string {
-	return r.blueStyle.Render(text)
-}
-
-// White renders text in white
-func (r *Renderer) White(text string) string {
-	return r.whiteStyle.Render(text)
-}
-
-// Bold renders text in bold
-func (r *Renderer) Bold(text string) string {
-	return r.boldStyle.Render(text)
-}
-
-// Success renders text in green with bold
-func (r *Renderer) Success(text string) string {
-	return r.successStyle.Render(text)
-}
-
-// SuccessWithCheckmark renders text in green with bold and a checkmark prefix
-func (r *Renderer) SuccessWithCheckmark(text string) string {
-	return r.Success("✓ " + text)
-}
-
-// ErrorWithX renders text in red with an X prefix
-func (r *Renderer) ErrorWithX(text string) string {
-	return r.Red("✗ " + text)
 }

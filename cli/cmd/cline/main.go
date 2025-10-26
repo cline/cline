@@ -14,7 +14,6 @@ import (
 	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
-	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/common"
 	"github.com/cline/grpc-go/cline"
 	"github.com/spf13/cobra"
@@ -70,7 +69,7 @@ see the manual page: man cline`,
 			ctx := cmd.Context()
 
 			// Check for JSON output mode - not supported for interactive mode
-			if err := output.MustNotBeJSON(global.Config.OutputFormat, "interactive mode"); err != nil {
+			if err := global.Config.MustNotBeJSON("interactive mode"); err != nil {
 				return err
 			}
 
@@ -139,7 +138,7 @@ see the manual page: man cline`,
 			if prompt == "" {
 				// Check for JSON output mode - not supported for interactive prompting
 				// Per the plan: Interactive commands output PLAIN TEXT errors, not JSON
-				if err := output.MustNotBeJSON(global.Config.OutputFormat, "root command"); err != nil {
+				if err := global.Config.MustNotBeJSON("root command"); err != nil {
 					return fmt.Errorf("%w. Provide a prompt as an argument or use 'cline task new' instead", err)
 				}
 
@@ -209,7 +208,7 @@ see the manual page: man cline`,
 		// If global.Config is nil (error during early validation), check os.Args directly
 		isJSONMode := false
 		if global.Config != nil {
-			isJSONMode = global.Config.OutputFormat == "json"
+			isJSONMode = global.Config.JsonFormat()
 		} else {
 			// Check os.Args for --output-format json flag
 			for i, arg := range os.Args {

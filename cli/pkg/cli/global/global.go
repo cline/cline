@@ -73,6 +73,36 @@ func InitializeGlobalConfig(cfg *GlobalConfig) error {
 	return nil
 }
 
+// JsonFormat returns true if output format is set to JSON
+func (cfg *GlobalConfig) JsonFormat() bool {
+	if cfg.OutputFormat == "" {
+		return false // Default is rich
+	}
+	return cfg.OutputFormat == "json"
+}
+
+// PlainFormat returns true if output format is set to plain
+func (cfg *GlobalConfig) PlainFormat() bool {
+	if cfg.OutputFormat == "" {
+		return false // Default is rich
+	}
+	return cfg.OutputFormat == "plain"
+}
+
+// RichFormat returns true if output format is set to rich (or default)
+func (c *GlobalConfig) RichFormat() bool {
+	return c.OutputFormat == "" || c.OutputFormat == "rich"
+}
+
+// MustNotBeJSON returns an error if JSON output mode is active.
+// Use this at the start of interactive commands that cannot work with JSON output.
+func (c *GlobalConfig) MustNotBeJSON(commandName string) error {
+	if c.JsonFormat() {
+		return fmt.Errorf("%s is an interactive command and cannot be used with --output-format json", commandName)
+	}
+	return nil
+}
+
 // GetDefaultClient returns a client for the default instance or the address override
 func GetDefaultClient(ctx context.Context) (*client.ClineClient, error) {
 	if Config.CoreAddress != "" && Config.CoreAddress != fmt.Sprintf("localhost:%d", common.DEFAULT_CLINE_CORE_PORT) {
