@@ -13,6 +13,7 @@ import { type TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
+import deepEqual from "fast-deep-equal"
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import { Environment } from "../../../src/config"
@@ -315,11 +316,18 @@ export const ExtensionStateContextProvider: React.FC<{
 									: prevState.autoApprovalSettings,
 							}
 
+							// Prevent unnecessary re-renders during streaming
+							// TODO: Should we use React's memo() instead?
+							if (deepEqual(prevState, newState)) {
+								// Nothing changed - return previous state object to prevent re-render
+								return prevState
+							}
+
 							// Update welcome screen state based on API configuration
 							setShowWelcome(!newState.welcomeViewCompleted)
 							setDidHydrateState(true)
 
-							console.log("[DEBUG] returning new state in ESC")
+							console.log("[DEBUG] returning new state in ESC (state changed)")
 
 							return newState
 						})
@@ -448,6 +456,14 @@ export const ExtensionStateContextProvider: React.FC<{
 						if (lastIndex !== -1) {
 							const newClineMessages = [...prevState.clineMessages]
 							newClineMessages[lastIndex] = partialMessage
+
+							// Prevent unnecessary re-renders during streaming
+							// TODO: Should we use React's memo() instead?
+							if (deepEqual(oldMessage, newMessage)) {
+								// Message content is identical - no need to update state
+								return prevState
+							}
+
 							return { ...prevState, clineMessages: newClineMessages }
 						}
 						return prevState

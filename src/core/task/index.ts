@@ -830,7 +830,7 @@ export class Task {
 			}
 
 			// Create streaming callback
-			const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
+			const streamCallback = async (line: string) => {
 				await this.say("hook_output", line)
 			}
 
@@ -1040,7 +1040,7 @@ export class Task {
 					}
 
 					// Create streaming callback
-					const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
+					const streamCallback = async (line: string) => {
 						await this.say("hook_output", line)
 					}
 
@@ -1312,7 +1312,7 @@ export class Task {
 					}
 
 					// Create streaming callback
-					const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
+					const streamCallback = async (line: string) => {
 						await this.say("hook_output", line)
 					}
 
@@ -1706,7 +1706,7 @@ export class Task {
 							// NO activeHookExecution tracking - TaskCancel is not cancellable
 
 							// Create streaming callback
-							const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
+							const streamCallback = async (line: string) => {
 								await this.say("hook_output", line)
 							}
 

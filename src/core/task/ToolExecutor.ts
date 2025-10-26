@@ -519,7 +519,7 @@ export class ToolExecutor {
 				})
 			}
 
-			const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
+			const streamCallback = async (line: string) => {
 				await this.say("hook_output", line)
 			}
 
@@ -708,7 +708,7 @@ export class ToolExecutor {
 					}
 
 					// Create streaming callback that displays hook output in real-time
-					const streamCallback = async (line: string, _stream: "stdout" | "stderr") => {
+					const streamCallback = async (line: string) => {
 						// Display the output line in the UI
 						await this.say("hook_output", line)
 					}
@@ -836,6 +836,7 @@ export class ToolExecutor {
 
 		let executionSuccess = true
 		let toolResult: any = null
+		let toolWasExecuted = false
 		const executionStartTime = Date.now()
 
 		try {
@@ -846,6 +847,7 @@ export class ToolExecutor {
 
 			// Execute the actual tool
 			toolResult = await this.coordinator.execute(config, block)
+			toolWasExecuted = true
 			this.pushToolResult(toolResult, block)
 
 			// Check abort before running PostToolUse hook (success path)
@@ -874,7 +876,7 @@ export class ToolExecutor {
 
 			// Run PostToolUse hook for failed tool execution
 			// Skip for attempt_completion since it marks task completion, not actual work
-			if (hooksEnabled && block.name !== "attempt_completion") {
+			if (toolWasExecuted && hooksEnabled && block.name !== "attempt_completion") {
 				const hookRequestedCancel = await this.runPostToolUseHook(block, toolResult, executionSuccess, executionStartTime)
 				if (hookRequestedCancel) {
 					await config.callbacks.cancelTask()
