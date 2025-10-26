@@ -14,6 +14,7 @@ import (
 	"github.com/cline/cli/pkg/cli/auth"
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/common"
 	"github.com/cline/grpc-go/cline"
 	"github.com/spf13/cobra"
@@ -69,8 +70,8 @@ see the manual page: man cline`,
 			ctx := cmd.Context()
 
 			// Check for JSON output mode - not supported for interactive mode
-			if global.Config.OutputFormat == "json" {
-				return fmt.Errorf("interactive mode (running without arguments) cannot be used with --output-format json")
+			if err := output.MustNotBeJSON(global.Config.OutputFormat, "interactive mode"); err != nil {
+				return err
 			}
 
 			var instanceAddress string
@@ -143,8 +144,8 @@ see the manual page: man cline`,
 			if prompt == "" {
 				// Check for JSON output mode - not supported for interactive prompting
 				// Per the plan: Interactive commands output PLAIN TEXT errors, not JSON
-				if global.Config.OutputFormat == "json" {
-					return fmt.Errorf("the root command is interactive and cannot be used with --output-format json when no prompt is provided. Provide a prompt as an argument or use 'cline task new' instead")
+				if err := output.MustNotBeJSON(global.Config.OutputFormat, "root command"); err != nil {
+					return fmt.Errorf("%w. Provide a prompt as an argument or use 'cline task new' instead", err)
 				}
 
 				// Pass the mode flag to banner so it shows correct mode

@@ -400,8 +400,8 @@ func newTaskChatCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Check for JSON output mode - not supported for interactive commands
 			// Per the plan: Interactive commands output PLAIN TEXT errors, not JSON
-			if global.Config.OutputFormat == "json" {
-				return fmt.Errorf("task chat is an interactive command and cannot be used with --output-format json")
+			if err := output.MustNotBeJSON(global.Config.OutputFormat, "task chat"); err != nil {
+				return err
 			}
 
 			ctx := cmd.Context()
