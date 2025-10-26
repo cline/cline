@@ -4,7 +4,6 @@ import { memo, useMemo, useState } from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { CHAT_ROW_EXPANDED_BG_COLOR } from "../common/CodeBlock"
 import { HOOK_OUTPUT_STRING } from "./constants"
-import PendingToolInfo from "./PendingToolInfo"
 
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
@@ -258,8 +257,6 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 						</button>
 					)}
 				</div>
-				{/* Show pending tool info when hook is running */}
-				{isRunning && metadata.pendingToolInfo && <PendingToolInfo pendingToolInfo={metadata.pendingToolInfo} />}
 
 				{/* Show concise error message for specific error types */}
 				{isFailed && metadata.error && metadata.error.type === "timeout" && (
