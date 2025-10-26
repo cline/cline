@@ -123,9 +123,37 @@ if global.Config.OutputFormat == "json" {
 **Status, debug, and verbose messages output immediately** as JSONL lines as
 they occur. This enables real-time monitoring and progress tracking.
 
-### 7. Backward Compatibility
-**Rich and plain output formats remain completely unchanged.** JSON is an
-additive feature - existing workflows continue to work exactly as before.
+### 7. Backward Compatibility & Output Preservation
+**Rich and plain output formats remain completely unchanged from the merge base.** JSON is an additive feature - existing workflows continue to work exactly as before.
+
+**Critical Requirement:**
+- All existing plain text output (`fmt.Printf`, `fmt.Println`) must remain **byte-for-byte identical** to what existed at the merge base of this branch
+- All existing rich format output (markdown, colors, tables) must remain **identical** to the merge base
+- NO modifications to existing output statements except to ADD new JSON branches
+- When adding JSON support, use `if/else` pattern that preserves original output in the else block
+
+**Implementation Pattern:**
+```go
+// ✅ CORRECT - Preserves original output exactly
+if global.Config.JsonFormat() {
+    // NEW: JSON output
+    output.OutputJSONSuccess(...)
+} else {
+    // PRESERVED: Original plain/rich output - DO NOT MODIFY
+    fmt.Printf("Successfully completed operation\n")
+}
+
+// ❌ WRONG - Modifies or removes original output
+if global.Config.JsonFormat() {
+    output.OutputJSONSuccess(...)
+}
+// Original output removed or modified - BREAKS BACKWARD COMPATIBILITY
+```
+
+**Verification:**
+- Run `git diff <merge-base>..HEAD` to verify no changes to existing plain/rich output
+- All changes should be ADDITIONS of new JSON branches only
+- Original output statements should remain unchanged in the else blocks
 
 ### 8. Consistent Structure
 **All JSON responses follow a standard format:**
