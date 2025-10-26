@@ -18,14 +18,15 @@ type BYOProviderOption struct {
 func GetBYOProviderList() []BYOProviderOption {
 	return []BYOProviderOption{
 		{Name: "Anthropic", Provider: cline.ApiProvider_ANTHROPIC},
-		{Name: "OpenAI", Provider: cline.ApiProvider_OPENAI},
-		{Name: "OpenAI Native", Provider: cline.ApiProvider_OPENAI_NATIVE},
+		{Name: "OpenAI Compatible", Provider: cline.ApiProvider_OPENAI},
+		{Name: "OpenAI (Official)", Provider: cline.ApiProvider_OPENAI_NATIVE},
 		{Name: "OpenRouter", Provider: cline.ApiProvider_OPENROUTER},
 		{Name: "X AI (Grok)", Provider: cline.ApiProvider_XAI},
 		{Name: "AWS Bedrock", Provider: cline.ApiProvider_BEDROCK},
 		{Name: "Google Gemini", Provider: cline.ApiProvider_GEMINI},
 		{Name: "Ollama", Provider: cline.ApiProvider_OLLAMA},
 		{Name: "Cerebras", Provider: cline.ApiProvider_CEREBRAS},
+		{Name: "Oracle Code Assist", Provider: cline.ApiProvider_OCA},
 	}
 }
 
@@ -71,6 +72,8 @@ func SupportsBYOModelFetching(provider cline.ApiProvider) bool {
 		return true
 	case cline.ApiProvider_OLLAMA:
 		return true
+	case cline.ApiProvider_OCA:
+		return true
 	}
 
 	return SupportsStaticModelList(provider)
@@ -82,9 +85,9 @@ func GetBYOProviderPlaceholder(provider cline.ApiProvider) string {
 	case cline.ApiProvider_ANTHROPIC:
 		return "e.g., claude-sonnet-4-5-20250929"
 	case cline.ApiProvider_OPENAI:
-		return "e.g., gpt-5-2025-08-07"
-	case cline.ApiProvider_OPENAI_NATIVE:
 		return "e.g., openai/gpt-oss-120b"
+	case cline.ApiProvider_OPENAI_NATIVE:
+		return "e.g., gpt-5-2025-08-07"
 	case cline.ApiProvider_OPENROUTER:
 		return "e.g., google/gemini-2.0-flash-exp:free"
 	case cline.ApiProvider_XAI:
@@ -97,6 +100,8 @@ func GetBYOProviderPlaceholder(provider cline.ApiProvider) string {
 		return "e.g., qwen3-coder:30b"
 	case cline.ApiProvider_CEREBRAS:
 		return "e.g., gpt-oss-120b"
+	case cline.ApiProvider_OCA:
+		return "e.g., oca/llama4"
 	default:
 		return "Enter model ID"
 	}
@@ -127,8 +132,8 @@ func GetBYOAPIKeyFieldConfig(provider cline.ApiProvider) APIKeyFieldConfig {
 }
 
 // PromptForAPIKey prompts the user to enter an API key (or base URL for Ollama).
-// For OpenAI Native provider, also prompts for an optional base URL.
-func PromptForAPIKey(provider cline.ApiProvider) (string, error) {
+// For OpenAI (Compatible) provider, also prompts for an optional base URL.
+func PromptForAPIKey(provider cline.ApiProvider) (string, string, error) {
 	var apiKey string
 	config := GetBYOAPIKeyFieldConfig(provider)
 
@@ -149,11 +154,11 @@ func PromptForAPIKey(provider cline.ApiProvider) (string, error) {
 	form := huh.NewForm(huh.NewGroup(apiKeyField))
 
 	if err := form.Run(); err != nil {
-		return "", fmt.Errorf("failed to get API key: %w", err)
+		return "", "", fmt.Errorf("failed to get API key: %w", err)
 	}
 
-	// For OpenAI Native provider, also prompt for base URL
-	if provider == cline.ApiProvider_OPENAI_NATIVE {
+	// For OpenAI (Compatible) provider, prompt for base URL
+	if provider == cline.ApiProvider_OPENAI {
 		var baseURL string
 		baseURLForm := huh.NewForm(
 			huh.NewGroup(
@@ -166,12 +171,11 @@ func PromptForAPIKey(provider cline.ApiProvider) (string, error) {
 		)
 
 		if err := baseURLForm.Run(); err != nil {
-			return "", fmt.Errorf("failed to get base URL: %w", err)
+			return "", "", fmt.Errorf("failed to get base URL: %w", err)
 		}
 
-		// TODO - connect baseURL
-		_ = baseURL
+		return apiKey, baseURL, nil
 	}
 
-	return apiKey, nil
+	return apiKey, "", nil
 }
