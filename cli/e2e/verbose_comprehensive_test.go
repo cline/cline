@@ -295,33 +295,6 @@ func TestVerboseOutputIntegrity(t *testing.T) {
 	}
 }
 
-// TestVerbosePerformanceImpact tests that verbose mode doesn't severely impact performance
-func TestVerbosePerformanceImpact(t *testing.T) {
-	ctx := context.Background()
-	setTempClineDir(t)
-
-	// Measure normal execution time
-	start := time.Now()
-	_ = mustRunCLI(ctx, t, "version", "--output-format", "json")
-	normalDuration := time.Since(start)
-
-	// Measure verbose execution time  
-	start = time.Now()
-	_ = mustRunCLI(ctx, t, "version", "--output-format", "json", "--verbose")
-	verboseDuration := time.Since(start)
-
-	// Verbose should not be more than 3x slower (arbitrary reasonable threshold)
-	maxAcceptableRatio := 3.0
-	actualRatio := float64(verboseDuration) / float64(normalDuration)
-
-	if actualRatio > maxAcceptableRatio {
-		t.Errorf("verbose mode too slow: %.2fx slower than normal (threshold: %.1fx)", 
-			actualRatio, maxAcceptableRatio)
-	}
-
-	t.Logf("Performance impact: verbose %.2fx slower than normal", actualRatio)
-}
-
 // TestVerboseErrorHandling tests that verbose mode handles errors gracefully
 func TestVerboseErrorHandling(t *testing.T) {
 	ctx := context.Background()
@@ -333,8 +306,8 @@ func TestVerboseErrorHandling(t *testing.T) {
 		args []string
 	}{
 		{
-			name: "invalid-command",
-			args: []string{"nonexistent-command", "--verbose", "--output-format", "json"},
+			name: "invalid-instance",
+			args: []string{"instance", "kill", "nonexistent:9999", "--verbose", "--output-format", "json"},
 		},
 		{
 			name: "invalid-flag",

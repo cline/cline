@@ -351,7 +351,8 @@ func TestStdoutStderrSeparation(t *testing.T) {
 	}
 
 	// Error output should go to stderr
-	out, errOut, exitCode = runCLI(ctx, t, "nonexistent", "--output-format", "json")
+	// Use a real command that will fail (not "nonexistent" which hangs waiting for TTY)
+	out, errOut, exitCode = runCLI(ctx, t, "instance", "kill", "nonexistent:9999", "--output-format", "json")
 
 	if exitCode == 0 {
 		t.Fatal("invalid command should fail")

@@ -12,8 +12,9 @@ func TestJSONErrorOutput(t *testing.T) {
 	ctx := context.Background()
 	setTempClineDir(t)
 
-	// Test non-existent command
-	_, errOut, exitCode := runCLI(ctx, t, "nonexistent", "--output-format", "json")
+	// Test error with a real command that will fail
+	// (not "nonexistent" which hangs waiting for TTY in interactive mode)
+	_, errOut, exitCode := runCLI(ctx, t, "instance", "kill", "nonexistent:9999", "--output-format", "json")
 
 	// Should have non-zero exit code
 	if exitCode == 0 {
