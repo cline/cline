@@ -30,7 +30,8 @@
     "sqlite": "^4.1.2",
     "tiktoken": "^1.0.21",
     "uuid": "^9.0.0",
-    "yargs": "^17.6.2"
+    "yargs": "^17.6.2",
+    "cline": "^1.0.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.3",
