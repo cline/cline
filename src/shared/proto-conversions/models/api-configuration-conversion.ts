@@ -251,6 +251,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.LMSTUDIO
 		case "gemini":
 			return ProtoApiProvider.GEMINI
+		case "gemini-cli":
+			return ProtoApiProvider.GEMINI_CLI
 		case "openai-native":
 			return ProtoApiProvider.OPENAI_NATIVE
 		case "requesty":
@@ -331,6 +333,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "lmstudio"
 		case ProtoApiProvider.GEMINI:
 			return "gemini"
+		case ProtoApiProvider.GEMINI_CLI:
+			return "gemini-cli"
 		case ProtoApiProvider.OPENAI_NATIVE:
 			return "openai-native"
 		case ProtoApiProvider.REQUESTY:
@@ -430,6 +434,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		lmStudioMaxTokens: config.lmStudioMaxTokens,
 		geminiApiKey: config.geminiApiKey,
 		geminiBaseUrl: config.geminiBaseUrl,
+		geminiCliOauthPath: config.geminiCliOAuthPath,
+		geminiCliProjectId: config.geminiCliProjectId,
 		openAiNativeApiKey: config.openAiNativeApiKey,
 		deepSeekApiKey: config.deepSeekApiKey,
 		requestyApiKey: config.requestyApiKey,
@@ -581,6 +587,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		lmStudioMaxTokens: protoConfig.lmStudioMaxTokens,
 		geminiApiKey: protoConfig.geminiApiKey,
 		geminiBaseUrl: protoConfig.geminiBaseUrl,
+		geminiCliOAuthPath: protoConfig.geminiCliOauthPath,
+		geminiCliProjectId: protoConfig.geminiCliProjectId,
 		openAiNativeApiKey: protoConfig.openAiNativeApiKey,
 		deepSeekApiKey: protoConfig.deepSeekApiKey,
 		requestyApiKey: protoConfig.requestyApiKey,

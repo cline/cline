@@ -85,7 +85,7 @@ export class VertexHandler implements ApiHandler {
 				modelId.includes("haiku-4-5")) &&
 			budget_tokens !== 0
 		)
-		let stream
+		let stream: AsyncIterable<Anthropic.Messages.MessageStreamEvent>
 
 		switch (modelId) {
 			case "claude-haiku-4-5@20251001":
@@ -100,10 +100,12 @@ export class VertexHandler implements ApiHandler {
 			case "claude-3-opus@20240229":
 			case "claude-3-haiku@20240307": {
 				// Find indices of user messages for cache control
-				const userMsgIndices = messages.reduce(
-					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
-					[] as number[],
-				)
+				const userMsgIndices = messages.reduce((acc, msg, index) => {
+					if (msg.role === "user") {
+						acc.push(index)
+					}
+					return acc
+				}, [] as number[])
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 				stream = await clientAnthropic.beta.messages.create(

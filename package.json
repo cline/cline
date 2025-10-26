@@ -322,7 +322,7 @@
 		"lint": "biome lint --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error && npm run lint:proto",
 		"lint:proto": "bash ./scripts/proto-lint.sh",
 		"format": "biome format --changed --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error",
-		"format:fix": "biome check --changed --no-errors-on-unmatched --files-ignore-unknown=true --write",
+		"format:fix": "biome check --changed --no-errors-on-unmatched --files-ignore-unknown=true --write --diagnostic-level=error",
 		"fix:all": "biome check --no-errors-on-unmatched --files-ignore-unknown=true --write --diagnostic-level=error --unsafe",
 		"ci:check-all": "npm-run-all -p check-types lint format",
 		"ci:build": "npm run protos && npm run build:webview && node esbuild.mjs && npm run compile-tests",
@@ -351,11 +351,12 @@
 		"docs": "cd docs && npm run dev",
 		"docs:check-links": "cd docs && npm run check",
 		"docs:rename-file": "cd docs && npm run rename",
-		"report-issue": "node scripts/report-issue.js"
+		"report-issue": "node scripts/report-issue.js",
+		"recover-history": "npx tsx scripts/recover-task-history.ts"
 	},
 	"lint-staged": {
 		"*": [
-			"biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true"
+			"biome check --write --staged --no-errors-on-unmatched --files-ignore-unknown=true --diagnostic-level=error"
 		]
 	},
 	"devDependencies": {
@@ -380,7 +381,7 @@
 		"@vscode/vsce": "^3.6.0",
 		"c8": "^10.1.3",
 		"chai": "^4.3.10",
-		"chalk": "5.6.2",
+		"chalk": "^5.3.0",
 		"cross-env": "^10.1.0",
 		"esbuild": "^0.25.0",
 		"grpc-tools": "^1.13.0",
@@ -456,6 +457,7 @@
 		"fzf": "^0.5.2",
 		"get-folder-size": "^5.0.0",
 		"globby": "^14.0.2",
+		"google-auth-library": "^10.1.0",
 		"grpc-health-check": "^2.0.2",
 		"https-proxy-agent": "^7.0.6",
 		"iconv-lite": "^0.6.3",

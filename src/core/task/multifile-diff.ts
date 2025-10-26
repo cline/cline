@@ -58,7 +58,7 @@ async function getChangedFiles(
 	lastCheckpointHash: string,
 ): Promise<ChangedFile[]> {
 	try {
-		let changedFiles
+		let changedFiles: ChangedFile[]
 		if (changesSinceLastTaskCompletion) {
 			changedFiles = await getChangesSinceLastTaskCompletion(
 				messageStateHandler,

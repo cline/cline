@@ -3,7 +3,7 @@ import { ApiHandler } from "@core/api"
 import { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { getContextWindowInfo } from "./context-window-utils"
 
-class ContextManager {
+class _ContextManager {
 	getNewContextMessagesAndMetadata(
 		apiConversationHistory: Anthropic.Messages.MessageParam[],
 		clineMessages: ClineMessage[],

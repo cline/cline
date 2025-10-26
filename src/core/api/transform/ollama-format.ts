@@ -69,7 +69,7 @@ export function convertToOllamaMessages(anthropicMessages: Anthropic.Messages.Me
 					})
 				}
 			} else if (anthropicMessage.role === "assistant") {
-				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
+				const { nonToolMessages } = anthropicMessage.content.reduce<{
 					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
 					toolMessages: Anthropic.ToolUseBlockParam[]
 				}>(

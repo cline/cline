@@ -590,21 +590,27 @@ class NewFileContentConstructor {
 			}
 			if (this.hasPendingNonStandardLines(pendingNonStandardLineLimit)) {
 				this.tryFixSearchReplaceBlock(pendingNonStandardLineLimit)
-				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
+				if (canWritependingNonStandardLines) {
+					this.pendingNonStandardLines.length = 0
+				}
 			}
 			this.activateSearchState()
 		} else if (isSearchBlockEnd(line)) {
 			// 校验非标内容
 			if (!this.isSearchingActive()) {
 				this.tryFixSearchBlock(pendingNonStandardLineLimit)
-				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
+				if (canWritependingNonStandardLines) {
+					this.pendingNonStandardLines.length = 0
+				}
 			}
 			this.activateReplaceState()
 			this.beforeReplace()
 		} else if (isReplaceBlockEnd(line)) {
 			if (!this.isReplacingActive()) {
 				this.tryFixReplaceBlock(pendingNonStandardLineLimit)
-				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
+				if (canWritependingNonStandardLines) {
+					this.pendingNonStandardLines.length = 0
+				}
 			}
 			this.lastProcessedIndex = this.searchEndIndex
 			this.resetForNextBlock()
