@@ -334,8 +334,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable Dictation
 							</VSCodeCheckbox>
 							<p className="text-xs text-description mt-1">
-								Enables speech-to-text transcription using your Cline account. Uses the Whisper model, at $0.006
-								credits per minute of audio processed. 5 minutes max per message.
+								Enables speech-to-text transcription using your Cline account by using Aqua Voice speech to text
+								model. 5 minutes max per message.
 							</p>
 						</div>
 					)}
