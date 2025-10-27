@@ -4,12 +4,7 @@ import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
-import {
-	CLAUDE_SONNET_1M_TIERS,
-	clineCodeSupernovaModelInfo,
-	openRouterClaudeSonnet41mModelId,
-	openRouterClaudeSonnet451mModelId,
-} from "@/shared/api"
+import { CLAUDE_SONNET_1M_TIERS, openRouterClaudeSonnet41mModelId, openRouterClaudeSonnet451mModelId } from "@/shared/api"
 import { Controller } from ".."
 
 type OpenRouterSupportedParams =
@@ -250,21 +245,8 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
  * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
  */
 const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {
-	"cline/code-supernova-1-million": {
-		maxTokens: clineCodeSupernovaModelInfo.maxTokens ?? 0,
-		contextWindow: clineCodeSupernovaModelInfo.contextWindow ?? 0,
-		supportsImages: clineCodeSupernovaModelInfo.supportsImages ?? false,
-		supportsPromptCache: clineCodeSupernovaModelInfo.supportsPromptCache ?? false,
-		inputPrice: clineCodeSupernovaModelInfo.inputPrice ?? 0,
-		outputPrice: clineCodeSupernovaModelInfo.outputPrice ?? 0,
-		cacheWritesPrice: clineCodeSupernovaModelInfo.cacheWritesPrice ?? 0,
-		cacheReadsPrice: clineCodeSupernovaModelInfo.cacheReadsPrice ?? 0,
-		description: clineCodeSupernovaModelInfo.description ?? "",
-		thinkingConfig: clineCodeSupernovaModelInfo.thinkingConfig ?? undefined,
-		supportsGlobalEndpoint: clineCodeSupernovaModelInfo.supportsGlobalEndpoint ?? undefined,
-		tiers: clineCodeSupernovaModelInfo.tiers,
-	},
 	// Add more stealth models here as needed
+	// Right now this list is empty as CodeSupernova 1 million model was removed
 }
 
 export function appendClineStealthModels(currentModels: Record<string, ModelInfo>): Record<string, ModelInfo> {
