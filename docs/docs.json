@@ -233,13 +233,6 @@
 						]
 					},
 					{
-						"group": "Enterprise",
-						"pages": [
-							"enterprise-solutions/overview",
-							"enterprise-solutions/security-concerns"
-						]
-					},
-					{
 						"group": "Reference",
 						"pages": [
 							"troubleshooting/terminal-quick-fixes",
@@ -250,14 +243,22 @@
 				]
 			},
 			{
+				"tab": "Enterprise",
+				"icon": "building",
+				"groups": [
+					{
+						"group": "Enterprise Solutions",
+						"pages": [
+							"enterprise-solutions/overview",
+							"enterprise-solutions/security-concerns"
+						]
+					}
+				]
+			},
+			{
 				"tab": "Learn",
 				"icon": "graduation-cap",
 				"href": "https://cline.bot/learn"
-			},
-			{
-				"tab": "Blog",
-				"icon": "newspaper",
-				"href": "https://cline.bot/blog"
 			}
 		]
 	},
