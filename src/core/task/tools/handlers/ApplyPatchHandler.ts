@@ -74,16 +74,102 @@ const PATCH_MARKERS = {
 
 const BASH_WRAPPERS = ["%%bash", "apply_patch", "EOF", "```"] as const
 
+// Helper functions for path resolution and validation
+class PathResolver {
+	constructor(
+		private config: TaskConfig,
+		private validator: ToolValidator,
+	) {}
+
+	resolve(filePath: string, caller: string): { absolutePath: string; resolvedPath: string } | undefined {
+		try {
+			const pathResult = resolveWorkspacePath(this.config, filePath, caller)
+			return typeof pathResult === "string"
+				? { absolutePath: pathResult, resolvedPath: filePath }
+				: { absolutePath: pathResult.absolutePath, resolvedPath: pathResult.resolvedPath }
+		} catch {
+			return undefined
+		}
+	}
+
+	validate(resolvedPath: string): { ok: boolean; error?: string } {
+		return this.validator.checkClineIgnorePath(resolvedPath)
+	}
+
+	async resolveAndValidate(
+		filePath: string,
+		caller: string,
+	): Promise<{ absolutePath: string; resolvedPath: string } | undefined> {
+		const resolution = this.resolve(filePath, caller)
+		if (!resolution) {
+			return undefined
+		}
+
+		const validation = this.validate(resolution.resolvedPath)
+		if (!validation.ok) {
+			return undefined
+		}
+
+		return resolution
+	}
+}
+
+// Helper class for provider operations
+class ProviderOperations {
+	constructor(private provider: DiffViewProvider) {}
+
+	async createFile(path: string, content: string): Promise<{ finalContent?: string }> {
+		this.provider.editType = "create"
+		await this.provider.open(path)
+		await this.provider.update(content, true)
+		const result = await this.provider.saveChanges()
+		await this.provider.reset()
+		return result
+	}
+
+	async modifyFile(path: string, content: string): Promise<{ finalContent?: string }> {
+		this.provider.editType = "modify"
+		await this.provider.open(path)
+		await this.provider.update(content, true)
+		const result = await this.provider.saveChanges()
+		await this.provider.reset()
+		return result
+	}
+
+	async deleteFile(path: string): Promise<void> {
+		this.provider.editType = "modify"
+		await this.provider.open(path)
+		await this.provider.revertChanges()
+	}
+
+	async moveFile(oldPath: string, newPath: string, content: string): Promise<{ finalContent?: string }> {
+		const result = await this.createFile(newPath, content)
+		await this.deleteFile(oldPath)
+		return result
+	}
+}
+
 export class ApplyPatchHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.APPLY_PATCH
 	private appliedCommit?: Commit
 	private config?: TaskConfig
+	private pathResolver?: PathResolver
+	private providerOps?: ProviderOperations
 	private partialPreviewState?: {
 		originalFiles: Record<string, string>
 		currentPreviewPath?: string
 	}
 
 	constructor(private validator: ToolValidator) {}
+
+	private initializeHelpers(config: TaskConfig): void {
+		if (!this.pathResolver || this.config !== config) {
+			this.pathResolver = new PathResolver(config, this.validator)
+		}
+		if (!this.providerOps) {
+			this.providerOps = new ProviderOperations(config.services.diffViewProvider)
+		}
+	}
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name} for patch application]`
@@ -163,21 +249,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return this.partialPreviewState
 	}
 
-	private resolveWorkspacePathSafe(
-		config: TaskConfig,
-		filePath: string,
-		caller: string,
-	): { absolutePath: string; resolvedPath: string } | undefined {
-		try {
-			const pathResult = resolveWorkspacePath(config, filePath, caller)
-			return typeof pathResult === "string"
-				? { absolutePath: pathResult, resolvedPath: filePath }
-				: { absolutePath: pathResult.absolutePath, resolvedPath: pathResult.resolvedPath }
-		} catch {
-			return undefined
-		}
-	}
-
 	private async getOriginalFileContentForPreview(
 		pathKey: string,
 		resolution: { absolutePath: string; resolvedPath: string },
@@ -208,8 +279,9 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 	private async previewPatchStream(rawInput: string, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const config = uiHelpers.getConfig()
 		const provider = config.services.diffViewProvider
-		let patch: Patch
+		this.initializeHelpers(config)
 
+		let patch: Patch
 		try {
 			patch = this.parsePatch(rawInput, true)
 		} catch {
@@ -223,13 +295,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		const [originalPath, action] = entries[0]
 		const targetPath = action.type === ActionType.UPDATE && action.movePath ? action.movePath : originalPath
-		const targetResolution = this.resolveWorkspacePathSafe(config, targetPath, "ApplyPatchHandler.previewPatch.target")
+		const targetResolution = await this.pathResolver!.resolveAndValidate(targetPath, "ApplyPatchHandler.previewPatch.target")
 		if (!targetResolution) {
-			return
-		}
-
-		const targetValidation = this.validator.checkClineIgnorePath(targetResolution.resolvedPath)
-		if (!targetValidation.ok) {
 			return
 		}
 
@@ -252,8 +319,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				newContent = action.newFile ?? ""
 				break
 			case ActionType.UPDATE: {
-				const sourceResolution = this.resolveWorkspacePathSafe(
-					config,
+				const sourceResolution = await this.pathResolver!.resolveAndValidate(
 					originalPath,
 					"ApplyPatchHandler.previewPatch.source",
 				)
@@ -272,11 +338,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					return
 				}
 
-				if (action.movePath) {
-					provider.editType = "create"
-				} else {
-					provider.editType = "modify"
-				}
+				provider.editType = action.movePath ? "create" : "modify"
 				break
 			}
 			case ActionType.DELETE:
@@ -308,6 +370,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
+		this.initializeHelpers(config)
 
 		if (provider.isEditing) {
 			try {
@@ -340,7 +403,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			this.config = config
 
 			// Apply the commit and get results
-			const applyResults = await this.applyCommit(commit, provider)
+			const applyResults = await this.applyCommit(commit)
 
 			// Generate summary
 			const changedFiles = Object.keys(commit.changes)
@@ -353,7 +416,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				const approved = await this.handleApproval(config, block, message, changedFiles[0] || "")
 				if (!approved) {
 					// Revert all changes on rejection
-					await this.revertChanges(provider)
+					await this.revertChanges()
 					return "The user denied this patch operation."
 				}
 
@@ -384,7 +447,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			return responseLines.join("\n")
 		} catch (error) {
 			// Revert any changes that may have been applied before the error
-			await this.revertChanges(provider)
+			await this.revertChanges()
 
 			const errorResponse = formatResponse.toolError(`${(error as Error)?.message}`)
 			ToolResultUtils.pushToolResult(
@@ -616,31 +679,21 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return result.join("\n")
 	}
 
-	private async applyCommit(
-		commit: Commit,
-		provider: DiffViewProvider,
-	): Promise<Record<string, { finalContent?: string; deleted?: boolean }>> {
+	private async applyCommit(commit: Commit): Promise<Record<string, { finalContent?: string; deleted?: boolean }>> {
+		const ops = this.providerOps!
 		const results: Record<string, { finalContent?: string; deleted?: boolean }> = {}
 
 		for (const [path, change] of Object.entries(commit.changes)) {
 			switch (change.type) {
 				case ActionType.DELETE:
-					// For delete operations, open and then revert (which deletes the file)
-					provider.editType = "modify"
-					await provider.open(path)
-					await provider.revertChanges()
+					await ops.deleteFile(path)
 					results[path] = { deleted: true }
 					break
 				case ActionType.ADD:
 					if (!change.newContent) {
 						throw new DiffError(`Cannot create ${path} with no content`)
 					}
-					// For add operations, use create edit type
-					provider.editType = "create"
-					await provider.open(path)
-					await provider.update(change.newContent, true)
-					const addResult = await provider.saveChanges()
-					await provider.reset()
+					const addResult = await ops.createFile(path, change.newContent)
 					results[path] = { finalContent: addResult.finalContent }
 					break
 				case ActionType.UPDATE:
@@ -648,26 +701,11 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 						throw new DiffError(`UPDATE change for ${path} has no new content`)
 					}
 					if (change.movePath) {
-						// For move operations, create new file then delete old
-						provider.editType = "create"
-						await provider.open(change.movePath)
-						await provider.update(change.newContent, true)
-						const moveResult = await provider.saveChanges()
-						await provider.reset()
+						const moveResult = await ops.moveFile(path, change.movePath, change.newContent)
 						results[change.movePath] = { finalContent: moveResult.finalContent }
-
-						// Delete the old file
-						provider.editType = "modify"
-						await provider.open(path)
-						await provider.revertChanges()
 						results[path] = { deleted: true }
 					} else {
-						// For regular updates, use modify edit type
-						provider.editType = "modify"
-						await provider.open(path)
-						await provider.update(change.newContent, true)
-						const updateResult = await provider.saveChanges()
-						await provider.reset()
+						const updateResult = await ops.modifyFile(path, change.newContent)
 						results[path] = { finalContent: updateResult.finalContent }
 					}
 					break
@@ -680,55 +718,39 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 	/**
 	 * Reverts all changes made by the last applyCommit operation.
 	 * This method restores files to their original state before the patch was applied.
-	 * Uses FileEditProvider to handle file operations similar to diffViewProvider.revertChanges()
 	 */
-	private async revertChanges(provider: DiffViewProvider): Promise<void> {
-		if (!this.appliedCommit || !this.config) {
+	private async revertChanges(): Promise<void> {
+		if (!this.appliedCommit || !this.providerOps) {
 			return
 		}
+
+		const ops = this.providerOps
 
 		// Revert changes for each file
 		for (const [path, change] of Object.entries(this.appliedCommit.changes)) {
 			try {
 				switch (change.type) {
 					case ActionType.DELETE:
-						// Restore deleted file using FileEditProvider
+						// Restore deleted file
 						if (change.oldContent !== undefined) {
-							provider.editType = "create"
-							await provider.open(path)
-							await provider.update(change.oldContent, true)
-							await provider.saveChanges()
-							await provider.reset()
+							await ops.createFile(path, change.oldContent)
 						}
 						break
 					case ActionType.ADD:
-						// Remove newly created file using FileEditProvider
-						provider.editType = "modify"
-						await provider.open(path)
-						await provider.revertChanges()
+						// Remove newly created file
+						await ops.deleteFile(path)
 						break
 					case ActionType.UPDATE:
-						// Restore original content using FileEditProvider
+						// Restore original content
 						if (change.movePath) {
 							// If file was moved, delete the new file and restore the original
-							provider.editType = "modify"
-							await provider.open(change.movePath)
-							await provider.revertChanges()
-
+							await ops.deleteFile(change.movePath)
 							if (change.oldContent !== undefined) {
-								provider.editType = "create"
-								await provider.open(path)
-								await provider.update(change.oldContent, true)
-								await provider.saveChanges()
-								await provider.reset()
+								await ops.createFile(path, change.oldContent)
 							}
 						} else if (change.oldContent !== undefined) {
 							// Restore original content at same location
-							provider.editType = "modify"
-							await provider.open(path)
-							await provider.update(change.oldContent, true)
-							await provider.saveChanges()
-							await provider.reset()
+							await ops.modifyFile(path, change.oldContent)
 						}
 						break
 				}
@@ -825,32 +847,61 @@ class PatchParser {
 	constructor(private lines: string[]) {}
 
 	parse(): Patch {
-		// Skip begin sentinel
-		if (this.lines[this.index]?.startsWith(PATCH_MARKERS.BEGIN)) {
-			this.index++
-		}
+		this.skipBeginSentinel()
 
-		while (this.index < this.lines.length && !this.lines[this.index].startsWith(PATCH_MARKERS.END)) {
-			const line = this.lines[this.index]
-
-			if (line.startsWith(PATCH_MARKERS.UPDATE)) {
-				this.parseUpdate(line.substring(PATCH_MARKERS.UPDATE.length).trim())
-			} else if (line.startsWith(PATCH_MARKERS.DELETE)) {
-				this.parseDelete(line.substring(PATCH_MARKERS.DELETE.length).trim())
-			} else if (line.startsWith(PATCH_MARKERS.ADD)) {
-				this.parseAdd(line.substring(PATCH_MARKERS.ADD.length).trim())
-			} else {
-				throw new DiffError(`Unknown line while parsing: ${line}`)
-			}
+		while (this.hasMoreLines() && !this.isEndMarker()) {
+			this.parseNextAction()
 		}
 
 		return this.patch
 	}
 
-	private parseUpdate(path: string): void {
-		if (path in this.patch.actions) {
-			throw new DiffError(`Duplicate update for file: ${path}`)
+	private skipBeginSentinel(): void {
+		if (this.lines[this.index]?.startsWith(PATCH_MARKERS.BEGIN)) {
+			this.index++
 		}
+	}
+
+	private hasMoreLines(): boolean {
+		return this.index < this.lines.length
+	}
+
+	private isEndMarker(): boolean {
+		return this.lines[this.index].startsWith(PATCH_MARKERS.END)
+	}
+
+	private isStopMarker(): boolean {
+		const line = this.lines[this.index]
+		return (
+			line.startsWith(PATCH_MARKERS.SECTION) ||
+			line.startsWith(PATCH_MARKERS.END_FILE) ||
+			line === "***" ||
+			this.isAtFileMarker()
+		)
+	}
+
+	private parseNextAction(): void {
+		const line = this.lines[this.index]
+
+		if (line.startsWith(PATCH_MARKERS.UPDATE)) {
+			this.parseUpdate(line.substring(PATCH_MARKERS.UPDATE.length).trim())
+		} else if (line.startsWith(PATCH_MARKERS.DELETE)) {
+			this.parseDelete(line.substring(PATCH_MARKERS.DELETE.length).trim())
+		} else if (line.startsWith(PATCH_MARKERS.ADD)) {
+			this.parseAdd(line.substring(PATCH_MARKERS.ADD.length).trim())
+		} else {
+			throw new DiffError(`Unknown line while parsing: ${line}`)
+		}
+	}
+
+	private checkDuplicate(path: string, operation: string): void {
+		if (path in this.patch.actions) {
+			throw new DiffError(`Duplicate ${operation} for file: ${path}`)
+		}
+	}
+
+	private parseUpdate(path: string): void {
+		this.checkDuplicate(path, "update")
 
 		this.index++
 		const movePath = this.lines[this.index]?.startsWith(PATCH_MARKERS.MOVE)
@@ -858,13 +909,7 @@ class PatchParser {
 			: undefined
 
 		const chunks: Chunk[] = []
-		while (
-			this.index < this.lines.length &&
-			!this.lines[this.index].startsWith(PATCH_MARKERS.END) &&
-			!this.lines[this.index].startsWith(PATCH_MARKERS.UPDATE) &&
-			!this.lines[this.index].startsWith(PATCH_MARKERS.DELETE) &&
-			!this.lines[this.index].startsWith(PATCH_MARKERS.ADD)
-		) {
+		while (this.hasMoreLines() && !this.isAtFileMarker()) {
 			if (this.lines[this.index].startsWith(PATCH_MARKERS.SECTION) || this.lines[this.index] === PATCH_MARKERS.SECTION) {
 				this.index++
 			}
@@ -875,28 +920,18 @@ class PatchParser {
 	}
 
 	private parseDelete(path: string): void {
-		if (path in this.patch.actions) {
-			throw new DiffError(`Duplicate delete for file: ${path}`)
-		}
+		this.checkDuplicate(path, "delete")
 		this.patch.actions[path] = { type: ActionType.DELETE, chunks: [] }
 		this.index++
 	}
 
 	private parseAdd(path: string): void {
-		if (path in this.patch.actions) {
-			throw new DiffError(`Duplicate add for file: ${path}`)
-		}
+		this.checkDuplicate(path, "add")
 
 		this.index++
 		const lines: string[] = []
 
-		while (
-			this.index < this.lines.length &&
-			!this.lines[this.index].startsWith(PATCH_MARKERS.END) &&
-			!this.lines[this.index].startsWith(PATCH_MARKERS.UPDATE) &&
-			!this.lines[this.index].startsWith(PATCH_MARKERS.DELETE) &&
-			!this.lines[this.index].startsWith(PATCH_MARKERS.ADD)
-		) {
+		while (this.hasMoreLines() && !this.isAtFileMarker()) {
 			const line = this.lines[this.index++]
 			if (!line.startsWith("+")) {
 				throw new DiffError(`Invalid Add File line (missing '+'): ${line}`)
@@ -907,6 +942,16 @@ class PatchParser {
 		this.patch.actions[path] = { type: ActionType.ADD, newFile: lines.join("\n"), chunks: [] }
 	}
 
+	private isAtFileMarker(): boolean {
+		const line = this.lines[this.index]
+		return (
+			line.startsWith(PATCH_MARKERS.END) ||
+			line.startsWith(PATCH_MARKERS.UPDATE) ||
+			line.startsWith(PATCH_MARKERS.DELETE) ||
+			line.startsWith(PATCH_MARKERS.ADD)
+		)
+	}
+
 	private parseChunks(): Chunk[] {
 		const chunks: Chunk[] = []
 		const originalLines: string[] = []
@@ -914,20 +959,8 @@ class PatchParser {
 		let insLines: string[] = []
 		let mode: "keep" | "add" | "delete" = "keep"
 
-		while (this.index < this.lines.length) {
+		while (this.hasMoreLines() && !this.isStopMarker()) {
 			const line = this.lines[this.index]
-
-			if (
-				line.startsWith(PATCH_MARKERS.SECTION) ||
-				line.startsWith(PATCH_MARKERS.END) ||
-				line.startsWith(PATCH_MARKERS.UPDATE) ||
-				line.startsWith(PATCH_MARKERS.DELETE) ||
-				line.startsWith(PATCH_MARKERS.ADD) ||
-				line.startsWith(PATCH_MARKERS.END_FILE) ||
-				line === "***"
-			) {
-				break
-			}
 
 			if (line.startsWith("***")) {
 				throw new DiffError(`Invalid Line: ${line}`)
@@ -938,50 +971,67 @@ class PatchParser {
 			const firstChar = content[0]
 
 			const lastMode = mode
-			if (firstChar === "+") {
-				mode = "add"
-			} else if (firstChar === "-") {
-				mode = "delete"
-			} else if (firstChar === " ") {
-				mode = "keep"
-			} else {
-				throw new DiffError(`Invalid Line: ${line}`)
-			}
+			mode = this.getLineMode(firstChar, line)
 
 			const lineContent = content.substring(1)
 
+			// Flush accumulated changes when transitioning to "keep" mode
 			if (mode === "keep" && lastMode !== "keep" && (insLines.length > 0 || delLines.length > 0)) {
-				chunks.push({
-					origIndex: originalLines.length - delLines.length,
-					delLines,
-					insLines,
-				})
+				chunks.push(this.createChunk(originalLines.length - delLines.length, delLines, insLines))
 				delLines = []
 				insLines = []
 			}
 
-			if (mode === "delete") {
-				delLines.push(lineContent)
-				originalLines.push(lineContent)
-			} else if (mode === "add") {
-				insLines.push(lineContent)
-			} else {
-				originalLines.push(lineContent)
-			}
+			// Accumulate lines based on mode
+			this.accumulateLines(mode, lineContent, originalLines, delLines, insLines)
 		}
 
+		// Flush any remaining changes
 		if (insLines.length > 0 || delLines.length > 0) {
-			chunks.push({
-				origIndex: originalLines.length - delLines.length,
-				delLines,
-				insLines,
-			})
+			chunks.push(this.createChunk(originalLines.length - delLines.length, delLines, insLines))
 		}
 
-		if (this.index < this.lines.length && this.lines[this.index] === PATCH_MARKERS.END_FILE) {
+		this.skipEndFileMaker()
+		return chunks
+	}
+
+	private getLineMode(firstChar: string, line: string): "keep" | "add" | "delete" {
+		if (firstChar === "+") {
+			return "add"
+		}
+		if (firstChar === "-") {
+			return "delete"
+		}
+		if (firstChar === " ") {
+			return "keep"
+		}
+		throw new DiffError(`Invalid Line: ${line}`)
+	}
+
+	private accumulateLines(
+		mode: "keep" | "add" | "delete",
+		lineContent: string,
+		originalLines: string[],
+		delLines: string[],
+		insLines: string[],
+	): void {
+		if (mode === "delete") {
+			delLines.push(lineContent)
+			originalLines.push(lineContent)
+		} else if (mode === "add") {
+			insLines.push(lineContent)
+		} else {
+			originalLines.push(lineContent)
+		}
+	}
+
+	private createChunk(origIndex: number, delLines: string[], insLines: string[]): Chunk {
+		return { origIndex, delLines, insLines }
+	}
+
+	private skipEndFileMaker(): void {
+		if (this.hasMoreLines() && this.lines[this.index] === PATCH_MARKERS.END_FILE) {
 			this.index++
 		}
-
-		return chunks
 	}
 }
