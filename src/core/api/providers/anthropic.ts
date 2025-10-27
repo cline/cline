@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
+import { Tool as AnthropicTool, MessageParam } from "@anthropic-ai/sdk/resources/index"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { AnthropicModelId, anthropicDefaultModelId, anthropicModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
 import { ClineTool } from "@/shared/tools"
@@ -81,6 +81,37 @@ export class AnthropicHandler implements ApiHandler {
 				}, [] as number[])
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
+				const anthropicMessages: Array<MessageParam> = messages.map((message, index) => {
+					if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+						return {
+							...message,
+							content:
+								typeof message.content === "string"
+									? [
+											{
+												type: "text",
+												text: message.content,
+												cache_control: {
+													type: "ephemeral",
+												},
+											},
+										]
+									: message.content.map((content, contentIndex) =>
+											contentIndex === message.content.length - 1
+												? {
+														...content,
+														cache_control: {
+															type: "ephemeral",
+														},
+													}
+												: content,
+										),
+						}
+					}
+					return message
+				})
+
 				stream = await client.messages.create(
 					{
 						model: modelId,
@@ -96,35 +127,7 @@ export class AnthropicHandler implements ApiHandler {
 								cache_control: { type: "ephemeral" },
 							},
 						], // setting cache breakpoint for system prompt so new tasks can reuse it
-						messages: messages.map((message, index) => {
-							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-								return {
-									...message,
-									content:
-										typeof message.content === "string"
-											? [
-													{
-														type: "text",
-														text: message.content,
-														cache_control: {
-															type: "ephemeral",
-														},
-													},
-												]
-											: message.content.map((content, contentIndex) =>
-													contentIndex === message.content.length - 1
-														? {
-																...content,
-																cache_control: {
-																	type: "ephemeral",
-																},
-															}
-														: content,
-												),
-								}
-							}
-							return message
-						}),
+						messages: anthropicMessages,
 						// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
 						stream: true,
 						tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,

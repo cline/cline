@@ -337,7 +337,8 @@ export class ContextManager {
 	}
 
 	/**
-	 * Ensures that every tool_use block in assistant messages has a corresponding tool_result in the next user message
+	 * Ensures that every tool_use block in assistant messages has a corresponding tool_result in the next user message,
+	 * and that tool_result blocks immediately follow their corresponding tool_use blocks
 	 */
 	private ensureToolResultsFollowToolUse(messages: Anthropic.Messages.MessageParam[]): void {
 		for (let i = 0; i < messages.length; i++) {
@@ -345,7 +346,7 @@ export class ContextManager {
 
 			// Check if this is an assistant message
 			if (message.role === "assistant" && Array.isArray(message.content)) {
-				// Collect all tool_use IDs from this assistant message
+				// Collect all tool_use IDs from this assistant message in order
 				const toolUseIds: string[] = []
 				for (const block of message.content) {
 					if (block.type === "tool_use" && block.id) {
@@ -359,12 +360,15 @@ export class ContextManager {
 
 					// Ensure the next message is a user message
 					if (nextMessage.role === "user") {
-						// Collect existing tool_result IDs
+						// Collect existing tool_result blocks and their IDs
 						const existingToolResultIds = new Set<string>()
+						const toolResultBlocks = new Map<string, Anthropic.Messages.ToolResultBlockParam>()
+
 						if (Array.isArray(nextMessage.content)) {
 							for (const block of nextMessage.content) {
 								if (block.type === "tool_result" && block.tool_use_id) {
 									existingToolResultIds.add(block.tool_use_id)
+									toolResultBlocks.set(block.tool_use_id, block)
 								}
 							}
 						}
@@ -372,8 +376,11 @@ export class ContextManager {
 						// Find missing tool_result blocks
 						const missingToolUseIds = toolUseIds.filter((id) => !existingToolResultIds.has(id))
 
-						// Add missing tool_result blocks
-						if (missingToolUseIds.length > 0) {
+						// Check if we need to reorder or add tool_result blocks
+						const needsReordering = this.checkIfToolResultsNeedReordering(nextMessage, toolUseIds)
+
+						// If we need to add missing tool_results or reorder existing ones
+						if (missingToolUseIds.length > 0 || needsReordering) {
 							// Clone the message to avoid mutating the original
 							const clonedMessage = cloneDeep(nextMessage)
 
@@ -381,14 +388,65 @@ export class ContextManager {
 								clonedMessage.content = []
 							}
 
-							// Add a tool_result for each missing tool_use
+							// Add missing tool_result blocks to our collection
 							for (const toolUseId of missingToolUseIds) {
-								clonedMessage.content.push({
+								toolResultBlocks.set(toolUseId, {
 									type: "tool_result",
 									tool_use_id: toolUseId,
 									content: "result missing",
 								})
 							}
+
+							// Reorder content: place each tool_result immediately after its corresponding tool_use
+							// We'll build a new content array with proper ordering
+							const reorderedContent: Array<
+								| Anthropic.Messages.TextBlockParam
+								| Anthropic.Messages.ImageBlockParam
+								| Anthropic.Messages.ToolUseBlockParam
+								| Anthropic.Messages.ToolResultBlockParam
+								| Anthropic.Messages.DocumentBlockParam
+								| Anthropic.Messages.ThinkingBlockParam
+								| Anthropic.Messages.RedactedThinkingBlockParam
+							> = []
+							const processedToolResults = new Set<string>()
+
+							// First, collect all non-tool_result blocks from the cloned message
+							const otherBlocks: Array<
+								| Anthropic.Messages.TextBlockParam
+								| Anthropic.Messages.ImageBlockParam
+								| Anthropic.Messages.ToolUseBlockParam
+								| Anthropic.Messages.DocumentBlockParam
+								| Anthropic.Messages.ThinkingBlockParam
+								| Anthropic.Messages.RedactedThinkingBlockParam
+							> = []
+							for (const block of clonedMessage.content) {
+								if (block.type !== "tool_result") {
+									otherBlocks.push(block)
+								}
+							}
+
+							// Now build the properly ordered content array
+							// Tool results should come first, in the order matching toolUseIds from the assistant message
+							for (const toolUseId of toolUseIds) {
+								const toolResult = toolResultBlocks.get(toolUseId)
+								if (toolResult) {
+									reorderedContent.push(toolResult)
+									processedToolResults.add(toolUseId)
+								}
+							}
+
+							// Add any remaining tool_results that weren't in the toolUseIds list (shouldn't happen but be safe)
+							for (const [toolUseId, toolResult] of toolResultBlocks.entries()) {
+								if (!processedToolResults.has(toolUseId)) {
+									reorderedContent.push(toolResult)
+								}
+							}
+
+							// Finally, add all other blocks (text, etc.)
+							reorderedContent.push(...otherBlocks)
+
+							// Update the cloned message content
+							clonedMessage.content = reorderedContent
 
 							// Replace the message in the array
 							messages[i + 1] = clonedMessage
@@ -397,6 +455,50 @@ export class ContextManager {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Checks if tool_result blocks in a user message need to be reordered to immediately follow tool_use blocks
+	 */
+	private checkIfToolResultsNeedReordering(userMessage: Anthropic.Messages.MessageParam, toolUseIds: string[]): boolean {
+		if (!Array.isArray(userMessage.content)) {
+			return false
+		}
+
+		// Build expected order: all tool_results first (in order of toolUseIds), then other content
+		const expectedToolResultOrder: string[] = []
+		const actualOrder: Array<{ type: string; id?: string }> = []
+
+		for (const block of userMessage.content) {
+			if (block.type === "tool_result" && block.tool_use_id) {
+				actualOrder.push({ type: "tool_result", id: block.tool_use_id })
+			} else {
+				actualOrder.push({ type: block.type })
+			}
+		}
+
+		// Expected: tool_results matching toolUseIds should come first
+		for (const toolUseId of toolUseIds) {
+			expectedToolResultOrder.push(toolUseId)
+		}
+
+		// Check if tool_results are at the beginning and in the right order
+		let toolResultIndex = 0
+		for (let i = 0; i < actualOrder.length && toolResultIndex < expectedToolResultOrder.length; i++) {
+			const item = actualOrder[i]
+			if (item.type === "tool_result" && item.id === expectedToolResultOrder[toolResultIndex]) {
+				toolResultIndex++
+			} else if (item.type === "tool_result") {
+				// Found a tool_result but it's not in the expected position
+				return true
+			} else if (toolResultIndex < expectedToolResultOrder.length) {
+				// Found a non-tool_result block before all expected tool_results are accounted for
+				return true
+			}
+		}
+
+		// If we haven't found all expected tool_results in order at the start, we need reordering
+		return toolResultIndex < expectedToolResultOrder.length
 	}
 
 	/**
