@@ -1,9 +1,7 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
-import { StreamingToolCallHandler } from "@core/api/transform/StreamingToolCallHandler"
 import { ApiStream } from "@core/api/transform/stream"
-import { ToolUseHandler } from "@core/api/transform/ToolUseHandler"
 import { AssistantMessageContent, parseAssistantMessageV2 } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
@@ -78,6 +76,7 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
 import * as vscode from "vscode"
+import { ToolUseHandler } from "@/core/api/transform/tool-use-handler"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
@@ -161,7 +160,6 @@ export class Task {
 	 * because of the expected format from the tool calls is different.
 	 */
 	private useNativeToolCalls: boolean = false
-	private toolCallHandler: StreamingToolCallHandler
 	private toolUseHandler: ToolUseHandler
 
 	private terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
@@ -276,7 +274,6 @@ export class Task {
 		this.browserSession = new BrowserSession(stateManager)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
-		this.toolCallHandler = new StreamingToolCallHandler()
 		this.toolUseHandler = new ToolUseHandler()
 		this.cwd = cwd
 		this.stateManager = stateManager
@@ -2573,7 +2570,6 @@ export class Task {
 			this.taskState.presentAssistantMessageHasPendingUpdates = false
 			this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			await this.diffViewProvider.reset()
-			this.toolCallHandler.reset()
 			this.toolUseHandler.reset()
 			this.taskState.toolUseIdMap.clear()
 
