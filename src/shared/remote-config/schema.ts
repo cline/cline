@@ -81,6 +81,18 @@ const ProviderSettingsSchema = z.object({
 	Cline: ClineSettingsSchema.optional(),
 })
 
+const MCPSettingsSchema = z.object({
+	restrictionsEnabled: z.boolean().optional(),
+	allowedServers: z
+		.array(
+			z.object({
+				id: z.string(),
+				name: z.string(),
+			}),
+		)
+		.optional(),
+})
+
 export const RemoteConfigSchema = z.object({
 	// The version of the remote config settings, e.g. v1
 	// This field is for internal use only, and won't be visible to the administrator in the UI.
@@ -114,6 +126,8 @@ export const RemoteConfigSchema = z.object({
 	// Provider specific settings
 	// Each provider in providerSchemasMap is automatically available as an optional field
 	providerSettings: ProviderSettingsSchema.optional(),
+
+	mcpSettings: MCPSettingsSchema.optional(),
 })
 
 // Type inference from schemas
