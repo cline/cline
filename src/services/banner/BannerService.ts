@@ -1,8 +1,11 @@
 import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
+import { isClineInternalTester } from "@shared/internal/account"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import axios from "axios"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
-import type { AuthService } from "../auth/AuthService"
+import { HostProvider } from "@/hosts/host-provider"
+import { AuthService } from "../auth/AuthService"
 import { Logger } from "../logging/Logger"
 
 /**
@@ -312,8 +315,6 @@ export class BannerService {
 	 */
 	private async getIdeType(): Promise<string> {
 		try {
-			const { HostProvider } = require("@/hosts/host-provider")
-			const { EmptyRequest } = require("@shared/proto/cline/common")
 			const hostVersion = await HostProvider.env.getHostVersion(EmptyRequest.create({}))
 
 			// Use clineType field which contains values like "VSCode Extension", "Cline for JetBrains", etc.
@@ -393,7 +394,6 @@ export class BannerService {
 				return false
 			}
 
-			const { isClineInternalTester } = require("@shared/internal/account")
 			return isClineInternalTester(authInfo.user.email)
 		} catch (error) {
 			Logger.error("BannerService: Error checking employee status", error)
@@ -481,12 +481,8 @@ export class BannerService {
 			return this._authService
 		}
 
-		// Otherwise, load dynamically
+		// Otherwise, get singleton instance
 		try {
-			if (!this._controller) {
-				return undefined
-			}
-			const { AuthService } = require("../auth/AuthService")
 			return AuthService.getInstance(this._controller)
 		} catch {
 			return undefined
