@@ -50,10 +50,14 @@ export class AnthropicHandler implements ApiHandler {
 		const enable1mContextWindow = model.id.endsWith(CLAUDE_SONNET_1M_SUFFIX)
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = !!(
-			(modelId.includes("3-7") || modelId.includes("4-") || modelId.includes("4-5")) &&
-			budget_tokens !== 0
-		)
+
+		// Tools are available only when native tools are enabled.
+		const nativeToolsOn = tools?.length && tools?.length > 0
+		// IMPORTANT: When nativeToolsOn is true, reasoning must be disabled.
+		// Thinking may not be enabled when tool_choice forces tool use.
+		const reasoningOn =
+			!!((modelId.includes("3-7") || modelId.includes("4-") || modelId.includes("4-5")) && budget_tokens !== 0) &&
+			!nativeToolsOn
 
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
@@ -70,10 +74,12 @@ export class AnthropicHandler implements ApiHandler {
 				/*
 				The latest message will be the new user message, one before will be the assistant message from a previous request, and the user message before that will be a previously cached user message. So we need to mark the latest user message as ephemeral to cache it for the next request, and mark the second to last user message as ephemeral to let the server know the last message to retrieve from the cache for the current request..
 				*/
-				const userMsgIndices = messages.reduce(
-					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
-					[] as number[],
-				)
+				const userMsgIndices = messages.reduce((acc, msg, index) => {
+					if (msg.role === "user") {
+						acc.push(index)
+					}
+					return acc
+				}, [] as number[])
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 				stream = await client.messages.create(
