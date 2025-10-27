@@ -81,16 +81,14 @@ const ProviderSettingsSchema = z.object({
 	Cline: ClineSettingsSchema.optional(),
 })
 
-const MCPSettingsSchema = z.object({
+export const AllowedMCPServerSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+})
+
+export const MCPSettingsSchema = z.object({
 	restrictionsEnabled: z.boolean().optional(),
-	allowedServers: z
-		.array(
-			z.object({
-				id: z.string(),
-				name: z.string(),
-			}),
-		)
-		.optional(),
+	allowedServers: z.array(AllowedMCPServerSchema).optional(),
 })
 
 export const RemoteConfigSchema = z.object({
