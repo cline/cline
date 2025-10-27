@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -23,6 +24,232 @@ type SapAiCoreConfig struct {
 	// Optional fields
 	ResourceGroup                string // Optional: SAP AI resource group
 	UseOrchestrationMode         bool   // Use orchestration mode (required: true/false)
+}
+
+ // Helpers to load existing SAP AI Core config without exposing sensitive values
+type sapExistingFlags struct {
+	HasClientID bool
+	HasSecret   bool
+}
+
+func LoadExistingSapAiCoreConfig(ctx context.Context, manager *task.Manager) (*SapAiCoreConfig, sapExistingFlags) {
+	var flags sapExistingFlags
+	if manager == nil {
+		return nil, flags
+	}
+
+	state, err := manager.GetClient().State.GetLatestState(ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return nil, flags
+	}
+
+	var stateData map[string]interface{}
+	if err := json.Unmarshal([]byte(state.StateJson), &stateData); err != nil {
+		return nil, flags
+	}
+
+	apiConfig, ok := stateData["apiConfiguration"].(map[string]interface{})
+	if !ok {
+		return nil, flags
+	}
+
+	cfg := &SapAiCoreConfig{}
+
+	if v, ok := apiConfig["sapAiCoreBaseUrl"].(string); ok {
+		cfg.BaseUrl = strings.TrimSpace(v)
+	}
+	if v, ok := apiConfig["sapAiCoreTokenUrl"].(string); ok {
+		cfg.TokenUrl = strings.TrimSpace(v)
+	}
+	if v, ok := apiConfig["sapAiResourceGroup"].(string); ok {
+		cfg.ResourceGroup = strings.TrimSpace(v)
+	}
+	if v, ok := apiConfig["sapAiCoreUseOrchestrationMode"].(bool); ok {
+		cfg.UseOrchestrationMode = v
+	}
+
+	// Detect presence of sensitive fields without exposing values
+	if v, ok := apiConfig["sapAiCoreClientId"].(string); ok && strings.TrimSpace(v) != "" {
+		flags.HasClientID = true
+	}
+	if v, ok := apiConfig["sapAiCoreClientSecret"].(string); ok && strings.TrimSpace(v) != "" {
+		flags.HasSecret = true
+	}
+
+	return cfg, flags
+}
+
+func getExistingSapAiCoreSensitive(ctx context.Context, manager *task.Manager) (string, string) {
+	if manager == nil {
+		return "", ""
+	}
+	state, err := manager.GetClient().State.GetLatestState(ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return "", ""
+	}
+	var stateData map[string]interface{}
+	if err := json.Unmarshal([]byte(state.StateJson), &stateData); err != nil {
+		return "", ""
+	}
+	apiConfig, ok := stateData["apiConfiguration"].(map[string]interface{})
+	if !ok {
+		return "", ""
+	}
+	var clientID, clientSecret string
+	if v, ok := apiConfig["sapAiCoreClientId"].(string); ok {
+		clientID = strings.TrimSpace(v)
+	}
+	if v, ok := apiConfig["sapAiCoreClientSecret"].(string); ok {
+		clientSecret = strings.TrimSpace(v)
+	}
+	return clientID, clientSecret
+}
+
+// PromptForSapAiCoreConfigWithValidation displays a configuration form for SAP AI Core with enhanced validation
+func PromptForSapAiCoreConfigWithValidation(existing *SapAiCoreConfig, flags sapExistingFlags) (*SapAiCoreConfig, error) {
+	config := &SapAiCoreConfig{}
+
+	// Prefill non-sensitive fields from existing config if available
+	if existing != nil {
+		config.BaseUrl = existing.BaseUrl
+		config.TokenUrl = existing.TokenUrl
+		config.ResourceGroup = existing.ResourceGroup
+		config.UseOrchestrationMode = existing.UseOrchestrationMode
+	}
+
+	// Enhanced form with better descriptions and examples
+	requiredForm := huh.NewForm(
+		huh.NewGroup(
+			// Client ID (masked; do not display existing)
+			huh.NewInput().
+				Title("Client ID").
+				Description(func() string {
+					if flags.HasClientID {
+						return "SAP BTP service key 'clientid' field. Already configured."
+					}
+					return "SAP BTP service key 'clientid' field"
+				}()).
+				Placeholder(func() string {
+					if flags.HasClientID {
+						return "•••••• (leave empty to keep existing)"
+					}
+					return "e.g., your-client-id"
+				}()).
+				EchoMode(huh.EchoModePassword).
+				Value(&config.ClientId).
+				Validate(func(s string) error {
+					if strings.TrimSpace(s) == "" && !flags.HasClientID {
+						return fmt.Errorf("Client ID is required")
+					}
+					return nil
+				}),
+
+			// Client Secret (masked; do not display existing)
+			huh.NewInput().
+				Title("Client Secret").
+				Description(func() string {
+					if flags.HasSecret {
+						return "SAP BTP service key 'clientsecret' field. Already configured."
+					}
+					return "SAP BTP service key 'clientsecret' field"
+				}()).
+				Placeholder(func() string {
+					if flags.HasClientID {
+						return "•••••• (leave empty to keep existing)"
+					}
+					return "e.g., your-secret"
+				}()).
+				EchoMode(huh.EchoModePassword).
+				Value(&config.ClientSecret).
+				Validate(func(s string) error {
+					if strings.TrimSpace(s) == "" && !flags.HasSecret {
+						return fmt.Errorf("Client Secret is required")
+					}
+					return nil
+				}),
+
+			// Base URL (prefilled)
+			huh.NewInput().
+				Title("Base URL").
+				Description("SAP AI Core API endpoint").
+				Placeholder("e.g., https://api.ai.example.com").
+				Value(&config.BaseUrl).
+				Validate(func(s string) error {
+					s = strings.TrimSpace(s)
+					if s == "" {
+						return fmt.Errorf("Base URL is required")
+					}
+					if !strings.HasPrefix(s, "https://") {
+						return fmt.Errorf("Base URL must start with 'https://'")
+					}
+					return nil
+				}),
+
+			// Auth URL (prefilled)
+			huh.NewInput().
+				Title("Auth URL").
+				Description("SAP BTP authentication service URL").
+				Placeholder("e.g., https://auth.example.com").
+				Value(&config.TokenUrl).
+				Validate(func(s string) error {
+					s = strings.TrimSpace(s)
+					if s == "" {
+						return fmt.Errorf("Auth URL is required")
+					}
+					if !strings.HasPrefix(s, "https://") {
+						return fmt.Errorf("Auth URL must start with 'https://'")
+					}
+					return nil
+				}),
+
+			// Orchestration mode (prefilled)
+			huh.NewConfirm().
+				Title("Use Orchestration Mode?").
+				Description("Use SAP AI Core Orchestration service instead of direct deployments").
+				Value(&config.UseOrchestrationMode).
+				Affirmative("Yes").
+				Negative("No").
+				Inline(false),
+		),
+	)
+
+	if err := requiredForm.Run(); err != nil {
+		return nil, fmt.Errorf("failed to get required SAP AI Core configuration: %w", err)
+	}
+
+	// Collect optional fields
+	optionalForm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Resource Group (optional)").
+				Description("SAP AI Core resource group (default: 'default')").
+				Placeholder("e.g., default").
+				Value(&config.ResourceGroup).
+				Description("Press Enter to skip"),
+		),
+	)
+
+	if err := optionalForm.Run(); err != nil {
+		return nil, fmt.Errorf("failed to get optional SAP AI Core configuration: %w", err)
+	}
+
+	// Trim whitespace from string fields (do not modify orchestration mode)
+	config.ClientId = strings.TrimSpace(config.ClientId)
+	config.ClientSecret = strings.TrimSpace(config.ClientSecret)
+	config.BaseUrl = strings.TrimSpace(config.BaseUrl)
+	config.TokenUrl = strings.TrimSpace(config.TokenUrl)
+	config.ResourceGroup = strings.TrimSpace(config.ResourceGroup)
+
+	// Validate based on existence flags (fresh setup requires both)
+	if !flags.HasClientID && config.ClientId == "" {
+		return nil, fmt.Errorf("Client ID is required")
+	}
+	if !flags.HasSecret && config.ClientSecret == "" {
+		return nil, fmt.Errorf("Client Secret is required")
+	}
+
+	// Non-sensitive field validation handled above
+	return config, nil
 }
 
 // PromptForSapAiCoreConfig displays a configuration form for SAP AI Core
@@ -113,41 +340,21 @@ func PromptForSapAiCoreConfig() (*SapAiCoreConfig, error) {
 
 // ApplySapAiCoreConfig applies SAP AI Core configuration using partial updates
 func ApplySapAiCoreConfig(ctx context.Context, manager *task.Manager, config *SapAiCoreConfig, modelID string, deploymentID string) error {
-	// Build the API configuration with all SAP AI Core fields
+	// Build the API configuration with SAP AI Core fields
 	apiConfig := &cline.ModelsApiConfiguration{}
 
-	// Set required authentication fields
-	apiConfig.SapAiCoreClientId = proto.String(config.ClientId)
-	apiConfig.SapAiCoreClientSecret = proto.String(config.ClientSecret)
-	apiConfig.SapAiCoreBaseUrl = proto.String(config.BaseUrl)
-	apiConfig.SapAiCoreTokenUrl = proto.String(config.TokenUrl)
-
-	// Set provider enum fields to activate SAP AI Core
+	// Provider enums to activate SAP AI Core
 	sapAiCoreProvider := cline.ApiProvider_SAPAICORE
 	apiConfig.PlanModeApiProvider = &sapAiCoreProvider
 	apiConfig.ActModeApiProvider = &sapAiCoreProvider
 
-	// Set model ID fields
-	apiConfig.PlanModeApiModelId = proto.String(modelID)
-	apiConfig.ActModeApiModelId = proto.String(modelID)
-
-	// Set deployment ID fields if provided
-	if deploymentID != "" {
-		apiConfig.PlanModeSapAiCoreDeploymentId = proto.String(deploymentID)
-		apiConfig.ActModeSapAiCoreDeploymentId = proto.String(deploymentID)
-	}
-
-	// Set optional fields if provided
-	if config.ResourceGroup != "" {
-		apiConfig.SapAiResourceGroup = proto.String(config.ResourceGroup)
-	}
-	// Always set orchestration mode field (both true and false are valid)
+	// Always set non-sensitive fields
+	apiConfig.SapAiCoreBaseUrl = proto.String(config.BaseUrl)
+	apiConfig.SapAiCoreTokenUrl = proto.String(config.TokenUrl)
 	apiConfig.SapAiCoreUseOrchestrationMode = proto.Bool(config.UseOrchestrationMode)
 
-	// Build field mask including all fields we're setting
+	// Conditionally set sensitive fields only if provided (avoid overwriting existing)
 	fieldPaths := []string{
-		"sapAiCoreClientId",
-		"sapAiCoreClientSecret",
 		"sapAiCoreBaseUrl",
 		"sapAiCoreTokenUrl",
 		"planModeApiProvider",
@@ -157,16 +364,32 @@ func ApplySapAiCoreConfig(ctx context.Context, manager *task.Manager, config *Sa
 		"sapAiCoreUseOrchestrationMode",
 	}
 
-	// Add optional fields to mask if they were set
-	if config.ResourceGroup != "" {
+	if strings.TrimSpace(config.ClientId) != "" {
+		apiConfig.SapAiCoreClientId = proto.String(config.ClientId)
+		fieldPaths = append(fieldPaths, "sapAiCoreClientId")
+	}
+	if strings.TrimSpace(config.ClientSecret) != "" {
+		apiConfig.SapAiCoreClientSecret = proto.String(config.ClientSecret)
+		fieldPaths = append(fieldPaths, "sapAiCoreClientSecret")
+	}
+
+	// Model IDs (always set)
+	apiConfig.PlanModeApiModelId = proto.String(modelID)
+	apiConfig.ActModeApiModelId = proto.String(modelID)
+
+	// Optional resource group
+	if strings.TrimSpace(config.ResourceGroup) != "" {
+		apiConfig.SapAiResourceGroup = proto.String(config.ResourceGroup)
 		fieldPaths = append(fieldPaths, "sapAiResourceGroup")
 	}
-	
-	// Add deployment ID fields if provided
-	if deploymentID != "" {
+
+	// Optional deployment IDs
+	if strings.TrimSpace(deploymentID) != "" {
+		apiConfig.PlanModeSapAiCoreDeploymentId = proto.String(deploymentID)
+		apiConfig.ActModeSapAiCoreDeploymentId = proto.String(deploymentID)
 		fieldPaths = append(fieldPaths, "planModeSapAiCoreDeploymentId", "actModeSapAiCoreDeploymentId")
 	}
-	
+
 	// Create field mask
 	fieldMask := &fieldmaskpb.FieldMask{Paths: fieldPaths}
 
@@ -185,17 +408,31 @@ func ApplySapAiCoreConfig(ctx context.Context, manager *task.Manager, config *Sa
 
 // SetupSapAiCoreWithDynamicModels sets up SAP AI Core with dynamic model fetching
 func SetupSapAiCoreWithDynamicModels(ctx context.Context, manager *task.Manager) error {
-	// Get SAP AI Core configuration
-	config, err := PromptForSapAiCoreConfig()
+	// Step 1: Collect configuration with enhanced validation
+	existing, flags := LoadExistingSapAiCoreConfig(ctx, manager)
+	config, err := PromptForSapAiCoreConfigWithValidation(existing, flags)
 	if err != nil {
 		return fmt.Errorf("failed to get SAP AI Core configuration: %w", err)
 	}
 
-	// Try to fetch dynamic models
+	// Step 2: Fetch models with enhanced error handling
+	// Use provided sensitive values, or fall back to existing stored ones if left blank
+	clientIDForFetch := strings.TrimSpace(config.ClientId)
+	clientSecretForFetch := strings.TrimSpace(config.ClientSecret)
+	if (clientIDForFetch == "" || clientSecretForFetch == "") && (flags.HasClientID || flags.HasSecret) {
+		existingID, existingSecret := getExistingSapAiCoreSensitive(ctx, manager)
+		if clientIDForFetch == "" {
+			clientIDForFetch = existingID
+		}
+		if clientSecretForFetch == "" {
+			clientSecretForFetch = existingSecret
+		}
+	}
+	// models, orchestrationAvailable, err := FetchSapAiCoreModels(
 	models, _, err := FetchSapAiCoreModels(
 		ctx, manager,
-		config.ClientId,
-		config.ClientSecret,
+		clientIDForFetch,
+		clientSecretForFetch,
 		config.BaseUrl,
 		config.TokenUrl,
 		config.ResourceGroup,
