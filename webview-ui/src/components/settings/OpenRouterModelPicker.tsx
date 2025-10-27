@@ -126,8 +126,15 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		const unfilteredModelIds = Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
 
 		if (modeFields.apiProvider === "cline") {
-			// For Cline provider: exclude :free models
-			return unfilteredModelIds.filter((id) => !id.includes(":free"))
+			// For Cline provider: exclude :free models, but keep Minimax models
+			return unfilteredModelIds.filter((id) => {
+				// Keep all Minimax models regardless of :free suffix
+				if (id.toLowerCase().includes("minimax-m2")) {
+					return true
+				}
+				// Filter out other :free models
+				return !id.includes(":free")
+			})
 		} else {
 			// For OpenRouter provider: exclude Cline-specific models
 			return unfilteredModelIds.filter((id) => !id.startsWith("cline/"))
