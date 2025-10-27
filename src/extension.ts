@@ -63,9 +63,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
 
-	// Fetch banner messages on startup (non-blocking)
+	// Initialize banner service
 	const { BannerService } = await import("./services/banner/BannerService")
-	BannerService.getInstance()
+	BannerService.initialize(webview.controller)
+	BannerService.get()
 		.fetchActiveBanners()
 		.then((banners) => {
 			if (banners.length > 0) {

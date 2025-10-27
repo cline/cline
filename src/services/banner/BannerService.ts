@@ -9,31 +9,55 @@ import { Logger } from "../logging/Logger"
  * Service for fetching and evaluating banner messages
  */
 export class BannerService {
-	private static instance: BannerService
+	private static instance: BannerService | null = null
 	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	private _cachedBanners: Banner[] = []
 	private _lastFetchTime: number = 0
 	private readonly CACHE_DURATION_MS = 5 * 60 * 1000 // 5 minutes
-	private _controller?: Controller
+	private _controller: Controller
 	private _authService?: AuthService
 
-	private constructor() {}
+	private constructor(controller: Controller) {
+		this._controller = controller
+	}
+
+	/**
+	 * Initializes the BannerService singleton with required dependencies
+	 * @param controller The controller instance for accessing state and services
+	 * @returns The initialized BannerService instance
+	 * @throws Error if already initialized
+	 */
+	public static initialize(controller: Controller): BannerService {
+		if (BannerService.instance) {
+			throw new Error("BannerService has already been initialized.")
+		}
+		BannerService.instance = new BannerService(controller)
+		return BannerService.instance
+	}
 
 	/**
 	 * Returns the singleton instance of BannerService
+	 * @throws Error if not initialized
 	 */
-	public static getInstance(): BannerService {
+	public static get(): BannerService {
 		if (!BannerService.instance) {
-			BannerService.instance = new BannerService()
+			throw new Error("BannerService not initialized. Call BannerService.initialize() first.")
 		}
 		return BannerService.instance
 	}
 
 	/**
-	 * Sets the controller instance for accessing state and services
+	 * Checks if BannerService has been initialized
 	 */
-	public setController(controller: Controller): void {
-		this._controller = controller
+	public static isInitialized(): boolean {
+		return !!BannerService.instance
+	}
+
+	/**
+	 * Resets the BannerService instance (primarily for testing)
+	 */
+	public static reset(): void {
+		BannerService.instance = null
 	}
 
 	/**

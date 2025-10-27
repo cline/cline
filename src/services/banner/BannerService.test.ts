@@ -23,9 +23,6 @@ describe("BannerService", () => {
 
 		sandbox.stub(Logger, "log")
 
-		bannerService = BannerService.getInstance()
-		bannerService.clearCache()
-
 		mockController = {
 			stateManager: {
 				getApiConfiguration: () => ({}),
@@ -33,13 +30,18 @@ describe("BannerService", () => {
 				getGlobalStateKey: () => [],
 			} as any,
 		}
-		bannerService.setController(mockController as Controller)
+
+		// Reset singleton and initialize with mock controller
+		BannerService.reset()
+		bannerService = BannerService.initialize(mockController as Controller)
+		bannerService.clearCache()
 
 		axiosGetStub = sandbox.stub(axios, "get")
 	})
 
 	afterEach(() => {
 		bannerService.clearCache()
+		BannerService.reset()
 		sandbox.restore()
 	})
 
@@ -213,7 +215,9 @@ describe("BannerService", () => {
 					getGlobalStateKey: () => [],
 				} as any,
 			}
-			bannerService.setController(controllerWithOpenAI as Controller)
+			// Reinitialize with new controller
+			BannerService.reset()
+			bannerService = BannerService.initialize(controllerWithOpenAI as Controller)
 
 			const mockResponse = {
 				data: {
@@ -249,7 +253,9 @@ describe("BannerService", () => {
 					getGlobalStateKey: () => [],
 				} as any,
 			}
-			bannerService.setController(controllerWithoutOpenAI as Controller)
+			// Reinitialize with new controller
+			BannerService.reset()
+			bannerService = BannerService.initialize(controllerWithoutOpenAI as Controller)
 
 			const mockResponse = {
 				data: {
@@ -284,7 +290,9 @@ describe("BannerService", () => {
 					getGlobalStateKey: () => [],
 				} as any,
 			}
-			bannerService.setController(controllerWithAnthropic as Controller)
+			// Reinitialize with new controller
+			BannerService.reset()
+			bannerService = BannerService.initialize(controllerWithAnthropic as Controller)
 
 			const mockResponse = {
 				data: {
