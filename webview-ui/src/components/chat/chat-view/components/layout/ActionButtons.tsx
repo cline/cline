@@ -71,7 +71,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 			// Special handling for cancel action
 			if (action === "cancel") {
-				// Reset processing state immediately for cancel to ensure UI responsiveness
 				setIsProcessing(false)
 			}
 
@@ -84,7 +83,6 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	const handleKeyDown = useCallback(
 		(event: KeyboardEvent) => {
 			if (event.key === "Escape") {
-				console.log("[HOOK-UI CANCEL] Escape key pressed")
 				event.preventDefault()
 				event.stopPropagation()
 				messageHandlers.executeButtonAction("cancel")

@@ -37,7 +37,7 @@ export class HookProcess extends EventEmitter {
 	private stderrSize = 0
 	private outputTruncated = false
 
-	// RC-8: Track registration state to prevent leaks and ensure cleanup
+	// Track registration state to prevent leaks and ensure cleanup
 	private isRegistered = false
 
 	constructor(
@@ -53,7 +53,7 @@ export class HookProcess extends EventEmitter {
 	 * @param inputJson The JSON string to pass to the hook via stdin
 	 */
 	async run(inputJson: string): Promise<void> {
-		// RC-8: Wrap in try/finally to guarantee cleanup even if errors occur
+		// Wrap in try/finally to guarantee cleanup even if errors occur
 		try {
 			return await new Promise((resolve, reject) => {
 				// Register this process for tracking
@@ -62,7 +62,7 @@ export class HookProcess extends EventEmitter {
 
 				// Check if already aborted
 				if (this.abortSignal?.aborted) {
-					this.safeUnregister() // RC-8: Use safe unregister
+					this.safeUnregister()
 					reject(new Error("Hook execution cancelled"))
 					return
 				}
@@ -88,7 +88,7 @@ export class HookProcess extends EventEmitter {
 						}
 
 						// Unregister from active processes
-						this.safeUnregister() // RC-8: Use safe unregister
+						this.safeUnregister()
 
 						// Kill the process (async, fire-and-forget)
 						if (this.childProcess.pid) {
@@ -156,7 +156,7 @@ export class HookProcess extends EventEmitter {
 					this.emitRemainingBuffer()
 
 					// Unregister from active processes
-					this.safeUnregister() // RC-8: Use safe unregister
+					this.safeUnregister()
 
 					// Clear timers
 					if (this.hotTimer) {
@@ -185,7 +185,7 @@ export class HookProcess extends EventEmitter {
 				// Handle process errors
 				this.childProcess.on("error", (error) => {
 					// Unregister from active processes
-					this.safeUnregister() // RC-8: Use safe unregister
+					this.safeUnregister()
 
 					if (this.timeoutHandle) {
 						clearTimeout(this.timeoutHandle)
@@ -208,13 +208,13 @@ export class HookProcess extends EventEmitter {
 				}
 			})
 		} finally {
-			// RC-8: Guaranteed cleanup even if process setup fails or throws
+			// Guaranteed cleanup even if process setup fails or throws
 			this.safeUnregister()
 		}
 	}
 
 	/**
-	 * RC-8: Safely unregister from the process registry.
+	 * Safely unregister from the process registry.
 	 * This is idempotent and prevents double-unregistration issues.
 	 */
 	private safeUnregister(): void {
@@ -347,10 +347,8 @@ export class HookProcess extends EventEmitter {
 	 * Terminate the process and its entire process tree.
 	 * Uses process groups on Unix to kill child processes.
 	 * Implements graceful shutdown with 2-second timeout before force kill.
-	 * RC-8: Made idempotent and ensures unregistration.
 	 */
 	async terminate(): Promise<void> {
-		// RC-8: Idempotent check - safe to call multiple times
 		if (!this.childProcess || this.isCompleted) {
 			// Still ensure unregistration even if process already completed
 			this.safeUnregister()
@@ -398,7 +396,7 @@ export class HookProcess extends EventEmitter {
 				clearTimeout(this.timeoutHandle)
 				this.timeoutHandle = null
 			}
-			// RC-8: Ensure unregistration even if termination fails
+			// Ensure unregistration even if termination fails
 			this.safeUnregister()
 		}
 	}

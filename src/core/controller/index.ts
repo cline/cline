@@ -75,7 +75,7 @@ export class Controller {
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
 
-	// RC-9: Flag to prevent duplicate cancellations from spam clicking
+	// Flag to prevent duplicate cancellations from spam clicking
 	private cancelInProgress = false
 
 	// Shell integration warning tracker
@@ -336,16 +336,9 @@ export class Controller {
 			taskLockAcquired,
 		})
 
-		// IMPORTANT: Now that the task instance is fully assigned to controller.task,
-		// we can safely start the task initialization. This prevents race conditions
-		// where hooks (especially TaskStart) run before the task is ready to be cancelled.
-		// We MUST await these calls to ensure hooks complete (or at least start properly)
-		// before returning, making cancellation reliable at any point.
 		if (historyItem) {
-			// Resume an existing task - this will show the resume button first
 			this.task.resumeTaskFromHistory()
 		} else if (task || images || files) {
-			// Start a new task - this will run TaskStart hook immediately
 			this.task.startTask(task, images, files)
 		}
 
@@ -426,7 +419,7 @@ export class Controller {
 	}
 
 	async cancelTask() {
-		// RC-9: Prevent duplicate cancellations from spam clicking
+		// Prevent duplicate cancellations from spam clicking
 		if (this.cancelInProgress) {
 			console.log(`[Controller.cancelTask] Cancellation already in progress, ignoring duplicate request`)
 			return
@@ -440,17 +433,14 @@ export class Controller {
 		this.cancelInProgress = true
 
 		try {
-			console.log(`[Controller.cancelTask] Starting cancellation for task ${this.task.taskId}`)
 			this.updateBackgroundCommandState(false)
 
 			try {
-				console.log(`[Controller.cancelTask] Calling abortTask()`)
 				await this.task.abortTask()
 			} catch (error) {
 				console.error("Failed to abort task", error)
 			}
 
-			console.log(`[Controller.cancelTask] Waiting for abort to complete...`)
 			await pWaitFor(
 				() =>
 					this.task === undefined ||
@@ -464,49 +454,34 @@ export class Controller {
 				console.error("Failed to abort task")
 			})
 
-			console.log(
-				`[Controller.cancelTask] Abort complete, didFinishAbortingStream=${this.task?.taskState.didFinishAbortingStream}`,
-			)
-
 			if (this.task) {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 				this.task.taskState.abandoned = true
 			}
 
 			// Small delay to ensure state manager has persisted the history update
-			await new Promise((resolve) => setTimeout(resolve, 100))
+			//await new Promise((resolve) => setTimeout(resolve, 100))
 
 			// NOW try to get history after abort has finished (hook may have saved messages)
 			let historyItem: HistoryItem | undefined
 			try {
-				console.log(`[Controller.cancelTask] Attempting to get task history for ${this.task.taskId}`)
-				console.log(
-					`[Controller.cancelTask] Current taskHistory has ${this.stateManager.getGlobalStateKey("taskHistory").length} items`,
-				)
 				const result = await this.getTaskWithId(this.task.taskId)
 				historyItem = result.historyItem
-				console.log(
-					`[Controller.cancelTask] Found history item with ${result.apiConversationHistory.length} API messages`,
-				)
 			} catch (error) {
-				// Task not in history yet (new task with no messages)
+				// Task not in history yet (new task with no messages); catch the
+				// error to enable the agent to continue making progress.
 				console.log(`[Controller.cancelTask] Task not found in history: ${error}`)
 			}
 
 			// Only re-initialize if we found a history item, otherwise just clear
 			if (historyItem) {
-				console.log(`[Controller.cancelTask] Re-initializing task with history`)
 				// Re-initialize task to keep it visible in UI with resume button
 				await this.initTask(undefined, undefined, undefined, historyItem, undefined)
 			} else {
-				console.log(`[Controller.cancelTask] No history found, clearing task`)
-				// No history to restore, just clear the task
 				await this.clearTask()
 			}
 
-			// Ensure state is sent to webview after cancellation
 			await this.postStateToWebview()
-			console.log(`[Controller.cancelTask] Cancellation complete`)
 		} finally {
 			// Always clear the flag, even if cancellation fails
 			this.cancelInProgress = false
@@ -1058,18 +1033,14 @@ export class Controller {
 	*/
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
-		console.log(`[Controller.updateTaskHistory] Updating history for task ${item.id}`)
 		const history = this.stateManager.getGlobalStateKey("taskHistory")
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
-			console.log(`[Controller.updateTaskHistory] Updating existing item at index ${existingItemIndex}`)
 			history[existingItemIndex] = item
 		} else {
-			console.log(`[Controller.updateTaskHistory] Adding new item to history`)
 			history.push(item)
 		}
 		this.stateManager.setGlobalState("taskHistory", history)
-		console.log(`[Controller.updateTaskHistory] History now has ${history.length} items`)
 		return history
 	}
 }
