@@ -75,6 +75,8 @@ func SupportsBYOModelFetching(provider cline.ApiProvider) bool {
 		return true
 	case cline.ApiProvider_OCA:
 		return true
+	case cline.ApiProvider_SAPAICORE:
+		return true
 	}
 
 	return SupportsStaticModelList(provider)

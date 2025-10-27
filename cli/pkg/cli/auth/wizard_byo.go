@@ -220,28 +220,16 @@ func (pw *ProviderWizard) handleAddOcaProvider() error {
 
 // handleAddSapAiCoreProvider handles the special case of adding SAP AI Core provider with its multi-field form
 func (pw *ProviderWizard) handleAddSapAiCoreProvider() error {
-	// Step 1: Get SAP AI Core configuration (all credentials and optional fields)
-	config, err := PromptForSapAiCoreConfig()
-	if err != nil {
-		return fmt.Errorf("failed to get SAP AI Core configuration: %w", err)
-	}
-
-	// Step 2: Select model
-	modelID, modelInfo, err := pw.selectModel(cline.ApiProvider_SAPAICORE, "")
-	if err != nil {
-		return fmt.Errorf("model selection failed: %w", err)
-	}
-
-	// Step 3: Apply SAP AI Core configuration
-	if err := ApplySapAiCoreConfig(pw.ctx, pw.manager, config, modelID, modelInfo); err != nil {
-		return fmt.Errorf("failed to save SAP AI Core configuration: %w", err)
+	// Use the new dynamic model fetching setup function
+	if err := SetupSapAiCoreWithDynamicModels(pw.ctx, pw.manager); err != nil {
+		return fmt.Errorf("failed to setup SAP AI Core: %w", err)
 	}
 
 	if err := setWelcomeViewCompleted(pw.ctx, pw.manager); err != nil {
-		verboseLog("Warning: Failed to mark welcome view as completed: %v", err)
+	verboseLog("Warning: Failed to mark welcome view as completed: %v", err)
 	}
-		
-	fmt.Println("✓ SAP AI Core provider configured successfully!")
+
+	fmt.Println("SAP AI Core provider configured successfully!")
 	return nil
 }
 

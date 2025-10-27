@@ -19,7 +19,7 @@ type SapAiCoreConfig struct {
 	ClientSecret string // Required: SAP AI Core client secret
 	BaseUrl      string // Required: SAP AI Core base URL
 	TokenUrl     string // Required: SAP AI Core token URL
-	
+
 	// Optional fields
 	ResourceGroup                string // Optional: SAP AI resource group
 	UseOrchestrationMode         bool   // Use orchestration mode (required: true/false)
@@ -112,7 +112,7 @@ func PromptForSapAiCoreConfig() (*SapAiCoreConfig, error) {
 }
 
 // ApplySapAiCoreConfig applies SAP AI Core configuration using partial updates
-func ApplySapAiCoreConfig(ctx context.Context, manager *task.Manager, config *SapAiCoreConfig, modelID string, modelInfo interface{}) error {
+func ApplySapAiCoreConfig(ctx context.Context, manager *task.Manager, config *SapAiCoreConfig, modelID string, deploymentID string) error {
 	// Build the API configuration with all SAP AI Core fields
 	apiConfig := &cline.ModelsApiConfiguration{}
 
@@ -131,6 +131,12 @@ func ApplySapAiCoreConfig(ctx context.Context, manager *task.Manager, config *Sa
 	apiConfig.PlanModeApiModelId = proto.String(modelID)
 	apiConfig.ActModeApiModelId = proto.String(modelID)
 
+	// Set deployment ID fields if provided
+	if deploymentID != "" {
+		apiConfig.PlanModeSapAiCoreDeploymentId = proto.String(deploymentID)
+		apiConfig.ActModeSapAiCoreDeploymentId = proto.String(deploymentID)
+	}
+
 	// Set optional fields if provided
 	if config.ResourceGroup != "" {
 		apiConfig.SapAiResourceGroup = proto.String(config.ResourceGroup)
@@ -141,7 +147,7 @@ func ApplySapAiCoreConfig(ctx context.Context, manager *task.Manager, config *Sa
 	// Build field mask including all fields we're setting
 	fieldPaths := []string{
 		"sapAiCoreClientId",
-		"sapAiCoreClientSecret", 
+		"sapAiCoreClientSecret",
 		"sapAiCoreBaseUrl",
 		"sapAiCoreTokenUrl",
 		"planModeApiProvider",
@@ -155,7 +161,12 @@ func ApplySapAiCoreConfig(ctx context.Context, manager *task.Manager, config *Sa
 	if config.ResourceGroup != "" {
 		fieldPaths = append(fieldPaths, "sapAiResourceGroup")
 	}
-
+	
+	// Add deployment ID fields if provided
+	if deploymentID != "" {
+		fieldPaths = append(fieldPaths, "planModeSapAiCoreDeploymentId", "actModeSapAiCoreDeploymentId")
+	}
+	
 	// Create field mask
 	fieldMask := &fieldmaskpb.FieldMask{Paths: fieldPaths}
 
@@ -167,6 +178,64 @@ func ApplySapAiCoreConfig(ctx context.Context, manager *task.Manager, config *Sa
 
 	if err := updateApiConfigurationPartial(ctx, manager, request); err != nil {
 		return fmt.Errorf("failed to apply SAP AI Core configuration: %w", err)
+	}
+
+	return nil
+}
+
+// SetupSapAiCoreWithDynamicModels sets up SAP AI Core with dynamic model fetching
+func SetupSapAiCoreWithDynamicModels(ctx context.Context, manager *task.Manager) error {
+	// Get SAP AI Core configuration
+	config, err := PromptForSapAiCoreConfig()
+	if err != nil {
+		return fmt.Errorf("failed to get SAP AI Core configuration: %w", err)
+	}
+
+	// Try to fetch dynamic models
+	models, _, err := FetchSapAiCoreModels(
+		ctx, manager,
+		config.ClientId,
+		config.ClientSecret,
+		config.BaseUrl,
+		config.TokenUrl,
+		config.ResourceGroup,
+	)
+
+	var selectedModel string
+	var selectedDeploymentID string
+
+	if err != nil || len(models) == 0 {
+		if err != nil {
+			fmt.Println("Unable to fetch live models from SAP AI Core, using default model list...")
+		} else {
+			fmt.Println("No running deployments found, using default model list...")
+		}
+
+		staticModels, _, staticErr := FetchStaticModels(cline.ApiProvider_SAPAICORE)
+		if staticErr != nil {
+			return fmt.Errorf("failed to get static models as fallback: %w", staticErr)
+		}
+
+		selectedModel, err = DisplayModelSelectionMenu(staticModels, "SAP AI Core")
+		if err != nil {
+			return fmt.Errorf("failed to select static model: %w", err)
+		}
+		// No deployment ID for static models
+		selectedDeploymentID = ""
+
+	} else {
+		selectedDeployment, err := DisplaySapAiCoreDeploymentSelectionMenu(models, "SAP AI Core")
+		if err != nil {
+			return fmt.Errorf("failed to select dynamic deployment: %w", err)
+		}
+		
+		selectedModel = selectedDeployment.ModelName
+		selectedDeploymentID = selectedDeployment.DeploymentID
+	}
+
+	// Apply the configuration
+	if err := ApplySapAiCoreConfig(ctx, manager, config, selectedModel, selectedDeploymentID); err != nil {
+		return fmt.Errorf("failed to apply configuration: %w", err)
 	}
 
 	return nil
