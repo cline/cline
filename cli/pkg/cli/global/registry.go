@@ -21,7 +21,7 @@ import (
 
 // registryLog outputs a message respecting the current output format
 func registryLog(message string, data map[string]interface{}) {
-	if Config.JsonFormat(){
+	if Config.JsonFormat() {
 		output.OutputStatusMessage("info", message, data)
 	} else {
 		if len(data) > 0 {
@@ -39,7 +39,7 @@ func registryLog(message string, data map[string]interface{}) {
 
 // registryWarning outputs a warning message respecting the current output format
 func registryWarning(message string, err error, data map[string]interface{}) {
-	if Config.JsonFormat(){
+	if Config.JsonFormat() {
 		errData := data
 		if errData == nil {
 			errData = make(map[string]interface{})
@@ -168,7 +168,7 @@ func (r *ClientRegistry) GetDefaultClient(ctx context.Context) (*client.ClineCli
 			// Database is unavailable - Return error instead of attempting cleanup
 			return nil, fmt.Errorf("cannot verify default instance: database unavailable: %w", err)
 		}
-		
+
 		if !exists {
 			// Instance doesn't exist in database but config file references it
 			// This is a stale config - remove it and try to find another instance
@@ -178,17 +178,17 @@ func (r *ClientRegistry) GetDefaultClient(ctx context.Context) (*client.ClineCli
 			} else {
 				registryLog("Removed stale default instance config", map[string]interface{}{
 					"instance": defaultAddr,
-					"reason": "not found in database",
+					"reason":   "not found in database",
 				})
 			}
-			
+
 			// Try to find and set a new default instance
 			instances := r.ListInstances()
 			if len(instances) > 0 {
 				if err := r.EnsureDefaultInstance(instances); err != nil {
 					return nil, fmt.Errorf("failed to set new default instance: %w", err)
 				}
-				
+
 				// Retry with the new default
 				newDefaultAddr := r.GetDefaultInstance()
 				if newDefaultAddr != "" {
@@ -198,7 +198,7 @@ func (r *ClientRegistry) GetDefaultClient(ctx context.Context) (*client.ClineCli
 					return r.GetClient(ctx, newDefaultAddr)
 				}
 			}
-			
+
 			return nil, fmt.Errorf("no default instance configured")
 		}
 	}
@@ -258,7 +258,7 @@ func (r *ClientRegistry) CleanupStaleInstances(ctx context.Context) error {
 			// Try to gracefully shutdown the paired host process before cleanup
 			registryLog("Attempting to shutdown dangling host service", map[string]interface{}{
 				"hostServiceAddress": instance.HostServiceAddress,
-				"coreInstance": instance.Address,
+				"coreInstance":       instance.Address,
 			})
 			r.tryShutdownHostProcess(instance.HostServiceAddress)
 

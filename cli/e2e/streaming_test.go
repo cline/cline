@@ -97,8 +97,8 @@ func TestStreamingVerboseFormats(t *testing.T) {
 	setTempClineDir(t)
 
 	tests := []struct {
-		name   string
-		format string
+		name    string
+		format  string
 		checkFn func(string) bool
 	}{
 		{

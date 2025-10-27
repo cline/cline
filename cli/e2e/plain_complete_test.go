@@ -111,7 +111,7 @@ func TestPlainOutputInstanceKill(t *testing.T) {
 
 	// Create an instance to kill
 	newOut := mustRunCLI(ctx, t, "instance", "new", "--output-format", "plain")
-	
+
 	// Extract address from plain text output
 	lines := strings.Split(newOut, "\n")
 	var address string
@@ -231,9 +231,9 @@ func TestPlainOutputWithVerbose(t *testing.T) {
 	}
 }
 
-// TestPlainOutputInteractiveCommands removed - interactive commands like `auth` 
+// TestPlainOutputInteractiveCommands removed - interactive commands like `auth`
 // cannot be tested in batch mode because they require a TTY. The `auth` command
-// starts an instance (3s) then tries to display an interactive menu with huh, 
+// starts an instance (3s) then tries to display an interactive menu with huh,
 // which hangs waiting for TTY access that will never be available in tests.
 
 // TestPlainOutputNoJSON tests that plain output never contains JSON

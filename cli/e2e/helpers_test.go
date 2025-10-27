@@ -62,23 +62,23 @@ func setTempClineDirWithManualCleanup(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("create temp dir: %v", err)
 	}
-	
+
 	clineDir := filepath.Join(dir, ".cline")
 	if err := os.MkdirAll(clineDir, 0o755); err != nil {
 		t.Fatalf("mkdir clineDir: %v", err)
 	}
 	t.Setenv("CLINE_DIR", clineDir)
-	
+
 	// Register cleanup that attempts removal but ignores errors
 	t.Cleanup(func() {
 		// Give async operations time to complete
 		time.Sleep(100 * time.Millisecond)
-		
+
 		// Attempt to remove, but don't fail if it errors
 		// (git checkpoints may still have open file handles)
 		_ = os.RemoveAll(dir)
 	})
-	
+
 	return clineDir
 }
 
@@ -95,12 +95,12 @@ func runCLI(ctx context.Context, t *testing.T, args ...string) (string, string, 
 	}
 	// propagate env including CLINE_DIR
 	cmd.Env = os.Environ()
-	
+
 	// Set stdin to empty reader to prevent hanging on stdin reads
 	// Without this, commands that try to read stdin (like root command with invalid args)
 	// will block forever waiting for input
 	cmd.Stdin = strings.NewReader("")
-	
+
 	outB, errB := &strings.Builder{}, &strings.Builder{}
 	cmd.Stdout = outB
 	cmd.Stderr = errB
@@ -109,7 +109,7 @@ func runCLI(ctx context.Context, t *testing.T, args ...string) (string, string, 
 	if err != nil {
 		// Check for timeout first - this should fail the test
 		if ctx.Err() == context.DeadlineExceeded {
-			t.Fatalf("Command timed out (context deadline exceeded): %v\nCommand: %s %v\nStdout: %s\nStderr: %s", 
+			t.Fatalf("Command timed out (context deadline exceeded): %v\nCommand: %s %v\nStdout: %s\nStderr: %s",
 				err, bin, args, outB.String(), errB.String())
 		}
 		// Extract exit code if possible

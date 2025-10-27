@@ -88,12 +88,12 @@ func TestErrorExitCodes(t *testing.T) {
 	setTempClineDir(t)
 
 	tests := []struct {
-		name         string
-		args         []string
+		name          string
+		args          []string
 		expectNonZero bool
 	}{
 		// Note: "invalid-command" test removed because by design, the CLI accepts
-		// any text as a task prompt (e.g., "cline nonexistent" treats "nonexistent" 
+		// any text as a task prompt (e.g., "cline nonexistent" treats "nonexistent"
 		// as a prompt, not an invalid command)
 		{"invalid-flag", []string{"version", "--nonexistent-flag"}, true},
 		{"invalid-address", []string{"instance", "kill", "invalid"}, true},
@@ -103,7 +103,7 @@ func TestErrorExitCodes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, _, exitCode := runCLI(ctx, t, tt.args...)
-			
+
 			if tt.expectNonZero && exitCode == 0 {
 				t.Errorf("%s should have non-zero exit code", tt.name)
 			}
@@ -406,8 +406,8 @@ func TestJSONErrorTaskOpenNonexistent(t *testing.T) {
 
 	// Should have error message
 	if errMsg, ok := errorData["error"].(string); ok {
-		if !strings.Contains(strings.ToLower(errMsg), "not found") && 
-		   !strings.Contains(strings.ToLower(errMsg), "does not exist") {
+		if !strings.Contains(strings.ToLower(errMsg), "not found") &&
+			!strings.Contains(strings.ToLower(errMsg), "does not exist") {
 			t.Logf("Note: error message format: %s", errMsg)
 		}
 	}

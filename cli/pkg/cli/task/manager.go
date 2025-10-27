@@ -217,7 +217,7 @@ func (m *Manager) cancelExistingTaskIfNeeded(ctx context.Context) error {
 				if global.Config.JsonFormat() {
 					// Output as JSON status message
 					statusMsg := map[string]interface{}{
-						"type": "status",
+						"type":    "status",
 						"message": "Cancelled existing task to start new one",
 					}
 					if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
@@ -632,14 +632,14 @@ func (m *Manager) ShowConversation(ctx context.Context) error {
 	if err != nil {
 		// Handle specific error cases
 		if errors.Is(err, ErrNoActiveTask) {
-		if global.Config.JsonFormat() {
-			output.OutputStatusMessage("status", "No active task found", map[string]interface{}{
-				"suggestion": "Use 'cline task new' to create a task first",
-			})
-		} else {
-			fmt.Println("No active task found. Use 'cline task new' to create a task first.")
-		}
-		return nil
+			if global.Config.JsonFormat() {
+				output.OutputStatusMessage("status", "No active task found", map[string]interface{}{
+					"suggestion": "Use 'cline task new' to create a task first",
+				})
+			} else {
+				fmt.Println("No active task found. Use 'cline task new' to create a task first.")
+			}
+			return nil
 		}
 		// For other errors (like task busy), we can still show the conversation
 	}
@@ -1217,9 +1217,9 @@ func (m *Manager) loadAndDisplayRecentHistory(ctx context.Context) (int, error) 
 	if global.Config.JsonFormat() {
 		// In JSON mode, output structured status with counts
 		statusMsg := map[string]interface{}{
-			"type":             "status",
-			"message":          "Conversation history",
-			"totalMessages":    totalMessages,
+			"type":              "status",
+			"message":           "Conversation history",
+			"totalMessages":     totalMessages,
 			"displayedMessages": maxHistoryMessages,
 		}
 		if totalMessages <= maxHistoryMessages {
@@ -1328,7 +1328,7 @@ func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey st
 
 	// Set the specific action to true based on actionKey
 	truePtr := func() *bool { b := true; return &b }()
-	
+
 	switch actionKey {
 	case "read_files":
 		settings.AutoApprovalSettings.Actions.ReadFiles = truePtr

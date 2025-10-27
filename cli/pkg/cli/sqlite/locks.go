@@ -19,20 +19,20 @@ import (
 // Handles localhost/127.0.0.1 equivalence by returning both forms.
 func normalizeAddressVariants(address string) []string {
 	variants := []string{address}
-	
+
 	// Extract host and port
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return variants
 	}
-	
+
 	// Add the alternate form for localhost/127.0.0.1
 	if host == "localhost" {
 		variants = append(variants, net.JoinHostPort("127.0.0.1", port))
 	} else if host == "127.0.0.1" {
 		variants = append(variants, net.JoinHostPort("localhost", port))
 	}
-	
+
 	return variants
 }
 
@@ -182,7 +182,7 @@ func (lm *LockManager) GetInstanceInfo(address string) (*common.CoreInstanceInfo
 
 	query := common.SelectInstanceLockByHolderSQL
 	variants := normalizeAddressVariants(address)
-	
+
 	var heldBy, lockTarget string
 	var lockedAt int64
 	var lastErr error
@@ -204,7 +204,7 @@ func (lm *LockManager) GetInstanceInfo(address string) (*common.CoreInstanceInfo
 			lastErr = err
 		}
 	}
-	
+
 	// None of the variants were found
 	if lastErr != nil {
 		return nil, fmt.Errorf("failed to query instance: %w", lastErr)

@@ -12,14 +12,14 @@ import (
 // Any non-JSON text will cause the test to fail
 func assertPureJSON(t *testing.T, output string, commandDesc string) {
 	t.Helper()
-	
+
 	trimmed := strings.TrimSpace(output)
-	
+
 	// Check for empty output
 	if trimmed == "" {
 		t.Fatalf("%s: output is empty", commandDesc)
 	}
-	
+
 	// Must start with { or [
 	if !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "[") {
 		// Show first 100 chars of output for debugging
@@ -29,7 +29,7 @@ func assertPureJSON(t *testing.T, output string, commandDesc string) {
 		}
 		t.Fatalf("%s: JSON output has leading text (text leakage):\n%s", commandDesc, preview)
 	}
-	
+
 	// Must end with } or ]
 	if !strings.HasSuffix(trimmed, "}") && !strings.HasSuffix(trimmed, "]") {
 		// Show last 100 chars of output for debugging
@@ -39,7 +39,7 @@ func assertPureJSON(t *testing.T, output string, commandDesc string) {
 		}
 		t.Fatalf("%s: JSON output has trailing text (text leakage):\n%s", commandDesc, preview)
 	}
-	
+
 	// Must be valid JSON
 	if !json.Valid([]byte(trimmed)) {
 		t.Fatalf("%s: output is not valid JSON:\n%s", commandDesc, trimmed)
@@ -79,7 +79,7 @@ func TestJSONOutputVersion(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected data to be object, got %T", response["data"])
 	}
-	
+
 	// Data should be nested under "result" key per OutputCommandSuccess implementation
 	result, ok := data["result"].(map[string]interface{})
 	if !ok {
@@ -305,18 +305,18 @@ func TestInteractiveCommandsErrorInJSONMode(t *testing.T) {
 	if exit == 0 {
 		t.Error("auth command should error in JSON mode")
 	}
-	
+
 	// Per the plan: Interactive commands output **plain text errors**, NOT JSON
 	// Error should be plain text
 	if json.Valid([]byte(errOut)) {
 		t.Error("interactive command error should be plain text, not JSON")
 	}
-	
+
 	// Should mention it's interactive
 	if !strings.Contains(errOut, "interactive") {
 		t.Error("error should mention interactive mode")
 	}
-	
+
 	// Should be formatted as a standard CLI error
 	if !strings.Contains(errOut, "Error:") {
 		t.Error("error should start with 'Error:'")
@@ -327,11 +327,11 @@ func TestInteractiveCommandsErrorInJSONMode(t *testing.T) {
 	if exit == 0 {
 		t.Error("task chat command should error in JSON mode")
 	}
-	
+
 	if json.Valid([]byte(errOut)) {
 		t.Error("task chat error should be plain text, not JSON")
 	}
-	
+
 	if !strings.Contains(errOut, "interactive") {
 		t.Error("task chat error should mention interactive mode")
 	}
@@ -341,7 +341,7 @@ func TestInteractiveCommandsErrorInJSONMode(t *testing.T) {
 	if exit == 0 {
 		t.Error("root command without args should error in JSON mode")
 	}
-	
+
 	if json.Valid([]byte(errOut)) {
 		t.Error("root command error should be plain text, not JSON")
 	}
@@ -491,50 +491,50 @@ func TestJSONOutputWithVerboseFlag(t *testing.T) {
 
 			// Parse JSONL output (multiple JSON objects, one per line)
 			lines := strings.Split(strings.TrimSpace(out), "\n")
-			
+
 			var finalResult map[string]interface{}
 			var verboseMessages []string
 			var debugMessages []string
-			
+
 			for _, line := range lines {
 				if line == "" {
 					continue
 				}
-				
+
 				// Each line must be valid JSON
 				if !json.Valid([]byte(line)) {
 					t.Fatalf("Line is not valid JSON: %s", line)
 				}
-				
+
 				var obj map[string]interface{}
 				if err := json.Unmarshal([]byte(line), &obj); err != nil {
 					t.Fatalf("failed to parse JSON line: %v\nLine: %s", err, line)
 				}
-				
-			// Check message type
-			if msgType, ok := obj["type"].(string); ok {
-				if msgType == "command" {
-					// Batch command format: check status field
-					if status, ok := obj["status"].(string); ok {
-						if status == "debug" {
-							// Debug message from verbose mode
-							if msg, ok := obj["message"].(string); ok {
-								debugMessages = append(debugMessages, msg)
+
+				// Check message type
+				if msgType, ok := obj["type"].(string); ok {
+					if msgType == "command" {
+						// Batch command format: check status field
+						if status, ok := obj["status"].(string); ok {
+							if status == "debug" {
+								// Debug message from verbose mode
+								if msg, ok := obj["message"].(string); ok {
+									debugMessages = append(debugMessages, msg)
+								}
+							} else if status == "success" {
+								// Final success response
+								finalResult = obj
 							}
-						} else if status == "success" {
-							// Final success response
-							finalResult = obj
 						}
 					}
 				}
 			}
-			}
-			
+
 			// Should have at least a final result
 			if finalResult == nil {
 				t.Fatal("no final result found in output")
 			}
-			
+
 			// Log what we found
 			t.Logf("Debug messages: %d", len(debugMessages))
 			t.Logf("Verbose messages: %d", len(verboseMessages))
@@ -705,7 +705,7 @@ func TestJSONOutputTaskOpen(t *testing.T) {
 	// Create a task first
 	_ = mustRunCLI(ctx, t, "instance", "new")
 	out := mustRunCLI(ctx, t, "task", "new", "test task", "--yolo", "--output-format", "json")
-	
+
 	// Parse to get task ID
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	var taskID string
@@ -758,7 +758,7 @@ func TestJSONOutputTaskView(t *testing.T) {
 
 	// Should produce JSONL (multiple lines of JSON) - validate ENTIRE output first
 	lines := strings.Split(strings.TrimSpace(out), "\n")
-	
+
 	// STRICT: Every line must be valid JSON - no plain text allowed
 	for i, line := range lines {
 		if line == "" {
@@ -768,7 +768,7 @@ func TestJSONOutputTaskView(t *testing.T) {
 			t.Fatalf("Line %d is not valid JSON (text leakage): %s", i, line)
 		}
 	}
-	
+
 	// Additional check: should have at least one JSON line
 	if len(lines) == 0 {
 		t.Fatal("expected at least one line of output")
@@ -881,7 +881,7 @@ func TestJSONOutputTaskSend(t *testing.T) {
 	// Note: This test just verifies the command accepts --output-format json
 	// Actual JSON support for all error cases may not be complete
 	out, errOut, exitCode := runCLI(ctx, t, "task", "send", "continue", "--output-format", "json")
-	
+
 	// Test passes if:
 	// 1. Command succeeded with JSON output, OR
 	// 2. Command failed but didn't complain about the --output-format flag
@@ -898,17 +898,17 @@ func TestJSONOutputTaskSend(t *testing.T) {
 			}
 		}
 	}
-	
+
 	// If failed, check it wasn't due to invalid flag
 	combined := out + errOut
 	if strings.Contains(combined, "unknown flag") || strings.Contains(combined, "invalid flag") {
 		t.Fatal("command doesn't support --output-format flag")
 	}
-	
+
 	// Otherwise test passes - command has the flag, even if not all code paths use it
 }
 
-// TestJSONOutputTaskRestore tests task restore JSON output  
+// TestJSONOutputTaskRestore tests task restore JSON output
 func TestJSONOutputTaskRestore(t *testing.T) {
 	ctx := context.Background()
 	setTempClineDir(t)
@@ -916,22 +916,22 @@ func TestJSONOutputTaskRestore(t *testing.T) {
 	// Create a task
 	_ = mustRunCLI(ctx, t, "instance", "new")
 	_ = mustRunCLI(ctx, t, "task", "new", "test task", "--yolo")
-	
+
 	// Try to restore (may fail if no checkpoints)
 	// Note: This test just verifies the command accepts --output-format json
 	out, errOut, exitCode := runCLI(ctx, t, "task", "restore", "0", "--output-format", "json")
-	
+
 	// Test passes if command didn't complain about the flag
 	combined := out + errOut
 	if strings.Contains(combined, "unknown flag") || strings.Contains(combined, "invalid flag") {
 		t.Fatal("command doesn't support --output-format flag")
 	}
-	
+
 	// If succeeded, should be JSON
 	if exitCode == 0 && json.Valid([]byte(strings.TrimSpace(out))) {
 		return
 	}
-	
+
 	// Otherwise test passes - command has the flag
 }
 
@@ -952,22 +952,22 @@ func TestJSONOutputInstanceNewWithVerbose(t *testing.T) {
 	// Each line must be valid JSON
 	var finalResponse map[string]interface{}
 	debugCount := 0
-	
+
 	for i, line := range lines {
 		if line == "" {
 			continue
 		}
-		
+
 		// Validate each line is JSON
 		if !json.Valid([]byte(line)) {
 			t.Fatalf("line %d is not valid JSON: %s", i, line)
 		}
-		
+
 		var obj map[string]interface{}
 		if err := json.Unmarshal([]byte(line), &obj); err != nil {
 			t.Fatalf("failed to parse JSON line %d: %v\nLine: %s", i, err, line)
 		}
-		
+
 		// Check if this is a debug message or final response
 		if msgType, ok := obj["type"].(string); ok && msgType == "command" {
 			if status, ok := obj["status"].(string); ok {
@@ -997,7 +997,7 @@ func TestJSONOutputInstanceNewWithVerbose(t *testing.T) {
 	if finalResponse == nil {
 		t.Fatal("no final success response found")
 	}
-	
+
 	t.Logf("✓ Validated %d debug messages and 1 success response in JSONL format", debugCount)
 }
 
@@ -1057,7 +1057,7 @@ func TestRegistryTextLeakage(t *testing.T) {
 		if r, ok := data["result"].(map[string]interface{}); ok {
 			result = r
 		}
-		
+
 		// Verify we got structured data about the kill operation
 		if _, ok := result["killedCount"]; !ok {
 			t.Error("response should include killedCount")

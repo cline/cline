@@ -41,8 +41,8 @@ func VerboseLog(command, message string) {
 	if !Config.Verbose {
 		return
 	}
-	
-	if Config.JsonFormat(){
+
+	if Config.JsonFormat() {
 		output.OutputCommandStatus(command, "debug", message, nil)
 	} else {
 		fmt.Println(message)
@@ -408,13 +408,13 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		// This handles the case where we're running from cli/bin/cline
 		devClineCorePath := path.Join(binDir, "..", "..", "dist-standalone", "cline-core.js")
 		devInstallDir := path.Join(binDir, "..", "..", "dist-standalone")
-		
+
 		verboseLogf("Primary location not found, trying development path: %s", devClineCorePath)
-		
+
 		if _, err := os.Stat(devClineCorePath); os.IsNotExist(err) {
 			return nil, fmt.Errorf("cline-core.js not found at '%s' or '%s'. Please ensure you're running from the correct location or reinstall with 'npm install -g cline'", clineCorePath, devClineCorePath)
 		}
-		
+
 		finalClineCorePath = devClineCorePath
 		finalInstallDir = devInstallDir
 		verboseLogf("Using development mode: cline-core.js found at %s", finalClineCorePath)
@@ -467,7 +467,7 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 	realNodeModules := path.Join(finalInstallDir, "node_modules")
 	fakeNodeModules := path.Join(finalInstallDir, "fake_node_modules")
 	nodePath := fmt.Sprintf("%s%c%s", realNodeModules, os.PathListSeparator, fakeNodeModules)
-	
+
 	env = append(env,
 		fmt.Sprintf("NODE_PATH=%s", nodePath),
 		"GRPC_TRACE=all",
@@ -475,7 +475,7 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		"NODE_ENV=development",
 	)
 	cmd.Env = env
-	
+
 	verboseLogf("NODE_PATH set to: %s", nodePath)
 
 	if err := cmd.Start(); err != nil {

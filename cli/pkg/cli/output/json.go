@@ -22,22 +22,22 @@ func OutputStatusMessage(msgType, message string, data map[string]interface{}) e
 		"type":    msgType,
 		"message": message,
 	}
-	
+
 	if data != nil {
 		for k, v := range data {
 			obj[k] = v
 		}
 	}
-	
+
 	return OutputJSONLine(obj)
 }
 
 // JSONResponse represents a standard CLI JSON response
 type JSONResponse struct {
-	Status  string      `json:"status"`            // "success" or "error"
-	Command string      `json:"command"`           // e.g., "instance list"
-	Data    interface{} `json:"data,omitempty"`    // Response data (only for success)
-	Error   string      `json:"error,omitempty"`   // Error message (only for error)
+	Status  string      `json:"status"`          // "success" or "error"
+	Command string      `json:"command"`         // e.g., "instance list"
+	Data    interface{} `json:"data,omitempty"`  // Response data (only for success)
+	Error   string      `json:"error,omitempty"` // Error message (only for error)
 }
 
 // FormatJSONResponse creates a JSON response string
@@ -75,15 +75,15 @@ func OutputCommandStatus(command, status, message string, data map[string]interf
 		"command": command,
 		"status":  status,
 	}
-	
+
 	if message != "" {
 		obj["message"] = message
 	}
-	
+
 	if data != nil {
 		obj["data"] = data
 	}
-	
+
 	return OutputJSONLine(obj)
 }
 

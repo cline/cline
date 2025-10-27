@@ -24,9 +24,9 @@ func outputVerbose(format string, args ...interface{}) {
 	if !global.Config.Verbose {
 		return
 	}
-	
+
 	message := fmt.Sprintf(format, args...)
-	
+
 	if global.Config.JsonFormat() {
 		// Output as JSONL immediately
 		output.OutputStatusMessage("verbose", message, nil)
@@ -78,7 +78,7 @@ func ensureTaskManager(ctx context.Context, address string) error {
 			if err := ensureInstanceAtAddress(ctx, address); err != nil {
 				return fmt.Errorf("failed to ensure instance at address %s: %w", address, err)
 			}
-			
+
 			taskManager, err = task.NewManagerForAddress(ctx, address)
 			instanceAddress = address
 		} else {
@@ -343,7 +343,7 @@ func newTaskSendCommand() *cobra.Command {
 				if err := taskManager.SetModeAndSendMessage(ctx, mode, message, images, files); err != nil {
 					return fmt.Errorf("failed to set mode and send message: %w", err)
 				}
-				
+
 				// Check for JSON output mode
 				if global.Config.JsonFormat() {
 					data := map[string]interface{}{
@@ -353,7 +353,7 @@ func newTaskSendCommand() *cobra.Command {
 					}
 					return output.OutputJSONSuccess("task send", data)
 				}
-				
+
 				fmt.Printf("Mode set to %s and message sent successfully.\n", mode)
 
 			} else {
@@ -369,7 +369,7 @@ func newTaskSendCommand() *cobra.Command {
 				if err := taskManager.SendMessage(ctx, message, images, files, approveStr); err != nil {
 					return err
 				}
-				
+
 				// Check for JSON output mode
 				if global.Config.JsonFormat() {
 					data := map[string]interface{}{
@@ -378,7 +378,7 @@ func newTaskSendCommand() *cobra.Command {
 					}
 					return output.OutputJSONSuccess("task send", data)
 				}
-				
+
 				fmt.Printf("Message sent successfully.\n")
 			}
 
@@ -411,7 +411,7 @@ func newTaskChatCommand() *cobra.Command {
 			// Interactive commands cannot work with JSON output
 			return global.Config.MustNotBeJSON("task chat")
 		},
-		Args:    cobra.NoArgs,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Check for JSON output mode - not supported for interactive commands
 			// Per the plan: Interactive commands output PLAIN TEXT errors, not JSON
@@ -531,7 +531,7 @@ func newTaskListCommand() *cobra.Command {
 					}
 					tasks = append(tasks, taskData)
 				}
-				
+
 				data := map[string]interface{}{
 					"tasks": tasks,
 					"total": len(resp.Tasks),

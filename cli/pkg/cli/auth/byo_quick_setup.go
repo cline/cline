@@ -133,7 +133,6 @@ func validateBaseURL(baseURL string, providerEnum cline.ApiProvider) error {
 	return nil
 }
 
-
 // validateQuickSetupProvider validates the provider ID and returns the enum value
 // Returns error if provider is invalid or not supported for quick setup
 func validateQuickSetupProvider(providerID string) (cline.ApiProvider, error) {

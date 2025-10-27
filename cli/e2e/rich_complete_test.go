@@ -110,7 +110,7 @@ func TestRichOutputInstanceKill(t *testing.T) {
 
 	// Create an instance to kill
 	newOut := mustRunCLI(ctx, t, "instance", "new", "--output-format", "rich")
-	
+
 	// Extract address from rich text output
 	lines := strings.Split(newOut, "\n")
 	var address string
@@ -230,9 +230,9 @@ func TestRichOutputWithVerbose(t *testing.T) {
 	}
 }
 
-// TestRichOutputInteractiveCommands removed - interactive commands like `auth` 
+// TestRichOutputInteractiveCommands removed - interactive commands like `auth`
 // cannot be tested in batch mode because they require a TTY. The `auth` command
-// starts an instance (3s) then tries to display an interactive menu with huh, 
+// starts an instance (3s) then tries to display an interactive menu with huh,
 // which hangs waiting for TTY access that will never be available in tests.
 
 // TestRichOutputNoJSON tests that rich output never contains JSON
@@ -373,7 +373,7 @@ func TestRichOutputTableFormat(t *testing.T) {
 
 	// Rich format may use markdown tables or formatted tables
 	// Check for table-like structure (pipe characters or structured layout)
-	hasTableStructure := strings.Contains(out, "|") || 
+	hasTableStructure := strings.Contains(out, "|") ||
 		strings.Contains(out, "ADDRESS") ||
 		strings.Contains(out, "STATUS")
 

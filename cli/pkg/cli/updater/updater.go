@@ -29,7 +29,7 @@ type npmRegistryResponse struct {
 }
 
 const (
-	checkInterval = 24 * time.Hour
+	checkInterval  = 24 * time.Hour
 	requestTimeout = 3 * time.Second
 )
 

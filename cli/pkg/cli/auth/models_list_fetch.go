@@ -40,7 +40,6 @@ func ConvertOpenRouterModelsToInterface(models map[string]*cline.OpenRouterModel
 	return result
 }
 
-
 // FetchOpenAiModels fetches available OpenAI models from Cline Core
 // Takes the API key and returns a list of model IDs
 func FetchOpenAiModels(ctx context.Context, manager *task.Manager, baseURL, apiKey string) ([]string, error) {

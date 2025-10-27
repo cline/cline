@@ -15,23 +15,23 @@ import (
 // BedrockConfig holds all AWS Bedrock-specific configuration fields
 type BedrockConfig struct {
 	// Profile authentication fields
-	UseProfile              bool   // Always true for successful config
-	Profile                 string // Optional: AWS profile name (empty = default)
-	Region                  string // Required: AWS region
-	Endpoint                string // Optional: Custom VPC endpoint URL
-	
+	UseProfile bool   // Always true for successful config
+	Profile    string // Optional: AWS profile name (empty = default)
+	Region     string // Required: AWS region
+	Endpoint   string // Optional: Custom VPC endpoint URL
+
 	// Optional features
-	UseCrossRegionInference bool   // Optional: Enable cross-region inference
-	UseGlobalInference      bool   // Optional: Use global inference endpoint
-	UsePromptCache          bool   // Optional: Enable prompt caching
-	
+	UseCrossRegionInference bool // Optional: Enable cross-region inference
+	UseGlobalInference      bool // Optional: Use global inference endpoint
+	UsePromptCache          bool // Optional: Enable prompt caching
+
 	// Authentication method (always "profile")
-	Authentication          string // Always set to "profile"
-	
+	Authentication string // Always set to "profile"
+
 	// Legacy fields (no longer used in profile-only flow)
-	AccessKey               string // No longer used
-	SecretKey               string // No longer used
-	SessionToken            string // No longer used
+	AccessKey    string // No longer used
+	SecretKey    string // No longer used
+	SessionToken string // No longer used
 }
 
 // PromptForBedrockConfig displays a profile-first authentication form for Bedrock configuration

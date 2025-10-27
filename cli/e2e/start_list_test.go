@@ -69,7 +69,7 @@ func TestTaskNewDefault(t *testing.T) {
 
 	// Start one instance
 	_ = mustRunCLI(ctx, t, "instance", "new")
-	
+
 	// Wait for instance to register in SQLite
 	var out common.InstancesOutput
 	waitFor(t, defaultTimeout, func() (bool, string) {
@@ -79,7 +79,7 @@ func TestTaskNewDefault(t *testing.T) {
 		}
 		return false, "waiting for instance to appear in registry"
 	})
-	
+
 	if len(out.CoreInstances) != 1 {
 		t.Fatalf("expected 1 instance, got %d", len(out.CoreInstances))
 	}
@@ -111,7 +111,7 @@ func TestCrashCleanup(t *testing.T) {
 		}
 		return false, fmt.Sprintf("waiting for 2 instances to appear in registry (have %d)", len(out.CoreInstances))
 	})
-	
+
 	if len(out.CoreInstances) < 2 {
 		t.Fatalf("expected at least 2 instances, got %d", len(out.CoreInstances))
 	}

@@ -20,7 +20,7 @@ type OutputCoordinator struct {
 	mu              sync.Mutex
 	program         *tea.Program
 	inputVisible    atomic.Bool
-	inputModel      *InputModel      // Reference to current input model for state restoration
+	inputModel      *InputModel       // Reference to current input model for state restoration
 	restartCallback func(*InputModel) // Callback to restart the program with preserved state
 }
 

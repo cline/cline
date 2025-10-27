@@ -14,7 +14,7 @@ import (
 // InputType represents the type of input being collected
 type InputType int
 
-const INPUT_WIDTH = 46 
+const INPUT_WIDTH = 46
 
 const (
 	InputTypeMessage InputType = iota
@@ -24,11 +24,11 @@ const (
 
 // InputSubmitMsg is sent when the user submits input
 type InputSubmitMsg struct {
-	Value          string
-	InputType      InputType
-	Approved       bool // For approval type
-	NeedsFeedback  bool // For approval type
-	NoAskAgain     bool // For approval type - indicates "don't ask again" was selected
+	Value         string
+	InputType     InputType
+	Approved      bool // For approval type
+	NeedsFeedback bool // For approval type
+	NoAskAgain    bool // For approval type - indicates "don't ask again" was selected
 }
 
 // InputCancelMsg is sent when the user cancels input (Ctrl+C)
@@ -36,8 +36,8 @@ type InputCancelMsg struct{}
 
 // ChangeInputTypeMsg changes the current input type
 type ChangeInputTypeMsg struct {
-	InputType InputType
-	Title     string
+	InputType   InputType
+	Title       string
 	Placeholder string
 }
 
@@ -57,7 +57,7 @@ type InputModel struct {
 	placeholder string
 	currentMode string // "plan" or "act"
 	width       int
-	lastHeight  int    // Track height for cleanup on submit
+	lastHeight  int // Track height for cleanup on submit
 
 	// For approval type
 	approvalOptions []string
@@ -120,7 +120,7 @@ func NewInputModel(inputType InputType, title, placeholder, currentMode string) 
 	ta.Focus()
 	ta.CharLimit = 0
 	ta.ShowLineNumbers = false
-	ta.Prompt = ""  // Remove prompt prefix (this is what adds the inner border!)
+	ta.Prompt = "" // Remove prompt prefix (this is what adds the inner border!)
 	ta.SetHeight(5)
 	// Don't set width here - let WindowSizeMsg handle it
 	ta.SetWidth(INPUT_WIDTH)
@@ -138,11 +138,11 @@ func NewInputModel(inputType InputType, title, placeholder, currentMode string) 
 		cursorColor = lipgloss.Color("39") // Blue for act
 	}
 
-	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()   // No cursor line highlighting
-	ta.FocusedStyle.EndOfBuffer = lipgloss.NewStyle()  // No end-of-buffer styling
+	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()  // No cursor line highlighting
+	ta.FocusedStyle.EndOfBuffer = lipgloss.NewStyle() // No end-of-buffer styling
 	ta.FocusedStyle.Placeholder = styles.placeholder
 	ta.FocusedStyle.Text = styles.textArea
-	ta.FocusedStyle.Prompt = lipgloss.NewStyle()       // No prompt styling
+	ta.FocusedStyle.Prompt = lipgloss.NewStyle() // No prompt styling
 	ta.Cursor.Style = lipgloss.NewStyle().Foreground(cursorColor)
 	ta.Cursor.TextStyle = styles.textArea
 
@@ -411,7 +411,7 @@ func (m *InputModel) Clone() *InputModel {
 	ta.ShowLineNumbers = false
 	ta.Prompt = ""
 	ta.SetHeight(5)
-	ta.SetWidth(INPUT_WIDTH) 
+	ta.SetWidth(INPUT_WIDTH)
 	ta.Focus()
 
 	// Configure keybindings

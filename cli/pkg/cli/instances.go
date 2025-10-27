@@ -184,7 +184,7 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 			}
 			return output.OutputJSONSuccess("instance kill", data)
 		}
-		
+
 		if skippedNonCLI > 0 {
 			fmt.Printf("No CLI instances to kill. Skipped %d JetBrains instance(s).\n", skippedNonCLI)
 		} else {

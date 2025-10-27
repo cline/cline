@@ -135,16 +135,16 @@ import (
 
 // Provider constants
 const (
-	ANTHROPIC = "anthropic"
-	OPENROUTER = "openrouter"
-	BEDROCK = "bedrock"
-	OPENAI = "openai"
-	OLLAMA = "ollama"
-	GEMINI = "gemini"
+	ANTHROPIC     = "anthropic"
+	OPENROUTER    = "openrouter"
+	BEDROCK       = "bedrock"
+	OPENAI        = "openai"
+	OLLAMA        = "ollama"
+	GEMINI        = "gemini"
 	OPENAI_NATIVE = "openai-native"
-	XAI = "xai"
-	CEREBRAS = "cerebras"
-	OCA = "oca"
+	XAI           = "xai"
+	CEREBRAS      = "cerebras"
+	OCA           = "oca"
 )
 
 // AllProviders returns a slice of enabled provider IDs for the CLI build.
@@ -176,26 +176,26 @@ type ConfigField struct {
 
 // ModelInfo represents model capabilities and pricing
 type ModelInfo struct {
-	MaxTokens        int     `json:"maxTokens,omitempty"`
-	ContextWindow    int     `json:"contextWindow,omitempty"`
-	SupportsImages   bool    `json:"supportsImages"`
-	SupportsPromptCache bool `json:"supportsPromptCache"`
-	InputPrice       float64 `json:"inputPrice,omitempty"`
-	OutputPrice      float64 `json:"outputPrice,omitempty"`
-	CacheWritesPrice float64 `json:"cacheWritesPrice,omitempty"`
-	CacheReadsPrice  float64 `json:"cacheReadsPrice,omitempty"`
-	Description      string  `json:"description,omitempty"`
+	MaxTokens           int     `json:"maxTokens,omitempty"`
+	ContextWindow       int     `json:"contextWindow,omitempty"`
+	SupportsImages      bool    `json:"supportsImages"`
+	SupportsPromptCache bool    `json:"supportsPromptCache"`
+	InputPrice          float64 `json:"inputPrice,omitempty"`
+	OutputPrice         float64 `json:"outputPrice,omitempty"`
+	CacheWritesPrice    float64 `json:"cacheWritesPrice,omitempty"`
+	CacheReadsPrice     float64 `json:"cacheReadsPrice,omitempty"`
+	Description         string  `json:"description,omitempty"`
 }
 
 // ProviderDefinition represents a provider's metadata and requirements
 type ProviderDefinition struct {
-	ID              string                 `json:"id"`
-	Name            string                 `json:"name"`
-	RequiredFields  []ConfigField          `json:"requiredFields"`
-	OptionalFields  []ConfigField          `json:"optionalFields"`
-	Models          map[string]ModelInfo   `json:"models"`
-	DefaultModelID  string                 `json:"defaultModelId"`
-	HasDynamicModels bool                  `json:"hasDynamicModels"`
+	ID                string               `json:"id"`
+	Name              string               `json:"name"`
+	RequiredFields    []ConfigField        `json:"requiredFields"`
+	OptionalFields    []ConfigField        `json:"optionalFields"`
+	Models            map[string]ModelInfo `json:"models"`
+	DefaultModelID    string               `json:"defaultModelId"`
+	HasDynamicModels  bool                 `json:"hasDynamicModels"`
 	SetupInstructions string               `json:"setupInstructions"`
 }
 
@@ -1281,12 +1281,12 @@ func GetProviderDefinition(providerID string) (*ProviderDefinition, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	def, exists := definitions[providerID]
 	if !exists {
 		return nil, fmt.Errorf("provider %s not found", providerID)
 	}
-	
+
 	return &def, nil
 }
 
@@ -1296,134 +1296,134 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	modelDefinitions, err := GetModelDefinitions()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	definitions := make(map[string]ProviderDefinition)
-	
+
 	// Anthropic (Claude)
 	definitions["anthropic"] = ProviderDefinition{
-		ID:              "anthropic",
-		Name:            "Anthropic (Claude)",
-		RequiredFields:  getFieldsByProvider("anthropic", configFields, true),
-		OptionalFields:  getFieldsByProvider("anthropic", configFields, false),
-		Models:          modelDefinitions["anthropic"],
-		DefaultModelID:  "claude-sonnet-4-5-20250929",
-		HasDynamicModels: false,
+		ID:                "anthropic",
+		Name:              "Anthropic (Claude)",
+		RequiredFields:    getFieldsByProvider("anthropic", configFields, true),
+		OptionalFields:    getFieldsByProvider("anthropic", configFields, false),
+		Models:            modelDefinitions["anthropic"],
+		DefaultModelID:    "claude-sonnet-4-5-20250929",
+		HasDynamicModels:  false,
 		SetupInstructions: `Get your API key from https://console.anthropic.com/`,
 	}
 
 	// OpenRouter
 	definitions["openrouter"] = ProviderDefinition{
-		ID:              "openrouter",
-		Name:            "OpenRouter",
-		RequiredFields:  getFieldsByProvider("openrouter", configFields, true),
-		OptionalFields:  getFieldsByProvider("openrouter", configFields, false),
-		Models:          modelDefinitions["openrouter"],
-		DefaultModelID:  "",
-		HasDynamicModels: true,
+		ID:                "openrouter",
+		Name:              "OpenRouter",
+		RequiredFields:    getFieldsByProvider("openrouter", configFields, true),
+		OptionalFields:    getFieldsByProvider("openrouter", configFields, false),
+		Models:            modelDefinitions["openrouter"],
+		DefaultModelID:    "",
+		HasDynamicModels:  true,
 		SetupInstructions: `Get your API key from https://openrouter.ai/keys`,
 	}
 
 	// AWS Bedrock
 	definitions["bedrock"] = ProviderDefinition{
-		ID:              "bedrock",
-		Name:            "AWS Bedrock",
-		RequiredFields:  getFieldsByProvider("bedrock", configFields, true),
-		OptionalFields:  getFieldsByProvider("bedrock", configFields, false),
-		Models:          modelDefinitions["bedrock"],
-		DefaultModelID:  "anthropic.claude-sonnet-4-20250514-v1",
-		HasDynamicModels: false,
+		ID:                "bedrock",
+		Name:              "AWS Bedrock",
+		RequiredFields:    getFieldsByProvider("bedrock", configFields, true),
+		OptionalFields:    getFieldsByProvider("bedrock", configFields, false),
+		Models:            modelDefinitions["bedrock"],
+		DefaultModelID:    "anthropic.claude-sonnet-4-20250514-v1",
+		HasDynamicModels:  false,
 		SetupInstructions: `Configure AWS credentials with Bedrock access permissions`,
 	}
 
 	// OpenAI Compatible
 	definitions["openai"] = ProviderDefinition{
-		ID:              "openai",
-		Name:            "OpenAI Compatible",
-		RequiredFields:  getFieldsByProvider("openai", configFields, true),
-		OptionalFields:  getFieldsByProvider("openai", configFields, false),
-		Models:          modelDefinitions["openai"],
-		DefaultModelID:  "",
-		HasDynamicModels: true,
+		ID:                "openai",
+		Name:              "OpenAI Compatible",
+		RequiredFields:    getFieldsByProvider("openai", configFields, true),
+		OptionalFields:    getFieldsByProvider("openai", configFields, false),
+		Models:            modelDefinitions["openai"],
+		DefaultModelID:    "",
+		HasDynamicModels:  true,
 		SetupInstructions: `Get your API key from https://platform.openai.com/api-keys`,
 	}
 
 	// Ollama
 	definitions["ollama"] = ProviderDefinition{
-		ID:              "ollama",
-		Name:            "Ollama",
-		RequiredFields:  getFieldsByProvider("ollama", configFields, true),
-		OptionalFields:  getFieldsByProvider("ollama", configFields, false),
-		Models:          modelDefinitions["ollama"],
-		DefaultModelID:  "",
-		HasDynamicModels: true,
+		ID:                "ollama",
+		Name:              "Ollama",
+		RequiredFields:    getFieldsByProvider("ollama", configFields, true),
+		OptionalFields:    getFieldsByProvider("ollama", configFields, false),
+		Models:            modelDefinitions["ollama"],
+		DefaultModelID:    "",
+		HasDynamicModels:  true,
 		SetupInstructions: `Install Ollama locally and ensure it's running on the specified port`,
 	}
 
 	// Google Gemini
 	definitions["gemini"] = ProviderDefinition{
-		ID:              "gemini",
-		Name:            "Google Gemini",
-		RequiredFields:  getFieldsByProvider("gemini", configFields, true),
-		OptionalFields:  getFieldsByProvider("gemini", configFields, false),
-		Models:          modelDefinitions["gemini"],
-		DefaultModelID:  "gemini-2.5-pro",
-		HasDynamicModels: false,
+		ID:                "gemini",
+		Name:              "Google Gemini",
+		RequiredFields:    getFieldsByProvider("gemini", configFields, true),
+		OptionalFields:    getFieldsByProvider("gemini", configFields, false),
+		Models:            modelDefinitions["gemini"],
+		DefaultModelID:    "gemini-2.5-pro",
+		HasDynamicModels:  false,
 		SetupInstructions: `Get your API key from https://makersuite.google.com/app/apikey`,
 	}
 
 	// OpenAI
 	definitions["openai-native"] = ProviderDefinition{
-		ID:              "openai-native",
-		Name:            "OpenAI",
-		RequiredFields:  getFieldsByProvider("openai-native", configFields, true),
-		OptionalFields:  getFieldsByProvider("openai-native", configFields, false),
-		Models:          modelDefinitions["openai-native"],
-		DefaultModelID:  "gpt-5-chat-latest",
-		HasDynamicModels: true,
+		ID:                "openai-native",
+		Name:              "OpenAI",
+		RequiredFields:    getFieldsByProvider("openai-native", configFields, true),
+		OptionalFields:    getFieldsByProvider("openai-native", configFields, false),
+		Models:            modelDefinitions["openai-native"],
+		DefaultModelID:    "gpt-5-chat-latest",
+		HasDynamicModels:  true,
 		SetupInstructions: `Get your API key from your API provider`,
 	}
 
 	// X AI (Grok)
 	definitions["xai"] = ProviderDefinition{
-		ID:              "xai",
-		Name:            "X AI (Grok)",
-		RequiredFields:  getFieldsByProvider("xai", configFields, true),
-		OptionalFields:  getFieldsByProvider("xai", configFields, false),
-		Models:          modelDefinitions["xai"],
-		DefaultModelID:  "grok-4",
-		HasDynamicModels: false,
+		ID:                "xai",
+		Name:              "X AI (Grok)",
+		RequiredFields:    getFieldsByProvider("xai", configFields, true),
+		OptionalFields:    getFieldsByProvider("xai", configFields, false),
+		Models:            modelDefinitions["xai"],
+		DefaultModelID:    "grok-4",
+		HasDynamicModels:  false,
 		SetupInstructions: `Get your API key from https://console.x.ai/`,
 	}
 
 	// Cerebras
 	definitions["cerebras"] = ProviderDefinition{
-		ID:              "cerebras",
-		Name:            "Cerebras",
-		RequiredFields:  getFieldsByProvider("cerebras", configFields, true),
-		OptionalFields:  getFieldsByProvider("cerebras", configFields, false),
-		Models:          modelDefinitions["cerebras"],
-		DefaultModelID:  "qwen-3-coder-480b-free",
-		HasDynamicModels: false,
+		ID:                "cerebras",
+		Name:              "Cerebras",
+		RequiredFields:    getFieldsByProvider("cerebras", configFields, true),
+		OptionalFields:    getFieldsByProvider("cerebras", configFields, false),
+		Models:            modelDefinitions["cerebras"],
+		DefaultModelID:    "qwen-3-coder-480b-free",
+		HasDynamicModels:  false,
 		SetupInstructions: `Get your API key from https://cloud.cerebras.ai/`,
 	}
 
 	// Oca
 	definitions["oca"] = ProviderDefinition{
-		ID:              "oca",
-		Name:            "Oca",
-		RequiredFields:  getFieldsByProvider("oca", configFields, true),
-		OptionalFields:  getFieldsByProvider("oca", configFields, false),
-		Models:          modelDefinitions["oca"],
-		DefaultModelID:  "",
-		HasDynamicModels: false,
+		ID:                "oca",
+		Name:              "Oca",
+		RequiredFields:    getFieldsByProvider("oca", configFields, true),
+		OptionalFields:    getFieldsByProvider("oca", configFields, false),
+		Models:            modelDefinitions["oca"],
+		DefaultModelID:    "",
+		HasDynamicModels:  false,
 		SetupInstructions: `Configure Oca API credentials`,
 	}
-	
+
 	return definitions, nil
 }
 
@@ -1440,18 +1440,18 @@ func IsValidProvider(providerID string) bool {
 // GetProviderDisplayName returns a human-readable name for a provider
 func GetProviderDisplayName(providerID string) string {
 	displayNames := map[string]string{
-		"anthropic": "Anthropic (Claude)",
-		"openrouter": "OpenRouter",
-		"bedrock": "AWS Bedrock",
-		"openai": "OpenAI Compatible",
-		"ollama": "Ollama",
-		"gemini": "Google Gemini",
+		"anthropic":     "Anthropic (Claude)",
+		"openrouter":    "OpenRouter",
+		"bedrock":       "AWS Bedrock",
+		"openai":        "OpenAI Compatible",
+		"ollama":        "Ollama",
+		"gemini":        "Google Gemini",
 		"openai-native": "OpenAI",
-		"xai": "X AI (Grok)",
-		"cerebras": "Cerebras",
-		"oca": "Oca",
+		"xai":           "X AI (Grok)",
+		"cerebras":      "Cerebras",
+		"oca":           "Oca",
 	}
-	
+
 	if name, exists := displayNames[providerID]; exists {
 		return name
 	}
@@ -1462,14 +1462,14 @@ func GetProviderDisplayName(providerID string) string {
 // Uses category field as primary filter with override support
 func getFieldsByProvider(providerID string, allFields []ConfigField, required bool) []ConfigField {
 	var fields []ConfigField
-	
+
 	for _, field := range allFields {
 		fieldName := strings.ToLower(field.Name)
 		fieldCategory := strings.ToLower(field.Category)
 		providerName := strings.ToLower(providerID)
-		
+
 		isRelevant := false
-		
+
 		// Priority 1: Check manual overrides FIRST (from GetFieldOverride in this package)
 		if override, hasOverride := GetFieldOverride(providerID, field.Name); hasOverride {
 			isRelevant = override
@@ -1494,11 +1494,11 @@ func getFieldsByProvider(providerID string, allFields []ConfigField, required bo
 				}
 			}
 		}
-		
+
 		if isRelevant && field.Required == required {
 			fields = append(fields, field)
 		}
 	}
-	
+
 	return fields
 }

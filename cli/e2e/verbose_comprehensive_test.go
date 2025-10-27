@@ -16,45 +16,45 @@ func TestVerboseCrossCommandConsistency(t *testing.T) {
 
 	// Define command groups with their expected verbose behaviors
 	commandTests := []struct {
-		name        string
-		args        []string
-		description string
-		expectJSON  bool // Whether JSON output should be valid
+		name            string
+		args            []string
+		description     string
+		expectJSON      bool // Whether JSON output should be valid
 		expectMultiLine bool // Whether verbose should produce multiple lines
 	}{
 		{
-			name:        "version",
-			args:        []string{"version"},
-			description: "Version command should support verbose output",
-			expectJSON:  true,
+			name:            "version",
+			args:            []string{"version"},
+			description:     "Version command should support verbose output",
+			expectJSON:      true,
 			expectMultiLine: false, // Version is a simple command
 		},
 		{
-			name:        "instance-list", 
-			args:        []string{"instance", "list"},
-			description: "Instance list should show verbose details",
-			expectJSON:  true,
+			name:            "instance-list",
+			args:            []string{"instance", "list"},
+			description:     "Instance list should show verbose details",
+			expectJSON:      true,
 			expectMultiLine: false, // List commands are typically single response
 		},
 		{
-			name:        "instance-new",
-			args:        []string{"instance", "new"},
-			description: "Instance creation should show verbose progress",
-			expectJSON:  true,
+			name:            "instance-new",
+			args:            []string{"instance", "new"},
+			description:     "Instance creation should show verbose progress",
+			expectJSON:      true,
 			expectMultiLine: true, // Instance creation has multiple steps
 		},
 		{
-			name:        "config-list",
-			args:        []string{"config", "list"},
-			description: "Config list should show verbose configuration details",
-			expectJSON:  true,
+			name:            "config-list",
+			args:            []string{"config", "list"},
+			description:     "Config list should show verbose configuration details",
+			expectJSON:      true,
 			expectMultiLine: false, // Config list is typically single response
 		},
 		{
-			name:        "logs-path",
-			args:        []string{"logs", "path"},
-			description: "Logs path should work with verbose",
-			expectJSON:  true,
+			name:            "logs-path",
+			args:            []string{"logs", "path"},
+			description:     "Logs path should work with verbose",
+			expectJSON:      true,
 			expectMultiLine: false, // Simple informational command
 		},
 	}
@@ -83,14 +83,14 @@ func TestVerboseCrossCommandConsistency(t *testing.T) {
 			// Validate JSON structure
 			if tt.expectJSON {
 				validateVerboseJSONOutput(t, tt.name, verboseOut, tt.expectMultiLine)
-				
+
 				// Compare with normal output structure
 				compareOutputStructure(t, tt.name, normalOut, verboseOut)
 			}
 
 			// Verbose should generally produce more output
 			if len(verboseOut) < len(normalOut) && tt.expectMultiLine {
-				t.Errorf("%s: verbose output (%d chars) should be longer than normal output (%d chars)", 
+				t.Errorf("%s: verbose output (%d chars) should be longer than normal output (%d chars)",
 					tt.description, len(verboseOut), len(normalOut))
 			}
 
@@ -107,7 +107,7 @@ func validateVerboseJSONOutput(t *testing.T, testName, output string, expectMult
 	t.Helper()
 
 	lines := strings.Split(strings.TrimSpace(output), "\n")
-	
+
 	if expectMultiLine && len(lines) < 2 {
 		t.Errorf("%s: verbose JSON should have multiple lines, got %d", testName, len(lines))
 	}
@@ -115,7 +115,7 @@ func validateVerboseJSONOutput(t *testing.T, testName, output string, expectMult
 	validJSONLines := 0
 	hasStatusUpdate := false
 	hasResponse := false
-	
+
 	for i, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -184,7 +184,7 @@ func compareOutputStructure(t *testing.T, testName, normalOut, verboseOut string
 	// Parse last line of verbose output (should be final response)
 	verboseLines := strings.Split(strings.TrimSpace(verboseOut), "\n")
 	lastLine := verboseLines[len(verboseLines)-1]
-	
+
 	var verboseData map[string]interface{}
 	if err := json.Unmarshal([]byte(lastLine), &verboseData); err != nil {
 		t.Errorf("%s: verbose final line should be valid JSON: %v", testName, err)
@@ -195,7 +195,7 @@ func compareOutputStructure(t *testing.T, testName, normalOut, verboseOut string
 	if normalStatus, ok := normalData["status"]; ok {
 		if verboseStatus, ok := verboseData["status"]; ok {
 			if normalStatus != verboseStatus {
-				t.Errorf("%s: status differs between normal (%v) and verbose (%v)", 
+				t.Errorf("%s: status differs between normal (%v) and verbose (%v)",
 					testName, normalStatus, verboseStatus)
 			}
 		}
@@ -218,28 +218,28 @@ func TestVerboseFlagValidation(t *testing.T) {
 	setTempClineDir(t)
 
 	tests := []struct {
-		name     string
-		args     []string
+		name        string
+		args        []string
 		expectError bool
 	}{
 		{
-			name:     "verbose-with-json",
-			args:     []string{"version", "--verbose", "--output-format", "json"},
+			name:        "verbose-with-json",
+			args:        []string{"version", "--verbose", "--output-format", "json"},
 			expectError: false,
 		},
 		{
-			name:     "verbose-with-plain", 
-			args:     []string{"version", "--verbose", "--output-format", "plain"},
+			name:        "verbose-with-plain",
+			args:        []string{"version", "--verbose", "--output-format", "plain"},
 			expectError: false,
 		},
 		{
-			name:     "verbose-with-rich",
-			args:     []string{"version", "--verbose", "--output-format", "rich"},
+			name:        "verbose-with-rich",
+			args:        []string{"version", "--verbose", "--output-format", "rich"},
 			expectError: false,
 		},
 		{
-			name:     "verbose-only",
-			args:     []string{"version", "--verbose"},
+			name:        "verbose-only",
+			args:        []string{"version", "--verbose"},
 			expectError: false, // Should use default format
 		},
 	}
@@ -247,7 +247,7 @@ func TestVerboseFlagValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, _, exit := runCLI(ctx, t, tt.args...)
-			
+
 			if tt.expectError && exit == 0 {
 				t.Errorf("expected command to fail but it succeeded")
 			}
@@ -284,7 +284,7 @@ func TestVerboseOutputIntegrity(t *testing.T) {
 		// Each corresponding line should have same structure (though values may differ)
 		for j := 0; j < len(lines1) && j < len(lines2); j++ {
 			var data1, data2 map[string]interface{}
-			
+
 			if err := json.Unmarshal([]byte(lines1[j]), &data1); err != nil {
 				continue // Skip non-JSON lines
 			}
@@ -336,10 +336,10 @@ func TestVerboseErrorHandling(t *testing.T) {
 			}
 
 			// Even in error cases, if JSON output is requested and produced, it should be valid
-			if strings.Contains(strings.Join(tt.args, " "), "--output-format") && 
-			   strings.Contains(strings.Join(tt.args, " "), "json") && 
-			   out != "" {
-				
+			if strings.Contains(strings.Join(tt.args, " "), "--output-format") &&
+				strings.Contains(strings.Join(tt.args, " "), "json") &&
+				out != "" {
+
 				// Try to parse as JSON
 				lines := strings.Split(strings.TrimSpace(out), "\n")
 				for _, line := range lines {
@@ -347,7 +347,7 @@ func TestVerboseErrorHandling(t *testing.T) {
 					if line == "" {
 						continue
 					}
-					
+
 					var data map[string]interface{}
 					if err := json.Unmarshal([]byte(line), &data); err != nil {
 						t.Errorf("error output should be valid JSON: %v\nLine: %s", err, line)
@@ -369,7 +369,7 @@ func TestVerboseTimestampConsistency(t *testing.T) {
 	setTempClineDir(t)
 
 	out := mustRunCLI(ctx, t, "version", "--output-format", "json", "--verbose")
-	
+
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	var timestamps []time.Time
 
@@ -413,7 +413,7 @@ func TestVerboseTimestampConsistency(t *testing.T) {
 	// Timestamps should be in chronological order
 	for i := 1; i < len(timestamps); i++ {
 		if timestamps[i].Before(timestamps[i-1]) {
-			t.Errorf("timestamps not in chronological order: %v before %v", 
+			t.Errorf("timestamps not in chronological order: %v before %v",
 				timestamps[i], timestamps[i-1])
 		}
 	}
@@ -434,22 +434,22 @@ func TestVerboseModeMemoryUsage(t *testing.T) {
 
 	// Run verbose command multiple times to check for memory leaks
 	const iterations = 10
-	
+
 	for i := 0; i < iterations; i++ {
 		out := mustRunCLI(ctx, t, "version", "--output-format", "json", "--verbose")
-		
+
 		// Output length should be reasonable (not growing unboundedly)
 		if len(out) > 100*1024 { // 100KB threshold for version command
 			t.Errorf("iteration %d: verbose output unusually large (%d bytes)", i, len(out))
 		}
-		
+
 		// Should still be valid JSON
 		lines := strings.Split(strings.TrimSpace(out), "\n")
 		for j, line := range lines {
 			if strings.TrimSpace(line) == "" {
 				continue
 			}
-			
+
 			var data map[string]interface{}
 			if err := json.Unmarshal([]byte(line), &data); err != nil {
 				t.Errorf("iteration %d, line %d: invalid JSON: %v", i, j, err)
