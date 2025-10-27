@@ -343,10 +343,10 @@ export class Controller {
 		// before returning, making cancellation reliable at any point.
 		if (historyItem) {
 			// Resume an existing task - this will show the resume button first
-			await this.task.resumeTaskFromHistory()
+			this.task.resumeTaskFromHistory()
 		} else if (task || images || files) {
 			// Start a new task - this will run TaskStart hook immediately
-			await this.task.startTask(task, images, files)
+			this.task.startTask(task, images, files)
 		}
 
 		return this.task.taskId
