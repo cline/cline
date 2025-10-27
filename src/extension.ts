@@ -75,7 +75,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		})
 		.catch((error) => {
-			Logger.log(`BannerService: Failed to fetch banners on startup: ${error}`)
+			Logger.error("BannerService: Failed to fetch banners on startup", error)
 		})
 
 	context.subscriptions.push(

@@ -117,7 +117,7 @@ export class BannerService {
 			return matchingBanners
 		} catch (error) {
 			// Log error but don't throw - banner fetching shouldn't break the extension
-			Logger.log(`BannerService: Error fetching banners: ${error instanceof Error ? error.message : String(error)}`)
+			Logger.error("BannerService: Error fetching banners", error)
 			return []
 		}
 	}
@@ -327,7 +327,7 @@ export class BannerService {
 
 			return "unknown"
 		} catch (error) {
-			Logger.log(`BannerService: Error getting IDE type: ${error instanceof Error ? error.message : String(error)}`)
+			Logger.error("BannerService: Error getting IDE type", error)
 			return "unknown"
 		}
 	}
@@ -367,7 +367,7 @@ export class BannerService {
 
 			return "unknown"
 		} catch (error) {
-			Logger.log(`BannerService: Error getting auth provider: ${error instanceof Error ? error.message : String(error)}`)
+			Logger.error("BannerService: Error getting auth provider", error)
 			return "unknown"
 		}
 	}
@@ -395,7 +395,7 @@ export class BannerService {
 			const { isClineInternalTester } = require("@shared/internal/account")
 			return isClineInternalTester(authInfo.user.email)
 		} catch (error) {
-			Logger.log(`BannerService: Error checking employee status: ${error instanceof Error ? error.message : String(error)}`)
+			Logger.error("BannerService: Error checking employee status", error)
 			return false
 		}
 	}
@@ -423,9 +423,7 @@ export class BannerService {
 			// Check if user has admin role in any organization
 			return organizations.some((org: any) => org.roles && org.roles.includes("admin"))
 		} catch (error) {
-			Logger.log(
-				`BannerService: Error checking team admin status: ${error instanceof Error ? error.message : String(error)}`,
-			)
+			Logger.error("BannerService: Error checking team admin status", error)
 			return false
 		}
 	}
@@ -448,7 +446,7 @@ export class BannerService {
 
 			return !!(organizations && organizations.length > 0)
 		} catch (error) {
-			Logger.log(`BannerService: Error checking organizations: ${error instanceof Error ? error.message : String(error)}`)
+			Logger.error("BannerService: Error checking organizations", error)
 			return false
 		}
 	}
@@ -467,7 +465,7 @@ export class BannerService {
 			const taskHistory = this._controller.stateManager.getGlobalStateKey("taskHistory") as any[]
 			return taskHistory && taskHistory.length > 0
 		} catch (error) {
-			Logger.log(`BannerService: Error checking workspace usage: ${error instanceof Error ? error.message : String(error)}`)
+			Logger.error("BannerService: Error checking workspace usage", error)
 			return false
 		}
 	}
