@@ -1,6 +1,5 @@
 import type { Banner, BannerRules, BannersResponse } from "@shared/ClineBanner"
 import { isClineInternalTester } from "@shared/internal/account"
-import { EmptyRequest } from "@shared/proto/cline/common"
 import axios from "axios"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
@@ -315,7 +314,7 @@ export class BannerService {
 	 */
 	private async getIdeType(): Promise<string> {
 		try {
-			const hostVersion = await HostProvider.env.getHostVersion(EmptyRequest.create({}))
+			const hostVersion = await HostProvider.env.getHostVersion({})
 
 			// Use clineType field which contains values like "VSCode Extension", "Cline for JetBrains", etc.
 			const clineType = hostVersion.clineType?.toLowerCase() || ""
