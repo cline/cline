@@ -41,7 +41,8 @@ export class ToolResultUtils {
 			// Create ToolResultBlockParam with description and result
 			userMessageContent.push(ToolResultUtils.createToolResultBlock(`${description} Result:\n${resultText}`, toolUseId))
 		} else {
-			// For complex content (arrays), we still need to wrap it in ToolResultBlockParam
+			// For complex content (arrays with text/image blocks), pass it through directly
+			// The content array should already be properly formatted with type, text, source, etc.
 			const toolUseId = toolUseIdMap?.get(block.name) || "cline"
 			userMessageContent.push(ToolResultUtils.createToolResultBlock(content, toolUseId))
 		}
@@ -59,10 +60,13 @@ export class ToolResultUtils {
 			}
 		}
 
+		// For tool_result blocks, content can be either a string or an array of content blocks
+		// When it's a string, we need to wrap it in the proper format
+		// When it's an array, it should already be properly formatted (e.g., with text and image blocks)
 		return {
 			type: "tool_result",
 			tool_use_id: id,
-			content,
+			content: typeof content === "string" ? content : content,
 		}
 	}
 

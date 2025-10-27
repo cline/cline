@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import type { ToolUse } from "@core/assistant-message"
 import { JSONParser } from "@streamparser/json"
+import { CLINE_MCP_TOOL_IDENTIFIER } from "@/shared/mcp"
 import { ClineDefaultTool } from "@/shared/tools"
 
 export interface PendingToolUse {
@@ -116,37 +117,34 @@ export class ToolUseHandler {
 	getPartialToolUsesAsContent(): ToolUse[] {
 		const results: ToolUse[] = []
 		for (const pendingToolUse of this.pendingToolUses.values()) {
-			let toolName = pendingToolUse.name
+			const toolName = pendingToolUse.name
 			if (!toolName) {
 				continue
 			}
 
-			// Try to parse accumulated input as params
-			const params: Record<string, string> = {}
+			// Get the original parsed input or try to parse it
+			let originalInput: any = {}
 			if (pendingToolUse.parsedInput !== undefined && pendingToolUse.parsedInput !== null) {
-				// Convert parsed JSON object to string params
-				if (typeof pendingToolUse.parsedInput === "object") {
-					for (const [key, value] of Object.entries(pendingToolUse.parsedInput)) {
-						params[key] = typeof value === "string" ? value : JSON.stringify(value)
-					}
-				}
+				originalInput = pendingToolUse.parsedInput
 			} else if (pendingToolUse.input) {
 				// Try to parse the partial input
 				try {
-					const parsed = JSON.parse(pendingToolUse.input)
-					if (typeof parsed === "object") {
-						for (const [key, value] of Object.entries(parsed)) {
-							params[key] = typeof value === "string" ? value : JSON.stringify(value)
-						}
-					}
+					originalInput = JSON.parse(pendingToolUse.input)
 				} catch {
-					// Input is incomplete JSON, leave params empty
+					// Input is incomplete JSON, leave as empty object
 				}
 			}
 
-			if (toolName.includes("cline_mcp")) {
-				toolName = ClineDefaultTool.MCP_USE
-				const mcpToolParts = toolName.split("cline_mcp")
+			// Try to parse accumulated input as params (for non-MCP tools)
+			const params: Record<string, string> = {}
+			if (typeof originalInput === "object") {
+				for (const [key, value] of Object.entries(originalInput)) {
+					params[key] = typeof value === "string" ? value : JSON.stringify(value)
+				}
+			}
+
+			if (toolName.includes(CLINE_MCP_TOOL_IDENTIFIER)) {
+				const mcpToolParts = toolName.split(CLINE_MCP_TOOL_IDENTIFIER)
 
 				results.push({
 					type: "tool_use",
@@ -154,7 +152,7 @@ export class ToolUseHandler {
 					params: {
 						server_name: mcpToolParts[0],
 						tool_name: mcpToolParts[1],
-						arguments: JSON.stringify(params),
+						arguments: JSON.stringify(originalInput),
 					},
 					partial: true, // Always partial during streaming
 				})

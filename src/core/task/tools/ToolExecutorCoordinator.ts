@@ -68,7 +68,7 @@ export class ToolExecutorCoordinator {
 	 */
 	getHandler(toolName: string): IToolHandler | undefined {
 		// HACK: Normalize MCP tool names to the standard handler
-		if (toolName.startsWith(CLINE_MCP_TOOL_IDENTIFIER)) {
+		if (toolName.includes(CLINE_MCP_TOOL_IDENTIFIER)) {
 			toolName = ClineDefaultTool.MCP_USE
 		}
 		return this.handlers.get(toolName)
