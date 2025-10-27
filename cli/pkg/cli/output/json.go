@@ -68,15 +68,44 @@ func OutputJSON(status, command string, data interface{}, errMsg string) error {
 	return nil
 }
 
+// OutputCommandStatus outputs a command status message in batch format
+func OutputCommandStatus(command, status, message string, data map[string]interface{}) error {
+	obj := map[string]interface{}{
+		"type":    "command",
+		"command": command,
+		"status":  status,
+	}
+	
+	if message != "" {
+		obj["message"] = message
+	}
+	
+	if data != nil {
+		obj["data"] = data
+	}
+	
+	return OutputJSONLine(obj)
+}
+
 // OutputJSONSuccess outputs a successful JSON response as a single JSONL line
 func OutputJSONSuccess(command string, data interface{}) error {
 	response := map[string]interface{}{
-		"type":    "response",
-		"status":  "success",
+		"type":    "command",
 		"command": command,
+		"status":  "success",
 		"data":    data,
 	}
 	return OutputJSONLine(response)
+}
+
+// OutputCommandSuccess outputs a successful command result
+func OutputCommandSuccess(command string, data interface{}) error {
+	return OutputCommandStatus(command, "success", "", map[string]interface{}{"result": data})
+}
+
+// OutputCommandError outputs a command error
+func OutputCommandError(command, message string) error {
+	return OutputCommandStatus(command, "error", message, nil)
 }
 
 // OutputJSONError outputs an error JSON response

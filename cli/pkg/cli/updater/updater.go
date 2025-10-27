@@ -48,22 +48,22 @@ func CheckAndUpdate(isVerbose bool) {
 
 	// Skip in CI environments
 	if os.Getenv("CI") != "" {
-		global.VerboseLog("[updater] Skipping update check (CI environment)")
+		global.VerboseLog("version", "[updater] Skipping update check (CI environment)")
 		return
 	}
 
 	// Skip if user disabled auto-updates
 	if os.Getenv("NO_AUTO_UPDATE") != "" {
-		global.VerboseLog("[updater] Skipping update check (NO_AUTO_UPDATE set)")
+		global.VerboseLog("version", "[updater] Skipping update check (NO_AUTO_UPDATE set)")
 		return
 	}
 
-	global.VerboseLog("[updater] Starting background update check")
+	global.VerboseLog("version", "[updater] Starting background update check")
 
 	// Run in background so we don't block CLI startup
 	go func() {
 		if err := checkAndUpdateInternal(false); err != nil {
-			global.VerboseLogf("[updater] Update check failed: %v", err)
+			global.VerboseLogf("version", "[updater] Update check failed: %v", err)
 		}
 	}()
 }
@@ -76,37 +76,37 @@ func CheckAndUpdateSync(isVerbose bool, bypassCache bool) {
 
 	// Skip in CI environments
 	if os.Getenv("CI") != "" {
-		global.VerboseLog("[updater] Skipping update check (CI environment)")
+		global.VerboseLog("version", "[updater] Skipping update check (CI environment)")
 		return
 	}
 
 	// Skip if user disabled auto-updates
 	if os.Getenv("NO_AUTO_UPDATE") != "" {
-		global.VerboseLog("[updater] Skipping update check (NO_AUTO_UPDATE set)")
+		global.VerboseLog("version", "[updater] Skipping update check (NO_AUTO_UPDATE set)")
 		return
 	}
 
-	global.VerboseLog("[updater] Starting update check")
+	global.VerboseLog("version", "[updater] Starting update check")
 
 	// Run synchronously
 	if err := checkAndUpdateInternal(bypassCache); err != nil {
-		global.VerboseLogf("[updater] Update check failed: %v", err)
+		global.VerboseLogf("version", "[updater] Update check failed: %v", err)
 	}
 }
 
 func checkAndUpdateInternal(bypassCache bool) error {
-	global.VerboseLog("[updater] Loading update cache")
+	global.VerboseLog("version", "[updater] Loading update cache")
 
 	// Load cache
 	cache, err := loadCache()
 	if !bypassCache && err == nil && time.Since(cache.LastCheck) < checkInterval {
 		// Checked recently, skip (unless cache is bypassed)
-		global.VerboseLogf("[updater] Cache is fresh (last checked %v ago), skipping", time.Since(cache.LastCheck))
+		global.VerboseLogf("version", "[updater] Cache is fresh (last checked %v ago), skipping", time.Since(cache.LastCheck))
 		return nil
 	}
 
 	if err != nil {
-		global.VerboseLogf("[updater] Cache load failed or doesn't exist: %v", err)
+		global.VerboseLogf("version", "[updater] Cache load failed or doesn't exist: %v", err)
 	}
 
 	// Determine channel
@@ -115,17 +115,17 @@ func checkAndUpdateInternal(bypassCache bool) error {
 		distTag = "nightly"
 	}
 
-	global.VerboseLogf("[updater] Current version: %s (channel: %s)", global.CliVersion, distTag)
-	global.VerboseLog("[updater] Fetching latest version from npm registry")
+	global.VerboseLogf("version", "[updater] Current version: %s (channel: %s)", global.CliVersion, distTag)
+	global.VerboseLog("version", "[updater] Fetching latest version from npm registry")
 
 	// Fetch latest version from npm
 	latestVersion, err := fetchLatestVersion()
 	if err != nil {
-		global.VerboseLogf("[updater] Failed to fetch latest version: %v", err)
+		global.VerboseLogf("version", "[updater] Failed to fetch latest version: %v", err)
 		return err
 	}
 
-	global.VerboseLogf("[updater] Latest version on npm: %s", latestVersion)
+	global.VerboseLogf("version", "[updater] Latest version on npm: %s", latestVersion)
 
 	// Update cache
 	cache = cacheData{
@@ -134,21 +134,21 @@ func checkAndUpdateInternal(bypassCache bool) error {
 	}
 	saveCache(cache)
 
-	global.VerboseLog("[updater] Updated cache")
+	global.VerboseLog("version", "[updater] Updated cache")
 
 	// Compare versions
 	currentVersion := strings.TrimPrefix(global.CliVersion, "v")
 	latestVersion = strings.TrimPrefix(latestVersion, "v")
 
-	global.VerboseLogf("[updater] Comparing versions: current=%s latest=%s", currentVersion, latestVersion)
+	global.VerboseLogf("version", "[updater] Comparing versions: current=%s latest=%s", currentVersion, latestVersion)
 
 	if !isNewer(latestVersion, currentVersion) {
 		// Already up to date
-		global.VerboseLog("[updater] Already on latest version, no update needed")
+		global.VerboseLog("version", "[updater] Already on latest version, no update needed")
 		return nil
 	}
 
-	global.VerboseLog("[updater] Update available! Attempting to install")
+	global.VerboseLog("version", "[updater] Update available! Attempting to install")
 
 	// Determine channel for update command
 	channel := "latest"
@@ -161,15 +161,15 @@ func checkAndUpdateInternal(bypassCache bool) error {
 	if channel == "nightly" {
 		packageName = "cline@" + channel
 	}
-	global.VerboseLogf("[updater] Running: npm install -g %s", packageName)
+	global.VerboseLogf("version", "[updater] Running: npm install -g %s", packageName)
 
 	if err := attemptUpdate(channel); err != nil {
-		global.VerboseLogf("[updater] Update failed: %v", err)
+		global.VerboseLogf("version", "[updater] Update failed: %v", err)
 		showFailureMessage(channel)
 		return err
 	}
 
-	global.VerboseLog("[updater] Update completed successfully!")
+	global.VerboseLog("version", "[updater] Update completed successfully!")
 
 	showSuccessMessage(latestVersion)
 	return nil

@@ -155,8 +155,15 @@ func newTaskNewCommand() *cobra.Command {
 				return err
 			}
 
+			if global.Config.Verbose {
+				global.VerboseLog("task new", fmt.Sprintf("Creating task with prompt length: %d", len(prompt)))
+			}
+
 			// Set mode if provided
 			if mode != "" {
+				if global.Config.Verbose {
+					global.VerboseLog("task new", fmt.Sprintf("Setting mode to: %s", mode))
+				}
 				if err := taskManager.SetMode(ctx, mode, nil, nil, nil); err != nil {
 					return fmt.Errorf("failed to set mode: %w", err)
 				}
@@ -169,6 +176,9 @@ func newTaskNewCommand() *cobra.Command {
 			// If the yoloMode is also set in the settings, this will override that, since it will be set last.
 			if yolo {
 				settings = append(settings, "yolo_mode_toggled=true")
+				if global.Config.Verbose {
+					global.VerboseLog("task new", "Yolo mode enabled")
+				}
 			}
 
 			// Create the task
@@ -397,6 +407,10 @@ func newTaskChatCommand() *cobra.Command {
 		Aliases: []string{"c"},
 		Short:   "Chat with the current task in interactive mode",
 		Long:    `Chat with the current task, displaying messages in real-time with interactive input enabled.`,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			// Interactive commands cannot work with JSON output
+			return global.Config.MustNotBeJSON("task chat")
+		},
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Check for JSON output mode - not supported for interactive commands
@@ -558,8 +572,14 @@ func newTaskOpenCommand() *cobra.Command {
 			}
 
 			// Output instance info
-			if !global.Config.JsonFormat() {
+			if global.Config.Verbose {
+				global.VerboseLog("task open", fmt.Sprintf("Using instance: %s", taskManager.GetCurrentInstance()))
+			} else if !global.Config.JsonFormat() {
 				fmt.Printf("Using instance: %s\n", taskManager.GetCurrentInstance())
+			}
+
+			if global.Config.Verbose {
+				global.VerboseLog("task open", fmt.Sprintf("Resuming task: %s", taskID))
 			}
 
 			// Resume the task

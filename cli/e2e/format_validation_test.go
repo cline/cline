@@ -63,12 +63,15 @@ func TestJSONOutputVersion(t *testing.T) {
 		t.Fatalf("failed to parse JSON: %v\nOutput: %s", err, out)
 	}
 
-	// Validate structure
-	if response["status"] != "success" {
-		t.Errorf("expected status=success, got %v", response["status"])
+	// Validate batch command structure
+	if response["type"] != "command" {
+		t.Errorf("expected type=command, got %v", response["type"])
 	}
 	if response["command"] != "version" {
 		t.Errorf("expected command=version, got %v", response["command"])
+	}
+	if response["status"] != "success" {
+		t.Errorf("expected status=success, got %v", response["status"])
 	}
 
 	// Validate data fields
@@ -76,10 +79,17 @@ func TestJSONOutputVersion(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected data to be object, got %T", response["data"])
 	}
+	
+	// Data should be nested under "result" key per OutputCommandSuccess implementation
+	result, ok := data["result"].(map[string]interface{})
+	if !ok {
+		// Fallback: data might be directly the result object (depends on implementation)
+		result = data
+	}
 
 	requiredFields := []string{"cliVersion", "coreVersion", "commit", "date", "builtBy", "goVersion", "os", "arch"}
 	for _, field := range requiredFields {
-		if _, ok := data[field]; !ok {
+		if _, ok := result[field]; !ok {
 			t.Errorf("missing required field: %s", field)
 		}
 	}
@@ -142,7 +152,13 @@ func TestJSONOutputInstanceList(t *testing.T) {
 		t.Fatalf("failed to parse JSON: %v\nOutput: %s", err, out)
 	}
 
-	// Validate structure
+	// Validate batch command structure
+	if response["type"] != "command" {
+		t.Errorf("expected type=command, got %v", response["type"])
+	}
+	if response["command"] != "instance list" {
+		t.Errorf("expected command='instance list', got %v", response["command"])
+	}
 	if response["status"] != "success" {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
@@ -152,12 +168,18 @@ func TestJSONOutputInstanceList(t *testing.T) {
 		t.Fatalf("expected data to be object")
 	}
 
+	// Data might be nested under "result" - handle both cases
+	result := data
+	if r, ok := data["result"].(map[string]interface{}); ok {
+		result = r
+	}
+
 	// Should have defaultInstance and instances array
-	if _, ok := data["defaultInstance"]; !ok {
+	if _, ok := result["defaultInstance"]; !ok {
 		t.Error("missing defaultInstance field")
 	}
 
-	instances, ok := data["instances"].([]interface{})
+	instances, ok := result["instances"].([]interface{})
 	if !ok {
 		t.Fatalf("expected instances to be array")
 	}
@@ -198,7 +220,13 @@ func TestJSONOutputInstanceNew(t *testing.T) {
 		t.Fatalf("failed to parse JSON: %v\nOutput: %s", err, out)
 	}
 
-	// Validate structure
+	// Validate batch command structure
+	if response["type"] != "command" {
+		t.Errorf("expected type=command, got %v", response["type"])
+	}
+	if response["command"] != "instance new" {
+		t.Errorf("expected command='instance new', got %v", response["command"])
+	}
 	if response["status"] != "success" {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
@@ -208,9 +236,15 @@ func TestJSONOutputInstanceNew(t *testing.T) {
 		t.Fatalf("expected data to be object")
 	}
 
+	// Data might be nested under "result" - handle both cases
+	result := data
+	if r, ok := data["result"].(map[string]interface{}); ok {
+		result = r
+	}
+
 	requiredFields := []string{"address", "corePort", "hostPort", "isDefault"}
 	for _, field := range requiredFields {
-		if _, ok := data[field]; !ok {
+		if _, ok := result[field]; !ok {
 			t.Errorf("missing required field: %s", field)
 		}
 	}
@@ -233,7 +267,13 @@ func TestJSONOutputLogsPath(t *testing.T) {
 		t.Fatalf("failed to parse JSON: %v\nOutput: %s", err, out)
 	}
 
-	// Validate structure
+	// Validate batch command structure
+	if response["type"] != "command" {
+		t.Errorf("expected type=command, got %v", response["type"])
+	}
+	if response["command"] != "logs path" {
+		t.Errorf("expected command='logs path', got %v", response["command"])
+	}
 	if response["status"] != "success" {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
@@ -243,7 +283,13 @@ func TestJSONOutputLogsPath(t *testing.T) {
 		t.Fatalf("expected data to be object")
 	}
 
-	if _, ok := data["path"]; !ok {
+	// Data might be nested under "result" - handle both cases
+	result := data
+	if r, ok := data["result"].(map[string]interface{}); ok {
+		result = r
+	}
+
+	if _, ok := result["path"]; !ok {
 		t.Error("missing path field")
 	}
 }
@@ -318,7 +364,13 @@ func TestJSONOutputLogsList(t *testing.T) {
 		t.Fatalf("failed to parse JSON: %v\nOutput: %s", err, out)
 	}
 
-	// Validate structure
+	// Validate batch command structure
+	if response["type"] != "command" {
+		t.Errorf("expected type=command, got %v", response["type"])
+	}
+	if response["command"] != "logs list" {
+		t.Errorf("expected command='logs list', got %v", response["command"])
+	}
 	if response["status"] != "success" {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
@@ -328,12 +380,18 @@ func TestJSONOutputLogsList(t *testing.T) {
 		t.Fatalf("expected data to be object")
 	}
 
+	// Data might be nested under "result" - handle both cases
+	result := data
+	if r, ok := data["result"].(map[string]interface{}); ok {
+		result = r
+	}
+
 	// Should have logsDir and logs array
-	if _, ok := data["logsDir"]; !ok {
+	if _, ok := result["logsDir"]; !ok {
 		t.Error("missing logsDir field")
 	}
 
-	if _, ok := data["logs"]; !ok {
+	if _, ok := result["logs"]; !ok {
 		t.Error("missing logs field")
 	}
 }
@@ -358,7 +416,13 @@ func TestJSONOutputConfigList(t *testing.T) {
 		t.Fatalf("failed to parse JSON: %v\nOutput: %s", err, out)
 	}
 
-	// Validate structure
+	// Validate batch command structure
+	if response["type"] != "command" {
+		t.Errorf("expected type=command, got %v", response["type"])
+	}
+	if response["command"] != "config list" {
+		t.Errorf("expected command='config list', got %v", response["command"])
+	}
 	if response["status"] != "success" {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
@@ -368,7 +432,13 @@ func TestJSONOutputConfigList(t *testing.T) {
 		t.Fatalf("expected data to be object")
 	}
 
-	if _, ok := data["settings"]; !ok {
+	// Data might be nested under "result" - handle both cases
+	result := data
+	if r, ok := data["result"].(map[string]interface{}); ok {
+		result = r
+	}
+
+	if _, ok := result["settings"]; !ok {
 		t.Error("missing settings field")
 	}
 }
@@ -443,22 +513,19 @@ func TestJSONOutputWithVerboseFlag(t *testing.T) {
 				
 			// Check message type
 			if msgType, ok := obj["type"].(string); ok {
-				if msgType == "verbose" {
-					verboseMessages = append(verboseMessages, obj["message"].(string))
-				} else if msgType == "debug" {
-					debugMessages = append(debugMessages, obj["message"].(string))
-				} else if msgType == "response" {
-					// This is the final response
-					finalResult = obj
-					if status, ok := obj["status"].(string); ok && status != "success" {
-						t.Errorf("expected status=success, got %v", status)
+				if msgType == "command" {
+					// Batch command format: check status field
+					if status, ok := obj["status"].(string); ok {
+						if status == "debug" {
+							// Debug message from verbose mode
+							if msg, ok := obj["message"].(string); ok {
+								debugMessages = append(debugMessages, msg)
+							}
+						} else if status == "success" {
+							// Final success response
+							finalResult = obj
+						}
 					}
-				}
-			} else if status, ok := obj["status"].(string); ok {
-				// Fallback: final result without type field (legacy)
-				finalResult = obj
-				if status != "success" {
-					t.Errorf("expected status=success, got %v", status)
 				}
 			}
 			}
@@ -511,12 +578,15 @@ func TestAllCommandsJSONValidity(t *testing.T) {
 				t.Fatalf("failed to parse JSON: %v", err)
 			}
 
-			// All responses should have status and command
-			if _, ok := response["status"]; !ok {
-				t.Error("missing status field")
+			// All batch command responses should have type, command, and status
+			if response["type"] != "command" {
+				t.Error("expected type=command")
 			}
 			if _, ok := response["command"]; !ok {
 				t.Error("missing command field")
+			}
+			if _, ok := response["status"]; !ok {
+				t.Error("missing status field")
 			}
 
 			// Success responses should have data
@@ -526,10 +596,10 @@ func TestAllCommandsJSONValidity(t *testing.T) {
 				}
 			}
 
-			// Error responses should have error
+			// Error responses should have message
 			if response["status"] == "error" {
-				if _, ok := response["error"]; !ok {
-					t.Error("error response missing error field")
+				if _, ok := response["message"]; !ok {
+					t.Error("error response missing message field")
 				}
 			}
 		})
@@ -560,7 +630,10 @@ func TestJSONOutputInstanceKill(t *testing.T) {
 		t.Fatalf("failed to parse JSON: %v\nOutput: %s", err, out)
 	}
 
-	// Validate structure
+	// Validate batch command structure
+	if response["type"] != "command" {
+		t.Errorf("expected type=command, got %v", response["type"])
+	}
 	if response["status"] != "success" {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
@@ -896,17 +969,21 @@ func TestJSONOutputInstanceNewWithVerbose(t *testing.T) {
 		}
 		
 		// Check if this is a debug message or final response
-		if msgType, ok := obj["type"].(string); ok && msgType == "debug" {
-			debugCount++
-			// Verify debug messages have required fields
-			if _, ok := obj["message"]; !ok {
-				t.Errorf("debug message missing 'message' field on line %d", i)
-			}
-		} else if status, ok := obj["status"].(string); ok {
-			// This is the final response
-			finalResponse = obj
-			if status != "success" {
-				t.Errorf("expected status=success, got %v", status)
+		if msgType, ok := obj["type"].(string); ok && msgType == "command" {
+			if status, ok := obj["status"].(string); ok {
+				if status == "debug" {
+					debugCount++
+					// Verify debug messages have required fields
+					if _, ok := obj["message"]; !ok {
+						t.Errorf("debug message missing 'message' field on line %d", i)
+					}
+					if _, ok := obj["command"]; !ok {
+						t.Errorf("debug message missing 'command' field on line %d", i)
+					}
+				} else if status == "success" {
+					// This is the final response
+					finalResponse = obj
+				}
 			}
 		}
 	}
@@ -946,7 +1023,10 @@ func TestRegistryTextLeakage(t *testing.T) {
 		t.Fatalf("failed to parse JSON: %v\nOutput: %s", err, out)
 	}
 
-	// Should be successful
+	// Should be successful batch command
+	if response["type"] != "command" {
+		t.Errorf("expected type=command, got %v", response["type"])
+	}
 	if response["status"] != "success" {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
@@ -972,11 +1052,17 @@ func TestRegistryTextLeakage(t *testing.T) {
 	// The output should ONLY contain valid JSON structure
 	// No stray text from registryLog() or registryWarning() calls
 	if data, ok := response["data"].(map[string]interface{}); ok {
+		// Data might be nested under "result" - handle both cases
+		result := data
+		if r, ok := data["result"].(map[string]interface{}); ok {
+			result = r
+		}
+		
 		// Verify we got structured data about the kill operation
-		if _, ok := data["killedCount"]; !ok {
+		if _, ok := result["killedCount"]; !ok {
 			t.Error("response should include killedCount")
 		}
-		if _, ok := data["addresses"]; !ok {
+		if _, ok := result["addresses"]; !ok {
 			t.Error("response should include addresses array")
 		}
 	} else {

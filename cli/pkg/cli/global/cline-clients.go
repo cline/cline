@@ -37,30 +37,31 @@ func (c *ClineClients) Initialize(ctx context.Context) error {
 }
 
 // VerboseLog outputs a verbose message in the appropriate format
-func VerboseLog(message string) {
+func VerboseLog(command, message string) {
 	if !Config.Verbose {
 		return
 	}
 	
 	if Config.JsonFormat(){
-		output.OutputStatusMessage("debug", message, nil)
+		output.OutputCommandStatus(command, "debug", message, nil)
 	} else {
 		fmt.Println(message)
 	}
 }
 
 // VerboseLogf outputs a formatted verbose message
-func VerboseLogf(format string, args ...interface{}) {
-	VerboseLog(fmt.Sprintf(format, args...))
+func VerboseLogf(command, format string, args ...interface{}) {
+	VerboseLog(command, fmt.Sprintf(format, args...))
 }
 
 // For backward compatibility within this package
 func verboseLog(message string) {
-	VerboseLog(message)
+	// Use generic "cline" command for internal calls
+	VerboseLog("cline", message)
 }
 
 func verboseLogf(format string, args ...interface{}) {
-	VerboseLogf(format, args...)
+	VerboseLogf("cline", format, args...)
 }
 
 // StartNewInstance starts a new Cline instance and waits for cline-core to self-register

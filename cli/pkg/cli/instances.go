@@ -587,9 +587,10 @@ func newInstanceNewCommand() *cobra.Command {
 				return fmt.Errorf("clients not initialized")
 			}
 
-			// Output starting message only in rich/plain mode
-			// In JSON mode, we'll only output the final result
-			if !global.Config.JsonFormat() {
+			// Output starting message
+			if global.Config.Verbose {
+				global.VerboseLog("instance new", "Starting new Cline instance...")
+			} else if !global.Config.JsonFormat() {
 				fmt.Println("Starting new Cline instance...")
 			}
 
@@ -602,6 +603,9 @@ func newInstanceNewCommand() *cobra.Command {
 
 			// If --default flag provided, set this instance as the default
 			if setDefault {
+				if global.Config.Verbose {
+					global.VerboseLog("instance new", "Setting as default instance...")
+				}
 				if err := registry.SetDefaultInstance(instance.Address); err != nil {
 					// Output warning in appropriate format
 					if global.Config.JsonFormat() {
@@ -615,6 +619,8 @@ func newInstanceNewCommand() *cobra.Command {
 					} else {
 						fmt.Printf("Warning: Failed to set as default: %v\n", err)
 					}
+				} else if global.Config.Verbose {
+					global.VerboseLog("instance new", fmt.Sprintf("Set %s as default instance", instance.Address))
 				}
 			}
 

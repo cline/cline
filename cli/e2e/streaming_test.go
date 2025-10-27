@@ -234,10 +234,13 @@ func TestRealTimeStatusUpdates(t *testing.T) {
 	for _, line := range lines {
 		var data map[string]interface{}
 		if err := json.Unmarshal([]byte(line), &data); err == nil {
+			// Check for new format: type="command" with status="debug"
 			if lineType, ok := data["type"].(string); ok {
-				if lineType == "status" || lineType == "debug" {
-					if msg, ok := data["message"].(string); ok {
-						statusUpdates = append(statusUpdates, msg)
+				if lineType == "command" {
+					if status, ok := data["status"].(string); ok && status == "debug" {
+						if msg, ok := data["message"].(string); ok {
+							statusUpdates = append(statusUpdates, msg)
+						}
 					}
 				}
 			}

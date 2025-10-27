@@ -133,6 +133,17 @@ func validateVerboseJSONOutput(t *testing.T, testName, output string, expectMult
 
 		// Check for expected fields in verbose JSON
 		if lineType, ok := lineData["type"].(string); ok {
+			// New format: type="command" with status field
+			if lineType == "command" {
+				if status, ok := lineData["status"].(string); ok {
+					if status == "debug" {
+						hasStatusUpdate = true
+					} else if status == "success" || status == "error" {
+						hasResponse = true
+					}
+				}
+			}
+			// Legacy format support (if any)
 			switch lineType {
 			case "status", "debug", "progress":
 				hasStatusUpdate = true
