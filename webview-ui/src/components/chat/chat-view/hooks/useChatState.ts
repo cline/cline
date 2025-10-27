@@ -1,5 +1,5 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
-import { useCallback, useMemo, useRef, useState } from "react"
+import { ClineMessage, QueuedMessage } from "@shared/ExtensionMessage"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChatState } from "../types/chatTypes"
 
 /**
@@ -20,6 +20,17 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 	const [primaryButtonText, setPrimaryButtonText] = useState<string | undefined>("Approve")
 	const [secondaryButtonText, setSecondaryButtonText] = useState<string | undefined>("Reject")
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({})
+
+	// Message queue state
+	const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
+
+	// Debug: Log queue state changes
+	useEffect(() => {
+		console.log("[useChatState] Message queue updated:", {
+			queueLength: messageQueue.length,
+			queue: messageQueue,
+		})
+	}, [messageQueue])
 
 	// Refs
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
@@ -70,6 +81,10 @@ export function useChatState(messages: ClineMessage[]): ChatState {
 		setSecondaryButtonText,
 		expandedRows,
 		setExpandedRows,
+
+		// Message queue state
+		messageQueue,
+		setMessageQueue,
 
 		// Refs
 		textAreaRef,

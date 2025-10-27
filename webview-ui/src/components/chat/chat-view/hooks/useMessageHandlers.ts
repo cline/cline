@@ -21,13 +21,24 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 		setSelectedFiles,
 		setSendingDisabled,
 		setEnableButtons,
+		sendingDisabled,
 		clineAsk,
 		lastMessage,
+		messageQueue,
+		setMessageQueue,
 	} = chatState
 
 	// Handle sending a message
 	const handleSendMessage = useCallback(
-		async (text: string, images: string[], files: string[]) => {
+		async (text: string, images: string[], files: string[], fromQueue = false) => {
+			console.log("[useMessageHandlers] handleSendMessage called:", {
+				textLength: text.length,
+				imagesCount: images.length,
+				filesCount: files.length,
+				fromQueue,
+				sendingDisabled,
+			})
+
 			let messageToSend = text.trim()
 			const hasContent = messageToSend || images.length > 0 || files.length > 0
 
@@ -40,7 +51,29 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			}
 
 			if (hasContent) {
-				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
+				// If sending is disabled and this is not from the queue, add to queue
+				if (sendingDisabled && !fromQueue) {
+					// Generate a unique ID using timestamp + random component
+					const messageId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+					console.log("[useMessageHandlers] QUEUEING message:", {
+						messageId,
+						text: messageToSend,
+						imagesCount: images.length,
+						filesCount: files.length,
+					})
+					setMessageQueue((prev) => [...prev, { id: messageId, text: messageToSend, images, files }])
+					setInputValue("")
+					setSelectedImages([])
+					setSelectedFiles([])
+					return
+				}
+
+				console.log("[useMessageHandlers] SENDING message:", {
+					messageToSend,
+					fromQueue,
+					messagesLength: messages.length,
+					clineAsk,
+				})
 				if (messages.length === 0) {
 					await TaskServiceClient.newTask(
 						NewTaskRequest.create({
@@ -95,12 +128,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			messages.length,
 			clineAsk,
 			activeQuote,
+			sendingDisabled,
 			setInputValue,
 			setActiveQuote,
 			setSendingDisabled,
 			setSelectedImages,
 			setSelectedFiles,
 			setEnableButtons,
+			setMessageQueue,
 			chatState,
 		],
 	)
