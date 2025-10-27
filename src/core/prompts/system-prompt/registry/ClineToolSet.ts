@@ -133,7 +133,7 @@ export class ClineToolSet {
 
 		// MCP tools
 		const mcpServers = context.mcpHub?.getServers()?.filter((s) => s.disabled !== true) || []
-		const mcpTools = mcpServers?.flatMap((server) => mcpToolToClineToolSpec(server))
+		const mcpTools = mcpServers?.flatMap((server) => mcpToolToClineToolSpec(variant.family, server))
 
 		const enabledTools = [...toolConfigs, ...mcpTools]
 		const converter = ClineToolSet.getNativeConverter(context.providerInfo.providerId)
@@ -145,21 +145,51 @@ export class ClineToolSet {
 /**
  * Convert an MCP server's tools to ClineToolSpec format
  */
-export function mcpToolToClineToolSpec(server: McpServer): ClineToolSpec[] {
+export function mcpToolToClineToolSpec(family: ModelFamily, server: McpServer): ClineToolSpec[] {
 	const tools = server.tools || []
-	return tools.map((mcpTool) => ({
-		variant: ModelFamily.GENERIC,
-		id: ClineDefaultTool.MCP_USE,
-		name: server.name + CLINE_MCP_TOOL_IDENTIFIER + mcpTool.name,
-		description: mcpTool.description || "",
-		parameters:
-			mcpTool.inputSchema && "properties" in mcpTool.inputSchema
-				? Object.entries(mcpTool.inputSchema.properties as Record<string, any>).map(([name, schema]) => ({
-						name,
-						instruction: schema.description || "",
-						type: schema.type || "string",
-						required: schema.required || false,
-					}))
-				: [],
-	}))
+	return tools.map((mcpTool) => {
+		let parameters: any[] = []
+
+		if (mcpTool.inputSchema && "properties" in mcpTool.inputSchema) {
+			const schema = mcpTool.inputSchema as any
+			const requiredFields = new Set(schema.required || [])
+
+			parameters = Object.entries(schema.properties as Record<string, any>).map(([name, propSchema]) => {
+				// Preserve the full schema, not just basic fields
+				const param: any = {
+					name,
+					instruction: propSchema.description || "",
+					type: propSchema.type || "string",
+					required: requiredFields.has(name),
+				}
+
+				// Preserve items for array types
+				if (propSchema.items) {
+					param.items = propSchema.items
+				}
+
+				// Preserve properties for object types
+				if (propSchema.properties) {
+					param.properties = propSchema.properties
+				}
+
+				// Preserve other JSON Schema fields (enum, format, minimum, maximum, etc.)
+				for (const key in propSchema) {
+					if (!["type", "description", "items", "properties"].includes(key)) {
+						param[key] = propSchema[key]
+					}
+				}
+
+				return param
+			})
+		}
+
+		return {
+			variant: family,
+			id: ClineDefaultTool.MCP_USE,
+			name: server.name + CLINE_MCP_TOOL_IDENTIFIER + mcpTool.name,
+			description: mcpTool.description || "",
+			parameters,
+		}
+	})
 }

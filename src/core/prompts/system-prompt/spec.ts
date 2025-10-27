@@ -29,6 +29,18 @@ interface ClineToolSpecParameter {
 	 * Supported types: string, boolean, integer, array, object
 	 */
 	type?: "string" | "boolean" | "integer" | "array" | "object"
+	/**
+	 * For array types, this defines the schema of array items
+	 */
+	items?: any
+	/**
+	 * For object types, this defines the properties
+	 */
+	properties?: Record<string, any>
+	/**
+	 * Additional JSON Schema fields to preserve from MCP tools
+	 */
+	[key: string]: any
 }
 
 /**
@@ -65,6 +77,36 @@ export function toolSpecFunctionDefinition(tool: ClineToolSpec, context: SystemP
 			const paramSchema: any = {
 				type: paramType,
 				description: param.description || param.instruction,
+			}
+
+			// Add items for array types
+			if (paramType === "array" && param.items) {
+				paramSchema.items = param.items
+			}
+
+			// Add properties for object types
+			if (paramType === "object" && param.properties) {
+				paramSchema.properties = param.properties
+			}
+
+			// Preserve any additional JSON Schema fields from MCP tools
+			// (e.g., enum, format, minimum, maximum, etc.)
+			const reservedKeys = new Set([
+				"name",
+				"required",
+				"instruction",
+				"usage",
+				"dependencies",
+				"description",
+				"contextRequirements",
+				"type",
+				"items",
+				"properties",
+			])
+			for (const key in param) {
+				if (!reservedKeys.has(key) && param[key] !== undefined) {
+					paramSchema[key] = param[key]
+				}
 			}
 
 			// Add usage example as part of description if available
@@ -128,6 +170,36 @@ export function toolSpecInputSchema(tool: ClineToolSpec, context: SystemPromptCo
 			const paramSchema: any = {
 				type: paramType,
 				description: param.description || param.instruction,
+			}
+
+			// Add items for array types
+			if (paramType === "array" && param.items) {
+				paramSchema.items = param.items
+			}
+
+			// Add properties for object types
+			if (paramType === "object" && param.properties) {
+				paramSchema.properties = param.properties
+			}
+
+			// Preserve any additional JSON Schema fields from MCP tools
+			// (e.g., enum, format, minimum, maximum, etc.)
+			const reservedKeys = new Set([
+				"name",
+				"required",
+				"instruction",
+				"usage",
+				"dependencies",
+				"description",
+				"contextRequirements",
+				"type",
+				"items",
+				"properties",
+			])
+			for (const key in param) {
+				if (!reservedKeys.has(key) && param[key] !== undefined) {
+					paramSchema[key] = param[key]
+				}
 			}
 
 			// Add usage example as part of description if available
