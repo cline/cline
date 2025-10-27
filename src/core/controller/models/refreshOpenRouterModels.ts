@@ -246,7 +246,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
  */
 const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {
 	// Add more stealth models here as needed
-	// Right now this list is empty as CodeSupernova 1 million model was removed
+	// Right now this list is empty as the latest stealth model was removed
 }
 
 export function appendClineStealthModels(currentModels: Record<string, ModelInfo>): Record<string, ModelInfo> {
