@@ -1475,30 +1475,10 @@ export class Task {
 				throw new Error("Unexpected: Last message is not a user or assistant message")
 			}
 		} else {
-			throw new Error("Unexpected: No existing API conversation history")
-		}
-
-		// Run UserPromptSubmit hook for task resumption
-		const userPromptHookResult = await this.runUserPromptSubmitHook(newUserContent, "resume")
-
-		// Defensive check: Verify task wasn't aborted during hook execution (handles async cancellation)
-		if (this.taskState.abort) {
-			return
-		}
-
-		// Handle hook cancellation request
-		if (userPromptHookResult.cancel === true) {
-			// The hook already updated its status to "cancelled" internally and saved state
-			this.abortTask()
-			return
-		}
-
-		// Add hook context if provided (before other resume content)
-		if (userPromptHookResult.contextModification) {
-			newUserContent.push({
-				type: "text",
-				text: `<hook_context source="UserPromptSubmit">\n${userPromptHookResult.contextModification}\n</hook_context>`,
-			})
+			// No API conversation history yet (e.g., cancelled during hook before first API request)
+			// Start fresh with empty history and no previous content
+			modifiedApiConversationHistory = []
+			modifiedOldUserContent = []
 		}
 
 		// Add previous content to newUserContent array
@@ -1574,6 +1554,29 @@ export class Task {
 			newUserContent.push({
 				type: "text",
 				text: fileContextWarning,
+			})
+		}
+
+		// Run UserPromptSubmit hook for task resumption AFTER all content is assembled
+		const userPromptHookResult = await this.runUserPromptSubmitHook(newUserContent, "resume")
+
+		// Defensive check: Verify task wasn't aborted during hook execution (handles async cancellation)
+		if (this.taskState.abort) {
+			return
+		}
+
+		// Handle hook cancellation request
+		if (userPromptHookResult.cancel === true) {
+			// The hook already updated its status to "cancelled" internally and saved state
+			this.abortTask()
+			return
+		}
+
+		// Add hook context if provided (after all other content)
+		if (userPromptHookResult.contextModification) {
+			newUserContent.push({
+				type: "text",
+				text: `<hook_context source="UserPromptSubmit">\n${userPromptHookResult.contextModification}\n</hook_context>`,
 			})
 		}
 
