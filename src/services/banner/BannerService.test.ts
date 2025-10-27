@@ -22,6 +22,7 @@ describe("BannerService", () => {
 		sandbox = sinon.createSandbox()
 
 		sandbox.stub(Logger, "log")
+		sandbox.stub(Logger, "error")
 
 		mockController = {
 			stateManager: {
