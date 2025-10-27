@@ -63,21 +63,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	vscode.commands.executeCommand("setContext", "cline.isDevMode", IS_DEV && IS_DEV === "true")
 
-	// Initialize banner service
-	const { BannerService } = await import("./services/banner/BannerService")
-	BannerService.initialize(webview.controller)
-	BannerService.get()
-		.fetchActiveBanners()
-		.then((banners) => {
-			if (banners.length > 0) {
-				Logger.log(`BannerService: ${banners.length} active banner(s) fetched.`)
-				// Banners are now cached and can be accessed by the frontend when needed
-			}
-		})
-		.catch((error) => {
-			Logger.error("BannerService: Failed to fetch banners on startup", error)
-		})
-
 	context.subscriptions.push(
 		vscode.window.registerWebviewViewProvider(VscodeWebviewProvider.SIDEBAR_ID, webview, {
 			webviewOptions: { retainContextWhenHidden: true },
