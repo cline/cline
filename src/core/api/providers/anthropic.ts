@@ -53,11 +53,10 @@ export class AnthropicHandler implements ApiHandler {
 
 		// Tools are available only when native tools are enabled.
 		const nativeToolsOn = tools?.length && tools?.length > 0
-		// IMPORTANT: When nativeToolsOn is true, reasoning must be disabled.
-		// Thinking may not be enabled when tool_choice forces tool use.
-		const reasoningOn =
-			!!((modelId.includes("3-7") || modelId.includes("4-") || modelId.includes("4-5")) && budget_tokens !== 0) &&
-			!nativeToolsOn
+		const reasoningOn = !!(
+			(modelId.includes("3-7") || modelId.includes("4-") || modelId.includes("4-5")) &&
+			budget_tokens !== 0
+		)
 
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
@@ -128,12 +127,13 @@ export class AnthropicHandler implements ApiHandler {
 						}),
 						// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
 						stream: true,
-						tools: tools?.length ? (tools as AnthropicTool[]) : undefined,
+						tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
 						// tool_choice options:
 						// - none: disables tool use, even if tools are provided. Claude will not call any tools.
 						// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
 						// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
-						tool_choice: tools ? { type: "any" } : undefined,
+						// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
+						tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
 					},
 					(() => {
 						// 1m context window beta header
