@@ -25,7 +25,7 @@ export interface BannersResponse {
 /**
  * Audience targeting options
  */
-export type BannerAudience = "all" | "team admin only" | "team members" | "personal"
+export type BannerAudience = "all" | "team admin only" | "team members" | "personal only"
 
 /**
  * Rules that can be evaluated for banner targeting

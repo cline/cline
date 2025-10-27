@@ -242,11 +242,12 @@ export class BannerService {
 						}
 						break
 
-					case "personal":
-						// Show only to users who are NOT part of a team
+					case "personal only":
+						// Show only to users who have NO enterprise/organization account
+						// (Enterprise users also have a personal account by default, but this targets only non-enterprise users)
 						const hasOrgs = this.hasOrganizations()
 						if (hasOrgs) {
-							Logger.log(`BannerService: Banner ${banner.id} filtered out - user is part of a team`)
+							Logger.log(`BannerService: Banner ${banner.id} filtered out - user has enterprise account`)
 							return false
 						}
 						break
