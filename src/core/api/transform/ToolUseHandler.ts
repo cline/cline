@@ -13,6 +13,13 @@ export interface PendingToolUse {
 	call_id?: string
 }
 
+interface ToolUseDeltaBlock {
+	id?: string
+	type?: string
+	name?: string
+	input?: string
+}
+
 /**
  * Handles streaming tool use blocks and converts them to Anthropic.ToolUseBlockParam format
  */
@@ -23,20 +30,20 @@ export class ToolUseHandler {
 	 * Process a tool use delta chunk and accumulate it
 	 * @param delta - The streaming delta containing tool use information
 	 */
-	processToolUseDelta(delta: { id?: string; type?: string; name?: string; input?: string }, call_id?: string): void {
+	processToolUseDelta(delta: ToolUseDeltaBlock, call_id?: string): void {
 		if (delta.type !== "tool_use") {
 			return
 		}
 
-		const id = delta.id
-		if (!id) {
+		const deltaID = delta.id
+		if (!deltaID) {
 			return
 		}
 
 		// Get or create pending tool use
-		let pendingToolUse = this.pendingToolUses.get(id)
+		let pendingToolUse = this.pendingToolUses.get(deltaID)
 		if (!pendingToolUse) {
-			pendingToolUse = this.createPendingToolUse(id, delta.name || "", call_id)
+			pendingToolUse = this.createPendingToolUse(deltaID, delta.name || "", call_id)
 		}
 
 		// Update name if provided
@@ -73,9 +80,10 @@ export class ToolUseHandler {
 			try {
 				input = JSON.parse(pendingToolUse.input)
 			} catch (error) {
-				// If parsing fails, use empty object
-				console.warn(`Failed to parse tool use input for ${pendingToolUse.name}:`, error)
-				input = {}
+				// If parsing fails, try to extract partial field values
+				// This is especially important for tools with large string inputs like apply_patch
+				console.warn(`Failed to parse tool use input for ${pendingToolUse.name}, attempting partial extraction:`, error)
+				input = this.extractPartialJsonFields(pendingToolUse.input)
 			}
 		}
 
@@ -131,7 +139,9 @@ export class ToolUseHandler {
 				try {
 					originalInput = JSON.parse(pendingToolUse.input)
 				} catch {
-					// Input is incomplete JSON, leave as empty object
+					// Input is incomplete JSON - try to extract partial field values
+					// This is especially important for tools with large string inputs like apply_patch
+					originalInput = this.extractPartialJsonFields(pendingToolUse.input)
 				}
 			}
 
@@ -211,5 +221,37 @@ export class ToolUseHandler {
 		} catch {
 			// Expected during streaming - parser will error on incomplete JSON
 		}
+	}
+
+	/**
+	 * Extracts partial field values from incomplete JSON strings
+	 * This is useful during streaming when JSON.parse() would fail
+	 * @param partialJson - Incomplete JSON string (e.g., '{"input": "some val...')
+	 * @returns Object with extracted field values
+	 */
+	private extractPartialJsonFields(partialJson: string): Record<string, any> {
+		const result: Record<string, any> = {}
+
+		// Try to extract field values using regex patterns
+		// Pattern: "fieldName": "value..." or "fieldName": value...
+		const stringFieldPattern = /"(\w+)":\s*"((?:[^"\\]|\\.)*)(?:")?/g
+		const matches = partialJson.matchAll(stringFieldPattern)
+
+		for (const match of matches) {
+			const fieldName = match[1]
+			let fieldValue = match[2]
+
+			// Unescape common JSON escape sequences
+			fieldValue = fieldValue
+				.replace(/\\n/g, "\n")
+				.replace(/\\t/g, "\t")
+				.replace(/\\r/g, "\r")
+				.replace(/\\"/g, '"')
+				.replace(/\\\\/g, "\\")
+
+			result[fieldName] = fieldValue
+		}
+
+		return result
 	}
 }

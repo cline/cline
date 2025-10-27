@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises"
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { resolveWorkspacePath } from "@core/workspace"
@@ -77,6 +78,10 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.APPLY_PATCH
 	private appliedCommit?: Commit
 	private config?: TaskConfig
+	private partialPreviewState?: {
+		originalFiles: Record<string, string>
+		currentPreviewPath?: string
+	}
 
 	constructor(private validator: ToolValidator) {}
 
@@ -144,8 +149,152 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					})
 				}
 			}
+
+			await this.previewPatchStream(rawInput, uiHelpers).catch(() => {})
 		} catch {
 			// Wait for more data if parsing fails
+		}
+	}
+
+	private ensurePartialPreviewState(): { originalFiles: Record<string, string>; currentPreviewPath?: string } {
+		if (!this.partialPreviewState) {
+			this.partialPreviewState = { originalFiles: {} }
+		}
+		return this.partialPreviewState
+	}
+
+	private resolveWorkspacePathSafe(
+		config: TaskConfig,
+		filePath: string,
+		caller: string,
+	): { absolutePath: string; resolvedPath: string } | undefined {
+		try {
+			const pathResult = resolveWorkspacePath(config, filePath, caller)
+			return typeof pathResult === "string"
+				? { absolutePath: pathResult, resolvedPath: filePath }
+				: { absolutePath: pathResult.absolutePath, resolvedPath: pathResult.resolvedPath }
+		} catch {
+			return undefined
+		}
+	}
+
+	private async getOriginalFileContentForPreview(
+		pathKey: string,
+		resolution: { absolutePath: string; resolvedPath: string },
+	): Promise<string | undefined> {
+		const state = this.ensurePartialPreviewState()
+		if (state.originalFiles[pathKey] !== undefined) {
+			return state.originalFiles[pathKey]
+		}
+
+		const validation = this.validator.checkClineIgnorePath(resolution.resolvedPath)
+		if (!validation.ok) {
+			return undefined
+		}
+
+		try {
+			if (!(await fileExistsAtPath(resolution.absolutePath))) {
+				return undefined
+			}
+			const fileContent = await readFile(resolution.absolutePath, "utf8")
+			const normalizedContent = fileContent.replace(/\r\n/g, "\n")
+			state.originalFiles[pathKey] = normalizedContent
+			return normalizedContent
+		} catch {
+			return undefined
+		}
+	}
+
+	private async previewPatchStream(rawInput: string, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
+		const config = uiHelpers.getConfig()
+		const provider = config.services.diffViewProvider
+		let patch: Patch
+
+		try {
+			patch = this.parsePatch(rawInput, true)
+		} catch {
+			return
+		}
+
+		const entries = Object.entries(patch.actions)
+		if (entries.length === 0) {
+			return
+		}
+
+		const [originalPath, action] = entries[0]
+		const targetPath = action.type === ActionType.UPDATE && action.movePath ? action.movePath : originalPath
+		const targetResolution = this.resolveWorkspacePathSafe(config, targetPath, "ApplyPatchHandler.previewPatch.target")
+		if (!targetResolution) {
+			return
+		}
+
+		const targetValidation = this.validator.checkClineIgnorePath(targetResolution.resolvedPath)
+		if (!targetValidation.ok) {
+			return
+		}
+
+		const state = this.ensurePartialPreviewState()
+		const requiresOpen =
+			!provider.isEditing || state.currentPreviewPath !== targetResolution.resolvedPath || provider.editType === undefined
+
+		const needsCreateEditor = action.type === ActionType.ADD || (action.type === ActionType.UPDATE && !!action.movePath)
+
+		if (requiresOpen) {
+			provider.editType = needsCreateEditor ? "create" : "modify"
+			await provider.open(targetResolution.absolutePath, { displayPath: targetResolution.resolvedPath })
+			state.currentPreviewPath = targetResolution.resolvedPath
+		}
+
+		let newContent: string | undefined
+
+		switch (action.type) {
+			case ActionType.ADD:
+				newContent = action.newFile ?? ""
+				break
+			case ActionType.UPDATE: {
+				const sourceResolution = this.resolveWorkspacePathSafe(
+					config,
+					originalPath,
+					"ApplyPatchHandler.previewPatch.source",
+				)
+				if (!sourceResolution) {
+					return
+				}
+
+				const originalContent = await this.getOriginalFileContentForPreview(originalPath, sourceResolution)
+				if (originalContent === undefined) {
+					return
+				}
+
+				try {
+					newContent = this.applyChunks(originalContent, action.chunks, originalPath)
+				} catch {
+					return
+				}
+
+				if (action.movePath) {
+					provider.editType = "create"
+				} else {
+					provider.editType = "modify"
+				}
+				break
+			}
+			case ActionType.DELETE:
+				newContent = ""
+				provider.editType = "modify"
+				break
+			default:
+				return
+		}
+
+		if (newContent === undefined) {
+			return
+		}
+
+		try {
+			await provider.update(newContent, false)
+		} catch {
+			// Ignore streaming errors - final execute will handle them
 		}
 	}
 
@@ -159,6 +308,15 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
+
+		if (provider.isEditing) {
+			try {
+				await provider.reset()
+			} catch {
+				// Ignore reset errors - we will attempt to continue with a fresh state
+			}
+		}
+		this.partialPreviewState = undefined
 
 		try {
 			const patch = this.parsePatch(rawInput)
@@ -247,13 +405,13 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 	}
 
 	// Core parsing logic
-	private parsePatch(text: string): Patch {
-		const lines = this.preprocessLines(text)
+	private parsePatch(text: string, allowIncompleteSentinels = false): Patch {
+		const lines = this.preprocessLines(text, allowIncompleteSentinels)
 		const parser = new PatchParser(lines)
 		return parser.parse()
 	}
 
-	private preprocessLines(text: string): string[] {
+	private preprocessLines(text: string, allowIncompleteSentinels: boolean): string[] {
 		let lines = text.split("\n").map((line) => line.replace(/\r$/, ""))
 		lines = this.stripBashWrapper(lines)
 
@@ -264,6 +422,16 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			return [PATCH_MARKERS.BEGIN, ...lines, PATCH_MARKERS.END]
 		}
 		if (hasBegin && hasEnd) {
+			return lines
+		}
+
+		if (allowIncompleteSentinels) {
+			if (!hasBegin) {
+				lines = [PATCH_MARKERS.BEGIN, ...lines]
+			}
+			if (!hasEnd) {
+				lines = [...lines, PATCH_MARKERS.END]
+			}
 			return lines
 		}
 
