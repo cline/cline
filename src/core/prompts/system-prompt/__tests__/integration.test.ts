@@ -215,6 +215,12 @@ describe("Prompt System Integration Tests", () => {
 			contextVariations,
 		},
 		{
+			modelGroup: ModelFamily.HERMES,
+			modelIds: ["hermes-4"],
+			providerId: "test",
+			contextVariations,
+		},
+		{
 			modelGroup: ModelFamily.GPT_5,
 			modelIds: ["gpt-5"],
 			providerId: "openai",

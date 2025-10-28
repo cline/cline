@@ -59,6 +59,20 @@ export function isGLMModelFamily(id: string): boolean {
 	)
 }
 
+export function isHermesModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return (
+		modelId.includes("hermes-4") ||
+		modelId.includes("hermes4") ||
+		modelId.includes("nous/hermes-4") ||
+		modelId.includes("nous/hermes4") ||
+		modelId.includes("nous-hermes-4") ||
+		modelId.includes("nous/hermes4") ||
+		modelId.includes("nousresearch/hermes-4") ||
+		modelId.includes("nousresearch/hermes4")
+	)
+}
+
 export function isNextGenModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
