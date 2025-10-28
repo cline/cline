@@ -20,9 +20,12 @@ export const config = createVariant(ModelFamily.GPT_5)
 	.matcher((context) => {
 		const providerInfo = context.providerInfo
 		const modelId = providerInfo.model.id
-		const isGPT5Models = isGPT5ModelFamily(modelId)
-		const isGPT5ChatModel = isGPT5Models && modelId.includes("chat")
-		return (isGPT5Models || isGPT5ChatModel) && isNextGenModelProvider(providerInfo) && !context.enableNativeToolCalls
+		return (
+			isGPT5ModelFamily(modelId) &&
+			!modelId.includes("chat") &&
+			isNextGenModelProvider(providerInfo) &&
+			!context.enableNativeToolCalls
+		)
 	})
 	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
 	.components(

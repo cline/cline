@@ -26,10 +26,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		const modelId = providerInfo.model.id
 
 		// gpt-5-chat models do not support native tool use
-		const isGPT5Models = isGPT5ModelFamily(modelId)
-		const isGPT5ChatModel = isGPT5Models && modelId.includes("chat")
-
-		return isGPT5Models && !isGPT5ChatModel && isNextGenModelProvider(providerInfo)
+		return isGPT5ModelFamily(modelId) && !modelId.includes("chat") && isNextGenModelProvider(providerInfo)
 	})
 	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
 	.components(

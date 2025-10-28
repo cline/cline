@@ -27,7 +27,7 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
 			!isNextGenModelProvider(providerInfo) &&
 			isNextGenModelFamily(modelId) &&
-			!(isGPT5ModelFamily(modelId) && modelId.includes("chat") && isNextGenModelProvider(providerInfo))
+			!(isGPT5ModelFamily(modelId) && !modelId.includes("chat"))
 		)
 	})
 	.template(baseTemplate)

@@ -5,7 +5,9 @@ const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d]+(?:\.\d+)?)[-_ ]?/
 
 export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 	const providerId = normalize(providerInfo.providerId)
-	return ["cline", "anthropic", "gemini", "openrouter", "xai", "openai", "vercel-ai-gateway"].some((id) => providerId === id)
+	return ["cline", "anthropic", "gemini", "openrouter", "xai", "openai", "openai-native", "vercel-ai-gateway"].some(
+		(id) => providerId === id,
+	)
 }
 
 export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
