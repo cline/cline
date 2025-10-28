@@ -71,7 +71,7 @@ export class VariantBuilder {
 	}
 
 	/**
-	 * Set the matcher function to determine if this variant should be used for a given context
+	 * Set the matcher function to determine if this variant should be used for the given context
 	 */
 	matcher(matcherFn: (context: SystemPromptContext) => boolean): this {
 		this.variant = {

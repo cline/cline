@@ -199,9 +199,9 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			const lines = this.stripBashWrapper(rawInput.split("\n"))
 			const operations = {
-				add: this.extractFilesFromLines(lines, PATCH_MARKERS.ADD),
-				update: this.extractFilesFromLines(lines, PATCH_MARKERS.UPDATE),
-				delete: this.extractFilesFromLines(lines, PATCH_MARKERS.DELETE),
+				add: this.extractFilesFromLines(lines, PATCH_MARKERS.ADD, rawInput),
+				update: this.extractFilesFromLines(lines, PATCH_MARKERS.UPDATE, rawInput),
+				delete: this.extractFilesFromLines(lines, PATCH_MARKERS.DELETE, rawInput),
 			}
 
 			if (operations.add.length > 0) {
@@ -328,6 +328,17 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			}
 		}
 
+		// For ADD operations, ensure we have actual content before proceeding
+		if (actionType === ActionType.ADD) {
+			if (contentStartIndex < 0 || contentStartIndex >= lines.length) {
+				return
+			}
+			const contentLines = lines.slice(contentStartIndex)
+			if (contentLines.length === 0 || (contentLines.length === 1 && contentLines[0] === "")) {
+				return // No content yet, don't create the file
+			}
+		}
+
 		const finalPath = movePath || targetPath
 		const targetResolution = await this.pathResolver!.resolveAndValidate(finalPath, "ApplyPatchHandler.previewPatch.target")
 		if (!targetResolution) {
@@ -350,13 +361,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		switch (actionType) {
 			case ActionType.ADD: {
 				// For ADD: stream the raw content directly (lines after the header)
-				if (contentStartIndex < 0 || contentStartIndex >= lines.length) {
-					return
-				}
+				// We've already validated content exists above
 				const contentLines = lines.slice(contentStartIndex)
-				if (contentLines.length === 0 || (contentLines.length === 1 && contentLines[0] === "")) {
-					return // No content yet
-				}
 				newContent = contentLines.join("\n")
 				break
 			}
@@ -609,7 +615,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		let foundBegin = false
 		let foundContent = false
 
-		for (const line of lines) {
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i]
 			// Skip bash wrappers outside patch
 			if (!insidePatch && BASH_WRAPPERS.some((wrapper) => line.startsWith(wrapper))) {
 				continue
@@ -629,7 +636,9 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			}
 
 			const isPatchContent = this.isPatchLine(line)
-			if (isPatchContent) {
+			// Makes sure the next line after patch content is ready,
+			// else we may cut off important context lines
+			if (isPatchContent && i !== lines.length - 1) {
 				foundContent = true
 			}
 
@@ -681,11 +690,41 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return this.extractFilesForOperations(text, [PATCH_MARKERS.ADD, PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE])
 	}
 
-	private extractFilesFromLines(lines: string[], marker: string): string[] {
-		return lines
-			.filter((line) => line.startsWith(marker))
-			.map((line) => line.substring(marker.length).trim())
-			.filter((path) => path.length > 0 && !path.includes("***")) // Filter out incomplete paths
+	private extractFilesFromLines(lines: string[], marker: string, rawInput?: string): string[] {
+		const results: string[] = []
+
+		// Check if the raw input ends with a newline
+		// If it doesn't, the last line is incomplete and should be ignored
+		const endsWithNewline = rawInput ? rawInput.endsWith("\n") : true
+		const maxIndex = endsWithNewline ? lines.length : lines.length - 1
+
+		for (let i = 0; i < maxIndex; i++) {
+			const line = lines[i]
+			if (line.startsWith(marker)) {
+				const path = line.substring(marker.length).trim()
+
+				// Filter out incomplete paths
+				if (path.length === 0 || path.includes("***")) {
+					continue
+				}
+
+				// For Add File operations, ensure the next line exists and is not empty
+				if (marker === PATCH_MARKERS.ADD) {
+					const nextLineIndex = i + 1
+					if (nextLineIndex >= lines.length) {
+						continue // No next line yet
+					}
+					const nextLine = lines[nextLineIndex]
+					if (nextLine === "") {
+						continue // Next line is empty, wait for content
+					}
+				}
+
+				results.push(path)
+			}
+		}
+
+		return results
 	}
 
 	// File operations
@@ -747,6 +786,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 	}
 
 	private applyChunks(content: string, chunks: Chunk[], path: string): string {
+		// Preserve whether the original content ends with a newline
+		const endsWithNewline = content.endsWith("\n")
 		const lines = content.split("\n")
 		const result: string[] = []
 		let currentIndex = 0
@@ -765,7 +806,12 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		}
 
 		result.push(...lines.slice(currentIndex))
-		return result.join("\n")
+		const joined = result.join("\n")
+
+		// Restore the original trailing newline behavior
+		// When split() encounters a trailing newline, it creates an empty string at the end
+		// So we need to preserve this behavior when joining back
+		return endsWithNewline && !joined.endsWith("\n") ? joined + "\n" : joined
 	}
 
 	private async applyCommit(commit: Commit): Promise<Record<string, { finalContent?: string; deleted?: boolean }>> {
