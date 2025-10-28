@@ -73,7 +73,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	// Handle click outside to collapse
 	React.useEffect(() => {
-		if (!isHighlightedTextExpanded) return
+		if (!isHighlightedTextExpanded) {
+			return
+		}
 
 		const handleClickOutside = (event: MouseEvent) => {
 			if (highlightedTextRef.current && !highlightedTextRef.current.contains(event.target as Node)) {

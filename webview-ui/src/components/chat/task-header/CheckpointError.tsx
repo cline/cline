@@ -2,7 +2,6 @@ import { Alert } from "@heroui/react"
 import { XIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface CheckpointErrorProps {
 	checkpointManagerErrorMessage?: string
@@ -29,7 +28,7 @@ export const CheckpointError: React.FC<CheckpointErrorProps> = ({
 	return (
 		<div className="flex items-center justify-center w-full">
 			<Alert
-				className="rounded-sm text-base h-fit bg-input-error-background text-input-error-foreground px-2 py-0 border border-foreground/30"
+				className="relative rounded-sm text-base h-fit bg-input-error-background text-input-error-foreground px-2 border border-foreground/30 py-1 px-2"
 				color="warning"
 				description={
 					<div className="flex gap-2">
@@ -50,23 +49,18 @@ export const CheckpointError: React.FC<CheckpointErrorProps> = ({
 					</div>
 				}
 				endContent={
-					<Tooltip>
-						<TooltipContent side="left">Dismiss</TooltipContent>
-						<TooltipTrigger>
-							<Button
-								aria-label="Dismiss"
-								className="inline-flex"
-								onClick={(e) => {
-									e.preventDefault()
-									e.stopPropagation()
-									setDismissed(true)
-								}}
-								size="icon"
-								variant="icon">
-								<XIcon />
-							</Button>
-						</TooltipTrigger>
-					</Tooltip>
+					<Button
+						aria-label="Dismiss"
+						className="absolute top-0.5 right-2 opacity-70 hover:opacity-100 p-1"
+						onClick={(e) => {
+							e.preventDefault()
+							e.stopPropagation()
+							setDismissed(true)
+						}}
+						size="icon"
+						variant="icon">
+						<XIcon />
+					</Button>
 				}
 				hideIcon={true}
 				isVisible={!dismissed}
