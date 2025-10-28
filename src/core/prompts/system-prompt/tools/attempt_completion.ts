@@ -73,7 +73,7 @@ IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user th
 }
 
 const NATIVE_NEXT_GEN: ClineToolSpec = {
-	variant: ModelFamily.GPT_5,
+	variant: ModelFamily.NATIVE_NEXT_GEN,
 	id,
 	name: "attempt_completion",
 	description:
@@ -93,6 +93,7 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 		{
 			name: "task_progress",
 			required: false,
+			dependencies: [ClineDefaultTool.TODO],
 			instruction: "A checklist showing task progress with the latest status of each subtasks included previously if any.",
 		},
 	],
