@@ -1,10 +1,8 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { CSSProperties, memo, useState } from "react"
 import { useMount } from "react-use"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { AccountServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
@@ -47,8 +45,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 
 	const [didClickGrokCodeButton, setDidClickGrokCodeButton] = useState(false)
-	const [didClickCodeSupernovaButton, setDidClickCodeSupernovaButton] = useState(false)
-
 	// Need to get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
 
@@ -68,30 +64,6 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			setDidClickGrokCodeButton(true)
 			setShowChatModelSelector(true)
 		}, 10)
-	}
-
-	const setCodeSupernova = () => {
-		const modelId = "cline/code-supernova-1-million"
-		// set both plan and act modes to use code-supernova-1-million
-		handleFieldsChange({
-			planModeOpenRouterModelId: modelId,
-			actModeOpenRouterModelId: modelId,
-			planModeOpenRouterModelInfo: openRouterModels[modelId],
-			actModeOpenRouterModelInfo: openRouterModels[modelId],
-			planModeApiProvider: "cline",
-			actModeApiProvider: "cline",
-		})
-
-		setTimeout(() => {
-			setDidClickCodeSupernovaButton(true)
-			setShowChatModelSelector(true)
-		}, 10)
-	}
-
-	const handleShowAccount = () => {
-		AccountServiceClient.accountLoginClicked(EmptyRequest.create()).catch((err) =>
-			console.error("Failed to get login URL:", err),
-		)
 	}
 
 	return (
