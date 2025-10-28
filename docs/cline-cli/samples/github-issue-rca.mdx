@@ -6,13 +6,8 @@ description: An autonomous GitHub issue analyzer using Cline CLI
 Build a sample using a bash script that takes a GitHub issue URL as input and performs comprehensive automated analysis. The script leverages GitHub CLI to fetch issue details, then uses Cline's autonomous capabilities to analyze the issue content, explore relevant codebase files, identify root causes, and provide detailed recommendations for resolution—all while operating autonomously and outputting clean, parseable results that can be easily integrated into your development workflows.
 
 <Note>
-**Source Code:** The complete implementation with the script is available at [src/samples/cli/github-issue-rca](https://github.com/cline/cline/tree/main/src/samples/cli/github-issue-rca)
+**Source Code:** The script for this sample is available on [GitHub](https://github.com/cline/cline/tree/main/src/samples/cli/github-issue-rca)
 </Note>
-
-
-## Demo Video
-
-Watch this sample in action:
 
 <div style={{ maxWidth: '800px', margin: '2rem auto' }}>
   <video 
@@ -23,7 +18,6 @@ Watch this sample in action:
     Your browser does not support the video tag.
   </video>
 </div>
-
 
 ## Prerequisites
 
@@ -64,61 +58,60 @@ Before starting this sample, ensure you have:
   </Tab>
 </Tabs>
 
-### Key Features
+## Getting the Script
 
-- **Non-interactive execution** - Runs completely autonomously without user input
-- **JSON output parsing** - Extracts relevant data from Cline's structured output
-- **Flexible prompting** - Supports custom analysis questions
-- **Instance targeting** - Can work with specific Cline instances
-- **Context-aware analysis** - Understands code repositories and issue context
-
-### Complete Sample Script
-
-Here's the full `analyze-issue.sh` script:
+You can find the script on [GitHub](https://github.com/cline/cline/tree/main/src/samples/cli/github-issue-rca/analyze-issue.sh), or download it directly with:
 
 ```bash
-#!/bin/bash
-# Analyze a GitHub issue using Cline CLI
-
-if [ -z "$1" ]; then
-    echo "Usage: $0 <github-issue-url> [prompt] [address]"
-    echo "Example: $0 https://github.com/owner/repo/issues/123"
-    echo "Example: $0 https://github.com/owner/repo/issues/123 'What is the root cause of this issue?'"
-    echo "Example: $0 https://github.com/owner/repo/issues/123 'What is the root cause of this issue?' 127.0.0.1:46529"
-    exit 1
-fi
-# Gather the args
-ISSUE_URL="$1"
-PROMPT="${2:-What is the root cause of this issue?}"
-if [ -n "$3" ]; then
-    ADDRESS="--address $3"
-fi
-# Ask Cline for his analysis, showing only the summary
-cline -y "$PROMPT: $ISSUE_URL" --mode act $ADDRESS -F json | \
-    sed -n '/^{/,$p' | \
-    jq -r 'select(.say == "completion_result") | .text' | \
-    sed 's/\\n/\n/g'
+curl -O https://raw.githubusercontent.com/cline/cline/main/src/samples/cli/github-issue-rca/analyze-issue.sh
+chmod +x analyze-issue.sh
 ```
 
-### How to Execute
+## Quick Usage Examples
 
-To run this script, follow these steps:
+### Basic Usage
 
-1. **Save the script** to a file named `analyze-issue.sh`
-2. **Make it executable**:
-   ```bash
-   chmod +x analyze-issue.sh
-   ```
-3. **Run the script** with a GitHub issue URL:
-   ```bash
-   ./analyze-issue.sh https://github.com/owner/repo/issues/123
-   ```
+Analyze an issue with the default root cause prompt:
+
+```bash
+./analyze-issue.sh https://github.com/owner/repo/issues/123
+```
+
+This will:
+- Fetch issue #123 from the repository
+- Analyze the issue to identify root causes
+- Provide detailed analysis with recommendations
+
+### Custom Analysis Prompt
+
+Ask specific questions about the issue:
+
+```bash
+./analyze-issue.sh https://github.com/owner/repo/issues/456 "What is the security impact?"
+```
+
+### Using Specific Cline Instance
+
+Target a particular Cline instance by address:
+
+```bash
+./analyze-issue.sh https://github.com/owner/repo/issues/123 \
+    "What is the root cause of this issue?" \
+    127.0.0.1:46529
+```
+
+<Info>
+This is useful when:
+- Running multiple Cline instances
+- Using a remote Cline server
+- Testing with specific configurations
+</Info>
 
 <Note>
 The script will automatically handle everything: fetching the issue, analyzing it with Cline, and displaying the results. The analysis typically takes 30-60 seconds depending on the issue complexity.
 </Note>
 
-## Breaking Down the Sample
+## How It Works
 
 Let's analyze each component of the script to understand how it works.
 
@@ -210,46 +203,6 @@ cline -y "$PROMPT: $ISSUE_URL" --mode act $ADDRESS -F json | \
 </Accordion>
 </AccordionGroup>
 
-## Usage Examples
-
-### Basic Usage
-
-Analyze an issue with the default root cause prompt:
-
-```bash
-./analyze-issue.sh https://github.com/owner/repo/issues/123
-```
-
-This will:
-- Fetch issue #123 from the repository
-- Analyze the issue to identify root causes
-- Provide detailed analysis with recommendations
-
-### Custom Analysis Prompt
-
-Ask specific questions about the issue:
-
-```bash
-./analyze-issue.sh https://github.com/owner/repo/issues/456 "What is the security impact?"
-```
-
-### Using Specific Cline Instance
-
-Target a particular Cline instance by address:
-
-```bash
-./analyze-issue.sh https://github.com/owner/repo/issues/123 \
-    "What is the root cause of this issue?" \
-    127.0.0.1:46529
-```
-
-<Info>
-This is useful when:
-- Running multiple Cline instances
-- Using a remote Cline server
-- Testing with specific configurations
-</Info>
-
 ## Sample Output
 
 Here's an example analyzing a real Flutter issue:
@@ -323,39 +276,41 @@ would be the easiest migration path while Bloc provides better long-term
 scalability.
 ```
 
-## Use Cases
+## When to Use This Pattern
 
-This script pattern is useful for various scenarios:
+This script pattern is ideal for various development scenarios where automated GitHub issue analysis can accelerate your workflow:
 
-### Bug Investigation
-Quickly analyze bug reports and identify root causes:
+### Ideal Use Cases
+
+#### Bug Investigation
+Quickly analyze bug reports and identify root causes without manual code exploration:
 ```bash
-./analyze-issue.sh https://github.com/project/repo/issues/123 \ 
-   "What is the root cause of this bug?"
+./analyze-issue.sh https://github.com/project/repo/issues/123 \
+    "What is the root cause of this bug?"
 ```
 
-### Feature Request Analysis
+#### Feature Request Analysis
 Understand context and implications of feature requests:
 ```bash
 ./analyze-issue.sh https://github.com/project/repo/issues/456 \
     "What are the implementation challenges?"
 ```
 
-### Security Audits
+#### Security Audits
 Assess security implications of reported issues:
 ```bash
 ./analyze-issue.sh https://github.com/project/repo/issues/789 \
     "What are the security implications?"
 ```
 
-### Documentation Generation
-Generate detailed analysis for documentation:
+#### Documentation Generation
+Generate detailed technical documentation from issues:
 ```bash
 ./analyze-issue.sh https://github.com/project/repo/issues/654 \
     "Provide detailed technical documentation for this issue"
 ```
 
-### Code Review Assistance
+#### Code Review Assistance
 Get second opinions on proposed changes:
 ```bash
 ./analyze-issue.sh https://github.com/project/repo/issues/987 \
@@ -364,12 +319,12 @@ Get second opinions on proposed changes:
 
 ## Conclusion
 
-With this sample, you've covered:
+You've built an autonomous GitHub issue analysis tool using Cline CLI. This sample demonstrates:
 
 1. **Building autonomous CLI tools** using Cline's capabilities
 2. **Parsing structured JSON output** from Cline CLI
 3. **Creating flexible automation scripts** with custom prompting
 4. **Integrating with GitHub** for issue analysis
-5. **Extracting specific data** from streaming JSON output
-6. **Handling command-line arguments** effectively
-7. **Building reusable automation patterns** for various use cases
+5. **Handling command-line arguments** effectively
+
+This pattern can be adapted for many other automation scenarios, from PR reviews to documentation generation to code quality analysis.

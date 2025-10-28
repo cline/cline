@@ -4,6 +4,17 @@ Automated GitHub issue analysis using Cline CLI. This script uses Cline's autono
 
 **Full Tutorial:** See the [documentation](https://docs.cline.bot/cline-cli/samples/github-issue-rca)
 
+## Getting the Script
+
+**Option 1: Clone or view the repository**
+- Script location: [`analyze-issue.sh`](./analyze-issue.sh)
+
+**Option 2: Download directly with curl**
+```bash
+curl -O https://raw.githubusercontent.com/cline/cline/main/src/samples/cli/github-issue-rca/analyze-issue.sh
+chmod +x analyze-issue.sh
+```
+
 ## Quick Start
 
 ```bash
