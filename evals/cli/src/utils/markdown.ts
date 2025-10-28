@@ -6,11 +6,7 @@ import * as fs from "fs"
  * @param benchmarkReports Benchmark-specific reports
  * @param outputPath Output file path
  */
-export function generateMarkdownReport(
-	summary: any,
-	benchmarkReports: Record<string, any>,
-	outputPath: string,
-): void {
+export function generateMarkdownReport(summary: any, benchmarkReports: Record<string, any>, outputPath: string): void {
 	let markdown = `# Cline Evaluation Report\n\n`
 
 	// Generate summary section

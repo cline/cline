@@ -1,5 +1,5 @@
-import { BenchmarkAdapter } from "./types"
 import { ExercismAdapter } from "./exercism"
+import { BenchmarkAdapter } from "./types"
 
 // Registry of all available adapters
 const adapters: Record<string, BenchmarkAdapter> = {

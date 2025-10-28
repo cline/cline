@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import { Command } from "commander"
 import chalk from "chalk"
-import { setupHandler } from "./commands/setup"
-import { runHandler } from "./commands/run"
+import { Command } from "commander"
 import { reportHandler } from "./commands/report"
+import { runHandler } from "./commands/run"
 import { runDiffEvalHandler } from "./commands/runDiffEval"
+import { setupHandler } from "./commands/setup"
 
 // Create the CLI program
 const program = new Command()
@@ -16,11 +16,7 @@ program.name("cline-eval").description("CLI tool for orchestrating Cline evaluat
 program
 	.command("setup")
 	.description("Clone and set up benchmark repositories")
-	.option(
-		"-b, --benchmarks <benchmarks>",
-		"Comma-separated list of benchmarks to set up",
-		"exercism",
-	)
+	.option("-b, --benchmarks <benchmarks>", "Comma-separated list of benchmarks to set up", "exercism")
 	.action(async (options) => {
 		try {
 			await setupHandler(options)
@@ -68,7 +64,11 @@ program
 	.option("--output-path <path>", "Path to the directory to save the test output JSON files")
 	.option("--model-ids <model_ids>", "Comma-separated list of model IDs to test")
 	.option("--system-prompt-name <name>", "The name of the system prompt to use", "basicSystemPrompt")
-	.option("-n, --valid-attempts-per-case <number>", "Number of valid attempts per test case per model (will retry until this many valid attempts are collected)", "1")
+	.option(
+		"-n, --valid-attempts-per-case <number>",
+		"Number of valid attempts per test case per model (will retry until this many valid attempts are collected)",
+		"1",
+	)
 	.option("--max-attempts-per-case <number>", "Maximum total attempts per test case (default: 10x valid attempts)")
 	.option("--max-cases <number>", "Maximum number of test cases to run (limits total cases loaded)")
 	.option("--parsing-function <name>", "The parsing function to use", "parseAssistantMessageV2")

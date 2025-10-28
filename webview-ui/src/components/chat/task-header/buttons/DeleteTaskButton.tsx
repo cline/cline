@@ -1,7 +1,8 @@
-import { Button, cn } from "@heroui/react"
 import { StringArrayRequest } from "@shared/proto/cline/common"
 import { TrashIcon } from "lucide-react"
-import HeroTooltip from "@/components/common/HeroTooltip"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { formatSize } from "@/utils/format"
 
@@ -10,19 +11,23 @@ const DeleteTaskButton: React.FC<{
 	taskSize?: number
 	className?: string
 }> = ({ taskId, className, taskSize }) => (
-	<HeroTooltip content={`Delete Task (size: ${taskSize ? formatSize(taskSize) : "--"})`} placement="right">
-		<Button
-			aria-label="Delete Task"
-			className={cn("flex items-center border-0 text-sm font-bold bg-transparent hover:opacity-100 p-0", className)}
-			isIconOnly={true}
-			onPress={() => {
-				taskId && TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [taskId] }))
-			}}
-			radius="sm"
-			size="sm">
-			<TrashIcon size="13" />
-		</Button>
-	</HeroTooltip>
+	<Tooltip>
+		<TooltipContent>{`Delete Task (size: ${taskSize ? formatSize(taskSize) : "--"})`}</TooltipContent>
+		<TooltipTrigger className={cn("flex items-center", className)}>
+			<Button
+				aria-label="Delete Task"
+				disabled={!taskId}
+				onClick={(e) => {
+					e.preventDefault()
+					e.stopPropagation()
+					taskId && TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [taskId] }))
+				}}
+				size="xs"
+				variant="icon">
+				<TrashIcon />
+			</Button>
+		</TooltipTrigger>
+	</Tooltip>
 )
 DeleteTaskButton.displayName = "DeleteTaskButton"
 

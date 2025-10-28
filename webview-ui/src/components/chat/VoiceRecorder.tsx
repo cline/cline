@@ -1,10 +1,12 @@
-import { cn } from "@heroui/react"
 import { TranscribeAudioRequest } from "@shared/proto/cline/dictation"
 import { EmptyRequest } from "@shared/proto/index.cline"
+import { SquareIcon, StopCircleIcon } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { DictationServiceClient } from "@/services/grpc-client"
 import { formatSeconds } from "@/utils/format"
-import HeroTooltip from "../common/HeroTooltip"
 
 interface VoiceRecorderProps {
 	onTranscription: (text: string) => void
@@ -222,7 +224,6 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 		stopRecording()
 	}, [stopRecording, disabled, isProcessing])
 
-	const iconAnimation = isProcessing || isStarting ? "animate-spin" : ""
 	const iconAdjustment = isProcessing || isStarting ? "mt-0" : error ? "mt-1" : "mt-0.5"
 	// When not recording, show single mic button
 	if (!isRecording) {
@@ -240,40 +241,64 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 				? "Starting recording..."
 				: error
 					? `Error: ${error}`
-					: null
+					: "Voice Input"
 
 		return (
-			<HeroTooltip content={tooltipContent} placement="top">
-				<div
-					className={`input-icon-button mr-1.5 text-base ${iconAdjustment} ${iconAnimation} ${disabled || isProcessing || isStarting ? "disabled" : ""}`}
-					onClick={handleStartClick}
-					style={{ color: iconColor }}>
-					<span className={`codicon ${iconClass}`} />
-				</div>
-			</HeroTooltip>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<div
+						className={cn("pt-1 input-icon-button mr-1.5 text-base", iconAdjustment, {
+							disabled: disabled || isProcessing || isStarting,
+							"animate-spin": isProcessing || isStarting,
+						})}
+						data-testid="voice-recorder-start-button"
+						onClick={handleStartClick}
+						style={{ color: iconColor }}>
+						<span className={`codicon ${iconClass}`} />
+					</div>
+				</TooltipTrigger>
+				<TooltipContent side="top">{tooltipContent}</TooltipContent>
+			</Tooltip>
 		)
 	}
 
 	return (
-		<div className={`flex items-center ${isRecording ? "mr-0.5" : "mr-1.5"}`}>
-			<HeroTooltip
-				content={`Stop Recording (${formatSeconds(recordingDuration)}/${formatSeconds(MAX_DURATION)})`}
-				placement="top">
-				<div
-					className={cn("input-icon-button mr-1.5 text-error", iconAdjustment, iconAnimation, {
-						disabled: disabled || isProcessing,
-					})}
-					onClick={handleStopClick}>
-					<span className="codicon codicon-stop-circle" />
-				</div>
-			</HeroTooltip>
-			<HeroTooltip content="Cancel Recording" placement="top">
-				<div
-					className={`input-icon-button text-base ${isRecording ? "mt-0.5" : "mt-1"} text-foreground ${disabled || isProcessing ? "disabled" : ""}`}
-					onClick={handleCancelClick}>
-					<span className="codicon codicon-close" />
-				</div>
-			</HeroTooltip>
+		<div className={cn("flex items-center mb-2", { "mr-0.5": isRecording, "mr-1.5": !isRecording })}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						className={cn("input-icon-button p-1 m-0 mr-1.5 text-base", iconAdjustment, {
+							disabled: disabled || isProcessing,
+							"animate-spin": isProcessing || isStarting,
+						})}
+						data-testid="stop-recording-button"
+						onClick={handleStopClick}
+						size="sm"
+						variant="icon">
+						<StopCircleIcon />
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent side="top">
+					Stop Recording ({formatSeconds(recordingDuration)}/{formatSeconds(MAX_DURATION)})
+				</TooltipContent>
+			</Tooltip>
+
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						className={cn("input-icon-button p-1 m-0 text-base text-error", iconAdjustment, {
+							"animate-spin": isProcessing || isStarting,
+							disabled: disabled || isProcessing,
+						})}
+						data-testid="cancel-recording-button"
+						onClick={handleCancelClick}
+						size="sm"
+						variant="icon">
+						<SquareIcon />
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent side="top">Cancel Recording</TooltipContent>
+			</Tooltip>
 		</div>
 	)
 }
