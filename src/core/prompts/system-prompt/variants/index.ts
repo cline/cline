@@ -9,6 +9,7 @@
 export { config as genericConfig, type GenericVariantConfig } from "./generic/config"
 export { config as glmConfig, type GLMVariantConfig } from "./glm/config"
 export { config as gpt5Config, type GPT5VariantConfig } from "./gpt-5/config"
+export { config as NativeGPT5Config } from "./native-gpt-5/config"
 export { config as nativeNextGenConfig, type NativeNextGenVariantConfig } from "./native-next-gen/config"
 export { config as nextGenConfig, type NextGenVariantConfig } from "./next-gen/config"
 export { config as xsConfig, type XsVariantConfig } from "./xs/config"
@@ -17,6 +18,7 @@ import { ModelFamily } from "@/shared/prompts"
 import { config as genericConfig } from "./generic/config"
 import { config as glmConfig } from "./glm/config"
 import { config as gpt5Config } from "./gpt-5/config"
+import { config as NativeGPT5Config } from "./native-gpt-5/config"
 import { config as NativeNextGenVariantConfig } from "./native-next-gen/config"
 import { config as nextGenConfig } from "./next-gen/config"
 import { config as xsConfig } from "./xs/config"
@@ -29,6 +31,10 @@ import { config as xsConfig } from "./xs/config"
 export const VARIANT_CONFIGS = {
 	/**
 	 * GPT-5 variant with native tool support.
+	 */
+	[ModelFamily.NATIVE_GPT_5]: NativeGPT5Config,
+	/**
+	 * GPT-5 variant without native tool support.
 	 */
 	[ModelFamily.GPT_5]: gpt5Config,
 	/**

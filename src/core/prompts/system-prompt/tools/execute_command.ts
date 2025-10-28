@@ -34,8 +34,8 @@ const GENERIC: ClineToolSpec = {
 	],
 }
 
-const GPT_5: ClineToolSpec = {
-	variant: ModelFamily.GPT_5,
+const NATIVE_GPT_5: ClineToolSpec = {
+	variant: ModelFamily.NATIVE_GPT_5,
 	id: ClineDefaultTool.BASH,
 	name: ClineDefaultTool.BASH,
 	description:
@@ -58,8 +58,8 @@ const GPT_5: ClineToolSpec = {
 }
 
 const NATIVE_NEXT_GEN: ClineToolSpec = {
-	...GPT_5,
+	...NATIVE_GPT_5,
 	variant: ModelFamily.NATIVE_NEXT_GEN,
 }
 
-export const execute_command_variants: ClineToolSpec[] = [GENERIC, GPT_5, NATIVE_NEXT_GEN]
+export const execute_command_variants: ClineToolSpec[] = [GENERIC, NATIVE_GPT_5, NATIVE_NEXT_GEN]

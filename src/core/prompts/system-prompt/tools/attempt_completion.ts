@@ -99,4 +99,9 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	],
 }
 
-export const attempt_completion_variants = [generic, GPT_5, NATIVE_NEXT_GEN]
+const NATIVE_GPT_5: ClineToolSpec = {
+	...NATIVE_NEXT_GEN,
+	variant: ModelFamily.NATIVE_GPT_5,
+}
+
+export const attempt_completion_variants = [generic, GPT_5, NATIVE_NEXT_GEN, NATIVE_GPT_5]

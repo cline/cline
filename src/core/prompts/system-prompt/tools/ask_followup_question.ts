@@ -29,8 +29,8 @@ const generic: ClineToolSpec = {
 	],
 }
 
-const GPT_5: ClineToolSpec = {
-	variant: ModelFamily.GPT_5,
+const NATIVE_NEXT_GEN: ClineToolSpec = {
+	variant: ModelFamily.NATIVE_NEXT_GEN,
 	id: ClineDefaultTool.ASK,
 	name: "ask_followup_question",
 	description:
@@ -52,9 +52,9 @@ const GPT_5: ClineToolSpec = {
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
-	...GPT_5,
-	variant: ModelFamily.NATIVE_NEXT_GEN,
+const NATIVE_GPT_5: ClineToolSpec = {
+	...NATIVE_NEXT_GEN,
+	variant: ModelFamily.NATIVE_GPT_5,
 }
 
-export const ask_followup_question_variants = [generic, GPT_5, NATIVE_NEXT_GEN]
+export const ask_followup_question_variants = [generic, NATIVE_GPT_5, NATIVE_NEXT_GEN]

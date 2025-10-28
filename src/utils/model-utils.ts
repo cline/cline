@@ -1,7 +1,7 @@
 import { ApiHandlerModel, ApiProviderInfo } from "@core/api"
 import { AnthropicModelId, anthropicModels } from "@/shared/api"
 
-const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d](?:\.[05])?)[-_ ]?/
+const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d]+(?:\.\d+)?)[-_ ]?/
 
 export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 	const providerId = normalize(providerInfo.providerId)

@@ -22,14 +22,12 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		if (isNextGenModelFamily(providerInfo.model.id) && !context.enableNativeToolCalls) {
 			return true
 		}
+		const modelId = providerInfo.model.id
 		return (
 			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
 			!isNextGenModelProvider(providerInfo) &&
-			isNextGenModelFamily(providerInfo.model.id) &&
-			!(
-				isGPT5ModelFamily(providerInfo.model.id) &&
-				["cline", "openai", "openrouter"].some((substring) => providerInfo.providerId.includes(substring))
-			)
+			isNextGenModelFamily(modelId) &&
+			!(isGPT5ModelFamily(modelId) && modelId.includes("chat") && isNextGenModelProvider(providerInfo))
 		)
 	})
 	.template(baseTemplate)

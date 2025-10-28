@@ -991,7 +991,7 @@ class PatchParser {
 			chunks.push(this.createChunk(originalLines.length - delLines.length, delLines, insLines))
 		}
 
-		this.skipEndFileMaker()
+		this.skipEndFileMarker()
 		return chunks
 	}
 
@@ -1029,7 +1029,7 @@ class PatchParser {
 		return { origIndex, delLines, insLines }
 	}
 
-	private skipEndFileMaker(): void {
+	private skipEndFileMarker(): void {
 		if (this.hasMoreLines() && this.lines[this.index] === PATCH_MARKERS.END_FILE) {
 			this.index++
 		}
