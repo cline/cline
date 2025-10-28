@@ -481,6 +481,8 @@ export class StateManager {
 			difyBaseUrl,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
+			minimaxApiKey,
+			minimaxApiLine,
 			requestTimeoutMs,
 			ocaBaseUrl,
 			ocaMode,
@@ -665,6 +667,7 @@ export class StateManager {
 			difyBaseUrl,
 			qwenCodeOauthPath,
 			ocaBaseUrl,
+			minimaxApiLine,
 			ocaMode,
 		})
 
@@ -704,6 +707,7 @@ export class StateManager {
 			difyApiKey,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
+			minimaxApiKey,
 		})
 	}
 
@@ -963,6 +967,7 @@ export class StateManager {
 			difyApiKey: this.secretsCache["difyApiKey"],
 			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
 			zaiApiKey: this.secretsCache["zaiApiKey"],
+			minimaxApiKey: this.secretsCache["minimaxApiKey"],
 
 			// Global state (with remote config precedence for applicable fields)
 			awsRegion:
@@ -1032,6 +1037,7 @@ export class StateManager {
 			qwenCodeOauthPath: this.taskStateCache["qwenCodeOauthPath"] || this.globalStateCache["qwenCodeOauthPath"],
 			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
 			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
+			minimaxApiLine: this.taskStateCache["minimaxApiLine"] || this.globalStateCache["minimaxApiLine"],
 			ocaMode: this.globalStateCache["ocaMode"],
 
 			// Plan mode configurations

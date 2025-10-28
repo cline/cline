@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.34.1]
+
+- Added support for MiniMax provider with MiniMax-M2 model
+- Remove Cline/code-supernova-1-million model
+- Changes to allow users to manually enter model names (eg. presets) when using OpenRouter
+
 ## [3.34.0]
 
 - Cline Teams is now free through 2025 for unlimited users. Includes Jetbrains, RBAC, centralized billing and more.
