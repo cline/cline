@@ -270,9 +270,6 @@ export class ClineHandler implements ApiHandler {
 		return this.lastRequestId
 	}
 
-	// Models that are always free to use regardless of account plan
-	static FreeModelIDs = ["cline/code-supernova", "x-ai/grok-code-fast-1"]
-
 	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.openRouterModelId
 		const modelInfo = this.options.openRouterModelInfo
