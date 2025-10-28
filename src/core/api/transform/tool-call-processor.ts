@@ -63,8 +63,7 @@ export class ToolCallProcessor {
 	 * Reset the internal state. Call this when starting a new message.
 	 */
 	reset(): void {
-		this.lastToolCall.id = ""
-		this.lastToolCall.name = ""
+		this.lastToolCall = { id: "", name: "" }
 	}
 
 	/**
