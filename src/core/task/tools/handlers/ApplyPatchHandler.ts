@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises"
 import type { ToolUse } from "@core/assistant-message"
-import { formatResponse } from "@core/prompts/responses"
 import { resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
@@ -15,7 +14,6 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
-import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 // Domain types
@@ -282,30 +280,64 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		const provider = config.services.diffViewProvider
 		this.initializeHelpers(config)
 
-		let patch: Patch
-		try {
-			patch = this.parsePatch(rawInput, true)
-		} catch {
+		// OPTIMIZATION: Instead of full parsing + chunk application on every streaming chunk,
+		// we do lightweight incremental extraction of content for real-time preview.
+		// Full parsing happens once in execute().
+
+		const state = this.ensurePartialPreviewState()
+		const lines = this.stripBashWrapper(rawInput.split("\n"))
+
+		// Extract the first operation path and type incrementally
+		let targetPath: string | undefined
+		let actionType: ActionType | undefined
+		let contentStartIndex = -1
+
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i]
+
+			if (line.startsWith(PATCH_MARKERS.ADD)) {
+				targetPath = line.substring(PATCH_MARKERS.ADD.length).trim()
+				actionType = ActionType.ADD
+				contentStartIndex = i + 1
+				break
+			} else if (line.startsWith(PATCH_MARKERS.UPDATE)) {
+				targetPath = line.substring(PATCH_MARKERS.UPDATE.length).trim()
+				actionType = ActionType.UPDATE
+				contentStartIndex = i + 1
+				break
+			} else if (line.startsWith(PATCH_MARKERS.DELETE)) {
+				targetPath = line.substring(PATCH_MARKERS.DELETE.length).trim()
+				actionType = ActionType.DELETE
+				contentStartIndex = i + 1
+				break
+			}
+		}
+
+		// Skip if we haven't parsed a valid path yet
+		if (!targetPath || targetPath.length === 0 || targetPath.includes("***")) {
 			return
 		}
 
-		const entries = Object.entries(patch.actions)
-		if (entries.length === 0) {
-			return
+		// Check for move/rename marker
+		let movePath: string | undefined
+		if (actionType === ActionType.UPDATE && contentStartIndex >= 0) {
+			const nextLine = lines[contentStartIndex]
+			if (nextLine?.startsWith(PATCH_MARKERS.MOVE)) {
+				movePath = nextLine.substring(PATCH_MARKERS.MOVE.length).trim()
+				contentStartIndex++
+			}
 		}
 
-		const [originalPath, action] = entries[0]
-		const targetPath = action.type === ActionType.UPDATE && action.movePath ? action.movePath : originalPath
-		const targetResolution = await this.pathResolver!.resolveAndValidate(targetPath, "ApplyPatchHandler.previewPatch.target")
+		const finalPath = movePath || targetPath
+		const targetResolution = await this.pathResolver!.resolveAndValidate(finalPath, "ApplyPatchHandler.previewPatch.target")
 		if (!targetResolution) {
 			return
 		}
 
-		const state = this.ensurePartialPreviewState()
 		const requiresOpen =
 			!provider.isEditing || state.currentPreviewPath !== targetResolution.resolvedPath || provider.editType === undefined
 
-		const needsCreateEditor = action.type === ActionType.ADD || (action.type === ActionType.UPDATE && !!action.movePath)
+		const needsCreateEditor = actionType === ActionType.ADD || (actionType === ActionType.UPDATE && !!movePath)
 
 		if (requiresOpen) {
 			provider.editType = needsCreateEditor ? "create" : "modify"
@@ -315,31 +347,48 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		let newContent: string | undefined
 
-		switch (action.type) {
-			case ActionType.ADD:
-				newContent = action.newFile ?? ""
+		switch (actionType) {
+			case ActionType.ADD: {
+				// For ADD: stream the raw content directly (lines after the header)
+				if (contentStartIndex < 0 || contentStartIndex >= lines.length) {
+					return
+				}
+				const contentLines = lines.slice(contentStartIndex)
+				if (contentLines.length === 0 || (contentLines.length === 1 && contentLines[0] === "")) {
+					return // No content yet
+				}
+				newContent = contentLines.join("\n")
 				break
+			}
 			case ActionType.UPDATE: {
+				// For UPDATE: we need original content, but we can stream incremental chunk application
+				// To avoid re-parsing, we'll use cached original content from state
 				const sourceResolution = await this.pathResolver!.resolveAndValidate(
-					originalPath,
+					targetPath,
 					"ApplyPatchHandler.previewPatch.source",
 				)
 				if (!sourceResolution) {
 					return
 				}
 
-				const originalContent = await this.getOriginalFileContentForPreview(originalPath, sourceResolution)
+				const originalContent = await this.getOriginalFileContentForPreview(targetPath, sourceResolution)
 				if (originalContent === undefined) {
 					return
 				}
 
+				// Extract chunks incrementally without full parser
+				const chunks = this.extractChunksIncremental(lines, contentStartIndex)
+				if (chunks.length === 0) {
+					return
+				}
+
 				try {
-					newContent = this.applyChunks(originalContent, action.chunks, originalPath)
+					newContent = this.applyChunks(originalContent, chunks, targetPath)
 				} catch {
 					return
 				}
 
-				provider.editType = action.movePath ? "create" : "modify"
+				provider.editType = movePath ? "create" : "modify"
 				break
 			}
 			case ActionType.DELETE:
@@ -359,6 +408,67 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		} catch {
 			// Ignore streaming errors - final execute will handle them
 		}
+	}
+
+	// Lightweight incremental chunk extraction for streaming preview
+	// This avoids the full parser state machine that happens in parsePatch()
+	private extractChunksIncremental(lines: string[], startIndex: number): Chunk[] {
+		if (startIndex < 0 || startIndex >= lines.length) {
+			return []
+		}
+
+		const chunks: Chunk[] = []
+		let currentChunk: Chunk | null = null
+
+		for (let i = startIndex; i < lines.length; i++) {
+			const line = lines[i]
+
+			// Section marker indicates a new chunk
+			if (line.startsWith(PATCH_MARKERS.SECTION)) {
+				// Save previous chunk if exists
+				if (currentChunk !== null) {
+					chunks.push(currentChunk)
+				}
+
+				// Parse section header: *** Section: <origIndex>
+				const match = line.match(/\*\*\* Section: (\d+)/)
+				const origIndex = match ? Number.parseInt(match[1], 10) : 0
+
+				currentChunk = {
+					origIndex,
+					delLines: [],
+					insLines: [],
+				}
+			} else if (currentChunk !== null) {
+				// Process diff lines
+				if (line.startsWith("-")) {
+					currentChunk.delLines.push(line.substring(1))
+				} else if (line.startsWith("+")) {
+					currentChunk.insLines.push(line.substring(1))
+				} else if (line.startsWith(" ")) {
+					// Context line - add to both
+					const contextLine = line.substring(1)
+					currentChunk.delLines.push(contextLine)
+					currentChunk.insLines.push(contextLine)
+				}
+				// Stop at next operation marker
+				else if (
+					line.startsWith(PATCH_MARKERS.ADD) ||
+					line.startsWith(PATCH_MARKERS.UPDATE) ||
+					line.startsWith(PATCH_MARKERS.DELETE) ||
+					line === PATCH_MARKERS.END
+				) {
+					break
+				}
+			}
+		}
+
+		// Save final chunk
+		if (currentChunk !== null) {
+			chunks.push(currentChunk)
+		}
+
+		return chunks
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
@@ -394,7 +504,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			// Load existing files for update/delete operations
 			const filesToLoad = this.extractFilesForOperations(rawInput, [PATCH_MARKERS.UPDATE, PATCH_MARKERS.DELETE])
-			const currentFiles = await this.loadFiles(provider, config, filesToLoad)
+			const currentFiles = await this.loadFiles(config, filesToLoad)
 
 			// Convert patch to commit
 			const commit = this.patchToCommit(patch, currentFiles)
@@ -447,23 +557,14 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			return responseLines.join("\n")
 		} catch (error) {
+			console.error("Error applying patch:", error)
 			// Revert any changes that may have been applied before the error
-			await this.revertChanges()
 
-			const errorResponse = formatResponse.toolError(`${(error as Error)?.message}`)
-			ToolResultUtils.pushToolResult(
-				errorResponse,
-				block,
-				config.taskState.userMessageContent,
-				ToolDisplayUtils.getToolDescription,
-				config.api,
-				() => {
-					config.taskState.didAlreadyUseTool = true
-				},
-				config.coordinator,
-				config.taskState.toolUseIdMap,
-			)
+			await provider.revertChanges()
+			await provider.reset()
 
+			// Don't manually push tool result here - let the coordinator handle it
+			// Otherwise we get duplicate tool_result blocks in the message
 			throw error
 		}
 	}
@@ -581,15 +682,14 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 	}
 
 	private extractFilesFromLines(lines: string[], marker: string): string[] {
-		return lines.filter((line) => line.startsWith(marker)).map((line) => line.substring(marker.length).trim())
+		return lines
+			.filter((line) => line.startsWith(marker))
+			.map((line) => line.substring(marker.length).trim())
+			.filter((path) => path.length > 0 && !path.includes("***")) // Filter out incomplete paths
 	}
 
 	// File operations
-	private async loadFiles(
-		provider: DiffViewProvider,
-		config: TaskConfig,
-		filePaths: string[],
-	): Promise<Record<string, string>> {
+	private async loadFiles(config: TaskConfig, filePaths: string[]): Promise<Record<string, string>> {
 		const files: Record<string, string> = {}
 
 		for (const filePath of filePaths) {
@@ -600,19 +700,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
 			if (!accessValidation.ok) {
 				await config.callbacks.say("clineignore_error", resolvedPath)
-				const errorResponse = formatResponse.toolError(formatResponse.clineIgnoreError(resolvedPath))
-				ToolResultUtils.pushToolResult(
-					errorResponse,
-					{ name: this.name } as ToolUse,
-					config.taskState.userMessageContent,
-					ToolDisplayUtils.getToolDescription,
-					config.api,
-					() => {
-						config.taskState.didAlreadyUseTool = true
-					},
-					config.coordinator,
-					config.taskState.toolUseIdMap,
-				)
+				// Don't manually push tool result here - let the coordinator handle it via the thrown error
+				// to avoid duplicate tool_result blocks
 				throw new DiffError(`Access denied: ${resolvedPath}`)
 			}
 
@@ -620,11 +709,10 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				throw new DiffError(`File not found: ${filePath}`)
 			}
 
-			provider.editType = "modify"
-			await provider.open(filePath)
-			const content = provider.originalContent || ""
-			await provider.reset()
-			files[filePath] = content
+			// Read directly from disk to avoid saving any preview changes that may be in the dirty document
+			const fileContent = await readFile(absolutePath, "utf8")
+			const normalizedContent = fileContent.replace(/\r\n/g, "\n")
+			files[filePath] = normalizedContent
 		}
 
 		return files
@@ -917,6 +1005,9 @@ class PatchParser {
 			chunks.push(...this.parseChunks())
 		}
 
+		// Sort chunks by origIndex to handle multiple @@ sections in any order
+		chunks.sort((a, b) => a.origIndex - b.origIndex)
+
 		this.patch.actions[path] = { type: ActionType.UPDATE, chunks, movePath }
 	}
 
@@ -955,10 +1046,10 @@ class PatchParser {
 
 	private parseChunks(): Chunk[] {
 		const chunks: Chunk[] = []
-		const originalLines: string[] = []
+		let currentOriginalLineCount = 0 // Track position in original file for this section
 		let delLines: string[] = []
 		let insLines: string[] = []
-		let mode: "keep" | "add" | "delete" = "keep"
+		let lastMode: "keep" | "add" | "delete" = "keep"
 
 		while (this.hasMoreLines() && !this.isStopMarker()) {
 			const line = this.lines[this.index]
@@ -971,29 +1062,72 @@ class PatchParser {
 			const content = line === "" ? " " : line
 			const firstChar = content[0]
 
-			const lastMode = mode
-			mode = this.getLineMode(firstChar, line)
-
+			const mode = this.getLineMode(firstChar, line)
 			const lineContent = content.substring(1)
 
 			// Flush accumulated changes when transitioning to "keep" mode
 			if (mode === "keep" && lastMode !== "keep" && (insLines.length > 0 || delLines.length > 0)) {
-				chunks.push(this.createChunk(originalLines.length - delLines.length, delLines, insLines))
+				// Cancel out matching delete/add pairs before creating chunk
+				const { filteredDelLines, filteredInsLines } = this.cancelMatchingLines(delLines, insLines)
+				if (filteredDelLines.length > 0 || filteredInsLines.length > 0) {
+					chunks.push(
+						this.createChunk(currentOriginalLineCount - filteredDelLines.length, filteredDelLines, filteredInsLines),
+					)
+				}
 				delLines = []
 				insLines = []
 			}
 
-			// Accumulate lines based on mode
-			this.accumulateLines(mode, lineContent, originalLines, delLines, insLines)
+			// Track original file line position and accumulate lines
+			if (mode === "delete") {
+				delLines.push(lineContent)
+				currentOriginalLineCount++
+			} else if (mode === "add") {
+				insLines.push(lineContent)
+				// Additions don't advance the original line counter
+			} else {
+				// mode === "keep"
+				currentOriginalLineCount++
+			}
+
+			lastMode = mode
 		}
 
 		// Flush any remaining changes
 		if (insLines.length > 0 || delLines.length > 0) {
-			chunks.push(this.createChunk(originalLines.length - delLines.length, delLines, insLines))
+			// Cancel out matching delete/add pairs before creating chunk
+			const { filteredDelLines, filteredInsLines } = this.cancelMatchingLines(delLines, insLines)
+			if (filteredDelLines.length > 0 || filteredInsLines.length > 0) {
+				chunks.push(
+					this.createChunk(currentOriginalLineCount - filteredDelLines.length, filteredDelLines, filteredInsLines),
+				)
+			}
 		}
 
 		this.skipEndFileMarker()
 		return chunks
+	}
+
+	private cancelMatchingLines(
+		delLines: string[],
+		insLines: string[],
+	): { filteredDelLines: string[]; filteredInsLines: string[] } {
+		// Match lines from the beginning - cancel only consecutive matching pairs
+		// In unified diff: -A +A (cancel), but -A +B +A (don't cancel, it's a reorder/replace)
+		let delIdx = 0
+		let insIdx = 0
+
+		// Skip matching lines from the start
+		while (delIdx < delLines.length && insIdx < insLines.length && delLines[delIdx] === insLines[insIdx]) {
+			delIdx++
+			insIdx++
+		}
+
+		// Return the remaining unmatched portions
+		return {
+			filteredDelLines: delLines.slice(delIdx),
+			filteredInsLines: insLines.slice(insIdx),
+		}
 	}
 
 	private getLineMode(firstChar: string, line: string): "keep" | "add" | "delete" {
@@ -1007,23 +1141,6 @@ class PatchParser {
 			return "keep"
 		}
 		throw new DiffError(`Invalid Line: ${line}`)
-	}
-
-	private accumulateLines(
-		mode: "keep" | "add" | "delete",
-		lineContent: string,
-		originalLines: string[],
-		delLines: string[],
-		insLines: string[],
-	): void {
-		if (mode === "delete") {
-			delLines.push(lineContent)
-			originalLines.push(lineContent)
-		} else if (mode === "add") {
-			insLines.push(lineContent)
-		} else {
-			originalLines.push(lineContent)
-		}
 	}
 
 	private createChunk(origIndex: number, delLines: string[], insLines: string[]): Chunk {

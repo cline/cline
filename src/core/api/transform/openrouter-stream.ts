@@ -10,6 +10,7 @@ import OpenAI from "openai"
 import { ChatCompletionTool } from "openai/resources/chat/completions"
 import { convertToOpenAiMessages } from "./openai-format"
 import { convertToR1Format } from "./r1-format"
+import { getOpenAIToolParams } from "./tool-call-processor"
 
 export async function createOpenRouterStream(
 	client: OpenAI,
@@ -19,11 +20,7 @@ export async function createOpenRouterStream(
 	reasoningEffort?: string,
 	thinkingBudgetTokens?: number,
 	openRouterProviderSorting?: string,
-	tools?: {
-		tools?: Array<ChatCompletionTool>
-		tool_choice?: "auto" | "manual"
-		parallel_tool_calls?: boolean
-	},
+	tools?: Array<ChatCompletionTool>,
 ) {
 	// Convert Anthropic messages to OpenAI format
 	let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -186,12 +183,12 @@ export async function createOpenRouterStream(
 		stream: true,
 		stream_options: { include_usage: true },
 		include_reasoning: true,
-		...tools,
 		...(model.id.startsWith("openai/o") ? { reasoning_effort: reasoningEffort || "medium" } : {}),
 		...(reasoning ? { reasoning } : {}),
 		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
 		...(providerPreferences ? { provider: providerPreferences } : {}),
 		...(isClaudeSonnet1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
+		...getOpenAIToolParams(tools),
 	})
 
 	return stream

@@ -460,7 +460,8 @@ export class ToolExecutor {
 		} catch (error) {
 			executionSuccess = false
 			toolResult = formatResponse.toolError(`Tool execution failed: ${error}`)
-			this.pushToolResult(toolResult, block)
+			// Don't push tool result here - let the outer catch block (handleError) handle it
+			// to avoid duplicate tool_result blocks
 			throw error
 		} finally {
 			// Run PostToolUse hook if enabled

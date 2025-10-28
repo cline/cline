@@ -89,4 +89,8 @@ const NATIVE_GPT_5: ClineToolSpec = {
 	],
 }
 
-export const apply_patch_variants = [NATIVE_GPT_5]
+const GPT_5: ClineToolSpec = {
+	...NATIVE_GPT_5,
+	variant: ModelFamily.GPT_5,
+}
+export const apply_patch_variants = [NATIVE_GPT_5, GPT_5]

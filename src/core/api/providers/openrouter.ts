@@ -64,13 +64,7 @@ export class OpenRouterHandler implements ApiHandler {
 			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
-			tools
-				? {
-						tools,
-						tool_choice: "auto",
-						parallel_tool_calls: true,
-					}
-				: undefined,
+			tools,
 		)
 
 		let didOutputUsage: boolean = false
