@@ -14,7 +14,7 @@ import {
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useEvent } from "react-use"
-import HeroTooltip from "@/components/common/HeroTooltip"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
@@ -33,11 +33,11 @@ const IS_DEV = process.env.IS_DEV
 // Styles for the tab system
 const settingsTabsContainer = "flex flex-1 overflow-hidden [&.narrow_.tab-label]:hidden"
 const settingsTabList =
-	"w-48 data-[compact=true]:w-12 flex-shrink-0 flex flex-col overflow-y-auto overflow-x-hidden border-r border-[var(--vscode-sideBar-background)]"
+	"w-48 data-[compact=true]:w-12 shrink-0 flex flex-col overflow-y-auto overflow-x-hidden border-r border-(--vscode-sideBar-background)"
 const settingsTabTrigger =
-	"whitespace-nowrap overflow-hidden min-w-0 h-12 px-4 py-3 box-border flex items-center border-l-2 border-transparent text-[var(--vscode-foreground)] opacity-70 bg-transparent hover:bg-[var(--vscode-list-hoverBackground)] data-[compact=true]:w-12 data-[compact=true]:p-4 cursor-pointer"
+	"whitespace-nowrap overflow-hidden min-w-0 h-12 px-4 py-3 box-border flex items-center border-l-2 border-transparent text-(--vscode-foreground) opacity-70 bg-transparent hover:bg-(--vscode-list-hoverBackground) data-[compact=true]:w-12 data-[compact=true]:p-4 cursor-pointer"
 const settingsTabTriggerActive =
-	"opacity-100 border-l-2 border-l-[var(--vscode-focusBorder)] border-t-0 border-r-0 border-b-0 bg-[var(--vscode-list-activeSelectionBackground)]"
+	"opacity-100 border-l-2 border-l-(--vscode-focusBorder) border-t-0 border-r-0 border-b-0 bg-(--vscode-list-activeSelectionBackground)"
 
 // Tab definitions
 interface SettingsTab {
@@ -251,16 +251,19 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 			if (isCompactMode) {
 				return (
-					<HeroTooltip content={tab.tooltipText} key={tab.id} placement="right">
-						<div
-							className={tabClassName}
-							data-compact={isCompactMode}
-							data-testid={`tab-${tab.id}`}
-							data-value={tab.id}
-							onClick={() => handleTabChange(tab.id)}>
-							{tabContent}
-						</div>
-					</HeroTooltip>
+					<Tooltip key={tab.id}>
+						<TooltipTrigger>
+							<div
+								className={tabClassName}
+								data-compact={isCompactMode}
+								data-testid={`tab-${tab.id}`}
+								data-value={tab.id}
+								onClick={() => handleTabChange(tab.id)}>
+								{tabContent}
+							</div>
+						</TooltipTrigger>
+						<TooltipContent side="right">{tab.tooltipText}</TooltipContent>
+					</Tooltip>
 				)
 			}
 
@@ -302,7 +305,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		<Tab>
 			<TabHeader className="flex justify-between items-center gap-2">
 				<div className="flex items-center gap-1">
-					<h3 className="m-0" style={{ color: titleColor }}>
+					<h3 className="text-md m-0" style={{ color: titleColor }}>
 						Settings
 					</h3>
 				</div>
