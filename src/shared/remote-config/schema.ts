@@ -126,6 +126,7 @@ export const RemoteConfigSchema = z.object({
 })
 
 // Type inference from schemas
+export type MCPServer = z.infer<typeof AllowedMCPServerSchema>
 export type OpenAiCompatibleModel = z.infer<typeof OpenAiCompatibleModelSchema>
 export type OpenAiCompatible = z.infer<typeof OpenAiCompatibleSchema>
 export type AwsBedrockModel = z.infer<typeof AwsBedrockModelSchema>
