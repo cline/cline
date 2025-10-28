@@ -16,6 +16,9 @@ function PopoverContent({
 	children,
 	...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+	// Get side prop for conditional arrow positioning
+	const side = (props as any).side
+
 	return (
 		<PopoverPrimitive.Portal>
 			<PopoverPrimitive.Content
@@ -28,7 +31,12 @@ function PopoverContent({
 				sideOffset={sideOffset}
 				{...props}>
 				{children}
-				<PopoverPrimitive.Arrow className="bg-menu fill-background z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-xs border-b border-r border-menu-foreground/10" />
+				<PopoverPrimitive.Arrow
+					className={cn(
+						"bg-menu fill-menu z-50 size-2.5 rotate-45 rounded-xs border-b border-r border-menu-foreground/10",
+						side === "left" || side === "right" ? "translate-x-[calc(-50%_-_2px)]" : "translate-y-[calc(-50%_-_2px)]",
+					)}
+				/>
 			</PopoverPrimitive.Content>
 		</PopoverPrimitive.Portal>
 	)

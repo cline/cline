@@ -200,3 +200,10 @@ vscode-dropdown::part(listbox) {
 	animation: none !important;
 	transition: none !important;
 }
+
+/* Fix popover arrow lag - disable animations on popovers */
+[data-slot="popover-content"],
+[data-slot="popover-content"] * {
+	animation: none !important;
+	transition: none !important;
+}
