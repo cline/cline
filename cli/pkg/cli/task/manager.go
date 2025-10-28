@@ -554,18 +554,12 @@ func (m *Manager) getCurrentTaskId(ctx context.Context) (string, error) {
 }
 
 // ReinitExistingTaskFromId reinitializes an existing task from the given task ID
-// In plain/rich modes, outputs a success message. In JSON mode, outputs nothing (caller handles it).
+// This is a helper function that does not output anything - callers handle all output.
 func (m *Manager) ReinitExistingTaskFromId(ctx context.Context, taskId string) error {
 	req := &cline.StringRequest{Value: taskId}
-	resp, err := m.client.Task.ShowTaskWithId(ctx, req)
+	_, err := m.client.Task.ShowTaskWithId(ctx, req)
 	if err != nil {
 		return fmt.Errorf("Failed to reinitialize task %s: %w", taskId, err)
-	}
-
-	// In plain/rich modes, output success message (original behavior)
-	// In JSON mode, don't output anything - let the caller handle it to avoid duplicates
-	if !global.Config.JsonFormat() {
-		fmt.Printf("Successfully reinitialized task: %s (ID: %s)\n", taskId, resp.Id)
 	}
 
 	return nil
@@ -580,13 +574,9 @@ func (m *Manager) ResumeTask(ctx context.Context, taskID string) error {
 		m.renderer.RenderDebug("Resuming task: %s", taskID)
 	}
 
-	// This call handles cancellation of any active task and outputs success message
 	if err := m.ReinitExistingTaskFromId(ctx, taskID); err != nil {
 		return fmt.Errorf("failed to resume task %s: %w", taskID, err)
 	}
-
-	// Note: ReinitExistingTaskFromId already outputs success message in both JSON and plain formats
-	// No additional output needed here to avoid duplication
 
 	return nil
 }

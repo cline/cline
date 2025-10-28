@@ -556,7 +556,7 @@ func TestAllCommandsJSONValidity(t *testing.T) {
 			// Success responses should have data
 			if response["status"] == "success" {
 				if _, ok := response["result"]; !ok {
-					t.Error("success response missing data field")
+					t.Error("success response missing result field")
 				}
 			}
 
@@ -615,7 +615,7 @@ func TestJSONOutputInstanceDefault(t *testing.T) {
 	json.Unmarshal([]byte(out), &newResponse)
 	data, ok := newResponse["result"].(map[string]interface{})
 	if !ok {
-		t.Fatalf("failed to get data from instance new response")
+		t.Fatalf("failed to get result from instance new response")
 	}
 	address := data["address"].(string)
 
