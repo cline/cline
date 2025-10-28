@@ -38,6 +38,7 @@ export type ApiProvider =
 	| "zai"
 	| "oca"
 	| "aistupidlevel"
+	| "minimax"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -77,6 +78,7 @@ export interface ApiHandlerSecrets {
 	vercelAiGatewayApiKey?: string
 	difyApiKey?: string
 	aiStupidLevelApiKey?: string
+	minimaxApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -122,6 +124,7 @@ export interface ApiHandlerOptions {
 	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
+	minimaxApiLine?: string
 	ocaMode?: string
 
 	// Plan mode configurations
@@ -699,18 +702,6 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	cacheReadsPrice: 0.3,
 	description:
 		"Claude Sonnet 4.5 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
-}
-
-// Cline custom model - code-supernova
-export const clineCodeSupernovaModelInfo: ModelInfo = {
-	contextWindow: 1000000,
-	supportsImages: true,
-	supportsPromptCache: true,
-	inputPrice: 0,
-	outputPrice: 0,
-	cacheReadsPrice: 0,
-	cacheWritesPrice: 0,
-	description: "A versatile agentic coding stealth model that supports image inputs.",
 }
 
 export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; allow_fallbacks: boolean }> = {
@@ -3895,3 +3886,21 @@ export const qwenCodeModels = {
 } as const satisfies Record<string, ModelInfo>
 export type QwenCodeModelId = keyof typeof qwenCodeModels
 export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
+
+// Minimax
+// https://www.minimax.io/platform/document/text_api_intro
+// https://www.minimax.io/platform/document/pricing
+export type MinimaxModelId = keyof typeof minimaxModels
+export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2"
+export const minimaxModels = {
+	"MiniMax-M2": {
+		maxTokens: 128_000,
+		contextWindow: 192_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
