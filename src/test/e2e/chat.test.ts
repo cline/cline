@@ -38,6 +38,9 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	// Type partial slash command to trigger menu
 	await inputbox.pressSequentially("/new", { delay: 100 })
 
+	// Wait for the slash commands menu to be visible
+	await sidebar.getByTestId("slash-commands-menu").waitFor({ state: "visible" })
+
 	// Wait for menu to be visible and select first option with Tab
 	await inputbox.press("Tab")
 	await expect(inputbox).toHaveValue("/newtask ")
