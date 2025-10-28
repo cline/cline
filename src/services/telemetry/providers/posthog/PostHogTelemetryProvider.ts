@@ -44,7 +44,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		HostProvider.env.subscribeToTelemetrySettings(
 			{},
 			{
-				onResponse: (event) => {
+				onResponse: (event: { isEnabled: Setting }) => {
 					const hostEnabled = event.isEnabled === Setting.ENABLED || event.isEnabled === Setting.UNSUPPORTED
 					this.telemetrySettings.hostEnabled = hostEnabled
 				},

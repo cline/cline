@@ -3,7 +3,7 @@ import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from 
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
-import { clineEnvConfig } from "@/config"
+import { ClineEnv } from "@/config"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
@@ -30,7 +30,7 @@ export class ClineHandler implements ApiHandler {
 	private clineAccountService = ClineAccountService.getInstance()
 	private _authService: AuthService
 	private client: OpenAI | undefined
-	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
+	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	lastGenerationId?: string
 	private lastRequestId?: string
 
@@ -160,13 +160,29 @@ export class ClineHandler implements ApiHandler {
 					}
 				}
 
+				/* 
+				OpenRouter passes reasoning details that we can pass back unmodified in api requests to preserve reasoning traces for model
+				  - The reasoning_details array in each chunk may contain one or more reasoning objects
+				  - For encrypted reasoning, the content may appear as [REDACTED] in streaming responses
+				  - The complete reasoning sequence is built by concatenating all chunks in order
+				See: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks
+				*/
+				if (
+					"reasoning_details" in delta &&
+					delta.reasoning_details &&
+					// @ts-ignore-next-line
+					delta.reasoning_details.length && // exists and non-0
+					!shouldSkipReasoningForModel(this.options.openRouterModelId)
+				) {
+					yield {
+						type: "reasoning_details",
+						reasoning_details: delta.reasoning_details,
+					}
+				}
+
 				if (!didOutputUsage && chunk.usage) {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
-
-					if (this.getModel().id === "cline/code-supernova-1-million") {
-						totalCost = 0
-					}
 
 					if (this.getModel().id === "x-ai/grok-code-fast-1") {
 						totalCost = 0

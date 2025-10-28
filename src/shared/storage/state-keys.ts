@@ -31,6 +31,7 @@ export interface GlobalState {
 	mcpMarketplaceEnabled: boolean
 	mcpResponsesCollapsed: boolean
 	terminalReuseEnabled: boolean
+	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	isNewUser: boolean
 	welcomeViewCompleted: boolean | undefined
 	mcpDisplayMode: McpDisplayMode
@@ -41,6 +42,7 @@ export interface GlobalState {
 	hooksEnabled: boolean
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
+	lastDismissedCliBannerVersion: number
 }
 
 export interface Settings {
@@ -84,6 +86,8 @@ export interface Settings {
 	shellIntegrationTimeout: number
 	defaultTerminalProfile: string
 	terminalOutputLineLimit: number
+	maxConsecutiveMistakes: number
+	subagentTerminalOutputLineLimit: number
 	sapAiCoreTokenUrl: string | undefined
 	sapAiCoreBaseUrl: string | undefined
 	sapAiResourceGroup: string | undefined
@@ -102,8 +106,10 @@ export interface Settings {
 	difyBaseUrl: string | undefined
 	autoCondenseThreshold: number | undefined // number from 0 to 1
 	ocaBaseUrl: string | undefined
+	minimaxApiLine: string | undefined
 	ocaMode: string | undefined
 	hooksEnabled: boolean
+	subagentsEnabled: boolean
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -173,6 +179,22 @@ export interface Settings {
 	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	actModeOcaModelId: string | undefined
 	actModeOcaModelInfo: OcaModelInfo | undefined
+
+	// OpenTelemetry configuration
+	openTelemetryEnabled: boolean
+	openTelemetryMetricsExporter: string | undefined
+	openTelemetryLogsExporter: string | undefined
+	openTelemetryOtlpProtocol: string
+	openTelemetryOtlpEndpoint: string
+	openTelemetryOtlpMetricsProtocol: string | undefined
+	openTelemetryOtlpMetricsEndpoint: string | undefined
+	openTelemetryOtlpLogsProtocol: string | undefined
+	openTelemetryOtlpLogsEndpoint: string | undefined
+	openTelemetryMetricExportInterval: number
+	openTelemetryOtlpInsecure: boolean
+	openTelemetryLogBatchSize: number
+	openTelemetryLogBatchTimeout: number
+	openTelemetryLogMaxQueueSize: number
 }
 
 export interface Secrets {
@@ -214,6 +236,7 @@ export interface Secrets {
 	difyApiKey: string | undefined
 	ocaApiKey: string | undefined
 	ocaRefreshToken: string | undefined
+	minimaxApiKey: string | undefined
 }
 
 export interface LocalState {

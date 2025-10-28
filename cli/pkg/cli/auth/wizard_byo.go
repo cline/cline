@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/huh"
 	"github.com/cline/cli/pkg/cli/global"
@@ -40,7 +41,7 @@ func (pw *ProviderWizard) showMainMenu() (string, error) {
 			huh.NewSelect[string]().
 				Title("What would you like to do?").
 				Options(
-					huh.NewOption("Configure a new provider", "add"),
+					huh.NewOption("Add or change an API provider", "add"),
 					huh.NewOption("Change model for API provider", "change-model"),
 					huh.NewOption("Remove a provider", "remove"),
 					huh.NewOption("List configured providers", "list"),
@@ -107,8 +108,13 @@ func (pw *ProviderWizard) handleAddProvider() error {
 		return pw.handleAddBedrockProvider()
 	}
 
+	// Step 2b: Special handling for OCA provider
+	if provider == cline.ApiProvider_OCA {
+		return pw.handleAddOcaProvider()
+	}
+
 	// Step 3: Get API key first (for non-Bedrock providers)
-	apiKey, err := PromptForAPIKey(provider)
+	apiKey, baseURL, err := PromptForAPIKey(provider)
 	if err != nil {
 		return fmt.Errorf("failed to get API key: %w", err)
 	}
@@ -120,7 +126,7 @@ func (pw *ProviderWizard) handleAddProvider() error {
 	}
 
 	// Step 5: Apply configuration using AddProviderPartial
-	if err := AddProviderPartial(pw.ctx, pw.manager, provider, modelID, apiKey, modelInfo); err != nil {
+	if err := AddProviderPartial(pw.ctx, pw.manager, provider, modelID, apiKey, baseURL, modelInfo); err != nil {
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
@@ -159,6 +165,51 @@ func (pw *ProviderWizard) handleAddBedrockProvider() error {
 	}
 
 	fmt.Println("✓ Bedrock provider configured successfully!")
+	return nil
+}
+
+// handleAddOcaProvider handles adding Oracle Code Assist provider with optional settings and auth
+func (pw *ProviderWizard) handleAddOcaProvider() error {
+	// Step 1: Get OCA configuration (base URL and mode)
+	config, err := PromptForOcaConfig(pw.ctx, pw.manager)
+	if err != nil {
+		if strings.Contains(err.Error(), "user aborted") || strings.Contains(err.Error(), "cancelled") {
+			return nil
+		}
+		return fmt.Errorf("failed to get OCA configuration: %w", err)
+	}
+
+	// Apply OCA configuration (base URL and mode)
+	if err := ApplyOcaConfig(pw.ctx, pw.manager, config); err != nil {
+		return fmt.Errorf("failed to save OCA configuration: %w", err)
+	}
+
+	// Step 2: Ensure OCA authentication
+	if err := ensureOcaAuthenticated(pw.ctx); err != nil {
+		return fmt.Errorf("failed to authenticate with OCA: %w", err)
+	}
+
+	// Step 3: Select model
+	modelID, _, err := pw.selectModel(cline.ApiProvider_OCA, "")
+	if err != nil {
+		return fmt.Errorf("model selection failed: %w", err)
+	}
+
+	// Step 4: Apply the OCA model configuration and set as active
+	updates := ProviderUpdatesPartial{
+		ModelID:   &modelID,
+		ModelInfo: nil,
+	}
+
+	if err := UpdateProviderPartial(pw.ctx, pw.manager, cline.ApiProvider_OCA, updates, true); err != nil {
+		return fmt.Errorf("failed to save OCA configuration: %w", err)
+	}
+
+	if err := setWelcomeViewCompleted(pw.ctx, pw.manager); err != nil {
+		verboseLog("Warning: Failed to mark welcome view as completed: %v", err)
+	}
+
+	fmt.Println("✓ OCA provider configured successfully!")
 	return nil
 }
 
@@ -259,6 +310,15 @@ func (pw *ProviderWizard) fetchModelsForProvider(provider cline.ApiProvider, api
 		}
 		// Ollama returns just model IDs without additional info, so modelInfo map is nil
 		return modelIDs, nil, nil
+
+	case cline.ApiProvider_OCA:
+		// OCA supports dynamic model fetching
+		models, err := FetchOcaModels(pw.ctx, pw.manager)
+		if err != nil {
+			return nil, nil, err
+		}
+		interfaceMap := ConvertOcaModelsToInterface(models)
+		return ConvertModelsMapToSlice(interfaceMap), interfaceMap, nil
 	}
 
 	// Fall back to static models for providers that don't support dynamic fetching
@@ -381,7 +441,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 	options := make([]huh.Option[int], len(configurableProviders)+1)
 	for i, providerDisplay := range configurableProviders {
 		displayName := fmt.Sprintf("%s (current: %s)",
-			getProviderDisplayName(providerDisplay.Provider),
+			GetProviderDisplayName(providerDisplay.Provider),
 			providerDisplay.ModelID)
 		options[i] = huh.NewOption(displayName, i)
 	}
@@ -407,7 +467,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 	selectedProvider := configurableProviders[selectedIndex]
 	provider := selectedProvider.Provider
 
-	fmt.Printf("\nChanging model for %s\n", getProviderDisplayName(provider))
+	fmt.Printf("\nChanging model for %s\n", GetProviderDisplayName(provider))
 	fmt.Printf("Current model: %s\n\n", selectedProvider.ModelID)
 
 	// Step 5: Retrieve API key if needed for model fetching
@@ -431,7 +491,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 
 		apiKey = getProviderAPIKeyFromState(apiConfig, provider)
 		if apiKey == "" {
-			return fmt.Errorf("no API key found for provider %s", getProviderDisplayName(provider))
+			return fmt.Errorf("no API key found for provider %s", GetProviderDisplayName(provider))
 		}
 	}
 
@@ -484,7 +544,7 @@ func SwitchToBYOProvider(ctx context.Context, manager *task.Manager, provider cl
 	// Get the model ID for the selected provider
 	modelID := getProviderModelIDFromState(apiConfig, provider)
 	if modelID == "" {
-		return fmt.Errorf("no model configured for provider %s", getProviderDisplayName(provider))
+		return fmt.Errorf("no model configured for provider %s", GetProviderDisplayName(provider))
 	}
 
 	// Get model info if available (for OpenRouter/Cline)
@@ -505,7 +565,7 @@ func SwitchToBYOProvider(ctx context.Context, manager *task.Manager, provider cl
 		return fmt.Errorf("failed to switch provider: %w", err)
 	}
 
-	verboseLog("✓ Switched to %s\n", getProviderDisplayName(provider))
+	verboseLog("✓ Switched to %s\n", GetProviderDisplayName(provider))
 	verboseLog("  Using model: %s\n", modelID)
 
 	return HandleAuthMenuNoArgs(ctx)
@@ -525,8 +585,17 @@ func getProviderModelIDFromState(stateData map[string]interface{}, provider clin
 	return ""
 }
 
-// getProviderAPIKeyFromState retrieves the API key for a specific provider from state
+ // getProviderAPIKeyFromState retrieves the API key for a specific provider from state
 func getProviderAPIKeyFromState(stateData map[string]interface{}, provider cline.ApiProvider) string {
+	// OCA uses account authentication, not API keys. Consider it "present" if authenticated.
+	if provider == cline.ApiProvider_OCA {
+		if state, _ := GetLatestOCAState(context.TODO(), 2 * time.Second); state != nil && state.User != nil {
+			// Return a sentinel non-empty string so upstream checks pass.
+			return "OCA_AUTH_VERIFIED"
+		}
+		return ""
+	}
+
 	fields, err := GetProviderFields(provider)
 	if err != nil {
 		return ""
@@ -607,7 +676,7 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 	options := make([]huh.Option[int], len(removableProviders))
 	for i, provider := range removableProviders {
 		// Mark active provider
-		displayName := getProviderDisplayName(provider.Provider)
+		displayName := GetProviderDisplayName(provider.Provider)
 		if result.ActProvider != nil && provider.Provider == result.ActProvider.Provider {
 			displayName += " (ACTIVE)"
 		}
@@ -631,7 +700,7 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 
 	// Step 5: Check if trying to remove the active provider
 	if result.ActProvider != nil && selectedProvider.Provider == result.ActProvider.Provider {
-		fmt.Printf("\nCannot remove %s because it is currently active.\n", getProviderDisplayName(selectedProvider.Provider))
+		fmt.Printf("\nCannot remove %s because it is currently active.\n", GetProviderDisplayName(selectedProvider.Provider))
 		fmt.Println("Please switch to a different provider first, then try again.")
 		return nil
 	}
@@ -641,7 +710,7 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 	confirmForm := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
-				Title(fmt.Sprintf("Are you sure you want to remove %s?", getProviderDisplayName(selectedProvider.Provider))).
+				Title(fmt.Sprintf("Are you sure you want to remove %s?", GetProviderDisplayName(selectedProvider.Provider))).
 				Description("This will clear the API key but preserve the model configuration.").
 				Value(&confirm),
 		),
@@ -656,18 +725,37 @@ func (pw *ProviderWizard) handleRemoveProvider() error {
 		return nil
 	}
 
-	// Step 7: Clear the API key for the selected provider
+	// Step 7: If removing OCA, sign out first
+	if selectedProvider.Provider == cline.ApiProvider_OCA {
+		if err := signOutOca(pw.ctx); err != nil {
+			fmt.Printf("Warning: Failed to sign out of OCA: %v\n", err)
+		} else {
+			fmt.Println("Signed out of OCA.")
+		}
+	}
+
+	// Step 8: Clear the API key for the selected provider
 	if err := pw.clearProviderAPIKey(selectedProvider.Provider); err != nil {
 		return fmt.Errorf("failed to remove provider: %w", err)
 	}
 
-	fmt.Printf("\n✓ %s removed successfully\n", getProviderDisplayName(selectedProvider.Provider))
+	fmt.Printf("\n✓ %s removed successfully\n", GetProviderDisplayName(selectedProvider.Provider))
 	return nil
 }
 
 // clearProviderAPIKey clears the API key field for a specific provider using RemoveProviderPartial
 func (pw *ProviderWizard) clearProviderAPIKey(provider cline.ApiProvider) error {
 	return RemoveProviderPartial(pw.ctx, pw.manager, provider)
+}
+
+
+func signOutOca(ctx context.Context) error {
+	client, err := global.GetDefaultClient(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = client.Ocaaccount.OcaAccountLogoutClicked(ctx, &cline.EmptyRequest{})
+	return err
 }
 
 func setWelcomeViewCompleted(ctx context.Context, manager *task.Manager) error {

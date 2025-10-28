@@ -67,8 +67,12 @@ export class TelemetryProviderFactory {
 				Logger.info("TelemetryProviderFactory: OpenTelemetry providers not available")
 				return new NoOpTelemetryProvider()
 			}
+			case "no-op":
 			default:
-				console.error(`Unsupported telemetry provider type: ${config.type}`)
+				// Always fallback to NoOp provider. Only log error for unsupported types
+				if (config.type !== "no-op") {
+					console.error(`Unsupported telemetry provider type: ${config.type}`)
+				}
 				return new NoOpTelemetryProvider()
 		}
 	}

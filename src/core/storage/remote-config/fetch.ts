@@ -1,6 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { Controller } from "@/core/controller"
-import { clineEnvConfig } from "../../../config"
+import { ClineEnv } from "../../../config"
 import { AuthService } from "../../../services/auth/AuthService"
 import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
 import { RemoteConfig, RemoteConfigSchema } from "../../../shared/remote-config/schema"
@@ -9,23 +9,14 @@ import { StateManager } from "../StateManager"
 import { applyRemoteConfig } from "./utils"
 
 /**
- * Fetches remote configuration for the active organization from the API.
+ * Fetches remote configuration for a specific organization from the API.
  * Falls back to cached config if the request fails.
  *
- * @returns Promise resolving to the RemoteConfig object, or undefined if no active organization exists
- * @throws Error if both API fetch and cache retrieval fail (when an organization exists)
+ * @param organizationId The organization ID to fetch config for
+ * @returns RemoteConfig if enabled, undefined if disabled or not found
  */
-export async function fetchRemoteConfig(controller: Controller): Promise<RemoteConfig | undefined> {
+async function fetchRemoteConfigForOrganization(organizationId: string): Promise<RemoteConfig | undefined> {
 	const authService = AuthService.getInstance()
-
-	// Get the active organization ID
-	const organizationId = authService.getActiveOrganizationId()
-
-	if (!organizationId) {
-		// Clear the in-memory cache of the remote config settings in case it was previously set with an organization that has remote config
-		StateManager.get().clearRemoteConfig()
-		return undefined
-	}
 
 	try {
 		// Get authentication token
@@ -36,7 +27,7 @@ export async function fetchRemoteConfig(controller: Controller): Promise<RemoteC
 
 		// Construct URL by replacing {id} placeholder with organizationId
 		const endpoint = CLINE_API_ENDPOINT.REMOTE_CONFIG.replace("{id}", organizationId)
-		const url = new URL(endpoint, clineEnvConfig.apiBaseUrl).toString()
+		const url = new URL(endpoint, ClineEnv.config().apiBaseUrl).toString()
 
 		// Make authenticated request
 		const requestConfig: AxiosRequestConfig = {
@@ -81,10 +72,6 @@ export async function fetchRemoteConfig(controller: Controller): Promise<RemoteC
 		if (!configData.enabled) {
 			// Clear the remote config from the on-disk cache if it exists
 			await deleteRemoteConfigFromCache(organizationId)
-
-			// Clear the in-memory cache of the remote config settings in case it was previously set
-			StateManager.get().clearRemoteConfig()
-
 			return undefined
 		}
 
@@ -94,17 +81,9 @@ export async function fetchRemoteConfig(controller: Controller): Promise<RemoteC
 		// Validate against schema
 		const validatedConfig = RemoteConfigSchema.parse(parsedConfig)
 
-		// Write to cache
-		await writeRemoteConfigToCache(organizationId, validatedConfig)
-
-		// Apply config to StateManager
-		applyRemoteConfig(validatedConfig)
-
-		controller.postStateToWebview()
-
 		return validatedConfig
 	} catch (error) {
-		console.error("Failed to fetch remote config from API:", error)
+		console.error(`Failed to fetch remote config for organization ${organizationId}:`, error)
 
 		// Try to fall back to cached config
 		const cachedConfig = await readRemoteConfigFromCache(organizationId)
@@ -112,18 +91,103 @@ export async function fetchRemoteConfig(controller: Controller): Promise<RemoteC
 			try {
 				// Validate cached config against schema
 				const validatedCachedConfig = RemoteConfigSchema.parse(cachedConfig)
-				// Apply config to StateManager
-				applyRemoteConfig(validatedCachedConfig)
 				return validatedCachedConfig
 			} catch (validationError) {
-				// Cache validation failed - log and fall through
-				console.error("Cached config validation failed:", validationError)
+				// Cache validation failed - log and continue
+				console.error(`Cached config validation failed for organization ${organizationId}:`, validationError)
 			}
 		}
 
-		// Both API and cache failed (or cache was invalid)
-		throw new Error(
-			`Failed to fetch remote config: ${error instanceof Error ? error.message : "Unknown error"}. No valid cached config available.`,
-		)
+		return undefined
+	}
+}
+
+/**
+ * Scans all user organizations to find the first one with an enabled remote configuration.
+ *
+ * @returns Object containing the organization ID and config, or undefined if none found
+ */
+async function findOrganizationWithRemoteConfig(): Promise<{ organizationId: string; config: RemoteConfig } | undefined> {
+	const authService = AuthService.getInstance()
+
+	// Get all user organizations from cached auth info
+	const userOrganizations = authService.getUserOrganizations()
+
+	if (!userOrganizations || userOrganizations.length === 0) {
+		return undefined
+	}
+
+	// Scan each organization for remote config
+	for (const org of userOrganizations) {
+		const remoteConfig = await fetchRemoteConfigForOrganization(org.organizationId)
+
+		if (remoteConfig) {
+			return {
+				organizationId: org.organizationId,
+				config: remoteConfig,
+			}
+		}
+	}
+
+	return undefined
+}
+
+/**
+ * Ensures the user is in the correct organization with remote configuration enabled.
+ * Automatically switches to the organization if needed and applies the remote config.
+ *
+ * @param controller The controller instance
+ * @returns RemoteConfig if found and applied, undefined otherwise
+ */
+async function ensureUserInOrgWithRemoteConfig(controller: Controller): Promise<RemoteConfig | undefined> {
+	const authService = AuthService.getInstance()
+
+	try {
+		// Find an organization with remote config
+		const result = await findOrganizationWithRemoteConfig()
+
+		if (!result) {
+			StateManager.get().clearRemoteConfig()
+			controller.postStateToWebview()
+			return undefined
+		}
+
+		const { organizationId, config } = result
+
+		// Check if we need to switch organizations
+		const currentActiveOrgId = authService.getActiveOrganizationId()
+		if (currentActiveOrgId !== organizationId) {
+			await controller.accountService.switchAccount(organizationId)
+		}
+
+		// Cache and apply the remote config
+		await writeRemoteConfigToCache(organizationId, config)
+		applyRemoteConfig(config)
+		controller.postStateToWebview()
+
+		return config
+	} catch (error) {
+		console.error("Failed to ensure user in organization with remote config:", error)
+		return undefined
+	}
+}
+
+/**
+ * Main entry point for fetching remote configuration.
+ * Scans all user organizations, switches to the one with remote config if found,
+ * and applies the configuration.
+ *
+ * It catches any exceptions, logs them and does not propagate them to the caller.
+ *
+ * This function is called periodically to ensure users stay in
+ * organizations with remote configuration enabled.
+ *
+ * @param controller The controller instance
+ */
+export async function fetchRemoteConfig(controller: Controller) {
+	try {
+		await ensureUserInOrgWithRemoteConfig(controller)
+	} catch (error) {
+		console.error("Failed to fetch remote config", error)
 	}
 }

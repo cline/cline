@@ -314,6 +314,12 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 			return err
 		}
 		settings.TerminalOutputLineLimit = int32Ptr(val)
+	case "max_consecutive_mistakes":
+		val, err := parseInt32(value)
+		if err != nil {
+			return err
+		}
+		settings.MaxConsecutiveMistakes = int32Ptr(val)
 	case "fireworks_model_max_completion_tokens":
 		val, err := parseInt32(value)
 		if err != nil {
@@ -458,21 +464,21 @@ func setAutoApprovalAction(actions *cline.AutoApprovalActions, key, value string
 
 	switch key {
 	case "read_files":
-		actions.ReadFiles = val
+		actions.ReadFiles = boolPtr(val)
 	case "read_files_externally":
-		actions.ReadFilesExternally = val
+		actions.ReadFilesExternally = boolPtr(val)
 	case "edit_files":
-		actions.EditFiles = val
+		actions.EditFiles = boolPtr(val)
 	case "edit_files_externally":
-		actions.EditFilesExternally = val
+		actions.EditFilesExternally = boolPtr(val)
 	case "execute_safe_commands":
-		actions.ExecuteSafeCommands = val
+		actions.ExecuteSafeCommands = boolPtr(val)
 	case "execute_all_commands":
-		actions.ExecuteAllCommands = val
+		actions.ExecuteAllCommands = boolPtr(val)
 	case "use_browser":
-		actions.UseBrowser = val
+		actions.UseBrowser = boolPtr(val)
 	case "use_mcp":
-		actions.UseMcp = val
+		actions.UseMcp = boolPtr(val)
 	default:
 		return fmt.Errorf("unsupported auto_approval_actions field '%s'", key)
 	}
@@ -666,6 +672,8 @@ func parseApiProvider(value string) (cline.ApiProvider, error) {
 		return cline.ApiProvider_DIFY, nil
 	case "oca":
 		return cline.ApiProvider_OCA, nil
+	case "minimax":
+		return cline.ApiProvider_MINIMAX, nil
 	default:
 		return cline.ApiProvider_ANTHROPIC, fmt.Errorf("invalid api_provider '%s'", value)
 	}

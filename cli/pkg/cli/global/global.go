@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/cline/cli/pkg/common"
 	"github.com/cline/grpc-go/client"
+	"github.com/muesli/termenv"
 )
 
 type Port uint16
@@ -22,6 +24,15 @@ type GlobalConfig struct {
 var (
 	Config  *GlobalConfig
 	Clients *ClineClients
+
+	// Version info - set at build time via ldflags
+	// Version is the Cline Core version (from root package.json)
+	Version = "dev"
+	// CliVersion is the CLI package version (from cli/package.json)
+	CliVersion = "dev"
+	Commit     = "unknown"
+	Date       = "unknown"
+	BuiltBy    = "unknown"
 )
 
 func InitializeGlobalConfig(cfg *GlobalConfig) error {
@@ -37,6 +48,12 @@ func InitializeGlobalConfig(cfg *GlobalConfig) error {
 	if err := os.MkdirAll(cfg.ConfigPath, 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
+
+	// Configure lipgloss color profile based on output format
+	if cfg.OutputFormat == "plain" {
+		lipgloss.SetColorProfile(termenv.Ascii) // NO COLOR mode
+	}
+	// Otherwise lipgloss auto-detects terminal capabilities (default behavior)
 
 	Config = cfg
 	Clients = NewClineClients(cfg.ConfigPath)

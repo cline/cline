@@ -4,7 +4,6 @@ import { NewTaskRequest } from "@shared/proto/cline/task"
 import { Settings } from "@shared/storage/state-keys"
 import { convertProtoToApiProvider } from "@/shared/proto-conversions/models/api-configuration-conversion"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
-import { convertProtoToAutoApprovalSettings } from "../../../shared/proto-conversions/models/auto-approval-settings-conversion"
 import { Controller } from ".."
 
 /**
@@ -37,10 +36,28 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 		Object.entries({
 			...request.taskSettings,
 			...(request.taskSettings?.autoApprovalSettings && {
-				autoApprovalSettings: convertProtoToAutoApprovalSettings({
-					...request.taskSettings.autoApprovalSettings,
-					metadata: {},
-				}),
+				autoApprovalSettings: (() => {
+					// Merge with global settings to ensure complete settings for new task
+					const globalSettings = controller.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+					const incomingSettings = request.taskSettings.autoApprovalSettings
+					return {
+						...globalSettings,
+						...(incomingSettings.version !== undefined && { version: incomingSettings.version }),
+						...(incomingSettings.enabled !== undefined && { enabled: incomingSettings.enabled }),
+						...(incomingSettings.maxRequests !== undefined && { maxRequests: incomingSettings.maxRequests }),
+						...(incomingSettings.enableNotifications !== undefined && {
+							enableNotifications: incomingSettings.enableNotifications,
+						}),
+						...(incomingSettings.favorites &&
+							incomingSettings.favorites.length > 0 && { favorites: incomingSettings.favorites }),
+						actions: {
+							...globalSettings.actions,
+							...(incomingSettings.actions
+								? Object.fromEntries(Object.entries(incomingSettings.actions).filter(([_, v]) => v !== undefined))
+								: {}),
+						},
+					}
+				})(),
 			}),
 			...(request.taskSettings?.browserSettings && {
 				browserSettings: {

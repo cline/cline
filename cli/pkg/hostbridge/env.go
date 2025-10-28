@@ -3,9 +3,10 @@ package hostbridge
 import (
 	"context"
 	"log"
+	"os"
 
 	"github.com/atotto/clipboard"
-	"github.com/cline/cli/pkg/cli"
+	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/grpc-go/cline"
 	"github.com/cline/grpc-go/host"
 	"google.golang.org/protobuf/proto"
@@ -78,7 +79,7 @@ func (s *EnvService) GetHostVersion(ctx context.Context, req *cline.EmptyRequest
 		Platform:     proto.String("Cline CLI"),
 		Version:      proto.String(""),
 		ClineType:    proto.String("CLI"),
-		ClineVersion: proto.String(cli.Version),
+		ClineVersion: proto.String(global.CliVersion),
 	}, nil
 }
 
@@ -101,4 +102,65 @@ func (s *EnvService) Shutdown(ctx context.Context, req *cline.EmptyRequest) (*cl
 	}
 
 	return &cline.Empty{}, nil
+}
+
+// GetTelemetrySettings returns the telemetry settings for CLI mode
+func (s *EnvService) GetTelemetrySettings(ctx context.Context, req *cline.EmptyRequest) (*host.GetTelemetrySettingsResponse, error) {
+	if s.verbose {
+		log.Printf("GetTelemetrySettings called")
+	}
+
+	// In CLI mode, check the POSTHOG_TELEMETRY_ENABLED environment variable
+	telemetryEnabled := os.Getenv("POSTHOG_TELEMETRY_ENABLED") == "true"
+
+	var setting host.Setting
+	if telemetryEnabled {
+		setting = host.Setting_ENABLED
+	} else {
+		setting = host.Setting_DISABLED
+	}
+
+	return &host.GetTelemetrySettingsResponse{
+		IsEnabled: setting,
+	}, nil
+}
+
+// SubscribeToTelemetrySettings returns a stream of telemetry setting changes
+// In CLI mode, telemetry settings don't change at runtime, so we just send
+// the current state and keep the stream open
+func (s *EnvService) SubscribeToTelemetrySettings(req *cline.EmptyRequest, stream host.EnvService_SubscribeToTelemetrySettingsServer) error {
+	if s.verbose {
+		log.Printf("SubscribeToTelemetrySettings called")
+	}
+
+	// Send initial telemetry state
+	telemetryEnabled := os.Getenv("POSTHOG_TELEMETRY_ENABLED") == "true"
+
+	var setting host.Setting
+	if telemetryEnabled {
+		setting = host.Setting_ENABLED
+	} else {
+		setting = host.Setting_DISABLED
+	}
+
+	event := &host.TelemetrySettingsEvent{
+		IsEnabled: setting,
+	}
+
+	if err := stream.Send(event); err != nil {
+		if s.verbose {
+			log.Printf("Failed to send telemetry settings event: %v", err)
+		}
+		return err
+	}
+
+	// Keep stream open until context is cancelled
+	// (In CLI mode, settings don't change dynamically)
+	<-stream.Context().Done()
+
+	if s.verbose {
+		log.Printf("SubscribeToTelemetrySettings stream closed")
+	}
+
+	return nil
 }

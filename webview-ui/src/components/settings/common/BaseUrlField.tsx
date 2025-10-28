@@ -43,7 +43,7 @@ export const BaseUrlField = ({
 				<VSCodeCheckbox checked={isEnabled} disabled={disabled} onChange={handleToggle}>
 					{label}
 				</VSCodeCheckbox>
-				{showLockIcon && <i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />}
+				{showLockIcon && <i className="codicon codicon-lock text-(--vscode-descriptionForeground) text-sm" />}
 			</div>
 
 			{isEnabled && (
@@ -52,7 +52,7 @@ export const BaseUrlField = ({
 					onInput={(e: any) => setLocalValue(e.target.value.trim())}
 					placeholder={placeholder}
 					style={{ width: "100%", marginTop: 3 }}
-					type={disabled ? "text" : "url"}
+					type="text"
 					value={localValue}
 				/>
 			)}

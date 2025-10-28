@@ -27,7 +27,7 @@ import { getSystemPrompt } from "../index"
 import type { SystemPromptContext } from "../types"
 
 // Check if snapshots should be updated via process argument
-const UPDATE_SNAPSHOTS = process.argv.includes("--update-snapshots")
+const UPDATE_SNAPSHOTS = process.argv.includes("--update-snapshots") || process.env.UPDATE_SNAPSHOTS === "true"
 
 // Helper to format snapshot mismatch error messages
 const formatSnapshotError = (snapshotName: string, differences: string): string => {
@@ -205,6 +205,18 @@ describe("Prompt System Integration Tests", () => {
 		{
 			modelGroup: ModelFamily.GENERIC,
 			modelIds: ["gpt-3"],
+			providerId: "openai",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.GLM,
+			modelIds: ["glm-4.6"],
+			providerId: "zai",
+			contextVariations,
+		},
+		{
+			modelGroup: ModelFamily.GPT_5,
+			modelIds: ["gpt-5"],
 			providerId: "openai",
 			contextVariations,
 		},
