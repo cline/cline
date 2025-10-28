@@ -1,73 +1,75 @@
 // Prompt for initial list creation
-const initial = `\n
-# TODO LIST CREATION REQUIRED - ACT MODE ACTIVATED\n
-\n
-**You've just switched from PLAN MODE to ACT MODE!**\n
-\n
-** IMMEDIATE ACTION REQUIRED:**\n
-1. Create a comprehensive todo list in your NEXT tool call\n
-2. Use the task_progress parameter to provide the list\n
-3. Format each item using markdown checklist syntax:\n
-	- [ ] For tasks to be done\n
-	- [x] For any tasks already completed\n
-\n
-**Your todo list should include:**\n
-   - All major implementation steps\n
-   - Testing and validation tasks\n
-   - Documentation updates if needed\n
-   - Final verification steps\n
-\n
-**Example format:**\n\
-   - [ ] Set up project structure\n
-   - [ ] Implement core functionality\n
-   - [ ] Add error handling\n-
-   - [ ] Write tests\n
-   - [ ] Test implementation\n
-   - [ ] Document changes\n
-\n
+const initial = `
+# TODO LIST CREATION REQUIRED - ACT MODE ACTIVATED
+
+**You've just switched from PLAN MODE to ACT MODE!**
+
+** IMMEDIATE ACTION REQUIRED:**
+1. Create a comprehensive todo list in your NEXT tool call
+2. Use the task_progress parameter to provide the list
+3. Format each item using markdown checklist syntax:
+	- [ ] For tasks to be done
+	- [x] For any tasks already completed
+
+**Your todo list should include:**
+   - All major implementation steps
+   - Testing and validation tasks
+   - Documentation updates if needed
+   - Final verification steps
+
+**Example format:**\
+   - [ ] Set up project structure
+   - [ ] Implement core functionality
+   - [ ] Add error handling
+   - [ ] Write tests
+   - [ ] Test implementation
+   - [ ] Document changes
+
 **Remember:** Keeping the todo list updated helps track progress and ensures nothing is missed.`
 
 // For when recommending but not requiring a list
-const listInstructionsRecommended = `\n
-1. Include the task_progress parameter in your next tool call\n
-2. Create a comprehensive checklist of all steps needed\n
-3. Use markdown format: - [ ] for incomplete, - [x] for complete\n
-\n
-**Benefits of creating a todo list now:**\n
-	- Clear roadmap for implementation\n
-	- Progress tracking throughout the task\n
-	- Nothing gets forgotten or missed\n
-	- Users can see, monitor, and edit the plan\n
-\n
-**Example structure:**\n\`\`\`\n
-- [ ] Analyze requirements\n
-- [ ] Set up necessary files\n
-- [ ] Implement main functionality\n
-- [ ] Handle edge cases\n
-- [ ] Test the implementation\n
-- [ ] Verify results\n\`\`\`\n
-\n
+const listInstructionsRecommended = `
+1. Include the task_progress parameter in your next tool call
+2. Create a comprehensive checklist of all steps needed
+3. Use markdown format: - [ ] for incomplete, - [x] for complete
+
+**Benefits of creating a todo list now:**
+	- Clear roadmap for implementation
+	- Progress tracking throughout the task
+	- Nothing gets forgotten or missed
+	- Users can see, monitor, and edit the plan
+
+**Example structure:**\`\`\`
+- [ ] Analyze requirements
+- [ ] Set up necessary files
+- [ ] Implement main functionality
+- [ ] Handle edge cases
+- [ ] Test the implementation
+- [ ] Verify results\`\`\`
+
 Keeping the todo list updated helps track progress and ensures nothing is missed.`
 
 // Prompt for reminders to update the list periodically
-const reminder = `\n
-1. To create or update a todo list, include the task_progress parameter in the next tool call\n
-2. Review each item and update its status:\n
-   - Mark completed items with: - [x]\n
-   - Keep incomplete items as: - [ ]\n
-   - Add new items if you discover additional steps\n
-3. Modify the list as needed:\n
-		- Add any new steps you've discovered\n
-		- Reorder if the sequence has changed\n
-4. Ensure the list accurately reflects the current state\n
-\n
+const reminder = `
+1. To create or update a todo list, include the task_progress parameter in the next tool call
+2. Review each item and update its status:
+   - Mark completed items with: - [x]
+   - Keep incomplete items as: - [ ]
+   - Add new items if you discover additional steps
+3. Modify the list as needed:
+		- Add any new steps you've discovered
+		- Reorder if the sequence has changed
+4. Ensure the list accurately reflects the current state
+
 **Remember:** Keeping the todo list updated helps track progress and ensures nothing is missed.`
 
-const completed = `\n\n**🎉 EXCELLENT! All {{totalItems}} items have been completed!**
+const completed = `
+
+**🎉 EXCELLENT! All {{totalItems}} items have been completed!**
 
 **Completed Items:**
 {{currentFocusChainChecklist}}
-currentFocusChainChecklist
+
 **Next Steps:**
 - If the task is fully complete and meets all requirements, use attempt_completion
 - If you've discovered additional work that wasn't in the original scope (new features, improvements, edge cases, etc.), create a new task_progress list with those items

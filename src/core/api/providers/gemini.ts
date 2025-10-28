@@ -210,7 +210,7 @@ export class GeminiHandler implements ApiHandler {
 				if (tools && chunk.functionCalls && chunk.functionCalls?.length > 0) {
 					for (const functionCall of chunk.functionCalls) {
 						if (functionCall.args) {
-							console.log("[GeminiHandler] tool call receieved:", functionCall)
+							console.log("[GeminiHandler] tool call received:", functionCall)
 							yield {
 								type: "tool_calls",
 								tool_call: {

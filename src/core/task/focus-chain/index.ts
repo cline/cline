@@ -209,7 +209,7 @@ export class FocusChainManager {
 			if (isEarlyInTask) {
 				return FocusChainPrompts.recommended
 			} else {
-				return FocusChainPrompts.reminder.replace("{{apiRequestCount}}", this.taskState.apiRequestCount.toString())
+				return FocusChainPrompts.apiRequestCount.replace("{{apiRequestCount}}", this.taskState.apiRequestCount.toString())
 			}
 		}
 	}

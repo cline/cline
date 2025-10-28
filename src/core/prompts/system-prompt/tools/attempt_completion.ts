@@ -77,7 +77,7 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	id,
 	name: "attempt_completion",
 	description:
-		"Once you've completed the user's task, use this tool to present the final result to the user, including a summary of the task andwhat was done to resolve it.",
+		"Once you've completed the user's task, use this tool to present the final result to the user, including a summary of the task and what was done to resolve it.",
 	parameters: [
 		{
 			name: "result",
