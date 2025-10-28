@@ -14,7 +14,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	private client: PostHog
 	private telemetrySettings: TelemetrySettings
 	private isSharedClient: boolean
-	private currentConfig: any = null
+	private currentConfig: typeof posthogConfig = null
 
 	constructor(sharedClient?: PostHog) {
 		this.isSharedClient = !!sharedClient
