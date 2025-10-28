@@ -20,6 +20,8 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	// Lazy instrument caches for metrics
 	private counters = new Map<string, ReturnType<Meter["createCounter"]>>()
 	private histograms = new Map<string, ReturnType<Meter["createHistogram"]>>()
+	private gauges = new Map<string, ReturnType<Meter["createObservableGauge"]>>()
+	private gaugeValues = new Map<string, { value: number; attributes?: TelemetryProperties }>()
 
 	constructor() {
 		// Initialize telemetry settings
@@ -156,17 +158,19 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	/**
-	 * Increment a counter metric (lazy creation).
-	 * Only creates the counter on first use if meter is available.
+	 * Record a counter metric (cumulative value that only increases)
+	 * Lazy creation - only creates the counter on first use if meter is available.
 	 */
-	public incrementCounter(name: string, value: number = 1, attributes?: TelemetryProperties): void {
-		if (!this.meter) {
+	public recordCounter(name: string, value: number, attributes?: TelemetryProperties): void {
+		if (!this.meter || !this.isEnabled()) {
 			return
 		}
 
 		let counter = this.counters.get(name)
 		if (!counter) {
-			counter = this.meter.createCounter(name)
+			counter = this.meter.createCounter(name, {
+				description: `Counter metric: ${name}`,
+			})
 			this.counters.set(name, counter)
 			console.log(`[OTEL] Created counter: ${name}`)
 		}
@@ -175,22 +179,60 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	}
 
 	/**
-	 * Record a histogram metric (lazy creation).
-	 * Only creates the histogram on first use if meter is available.
+	 * Record a histogram metric (distribution of values for percentile analysis)
+	 * Lazy creation - only creates the histogram on first use if meter is available.
 	 */
 	public recordHistogram(name: string, value: number, attributes?: TelemetryProperties): void {
-		if (!this.meter) {
+		if (!this.meter || !this.isEnabled()) {
 			return
 		}
 
 		let histogram = this.histograms.get(name)
 		if (!histogram) {
-			histogram = this.meter.createHistogram(name)
+			histogram = this.meter.createHistogram(name, {
+				description: `Histogram metric: ${name}`,
+			})
 			this.histograms.set(name, histogram)
 			console.log(`[OTEL] Created histogram: ${name}`)
 		}
 
 		histogram.record(value, this.flattenProperties(attributes))
+	}
+
+	/**
+	 * Record a gauge metric (point-in-time value that can go up or down)
+	 * Lazy creation - creates an observable gauge that reads from stored values
+	 */
+	public recordGauge(name: string, value: number, attributes?: TelemetryProperties): void {
+		if (!this.meter || !this.isEnabled()) {
+			return
+		}
+
+		// Create a unique key for this gauge + attribute combination
+		const attrKey = attributes ? JSON.stringify(attributes) : ""
+		const storageKey = `${name}:${attrKey}`
+
+		// Store the current value
+		this.gaugeValues.set(storageKey, { value, attributes })
+
+		// Create observable gauge on first use
+		if (!this.gauges.has(name)) {
+			const gauge = this.meter.createObservableGauge(name, {
+				description: `Gauge metric: ${name}`,
+			})
+
+			// Add callback to observe all values for this gauge
+			gauge.addCallback((observableResult) => {
+				for (const [key, data] of this.gaugeValues.entries()) {
+					if (key.startsWith(name + ":")) {
+						observableResult.observe(data.value, this.flattenProperties(data.attributes))
+					}
+				}
+			})
+
+			this.gauges.set(name, gauge)
+			console.log(`[OTEL] Created gauge: ${name}`)
+		}
 	}
 
 	public async dispose(): Promise<void> {
