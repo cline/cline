@@ -5,6 +5,24 @@ description: An autonomous GitHub issue analyzer using Cline CLI
 
 Build a sample using a bash script that takes a GitHub issue URL as input and performs comprehensive automated analysis. The script leverages GitHub CLI to fetch issue details, then uses Cline's autonomous capabilities to analyze the issue content, explore relevant codebase files, identify root causes, and provide detailed recommendations for resolution—all while operating autonomously and outputting clean, parseable results that can be easily integrated into your development workflows.
 
+<Note>
+**Source Code:** The complete implementation with the script is available at [src/samples/cli/github-issue-rca](https://github.com/cline/cline/tree/main/src/samples/cli/github-issue-rca)
+</Note>
+
+
+## Demo Video
+
+Watch this sample in action:
+
+<div style={{ maxWidth: '800px', margin: '2rem auto' }}>
+  <video 
+    controls 
+    style={{ width: '100%', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}
+  >
+    <source src="https://storage.googleapis.com/cline_public_images/cli-rca.mp4" type="video/mp4" />
+    Your browser does not support the video tag.
+  </video>
+</div>
 
 
 ## Prerequisites
@@ -53,20 +71,6 @@ Before starting this sample, ensure you have:
 - **Flexible prompting** - Supports custom analysis questions
 - **Instance targeting** - Can work with specific Cline instances
 - **Context-aware analysis** - Understands code repositories and issue context
-
-## Demo Video
-
-Watch this sample in action:
-
-<div style={{ maxWidth: '800px', margin: '2rem auto' }}>
-  <video 
-    controls 
-    style={{ width: '100%', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' }}
-  >
-    <source src="https://storage.googleapis.com/cline_public_images/cli-rca.mp4" type="video/mp4" />
-    Your browser does not support the video tag.
-  </video>
-</div>
 
 ### Complete Sample Script
 
