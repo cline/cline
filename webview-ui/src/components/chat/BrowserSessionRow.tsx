@@ -8,7 +8,6 @@ import { useSize } from "react-use"
 import styled from "styled-components"
 import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
 import { ChatRowContent, ProgressIndicator } from "@/components/chat/ChatRow"
-import { CheckpointControls } from "@/components/common/CheckpointControls"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient } from "@/services/grpc-client"
@@ -198,7 +197,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				message.say === "api_req_started" ||
 				message.say === "text" ||
 				message.say === "reasoning" ||
-				message.say === "browser_action"
+				message.say === "browser_action" ||
+				message.say === "error_retry"
 			) {
 				// These messages lead to the next result, so they should always go in nextActionMessages
 				nextActionMessages.push(message)
@@ -539,6 +539,7 @@ const BrowserSessionRowContent = memo(
 					case "api_req_started":
 					case "text":
 					case "reasoning":
+					case "error_retry":
 						return (
 							<div style={chatRowContentContainerStyle}>
 								<ChatRowContent
@@ -630,10 +631,6 @@ const BrowserCursor: React.FC<{ style?: CSSProperties }> = ({ style }) => {
 const BrowserSessionRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
 	position: relative;
-
-	&:hover ${CheckpointControls} {
-		opacity: 1;
-	}
 `
 
 export default BrowserSessionRow

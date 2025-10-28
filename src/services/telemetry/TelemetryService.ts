@@ -287,7 +287,7 @@ export class TelemetryService {
 							items: ["Open Settings"],
 						},
 					})
-					.then((response) => {
+					.then((response: { selectedOption?: string }) => {
 						if (response.selectedOption === "Open Settings") {
 							void HostProvider.window.openSettings({
 								query: "telemetry.telemetryLevel",

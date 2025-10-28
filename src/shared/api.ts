@@ -37,6 +37,7 @@ export type ApiProvider =
 	| "vercel-ai-gateway"
 	| "zai"
 	| "oca"
+	| "minimax"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -75,6 +76,7 @@ export interface ApiHandlerSecrets {
 	basetenApiKey?: string
 	vercelAiGatewayApiKey?: string
 	difyApiKey?: string
+	minimaxApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -120,6 +122,7 @@ export interface ApiHandlerOptions {
 	zaiApiLine?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
+	minimaxApiLine?: string
 	ocaMode?: string
 
 	// Plan mode configurations
@@ -699,17 +702,92 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 		"Claude Sonnet 4.5 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
 }
 
-// Cline custom model - code-supernova
-export const clineCodeSupernovaModelInfo: ModelInfo = {
-	contextWindow: 1000000,
-	supportsImages: true,
-	supportsPromptCache: true,
-	inputPrice: 0,
-	outputPrice: 0,
-	cacheReadsPrice: 0,
-	cacheWritesPrice: 0,
-	description: "A versatile agentic coding stealth model that supports image inputs.",
+export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; allow_fallbacks: boolean }> = {
+	// Exacto Providers
+	"moonshotai/kimi-k2:exacto": {
+		order: ["groq", "moonshotai"],
+		allow_fallbacks: false,
+	},
+	"z-ai/glm-4.6:exacto": {
+		order: ["z-ai", "novita"],
+		allow_fallbacks: false,
+	},
+	"deepseek/deepseek-v3.1-terminus:exacto": {
+		order: ["novita", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-coder:exacto": {
+		order: ["baseten", "cerebras"],
+		allow_fallbacks: false,
+	},
+	"openai/gpt-oss-120b:exacto": {
+		order: ["groq", "novita"],
+		allow_fallbacks: false,
+	},
+
+	// Normal Providers
+	"moonshotai/kimi-k2": {
+		order: ["groq", "fireworks", "baseten", "parasail", "novita", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-coder": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-235b-a22b-thinking-2507": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-235b-a22b-07-25": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-30b-a3b-thinking-2507": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-30b-a3b-instruct-2507": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-30b-a3b:free": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-next-80b-a3b-thinking": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-next-80b-a3b-instruct": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"qwen/qwen3-max": {
+		order: ["nebius", "baseten", "fireworks", "together", "deepinfra"],
+		allow_fallbacks: false,
+	},
+	"deepseek/deepseek-v3.2-exp": {
+		order: ["deepseek", "novita", "fireworks", "nebius"],
+		allow_fallbacks: false,
+	},
+	"z-ai/glm-4.6": {
+		order: ["z-ai", "novita", "baseten", "fireworks", "chutes"],
+		allow_fallbacks: false,
+	},
+	"z-ai/glm-4.5v": {
+		order: ["z-ai", "novita", "baseten", "fireworks", "chutes"],
+		allow_fallbacks: false,
+	},
+	"z-ai/glm-4.5": {
+		order: ["z-ai", "novita", "baseten", "fireworks", "chutes"],
+		allow_fallbacks: false,
+	},
+	"z-ai/glm-4.5-air": {
+		order: ["z-ai", "novita", "baseten", "fireworks", "chutes"],
+		allow_fallbacks: false,
+	},
 }
+
 // Vertex AI
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 // https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models
@@ -2913,8 +2991,17 @@ export const sambanovaModels = {
 // Cerebras
 // https://inference-docs.cerebras.ai/api-reference/models
 export type CerebrasModelId = keyof typeof cerebrasModels
-export const cerebrasDefaultModelId: CerebrasModelId = "qwen-3-coder-480b-free"
+export const cerebrasDefaultModelId: CerebrasModelId = "zai-glm-4.6"
 export const cerebrasModels = {
+	"zai-glm-4.6": {
+		maxTokens: 40000,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Intelligent general purpose model with 2,000 tokens/s",
+	},
 	"gpt-oss-120b": {
 		maxTokens: 65536,
 		contextWindow: 128000,
@@ -3739,3 +3826,21 @@ export const qwenCodeModels = {
 } as const satisfies Record<string, ModelInfo>
 export type QwenCodeModelId = keyof typeof qwenCodeModels
 export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
+
+// Minimax
+// https://www.minimax.io/platform/document/text_api_intro
+// https://www.minimax.io/platform/document/pricing
+export type MinimaxModelId = keyof typeof minimaxModels
+export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2"
+export const minimaxModels = {
+	"MiniMax-M2": {
+		maxTokens: 128_000,
+		contextWindow: 192_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
