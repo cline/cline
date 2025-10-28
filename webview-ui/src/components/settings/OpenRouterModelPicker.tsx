@@ -61,11 +61,6 @@ const featuredModels = [
 		description: "Advanced model with 262K context for complex coding",
 		label: "Free",
 	},
-	{
-		id: "cline/code-supernova-1-million",
-		description: "Stealth coding model with image support",
-		label: "Free",
-	},
 ]
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
@@ -126,8 +121,15 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		const unfilteredModelIds = Object.keys(openRouterModels).sort((a, b) => a.localeCompare(b))
 
 		if (modeFields.apiProvider === "cline") {
-			// For Cline provider: exclude :free models
-			return unfilteredModelIds.filter((id) => !id.includes(":free"))
+			// For Cline provider: exclude :free models, but keep Minimax models
+			return unfilteredModelIds.filter((id) => {
+				// Keep all Minimax models regardless of :free suffix
+				if (id.toLowerCase().includes("minimax-m2")) {
+					return true
+				}
+				// Filter out other :free models
+				return !id.includes(":free")
+			})
 		} else {
 			// For OpenRouter provider: exclude Cline-specific models
 			return unfilteredModelIds.filter((id) => !id.startsWith("cline/"))
@@ -187,6 +189,10 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 				if (selectedIndex >= 0 && selectedIndex < modelSearchResults.length) {
 					handleModelChange(modelSearchResults[selectedIndex].id)
 					setIsDropdownVisible(false)
+				} else {
+					// User typed a custom model ID (e.g., @preset/something)
+					handleModelChange(searchTerm)
+					setIsDropdownVisible(false)
 				}
 				break
 			case "Escape":
@@ -198,11 +204,18 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 	const hasInfo = useMemo(() => {
 		try {
+			if (searchTerm.startsWith("@preset/")) {
+				return false // Disable model info for presets
+			}
 			return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase())
 		} catch {
 			return false
 		}
 	}, [modelIds, searchTerm])
+
+	const isOpenRouterPreset = useMemo(() => {
+		return searchTerm.startsWith("@preset/")
+	}, [searchTerm])
 
 	useEffect(() => {
 		setSelectedIndex(-1)
@@ -271,6 +284,11 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						id="model-search"
+						onBlur={() => {
+							if (searchTerm !== selectedModelId) {
+								handleModelChange(searchTerm)
+							}
+						}}
 						onFocus={() => setIsDropdownVisible(true)}
 						onInput={(e) => {
 							setSearchTerm((e.target as HTMLInputElement)?.value.toLowerCase() || "")
@@ -358,6 +376,20 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
+			) : isOpenRouterPreset ? (
+				<p
+					style={{
+						fontSize: "12px",
+						marginTop: 3,
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+					Using OpenRouter preset: <strong>{searchTerm}</strong>. Preset models reference your configured model
+					preferences on{" "}
+					<VSCodeLink href="https://openrouter.ai/settings/presets" style={{ display: "inline", fontSize: "inherit" }}>
+						OpenRouter.
+					</VSCodeLink>
+					Model info and pricing will depend on your preset configuration.
+				</p>
 			) : (
 				<p
 					style={{
@@ -375,7 +407,8 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						style={{ display: "inline", fontSize: "inherit" }}>
 						anthropic/claude-sonnet-4.5.
 					</VSCodeLink>
-					You can also try searching "free" for no-cost options currently available.
+					You can also try searching "free" for no-cost options currently available. OpenRouter presets can be used by
+					entering <strong>@preset/your-preset-name</strong>.
 				</p>
 			)}
 		</div>

@@ -19,6 +19,7 @@ import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
 import { HuggingFaceHandler } from "./providers/huggingface"
 import { LiteLlmHandler } from "./providers/litellm"
 import { LmStudioHandler } from "./providers/lmstudio"
+import { MinimaxHandler } from "./providers/minimax"
 import { MistralHandler } from "./providers/mistral"
 import { MoonshotHandler } from "./providers/moonshot"
 import { NebiusHandler } from "./providers/nebius"
@@ -389,6 +390,13 @@ function createHandlerForProvider(
 						? options.planModeOcaModelInfo?.supportsPromptCache
 						: options.actModeOcaModelInfo?.supportsPromptCache,
 				taskId: options.ulid,
+			})
+		case "minimax":
+			return new MinimaxHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				minimaxApiKey: options.minimaxApiKey,
+				minimaxApiLine: options.minimaxApiLine,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		default:
 			return new AnthropicHandler({
