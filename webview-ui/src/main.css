@@ -193,3 +193,10 @@ vscode-dropdown::part(listbox) {
 		opacity: 0.5;
 	}
 }
+
+/* Fix tooltip arrow lag - disable animations on tooltips */
+[data-slot="tooltip-content"],
+[data-slot="tooltip-content"] * {
+	animation: none !important;
+	transition: none !important;
+}

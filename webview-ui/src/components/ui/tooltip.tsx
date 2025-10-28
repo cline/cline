@@ -28,6 +28,8 @@ function TooltipContent({
 	children,
 	...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content> & { showArrow?: boolean }) {
+	const side = (props as any).side
+
 	return (
 		<TooltipPrimitive.Portal>
 			<TooltipPrimitive.Content
@@ -40,7 +42,14 @@ function TooltipContent({
 				{...props}>
 				<span className="text-xs leading-tight wrap-break-word">{children}</span>
 				{showArrow && (
-					<TooltipPrimitive.Arrow className="bg-background fill-background z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-xs border-b border-r border-muted-foreground/30" />
+					<TooltipPrimitive.Arrow
+						className={cn(
+							"bg-background fill-background z-50 size-2.5 rotate-45 rounded-xs border-b border-r border-muted-foreground/30",
+							side === "left" || side === "right"
+								? "translate-y-[calc(-50%_-_4px)]" // Horizontal adjustment for side tooltips
+								: "translate-y-[calc(-50%_-_0px)]", // Vertical adjustment for top/bottom tooltips
+						)}
+					/>
 				)}
 			</TooltipPrimitive.Content>
 		</TooltipPrimitive.Portal>
