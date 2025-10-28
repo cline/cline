@@ -1,8 +1,10 @@
-import { VSCodeButton, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { XIcon } from "lucide-react"
 import React, { useEffect, useRef, useState } from "react"
 import { useClickAway, useWindowSize } from "react-use"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import HeroTooltip from "@/components/common/HeroTooltip"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
@@ -125,35 +127,38 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 	return (
 		<div className="overflow-hidden" ref={modalRef}>
 			<div
-				className="fixed left-[15px] right-[15px] border border-[var(--vscode-editorGroup-border)] rounded z-[1000] flex flex-col"
+				className="fixed left-3.5 right-3.5 border border-(--vscode-editorGroup-border) rounded z-20 flex flex-col"
 				style={calculateModalStyle()}>
 				<div
-					className="fixed w-[10px] h-[10px] z-[-1] rotate-45 border-r border-b border-[var(--vscode-editorGroup-border)]"
+					className="fixed w-3.5 h-3.5 z-0 rotate-45 border-r border-b border-(--vscode-editorGroup-border) bg-code"
 					style={{
 						bottom: `calc(100vh - ${menuPosition}px)`,
 						right: arrowPosition,
-						background: CODE_BLOCK_BG_COLOR,
 					}}
 				/>
 				{/* Scrollable content container */}
-				<div className="overflow-y-auto p-3 flex-1 min-h-0 overscroll-contain">
-					<div className="flex justify-between items-center mb-3">
-						<HeroTooltip
-							content="Auto-approve allows Cline to perform the following actions without asking for permission. Please use with caution and only enable if you understand the risks."
-							placement="top">
-							<div className="text-base font-semibold mb-1">Auto-approve Settings</div>
-						</HeroTooltip>
-						<VSCodeButton appearance="icon" onClick={() => setIsVisible(false)}>
-							<span className="codicon codicon-close text-[10px]"></span>
-						</VSCodeButton>
+				<div className="overflow-y-auto p-3 flex-1 min-h-0 overscroll-contain w-full">
+					<div className="flex justify-between items-center mb-3 w-full">
+						<Tooltip>
+							<TooltipContent side="top">
+								Auto-approve allows Cline to perform the following actions without asking for permission. Please
+								use with caution and only enable if you understand the risks.
+							</TooltipContent>
+							<TooltipTrigger>
+								<div className="text-md font-semibold mb-1">Auto-approve Settings</div>
+							</TooltipTrigger>
+						</Tooltip>
+						<Button onClick={() => setIsVisible(false)} size="icon" variant="icon">
+							<XIcon />
+						</Button>
 					</div>
 
 					<div className="mb-2.5">
-						<span className="text-[color:var(--vscode-foreground)] font-medium">Actions:</span>
+						<span className="text-foreground font-medium">Actions:</span>
 					</div>
 
 					<div
-						className="relative mb-6"
+						className="relative mb-6 w-full"
 						ref={itemsContainerRef}
 						style={{
 							columnCount: containerWidth > breakpoint ? 2 : 1,
@@ -162,7 +167,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 						{/* Vertical separator line - only visible in two-column mode */}
 						{containerWidth > breakpoint && (
 							<div
-								className="absolute left-1/2 top-0 bottom-0 w-[0.5px] opacity-20"
+								className="absolute left-1/2 top-0 bottom-0 opacity-20"
 								style={{
 									background: getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND),
 									transform: "translateX(-50%)", // Center the line
@@ -184,7 +189,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 					</div>
 
 					<div className="mb-2.5">
-						<span className="text-[color:var(--vscode-foreground)] font-medium">Quick Settings:</span>
+						<span className="font-medium">Quick Settings:</span>
 					</div>
 
 					<AutoApproveMenuItem
@@ -196,36 +201,40 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 						onToggleFavorite={toggleFavorite}
 					/>
 
-					<HeroTooltip
-						content="Cline will automatically make this many API requests before asking for approval to proceed with the task."
-						placement="top">
-						<div className="flex items-center pl-1.5 my-2">
-							<span className="codicon codicon-settings text-[#CCCCCC] text-[14px]" />
-							<span className="text-[#CCCCCC] text-xs font-medium ml-2">Max Requests:</span>
-							<VSCodeTextField
-								className="flex-1 w-full pr-[35px] ml-4"
-								onInput={async (e) => {
-									const input = e.target as HTMLInputElement
-									// Remove any non-numeric characters
-									input.value = input.value.replace(/[^0-9]/g, "")
-									const value = parseInt(input.value)
-									if (!Number.isNaN(value) && value > 0) {
-										await updateMaxRequests(value)
-									}
-								}}
-								onKeyDown={(e) => {
-									// Prevent non-numeric keys (except for backspace, delete, arrows)
-									if (
-										!/^\d$/.test(e.key) &&
-										!["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)
-									) {
-										e.preventDefault()
-									}
-								}}
-								value={autoApprovalSettings.maxRequests.toString()}
-							/>
-						</div>
-					</HeroTooltip>
+					<Tooltip>
+						<TooltipContent side="top">
+							Cline will automatically make this many API requests before asking for approval to proceed with the
+							task.
+						</TooltipContent>
+						<TooltipTrigger>
+							<div className="flex items-center pl-1.5 my-2">
+								<span className="codicon codicon-settings text-[#CCCCCC] text-[14px]" />
+								<span className="text-base font-medium ml-2">Max Requests:</span>
+								<VSCodeTextField
+									className="flex-1 w-full pr-[35px] ml-4"
+									onInput={async (e) => {
+										const input = e.target as HTMLInputElement
+										// Remove any non-numeric characters
+										input.value = input.value.replace(/[^0-9]/g, "")
+										const value = parseInt(input.value)
+										if (!Number.isNaN(value) && value > 0) {
+											await updateMaxRequests(value)
+										}
+									}}
+									onKeyDown={(e) => {
+										// Prevent non-numeric keys (except for backspace, delete, arrows)
+										if (
+											!/^\d$/.test(e.key) &&
+											!["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)
+										) {
+											e.preventDefault()
+										}
+									}}
+									value={autoApprovalSettings.maxRequests.toString()}
+								/>
+							</div>
+						</TooltipTrigger>
+					</Tooltip>
 				</div>
 			</div>
 		</div>
