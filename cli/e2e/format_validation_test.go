@@ -75,21 +75,15 @@ func TestJSONOutputVersion(t *testing.T) {
 	}
 
 	// Validate data fields
-	data, ok := response["data"].(map[string]interface{})
+	data, ok := response["result"].(map[string]interface{})
 	if !ok {
-		t.Fatalf("expected data to be object, got %T", response["data"])
+		t.Fatalf("expected data to be object, got %T", response["result"])
 	}
 
-	// Data should be nested under "result" key per OutputCommandSuccess implementation
-	result, ok := data["result"].(map[string]interface{})
-	if !ok {
-		// Fallback: data might be directly the result object (depends on implementation)
-		result = data
-	}
-
+	// Data is directly under "result" key (OutputJSONSuccess uses "result" for the data field)
 	requiredFields := []string{"cliVersion", "coreVersion", "commit", "date", "builtBy", "goVersion", "os", "arch"}
 	for _, field := range requiredFields {
-		if _, ok := result[field]; !ok {
+		if _, ok := data[field]; !ok {
 			t.Errorf("missing required field: %s", field)
 		}
 	}
@@ -163,23 +157,17 @@ func TestJSONOutputInstanceList(t *testing.T) {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
 
-	data, ok := response["data"].(map[string]interface{})
+	data, ok := response["result"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("expected data to be object")
 	}
 
-	// Data might be nested under "result" - handle both cases
-	result := data
-	if r, ok := data["result"].(map[string]interface{}); ok {
-		result = r
-	}
-
 	// Should have defaultInstance and instances array
-	if _, ok := result["defaultInstance"]; !ok {
+	if _, ok := data["defaultInstance"]; !ok {
 		t.Error("missing defaultInstance field")
 	}
 
-	instances, ok := result["instances"].([]interface{})
+	instances, ok := data["instances"].([]interface{})
 	if !ok {
 		t.Fatalf("expected instances to be array")
 	}
@@ -231,20 +219,14 @@ func TestJSONOutputInstanceNew(t *testing.T) {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
 
-	data, ok := response["data"].(map[string]interface{})
+	data, ok := response["result"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("expected data to be object")
 	}
 
-	// Data might be nested under "result" - handle both cases
-	result := data
-	if r, ok := data["result"].(map[string]interface{}); ok {
-		result = r
-	}
-
 	requiredFields := []string{"address", "corePort", "hostPort", "isDefault"}
 	for _, field := range requiredFields {
-		if _, ok := result[field]; !ok {
+		if _, ok := data[field]; !ok {
 			t.Errorf("missing required field: %s", field)
 		}
 	}
@@ -278,18 +260,12 @@ func TestJSONOutputLogsPath(t *testing.T) {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
 
-	data, ok := response["data"].(map[string]interface{})
+	data, ok := response["result"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("expected data to be object")
 	}
 
-	// Data might be nested under "result" - handle both cases
-	result := data
-	if r, ok := data["result"].(map[string]interface{}); ok {
-		result = r
-	}
-
-	if _, ok := result["path"]; !ok {
+	if _, ok := data["path"]; !ok {
 		t.Error("missing path field")
 	}
 }
@@ -375,23 +351,17 @@ func TestJSONOutputLogsList(t *testing.T) {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
 
-	data, ok := response["data"].(map[string]interface{})
+	data, ok := response["result"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("expected data to be object")
 	}
 
-	// Data might be nested under "result" - handle both cases
-	result := data
-	if r, ok := data["result"].(map[string]interface{}); ok {
-		result = r
-	}
-
 	// Should have logsDir and logs array
-	if _, ok := result["logsDir"]; !ok {
+	if _, ok := data["logsDir"]; !ok {
 		t.Error("missing logsDir field")
 	}
 
-	if _, ok := result["logs"]; !ok {
+	if _, ok := data["logs"]; !ok {
 		t.Error("missing logs field")
 	}
 }
@@ -427,18 +397,12 @@ func TestJSONOutputConfigList(t *testing.T) {
 		t.Errorf("expected status=success, got %v", response["status"])
 	}
 
-	data, ok := response["data"].(map[string]interface{})
+	data, ok := response["result"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("expected data to be object")
 	}
 
-	// Data might be nested under "result" - handle both cases
-	result := data
-	if r, ok := data["result"].(map[string]interface{}); ok {
-		result = r
-	}
-
-	if _, ok := result["settings"]; !ok {
+	if _, ok := data["settings"]; !ok {
 		t.Error("missing settings field")
 	}
 }
@@ -591,7 +555,7 @@ func TestAllCommandsJSONValidity(t *testing.T) {
 
 			// Success responses should have data
 			if response["status"] == "success" {
-				if _, ok := response["data"]; !ok {
+				if _, ok := response["result"]; !ok {
 					t.Error("success response missing data field")
 				}
 			}
@@ -615,7 +579,7 @@ func TestJSONOutputInstanceKill(t *testing.T) {
 	out := mustRunCLI(ctx, t, "instance", "new", "--output-format", "json")
 	var newResponse map[string]interface{}
 	json.Unmarshal([]byte(out), &newResponse)
-	data, ok := newResponse["data"].(map[string]interface{})
+	data, ok := newResponse["result"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("failed to get data from instance new response")
 	}
@@ -649,7 +613,7 @@ func TestJSONOutputInstanceDefault(t *testing.T) {
 	out := mustRunCLI(ctx, t, "instance", "new", "--output-format", "json")
 	var newResponse map[string]interface{}
 	json.Unmarshal([]byte(out), &newResponse)
-	data, ok := newResponse["data"].(map[string]interface{})
+	data, ok := newResponse["result"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("failed to get data from instance new response")
 	}
@@ -713,7 +677,7 @@ func TestJSONOutputTaskOpen(t *testing.T) {
 		var obj map[string]interface{}
 		if json.Unmarshal([]byte(line), &obj) == nil {
 			if status, ok := obj["status"].(string); ok && status == "success" {
-				if data, ok := obj["data"].(map[string]interface{}); ok {
+				if data, ok := obj["result"].(map[string]interface{}); ok {
 					taskID = data["taskId"].(string)
 					break
 				}
@@ -1051,18 +1015,12 @@ func TestRegistryTextLeakage(t *testing.T) {
 
 	// The output should ONLY contain valid JSON structure
 	// No stray text from registryLog() or registryWarning() calls
-	if data, ok := response["data"].(map[string]interface{}); ok {
-		// Data might be nested under "result" - handle both cases
-		result := data
-		if r, ok := data["result"].(map[string]interface{}); ok {
-			result = r
-		}
-
+	if data, ok := response["result"].(map[string]interface{}); ok {
 		// Verify we got structured data about the kill operation
-		if _, ok := result["killedCount"]; !ok {
+		if _, ok := data["killedCount"]; !ok {
 			t.Error("response should include killedCount")
 		}
-		if _, ok := result["addresses"]; !ok {
+		if _, ok := data["addresses"]; !ok {
 			t.Error("response should include addresses array")
 		}
 	} else {

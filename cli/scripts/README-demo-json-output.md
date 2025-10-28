@@ -47,7 +47,7 @@ Output:
 {
   "status": "success",
   "command": "version",
-  "data": {
+  "result": {
     "cliVersion": "1.2.3",
     ...
   }
@@ -77,7 +77,7 @@ Output:
 {"type":"debug","message":"Starting new instance..."}
 {"type":"debug","message":"Starting cline-host on port 12345"}
 ...
-{"status":"success","command":"instance new","data":{...}}
+{"status":"success","command":"instance new","result":{...}}
 ```
 
 ### 4. Interactive Commands (Rejected in JSON Mode)
@@ -141,7 +141,7 @@ $ ./cli/bin/cline version -F json
 {
   "status": "success",
   "command": "version",
-  "data": {
+  "result": {
     "cliVersion": "1.2.3",
     "coreVersion": "1.2.3",
     "commit": "abc123",
@@ -161,7 +161,7 @@ $ ./cli/bin/cline instance new --verbose -F json
 {"message":"Finding available ports...","type":"debug"}
 {"message":"Starting cline-host on port 54321","type":"debug"}
 ...
-{"command":"instance new","data":{"address":"localhost:54321",...},"status":"success"}
+{"command":"instance new","result":{"address":"localhost:54321",...},"status":"success"}
 ```
 
 ### Interactive Command Rejection

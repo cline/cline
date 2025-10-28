@@ -214,14 +214,6 @@ see the manual page: man cline`,
 	rootCmd.SilenceErrors = true
 	rootCmd.SilenceUsage = true
 
-	// Suppress Cobra's default error printing - we'll handle it ourselves
-	rootCmd.SilenceErrors = true
-	rootCmd.SilenceUsage = true
-
-	// Suppress Cobra's default error printing - we'll handle it ourselves
-	rootCmd.SilenceErrors = true
-	rootCmd.SilenceUsage = true
-
 	if err := rootCmd.ExecuteContext(context.Background()); err != nil {
 		// Check if JSON mode is enabled
 		// If global.Config is nil (error during early validation), check os.Args directly

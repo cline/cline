@@ -202,8 +202,8 @@ func compareOutputStructure(t *testing.T, testName, normalOut, verboseOut string
 	}
 
 	// Data structure should be preserved
-	if normalDataField, ok := normalData["data"]; ok {
-		if verboseDataField, ok := verboseData["data"]; ok {
+	if normalDataField, ok := normalData["result"]; ok {
+		if verboseDataField, ok := verboseData["result"]; ok {
 			// Deep comparison of data structures
 			if !reflect.DeepEqual(normalDataField, verboseDataField) {
 				t.Logf("%s: data structures differ between normal and verbose - this may be expected due to additional verbose fields", testName)
