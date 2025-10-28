@@ -27,9 +27,16 @@ export class TelemetryProviderFactory {
 	/**
 	 * Creates multiple telemetry providers based on configuration
 	 * Supports dual tracking during transition period
+	 * @param forceNoOp Optional parameter to force NoOp providers regardless of configuration
 	 * @returns Array of ITelemetryProvider instances
 	 */
-	public static async createProviders(): Promise<ITelemetryProvider[]> {
+	public static async createProviders(forceNoOp?: boolean): Promise<ITelemetryProvider[]> {
+		// If forceNoOp is true, return only NoOp provider
+		if (forceNoOp) {
+			Logger.info("TelemetryProviderFactory: Telemetry disabled - using NoOp provider")
+			return [new NoOpTelemetryProvider()]
+		}
+
 		const configs = TelemetryProviderFactory.getDefaultConfigs()
 		const providers: ITelemetryProvider[] = await Promise.all(configs.map((c) => TelemetryProviderFactory.createProvider(c)))
 

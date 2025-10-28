@@ -10,6 +10,7 @@ import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
 import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
+import { type TelemetryEffectivePolicy, TelemetrySettingsPolicyManager } from "./TelemetrySettingsPolicyManager"
 
 /**
  * Represents telemetry event categories that can be individually enabled or disabled
@@ -217,8 +218,9 @@ export class TelemetryService {
 		},
 	}
 
+	private policyManager?: TelemetrySettingsPolicyManager
+
 	public static async create(): Promise<TelemetryService> {
-		const providers = await TelemetryProviderFactory.createProviders()
 		const hostVersion = await HostProvider.env.getHostVersion({})
 		const metadata: TelemetryMetadata = {
 			extension_version: extensionVersion,
@@ -228,19 +230,66 @@ export class TelemetryService {
 			os_version: os.version(),
 			is_dev: process.env.IS_DEV,
 		}
-		return new TelemetryService(providers, metadata)
+
+		// Create policy manager with environment override support
+		const policyManager = new TelemetrySettingsPolicyManager({
+			getUserOptIn: async () => {
+				// This will be set properly when updateTelemetryState is called
+				return false
+			},
+			environmentOverrides: {
+				telemetryDisabled: process.env.OTEL_TELEMETRY_ENABLED === "0",
+			},
+		})
+
+		// Wait for policy to be resolved before creating providers
+		await policyManager.load()
+		const policy = policyManager.getCurrentPolicy()
+
+		// Only create providers if telemetry is allowed
+		const providers = policy.isTelemetryAllowed
+			? await TelemetryProviderFactory.createProviders()
+			: await TelemetryProviderFactory.createProviders(true) // Force NoOp
+
+		const service = new TelemetryService(providers, metadata, policyManager)
+
+		// Subscribe to policy changes to update providers dynamically
+		policyManager.subscribe((newPolicy) => {
+			service.handlePolicyChange(newPolicy)
+		})
+
+		return service
 	}
 
 	/**
 	 * Constructor that accepts multiple telemetry providers for dual tracking
 	 * @param providers Array of telemetry providers for dual/multi tracking
+	 * @param telemetryMetadata Metadata to include with all telemetry events
+	 * @param policyManager Policy manager to control telemetry state
 	 */
 	constructor(
 		private providers: ITelemetryProvider[],
 		private telemetryMetadata: TelemetryMetadata,
+		policyManager?: TelemetrySettingsPolicyManager,
 	) {
-		this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
+		this.policyManager = policyManager
+
+		// Only capture telemetry enabled event if policy allows
+		if (!policyManager || policyManager.getCurrentPolicy().isTelemetryAllowed) {
+			this.capture({ event: TelemetryService.EVENTS.USER.TELEMETRY_ENABLED })
+		}
 		console.info(`[TelemetryService] Initialized with ${providers.length} telemetry provider(s)`)
+	}
+
+	/**
+	 * Handle policy changes from the policy manager
+	 * @param policy The new effective policy
+	 */
+	private handlePolicyChange(policy: TelemetryEffectivePolicy): void {
+		// Update all providers with the new opt-in state
+		this.providers.forEach((provider) => {
+			provider.setOptIn(policy.isTelemetryAllowed)
+		})
 	}
 
 	/**
@@ -249,13 +298,24 @@ export class TelemetryService {
 	 * @param didUserOptIn Whether the user has explicitly opted into telemetry
 	 */
 	public async updateTelemetryState(didUserOptIn: boolean): Promise<void> {
-		// First check global telemetry level - telemetry should only be enabled when level is "all"
+		// If we have a policy manager, update it with the new user opt-in state
+		// This will trigger policy recalculation and notify all subscribers
+		if (this.policyManager) {
+			// Trigger policy change by manually calling handlePolicyChange with updated user opt-in
+			const currentPolicy = this.policyManager.getCurrentPolicy()
+			const newPolicy: TelemetryEffectivePolicy = {
+				...currentPolicy,
+				userOptIn: didUserOptIn,
+				isTelemetryAllowed:
+					!currentPolicy.environmentDisabled &&
+					currentPolicy.hostSetting !== Setting.DISABLED &&
+					didUserOptIn &&
+					currentPolicy.level !== "off",
+			}
+			this.handlePolicyChange(newPolicy)
 
-		// We only enable telemetry if global host telemetry is enabled
-		const hostSetting = await HostProvider.env.getTelemetrySettings({})
-		if (hostSetting.isEnabled === Setting.DISABLED) {
-			// Only show warning if user has opted in to Cline telemetry but host telemetry is disabled
-			if (didUserOptIn) {
+			// Show warning if user opted in but host telemetry is disabled
+			if (didUserOptIn && currentPolicy.hostSetting === Setting.DISABLED) {
 				void HostProvider.window
 					.showMessage({
 						type: ShowMessageType.WARNING,
@@ -273,12 +333,34 @@ export class TelemetryService {
 						}
 					})
 			}
-		}
+		} else {
+			// Legacy path: if no policy manager (for backward compatibility), directly update providers
+			const hostSetting = await HostProvider.env.getTelemetrySettings({})
+			if (hostSetting.isEnabled === Setting.DISABLED) {
+				if (didUserOptIn) {
+					void HostProvider.window
+						.showMessage({
+							type: ShowMessageType.WARNING,
+							message:
+								"Anonymous Cline error and usage reporting is enabled, but IDE telemetry is disabled. To enable error and usage reporting for this extension, enable telemetry in IDE settings.",
+							options: {
+								items: ["Open Settings"],
+							},
+						})
+						.then((response) => {
+							if (response.selectedOption === "Open Settings") {
+								void HostProvider.window.openSettings({
+									query: "telemetry.telemetryLevel",
+								})
+							}
+						})
+				}
+			}
 
-		// Update all providers
-		this.providers.forEach((provider) => {
-			provider.setOptIn(didUserOptIn)
-		})
+			this.providers.forEach((provider) => {
+				provider.setOptIn(didUserOptIn)
+			})
+		}
 	}
 
 	/**
@@ -286,6 +368,11 @@ export class TelemetryService {
 	 * @param event The event to capture with its properties
 	 */
 	public capture(event: { event: string; properties?: TelemetryProperties }): void {
+		// Early return if policy manager exists and disallows telemetry
+		if (this.policyManager && !this.policyManager.getCurrentPolicy().isTelemetryAllowed) {
+			return
+		}
+
 		const propertiesWithMetadata: TelemetryProperties = {
 			...(event.properties || {}),
 			...this.telemetryMetadata,
