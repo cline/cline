@@ -19,6 +19,7 @@ import {
  */
 export class OpenTelemetryClientProvider {
 	private static _instance: OpenTelemetryClientProvider | null = null
+	private static currentConfig: OpenTelemetryClientValidConfig | null = null
 
 	public static getInstance(): OpenTelemetryClientProvider {
 		if (!OpenTelemetryClientProvider._instance) {
@@ -47,8 +48,49 @@ export class OpenTelemetryClientProvider {
 		return process.env.TEL_DEBUG_DIAGNOSTICS === "true" || process.env.IS_DEV === "true"
 	}
 
+	/**
+	 * Check if OpenTelemetry configuration has changed.
+	 * Compares current config with new config from StateManager.
+	 */
+	public static hasConfigChanged(): boolean {
+		const newConfig = getValidOpenTelemetryConfig()
+		const changed = JSON.stringify(OpenTelemetryClientProvider.currentConfig) !== JSON.stringify(newConfig)
+
+		if (changed) {
+			console.log("[OTEL] Configuration has changed")
+		}
+
+		return changed
+	}
+
+	/**
+	 * Reinitialize the OpenTelemetry client providers.
+	 * Disposes existing providers and creates new ones with updated config.
+	 */
+	public static async reinitialize(): Promise<void> {
+		console.log("[OTEL] Reinitializing OpenTelemetry providers...")
+
+		const instance = OpenTelemetryClientProvider.getInstance()
+
+		// Dispose existing providers
+		await instance.dispose()
+
+		// Clear singleton instance
+		OpenTelemetryClientProvider._instance = null
+		OpenTelemetryClientProvider.currentConfig = null
+
+		// Clear config cache to force re-evaluation
+		// Note: clearOtelConfigCache will be exported from otel-config.ts
+		// For now, we'll just clear the instance which will trigger re-read on next getInstance()
+
+		console.log("[OTEL] OpenTelemetry providers reinitialized")
+	}
+
 	private constructor() {
 		this.config = getValidOpenTelemetryConfig()
+
+		// Store current config for comparison
+		OpenTelemetryClientProvider.currentConfig = this.config
 
 		if (!this.config) {
 			console.log("[OTEL DEBUG] OpenTelemetry is disabled or not configured")
