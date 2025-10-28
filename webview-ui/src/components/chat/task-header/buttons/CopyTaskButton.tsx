@@ -25,7 +25,15 @@ const CopyTaskButton: React.FC<{
 		<Tooltip>
 			<TooltipContent side="bottom">Copy Text</TooltipContent>
 			<TooltipTrigger className={cn("flex items-center", className)}>
-				<Button aria-label="Copy" onClick={() => handleCopy()} size="icon" variant="icon">
+				<Button
+					aria-label="Copy"
+					onClick={(e) => {
+						e.preventDefault()
+						e.stopPropagation()
+						handleCopy()
+					}}
+					size="icon"
+					variant="icon">
 					{copied ? <CheckIcon /> : <CopyIcon />}
 				</Button>
 			</TooltipTrigger>
