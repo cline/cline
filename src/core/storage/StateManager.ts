@@ -491,6 +491,7 @@ export class StateManager {
 			zaiApiKey,
 			minimaxApiKey,
 			minimaxApiLine,
+			nousresearchApiKey,
 			requestTimeoutMs,
 			ocaBaseUrl,
 			ocaMode,
@@ -528,6 +529,7 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeNousresearchModelId,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -562,6 +564,7 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeNousresearchModelId,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -600,6 +603,7 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeNousresearchModelId,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -635,6 +639,7 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeNousresearchModelId,
 
 			// Global state updates
 			awsRegion,
@@ -716,6 +721,7 @@ export class StateManager {
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 			minimaxApiKey,
+			nousresearchApiKey,
 		})
 	}
 
@@ -1126,6 +1132,8 @@ export class StateManager {
 				this.globalStateCache["planModeVercelAiGatewayModelInfo"],
 			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
 			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
+			planModeNousresearchModelId:
+				this.taskStateCache["planModeNousresearchModelId"] || this.globalStateCache["planModeNousresearchModelId"],
 
 			// Act mode configurations
 			actModeApiProvider:
@@ -1191,6 +1199,9 @@ export class StateManager {
 				this.globalStateCache["actModeVercelAiGatewayModelInfo"],
 			actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
 			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
+			actModeNousresearchModelId:
+				this.taskStateCache["actModeNousresearchModelId"] || this.globalStateCache["actModeNousresearchModelId"],
+			nousresearchApiKey: this.secretsCache["nousresearchApiKey"],
 		}
 	}
 }

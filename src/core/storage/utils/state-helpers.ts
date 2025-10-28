@@ -51,6 +51,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ocaApiKey,
 		ocaRefreshToken,
 		minimaxApiKey,
+		nousresearchApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -91,6 +92,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("ocaApiKey") as Promise<string | undefined>,
 		context.secrets.get("ocaRefreshToken") as Promise<string | undefined>,
 		context.secrets.get("minimaxApiKey") as Promise<Secrets["minimaxApiKey"]>,
+		context.secrets.get("nousresearchApiKey") as Promise<Secrets["nousresearchApiKey"]>,
 	])
 
 	return {
@@ -133,6 +135,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ocaApiKey,
 		ocaRefreshToken,
 		minimaxApiKey,
+		nousresearchApiKey,
 	}
 }
 
@@ -366,6 +369,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		>("planModeVercelAiGatewayModelInfo")
 		const planModeOcaModelId = context.globalState.get("planModeOcaModelId") as string | undefined
 		const planModeOcaModelInfo = context.globalState.get("planModeOcaModelInfo") as OcaModelInfo | undefined
+		const planModeNousresearchModelId =
+			context.globalState.get<GlobalStateAndSettings["planModeNousresearchModelId"]>("planModeNousresearchModelId")
 		// Act mode configurations
 		const actModeApiProvider = context.globalState.get<GlobalStateAndSettings["actModeApiProvider"]>("actModeApiProvider")
 		const actModeApiModelId = context.globalState.get<GlobalStateAndSettings["actModeApiModelId"]>("actModeApiModelId")
@@ -432,6 +437,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		>("actModeVercelAiGatewayModelInfo")
 		const actModeOcaModelId = context.globalState.get("actModeOcaModelId") as string | undefined
 		const actModeOcaModelInfo = context.globalState.get("actModeOcaModelInfo") as OcaModelInfo | undefined
+		const actModeNousresearchModelId =
+			context.globalState.get<GlobalStateAndSettings["actModeNousresearchModelId"]>("actModeNousresearchModelId")
 		const sapAiCoreUseOrchestrationMode =
 			context.globalState.get<GlobalStateAndSettings["sapAiCoreUseOrchestrationMode"]>("sapAiCoreUseOrchestrationMode")
 
@@ -548,6 +555,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeNousresearchModelId,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -582,6 +590,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeNousresearchModelId,
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
@@ -700,6 +709,7 @@ export async function resetGlobalState(controller: Controller) {
 		"ocaApiKey",
 		"ocaRefreshToken",
 		"minimaxApiKey",
+		"nousresearchApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()
