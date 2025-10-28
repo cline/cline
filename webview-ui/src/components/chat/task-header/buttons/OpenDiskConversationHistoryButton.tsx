@@ -25,7 +25,11 @@ const OpenDiskConversationHistoryButton: React.FC<{
 			<TooltipTrigger className={cn("flex items-center", className)}>
 				<Button
 					aria-label="Open Disk Conversation History"
-					onClick={() => handleOpenDiskConversationHistory()}
+					onClick={(e) => {
+						e.preventDefault()
+						e.stopPropagation()
+						handleOpenDiskConversationHistory()
+					}}
 					size="icon"
 					variant="icon">
 					<ArrowDownToLineIcon />
