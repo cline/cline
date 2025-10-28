@@ -33,7 +33,7 @@ export const CheckpointError: React.FC<CheckpointErrorProps> = ({
 				</AlertTitle>
 				<AlertDescription className="flex gap-2 justify-end">
 					{messages.showDisableButton && (
-						<Button aria-label="Dismiss" onClick={handleCheckpointSettingsClick} variant="ghost">
+						<Button aria-label="Disable Checkpoints" onClick={handleCheckpointSettingsClick} variant="ghost">
 							Disable Checkpoints
 						</Button>
 					)}

@@ -51,7 +51,7 @@ const Alert = React.forwardRef<
 })
 Alert.displayName = "Alert"
 
-const AlertTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
+const AlertTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
 	({ className, ...props }, ref) => (
 		<h5
 			className={cn("font-medium leading-none tracking-tight text-base [&>svg]:size-3 flex gap-2 items-center", className)}
