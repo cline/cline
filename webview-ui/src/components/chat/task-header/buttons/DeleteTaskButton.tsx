@@ -17,7 +17,11 @@ const DeleteTaskButton: React.FC<{
 			<Button
 				aria-label="Delete Task"
 				disabled={!taskId}
-				onClick={() => taskId && TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [taskId] }))}
+				onClick={(e) => {
+					e.preventDefault()
+					e.stopPropagation()
+					taskId && TaskServiceClient.deleteTasksWithIds(StringArrayRequest.create({ value: [taskId] }))
+				}}
 				size="xs"
 				variant="icon">
 				<TrashIcon />
