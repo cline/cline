@@ -55,7 +55,7 @@ func NewVersionCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVar(&short, "short", false, "show only version number")
+	cmd.Flags().BoolVar(&short, "short", false, "show only version number (outputs plain text, overrides --output-format)")
 
 	return cmd
 }
