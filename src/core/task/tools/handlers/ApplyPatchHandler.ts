@@ -188,7 +188,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			}
 
 			const autoApproveCheck = async (path: string, message: ClineSayTool) => {
-				const shouldAutoApprove = await uiHelpers.shouldAutoApproveToolWithPath(block.name, path)
+				const blockName = message.tool === "newFileCreated" ? ClineDefaultTool.FILE_NEW : ClineDefaultTool.FILE_EDIT
+				const shouldAutoApprove = await uiHelpers.shouldAutoApproveToolWithPath(blockName, path)
 				if (shouldAutoApprove) {
 					await uiHelpers.removeLastPartialMessageIfExistsWithType("ask", "tool")
 					await uiHelpers.say("tool", JSON.stringify(message), undefined, undefined, block.partial)
