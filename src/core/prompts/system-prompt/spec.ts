@@ -76,7 +76,7 @@ export function toolSpecFunctionDefinition(tool: ClineToolSpec, context: SystemP
 			// Build parameter schema
 			const paramSchema: any = {
 				type: paramType,
-				description: param.description || param.instruction,
+				description: replacer(param.instruction, context),
 			}
 
 			// Add items for array types
@@ -123,7 +123,7 @@ export function toolSpecFunctionDefinition(tool: ClineToolSpec, context: SystemP
 		type: "function",
 		function: {
 			name: tool.name,
-			description: tool.description,
+			description: replacer(tool.description, context),
 			strict: false,
 			parameters: {
 				type: "object",
@@ -169,7 +169,7 @@ export function toolSpecInputSchema(tool: ClineToolSpec, context: SystemPromptCo
 			// Build parameter schema
 			const paramSchema: any = {
 				type: paramType,
-				description: param.description || param.instruction,
+				description: replacer(param.instruction, context),
 			}
 
 			// Add items for array types
@@ -214,7 +214,7 @@ export function toolSpecInputSchema(tool: ClineToolSpec, context: SystemPromptCo
 	// Build the Tool object
 	const toolInputSchema: AnthropicTool = {
 		name: tool.name,
-		description: tool.description,
+		description: replacer(tool.description, context),
 		input_schema: {
 			type: "object",
 			properties,
@@ -259,7 +259,7 @@ export function toolSpecFunctionDeclarations(tool: ClineToolSpec, context: Syste
 			const paramSchema: any = {
 				type: paramType,
 				items: paramType === GoogleToolParamType.ARRAY ? { type: GoogleToolParamType.STRING } : undefined,
-				description: param.description || param.instruction,
+				description: replacer(param.instruction, context),
 			}
 			properties[param.name] = paramSchema
 		}
@@ -267,7 +267,7 @@ export function toolSpecFunctionDeclarations(tool: ClineToolSpec, context: Syste
 
 	const googleTool: GoogleTool = {
 		name: tool.name,
-		description: tool.description,
+		description: replacer(tool.description, context),
 		parameters: {
 			type: GoogleToolParamType.OBJECT,
 			properties,
@@ -327,4 +327,10 @@ export function toOpenAIResponsesAPITool(openAITool: OpenAITool): OpenAIResponse
 			},
 		},
 	} satisfies OpenAIResponseTool
+}
+
+function replacer(description: string, context: SystemPromptContext) {
+	return description
+		.replace("{{BROWSER_VIEWPORT_WIDTH}}", `${context.browserSettings?.viewport?.width || 900}`)
+		.replace("{{BROWSER_VIEWPORT_HEIGHT}}", `${context.browserSettings?.viewport?.height || 600}`)
 }
