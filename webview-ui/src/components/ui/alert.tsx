@@ -31,28 +31,26 @@ const Alert = React.forwardRef<
 
 	return (
 		<div className={cn(alertVariants({ variant }), className)} ref={ref} role="alert" {...props}>
-			{title && (
-				<div className="flex items-center justify-between w-full">
-					<AlertTitle className="flex gap-1 w-full">
-						<AlertTriangleIcon className="shrink-0 size-2 mr-1" />
-						{title}
-					</AlertTitle>
-					{isDismissible && (
-						<Button
-							aria-label="Dismiss"
-							className="opacity-100 hover:opacity-100 justify-center"
-							onClick={(e) => {
-								e.preventDefault()
-								e.stopPropagation()
-								setDismissed(true)
-							}}
-							size="icon"
-							variant="icon">
-							<XIcon />
-						</Button>
-					)}
-				</div>
-			)}
+			<div className="flex items-center justify-between w-full">
+				<AlertTitle className="flex gap-1 w-full">
+					<AlertTriangleIcon className="shrink-0 size-2 mr-1" />
+					{title}
+				</AlertTitle>
+				{isDismissible && (
+					<Button
+						aria-label="Dismiss"
+						className="opacity-100 hover:opacity-100 justify-center"
+						onClick={(e) => {
+							e.preventDefault()
+							e.stopPropagation()
+							setDismissed(true)
+						}}
+						size="icon"
+						variant="icon">
+						<XIcon />
+					</Button>
+				)}
+			</div>
 			{children}
 		</div>
 	)
