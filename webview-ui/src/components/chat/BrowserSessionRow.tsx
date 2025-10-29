@@ -10,6 +10,7 @@ import { BrowserSettingsMenu } from "@/components/browser/BrowserSettingsMenu"
 import { ChatRowContent, ProgressIndicator } from "@/components/chat/ChatRow"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 
 interface BrowserSessionRowProps {
@@ -39,13 +40,6 @@ const urlBarContainerStyle: CSSProperties = {
 	display: "flex",
 	alignItems: "center",
 	gap: "4px",
-}
-const urlTextStyle: CSSProperties = {
-	textOverflow: "ellipsis",
-	overflow: "hidden",
-	whiteSpace: "nowrap",
-	width: "100%",
-	textAlign: "center",
 }
 const imgScreenshotStyle: CSSProperties = {
 	position: "absolute",
@@ -381,17 +375,15 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				{/* URL Bar */}
 				<div style={urlBarContainerStyle}>
 					<div
-						style={{
-							flex: 1,
-							backgroundColor: "var(--vscode-input-background)",
-							border: "1px solid var(--vscode-input-border)",
-							borderRadius: "4px",
-							padding: "3px 5px",
-							minWidth: 0,
-							color: displayState.url ? "var(--vscode-input-foreground)" : "var(--vscode-descriptionForeground)",
-							fontSize: "12px",
-						}}>
-						<div style={urlTextStyle}>{displayState.url || "http"}</div>
+						className={cn(
+							"flex bg-input-background border border-input-border rounded-sm px-1 py-0.5 min-w-0 text-description",
+							{
+								"text-input-foreground": !!displayState.url,
+							},
+						)}>
+						<span className="text-xs w-full text-ellipsis overflow-hidden whitespace-nowrap">
+							{displayState.url || "http"}
+						</span>
 					</div>
 					<BrowserSettingsMenu />
 				</div>
