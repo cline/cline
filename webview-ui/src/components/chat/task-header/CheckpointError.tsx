@@ -1,6 +1,5 @@
-import { AlertTriangleIcon } from "lucide-react"
 import { useMemo } from "react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 
 interface CheckpointErrorProps {
@@ -26,11 +25,7 @@ export const CheckpointError: React.FC<CheckpointErrorProps> = ({
 
 	return (
 		<div className="flex items-center justify-center w-full">
-			<Alert variant="danger">
-				<AlertTitle>
-					<AlertTriangleIcon />
-					{messages.message}
-				</AlertTitle>
+			<Alert title={messages.message} variant="danger">
 				<AlertDescription className="flex gap-2 justify-end">
 					{messages.showDisableButton && (
 						<Button aria-label="Disable Checkpoints" onClick={handleCheckpointSettingsClick} variant="ghost">
