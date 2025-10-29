@@ -22,6 +22,7 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
 import { AccessMcpResourceHandler } from "./tools/handlers/AccessMcpResourceHandler"
+import { ApplyPatchHandler } from "./tools/handlers/ApplyPatchHandler"
 import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQuestionToolHandler"
 import { AttemptCompletionHandler } from "./tools/handlers/AttemptCompletionHandler"
 import { BrowserToolHandler } from "./tools/handlers/BrowserToolHandler"
@@ -207,6 +208,7 @@ export class ToolExecutor {
 		this.coordinator.register(new CondenseHandler())
 		this.coordinator.register(new SummarizeTaskHandler(validator))
 		this.coordinator.register(new ReportBugHandler())
+		this.coordinator.register(new ApplyPatchHandler(validator))
 	}
 
 	/**
@@ -252,6 +254,7 @@ export class ToolExecutor {
 				this.taskState.didAlreadyUseTool = true
 			},
 			this.coordinator,
+			this.taskState.toolUseIdMap,
 		)
 	}
 
@@ -268,6 +271,9 @@ export class ToolExecutor {
 	 * Execute a tool through the coordinator if it's registered
 	 */
 	private async execute(block: ToolUse): Promise<boolean> {
+		// Note: MCP tool name transformation happens earlier in ToolUseHandler.getPartialToolUsesAsContent()
+		// The toolUseIdMap is updated at the point of transformation in index.ts
+
 		if (!this.coordinator.has(block.name)) {
 			return false // Tool not handled by coordinator
 		}
@@ -454,7 +460,8 @@ export class ToolExecutor {
 		} catch (error) {
 			executionSuccess = false
 			toolResult = formatResponse.toolError(`Tool execution failed: ${error}`)
-			this.pushToolResult(toolResult, block)
+			// Don't push tool result here - let the outer catch block (handleError) handle it
+			// to avoid duplicate tool_result blocks
 			throw error
 		} finally {
 			// Run PostToolUse hook if enabled
