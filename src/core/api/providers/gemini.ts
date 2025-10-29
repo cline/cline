@@ -1,6 +1,14 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 // Restore GenerateContentConfig import and add GenerateContentResponseUsageMetadata
-import { ApiError, type GenerateContentConfig, type GenerateContentResponseUsageMetadata, GoogleGenAI, Part } from "@google/genai"
+import {
+	ApiError,
+	FunctionCallingConfigMode,
+	type GenerateContentConfig,
+	type GenerateContentResponseUsageMetadata,
+	GoogleGenAI,
+	FunctionDeclaration as GoogleTool,
+	Part,
+} from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
 import { telemetryService } from "@/services/telemetry"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
@@ -102,7 +110,7 @@ export class GeminiHandler implements ApiHandler {
 		baseDelay: 2000,
 		maxDelay: 15000,
 	})
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: GoogleTool[]): ApiStream {
 		const client = this.ensureClient()
 		const { id: modelId, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)
@@ -139,6 +147,16 @@ export class GeminiHandler implements ApiHandler {
 		let cacheReadTokens = 0
 		let thoughtsTokenCount = 0 // Initialize thought token counts
 		let lastUsageMetadata: GenerateContentResponseUsageMetadata | undefined
+
+		if (tools?.length) {
+			requestConfig.tools = [{ functionDeclarations: tools }]
+			requestConfig.toolConfig = {
+				// Force the model to call 'any' function.
+				functionCallingConfig: {
+					mode: FunctionCallingConfigMode.ANY,
+				},
+			}
+		}
 
 		try {
 			const result = await client.models.generateContentStream({
@@ -186,6 +204,24 @@ export class GeminiHandler implements ApiHandler {
 					yield {
 						type: "text",
 						text: chunk.text,
+					}
+				}
+
+				if (tools && chunk.functionCalls && chunk.functionCalls?.length > 0) {
+					for (const functionCall of chunk.functionCalls) {
+						if (functionCall.args) {
+							console.log("[GeminiHandler] tool call received:", functionCall)
+							yield {
+								type: "tool_calls",
+								tool_call: {
+									function: {
+										id: functionCall.id || functionCall.name,
+										name: functionCall.name,
+										arguments: JSON.stringify(functionCall.args),
+									},
+								},
+							}
+						}
 					}
 				}
 

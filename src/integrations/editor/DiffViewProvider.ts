@@ -224,6 +224,10 @@ export abstract class DiffViewProvider {
 		}
 	}
 
+	async showFile(absolutePath: string): Promise<void> {
+		await openFile(absolutePath, true)
+	}
+
 	/**
 	 * Replaces text in the diff editor with the specified content.
 	 *
@@ -264,7 +268,7 @@ export abstract class DiffViewProvider {
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
 
-		await openFile(this.absolutePath, true)
+		await this.showFile(this.absolutePath)
 		await this.closeAllDiffViews()
 
 		const newProblems = await this.getNewDiagnosticProblems()
