@@ -671,6 +671,8 @@ func parseApiProvider(value string) (cline.ApiProvider, error) {
 		return cline.ApiProvider_DIFY, nil
 	case "oca":
 		return cline.ApiProvider_OCA, nil
+	case "minimax":
+		return cline.ApiProvider_MINIMAX, nil
 	default:
 		return cline.ApiProvider_ANTHROPIC, fmt.Errorf("invalid api_provider '%s'", value)
 	}

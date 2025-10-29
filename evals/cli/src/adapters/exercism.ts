@@ -1,7 +1,7 @@
-import * as path from "path"
-import * as fs from "fs"
-import execa from "execa"
 import chalk from "chalk"
+import execa from "execa"
+import * as fs from "fs"
+import * as path from "path"
 import { BenchmarkAdapter, Task, VerificationResult } from "./types"
 
 const EVALS_DIR = path.resolve(__dirname, "../../../")
@@ -23,7 +23,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			console.log(`Cloning Exercism repository to ${exercismDir}...`)
 			await execa("git", ["clone", "https://github.com/Aider-AI/polyglot-benchmark.git", exercismDir])
 			console.log("Exercism repository cloned successfully")
-			
+
 			// Unskip all JavaScript and Java tests after cloning
 			this.unskipAllJavaScriptTests(exercismDir)
 			this.unskipAllJavaTests(exercismDir)
@@ -34,7 +34,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 			console.log("Pulling latest changes...")
 			await execa("git", ["pull"], { cwd: exercismDir })
 			console.log("Repository updated successfully")
-			
+
 			// Unskip tests again after pulling
 			this.unskipAllJavaScriptTests(exercismDir)
 			this.unskipAllJavaTests(exercismDir)
@@ -137,7 +137,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 		// Read config.json to get solution and test files
 		const configPath = path.join(task.workspacePath, ".meta", "config.json")
 		let config: any = { files: { solution: [], test: [] } }
-		
+
 		if (fs.existsSync(configPath)) {
 			config = JSON.parse(fs.readFileSync(configPath, "utf-8"))
 		}
@@ -159,7 +159,8 @@ export class ExercismAdapter implements BenchmarkAdapter {
 		const solutionFiles = config.files.solution || []
 		const fileList = solutionFiles.join(", ")
 		description += `\n\nUse the above instructions to modify the supplied files: ${fileList}. Don't change the names of existing functions or classes, as they may be referenced from other code like unit tests, etc. Only use standard libraries, don't suggest installing any packages.`
-		description += " You should ignore all test or test related files in this directory. The final test file has been removed and will be used to evaluate your work after your implementation is complete. Think deeply about the problem prior to working on the implementation. Consider all edge cases and test your solution prior to finalizing."
+		description +=
+			" You should ignore all test or test related files in this directory. The final test file has been removed and will be used to evaluate your work after your implementation is complete. Think deeply about the problem prior to working on the implementation. Consider all edge cases and test your solution prior to finalizing."
 
 		// Move test files to temp directory
 		if (config.files.test) {
@@ -313,7 +314,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 				const cppAllPassedMatch = output.match(/All tests passed \(.*?(\d+) test cases?\)/)
 				const cppTestCasesMatch = output.match(/test cases?: (\d+) \| (\d+) passed/)
 				const cppFailedMatch = output.match(/(\d+) failed/)
-				
+
 				if (cppAllPassedMatch) {
 					// All tests passed - extract total test cases
 					testsPassed = parseInt(cppAllPassedMatch[1])
@@ -322,7 +323,7 @@ export class ExercismAdapter implements BenchmarkAdapter {
 					// Mixed results - extract passed count and calculate failed
 					const totalTests = parseInt(cppTestCasesMatch[1])
 					testsPassed = parseInt(cppTestCasesMatch[2])
-					testsFailed = cppFailedMatch ? parseInt(cppFailedMatch[1]) : (totalTests - testsPassed)
+					testsFailed = cppFailedMatch ? parseInt(cppFailedMatch[1]) : totalTests - testsPassed
 				}
 				break
 
@@ -434,14 +435,14 @@ export class ExercismAdapter implements BenchmarkAdapter {
 	 */
 	private unskipAllJavaScriptTests(repoPath: string): void {
 		const jsDir = path.join(repoPath, "javascript", "exercises", "practice")
-		
+
 		if (!fs.existsSync(jsDir)) {
 			console.log("JavaScript exercises directory not found, skipping test unskipping")
 			return
 		}
-		
+
 		// Walk through all exercise directories
-		const exercises = fs.readdirSync(jsDir).filter(dir => {
+		const exercises = fs.readdirSync(jsDir).filter((dir) => {
 			const fullPath = path.join(jsDir, dir)
 			return fs.statSync(fullPath).isDirectory()
 		})
@@ -449,25 +450,25 @@ export class ExercismAdapter implements BenchmarkAdapter {
 		let filesModified = 0
 		for (const exercise of exercises) {
 			const exerciseDir = path.join(jsDir, exercise)
-			
+
 			// Find all .spec.js files
-			const files = fs.readdirSync(exerciseDir).filter(file => file.endsWith('.spec.js'))
-			
+			const files = fs.readdirSync(exerciseDir).filter((file) => file.endsWith(".spec.js"))
+
 			for (const file of files) {
 				const filePath = path.join(exerciseDir, file)
-				let content = fs.readFileSync(filePath, 'utf-8')
+				let content = fs.readFileSync(filePath, "utf-8")
 				const originalContent = content
-				
+
 				// Replace xtest with test to unskip tests
-				content = content.replace(/xtest\(/g, 'test(')
-				
+				content = content.replace(/xtest\(/g, "test(")
+
 				if (content !== originalContent) {
 					fs.writeFileSync(filePath, content)
 					filesModified++
 				}
 			}
 		}
-		
+
 		console.log(`Unskipped tests in ${filesModified} JavaScript test files`)
 	}
 
@@ -477,14 +478,14 @@ export class ExercismAdapter implements BenchmarkAdapter {
 	 */
 	private unskipAllJavaTests(repoPath: string): void {
 		const javaDir = path.join(repoPath, "java", "exercises", "practice")
-		
+
 		if (!fs.existsSync(javaDir)) {
 			console.log("Java exercises directory not found, skipping test unskipping")
 			return
 		}
-		
+
 		// Walk through all exercise directories
-		const exercises = fs.readdirSync(javaDir).filter(dir => {
+		const exercises = fs.readdirSync(javaDir).filter((dir) => {
 			const fullPath = path.join(javaDir, dir)
 			return fs.statSync(fullPath).isDirectory()
 		})
@@ -492,29 +493,29 @@ export class ExercismAdapter implements BenchmarkAdapter {
 		let filesModified = 0
 		for (const exercise of exercises) {
 			const testDir = path.join(javaDir, exercise, "src", "test", "java")
-			
+
 			if (!fs.existsSync(testDir)) {
 				continue
 			}
-			
+
 			// Find all .java test files
-			const files = fs.readdirSync(testDir).filter(file => file.endsWith('.java'))
-			
+			const files = fs.readdirSync(testDir).filter((file) => file.endsWith(".java"))
+
 			for (const file of files) {
 				const filePath = path.join(testDir, file)
-				let content = fs.readFileSync(filePath, 'utf-8')
+				let content = fs.readFileSync(filePath, "utf-8")
 				const originalContent = content
-				
+
 				// Remove @Disabled("Remove to run test") annotations
-				content = content.replace(/@Disabled\("Remove to run test"\)\s*\n/g, '')
-				
+				content = content.replace(/@Disabled\("Remove to run test"\)\s*\n/g, "")
+
 				if (content !== originalContent) {
 					fs.writeFileSync(filePath, content)
 					filesModified++
 				}
 			}
 		}
-		
+
 		console.log(`Unskipped tests in ${filesModified} Java test files`)
 	}
 
@@ -597,7 +598,9 @@ export class ExercismAdapter implements BenchmarkAdapter {
 
 			const duration = Date.now() - startTime
 			console.log(
-				chalk.green(`Task completed in ${(duration / 1000).toFixed(1)}s after ${attempts} attempt${attempts > 1 ? "s" : ""}`),
+				chalk.green(
+					`Task completed in ${(duration / 1000).toFixed(1)}s after ${attempts} attempt${attempts > 1 ? "s" : ""}`,
+				),
 			)
 
 			return finalVerification

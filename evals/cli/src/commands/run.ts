@@ -1,6 +1,6 @@
-import { v4 as uuidv4 } from "uuid"
 import chalk from "chalk"
 import ora from "ora"
+import { v4 as uuidv4 } from "uuid"
 import { getAdapter } from "../adapters"
 import { ResultsDatabase } from "../db"
 import { storeTaskResult } from "../utils/results"
@@ -73,15 +73,11 @@ export async function runHandler(options: RunOptions): Promise<void> {
 
 					if (verification.success) {
 						console.log(
-							chalk.green(
-								`Tests passed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal}`,
-							),
+							chalk.green(`Tests passed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal}`),
 						)
 					} else {
 						console.log(
-							chalk.red(
-								`Tests failed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal}`,
-							),
+							chalk.red(`Tests failed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal}`),
 						)
 					}
 
