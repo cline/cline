@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils"
 import { StateServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
-import { ONBOARDING_MODEL_SELECTIONS } from "./data-models"
+import { getCapabilities, getOverviewLabel, getPriceRange, ONBOARDING_MODEL_SELECTIONS } from "./data-models"
 import { NEW_USER_TYPE, STEP_CONFIG, USER_TYPE_SELECTIONS } from "./data-steps"
 
 type ModelSelectionProps = {
@@ -32,42 +32,58 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel }: ModelSelec
 							const isSelected = selectedModelId === model.id
 
 							return (
-								<Item
-									className={cn("cursor-pointer hover:cursor-pointer", {
-										"bg-input-background/30 border border-button-background": isSelected,
-									})}
-									key={model.id}
-									onClick={() => onSelectModel(model.id)}
-									variant="outline">
-									<ItemHeader className="flex flex-col w-full align-baseline">
-										<ItemTitle className="flex w-full justify-between">
-											{model.title}
-											<span className="text-button-background uppercase text-xs">{model.badge}</span>
-										</ItemTitle>
-										<ItemDescription>
-											<span className="text-foreground/70">Support: </span>{" "}
-											<span className="text-foreground">{model.capabilities.join(", ")}</span>
-										</ItemDescription>
-									</ItemHeader>
-									<ItemContent className="border-t border-muted-foreground pt-5">
-										<div className="flex flex-col gap-3">
-											<div className="inline-flex gap-1 [&_svg]:stroke-warning [&_svg]:size-3 items-center">
-												<StarIcon />
-												<span>Model Overview:</span>{" "}
-												<span className="text-foreground/70">{model.overview}</span>
-											</div>
-											<div className="inline-flex gap-1 [&_svg]:stroke-success [&_svg]:size-3 items-center">
-												<ZapIcon />
-												<span>Speed:</span> <span className="text-foreground/70">{model.speed}</span>
-											</div>
-											<div className="inline-flex gap-1 [&_svg]:stroke-foreground [&_svg]:size-3 items-center">
-												<ListIcon />
-												<span>Context:</span>{" "}
-												<span className="text-foreground/70">{model.context / 1000}k</span>
-											</div>
-										</div>
-									</ItemContent>
-								</Item>
+								<div className="w-full">
+									<Item
+										className={cn("cursor-pointer hover:cursor-pointer", {
+											"bg-input-background/30 border border-button-background": isSelected,
+										})}
+										key={model.id}
+										onClick={() => onSelectModel(model.id)}
+										variant="outline">
+										<ItemHeader className="flex flex-col w-full align-baseline">
+											<ItemTitle className="flex w-full justify-between">
+												{model.name}
+												<span className="text-button-background uppercase text-xs">{model.badge}</span>
+											</ItemTitle>
+											{isSelected && (
+												<ItemDescription>
+													<span className="text-foreground/70">Support: </span>{" "}
+													<span className="text-foreground">
+														{getCapabilities(model.modelInfo).join(", ")}
+													</span>
+												</ItemDescription>
+											)}
+										</ItemHeader>
+										{isSelected && (
+											<ItemContent className="w-full border-t border-muted-foreground pt-5 text-ellipsis overflow-hidden">
+												<div className="flex flex-col gap-3">
+													<div className="inline-flex gap-1 [&_svg]:stroke-warning [&_svg]:size-3 items-center">
+														<StarIcon />
+														<span>Model Overview:</span>
+														<span className="text-foreground/70">{`${getOverviewLabel(model.score)}`}</span>
+													</div>
+													<div className="inline-flex gap-1 [&_svg]:stroke-success [&_svg]:size-3 items-center">
+														<ZapIcon />
+														<span>Speed:</span>{" "}
+														<span className="text-foreground/70">{model.speed}</span>
+													</div>
+													<div className="flex w-full justify-between">
+														<div className="inline-flex gap-1 [&_svg]:stroke-foreground [&_svg]:size-3 items-center">
+															<ListIcon />
+															<span>Context:</span>{" "}
+															<span className="text-foreground/70">
+																{(model.modelInfo?.contextWindow || 0) / 1000}k
+															</span>
+														</div>
+														<span className="bg-button-secondary-background text-button-secondary-foreground/80 text-xs px-2 rounded-lg">
+															{getPriceRange(model.modelInfo)}
+														</span>
+													</div>
+												</div>
+											</ItemContent>
+										)}
+									</Item>
+								</div>
 							)
 						})}
 					</div>
@@ -226,7 +242,6 @@ const OnboardingView = () => {
 						<Button
 							className="w-full rounded-xs"
 							onClick={() => handleFooterAction(btn.action)}
-							size="lg"
 							variant={btn.variant}>
 							{btn.text}
 						</Button>
