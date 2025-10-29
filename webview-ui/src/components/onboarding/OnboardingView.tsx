@@ -1,3 +1,4 @@
+import { ModelInfo } from "@shared/api"
 import { BooleanRequest } from "@shared/proto/index.cline"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, StarIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -10,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { StateServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
+import { Input } from "../ui/input"
 import { getCapabilities, getOverviewLabel, getPriceRange, ONBOARDING_MODEL_SELECTIONS } from "./data-models"
 import { NEW_USER_TYPE, STEP_CONFIG, USER_TYPE_SELECTIONS } from "./data-steps"
 
@@ -17,10 +19,20 @@ type ModelSelectionProps = {
 	userType: NEW_USER_TYPE.FREE | NEW_USER_TYPE.POWER
 	selectedModelId: string
 	onSelectModel: (modelId: string) => void
+	models?: Record<string, ModelInfo>
 }
 
-const ModelSelection = ({ userType, selectedModelId, onSelectModel }: ModelSelectionProps) => {
+const ModelSelection = ({ userType, selectedModelId, onSelectModel, models }: ModelSelectionProps) => {
+	const [searchTerm, setSearchTerm] = useState("")
 	const modelGroups = ONBOARDING_MODEL_SELECTIONS[userType === NEW_USER_TYPE.FREE ? "free" : "power"]
+	const availableModels = useMemo(() => {
+		if (!models) {
+			return []
+		}
+		const flattenedModels = modelGroups.flatMap((g) => g.models.map((m) => m.id))
+		const filtered = Object.entries(models).filter(([id, _info]) => !flattenedModels.includes(id) && id.includes(searchTerm))
+		return filtered.slice(0, 4) // Return the first 4 models
+	}, [models, modelGroups, searchTerm])
 
 	return (
 		<div className="flex flex-col w-full items-center px-2">
@@ -30,7 +42,6 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel }: ModelSelec
 						<h4 className="text-sm font-semibold text-foreground/70 uppercase mb-2">{group.group}</h4>
 						{group.models.map((model) => {
 							const isSelected = selectedModelId === model.id
-
 							return (
 								<div className="w-full">
 									<Item
@@ -89,6 +100,41 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel }: ModelSelec
 					</div>
 				))}
 			</div>
+
+			{/* search box */}
+			<div className="flex w-full max-w-lg flex-col gap-6 my-4 border-t border-muted-foreground">
+				<div className="flex flex-col gap-3 mt-6" key="search-results">
+					<h4 className="text-sm font-semibold text-foreground/70 uppercase mb-2">Can't find what you want?</h4>
+					<Input onChange={(e) => setSearchTerm(e.target?.value)} placeholder="Search Model" type="search" />
+					{availableModels.map(([id, info]) => {
+						const isSelected = selectedModelId === id
+						return (
+							<Item
+								className={cn("cursor-pointer hover:cursor-pointer", {
+									"bg-input-background/30 border border-button-background": isSelected,
+								})}
+								key={id}
+								onClick={() => onSelectModel(id)}
+								variant="outline">
+								<ItemHeader className="flex flex-col w-full align-baseline">
+									<ItemTitle className="flex w-full justify-between">
+										{id}
+										<span className="bg-button-secondary-background text-button-secondary-foreground/80 text-xs px-2 rounded-lg">
+											{getPriceRange(info)}
+										</span>
+									</ItemTitle>
+									{isSelected && (
+										<ItemDescription>
+											<span className="text-foreground/70">Support: </span>{" "}
+											<span className="text-foreground">{getCapabilities(info).join(", ")}</span>
+										</ItemDescription>
+									)}
+								</ItemHeader>
+							</Item>
+						)
+					})}
+				</div>
+			</div>
 		</div>
 	)
 }
@@ -132,6 +178,8 @@ type OnboardingStepContentProps = {
 	selectedModelId: string
 	onSelectUserType: (type: NEW_USER_TYPE) => void
 	onSelectModel: (modelId: string) => void
+
+	models?: Record<string, ModelInfo>
 }
 
 const OnboardingStepContent = ({
@@ -140,6 +188,7 @@ const OnboardingStepContent = ({
 	selectedModelId,
 	onSelectUserType,
 	onSelectModel,
+	models,
 }: OnboardingStepContentProps) => {
 	if (step === 0) {
 		return <UserTypeSelectionStep onSelectUserType={onSelectUserType} userType={userType} />
@@ -150,7 +199,9 @@ const OnboardingStepContent = ({
 	}
 
 	if (userType === NEW_USER_TYPE.FREE || userType === NEW_USER_TYPE.POWER) {
-		return <ModelSelection onSelectModel={onSelectModel} selectedModelId={selectedModelId} userType={userType} />
+		return (
+			<ModelSelection models={models} onSelectModel={onSelectModel} selectedModelId={selectedModelId} userType={userType} />
+		)
 	}
 
 	return null
@@ -229,6 +280,7 @@ const OnboardingView = () => {
 
 				<div className="flex-1 w-full flex overflow-y-scroll">
 					<OnboardingStepContent
+						models={openRouterModels}
 						onSelectModel={setSelectedModelId}
 						onSelectUserType={setUserType}
 						selectedModelId={selectedModelId}

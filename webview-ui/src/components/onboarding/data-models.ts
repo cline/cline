@@ -184,10 +184,11 @@ export function getOverviewLabel(overview: number): string {
 export function getCapabilities(modelInfo: ModelInfo): string[] {
 	const capabilities = new Set<string>()
 	if (modelInfo.supportsImages) {
-		capabilities.add("Image")
+		capabilities.add("Images")
 	}
 	if (modelInfo.supportsPromptCache) {
 		capabilities.add("Prompt Cache")
 	}
+	capabilities.add("Tools")
 	return Array.from(capabilities)
 }
