@@ -335,15 +335,14 @@ export class BannerService {
 				return "other"
 			}
 
-			// Determine provider based on authentication state
-			// The provider name is stored in the ClineAuthInfo
-			const clineAuthInfo = (authService as any)._clineAuthInfo
-			if (clineAuthInfo && clineAuthInfo.provider) {
+			// Get provider name using public method
+			const providerName = authService.getProviderName()
+			if (providerName) {
 				// Map provider names to expected values
-				if (clineAuthInfo.provider === "cline") {
+				if (providerName === "cline") {
 					return "workos"
 				}
-				return clineAuthInfo.provider
+				return providerName
 			}
 
 			return "unknown"
