@@ -8,6 +8,7 @@
 	--color-code: var(--vscode-editor-background);
 	--color-code-foreground: var(--vscode-editor-foreground);
 	--color-code-border: var(--vscode-editor-border);
+	--color-code-block-background: var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30));
 	--color-sidebar-background: var(--vscode-sideBar-background);
 	--color-sidebar-foreground: var(--vscode-sideBar-foreground);
 	--color-input-foreground: var(--vscode-input-foreground);
