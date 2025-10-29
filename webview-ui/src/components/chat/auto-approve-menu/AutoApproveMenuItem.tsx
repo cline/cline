@@ -51,7 +51,7 @@ const AutoApproveMenuItem = ({
 		<div className="w-full">
 			<ActionButtonContainer className="w-full">
 				<Tooltip>
-					<TooltipContent>{action.description}</TooltipContent>
+					<TooltipContent showArrow={false}>{action.description}</TooltipContent>
 					<TooltipTrigger asChild>
 						<Button
 							className={cn("w-full flex text-sm items-center justify-start text-foreground gap-2")}
