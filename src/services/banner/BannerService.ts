@@ -323,10 +323,6 @@ export class BannerService {
 	 */
 	private getAuthProvider(): string {
 		try {
-			if (!this._controller) {
-				return "unknown"
-			}
-
 			// Get auth provider from AuthService
 			const authService = this.getAuthServiceInstance()
 			if (!authService) {
@@ -363,10 +359,6 @@ export class BannerService {
 	 */
 	private isEmployee(): boolean {
 		try {
-			if (!this._controller) {
-				return false
-			}
-
 			const authService = this.getAuthServiceInstance()
 			if (!authService) {
 				return false
@@ -390,10 +382,6 @@ export class BannerService {
 	 */
 	private isUserTeamAdmin(): boolean {
 		try {
-			if (!this._controller) {
-				return false
-			}
-
 			const authService = this.getAuthServiceInstance()
 			if (!authService) {
 				return false
@@ -418,10 +406,6 @@ export class BannerService {
 	 */
 	private hasOrganizations(): boolean {
 		try {
-			if (!this._controller) {
-				return false
-			}
-
 			const authService = this.getAuthServiceInstance()
 			if (!authService) {
 				return false
