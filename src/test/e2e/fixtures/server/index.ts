@@ -384,6 +384,9 @@ export class ClineApiServerMock {
 						if (body.includes("edit_request")) {
 							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST
 						}
+						if (body.includes("[diff.test.ts] Hello, Cline!")) {
+							await new Promise((resolve) => setTimeout(resolve, 500))
+						}
 
 						const generationId = `gen_${++controller.generationCounter}_${Date.now()}`
 
