@@ -1,11 +1,5 @@
 import { Empty } from "@shared/proto/cline/common"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
-import {
-	fromProtobufLiteLLMModelInfo,
-	fromProtobufModelInfo,
-	fromProtobufOcaModelInfo,
-	fromProtobufOpenAiCompatibleModelInfo,
-} from "@shared/proto-conversions/models/typeConversion"
 import { buildApiHandler } from "@/core/api"
 import { ApiHandlerOptions, ApiHandlerSecrets, ApiProvider } from "@/shared/api"
 import { UpdateApiConfigurationRequestNew } from "@/shared/proto/index.cline"
@@ -34,28 +28,7 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 				// Fields requiring enum conversion
 				planModeApiProvider,
 				actModeApiProvider,
-				// Fields requiring ModelInfo conversion - Plan Mode
-				planModeOpenRouterModelInfo,
-				planModeOpenAiModelInfo,
-				planModeHuggingFaceModelInfo,
-				planModeLiteLlmModelInfo,
-				planModeRequestyModelInfo,
-				planModeGroqModelInfo,
-				planModeHuaweiCloudMaasModelInfo,
-				planModeBasetenModelInfo,
-				planModeVercelAiGatewayModelInfo,
-				planModeOcaModelInfo,
-				// Fields requiring ModelInfo conversion - Act Mode
-				actModeOpenRouterModelInfo,
-				actModeOpenAiModelInfo,
-				actModeLiteLlmModelInfo,
-				actModeRequestyModelInfo,
-				actModeGroqModelInfo,
-				actModeHuggingFaceModelInfo,
-				actModeHuaweiCloudMaasModelInfo,
-				actModeBasetenModelInfo,
-				actModeVercelAiGatewayModelInfo,
-				actModeOcaModelInfo,
+
 				// Fields requiring special handling
 				openAiHeaders,
 				...simpleOptions
@@ -76,70 +49,6 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 			}
 			if (actModeApiProvider !== undefined) {
 				options.actModeApiProvider = convertProtoToApiProvider(actModeApiProvider)
-			}
-
-			// Convert ModelInfo objects - Plan Mode
-			if (planModeOpenRouterModelInfo) {
-				options.planModeOpenRouterModelInfo = fromProtobufModelInfo(planModeOpenRouterModelInfo)
-			}
-			if (planModeOpenAiModelInfo) {
-				options.planModeOpenAiModelInfo = fromProtobufOpenAiCompatibleModelInfo(planModeOpenAiModelInfo)
-			}
-			if (planModeHuggingFaceModelInfo) {
-				options.planModeHuggingFaceModelInfo = fromProtobufModelInfo(planModeHuggingFaceModelInfo)
-			}
-			if (planModeLiteLlmModelInfo) {
-				options.planModeLiteLlmModelInfo = fromProtobufLiteLLMModelInfo(planModeLiteLlmModelInfo)
-			}
-			if (planModeRequestyModelInfo) {
-				options.planModeRequestyModelInfo = fromProtobufModelInfo(planModeRequestyModelInfo)
-			}
-			if (planModeGroqModelInfo) {
-				options.planModeGroqModelInfo = fromProtobufModelInfo(planModeGroqModelInfo)
-			}
-			if (planModeHuaweiCloudMaasModelInfo) {
-				options.planModeHuaweiCloudMaasModelInfo = fromProtobufModelInfo(planModeHuaweiCloudMaasModelInfo)
-			}
-			if (planModeBasetenModelInfo) {
-				options.planModeBasetenModelInfo = fromProtobufModelInfo(planModeBasetenModelInfo)
-			}
-			if (planModeVercelAiGatewayModelInfo) {
-				options.planModeVercelAiGatewayModelInfo = fromProtobufModelInfo(planModeVercelAiGatewayModelInfo)
-			}
-			if (planModeOcaModelInfo) {
-				options.planModeOcaModelInfo = fromProtobufOcaModelInfo(planModeOcaModelInfo)
-			}
-
-			// Convert ModelInfo objects - Act Mode
-			if (actModeOpenRouterModelInfo) {
-				options.actModeOpenRouterModelInfo = fromProtobufModelInfo(actModeOpenRouterModelInfo)
-			}
-			if (actModeOpenAiModelInfo) {
-				options.actModeOpenAiModelInfo = fromProtobufOpenAiCompatibleModelInfo(actModeOpenAiModelInfo)
-			}
-			if (actModeLiteLlmModelInfo) {
-				options.actModeLiteLlmModelInfo = fromProtobufLiteLLMModelInfo(actModeLiteLlmModelInfo)
-			}
-			if (actModeRequestyModelInfo) {
-				options.actModeRequestyModelInfo = fromProtobufModelInfo(actModeRequestyModelInfo)
-			}
-			if (actModeGroqModelInfo) {
-				options.actModeGroqModelInfo = fromProtobufModelInfo(actModeGroqModelInfo)
-			}
-			if (actModeHuggingFaceModelInfo) {
-				options.actModeHuggingFaceModelInfo = fromProtobufModelInfo(actModeHuggingFaceModelInfo)
-			}
-			if (actModeHuaweiCloudMaasModelInfo) {
-				options.actModeHuaweiCloudMaasModelInfo = fromProtobufModelInfo(actModeHuaweiCloudMaasModelInfo)
-			}
-			if (actModeBasetenModelInfo) {
-				options.actModeBasetenModelInfo = fromProtobufModelInfo(actModeBasetenModelInfo)
-			}
-			if (actModeVercelAiGatewayModelInfo) {
-				options.actModeVercelAiGatewayModelInfo = fromProtobufModelInfo(actModeVercelAiGatewayModelInfo)
-			}
-			if (actModeOcaModelInfo) {
-				options.actModeOcaModelInfo = fromProtobufOcaModelInfo(actModeOcaModelInfo)
 			}
 		}
 
