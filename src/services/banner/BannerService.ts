@@ -256,22 +256,6 @@ export class BannerService {
 				}
 			}
 
-			// Check features, currently the spec only mentions workplace usage feature.
-			// This can be made more robust in the future.
-			// We should also specify whether to show banner if the feature is enabled or not enabled,
-			// Here we assume to show banner if worksapce is enabled for the user.
-			if (rules.features && rules.features.length > 0 && this._controller) {
-				for (const feature of rules.features) {
-					if (feature === "workspace_used") {
-						const hasUsedWorkspace = this.hasUsedWorkspace()
-						if (!hasUsedWorkspace) {
-							Logger.log(`BannerService: Banner ${banner.id} filtered out - workspace not used`)
-							return false
-						}
-					}
-				}
-			}
-
 			Logger.log(`BannerService: Banner ${banner.id} passed all rules checks`)
 			return true
 		} catch (error) {
@@ -447,25 +431,6 @@ export class BannerService {
 			return !!(organizations && organizations.length > 0)
 		} catch (error) {
 			Logger.error("BannerService: Error checking organizations", error)
-			return false
-		}
-	}
-
-	/**
-	 * Checks if the user has used workspace features
-	 * @returns true if user has any tasks stored (indicating workspace usage)
-	 */
-	private hasUsedWorkspace(): boolean {
-		try {
-			if (!this._controller) {
-				return false
-			}
-
-			// Check if user has any task history
-			const taskHistory = this._controller.stateManager.getGlobalStateKey("taskHistory") as any[]
-			return taskHistory && taskHistory.length > 0
-		} catch (error) {
-			Logger.error("BannerService: Error checking workspace usage", error)
 			return false
 		}
 	}

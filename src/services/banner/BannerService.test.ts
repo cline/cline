@@ -536,68 +536,6 @@ describe("BannerService", () => {
 		})
 	})
 
-	describe("Feature Targeting", () => {
-		it("should show banner when workspace_used feature is present", async () => {
-			// Mock taskHistory to simulate workspace usage
-			mockController.stateManager!.getGlobalStateKey = ((key: string) => {
-				if (key === "mode") {
-					return "act"
-				}
-				if (key === "taskHistory") {
-					return [{ id: "task1" }]
-				}
-				return undefined
-			}) as any
-
-			const mockResponse = {
-				data: {
-					data: {
-						banners: [
-							{
-								id: "bnr_workspace",
-								titleMd: "Workspace Users",
-								bodyMd: "For users who have used workspace",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: JSON.stringify({ features: ["workspace_used"] } as BannerRules),
-							},
-						],
-					},
-				},
-			}
-
-			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
-
-			expect(banners).to.have.lengthOf(1)
-			expect(banners[0].id).to.equal("bnr_workspace")
-		})
-
-		it("should NOT show banner when workspace_used feature is not present", async () => {
-			const mockResponse = {
-				data: {
-					data: {
-						banners: [
-							{
-								id: "bnr_workspace",
-								titleMd: "Workspace Users",
-								bodyMd: "For users who have used workspace",
-								severity: "info" as const,
-								placement: "top" as const,
-								rulesJson: JSON.stringify({ features: ["workspace_used"] } as BannerRules),
-							},
-						],
-					},
-				},
-			}
-
-			axiosGetStub.resolves(mockResponse)
-			const banners = await bannerService.fetchActiveBanners()
-
-			expect(banners).to.have.lengthOf(0)
-		})
-	})
-
 	describe("Invalid or No Banner Rules", () => {
 		it("should handle malformed rules gracefully (fail open)", async () => {
 			const mockResponse = {

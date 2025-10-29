@@ -41,6 +41,4 @@ export interface BannerRules {
 	providers?: string[]
 	/** Target specific audience segment */
 	audience?: BannerAudience
-	/** Target users based on feature usage */
-	features?: string[]
 }
