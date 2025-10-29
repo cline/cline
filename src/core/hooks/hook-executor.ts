@@ -51,7 +51,9 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 
 	// Early return if hooks are disabled
 	if (!hooksEnabled) {
-		return { wasCancelled: false }
+		return {
+			wasCancelled: false,
+		}
 	}
 
 	// Check if the hook exists
@@ -59,7 +61,9 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 	const hasHook = await hookFactory.hasHook(hookName)
 
 	if (!hasHook) {
-		return { wasCancelled: false }
+		return {
+			wasCancelled: false,
+		}
 	}
 
 	let hookMessageTs: number | undefined
@@ -194,7 +198,11 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 		// Log error for non-cancellable hooks or unexpected errors
 		console.error(`${hookName} hook failed:`, hookError)
 
+		// Return safe defaults for all fields to avoid undefined property access
 		return {
+			cancel: false,
+			contextModification: undefined,
+			errorMessage: undefined,
 			wasCancelled: false,
 		}
 	}
