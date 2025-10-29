@@ -23,16 +23,16 @@ export const ModelDescriptionMarkdown = memo(
 						"overflow-y-auto": isExpanded,
 					})}>
 					<div
-						className={cn("overflow-hidden line-clamp-3", {
+						className={cn("overflow-hidden line-clamp-3 text-sm", {
 							"line-clamp-none": isExpanded,
 						})}>
 						{markdown}
 					</div>
 					{!isExpanded && (
 						<div className="absolute bottom-0 right-0 flex items-center">
-							<div className="w-8 h-2 bg-linear-to-r from-transparent to-sidebar-background" />
+							<div className="w-10 h-5 bg-linear-to-r from-transparent to-sidebar-background" />
 							<Button
-								className={cn("bg-sidebar-background", {
+								className={cn("bg-sidebar-background p-0 m-0 text-sm", {
 									"bg-code-block-background": isPopup,
 								})}
 								onClick={() => setIsExpanded(true)}

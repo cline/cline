@@ -730,6 +730,25 @@ export class Controller {
 		// Dont send settingsButtonClicked because its bad ux if user is on welcome
 	}
 
+	// Requesty
+
+	async handleRequestyCallback(code: string) {
+		const requesty: ApiProvider = "requesty"
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+		const currentApiConfiguration = this.stateManager.getApiConfiguration()
+		const updatedConfig = {
+			...currentApiConfiguration,
+			planModeApiProvider: requesty,
+			actModeApiProvider: requesty,
+			requestyApiKey: code,
+		}
+		this.stateManager.setApiConfiguration(updatedConfig)
+		await this.postStateToWebview()
+		if (this.task) {
+			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+		}
+	}
+
 	// Read OpenRouter models from disk cache
 	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
 		const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
