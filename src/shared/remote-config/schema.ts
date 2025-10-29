@@ -82,8 +82,8 @@ const ProviderSettingsSchema = z.object({
 })
 
 export const AllowedMCPServerSchema = z.object({
+	// The ID of the MCP is the URL for their github repo.
 	id: z.string(),
-	name: z.string(),
 })
 
 export const RemoteConfigSchema = z.object({

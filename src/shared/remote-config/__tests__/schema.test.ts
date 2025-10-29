@@ -192,19 +192,10 @@ describe("Remote Config Schema", () => {
 	})
 
 	describe("MCPSettingsSchema", () => {
-		it("should reject servers with a missing name", () => {
-			const config = {
-				version: "v1",
-				allowedMCPServers: [{ id: "server-1" }],
-			}
-
-			expect(() => RemoteConfigSchema.parse(config)).to.throw()
-		})
-
 		it("should reject servers with a missing id", () => {
 			const config = {
 				version: "v1",
-				allowedMCPServers: [{ name: "server 1" }],
+				allowedMCPServers: [{}],
 			}
 
 			expect(() => RemoteConfigSchema.parse(config)).to.throw()
@@ -214,10 +205,7 @@ describe("Remote Config Schema", () => {
 			const config = {
 				version: "v1",
 				mcpMarketplaceEnabled: true,
-				allowedMCPServers: [
-					{ id: "server-1", name: "Server One" },
-					{ id: "server-2", name: "Server Two" },
-				],
+				allowedMCPServers: [{ id: "https://github.com/mcp/filesystem" }, { id: "https://github.com/mcp/github" }],
 			}
 
 			const result = RemoteConfigSchema.parse(config)
@@ -326,10 +314,7 @@ describe("Remote Config Schema", () => {
 				version: "v1",
 				telemetryEnabled: true,
 				mcpMarketplaceEnabled: false,
-				allowedMCPServers: [
-					{ id: "server-1", name: "Server One" },
-					{ id: "server-2", name: "Server Two" },
-				],
+				allowedMCPServers: [{ id: "https://github.com/mcp/filesystem" }, { id: "https://github.com/mcp/github" }],
 				yoloModeAllowed: true,
 				openTelemetryEnabled: true,
 				openTelemetryMetricsExporter: "otlp",
