@@ -231,6 +231,10 @@ export abstract class DiffViewProvider {
 		}
 	}
 
+	async showFile(absolutePath: string): Promise<void> {
+		await openFile(absolutePath, true)
+	}
+
 	/**
 	 * Replaces text in the diff editor with the specified content.
 	 *

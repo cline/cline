@@ -75,7 +75,7 @@
 		"storybook": "^9.1.6",
 		"tailwindcss": "^4.1.13",
 		"typescript": "^5.7.3",
-		"vite": "^6.3.6",
+		"vite": "^6.4.1",
 		"vitest": "^3.0.5"
 	},
 	"optionalDependencies": {
