@@ -75,29 +75,31 @@ export function useAutoApproveActions() {
 				return
 			}
 
-			const newActions = {
-				...autoApprovalSettings.actions,
-				[actionId]: value,
+		const newActions = {
+			...autoApprovalSettings.actions,
+			[actionId]: value,
+		}
+
+		if (value === false && subActionId) {
+			// Only set subActionId if it's a valid key of actions (not "enableNotifications", "enableAll", or "enableAutoApprove")
+			if (subActionId in newActions) {
+				newActions[subActionId as keyof AutoApprovalSettings["actions"]] = false
 			}
+		}
 
-			if (value === false && subActionId) {
-				// @ts-expect-error: TODO: See how we can fix this
-				newActions[subActionId] = false
-			}
+		if (value === true && action.parentActionId) {
+			newActions[action.parentActionId as keyof AutoApprovalSettings["actions"]] = true
+		}
 
-			if (value === true && action.parentActionId) {
-				newActions[action.parentActionId as keyof AutoApprovalSettings["actions"]] = true
-			}
+		// Check if this will result in any enabled actions
+		const willHaveEnabledActions = Object.values(newActions).some(Boolean)
 
-			// Check if this will result in any enabled actions
-			const willHaveEnabledActions = Object.values(newActions).some(Boolean)
-
-			await updateAutoApproveSettings({
-				...autoApprovalSettings,
-				version: (autoApprovalSettings.version ?? 1) + 1,
-				actions: newActions,
-				enabled: willHaveEnabledActions,
-			})
+		await updateAutoApproveSettings({
+			...autoApprovalSettings,
+			version: (autoApprovalSettings.version ?? 1) + 1,
+			actions: newActions,
+			enabled: willHaveEnabledActions,
+		})
 		},
 		[autoApprovalSettings],
 	)
