@@ -50,7 +50,7 @@ const CreditLimitError: React.FC<CreditLimitErrorProps> = ({
 
 	// We have to divide because the balance is stored in microcredits
 	return (
-		<div className="p-2 border-none rounded-md mb-2 bg-[var(--vscode-textBlockQuote-background)]">
+		<div className="p-2 border-none rounded-md mb-2 bg-(--vscode-textBlockQuote-background)">
 			<div className="mb-3 font-azeret-mono">
 				<div className="text-error mb-2">{message}</div>
 				<div className="mb-3">

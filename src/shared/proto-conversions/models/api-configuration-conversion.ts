@@ -307,6 +307,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.DIFY
 		case "oca":
 			return ProtoApiProvider.OCA
+		case "minimax":
+			return ProtoApiProvider.MINIMAX
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -387,6 +389,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "dify"
 		case ProtoApiProvider.OCA:
 			return "oca"
+		case ProtoApiProvider.MINIMAX:
+			return "minimax"
 		default:
 			return "anthropic"
 	}
@@ -469,6 +473,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		difyApiKey: config.difyApiKey,
 		difyBaseUrl: config.difyBaseUrl,
 		ocaBaseUrl: config.ocaBaseUrl,
+		minimaxApiKey: config.minimaxApiKey,
+		minimaxApiLine: config.minimaxApiLine,
 		ocaMode: config.ocaMode,
 
 		// Plan mode configurations
@@ -621,6 +627,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		difyBaseUrl: protoConfig.difyBaseUrl,
 		ocaBaseUrl: protoConfig.ocaBaseUrl,
 		ocaMode: protoConfig.ocaMode,
+		minimaxApiKey: protoConfig.minimaxApiKey,
+		minimaxApiLine: protoConfig.minimaxApiLine,
 
 		// Plan mode configurations
 		planModeApiProvider:
