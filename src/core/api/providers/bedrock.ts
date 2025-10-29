@@ -1,17 +1,26 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 // Import proper AWS SDK types
-import type { ContentBlock, Message } from "@aws-sdk/client-bedrock-runtime"
+import type {
+	ContentBlock,
+	ConverseStreamCommandInput,
+	CountTokensCommandInput,
+	CountTokensCommandOutput,
+	Message,
+} from "@aws-sdk/client-bedrock-runtime"
 import {
 	BedrockRuntimeClient,
 	ConversationRole,
 	ConverseCommand,
 	ConverseStreamCommand,
+	CountTokensCommand,
 	InvokeModelWithResponseStreamCommand,
+	ValidationException,
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 import { ExtensionRegistryInfo } from "@/registry"
+import { Logger } from "@/services/logging/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToR1Format } from "../transform/r1-format"
@@ -125,9 +134,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		// cross region inference requires prefixing the model id with the region
 		const rawModelId = await this.getModelId()
 
-		const modelId = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
-			? rawModelId.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
-			: rawModelId
+		const modelId = this.strip1MSuffix(rawModelId)
 
 		const enable1mContextWindow = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
 
@@ -506,6 +513,25 @@ export class AwsBedrockHandler implements ApiHandler {
 	}
 
 	/**
+	 * Fetches the token count using the CountTokens API
+	 */
+	private async getInputTokens(input: CountTokensCommandInput): Promise<number | undefined> {
+		const command = new CountTokensCommand(input)
+		try {
+			const client = await this.getBedrockClient()
+			const response: CountTokensCommandOutput = await client.send(command)
+			return response.inputTokens
+		} catch (error) {
+			if (error instanceof ValidationException) {
+				// the token count exceeds the model's capacity, can't calculate it
+				return undefined
+			}
+			Logger.warn(`Error when calling CountTokens API: ${error}`)
+			return undefined
+		}
+	}
+
+	/**
 	 * Estimates token count based on text length (approximate)
 	 * Note: This is a rough estimation, as the actual token count depends on the tokenizer
 	 */
@@ -769,6 +795,25 @@ export class AwsBedrockHandler implements ApiHandler {
 		)
 	}
 
+	private async shouldEnable1mContextWindow(
+		enable1mContextWindow: boolean,
+		input: CountTokensCommandInput,
+		limit: number,
+	): Promise<boolean> {
+		const inputTokens = await this.getInputTokens(input)
+		const shouldEnable1mContextWindow = enable1mContextWindow && (inputTokens === undefined || inputTokens >= limit)
+		if (!shouldEnable1mContextWindow) {
+			Logger.debug(
+				`Disabling 1M context window for this request, since the context is within the base model's limits: ${inputTokens} < ${limit}`,
+			)
+		}
+		return shouldEnable1mContextWindow
+	}
+
+	private strip1MSuffix(modelId: string): string {
+		return modelId.endsWith(CLAUDE_SONNET_1M_SUFFIX) ? modelId.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length) : modelId
+	}
+
 	/**
 	 * Creates a message using Anthropic Claude models through AWS Bedrock Converse API
 	 * Implements support for Anthropic Claude models using the unified Converse API
@@ -801,27 +846,40 @@ export class AwsBedrockHandler implements ApiHandler {
 		const baseModelId =
 			(this.options.awsBedrockCustomSelected ? this.options.awsBedrockCustomModelBaseId : this.getModel().id) ||
 			this.getModel().id
-		const reasoningOn = this.shouldEnableReasoning(baseModelId, budget_tokens)
 
 		// Prepare request for Anthropic model using Converse API
-		const command = new ConverseStreamCommand({
+		const converseStreamInput: ConverseStreamCommandInput = {
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
 			inferenceConfig: this.getInferenceConfig(model.info, "anthropic"),
-			additionalModelRequestFields: {
-				// Add thinking configuration as per LangChain documentation
-				...(reasoningOn && {
-					thinking: {
-						type: "enabled",
-						budget_tokens: budget_tokens,
-					},
-				}),
-				...(enable1mContextWindow && {
-					anthropic_beta: ["context-1m-2025-08-07"],
-				}),
+		}
+
+		const reasoningOn = this.shouldEnableReasoning(baseModelId, budget_tokens)
+		const countTokensInput: CountTokensCommandInput = {
+			modelId: this.strip1MSuffix(this.getModel().id), // model id with no inference profile prefix, or 1M suffix
+			input: {
+				converse: converseStreamInput,
 			},
-		})
+		}
+		const anthropicBaseContextWindow = 200_000 // all non 1M anthropic models have a context window of 200k
+		const need1mContextWindow = await this.shouldEnable1mContextWindow(
+			enable1mContextWindow,
+			countTokensInput,
+			anthropicBaseContextWindow,
+		)
+		converseStreamInput.additionalModelRequestFields = {
+			...(reasoningOn && {
+				thinking: {
+					type: "enabled",
+					budget_tokens: budget_tokens,
+				},
+			}),
+			...(need1mContextWindow && {
+				anthropic_beta: ["context-1m-2025-08-07"],
+			}),
+		}
+		const command = new ConverseStreamCommand(converseStreamInput)
 
 		// Execute the streaming request using unified handler
 		yield* this.executeConverseStream(command, model.info)
