@@ -376,12 +376,12 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 				<div style={urlBarContainerStyle}>
 					<div
 						className={cn(
-							"flex bg-input-background border border-input-border rounded-sm px-1 py-0.5 min-w-0 text-description",
+							"flex bg-input-background border border-input-border rounded-sm px-1 py-0.5 min-w-0 text-description w-full justify-center",
 							{
 								"text-input-foreground": !!displayState.url,
 							},
 						)}>
-						<span className="text-xs w-full text-ellipsis overflow-hidden whitespace-nowrap">
+						<span className="text-xs text-ellipsis overflow-hidden whitespace-nowrap">
 							{displayState.url || "http"}
 						</span>
 					</div>
