@@ -99,6 +99,7 @@ export const RemoteConfigSchema = z.object({
 	openTelemetryLogsExporter: z.string().optional(),
 	openTelemetryOtlpProtocol: z.string().optional(),
 	openTelemetryOtlpEndpoint: z.string().optional(),
+	openTelemetryOtlpHeaders: z.record(z.string(), z.string()).optional(),
 	openTelemetryOtlpMetricsProtocol: z.string().optional(),
 	openTelemetryOtlpMetricsEndpoint: z.string().optional(),
 	openTelemetryOtlpLogsProtocol: z.string().optional(),
