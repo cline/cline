@@ -38,7 +38,7 @@ IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user th
 	],
 }
 
-const gpt5: ClineToolSpec = {
+const GPT_5: ClineToolSpec = {
 	variant: ModelFamily.GPT_5,
 	id,
 	name: "attempt_completion",
@@ -72,4 +72,36 @@ IMPORTANT NOTE: This tool CANNOT be used until you've confirmed from the user th
 	],
 }
 
-export const attempt_completion_variants = [generic, gpt5]
+const NATIVE_NEXT_GEN: ClineToolSpec = {
+	variant: ModelFamily.NATIVE_NEXT_GEN,
+	id,
+	name: "attempt_completion",
+	description:
+		"Once you've completed the user's task, use this tool to present the final result to the user, including a summary of the task and what was done to resolve it.",
+	parameters: [
+		{
+			name: "result",
+			required: true,
+			instruction: "A clear, specific description of the final result of the task.",
+		},
+		{
+			name: "command",
+			required: false,
+			instruction:
+				"An actionable terminal command that is non-verbose that allows user to review the result of your work. For example, use \`open index.html\` to display a created html website, or \`open localhost:3000\` to display a locally running development server. Commands like \`echo\` or \`cat\` that merely print text are not allowed. Ensure the command is properly formatted for user's OS and does not contain any harmful instructions",
+		},
+		{
+			name: "task_progress",
+			required: false,
+			dependencies: [ClineDefaultTool.TODO],
+			instruction: "A checklist showing task progress with the latest status of each subtasks included previously if any.",
+		},
+	],
+}
+
+const NATIVE_GPT_5: ClineToolSpec = {
+	...NATIVE_NEXT_GEN,
+	variant: ModelFamily.NATIVE_GPT_5,
+}
+
+export const attempt_completion_variants = [generic, GPT_5, NATIVE_NEXT_GEN, NATIVE_GPT_5]
