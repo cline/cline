@@ -9,13 +9,6 @@ export const ACTION_METADATA: ActionMetadata[] = [
 		icon: "codicon-play-circle",
 	},
 	{
-		id: "enableAll",
-		label: "Toggle all",
-		shortName: "All",
-		description: "Toggle all actions on or off.",
-		icon: "codicon-checklist",
-	},
-	{
 		id: "readFiles",
 		label: "Read project files",
 		shortName: "Read",

@@ -11,8 +11,6 @@ export function useAutoApproveActions() {
 	const isChecked = useCallback(
 		(action: ActionMetadata): boolean => {
 			switch (action.id) {
-				case "enableAll":
-					return Object.values(autoApprovalSettings.actions).every(Boolean)
 				case "enableNotifications":
 					return autoApprovalSettings.enableNotifications
 				case "enableAutoApprove":
@@ -62,11 +60,6 @@ export function useAutoApproveActions() {
 
 			if (actionId === "enableAutoApprove") {
 				await updateAutoApproveEnabled(value)
-				return
-			}
-
-			if (actionId === "enableAll" || subActionId === "enableAll") {
-				await toggleAll(action, value)
 				return
 			}
 
@@ -126,25 +119,6 @@ export function useAutoApproveActions() {
 		[autoApprovalSettings],
 	)
 
-	// Toggle all actions
-	const toggleAll = useCallback(
-		async (_action: ActionMetadata, checked: boolean) => {
-			const actions = { ...autoApprovalSettings.actions }
-
-			for (const action of Object.keys(actions)) {
-				actions[action as keyof AutoApprovalSettings["actions"]] = checked
-			}
-
-			await updateAutoApproveSettings({
-				...autoApprovalSettings,
-				version: (autoApprovalSettings.version ?? 1) + 1,
-				actions,
-				enabled: checked,
-			})
-		},
-		[autoApprovalSettings],
-	)
-
 	// Update notifications setting
 	const updateNotifications = useCallback(
 		async (action: ActionMetadata, checked: boolean) => {
@@ -166,7 +140,6 @@ export function useAutoApproveActions() {
 		updateAction,
 		updateMaxRequests,
 		updateAutoApproveEnabled,
-		toggleAll,
 		updateNotifications,
 	}
 }

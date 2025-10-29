@@ -71,9 +71,6 @@ const AutoApproveMenuItem = ({
 											})}
 											onClick={async (e) => {
 												e.stopPropagation()
-												if (action.id === "enableAll") {
-													return
-												}
 												await onToggleFavorite?.(action.id)
 											}}
 										/>
