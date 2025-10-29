@@ -349,6 +349,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("subagentsEnabled", !!request.subagentsEnabled)
 		}
 
+		if (request.backgroundEditEnabled !== undefined) {
+			controller.stateManager.setGlobalState("backgroundEditEnabled", !!request.backgroundEditEnabled)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 

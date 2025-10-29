@@ -150,6 +150,13 @@ export abstract class DiffViewProvider {
 	 */
 	protected abstract resetDiffView(): Promise<void>
 
+	/**
+	 * Shows the document in the editor.
+	 */
+	async showDocument(absolutePath: string): Promise<void> {
+		await openFile(absolutePath, true)
+	}
+
 	async update(
 		accumulatedContent: string,
 		isFinal: boolean,
@@ -264,7 +271,7 @@ export abstract class DiffViewProvider {
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
 
-		await openFile(this.absolutePath, true)
+		await this.showDocument(this.absolutePath)
 		await this.closeAllDiffViews()
 
 		const newProblems = await this.getNewDiagnosticProblems()

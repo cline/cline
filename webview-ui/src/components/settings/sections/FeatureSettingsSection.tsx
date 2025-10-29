@@ -34,6 +34,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		hooksEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
+		backgroundEditEnabled,
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
@@ -152,7 +153,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								</span>
 							</VSCodeCheckbox>
 							<p className="text-xs mt-1 mb-0">
-								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
+								<span className="text-input-error-foreground">Experimental: </span>{" "}
 								<span className="text-description">
 									Allows Cline to spawn subprocesses to handle focused tasks like exploring large codebases,
 									keeping your main context clean.
@@ -392,6 +393,21 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</a>
 						</p>
 					</div>
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={backgroundEditEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("backgroundEditEnabled", checked)
+							}}>
+							Enable Background Edit
+						</VSCodeCheckbox>
+						<p className="text-xs">
+							<span className="text-description">
+								Allow cline to perform file edits in the background without taking focus away from your editor.
+							</span>
+						</p>
+					</div>
 					{multiRootSetting.featureFlag && (
 						<div className="mt-2.5">
 							<VSCodeCheckbox
@@ -403,7 +419,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable Multi-Root Workspace
 							</VSCodeCheckbox>
 							<p className="text-xs">
-								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
+								<span className="text-input-error-foreground">Experimental: </span>{" "}
 								<span className="text-description">Allows cline to work across multiple workspaces.</span>
 							</p>
 						</div>
@@ -419,14 +435,14 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable Hooks
 							</VSCodeCheckbox>
 							<p className="text-xs">
-								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
+								<span className="text-input-error-foreground">Experimental: </span>{" "}
 								<span className="text-description">
 									Allows execution of hooks from .clinerules/hooks/ directory.
 								</span>
 							</p>
 						</div>
 					)}
-					<div style={{ marginTop: 10 }}>
+					<div className="mt-2.5">
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<div className="flex items-center gap-2">
@@ -452,7 +468,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</TooltipContent>
 						</Tooltip>
 
-						<p className="text-xs text-(--vscode-errorForeground)">
+						<p className="text-xs text-input-error-foreground">
 							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
 							automatically approve all actions without asking. Use with extreme caution.
 						</p>
