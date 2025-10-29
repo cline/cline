@@ -4,6 +4,7 @@ import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
 import * as sinon from "sinon"
+import { HookDiscoveryCache } from "../core/hooks/HookDiscoveryCache"
 import { executeHook } from "../core/hooks/hook-executor"
 import { StateManager } from "../core/storage/StateManager"
 import { MessageStateHandler } from "../core/task/message-state"
@@ -64,6 +65,10 @@ setTimeout(() => {
 	}
 
 	beforeEach(async () => {
+		// Reset the hook discovery cache before each test
+		// This ensures tests get a fresh cache and can discover newly created hooks
+		HookDiscoveryCache.resetForTesting()
+
 		// Create temporary directory for test hooks
 		baseTempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hook-test-"))
 		// Create .clinerules/hooks subdirectory structure
@@ -234,14 +239,9 @@ setTimeout(() => {
 				2000, // 2 second delay
 			)
 
-			const abortController = new AbortController()
+			let capturedAbortController: AbortController | null = null
 			let setHookCalled = false
 			let clearHookCalled = false
-
-			// Cancel after a short delay
-			setTimeout(() => {
-				abortController.abort()
-			}, 100)
 
 			const result = await executeHook({
 				hookName: "TaskStart",
@@ -256,8 +256,13 @@ setTimeout(() => {
 				},
 				isCancellable: true,
 				say: async () => Date.now(),
-				setActiveHookExecution: async () => {
+				setActiveHookExecution: async (execution) => {
 					setHookCalled = true
+					capturedAbortController = execution.abortController
+					// Abort after capturing the controller
+					setTimeout(() => {
+						capturedAbortController?.abort()
+					}, 100)
 				},
 				clearActiveHookExecution: async () => {
 					clearHookCalled = true
@@ -269,8 +274,9 @@ setTimeout(() => {
 
 			result.cancel!.should.equal(true)
 			result.wasCancelled.should.equal(true)
-			// Note: In a real scenario, setHookCalled and clearHookCalled would be true
-			// but our test setup doesn't actually create the hook file where HookFactory can find it
+			setHookCalled.should.equal(true)
+			// clearHookCalled should be true after abort
+			clearHookCalled.should.equal(true)
 		})
 
 		it("should not allow cancellation for non-cancellable hooks", async function () {
