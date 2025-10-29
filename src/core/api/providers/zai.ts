@@ -28,8 +28,23 @@ export class ZAiHandler implements ApiHandler {
 		this.options = options
 	}
 
-	private useChinaApi(): boolean {
-		return this.options.zaiApiLine === "china"
+	private isChinaRegion(): boolean {
+		return this.options.zaiApiLine?.startsWith("china") ?? false
+	}
+
+	private getBaseUrl(): string {
+		switch (this.options.zaiApiLine) {
+			case "international":
+				return "https://api.z.ai/api/paas/v4"
+			case "china":
+				return "https://open.bigmodel.cn/api/paas/v4"
+			case "international-coding":
+				return "https://api.z.ai/api/coding/paas/v4"
+			case "china-coding":
+				return "https://open.bigmodel.cn/api/coding/paas/v4"
+			default:
+				return "https://api.z.ai/api/paas/v4" // default to international standard
+		}
 	}
 
 	private ensureClient(): OpenAI {
@@ -39,7 +54,7 @@ export class ZAiHandler implements ApiHandler {
 			}
 			try {
 				this.client = new OpenAI({
-					baseURL: this.useChinaApi() ? "https://open.bigmodel.cn/api/paas/v4" : "https://api.z.ai/api/paas/v4",
+					baseURL: this.getBaseUrl(),
 					apiKey: this.options.zaiApiKey,
 					defaultHeaders: {
 						"HTTP-Referer": "https://cline.bot",
@@ -56,7 +71,7 @@ export class ZAiHandler implements ApiHandler {
 
 	getModel(): { id: mainlandZAiModelId | internationalZAiModelId; info: ModelInfo } {
 		const modelId = this.options.apiModelId
-		if (this.useChinaApi()) {
+		if (this.isChinaRegion()) {
 			return {
 				id: (modelId as mainlandZAiModelId) ?? mainlandZAiDefaultModelId,
 				info: mainlandZAiModels[modelId as mainlandZAiModelId] ?? mainlandZAiModels[mainlandZAiDefaultModelId],
