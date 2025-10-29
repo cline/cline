@@ -56,6 +56,11 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		const recursiveRaw: string | undefined = block.params.recursive
 		const recursive = recursiveRaw?.toLowerCase() === "true"
 
+		// Extract provider using the proven pattern from ReportBugHandler
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
 		// Validate required parameters
 		const pathValidation = this.validator.assertRequiredParams(block, "path")
 		if (!pathValidation.ok) {
@@ -103,7 +108,15 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 			}
 
 			// Capture telemetry
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				true,
+				true,
+				workspaceContext,
+			)
 		} else {
 			// Manual approval flow
 			const notificationMessage = `Cline wants to view directory ${getWorkspaceBasename(absolutePath, "ListFilesToolHandler.notification")}/`
@@ -123,6 +136,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 					config.ulid,
 					block.name,
 					config.api.getModel().id,
+					provider,
 					false,
 					false,
 					workspaceContext,
@@ -133,6 +147,7 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 					config.ulid,
 					block.name,
 					config.api.getModel().id,
+					provider,
 					false,
 					true,
 					workspaceContext,

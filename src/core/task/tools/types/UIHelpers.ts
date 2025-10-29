@@ -58,7 +58,12 @@ export function createUIHelpers(config: TaskConfig): StronglyTypedUIHelpers {
 			return response === "yesButtonClicked"
 		},
 		captureTelemetry: (toolName: ClineDefaultTool, autoApproved: boolean, approved: boolean) => {
-			telemetryService.captureToolUsage(config.ulid, toolName, config.api.getModel().id, autoApproved, approved)
+			// Extract provider using the proven pattern from ReportBugHandler
+			const apiConfig = config.services.stateManager.getApiConfiguration()
+			const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+			const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
+			telemetryService.captureToolUsage(config.ulid, toolName, config.api.getModel().id, provider, autoApproved, approved)
 		},
 		showNotificationIfEnabled: (message: string) => {
 			showNotificationForApprovalIfAutoApprovalEnabled(

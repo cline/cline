@@ -50,6 +50,11 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		const timeoutParam: string | undefined = block.params.timeout
 		let timeoutSeconds: number | undefined
 
+		// Extract provider using the proven pattern from ReportBugHandler
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
 		// Validate required parameters
 		if (!command) {
 			config.taskState.consecutiveMistakeCount++
@@ -157,7 +162,15 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				config.taskState.consecutiveAutoApprovedRequestsCount++
 			}
 			didAutoApprove = true
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				true,
+				true,
+				workspaceContext,
+			)
 		} else {
 			// Manual approval flow
 			showNotificationForApprovalIfAutoApprovalEnabled(
@@ -176,13 +189,22 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 					config.ulid,
 					block.name,
 					config.api.getModel().id,
+					provider,
 					false,
 					false,
 					workspaceContext,
 				)
 				return formatResponse.toolDenied()
 			}
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true, workspaceContext)
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				false,
+				true,
+				workspaceContext,
+			)
 		}
 
 		// Setup timeout notification for long-running auto-approved commands
