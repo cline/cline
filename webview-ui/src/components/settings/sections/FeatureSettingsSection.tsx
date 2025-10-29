@@ -404,7 +404,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</VSCodeCheckbox>
 						<p className="text-xs">
 							<span className="text-description">
-								Allow cline to perform file edits in the background without taking focus away from your editor.
+								Allows Cline to edit documents in the background without stealing focus from your editor.
 							</span>
 						</p>
 					</div>

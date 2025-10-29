@@ -9,7 +9,7 @@ import * as fs from "fs/promises"
  * Visual operations like scrolling are implemented as no-ops since there is no UI component.
  * This makes it suitable for headless or non-interactive environments.
  */
-export class BackgroundEditProvider extends DiffViewProvider {
+export class FileEditProvider extends DiffViewProvider {
 	private documentContent?: string
 
 	constructor() {

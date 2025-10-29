@@ -79,7 +79,7 @@ import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { isSubagentCommand, transformClineCommand } from "@/integrations/cli-subagents/subagent_command"
-import { BackgroundEditProvider } from "@/integrations/editor/BackgroundEditProvider"
+import { FileEditProvider } from "@/integrations/editor/FileEditProvider"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { TerminalHangStage, TerminalUserInterventionAction, telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/index.host"
@@ -271,7 +271,7 @@ export class Task {
 
 		const backgroundEditSettingEnabled = this.stateManager.getGlobalSettingsKey("backgroundEditEnabled")
 		this.diffViewProvider = backgroundEditSettingEnabled
-			? new BackgroundEditProvider()
+			? new FileEditProvider()
 			: HostProvider.get().createDiffViewProvider()
 
 		// Set up MCP notification callback for real-time notifications
