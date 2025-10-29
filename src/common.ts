@@ -14,6 +14,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { StateManager } from "./core/storage/StateManager"
 import { ExtensionRegistryInfo } from "./registry"
+import { BannerService } from "./services/banner/BannerService"
 import { audioRecordingService } from "./services/dictation/AudioRecordingService"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
@@ -72,7 +73,6 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	await showVersionUpdateAnnouncement(context)
 
 	// Initialize banner service
-	const { BannerService } = await import("./services/banner/BannerService")
 	BannerService.initialize(webview.controller)
 	BannerService.get()
 		.fetchActiveBanners()
