@@ -11,7 +11,7 @@ import { syncModeConfigurations } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 interface ApiConfigurationSectionProps {
-	renderSectionHeader: (tabId: string) => JSX.Element | null
+	renderSectionHeader?: (tabId: string) => JSX.Element | null
 }
 
 const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectionProps) => {
@@ -20,7 +20,7 @@ const ApiConfigurationSection = ({ renderSectionHeader }: ApiConfigurationSectio
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	return (
 		<div>
-			{renderSectionHeader("api-config")}
+			{renderSectionHeader?.("api-config")}
 			<Section>
 				{/* Tabs container */}
 				{planActSeparateModelsSetting ? (

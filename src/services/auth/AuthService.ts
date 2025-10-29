@@ -221,8 +221,9 @@ export class AuthService {
 		})
 	}
 
-	async createAuthRequest(): Promise<String> {
-		if (this._authenticated) {
+	async createAuthRequest(strict = false): Promise<String> {
+		// In strict mode, we do not open a new auth window if already authenticated
+		if (strict && this._authenticated) {
 			this.sendAuthStatusUpdate()
 			return String.create({ value: "Already authenticated" })
 		}
