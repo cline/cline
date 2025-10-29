@@ -1,3 +1,4 @@
+import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useMemo, useRef, useState } from "react"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -13,18 +14,20 @@ interface AutoApproveBarProps {
 
 const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 	const { autoApprovalSettings } = useExtensionState()
-	const { isChecked, isFavorited, updateAction } = useAutoApproveActions()
+	const { isChecked, isFavorited, updateAction, updateAutoApproveEnabled } = useAutoApproveActions()
 
 	const [isModalVisible, setIsModalVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 
 	const favorites = useMemo(() => autoApprovalSettings.favorites || [], [autoApprovalSettings.favorites])
+	const isAutoApproveEnabled = autoApprovalSettings.enabled
 
 	// Render a favorited item with a checkbox
 	const renderFavoritedItem = (favId: string) => {
 		const actions = [...ACTION_METADATA.flatMap((a) => [a, a.subAction]), NOTIFICATIONS_SETTING]
 		const action = actions.find((a) => a?.id === favId)
-		if (!action) {
+		// Skip rendering the enableAutoApprove action as it now has a dedicated checkbox
+		if (!action || action.id === "enableAutoApprove") {
 			return null
 		}
 
@@ -92,6 +95,13 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 						scrollbarWidth: "none",
 						WebkitOverflowScrolling: "touch",
 					}}>
+					<VSCodeCheckbox
+						checked={isAutoApproveEnabled}
+						onClick={async (e) => {
+							e.stopPropagation()
+							await updateAutoApproveEnabled(!isAutoApproveEnabled)
+						}}
+					/>
 					<span>Auto-approve:</span>
 					{getQuickAccessItems()}
 				</div>
