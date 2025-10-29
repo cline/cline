@@ -524,6 +524,7 @@ export class Task {
 			cwd,
 			this.taskId,
 			this.ulid,
+			this.terminalExecutionMode,
 			this.workspaceManager,
 			isMultiRootEnabled(this.stateManager),
 			this.say.bind(this),
