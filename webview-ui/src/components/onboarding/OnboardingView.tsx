@@ -23,7 +23,7 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel }: ModelSelec
 	const modelGroups = ONBOARDING_MODEL_SELECTIONS[userType === NEW_USER_TYPE.FREE ? "free" : "power"]
 
 	return (
-		<div className="flex flex-col w-full items-center">
+		<div className="flex flex-col w-full items-center px-2">
 			<div className="flex w-full max-w-lg flex-col gap-6 my-4">
 				{modelGroups.map((group) => (
 					<div className="flex flex-col gap-3" key={group.group}>
@@ -152,7 +152,7 @@ const OnboardingView = () => {
 		const userGroup = userType === NEW_USER_TYPE.POWER ? NEW_USER_TYPE.POWER : NEW_USER_TYPE.FREE
 		const modelGroup = ONBOARDING_MODEL_SELECTIONS[userGroup][0]
 		const userGroupInitModel = modelGroup.models[0]
-		setSelectedModelId(modelGroup.group + "-" + userGroupInitModel.title)
+		setSelectedModelId(userGroupInitModel.id)
 	}, [userType])
 
 	const finishOnboarding = useCallback(async () => {
@@ -203,15 +203,15 @@ const OnboardingView = () => {
 
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col">
-			<div className="h-full px-5 mx-10 overflow-auto flex flex-col gap-7 items-center justify-center">
-				<div className="flex justify-center my-5">
-					<ClineLogoWhite className="size-16" />
-				</div>
+			<div className="h-full px-5 mx-10 overflow-auto flex flex-col gap-7 items-center justify-center mt-10">
+				<ClineLogoWhite className="size-16" />
 
 				<h2 className="text-lg font-semibold">{stepDisplayInfo.title}</h2>
-				<p className="text-foreground text-center max-w-lg m-0 p-0">{stepDisplayInfo.description}</p>
+				{stepDisplayInfo.description && (
+					<p className="text-foreground text-sm text-center max-w-lg m-0 p-0">{stepDisplayInfo.description}</p>
+				)}
 
-				<div className="flex-1 w-full flex justify-center overflow-y-scroll">
+				<div className="flex-1 w-full flex overflow-y-scroll">
 					<OnboardingStepContent
 						onSelectModel={setSelectedModelId}
 						onSelectUserType={setUserType}
@@ -221,7 +221,7 @@ const OnboardingView = () => {
 					/>
 				</div>
 
-				<footer className="flex w-full max-w-lg flex-col gap-3 my-2">
+				<footer className="flex w-full max-w-lg flex-col gap-3 my-2 px-2">
 					{stepDisplayInfo.buttons.map((btn) => (
 						<Button
 							className="w-full rounded-xs"

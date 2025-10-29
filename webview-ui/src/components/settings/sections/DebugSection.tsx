@@ -1,4 +1,4 @@
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import Section from "../Section"
 
@@ -13,29 +13,20 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 		<div>
 			{renderSectionHeader("debug")}
 			<Section>
-				<VSCodeButton
-					className="mt-[5px] w-auto"
-					onClick={() => onResetState()}
-					style={{ backgroundColor: "var(--vscode-errorForeground)", color: "black" }}>
+				<Button onClick={() => onResetState()} variant="danger">
 					Reset Workspace State
-				</VSCodeButton>
-				<VSCodeButton
-					className="mt-[5px] w-auto"
-					onClick={() => onResetState(true)}
-					style={{ backgroundColor: "var(--vscode-errorForeground)", color: "black" }}>
+				</Button>
+				<Button onClick={() => onResetState(true)} variant="danger">
 					Reset Global State
-				</VSCodeButton>
+				</Button>
 				<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
 					This will reset all global state and secret storage in the extension.
 				</p>
 			</Section>
 			<Section>
-				<VSCodeButton
-					className="mt-[5px] w-auto"
-					onClick={() => setShowWelcome(true)}
-					style={{ backgroundColor: "var(--vscode-errorForeground)", color: "black" }}>
+				<Button onClick={() => setShowWelcome(true)} variant="secondary">
 					Reset Onboarding State
-				</VSCodeButton>
+				</Button>
 			</Section>
 		</div>
 	)
