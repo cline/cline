@@ -52,10 +52,10 @@
 		@apply text-link hover:text-link-hover;
 	}
 	ol {
-		@apply list-decimal pl-6;
+		@apply list-decimal pl-3;
 	}
 	ul {
-		@apply list-disc pl-6;
+		@apply list-disc pl-3;
 	}
 	[role="radio"],
 	[role="checkbox"] {

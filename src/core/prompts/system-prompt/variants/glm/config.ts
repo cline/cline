@@ -1,5 +1,6 @@
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
+import { isGLMModelFamily } from "@/utils/model-utils"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
 import { validateVariant } from "../variant-validator"
@@ -13,6 +14,9 @@ export const config = createVariant(ModelFamily.GLM)
 	.labels({
 		stable: 1,
 		production: 1,
+	})
+	.matcher((context) => {
+		return isGLMModelFamily(context.providerInfo.model.id)
 	})
 	.template(baseTemplate)
 	.components(
@@ -49,7 +53,7 @@ export const config = createVariant(ModelFamily.GLM)
 		ClineDefaultTool.TODO,
 	)
 	.placeholders({
-		MODEL_FAMILY: "glm",
+		MODEL_FAMILY: ModelFamily.GLM,
 	})
 	.config({})
 	// Apply GLM-specific component overrides

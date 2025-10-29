@@ -1,10 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import type { ChatCompletionTool } from "openai/resources/chat/completions"
 import { MinimaxModelId, ModelInfo, minimaxDefaultModelId, minimaxModels } from "@/shared/api"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface MinimaxHandlerOptions extends CommonApiHandlerOptions {
 	minimaxApiKey?: string
@@ -36,7 +38,11 @@ export class MinimaxHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		tools?: ChatCompletionTool[],
+	): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
@@ -51,7 +57,10 @@ export class MinimaxHandler implements ApiHandler {
 			max_tokens: model.info.maxTokens,
 			stream: true,
 			stream_options: { include_usage: true },
+			...getOpenAIToolParams(tools),
 		})
+
+		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
@@ -67,6 +76,10 @@ export class MinimaxHandler implements ApiHandler {
 					type: "reasoning",
 					reasoning: (delta.reasoning_content as string | undefined) || "",
 				}
+			}
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			if (chunk.usage) {

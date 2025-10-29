@@ -45,7 +45,7 @@ export function convertToOpenAiMessages(
 
 					if (typeof toolMessage.content === "string") {
 						content = toolMessage.content
-					} else {
+					} else if (Array.isArray(toolMessage.content)) {
 						content =
 							toolMessage.content
 								?.map((part) => {
@@ -56,6 +56,9 @@ export function convertToOpenAiMessages(
 									return part.text
 								})
 								.join("\n") ?? ""
+					} else {
+						// Handle undefined content
+						content = ""
 					}
 					openAiMessages.push({
 						role: "tool",
@@ -70,15 +73,15 @@ export function convertToOpenAiMessages(
 				// Therefore we need to send these images after the tool result messages
 				// NOTE: it's actually okay to have multiple user messages in a row, the model will treat them as a continuation of the same input (this way works better than combining them into one message, since the tool result specifically mentions (see following user message for image)
 				// UPDATE v2.0: we don't use tools anymore, but if we did it's important to note that the openrouter prompt caching mechanism requires one user message at a time, so we would need to add these images to the user content array instead.
-				// if (toolResultImages.length > 0) {
-				// 	openAiMessages.push({
-				// 		role: "user",
-				// 		content: toolResultImages.map((part) => ({
-				// 			type: "image_url",
-				// 			image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
-				// 		})),
-				// 	})
-				// }
+				if (toolResultImages.length > 0) {
+					openAiMessages.push({
+						role: "user",
+						content: toolResultImages.map((part) => ({
+							type: "image_url",
+							image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
+						})),
+					})
+				}
 
 				// Process non-tool messages
 				if (nonToolMessages.length > 0) {
@@ -157,7 +160,7 @@ export function convertToOpenAiMessages(
 					role: "assistant",
 					content,
 					// Cannot be an empty array. API expects an array with minimum length 1, and will respond with an error if it's empty
-					tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
+					tool_calls: tool_calls?.length > 0 ? tool_calls : undefined,
 					// @ts-ignore-next-line
 					reasoning_details: reasoningDetails.length > 0 ? consolidateReasoningDetails(reasoningDetails) : undefined,
 				})
@@ -272,6 +275,9 @@ function consolidateReasoningDetails(reasoningDetails: ReasoningDetail[]): Reaso
 	return consolidated
 }
 
+// Unique name to use to filter out tool call that cannot be parsed correctly
+const UNIQUE_ERROR_TOOL_NAME = "_cline_error_unknown_function_"
+
 // Convert OpenAI response to Anthropic format
 export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.ChatCompletion): Anthropic.Messages.Message {
 	const openAiMessage = completion.choices[0].message
@@ -308,24 +314,32 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 			cache_read_input_tokens: null,
 		},
 	}
-
-	if (openAiMessage.tool_calls && openAiMessage.tool_calls.length > 0) {
-		anthropicMessage.content.push(
-			...openAiMessage.tool_calls.map((toolCall): Anthropic.ToolUseBlock => {
-				let parsedInput = {}
-				try {
-					parsedInput = JSON.parse(toolCall.function.arguments || "{}")
-				} catch (error) {
-					console.error("Failed to parse tool arguments:", error)
-				}
-				return {
-					type: "tool_use",
-					id: toolCall.id,
-					name: toolCall.function.name,
-					input: parsedInput,
-				}
-			}),
-		)
+	try {
+		if (openAiMessage?.tool_calls?.length) {
+			anthropicMessage.content.push(
+				...openAiMessage.tool_calls
+					.map((toolCall): Anthropic.ToolUseBlock => {
+						const parsedName = toolCall.type === "function" && toolCall.function.name
+						let parsedInput = toolCall.function.arguments
+						try {
+							parsedInput = JSON.parse(toolCall.function.arguments || "{}")
+						} catch (error) {
+							console.error("Failed to parse tool arguments:", error)
+						}
+						return {
+							type: "tool_use",
+							id: toolCall.id,
+							name: parsedName || UNIQUE_ERROR_TOOL_NAME,
+							input: parsedInput,
+						}
+					})
+					// Filter out any tool uses with the UNIQUE_ERROR_TOOL_NAME, which indicates a parsing error
+					.filter((toolUse) => toolUse.name !== UNIQUE_ERROR_TOOL_NAME),
+			)
+		}
+	} catch (error) {
+		console.error("Failed to process tool calls:", error)
 	}
+
 	return anthropicMessage
 }

@@ -11,8 +11,4 @@ const generic: ClineToolSpec = {
 	contextRequirements: (context) => context.focusChainSettings?.enabled === true,
 }
 
-const nextGen = { ...generic, variant: ModelFamily.NEXT_GEN }
-const gpt = { ...generic, variant: ModelFamily.GPT }
-const gemini = { ...generic, variant: ModelFamily.GEMINI }
-
-export const focus_chain_variants = [generic, nextGen, gpt, gemini]
+export const focus_chain_variants = [generic]

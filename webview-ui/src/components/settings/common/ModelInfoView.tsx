@@ -1,6 +1,6 @@
 import { geminiModels, ModelInfo } from "@shared/api"
 import { Fragment, useState } from "react"
-import { ModelDescriptionMarkdown } from "../OpenRouterModelPicker"
+import { ModelDescriptionMarkdown } from "../ModelDescriptionMarkdown"
 import {
 	formatPrice,
 	formatTokenLimit,
