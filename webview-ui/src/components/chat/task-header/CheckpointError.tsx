@@ -28,7 +28,7 @@ export const CheckpointError: React.FC<CheckpointErrorProps> = ({
 		<div className="flex items-center justify-center w-full">
 			<Alert variant="danger">
 				<AlertTitle>
-					<AlertTriangleIcon />
+					<AlertTriangleIcon className="shrink-0 size-2 mr-1" />
 					{messages.message}
 				</AlertTitle>
 				<AlertDescription className="flex gap-2 justify-end">

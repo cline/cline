@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
-	"relative w-full rounded-sm border p-4 text-sm [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground [&>svg~*]:pl-7 [&>svg]:size-3 flex flex-col gap-2 mb-1",
+	"relative w-full rounded-sm border p-2 text-sm [&>svg+div]:translate-y-[-3px] [&>svg]:text-foreground [&>svg~*]:pl-7 flex gap-1 mb-1",
 	{
 		variants: {
 			variant: {
@@ -35,7 +35,7 @@ const Alert = React.forwardRef<
 			{isDismissible && (
 				<Button
 					aria-label="Dismiss"
-					className="absolute top-4 right-2 opacity-100 hover:opacity-100 mt-0.5"
+					className="opacity-100 hover:opacity-100 justify-center"
 					onClick={(e) => {
 						e.preventDefault()
 						e.stopPropagation()
@@ -54,7 +54,7 @@ Alert.displayName = "Alert"
 const AlertTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
 	({ className, ...props }, ref) => (
 		<h5
-			className={cn("font-medium leading-none tracking-tight text-base [&>svg]:size-3 flex gap-2 items-center", className)}
+			className={cn("font-medium leading-none tracking-tight text-base flex gap-1 items-center grow", className)}
 			ref={ref}
 			{...props}
 		/>
