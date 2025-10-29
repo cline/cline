@@ -377,7 +377,7 @@ export class BannerService {
 
 	/**
 	 * Checks if the current user is a team admin
-	 * @returns true if user is an admin of any organization
+	 * @returns true if user is an admin or owner of any organization
 	 */
 	private isUserTeamAdmin(): boolean {
 		try {
@@ -391,8 +391,9 @@ export class BannerService {
 				return false
 			}
 
-			// Check if user has admin role in any organization
-			return organizations.some((org: any) => org.roles && org.roles.includes("admin"))
+			// Check if user has admin or owner role in any organization
+			// Admin and owner roles have the same permissions
+			return organizations.some((org: any) => org.roles && (org.roles.includes("admin") || org.roles.includes("owner")))
 		} catch (error) {
 			Logger.error("BannerService: Error checking team admin status", error)
 			return false

@@ -378,6 +378,38 @@ describe("BannerService", () => {
 			expect(banners[0].id).to.equal("bnr_admin")
 		})
 
+		it("should show team admin banner to owner users", async () => {
+			const mockAuthService = {
+				getUserOrganizations: () => [{ id: "org1", name: "Test Org", roles: ["owner"] }],
+				getInfo: () => ({ user: { email: "test@example.com" } }),
+			} as any
+
+			bannerService.setAuthService(mockAuthService)
+
+			const mockResponse = {
+				data: {
+					data: {
+						banners: [
+							{
+								id: "bnr_admin",
+								titleMd: "Team Admins",
+								bodyMd: "For team admins only",
+								severity: "info" as const,
+								placement: "top" as const,
+								rulesJson: JSON.stringify({ audience: "team admin only" } as BannerRules),
+							},
+						],
+					},
+				},
+			}
+
+			axiosGetStub.resolves(mockResponse)
+			const banners = await bannerService.fetchActiveBanners()
+
+			expect(banners).to.have.lengthOf(1)
+			expect(banners[0].id).to.equal("bnr_admin")
+		})
+
 		it("should NOT show team admin banner to non-admin users", async () => {
 			const mockAuthService = {
 				getUserOrganizations: () => [{ id: "org1", name: "Test Org", roles: ["member"] }],
