@@ -1,13 +1,14 @@
+import { isGPT5ModelFamily, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
 import { createVariant } from "../variant-builder"
 import { validateVariant } from "../variant-validator"
-import { baseTemplate, rules_template } from "./template"
+import { GPT_5_TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
 export const config = createVariant(ModelFamily.GPT_5)
-	.description("Prompt tailored to GPT-5")
+	.description("Prompt tailored to GPT-5 with native tool use support")
 	.version(1)
 	.tags("gpt", "gpt-5", "advanced", "production")
 	.labels({
@@ -15,7 +16,18 @@ export const config = createVariant(ModelFamily.GPT_5)
 		production: 1,
 		advanced: 1,
 	})
-	.template(baseTemplate)
+	// Match GPT-5 models from providers that support native tools
+	.matcher((context) => {
+		const providerInfo = context.providerInfo
+		const modelId = providerInfo.model.id
+		return (
+			isGPT5ModelFamily(modelId) &&
+			!modelId.includes("chat") &&
+			isNextGenModelProvider(providerInfo) &&
+			!context.enableNativeToolCalls
+		)
+	})
+	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
@@ -35,8 +47,7 @@ export const config = createVariant(ModelFamily.GPT_5)
 	.tools(
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
-		ClineDefaultTool.FILE_NEW,
-		ClineDefaultTool.FILE_EDIT,
+		ClineDefaultTool.APPLY_PATCH,
 		ClineDefaultTool.SEARCH,
 		ClineDefaultTool.LIST_FILES,
 		ClineDefaultTool.LIST_CODE_DEF,
@@ -57,12 +68,12 @@ export const config = createVariant(ModelFamily.GPT_5)
 	.config({})
 	// Override the RULES component with custom template
 	.overrideComponent(SystemPromptSection.RULES, {
-		template: rules_template,
+		template: GPT_5_TEMPLATE_OVERRIDES.RULES,
 	})
 	.build()
 
 // Compile-time validation
-const validationResult = validateVariant({ ...config, id: "gpt-5" }, { strict: true })
+const validationResult = validateVariant({ ...config, id: ModelFamily.GPT_5 }, { strict: true })
 if (!validationResult.isValid) {
 	console.error("GPT-5 variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid GPT-5 variant configuration: ${validationResult.errors.join(", ")}`)
