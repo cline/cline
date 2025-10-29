@@ -145,11 +145,9 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 
 		// Update storage using batch methods
 		if (Object.keys(secrets).length > 0) {
-			console.log("[updateApiConfiguration] Updating secrets:", JSON.stringify(Object.entries(secrets), null, 2))
 			controller.stateManager.setSecretsBatch(secrets)
 		}
 		if (Object.keys(options).length > 0) {
-			console.log("[updateApiConfiguration] Updating options:", JSON.stringify(Object.entries(options), null, 2))
 			controller.stateManager.setGlobalStateBatch(options)
 		}
 
