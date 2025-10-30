@@ -1781,11 +1781,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								{["Plan", "Act"].map((m) => (
 									<div
 										aria-checked={mode === m.toLowerCase()}
-										// isActive={mode === m.toLowerCase()}
 										className={cn(
-											"py-0.5 px-2 z-10 text-xs w-1/2 text-center",
-											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
-											mode === m.toLowerCase() ? "bg-transparent" : "bg-toolbar-hover",
+											"py-0.5 px-2 z-10 text-xs w-1/2 text-center bg-transparent hover:bg-toolbar-hover",
+											mode === m.toLowerCase() ? "text-white" : "text-foreground",
 										)}
 										onMouseLeave={() => setShownTooltipMode(null)}
 										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
