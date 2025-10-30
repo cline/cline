@@ -30,18 +30,30 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 			return ACTION_METADATA.flatMap((a) => [a, a.subAction]).find((a) => a?.id === action)
 		})
 
-		const actionsWithShortNames = enabledActions.filter((action) => action?.shortName)
+		// Filter out parent actions if their subaction is also enabled (show only subaction)
+		const actionsToShow = enabledActions.filter((action) => {
+			if (!action?.shortName) {
+				return false
+			}
 
-		if (actionsWithShortNames.length === 0) {
+			// If this is a parent action and its subaction is enabled, skip it
+			if (action.subAction?.id && enabledActionsNames.includes(action.subAction.id)) {
+				return false
+			}
+
+			return true
+		})
+
+		if (actionsToShow.length === 0) {
 			return <span className={baseClasses}>None</span>
 		}
 
 		return (
 			<span className={baseClasses}>
-				{actionsWithShortNames.map((action, index) => (
+				{actionsToShow.map((action, index) => (
 					<span key={action?.id}>
 						{action?.shortName}
-						{index < actionsWithShortNames.length - 1 && ", "}
+						{index < actionsToShow.length - 1 && ", "}
 					</span>
 				))}
 			</span>
