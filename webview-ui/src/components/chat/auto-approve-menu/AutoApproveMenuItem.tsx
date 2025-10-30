@@ -47,6 +47,7 @@ const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true, dis
 					<TooltipTrigger asChild>
 						<Button
 							className={cn("w-full flex text-sm items-center justify-start text-foreground gap-2")}
+							disabled={disabled}
 							onClick={(e) => onChange(e as unknown as Event)}
 							size="icon"
 							style={{ cursor: disabled ? "not-allowed" : "pointer" }}
