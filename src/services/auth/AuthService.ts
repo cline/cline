@@ -199,6 +199,14 @@ export class AuthService {
 		}
 	}
 
+	/**
+	 * Gets the provider name for the current authentication
+	 * @returns The provider name (e.g., "cline", "firebase"), or null if not authenticated
+	 */
+	getProviderName(): string | null {
+		return this._clineAuthInfo?.provider ?? null
+	}
+
 	getInfo(): AuthState {
 		// TODO: this logic should be cleaner, but this will determine the authentication state for the webview -- if a user object is returned then the webview assumes authenticated, otherwise it assumes logged out (we previously returned a UserInfo object with empty fields, and this represented a broken logged in state)
 		let user: any = null
@@ -253,7 +261,7 @@ export class AuthService {
 			telemetryService.captureAuthLoggedOut(this._provider.name, reason)
 			this._clineAuthInfo = null
 			this._authenticated = false
-			this._controller.stateManager.setSecret("clineAccountId", undefined)
+			this.destroyTokens()
 			this.sendAuthStatusUpdate()
 		} catch (error) {
 			console.error("Error signing out:", error)
@@ -285,8 +293,7 @@ export class AuthService {
 	 * This is typically called when the user logs out.
 	 */
 	async clearAuthToken(): Promise<void> {
-		this._controller.stateManager.setSecret("clineAccountId", undefined)
-		this._controller.stateManager.setSecret("cline:clineAccountId", undefined)
+		this.destroyTokens()
 	}
 
 	/**
@@ -409,5 +416,10 @@ export class AuthService {
 
 		// Update state in webviews once per unique controller
 		await Promise.all(Array.from(uniqueControllers).map((c) => c.postStateToWebview()))
+	}
+
+	private destroyTokens() {
+		this._controller.stateManager.setSecret("clineAccountId", undefined)
+		this._controller.stateManager.setSecret("cline:clineAccountId", undefined)
 	}
 }
