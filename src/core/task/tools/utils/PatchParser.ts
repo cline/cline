@@ -1,13 +1,22 @@
 import { canonicalize } from "@/shared/canonicalize"
-import { DiffError, PATCH_MARKERS, type Patch, type PatchAction, PatchActionType, type PatchChunk } from "@/shared/Patch"
+import {
+	DiffError,
+	PATCH_MARKERS,
+	type Patch,
+	type PatchAction,
+	PatchActionType,
+	type PatchChunk,
+	type PatchWarning,
+} from "@/shared/Patch"
 
 /**
  * Parser for Apply Patch content
  */
 export class PatchParser {
-	private patch: Patch = { actions: {} }
+	private patch: Patch = { actions: {}, warnings: [] }
 	private index = 0
 	private fuzz = 0
+	private currentPath?: string
 
 	constructor(
 		private lines: string[],
@@ -21,7 +30,19 @@ export class PatchParser {
 			this.parseNextAction()
 		}
 
+		// Clean up empty warnings array
+		if (this.patch.warnings?.length === 0) {
+			delete this.patch.warnings
+		}
+
 		return { patch: this.patch, fuzz: this.fuzz }
+	}
+
+	private addWarning(warning: PatchWarning): void {
+		if (!this.patch.warnings) {
+			this.patch.warnings = []
+		}
+		this.patch.warnings.push(warning)
 	}
 
 	private skipBeginSentinel(): void {
@@ -60,6 +81,7 @@ export class PatchParser {
 
 	private parseUpdate(path: string): void {
 		this.checkDuplicate(path, "update")
+		this.currentPath = path
 
 		this.index++
 		const movePath = this.lines[this.index]?.startsWith(PATCH_MARKERS.MOVE)
@@ -75,6 +97,7 @@ export class PatchParser {
 		action.movePath = movePath
 
 		this.patch.actions[path] = action
+		this.currentPath = undefined
 	}
 
 	private parseUpdateFile(text: string, _path: string): PatchAction {
@@ -115,22 +138,31 @@ export class PatchParser {
 			}
 
 			const [nextChunkContext, chunks, endPatchIndex, eof] = peek(this.lines, this.index)
-			const [newIndex, fuzz] = findContext(fileLines, nextChunkContext, index, eof)
+			const [newIndex, fuzz, similarity] = findContext(fileLines, nextChunkContext, index, eof)
 
 			if (newIndex === -1) {
 				const ctxText = nextChunkContext.join("\n")
-				throw new DiffError(`Invalid ${eof ? "EOF " : ""}Patch ${index}:\n${ctxText}`)
+				// Add warning but continue - skip this chunk
+				this.addWarning({
+					path: this.currentPath || _path,
+					chunkIndex: action.chunks.length,
+					message: `Could not find matching context (similarity: ${similarity.toFixed(2)}). Chunk skipped.`,
+					context: ctxText.length > 200 ? `${ctxText.substring(0, 200)}...` : ctxText,
+				})
+				// Move index forward to skip this chunk
+				this.index = endPatchIndex
+				index = index + nextChunkContext.length // Advance file position estimate
+			} else {
+				this.fuzz += fuzz
+
+				for (const chunk of chunks) {
+					chunk.origIndex += newIndex
+					action.chunks.push(chunk)
+				}
+
+				index = newIndex + nextChunkContext.length
+				this.index = endPatchIndex
 			}
-
-			this.fuzz += fuzz
-
-			for (const chunk of chunks) {
-				chunk.origIndex += newIndex
-				action.chunks.push(chunk)
-			}
-
-			index = newIndex + nextChunkContext.length
-			this.index = endPatchIndex
 		}
 
 		return action
@@ -172,21 +204,73 @@ export class PatchParser {
 }
 
 /**
- * Find context in file with fuzzy matching (whitespace tolerance)
- * Returns [index, fuzz] where fuzz indicates match quality
+ * Calculate similarity between two strings (0-1 range)
  */
-function findContext(lines: string[], context: string[], start: number, eof: boolean): [number, number] {
-	if (context.length === 0) {
-		return [start, 0]
+function calculateSimilarity(str1: string, str2: string): number {
+	const longer = str1.length > str2.length ? str1 : str2
+	const shorter = str1.length > str2.length ? str2 : str1
+	if (longer.length === 0) {
+		return 1.0
 	}
 
-	const findCore = (startIdx: number): [number, number] => {
+	const editDistance = levenshteinDistance(shorter, longer)
+	return (longer.length - editDistance) / longer.length
+}
+
+/**
+ * Calculate Levenshtein distance between two strings
+ */
+function levenshteinDistance(str1: string, str2: string): number {
+	const matrix: number[][] = []
+
+	for (let i = 0; i <= str2.length; i++) {
+		matrix[i] = [i]
+	}
+
+	for (let j = 0; j <= str1.length; j++) {
+		matrix[0]![j] = j
+	}
+
+	for (let i = 1; i <= str2.length; i++) {
+		for (let j = 1; j <= str1.length; j++) {
+			if (str2[i - 1] === str1[j - 1]) {
+				matrix[i]![j] = matrix[i - 1]![j - 1]!
+			} else {
+				matrix[i]![j] = Math.min(
+					matrix[i - 1]![j - 1]! + 1, // substitution
+					matrix[i]![j - 1]! + 1, // insertion
+					matrix[i - 1]![j]! + 1, // deletion
+				)
+			}
+		}
+	}
+
+	return matrix[str2.length]![str1.length]!
+}
+
+/**
+ * Find context in file with fuzzy matching (whitespace tolerance)
+ * Returns [index, fuzz, similarity] where fuzz indicates match quality and similarity is best match score
+ */
+function findContext(lines: string[], context: string[], start: number, eof: boolean): [number, number, number] {
+	if (context.length === 0) {
+		return [start, 0, 1.0]
+	}
+
+	let bestSimilarity = 0
+
+	const findCore = (startIdx: number): [number, number, number] => {
 		// Pass 1: exact equality after canonicalization
 		const canonicalContext = canonicalize(context.join("\n"))
 		for (let i = startIdx; i < lines.length; i++) {
 			const segment = canonicalize(lines.slice(i, i + context.length).join("\n"))
 			if (segment === canonicalContext) {
-				return [i, 0]
+				return [i, 0, 1.0]
+			}
+			// Track best similarity for reporting
+			const similarity = calculateSimilarity(segment, canonicalContext)
+			if (similarity > bestSimilarity) {
+				bestSimilarity = similarity
 			}
 		}
 
@@ -200,7 +284,7 @@ function findContext(lines: string[], context: string[], start: number, eof: boo
 			)
 			const ctx = canonicalize(context.map((s) => s.trimEnd()).join("\n"))
 			if (segment === ctx) {
-				return [i, 1]
+				return [i, 1, 1.0]
 			}
 		}
 
@@ -214,21 +298,34 @@ function findContext(lines: string[], context: string[], start: number, eof: boo
 			)
 			const ctx = canonicalize(context.map((s) => s.trim()).join("\n"))
 			if (segment === ctx) {
-				return [i, 100]
+				return [i, 100, 1.0]
 			}
 		}
 
-		return [-1, 0]
+		// Pass 4: Partial matching with similarity threshold (66% match = 2/3 lines)
+		const SIMILARITY_THRESHOLD = 0.66
+		for (let i = startIdx; i < lines.length; i++) {
+			const segment = canonicalize(lines.slice(i, i + context.length).join("\n"))
+			const similarity = calculateSimilarity(segment, canonicalContext)
+			if (similarity >= SIMILARITY_THRESHOLD) {
+				return [i, 1000, similarity]
+			}
+			if (similarity > bestSimilarity) {
+				bestSimilarity = similarity
+			}
+		}
+
+		return [-1, 0, bestSimilarity]
 	}
 
 	if (eof) {
 		// Try from end first for EOF context
-		let [newIndex, fuzz] = findCore(lines.length - context.length)
+		let [newIndex, fuzz, similarity] = findCore(lines.length - context.length)
 		if (newIndex !== -1) {
-			return [newIndex, fuzz]
+			return [newIndex, fuzz, similarity]
 		}
-		;[newIndex, fuzz] = findCore(start)
-		return [newIndex, fuzz + 10000]
+		;[newIndex, fuzz, similarity] = findCore(start)
+		return [newIndex, fuzz + 10000, similarity]
 	}
 
 	return findCore(start)

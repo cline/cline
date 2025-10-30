@@ -13,7 +13,7 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
-import { FileProviderOperations } from "../utils/FileProviderOperations"
+import { type FileOpsResult, FileProviderOperations } from "../utils/FileProviderOperations"
 import { PatchParser } from "../utils/PatchParser"
 import { PathResolver } from "../utils/PathResolver"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -82,33 +82,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			this.partialPreviewState = { originalFiles: {} }
 		}
 		return this.partialPreviewState
-	}
-
-	private async getOriginalFileContentForPreview(
-		pathKey: string,
-		resolution: { absolutePath: string; resolvedPath: string },
-	): Promise<string | undefined> {
-		const state = this.ensurePartialPreviewState()
-		if (state.originalFiles[pathKey] !== undefined) {
-			return state.originalFiles[pathKey]
-		}
-
-		const validation = this.validator.checkClineIgnorePath(resolution.resolvedPath)
-		if (!validation.ok) {
-			return undefined
-		}
-
-		try {
-			if (!(await fileExistsAtPath(resolution.absolutePath))) {
-				return undefined
-			}
-			const fileContent = await readFile(resolution.absolutePath, "utf8")
-			const normalizedContent = fileContent.replace(/\r\n/g, "\n")
-			state.originalFiles[pathKey] = normalizedContent
-			return normalizedContent
-		} catch {
-			return undefined
-		}
 	}
 
 	private async previewPatchStream(rawInput: string, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
@@ -208,8 +181,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					return
 				}
 
-				const originalContent =
-					provider.originalContent ?? (await this.getOriginalFileContentForPreview(targetPath, sourceResolution))
+				const originalContent = provider.originalContent
 				if (originalContent === undefined) {
 					return
 				}
@@ -304,13 +276,36 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			this.appliedCommit = undefined
 			this.config = undefined
 
-			// Build response with file contents
+			// Build response with file contents and diagnostics
 			const responseLines = ["Successfully applied patch to the following files:"]
+
 			for (const [path, result] of Object.entries(applyResults)) {
 				if (result.deleted) {
 					responseLines.push(`\n${path}: [deleted]`)
-				} else if (result.finalContent !== undefined) {
-					responseLines.push(`\n${path}:\n${result.finalContent}`)
+				} else {
+					// Format response similar to WriteToFileToolHandler
+					if (result.userEdits) {
+						// User made edits during approval
+						const formattedResponse =
+							`\n${path}:\n` +
+							`The user made edits to the file:\n${result.userEdits}\n` +
+							(result.autoFormattingEdits
+								? `\nAuto-formatting was applied:\n${result.autoFormattingEdits}\n`
+								: "") +
+							(result.finalContent ? `\nFinal content:\n${result.finalContent}` : "") +
+							(result.newProblemsMessage ? `\n\n${result.newProblemsMessage}` : "")
+						responseLines.push(formattedResponse)
+					} else {
+						// No user edits
+						const formattedResponse =
+							`\n${path}:\n` +
+							(result.autoFormattingEdits
+								? `Auto-formatting was applied:\n${result.autoFormattingEdits}\n\n`
+								: "") +
+							(result.finalContent ? `Final content:\n${result.finalContent}` : "") +
+							(result.newProblemsMessage ? `\n\n${result.newProblemsMessage}` : "")
+						responseLines.push(formattedResponse)
+					}
 				}
 			}
 
@@ -510,9 +505,9 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return endsWithNewline && !joined.endsWith("\n") ? `${joined}\n` : joined
 	}
 
-	private async applyCommit(commit: Commit): Promise<Record<string, { finalContent?: string; deleted?: boolean }>> {
+	private async applyCommit(commit: Commit): Promise<Record<string, FileOpsResult>> {
 		const ops = this.providerOps!
-		const results: Record<string, { finalContent?: string; deleted?: boolean }> = {}
+		const results: Record<string, FileOpsResult> = {}
 
 		for (const [path, change] of Object.entries(commit.changes)) {
 			switch (change.type) {
@@ -525,7 +520,12 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 						throw new DiffError(`Cannot create ${path} with no content`)
 					}
 					const addResult = await ops.createFile(path, change.newContent)
-					results[path] = { finalContent: addResult.finalContent }
+					results[path] = {
+						finalContent: addResult.finalContent,
+						newProblemsMessage: addResult.newProblemsMessage,
+						userEdits: addResult.userEdits,
+						autoFormattingEdits: addResult.autoFormattingEdits,
+					}
 					break
 				case PatchActionType.UPDATE:
 					if (!change.newContent) {
@@ -533,11 +533,21 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					}
 					if (change.movePath) {
 						const moveResult = await ops.moveFile(path, change.movePath, change.newContent)
-						results[change.movePath] = { finalContent: moveResult.finalContent }
+						results[change.movePath] = {
+							finalContent: moveResult.finalContent,
+							newProblemsMessage: moveResult.newProblemsMessage,
+							userEdits: moveResult.userEdits,
+							autoFormattingEdits: moveResult.autoFormattingEdits,
+						}
 						results[path] = { deleted: true }
 					} else {
 						const updateResult = await ops.modifyFile(path, change.newContent)
-						results[path] = { finalContent: updateResult.finalContent }
+						results[path] = {
+							finalContent: updateResult.finalContent,
+							newProblemsMessage: updateResult.newProblemsMessage,
+							userEdits: updateResult.userEdits,
+							autoFormattingEdits: updateResult.autoFormattingEdits,
+						}
 					}
 					break
 			}

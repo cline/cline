@@ -40,10 +40,21 @@ export interface PatchAction {
 }
 
 /**
+ * Warning information for skipped/problematic chunks
+ */
+export interface PatchWarning {
+	path: string
+	chunkIndex?: number
+	message: string
+	context?: string
+}
+
+/**
  * Apply Patch structure
  */
 export interface Patch {
 	actions: Record<string, PatchAction>
+	warnings?: PatchWarning[]
 }
 
 export class DiffError extends Error {

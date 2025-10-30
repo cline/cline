@@ -1,12 +1,20 @@
 import type { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 
+export interface FileOpsResult {
+	finalContent?: string
+	deleted?: boolean
+	newProblemsMessage?: string
+	userEdits?: string
+	autoFormattingEdits?: string
+}
+
 /**
  * Utility class for file operations via a DiffViewProvider
  */
 export class FileProviderOperations {
 	constructor(private provider: DiffViewProvider) {}
 
-	async createFile(path: string, content: string): Promise<{ finalContent?: string }> {
+	async createFile(path: string, content: string): Promise<FileOpsResult> {
 		this.provider.editType = "create"
 		await this.provider.open(path)
 		await this.provider.update(content, true)
@@ -15,7 +23,7 @@ export class FileProviderOperations {
 		return result
 	}
 
-	async modifyFile(path: string, content: string): Promise<{ finalContent?: string }> {
+	async modifyFile(path: string, content: string): Promise<FileOpsResult> {
 		this.provider.editType = "modify"
 		await this.provider.open(path)
 		await this.provider.update(content, true)
@@ -30,13 +38,13 @@ export class FileProviderOperations {
 		await this.provider.revertChanges()
 	}
 
-	async moveFile(oldPath: string, newPath: string, content: string): Promise<{ finalContent?: string }> {
+	async moveFile(oldPath: string, newPath: string, content: string): Promise<FileOpsResult> {
 		const result = await this.createFile(newPath, content)
 		await this.deleteFile(oldPath)
 		return result
 	}
 
-	async getlFileContent(): Promise<string | undefined> {
+	async getFileContent(): Promise<string | undefined> {
 		return this.provider.originalContent
 	}
 }
