@@ -1,9 +1,10 @@
 import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import type React from "react"
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -94,7 +95,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
 		// Makes sure "Free" featured models have $0 pricing for Cline provider
-		const freeModels = modeFields.apiProvider === "cline" ? featuredModels.filter((m) => m.isFree) : []
+		const freeModels = selected.selectedProvider === "cline" ? featuredModels.filter((m) => m.isFree) : []
 		if (freeModels.some((fm) => fm.id === selected.selectedModelId)) {
 			selected.selectedModelInfo.inputPrice = 0
 			selected.selectedModelInfo.outputPrice = 0
@@ -102,7 +103,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			selected.selectedModelInfo.cacheWritesPrice = 0
 		}
 		return selected
-	}, [apiConfiguration, currentMode, modeFields])
+	}, [apiConfiguration, currentMode])
 
 	useMount(refreshOpenRouterModels)
 
@@ -138,10 +139,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 				// Filter out other :free models
 				return !id.includes(":free")
 			})
-		} else {
-			// For OpenRouter provider: exclude Cline-specific models
-			return unfilteredModelIds.filter((id) => !id.startsWith("cline/"))
 		}
+		// For OpenRouter provider: exclude Cline-specific models
+		return unfilteredModelIds.filter((id) => !id.startsWith("cline/"))
 	}, [openRouterModels, modeFields.apiProvider])
 
 	const searchableItems = useMemo(() => {
