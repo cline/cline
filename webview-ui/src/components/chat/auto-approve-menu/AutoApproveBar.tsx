@@ -2,7 +2,7 @@ import { useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveModal from "./AutoApproveModal"
-import { ACTION_METADATA, NOTIFICATIONS_SETTING, YOLO_MODE_SETTING } from "./constants"
+import { ACTION_METADATA, YOLO_MODE_SETTING } from "./constants"
 
 interface AutoApproveBarProps {
 	style?: React.CSSProperties
@@ -23,7 +23,6 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 		if (yoloModeToggled) {
 			return <span className={baseClasses}>YOLO</span>
 		}
-		const notificationsEnabled = autoApprovalSettings.enableNotifications
 		const enabledActionsNames = Object.keys(autoApprovalSettings.actions).filter(
 			(key) => autoApprovalSettings.actions[key as keyof typeof autoApprovalSettings.actions],
 		)
@@ -32,10 +31,6 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 		})
 
 		const actionsWithShortNames = enabledActions.filter((action) => action?.shortName)
-
-		if (notificationsEnabled) {
-			actionsWithShortNames.push(NOTIFICATIONS_SETTING)
-		}
 
 		if (actionsWithShortNames.length === 0) {
 			return <span className={baseClasses}>None</span>
@@ -82,7 +77,6 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				ACTION_METADATA={ACTION_METADATA}
 				buttonRef={buttonRef}
 				isVisible={isModalVisible}
-				NOTIFICATIONS_SETTING={NOTIFICATIONS_SETTING}
 				setIsVisible={setIsModalVisible}
 				YOLO_MODE_SETTING={YOLO_MODE_SETTING}
 			/>

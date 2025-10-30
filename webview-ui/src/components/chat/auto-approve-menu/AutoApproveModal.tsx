@@ -1,8 +1,10 @@
+import { StringRequest } from "@shared/proto/cline/common"
 import React, { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
+import { UiServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
 import { ActionMetadata } from "./types"
@@ -14,7 +16,6 @@ interface AutoApproveModalProps {
 	setIsVisible: (visible: boolean) => void
 	buttonRef: React.RefObject<HTMLDivElement>
 	ACTION_METADATA: ActionMetadata[]
-	NOTIFICATIONS_SETTING: ActionMetadata
 	YOLO_MODE_SETTING: ActionMetadata
 }
 
@@ -23,14 +24,30 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 	setIsVisible,
 	buttonRef,
 	ACTION_METADATA,
-	NOTIFICATIONS_SETTING,
 	YOLO_MODE_SETTING,
 }) => {
-	const { yoloModeToggled, remoteConfigSettings } = useExtensionState()
+	const { yoloModeToggled, remoteConfigSettings, navigateToSettings } = useExtensionState()
 	const { isChecked, updateAction } = useAutoApproveActions()
 
 	// Check if YOLO mode is locked by organization
 	const isYoloModeLocked = remoteConfigSettings?.yoloModeToggled !== undefined
+
+	const handleNotificationsLinkClick = async (e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+
+		// Navigate to settings
+		navigateToSettings()
+
+		// Scroll to general section
+		setTimeout(async () => {
+			try {
+				await UiServiceClient.scrollToSettings(StringRequest.create({ value: "general" }))
+			} catch (error) {
+				console.error("Error scrolling to general settings:", error)
+			}
+		}, 300)
+	}
 
 	const modalRef = useRef<HTMLDivElement>(null)
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
@@ -84,7 +101,13 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 					maxHeight: "60vh",
 				}}>
 				<div className="mb-2.5 text-muted-foreground text-xs cursor-pointer" onClick={() => setIsVisible(false)}>
-					Automatically perform these actions without asking for approval.
+					Automatically perform these actions without asking for approval.{" "}
+					<span
+						className="underline cursor-pointer hover:text-foreground"
+						onClick={handleNotificationsLinkClick}
+						style={{ textDecoration: "underline" }}>
+						Configure notification settings
+					</span>
 				</div>
 
 				{/* Wrapper with conditional opacity/pointer-events for when YOLO mode is enabled */}
@@ -149,21 +172,6 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 						This setting is managed by your organization's remote configuration
 					</TooltipContent>
 				</Tooltip>
-
-				{/* Horizontal separator */}
-				<div
-					className="w-full h-px my-2"
-					style={{
-						backgroundColor: `color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`,
-					}}
-				/>
-
-				<AutoApproveMenuItem
-					action={NOTIFICATIONS_SETTING}
-					isChecked={isChecked}
-					key={NOTIFICATIONS_SETTING.id}
-					onToggle={updateAction}
-				/>
 			</div>
 		</div>
 	)
