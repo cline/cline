@@ -385,6 +385,9 @@ export class ClineApiServerMock {
 							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST
 						}
 						if (body.includes("[diff.test.ts] Hello, Cline!")) {
+							// The playwright test in diff.test.ts needs the "API Request..." text
+							// to be on the screen long enough to detect it.  This worked at 100ms
+							// too, but setting to 500ms to cover slower CI boxes.
 							await new Promise((resolve) => setTimeout(resolve, 500))
 						}
 
