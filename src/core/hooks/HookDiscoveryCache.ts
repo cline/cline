@@ -1,4 +1,3 @@
-import * as vscode from "vscode"
 import { getAllHooksDirs } from "../storage/disk"
 import { HookFactory, Hooks } from "./hook-factory"
 
@@ -10,6 +9,29 @@ type HookName = keyof Hooks
 interface HookCacheEntry {
 	scriptPaths: string[] // Paths to hook scripts for this hook name
 	timestamp: number // When this was last scanned
+}
+
+/**
+ * Generic disposable interface for resource cleanup
+ */
+interface Disposable {
+	dispose(): void
+}
+
+/**
+ * Generic file watcher interface
+ */
+interface FileWatcher extends Disposable {
+	onDidCreate(listener: () => void): void
+	onDidChange(listener: () => void): void
+	onDidDelete(listener: () => void): void
+}
+
+/**
+ * Generic context interface for managing subscriptions
+ */
+interface ExtensionContext {
+	subscriptions: Disposable[]
 }
 
 /**
@@ -29,7 +51,7 @@ export class HookDiscoveryCache {
 	private cache = new Map<HookName, HookCacheEntry>()
 
 	// Watchers: directory path -> file watcher
-	private watchers = new Map<string, vscode.FileSystemWatcher>()
+	private watchers = new Map<string, FileWatcher>()
 
 	// Directories we've tried to watch (even if watcher creation failed)
 	private watchedDirs = new Set<string>()
@@ -38,8 +60,8 @@ export class HookDiscoveryCache {
 	private scanning = new Set<HookName>()
 
 	// For disposal
-	private context: vscode.ExtensionContext | null = null
-	private createFileWatcher: ((dir: string) => vscode.FileSystemWatcher | null) | null = null
+	private context: ExtensionContext | null = null
+	private createFileWatcher: ((dir: string) => FileWatcher | null) | null = null
 	private disposed = false
 
 	// Debug logging (enabled via DEBUG_HOOKS env var)
@@ -57,17 +79,23 @@ export class HookDiscoveryCache {
 	/**
 	 * Initialize with extension context for proper cleanup
 	 */
-	initialize(context: vscode.ExtensionContext, createFileWatcher?: (dir: string) => vscode.FileSystemWatcher | null): void {
+	initialize(
+		context: ExtensionContext,
+		createFileWatcher?: (dir: string) => FileWatcher | null,
+		onWorkspaceFoldersChanged?: (callback: () => void) => Disposable,
+	): void {
 		this.context = context
 		this.createFileWatcher = createFileWatcher || null
 
-		// Watch for workspace changes to invalidate cache
-		context.subscriptions.push(
-			vscode.workspace.onDidChangeWorkspaceFolders(() => {
-				this.log("Workspace folders changed, invalidating cache")
-				this.invalidateAll()
-			}),
-		)
+		// Watch for workspace changes to invalidate cache (if callback provided)
+		if (onWorkspaceFoldersChanged) {
+			context.subscriptions.push(
+				onWorkspaceFoldersChanged(() => {
+					this.log("Workspace folders changed, invalidating cache")
+					this.invalidateAll()
+				}),
+			)
+		}
 	}
 
 	/**
