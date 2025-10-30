@@ -209,7 +209,7 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 		}
 
 		// Silently refresh MCP marketplace catalog
-		controller.silentlyRefreshMcpMarketplace()
+		controller.refreshMcpMarketplace(true /* sendCatalogEvent */)
 
 		// Initialize telemetry service with user's current setting
 		controller.getStateToPostToWebview().then((state) => {

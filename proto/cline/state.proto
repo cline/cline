@@ -47,7 +47,7 @@ message AutoApprovalActions {
 message AutoApprovalSettings {
   int32 version = 1;
   AutoApprovalActions actions = 2;
-  bool enable_notifications = 3;
+  optional bool enable_notifications = 3;
 }
 
 message Secrets {

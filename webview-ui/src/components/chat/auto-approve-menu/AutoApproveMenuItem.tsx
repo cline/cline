@@ -43,7 +43,7 @@ const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true, dis
 		<div className="w-full" style={{ opacity: disabled ? 0.5 : 1 }}>
 			<ActionButtonContainer className="w-full">
 				<Tooltip>
-					<TooltipContent>{action.description}</TooltipContent>
+					<TooltipContent showArrow={false}>{action.description}</TooltipContent>
 					<TooltipTrigger asChild>
 						<Button
 							className={cn("w-full flex text-sm items-center justify-start text-foreground gap-2")}

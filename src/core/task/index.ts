@@ -94,7 +94,7 @@ import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
-import { detectAvailableCliTools, updateApiReqMsg } from "./utils"
+import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -452,12 +452,19 @@ export class Task {
 		}
 
 		// initialize telemetry
+
+		// Extract domain of the provider endpoint if using OpenAI Compatible provider
+		let openAiCompatibleDomain: string | undefined
+		if (currentProvider === "openai" && apiConfiguration.openAiBaseUrl) {
+			openAiCompatibleDomain = extractProviderDomainFromUrl(apiConfiguration.openAiBaseUrl)
+		}
+
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.ulid, currentProvider)
+			telemetryService.captureTaskRestarted(this.ulid, currentProvider, openAiCompatibleDomain)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.ulid, currentProvider)
+			telemetryService.captureTaskCreated(this.ulid, currentProvider, openAiCompatibleDomain)
 		}
 
 		this.toolExecutor = new ToolExecutor(
