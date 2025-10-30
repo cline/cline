@@ -189,7 +189,7 @@ export function mcpToolToClineToolSpec(family: ModelFamily, server: McpServer): 
 			id: ClineDefaultTool.MCP_USE,
 			// We will use the identifier to reconstruct the MCP server and tool name later
 			name: server.uid + CLINE_MCP_TOOL_IDENTIFIER + mcpTool.name,
-			description: mcpTool.description || "",
+			description: `${server.name}: ${mcpTool.description || mcpTool.name}`,
 			parameters,
 		}
 	})
