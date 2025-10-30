@@ -1242,7 +1242,6 @@ func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey st
 	
 	settings := &cline.Settings{
 		AutoApprovalSettings: &cline.AutoApprovalSettings{
-			Enabled: boolPtr(true),
 			Actions: &cline.AutoApprovalActions{},
 		},
 	}
