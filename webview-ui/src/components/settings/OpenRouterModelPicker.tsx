@@ -58,6 +58,7 @@ const featuredModels = [
 		id: "x-ai/grok-code-fast-1",
 		description: "Advanced model with 262K context for complex coding",
 		label: "Free",
+		isFree: true,
 	},
 ]
 
@@ -91,8 +92,17 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration, currentMode)
-	}, [apiConfiguration, currentMode])
+		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
+		// Makes sure "Free" featured models have $0 pricing for Cline provider
+		const freeModels = modeFields.apiProvider === "cline" ? featuredModels.filter((m) => m.isFree) : []
+		if (freeModels.some((fm) => fm.id === selected.selectedModelId)) {
+			selected.selectedModelInfo.inputPrice = 0
+			selected.selectedModelInfo.outputPrice = 0
+			selected.selectedModelInfo.cacheReadsPrice = 0
+			selected.selectedModelInfo.cacheWritesPrice = 0
+		}
+		return selected
+	}, [apiConfiguration, currentMode, modeFields])
 
 	useMount(refreshOpenRouterModels)
 
