@@ -62,6 +62,7 @@ const featuredModels = [
 		isFree: true,
 	},
 ]
+const FREE_CLINE_MODELS = featuredModels.filter((m) => m.isFree)
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
@@ -94,13 +95,19 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
 		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
+		const isCline = selected.selectedProvider === "cline"
 		// Makes sure "Free" featured models have $0 pricing for Cline provider
-		const freeModels = selected.selectedProvider === "cline" ? featuredModels.filter((m) => m.isFree) : []
-		if (freeModels.some((fm) => fm.id === selected.selectedModelId)) {
-			selected.selectedModelInfo.inputPrice = 0
-			selected.selectedModelInfo.outputPrice = 0
-			selected.selectedModelInfo.cacheReadsPrice = 0
-			selected.selectedModelInfo.cacheWritesPrice = 0
+		if (isCline && FREE_CLINE_MODELS.some((fm) => fm.id === selected.selectedModelId)) {
+			return {
+				...selected,
+				selectedModelInfo: {
+					...selected.selectedModelInfo,
+					inputPrice: 0,
+					outputPrice: 0,
+					cacheReadsPrice: 0,
+					cacheWritesPrice: 0,
+				},
+			}
 		}
 		return selected
 	}, [apiConfiguration, currentMode])
