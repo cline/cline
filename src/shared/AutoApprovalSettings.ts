@@ -15,7 +15,6 @@ export interface AutoApprovalSettings {
 		useMcp: boolean // Use MCP servers
 	}
 	// Global settings
-	maxRequests: number // Maximum number of auto-approved requests
 	enableNotifications: boolean // Show notifications for approval and task completion
 	favorites: string[] // IDs of actions favorited by the user for quick access
 }
@@ -33,7 +32,6 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 		useBrowser: false,
 		useMcp: false,
 	},
-	maxRequests: 20,
 	enableNotifications: false,
 	favorites: ["enableAutoApprove", "readFiles", "editFiles"],
 }

@@ -47,14 +47,6 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 		primaryAction: "proceed",
 		secondaryAction: "new_task",
 	},
-	auto_approval_max_req_reached: {
-		sendingDisabled: false,
-		enableButtons: true,
-		primaryText: "Proceed",
-		secondaryText: "Start New Task",
-		primaryAction: "proceed",
-		secondaryAction: "new_task",
-	},
 
 	// Tool approval states - most common during task execution
 	tool_approve: {
@@ -207,7 +199,7 @@ export const BUTTON_CONFIGS: Record<string, ButtonConfig> = {
 	},
 }
 
-const errorTypes = ["api_req_failed", "mistake_limit_reached", "auto_approval_max_req_reached"]
+const errorTypes = ["api_req_failed", "mistake_limit_reached"]
 
 /**
  * Determines button configuration based on message type and state
@@ -235,8 +227,6 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 				return BUTTON_CONFIGS.api_req_failed
 			case "mistake_limit_reached":
 				return BUTTON_CONFIGS.mistake_limit_reached
-			case "auto_approval_max_req_reached":
-				return BUTTON_CONFIGS.auto_approval_max_req_reached
 
 			// Tool approval (most common)
 			case "tool": {

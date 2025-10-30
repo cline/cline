@@ -490,10 +490,6 @@ export class Task {
 		)
 	}
 
-	public resetConsecutiveAutoApprovedRequestsCount(): void {
-		this.taskState.consecutiveAutoApprovedRequestsCount = 0
-	}
-
 	// Communicate with webview
 
 	// partial has three valid states true (partial message), false (completion of partial message), undefined (individual complete message)
@@ -2206,57 +2202,6 @@ export class Task {
 			}
 			this.taskState.consecutiveMistakeCount = 0
 			this.taskState.autoRetryAttempts = 0 // need to reset this if the user chooses to manually retry after the mistake limit is reached
-		}
-
-		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-
-		if (
-			!this.stateManager.getGlobalSettingsKey("yoloModeToggled") &&
-			autoApprovalSettings.enabled &&
-			this.taskState.consecutiveAutoApprovedRequestsCount >= autoApprovalSettings.maxRequests
-		) {
-			if (autoApprovalSettings.enableNotifications) {
-				showSystemNotification({
-					subtitle: "Max Requests Reached",
-					message: `Cline has auto-approved ${autoApprovalSettings.maxRequests.toString()} API requests.`,
-				})
-			}
-			const { response, text, images, files } = await this.ask(
-				"auto_approval_max_req_reached",
-				`Cline has auto-approved ${autoApprovalSettings.maxRequests.toString()} API requests. Would you like to reset the count and proceed with the task?`,
-			)
-			// if we get past the promise it means the user approved and did not start a new task
-			this.taskState.consecutiveAutoApprovedRequestsCount = 0
-
-			// Process user feedback if provided
-			if (response === "messageResponse") {
-				// Display the user's message in the chat UI
-				await this.say("user_feedback", text, images, files)
-
-				// This userContent is for the *next* API call.
-				const feedbackUserContent: UserContent = []
-				feedbackUserContent.push({
-					type: "text",
-					text: formatResponse.autoApprovalMaxReached(text),
-				})
-				if (images && images.length > 0) {
-					feedbackUserContent.push(...formatResponse.imageBlocks(images))
-				}
-
-				let fileContentString = ""
-				if (files && files.length > 0) {
-					fileContentString = await processFilesIntoText(files)
-				}
-
-				if (fileContentString) {
-					feedbackUserContent.push({
-						type: "text",
-						text: fileContentString,
-					})
-				}
-
-				userContent = feedbackUserContent
-			}
 		}
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history

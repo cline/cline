@@ -65,7 +65,6 @@ async function updateAutoApprovalSettings(controller?: Controller) {
 				useBrowser: false, // Keep browser disabled for tests
 				useMcp: false, // Keep MCP disabled for tests
 			},
-			maxRequests: 10000, // Increase max requests for tests
 		}
 
 		controller?.stateManager.setGlobalState("autoApprovalSettings", updatedSettings)

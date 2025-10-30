@@ -1,4 +1,3 @@
-import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { XIcon } from "lucide-react"
 import React, { useEffect, useRef, useState } from "react"
 import { useClickAway, useWindowSize } from "react-use"
@@ -29,7 +28,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 	NOTIFICATIONS_SETTING,
 }) => {
 	const { autoApprovalSettings } = useExtensionState()
-	const { isChecked, isFavorited, toggleFavorite, updateAction, updateMaxRequests } = useAutoApproveActions()
+	const { isChecked, isFavorited, toggleFavorite, updateAction } = useAutoApproveActions()
 
 	const modalRef = useRef<HTMLDivElement>(null)
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
@@ -201,41 +200,6 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 						onToggle={updateAction}
 						onToggleFavorite={toggleFavorite}
 					/>
-
-					<Tooltip>
-						<TooltipContent side="top">
-							Cline will automatically make this many API requests before asking for approval to proceed with the
-							task.
-						</TooltipContent>
-						<TooltipTrigger>
-							<div className="flex items-center pl-1.5 my-2">
-								<span className="codicon codicon-settings text-[#CCCCCC] text-[14px]" />
-								<span className="text-base font-medium ml-2">Max Requests:</span>
-								<VSCodeTextField
-									className="flex-1 w-full pr-[35px] ml-4"
-									onInput={async (e) => {
-										const input = e.target as HTMLInputElement
-										// Remove any non-numeric characters
-										input.value = input.value.replace(/[^0-9]/g, "")
-										const value = parseInt(input.value)
-										if (!Number.isNaN(value) && value > 0) {
-											await updateMaxRequests(value)
-										}
-									}}
-									onKeyDown={(e) => {
-										// Prevent non-numeric keys (except for backspace, delete, arrows)
-										if (
-											!/^\d$/.test(e.key) &&
-											!["Backspace", "Delete", "ArrowLeft", "ArrowRight"].includes(e.key)
-										) {
-											e.preventDefault()
-										}
-									}}
-									value={autoApprovalSettings.maxRequests.toString()}
-								/>
-							</div>
-						</TooltipTrigger>
-					</Tooltip>
 				</div>
 			</div>
 		</div>

@@ -282,7 +282,6 @@ func (m *Manager) CheckSendEnabled(ctx context.Context) error {
 	errorTypes := []string{
 		string(types.AskTypeAPIReqFailed),           // "api_req_failed"
 		string(types.AskTypeMistakeLimitReached),    // "mistake_limit_reached"
-		string(types.AskTypeAutoApprovalMaxReached), // "auto_approval_max_req_reached"
 	}
 
 	isError := false
@@ -1242,7 +1241,6 @@ func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey st
 	settings := &cline.Settings{
 		AutoApprovalSettings: &cline.AutoApprovalSettings{
 			Enabled:     true,
-			MaxRequests: 20, // Important: avoid maxRequests=0 bug
 			Actions:     &cline.AutoApprovalActions{},
 		},
 	}

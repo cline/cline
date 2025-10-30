@@ -285,9 +285,8 @@ message AutoApprovalSettingsRequest {
   int32 version = 2;
   bool enabled = 3;
   AutoApprovalActions actions = 4;
-  int32 max_requests = 5;
-  bool enable_notifications = 6;
-  repeated string favorites = 7;
+  bool enable_notifications = 5;
+  repeated string favorites = 6;
 }
 
 enum TelemetrySettingEnum {

@@ -88,7 +88,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 					...currentAutoApprovalSettings,
 					...(autoApprovalSettings.version !== undefined && { version: autoApprovalSettings.version }),
 					...(autoApprovalSettings.enabled !== undefined && { enabled: autoApprovalSettings.enabled }),
-					...(autoApprovalSettings.maxRequests !== undefined && { maxRequests: autoApprovalSettings.maxRequests }),
 					...(autoApprovalSettings.enableNotifications !== undefined && {
 						enableNotifications: autoApprovalSettings.enableNotifications,
 					}),

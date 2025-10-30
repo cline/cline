@@ -396,16 +396,6 @@ export const ChatRowContent = memo(
 							}}></span>,
 						<span style={{ color: errorColor, fontWeight: "bold" }}>Cline is having trouble...</span>,
 					]
-				case "auto_approval_max_req_reached":
-					return [
-						<span
-							className="codicon codicon-warning"
-							style={{
-								color: errorColor,
-								marginBottom: "-1.5px",
-							}}></span>,
-						<span style={{ color: errorColor, fontWeight: "bold" }}>Maximum Requests Reached</span>,
-					]
 				case "command":
 					return [
 						<span
@@ -1703,8 +1693,6 @@ export const ChatRowContent = memo(
 				switch (message.ask) {
 					case "mistake_limit_reached":
 						return <ErrorRow errorType="mistake_limit_reached" message={message} />
-					case "auto_approval_max_req_reached":
-						return <ErrorRow errorType="auto_approval_max_req_reached" message={message} />
 					case "completion_result":
 						if (message.text) {
 							const hasChanges = message.text.endsWith(COMPLETION_RESULT_CHANGES_FLAG) ?? false

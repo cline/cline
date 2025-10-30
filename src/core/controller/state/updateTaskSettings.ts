@@ -77,7 +77,6 @@ export async function updateTaskSettings(controller: Controller, request: Update
 					...currentAutoApprovalSettings,
 					...(autoApprovalSettings.version !== undefined && { version: autoApprovalSettings.version }),
 					...(autoApprovalSettings.enabled !== undefined && { enabled: autoApprovalSettings.enabled }),
-					...(autoApprovalSettings.maxRequests !== undefined && { maxRequests: autoApprovalSettings.maxRequests }),
 					...(autoApprovalSettings.enableNotifications !== undefined && {
 						enableNotifications: autoApprovalSettings.enableNotifications,
 					}),

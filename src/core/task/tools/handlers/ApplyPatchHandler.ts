@@ -946,7 +946,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		if (shouldAutoApprove) {
 			await config.callbacks.say("tool", messageStr, undefined, undefined, false)
-			config.taskState.consecutiveAutoApprovedRequestsCount++
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 			return true
 		}

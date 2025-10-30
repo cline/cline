@@ -95,18 +95,6 @@ export function useAutoApproveActions() {
 		[autoApprovalSettings],
 	)
 
-	// Update max requests
-	const updateMaxRequests = useCallback(
-		async (maxRequests: number) => {
-			await updateAutoApproveSettings({
-				...autoApprovalSettings,
-				version: (autoApprovalSettings.version ?? 1) + 1,
-				maxRequests,
-			})
-		},
-		[autoApprovalSettings],
-	)
-
 	// Update auto-approve enabled state
 	const updateAutoApproveEnabled = useCallback(
 		async (checked: boolean) => {
@@ -138,7 +126,6 @@ export function useAutoApproveActions() {
 		isFavorited,
 		toggleFavorite,
 		updateAction,
-		updateMaxRequests,
 		updateAutoApproveEnabled,
 		updateNotifications,
 	}

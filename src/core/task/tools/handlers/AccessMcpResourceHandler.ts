@@ -73,9 +73,6 @@ export class AccessMcpResourceHandler implements IFullyManagedTool {
 			// Auto-approval flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 			await config.callbacks.say("use_mcp_server", completeMessage, undefined, undefined, false)
-			if (!config.yoloModeToggled) {
-				config.taskState.consecutiveAutoApprovedRequestsCount++
-			}
 
 			// Capture telemetry
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
