@@ -262,6 +262,7 @@ export class AuthService {
 			this._clineAuthInfo = null
 			this._authenticated = false
 			this._controller.stateManager.setSecret("clineAccountId", undefined)
+			this._controller.stateManager.setSecret("cline:clineAccountId", undefined)
 			this.sendAuthStatusUpdate()
 		} catch (error) {
 			console.error("Error signing out:", error)
