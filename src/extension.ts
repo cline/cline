@@ -56,14 +56,28 @@ export async function activate(context: vscode.ExtensionContext) {
 	setupHostProvider(context)
 
 	// Initialize hook discovery cache for performance optimization
-	HookDiscoveryCache.getInstance().initialize(context, (dir: string) => {
-		try {
-			const pattern = new vscode.RelativePattern(dir, "*")
-			return vscode.workspace.createFileSystemWatcher(pattern)
-		} catch {
-			return null
-		}
-	})
+	HookDiscoveryCache.getInstance().initialize(
+		context as any, // Adapt VSCode ExtensionContext to generic interface
+		(dir: string) => {
+			try {
+				const pattern = new vscode.RelativePattern(dir, "*")
+				const watcher = vscode.workspace.createFileSystemWatcher(pattern)
+				// Adapt VSCode FileSystemWatcher to generic interface
+				return {
+					onDidCreate: (listener: () => void) => watcher.onDidCreate(listener),
+					onDidChange: (listener: () => void) => watcher.onDidChange(listener),
+					onDidDelete: (listener: () => void) => watcher.onDidDelete(listener),
+					dispose: () => watcher.dispose(),
+				}
+			} catch {
+				return null
+			}
+		},
+		(callback: () => void) => {
+			// Adapt VSCode Disposable to generic interface
+			return vscode.workspace.onDidChangeWorkspaceFolders(callback)
+		},
+	)
 
 	const webview = (await initialize(context)) as VscodeWebviewProvider
 
