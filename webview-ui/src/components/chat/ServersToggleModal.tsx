@@ -37,11 +37,11 @@ const ServersToggleModal: React.FC = () => {
 				<VSCodeButton
 					appearance="icon"
 					aria-label={isVisible ? "Hide MCP Servers" : "Show MCP Servers"}
-					className="p-0 m-0 flex items-center mt-1 cursor-pointer hover:cursor-pointer">
-					<Popover onOpenChange={(open) => setIsVisible(open)}>
+					className="p-0 m-0 flex items-center">
+					<Popover onOpenChange={(open) => setIsVisible(open)} open={isVisible}>
 						<PopoverTrigger>
-							<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-								<i className="codicon codicon-server flex items-center" style={{ fontSize: "12.5px" }} />
+							<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full cursor-pointer">
+								<i className="codicon codicon-server" style={{ fontSize: "12.5px" }} />
 							</div>
 						</PopoverTrigger>
 
@@ -59,7 +59,7 @@ const ServersToggleModal: React.FC = () => {
 								</VSCodeButton>
 							</div>
 
-							<div style={{ marginBottom: -10 }}>
+							<div className="mb-2.5">
 								<ServersToggleList
 									hasTrashIcon={false}
 									isExpandable={false}
@@ -69,7 +69,7 @@ const ServersToggleModal: React.FC = () => {
 							</div>
 						</PopoverContent>
 					</Popover>
-				</VSCodeButton>{" "}
+				</VSCodeButton>
 			</TooltipTrigger>
 		</Tooltip>
 	)

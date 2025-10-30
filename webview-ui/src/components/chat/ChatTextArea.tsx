@@ -1698,7 +1698,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									<VSCodeButton
 										appearance="icon"
 										aria-label="Add Context"
-										className="p-0 m-0 flex items-center mt-0.5"
+										className="p-0 m-0 flex items-center"
 										data-testid="context-button"
 										onClick={handleContextButtonClick}>
 										<ButtonContainer>
@@ -1714,7 +1714,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									<VSCodeButton
 										appearance="icon"
 										aria-label="Add Files & Images"
-										className="p-0 m-0 flex items-center mt-0.5"
+										className="p-0 m-0 flex items-center"
 										data-testid="files-button"
 										disabled={shouldDisableFilesAndImages}
 										onClick={() => {
