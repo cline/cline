@@ -40,6 +40,22 @@ interface Token {
 	expires_at: number
 }
 
+/**
+ * Custom error class for validation exceptions that preserves stack traces
+ * and follows best practices for error handling
+ */
+class ValidationException extends Error {
+	public readonly code: number
+
+	constructor(message: string, code: number) {
+		super(message)
+		this.name = "ValidationException"
+		this.code = code
+		// Ensure proper prototype chain for instanceof checks
+		Object.setPrototypeOf(this, ValidationException.prototype)
+	}
+}
+
 // Bedrock namespace containing caching-related functions
 namespace Bedrock {
 	// Define cache point type for AWS Bedrock
@@ -406,12 +422,7 @@ export class SapAiCoreHandler implements ApiHandler {
 
 		// Check for context window errors using unified logic
 		if (this.isContextWindowError(detailedMessage)) {
-			const contextError = {
-				name: "ValidationException",
-				message: "Input is too long for requested model",
-				code: code || error.response?.status || 0,
-			}
-			throw contextError
+			throw new ValidationException("Input is too long for requested model", code || error.response?.status || 0)
 		}
 
 		if (error.response) {
