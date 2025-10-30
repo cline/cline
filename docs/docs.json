@@ -250,7 +250,9 @@
 						"group": "Enterprise Solutions",
 						"pages": [
 							"enterprise-solutions/overview",
-							"enterprise-solutions/security-concerns"
+							"enterprise-solutions/security-concerns",
+							"enterprise-solutions/configure-AWS-Bedrock-Admin",
+							"enterprise-solutions/configure-AWS-Bedrock-Member"
 						]
 					}
 				]
