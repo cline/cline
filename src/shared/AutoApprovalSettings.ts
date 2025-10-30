@@ -38,7 +38,7 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 		executeSafeCommands: true,
 		executeAllCommands: false,
 		useBrowser: false,
-		useMcp: false,
+		useMcp: true,
 	},
 	enableNotifications: false,
 }
