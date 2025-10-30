@@ -48,9 +48,8 @@ message AutoApprovalSettings {
   int32 version = 1;
   bool enabled = 2;
   AutoApprovalActions actions = 3;
-  int32 max_requests = 4;
-  bool enable_notifications = 5;
-  repeated string favorites = 6;
+  bool enable_notifications = 4;
+  repeated string favorites = 5;
 }
 
 message Secrets {
