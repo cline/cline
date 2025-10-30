@@ -7,6 +7,7 @@ import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
 import { UiServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
+import { updateAutoApproveSettings } from "./AutoApproveSettingsAPI"
 import { ActionMetadata } from "./types"
 
 const breakpoint = 500
@@ -26,7 +27,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 	ACTION_METADATA,
 	YOLO_MODE_SETTING,
 }) => {
-	const { yoloModeToggled, remoteConfigSettings, navigateToSettings } = useExtensionState()
+	const { yoloModeToggled, remoteConfigSettings, navigateToSettings, autoApprovalSettings } = useExtensionState()
 	const { isChecked, updateAction } = useAutoApproveActions()
 
 	// Check if YOLO mode is locked by organization
@@ -172,6 +173,35 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 						This setting is managed by your organization's remote configuration
 					</TooltipContent>
 				</Tooltip>
+
+				<div className="mt-0 ml-8 text-muted-foreground text-xs">
+					Does not plan or ask questions. If you want to use Plan mode,{" "}
+					<span
+						className="underline cursor-pointer hover:text-foreground"
+						onClick={async () => {
+							// Disable YOLO mode if it's on
+							if (yoloModeToggled) {
+								await updateAction(YOLO_MODE_SETTING, false)
+							}
+							// Enable all auto-approve options
+							const allActions = ACTION_METADATA.reduce((acc, action) => {
+								acc[action.id as keyof typeof acc] = true
+								if (action.subAction) {
+									acc[action.subAction.id as keyof typeof acc] = true
+								}
+								return acc
+							}, {} as any)
+
+							await updateAutoApproveSettings({
+								...autoApprovalSettings,
+								version: (autoApprovalSettings.version ?? 1) + 1,
+								actions: allActions,
+							})
+						}}>
+						enable all auto-approve options
+					</span>{" "}
+					instead.
+				</div>
 			</div>
 		</div>
 	)
