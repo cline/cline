@@ -421,19 +421,19 @@ func setAutoApprovalSettings(settings *cline.AutoApprovalSettings, fields map[st
 			if err != nil {
 				return err
 			}
-			settings.Enabled = val
+			settings.Enabled = boolPtr(val)
 		case "max_requests":
 			val, err := parseInt32(value)
 			if err != nil {
 				return err
 			}
-			settings.MaxRequests = val
+			settings.MaxRequests = int32Ptr(val)
 		case "enable_notifications":
 			val, err := parseBool(value)
 			if err != nil {
 				return err
 			}
-			settings.EnableNotifications = val
+			settings.EnableNotifications = boolPtr(val)
 		case "actions":
 			return fmt.Errorf("auto_approval_settings.actions requires nested dot notation (e.g., auto-approval-settings.actions.read-files=true)")
 		default:
@@ -672,6 +672,8 @@ func parseApiProvider(value string) (cline.ApiProvider, error) {
 		return cline.ApiProvider_DIFY, nil
 	case "oca":
 		return cline.ApiProvider_OCA, nil
+	case "minimax":
+		return cline.ApiProvider_MINIMAX, nil
 	default:
 		return cline.ApiProvider_ANTHROPIC, fmt.Errorf("invalid api_provider '%s'", value)
 	}

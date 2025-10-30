@@ -47,7 +47,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 
 					if (clineError?.isErrorType(ClineErrorType.RateLimit)) {
 						return (
-							<p className="m-0 whitespace-pre-wrap text-[var(--vscode-errorForeground)] wrap-anywhere">
+							<p className="m-0 whitespace-pre-wrap text-(--vscode-errorForeground) wrap-anywhere">
 								{clineErrorMessage}
 								{requestId && <div>Request ID: {requestId}</div>}
 							</p>
@@ -61,7 +61,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 
 					// Default error display
 					return (
-						<p className="m-0 whitespace-pre-wrap text-[var(--vscode-errorForeground)] wrap-anywhere">
+						<p className="m-0 whitespace-pre-wrap text-(--vscode-errorForeground) wrap-anywhere">
 							{errorMessageToDisplay}
 							{requestId && <div>Request ID: {requestId}</div>}
 							{clineErrorMessage?.toLowerCase()?.includes("powershell") && (
@@ -83,9 +83,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 									<br />
 									{/* The user is signed in or not using cline provider */}
 									{clineUser && !isClineProvider ? (
-										<span className="mb-4 text-[var(--vscode-descriptionForeground)]">
-											(Click "Retry" below)
-										</span>
+										<span className="mb-4 text-(--vscode-descriptionForeground)">(Click "Retry" below)</span>
 									) : (
 										<VSCodeButton className="w-full mb-4" onClick={handleSignIn}>
 											Sign in to Cline
@@ -98,20 +96,18 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 				}
 
 				// Regular error message
-				return (
-					<p className="m-0 whitespace-pre-wrap text-[var(--vscode-errorForeground)] wrap-anywhere">{message.text}</p>
-				)
+				return <p className="m-0 whitespace-pre-wrap text-(--vscode-errorForeground) wrap-anywhere">{message.text}</p>
 
 			case "diff_error":
 				return (
-					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-[var(--vscode-textBlockQuote-background)] text-[var(--vscode-foreground)]">
+					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-(--vscode-textBlockQuote-background) text-(--vscode-foreground)">
 						<div>The model used search patterns that don't match anything in the file. Retrying...</div>
 					</div>
 				)
 
 			case "clineignore_error":
 				return (
-					<div className="flex flex-col p-2 rounded text-xs bg-[var(--vscode-textBlockQuote-background)] text-[var(--vscode-foreground)] opacity-80">
+					<div className="flex flex-col p-2 rounded text-xs bg-(--vscode-textBlockQuote-background) text-(--vscode-foreground) opacity-80">
 						<div>
 							Cline tried to access <code>{message.text}</code> which is blocked by the <code>.clineignore</code>
 							file.

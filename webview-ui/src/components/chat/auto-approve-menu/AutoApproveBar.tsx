@@ -58,12 +58,12 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 		return [
 			...favorites.map((favId) => renderFavoritedItem(favId)),
 			minusFavorites.length > 0 ? (
-				<span className="text-[color:var(--vscode-foreground-muted)] pl-[10px] opacity-60" key="separator">
+				<span className="text-muted opacity-60" key="separator">
 					✓
 				</span>
 			) : null,
 			...minusFavorites.map((action, index) => (
-				<span className="text-[color:var(--vscode-foreground-muted)] opacity-60" key={action?.id}>
+				<span className="text-muted opacity-60" key={action?.id}>
 					{action?.shortName}
 					{index < minusFavorites.length - 1 && ","}
 				</span>
@@ -73,21 +73,20 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 
 	return (
 		<div
-			className="px-[10px] mx-[15px] select-none rounded-[10px_10px_0_0]"
+			className="px-3.5 mx-3.5 select-none rounded-tl-sm rounded-tr-sm overflow-y-auto break-words"
 			style={{
 				borderTop: `0.5px solid color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`,
-				overflowY: "auto",
 				backgroundColor: isModalVisible ? CODE_BLOCK_BG_COLOR : "transparent",
 				...style,
 			}}>
 			<div
-				className="cursor-pointer py-[8px] pr-[2px] flex items-center justify-between gap-[8px]"
+				className="cursor-pointer py-1 pr-1 flex items-center justify-between gap-2"
 				onClick={() => {
 					setIsModalVisible((prev) => !prev)
 				}}
 				ref={buttonRef}>
 				<div
-					className="flex flex-nowrap items-center overflow-x-auto gap-[4px] whitespace-nowrap"
+					className="flex flex-nowrap items-center overflow-x-auto gap-1 whitespace-nowrap"
 					style={{
 						msOverflowStyle: "none",
 						scrollbarWidth: "none",
