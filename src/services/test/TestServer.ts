@@ -54,7 +54,6 @@ async function updateAutoApprovalSettings(controller?: Controller) {
 		// Enable all actions
 		const updatedSettings: AutoApprovalSettings = {
 			...(autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS),
-			enabled: true,
 			actions: {
 				readFiles: true,
 				readFilesExternally: true,

@@ -3,7 +3,7 @@ import { ClineDefaultTool } from "@/shared/tools"
 import { ToolUse } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
 import { ToolResponse } from "../.."
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
@@ -93,10 +93,9 @@ export class BrowserToolHandler implements IFullyManagedTool {
 					await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "browser_action_launch")
 					await config.callbacks.say("browser_action_launch", url, undefined, undefined, false)
 				} else {
-					// Show notification for approval if auto approval enabled
-					showNotificationForApprovalIfAutoApprovalEnabled(
+					// Show notification for approval if enabled
+					showNotificationForApproval(
 						`Cline wants to use a browser and launch ${url}`,
-						config.autoApprovalSettings.enabled,
 						config.autoApprovalSettings.enableNotifications,
 					)
 					await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "browser_action_launch")

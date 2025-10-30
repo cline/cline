@@ -344,7 +344,7 @@ const ServerRow = ({
 										{server.tools.map((tool) => (
 											<McpToolRow key={tool.name} serverName={server.name} tool={tool} />
 										))}
-										{server.name && autoApprovalSettings.enabled && autoApprovalSettings.actions.useMcp && (
+										{server.name && autoApprovalSettings.actions.useMcp && (
 											<VSCodeCheckbox
 												checked={server.tools.every((tool) => tool.autoApprove)}
 												data-tool="all-tools"

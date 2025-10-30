@@ -19,7 +19,6 @@ export async function updateAutoApprovalSettings(controller: Controller, request
 		const settings = {
 			...currentSettings,
 			...(request.version !== undefined && { version: request.version }),
-			...(request.enabled !== undefined && { enabled: request.enabled }),
 			...(request.enableNotifications !== undefined && { enableNotifications: request.enableNotifications }),
 			actions: {
 				...currentSettings.actions,

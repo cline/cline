@@ -13,8 +13,6 @@ export function useAutoApproveActions() {
 			switch (action.id) {
 				case "enableNotifications":
 					return autoApprovalSettings.enableNotifications
-				case "enableAutoApprove":
-					return autoApprovalSettings.enabled
 				default:
 					return autoApprovalSettings.actions[action.id] ?? false
 			}
@@ -28,11 +26,6 @@ export function useAutoApproveActions() {
 			const actionId = action.id
 			const subActionId = action.subAction?.id
 
-			if (actionId === "enableAutoApprove") {
-				await updateAutoApproveEnabled(value)
-				return
-			}
-
 			if (actionId === "enableNotifications" || subActionId === "enableNotifications") {
 				await updateNotifications(action, value)
 				return
@@ -44,7 +37,6 @@ export function useAutoApproveActions() {
 			}
 
 			if (value === false && subActionId) {
-				// @ts-expect-error: TODO: See how we can fix this
 				newActions[subActionId] = false
 			}
 
@@ -52,26 +44,10 @@ export function useAutoApproveActions() {
 				newActions[action.parentActionId as keyof AutoApprovalSettings["actions"]] = true
 			}
 
-			// Check if this will result in any enabled actions
-			const willHaveEnabledActions = Object.values(newActions).some(Boolean)
-
 			await updateAutoApproveSettings({
 				...autoApprovalSettings,
 				version: (autoApprovalSettings.version ?? 1) + 1,
 				actions: newActions,
-				enabled: willHaveEnabledActions,
-			})
-		},
-		[autoApprovalSettings],
-	)
-
-	// Update auto-approve enabled state
-	const updateAutoApproveEnabled = useCallback(
-		async (checked: boolean) => {
-			await updateAutoApproveSettings({
-				...autoApprovalSettings,
-				version: (autoApprovalSettings.version ?? 1) + 1,
-				enabled: checked,
 			})
 		},
 		[autoApprovalSettings],
@@ -94,7 +70,6 @@ export function useAutoApproveActions() {
 	return {
 		isChecked,
 		updateAction,
-		updateAutoApproveEnabled,
 		updateNotifications,
 	}
 }

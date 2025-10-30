@@ -43,7 +43,6 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 					return {
 						...globalSettings,
 						...(incomingSettings.version !== undefined && { version: incomingSettings.version }),
-						...(incomingSettings.enabled !== undefined && { enabled: incomingSettings.enabled }),
 						...(incomingSettings.enableNotifications !== undefined && {
 							enableNotifications: incomingSettings.enableNotifications,
 						}),

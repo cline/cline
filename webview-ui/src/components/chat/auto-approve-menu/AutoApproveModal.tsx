@@ -97,8 +97,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 					)}
 
 					{/* All items in a single list - CSS Grid will handle the column distribution */}
-					{/* Filter out enableAutoApprove since it has a dedicated checkbox in the bar */}
-					{ACTION_METADATA.filter((action) => action.id !== "enableAutoApprove").map((action) => (
+					{ACTION_METADATA.map((action) => (
 						<AutoApproveMenuItem action={action} isChecked={isChecked} key={action.id} onToggle={updateAction} />
 					))}
 				</div>

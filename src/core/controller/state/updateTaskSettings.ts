@@ -76,7 +76,6 @@ export async function updateTaskSettings(controller: Controller, request: Update
 				const mergedSettings = {
 					...currentAutoApprovalSettings,
 					...(autoApprovalSettings.version !== undefined && { version: autoApprovalSettings.version }),
-					...(autoApprovalSettings.enabled !== undefined && { enabled: autoApprovalSettings.enabled }),
 					...(autoApprovalSettings.enableNotifications !== undefined && {
 						enableNotifications: autoApprovalSettings.enableNotifications,
 					}),

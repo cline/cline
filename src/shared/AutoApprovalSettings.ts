@@ -1,8 +1,6 @@
 export interface AutoApprovalSettings {
 	// Version for race condition prevention (incremented on every change)
 	version: number
-	// Whether auto-approval is enabled
-	enabled: boolean
 	// Individual action permissions
 	actions: {
 		readFiles: boolean // Read files and directories in the working directory
@@ -20,7 +18,6 @@ export interface AutoApprovalSettings {
 
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	version: 1,
-	enabled: true,
 	actions: {
 		readFiles: true,
 		readFilesExternally: false,

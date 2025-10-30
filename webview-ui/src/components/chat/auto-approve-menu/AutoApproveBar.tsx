@@ -1,7 +1,5 @@
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveModal from "./AutoApproveModal"
 import { ACTION_METADATA, NOTIFICATIONS_SETTING } from "./constants"
@@ -12,12 +10,9 @@ interface AutoApproveBarProps {
 
 const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 	const { autoApprovalSettings } = useExtensionState()
-	const { updateAutoApproveEnabled } = useAutoApproveActions()
 
 	const [isModalVisible, setIsModalVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
-
-	const isAutoApproveEnabled = autoApprovalSettings.enabled
 
 	const getEnabledActionsText = () => {
 		const notificationsEnabled = autoApprovalSettings.enableNotifications
@@ -65,13 +60,6 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				}}
 				ref={buttonRef}>
 				<div className="flex flex-nowrap items-center gap-1 min-w-0 flex-1">
-					<VSCodeCheckbox
-						checked={isAutoApproveEnabled}
-						onClick={async (e) => {
-							e.stopPropagation()
-							await updateAutoApproveEnabled(!isAutoApproveEnabled)
-						}}
-					/>
 					<span className="whitespace-nowrap">Auto-approve{!isModalVisible ? ":" : ""}</span>
 					{!isModalVisible && getEnabledActionsText()}
 				</div>
