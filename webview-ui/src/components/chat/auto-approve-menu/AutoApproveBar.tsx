@@ -48,16 +48,42 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 		)
 	}
 
+	const borderColor = `color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`
+	const borderGradient = `linear-gradient(to bottom, ${borderColor} 0%, transparent 50%)`
+	const bgGradient = `linear-gradient(to bottom, color-mix(in srgb, var(--vscode-sideBar-background) 96%, white) 0%, transparent 80%)`
+
 	return (
 		<div
-			className="mx-3.5 select-none overflow-y-auto break-words"
+			className="mx-3.5 select-none break-words relative"
 			style={{
-				borderTop: `0.5px solid color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`,
+				borderTop: `0.5px solid ${borderColor}`,
 				borderRadius: "4px 4px 0 0",
+				background: bgGradient,
 				...style,
 			}}>
+			{/* Left border gradient */}
 			<div
-				className="group cursor-pointer pt-4 pb-3.5 pr-1 px-3.5 flex items-center justify-between gap-2"
+				className="absolute left-0 pointer-events-none"
+				style={{
+					width: 0.5,
+					top: 3,
+					height: "100%",
+					background: borderGradient,
+				}}
+			/>
+			{/* Right border gradient */}
+			<div
+				className="absolute right-0 top-0 pointer-events-none"
+				style={{
+					width: 0.5,
+					top: 3,
+					height: "100%",
+					background: borderGradient,
+				}}
+			/>
+
+			<div
+				className="group cursor-pointer pt-4 pb-3.5 pr-2 px-3.5 flex items-center justify-between gap-0"
 				onClick={() => {
 					setIsModalVisible((prev) => !prev)
 				}}
