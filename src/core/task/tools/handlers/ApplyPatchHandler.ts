@@ -941,13 +941,18 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		message: ClineSayTool,
 		primaryFile: string,
 	): Promise<boolean> {
+		// Extract provider using the proven pattern from ReportBugHandler
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
 		const messageStr = JSON.stringify(message)
 		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, primaryFile)
 
 		if (shouldAutoApprove) {
 			await config.callbacks.say("tool", messageStr, undefined, undefined, false)
 			config.taskState.consecutiveAutoApprovedRequestsCount++
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
+			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, provider, true, true)
 			return true
 		}
 
@@ -968,7 +973,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		const approved = response === "yesButtonClicked"
 		config.taskState.didRejectTool = !approved
-		telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, approved)
+		telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, provider, false, approved)
 
 		return approved
 	}
