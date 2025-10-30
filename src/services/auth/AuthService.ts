@@ -261,7 +261,7 @@ export class AuthService {
 			telemetryService.captureAuthLoggedOut(this._provider.name, reason)
 			this._clineAuthInfo = null
 			this._authenticated = false
-			this._controller.stateManager.setSecret("clineAccountId", undefined)
+			this.destroyTokens()
 			this.sendAuthStatusUpdate()
 		} catch (error) {
 			console.error("Error signing out:", error)
@@ -293,8 +293,7 @@ export class AuthService {
 	 * This is typically called when the user logs out.
 	 */
 	async clearAuthToken(): Promise<void> {
-		this._controller.stateManager.setSecret("clineAccountId", undefined)
-		this._controller.stateManager.setSecret("cline:clineAccountId", undefined)
+		this.destroyTokens()
 	}
 
 	/**
@@ -417,5 +416,10 @@ export class AuthService {
 
 		// Update state in webviews once per unique controller
 		await Promise.all(Array.from(uniqueControllers).map((c) => c.postStateToWebview()))
+	}
+
+	private destroyTokens() {
+		this._controller.stateManager.setSecret("clineAccountId", undefined)
+		this._controller.stateManager.setSecret("cline:clineAccountId", undefined)
 	}
 }
