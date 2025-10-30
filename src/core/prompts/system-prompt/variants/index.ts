@@ -11,6 +11,7 @@ export { config as genericConfig, type GenericVariantConfig } from "./generic/co
 export { config as glmConfig, type GLMVariantConfig } from "./glm/config"
 export { config as gpt5Config, type GPT5VariantConfig } from "./gpt-5/config"
 export { config as hermesConfig, type HermesVariantConfig } from "./hermes/config"
+export { config as mistralConfig, type MistralVariantConfig } from "./mistral/config"
 export { config as NativeGPT5Config } from "./native-gpt-5/config"
 export { config as NativeGPT51Config } from "./native-gpt-5-1/config"
 export { config as nativeNextGenConfig, type NativeNextGenVariantConfig } from "./native-next-gen/config"
@@ -23,6 +24,7 @@ import { config as genericConfig } from "./generic/config"
 import { config as glmConfig } from "./glm/config"
 import { config as gpt5Config } from "./gpt-5/config"
 import { config as hermesConfig } from "./hermes/config"
+import { config as mistralConfig } from "./mistral/config"
 import { config as NativeGPT5Config } from "./native-gpt-5/config"
 import { config as NativeGPT51Config } from "./native-gpt-5-1/config"
 import { config as NativeNextGenVariantConfig } from "./native-next-gen/config"
@@ -65,6 +67,10 @@ export const VARIANT_CONFIGS = {
 	 * Configured for advanced agentic coding capabilities
 	 */
 	[ModelFamily.HERMES]: hermesConfig,
+	 /*** Mistral variant - Optimized for Mistral model family
+	 * Configured for advanced agentic coding capabilities
+	 */
+	[ModelFamily.MISTRAL]: mistralConfig,
 	/**
 	 * Next-gen variant - Advanced models with enhanced capabilities
 	 * Includes additional features like feedback loops and web fetching

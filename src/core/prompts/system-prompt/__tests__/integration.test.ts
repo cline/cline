@@ -214,6 +214,11 @@ describe("Prompt System Integration Tests", () => {
 			modelGroup: ModelFamily.HERMES,
 			modelIds: ["hermes-4"],
 			providerId: "test",
+		},
+		{
+			modelGroup: ModelFamily.MISTRAL,
+			modelIds: ["mistral-large-latest"],
+			providerId: "mistral",
 			contextVariations,
 		},
 		{
