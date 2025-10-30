@@ -389,6 +389,38 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</p>
 						</div>
 					)}
+					<div style={{ marginTop: 10 }}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="flex items-center gap-2">
+									<VSCodeCheckbox
+										checked={yoloModeToggled}
+										disabled={remoteConfigSettings?.yoloModeToggled !== undefined}
+										onChange={(e: any) => {
+											const checked = e.target.checked === true
+											updateSetting("yoloModeToggled", checked)
+										}}>
+										Enable YOLO Mode
+									</VSCodeCheckbox>
+									{remoteConfigSettings?.yoloModeToggled !== undefined && (
+										<i className="codicon codicon-lock text-description text-sm" />
+									)}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent
+								className="max-w-xs"
+								hidden={remoteConfigSettings?.yoloModeToggled === undefined}
+								side="top">
+								This setting is managed by your organization's remote configuration
+							</TooltipContent>
+						</Tooltip>
+
+						<p className="text-xs text-(--vscode-errorForeground)">
+							This mode disables safety checks and user confirmations. Cline will automatically approve all actions
+							without asking. This special mode does not use plan mode or ask questions, and it is recommended to
+							enable all auto-approve actions instead.
+						</p>
+					</div>
 				</div>
 			</Section>
 		</div>

@@ -1,28 +1,40 @@
+import { StringRequest } from "@shared/proto/cline/common"
 import { useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { UiServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveModal from "./AutoApproveModal"
-import { ACTION_METADATA, YOLO_MODE_SETTING } from "./constants"
+import { ACTION_METADATA } from "./constants"
 
 interface AutoApproveBarProps {
 	style?: React.CSSProperties
 }
 
 const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
-	const { autoApprovalSettings, yoloModeToggled } = useExtensionState()
+	const { autoApprovalSettings, yoloModeToggled, navigateToSettings } = useExtensionState()
 
 	const [isModalVisible, setIsModalVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
+
+	const handleNavigateToFeatures = async (e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+
+		navigateToSettings()
+
+		setTimeout(async () => {
+			try {
+				await UiServiceClient.scrollToSettings(StringRequest.create({ value: "features" }))
+			} catch (error) {
+				console.error("Error scrolling to features settings:", error)
+			}
+		}, 300)
+	}
 
 	const getEnabledActionsText = () => {
 		const baseClasses = isModalVisible
 			? "text-foreground truncate"
 			: "text-muted-foreground group-hover:text-foreground truncate"
-
-		// If YOLO mode is enabled, show that instead
-		if (yoloModeToggled) {
-			return <span className={baseClasses}>YOLO</span>
-		}
 		const enabledActionsNames = Object.keys(autoApprovalSettings.actions).filter(
 			(key) => autoApprovalSettings.actions[key as keyof typeof autoApprovalSettings.actions],
 		)
@@ -63,6 +75,53 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 	const borderColor = `color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`
 	const borderGradient = `linear-gradient(to bottom, ${borderColor} 0%, transparent 50%)`
 	const bgGradient = `linear-gradient(to bottom, color-mix(in srgb, var(--vscode-sideBar-background) 96%, white) 0%, transparent 80%)`
+
+	// If YOLO mode is enabled, show disabled message
+	if (yoloModeToggled) {
+		return (
+			<div
+				className="mx-3.5 select-none break-words relative"
+				style={{
+					borderTop: `0.5px solid ${borderColor}`,
+					borderRadius: "4px 4px 0 0",
+					background: bgGradient,
+					opacity: 0.5,
+					...style,
+				}}>
+				{/* Left border gradient */}
+				<div
+					className="absolute left-0 pointer-events-none"
+					style={{
+						width: 0.5,
+						top: 3,
+						height: "100%",
+						background: borderGradient,
+					}}
+				/>
+				{/* Right border gradient */}
+				<div
+					className="absolute right-0 top-0 pointer-events-none"
+					style={{
+						width: 0.5,
+						top: 3,
+						height: "100%",
+						background: borderGradient,
+					}}
+				/>
+
+				<div className="pt-4 pb-3.5 px-3.5">
+					<div className="text-sm mb-1">Auto-approve: YOLO</div>
+					<div className="text-muted-foreground text-xs">
+						YOLO mode is enabled.{" "}
+						<span className="underline cursor-pointer hover:text-foreground" onClick={handleNavigateToFeatures}>
+							Disable it in Settings
+						</span>
+						.
+					</div>
+				</div>
+			</div>
+		)
+	}
 
 	return (
 		<div
@@ -116,7 +175,6 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				buttonRef={buttonRef}
 				isVisible={isModalVisible}
 				setIsVisible={setIsModalVisible}
-				YOLO_MODE_SETTING={YOLO_MODE_SETTING}
 			/>
 		</div>
 	)
