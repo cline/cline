@@ -51,17 +51,42 @@ func setTempClineDir(t *testing.T) string {
 	return clineDir
 }
 
+// setTempClineDirWithManualCleanup creates a temp CLINE_DIR and registers
+// a cleanup handler that attempts to remove the directory tree but ignores
+// errors. This is useful for tests that create git checkpoints or other
+// async file operations that may not complete before test cleanup.
+func setTempClineDirWithManualCleanup(t *testing.T) string {
+	t.Helper()
+	// Create temp dir but don't use t.TempDir() to avoid automatic cleanup
+	dir, err := os.MkdirTemp("", "cline-test-*")
+	if err != nil {
+		t.Fatalf("create temp dir: %v", err)
+	}
+
+	clineDir := filepath.Join(dir, ".cline")
+	if err := os.MkdirAll(clineDir, 0o755); err != nil {
+		t.Fatalf("mkdir clineDir: %v", err)
+	}
+	t.Setenv("CLINE_DIR", clineDir)
+
+	// Register cleanup that attempts removal but ignores errors
+	t.Cleanup(func() {
+		// Give async operations time to complete
+		time.Sleep(100 * time.Millisecond)
+
+		// Attempt to remove, but don't fail if it errors
+		// (git checkpoints may still have open file handles)
+		_ = os.RemoveAll(dir)
+	})
+
+	return clineDir
+}
+
 func runCLI(ctx context.Context, t *testing.T, args ...string) (string, string, int) {
 	t.Helper()
 	bin := repoAwareBinPath(t)
 
-	// Ensure CLI uses the same CLINE_DIR as the tests by passing --config=<CLINE_DIR>
-	// (InitializeGlobalConfig uses ConfigPath as the base directory for registry.)
-	if clineDir := os.Getenv("CLINE_DIR"); clineDir != "" && !contains(args, "--config") {
-		// Prepend persistent flag so Cobra sees it regardless of subcommand position
-		args = append([]string{"--config", clineDir}, args...)
-	}
-
+	// CLI uses CLINE_DIR environment variable which is already set by setTempClineDir
 	cmd := exec.CommandContext(ctx, bin, args...)
 	// Run CLI from repo root so relative paths inside CLI (./cli/bin/...) resolve
 	if wd, err := os.Getwd(); err == nil {
@@ -70,12 +95,23 @@ func runCLI(ctx context.Context, t *testing.T, args ...string) (string, string, 
 	}
 	// propagate env including CLINE_DIR
 	cmd.Env = os.Environ()
+
+	// Set stdin to empty reader to prevent hanging on stdin reads
+	// Without this, commands that try to read stdin (like root command with invalid args)
+	// will block forever waiting for input
+	cmd.Stdin = strings.NewReader("")
+
 	outB, errB := &strings.Builder{}, &strings.Builder{}
 	cmd.Stdout = outB
 	cmd.Stderr = errB
 	err := cmd.Run()
 	exit := 0
 	if err != nil {
+		// Check for timeout first - this should fail the test
+		if ctx.Err() == context.DeadlineExceeded {
+			t.Fatalf("Command timed out (context deadline exceeded): %v\nCommand: %s %v\nStdout: %s\nStderr: %s",
+				err, bin, args, outB.String(), errB.String())
+		}
 		// Extract exit code if possible
 		if ee, ok := err.(*exec.ExitError); ok {
 			exit = ee.ExitCode()
@@ -176,19 +212,6 @@ func waitForAddressRemoved(t *testing.T, addr string, timeout time.Duration) {
 		}
 		return true, ""
 	})
-}
-
-func findFreePort(t *testing.T) int {
-	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen 127.0.0.1:0: %v", err)
-	}
-	defer l.Close()
-	_, portStr, _ := net.SplitHostPort(l.Addr().String())
-	var port int
-	fmt.Sscanf(portStr, "%d", &port)
-	return port
 }
 
 func getClineDir(t *testing.T) string {

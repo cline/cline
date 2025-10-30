@@ -11,6 +11,7 @@ import (
 
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/spf13/cobra"
 )
 
@@ -54,9 +55,43 @@ func newLogsListCommand() *cobra.Command {
 			}
 
 			if len(logs) == 0 {
+				// Check for JSON output mode
+				if global.Config.JsonFormat() {
+					data := map[string]interface{}{
+						"logsDir": logsDir,
+						"logs":    []interface{}{},
+					}
+					return output.OutputJSONSuccess("logs list", data)
+				}
 				fmt.Println("No log files found.")
 				fmt.Printf("Log files will be created in: %s\n", logsDir)
 				return nil
+			}
+
+			// Check for JSON output mode
+			if global.Config.JsonFormat() {
+				type logData struct {
+					Filename      string `json:"filename"`
+					Size          int64  `json:"size"`
+					SizeFormatted string `json:"sizeFormatted"`
+					Created       string `json:"created"`
+					Age           string `json:"age"`
+				}
+				var jsonLogs []logData
+				for _, log := range logs {
+					jsonLogs = append(jsonLogs, logData{
+						Filename:      log.name,
+						Size:          log.size,
+						SizeFormatted: formatFileSize(log.size),
+						Created:       log.created.Format(time.RFC3339),
+						Age:           formatAge(log.created),
+					})
+				}
+				data := map[string]interface{}{
+					"logsDir": logsDir,
+					"logs":    jsonLogs,
+				}
+				return output.OutputJSONSuccess("logs list", data)
 			}
 
 			return renderLogsTable(logs, false)
@@ -95,6 +130,16 @@ func newLogsCleanCommand() *cobra.Command {
 			}
 
 			if len(toDelete) == 0 {
+				// Check for JSON output mode
+				if global.Config.JsonFormat() {
+					data := map[string]interface{}{
+						"deletedCount":  0,
+						"bytesFreed":    0,
+						"formattedSize": "0 B",
+						"dryRun":        dryRun,
+					}
+					return output.OutputJSONSuccess("logs clean", data)
+				}
 				if all {
 					fmt.Println("No log files to delete.")
 				} else {
@@ -110,6 +155,16 @@ func newLogsCleanCommand() *cobra.Command {
 			}
 
 			if dryRun {
+				// Check for JSON output mode
+				if global.Config.JsonFormat() {
+					data := map[string]interface{}{
+						"deletedCount":  len(toDelete),
+						"bytesFreed":    totalSize,
+						"formattedSize": formatFileSize(totalSize),
+						"dryRun":        true,
+					}
+					return output.OutputJSONSuccess("logs clean", data)
+				}
 				fmt.Println("The following log files will be deleted:\n")
 				if err := renderLogsTable(toDelete, true); err != nil {
 					return err
@@ -127,6 +182,17 @@ func newLogsCleanCommand() *cobra.Command {
 			count, bytesFreed, err := deleteLogFiles(toDelete)
 			if err != nil {
 				return fmt.Errorf("failed to delete log files: %w", err)
+			}
+
+			// Check for JSON output mode
+			if global.Config.JsonFormat() {
+				data := map[string]interface{}{
+					"deletedCount":  count,
+					"bytesFreed":    bytesFreed,
+					"formattedSize": formatFileSize(bytesFreed),
+					"dryRun":        false,
+				}
+				return output.OutputJSONSuccess("logs clean", data)
 			}
 
 			fileWord := "files"
@@ -156,6 +222,15 @@ func newLogsPathCommand() *cobra.Command {
 			}
 
 			logsDir := filepath.Join(global.Config.ConfigPath, "logs")
+
+			// Check for JSON output mode
+			if global.Config.JsonFormat() {
+				data := map[string]interface{}{
+					"path": logsDir,
+				}
+				return output.OutputJSONSuccess("logs path", data)
+			}
+
 			fmt.Println(logsDir)
 			return nil
 		},
@@ -321,7 +396,7 @@ func renderLogsTable(logs []logFileInfo, markForDeletion bool) error {
 	}
 
 	// Check output format
-	if global.Config.OutputFormat == "plain" {
+	if global.Config.PlainFormat() {
 		// Use tabwriter for plain output
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(w, "FILENAME\tSIZE\tCREATED\tAGE")

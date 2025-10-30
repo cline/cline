@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/common"
 	client2 "github.com/cline/grpc-go/client"
 	"github.com/cline/grpc-go/cline"
@@ -102,7 +104,22 @@ func newInstanceKillCommand() *cobra.Command {
 			if killAllCLI {
 				return killAllCLIInstances(ctx, registry)
 			} else {
-				return global.KillInstanceByAddress(ctx, registry, args[0])
+				address := args[0]
+				if err := global.KillInstanceByAddress(ctx, registry, address); err != nil {
+					return err
+				}
+
+				// Output success in JSON or plain text
+				if global.Config.JsonFormat() {
+					data := map[string]interface{}{
+						"killedCount": 1,
+						"addresses":   []string{address},
+					}
+					return output.OutputJSONSuccess("instance kill", data)
+				}
+
+				fmt.Printf("Successfully killed instance at %s\n", address)
+				return nil
 			}
 		},
 	}
@@ -120,6 +137,16 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 	}
 
 	if len(instances) == 0 {
+		if global.Config.JsonFormat() {
+			data := map[string]interface{}{
+				"killedCount":      0,
+				"alreadyDeadCount": 0,
+				"failedCount":      0,
+				"skippedCount":     0,
+				"addresses":        []string{},
+			}
+			return output.OutputJSONSuccess("instance kill", data)
+		}
 		fmt.Println("No Cline instances found to kill.")
 		return nil
 	}
@@ -127,6 +154,7 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 	// Filter to only CLI instances
 	var cliInstances []*common.CoreInstanceInfo
 	var skippedNonCLI int
+	var skippedAddresses []string
 	for _, instance := range instances {
 		if instance.Status == grpc_health_v1.HealthCheckResponse_SERVING {
 			platform, err := detectInstancePlatform(ctx, instance)
@@ -135,13 +163,28 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 					cliInstances = append(cliInstances, instance)
 				} else {
 					skippedNonCLI++
-					fmt.Printf("⊘ Skipping %s instance: %s\n", platform, instance.Address)
+					skippedAddresses = append(skippedAddresses, instance.Address)
+					if !global.Config.JsonFormat() {
+						fmt.Printf("⊘ Skipping %s instance: %s\n", platform, instance.Address)
+					}
 				}
 			}
 		}
 	}
 
 	if len(cliInstances) == 0 {
+		if global.Config.JsonFormat() {
+			data := map[string]interface{}{
+				"killedCount":      0,
+				"alreadyDeadCount": 0,
+				"failedCount":      0,
+				"skippedCount":     skippedNonCLI,
+				"addresses":        []string{},
+				"skippedAddresses": skippedAddresses,
+			}
+			return output.OutputJSONSuccess("instance kill", data)
+		}
+
 		if skippedNonCLI > 0 {
 			fmt.Printf("No CLI instances to kill. Skipped %d JetBrains instance(s).\n", skippedNonCLI)
 		} else {
@@ -150,32 +193,45 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 		return nil
 	}
 
-	fmt.Printf("Killing %d CLI instance(s)...\n", len(cliInstances))
-	if skippedNonCLI > 0 {
-		fmt.Printf("Skipping %d JetBrains instance(s).\n", skippedNonCLI)
+	if !global.Config.JsonFormat() {
+		fmt.Printf("Killing %d CLI instance(s)...\n", len(cliInstances))
+		if skippedNonCLI > 0 {
+			fmt.Printf("Skipping %d JetBrains instance(s).\n", skippedNonCLI)
+		}
 	}
 
 	var killResults []killResult
 	killedAddresses := make(map[string]bool)
+	var killedAddressList []string
 
 	// Kill all CLI instances
 	for _, instance := range cliInstances {
 		result := killInstanceProcess(ctx, registry, instance.Address)
 		killResults = append(killResults, result)
 
-		if result.err != nil {
-			fmt.Printf("✗ Failed to kill %s: %v\n", instance.Address, result.err)
-		} else if result.alreadyDead {
-			fmt.Printf("⚠ Instance %s appears to be already dead\n", instance.Address)
+		if !global.Config.JsonFormat() {
+			if result.err != nil {
+				fmt.Printf("✗ Failed to kill %s: %v\n", instance.Address, result.err)
+			} else if result.alreadyDead {
+				fmt.Printf("⚠ Instance %s appears to be already dead\n", instance.Address)
+			} else {
+				fmt.Printf("✓ Killed %s (PID %d)\n", instance.Address, result.pid)
+				killedAddresses[instance.Address] = true
+				killedAddressList = append(killedAddressList, instance.Address)
+			}
 		} else {
-			fmt.Printf("✓ Killed %s (PID %d)\n", instance.Address, result.pid)
-			killedAddresses[instance.Address] = true
+			if !result.alreadyDead && result.err == nil {
+				killedAddresses[instance.Address] = true
+				killedAddressList = append(killedAddressList, instance.Address)
+			}
 		}
 	}
 
 	// Wait for killed instances to clean up their registry entries
 	if len(killedAddresses) > 0 {
-		fmt.Printf("Waiting for instances to clean up registry entries...\n")
+		if !global.Config.JsonFormat() {
+			fmt.Printf("Waiting for instances to clean up registry entries...\n")
+		}
 
 		maxWaitTime := 10 // seconds
 		for i := 0; i < maxWaitTime; i++ {
@@ -183,7 +239,9 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 
 			remainingInstances, err := registry.ListInstancesCleaned(ctx)
 			if err != nil {
-				fmt.Printf("Warning: failed to check registry status: %v\n", err)
+				if !global.Config.JsonFormat() {
+					fmt.Printf("Warning: failed to check registry status: %v\n", err)
+				}
 				continue
 			}
 
@@ -196,11 +254,13 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 			}
 
 			if len(stillPresent) == 0 {
-				fmt.Printf("✓ All killed instances successfully removed from registry.\n")
+				if !global.Config.JsonFormat() {
+					fmt.Printf("✓ All killed instances successfully removed from registry.\n")
+				}
 				break
 			}
 
-			if i == maxWaitTime-1 {
+			if i == maxWaitTime-1 && !global.Config.JsonFormat() {
 				fmt.Printf("⚠ %d killed instance(s) still in registry after %d seconds\n", len(stillPresent), maxWaitTime)
 				for _, addr := range stillPresent {
 					fmt.Printf("  - %s\n", addr)
@@ -209,7 +269,7 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 		}
 	}
 
-	// Print summary
+	// Count results
 	successful := 0
 	failed := 0
 	alreadyDead := 0
@@ -224,6 +284,25 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 		}
 	}
 
+	// Output results
+	if global.Config.JsonFormat() {
+		data := map[string]interface{}{
+			"killedCount":      successful,
+			"alreadyDeadCount": alreadyDead,
+			"failedCount":      failed,
+			"skippedCount":     skippedNonCLI,
+			"addresses":        killedAddressList,
+		}
+		if len(skippedAddresses) > 0 {
+			data["skippedAddresses"] = skippedAddresses
+		}
+		if failed > 0 {
+			return fmt.Errorf("failed to kill %d out of %d instances", failed, len(cliInstances))
+		}
+		return output.OutputJSONSuccess("instance kill", data)
+	}
+
+	// Plain text summary
 	fmt.Printf("\nSummary: ")
 	if successful > 0 {
 		fmt.Printf("Successfully killed %d instances. ", successful)
@@ -233,7 +312,7 @@ func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) e
 	}
 	if failed > 0 {
 		fmt.Printf("%d failures.", failed)
-		return fmt.Errorf("failed to kill %d out of %d instances", failed, len(instances))
+		return fmt.Errorf("failed to kill %d out of %d instances", failed, len(cliInstances))
 	}
 	fmt.Println()
 
@@ -291,33 +370,34 @@ func newInstanceListCommand() *cobra.Command {
 			defaultInstance := registry.GetDefaultInstance()
 
 			if len(instances) == 0 {
+				if global.Config.JsonFormat() {
+					data := map[string]interface{}{
+						"defaultInstance": defaultInstance,
+						"instances":       []interface{}{},
+					}
+					return output.OutputJSONSuccess("instance list", data)
+				}
 				fmt.Println("No Cline instances found.")
 				fmt.Println("Run 'cline instance new' to start a new instance, or 'cline task new \"...\"' to auto-start one.")
 				return nil
 			}
 
 			// Build instance data
-			type instanceRow struct {
-				address   string
-				status    string
-				version   string
-				lastSeen  string
-				pid       string
-				platform  string
-				isDefault string
+			type instanceData struct {
+				Address   string `json:"address"`
+				Status    string `json:"status"`
+				Version   string `json:"version"`
+				LastSeen  string `json:"lastSeen"`
+				PID       string `json:"pid"`
+				Platform  string `json:"platform"`
+				IsDefault bool   `json:"isDefault"`
 			}
 
-			var rows []instanceRow
+			var instanceList []instanceData
 			for _, instance := range instances {
-				isDefault := ""
-				if instance.Address == defaultInstance {
-					isDefault = "✓"
-				}
+				isDefaultBool := instance.Address == defaultInstance
 
-				lastSeen := instance.LastSeen.Format("15:04:05")
-				if time.Since(instance.LastSeen) > 24*time.Hour {
-					lastSeen = instance.LastSeen.Format("2006-01-02")
-				}
+				lastSeen := instance.LastSeen.Format(time.RFC3339)
 
 				// Get PID and platform via RPC if instance is healthy
 				pid := platformNA
@@ -340,32 +420,52 @@ func newInstanceListCommand() *cobra.Command {
 					}
 				}
 
-				rows = append(rows, instanceRow{
-					address:   instance.Address,
-					status:    instance.Status.String(),
-					version:   instance.Version,
-					lastSeen:  lastSeen,
-					pid:       pid,
-					platform:  platform,
-					isDefault: isDefault,
+				instanceList = append(instanceList, instanceData{
+					Address:   instance.Address,
+					Status:    instance.Status.String(),
+					Version:   instance.Version,
+					LastSeen:  lastSeen,
+					PID:       pid,
+					Platform:  platform,
+					IsDefault: isDefaultBool,
 				})
 			}
 
-			// Check output format
-			if global.Config.OutputFormat == "plain" {
+			// Check for JSON output mode first
+			if global.Config.JsonFormat() {
+				data := map[string]interface{}{
+					"defaultInstance": defaultInstance,
+					"instances":       instanceList,
+				}
+				return output.OutputJSONSuccess("instance list", data)
+			}
+
+			// Check output format for plain/rich
+			if global.Config.PlainFormat() {
 				// Use tabwriter for plain output
 				w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 				fmt.Fprintln(w, "ADDRESS\tSTATUS\tVERSION\tLAST SEEN\tPID\tPLATFORM\tDEFAULT")
 
-				for _, row := range rows {
+				for _, inst := range instanceList {
+					isDefaultStr := ""
+					if inst.IsDefault {
+						isDefaultStr = "✓"
+					}
+					// Format lastSeen for display
+					lastSeenTime, _ := time.Parse(time.RFC3339, inst.LastSeen)
+					lastSeenDisplay := lastSeenTime.Format("15:04:05")
+					if time.Since(lastSeenTime) > 24*time.Hour {
+						lastSeenDisplay = lastSeenTime.Format("2006-01-02")
+					}
+
 					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-						row.address,
-						row.status,
-						row.version,
-						row.lastSeen,
-						row.pid,
-						row.platform,
-						row.isDefault,
+						inst.Address,
+						inst.Status,
+						inst.Version,
+						lastSeenDisplay,
+						inst.PID,
+						inst.Platform,
+						isDefaultStr,
 					)
 				}
 
@@ -376,15 +476,26 @@ func newInstanceListCommand() *cobra.Command {
 				markdown.WriteString("| **ADDRESS (ID)** | **STATUS** | **VERSION** | **LAST SEEN** | **PID** | **PLATFORM** | **DEFAULT** |\n")
 				markdown.WriteString("|---------|--------|---------|-----------|-----|----------|---------|")
 
-				for _, row := range rows {
+				for _, inst := range instanceList {
+					isDefaultStr := ""
+					if inst.IsDefault {
+						isDefaultStr = "✓"
+					}
+					// Format lastSeen for display
+					lastSeenTime, _ := time.Parse(time.RFC3339, inst.LastSeen)
+					lastSeenDisplay := lastSeenTime.Format("15:04:05")
+					if time.Since(lastSeenTime) > 24*time.Hour {
+						lastSeenDisplay = lastSeenTime.Format("2006-01-02")
+					}
+
 					markdown.WriteString(fmt.Sprintf("\n| %s | %s | %s | %s | %s | %s | %s |",
-						row.address,
-						row.status,
-						row.version,
-						row.lastSeen,
-						row.pid,
-						row.platform,
-						row.isDefault,
+						inst.Address,
+						inst.Status,
+						inst.Version,
+						lastSeenDisplay,
+						inst.PID,
+						inst.Platform,
+						isDefaultStr,
 					))
 				}
 
@@ -445,6 +556,14 @@ func newInstanceDefaultCommand() *cobra.Command {
 				return fmt.Errorf("failed to set default instance: %w", err)
 			}
 
+			// Output success in JSON or plain text
+			if global.Config.JsonFormat() {
+				data := map[string]interface{}{
+					"defaultInstance": address,
+				}
+				return output.OutputJSONSuccess("instance default", data)
+			}
+
 			fmt.Printf("Switched to instance: %s\n", address)
 			return nil
 		},
@@ -468,32 +587,67 @@ func newInstanceNewCommand() *cobra.Command {
 				return fmt.Errorf("clients not initialized")
 			}
 
-			fmt.Println("Starting new Cline instance...")
+			// Output starting message
+			if global.Config.Verbose {
+				global.VerboseLog("instance new", "Starting new Cline instance...")
+			} else if !global.Config.JsonFormat() {
+				fmt.Println("Starting new Cline instance...")
+			}
 
 			instance, err := global.Clients.StartNewInstance(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to start instance: %w", err)
 			}
 
+			registry := global.Clients.GetRegistry()
+
+			// If --default flag provided, set this instance as the default
+			if setDefault {
+				if global.Config.Verbose {
+					global.VerboseLog("instance new", "Setting as default instance...")
+				}
+				if err := registry.SetDefaultInstance(instance.Address); err != nil {
+					// Output warning in appropriate format
+					if global.Config.JsonFormat() {
+						statusMsg := map[string]interface{}{
+							"type":    "status",
+							"message": fmt.Sprintf("Warning: Failed to set as default: %v", err),
+						}
+						if jsonBytes, err := json.MarshalIndent(statusMsg, "", "  "); err == nil {
+							fmt.Println(string(jsonBytes))
+						}
+					} else {
+						fmt.Printf("Warning: Failed to set as default: %v\n", err)
+					}
+				} else if global.Config.Verbose {
+					global.VerboseLog("instance new", fmt.Sprintf("Set %s as default instance", instance.Address))
+				}
+			}
+
+			// Check if this is the default instance
+			isDefault := registry.GetDefaultInstance() == instance.Address
+
+			// Check for JSON output mode
+			if global.Config.JsonFormat() {
+				data := map[string]interface{}{
+					"address":   instance.Address,
+					"corePort":  instance.CorePort(),
+					"hostPort":  instance.HostPort(),
+					"isDefault": isDefault,
+				}
+				return output.OutputJSONSuccess("instance new", data)
+			}
+
+			// Existing rich/plain output
 			fmt.Printf("Successfully started new instance:\n")
 			fmt.Printf("  Address: %s\n", instance.Address)
 			fmt.Printf("  Core Port: %d\n", instance.CorePort())
 			fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
 
-			registry := global.Clients.GetRegistry()
-
-			// If --default flag provided, set this instance as the default
 			if setDefault {
-				if err := registry.SetDefaultInstance(instance.Address); err != nil {
-					fmt.Printf("Warning: Failed to set as default: %v\n", err)
-				} else {
-					fmt.Printf("  Status: Set as default instance\n")
-				}
-			} else {
-				// Otherwise, check if EnsureDefaultInstance already set it as default
-				if registry.GetDefaultInstance() == instance.Address {
-					fmt.Printf("  Status: Default instance\n")
-				}
+				fmt.Printf("  Status: Set as default instance\n")
+			} else if isDefault {
+				fmt.Printf("  Status: Default instance\n")
 			}
 
 			return nil
