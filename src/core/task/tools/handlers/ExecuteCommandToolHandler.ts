@@ -9,7 +9,7 @@ import { fixModelHtmlEscaping } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -153,16 +153,12 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			// Auto-approve flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
 			await config.callbacks.say("command", actualCommand, undefined, undefined, false)
-			if (!config.yoloModeToggled) {
-				config.taskState.consecutiveAutoApprovedRequestsCount++
-			}
 			didAutoApprove = true
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
 		} else {
 			// Manual approval flow
-			showNotificationForApprovalIfAutoApprovalEnabled(
+			showNotificationForApproval(
 				`Cline wants to execute a command: ${actualCommand}`,
-				config.autoApprovalSettings.enabled,
 				config.autoApprovalSettings.enableNotifications,
 			)
 

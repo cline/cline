@@ -416,8 +416,9 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</Tooltip>
 
 						<p className="text-xs text-(--vscode-errorForeground)">
-							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
-							automatically approve all actions without asking. Use with extreme caution.
+							This mode disables safety checks and user confirmations. Cline will automatically approve all actions
+							without asking. This special mode does not use plan mode or ask questions, and it is recommended to
+							enable all auto-approve actions instead.
 						</p>
 					</div>
 				</div>
