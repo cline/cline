@@ -27,6 +27,8 @@ import { fixWithCline } from "./core/controller/commands/fixWithCline"
 import { improveWithCline } from "./core/controller/commands/improveWithCline"
 import { sendAddToInputEvent } from "./core/controller/ui/subscribeToAddToInput"
 import { sendFocusChatInputEvent } from "./core/controller/ui/subscribeToFocusChatInput"
+import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
+import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMessage } from "./hosts/vscode/commit-message-generator"
@@ -54,7 +56,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	setupHostProvider(context)
 
 	// Initialize hook discovery cache for performance optimization
-	const { HookDiscoveryCache } = await import("./core/hooks/HookDiscoveryCache")
 	HookDiscoveryCache.getInstance().initialize(context, (dir: string) => {
 		try {
 			const pattern = new vscode.RelativePattern(dir, "*")
@@ -465,11 +466,9 @@ export async function deactivate() {
 	cleanupTestMode()
 
 	// Kill any running hook processes to prevent zombies
-	const { HookProcessRegistry } = await import("./core/hooks/HookProcessRegistry")
 	await HookProcessRegistry.terminateAll()
 
 	// Clean up hook discovery cache
-	const { HookDiscoveryCache } = await import("./core/hooks/HookDiscoveryCache")
 	HookDiscoveryCache.getInstance().dispose()
 
 	Logger.log("Cline extension deactivated")
