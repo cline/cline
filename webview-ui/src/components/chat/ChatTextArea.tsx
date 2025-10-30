@@ -102,21 +102,6 @@ interface GitCommit {
 const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
 const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
 
-const SwitchContainer = styled.div<{ disabled: boolean }>`
-	display: flex;
-	align-items: center;
-	background-color: transparent;
-	border: 1px solid var(--vscode-input-border);
-	border-radius: 12px;
-	overflow: hidden;
-	cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
-	opacity: ${(props) => (props.disabled ? 0.5 : 1)};
-	transform: scale(1);
-	transform-origin: right center;
-	margin-left: 0;
-	user-select: none; // Prevent text selection
-`
-
 const Slider = styled.div.withConfig({
 	shouldForwardProp: (prop) => !["isAct", "isPlan"].includes(prop),
 })<{ isAct: boolean; isPlan?: boolean }>`
@@ -1776,7 +1761,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</p>
 						</TooltipContent>
 						<TooltipTrigger>
-							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+							<div
+								className="flex items-center bg-transparent border border-input-border rounded-lg overflow-hidden cursor-pointer select-none ml-0 transition-transform duration-75 ease-in-out user-select-none"
+								data-testid="mode-switch"
+								onClick={onModeToggle}>
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 								{["Plan", "Act"].map((m) => (
 									<div
@@ -1791,7 +1779,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										{m}
 									</div>
 								))}
-							</SwitchContainer>
+							</div>
 						</TooltipTrigger>
 					</Tooltip>
 				</div>
