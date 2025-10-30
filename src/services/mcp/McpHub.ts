@@ -101,12 +101,12 @@ export class McpHub {
 		const cleanedName = server.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()
 
 		// 6 characters from hex hash = ~24 bits of entropy
-		const key = crypto.createHash("sha256").update(cleanedName).digest("hex").slice(0, 6)
+		let key = crypto.createHash("sha256").update(cleanedName).digest("hex").slice(0, 6)
 
 		const stored = McpHub.mcpServerKeys.get(key)
 		if (stored && stored !== server) {
-			// Use 8 chars on collision
-			return crypto.createHash("sha256").update(cleanedName).digest("hex").slice(0, 8)
+			// Use 8 chars on collision - assumes very rare collisions
+			key = crypto.createHash("sha256").update(cleanedName).digest("hex").slice(0, 8)
 		}
 
 		McpHub.mcpServerKeys.set(key, server)
