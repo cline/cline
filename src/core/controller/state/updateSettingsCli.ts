@@ -91,8 +91,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 					...(autoApprovalSettings.enableNotifications !== undefined && {
 						enableNotifications: autoApprovalSettings.enableNotifications,
 					}),
-					...(autoApprovalSettings.favorites &&
-						autoApprovalSettings.favorites.length > 0 && { favorites: autoApprovalSettings.favorites }),
 					actions: {
 						...currentAutoApprovalSettings.actions,
 						...(autoApprovalSettings.actions

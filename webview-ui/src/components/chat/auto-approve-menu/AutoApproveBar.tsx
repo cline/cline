@@ -1,10 +1,8 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useMemo, useRef, useState } from "react"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
-import AutoApproveMenuItem from "./AutoApproveMenuItem"
 import AutoApproveModal from "./AutoApproveModal"
 import { ACTION_METADATA, NOTIFICATIONS_SETTING } from "./constants"
 
@@ -14,36 +12,14 @@ interface AutoApproveBarProps {
 
 const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 	const { autoApprovalSettings } = useExtensionState()
-	const { isChecked, isFavorited, updateAction, updateAutoApproveEnabled } = useAutoApproveActions()
+	const { updateAutoApproveEnabled } = useAutoApproveActions()
 
 	const [isModalVisible, setIsModalVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 
-	const favorites = useMemo(() => autoApprovalSettings.favorites || [], [autoApprovalSettings.favorites])
 	const isAutoApproveEnabled = autoApprovalSettings.enabled
 
-	// Render a favorited item with a checkbox
-	const renderFavoritedItem = (favId: string) => {
-		const actions = [...ACTION_METADATA.flatMap((a) => [a, a.subAction]), NOTIFICATIONS_SETTING]
-		const action = actions.find((a) => a?.id === favId)
-		// Skip rendering the enableAutoApprove action as it now has a dedicated checkbox
-		if (!action || action.id === "enableAutoApprove") {
-			return null
-		}
-
-		return (
-			<AutoApproveMenuItem
-				action={action}
-				condensed={true}
-				isChecked={isChecked}
-				isFavorited={isFavorited}
-				onToggle={updateAction}
-				showIcon={false}
-			/>
-		)
-	}
-
-	const getQuickAccessItems = () => {
+	const getEnabledActionsText = () => {
 		const notificationsEnabled = autoApprovalSettings.enableNotifications
 		const enabledActionsNames = Object.keys(autoApprovalSettings.actions).filter(
 			(key) => autoApprovalSettings.actions[key as keyof typeof autoApprovalSettings.actions],
@@ -52,49 +28,43 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 			return ACTION_METADATA.flatMap((a) => [a, a.subAction]).find((a) => a?.id === action)
 		})
 
-		const minusFavorites = enabledActions.filter((action) => !favorites.includes(action?.id ?? "") && action?.shortName)
+		const actionsWithShortNames = enabledActions.filter((action) => action?.shortName)
 
 		if (notificationsEnabled) {
-			minusFavorites.push(NOTIFICATIONS_SETTING)
+			actionsWithShortNames.push(NOTIFICATIONS_SETTING)
 		}
 
-		return [
-			...favorites.map((favId) => renderFavoritedItem(favId)),
-			minusFavorites.length > 0 ? (
-				<span className="text-muted opacity-60" key="separator">
-					✓
-				</span>
-			) : null,
-			...minusFavorites.map((action, index) => (
-				<span className="text-muted opacity-60" key={action?.id}>
-					{action?.shortName}
-					{index < minusFavorites.length - 1 && ","}
-				</span>
-			)),
-		]
+		if (actionsWithShortNames.length === 0) {
+			return <span className="text-muted-foreground truncate">None</span>
+		}
+
+		return (
+			<span className="text-muted-foreground truncate">
+				{actionsWithShortNames.map((action, index) => (
+					<span key={action?.id}>
+						{action?.shortName}
+						{index < actionsWithShortNames.length - 1 && ", "}
+					</span>
+				))}
+			</span>
+		)
 	}
 
 	return (
 		<div
-			className="px-3.5 mx-3.5 select-none rounded-tl-sm rounded-tr-sm overflow-y-auto break-words"
+			className="mx-3.5 select-none overflow-y-auto break-words"
 			style={{
 				borderTop: `0.5px solid color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`,
-				backgroundColor: isModalVisible ? CODE_BLOCK_BG_COLOR : "transparent",
+				borderRadius: "4px 4px 0 0",
 				...style,
 			}}>
 			<div
-				className="cursor-pointer py-1 pr-1 flex items-center justify-between gap-2"
+				className="cursor-pointer py-1 pr-1 px-3.5 flex items-center justify-between gap-2"
 				onClick={() => {
 					setIsModalVisible((prev) => !prev)
 				}}
 				ref={buttonRef}>
-				<div
-					className="flex flex-nowrap items-center overflow-x-auto gap-1 whitespace-nowrap"
-					style={{
-						msOverflowStyle: "none",
-						scrollbarWidth: "none",
-						WebkitOverflowScrolling: "touch",
-					}}>
+				<div className="flex flex-nowrap items-center gap-1 min-w-0 flex-1">
 					<VSCodeCheckbox
 						checked={isAutoApproveEnabled}
 						onClick={async (e) => {
@@ -102,8 +72,8 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 							await updateAutoApproveEnabled(!isAutoApproveEnabled)
 						}}
 					/>
-					<span>Auto-approve:</span>
-					{getQuickAccessItems()}
+					<span className="whitespace-nowrap">Auto-approve{!isModalVisible ? ":" : ""}</span>
+					{!isModalVisible && getEnabledActionsText()}
 				</div>
 				{isModalVisible ? (
 					<span className="codicon codicon-chevron-down" />

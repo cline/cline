@@ -47,8 +47,6 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 						...(incomingSettings.enableNotifications !== undefined && {
 							enableNotifications: incomingSettings.enableNotifications,
 						}),
-						...(incomingSettings.favorites &&
-							incomingSettings.favorites.length > 0 && { favorites: incomingSettings.favorites }),
 						actions: {
 							...globalSettings.actions,
 							...(incomingSettings.actions

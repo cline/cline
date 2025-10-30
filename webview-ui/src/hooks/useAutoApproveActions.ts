@@ -22,36 +22,6 @@ export function useAutoApproveActions() {
 		[autoApprovalSettings],
 	)
 
-	// Check if action is favorited
-	const isFavorited = useCallback(
-		(action: ActionMetadata): boolean => {
-			const favorites = autoApprovalSettings.favorites || []
-			return favorites.includes(action.id)
-		},
-		[autoApprovalSettings.favorites],
-	)
-
-	// Toggle favorite status
-	const toggleFavorite = useCallback(
-		async (actionId: string) => {
-			const currentFavorites = autoApprovalSettings.favorites || []
-			let newFavorites: string[]
-
-			if (currentFavorites.includes(actionId)) {
-				newFavorites = currentFavorites.filter((id) => id !== actionId)
-			} else {
-				newFavorites = [...currentFavorites, actionId]
-			}
-
-			await updateAutoApproveSettings({
-				...autoApprovalSettings,
-				version: (autoApprovalSettings.version ?? 1) + 1,
-				favorites: newFavorites,
-			})
-		},
-		[autoApprovalSettings],
-	)
-
 	// Update action state
 	const updateAction = useCallback(
 		async (action: ActionMetadata, value: boolean) => {
@@ -123,8 +93,6 @@ export function useAutoApproveActions() {
 
 	return {
 		isChecked,
-		isFavorited,
-		toggleFavorite,
 		updateAction,
 		updateAutoApproveEnabled,
 		updateNotifications,

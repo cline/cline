@@ -49,7 +49,6 @@ message AutoApprovalSettings {
   bool enabled = 2;
   AutoApprovalActions actions = 3;
   bool enable_notifications = 4;
-  repeated string favorites = 5;
 }
 
 message Secrets {
@@ -285,7 +284,6 @@ message AutoApprovalSettingsRequest {
   bool enabled = 3;
   AutoApprovalActions actions = 4;
   bool enable_notifications = 5;
-  repeated string favorites = 6;
 }
 
 enum TelemetrySettingEnum {

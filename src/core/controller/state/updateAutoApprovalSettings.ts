@@ -21,7 +21,6 @@ export async function updateAutoApprovalSettings(controller: Controller, request
 			...(request.version !== undefined && { version: request.version }),
 			...(request.enabled !== undefined && { enabled: request.enabled }),
 			...(request.enableNotifications !== undefined && { enableNotifications: request.enableNotifications }),
-			...(request.favorites && request.favorites.length > 0 && { favorites: request.favorites }),
 			actions: {
 				...currentSettings.actions,
 				...(request.actions

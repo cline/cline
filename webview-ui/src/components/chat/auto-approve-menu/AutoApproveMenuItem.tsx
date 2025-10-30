@@ -8,10 +8,7 @@ import { ActionMetadata } from "./types"
 interface AutoApproveMenuItemProps {
 	action: ActionMetadata
 	isChecked: (action: ActionMetadata) => boolean
-	isFavorited?: (action: ActionMetadata) => boolean
 	onToggle: (action: ActionMetadata, checked: boolean) => Promise<void>
-	onToggleFavorite?: (actionId: string) => Promise<void>
-	condensed?: boolean
 	showIcon?: boolean
 }
 
@@ -30,17 +27,8 @@ const ActionButtonContainer = styled.div`
 	padding: 2px;
 `
 
-const AutoApproveMenuItem = ({
-	action,
-	isChecked,
-	isFavorited,
-	onToggle,
-	onToggleFavorite,
-	condensed = false,
-	showIcon = true,
-}: AutoApproveMenuItemProps) => {
+const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true }: AutoApproveMenuItemProps) => {
 	const checked = isChecked(action)
-	const favorited = isFavorited?.(action)
 
 	const onChange = async (e: Event) => {
 		e.stopPropagation()
@@ -58,41 +46,16 @@ const AutoApproveMenuItem = ({
 							onClick={(e) => onChange(e as unknown as Event)}
 							size="icon"
 							variant="icon">
-							{onToggleFavorite && !condensed && (
-								<Tooltip>
-									<TooltipContent showArrow={false}>
-										{favorited ? "Remove from quick-access menu" : "Add to quick-access menu"}
-									</TooltipContent>
-									<TooltipTrigger asChild>
-										<span
-											className={cn("p-0.5 codicon", {
-												"codicon-star-full text-(--vscode-terminal-ansiYellow)": favorited,
-												"codicon-star-empty text-description opacity-60": !favorited,
-											})}
-											onClick={async (e) => {
-												e.stopPropagation()
-												await onToggleFavorite?.(action.id)
-											}}
-										/>
-									</TooltipTrigger>
-								</Tooltip>
-							)}
 							<VSCodeCheckbox checked={checked} />
 							{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
-							<span className="label">{condensed ? action.shortName : action.label}</span>
+							<span className="label">{action.label}</span>
 						</Button>
 					</TooltipTrigger>
 				</Tooltip>
 			</ActionButtonContainer>
-			{action.subAction && !condensed && (
+			{action.subAction && (
 				<SubOptionAnimateIn show={checked}>
-					<AutoApproveMenuItem
-						action={action.subAction}
-						isChecked={isChecked}
-						isFavorited={isFavorited}
-						onToggle={onToggle}
-						onToggleFavorite={onToggleFavorite}
-					/>
+					<AutoApproveMenuItem action={action.subAction} isChecked={isChecked} onToggle={onToggle} />
 				</SubOptionAnimateIn>
 			)}
 		</div>

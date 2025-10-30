@@ -1,10 +1,5 @@
-import { XIcon } from "lucide-react"
 import React, { useEffect, useRef, useState } from "react"
-import { useClickAway, useWindowSize } from "react-use"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useClickAway } from "react-use"
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
@@ -27,14 +22,10 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 	ACTION_METADATA,
 	NOTIFICATIONS_SETTING,
 }) => {
-	const { autoApprovalSettings } = useExtensionState()
-	const { isChecked, isFavorited, toggleFavorite, updateAction } = useAutoApproveActions()
+	const { isChecked, updateAction } = useAutoApproveActions()
 
 	const modalRef = useRef<HTMLDivElement>(null)
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
-	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
-	const [arrowPosition, setArrowPosition] = useState(0)
-	const [menuPosition, setMenuPosition] = useState(0)
 	const [containerWidth, setContainerWidth] = useState(0)
 
 	useClickAway(modalRef, (e) => {
@@ -44,18 +35,6 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 		}
 		setIsVisible(false)
 	})
-
-	// Calculate positions for modal and arrow
-	useEffect(() => {
-		if (isVisible && buttonRef.current) {
-			const buttonRect = buttonRef.current.getBoundingClientRect()
-			const buttonCenter = buttonRect.left + buttonRect.width / 2
-			const rightPosition = document.documentElement.clientWidth - buttonCenter - 5
-
-			setArrowPosition(rightPosition)
-			setMenuPosition(buttonRect.top + 1)
-		}
-	}, [isVisible, viewportWidth, viewportHeight, buttonRef])
 
 	// Track container width for responsive layout
 	useEffect(() => {
@@ -88,118 +67,59 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 		return null
 	}
 
-	// Calculate safe positioning to prevent overflow while preserving original position
-	const calculateModalStyle = () => {
-		// Original positioning: bottom: calc(100vh - ${menuPosition}px + 6px)
-		const originalBottom = viewportHeight - menuPosition + 6
-
-		// Calculate the available space from the button to the top of the viewport
-		const availableSpace = viewportHeight - originalBottom
-
-		// Set a minimum top margin to prevent the modal from touching the top edge
-		const minTopMargin = 15
-
-		// Calculate the maximum height the modal can have
-		// Use the full available space minus the top margin, but also respect the original constraint
-		const maxAvailableHeight = availableSpace - minTopMargin
-		const originalMaxHeight = viewportHeight - 100
-
-		// Use the smaller of the two to ensure we don't overflow but still use full height when possible
-		let finalMaxHeight: number
-
-		if (menuPosition <= minTopMargin) {
-			// Button is very close to the top, use all available space
-			finalMaxHeight = maxAvailableHeight
-		} else {
-			// Normal case: use the original max height unless it would cause overflow
-			finalMaxHeight = Math.min(originalMaxHeight, maxAvailableHeight)
-		}
-
-		return {
-			bottom: `${originalBottom}px`,
-			maxHeight: `${Math.max(finalMaxHeight, 200)}px`, // Ensure minimum usable height
-			background: CODE_BLOCK_BG_COLOR,
-			overscrollBehavior: "contain" as const,
-		}
-	}
-
 	return (
-		<div className="overflow-hidden" ref={modalRef}>
+		<div ref={modalRef}>
+			{/* Expanded menu content - renders directly below the bar */}
 			<div
-				className="fixed left-3.5 right-3.5 border border-(--vscode-editorGroup-border) rounded z-20 flex flex-col"
-				style={calculateModalStyle()}>
+				className="overflow-y-auto pb-3 px-3.5 overscroll-contain"
+				style={{
+					maxHeight: "60vh",
+				}}>
+				<div className="mb-2.5 text-muted-foreground text-xs cursor-pointer" onClick={() => setIsVisible(false)}>
+					Automatically perform these actions without asking for approval.
+				</div>
 				<div
-					className="fixed w-3.5 h-3.5 z-0 rotate-45 border-r border-b border-(--vscode-editorGroup-border) bg-code"
+					className="relative mb-2 w-full"
+					ref={itemsContainerRef}
 					style={{
-						bottom: `calc(100vh - ${menuPosition}px)`,
-						right: arrowPosition,
+						columnCount: containerWidth > breakpoint ? 2 : 1,
+						columnGap: "4px",
+					}}>
+					{/* Vertical separator line - only visible in two-column mode */}
+					{containerWidth > breakpoint && (
+						<div
+							className="absolute left-1/2 top-0 bottom-0 opacity-20"
+							style={{
+								background: getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND),
+								transform: "translateX(-50%)", // Center the line
+							}}
+						/>
+					)}
+
+					{/* All items in a single list - CSS Grid will handle the column distribution */}
+					{/* Filter out enableAutoApprove since it has a dedicated checkbox in the bar */}
+					{ACTION_METADATA.filter((action) => action.id !== "enableAutoApprove").map((action) => (
+						<AutoApproveMenuItem action={action} isChecked={isChecked} key={action.id} onToggle={updateAction} />
+					))}
+				</div>
+
+				{/* Horizontal separator */}
+				<div
+					className="w-full h-px my-2"
+					style={{
+						backgroundColor: `color-mix(in srgb, ${getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND)} 20%, transparent)`,
 					}}
 				/>
-				{/* Scrollable content container */}
-				<div className="overflow-y-auto p-3 flex-1 min-h-0 overscroll-contain w-full">
-					<div className="flex justify-between items-center mb-3 w-full">
-						<Tooltip>
-							<TooltipContent side="top">
-								Auto-approve allows Cline to perform the following actions without asking for permission. Please
-								use with caution and only enable if you understand the risks.
-							</TooltipContent>
-							<TooltipTrigger>
-								<div className="text-md font-semibold mb-1">Auto-approve Settings</div>
-							</TooltipTrigger>
-						</Tooltip>
-						<Button onClick={() => setIsVisible(false)} size="icon" variant="icon">
-							<XIcon />
-						</Button>
-					</div>
 
-					<div className="mb-2.5">
-						<span className="text-foreground font-medium">Actions:</span>
-					</div>
+				<AutoApproveMenuItem
+					action={NOTIFICATIONS_SETTING}
+					isChecked={isChecked}
+					key={NOTIFICATIONS_SETTING.id}
+					onToggle={updateAction}
+				/>
 
-					<div
-						className="relative mb-6 w-full"
-						ref={itemsContainerRef}
-						style={{
-							columnCount: containerWidth > breakpoint ? 2 : 1,
-							columnGap: "4px",
-						}}>
-						{/* Vertical separator line - only visible in two-column mode */}
-						{containerWidth > breakpoint && (
-							<div
-								className="absolute left-1/2 top-0 bottom-0 opacity-20"
-								style={{
-									background: getAsVar(VSC_TITLEBAR_INACTIVE_FOREGROUND),
-									transform: "translateX(-50%)", // Center the line
-								}}
-							/>
-						)}
-
-						{/* All items in a single list - CSS Grid will handle the column distribution */}
-						{/* Filter out enableAutoApprove since it has a dedicated checkbox in the bar */}
-						{ACTION_METADATA.filter((action) => action.id !== "enableAutoApprove").map((action) => (
-							<AutoApproveMenuItem
-								action={action}
-								isChecked={isChecked}
-								isFavorited={isFavorited}
-								key={action.id}
-								onToggle={updateAction}
-								onToggleFavorite={toggleFavorite}
-							/>
-						))}
-					</div>
-
-					<div className="mb-2.5">
-						<span className="font-medium">Quick Settings:</span>
-					</div>
-
-					<AutoApproveMenuItem
-						action={NOTIFICATIONS_SETTING}
-						isChecked={isChecked}
-						isFavorited={isFavorited}
-						key={NOTIFICATIONS_SETTING.id}
-						onToggle={updateAction}
-						onToggleFavorite={toggleFavorite}
-					/>
+				<div className="mt-1 ml-1.5 text-muted-foreground text-xs">
+					Receive system notifications when Cline needs your approval while auto-approve is enabled.
 				</div>
 			</div>
 		</div>
