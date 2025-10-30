@@ -30,11 +30,11 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 		}
 
 		if (actionsWithShortNames.length === 0) {
-			return <span className="text-muted-foreground truncate">None</span>
+			return <span className="text-muted-foreground group-hover:text-foreground truncate">None</span>
 		}
 
 		return (
-			<span className="text-muted-foreground truncate">
+			<span className="text-muted-foreground group-hover:text-foreground truncate">
 				{actionsWithShortNames.map((action, index) => (
 					<span key={action?.id}>
 						{action?.shortName}
@@ -54,7 +54,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				...style,
 			}}>
 			<div
-				className="cursor-pointer py-1 pr-1 px-3.5 flex items-center justify-between gap-2"
+				className="group cursor-pointer pt-4 pb-3.5 pr-1 px-3.5 flex items-center justify-between gap-2"
 				onClick={() => {
 					setIsModalVisible((prev) => !prev)
 				}}
