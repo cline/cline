@@ -10,6 +10,7 @@ interface AutoApproveMenuItemProps {
 	isChecked: (action: ActionMetadata) => boolean
 	onToggle: (action: ActionMetadata, checked: boolean) => Promise<void>
 	showIcon?: boolean
+	disabled?: boolean
 }
 
 const SubOptionAnimateIn = styled.div<{ show: boolean }>`
@@ -27,16 +28,19 @@ const ActionButtonContainer = styled.div`
 	padding: 2px;
 `
 
-const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true }: AutoApproveMenuItemProps) => {
+const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true, disabled = false }: AutoApproveMenuItemProps) => {
 	const checked = isChecked(action)
 
 	const onChange = async (e: Event) => {
+		if (disabled) {
+			return
+		}
 		e.stopPropagation()
 		await onToggle(action, !checked)
 	}
 
 	const content = (
-		<div className="w-full">
+		<div className="w-full" style={{ opacity: disabled ? 0.5 : 1 }}>
 			<ActionButtonContainer className="w-full">
 				<Tooltip>
 					<TooltipContent>{action.description}</TooltipContent>
@@ -45,8 +49,9 @@ const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true }: A
 							className={cn("w-full flex text-sm items-center justify-start text-foreground gap-2")}
 							onClick={(e) => onChange(e as unknown as Event)}
 							size="icon"
+							style={{ cursor: disabled ? "not-allowed" : "pointer" }}
 							variant="icon">
-							<VSCodeCheckbox checked={checked} />
+							<VSCodeCheckbox checked={checked} disabled={disabled} />
 							{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
 							<span className="label">{action.label}</span>
 						</Button>

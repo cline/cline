@@ -70,3 +70,12 @@ export const NOTIFICATIONS_SETTING: ActionMetadata = {
 	description: "Receive system notifications when Cline requires approval to proceed or when a task is completed.",
 	icon: "codicon-bell",
 }
+
+export const YOLO_MODE_SETTING: ActionMetadata = {
+	id: "yoloModeToggled",
+	label: "Enable YOLO mode",
+	shortName: "YOLO",
+	description:
+		"Auto-approve all actions without restrictions. This special mode also automatically switches between Plan and Act mode.",
+	icon: "codicon-rocket",
+}

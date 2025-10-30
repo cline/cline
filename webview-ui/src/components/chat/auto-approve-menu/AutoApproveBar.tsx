@@ -2,19 +2,27 @@ import { useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveModal from "./AutoApproveModal"
-import { ACTION_METADATA, NOTIFICATIONS_SETTING } from "./constants"
+import { ACTION_METADATA, NOTIFICATIONS_SETTING, YOLO_MODE_SETTING } from "./constants"
 
 interface AutoApproveBarProps {
 	style?: React.CSSProperties
 }
 
 const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
-	const { autoApprovalSettings } = useExtensionState()
+	const { autoApprovalSettings, yoloModeToggled } = useExtensionState()
 
 	const [isModalVisible, setIsModalVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 
 	const getEnabledActionsText = () => {
+		const baseClasses = isModalVisible
+			? "text-foreground truncate"
+			: "text-muted-foreground group-hover:text-foreground truncate"
+
+		// If YOLO mode is enabled, show that instead
+		if (yoloModeToggled) {
+			return <span className={baseClasses}>YOLO</span>
+		}
 		const notificationsEnabled = autoApprovalSettings.enableNotifications
 		const enabledActionsNames = Object.keys(autoApprovalSettings.actions).filter(
 			(key) => autoApprovalSettings.actions[key as keyof typeof autoApprovalSettings.actions],
@@ -30,11 +38,11 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 		}
 
 		if (actionsWithShortNames.length === 0) {
-			return <span className="text-muted-foreground group-hover:text-foreground truncate">None</span>
+			return <span className={baseClasses}>None</span>
 		}
 
 		return (
-			<span className="text-muted-foreground group-hover:text-foreground truncate">
+			<span className={baseClasses}>
 				{actionsWithShortNames.map((action, index) => (
 					<span key={action?.id}>
 						{action?.shortName}
@@ -60,8 +68,8 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				}}
 				ref={buttonRef}>
 				<div className="flex flex-nowrap items-center gap-1 min-w-0 flex-1">
-					<span className="whitespace-nowrap">Auto-approve{!isModalVisible ? ":" : ""}</span>
-					{!isModalVisible && getEnabledActionsText()}
+					<span className="whitespace-nowrap">Auto-approve:</span>
+					{getEnabledActionsText()}
 				</div>
 				{isModalVisible ? (
 					<span className="codicon codicon-chevron-down" />
@@ -76,6 +84,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				isVisible={isModalVisible}
 				NOTIFICATIONS_SETTING={NOTIFICATIONS_SETTING}
 				setIsVisible={setIsModalVisible}
+				YOLO_MODE_SETTING={YOLO_MODE_SETTING}
 			/>
 		</div>
 	)
