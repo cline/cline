@@ -101,7 +101,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 					maxHeight: "60vh",
 				}}>
 				<div className="mb-2.5 text-muted-foreground text-xs cursor-pointer" onClick={() => setIsVisible(false)}>
-					Automatically perform these actions without asking for approval.{" "}
+					Let Cline take these actions without asking for approval.{" "}
 					<span
 						className="underline cursor-pointer hover:text-foreground"
 						onClick={handleNotificationsLinkClick}
@@ -138,7 +138,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({
 				</div>
 
 				{/* Horizontal separator with OR label */}
-				<div className="flex items-center gap-2 my-2">
+				<div className="flex items-center gap-2 mb-1">
 					<div
 						className="flex-1 h-px"
 						style={{
