@@ -7,6 +7,7 @@ import HomeHeader from "@/components/welcome/HomeHeader"
 import { SuggestedTasks } from "@/components/welcome/SuggestedTasks"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { isMacOSOrLinux } from "@/utils/platformUtils"
 import { WelcomeSectionProps } from "../../types/chatTypes"
 
 /**
@@ -17,7 +18,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 	showAnnouncement,
 	hideAnnouncement,
 	showHistoryView,
-	telemetrySetting,
 	version,
 	taskHistory,
 	shouldShowQuickWins,
@@ -29,7 +29,9 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 
 	// Show CLI banner if not dismissed and platform is VSCode (not JetBrains/standalone)
 	const shouldShowCliBanner =
-		PLATFORM_CONFIG.type === PlatformType.VSCODE && lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
+		isMacOSOrLinux() &&
+		PLATFORM_CONFIG.type === PlatformType.VSCODE &&
+		lastDismissedCliBannerVersion < CURRENT_CLI_BANNER_VERSION
 
 	return (
 		<div className="flex flex-col flex-1 w-full h-full p-0 m-0">

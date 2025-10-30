@@ -1,6 +1,6 @@
-import * as path from "path"
-import * as fs from "fs"
 import Database from "better-sqlite3"
+import * as fs from "fs"
+import * as path from "path"
 import { SCHEMA } from "./schema"
 
 const EVALS_DIR = path.resolve(__dirname, "../../../")
@@ -34,16 +34,15 @@ export class ResultsDatabase {
 	/**
 	 * Create a new evaluation run
 	 * @param id Run ID
-	 * @param model Model name
 	 * @param benchmark Benchmark name
 	 */
-	createRun(id: string, model: string, benchmark: string): void {
+	createRun(id: string, benchmark: string): void {
 		const stmt = this.db.prepare(`
-      INSERT INTO runs (id, timestamp, model, benchmark)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO runs (id, timestamp, benchmark)
+      VALUES (?, ?, ?)
     `)
 
-		stmt.run(id, Date.now(), model, benchmark)
+		stmt.run(id, Date.now(), benchmark)
 	}
 
 	/**

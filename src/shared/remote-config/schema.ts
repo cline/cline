@@ -81,6 +81,11 @@ const ProviderSettingsSchema = z.object({
 	Cline: ClineSettingsSchema.optional(),
 })
 
+export const AllowedMCPServerSchema = z.object({
+	// The ID of the MCP is the URL for their github repo.
+	id: z.string(),
+})
+
 export const RemoteConfigSchema = z.object({
 	// The version of the remote config settings, e.g. v1
 	// This field is for internal use only, and won't be visible to the administrator in the UI.
@@ -88,7 +93,11 @@ export const RemoteConfigSchema = z.object({
 
 	// General settings not specific to any provider
 	telemetryEnabled: z.boolean().optional(),
+
+	// MCP settings
 	mcpMarketplaceEnabled: z.boolean().optional(),
+	allowedMCPServers: z.array(AllowedMCPServerSchema).optional(),
+
 	// If the user is allowed to enable YOLO mode. Note this is different from the extension setting
 	// yoloModeEnabled, because we do not want to force YOLO enabled for the user.
 	yoloModeAllowed: z.boolean().optional(),
@@ -99,6 +108,7 @@ export const RemoteConfigSchema = z.object({
 	openTelemetryLogsExporter: z.string().optional(),
 	openTelemetryOtlpProtocol: z.string().optional(),
 	openTelemetryOtlpEndpoint: z.string().optional(),
+	openTelemetryOtlpHeaders: z.record(z.string(), z.string()).optional(),
 	openTelemetryOtlpMetricsProtocol: z.string().optional(),
 	openTelemetryOtlpMetricsEndpoint: z.string().optional(),
 	openTelemetryOtlpLogsProtocol: z.string().optional(),
@@ -117,6 +127,7 @@ export const RemoteConfigSchema = z.object({
 })
 
 // Type inference from schemas
+export type MCPServer = z.infer<typeof AllowedMCPServerSchema>
 export type OpenAiCompatibleModel = z.infer<typeof OpenAiCompatibleModelSchema>
 export type OpenAiCompatible = z.infer<typeof OpenAiCompatibleSchema>
 export type AwsBedrockModel = z.infer<typeof AwsBedrockModelSchema>

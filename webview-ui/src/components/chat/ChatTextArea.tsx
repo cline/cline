@@ -1,4 +1,3 @@
-import { cn } from "@heroui/react"
 import { PulsingBorder } from "@paper-design/shaders-react"
 import { mentionRegex, mentionRegexGlobal } from "@shared/context-mentions"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
@@ -19,12 +18,13 @@ import { CHAT_CONSTANTS } from "@/components/chat/chat-view/constants"
 import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import Thumbnails from "@/components/common/Thumbnails"
-import Tooltip from "@/components/common/Tooltip"
 import ApiOptions from "@/components/settings/ApiOptions"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { usePlatform } from "@/context/PlatformContext"
+import { cn } from "@/lib/utils"
 import { FileServiceClient, ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import {
 	ContextMenuOptionType,
@@ -101,22 +101,6 @@ interface GitCommit {
 
 const PLAN_MODE_COLOR = "var(--vscode-activityWarningBadge-background)"
 const ACT_MODE_COLOR = "var(--vscode-focusBorder)"
-
-const SwitchOption = styled.div.withConfig({
-	shouldForwardProp: (prop) => !["isActive"].includes(prop),
-})<{ isActive: boolean }>`
-	padding: 2px 8px;
-	color: ${(props) => (props.isActive ? "white" : "var(--vscode-input-foreground)")};
-	z-index: 1;
-	transition: color 0.2s ease;
-	font-size: 12px;
-	width: 50%;
-	text-align: center;
-
-	&:hover {
-		background-color: ${(props) => (!props.isActive ? "var(--vscode-toolbar-hoverBackground)" : "transparent")};
-	}
-`
 
 const SwitchContainer = styled.div<{ disabled: boolean }>`
 	display: flex;
@@ -589,13 +573,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							}
 
 							// Find the index of the next selectable option
-							const currentSelectableIndex = selectableOptions.findIndex((option) => option === options[prevIndex])
+							const currentSelectableIndex = selectableOptions.indexOf(options[prevIndex])
 
 							const newSelectableIndex =
 								(currentSelectableIndex + direction + selectableOptions.length) % selectableOptions.length
 
 							// Find the index of the selected option in the original options array
-							return options.findIndex((option) => option === selectableOptions[newSelectableIndex])
+							return options.indexOf(selectableOptions[newSelectableIndex])
 						})
 						return
 					}
@@ -1622,7 +1606,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						value={inputValue}
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
-						<div className="text-[10px] absolute bottom-5 left-5 right-16 text-[var(--vscode-input-placeholderForeground)]/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
+						<div className="text-xs absolute bottom-5 left-6.5 right-16 text-(--vscode-input-placeholderForeground)/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
 							Type @ for context, / for slash commands & workflows, hold shift to drag in files/images
 						</div>
 					)}
@@ -1708,38 +1692,47 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<div className="relative flex-1 min-w-0 h-5">
 						{/* ButtonGroup - always in DOM but visibility controlled */}
 						<ButtonGroup className="absolute top-0 left-0 right-0 ease-in-out w-full h-5 z-10 flex items-center">
-							<Tooltip style={{ left: 0 }} tipText="Add Context">
-								<VSCodeButton
-									appearance="icon"
-									aria-label="Add Context"
-									className="p-0 m-0 flex items-center"
-									data-testid="context-button"
-									onClick={handleContextButtonClick}>
-									<ButtonContainer>
-										<AtSignIcon size={12} />
-									</ButtonContainer>
-								</VSCodeButton>
+							<Tooltip>
+								<TooltipContent>Add Context</TooltipContent>
+								<TooltipTrigger>
+									<VSCodeButton
+										appearance="icon"
+										aria-label="Add Context"
+										className="p-0 m-0 flex items-center"
+										data-testid="context-button"
+										onClick={handleContextButtonClick}>
+										<ButtonContainer>
+											<AtSignIcon size={12} />
+										</ButtonContainer>
+									</VSCodeButton>
+								</TooltipTrigger>
 							</Tooltip>
 
-							<Tooltip tipText="Add Files & Images">
-								<VSCodeButton
-									appearance="icon"
-									aria-label="Add Files & Images"
-									className="p-0 m-0 flex items-center"
-									data-testid="files-button"
-									disabled={shouldDisableFilesAndImages}
-									onClick={() => {
-										if (!shouldDisableFilesAndImages) {
-											onSelectFilesAndImages()
-										}
-									}}>
-									<ButtonContainer>
-										<PlusIcon size={13} />
-									</ButtonContainer>
-								</VSCodeButton>
+							<Tooltip>
+								<TooltipContent>Add Files & Images</TooltipContent>
+								<TooltipTrigger>
+									<VSCodeButton
+										appearance="icon"
+										aria-label="Add Files & Images"
+										className="p-0 m-0 flex items-center"
+										data-testid="files-button"
+										disabled={shouldDisableFilesAndImages}
+										onClick={() => {
+											if (!shouldDisableFilesAndImages) {
+												onSelectFilesAndImages()
+											}
+										}}>
+										<ButtonContainer>
+											<PlusIcon size={13} />
+										</ButtonContainer>
+									</VSCodeButton>
+								</TooltipTrigger>
 							</Tooltip>
+
 							<ServersToggleModal />
+
 							<ClineRulesToggleModal />
+
 							<ModelContainer ref={modelSelectorRef}>
 								<ModelButtonWrapper ref={buttonRef}>
 									<ModelDisplayButton
@@ -1749,7 +1742,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										role="button"
 										tabIndex={0}
 										title="Select Model / API Provider">
-										<ModelButtonContent>{modelDisplayName}</ModelButtonContent>
+										<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
 									</ModelDisplayButton>
 								</ModelButtonWrapper>
 								{showModelSelector && (
@@ -1772,30 +1765,36 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						</ButtonGroup>
 					</div>
 					{/* Tooltip for Plan/Act toggle remains outside the conditional rendering */}
-					<Tooltip
-						hintText={`Toggle w/ ${togglePlanActKeys}`}
-						style={{ zIndex: 1000 }}
-						tipText={`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
-						visible={shownTooltipMode !== null}>
-						<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
-							<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
-							<SwitchOption
-								aria-checked={mode === "plan"}
-								isActive={mode === "plan"}
-								onMouseLeave={() => setShownTooltipMode(null)}
-								onMouseOver={() => setShownTooltipMode("plan")}
-								role="switch">
-								Plan
-							</SwitchOption>
-							<SwitchOption
-								aria-checked={mode === "act"}
-								isActive={mode === "act"}
-								onMouseLeave={() => setShownTooltipMode(null)}
-								onMouseOver={() => setShownTooltipMode("act")}
-								role="switch">
-								Act
-							</SwitchOption>
-						</SwitchContainer>
+					<Tooltip>
+						<TooltipContent
+							className="text-xs px-2 flex flex-col gap-1"
+							hidden={shownTooltipMode === null}
+							side="top">
+							{`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
+							<p className="text-description/80 text-xs mb-0">
+								Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
+							</p>
+						</TooltipContent>
+						<TooltipTrigger>
+							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
+								{["Plan", "Act"].map((m) => (
+									<div
+										aria-checked={mode === m.toLowerCase()}
+										// isActive={mode === m.toLowerCase()}
+										className={cn(
+											"py-0.5 px-2 z-10 text-xs w-1/2 text-center",
+											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
+											mode === m.toLowerCase() ? "bg-transparent" : "bg-toolbar-hover",
+										)}
+										onMouseLeave={() => setShownTooltipMode(null)}
+										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
+										role="switch">
+										{m}
+									</div>
+								))}
+							</SwitchContainer>
+						</TooltipTrigger>
 					</Tooltip>
 				</div>
 			</div>

@@ -11,8 +11,10 @@ export class TaskState {
 	// Content processing
 	currentStreamingContentIndex = 0
 	assistantMessageContent: AssistantMessageContent[] = []
-	userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
+	userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolResultBlockParam)[] = []
 	userMessageContentReady = false
+	// Map of tool names to their tool_use_id for creating proper ToolResultBlockParam
+	toolUseIdMap: Map<string, string> = new Map()
 
 	// Presentation locks
 	presentAssistantMessageLocked = false

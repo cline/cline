@@ -12,7 +12,7 @@ import (
 )
 
 // updateApiConfigurationPartial is a helper that calls the gRPC method with optional verbose logging.
-// This replaces the Manager.UpdateApiConfigurationPartial method to keep auth-specific code in the auth package.
+// This replaces the Manager.updateApiConfigurationPartial method to keep auth-specific code in the auth package.
 func updateApiConfigurationPartial(ctx context.Context, manager *task.Manager, request *cline.UpdateApiConfigurationPartialRequest) error {
 	if global.Config.Verbose {
 		fmt.Println("[DEBUG] Updating API configuration (partial)")
@@ -46,6 +46,7 @@ func updateApiConfigurationPartial(ctx context.Context, manager *task.Manager, r
 // ProviderFields defines all the field names associated with a specific provider
 type ProviderFields struct {
 	APIKeyField            string // API key field name (e.g., "apiKey", "openAiApiKey")
+	BaseURLField           string // Base URL field name (optional, empty if not applicable)
 	PlanModeModelIDField   string // Plan mode model ID field (e.g., "planModeApiModelId")
 	ActModeModelIDField    string // Act mode model ID field (e.g., "actModeApiModelId")
 	PlanModeModelInfoField string // Plan mode model info field (optional, empty if not applicable)
@@ -68,6 +69,7 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 	case cline.ApiProvider_OPENAI:
 		return ProviderFields{
 			APIKeyField:                          "openAiApiKey",
+			BaseURLField:                         "openAiBaseUrl",
 			PlanModeModelIDField:                 "planModeApiModelId",
 			ActModeModelIDField:                  "actModeApiModelId",
 			PlanModeProviderSpecificModelIDField: "planModeOpenAiModelId",
@@ -142,6 +144,17 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 			ActModeProviderSpecificModelIDField:  "actModeOpenRouterModelId",
 		}, nil
 
+	case cline.ApiProvider_OCA:
+		return ProviderFields{
+			APIKeyField:                          "ocaApiKey",
+			PlanModeModelIDField:                 "planModeApiModelId",
+			ActModeModelIDField:                  "actModeApiModelId",
+			PlanModeModelInfoField:               "planModeOcaModelInfo",
+			ActModeModelInfoField:                "actModeOcaModelInfo",
+			PlanModeProviderSpecificModelIDField: "planModeOcaModelId",
+			ActModeProviderSpecificModelIDField:  "actModeOcaModelId",
+		}, nil
+
 	default:
 		return ProviderFields{}, fmt.Errorf("unsupported provider: %v", provider)
 	}
@@ -150,9 +163,12 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 // ProviderUpdatesPartial defines optional fields for partial provider updates
 // Uses pointers to distinguish between "not provided" and "set to empty"
 type ProviderUpdatesPartial struct {
-	ModelID   *string     // New model ID (optional)
-	APIKey    *string     // New API key (optional)
-	ModelInfo interface{} // New model info (optional, provider-specific)
+	ModelID      *string     // New model ID (optional)
+	APIKey       *string     // New API key (optional)
+	ModelInfo    interface{} // New model info (optional, provider-specific)
+	BaseURL      *string     // New base URL (optional, e.g., for OCA, Ollama)
+	RefreshToken *string     // New refresh token (optional, e.g., for OCA)
+	Mode         *string     // New mode (optional, e.g., "internal" or "external" for OCA)
 }
 
 // GetModelIDFieldName returns the appropriate model ID field name for a provider and mode.
@@ -182,7 +198,7 @@ func GetModelIDFieldName(provider cline.ApiProvider, mode string) (string, error
 // buildProviderFieldMask builds a list of camelCase field paths for the field mask.
 // When includeProviderEnums is true, the provider enum fields are included (for setting active provider).
 // When false, only the data fields are included (for configuring without activating).
-func buildProviderFieldMask(fields ProviderFields, includeAPIKey bool, includeModelID bool, includeModelInfo bool, includeProviderEnums bool) []string {
+func buildProviderFieldMask(fields ProviderFields, includeAPIKey bool, includeModelID bool, includeModelInfo bool, includeBaseURL bool, includeProviderEnums bool) []string {
 	var fieldPaths []string
 
 	// Include provider enums if requested (used when setting active provider)
@@ -197,6 +213,11 @@ func buildProviderFieldMask(fields ProviderFields, includeAPIKey bool, includeMo
 		if fields.APIKeyField == "awsAccessKey" {
 			fieldPaths = append(fieldPaths, "awsSecretKey")
 		}
+	}
+
+	// Add base URL field if requested and applicable
+	if includeBaseURL && fields.BaseURLField != "" {
+		fieldPaths = append(fieldPaths, fields.BaseURLField)
 	}
 
 	// Add model ID fields if requested
@@ -245,6 +266,8 @@ func setAPIKeyField(apiConfig *cline.ModelsApiConfiguration, fieldName string, v
 		apiConfig.CerebrasApiKey = value
 	case "clineApiKey":
 		apiConfig.ClineApiKey = value
+	case "ocaApiKey":
+		apiConfig.OcaApiKey = value
 	}
 }
 
@@ -263,11 +286,14 @@ func setProviderSpecificModelID(apiConfig *cline.ModelsApiConfiguration, fieldNa
 	case "planModeAwsBedrockCustomModelBaseId":
 		apiConfig.PlanModeAwsBedrockCustomModelBaseId = value
 		apiConfig.ActModeAwsBedrockCustomModelBaseId = value
+	case "planModeOcaModelId":
+		apiConfig.PlanModeOcaModelId = value
+		apiConfig.ActModeOcaModelId = value
 	}
 }
 
 // AddProviderPartial configures a new provider with all necessary fields using partial updates.
-func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cline.ApiProvider, modelID string, apiKey string, modelInfo interface{}) error {
+func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cline.ApiProvider, modelID string, apiKey string, baseURL string, modelInfo interface{}) error {
 	// Get field mapping for this provider
 	fields, err := GetProviderFields(provider)
 	if err != nil {
@@ -280,6 +306,13 @@ func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cli
 	// Set API key field
 	if apiKey != "" || fields.APIKeyField != "ollamaBaseUrl" {
 		setAPIKeyField(apiConfig, fields.APIKeyField, proto.String(apiKey))
+	}
+
+	// Set base URL field if provided and applicable
+	includeBaseURL := false
+	if baseURL != "" && fields.BaseURLField != "" {
+		setBaseURLField(apiConfig, fields.BaseURLField, proto.String(baseURL))
+		includeBaseURL = true
 	}
 
 	// Set model ID fields
@@ -301,7 +334,7 @@ func AddProviderPartial(ctx context.Context, manager *task.Manager, provider cli
 
 	// Build field mask including all fields we're setting (without provider enums)
 	includeModelInfo := fields.PlanModeModelInfoField != "" && modelInfo != nil
-	fieldPaths := buildProviderFieldMask(fields, true, true, includeModelInfo, false)
+	fieldPaths := buildProviderFieldMask(fields, true, true, includeModelInfo, includeBaseURL, false)
 
 	// Create field mask
 	fieldMask := &fieldmaskpb.FieldMask{Paths: fieldPaths}
@@ -368,7 +401,7 @@ func UpdateProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	}
 
 	// Build field mask for only the fields being updated
-	fieldPaths := buildProviderFieldMask(fields, includeAPIKey, includeModelID, includeModelInfo, setAsActive)
+	fieldPaths := buildProviderFieldMask(fields, includeAPIKey, includeModelID, includeModelInfo, false, setAsActive)
 
 	// Create field mask
 	fieldMask := &fieldmaskpb.FieldMask{Paths: fieldPaths}
@@ -421,7 +454,6 @@ func RemoveProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	return nil
 }
 
-// BedrockOptionalFields holds optional configuration fields for Amazon Bedrock
 type BedrockOptionalFields struct {
 	SessionToken            *string // Optional: AWS session token for temporary credentials
 	Region                  *string // Optional: AWS region
@@ -432,6 +464,12 @@ type BedrockOptionalFields struct {
 	UseProfile              *bool   // Optional: Use AWS profile
 	Profile                 *string // Optional: AWS profile name
 	Endpoint                *string // Optional: Custom endpoint URL
+}
+
+// OcaOptionalFields holds optional configuration fields for Oracle Code Assist
+type OcaOptionalFields struct {
+	BaseURL *string // Optional: Base URL
+	Mode    *string // Optional: Mode ("internal" or "external")
 }
 
 // setBedrockOptionalFields sets optional Bedrock-specific fields in the API configuration
@@ -469,6 +507,20 @@ func setBedrockOptionalFields(apiConfig *cline.ModelsApiConfiguration, fields *B
 	}
 }
 
+// setOcaOptionalFields sets optional Oca-specific fields in the API configuration
+func setOcaOptionalFields(apiConfig *cline.ModelsApiConfiguration, fields *OcaOptionalFields) {
+	if fields == nil {
+		return
+	}
+
+	if fields.Mode != nil {
+		apiConfig.OcaMode = fields.Mode
+	}
+	if fields.BaseURL != nil {
+		apiConfig.OcaBaseUrl = fields.BaseURL
+	}
+}
+
 // buildBedrockOptionalFieldMask builds field mask paths for Bedrock optional fields that have values
 func buildBedrockOptionalFieldMask(fields *BedrockOptionalFields) []string {
 	if fields == nil {
@@ -503,6 +555,24 @@ func buildBedrockOptionalFieldMask(fields *BedrockOptionalFields) []string {
 	}
 	if fields.Endpoint != nil {
 		fieldPaths = append(fieldPaths, "awsBedrockEndpoint")
+	}
+
+	return fieldPaths
+}
+
+// buildOcaOptionalFieldMask builds field mask paths for Bedrock optional fields that have values
+func buildOcaOptionalFieldMask(fields *OcaOptionalFields) []string {
+	if fields == nil {
+		return nil
+	}
+
+	var fieldPaths []string
+
+	if fields.Mode != nil {
+		fieldPaths = append(fieldPaths, "ocaMode")
+	}
+	if fields.BaseURL != nil {
+		fieldPaths = append(fieldPaths, "ocaBaseUrl")
 	}
 
 	return fieldPaths

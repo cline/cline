@@ -265,7 +265,7 @@ export class TelemetryService {
 							items: ["Open Settings"],
 						},
 					})
-					.then((response) => {
+					.then((response: { selectedOption?: string }) => {
 						if (response.selectedOption === "Open Settings") {
 							void HostProvider.window.openSettings({
 								query: "telemetry.telemetryLevel",
@@ -533,11 +533,12 @@ export class TelemetryService {
 	 * Records when a new task/conversation is started
 	 * @param ulid Unique identifier for the new task
 	 * @param apiProvider Optional API provider
+	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
 	 */
-	public captureTaskCreated(ulid: string, apiProvider?: string) {
+	public captureTaskCreated(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.CREATED,
-			properties: { ulid, apiProvider },
+			properties: { ulid, apiProvider, openAiCompatibleDomain },
 		})
 	}
 
@@ -545,11 +546,12 @@ export class TelemetryService {
 	 * Records when a task/conversation is restarted
 	 * @param ulid Unique identifier for the new task
 	 * @param apiProvider Optional API provider
+	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
 	 */
-	public captureTaskRestarted(ulid: string, apiProvider?: string) {
+	public captureTaskRestarted(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.RESTARTED,
-			properties: { ulid, apiProvider },
+			properties: { ulid, apiProvider, openAiCompatibleDomain },
 		})
 	}
 
