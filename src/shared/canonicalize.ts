@@ -46,3 +46,29 @@ export function canonicalize(s: string): string {
 
 	return normalized
 }
+
+/**
+ * Preserve the escaping style from original text when applying new text
+ * If original has \`, preserve that style in the replacement
+ */
+export function preserveEscaping(originalText: string, newText: string): string {
+	// Check if original has escaped backticks, quotes, or apostrophes
+	const hasEscapedBacktick = originalText.includes("\\`")
+	const hasEscapedSingleQuote = originalText.includes("\\'")
+	const hasEscapedDoubleQuote = originalText.includes('\\"')
+
+	let result = newText
+
+	// Apply escaping to match original style
+	if (hasEscapedBacktick && !newText.includes("\\`")) {
+		result = result.replace(/`/g, "\\`")
+	}
+	if (hasEscapedSingleQuote && !newText.includes("\\'")) {
+		result = result.replace(/'/g, "\\'")
+	}
+	if (hasEscapedDoubleQuote && !newText.includes('\\"')) {
+		result = result.replace(/"/g, '\\"')
+	}
+
+	return result
+}

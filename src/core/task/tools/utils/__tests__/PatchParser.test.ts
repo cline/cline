@@ -326,7 +326,7 @@ describe("PatchParser", () => {
 			},
 
 			{
-				name: "error: invalid context",
+				name: "graceful handling: invalid context with warning",
 				patchLines: [
 					"*** Begin Patch",
 					"*** Update File: test.ts",
@@ -339,7 +339,13 @@ describe("PatchParser", () => {
 				currentFiles: {
 					"test.ts": "function test() {\n  return 1\n}",
 				},
-				expectedError: /Invalid.*Patch/,
+				expectedActions: {
+					"test.ts": {
+						type: PatchActionType.UPDATE,
+						chunks: [], // No chunks applied due to invalid context
+					},
+				},
+				// Should have warnings but not throw
 			},
 
 			{
@@ -935,6 +941,72 @@ describe("PatchParser", () => {
 			const result = parser.parse()
 
 			expect(result.fuzz).to.be.greaterThan(10)
+		})
+	})
+
+	describe("Partial Matching and Warnings", () => {
+		it("should skip invalid chunks and add warnings", () => {
+			const patchLines = [
+				"*** Begin Patch",
+				"*** Update File: test.ts",
+				"@@",
+				" function valid() {",
+				"-  old()",
+				"+  new()",
+				" }",
+				"@@",
+				" nonexistent context",
+				"-  should skip this",
+				"+  should skip this too",
+				"*** End Patch",
+			]
+
+			const parser = new PatchParser(patchLines, {
+				"test.ts": "function valid() {\n  old()\n}\nfunction other() {\n  code()\n}",
+			})
+			const result = parser.parse()
+
+			// Should have one valid chunk applied
+			expect(result.patch.actions["test.ts"]).to.exist
+			expect(result.patch.actions["test.ts"]!.chunks).to.have.lengthOf(1)
+			expect(result.patch.actions["test.ts"]!.chunks[0]!.origIndex).to.equal(1)
+
+			// Should have warnings for skipped chunk
+			expect(result.patch.warnings).to.exist
+			expect(result.patch.warnings).to.have.lengthOf(1)
+			expect(result.patch.warnings![0]!.path).to.equal("test.ts")
+			expect(result.patch.warnings![0]!.message).to.match(/Could not find matching context/)
+		})
+
+		it("should handle mixed valid and invalid chunks", () => {
+			const patchLines = [
+				"*** Begin Patch",
+				"*** Update File: test.ts",
+				"@@",
+				"chunk1",
+				"-old1",
+				"+new1",
+				"@@",
+				"nonexistent",
+				"-skip",
+				"+skip",
+				"@@",
+				"chunk3",
+				"-old3",
+				"+new3",
+				"*** End Patch",
+			]
+
+			const parser = new PatchParser(patchLines, {
+				"test.ts": "chunk1\nold1\nchunk3\nold3",
+			})
+			const result = parser.parse()
+
+			// Should have 2 valid chunks (1st and 3rd)
+			expect(result.patch.actions["test.ts"]!.chunks).to.have.lengthOf(2)
+
+			// Should have 1 warning for skipped chunk
+			expect(result.patch.warnings).to.have.lengthOf(1)
 		})
 	})
 })

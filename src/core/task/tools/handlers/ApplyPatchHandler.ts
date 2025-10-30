@@ -5,6 +5,7 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import type { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { telemetryService } from "@/services/telemetry"
+import { preserveEscaping } from "@/shared/canonicalize"
 import { BASH_WRAPPERS, DiffError, PATCH_MARKERS, type Patch, PatchActionType, type PatchChunk } from "@/shared/Patch"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -491,8 +492,19 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			// Copy lines before the chunk
 			result.push(...lines.slice(currentIndex, chunk.origIndex))
 
-			// Add inserted lines
-			result.push(...chunk.insLines)
+			// Get the original lines being replaced to detect escaping style
+			const originalLines = lines.slice(chunk.origIndex, chunk.origIndex + chunk.delLines.length)
+			const originalText = originalLines.join("\n")
+
+			// Add inserted lines, preserving escaping style from original
+			const insertedLines = chunk.insLines.map((line) => {
+				// Only preserve escaping if we have original text to compare against
+				if (originalText) {
+					return preserveEscaping(originalText, line)
+				}
+				return line
+			})
+			result.push(...insertedLines)
 
 			// Skip deleted lines
 			currentIndex = chunk.origIndex + chunk.delLines.length

@@ -149,9 +149,10 @@ export class PatchParser {
 					message: `Could not find matching context (similarity: ${similarity.toFixed(2)}). Chunk skipped.`,
 					context: ctxText.length > 200 ? `${ctxText.substring(0, 200)}...` : ctxText,
 				})
-				// Move index forward to skip this chunk
+				// Move patch index forward to skip this chunk, but keep file position
+				// so subsequent chunks can still be found
 				this.index = endPatchIndex
-				index = index + nextChunkContext.length // Advance file position estimate
+				// Don't advance file position - let next chunk search from current position
 			} else {
 				this.fuzz += fuzz
 
