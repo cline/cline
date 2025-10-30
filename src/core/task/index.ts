@@ -1518,6 +1518,13 @@ export class Task {
 			command = transformClineCommand(command)
 		}
 
+		// Strip leading `cd` to workspace from command
+		// TODO - feed this back to the model to discourage redundant `cd` usage in subsequent commands. For now we re just stripping it for better UX
+		const workspaceCdPrefix = `cd ${this.cwd} && `
+		if (command.startsWith(workspaceCdPrefix)) {
+			command = command.substring(workspaceCdPrefix.length)
+		}
+
 		const subAgentStartTime = isSubagent ? performance.now() : 0
 
 		Logger.info("IS_TEST: " + isInTestMode())
@@ -3267,6 +3274,7 @@ export class Task {
 								this.ulid,
 								this.stateManager.getGlobalSettingsKey("focusChainSettings"),
 								this.useNativeToolCalls,
+								this.getCurrentProviderInfo(),
 							)
 
 							if (needsCheck) {

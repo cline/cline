@@ -252,6 +252,7 @@ export interface ModelInfo {
 		cacheWritesPrice?: number
 		cacheReadsPrice?: number
 	}[]
+	temperature?: number
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
@@ -827,8 +828,19 @@ export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; 
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 // https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models
 export type VertexModelId = keyof typeof vertexModels
-export const vertexDefaultModelId: VertexModelId = "claude-sonnet-4@20250514" // TODO: update to 4-5
+export const vertexDefaultModelId: VertexModelId = "gemini-3-pro-preview"
 export const vertexModels = {
+	"gemini-3-pro-preview": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Gemini 3.0 Pro",
+		temperature: 1.0,
+	},
 	"claude-sonnet-4-5@20250929": {
 		maxTokens: 8192,
 		contextWindow: 200_000,

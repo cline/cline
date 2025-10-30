@@ -114,6 +114,7 @@ export class ClineToolSet {
 			case "anthropic":
 				return toolSpecInputSchema
 			case "gemini":
+			case "vertex":
 				return toolSpecFunctionDeclarations
 			default:
 				return toolSpecFunctionDefinition

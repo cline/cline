@@ -5,9 +5,17 @@ const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d](?:\.[05])?)[-_ ]?/
 
 export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 	const providerId = normalize(providerInfo.providerId)
-	return ["cline", "anthropic", "openrouter", "openai", "minimax", "openai-native", "vercel-ai-gateway"].some(
-		(id) => providerId === id,
-	)
+	return [
+		"cline",
+		"anthropic",
+		"gemini",
+		"vertex",
+		"openrouter",
+		"openai",
+		"minimax",
+		"openai-native",
+		"vercel-ai-gateway",
+	].some((id) => providerId === id)
 }
 
 export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
@@ -95,6 +103,11 @@ export function isHermesModelFamily(id: string): boolean {
 	)
 }
 
+export function isGemini3ModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("gemini3") || modelId.includes("gemini-3") || modelId.includes("gemini-3.0")
+}
+
 export function isNextGenModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
@@ -102,7 +115,8 @@ export function isNextGenModelFamily(id: string): boolean {
 		isGemini2dot5ModelFamily(modelId) ||
 		isGrok4ModelFamily(modelId) ||
 		isGPT5ModelFamily(modelId) ||
-		isMinimaxModelFamily(modelId)
+		isMinimaxModelFamily(modelId) ||
+		isGemini3ModelFamily(modelId)
 	)
 }
 
