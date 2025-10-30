@@ -615,12 +615,10 @@ export class ToolExecutor {
 
 			// Handle cancellation from hook
 			if (preToolResult.cancel === true) {
-				if (preToolResult.wasCancelled || !preToolResult.wasCancelled) {
-					// Trigger task cancellation (same as clicking cancel button)
-					await config.callbacks.cancelTask()
-					// Early return - never enters try-catch-finally, so PostToolUse won't run
-					return
-				}
+				// Trigger task cancellation (same as clicking cancel button)
+				await config.callbacks.cancelTask()
+				// Early return - never enters try-catch-finally, so PostToolUse won't run
+				return
 			}
 
 			// If task was aborted (e.g., via cancel button during hook), stop execution
