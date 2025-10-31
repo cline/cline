@@ -34,10 +34,11 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	// === slash commands preserve following text ===
 	await expect(inputbox).toHaveValue("")
 	// Type partial slash command to trigger menu
-	await inputbox.pressSequentially("/new", { delay: 100 })
+	await inputbox.fill("/newt")
 
 	// Wait for menu to be visible and click on menu item
-	await sidebar.getByText("/newtask").click()
+	await inputbox.focus()
+	await page.getByText("/newtask").click()
 	await expect(inputbox).toHaveValue("/newtask ")
 
 	// Add following text to verify it works correctly
@@ -49,7 +50,7 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	await expect(inputbox).toHaveValue("")
 
 	// Type partial @ mention to trigger menu
-	await inputbox.pressSequentially("@prob")
+	await inputbox.fill("@prob")
 
 	// Wait for menu to be visible and click on menu item
 	await sidebar.getByText("Problems").first().click()
