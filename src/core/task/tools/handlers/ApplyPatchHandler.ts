@@ -10,7 +10,7 @@ import { preserveEscaping } from "@/shared/canonicalize"
 import { BASH_WRAPPERS, DiffError, PATCH_MARKERS, type Patch, PatchActionType, type PatchChunk } from "@/shared/Patch"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -648,14 +648,12 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		if (shouldAutoApprove) {
 			await config.callbacks.say("tool", messageStr, undefined, undefined, false)
-			config.taskState.consecutiveAutoApprovedRequestsCount++
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 			return true
 		}
 
-		showNotificationForApprovalIfAutoApprovalEnabled(
+		showNotificationForApproval(
 			`Cline wants to edit this file: ${message.path}`,
-			config.autoApprovalSettings.enabled,
 			config.autoApprovalSettings.enableNotifications,
 		)
 
