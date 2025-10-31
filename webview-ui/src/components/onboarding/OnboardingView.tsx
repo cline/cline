@@ -42,7 +42,7 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 		const filtered = Object.entries(models).filter(
 			([id, _info]) => !id.includes("embedding") && !flattenedModels.includes(id) && id.includes(searchTerm.toLowerCase()),
 		)
-		return filtered.slice(0, 4) // Return the first 5 models
+		return filtered.slice(0, 5) // Return the first 5 models
 	}, [models, modelGroups, searchTerm])
 
 	// Model Item Component
@@ -118,7 +118,12 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 					<Input
 						autoFocus={false}
 						className="focus-visible:border-button-background"
-						onChange={(e) => e.target?.value && onSelectModel("") && setSearchTerm(e.target?.value)}
+						onChange={(e) => {
+							if (e.target?.value) {
+								onSelectModel("")
+								setSearchTerm(e.target.value)
+							}
+						}}
 						onClick={() => onSelectModel("")}
 						placeholder="e.g. 'opus', '4o', 'gemini-2.5' etc."
 						type="search"
@@ -258,7 +263,7 @@ const OnboardingView = () => {
 		hideSettings()
 		await StateServiceClient.setWelcomeViewCompleted(BooleanRequest.create({ value: true })).catch(() => {})
 		setShowWelcome(false)
-	}, [hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels])
+	}, [hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels, setShowWelcome])
 
 	const handleFooterAction = useCallback(
 		async (action: "auth" | "next" | "back" | "done") => {
@@ -278,7 +283,7 @@ const OnboardingView = () => {
 					break
 			}
 		},
-		[stepNumber, finishOnboarding, setShowWelcome],
+		[stepNumber, finishOnboarding],
 	)
 
 	const stepDisplayInfo = useMemo(() => {
@@ -315,6 +320,7 @@ const OnboardingView = () => {
 					{stepDisplayInfo.buttons.map((btn) => (
 						<Button
 							className="w-full rounded-xs"
+							key={btn.text}
 							onClick={() => handleFooterAction(btn.action)}
 							variant={btn.variant}>
 							{btn.text}

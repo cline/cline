@@ -6,10 +6,10 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 	// Use the page object to interact with editor outside the sidebar
 	// Verify initial state
 	await expect(sidebar.getByRole("button", { name: "Login to Cline" })).toBeVisible()
-	await expect(sidebar.getByText("I have my own key")).toBeVisible()
+	await expect(sidebar.getByText("Bring my own API key")).toBeVisible()
 
 	// Navigate to API key setup
-	await sidebar.getByText("I have my own key").click()
+	await sidebar.getByText("Bring my own API key").click()
 	await sidebar.getByRole("button", { name: "Continue" }).click()
 
 	const providerSelectorInput = sidebar.getByTestId("provider-selector-input")
@@ -34,8 +34,7 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 	await apiKeyInput.fill("test-api-key")
 	await expect(apiKeyInput).toHaveValue("test-api-key")
 	await apiKeyInput.click({ delay: 100 })
-	await expect(sidebar.getByRole("button", { name: "Ready" })).toBeEnabled()
-	await sidebar.getByRole("button", { name: "Ready" }).dblclick()
+	await sidebar.getByRole("button", { name: "Continue" }).dblclick()
 
 	await expect(sidebar.getByRole("button", { name: "Login to Cline" })).not.toBeVisible()
 
