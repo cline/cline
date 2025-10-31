@@ -5,7 +5,7 @@ import { telemetryService } from "@/services/telemetry"
 import { ToolUse } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
 import { ToolResponse } from "../.."
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
@@ -70,9 +70,8 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 				telemetryService.captureToolUsage(config.ulid, "web_fetch", config.api.getModel().id, provider, true, true)
 			} else {
 				// Manual approval flow
-				showNotificationForApprovalIfAutoApprovalEnabled(
+				showNotificationForApproval(
 					`Cline wants to fetch content from ${url}`,
-					config.autoApprovalSettings.enabled,
 					config.autoApprovalSettings.enableNotifications,
 				)
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
