@@ -1835,7 +1835,8 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
-			enableNativeToolCalls: featureFlagsService.getNativeToolCallEnabled(),
+			enableNativeToolCalls:
+				featureFlagsService.getNativeToolCallEnabled() && this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
