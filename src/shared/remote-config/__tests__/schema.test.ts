@@ -330,6 +330,25 @@ describe("Remote Config Schema", () => {
 				openTelemetryLogBatchSize: 512,
 				openTelemetryLogBatchTimeout: 5000,
 				openTelemetryLogMaxQueueSize: 2048,
+				globalRules: [
+					{
+						alwaysEnabled: true,
+						name: "company-standards.md",
+						contents: "# Company Standards\n\nAll code must follow these standards...",
+					},
+					{
+						alwaysEnabled: false,
+						name: "optional-guidelines.md",
+						contents: "# Optional Guidelines\n\nConsider these best practices...",
+					},
+				],
+				globalWorkflows: [
+					{
+						alwaysEnabled: true,
+						name: "deployment-workflow.md",
+						contents: "# Deployment Workflow\n\n1. Run tests\n2. Build\n3. Deploy",
+					},
+				],
 				providerSettings: {
 					OpenAiCompatible: {
 						models: [
@@ -433,6 +452,19 @@ describe("Remote Config Schema", () => {
 			expect(result.openTelemetryLogBatchSize).to.equal(512)
 			expect(result.openTelemetryLogBatchTimeout).to.equal(5000)
 			expect(result.openTelemetryLogMaxQueueSize).to.equal(2048)
+
+			// Verify Global Instructions settings
+			expect(result.globalRules).to.have.lengthOf(2)
+			expect(result.globalRules?.[0].alwaysEnabled).to.equal(true)
+			expect(result.globalRules?.[0].name).to.equal("company-standards.md")
+			expect(result.globalRules?.[0].contents).to.include("Company Standards")
+			expect(result.globalRules?.[1].alwaysEnabled).to.equal(false)
+			expect(result.globalRules?.[1].name).to.equal("optional-guidelines.md")
+
+			expect(result.globalWorkflows).to.have.lengthOf(1)
+			expect(result.globalWorkflows?.[0].alwaysEnabled).to.equal(true)
+			expect(result.globalWorkflows?.[0].name).to.equal("deployment-workflow.md")
+			expect(result.globalWorkflows?.[0].contents).to.include("Deployment Workflow")
 		})
 	})
 
