@@ -77,7 +77,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 							case "use_mcp_server":
 							case "completion_result":
 							case "mistake_limit_reached":
-							case "auto_approval_max_req_reached":
 							case "api_req_failed":
 							case "new_task":
 							case "condense":
@@ -280,7 +279,18 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				;(chatState as any).disableAutoScrollRef.current = false
 			}
 		},
-		[clineAsk, lastMessage, messages, clearInputState, handleSendMessage, startNewTask, chatState, backgroundCommandRunning, setSendingDisabled, setEnableButtons],
+		[
+			clineAsk,
+			lastMessage,
+			messages,
+			clearInputState,
+			handleSendMessage,
+			startNewTask,
+			chatState,
+			backgroundCommandRunning,
+			setSendingDisabled,
+			setEnableButtons,
+		],
 	)
 
 	// Handle task close button click
