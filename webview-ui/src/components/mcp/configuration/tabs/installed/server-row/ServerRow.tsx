@@ -340,16 +340,17 @@ const ServerRow = ({
 											flexDirection: "column",
 											gap: "8px",
 											width: "100%",
+											paddingTop: "8px",
 										}}>
 										{server.tools.map((tool) => (
 											<McpToolRow key={tool.name} serverName={server.name} tool={tool} />
 										))}
-										{server.name && autoApprovalSettings.enabled && autoApprovalSettings.actions.useMcp && (
+										{server.name && autoApprovalSettings.actions.useMcp && (
 											<VSCodeCheckbox
 												checked={server.tools.every((tool) => tool.autoApprove)}
 												data-tool="all-tools"
 												onChange={handleAutoApproveChange}
-												style={{ marginBottom: -10 }}>
+												style={{ marginTop: "4px", marginBottom: "4px" }}>
 												Auto-approve all tools
 											</VSCodeCheckbox>
 										)}
@@ -374,6 +375,7 @@ const ServerRow = ({
 											flexDirection: "column",
 											gap: "8px",
 											width: "100%",
+											paddingTop: "8px",
 										}}>
 										{[...(server.resourceTemplates || []), ...(server.resources || [])].map((item) => (
 											<McpResourceRow

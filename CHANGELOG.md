@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.35.0
+
+- Add native tool calling support with configurable setting.
+- Auto-approve is now always-on with a redesigned expanding menu. Settings simplified and notifications moved to General Settings.
+- added zai-glm-4.6 as a Cerebras model
+- Created GPT5 family specific system prompt template
+- Fix: show reasoning budget slider to models with valid thinking config
+- Requesty base URL, and API key fixes
+- Delete all Auth Tokens when logging out
+- Support for <think> tags for models that prefer that over <thinking>
+
 ## [3.34.1]
 
 - Added support for MiniMax provider with MiniMax-M2 model

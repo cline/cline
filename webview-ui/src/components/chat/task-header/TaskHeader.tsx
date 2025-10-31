@@ -138,7 +138,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					<div className="flex justify-between items-center">
 						{isTaskExpanded ? <ChevronDownIcon size="16" /> : <ChevronRightIcon size="16" />}
 						{isTaskExpanded && (
-							<div className="mt-1 max-h-3 flex justify-end flex-wrap cursor-pointer opacity-80 gap-2 mx-2">
+							<div className="mt-1 flex justify-end cursor-pointer opacity-80 gap-2 mx-2">
 								<CopyTaskButton className={BUTTON_CLASS} taskText={task.text} />
 								<DeleteTaskButton
 									className={BUTTON_CLASS}
@@ -164,7 +164,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							<div
 								className="mx-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"
 								id="price-tag">
-								<span className="text-sm">${totalCost?.toFixed(4)}</span>
+								<span className="text-xs sm:text-sm">${totalCost?.toFixed(4)}</span>
 							</div>
 						)}
 						<NewTaskButton className={BUTTON_CLASS} onClick={onClose} />

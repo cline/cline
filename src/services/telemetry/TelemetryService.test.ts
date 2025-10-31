@@ -66,6 +66,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 				{
 					ulid: "task-456",
 					apiProvider: "openai",
+					openAiCompatibleDomain: undefined,
 					...MOCK_METADATA,
 				},
 				"Task created event should include only the expected metadata properties",
@@ -125,6 +126,7 @@ describe("Telemetry system is abstracted and can easily switch between providers
 			const expectedProperties = {
 				ulid: "multi-task-123",
 				apiProvider: "anthropic",
+				openAiCompatibleDomain: undefined,
 				...MOCK_METADATA,
 			}
 			assert.deepStrictEqual(properties1, expectedProperties, "First provider should receive correct properties")
