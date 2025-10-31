@@ -137,7 +137,7 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 									/>
 								)
 							})}
-						{searchTerm?.length && !searchedModels?.length && (
+						{searchTerm.length > 0 && searchedModels.length === 0 && (
 							<p className="px-1 mt-1 text-sm text-foreground/70">No result found for "{searchTerm}"</p>
 						)}
 					</div>
