@@ -8,6 +8,7 @@ import { ModelsServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import LiteLlmModelPicker from "../LiteLlmModelPicker"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 
@@ -24,13 +25,16 @@ interface LiteLlmProviderProps {
  * The LiteLLM provider configuration component
  */
 export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: LiteLlmProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, liteLlmModels } = useExtensionState()
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// Get mode-specific fields
 	const { liteLlmModelId, liteLlmModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
+
+	// Check if we have a model list available
+	const hasModelList = liteLlmModels && Object.keys(liteLlmModels).length > 0
 
 	// Local state for collapsible model configuration section
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
@@ -69,20 +73,24 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 				type="password">
 				<span style={{ fontWeight: 500 }}>API Key</span>
 			</DebouncedTextField>
-			<DebouncedTextField
-				initialValue={liteLlmModelId || ""}
-				onChange={async (value) => {
-					await ModelsServiceClient.updateApiConfiguration(
-						UpdateApiConfigurationRequestNew.create({
-							options:
-								currentMode === "plan" ? { planModeLiteLlmModelId: value } : { actModeLiteLlmModelId: value },
-						}),
-					)
-				}}
-				placeholder={"e.g. anthropic/claude-sonnet-4-20250514"}
-				style={{ width: "100%" }}>
-				<span style={{ fontWeight: 500 }}>Model ID</span>
-			</DebouncedTextField>
+			{hasModelList ? (
+				<LiteLlmModelPicker currentMode={currentMode} isPopup={isPopup} />
+			) : (
+				<DebouncedTextField
+					initialValue={liteLlmModelId || ""}
+					onChange={async (value) => {
+						await ModelsServiceClient.updateApiConfiguration(
+							UpdateApiConfigurationRequestNew.create({
+								options:
+									currentMode === "plan" ? { planModeLiteLlmModelId: value } : { actModeLiteLlmModelId: value },
+							}),
+						)
+					}}
+					placeholder={"e.g. anthropic/claude-sonnet-4-20250514"}
+					style={{ width: "100%" }}>
+					<span style={{ fontWeight: 500 }}>Model ID</span>
+				</DebouncedTextField>
+			)}
 
 			<div style={{ display: "flex", flexDirection: "column", marginTop: 10, marginBottom: 10 }}>
 				{selectedModelInfo.supportsPromptCache && (
