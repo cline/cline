@@ -114,6 +114,14 @@ export class OcaAuthProvider {
 				...getAxiosSettings(),
 			})
 			const accessToken = tokenResponse.data.access_token
+			const refreshToken = tokenResponse.data.refresh_token
+			if (refreshToken) {
+				controller.stateManager.setSecret("ocaRefreshToken", refreshToken)
+				controller.stateManager.setSecret("ocaApiKey", accessToken)
+			} else {
+				console.warn("No refresh token received during OCA token refresh.")
+				throw new OcaRefreshError("No refresh token received during OCA token refresh.")
+			}
 			const userInfo: OcaUserInfo = await this.getUserAccountInfo(accessToken)
 			return { user: userInfo, apiKey: accessToken }
 		} catch (err: unknown) {
