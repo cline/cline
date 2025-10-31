@@ -250,7 +250,14 @@
 						"group": "Enterprise Solutions",
 						"pages": [
 							"enterprise-solutions/overview",
-							"enterprise-solutions/security-concerns",
+							{
+								"group": "Members",
+								"pages": [
+									"enterprise-solutions/members/overview",
+									"enterprise-solutions/members/roles-and-permissions",
+									"enterprise-solutions/members/managing-members"
+								]
+							},
 							"enterprise-solutions/configure-AWS-Bedrock-Admin",
 							"enterprise-solutions/configure-AWS-Bedrock-Member",
 							"enterprise-solutions/configure-workOS-authkit"
