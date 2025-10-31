@@ -81,6 +81,9 @@ export class TelemetryService {
 		["subagents", true], // CLI Subagents telemetry enabled
 	])
 
+	private userId?: string
+	private userEmail?: string
+
 	// Event constants for tracking user interactions and system events
 	private static readonly EVENTS = {
 		// Task-related events for tracking conversation and execution flow
@@ -326,6 +329,48 @@ export class TelemetryService {
 		})
 	}
 
+	private getStandardAttributes(extra?: TelemetryProperties): TelemetryProperties {
+		return {
+			...this.telemetryMetadata,
+			...(this.userId ? { userId: this.userId } : {}),
+			...(this.userEmail ? { email: this.userEmail } : {}),
+			...(extra ?? {}),
+		}
+	}
+
+	private recordCounter(name: string, value: number, attributes?: TelemetryProperties): void {
+		const attrs = this.getStandardAttributes(attributes)
+		this.providers.forEach((provider) => {
+			try {
+				provider.recordCounter(name, value, attrs)
+			} catch (error) {
+				console.error(`[TelemetryService] recordCounter failed: ${name}`, error)
+			}
+		})
+	}
+
+	private recordHistogram(name: string, value: number, attributes?: TelemetryProperties): void {
+		const attrs = this.getStandardAttributes(attributes)
+		this.providers.forEach((provider) => {
+			try {
+				provider.recordHistogram(name, value, attrs)
+			} catch (error) {
+				console.error(`[TelemetryService] recordHistogram failed: ${name}`, error)
+			}
+		})
+	}
+
+	private recordGauge(name: string, value: number, attributes?: TelemetryProperties): void {
+		const attrs = this.getStandardAttributes(attributes)
+		this.providers.forEach((provider) => {
+			try {
+				provider.recordGauge(name, value, attrs)
+			} catch (error) {
+				console.error(`[TelemetryService] recordGauge failed: ${name}`, error)
+			}
+		})
+	}
+
 	public captureExtensionActivated() {
 		this.captureToProviders(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED, {}, false)
 	}
@@ -392,6 +437,9 @@ export class TelemetryService {
 		const propertiesWithMetadata: TelemetryProperties = {
 			...this.telemetryMetadata,
 		}
+
+		this.userId = userInfo.id
+		this.userEmail = userInfo.email ?? undefined
 
 		// Update all providers with error isolation
 		this.providers.forEach((provider) => {
@@ -602,6 +650,20 @@ export class TelemetryService {
 				...tokenUsage,
 			},
 		})
+
+		this.recordCounter("cline.turns.total", 1, { ulid, provider, model, source })
+
+		if (tokenUsage.cacheWriteTokens && tokenUsage.cacheWriteTokens > 0) {
+			this.recordCounter("cline.cache.write.tokens.total", tokenUsage.cacheWriteTokens, { ulid, provider, model })
+		}
+
+		if (tokenUsage.cacheReadTokens && tokenUsage.cacheReadTokens > 0) {
+			this.recordCounter("cline.cache.read.tokens.total", tokenUsage.cacheReadTokens, { ulid, provider, model })
+		}
+
+		if (typeof tokenUsage.totalCost === "number") {
+			this.recordCounter("cline.cost.total", tokenUsage.totalCost, { ulid, provider, model, currency: "USD" })
+		}
 	}
 
 	/**
@@ -621,6 +683,16 @@ export class TelemetryService {
 				model,
 			},
 		})
+
+		if (tokensIn > 0) {
+			this.recordCounter("cline.tokens.input.total", tokensIn, { ulid, model })
+			this.recordHistogram("cline.tokens.input.per_response", tokensIn, { ulid, model })
+		}
+
+		if (tokensOut > 0) {
+			this.recordCounter("cline.tokens.output.total", tokensOut, { ulid, model })
+			this.recordHistogram("cline.tokens.output.per_response", tokensOut, { ulid, model })
+		}
 	}
 
 	/**
@@ -715,6 +787,14 @@ export class TelemetryService {
 					workspace_resolution_method: workspaceContext.resolutionMethod,
 				}),
 			},
+		})
+
+		this.recordCounter("cline.tool.calls.total", 1, {
+			ulid,
+			tool,
+			model: modelId,
+			success,
+			autoApproved,
 		})
 	}
 
@@ -960,6 +1040,30 @@ export class TelemetryService {
 				...data,
 			},
 		})
+
+		if (typeof data.ttftSec === "number") {
+			this.recordHistogram("cline.api.ttft.seconds", data.ttftSec, { ulid, model: modelId, provider: "gemini" })
+		}
+
+		if (typeof data.totalDurationSec === "number") {
+			this.recordHistogram("cline.api.duration.seconds", data.totalDurationSec, {
+				ulid,
+				model: modelId,
+				provider: "gemini",
+			})
+		}
+
+		if (typeof data.throughputTokensPerSec === "number") {
+			this.recordHistogram("cline.api.throughput.tokens_per_second", data.throughputTokensPerSec, {
+				ulid,
+				model: modelId,
+				provider: "gemini",
+			})
+		}
+
+		if (data.cacheHit) {
+			this.recordCounter("cline.cache.hits.total", 1, { ulid, model: modelId, provider: "gemini" })
+		}
 	}
 
 	/**
@@ -1011,6 +1115,13 @@ export class TelemetryService {
 				errorMessage: args.errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH), // Truncate long error messages
 				timestamp: new Date().toISOString(),
 			},
+		})
+
+		this.recordCounter("cline.errors.total", 1, {
+			ulid: args.ulid,
+			model: args.model,
+			provider: args.provider,
+			error_status: args.errorStatus,
 		})
 	}
 
@@ -1317,6 +1428,10 @@ export class TelemetryService {
 				init_duration_ms: initDurationMs,
 				feature_flag_enabled: featureFlagEnabled,
 			},
+		})
+
+		this.recordGauge("cline.workspace.active_roots", rootCount, {
+			is_multi_root: rootCount > 1,
 		})
 	}
 

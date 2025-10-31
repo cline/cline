@@ -75,13 +75,11 @@ export class TelemetryProviderFactory {
 				return new NoOpTelemetryProvider()
 			}
 			case "no-op":
-			default:
-				// Always fallback to NoOp provider. Only log error for unsupported types
-				if (config.type !== "no-op") {
-					console.error(`Unsupported telemetry provider type: ${config.type}`)
-				}
 				return new NoOpTelemetryProvider()
 		}
+
+		console.error("Unsupported telemetry provider type")
+		return new NoOpTelemetryProvider()
 	}
 
 	/**
