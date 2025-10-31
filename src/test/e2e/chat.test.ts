@@ -38,7 +38,7 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 
 	// Wait for menu to be visible and click on menu item
 	await inputbox.focus()
-	await page.getByText("/newtask Create a new task").click()
+	await sidebar.getByText("newtask", { exact: false }).click()
 	await expect(inputbox).toHaveValue("/newtask ")
 
 	// Add following text to verify it works correctly
