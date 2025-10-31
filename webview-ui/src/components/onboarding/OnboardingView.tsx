@@ -7,10 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from "@/components/ui/item"
-import { handleSignIn } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { StateServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 import {
@@ -246,7 +245,7 @@ const OnboardingView = () => {
 
 	const finishOnboarding = useCallback(async () => {
 		if (selectedModelId) {
-			handleFieldsChange({
+			await handleFieldsChange({
 				planModeOpenRouterModelId: selectedModelId,
 				actModeOpenRouterModelId: selectedModelId,
 				planModeOpenRouterModelInfo: openRouterModels[selectedModelId],
@@ -257,16 +256,16 @@ const OnboardingView = () => {
 		}
 		hideAccount()
 		hideSettings()
+		await StateServiceClient.setWelcomeViewCompleted(BooleanRequest.create({ value: true })).catch(() => {})
 		setShowWelcome(false)
-		StateServiceClient.setWelcomeViewCompleted(BooleanRequest.create({ value: true })).catch((err) => console.error(err))
-	}, [hideAccount, hideSettings, setShowWelcome, handleFieldsChange, selectedModelId, openRouterModels])
+	}, [hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels])
 
 	const handleFooterAction = useCallback(
-		(action: "auth" | "next" | "back" | "done") => {
+		async (action: "auth" | "next" | "back" | "done") => {
 			switch (action) {
 				case "auth":
-					handleSignIn()
-					finishOnboarding()
+					await AccountServiceClient.accountLoginClicked({}).catch(() => {})
+					await finishOnboarding()
 					break
 				case "next":
 					setStepNumber(stepNumber + 1)
@@ -275,11 +274,11 @@ const OnboardingView = () => {
 					setStepNumber(stepNumber - 1)
 					break
 				case "done":
-					finishOnboarding()
+					await finishOnboarding()
 					break
 			}
 		},
-		[stepNumber, finishOnboarding],
+		[stepNumber, finishOnboarding, setShowWelcome],
 	)
 
 	const stepDisplayInfo = useMemo(() => {
