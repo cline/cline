@@ -10,7 +10,7 @@ import { telemetryService } from "@/services/telemetry"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -304,9 +304,6 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			// Auto-approval flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-			if (!config.yoloModeToggled) {
-				config.taskState.consecutiveAutoApprovedRequestsCount++
-			}
 
 			// Capture telemetry
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
@@ -315,11 +312,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			const notificationMessage = `Cline wants to search files for ${regex}`
 
 			// Show notification
-			showNotificationForApprovalIfAutoApprovalEnabled(
-				notificationMessage,
-				config.autoApprovalSettings.enabled,
-				config.autoApprovalSettings.enableNotifications,
-			)
+			showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)
 
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 

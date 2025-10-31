@@ -9,7 +9,7 @@ import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import { isLocatedInWorkspace } from "@/utils/path"
 import type { ToolResponse } from "../../index"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -946,15 +946,13 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		if (shouldAutoApprove) {
 			await config.callbacks.say("tool", messageStr, undefined, undefined, false)
-			config.taskState.consecutiveAutoApprovedRequestsCount++
 			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
 			return true
 		}
 
 		const fileCount = Object.keys(JSON.parse(messageStr).content.match(/\d+/)?.[0] || "0").length
-		showNotificationForApprovalIfAutoApprovalEnabled(
+		showNotificationForApproval(
 			`Cline wants to apply a patch to ${fileCount} file(s)`,
-			config.autoApprovalSettings.enabled,
 			config.autoApprovalSettings.enableNotifications,
 		)
 

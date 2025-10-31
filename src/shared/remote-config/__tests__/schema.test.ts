@@ -191,6 +191,29 @@ describe("Remote Config Schema", () => {
 		})
 	})
 
+	describe("MCPSettingsSchema", () => {
+		it("should reject servers with a missing id", () => {
+			const config = {
+				version: "v1",
+				allowedMCPServers: [{}],
+			}
+
+			expect(() => RemoteConfigSchema.parse(config)).to.throw()
+		})
+
+		it("should accept valid MCP settings", () => {
+			const config = {
+				version: "v1",
+				mcpMarketplaceEnabled: true,
+				allowedMCPServers: [{ id: "https://github.com/mcp/filesystem" }, { id: "https://github.com/mcp/github" }],
+			}
+
+			const result = RemoteConfigSchema.parse(config)
+			expect(result.mcpMarketplaceEnabled).to.equal(true)
+			expect(result.allowedMCPServers).to.deep.equal(config.allowedMCPServers)
+		})
+	})
+
 	describe("RemoteConfigSchema", () => {
 		it("should accept valid complete remote config", () => {
 			const validConfig: RemoteConfig = {
@@ -291,6 +314,7 @@ describe("Remote Config Schema", () => {
 				version: "v1",
 				telemetryEnabled: true,
 				mcpMarketplaceEnabled: false,
+				allowedMCPServers: [{ id: "https://github.com/mcp/filesystem" }, { id: "https://github.com/mcp/github" }],
 				yoloModeAllowed: true,
 				openTelemetryEnabled: true,
 				openTelemetryMetricsExporter: "otlp",
@@ -370,8 +394,10 @@ describe("Remote Config Schema", () => {
 			// Verify all top-level fields
 			expect(result.version).to.equal("v1")
 			expect(result.telemetryEnabled).to.equal(true)
-			expect(result.mcpMarketplaceEnabled).to.equal(false)
 			expect(result.yoloModeAllowed).to.equal(true)
+
+			expect(result.mcpMarketplaceEnabled).to.equal(false)
+			expect(result.allowedMCPServers).to.deep.equal(config.allowedMCPServers)
 
 			// Verify OpenAI Compatible settings
 			expect(result.providerSettings?.OpenAiCompatible?.models).to.have.lengthOf(2)
