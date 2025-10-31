@@ -1,6 +1,7 @@
 import { ChildProcess, spawn } from "child_process"
 import { EventEmitter } from "events"
 import { HookProcessRegistry } from "./HookProcessRegistry"
+import { escapeShellPath } from "./shell-escape"
 
 // Maximum total output size (stdout + stderr combined)
 const MAX_HOOK_OUTPUT_SIZE = 1024 * 1024 // 1MB
@@ -101,7 +102,8 @@ export class HookProcess extends EventEmitter {
 				// This is the git-style approach: the shell interprets the shebang line
 				// and executes the appropriate interpreter (bash, node, python, etc.)
 				// On Unix: detached=true creates a process group, allowing us to kill all children
-				this.childProcess = spawn(this.scriptPath, [], {
+				const escapedScriptPath = escapeShellPath(this.scriptPath)
+				this.childProcess = spawn(escapedScriptPath, [], {
 					stdio: ["pipe", "pipe", "pipe"],
 					shell: true, // Use shell on all platforms for shebang interpretation
 					detached: process.platform !== "win32", // Create process group on Unix
