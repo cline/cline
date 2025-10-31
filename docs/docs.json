@@ -253,6 +253,7 @@
 							{
 								"group": "Members",
 								"pages": [
+									"enterprise-solutions/members/overview",
 									"enterprise-solutions/members/roles-and-permissions",
 									"enterprise-solutions/members/managing-members"
 								]
