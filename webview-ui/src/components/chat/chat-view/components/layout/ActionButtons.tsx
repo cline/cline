@@ -68,6 +68,12 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 				return
 			}
 			setIsProcessing(true)
+
+			// Special handling for cancel action
+			if (action === "cancel") {
+				setIsProcessing(false)
+			}
+
 			messageHandlers.executeButtonAction(action, text, images, files)
 		},
 		[messageHandlers, isProcessing],
