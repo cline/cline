@@ -1,4 +1,3 @@
-import { canonicalize } from "@/shared/canonicalize"
 import {
 	DiffError,
 	PATCH_MARKERS,
@@ -8,6 +7,7 @@ import {
 	type PatchChunk,
 	type PatchWarning,
 } from "@/shared/Patch"
+import { canonicalize } from "@/shared/string"
 
 /**
  * Parser for Apply Patch content
