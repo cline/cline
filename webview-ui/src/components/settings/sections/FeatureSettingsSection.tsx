@@ -34,6 +34,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		remoteConfigSettings,
 		subagentsEnabled,
 		nativeToolCallSetting,
+		backgroundEditEnabled,
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
@@ -152,7 +153,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								</span>
 							</VSCodeCheckbox>
 							<p className="text-xs mt-1 mb-0">
-								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
+								<span className="text-input-error-foreground">Experimental: </span>{" "}
 								<span className="text-description">
 									Allows Cline to spawn subprocesses to handle focused tasks like exploring large codebases,
 									keeping your main context clean.
@@ -354,6 +355,24 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								target="_blank">
 								Learn more
 							</a>
+						</p>
+					</div>
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={backgroundEditEnabled}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("backgroundEditEnabled", checked)
+							}}>
+							Enable Background Edit
+						</VSCodeCheckbox>
+						<p className="text-xs">
+							<span className="text-xs bg-button-background/80 text-button-foreground px-2 py-1 rounded-lg mr-1">
+								Experimental
+							</span>
+							<span className="text-description">
+								Allows Cline to edit documents in the background without stealing focus from your editor.
+							</span>
 						</p>
 					</div>
 					{multiRootSetting.featureFlag && (

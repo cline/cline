@@ -16,11 +16,6 @@ export class FileEditProvider extends DiffViewProvider {
 		super()
 	}
 
-	override showFile(_absolutePath: string): Promise<void> {
-		// No-op: No visual editor to show the file
-		return Promise.resolve()
-	}
-
 	protected async openDiffEditor(): Promise<void> {
 		// No-op: No visual editor to open in a file-system-only provider
 		// The file content is already loaded in the base class's open() method
@@ -56,6 +51,10 @@ export class FileEditProvider extends DiffViewProvider {
 
 		// Join the lines back together
 		this.documentContent = lines.join("\n")
+	}
+
+	override async showDocument(_absolutePath: string): Promise<void> {
+		// No-op: No visual editor to show the file
 	}
 
 	protected async scrollEditorToLine(_line: number): Promise<void> {

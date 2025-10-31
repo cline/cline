@@ -98,6 +98,7 @@ export interface ExtensionState {
 	remoteConfigSettings?: Partial<GlobalStateAndSettings>
 	subagentsEnabled?: boolean
 	nativeToolCallSetting?: ClineFeatureSetting
+	backgroundEditEnabled?: boolean
 }
 
 export interface ClineMessage {
