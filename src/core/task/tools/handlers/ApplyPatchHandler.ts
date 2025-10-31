@@ -4,7 +4,7 @@ import { resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import type { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
-import { isLocatedInWorkspace } from "@utils/path"
+import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
 import { BASH_WRAPPERS, DiffError, PATCH_MARKERS, type Patch, PatchActionType, type PatchChunk } from "@/shared/Patch"
 import { preserveEscaping } from "@/shared/string"
@@ -151,6 +151,19 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		if (!targetResolution) {
 			return
 		}
+
+		await config.callbacks
+			.ask(
+				"tool",
+				JSON.stringify({
+					tool: actionType === PatchActionType.ADD ? "newFileCreated" : "editedExistingFile",
+					path: getReadablePath(config.cwd, finalPath),
+					content: rawInput,
+					operationIsLocatedInWorkspace: await isLocatedInWorkspace(finalPath),
+				}),
+				true,
+			)
+			.catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 
 		const requiresOpen =
 			!provider.isEditing || state.currentPreviewPath !== targetResolution.resolvedPath || provider.editType === undefined
@@ -643,22 +656,21 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 	private async handleApproval(config: TaskConfig, block: ToolUse, message: ClineSayTool, rawInput: string): Promise<boolean> {
 		const patch = { ...message, content: rawInput }
-		const messageStr = JSON.stringify(patch)
+		const completeMessage = JSON.stringify(patch)
 		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, message.path)
 		const modelId = config.api.getModel().id
 
 		if (shouldAutoApprove) {
-			await config.callbacks.say("tool", messageStr, undefined, undefined, false)
+			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
+			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
 			telemetryService.captureToolUsage(config.ulid, this.name, modelId, true, true)
 			return true
 		}
 
-		showNotificationForApproval(
-			`Cline wants to edit this file: ${message.path}`,
-			config.autoApprovalSettings.enableNotifications,
-		)
+		showNotificationForApproval(`Cline wants to edit '${message.path}'`, config.autoApprovalSettings.enableNotifications)
 
-		const { response, text, images, files } = await config.callbacks.ask("tool", messageStr, true)
+		await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
+		const { response, text, images, files } = await config.callbacks.ask("tool", completeMessage, false)
 
 		if (text || images?.length || files?.length) {
 			const fileContent = files?.length ? await processFilesIntoText(files) : ""
