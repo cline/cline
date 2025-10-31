@@ -339,7 +339,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			return lines
 		}
 		// Missing one of the sentinels: BEGIN or END PATCH
-		throw new DiffError("Invalid patch text - incomplete sentinels, Try breaking the patch into smaller patches.")
+		throw new DiffError("Invalid patch text - incomplete sentinels. Try breaking it into smaller patches.")
 	}
 
 	private stripBashWrapper(lines: string[]): string[] {
