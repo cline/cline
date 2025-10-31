@@ -1,9 +1,10 @@
 import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
-import { Mode } from "@shared/storage/types"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import type React from "react"
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -58,8 +59,10 @@ const featuredModels = [
 		id: "x-ai/grok-code-fast-1",
 		description: "Advanced model with 262K context for complex coding",
 		label: "Free",
+		isFree: true,
 	},
 ]
+const FREE_CLINE_MODELS = featuredModels.filter((m) => m.isFree)
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
@@ -91,7 +94,22 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	}
 
 	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration, currentMode)
+		const selected = normalizeApiConfiguration(apiConfiguration, currentMode)
+		const isCline = selected.selectedProvider === "cline"
+		// Makes sure "Free" featured models have $0 pricing for Cline provider
+		if (isCline && FREE_CLINE_MODELS.some((fm) => fm.id === selected.selectedModelId)) {
+			return {
+				...selected,
+				selectedModelInfo: {
+					...selected.selectedModelInfo,
+					inputPrice: 0,
+					outputPrice: 0,
+					cacheReadsPrice: 0,
+					cacheWritesPrice: 0,
+				},
+			}
+		}
+		return selected
 	}, [apiConfiguration, currentMode])
 
 	useMount(refreshOpenRouterModels)
@@ -128,10 +146,9 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 				// Filter out other :free models
 				return !id.includes(":free")
 			})
-		} else {
-			// For OpenRouter provider: exclude Cline-specific models
-			return unfilteredModelIds.filter((id) => !id.startsWith("cline/"))
 		}
+		// For OpenRouter provider: exclude Cline-specific models
+		return unfilteredModelIds.filter((id) => !id.startsWith("cline/"))
 	}, [openRouterModels, modeFields.apiProvider])
 
 	const searchableItems = useMemo(() => {

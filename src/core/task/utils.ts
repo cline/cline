@@ -5,12 +5,8 @@ import { ClineApiReqCancelReason, ClineApiReqInfo } from "@/shared/ExtensionMess
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { MessageStateHandler } from "./message-state"
 
-export const showNotificationForApprovalIfAutoApprovalEnabled = (
-	message: string,
-	autoApprovalSettingsEnabled: boolean,
-	notificationsEnabled: boolean,
-) => {
-	if (autoApprovalSettingsEnabled && notificationsEnabled) {
+export const showNotificationForApproval = (message: string, notificationsEnabled: boolean) => {
+	if (notificationsEnabled) {
 		showSystemNotification({
 			subtitle: "Approval Required",
 			message,
