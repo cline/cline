@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.35.1
+
+### Patch Changes
+
+- c7afb61: Fix: render model description in markdown
+
 ## 3.35.0
 
 - Add native tool calling support with configurable setting.
