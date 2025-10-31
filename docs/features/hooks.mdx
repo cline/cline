@@ -82,7 +82,7 @@ Start with a simple hook that just logs information before building complex vali
 
 ## Hook Types
 
-Cline provides eight hook types that let you tap into different stages of the AI workflow. They're organized into two categories: **Task Lifecycle Hooks** (monitor task state changes) and **Communication Hooks** (intercept and enhance interactions).
+Cline provides eight hook types that let you tap into different stages of the AI workflow. They're organized into four categories based on their trigger points and use cases.
 
 <Note>
 The hook names below are the exact file names you need to create. For example, to use the TaskStart hook, create a file named `TaskStart` (no file extension) in your hooks directory.
@@ -90,9 +90,80 @@ The hook names below are the exact file names you need to create. For example, t
 
 Each hook receives base fields in addition to its specific data: `clineVersion`, `hookName`, `timestamp`, `taskId`, `workspaceRoots`, `userId`.
 
-### Task Lifecycle Hooks
+### Tool Execution
 
-These hooks monitor and respond to task state changes from start to finish.
+These hooks intercept and validate tool operations before and after they execute. Use them to enforce policies, track changes, and learn from operations.
+
+#### PreToolUse
+
+Runs before any tool executes. Use it to block invalid operations, validate parameters, and enforce project policies before changes happen.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "PreToolUse",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "preToolUse": {
+    "toolName": "string",
+    "parameters": {}
+  }
+}
+```
+
+#### PostToolUse
+
+Runs after a tool completes. Use it to learn from results, track performance metrics, and build project knowledge based on operations performed.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "PostToolUse",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "postToolUse": {
+    "toolName": "string",
+    "parameters": {},
+    "result": "string",
+    "success": boolean,
+    "executionTimeMs": number
+  }
+}
+```
+
+### User Interaction
+
+These hooks monitor and enhance user communication with Cline. Use them to validate input, inject context, and track interaction patterns.
+
+#### UserPromptSubmit
+
+Runs when a user sends a message to Cline. Use it to validate input, inject context based on the prompt, and track interaction patterns.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "UserPromptSubmit",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "userPromptSubmit": {
+    "prompt": "string",
+    "attachments": ["string"]
+  }
+}
+```
+
+### Task Lifecycle
+
+These hooks monitor and respond to task state changes from start to finish. Use them to track progress, restore state, and trigger workflows.
 
 #### TaskStart
 
@@ -101,10 +172,16 @@ Runs when a new task begins. Use it to detect project type, initialize tracking,
 **Input Fields:**
 ```json
 {
+  "clineVersion": "string",
+  "hookName": "TaskStart",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
   "taskStart": {
     "taskMetadata": {
       "taskId": "string",
-      "ulid": "string", 
+      "ulid": "string",
       "initialTask": "string"
     }
   }
@@ -118,8 +195,17 @@ Runs when a task resumes after interruption. Use it to restore state, refresh co
 **Input Fields:**
 ```json
 {
+  "clineVersion": "string",
+  "hookName": "TaskResume",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
   "taskResume": {
-    "taskMetadata": {"taskId": "string", "ulid": "string"},
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string"
+    },
     "previousState": {
       "lastMessageTs": "string",
       "messageCount": "string",
@@ -136,9 +222,18 @@ Runs when a task is cancelled. Use it to cleanup resources, log cancellation det
 **Input Fields:**
 ```json
 {
+  "clineVersion": "string",
+  "hookName": "TaskCancel",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
   "taskCancel": {
-    "taskMetadata": {"taskId": "string", "ulid": "string"},
-    "reason": "string"
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string",
+      "completionStatus": "string"
+    }
   }
 }
 ```
@@ -150,64 +245,24 @@ Runs when a task finishes successfully. Use it for final cleanup, tracking metri
 **Input Fields:**
 ```json
 {
+  "clineVersion": "string",
+  "hookName": "TaskComplete",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
   "taskComplete": {
-    "taskMetadata": {"taskId": "string", "ulid": "string"},
-    "completionDetails": {
-      "totalMessages": "string",
-      "executionTimeMs": "string"
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string"
     }
   }
 }
 ```
 
-### Communication Hooks
+### System Events
 
-These hooks intercept and enhance communication between you and Cline.
-
-#### UserPromptSubmit
-
-Runs when a user sends a message to Cline. Use it to validate input, inject context based on the prompt, and track interaction patterns.
-
-**Input Fields:**
-```json
-{
-  "userPromptSubmit": {
-    "prompt": "string",
-    "attachments": ["string"]
-  }
-}
-```
-
-#### PreToolUse
-
-Runs before any tool executes. Use it to block invalid operations, validate parameters, and enforce project policies before changes happen.
-
-**Input Fields:**
-```json
-{
-  "preToolUse": {
-    "toolName": "string",
-    "parameters": {}
-  }
-}
-```
-
-#### PostToolUse
-
-Runs after a tool completes. Use it to learn from results, track performance metrics, and build project knowledge based on operations performed.
-
-**Input Fields:**
-```json
-{
-  "postToolUse": {
-    "toolName": "string",
-    "parameters": {},
-    "result": "string",
-    "success": boolean,
-    "executionTimeMs": number
-  }
-}
-```
+These hooks monitor internal Cline operations and system-level events. Use them to track context usage, log system behavior, and analyze performance patterns.
 
 #### PreCompact
 
@@ -216,6 +271,12 @@ Runs before conversation context is truncated to fit token limits. Use it to mon
 **Input Fields:**
 ```json
 {
+  "clineVersion": "string",
+  "hookName": "PreCompact",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
   "preCompact": {
     "contextSize": number,
     "messagesToCompact": number,
@@ -224,24 +285,9 @@ Runs before conversation context is truncated to fit token limits. Use it to mon
 }
 ```
 
-
-
 ### JSON Communication
 
 Hooks receive JSON via stdin and return JSON via stdout.
-
-**Input structure:**
-```json
-{
-  "hookName": "PreToolUse",
-  "taskId": "abc123",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "preToolUse": {
-    "toolName": "write_to_file",
-    "parameters": {"path": "src/index.ts"}
-  }
-}
-```
 
 **Output structure:**
 ```json
@@ -252,19 +298,20 @@ Hooks receive JSON via stdin and return JSON via stdout.
 }
 ```
 
+Your hook script can output logging or diagnostic information to stdout during execution, as long as the JSON response is the last thing written. Cline will parse only the final JSON object from stdout.
+
+For example:
+```bash
+#!/usr/bin/env bash
+echo "Processing hook..."  # This is fine
+echo "Tool: $tool_name"    # This is also fine
+# The JSON must be last:
+echo '{"cancel": false}'
+```
+
 The `cancel` field controls whether execution continues. Set it to `true` to block an action, `false` to allow it.
 
 The `contextModification` field injects text into the conversation. This affects future AI decisions, not the current one. Use prefixes like `WORKSPACE_RULES:` or `PERFORMANCE:` to help categorize the context.
-
-
-
-
-### Execution Details
-
-When multiple hooks exist (global + workspace), they all run concurrently. If any hook blocks an action (`cancel: true`), the action doesn't happen. Context from all hooks gets combined.
-
-Hooks have 30 seconds to complete (configurable via `HOOK_EXECUTION_TIMEOUT_MS`). Context modifications are limited to 50KB (configurable via `MAX_CONTEXT_MODIFICATION_SIZE`).
-
 
 ### Understanding Context Timing
 
@@ -309,6 +356,8 @@ The key is combining hooks with external tools. A hook can be the glue between C
 
 ### Context Not Affecting Behavior
 - Remember: context affects FUTURE decisions, not the current tool
+- The current AI behavior is based on the previous "API Request..." block
+- Your `contextModification` gets injected into the NEXT "API Request..." block
 - Use PreToolUse for validation (blocking) if you need immediate effect
 - Ensure context modifications are clear and actionable
 - Check that context isn't being truncated (50KB limit)
