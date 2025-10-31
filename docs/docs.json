@@ -258,8 +258,19 @@
 									"enterprise-solutions/members/managing-members"
 								]
 							},
-							"enterprise-solutions/configure-AWS-Bedrock-Admin",
-							"enterprise-solutions/configure-AWS-Bedrock-Member"
+							{
+								"group": "Provider Remote Configuration",
+								"pages": [
+									{
+										"group": "AWS Bedrock",
+										"pages": [
+											"enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration",
+											"enterprise-solutions/provider-remote-config/aws-bedrock/member-configuration"
+										]
+									}
+								]
+							},
+							"enterprise-solutions/configure-workOS-authkit"
 						]
 					}
 				]
@@ -325,6 +336,14 @@
 		{
 			"source": "/getting-started/your-first-task",
 			"destination": "/getting-started/your-first-project"
+		},
+		{
+			"source": "/enterprise-solutions/configure-AWS-Bedrock-Admin",
+			"destination": "/enterprise-solutions/provider-remote-config/aws-bedrock/admin-configuration"
+		},
+		{
+			"source": "/enterprise-solutions/configure-AWS-Bedrock-Member",
+			"destination": "/enterprise-solutions/provider-remote-config/aws-bedrock/member-configuration"
 		}
 	],
 	"search": {
