@@ -52,8 +52,8 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 		config.taskState.consecutiveMistakeCount = 0
 
-		// Show notification if auto-approval is enabled
-		if (config.autoApprovalSettings.enabled && config.autoApprovalSettings.enableNotifications) {
+		// Show notification if enabled
+		if (config.autoApprovalSettings.enableNotifications) {
 			showSystemNotification({
 				subtitle: "Task Completed",
 				message: result.replace(/\n/g, " "),
