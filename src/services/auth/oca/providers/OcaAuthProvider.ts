@@ -85,9 +85,14 @@ export class OcaAuthProvider {
 	}
 
 	async retrieveOcaAuthState(controller: Controller): Promise<OcaAuthState | null> {
+		// First Check the existing access token
+		const existingAuthState = await this.getExistingAuthState(controller)
+		if (existingAuthState) {
+			return existingAuthState
+		}
+		// Otherwise, try to refresh using the refresh token
 		const userRefreshToken = controller.stateManager.getSecretKey("ocaRefreshToken")
 		if (!userRefreshToken) {
-			// Try getting the
 			console.error("No stored authentication credential found.")
 			return null
 		}
