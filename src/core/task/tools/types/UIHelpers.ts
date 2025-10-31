@@ -3,7 +3,7 @@ import type { ClineDefaultTool } from "@shared/tools"
 import type { ClineAskResponse } from "@shared/WebviewMessage"
 import { telemetryService } from "@/services/telemetry"
 import type { ToolParamName, ToolUse } from "../../../assistant-message"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import { removeClosingTag } from "../utils/ToolConstants"
 import type { TaskConfig } from "./TaskConfig"
 
@@ -61,11 +61,7 @@ export function createUIHelpers(config: TaskConfig): StronglyTypedUIHelpers {
 			telemetryService.captureToolUsage(config.ulid, toolName, config.api.getModel().id, autoApproved, approved)
 		},
 		showNotificationIfEnabled: (message: string) => {
-			showNotificationForApprovalIfAutoApprovalEnabled(
-				message,
-				config.autoApprovalSettings.enabled,
-				config.autoApprovalSettings.enableNotifications,
-			)
+			showNotificationForApproval(message, config.autoApprovalSettings.enableNotifications)
 		},
 		getConfig: () => config,
 	}

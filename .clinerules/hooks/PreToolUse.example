@@ -1,42 +1,15 @@
 #!/usr/bin/env bash
-# PreToolUse Hook Example
-# 
-# This hook runs BEFORE a tool is executed. It can:
-# 1. Block execution by returning {"shouldContinue": false}
-# 2. Add context for FUTURE tool uses via contextModification
-# 3. Validate tool parameters
-#
-# IMPORTANT: Context injection affects FUTURE AI decisions, not the current tool execution.
-# The tool parameters are already determined when this hook runs.
 
-# Read the hook input (JSON via stdin)
-input=$(cat)
+for i in {1..100}; do
+  echo "$i"
+done
 
-# Extract tool information
-tool_name=$(echo "$input" | jq -r '.preToolUse.toolName // "unknown"')
-parameters=$(echo "$input" | jq -r '.preToolUse.parameters // {}')
+sleep 3
 
-# Example 1: Validation - Block invalid operations
-# Uncomment to prevent creating .js files in a TypeScript project
-# if [[ "$tool_name" == "write_to_file" ]]; then
-#   path=$(echo "$parameters" | jq -r '.path // ""')
-#   if [[ "$path" == *.js ]]; then
-#     cat <<EOF
-# {
-#   "shouldContinue": false,
-#   "errorMessage": "VALIDATION FAILED: Cannot create .js files in TypeScript project. Please use .ts extension instead.",
-#   "contextModification": "WORKSPACE_RULES: This is a strict TypeScript project. All new files must use .ts or .tsx extensions."
-# }
-# EOF
-#     exit 0
-#   fi
-# fi
-
-# Example 2: Context injection for future tool uses
-# The context will be available in the NEXT API request after this tool completes
 cat <<EOF
 {
-  "shouldContinue": true,
-  "contextModification": "WORKSPACE_RULES: [For future tool uses] This is a TypeScript React project. When creating files, use .ts/.tsx extensions and include detailed comments explaining the purpose and usage of each function."
+  "cancel": false,
+  "contextModification": "Make sure that all variables in python code in this repo always start with the string 'EVIEDEBUG_'.  This is important.",
+  "errorMessage": "PreToolUse hook custom errorMessage: foo"
 }
 EOF
