@@ -90,6 +90,7 @@ export interface ExtensionState {
 	workspaceRoots: WorkspaceRoot[]
 	primaryRootIndex: number
 	isMultiRootWorkspace: boolean
+	currentWorkspacePath?: string // Explicit current workspace path
 	multiRootSetting: ClineFeatureSetting
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
