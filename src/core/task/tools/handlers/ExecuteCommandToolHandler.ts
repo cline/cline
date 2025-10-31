@@ -16,6 +16,9 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
+// Default timeout for commands in yolo mode and background exec mode
+const DEFAULT_COMMAND_TIMEOUT_SECONDS = 30
+
 export class ExecuteCommandToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.BASH
 
@@ -63,13 +66,14 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		config.taskState.consecutiveMistakeCount = 0
 
-		// Handling of timeout while in yolo mode
-		if (config.yoloModeToggled) {
+		// Handling of timeout while in yolo mode or background exec mode
+		if (config.yoloModeToggled || config.vscodeTerminalExecutionMode === "backgroundExec") {
 			if (!timeoutParam) {
-				timeoutSeconds = 30
+				timeoutSeconds = DEFAULT_COMMAND_TIMEOUT_SECONDS
 			} else {
 				const parsedTimeoutParam = parseInt(timeoutParam, 10)
-				timeoutSeconds = isNaN(parsedTimeoutParam) || parsedTimeoutParam <= 0 ? 30 : parsedTimeoutParam
+				timeoutSeconds =
+					isNaN(parsedTimeoutParam) || parsedTimeoutParam <= 0 ? DEFAULT_COMMAND_TIMEOUT_SECONDS : parsedTimeoutParam
 			}
 		}
 
