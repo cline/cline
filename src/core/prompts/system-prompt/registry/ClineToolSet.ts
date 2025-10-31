@@ -109,6 +109,8 @@ export class ClineToolSet {
 	 */
 	public static getNativeConverter(providerId: string) {
 		switch (providerId) {
+			case "minimax":
+				return toolSpecInputSchema
 			case "anthropic":
 				return toolSpecInputSchema
 			case "gemini":
