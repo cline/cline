@@ -118,7 +118,7 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 					<Input
 						autoFocus={false}
 						className="focus-visible:border-button-background"
-						onChange={(e) => setSearchTerm(e.target?.value)}
+						onChange={(e) => e.target?.value && onSelectModel("") && setSearchTerm(e.target?.value)}
 						onClick={() => onSelectModel("")}
 						placeholder="e.g. 'opus', '4o', 'gemini-2.5' etc."
 						type="search"
@@ -137,7 +137,7 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 									/>
 								)
 							})}
-						{searchTerm && searchedModels.length === 0 && (
+						{searchTerm?.length && !searchedModels?.length && (
 							<p className="px-1 mt-1 text-sm text-foreground/70">No result found for "{searchTerm}"</p>
 						)}
 					</div>

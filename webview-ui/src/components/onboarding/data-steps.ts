@@ -12,9 +12,8 @@ type UserTypeSelection = {
 
 export const STEP_CONFIG = {
 	0: {
-		title: "Become a CLINE user!",
-		description:
-			"Cline is free for individual developers. Pay only for AI inference on a usage basis - no subscriptions, no vendor lock-in!",
+		title: "How will you use Cline?",
+		description: "Select an option below to get started.",
 		buttons: [
 			{ text: "Continue", action: "next", variant: "default" },
 			{ text: "Login to Cline", action: "auth", variant: "secondary" },
@@ -44,7 +43,7 @@ export const STEP_CONFIG = {
 } as const
 
 export const USER_TYPE_SELECTIONS: UserTypeSelection[] = [
-	{ title: "Absolutely Free", description: "More context of this key feature", type: NEW_USER_TYPE.FREE },
-	{ title: "Power User", description: "Unlock advanced features and capabilities", type: NEW_USER_TYPE.POWER },
-	{ title: "I have my own key", description: "Use your own API credentials", type: NEW_USER_TYPE.BYOK },
+	{ title: "Absolutely Free", description: "Get Started at no cost", type: NEW_USER_TYPE.FREE },
+	{ title: "Frontier Model", description: "Claude 4.5, GPT-5 Codex, etc", type: NEW_USER_TYPE.POWER },
+	{ title: "Bring my own API key", description: "Use Cline with your provider of choice", type: NEW_USER_TYPE.BYOK },
 ]
