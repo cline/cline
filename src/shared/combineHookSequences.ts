@@ -69,6 +69,11 @@ function filterPartialToolMessages(messages: ClineMessage[]): ClineMessage[] {
 /**
  * Combines a single hook message with all subsequent hook_output messages.
  *
+ * Hook output messages are now prefixed with their parent hook's timestamp in the format:
+ * `${parentTs}:${actualOutput}`
+ *
+ * This allows multiple hooks running in parallel to have separate output streams.
+ *
  * @param hookMessage The hook message to start combining from
  * @param startIndex The index of the hook message in the messages array
  * @param messages The full messages array
@@ -81,25 +86,64 @@ function combineHookWithOutputs(
 ): { combined: ClineMessage; nextIndex: number } {
 	let combinedText = hookMessage.text || ""
 	let hasOutput = false
+	const hookTs = hookMessage.ts
 	let i = startIndex + 1
+
+	// Debug logging
+	console.log(`[combineHook] Processing hook at index ${startIndex}, ts=${hookTs}`)
+	let matchedCount = 0
+	let skippedCount = 0
 
 	// Collect all hook_output messages until we hit another hook or end of array
 	while (i < messages.length && messages[i].say !== "hook") {
 		if (messages[i].say === "hook_output") {
-			// Add marker before first output
-			if (!hasOutput) {
-				combinedText += `\n${HOOK_OUTPUT_STRING}`
-				hasOutput = true
+			const outputText = messages[i].text || ""
+
+			// Check if this output belongs to this hook
+			// Format: ${parentTs}:${actualOutput}
+			const colonIndex = outputText.indexOf(":")
+			let belongsToThisHook = false
+			let actualOutput = outputText
+
+			if (colonIndex > 0) {
+				const parentTsStr = outputText.substring(0, colonIndex)
+				const parsedParentTs = parseInt(parentTsStr, 10)
+
+				console.log(`[combineHook]   Output has prefix ${parsedParentTs}, comparing to hook ts ${hookTs}`)
+
+				if (!isNaN(parsedParentTs) && parsedParentTs === hookTs) {
+					// This output belongs to this hook
+					belongsToThisHook = true
+					actualOutput = outputText.substring(colonIndex + 1)
+					matchedCount++
+				} else {
+					skippedCount++
+				}
+			} else {
+				// No parent timestamp prefix - legacy format, include for backward compatibility
+				// This handles old hook_output messages that don't have the parent ts prefix
+				belongsToThisHook = true
+				console.log(`[combineHook]   Output has no prefix (legacy format), including`)
+				matchedCount++
 			}
 
-			// Append output if not empty
-			const output = messages[i].text || ""
-			if (output.length > 0) {
-				combinedText += "\n" + output
+			if (belongsToThisHook) {
+				// Add marker before first output
+				if (!hasOutput) {
+					combinedText += `\n${HOOK_OUTPUT_STRING}`
+					hasOutput = true
+				}
+
+				// Append output if not empty
+				if (actualOutput.length > 0) {
+					combinedText += "\n" + actualOutput
+				}
 			}
 		}
 		i++
 	}
+
+	console.log(`[combineHook] Finished: matched ${matchedCount} outputs, skipped ${skippedCount}`)
 
 	return {
 		combined: { ...hookMessage, text: combinedText },

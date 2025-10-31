@@ -495,6 +495,16 @@ export class HookFactory {
 	}
 
 	/**
+	 * Discover all hook scripts for the given hook name without creating runners.
+	 * This is useful when you want to execute each hook individually with separate contexts.
+	 * @returns Array of paths to hook scripts
+	 */
+	async discoverHookScripts<Name extends HookName>(hookName: Name): Promise<string[]> {
+		const { HookDiscoveryCache } = await import("./HookDiscoveryCache")
+		return await HookDiscoveryCache.getInstance().get(hookName)
+	}
+
+	/**
 	 * Create a hook runner without streaming support (backwards compatible)
 	 */
 	async create<Name extends HookName>(hookName: Name): Promise<HookRunner<Name>> {

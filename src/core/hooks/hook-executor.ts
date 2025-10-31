@@ -1,7 +1,7 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { MessageStateHandler } from "../task/message-state"
 import { HookExecutionError } from "./HookError"
-import { HookFactory } from "./hook-factory"
+import { HookFactory, HookStreamCallback } from "./hook-factory"
 
 export interface HookExecutionOptions<Name extends keyof Hooks = any> {
 	hookName: Name
@@ -13,6 +13,7 @@ export interface HookExecutionOptions<Name extends keyof Hooks = any> {
 		toolName: string | undefined
 		messageTs: number
 		abortController: AbortController
+		scriptPath?: string
 	}) => Promise<void>
 	clearActiveHookExecution?: () => Promise<void>
 	messageStateHandler: MessageStateHandler
@@ -35,6 +36,9 @@ export interface HookExecutionResult {
 /**
  * Executes a hook with standardized error handling, status tracking, and cleanup.
  * This consolidates the common pattern used across all hook execution sites.
+ *
+ * When multiple hooks exist (e.g., global + workspace), each hook gets its own
+ * background terminal with separate output streaming.
  */
 export async function executeHook<Name extends keyof Hooks>(options: HookExecutionOptions<Name>): Promise<HookExecutionResult> {
 	const {
@@ -56,45 +60,159 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 		}
 	}
 
-	// Check if the hook exists
+	// Discover all hook scripts for this hook type
 	const hookFactory = new HookFactory()
-	const hasHook = await hookFactory.hasHook(hookName)
+	const hookScripts = await hookFactory.discoverHookScripts(hookName)
 
-	if (!hasHook) {
+	if (hookScripts.length === 0) {
 		return {
 			wasCancelled: false,
 		}
 	}
 
-	let hookMessageTs: number | undefined
-	const abortController = new AbortController()
+	// Create hook messages sequentially to ensure unique timestamps
+	// (but execute the hooks themselves in parallel for performance)
+	const hookExecutions: Array<Promise<HookExecutionResult>> = []
 
-	try {
-		// Show hook execution indicator and capture timestamp
+	for (const scriptPath of hookScripts) {
+		// Create the hook message first (sequentially to get unique timestamp)
 		const hookMetadata = {
 			hookName,
+			scriptPath,
 			...(options.toolName && { toolName: options.toolName }),
 			status: "running",
 			...(options.pendingToolInfo && { pendingToolInfo: options.pendingToolInfo }),
 		}
-		hookMessageTs = await say("hook", JSON.stringify(hookMetadata))
+		const hookMessageTs = await say("hook", JSON.stringify(hookMetadata))
+
+		// Add small delay to ensure different timestamps even on fast systems
+		await new Promise((resolve) => setTimeout(resolve, 1))
+
+		// Now start the hook execution (don't await - let them run in parallel)
+		const execution = executeIndividualHook({
+			scriptPath,
+			hookName,
+			hookInput,
+			isCancellable,
+			say,
+			setActiveHookExecution,
+			clearActiveHookExecution,
+			messageStateHandler,
+			taskId,
+			toolName: options.toolName,
+			pendingToolInfo: options.pendingToolInfo,
+			hookMessageTs, // Pass the pre-created timestamp
+		})
+
+		hookExecutions.push(execution)
+	}
+
+	// Wait for all hook executions to complete in parallel
+	const results = await Promise.all(hookExecutions)
+
+	// Merge results:
+	// - If ANY hook was cancelled by user, return wasCancelled: true
+	// - If ANY hook requests task cancellation, return cancel: true
+	// - Combine all context modifications
+	// - Combine all error messages
+
+	const wasCancelled = results.some((r) => r.wasCancelled)
+	const cancel = results.some((r) => r.cancel === true)
+	const contextModification = results
+		.map((r) => r.contextModification?.trim())
+		.filter((mod) => mod)
+		.join("\n\n")
+	const errorMessage = results
+		.map((r) => r.errorMessage?.trim())
+		.filter((msg) => msg)
+		.join("\n")
+
+	return {
+		cancel: cancel || undefined,
+		contextModification: contextModification || undefined,
+		errorMessage: errorMessage || undefined,
+		wasCancelled,
+	}
+}
+
+/**
+ * Execute a single hook script with its own terminal message and output stream.
+ */
+async function executeIndividualHook<Name extends keyof Hooks>(params: {
+	scriptPath: string
+	hookName: Name
+	hookInput: Hooks[Name]
+	isCancellable: boolean
+	say: (type: any, text?: string, images?: string[], files?: string[], partial?: boolean) => Promise<number | undefined>
+	setActiveHookExecution?: (execution: {
+		hookName: string
+		toolName: string | undefined
+		messageTs: number
+		abortController: AbortController
+		scriptPath?: string
+	}) => Promise<void>
+	clearActiveHookExecution?: () => Promise<void>
+	messageStateHandler: MessageStateHandler
+	taskId: string
+	toolName?: string
+	pendingToolInfo?: any
+	hookMessageTs?: number // Pre-created timestamp for this hook message
+}): Promise<HookExecutionResult> {
+	const {
+		scriptPath,
+		hookName,
+		hookInput,
+		isCancellable,
+		say,
+		setActiveHookExecution,
+		clearActiveHookExecution,
+		messageStateHandler,
+		taskId,
+		toolName,
+		pendingToolInfo,
+		hookMessageTs: providedHookMessageTs,
+	} = params
+
+	let hookMessageTs: number | undefined = providedHookMessageTs
+	const abortController = new AbortController()
+	const hookFactory = new HookFactory()
+
+	try {
+		// Only create hook message if not already created
+		if (hookMessageTs === undefined) {
+			const hookMetadata = {
+				hookName,
+				scriptPath, // Include script path to identify which hook this is
+				...(toolName && { toolName }),
+				status: "running",
+				...(pendingToolInfo && { pendingToolInfo }),
+			}
+			hookMessageTs = await say("hook", JSON.stringify(hookMetadata))
+		}
 
 		// Track active hook execution for cancellation (only if cancellable and message was created)
 		if (isCancellable && hookMessageTs !== undefined && setActiveHookExecution) {
 			await setActiveHookExecution({
 				hookName,
-				toolName: options.toolName,
+				toolName,
 				messageTs: hookMessageTs,
 				abortController,
+				scriptPath,
 			})
 		}
 
-		// Create streaming callback
-		const streamCallback = async (line: string) => {
-			await say("hook_output", line)
+		// Create streaming callback for this specific hook
+		// Link hook_output messages to their parent hook message via timestamp
+		const streamCallback: HookStreamCallback = async (line: string) => {
+			if (hookMessageTs !== undefined) {
+				// Include parent timestamp in the text so combineHookSequences can group correctly
+				await say("hook_output", `${hookMessageTs}:${line}`)
+			} else {
+				await say("hook_output", line)
+			}
 		}
 
-		// Create and execute hook
+		// Create and execute this specific hook
 		const hook = await hookFactory.createWithStreaming(
 			hookName,
 			streamCallback,
@@ -106,7 +224,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 			...hookInput,
 		})
 
-		console.log(`[${hookName} Hook]`, result)
+		console.log(`[${hookName} Hook - ${scriptPath}]`, result)
 
 		// Check if hook wants to cancel
 		if (result.cancel === true) {
@@ -114,7 +232,8 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 			if (hookMessageTs !== undefined) {
 				await updateHookMessage(messageStateHandler, hookMessageTs, {
 					hookName,
-					...(options.toolName && { toolName: options.toolName }),
+					scriptPath,
+					...(toolName && { toolName }),
 					status: "cancelled",
 					exitCode: 130,
 					hasJsonResponse: true,
@@ -138,7 +257,8 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 		if (hookMessageTs !== undefined) {
 			await updateHookMessage(messageStateHandler, hookMessageTs, {
 				hookName,
-				...(options.toolName && { toolName: options.toolName }),
+				scriptPath,
+				...(toolName && { toolName }),
 				status: "completed",
 				exitCode: 0,
 				hasJsonResponse: true,
@@ -163,6 +283,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 			if (hookMessageTs !== undefined) {
 				await updateHookMessage(messageStateHandler, hookMessageTs, {
 					hookName,
+					scriptPath,
 					status: "cancelled",
 					exitCode: 130,
 				})
@@ -182,6 +303,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 		if (hookMessageTs !== undefined) {
 			await updateHookMessage(messageStateHandler, hookMessageTs, {
 				hookName,
+				scriptPath,
 				status: "failed",
 				exitCode: errorInfo?.exitCode ?? 1,
 				...(errorInfo && {
@@ -196,7 +318,7 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 		}
 
 		// Log error for non-cancellable hooks or unexpected errors
-		console.error(`${hookName} hook failed:`, hookError)
+		console.error(`${hookName} hook failed (${scriptPath}):`, hookError)
 
 		// Return safe defaults for all fields to avoid undefined property access
 		return {
