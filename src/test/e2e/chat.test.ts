@@ -52,7 +52,7 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	await inputbox.pressSequentially("@prob")
 
 	// Wait for menu to be visible and click on menu item
-	await sidebar.getByText("@problems").click()
+	await sidebar.getByText("Problems").first().click()
 	await expect(inputbox).toHaveValue("@problems ")
 
 	// Add following text to verify it works correctly
