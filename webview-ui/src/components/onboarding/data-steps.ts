@@ -14,7 +14,7 @@ export const STEP_CONFIG = {
 	0: {
 		title: "Become a CLINE user!",
 		description:
-			"Cline is free for individual developers. Pay only for AI inference on a usage basis - no subscriptions, no vendor lock-in. You can change this later!",
+			"Cline is free for individual developers. Pay only for AI inference on a usage basis - no subscriptions, no vendor lock-in!",
 		buttons: [
 			{ text: "Continue", action: "next", variant: "default" },
 			{ text: "Login to Cline", action: "auth", variant: "secondary" },
@@ -23,14 +23,14 @@ export const STEP_CONFIG = {
 	[NEW_USER_TYPE.FREE]: {
 		title: "Select a free model",
 		buttons: [
-			{ text: "Sign Up for Cline", action: "auth", variant: "default" },
+			{ text: "Create my Account", action: "auth", variant: "default" },
 			{ text: "Back", action: "back", variant: "secondary" },
 		],
 	},
 	[NEW_USER_TYPE.POWER]: {
 		title: "Select your model",
 		buttons: [
-			{ text: "Sign Up for Cline", action: "auth", variant: "default" },
+			{ text: "Create my Account", action: "auth", variant: "default" },
 			{ text: "Back", action: "back", variant: "secondary" },
 		],
 	},

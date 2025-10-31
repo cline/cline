@@ -1,7 +1,7 @@
-import { ModelInfo } from "@shared/api"
+import type { ModelInfo } from "@shared/api"
 import { NEW_USER_TYPE } from "./data-steps"
 
-type ModelOption = {
+interface ModelOption extends ModelInfo {
 	id: string
 	name: string
 	description: string
@@ -9,17 +9,6 @@ type ModelOption = {
 	supported_parameters?: string[]
 	score: number
 	speed: string
-	pricing?: {
-		prompt?: string
-		completion?: string
-		input_cache_read?: string
-		image?: string
-		web_search?: string
-		internal_reasoning?: string
-		request?: string
-		input_cache_write?: string
-	}
-	modelInfo: ModelInfo
 }
 
 type ModelGroup = {
@@ -40,13 +29,11 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 					score: 90,
 					speed: "Fast",
 					badge: "Best",
-					modelInfo: {
-						contextWindow: 256000,
-						supportsImages: true,
-						supportsPromptCache: true,
-						inputPrice: 0,
-						outputPrice: 0,
-					},
+					contextWindow: 256000,
+					supportsImages: true,
+					supportsPromptCache: true,
+					inputPrice: 0,
+					outputPrice: 0,
 				},
 				{
 					id: "minimax/minimax-m1",
@@ -56,13 +43,11 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 					badge: "Trending",
 					score: 90,
 					speed: "Fast",
-					modelInfo: {
-						contextWindow: 1000000,
-						supportsImages: false,
-						supportsPromptCache: false,
-						inputPrice: 0,
-						outputPrice: 0,
-					},
+					contextWindow: 1000000,
+					supportsImages: false,
+					supportsPromptCache: false,
+					inputPrice: 0,
+					outputPrice: 0,
 				},
 			],
 		},
@@ -72,20 +57,18 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 			group: "frontier",
 			models: [
 				{
-					id: "anthropic/claude-sonnet-4",
-					name: "Anthropic: Claude Sonnet 4",
+					id: "anthropic/claude-sonnet-4.5",
+					name: "Anthropic: Claude Sonnet 4.5",
 					description:
-						"Claude Sonnet 4 significantly enhances the capabilities of its predecessor, Sonnet 3.7, excelling in both coding and reasoning tasks with improved precision and controllability. Achieving state-of-the-art performance on SWE-bench (72.7%), Sonnet 4 balances capability and computational efficiency, making it suitable for a broad range of applications from routine coding tasks to complex software development projects. Key enhancements include improved autonomous codebase navigation, reduced error rates in agent-driven workflows, and increased reliability in following intricate instructions. Sonnet 4 is optimized for practical everyday use, providing advanced reasoning capabilities while maintaining efficiency and responsiveness in diverse internal and external scenarios.\n\nRead more at the [blog post here](https://www.anthropic.com/news/claude-4)",
+						"Claude Sonnet 4.5 is Anthropic’s most advanced Sonnet model to date, optimized for real-world agents and coding workflows. It delivers state-of-the-art performance on coding benchmarks such as SWE-bench Verified, with improvements across system design, code security, and specification adherence. The model is designed for extended autonomous operation, maintaining task continuity across sessions and providing fact-based progress tracking. Sonnet 4.5 also introduces stronger agentic capabilities, including improved tool orchestration, speculative parallel execution, and more efficient context and memory management. With enhanced context tracking and awareness of token usage across tool calls, it is particularly well-suited for multi-context and long-running workflows. Use cases span software engineering, cybersecurity, financial analysis, research agents, and other domains requiring sustained reasoning and tool use.",
 					badge: "Best",
 					score: 97,
 					speed: "Fast",
-					modelInfo: {
-						contextWindow: 1000000,
-						supportsImages: true,
-						supportsPromptCache: true,
-						inputPrice: 3.0,
-						outputPrice: 15.0,
-					},
+					contextWindow: 200000,
+					supportsImages: true,
+					supportsPromptCache: true,
+					inputPrice: 3.0,
+					outputPrice: 15.0,
 				},
 				{
 					id: "openai/gpt-5-codex",
@@ -95,13 +78,11 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 					badge: "Best",
 					score: 97,
 					speed: "Slow",
-					modelInfo: {
-						contextWindow: 400000,
-						supportsImages: true,
-						supportsPromptCache: true,
-						inputPrice: 1.25,
-						outputPrice: 10.0,
-					},
+					contextWindow: 400000,
+					supportsImages: true,
+					supportsPromptCache: true,
+					inputPrice: 1.25,
+					outputPrice: 10.0,
 				},
 			],
 		},
@@ -116,13 +97,11 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 					badge: "Trending",
 					score: 90,
 					speed: "Average",
-					modelInfo: {
-						contextWindow: 202752,
-						supportsImages: false,
-						supportsPromptCache: false,
-						inputPrice: 0.6,
-						outputPrice: 2.5,
-					},
+					contextWindow: 202752,
+					supportsImages: false,
+					supportsPromptCache: false,
+					inputPrice: 0.6,
+					outputPrice: 2.5,
 				},
 				{
 					id: "moonshotai/kimi-dev-72b:free",
@@ -132,13 +111,11 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 					badge: "Free",
 					score: 90,
 					speed: "Fast",
-					modelInfo: {
-						contextWindow: 131072,
-						supportsImages: false,
-						supportsPromptCache: false,
-						inputPrice: 0,
-						outputPrice: 0,
-					},
+					contextWindow: 131072,
+					supportsImages: false,
+					supportsPromptCache: false,
+					inputPrice: 0,
+					outputPrice: 0,
 				},
 			],
 		},
@@ -152,7 +129,7 @@ export function getPriceRange(modelInfo: ModelInfo): string {
 	if (cost === 0) {
 		return "Free"
 	}
-	if (cost < 20) {
+	if (cost < 10) {
 		return "$"
 	}
 	if (cost > 50) {
@@ -162,23 +139,19 @@ export function getPriceRange(modelInfo: ModelInfo): string {
 }
 
 export function getOverviewLabel(overview: number): string {
-	const getLabel = () => {
-		if (overview >= 95) {
-			return "Top Performer"
-		}
-		if (overview >= 80) {
-			return "Great"
-		}
-		if (overview >= 60) {
-			return "Good"
-		}
-		if (overview >= 50) {
-			return "Average"
-		}
-		return "Below Average"
+	if (overview >= 95) {
+		return "Top Performer"
 	}
-
-	return `${overview}% (${getLabel()})`
+	if (overview >= 80) {
+		return "Great"
+	}
+	if (overview >= 60) {
+		return "Good"
+	}
+	if (overview >= 50) {
+		return "Average"
+	}
+	return "Below Average"
 }
 
 export function getCapabilities(modelInfo: ModelInfo): string[] {
