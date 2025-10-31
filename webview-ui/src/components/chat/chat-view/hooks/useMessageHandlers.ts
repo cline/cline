@@ -62,7 +62,6 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 						case "resume_task":
 						case "resume_completed_task":
 						case "mistake_limit_reached":
-						case "auto_approval_max_req_reached":
 						case "api_req_failed":
 						case "new_task":
 						case "condense":

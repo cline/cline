@@ -1,11 +1,11 @@
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { ModelInfo } from "@shared/api"
+import type { ModelInfo } from "@shared/api"
 import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
 import { CLAUDE_SONNET_1M_TIERS, openRouterClaudeSonnet41mModelId, openRouterClaudeSonnet451mModelId } from "@/shared/api"
-import { Controller } from ".."
+import type { Controller } from ".."
 
 type OpenRouterSupportedParams =
 	| "frequency_penalty"
@@ -59,7 +59,7 @@ interface OpenRouterRawModelInfo {
 		input_cache_read: string
 		input_cache_write: string
 	} | null
-	thinking_config: any | null
+	thinking_config: Record<string, unknown> | null
 	supports_global_endpoint: boolean | null
 	tiers: any[] | null
 	supported_parameters?: OpenRouterSupportedParams[] | null
@@ -97,7 +97,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 					cacheWritesPrice: parsePrice(rawModel.pricing?.input_cache_write),
 					cacheReadsPrice: parsePrice(rawModel.pricing?.input_cache_read),
 					description: rawModel.description ?? "",
-					thinkingConfig: supportThinking ? (rawModel.thinking_config ?? {}) : undefined,
+					thinkingConfig: (supportThinking && rawModel.thinking_config) || undefined,
 					supportsGlobalEndpoint: rawModel.supports_global_endpoint ?? undefined,
 					tiers: rawModel.tiers ?? undefined,
 				}
