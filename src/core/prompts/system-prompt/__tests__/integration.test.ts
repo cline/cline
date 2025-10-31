@@ -299,10 +299,9 @@ describe("Prompt System Integration Tests", () => {
 														`This is a new test case. Run with --update-snapshots to create the initial snapshot.`,
 												),
 											)
-										} else {
-											// Re-throw comparison errors
-											throw error
 										}
+										// Re-throw comparison errors
+										throw error
 									}
 								}
 							} catch (error) {
@@ -390,14 +389,8 @@ describe("Prompt System Integration Tests", () => {
 			this.timeout(30000)
 
 			const invalidContext = {} as SystemPromptContext
-
-			try {
-				const prompt = await getSystemPrompt(invalidContext)
-				expect(prompt).to.be.a("string")
-			} catch (error) {
-				// Error is acceptable for invalid context
-				expect(error).to.be.instanceOf(Error)
-			}
+			const { systemPrompt } = await getSystemPrompt(invalidContext)
+			expect(systemPrompt).to.be.a("string")
 		})
 
 		it("should handle undefined context properties", async function () {

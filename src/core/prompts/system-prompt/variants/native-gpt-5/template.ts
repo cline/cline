@@ -15,10 +15,6 @@ export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
-{{${SystemPromptSection.EDITING_FILES}}}
-
-====
-
 {{${SystemPromptSection.ACT_VS_PLAN}}}
 
 ====
