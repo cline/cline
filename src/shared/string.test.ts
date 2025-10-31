@@ -157,7 +157,7 @@ describe("String: canonicalize", () => {
 		})
 
 		it("should handle strings with only special characters", () => {
-			canonicalize("\u2013\u201C\u00A0").should.equal('- "')
+			canonicalize("\u2013\u201C\u00A0").should.equal('-" ')
 		})
 
 		it("should handle multiline strings", () => {
