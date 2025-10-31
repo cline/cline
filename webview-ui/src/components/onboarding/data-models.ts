@@ -1,19 +1,19 @@
 import type { ModelInfo } from "@shared/api"
 import { NEW_USER_TYPE } from "./data-steps"
 
-interface ModelOption extends ModelInfo {
+export interface OnboardingModelOption extends ModelInfo {
 	id: string
-	name: string
-	description: string
-	badge: string
+	name?: string
+	description?: string
+	badge?: string
 	supported_parameters?: string[]
-	score: number
-	speed: string
+	score?: number
+	speed?: string
 }
 
 type ModelGroup = {
 	group: string
-	models: ModelOption[]
+	models: OnboardingModelOption[]
 }
 
 export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]> = {

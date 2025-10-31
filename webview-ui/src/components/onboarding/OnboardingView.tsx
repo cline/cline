@@ -3,7 +3,9 @@ import { BooleanRequest } from "@shared/proto/index.cline"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, StarIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { handleSignIn } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -11,9 +13,13 @@ import { cn } from "@/lib/utils"
 import { StateServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
-import { Badge } from "../ui/badge"
-import { Input } from "../ui/input"
-import { getCapabilities, getOverviewLabel, getPriceRange, ONBOARDING_MODEL_SELECTIONS } from "./data-models"
+import {
+	getCapabilities,
+	getOverviewLabel,
+	getPriceRange,
+	ONBOARDING_MODEL_SELECTIONS,
+	type OnboardingModelOption,
+} from "./data-models"
 import { NEW_USER_TYPE, STEP_CONFIG, USER_TYPE_SELECTIONS } from "./data-steps"
 
 type ModelSelectionProps = {
@@ -40,75 +46,73 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 		return filtered.slice(0, 4) // Return the first 5 models
 	}, [models, modelGroups, searchTerm])
 
+	// Model Item Component
+	const ModelItem = ({ id, model, isSelected }: { id: string; model: OnboardingModelOption; isSelected: boolean }) => {
+		return (
+			<Item
+				className={cn("cursor-pointer hover:cursor-pointer", {
+					"bg-input-background/80 border border-button-background": isSelected,
+				})}
+				key={id}
+				onClick={() => onSelectModel(id)}
+				variant="outline">
+				<ItemHeader className="flex flex-col w-full align-baseline">
+					<ItemTitle className="flex w-full justify-between">
+						<span className="font-semibold">{model.name || id}</span>
+						{model.badge ? <Badge variant="info">{model.badge}</Badge> : <Badge>{getPriceRange(model)}</Badge>}
+					</ItemTitle>
+					{isSelected && (
+						<ItemDescription>
+							<span className="text-foreground/70 text-sm">Support: </span>
+							<span className="text-foreground text-sm">{getCapabilities(model).join(", ")}</span>
+						</ItemDescription>
+					)}
+				</ItemHeader>
+				{model.badge && isSelected && (
+					<ItemContent className="w-full border-t border-muted-foreground pt-5 text-ellipsis overflow-hidden">
+						<div className="flex flex-col gap-3">
+							{model.score && (
+								<div className="inline-flex gap-1 [&_svg]:stroke-warning [&_svg]:size-3 items-center text-sm">
+									<StarIcon />
+									<span>Model Overview: </span>
+									<span className="text-foreground/70">{model.score}%</span>
+									<span className="text-foreground/70 hidden xs:block">{getOverviewLabel(model.score)}</span>
+								</div>
+							)}
+							<div className="inline-flex gap-1 [&_svg]:stroke-success [&_svg]:size-3 items-center text-sm">
+								<ZapIcon />
+								<span>Speed: </span>
+								<span className="text-foreground/70">{model.speed}</span>
+							</div>
+							<div className="flex w-full justify-between">
+								<div className="inline-flex gap-1 [&_svg]:stroke-foreground [&_svg]:size-3 items-center text-sm">
+									<ListIcon />
+									<span>Context: </span>
+									<span className="text-foreground/70">{(model?.contextWindow || 0) / 1000}k</span>
+								</div>
+								<Badge>{getPriceRange(model)}</Badge>
+							</div>
+						</div>
+					</ItemContent>
+				)}
+			</Item>
+		)
+	}
+
 	return (
 		<div className="flex flex-col w-full items-center px-2">
 			<div className="flex w-full max-w-lg flex-col gap-6 my-4">
 				{modelGroups.map((group) => (
 					<div className="flex flex-col gap-3" key={group.group}>
 						<h4 className="text-sm font-bold text-foreground/70 uppercase mb-2">{group.group}</h4>
-						{group.models.map((model) => {
-							const isSelected = selectedModelId === model.id
-							return (
-								<div className="w-full">
-									<Item
-										className={cn("cursor-pointer hover:cursor-pointer", {
-											"bg-input-background/80 border border-button-background": isSelected,
-										})}
-										key={model.id}
-										onClick={() => onSelectModel(model.id)}
-										variant="outline">
-										<ItemHeader className="flex flex-col w-full align-baseline">
-											<ItemTitle className="flex w-full justify-between font-semibold">
-												{model.name}
-												<span className="text-button-background uppercase text-xs">{model.badge}</span>
-											</ItemTitle>
-											{isSelected && (
-												<ItemDescription>
-													<span className="text-foreground/70 text-sm">Support: </span>
-													<span className="text-foreground text-sm">
-														{getCapabilities(model).join(", ")}
-													</span>
-												</ItemDescription>
-											)}
-										</ItemHeader>
-										{isSelected && (
-											<ItemContent className="w-full border-t border-muted-foreground pt-5 text-ellipsis overflow-hidden">
-												<div className="flex flex-col gap-3">
-													<div className="inline-flex gap-1 [&_svg]:stroke-warning [&_svg]:size-3 items-center text-sm">
-														<StarIcon />
-														<span>Model Overview:</span>
-														<span className="text-foreground/70">{model.score}%</span>
-														<span className="text-foreground/70 hidden xs:block">
-															{getOverviewLabel(model.score)}
-														</span>
-													</div>
-													<div className="inline-flex gap-1 [&_svg]:stroke-success [&_svg]:size-3 items-center text-sm">
-														<ZapIcon />
-														<span>Speed:</span>{" "}
-														<span className="text-foreground/70">{model.speed}</span>
-													</div>
-													<div className="flex w-full justify-between">
-														<div className="inline-flex gap-1 [&_svg]:stroke-foreground [&_svg]:size-3 items-center text-sm">
-															<ListIcon />
-															<span>Context:</span>{" "}
-															<span className="text-foreground/70">
-																{(model?.contextWindow || 0) / 1000}k
-															</span>
-														</div>
-														<Badge>{getPriceRange(model)}</Badge>
-													</div>
-												</div>
-											</ItemContent>
-										)}
-									</Item>
-								</div>
-							)
-						})}
+						{group.models.map((model) => (
+							<ModelItem id={model.id} isSelected={selectedModelId === model.id} key={model.id} model={model} />
+						))}
 					</div>
 				))}
 			</div>
 
-			{/* search box */}
+			{/* SEARCH MODEL */}
 			<div className="flex w-full max-w-lg flex-col gap-6 my-4 border-t border-muted-foreground">
 				<div className="flex flex-col gap-3 mt-6" key="search-results">
 					<h4 className="text-sm font-bold text-foreground/70 uppercase mb-2">other options</h4>
@@ -126,28 +130,12 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 							searchedModels.map(([id, info]) => {
 								const isSelected = selectedModelId === id
 								return (
-									<Item
-										className={cn("cursor-pointer hover:cursor-pointer", {
-											"bg-input-background/80 border border-button-background": isSelected,
-										})}
+									<ModelItem
+										id={id}
+										isSelected={isSelected}
 										key={id}
-										onClick={() => onSelectModel(id)}
-										variant="outline">
-										<ItemHeader className="flex flex-col w-full align-baseline">
-											<ItemTitle className="flex w-full justify-between">
-												{info.name || id}
-												<Badge>{getPriceRange(info)}</Badge>
-											</ItemTitle>
-											{isSelected && (
-												<ItemDescription>
-													<span className="text-foreground/70 text-sm">Support: </span>
-													<span className="text-foreground text-sm">
-														{getCapabilities(info).join(", ")}
-													</span>
-												</ItemDescription>
-											)}
-										</ItemHeader>
-									</Item>
+										model={{ id, name: info.name, ...info }}
+									/>
 								)
 							})}
 						{searchTerm && searchedModels.length === 0 && (
@@ -335,7 +323,7 @@ const OnboardingView = () => {
 						</Button>
 					))}
 
-					<div className="items-center justify-center flex text-sm text-muted-foreground gap-2 mb-3 text-pretty">
+					<div className="items-center justify-center flex text-sm text-foreground gap-2 mb-3 text-pretty">
 						<AlertCircleIcon className="shrink-0 size-2" /> You can change this later in settings
 					</div>
 				</footer>
