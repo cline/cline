@@ -17,6 +17,7 @@ import styled from "styled-components"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import TaskFeedbackButtons from "@/components/chat/TaskFeedbackButtons"
 import { CheckmarkControl } from "@/components/common/CheckmarkControl"
+import { CheckpointControls } from "@/components/common/CheckpointControls"
 import CodeBlock, {
 	CHAT_ROW_EXPANDED_BG_COLOR,
 	CODE_BLOCK_BG_COLOR,
@@ -36,6 +37,7 @@ import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
+import HookMessage from "./HookMessage"
 import NewTaskPreview from "./NewTaskPreview"
 import QuoteButton from "./QuoteButton"
 import ReportBugPreview from "./ReportBugPreview"
@@ -50,6 +52,26 @@ const _cancelledColor = "var(--vscode-descriptionForeground)"
 const ChatRowContainer = styled.div`
 	padding: 10px 6px 10px 15px;
 	position: relative;
+
+	&:hover ${CheckpointControls} {
+		opacity: 1;
+	}
+
+	/* Fade-in animation for hook messages being inserted */
+	&.hook-message-animate {
+		animation: hookFadeSlideIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+	}
+
+	@keyframes hookFadeSlideIn {
+		from {
+			opacity: 0;
+			transform: translateY(-12px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
 `
 
 interface ChatRowProps {
@@ -1592,6 +1614,11 @@ export const ChatRowContent = memo(
 								</div>
 							)
 						}
+					case "hook":
+						return <HookMessage CommandOutput={CommandOutput} message={message} />
+					case "hook_output":
+						// hook_output messages are combined with hook messages, so we don't render them separately
+						return null
 					case "shell_integration_warning_with_suggestion":
 						const isBackgroundModeEnabled = vscodeTerminalExecutionMode === "backgroundExec"
 						return (
