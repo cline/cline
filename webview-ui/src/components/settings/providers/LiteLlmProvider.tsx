@@ -42,9 +42,12 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 				onChange={async (value) => {
 					await ModelsServiceClient.updateApiConfiguration(
 						UpdateApiConfigurationRequestNew.create({
-							options: {
-								liteLlmBaseUrl: value,
+							apiConfiguration: {
+								options: {
+									liteLlmBaseUrl: value,
+								},
 							},
+							updateMask: ["options.liteLlmBaseUrl"],
 						}),
 					)
 				}}
@@ -58,9 +61,12 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 				onChange={async (value) => {
 					await ModelsServiceClient.updateApiConfiguration(
 						UpdateApiConfigurationRequestNew.create({
-							secrets: {
-								liteLlmApiKey: value,
+							apiConfiguration: {
+								secrets: {
+									liteLlmApiKey: value,
+								},
 							},
+							updateMask: ["secrets.liteLlmApiKey"],
 						}),
 					)
 				}}
@@ -74,8 +80,12 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 				onChange={async (value) => {
 					await ModelsServiceClient.updateApiConfiguration(
 						UpdateApiConfigurationRequestNew.create({
-							options:
-								currentMode === "plan" ? { planModeLiteLlmModelId: value } : { actModeLiteLlmModelId: value },
+							apiConfiguration: {
+								options:
+									currentMode === "plan" ? { planModeLiteLlmModelId: value } : { actModeLiteLlmModelId: value },
+							},
+							updateMask:
+								currentMode === "plan" ? ["options.planModeLiteLlmModelId"] : ["options.actModeLiteLlmModelId"],
 						}),
 					)
 				}}
@@ -94,9 +104,12 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 
 								await ModelsServiceClient.updateApiConfiguration(
 									UpdateApiConfigurationRequestNew.create({
-										options: {
-											liteLlmUsePromptCache: isChecked,
+										apiConfiguration: {
+											options: {
+												liteLlmUsePromptCache: isChecked,
+											},
 										},
+										updateMask: ["options.liteLlmUsePromptCache"],
 									}),
 								)
 							}}
@@ -158,10 +171,16 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 
 							await ModelsServiceClient.updateApiConfiguration(
 								UpdateApiConfigurationRequestNew.create({
-									options:
+									apiConfiguration: {
+										options:
+											currentMode === "plan"
+												? { planModeLiteLlmModelInfo: modelInfo }
+												: { actModeLiteLlmModelInfo: modelInfo },
+									},
+									updateMask:
 										currentMode === "plan"
-											? { planModeLiteLlmModelInfo: modelInfo }
-											: { actModeLiteLlmModelInfo: modelInfo },
+											? ["options.planModeLiteLlmModelInfo"]
+											: ["options.actModeLiteLlmModelInfo"],
 								}),
 							)
 						}}>
@@ -180,10 +199,16 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 
 								await ModelsServiceClient.updateApiConfiguration(
 									UpdateApiConfigurationRequestNew.create({
-										options:
+										apiConfiguration: {
+											options:
+												currentMode === "plan"
+													? { planModeLiteLlmModelInfo: modelInfo }
+													: { actModeLiteLlmModelInfo: modelInfo },
+										},
+										updateMask:
 											currentMode === "plan"
-												? { planModeLiteLlmModelInfo: modelInfo }
-												: { actModeLiteLlmModelInfo: modelInfo },
+												? ["options.planModeLiteLlmModelInfo"]
+												: ["options.actModeLiteLlmModelInfo"],
 									}),
 								)
 							}}
@@ -202,10 +227,16 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 
 								await ModelsServiceClient.updateApiConfiguration(
 									UpdateApiConfigurationRequestNew.create({
-										options:
+										apiConfiguration: {
+											options:
+												currentMode === "plan"
+													? { planModeLiteLlmModelInfo: modelInfo }
+													: { actModeLiteLlmModelInfo: modelInfo },
+										},
+										updateMask:
 											currentMode === "plan"
-												? { planModeLiteLlmModelInfo: modelInfo }
-												: { actModeLiteLlmModelInfo: modelInfo },
+												? ["options.planModeLiteLlmModelInfo"]
+												: ["options.actModeLiteLlmModelInfo"],
 									}),
 								)
 							}}
@@ -231,10 +262,16 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 
 								await ModelsServiceClient.updateApiConfiguration(
 									UpdateApiConfigurationRequestNew.create({
-										options:
+										apiConfiguration: {
+											options:
+												currentMode === "plan"
+													? { planModeLiteLlmModelInfo: modelInfo }
+													: { actModeLiteLlmModelInfo: modelInfo },
+										},
+										updateMask:
 											currentMode === "plan"
-												? { planModeLiteLlmModelInfo: modelInfo }
-												: { actModeLiteLlmModelInfo: modelInfo },
+												? ["options.planModeLiteLlmModelInfo"]
+												: ["options.actModeLiteLlmModelInfo"],
 									}),
 								)
 							}}>
