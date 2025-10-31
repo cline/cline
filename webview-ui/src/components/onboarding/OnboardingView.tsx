@@ -162,12 +162,12 @@ const UserTypeSelectionStep = ({ userType, onSelectUserType }: UserTypeSelection
 				return (
 					<Item
 						className={cn("cursor-pointer hover:cursor-pointer w-full", {
-							"bg-input-background/70 border border-input-foreground/10": isSelected,
+							"bg-input-background/50 border border-input-foreground/30": isSelected,
 						})}
 						key={option.type}
 						onClick={() => onSelectUserType(option.type)}>
 						<ItemMedia className="[&_svg]:stroke-button-background" variant="icon">
-							{isSelected ? <CircleCheckIcon strokeWidth={1.5} /> : <CircleIcon strokeWidth={1.5} />}
+							{isSelected ? <CircleCheckIcon className="stroke-1.5" /> : <CircleIcon className="stroke-1" />}
 						</ItemMedia>
 						<ItemContent className="w-full">
 							<ItemTitle>{option.title}</ItemTitle>
@@ -291,12 +291,11 @@ const OnboardingView = () => {
 
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col">
-			<div className="h-full px-5 xs:mx-10 overflow-auto flex flex-col gap-7 items-center justify-center mt-10">
+			<div className="h-full px-5 xs:mx-10 overflow-auto flex flex-col gap-7 items-center justify-center mt-10 max-w-lg ">
 				<ClineLogoWhite className="size-16" />
-
-				<h2 className="text-lg font-semibold">{stepDisplayInfo.title}</h2>
+				<h2 className="text-lg font-semibold p-0">{stepDisplayInfo.title}</h2>
 				{stepDisplayInfo.description && (
-					<p className="text-foreground text-sm text-center max-w-lg m-0 p-0">{stepDisplayInfo.description}</p>
+					<p className="text-foreground text-sm text-center m-0 p-0">{stepDisplayInfo.description}</p>
 				)}
 
 				<div className="flex-1 w-full flex overflow-y-scroll">
