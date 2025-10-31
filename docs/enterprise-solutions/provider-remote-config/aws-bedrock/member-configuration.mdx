@@ -4,8 +4,6 @@ sidebarTitle: "Configure AWS Bedrock (Member)"
 description: "Guide for engineers configuring AWS Bedrock credentials in VS Code after admin setup"
 ---
 
-# Configure AWS Bedrock in VS Code (Members)
-
 This guide explains how engineers configure AWS Bedrock credentials in the Cline VS Code extension after an administrator has enabled Bedrock at the organization level.
 
 ## Prerequisites
@@ -16,6 +14,12 @@ This guide explains how engineers configure AWS Bedrock credentials in the Cline
 - Admin has already configured AWS Bedrock as the organization provider
 
 ---
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline-static-assets-prod/assets/VS%20Code%20Bedrock%20API%20Key.gif"
+	/>
+</Frame>
 
 ## Configuration Steps
 
@@ -74,7 +78,13 @@ Additional settings like cross-region inference and global inference profile wil
 
 ### Step 4: Test the Connection
 
-Send a test message in Cline to verify your credentials work correctly with the configured Bedrock region. **it is recommended to do this in plan mode**
+Send a test message in Cline to verify your credentials work correctly with the configured Bedrock region.
+
+<Tip>
+  **Testing Recommendation**
+  
+  It is recommended to test the connection in plan mode to verify everything works correctly before using it for actual tasks.
+</Tip>
 
 ---
 
