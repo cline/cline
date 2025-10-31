@@ -359,11 +359,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["planModeBasetenModelId"]>("planModeBasetenModelId")
 		const planModeBasetenModelInfo =
 			context.globalState.get<GlobalStateAndSettings["planModeBasetenModelInfo"]>("planModeBasetenModelInfo")
-		const planModeVercelAiGatewayModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeVercelAiGatewayModelId"]>("planModeVercelAiGatewayModelId")
-		const planModeVercelAiGatewayModelInfo = context.globalState.get<
-			GlobalStateAndSettings["planModeVercelAiGatewayModelInfo"]
-		>("planModeVercelAiGatewayModelInfo")
 		const planModeOcaModelId = context.globalState.get("planModeOcaModelId") as string | undefined
 		const planModeOcaModelInfo = context.globalState.get("planModeOcaModelInfo") as OcaModelInfo | undefined
 		// Act mode configurations
@@ -425,11 +420,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["actModeBasetenModelId"]>("actModeBasetenModelId")
 		const actModeBasetenModelInfo =
 			context.globalState.get<GlobalStateAndSettings["actModeBasetenModelInfo"]>("actModeBasetenModelInfo")
-		const actModeVercelAiGatewayModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeVercelAiGatewayModelId"]>("actModeVercelAiGatewayModelId")
-		const actModeVercelAiGatewayModelInfo = context.globalState.get<
-			GlobalStateAndSettings["actModeVercelAiGatewayModelInfo"]
-		>("actModeVercelAiGatewayModelInfo")
 		const actModeOcaModelId = context.globalState.get("actModeOcaModelId") as string | undefined
 		const actModeOcaModelInfo = context.globalState.get("actModeOcaModelInfo") as OcaModelInfo | undefined
 		const sapAiCoreUseOrchestrationMode =
@@ -544,8 +534,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeHuaweiCloudMaasModelInfo,
 			planModeBasetenModelId,
 			planModeBasetenModelInfo,
-			planModeVercelAiGatewayModelId,
-			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
 			// Act mode configurations
@@ -578,8 +566,6 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeHuaweiCloudMaasModelInfo,
 			actModeBasetenModelId,
 			actModeBasetenModelInfo,
-			actModeVercelAiGatewayModelId,
-			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
 

@@ -173,10 +173,6 @@ export interface Settings {
 	actModeHuggingFaceModelInfo: ModelInfo | undefined
 	actModeHuaweiCloudMaasModelId: string | undefined
 	actModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
-	planModeVercelAiGatewayModelId: string | undefined
-	planModeVercelAiGatewayModelInfo: ModelInfo | undefined
-	actModeVercelAiGatewayModelId: string | undefined
-	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	actModeOcaModelId: string | undefined
 	actModeOcaModelInfo: OcaModelInfo | undefined
 

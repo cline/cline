@@ -524,8 +524,6 @@ export class StateManager {
 			planModeHuggingFaceModelInfo,
 			planModeHuaweiCloudMaasModelId,
 			planModeHuaweiCloudMaasModelInfo,
-			planModeVercelAiGatewayModelId,
-			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
 			// Act mode configurations
@@ -558,8 +556,6 @@ export class StateManager {
 			actModeHuggingFaceModelInfo,
 			actModeHuaweiCloudMaasModelId,
 			actModeHuaweiCloudMaasModelInfo,
-			actModeVercelAiGatewayModelId,
-			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
 		} = apiConfiguration
@@ -596,8 +592,6 @@ export class StateManager {
 			planModeHuggingFaceModelInfo,
 			planModeHuaweiCloudMaasModelId,
 			planModeHuaweiCloudMaasModelInfo,
-			planModeVercelAiGatewayModelId,
-			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
 
@@ -631,8 +625,6 @@ export class StateManager {
 			actModeHuggingFaceModelInfo,
 			actModeHuaweiCloudMaasModelId,
 			actModeHuaweiCloudMaasModelInfo,
-			actModeVercelAiGatewayModelId,
-			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
 
@@ -1119,11 +1111,6 @@ export class StateManager {
 			planModeHuaweiCloudMaasModelInfo:
 				this.taskStateCache["planModeHuaweiCloudMaasModelInfo"] ||
 				this.globalStateCache["planModeHuaweiCloudMaasModelInfo"],
-			planModeVercelAiGatewayModelId:
-				this.taskStateCache["planModeVercelAiGatewayModelId"] || this.globalStateCache["planModeVercelAiGatewayModelId"],
-			planModeVercelAiGatewayModelInfo:
-				this.taskStateCache["planModeVercelAiGatewayModelInfo"] ||
-				this.globalStateCache["planModeVercelAiGatewayModelInfo"],
 			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
 			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
 
@@ -1184,11 +1171,6 @@ export class StateManager {
 			actModeHuaweiCloudMaasModelInfo:
 				this.taskStateCache["actModeHuaweiCloudMaasModelInfo"] ||
 				this.globalStateCache["actModeHuaweiCloudMaasModelInfo"],
-			actModeVercelAiGatewayModelId:
-				this.taskStateCache["actModeVercelAiGatewayModelId"] || this.globalStateCache["actModeVercelAiGatewayModelId"],
-			actModeVercelAiGatewayModelInfo:
-				this.taskStateCache["actModeVercelAiGatewayModelInfo"] ||
-				this.globalStateCache["actModeVercelAiGatewayModelInfo"],
 			actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
 			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
 		}
