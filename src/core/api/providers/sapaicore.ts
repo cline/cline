@@ -416,7 +416,7 @@ export class SapAiCoreHandler implements ApiHandler {
 					}
 				}
 			} catch {
-				errorData = error.message
+				detailedMessage = error.message
 			}
 		}
 
