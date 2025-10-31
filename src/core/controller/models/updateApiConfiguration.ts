@@ -41,8 +41,6 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 	try {
 		const { apiConfiguration, updateMask } = request
 
-		// console.log("apiconfiguration", apiConfiguration)
-
 		if (!apiConfiguration) {
 			throw new Error("API configuration is required")
 		}
