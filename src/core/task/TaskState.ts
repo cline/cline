@@ -39,9 +39,6 @@ export class TaskState {
 	didAlreadyUseTool = false
 	didEditFile: boolean = false
 
-	// Consecutive request tracking
-	consecutiveAutoApprovedRequestsCount: number = 0
-
 	// Error tracking
 	consecutiveMistakeCount: number = 0
 	didAutomaticallyRetryFailedApiRequest = false

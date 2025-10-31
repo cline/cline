@@ -597,99 +597,41 @@ export class Controller {
 	}
 
 	// MCP Marketplace
-	private async fetchMcpMarketplaceFromApi(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
-		try {
-			const response = await axios.get(`${ClineEnv.config().mcpBaseUrl}/marketplace`, {
-				headers: {
-					"Content-Type": "application/json",
-				},
-			})
+	private async fetchMcpMarketplaceFromApi(): Promise<McpMarketplaceCatalog> {
+		const response = await axios.get(`${ClineEnv.config().mcpBaseUrl}/marketplace`, {
+			headers: {
+				"Content-Type": "application/json",
+				"User-Agent": "cline-vscode-extension",
+			},
+		})
 
-			if (!response.data) {
-				throw new Error("Invalid response from MCP marketplace API")
-			}
-
-			const catalog: McpMarketplaceCatalog = {
-				items: (response.data || []).map((item: any) => ({
-					...item,
-					githubStars: item.githubStars ?? 0,
-					downloadCount: item.downloadCount ?? 0,
-					tags: item.tags ?? [],
-				})),
-			}
-
-			// Store in cache file
-			await writeMcpMarketplaceCatalogToCache(catalog)
-			return catalog
-		} catch (error) {
-			console.error("Failed to fetch MCP marketplace:", error)
-			if (!silent) {
-				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: errorMessage,
-				})
-			}
-			return undefined
+		if (!response.data) {
+			throw new Error("Invalid response from MCP marketplace API")
 		}
+
+		const catalog: McpMarketplaceCatalog = {
+			items: (response.data || []).map((item: any) => ({
+				...item,
+				githubStars: item.githubStars ?? 0,
+				downloadCount: item.downloadCount ?? 0,
+				tags: item.tags ?? [],
+			})),
+		}
+
+		// Store in cache file
+		await writeMcpMarketplaceCatalogToCache(catalog)
+		return catalog
 	}
 
-	private async fetchMcpMarketplaceFromApiRPC(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
+	async refreshMcpMarketplace(sendCatalogEvent: boolean): Promise<McpMarketplaceCatalog | undefined> {
 		try {
-			const response = await axios.get(`${ClineEnv.config().mcpBaseUrl}/marketplace`, {
-				headers: {
-					"Content-Type": "application/json",
-					"User-Agent": "cline-vscode-extension",
-				},
-			})
-
-			if (!response.data) {
-				throw new Error("Invalid response from MCP marketplace API")
-			}
-
-			const catalog: McpMarketplaceCatalog = {
-				items: (response.data || []).map((item: any) => ({
-					...item,
-					githubStars: item.githubStars ?? 0,
-					downloadCount: item.downloadCount ?? 0,
-					tags: item.tags ?? [],
-				})),
-			}
-
-			// Store in cache file
-			await writeMcpMarketplaceCatalogToCache(catalog)
-			return catalog
-		} catch (error) {
-			console.error("Failed to fetch MCP marketplace:", error)
-			if (!silent) {
-				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				throw new Error(errorMessage)
-			}
-			return undefined
-		}
-	}
-
-	async silentlyRefreshMcpMarketplace() {
-		try {
-			const catalog = await this.fetchMcpMarketplaceFromApi(true)
-			if (catalog) {
+			const catalog = await this.fetchMcpMarketplaceFromApi()
+			if (catalog && sendCatalogEvent) {
 				await sendMcpMarketplaceCatalogEvent(catalog)
 			}
+			return catalog
 		} catch (error) {
-			console.error("Failed to silently refresh MCP marketplace:", error)
-		}
-	}
-
-	/**
-	 * RPC variant that silently refreshes the MCP marketplace catalog and returns the result
-	 * Unlike silentlyRefreshMcpMarketplace, this doesn't send a message to the webview
-	 * @returns MCP marketplace catalog or undefined if refresh failed
-	 */
-	async silentlyRefreshMcpMarketplaceRPC() {
-		try {
-			return await this.fetchMcpMarketplaceFromApiRPC(true)
-		} catch (error) {
-			console.error("Failed to silently refresh MCP marketplace (RPC):", error)
+			console.error("Failed to refresh MCP marketplace:", error)
 			return undefined
 		}
 	}
@@ -728,6 +670,25 @@ export class Controller {
 			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
 		}
 		// Dont send settingsButtonClicked because its bad ux if user is on welcome
+	}
+
+	// Requesty
+
+	async handleRequestyCallback(code: string) {
+		const requesty: ApiProvider = "requesty"
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+		const currentApiConfiguration = this.stateManager.getApiConfiguration()
+		const updatedConfig = {
+			...currentApiConfiguration,
+			planModeApiProvider: requesty,
+			actModeApiProvider: requesty,
+			requestyApiKey: code,
+		}
+		this.stateManager.setApiConfiguration(updatedConfig)
+		await this.postStateToWebview()
+		if (this.task) {
+			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+		}
 	}
 
 	// Read OpenRouter models from disk cache
@@ -956,6 +917,10 @@ export class Controller {
 			lastDismissedCliBannerVersion,
 			subagentsEnabled,
 			backgroundEditEnabled,
+			nativeToolCallSetting: {
+				user: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+				featureFlag: featureFlagsService.getNativeToolCallEnabled(),
+			},
 		}
 	}
 

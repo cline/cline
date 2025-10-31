@@ -8,7 +8,7 @@ import { GPT_5_TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
 export const config = createVariant(ModelFamily.GPT_5)
-	.description("Prompt tailored to GPT-5 with native tool use support")
+	.description("Prompt tailored to GPT-5 with text-based tools")
 	.version(1)
 	.tags("gpt", "gpt-5", "advanced", "production")
 	.labels({
@@ -47,7 +47,8 @@ export const config = createVariant(ModelFamily.GPT_5)
 	.tools(
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
-		ClineDefaultTool.APPLY_PATCH,
+		ClineDefaultTool.FILE_NEW,
+		ClineDefaultTool.FILE_EDIT,
 		ClineDefaultTool.SEARCH,
 		ClineDefaultTool.LIST_FILES,
 		ClineDefaultTool.LIST_CODE_DEF,

@@ -1,4 +1,4 @@
-import { ModelInfo } from "@shared/api"
+import type { ModelInfo } from "@shared/api"
 
 /**
  * Formats a price as a currency string
@@ -24,7 +24,7 @@ export const formatTokenPrice = (price: number) => {
  * Helper function to determine if a model supports thinking budget
  */
 export const hasThinkingBudget = (modelInfo: ModelInfo): boolean => {
-	return !!modelInfo.thinkingConfig
+	return !!modelInfo.thinkingConfig && Object.keys(modelInfo.thinkingConfig).length > 0
 }
 
 /**

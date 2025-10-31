@@ -353,6 +353,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("backgroundEditEnabled", !!request.backgroundEditEnabled)
 		}
 
+		if (request.nativeToolCallEnabled !== undefined) {
+			controller.stateManager.setGlobalState("nativeToolCallEnabled", !!request.nativeToolCallEnabled)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 

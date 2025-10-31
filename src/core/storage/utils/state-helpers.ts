@@ -470,6 +470,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		 */
 		const primaryRootIndex = context.globalState.get<GlobalStateAndSettings["primaryRootIndex"]>("primaryRootIndex")
 		const multiRootEnabled = context.globalState.get<GlobalStateAndSettings["multiRootEnabled"]>("multiRootEnabled")
+		const nativeToolCallEnabled =
+			context.globalState.get<GlobalStateAndSettings["nativeToolCallEnabled"]>("nativeToolCallEnabled")
 
 		return {
 			// api configuration fields
@@ -626,6 +628,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			lastDismissedCliBannerVersion: lastDismissedCliBannerVersion ?? 0,
+			nativeToolCallEnabled: nativeToolCallEnabled ?? false,
 			// Multi-root workspace support
 			workspaceRoots,
 			primaryRootIndex: primaryRootIndex ?? 0,

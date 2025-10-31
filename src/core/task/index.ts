@@ -95,7 +95,7 @@ import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
-import { detectAvailableCliTools, updateApiReqMsg } from "./utils"
+import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -458,12 +458,19 @@ export class Task {
 		}
 
 		// initialize telemetry
+
+		// Extract domain of the provider endpoint if using OpenAI Compatible provider
+		let openAiCompatibleDomain: string | undefined
+		if (currentProvider === "openai" && apiConfiguration.openAiBaseUrl) {
+			openAiCompatibleDomain = extractProviderDomainFromUrl(apiConfiguration.openAiBaseUrl)
+		}
+
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.ulid, currentProvider)
+			telemetryService.captureTaskRestarted(this.ulid, currentProvider, openAiCompatibleDomain)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.ulid, currentProvider)
+			telemetryService.captureTaskCreated(this.ulid, currentProvider, openAiCompatibleDomain)
 		}
 
 		this.toolExecutor = new ToolExecutor(
@@ -494,10 +501,6 @@ export class Task {
 			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
 			this.switchToActModeCallback.bind(this),
 		)
-	}
-
-	public resetConsecutiveAutoApprovedRequestsCount(): void {
-		this.taskState.consecutiveAutoApprovedRequestsCount = 0
 	}
 
 	// Communicate with webview
@@ -1129,7 +1132,6 @@ export class Task {
 			includeFileDetails = false // we only need file details the first time
 
 			//  The way this agentic loop works is that cline will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
-			// There is a MAX_REQUESTS_PER_TASK limit to prevent infinite requests, but Cline is prompted to finish the task as efficiently as he can.
 
 			//const totalCost = this.calculateApiCost(totalInputTokens, totalOutputTokens)
 			if (didEndLoop) {
@@ -1839,7 +1841,8 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
-			enableNativeToolCalls: featureFlagsService.getNativeToolCallEnabled(),
+			enableNativeToolCalls:
+				featureFlagsService.getNativeToolCallEnabled() && this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
@@ -2063,6 +2066,10 @@ export class Task {
 					content = content.replace(/<thinking>\s?/g, "")
 					content = content.replace(/\s?<\/thinking>/g, "")
 
+					// Remove all instances of <think> tags (alternative to <thinking>, some models are trained to use this tag instead)
+					content = content.replace(/<think>\s?/g, "")
+					content = content.replace(/\s?<\/think>/g, "")
+
 					// New claude models tend to output <function_calls> tags which we don't want to show in the chat
 					content = content.replace(/<function_calls>\s?/g, "")
 					content = content.replace(/\s?<\/function_calls>/g, "")
@@ -2166,7 +2173,7 @@ export class Task {
 
 		if (this.taskState.consecutiveMistakeCount >= this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
 			const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-			if (autoApprovalSettings.enabled && autoApprovalSettings.enableNotifications) {
+			if (autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
 					subtitle: "Error",
 					message: "Cline is having trouble. Would you like to continue the task?",
@@ -2208,57 +2215,6 @@ export class Task {
 			}
 			this.taskState.consecutiveMistakeCount = 0
 			this.taskState.autoRetryAttempts = 0 // need to reset this if the user chooses to manually retry after the mistake limit is reached
-		}
-
-		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-
-		if (
-			!this.stateManager.getGlobalSettingsKey("yoloModeToggled") &&
-			autoApprovalSettings.enabled &&
-			this.taskState.consecutiveAutoApprovedRequestsCount >= autoApprovalSettings.maxRequests
-		) {
-			if (autoApprovalSettings.enableNotifications) {
-				showSystemNotification({
-					subtitle: "Max Requests Reached",
-					message: `Cline has auto-approved ${autoApprovalSettings.maxRequests.toString()} API requests.`,
-				})
-			}
-			const { response, text, images, files } = await this.ask(
-				"auto_approval_max_req_reached",
-				`Cline has auto-approved ${autoApprovalSettings.maxRequests.toString()} API requests. Would you like to reset the count and proceed with the task?`,
-			)
-			// if we get past the promise it means the user approved and did not start a new task
-			this.taskState.consecutiveAutoApprovedRequestsCount = 0
-
-			// Process user feedback if provided
-			if (response === "messageResponse") {
-				// Display the user's message in the chat UI
-				await this.say("user_feedback", text, images, files)
-
-				// This userContent is for the *next* API call.
-				const feedbackUserContent: UserContent = []
-				feedbackUserContent.push({
-					type: "text",
-					text: formatResponse.autoApprovalMaxReached(text),
-				})
-				if (images && images.length > 0) {
-					feedbackUserContent.push(...formatResponse.imageBlocks(images))
-				}
-
-				let fileContentString = ""
-				if (files && files.length > 0) {
-					fileContentString = await processFilesIntoText(files)
-				}
-
-				if (fileContentString) {
-					feedbackUserContent.push({
-						type: "text",
-						text: fileContentString,
-					})
-				}
-
-				userContent = feedbackUserContent
-			}
 		}
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
