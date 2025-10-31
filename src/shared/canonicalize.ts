@@ -61,13 +61,16 @@ export function preserveEscaping(originalText: string, newText: string): string 
 
 	// Apply escaping to match original style
 	if (hasEscapedBacktick && !newText.includes("\\`")) {
-		result = result.replace(/`/g, "\\`")
+		// Escape backslashes first, then backticks
+		result = result.replace(/\\/g, "\\\\").replace(/`/g, "\\`")
 	}
 	if (hasEscapedSingleQuote && !newText.includes("\\'")) {
-		result = result.replace(/'/g, "\\'")
+		// Escape backslashes first, then single quotes
+		result = result.replace(/\\/g, "\\\\").replace(/'/g, "\\'")
 	}
 	if (hasEscapedDoubleQuote && !newText.includes('\\"')) {
-		result = result.replace(/"/g, '\\"')
+		// Escape backslashes first, then double quotes
+		result = result.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
 	}
 
 	return result

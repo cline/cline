@@ -4,6 +4,7 @@ import { resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import type { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
+import { isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
 import { preserveEscaping } from "@/shared/canonicalize"
 import { BASH_WRAPPERS, DiffError, PATCH_MARKERS, type Patch, PatchActionType, type PatchChunk } from "@/shared/Patch"
@@ -259,7 +260,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			const finalResponses = []
 
 			for (const message of messages) {
-				const approved = await this.handleApproval(config, block, message, changedFiles[0] || "")
+				const approved = await this.handleApproval(config, block, message, rawInput)
 				if (!approved) {
 					await this.revertChanges()
 					return "The user denied this patch operation."
@@ -287,25 +288,26 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					// Format response similar to WriteToFileToolHandler
 					if (result.userEdits) {
 						// User made edits during approval
-						const formattedResponse =
-							`\n${path}:\n` +
-							`The user made edits to the file:\n${result.userEdits}\n` +
-							(result.autoFormattingEdits
-								? `\nAuto-formatting was applied:\n${result.autoFormattingEdits}\n`
-								: "") +
-							(result.finalContent ? `\nFinal content:\n${result.finalContent}` : "") +
-							(result.newProblemsMessage ? `\n\n${result.newProblemsMessage}` : "")
-						responseLines.push(formattedResponse)
-					} else {
-						// No user edits
-						const formattedResponse =
-							`\n${path}:\n` +
-							(result.autoFormattingEdits
-								? `Auto-formatting was applied:\n${result.autoFormattingEdits}\n\n`
-								: "") +
-							(result.finalContent ? `Final content:\n${result.finalContent}` : "") +
-							(result.newProblemsMessage ? `\n\n${result.newProblemsMessage}` : "")
-						responseLines.push(formattedResponse)
+						responseLines.push(`\nThe user made edits to the file:\n${result.userEdits}\n`)
+						await config.callbacks.say(
+							"user_feedback_diff",
+							JSON.stringify({
+								tool: "editedExistingFile",
+								path,
+								diff: result.userEdits,
+							}),
+						)
+					}
+					if (result.autoFormattingEdits) {
+						responseLines.push(`\nAuto-formatting was applied to ${path}:\n${result.autoFormattingEdits}\n`)
+					}
+					if (result.finalContent) {
+						responseLines.push(`\n<final_file_content path="${path}">`)
+						responseLines.push(result.finalContent)
+						responseLines.push(`\n</final_file_content>`)
+					}
+					if (result.newProblemsMessage) {
+						responseLines.push(`\n\n${result.newProblemsMessage}`)
 					}
 				}
 			}
@@ -316,7 +318,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			return responseLines.join("\n")
 		} catch (error) {
-			console.error("Error applying patch:", error)
 			await provider.revertChanges()
 			await provider.reset()
 			console.error("Reverted changes due to error in ApplyPatchHandler.", error)
@@ -337,8 +338,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		if (hasBegin && hasEnd) {
 			return lines
 		}
-
-		throw new DiffError("Invalid patch text - incomplete sentinels")
+		// Missing one of the sentinels: BEGIN or END PATCH
+		throw new DiffError("Invalid patch text - incomplete sentinels, Try breaking the patch into smaller patches.")
 	}
 
 	private stripBashWrapper(lines: string[]): string[] {
@@ -609,7 +610,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 	private async generateChangeSummary(changes: Record<string, FileChange>): Promise<ClineSayTool[]> {
 		const summaries = await Promise.all(
 			Object.entries(changes).map(async ([file, change]) => {
-				const operationIsLocatedInWorkspace = await import("@utils/path").then((m) => m.isLocatedInWorkspace(file))
+				const operationIsLocatedInWorkspace = await isLocatedInWorkspace(file)
 				switch (change.type) {
 					case PatchActionType.ADD:
 						return {
@@ -640,14 +641,10 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return summaries
 	}
 
-	private async handleApproval(
-		config: TaskConfig,
-		block: ToolUse,
-		message: ClineSayTool,
-		primaryFile: string,
-	): Promise<boolean> {
-		const messageStr = JSON.stringify(message)
-		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, primaryFile)
+	private async handleApproval(config: TaskConfig, block: ToolUse, message: ClineSayTool, rawInput: string): Promise<boolean> {
+		const patch = { ...message, content: rawInput }
+		const messageStr = JSON.stringify(patch)
+		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, message.path)
 
 		if (shouldAutoApprove) {
 			await config.callbacks.say("tool", messageStr, undefined, undefined, false)
@@ -656,14 +653,13 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			return true
 		}
 
-		const fileCount = Object.keys(JSON.parse(messageStr).content?.match(/\d+/)?.[0] || "0").length
 		showNotificationForApprovalIfAutoApprovalEnabled(
-			`Cline wants to apply a patch to ${fileCount} file(s)`,
+			`Cline wants to edit this file: ${message.path}`,
 			config.autoApprovalSettings.enabled,
 			config.autoApprovalSettings.enableNotifications,
 		)
 
-		const { response, text, images, files } = await config.callbacks.ask("tool", messageStr, false)
+		const { response, text, images, files } = await config.callbacks.ask("tool", messageStr, true)
 
 		if (text || images?.length || files?.length) {
 			const fileContent = files?.length ? await processFilesIntoText(files) : ""
