@@ -130,6 +130,7 @@
 							"features/drag-and-drop",
 							"features/editing-messages",
 							"features/focus-chain",
+							"features/hooks",
 							"features/multiroot-workspace",
 							"features/plan-and-act",
 							{
