@@ -5,7 +5,7 @@ const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d](?:\.[05])?)[-_ ]?/
 
 export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 	const providerId = normalize(providerInfo.providerId)
-	return ["cline", "anthropic", "gemini", "openrouter", "xai", "openai", "openai-native", "vercel-ai-gateway"].some(
+	return ["cline", "anthropic", "gemini", "openrouter", "xai", "openai", "minimax", "openai-native", "vercel-ai-gateway"].some(
 		(id) => providerId === id,
 	)
 }
@@ -71,13 +71,19 @@ export function isGLMModelFamily(id: string): boolean {
 	)
 }
 
+export function isMinimaxModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("minimax")
+}
+
 export function isNextGenModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
 		isClaude4PlusModelFamily(modelId) ||
 		isGemini2dot5ModelFamily(modelId) ||
 		isGrok4ModelFamily(modelId) ||
-		isGPT5ModelFamily(modelId)
+		isGPT5ModelFamily(modelId) ||
+		isMinimaxModelFamily(modelId)
 	)
 }
 
