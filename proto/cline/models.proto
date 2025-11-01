@@ -294,11 +294,24 @@ message UpdateApiConfigurationRequest {
   ModelsApiConfiguration api_configuration = 2;
 }
 
+// Combined API configuration containing both options and secrets
+message ApiConfiguration {
+  ModelsApiOptions options = 1;
+  ModelsApiSecrets secrets = 2;
+}
+
 // Request for updating API configuration (new - uses separate options and secrets)
 message UpdateApiConfigurationRequestNew {
   Metadata metadata = 1;
-  ModelsApiOptions options = 2;
-  ModelsApiSecrets secrets = 3;
+  ApiConfiguration api_configuration = 2;
+  
+  // Required field mask specifying which fields to update.
+  // Field paths use dot notation with camelCase field names:
+  // - "options.ulid" (for options fields)
+  // - "options.openAiHeaders" (for options fields)
+  // - "secrets.apiKey" (for secrets fields)
+  // - "secrets.openRouterApiKey" (for secrets fields)
+  google.protobuf.FieldMask update_mask = 3;
 }
 
 // Request for partially updating API configuration using FieldMask
