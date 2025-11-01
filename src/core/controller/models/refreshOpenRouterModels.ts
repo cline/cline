@@ -88,6 +88,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 			for (const rawModel of rawModels as OpenRouterRawModelInfo[]) {
 				const supportThinking = rawModel.supported_parameters?.some((p) => p === "include_reasoning")
 				const modelInfo: ModelInfo = {
+					name: rawModel.name,
 					maxTokens: rawModel.top_provider?.max_completion_tokens ?? 0,
 					contextWindow: rawModel.context_length ?? 0,
 					supportsImages: rawModel.architecture?.modality?.includes("image") ?? false,

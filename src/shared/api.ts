@@ -209,6 +209,7 @@ interface PriceTier {
 }
 
 export interface ModelInfo {
+	name?: string
 	maxTokens?: number
 	contextWindow?: number
 	supportsImages?: boolean

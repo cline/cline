@@ -7,7 +7,7 @@ e2e.describe("Diff Editor", () => {
 		e2e.extend({
 			workspaceType,
 		})(title, async ({ page, sidebar }) => {
-			await sidebar.getByRole("button", { name: "Get Started for Free" }).click({ delay: 100 })
+			await sidebar.getByRole("button", { name: "Login to Cline" }).click({ delay: 100 })
 			// Submit a message
 			await cleanChatView(page)
 

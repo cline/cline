@@ -94,6 +94,7 @@ message OpenRouterModelInfo {
   optional ThinkingConfig thinking_config = 10;
   optional bool supports_global_endpoint = 11;
   repeated ModelTier tiers = 12;
+  optional string name = 13;
 }
 
 // Shared response message for model information
