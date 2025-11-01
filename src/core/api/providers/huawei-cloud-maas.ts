@@ -1,10 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { HuaweiCloudMaasModelId, huaweiCloudMaasDefaultModelId, huaweiCloudMaasModels, ModelInfo } from "@shared/api"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface HuaweiCloudMaaSHandlerOptions extends CommonApiHandlerOptions {
 	huaweiCloudMaasApiKey?: string
@@ -58,7 +60,7 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -72,11 +74,14 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 			temperature: 0,
+			...getOpenAIToolParams(tools),
 		})
 
 		let reasoning: string | null = null
 		let didOutputUsage: boolean = false
 		let finalUsage: any = null
+
+		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
@@ -91,6 +96,10 @@ export class HuaweiCloudMaaSHandler implements ApiHandler {
 						text: delta.content,
 					}
 				}
+			}
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			// Handle reasoning output

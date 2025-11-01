@@ -19,26 +19,13 @@ export async function updateAutoApprovalSettings(controller: Controller, request
 		const settings = {
 			...currentSettings,
 			...(request.version !== undefined && { version: request.version }),
-			...(request.enabled !== undefined && { enabled: request.enabled }),
-			...(request.maxRequests !== undefined && { maxRequests: request.maxRequests }),
 			...(request.enableNotifications !== undefined && { enableNotifications: request.enableNotifications }),
-			...(request.favorites && request.favorites.length > 0 && { favorites: request.favorites }),
 			actions: {
 				...currentSettings.actions,
 				...(request.actions
 					? Object.fromEntries(Object.entries(request.actions).filter(([_, v]) => v !== undefined))
 					: {}),
 			},
-		}
-
-		if (controller.task) {
-			const maxRequestsChanged =
-				controller.stateManager.getGlobalSettingsKey("autoApprovalSettings").maxRequests !== settings.maxRequests
-
-			// Reset counter if max requests limit changed
-			if (maxRequestsChanged) {
-				controller.task.resetConsecutiveAutoApprovedRequestsCount()
-			}
 		}
 
 		controller.stateManager.setGlobalState("autoApprovalSettings", settings)

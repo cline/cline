@@ -1,7 +1,6 @@
 import { expect } from "chai"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { ModelFamily } from "@/shared/prompts"
-import { getModelFamily } from ".."
 import { PromptRegistry } from "../registry/PromptRegistry"
 import type { SystemPromptContext } from "../types"
 import { mockProviderInfo } from "./integration.test"
@@ -49,7 +48,9 @@ describe("PromptRegistry", () => {
 	})
 
 	describe("getModelFamily", () => {
-		it("should extract correct model families", () => {
+		it("should extract correct model families", async () => {
+			const registry = PromptRegistry.getInstance()
+			await registry.load()
 			const testCases = [
 				{ id: "claude-3-5-sonnet", expected: ModelFamily.GENERIC },
 				{ id: "gpt-4-turbo", expected: ModelFamily.GENERIC },
@@ -59,17 +60,23 @@ describe("PromptRegistry", () => {
 				{ id: "openai/gpt-4", expected: ModelFamily.GENERIC },
 				{ id: "google/gemini", expected: ModelFamily.GENERIC },
 				{ id: "claude-sonnet-4", expected: ModelFamily.NEXT_GEN },
-				{ id: "gpt-5", expected: ModelFamily.GPT_5 },
-				{ id: "openai/gpt-5", expected: ModelFamily.GPT_5 },
+				{ id: "gpt-5", provider: "cline", expected: ModelFamily.NATIVE_GPT_5, useNativeTools: true },
+				{ id: "gpt-5", provider: "openai-native", expected: ModelFamily.NATIVE_GPT_5, useNativeTools: true },
+				{ id: "gpt-5", provider: "cline", expected: ModelFamily.GPT_5, useNativeTools: false },
+				{ id: "openai/gpt-5", expected: ModelFamily.NEXT_GEN },
 				{ id: "unknown-model", expected: ModelFamily.GENERIC },
 			]
 
-			for (const { id, expected, provider } of testCases) {
+			for (const { id, expected, provider, useNativeTools } of testCases) {
 				const providerId = provider ?? "random"
 				const customPrompt = provider === "lmstudio" ? "compact" : undefined
 				const providerInfo = { ...mockProviderInfo, providerId, model: { ...mockProviderInfo.model, id }, customPrompt }
-				const result = getModelFamily(providerInfo)
-				expect(result).to.equal(expected)
+				const result = registry.getModelFamily({
+					...mockContext,
+					providerInfo,
+					enableNativeToolCalls: useNativeTools ?? false,
+				})
+				expect(result).to.equal(expected, `Failed for model ${id} with provider ${providerId}`)
 			}
 		})
 	})

@@ -123,7 +123,10 @@ func setCommand() *cobra.Command {
 		Use:     "set <key=value> [key=value...]",
 		Aliases: []string{"s"},
 		Short:   "Set configuration variables",
-		Long:    `Set one or more global configuration variables using key=value format.`,
+		Long:    `Set one or more global configuration variables using key=value format.
+		
+This command merges the provided settings with existing values, preserving
+unspecified fields. Only the fields you explicitly set will be updated.`,
 		Args:    cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -139,7 +142,7 @@ func setCommand() *cobra.Command {
 				return err
 			}
 
-			// Update settings
+			// Update settings (server-side merge handles preserving existing values)
 			return configManager.UpdateSettings(ctx, settings, secrets)
 		},
 	}

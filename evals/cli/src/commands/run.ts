@@ -1,18 +1,13 @@
-import * as path from "path"
-import { v4 as uuidv4 } from "uuid"
 import chalk from "chalk"
 import ora from "ora"
+import { v4 as uuidv4 } from "uuid"
 import { getAdapter } from "../adapters"
 import { ResultsDatabase } from "../db"
-import { spawnVSCode, cleanupVSCode } from "../utils/vscode"
-import { sendTaskToServer } from "../utils/task"
 import { storeTaskResult } from "../utils/results"
 
 interface RunOptions {
 	benchmark?: string
-	model: string
 	count?: number
-	apiKey?: string
 }
 
 /**
@@ -21,12 +16,10 @@ interface RunOptions {
  */
 export async function runHandler(options: RunOptions): Promise<void> {
 	// Determine which benchmarks to run
-	const benchmarks = options.benchmark ? [options.benchmark] : ["exercism"] // Default to exercism for now
-	const model = options.model
+	const benchmarks = options.benchmark ? [options.benchmark] : ["exercism"] // Default to exercism
 	const count = options.count || Infinity
 
-	console.log(chalk.blue(`Running evaluations for model: ${model}`))
-	console.log(chalk.blue(`Benchmarks: ${benchmarks.join(", ")}`))
+	console.log(chalk.blue(`Running evaluations for the following benchmarks: ${benchmarks.join(", ")}`))
 
 	// Create a run for each benchmark
 	for (const benchmark of benchmarks) {
@@ -36,7 +29,7 @@ export async function runHandler(options: RunOptions): Promise<void> {
 		console.log(chalk.green(`\nStarting run for benchmark: ${benchmark}`))
 
 		// Create run in database
-		db.createRun(runId, model, benchmark)
+		db.createRun(runId, benchmark)
 
 		// Get adapter for this benchmark
 		try {
@@ -63,58 +56,47 @@ export async function runHandler(options: RunOptions): Promise<void> {
 				const preparedTask = await adapter.prepareTask(task.id)
 				prepareSpinner.succeed("Task prepared")
 
-				// Spawn VSCode
-				console.log("Spawning VSCode...")
-				await spawnVSCode(preparedTask.workspacePath)
+				let cleanedUp = false
 
-				// Send task to server
-				const sendSpinner = ora("Sending task to server...").start()
 				try {
-					const result = await sendTaskToServer(preparedTask.description, options.apiKey)
-					sendSpinner.succeed("Task completed")
+					// Run task using adapter's execution strategy
+					const finalVerification = await adapter.runTask(preparedTask)
 
-					// Verify result
-					const verifySpinner = ora("Verifying result...").start()
-					const verification = await adapter.verifyResult(preparedTask, result)
+					// Cleanup task
+					const cleanupSpinner = ora("Cleaning up task...").start()
+					await adapter.cleanupTask(preparedTask)
+					cleanedUp = true
+					cleanupSpinner.succeed("Cleanup complete")
+
+					// Use final verification from runTask
+					const verification = finalVerification || (await adapter.verifyResult(preparedTask))
 
 					if (verification.success) {
-						verifySpinner.succeed(
-							`Verification successful: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal} tests passed`,
+						console.log(
+							chalk.green(`Tests passed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal}`),
 						)
 					} else {
-						verifySpinner.fail(
-							`Verification failed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal} tests passed`,
+						console.log(
+							chalk.red(`Tests failed: ${verification.metrics.testsPassed}/${verification.metrics.testsTotal}`),
 						)
 					}
 
 					// Store result
 					const storeSpinner = ora("Storing result...").start()
-					await storeTaskResult(runId, preparedTask, result, verification)
+					await storeTaskResult(runId, preparedTask, {}, verification)
 					storeSpinner.succeed("Result stored")
-
-					console.log(chalk.green(`Task completed. Success: ${verification.success}`))
-
-					// Clean up VS Code and temporary files
-					const cleanupSpinner = ora("Cleaning up...").start()
-					try {
-						await cleanupVSCode(preparedTask.workspacePath)
-						cleanupSpinner.succeed("Cleanup completed")
-					} catch (cleanupError: any) {
-						cleanupSpinner.fail(`Cleanup failed: ${cleanupError.message}`)
-						console.error(chalk.yellow(cleanupError.stack))
-					}
 				} catch (error: any) {
-					sendSpinner.fail(`Task failed: ${error.message}`)
-					console.error(chalk.red(error.stack))
-
-					// Clean up VS Code and temporary files even if the task failed
-					const cleanupSpinner = ora("Cleaning up...").start()
-					try {
-						await cleanupVSCode(preparedTask.workspacePath)
-						cleanupSpinner.succeed("Cleanup completed")
-					} catch (cleanupError: any) {
-						cleanupSpinner.fail(`Cleanup failed: ${cleanupError.message}`)
-						console.error(chalk.yellow(cleanupError.stack))
+					console.error(chalk.red(`Task failed: ${error.message}`))
+				} finally {
+					// Ensure cleanup always happens
+					if (!cleanedUp) {
+						try {
+							const finalCleanupSpinner = ora("Performing cleanup...").start()
+							await adapter.cleanupTask(preparedTask)
+							finalCleanupSpinner.succeed("Cleanup complete")
+						} catch (cleanupError: any) {
+							console.error(chalk.red(`Cleanup failed: ${cleanupError.message}`))
+						}
 					}
 				}
 			}
@@ -125,7 +107,6 @@ export async function runHandler(options: RunOptions): Promise<void> {
 			console.log(chalk.green(`\nRun complete for benchmark: ${benchmark}`))
 		} catch (error: any) {
 			console.error(chalk.red(`Error running benchmark ${benchmark}: ${error.message}`))
-			console.error(error.stack)
 		}
 	}
 

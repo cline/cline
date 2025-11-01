@@ -22,6 +22,7 @@ export class ToolResultUtils {
 		_api: ApiHandler,
 		markToolAsUsed: () => void,
 		coordinator?: ToolExecutorCoordinator,
+		toolUseIdMap?: Map<string, string>,
 	): void {
 		if (typeof content === "string") {
 			const resultText = content || "(tool did not return anything)"
@@ -34,20 +35,39 @@ export class ToolResultUtils {
 					})()
 				: toolDescription(block)
 
-			// Non-Claude 4: Use traditional format with header
-			userMessageContent.push({
-				type: "text",
-				text: `${description} Result:`,
-			})
-			userMessageContent.push({
-				type: "text",
-				text: resultText,
-			})
+			// Get tool_use_id from map, or use "cline" as fallback for backward compatibility
+			const toolUseId = toolUseIdMap?.get(block.name) || "cline"
+
+			// Create ToolResultBlockParam with description and result
+			userMessageContent.push(ToolResultUtils.createToolResultBlock(`${description} Result:\n${resultText}`, toolUseId))
 		} else {
-			userMessageContent.push(...content)
+			// For complex content (arrays with text/image blocks), pass it through directly
+			// The content array should already be properly formatted with type, text, source, etc.
+			const toolUseId = toolUseIdMap?.get(block.name) || "cline"
+			userMessageContent.push(ToolResultUtils.createToolResultBlock(content, toolUseId))
 		}
 		// once a tool result has been collected, ignore all other tool uses since we should only ever present one tool result per message
 		markToolAsUsed()
+	}
+
+	private static createToolResultBlock(content: ToolResponse, id?: string) {
+		// If id is "cline", we treat it as a plain text result for backward compatibility
+		// as we cannot find any existing tool call that matches this id.
+		if (id === "cline") {
+			return {
+				type: "text",
+				text: typeof content === "string" ? content : JSON.stringify(content, null, 2),
+			}
+		}
+
+		// For tool_result blocks, content can be either a string or an array of content blocks
+		// When it's a string, we need to wrap it in the proper format
+		// When it's an array, it should already be properly formatted (e.g., with text and image blocks)
+		return {
+			type: "tool_result",
+			tool_use_id: id,
+			content: typeof content === "string" ? content : content,
+		}
 	}
 
 	/**
@@ -59,14 +79,22 @@ export class ToolResultUtils {
 		images?: string[],
 		fileContentString?: string,
 	): void {
-		if (!feedback && (!images || images.length === 0) && !fileContentString) {
+		// Check if we have any meaningful content to add
+		const hasMeaningfulFeedback = feedback && feedback.trim() !== ""
+		const hasImages = images && images.length > 0
+		const hasMeaningfulFileContent = fileContentString && fileContentString.trim() !== ""
+
+		// Only proceed if we have at least one meaningful piece of content
+		if (!hasMeaningfulFeedback && !hasImages && !hasMeaningfulFileContent) {
 			return
 		}
-		const content = formatResponse.toolResult(
-			`The user provided the following feedback:\n<feedback>\n${feedback}\n</feedback>`,
-			images,
-			fileContentString,
-		)
+
+		// Build the feedback text only if we have meaningful feedback
+		const feedbackText = hasMeaningfulFeedback
+			? `The user provided the following feedback:\n<feedback>\n${feedback}\n</feedback>`
+			: "The user provided additional content:"
+
+		const content = formatResponse.toolResult(feedbackText, images, hasMeaningfulFileContent ? fileContentString : undefined)
 		if (typeof content === "string") {
 			userMessageContent.push({
 				type: "text",

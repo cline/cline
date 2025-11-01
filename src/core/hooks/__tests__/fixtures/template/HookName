@@ -59,7 +59,7 @@ try {
   // Error handling - hooks should handle their own errors gracefully
   const errorMessage = error instanceof Error ? error.message : String(error);
   console.log(JSON.stringify({
-    shouldContinue: false,
+    cancel: true,
     contextModification: "",
     errorMessage: `HOOK_ERROR: ${errorMessage}`
   }));

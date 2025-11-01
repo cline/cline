@@ -1,4 +1,3 @@
-import { cn } from "@heroui/react"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { StringRequest } from "@shared/proto/cline/common"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
@@ -6,6 +5,7 @@ import React, { useCallback, useMemo, useState } from "react"
 import Thumbnails from "@/components/common/Thumbnails"
 import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { cn } from "@/lib/utils"
 import { UiServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import CopyTaskButton from "./buttons/CopyTaskButton"
@@ -73,7 +73,9 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 
 	// Handle click outside to collapse
 	React.useEffect(() => {
-		if (!isHighlightedTextExpanded) return
+		if (!isHighlightedTextExpanded) {
+			return
+		}
 
 		const handleClickOutside = (event: MouseEvent) => {
 			if (highlightedTextRef.current && !highlightedTextRef.current.contains(event.target as Node)) {
@@ -122,10 +124,10 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			{/* Task Header */}
 			<div
 				className={cn(
-					"relative overflow-hidden cursor-pointer rounded-sm flex flex-col gap-1.5 z-10 pt-2 pb-2 px-2 hover:opacity-100 bg-[var(--vscode-toolbar-hoverBackground)]/65",
+					"relative overflow-hidden cursor-pointer rounded-sm flex flex-col gap-1.5 z-10 pt-2 pb-2 px-2 hover:opacity-100 bg-(--vscode-toolbar-hoverBackground)/65",
 					{
 						"opacity-100 border-1": isTaskExpanded, // No hover effects when expanded, add border
-						"hover:bg-[var(--vscode-toolbar-hoverBackground)] border-1": !isTaskExpanded, // Hover effects only when collapsed
+						"hover:bg-(--vscode-toolbar-hoverBackground) border-1": !isTaskExpanded, // Hover effects only when collapsed
 					},
 				)}
 				style={{
@@ -136,7 +138,7 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					<div className="flex justify-between items-center">
 						{isTaskExpanded ? <ChevronDownIcon size="16" /> : <ChevronRightIcon size="16" />}
 						{isTaskExpanded && (
-							<div className="mt-1 max-h-3 flex justify-end flex-wrap cursor-pointer opacity-80">
+							<div className="mt-1 flex justify-end cursor-pointer opacity-80 gap-2 mx-2">
 								<CopyTaskButton className={BUTTON_CLASS} taskText={task.text} />
 								<DeleteTaskButton
 									className={BUTTON_CLASS}
@@ -150,19 +152,19 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 							</div>
 						)}
 					</div>
-					<div className="flex items-center select-none flex-grow min-w-0 gap-1 justify-between">
+					<div className="flex items-center select-none grow min-w-0 gap-1 justify-between">
 						{!isTaskExpanded && (
-							<div className="text-sm whitespace-nowrap overflow-hidden text-ellipsis flex-grow min-w-0">
-								<span className="ph-no-capture">{highlightText(task.text, false)}</span>
+							<div className="whitespace-nowrap overflow-hidden text-ellipsis grow min-w-0">
+								<span className="ph-no-capture text-base">{highlightText(task.text, false)}</span>
 							</div>
 						)}
 					</div>
-					<div className="inline-flex items-center justify-end select-none flex-shrink-0">
+					<div className="inline-flex items-center justify-end select-none shrink-0">
 						{isCostAvailable && (
 							<div
-								className="mr-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"
+								className="mx-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"
 								id="price-tag">
-								<span className="text-xs">${totalCost?.toFixed(4)}</span>
+								<span className="text-xs sm:text-sm">${totalCost?.toFixed(4)}</span>
 							</div>
 						)}
 						<NewTaskButton className={BUTTON_CLASS} onClick={onClose} />

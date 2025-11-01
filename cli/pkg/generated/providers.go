@@ -144,6 +144,7 @@ const (
 	OPENAI_NATIVE = "openai-native"
 	XAI = "xai"
 	CEREBRAS = "cerebras"
+	OCA = "oca"
 	SAPAICORE = "sapaicore"
 )
 
@@ -160,6 +161,7 @@ var AllProviders = []string{
 	"openai-native",
 	"xai",
 	"cerebras",
+	"oca",
 	"sapaicore",
 }
 
@@ -1573,6 +1575,18 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		SetupInstructions: `Get your API key from https://cloud.cerebras.ai/`,
 	}
 
+	// Oca
+	definitions["oca"] = ProviderDefinition{
+		ID:              "oca",
+		Name:            "Oca",
+		RequiredFields:  getFieldsByProvider("oca", configFields, true),
+		OptionalFields:  getFieldsByProvider("oca", configFields, false),
+		Models:          modelDefinitions["oca"],
+		DefaultModelID:  "",
+		HasDynamicModels: false,
+		SetupInstructions: `Configure Oca API credentials`,
+	}
+
 	// SAP AI Core
 	definitions["sapaicore"] = ProviderDefinition{
 		ID:              "sapaicore",
@@ -1610,6 +1624,7 @@ func GetProviderDisplayName(providerID string) string {
 		"openai-native": "OpenAI",
 		"xai": "X AI (Grok)",
 		"cerebras": "Cerebras",
+		"oca": "Oca",
 		"sapaicore": "SAP AI Core",
 	}
 	

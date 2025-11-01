@@ -5,8 +5,8 @@ import Fuse from "fuse.js"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
 import styled from "styled-components"
-import HeroTooltip from "@/components/common/HeroTooltip"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
@@ -29,6 +29,7 @@ import { HuaweiCloudMaasProvider } from "./providers/HuaweiCloudMaasProvider"
 import { HuggingFaceProvider } from "./providers/HuggingFaceProvider"
 import { LiteLlmProvider } from "./providers/LiteLlmProvider"
 import { LMStudioProvider } from "./providers/LMStudioProvider"
+import { MinimaxProvider } from "./providers/MiniMaxProvider"
 import { MistralProvider } from "./providers/MistralProvider"
 import { MoonshotProvider } from "./providers/MoonshotProvider"
 import { NebiusProvider } from "./providers/NebiusProvider"
@@ -163,6 +164,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "huawei-cloud-maas", label: "Huawei Cloud MaaS" },
 			{ value: "dify", label: "Dify.ai" },
 			{ value: "oca", label: "Oracle Code Assist" },
+			{ value: "minimax", label: "MiniMax" },
 		]
 
 		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
@@ -297,14 +299,17 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			</style>
 			<DropdownContainer className="dropdown-container">
 				{remoteConfigSettings?.planModeApiProvider !== undefined ? (
-					<HeroTooltip content="This setting is managed by your organization's remote configuration">
-						<div className="flex items-center gap-2 mb-1">
-							<label htmlFor="api-provider">
-								<span style={{ fontWeight: 500 }}>API Provider</span>
-							</label>
-							<i className="codicon codicon-lock text-[var(--vscode-descriptionForeground)] text-sm" />
-						</div>
-					</HeroTooltip>
+					<Tooltip>
+						<TooltipTrigger>
+							<div className="flex items-center gap-2 mb-1">
+								<label htmlFor="api-provider">
+									<span style={{ fontWeight: 500 }}>API Provider</span>
+								</label>
+								<i className="codicon codicon-lock text-description text-sm" />
+							</div>
+						</TooltipTrigger>
+						<TooltipContent>This setting is managed by your organization's remote configuration</TooltipContent>
+					</Tooltip>
 				) : (
 					<label htmlFor="api-provider">
 						<span style={{ fontWeight: 500 }}>API Provider</span>
@@ -502,6 +507,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "zai" && (
 				<ZAiProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "minimax" && (
+				<MinimaxProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "oca" && <OcaProvider currentMode={currentMode} isPopup={isPopup} />}

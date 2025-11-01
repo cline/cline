@@ -19,6 +19,22 @@ export function convertAnthropicContentToGemini(content: string | Anthropic.Cont
 						mimeType: block.source.media_type,
 					},
 				}
+			case "tool_use":
+				return {
+					functionCall: {
+						name: block.name,
+						args: block.input as Record<string, unknown>,
+					},
+				}
+			case "tool_result":
+				return {
+					functionResponse: {
+						name: block.tool_use_id,
+						response: {
+							result: block.content,
+						},
+					},
+				}
 			default:
 				throw new Error(`Unsupported content block type: ${block.type}`)
 		}

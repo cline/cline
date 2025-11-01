@@ -15,9 +15,9 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 	const [activeTab, setActiveTab] = useState<"usage" | "payments">("usage")
 
 	return (
-		<div className="flex flex-col flex-grow h-full">
+		<div className="flex flex-col grow h-full">
 			{/* Tabs container */}
-			<div className="flex border-b border-[var(--vscode-panel-border)]">
+			<div className="flex border-b border-(--vscode-panel-border)">
 				<TabButton isActive={activeTab === "usage"} onClick={() => setActiveTab("usage")}>
 					USAGE HISTORY
 				</TabButton>
@@ -29,10 +29,10 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 			</div>
 
 			{/* Content container */}
-			<div className="mt-[15px] mb-[0px] rounded-md overflow-auto flex-grow">
+			<div className="mt-[15px] mb-[0px] rounded-md overflow-auto grow">
 				{isLoading ? (
 					<div className="flex justify-center items-center p-4">
-						<div className="text-[var(--vscode-descriptionForeground)]">Loading...</div>
+						<div className="text-(--vscode-descriptionForeground)">Loading...</div>
 					</div>
 				) : (
 					<>
@@ -55,6 +55,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 									</VSCodeDataGridRow>
 
 									{usageData.map((row, index) => (
+										// biome-ignore lint/suspicious/noArrayIndexKey: use index as key
 										<VSCodeDataGridRow key={index}>
 											<VSCodeDataGridCell grid-column="1">
 												{formatTimestamp(row.createdAt)}
@@ -67,7 +68,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 								</VSCodeDataGrid>
 							) : (
 								<div className="flex justify-center items-center p-4">
-									<div className="text-[var(--vscode-descriptionForeground)]">No usage history</div>
+									<div className="text-(--vscode-descriptionForeground)">No usage history</div>
 								</div>
 							))}
 
@@ -88,6 +89,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 									</VSCodeDataGridRow>
 
 									{paymentsData.map((row, index) => (
+										// biome-ignore lint/suspicious/noArrayIndexKey: use index as key
 										<VSCodeDataGridRow key={index}>
 											<VSCodeDataGridCell grid-column="1">{formatTimestamp(row.paidAt)}</VSCodeDataGridCell>
 											<VSCodeDataGridCell grid-column="2">{`$${formatDollars(row.amountCents)}`}</VSCodeDataGridCell>
@@ -97,7 +99,7 @@ const CreditsHistoryTable = ({ isLoading, usageData, paymentsData, showPayments 
 								</VSCodeDataGrid>
 							) : (
 								<div className="flex justify-center items-center p-4">
-									<div className="text-[var(--vscode-descriptionForeground)]">No payment history</div>
+									<div className="text-(--vscode-descriptionForeground)">No payment history</div>
 								</div>
 							))}
 					</>

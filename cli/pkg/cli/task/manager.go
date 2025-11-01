@@ -282,7 +282,6 @@ func (m *Manager) CheckSendEnabled(ctx context.Context) error {
 	errorTypes := []string{
 		string(types.AskTypeAPIReqFailed),           // "api_req_failed"
 		string(types.AskTypeMistakeLimitReached),    // "mistake_limit_reached"
-		string(types.AskTypeAutoApprovalMaxReached), // "auto_approval_max_req_reached"
 	}
 
 	isError := false
@@ -1239,16 +1238,16 @@ func (m *Manager) updateMode(stateJson string) {
 
 // UpdateTaskAutoApprovalAction enables a specific auto-approval action for the current task
 func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey string) error {
+	boolPtr := func(b bool) *bool { return &b }
+	
 	settings := &cline.Settings{
 		AutoApprovalSettings: &cline.AutoApprovalSettings{
-			Enabled:     true,
-			MaxRequests: 20, // Important: avoid maxRequests=0 bug
-			Actions:     &cline.AutoApprovalActions{},
+			Actions: &cline.AutoApprovalActions{},
 		},
 	}
 
 	// Set the specific action to true based on actionKey
-	truePtr := func() *bool { b := true; return &b }()
+	truePtr := boolPtr(true)
 	
 	switch actionKey {
 	case "read_files":

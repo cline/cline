@@ -156,7 +156,7 @@ const CodeBlock = memo(({ source, forceWrap = false }: CodeBlockProps) => {
 				maxHeight: forceWrap ? "none" : "100%",
 				backgroundColor: CODE_BLOCK_BG_COLOR,
 			}}>
-			<StyledMarkdown className="ph-no-capture" forceWrap={forceWrap}>
+			<StyledMarkdown className="ph-no-capture markdown" forceWrap={forceWrap}>
 				{reactContent}
 			</StyledMarkdown>
 		</div>

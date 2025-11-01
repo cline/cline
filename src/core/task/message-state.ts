@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import getFolderSize from "get-folder-size"
+import Mutex from "p-mutex"
 import { findLastIndex } from "@/shared/array"
 import { combineApiRequests } from "@/shared/combineApiRequests"
 import { combineCommandSequences } from "@/shared/combineCommandSequences"
@@ -30,6 +31,12 @@ export class MessageStateHandler {
 	private ulid: string
 	private taskState: TaskState
 
+	// Mutex to prevent concurrent state modifications (RC-4)
+	// Protects against data loss from race conditions when multiple
+	// operations try to modify message state simultaneously
+	// This follows the same pattern as Task.stateMutex for consistency
+	private stateMutex = new Mutex()
+
 	constructor(params: MessageStateHandlerParams) {
 		this.taskId = params.taskId
 		this.ulid = params.ulid
@@ -40,6 +47,15 @@ export class MessageStateHandler {
 
 	setCheckpointTracker(tracker: CheckpointTracker | undefined) {
 		this.checkpointTracker = tracker
+	}
+
+	/**
+	 * Execute function with exclusive lock on message state
+	 * Use this for ANY state modification to prevent race conditions
+	 * This follows the same pattern as Task.withStateLock for consistency
+	 */
+	private async withStateLock<T>(fn: () => T | Promise<T>): Promise<T> {
+		return await this.stateMutex.withLock(fn)
 	}
 
 	getApiConversationHistory(): Anthropic.MessageParam[] {
@@ -58,7 +74,12 @@ export class MessageStateHandler {
 		this.clineMessages = newMessages
 	}
 
-	async saveClineMessagesAndUpdateHistory(): Promise<void> {
+	/**
+	 * Internal method to save messages and update history (without mutex protection)
+	 * This is used by methods that already hold the stateMutex lock
+	 * Should NOT be called directly - use saveClineMessagesAndUpdateHistory() instead
+	 */
+	private async saveClineMessagesAndUpdateHistoryInternal(): Promise<void> {
 		try {
 			await saveClineMessages(this.taskId, this.clineMessages)
 
@@ -104,39 +125,93 @@ export class MessageStateHandler {
 		}
 	}
 
+	/**
+	 * Save cline messages and update task history (public API with mutex protection)
+	 * This is the main entry point for saving message state from external callers
+	 */
+	async saveClineMessagesAndUpdateHistory(): Promise<void> {
+		return await this.withStateLock(async () => {
+			await this.saveClineMessagesAndUpdateHistoryInternal()
+		})
+	}
+
 	async addToApiConversationHistory(message: Anthropic.MessageParam) {
-		this.apiConversationHistory.push(message)
-		await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
+		return await this.withStateLock(async () => {
+			this.apiConversationHistory.push(message)
+			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+		})
 	}
 
 	async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]): Promise<void> {
-		this.apiConversationHistory = newHistory
-		await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
+		return await this.withStateLock(async () => {
+			this.apiConversationHistory = newHistory
+			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+		})
 	}
 
+	/**
+	 * Add a new message to clineMessages array with proper index tracking
+	 * CRITICAL: This entire operation must be atomic to prevent race conditions (RC-4)
+	 * The conversationHistoryIndex must be set correctly based on the current state,
+	 * and the message must be added and saved without any interleaving operations
+	 */
 	async addToClineMessages(message: ClineMessage) {
-		// these values allow us to reconstruct the conversation history at the time this cline message was created
-		// it's important that apiConversationHistory is initialized before we add cline messages
-		message.conversationHistoryIndex = this.apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
-		message.conversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
-		this.clineMessages.push(message)
-		await this.saveClineMessagesAndUpdateHistory()
+		return await this.withStateLock(async () => {
+			// these values allow us to reconstruct the conversation history at the time this cline message was created
+			// it's important that apiConversationHistory is initialized before we add cline messages
+			message.conversationHistoryIndex = this.apiConversationHistory.length - 1 // NOTE: this is the index of the last added message which is the user message, and once the clinemessages have been presented we update the apiconversationhistory with the completed assistant message. This means when resetting to a message, we need to +1 this index to get the correct assistant message that this tool use corresponds to
+			message.conversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
+			this.clineMessages.push(message)
+			await this.saveClineMessagesAndUpdateHistoryInternal()
+		})
 	}
 
+	/**
+	 * Replace the entire clineMessages array with new messages
+	 * Protected by mutex to prevent concurrent modifications (RC-4)
+	 */
 	async overwriteClineMessages(newMessages: ClineMessage[]) {
-		this.clineMessages = newMessages
-		await this.saveClineMessagesAndUpdateHistory()
+		return await this.withStateLock(async () => {
+			this.clineMessages = newMessages
+			await this.saveClineMessagesAndUpdateHistoryInternal()
+		})
 	}
 
+	/**
+	 * Update a specific message in the clineMessages array
+	 * The entire operation (validate, update, save) is atomic to prevent races (RC-4)
+	 */
 	async updateClineMessage(index: number, updates: Partial<ClineMessage>): Promise<void> {
-		if (index < 0 || index >= this.clineMessages.length) {
-			throw new Error(`Invalid message index: ${index}`)
-		}
+		return await this.withStateLock(async () => {
+			if (index < 0 || index >= this.clineMessages.length) {
+				throw new Error(`Invalid message index: ${index}`)
+			}
 
-		// Apply updates to the message
-		Object.assign(this.clineMessages[index], updates)
+			// Apply updates to the message
+			Object.assign(this.clineMessages[index], updates)
 
-		// Save changes and update history
-		await this.saveClineMessagesAndUpdateHistory()
+			// Save changes and update history
+			await this.saveClineMessagesAndUpdateHistoryInternal()
+		})
+	}
+
+	/**
+	 * Delete a specific message from the clineMessages array
+	 * The entire operation (validate, delete, save) is atomic to prevent races (RC-4)
+	 */
+	async deleteClineMessage(index: number): Promise<void> {
+		return await this.withStateLock(async () => {
+			if (index < 0 || index >= this.clineMessages.length) {
+				throw new Error(`Invalid message index: ${index}`)
+			}
+
+			// Remove the message at the specified index
+			this.clineMessages.splice(index, 1)
+
+			// Save changes and update history
+			await this.saveClineMessagesAndUpdateHistoryInternal()
+		})
 	}
 }

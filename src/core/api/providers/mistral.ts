@@ -1,6 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Mistral } from "@mistralai/mistralai"
+import { Tool as MistralTool } from "@mistralai/mistralai/models/components/tool"
 import { MistralModelId, ModelInfo, mistralDefaultModelId, mistralModels } from "@shared/api"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToMistralMessages } from "../transform/mistral-format"
@@ -36,7 +38,7 @@ export class MistralHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const stream = await client.chat
 			.stream({
@@ -45,6 +47,8 @@ export class MistralHandler implements ApiHandler {
 				temperature: 0,
 				messages: [{ role: "system", content: systemPrompt }, ...convertToMistralMessages(messages)],
 				stream: true,
+				tools: tools?.length ? (tools as MistralTool[]) : undefined,
+				toolChoice: tools?.length ? "any" : undefined,
 			})
 			.catch((err) => {
 				// The Mistal SDK uses statusCode instead of status
@@ -58,7 +62,20 @@ export class MistralHandler implements ApiHandler {
 
 		for await (const chunk of stream) {
 			const delta = chunk.data.choices[0]?.delta
-			if (delta?.content) {
+			if (delta.toolCalls) {
+				for (const toolCall of delta.toolCalls) {
+					yield {
+						type: "tool_calls",
+						tool_call: {
+							function: {
+								id: toolCall.id,
+								name: toolCall.function.name,
+								arguments: JSON.stringify(toolCall.function.arguments),
+							},
+						},
+					}
+				}
+			} else if (delta?.content) {
 				let content: string = ""
 				if (typeof delta.content === "string") {
 					content = delta.content

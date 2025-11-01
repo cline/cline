@@ -1,18 +1,9 @@
-import { BenchmarkAdapter } from "./types"
 import { ExercismAdapter } from "./exercism"
-import { SWEBenchAdapter } from "./swe-bench"
-import { SWELancerAdapter } from "./swelancer"
-import { MultiSWEAdapter } from "./multi-swe"
+import { BenchmarkAdapter } from "./types"
 
 // Registry of all available adapters
 const adapters: Record<string, BenchmarkAdapter> = {
-	// Exercism is the primary adapter with real implementation
 	exercism: new ExercismAdapter(),
-
-	// Dummy adapters for testing
-	"swe-bench": new SWEBenchAdapter(),
-	swelancer: new SWELancerAdapter(),
-	"multi-swe": new MultiSWEAdapter(),
 }
 
 /**

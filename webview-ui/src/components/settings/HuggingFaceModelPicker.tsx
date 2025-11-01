@@ -171,7 +171,7 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 
 				<div className="relative w-full" ref={dropdownRef}>
 					<VSCodeTextField
-						className="w-full relative z-[1000]"
+						className="w-full relative z-1000"
 						id="hf-model-search"
 						onFocus={() => setIsDropdownVisible(true)}
 						onInput={(e: any) => {
@@ -204,13 +204,13 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 						<div
 							className={`absolute top-[calc(100%-3px)] left-0 w-[calc(100%-2px)] ${
 								isPopup ? "max-h-[90px]" : "max-h-[200px]"
-							} overflow-y-auto bg-[var(--vscode-dropdown-background)] border border-[var(--vscode-list-activeSelectionBackground)] z-[999] rounded-b-[3px]`}
+							} overflow-y-auto bg-(--vscode-dropdown-background) border border-(--vscode-list-activeSelectionBackground) z-999 rounded-b-[3px]`}
 							ref={dropdownListRef}>
 							{modelSearchResults.map((result, index) => (
 								<div
 									className={`p-[5px_10px] cursor-pointer break-all whitespace-normal ${
-										index === selectedIndex ? "bg-[var(--vscode-list-activeSelectionBackground)]" : ""
-									} hover:bg-[var(--vscode-list-activeSelectionBackground)]`}
+										index === selectedIndex ? "bg-(--vscode-list-activeSelectionBackground)" : ""
+									} hover:bg-(--vscode-list-activeSelectionBackground)`}
 									key={result.id}
 									onClick={() => {
 										handleModelChange(result.id)
@@ -219,7 +219,7 @@ const HuggingFaceModelPicker: React.FC<HuggingFaceModelPickerProps> = ({ isPopup
 									onMouseEnter={() => setSelectedIndex(index)}
 									ref={(el: HTMLDivElement | null) => (itemRefs.current[index] = el)}>
 									<div
-										className="[&_.model-item-highlight]:bg-[var(--vscode-editor-findMatchHighlightBackground)] [&_.model-item-highlight]:text-inherit"
+										className="[&_.model-item-highlight]:bg-(--vscode-editor-findMatchHighlightBackground) [&_.model-item-highlight]:text-inherit"
 										dangerouslySetInnerHTML={{ __html: result.html }}
 									/>
 								</div>

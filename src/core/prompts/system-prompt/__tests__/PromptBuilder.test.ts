@@ -44,6 +44,7 @@ describe("PromptBuilder", () => {
 	const baseVariant: PromptVariant = {
 		id: "test-model",
 		family: ModelFamily.GENERIC,
+		matcher: () => true,
 		version: 1,
 		description: "A test model",
 		tags: ["test"],
@@ -259,6 +260,7 @@ describe("PromptBuilder", () => {
 					SystemPromptSection.CAPABILITIES,
 					SystemPromptSection.RULES,
 				)
+				.matcher(() => true)
 				.build()
 
 			// Should have auto-generated a baseTemplate
@@ -295,6 +297,7 @@ describe("PromptBuilder", () => {
 				.description("Test variant with explicit template")
 				.version(1)
 				.template(customTemplate)
+				.matcher(() => true)
 				.components(SystemPromptSection.AGENT_ROLE, SystemPromptSection.TOOL_USE)
 				.build()
 
@@ -307,6 +310,7 @@ describe("PromptBuilder", () => {
 				createVariant(ModelFamily.GENERIC)
 					.description("Test variant with empty components")
 					.version(1)
+					.matcher(() => true)
 					.components() // Empty components
 					.build()
 			}).to.throw("Component order is required")

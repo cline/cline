@@ -71,7 +71,7 @@ export const Default: Story = {
 	argTypes: {
 		errorType: {
 			control: { type: "select" },
-			options: ["error", "mistake_limit_reached", "auto_approval_max_req_reached", "diff_error", "clineignore_error"],
+			options: ["error", "mistake_limit_reached", "diff_error", "clineignore_error"],
 			description: "Type of error to display",
 		},
 		message: {

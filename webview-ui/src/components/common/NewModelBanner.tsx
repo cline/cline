@@ -1,8 +1,8 @@
 import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { Megaphone } from "lucide-react"
+import { Megaphone, XIcon } from "lucide-react"
 import { useCallback } from "react"
 import { useMount } from "react-use"
+import { Button } from "@/components/ui/button"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
@@ -67,14 +67,12 @@ export const NewModelBanner: React.FC = () => {
 
 	return (
 		<div
-			className="px-3 py-2 flex flex-col gap-1 shrink-0 mb-1 relative text-sm mt-1.5 m-4 no-underline transition-colors hover:brightness-120 border-0 cursor-pointer text-left w-auto"
+			className="px-3 py-2 flex flex-col gap-1 shrink-0 mb-1 relative text-sm mt-1.5 m-4 no-underline transition-colors hover:brightness-120 border-0 cursor-pointer text-left w-auto rounded-sm"
 			onClick={handleBannerClick}
 			style={{
 				backgroundColor: getAsVar(VSC_INACTIVE_SELECTION_BACKGROUND),
-				borderRadius: "3px",
-				color: "var(--vscode-foreground)",
 			}}>
-			<h4 className="m-0 flex items-center gap-2" style={{ paddingRight: "18px" }}>
+			<h4 className="m-0 flex items-center gap-2">
 				<Megaphone className="w-4 h-4" />
 				Claude Haiku 4.5
 			</h4>
@@ -84,13 +82,14 @@ export const NewModelBanner: React.FC = () => {
 			</p>
 
 			{/* Close button */}
-			<VSCodeButton
-				appearance="icon"
+			<Button
+				className="absolute top-2.5 right-2"
 				data-testid="info-banner-close-button"
 				onClick={handleClose}
-				style={{ position: "absolute", top: "6px", right: "6px" }}>
-				<span className="codicon codicon-close"></span>
-			</VSCodeButton>
+				size="icon"
+				variant="icon">
+				<XIcon />
+			</Button>
 		</div>
 	)
 }

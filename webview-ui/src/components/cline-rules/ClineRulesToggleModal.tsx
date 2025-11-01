@@ -12,7 +12,7 @@ import React, { useEffect, useRef, useState } from "react"
 import { useClickAway, useWindowSize } from "react-use"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
-import Tooltip from "@/components/common/Tooltip"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient } from "@/services/grpc-client"
 import RulesToggleList from "./RulesToggleList"
@@ -194,27 +194,27 @@ const ClineRulesToggleModal: React.FC = () => {
 	}, [isVisible, viewportWidth, viewportHeight])
 
 	return (
-		<div ref={modalRef}>
-			<div className="inline-flex min-w-0 max-w-full" ref={buttonRef}>
-				<Tooltip tipText="Manage Cline Rules & Workflows" visible={isVisible ? false : undefined}>
-					<VSCodeButton
-						appearance="icon"
-						aria-label={isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows"}
-						onClick={() => setIsVisible(!isVisible)}
-						style={{ padding: "0px 0px", height: "20px" }}>
-						<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-							<span
-								className="codicon codicon-law flex items-center"
-								style={{ fontSize: "12.5px", marginBottom: 1 }}
-							/>
-						</div>
-					</VSCodeButton>
+		<div className="inline-flex min-w-0 max-w-full items-center" ref={modalRef}>
+			<div className="inline-flex w-full items-center" ref={buttonRef}>
+				<Tooltip>
+					{!isVisible && <TooltipContent>Manage Cline Rules & Workflows</TooltipContent>}
+					<TooltipTrigger>
+						<VSCodeButton
+							appearance="icon"
+							aria-label={isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows"}
+							className="flex items-center"
+							onClick={() => setIsVisible(!isVisible)}>
+							<div className="flex items-center text-xs w-full cursor-pointer">
+								<i className="codicon codicon-law" style={{ fontSize: "14px" }} />
+							</div>
+						</VSCodeButton>
+					</TooltipTrigger>
 				</Tooltip>
 			</div>
 
 			{isVisible && (
 				<div
-					className="fixed left-[15px] right-[15px] border border-[var(--vscode-editorGroup-border)] p-3 rounded z-[1000] overflow-y-auto"
+					className="fixed left-[15px] right-[15px] border border-(--vscode-editorGroup-border) p-3 rounded z-1000 overflow-y-auto"
 					style={{
 						bottom: `calc(100vh - ${menuPosition}px + 6px)`,
 						background: CODE_BLOCK_BG_COLOR,
@@ -222,7 +222,7 @@ const ClineRulesToggleModal: React.FC = () => {
 						overscrollBehavior: "contain",
 					}}>
 					<div
-						className="fixed w-[10px] h-[10px] z-[-1] rotate-45 border-r border-b border-[var(--vscode-editorGroup-border)]"
+						className="fixed w-[10px] h-[10px] z-[-1] rotate-45 border-r border-b border-(--vscode-editorGroup-border)"
 						style={{
 							bottom: `calc(100vh - ${menuPosition}px)`,
 							right: arrowPosition,
@@ -253,7 +253,7 @@ const ClineRulesToggleModal: React.FC = () => {
 					</div>
 
 					{/* Description text */}
-					<div className="text-xs text-[var(--vscode-descriptionForeground)] mb-4">
+					<div className="text-xs text-(--vscode-descriptionForeground) mb-4">
 						{currentView === "rules" ? (
 							<p>
 								Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way to
@@ -271,7 +271,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								such as deploying a service or submitting a PR. To invoke a workflow, type{" "}
 								<span
 									className=" 
-								text-[var(--vscode-foreground)] font-bold">
+								text-(--vscode-foreground) font-bold">
 									/workflow-name
 								</span>{" "}
 								in the chat.{" "}

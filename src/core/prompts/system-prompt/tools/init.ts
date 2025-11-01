@@ -1,6 +1,7 @@
 // Import all tool variants
 import { ClineToolSet } from "../registry/ClineToolSet"
 import { access_mcp_resource_variants } from "./access_mcp_resource"
+import { apply_patch_variants } from "./apply_patch"
 import { ask_followup_question_variants } from "./ask_followup_question"
 import { attempt_completion_variants } from "./attempt_completion"
 import { browser_action_variants } from "./browser_action"
@@ -43,6 +44,7 @@ export function registerClineToolSets(): void {
 		...use_mcp_tool_variants,
 		...web_fetch_variants,
 		...write_to_file_variants,
+		...apply_patch_variants,
 	]
 
 	// Register each variant

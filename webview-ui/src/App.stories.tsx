@@ -400,8 +400,6 @@ export const AutoApprovalEnabled: Story = {
 			autoApprovalSettings: {
 				...DEFAULT_AUTO_APPROVAL_SETTINGS,
 				enabled: true,
-				maxRequestsPerTask: 10,
-				maxRequestsPerHour: 50,
 			},
 		}),
 	],
@@ -625,13 +623,6 @@ export const NewTaskWithContext = quickStory(
 	"new_task",
 	"Start a new task with the current conversation context",
 	"Shows new task creation with context preservation option.",
-)
-export const AutoApprovalMaxReached = quickStory(
-	"Auto-approval Limit",
-	"auto_approval_max_req_reached",
-	"Cline has auto-approved 5 API requests. Would you like to reset the count and proceed with the task?",
-	"Shows auto-approval limit reached state with Proceed/Start New Task options.",
-	"Cline has auto-approved 5 API requests. Would you like to reset the count and proceed with the task?",
 )
 export const ApiRequestActive: Story = {
 	decorators: [

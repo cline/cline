@@ -65,6 +65,7 @@ export function isBrowserSessionMessage(message: ClineMessage): boolean {
 			"browser_action_result",
 			"checkpoint_created",
 			"reasoning",
+			"error_retry",
 		].includes(message.say!)
 	}
 	return false

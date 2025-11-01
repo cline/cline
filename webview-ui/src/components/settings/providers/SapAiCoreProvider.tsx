@@ -137,7 +137,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				<span className="font-medium">AI Core Client Id</span>
 			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientId && (
-				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+				<p className="text-xs text-(--vscode-descriptionForeground)">
 					Client Id is set. To change it, please re-enter the value.
 				</p>
 			)}
@@ -151,7 +151,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				<span className="font-medium">AI Core Client Secret</span>
 			</DebouncedTextField>
 			{apiConfiguration?.sapAiCoreClientSecret && (
-				<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+				<p className="text-xs text-(--vscode-descriptionForeground)">
 					Client Secret is set. To change it, please re-enter the value.
 				</p>
 			)}
@@ -180,7 +180,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				<span className="font-medium">AI Core Resource Group</span>
 			</DebouncedTextField>
 
-			<p className="text-xs mt-1.5 text-[var(--vscode-descriptionForeground)]">
+			<p className="text-xs mt-1.5 text-(--vscode-descriptionForeground)">
 				These credentials are stored locally and only used to make API requests from this extension.
 				<VSCodeLink
 					className="inline"
@@ -200,7 +200,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 						<span className="font-medium">Orchestration Mode</span>
 					</div>
 
-					<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+					<p className="text-xs text-(--vscode-descriptionForeground)">
 						When enabled, provides access to all available models without requiring individual deployments.
 						<br />
 						<br />
@@ -213,12 +213,12 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 				<>
 					<div className="flex flex-col gap-1.5">
 						{isLoadingModels ? (
-							<div className="text-xs text-[var(--vscode-descriptionForeground)]">Loading models...</div>
+							<div className="text-xs text-(--vscode-descriptionForeground)">Loading models...</div>
 						) : modelError ? (
-							<div className="text-xs text-[var(--vscode-errorForeground)]">
+							<div className="text-xs text-(--vscode-errorForeground)">
 								{modelError}
 								<button
-									className="ml-2 text-[11px] px-1.5 py-0.5 bg-[var(--vscode-button-background)] text-[var(--vscode-button-foreground)] border-none rounded-sm cursor-pointer"
+									className="ml-2 text-[11px] px-1.5 py-0.5 bg-(--vscode-button-background) text-(--vscode-button-foreground) border-none rounded-sm cursor-pointer"
 									onClick={fetchSapAiCoreModels}>
 									Retry
 								</button>
@@ -226,7 +226,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 						) : hasRequiredCredentials ? (
 							<>
 								{sapAiCoreModelDeployments.length === 0 && (
-									<div className="text-xs text-[var(--vscode-errorForeground)] mb-2">
+									<div className="text-xs text-(--vscode-errorForeground) mb-2">
 										Unable to fetch models from SAP AI Core service instance. Please check your SAP AI Core
 										configuration or ensure your deployments are deployed and running in the service instance
 									</div>
@@ -247,7 +247,7 @@ export const SapAiCoreProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 								/>
 							</>
 						) : (
-							<div className="text-xs text-[var(--vscode-errorForeground)]">
+							<div className="text-xs text-(--vscode-errorForeground)">
 								Please configure your SAP AI Core credentials to see available models.
 							</div>
 						)}

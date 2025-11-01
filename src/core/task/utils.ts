@@ -5,12 +5,8 @@ import { ClineApiReqCancelReason, ClineApiReqInfo } from "@/shared/ExtensionMess
 import { calculateApiCostAnthropic } from "@/utils/cost"
 import { MessageStateHandler } from "./message-state"
 
-export const showNotificationForApprovalIfAutoApprovalEnabled = (
-	message: string,
-	autoApprovalSettingsEnabled: boolean,
-	notificationsEnabled: boolean,
-) => {
-	if (autoApprovalSettingsEnabled && notificationsEnabled) {
+export const showNotificationForApproval = (message: string, notificationsEnabled: boolean) => {
+	if (notificationsEnabled) {
 		showSystemNotification({
 			subtitle: "Approval Required",
 			message,
@@ -131,4 +127,21 @@ export async function detectAvailableCliTools(): Promise<string[]> {
 	}
 
 	return availableCommands
+}
+
+/**
+ * Extracts the domain from a provider URL string
+ * @param url The URL to extract domain from
+ * @returns The domain/hostname or undefined if invalid
+ */
+export function extractProviderDomainFromUrl(url: string | undefined): string | undefined {
+	if (!url) {
+		return undefined
+	}
+	try {
+		const urlObj = new URL(url)
+		return urlObj.hostname
+	} catch {
+		return undefined
+	}
 }

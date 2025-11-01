@@ -1,11 +1,13 @@
 syntax = "proto3";
 
 package cline;
+
 import "cline/common.proto";
 import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/cline/grpc-go/cline";
-option java_package = "bot.cline.proto";
 option java_multiple_files = true;
+option java_package = "bot.cline.proto";
 
 service CheckpointsService {
   rpc checkpointDiff(Int64Request) returns (Empty);
@@ -31,13 +33,13 @@ message CheckpointEvent {
     CHECKPOINT_COMMIT = 1;
     CHECKPOINT_RESTORE = 2;
   }
-  
+
   OperationType operation = 1;
   string cwd_hash = 2;
   bool is_active = 3;
   google.protobuf.Timestamp timestamp = 4;
   optional string task_id = 5;
-  optional string commit_hash = 6;  
+  optional string commit_hash = 6;
 }
 
 message PathHashMap {

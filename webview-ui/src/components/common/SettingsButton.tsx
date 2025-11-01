@@ -22,7 +22,7 @@ const StyledButton = styled(VSCodeButton)`
 
 	i.codicon {
 		margin-right: 6px;
-		flex-shrink: 0;
+		shrink: 0;
 		font-size: 16px !important;
 	}
 `

@@ -85,7 +85,7 @@ describe("Announcement", () => {
 				<Announcement hideAnnouncement={hideAnnouncement} version="2.0.0" />
 			</TestWrapper>,
 		)
-		fireEvent.click(screen.getByTestId("close-button"))
+		fireEvent.click(screen.getByTestId("close-announcement-button"))
 		expect(hideAnnouncement).toHaveBeenCalled()
 	})
 })
