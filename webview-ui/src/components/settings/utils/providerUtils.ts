@@ -45,6 +45,8 @@ import {
 	moonshotModels,
 	nebiusDefaultModelId,
 	nebiusModels,
+	nousresearchDefaultModelId,
+	nousresearchModels,
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
@@ -361,6 +363,19 @@ export function normalizeApiConfiguration(
 			}
 		case "minimax":
 			return getProviderData(minimaxModels, minimaxDefaultModelId)
+		case "nousresearch":
+			const nousresearchModelId =
+				currentMode === "plan"
+					? apiConfiguration?.planModeNousresearchModelId
+					: apiConfiguration?.actModeNousresearchModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: nousresearchModelId || nousresearchDefaultModelId,
+				selectedModelInfo:
+					nousresearchModelId && nousresearchModelId in nousresearchModels
+						? nousresearchModels[nousresearchModelId as keyof typeof nousresearchModels]
+						: nousresearchModels[nousresearchDefaultModelId],
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -393,6 +408,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			huggingFaceModelId: undefined,
 			huaweiCloudMaasModelId: undefined,
 			vercelAiGatewayModelId: undefined,
+			nousresearchModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
@@ -442,6 +458,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		vercelAiGatewayModelId:
 			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelId : apiConfiguration.actModeVercelAiGatewayModelId,
 		ocaModelId: mode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
+		nousresearchModelId:
+			mode === "plan" ? apiConfiguration.planModeNousresearchModelId : apiConfiguration.actModeNousresearchModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -625,6 +643,10 @@ export async function syncModeConfigurations(
 			updates.actModeOcaModelId = sourceFields.ocaModelId
 			updates.planModeOcaModelInfo = sourceFields.ocaModelInfo
 			updates.actModeOcaModelInfo = sourceFields.ocaModelInfo
+			break
+		case "nousresearch":
+			updates.planModeNousresearchModelId = sourceFields.nousresearchModelId
+			updates.actModeNousresearchModelId = sourceFields.nousresearchModelId
 			break
 
 		// Providers that use apiProvider + apiModelId fields

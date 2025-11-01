@@ -309,6 +309,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.OCA
 		case "minimax":
 			return ProtoApiProvider.MINIMAX
+		case "nousresearch":
+			return ProtoApiProvider.NOUSRESEARCH
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -391,6 +393,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "oca"
 		case ProtoApiProvider.MINIMAX:
 			return "minimax"
+		case ProtoApiProvider.NOUSRESEARCH:
+			return "nousresearch"
 		default:
 			return "anthropic"
 	}
@@ -475,6 +479,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		ocaBaseUrl: config.ocaBaseUrl,
 		minimaxApiKey: config.minimaxApiKey,
 		minimaxApiLine: config.minimaxApiLine,
+		nousresearchApiKey: config.nousresearchApiKey,
 		ocaMode: config.ocaMode,
 
 		// Plan mode configurations
@@ -511,6 +516,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
 		planModeOcaModelId: config.planModeOcaModelId,
 		planModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.planModeOcaModelInfo),
+		planModeNousresearchModelId: config.planModeNousresearchModelId,
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -546,6 +552,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
 		actModeOcaModelId: config.actModeOcaModelId,
 		actModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.actModeOcaModelInfo),
+		actModeNousresearchModelId: config.actModeNousresearchModelId,
 	}
 }
 
@@ -629,6 +636,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		ocaMode: protoConfig.ocaMode,
 		minimaxApiKey: protoConfig.minimaxApiKey,
 		minimaxApiLine: protoConfig.minimaxApiLine,
+		nousresearchApiKey: protoConfig.nousresearchApiKey,
 
 		// Plan mode configurations
 		planModeApiProvider:
@@ -667,6 +675,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
 		planModeOcaModelId: protoConfig.planModeOcaModelId,
 		planModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.planModeOcaModelInfo),
+		planModeNousresearchModelId: protoConfig.planModeNousresearchModelId,
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -703,5 +712,6 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
 		actModeOcaModelId: protoConfig.actModeOcaModelId,
 		actModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.actModeOcaModelInfo),
+		actModeNousresearchModelId: protoConfig.actModeNousresearchModelId,
 	}
 }

@@ -23,6 +23,7 @@ import { MinimaxHandler } from "./providers/minimax"
 import { MistralHandler } from "./providers/mistral"
 import { MoonshotHandler } from "./providers/moonshot"
 import { NebiusHandler } from "./providers/nebius"
+import { NousresearchHandler } from "./providers/nousresearch"
 import { OcaHandler } from "./providers/oca"
 import { OllamaHandler } from "./providers/ollama"
 import { OpenAiHandler } from "./providers/openai"
@@ -397,6 +398,12 @@ function createHandlerForProvider(
 				minimaxApiKey: options.minimaxApiKey,
 				minimaxApiLine: options.minimaxApiLine,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
+		case "nousresearch":
+			return new NousresearchHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				nousresearchApiKey: options.nousresearchApiKey,
+				apiModelId: mode === "plan" ? options.planModeNousresearchModelId : options.actModeNousresearchModelId,
 			})
 		default:
 			return new AnthropicHandler({

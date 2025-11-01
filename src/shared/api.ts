@@ -38,6 +38,7 @@ export type ApiProvider =
 	| "zai"
 	| "oca"
 	| "minimax"
+	| "nousresearch"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -77,6 +78,7 @@ export interface ApiHandlerSecrets {
 	vercelAiGatewayApiKey?: string
 	difyApiKey?: string
 	minimaxApiKey?: string
+	nousresearchApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -158,6 +160,7 @@ export interface ApiHandlerOptions {
 	planModeVercelAiGatewayModelInfo?: ModelInfo
 	planModeOcaModelId?: string
 	planModeOcaModelInfo?: OcaModelInfo
+	planModeNousresearchModelId?: string
 	// Act mode configurations
 
 	// Act mode configurations
@@ -193,6 +196,7 @@ export interface ApiHandlerOptions {
 	actModeVercelAiGatewayModelInfo?: ModelInfo
 	actModeOcaModelId?: string
 	actModeOcaModelInfo?: OcaModelInfo
+	actModeNousresearchModelId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -3842,5 +3846,32 @@ export const minimaxModels = {
 		outputPrice: 1.2,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// NousResearch
+// https://inference-api.nousresearch.com
+export type NousresearchModelId = keyof typeof nousresearchModels
+export const nousresearchDefaultModelId: NousresearchModelId = "Hermes-4-405B"
+export const nousresearchModels = {
+	"Hermes-4-405B": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.09,
+		outputPrice: 0.37,
+		description:
+			"This is the largest model in the Hermes 4 family, and it is the fullest expression of our design, focused on advanced reasoning and creative depth rather than optimizing inference speed or cost.",
+	},
+	"Hermes-4-70B": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.2,
+		description:
+			"This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases.",
 	},
 } as const satisfies Record<string, ModelInfo>
