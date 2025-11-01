@@ -6,6 +6,7 @@ import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
+import styled from "styled-components"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { ModelsServiceClient } from "../../services/grpc-client"
 import { highlight } from "../history/HistoryView"
@@ -157,8 +158,11 @@ const LiteLlmModelPicker: React.FC<LiteLlmModelPickerProps> = ({ isPopup, curren
 				event.preventDefault()
 				if (selectedIndex >= 0 && selectedIndex < modelSearchResults.length) {
 					handleModelChange(modelSearchResults[selectedIndex].id)
-					setIsDropdownVisible(false)
+				} else {
+					// User typed a custom model ID
+					handleModelChange(searchTerm)
 				}
+				setIsDropdownVisible(false)
 				break
 			case "Escape":
 				setIsDropdownVisible(false)
@@ -187,17 +191,8 @@ const LiteLlmModelPicker: React.FC<LiteLlmModelPickerProps> = ({ isPopup, curren
 		}
 	}, [selectedIndex])
 
-	// If no models are available, show fallback message
-	if (!dynamicLiteLlmModels || Object.keys(dynamicLiteLlmModels).length === 0) {
-		return (
-			<p className="text-xs mt-0 text-(--vscode-descriptionForeground)">
-				No models available. Ensure your LiteLLM server is running and the Base URL and API Key are correctly configured.
-			</p>
-		)
-	}
-
 	return (
-		<div className="w-full">
+		<div style={{ width: "100%" }}>
 			<style>
 				{`
 				.model-item-highlight {
@@ -206,13 +201,18 @@ const LiteLlmModelPicker: React.FC<LiteLlmModelPickerProps> = ({ isPopup, curren
 				}
 				`}
 			</style>
-			<div className="flex flex-col">
+			<div style={{ display: "flex", flexDirection: "column" }}>
 				<label htmlFor="litellm-model-search">
-					<span className="font-medium">Model</span>
+					<span style={{ fontWeight: 500 }}>Model</span>
 				</label>
-				<div className="relative w-full" ref={dropdownRef}>
+				<DropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						id="litellm-model-search"
+						onBlur={() => {
+							if (searchTerm !== selectedModelId) {
+								handleModelChange(searchTerm)
+							}
+						}}
 						onFocus={() => setIsDropdownVisible(true)}
 						onInput={(e) => {
 							setSearchTerm((e.target as HTMLInputElement)?.value || "")
@@ -229,53 +229,62 @@ const LiteLlmModelPicker: React.FC<LiteLlmModelPickerProps> = ({ isPopup, curren
 						{searchTerm && (
 							<div
 								aria-label="Clear search"
-								className="input-icon-button codicon codicon-close flex justify-center items-center h-full"
+								className="input-icon-button codicon codicon-close"
 								onClick={() => {
 									setSearchTerm("")
 									setIsDropdownVisible(true)
 								}}
 								slot="end"
+								style={{
+									display: "flex",
+									justifyContent: "center",
+									alignItems: "center",
+									height: "100%",
+								}}
 							/>
 						)}
 					</VSCodeTextField>
 					{isDropdownVisible && (
-						<div
-							className="absolute top-[calc(100%-3px)] left-0 w-[calc(100%-2px)] max-h-[200px] overflow-y-auto border border-(--vscode-list-activeSelectionBackground) rounded-b-[3px]"
-							ref={dropdownListRef}
-							style={{
-								backgroundColor: "var(--vscode-dropdown-background)",
-								zIndex: LITELLM_MODEL_PICKER_Z_INDEX - 1,
-							}}>
-							{modelSearchResults.map((item, index) => (
-								<div
-									className={`px-2.5 py-1.5 cursor-pointer break-all whitespace-normal hover:bg-(--vscode-list-activeSelectionBackground) ${
-										index === selectedIndex ? "bg-(--vscode-list-activeSelectionBackground)" : ""
-									}`}
-									key={item.id}
-									onClick={() => {
-										handleModelChange(item.id)
-										setIsDropdownVisible(false)
-									}}
-									onMouseEnter={() => setSelectedIndex(index)}
-									ref={(el: HTMLDivElement | null) => {
-										itemRefs.current[index] = el
-									}}>
-									{parseHighlightedText(item.html)}
-								</div>
-							))}
-						</div>
+						<DropdownList ref={dropdownListRef}>
+							{modelSearchResults.length > 0 ? (
+								modelSearchResults.map((item, index) => (
+									<DropdownItem
+										isSelected={index === selectedIndex}
+										key={item.id}
+										onClick={() => {
+											handleModelChange(item.id)
+											setIsDropdownVisible(false)
+										}}
+										onMouseEnter={() => setSelectedIndex(index)}
+										ref={(el) => (itemRefs.current[index] = el)}>
+										{parseHighlightedText(item.html)}
+									</DropdownItem>
+								))
+							) : (
+								<DropdownItem isSelected={false} style={{ cursor: "default", opacity: 0.7 }}>
+									No models found. Type a model ID manually.
+								</DropdownItem>
+							)}
+						</DropdownList>
 					)}
-				</div>
+				</DropdownWrapper>
 			</div>
 
 			{hasInfo ? (
 				<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 			) : (
-				<p className="text-xs mt-0 text-(--vscode-descriptionForeground)">
-					The extension fetches the model list from your configured LiteLLM server.{" "}
-					<VSCodeLink className="inline text-inherit" href="https://docs.litellm.ai/docs/">
-						Learn more about LiteLLM
-					</VSCodeLink>
+				<p
+					style={{
+						fontSize: "12px",
+						marginTop: 0,
+						color: "var(--vscode-descriptionForeground)",
+					}}>
+					The extension automatically fetches the latest list of models from your configured LiteLLM server.{" "}
+					<VSCodeLink href="https://docs.litellm.ai/docs/" style={{ display: "inline", fontSize: "inherit" }}>
+						Learn more about LiteLLM.
+					</VSCodeLink>{" "}
+					If the model list fails to load, you can manually type a model ID (e.g.,{" "}
+					<strong>anthropic/claude-sonnet-4-20250514</strong>).
 				</p>
 			)}
 		</div>
@@ -285,3 +294,37 @@ const LiteLlmModelPicker: React.FC<LiteLlmModelPickerProps> = ({ isPopup, curren
 export const LITELLM_MODEL_PICKER_Z_INDEX = 1_000
 
 export default LiteLlmModelPicker
+
+// Dropdown
+
+const DropdownWrapper = styled.div`
+	position: relative;
+	width: 100%;
+`
+
+const DropdownList = styled.div`
+	position: absolute;
+	top: calc(100% - 3px);
+	left: 0;
+	width: calc(100% - 2px);
+	max-height: 200px;
+	overflow-y: auto;
+	background-color: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-list-activeSelectionBackground);
+	z-index: ${LITELLM_MODEL_PICKER_Z_INDEX - 1};
+	border-bottom-left-radius: 3px;
+	border-bottom-right-radius: 3px;
+`
+
+const DropdownItem = styled.div<{ isSelected: boolean }>`
+	padding: 5px 10px;
+	cursor: pointer;
+	word-break: break-all;
+	white-space: normal;
+
+	background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
+
+	&:hover {
+		background-color: var(--vscode-list-activeSelectionBackground);
+	}
+`

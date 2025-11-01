@@ -25,16 +25,13 @@ interface LiteLlmProviderProps {
  * The LiteLLM provider configuration component
  */
 export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: LiteLlmProviderProps) => {
-	const { apiConfiguration, liteLlmModels } = useExtensionState()
+	const { apiConfiguration } = useExtensionState()
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// Get mode-specific fields
-	const { liteLlmModelId, liteLlmModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
-
-	// Check if we have a model list available
-	const hasModelList = liteLlmModels && Object.keys(liteLlmModels).length > 0
+	const { liteLlmModelInfo } = getModeSpecificFields(apiConfiguration, currentMode)
 
 	// Local state for collapsible model configuration section
 	const [modelConfigurationSelected, setModelConfigurationSelected] = useState(false)
@@ -73,24 +70,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 				type="password">
 				<span style={{ fontWeight: 500 }}>API Key</span>
 			</DebouncedTextField>
-			{hasModelList ? (
-				<LiteLlmModelPicker currentMode={currentMode} isPopup={isPopup} />
-			) : (
-				<DebouncedTextField
-					initialValue={liteLlmModelId || ""}
-					onChange={async (value) => {
-						await ModelsServiceClient.updateApiConfiguration(
-							UpdateApiConfigurationRequestNew.create({
-								options:
-									currentMode === "plan" ? { planModeLiteLlmModelId: value } : { actModeLiteLlmModelId: value },
-							}),
-						)
-					}}
-					placeholder={"e.g. anthropic/claude-sonnet-4-20250514"}
-					style={{ width: "100%" }}>
-					<span style={{ fontWeight: 500 }}>Model ID</span>
-				</DebouncedTextField>
-			)}
+			<LiteLlmModelPicker currentMode={currentMode} isPopup={isPopup} />
 
 			<div style={{ display: "flex", flexDirection: "column", marginTop: 10, marginBottom: 10 }}>
 				{selectedModelInfo.supportsPromptCache && (
