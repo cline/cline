@@ -703,6 +703,8 @@ export async function resetGlobalState(controller: Controller) {
 		"difyApiKey",
 		"ocaApiKey",
 		"ocaRefreshToken",
+		"clineAccountId",
+		"cline:clineAccountId"
 		"minimaxApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
