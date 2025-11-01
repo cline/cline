@@ -339,6 +339,9 @@ func (pw *ProviderWizard) fetchModelsForProvider(provider cline.ApiProvider, api
 		}
 		interfaceMap := ConvertOcaModelsToInterface(models)
 		return ConvertModelsMapToSlice(interfaceMap), interfaceMap, nil
+
+	case cline.ApiProvider_SAPAICORE:
+		return pw.fetchSapAiCoreModels()
 	}
 
 	// Fall back to static models for providers that don't support dynamic fetching
@@ -489,6 +492,7 @@ func (pw *ProviderWizard) handleChangeModel() error {
 
 	fmt.Printf("\nChanging model for %s\n", GetProviderDisplayName(provider))
 	fmt.Printf("Current model: %s\n\n", selectedProvider.ModelID)
+
 
 	// Step 5: Retrieve API key if needed for model fetching
 	var apiKey string
@@ -781,4 +785,48 @@ func signOutOca(ctx context.Context) error {
 func setWelcomeViewCompleted(ctx context.Context, manager *task.Manager) error {
 	_, err := manager.GetClient().State.SetWelcomeViewCompleted(ctx, &cline.BooleanRequest{Value: true})
 	return err
+}
+
+// fetchSapAiCoreModels fetches available SAP AI Core deployments from the current state configuration
+func (pw *ProviderWizard) fetchSapAiCoreModels() ([]string, map[string]interface{}, error) {
+	// Extract credentials from state to fetch deployments
+	state, err := pw.manager.GetClient().State.GetLatestState(pw.ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get state for SAP AI Core: %w", err)
+	}
+
+	var stateData map[string]interface{}
+	if err := json.Unmarshal([]byte(state.StateJson), &stateData); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse state JSON: %w", err)
+	}
+
+	apiConfig, ok := stateData["apiConfiguration"].(map[string]interface{})
+	if !ok {
+		return nil, nil, fmt.Errorf("no API configuration found in state")
+	}
+
+	// Extract SAP AI Core credentials
+	clientID, _ := apiConfig["sapAiCoreClientId"].(string)
+	clientSecret, _ := apiConfig["sapAiCoreClientSecret"].(string)
+	baseURL, _ := apiConfig["sapAiCoreBaseUrl"].(string)
+	tokenURL, _ := apiConfig["sapAiCoreTokenUrl"].(string)
+	resourceGroup, _ := apiConfig["sapAiResourceGroup"].(string)
+
+	if clientID == "" || clientSecret == "" || baseURL == "" || tokenURL == "" {
+		return nil, nil, fmt.Errorf("SAP AI Core credentials not found in configuration")
+	}
+
+	// Fetch deployments using existing function
+	deployments, _, err := FetchSapAiCoreModels(pw.ctx, pw.manager, clientID, clientSecret, baseURL, tokenURL, resourceGroup)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Convert deployments to model IDs for the generic selection interface
+	modelIDs := make([]string, len(deployments))
+	for i, deployment := range deployments {
+		modelIDs[i] = deployment.DisplayName // Use display name for better UX
+	}
+
+	return modelIDs, nil, nil
 }
