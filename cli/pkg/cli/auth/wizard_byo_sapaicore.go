@@ -118,6 +118,13 @@ func PromptForSapAiCoreConfigWithValidation(existing *SapAiCoreConfig, flags sap
 	}
 
 	// Enhanced form with better descriptions and examples
+	// Prepare left-aligned non-inline select for orchestration mode
+	var orchestrationChoice string
+	if config.UseOrchestrationMode {
+		orchestrationChoice = "Yes"
+	} else {
+		orchestrationChoice = "No"
+	}
 	requiredForm := huh.NewForm(
 		huh.NewGroup(
 			// Client ID (masked; do not display existing)
@@ -203,19 +210,20 @@ func PromptForSapAiCoreConfigWithValidation(existing *SapAiCoreConfig, flags sap
 				}),
 
 			// Orchestration mode (prefilled)
-			huh.NewConfirm().
+			huh.NewSelect[string]().
 				Title("Use Orchestration Mode?").
 				Description("Use SAP AI Core Orchestration service instead of direct deployments").
-				Value(&config.UseOrchestrationMode).
-				Affirmative("Yes").
-				Negative("No").
-				Inline(false),
+				Options(huh.NewOptions("Yes", "No")...).
+				Value(&orchestrationChoice),
 		),
 	)
 
 	if err := requiredForm.Run(); err != nil {
 		return nil, fmt.Errorf("failed to get required SAP AI Core configuration: %w", err)
 	}
+
+	// Map selection back to boolean
+	config.UseOrchestrationMode = strings.EqualFold(orchestrationChoice, "Yes")
 
 	// Collect optional fields
 	optionalForm := huh.NewForm(
@@ -257,6 +265,13 @@ func PromptForSapAiCoreConfig() (*SapAiCoreConfig, error) {
 	config := &SapAiCoreConfig{}
 
 	// Collect required fields
+	// Prepare left-aligned non-inline select for orchestration mode
+	var orchestrationChoice string
+	if config.UseOrchestrationMode {
+		orchestrationChoice = "Yes"
+	} else {
+		orchestrationChoice = "No"
+	}
 	requiredForm := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
@@ -300,18 +315,20 @@ func PromptForSapAiCoreConfig() (*SapAiCoreConfig, error) {
 					return nil
 				}),
 
-			huh.NewConfirm().
+			huh.NewSelect[string]().
 				Title("Use Orchestration Mode?").
-				Value(&config.UseOrchestrationMode).
-				Affirmative("Yes").
-				Negative("No").
-				Inline(false),
+				Options(huh.NewOptions("Yes", "No")...).
+				// Left-aligned list (not inline)
+				Value(&orchestrationChoice),
 		),
 	)
 
 	if err := requiredForm.Run(); err != nil {
 		return nil, fmt.Errorf("failed to get required SAP AI Core configuration: %w", err)
 	}
+
+	// Map selection back to boolean
+	config.UseOrchestrationMode = strings.EqualFold(orchestrationChoice, "Yes")
 
 	// Collect optional fields
 	optionalForm := huh.NewForm(
