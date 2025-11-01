@@ -5,7 +5,8 @@ export function checkContextWindowExceededError(error: unknown): boolean {
 		checkIsOpenAIContextWindowError(error) ||
 		checkIsOpenRouterContextWindowError(error) ||
 		checkIsAnthropicContextWindowError(error) ||
-		checkIsCerebrasContextWindowError(error)
+		checkIsCerebrasContextWindowError(error) ||
+		checkIsSapAiCoreContextWindowError(error)
 	)
 }
 
@@ -69,4 +70,13 @@ function checkIsCerebrasContextWindowError(response: any): boolean {
 	} catch {
 		return false
 	}
+}
+
+function checkIsSapAiCoreContextWindowError(error: any): boolean {
+	// Check for ValidationException Error instance (created by SAP AI Core provider)
+	if (error instanceof Error && error.name === "ValidationException" && error.message.includes("Input is too long")) {
+		console.log("[SAP AI Core] Context error detected via ValidationException instance")
+		return true
+	}
+	return false
 }
