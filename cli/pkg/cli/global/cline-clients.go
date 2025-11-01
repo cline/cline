@@ -247,13 +247,22 @@ func startClineHost(hostPort, corePort int) (*exec.Cmd, error) {
 		fmt.Printf("Starting cline-host on port %d\n", hostPort)
 	}
 
-	// Get the directory where the cline binary is located
-	execPath, err := os.Executable()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get executable path: %w", err)
+	// Determine cline-host path (override via --hostPath if provided)
+	var clineHostPath string
+	if Config.HostPath != "" {
+		clineHostPath = Config.HostPath
+		if Config.Verbose {
+			fmt.Printf("Using override host path: %s\n", clineHostPath)
+		}
+	} else {
+		// Get the directory where the cline binary is located
+		execPath, err := os.Executable()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get executable path: %w", err)
+		}
+		binDir := path.Dir(execPath)
+		clineHostPath = path.Join(binDir, "cline-host")
 	}
-	binDir := path.Dir(execPath)
-	clineHostPath := path.Join(binDir, "cline-host")
 
 	// Start the cline-host process
 	cmd := exec.Command(clineHostPath,
@@ -400,33 +409,42 @@ func startClineCore(corePort, hostPort int) (*exec.Cmd, error) {
 		fmt.Printf("Looking for cline-core.js at: %s\n", clineCorePath)
 	}
 
-	// Check if cline-core.js exists at the primary location
+	// Check if cline-core.js exists at the primary location or use override
 	var finalClineCorePath string
 	var finalInstallDir string
-	if _, err := os.Stat(clineCorePath); os.IsNotExist(err) {
-		// Development mode: Try ../../dist-standalone/cline-core.js
-		// This handles the case where we're running from cli/bin/cline
-		devClineCorePath := path.Join(binDir, "..", "..", "dist-standalone", "cline-core.js")
-		devInstallDir := path.Join(binDir, "..", "..", "dist-standalone")
-		
+	if Config.CorePath != "" {
+		finalClineCorePath = Config.CorePath
+		finalInstallDir = path.Dir(finalClineCorePath)
 		if Config.Verbose {
-			fmt.Printf("Primary location not found, trying development path: %s\n", devClineCorePath)
-		}
-		
-		if _, err := os.Stat(devClineCorePath); os.IsNotExist(err) {
-			return nil, fmt.Errorf("cline-core.js not found at '%s' or '%s'. Please ensure you're running from the correct location or reinstall with 'npm install -g cline'", clineCorePath, devClineCorePath)
-		}
-		
-		finalClineCorePath = devClineCorePath
-		finalInstallDir = devInstallDir
-		if Config.Verbose {
-			fmt.Printf("Using development mode: cline-core.js found at %s\n", finalClineCorePath)
+			fmt.Printf("Using override core path: %s\n", finalClineCorePath)
+			fmt.Printf("Install directory (derived): %s\n", finalInstallDir)
 		}
 	} else {
-		finalClineCorePath = clineCorePath
-		finalInstallDir = installDir
-		if Config.Verbose {
-			fmt.Printf("Using production mode: cline-core.js found at %s\n", finalClineCorePath)
+		if _, err := os.Stat(clineCorePath); os.IsNotExist(err) {
+			// Development mode: Try ../../dist-standalone/cline-core.js
+			// This handles the case where we're running from cli/bin/cline
+			devClineCorePath := path.Join(binDir, "..", "..", "dist-standalone", "cline-core.js")
+			devInstallDir := path.Join(binDir, "..", "..", "dist-standalone")
+			
+			if Config.Verbose {
+				fmt.Printf("Primary location not found, trying development path: %s\n", devClineCorePath)
+			}
+			
+			if _, err := os.Stat(devClineCorePath); os.IsNotExist(err) {
+				return nil, fmt.Errorf("cline-core.js not found at '%s' or '%s'. Please ensure you're running from the correct location or reinstall with 'npm install -g cline'", clineCorePath, devClineCorePath)
+			}
+			
+			finalClineCorePath = devClineCorePath
+			finalInstallDir = devInstallDir
+			if Config.Verbose {
+				fmt.Printf("Using development mode: cline-core.js found at %s\n", finalClineCorePath)
+			}
+		} else {
+			finalClineCorePath = clineCorePath
+			finalInstallDir = installDir
+			if Config.Verbose {
+				fmt.Printf("Using production mode: cline-core.js found at %s\n", finalClineCorePath)
+			}
 		}
 	}
 

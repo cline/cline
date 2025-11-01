@@ -19,6 +19,8 @@ type GlobalConfig struct {
 	Verbose      bool
 	OutputFormat string
 	CoreAddress  string
+	HostPath     string
+	CorePath     string
 }
 
 var (
