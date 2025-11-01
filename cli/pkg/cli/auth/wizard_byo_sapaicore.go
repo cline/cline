@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/task"
 	"github.com/cline/grpc-go/cline"
 	"google.golang.org/protobuf/proto"
@@ -461,10 +462,21 @@ func SetupSapAiCoreWithDynamicModels(ctx context.Context, manager *task.Manager)
 	var selectedDeploymentID string
 
 	if err != nil || len(models) == 0 {
+		// Create renderer for prominent warning display
+		renderer := display.NewRenderer("auto")
+		
 		if err != nil {
-			fmt.Println("Unable to fetch live models from SAP AI Core, using default model list...")
+			warningMsg := "⚠️  Unable to fetch models from SAP AI Core."
+			errorMsg := fmt.Sprintf("Error: %s", err.Error())
+			fallbackMsg := "Using default model list instead."
+			fmt.Printf("\n%s\n", renderer.Yellow(renderer.Bold(warningMsg)))
+			fmt.Printf("%s\n", renderer.Red(errorMsg))
+			fmt.Printf("%s\n\n", renderer.Dim(fallbackMsg))
 		} else {
-			fmt.Println("No running deployments found, using default model list...")
+			warningMsg := "⚠️  No running deployments found in SAP AI Core.\nThis is probably due to a misconfiguration."
+			fallbackMsg := "Using default model list instead"
+			fmt.Printf("\n%s\n", renderer.Red(renderer.Bold(warningMsg)))
+			fmt.Printf("%s\n\n", renderer.Dim(fallbackMsg))
 		}
 
 		staticModels, _, staticErr := FetchStaticModels(cline.ApiProvider_SAPAICORE)
