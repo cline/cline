@@ -1,7 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
-import { ClineTool } from "@/shared/tools"
+import { AIStupidLevelHandler } from "./providers/aistupidlevel"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
 import { BasetenHandler } from "./providers/baseten"
@@ -391,6 +391,10 @@ function createHandlerForProvider(
 						: options.actModeOcaModelInfo?.supportsPromptCache,
 				taskId: options.ulid,
 			})
+		case "aistupidlevel":
+			return new AIStupidLevelHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				aiStupidLevelApiKey: options.aiStupidLevelApiKey,
 		case "minimax":
 			return new MinimaxHandler({
 				onRetryAttempt: options.onRetryAttempt,
