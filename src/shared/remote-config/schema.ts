@@ -73,12 +73,27 @@ export const ClineSettingsSchema = z.object({
 	models: z.array(ClineModelSchema).optional(),
 })
 
+// Vertex Provider model schema with per-model settings
+export const VertexModelSchema = z.object({
+	id: z.string(), // The model ID is required
+	thinkingBudgetTokens: z.number().optional(),
+})
+
+// GCP Vertex Provider specific settings
+export const VertexSettingsSchema = z.object({
+	// A list of the allowed models with their settings
+	models: z.array(VertexModelSchema).optional(),
+	vertexProjectId: z.string().optional(),
+	vertexRegion: z.string().optional(),
+})
+
 // Provider settings schema
 // Each provider becomes an optional field
 const ProviderSettingsSchema = z.object({
 	OpenAiCompatible: OpenAiCompatibleSchema.optional(),
 	AwsBedrock: AwsBedrockSettingsSchema.optional(),
 	Cline: ClineSettingsSchema.optional(),
+	Vertex: VertexSettingsSchema.optional(),
 })
 
 export const AllowedMCPServerSchema = z.object({
