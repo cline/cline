@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
 )
 
-// BedrockConfig holds all AWS Bedrock-specific configuration fields
+// BedrockConfig holds all Amazon Bedrock-specific configuration fields
 type BedrockConfig struct {
 	// Profile authentication fields
 	UseProfile              bool   // Always true for successful config

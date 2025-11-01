@@ -99,7 +99,7 @@ export const BedrockProvider = ({ showModelOptions, isPopup, currentMode }: Bedr
 					onChange={(value) => handleFieldChange("awsBedrockApiKey", value)}
 					placeholder="Enter Bedrock Api Key"
 					type="password">
-					<span className="font-medium">AWS Bedrock Api Key</span>
+					<span className="font-medium">Amazon Bedrock Api Key</span>
 				</DebouncedTextField>
 			) : (
 				<>

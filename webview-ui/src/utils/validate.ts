@@ -22,7 +22,7 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				break
 			case "bedrock":
 				if (!apiConfiguration.awsRegion) {
-					return "You must choose a region to use with AWS Bedrock."
+					return "You must choose a region to use with Amazon Bedrock."
 				}
 				break
 			case "openrouter":
