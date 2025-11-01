@@ -23,8 +23,6 @@ service ModelsService {
   rpc refreshHuggingFaceModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns OpenAI models
   rpc refreshOpenAiModels(OpenAiModelsRequest) returns (StringArray);
-  // Refreshes and returns Vercel AI Gateway models
-  rpc refreshVercelAiGatewayModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Requesty models
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Subscribe to OpenRouter models updates

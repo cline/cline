@@ -507,8 +507,6 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeHuaweiCloudMaasModelId: config.planModeHuaweiCloudMaasModelId,
 		planModeHuaweiCloudMaasModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHuaweiCloudMaasModelInfo),
 		planModeSapAiCoreDeploymentId: config.planModeSapAiCoreDeploymentId,
-		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
-		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
 		planModeOcaModelId: config.planModeOcaModelId,
 		planModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.planModeOcaModelInfo),
 
@@ -542,8 +540,6 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeHuaweiCloudMaasModelId: config.actModeHuaweiCloudMaasModelId,
 		actModeHuaweiCloudMaasModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHuaweiCloudMaasModelInfo),
 		actModeSapAiCoreDeploymentId: config.actModeSapAiCoreDeploymentId,
-		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
-		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
 		actModeOcaModelId: config.actModeOcaModelId,
 		actModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.actModeOcaModelInfo),
 	}
@@ -663,8 +659,6 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeHuaweiCloudMaasModelId: protoConfig.planModeHuaweiCloudMaasModelId,
 		planModeHuaweiCloudMaasModelInfo: convertProtoToModelInfo(protoConfig.planModeHuaweiCloudMaasModelInfo),
 		planModeSapAiCoreDeploymentId: protoConfig.planModeSapAiCoreDeploymentId,
-		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
-		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
 		planModeOcaModelId: protoConfig.planModeOcaModelId,
 		planModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.planModeOcaModelInfo),
 
@@ -699,8 +693,6 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeHuaweiCloudMaasModelId: protoConfig.actModeHuaweiCloudMaasModelId,
 		actModeHuaweiCloudMaasModelInfo: convertProtoToModelInfo(protoConfig.actModeHuaweiCloudMaasModelInfo),
 		actModeSapAiCoreDeploymentId: protoConfig.actModeSapAiCoreDeploymentId,
-		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
-		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
 		actModeOcaModelId: protoConfig.actModeOcaModelId,
 		actModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.actModeOcaModelInfo),
 	}

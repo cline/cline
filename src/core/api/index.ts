@@ -365,10 +365,10 @@ function createHandlerForProvider(
 			return new VercelAIGatewayHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				vercelAiGatewayApiKey: options.vercelAiGatewayApiKey,
-				vercelAiGatewayModelId:
-					mode === "plan" ? options.planModeVercelAiGatewayModelId : options.actModeVercelAiGatewayModelId,
-				vercelAiGatewayModelInfo:
-					mode === "plan" ? options.planModeVercelAiGatewayModelInfo : options.actModeVercelAiGatewayModelInfo,
+				openRouterModelId: mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId,
+				openRouterModelInfo: mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})
 		case "zai":
 			return new ZAiHandler({
