@@ -394,11 +394,13 @@ func ApplySapAiCoreConfig(ctx context.Context, manager *task.Manager, config *Sa
 	apiConfig.PlanModeApiModelId = proto.String(modelID)
 	apiConfig.ActModeApiModelId = proto.String(modelID)
 
-	// Optional resource group
 	if strings.TrimSpace(config.ResourceGroup) != "" {
 		apiConfig.SapAiResourceGroup = proto.String(config.ResourceGroup)
-		fieldPaths = append(fieldPaths, "sapAiResourceGroup")
+	} else {
+		// Set to nil to clear the field when empty
+		apiConfig.SapAiResourceGroup = nil
 	}
+	fieldPaths = append(fieldPaths, "sapAiResourceGroup")
 
 	// Optional deployment IDs
 	if strings.TrimSpace(deploymentID) != "" {
