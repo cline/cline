@@ -5,7 +5,11 @@ import { BatchLogRecordProcessor, LoggerProvider } from "@opentelemetry/sdk-logs
 import { MeterProvider } from "@opentelemetry/sdk-metrics"
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions"
 import { ExtensionRegistryInfo } from "@/registry"
-import { getValidOpenTelemetryConfig, OpenTelemetryClientValidConfig } from "@/shared/services/config/otel-config"
+import {
+	getValidOpenTelemetryConfig,
+	OpenTelemetryClientValidConfig,
+	OtelSettingsProvider,
+} from "@/shared/services/config/otel-config"
 import {
 	createConsoleLogExporter,
 	createConsoleMetricReader,
@@ -19,10 +23,23 @@ import {
  */
 export class OpenTelemetryClientProvider {
 	private static _instance: OpenTelemetryClientProvider | null = null
+	private static _settingsProvider: OtelSettingsProvider | undefined = undefined
+
+	/**
+	 * Initialize the OpenTelemetry client provider with an optional settings provider
+	 * @param settingsProvider Optional settings provider for configuration
+	 */
+	public static initialize(settingsProvider?: OtelSettingsProvider): void {
+		OpenTelemetryClientProvider._settingsProvider = settingsProvider
+		// Reset instance to force re-initialization with new settings provider
+		if (OpenTelemetryClientProvider._instance) {
+			OpenTelemetryClientProvider._instance = null
+		}
+	}
 
 	public static getInstance(): OpenTelemetryClientProvider {
 		if (!OpenTelemetryClientProvider._instance) {
-			OpenTelemetryClientProvider._instance = new OpenTelemetryClientProvider()
+			OpenTelemetryClientProvider._instance = new OpenTelemetryClientProvider(OpenTelemetryClientProvider._settingsProvider)
 		}
 		return OpenTelemetryClientProvider._instance
 	}
@@ -47,8 +64,8 @@ export class OpenTelemetryClientProvider {
 		return process.env.TEL_DEBUG_DIAGNOSTICS === "true" || process.env.IS_DEV === "true"
 	}
 
-	private constructor() {
-		this.config = getValidOpenTelemetryConfig()
+	private constructor(settingsProvider?: OtelSettingsProvider) {
+		this.config = getValidOpenTelemetryConfig(settingsProvider)
 
 		if (!this.config) {
 			console.log("[OTEL DEBUG] OpenTelemetry is disabled or not configured")

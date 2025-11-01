@@ -85,19 +85,16 @@ export interface OpenTelemetryClientValidConfig extends OpenTelemetryClientConfi
 const isTestEnv = process.env.E2E_TEST === "true" || process.env.IS_TEST === "true"
 
 /**
- * Cached OpenTelemetry configuration.
- * Lazily initialized on first access to avoid race conditions with environment variable loading.
+ * Interface for providing settings overrides to OpenTelemetry configuration.
+ * This allows StateManager to provide settings without creating a circular dependency.
  */
-let otelConfig: OpenTelemetryClientConfig | null = null
+export interface OtelSettingsProvider {
+	getGlobalSettingsKey<K extends keyof OpenTelemetryClientConfig>(key: K): OpenTelemetryClientConfig[K] | undefined
+}
 
 /**
- * Gets or creates the OpenTelemetry configuration from environment variables.
- * Configuration is cached after first access for performance.
- *
- * Configuration Sources:
- * - **Production Build**: Environment variables injected by esbuild at build time
- *   via .github/workflows/publish.yml
- * - **Development**: Environment variables from .env file loaded by VSCode
+ * Gets the base OpenTelemetry configuration from environment variables.
+ * This is the lowest precedence configuration source.
  *
  * Supported Environment Variables:
  * - OTEL_TELEMETRY_ENABLED: "1" to enable OpenTelemetry (default: off)
@@ -119,34 +116,82 @@ let otelConfig: OpenTelemetryClientConfig | null = null
  * @see .env.example for development setup
  * @see .github/workflows/publish.yml for production environment variable injection
  */
-function getOtelConfig(): OpenTelemetryClientConfig {
-	if (!otelConfig) {
-		otelConfig = {
-			enabled: process.env.OTEL_TELEMETRY_ENABLED === "1",
-			metricsExporter: process.env.OTEL_METRICS_EXPORTER,
-			logsExporter: process.env.OTEL_LOGS_EXPORTER,
-			otlpProtocol: process.env.OTEL_EXPORTER_OTLP_PROTOCOL,
-			otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
-			otlpMetricsProtocol: process.env.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL,
-			otlpMetricsEndpoint: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,
-			otlpLogsProtocol: process.env.OTEL_EXPORTER_OTLP_LOGS_PROTOCOL,
-			otlpLogsEndpoint: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
-			metricExportInterval: process.env.OTEL_METRIC_EXPORT_INTERVAL
-				? parseInt(process.env.OTEL_METRIC_EXPORT_INTERVAL, 10)
-				: undefined,
-			otlpInsecure: process.env.OTEL_EXPORTER_OTLP_INSECURE === "true",
-			logBatchSize: process.env.OTEL_LOG_BATCH_SIZE
-				? Math.max(1, parseInt(process.env.OTEL_LOG_BATCH_SIZE, 10))
-				: undefined,
-			logBatchTimeout: process.env.OTEL_LOG_BATCH_TIMEOUT
-				? Math.max(1, parseInt(process.env.OTEL_LOG_BATCH_TIMEOUT, 10))
-				: undefined,
-			logMaxQueueSize: process.env.OTEL_LOG_MAX_QUEUE_SIZE
-				? Math.max(1, parseInt(process.env.OTEL_LOG_MAX_QUEUE_SIZE, 10))
-				: undefined,
+function getBaseOtelConfig(): OpenTelemetryClientConfig {
+	return {
+		enabled: process.env.OTEL_TELEMETRY_ENABLED === "1",
+		metricsExporter: process.env.OTEL_METRICS_EXPORTER,
+		logsExporter: process.env.OTEL_LOGS_EXPORTER,
+		otlpProtocol: process.env.OTEL_EXPORTER_OTLP_PROTOCOL,
+		otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
+		otlpMetricsProtocol: process.env.OTEL_EXPORTER_OTLP_METRICS_PROTOCOL,
+		otlpMetricsEndpoint: process.env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,
+		otlpLogsProtocol: process.env.OTEL_EXPORTER_OTLP_LOGS_PROTOCOL,
+		otlpLogsEndpoint: process.env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
+		metricExportInterval: process.env.OTEL_METRIC_EXPORT_INTERVAL
+			? parseInt(process.env.OTEL_METRIC_EXPORT_INTERVAL, 10)
+			: undefined,
+		otlpInsecure: process.env.OTEL_EXPORTER_OTLP_INSECURE === "true",
+		logBatchSize: process.env.OTEL_LOG_BATCH_SIZE ? Math.max(1, parseInt(process.env.OTEL_LOG_BATCH_SIZE, 10)) : undefined,
+		logBatchTimeout: process.env.OTEL_LOG_BATCH_TIMEOUT
+			? Math.max(1, parseInt(process.env.OTEL_LOG_BATCH_TIMEOUT, 10))
+			: undefined,
+		logMaxQueueSize: process.env.OTEL_LOG_MAX_QUEUE_SIZE
+			? Math.max(1, parseInt(process.env.OTEL_LOG_MAX_QUEUE_SIZE, 10))
+			: undefined,
+	}
+}
+
+/**
+ * Gets OpenTelemetry configuration with proper precedence.
+ *
+ * Configuration Precedence (lowest to highest):
+ * 1. **Build-time**: Environment variables injected by esbuild at build time via .github/workflows/publish.yml
+ * 2. **Runtime Environment Variables**: Environment variables from .env file or startup
+ * 3. **Settings**: Values from settingsProvider (typically StateManager with UI or remote config)
+ *
+ * @param settingsProvider Optional provider for settings overrides (typically StateManager)
+ * @returns OpenTelemetry configuration with all precedence levels applied
+ * @see .env.example for development setup
+ * @see .github/workflows/publish.yml for production environment variable injection
+ */
+function getOtelConfig(settingsProvider?: OtelSettingsProvider): OpenTelemetryClientConfig {
+	// Start with base environment variable config (lowest precedence)
+	const baseConfig = getBaseOtelConfig()
+
+	// If no settings provider, return base config
+	if (!settingsProvider) {
+		return baseConfig
+	}
+
+	// Apply settings overrides from provider (highest precedence)
+	const settingsOverrides: Partial<OpenTelemetryClientConfig> = {}
+
+	const settingsKeys: Array<keyof OpenTelemetryClientConfig> = [
+		"enabled",
+		"metricsExporter",
+		"logsExporter",
+		"otlpProtocol",
+		"otlpEndpoint",
+		"otlpMetricsProtocol",
+		"otlpMetricsEndpoint",
+		"otlpLogsProtocol",
+		"otlpLogsEndpoint",
+		"metricExportInterval",
+		"otlpInsecure",
+		"logBatchSize",
+		"logBatchTimeout",
+		"logMaxQueueSize",
+	]
+
+	for (const key of settingsKeys) {
+		const value = settingsProvider.getGlobalSettingsKey(key)
+		if (value !== undefined) {
+			settingsOverrides[key] = value as any
 		}
 	}
-	return otelConfig
+
+	// Merge base config with settings overrides
+	return { ...baseConfig, ...settingsOverrides }
 }
 
 export function isOpenTelemetryConfigValid(config: OpenTelemetryClientConfig): config is OpenTelemetryClientValidConfig {
@@ -170,10 +215,11 @@ export function isOpenTelemetryConfigValid(config: OpenTelemetryClientConfig): c
  *
  * Configuration does not change at runtime - requires VSCode reload to pick up new values.
  *
+ * @param settingsProvider Optional provider for settings overrides (typically StateManager)
  * @returns Valid OpenTelemetry configuration or null if disabled/invalid
  * @see .env.example for configuration options
  */
-export function getValidOpenTelemetryConfig(): OpenTelemetryClientValidConfig | null {
-	const config = getOtelConfig()
+export function getValidOpenTelemetryConfig(settingsProvider?: OtelSettingsProvider): OpenTelemetryClientValidConfig | null {
+	const config = getOtelConfig(settingsProvider)
 	return isOpenTelemetryConfigValid(config) ? config : null
 }

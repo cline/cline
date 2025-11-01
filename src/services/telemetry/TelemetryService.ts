@@ -3,12 +3,15 @@ import type { BrowserSettings } from "@shared/BrowserSettings"
 import { ShowMessageType } from "@shared/proto/host/window"
 import type { TaskFeedbackType } from "@shared/WebviewMessage"
 import * as os from "os"
+import { StateManager } from "@/core/storage/StateManager"
 import { ClineAccountUserInfo } from "@/services/auth/AuthService"
 import { Setting } from "@/shared/proto/index.host"
+import { OtelSettingsProvider } from "@/shared/services/config/otel-config"
 import { Mode } from "@/shared/storage/types"
 import { version as extensionVersion } from "../../../package.json"
 import { setDistinctId } from "../logging/distinctId"
 import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelemetryProvider"
+import { OpenTelemetryClientProvider } from "./providers/opentelemetry/OpenTelemetryClientProvider"
 import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
 
 /**
@@ -218,7 +221,26 @@ export class TelemetryService {
 	}
 
 	public static async create(): Promise<TelemetryService> {
-		const providers = await TelemetryProviderFactory.createProviders()
+		// Get StateManager instance to pass as settings provider
+		let settingsProvider: OtelSettingsProvider | undefined
+		try {
+			const stateManager = StateManager.get()
+			// Create a settings provider adapter that implements OtelSettingsProvider interface
+			settingsProvider = {
+				getGlobalSettingsKey: <K extends string>(key: K) => {
+					return stateManager.getGlobalSettingsKey(key as any)
+				},
+			}
+		} catch (error) {
+			// StateManager not initialized yet - will use environment variables only
+			console.log("[TelemetryService] StateManager not available, using environment config only")
+		}
+
+		// Initialize OpenTelemetry client provider with settings
+		OpenTelemetryClientProvider.initialize(settingsProvider)
+
+		// Create telemetry providers with settings
+		const providers = await TelemetryProviderFactory.createProviders(settingsProvider)
 		const hostVersion = await HostProvider.env.getHostVersion({})
 		const metadata: TelemetryMetadata = {
 			extension_version: extensionVersion,

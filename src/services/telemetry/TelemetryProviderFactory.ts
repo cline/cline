@@ -1,4 +1,4 @@
-import { getValidOpenTelemetryConfig } from "@/shared/services/config/otel-config"
+import { getValidOpenTelemetryConfig, OtelSettingsProvider } from "@/shared/services/config/otel-config"
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "../logging/Logger"
 import type { ITelemetryProvider } from "./providers/ITelemetryProvider"
@@ -27,10 +27,11 @@ export class TelemetryProviderFactory {
 	/**
 	 * Creates multiple telemetry providers based on configuration
 	 * Supports dual tracking during transition period
+	 * @param settingsProvider Optional settings provider for OpenTelemetry configuration
 	 * @returns Array of ITelemetryProvider instances
 	 */
-	public static async createProviders(): Promise<ITelemetryProvider[]> {
-		const configs = TelemetryProviderFactory.getDefaultConfigs()
+	public static async createProviders(settingsProvider?: OtelSettingsProvider): Promise<ITelemetryProvider[]> {
+		const configs = TelemetryProviderFactory.getDefaultConfigs(settingsProvider)
 		const providers: ITelemetryProvider[] = await Promise.all(configs.map((c) => TelemetryProviderFactory.createProvider(c)))
 
 		// Fallback to no-op if no providers available
@@ -79,15 +80,15 @@ export class TelemetryProviderFactory {
 
 	/**
 	 * Gets the default telemetry provider configuration
-	 * @returns Default configuration using available providers
+	 * @param settingsProvider Optional settings provider for OpenTelemetry configuration
 	 * @returns Default configuration using available providers
 	 */
-	public static getDefaultConfigs(): TelemetryProviderConfig[] {
+	public static getDefaultConfigs(settingsProvider?: OtelSettingsProvider): TelemetryProviderConfig[] {
 		const configs: TelemetryProviderConfig[] = []
 		if (isPostHogConfigValid(posthogConfig)) {
 			configs.push({ type: "posthog", ...posthogConfig })
 		}
-		const otelConfig = getValidOpenTelemetryConfig()
+		const otelConfig = getValidOpenTelemetryConfig(settingsProvider)
 		if (otelConfig) {
 			configs.push({ type: "opentelemetry", ...otelConfig })
 		}
