@@ -27,6 +27,8 @@ service ModelsService {
   rpc refreshVercelAiGatewayModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Requesty models
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns Hicap models
+  rpc refreshHicapModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Subscribe to OpenRouter models updates
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Updates API configuration (legacy - uses combined configuration)
@@ -397,6 +399,7 @@ enum ApiProvider {
   DIFY = 34;
   OCA = 35;
   MINIMAX = 36;
+  HICAP = 37;
 }
 
 // Model info for OpenAI-compatible models
@@ -516,6 +519,8 @@ message ModelsApiConfiguration {
   optional bool aws_use_global_inference = 77;
   optional string minimax_api_key = 78;
   optional string minimax_api_line = 79;
+  optional string hicap_model_id = 80;
+  optional string hicap_api_key = 81;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -551,6 +556,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 130;
   optional string plan_mode_oca_model_id = 131;
   optional OcaModelInfo plan_mode_oca_model_info = 132;
+  optional string plan_mode_hicap_model_id = 133;
+  optional OpenRouterModelInfo plan_mode_hicap_model_info = 134;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -586,4 +593,6 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
   optional string act_mode_oca_model_id = 231;
   optional OcaModelInfo act_mode_oca_model_info = 232;
+  optional string act_mode_hicap_model_id = 233;
+  optional OpenRouterModelInfo act_mode_hicap_model_info = 234;
 }

@@ -87,6 +87,7 @@ message Secrets {
   optional string dify_api_key = 36;
   optional string oca_api_key = 37;
   optional string oca_refresh_token = 38;
+  optional string hicap_api_key = 39;
 }
 
 message Settings {
