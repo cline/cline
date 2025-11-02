@@ -5,7 +5,7 @@ const now = Date.now();
 const minutesAgo = Math.floor((now - lastMessageTs) / 60000);
 
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: minutesAgo < 5 
     ? "TASK_CONTEXT: Recently paused task - context is still fresh"
     : "",

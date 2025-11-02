@@ -533,11 +533,12 @@ export class TelemetryService {
 	 * Records when a new task/conversation is started
 	 * @param ulid Unique identifier for the new task
 	 * @param apiProvider Optional API provider
+	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
 	 */
-	public captureTaskCreated(ulid: string, apiProvider?: string) {
+	public captureTaskCreated(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.CREATED,
-			properties: { ulid, apiProvider },
+			properties: { ulid, apiProvider, openAiCompatibleDomain },
 		})
 	}
 
@@ -545,11 +546,12 @@ export class TelemetryService {
 	 * Records when a task/conversation is restarted
 	 * @param ulid Unique identifier for the new task
 	 * @param apiProvider Optional API provider
+	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
 	 */
-	public captureTaskRestarted(ulid: string, apiProvider?: string) {
+	public captureTaskRestarted(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.RESTARTED,
-			properties: { ulid, apiProvider },
+			properties: { ulid, apiProvider, openAiCompatibleDomain },
 		})
 	}
 
@@ -682,6 +684,7 @@ export class TelemetryService {
 	 * @param ulid Unique identifier for the task
 	 * @param tool Name of the tool being used
 	 * @param modelId The model ID being used
+	 * @param provider The API provider being used
 	 * @param autoApproved Whether the tool was auto-approved based on settings
 	 * @param success Whether the tool execution was successful
 	 * @param workspaceContext Optional workspace context for multi-root workspace tracking
@@ -690,6 +693,7 @@ export class TelemetryService {
 		ulid: string,
 		tool: string,
 		modelId: string,
+		provider: string,
 		autoApproved: boolean,
 		success: boolean,
 		workspaceContext?: {
@@ -707,6 +711,7 @@ export class TelemetryService {
 				autoApproved,
 				success,
 				modelId,
+				provider,
 				// Workspace context (optional)
 				...(workspaceContext && {
 					workspace_multi_root_enabled: workspaceContext.isMultiRootEnabled,
@@ -780,15 +785,18 @@ export class TelemetryService {
 	/**
 	 * Records when a diff edit (replace_in_file) operation fails
 	 * @param ulid Unique identifier for the task
+	 * @param modelId The model ID being used
+	 * @param provider The API provider being used
 	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
 	 */
-	public captureDiffEditFailure(ulid: string, modelId: string, errorType?: string) {
+	public captureDiffEditFailure(ulid: string, modelId: string, provider: string, errorType?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.DIFF_EDIT_FAILED,
 			properties: {
 				ulid,
 				errorType,
 				modelId,
+				provider,
 			},
 		})
 	}

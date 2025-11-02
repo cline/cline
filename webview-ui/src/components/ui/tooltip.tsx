@@ -1,5 +1,3 @@
-"use client"
-
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 import * as React from "react"
 
@@ -34,13 +32,14 @@ function TooltipContent({
 		<TooltipPrimitive.Portal>
 			<TooltipPrimitive.Content
 				className={cn(
-					"bg-background animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 origin-(--radix-tooltip-content-transform-origin) rounded-xs px-1 py-1.5 text-xs border border-muted-foreground/30 shadow-2xs mx-1 wrap-break-word max-w-md p-2 overflow-visible text-wrap",
+					"flex flex-wrap bg-background animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 origin-(--radix-tooltip-content-transform-origin) rounded-xs text-xs border border-muted-foreground/30 mx-1 max-w-[calc(100vw-2rem)] xs:max-w-md text-wrap shadow-md",
 					className,
 				)}
+				collisionPadding={8}
 				data-slot="tooltip-content"
 				sideOffset={sideOffset}
 				{...props}>
-				<span className="text-xs leading-tight">{children}</span>
+				<span className="leading-tight text-ellipsis p-2">{children}</span>
 				{showArrow && (
 					<TooltipPrimitive.Arrow
 						className={cn(

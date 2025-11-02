@@ -1,8 +1,15 @@
 export interface AutoApprovalSettings {
 	// Version for race condition prevention (incremented on every change)
 	version: number
-	// Whether auto-approval is enabled
+	// Legacy field - kept for backward compatibility with older extension versions
+	// Auto-approve is now always enabled by default
 	enabled: boolean
+	// Legacy field - kept for backward compatibility with older extension versions
+	// Favorites feature has been removed
+	favorites: string[]
+	// Legacy field - kept for backward compatibility with older extension versions
+	// Max requests limit feature has been removed
+	maxRequests: number
 	// Individual action permissions
 	actions: {
 		readFiles: boolean // Read files and directories in the working directory
@@ -15,14 +22,14 @@ export interface AutoApprovalSettings {
 		useMcp: boolean // Use MCP servers
 	}
 	// Global settings
-	maxRequests: number // Maximum number of auto-approved requests
 	enableNotifications: boolean // Show notifications for approval and task completion
-	favorites: string[] // IDs of actions favorited by the user for quick access
 }
 
 export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 	version: 1,
-	enabled: true,
+	enabled: true, // Legacy field - always true by default
+	favorites: [], // Legacy field - kept as empty array
+	maxRequests: 20, // Legacy field - kept for backward compatibility
 	actions: {
 		readFiles: true,
 		readFilesExternally: false,
@@ -31,9 +38,7 @@ export const DEFAULT_AUTO_APPROVAL_SETTINGS: AutoApprovalSettings = {
 		executeSafeCommands: true,
 		executeAllCommands: false,
 		useBrowser: false,
-		useMcp: false,
+		useMcp: true,
 	},
-	maxRequests: 20,
 	enableNotifications: false,
-	favorites: ["enableAutoApprove", "readFiles", "editFiles"],
 }

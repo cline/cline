@@ -2,6 +2,6 @@
 // Note: For TaskCancel, contextModification is completely ignored.
 
 console.log(JSON.stringify({
-  shouldContinue: false,
+  cancel: true,
   errorMessage: ""
 }));

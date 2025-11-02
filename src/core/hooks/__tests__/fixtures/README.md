@@ -37,7 +37,7 @@ it("should work with real hook", async () => {
   const runner = await factory.create("PreToolUse")
   const result = await runner.run(buildPreToolUseInput({ toolName: "test_tool" }))
   
-  result.shouldContinue.should.be.true()
+  result.cancel.should.be.false()
 })
 ```
 
@@ -50,15 +50,15 @@ For more control, you can also manually copy fixture files.
 ### PreToolUse Hooks
 
 #### `hooks/pretooluse/success`
-- **Returns**: `{ shouldContinue: true, contextModification: "PreToolUse hook executed successfully", errorMessage: "" }`
+- **Returns**: `{ cancel: false, contextModification: "PreToolUse hook executed successfully", errorMessage: "" }`
 - **Use for**: Testing happy path scenarios
 
 #### `hooks/pretooluse/blocking`
-- **Returns**: `{ shouldContinue: false, contextModification: "", errorMessage: "Tool execution blocked by hook" }`
+- **Returns**: `{ cancel: true, contextModification: "", errorMessage: "Tool execution blocked by hook" }`
 - **Use for**: Testing tool execution blocking
 
 #### `hooks/pretooluse/context-injection`
-- **Returns**: `{ shouldContinue: true, contextModification: "WORKSPACE_RULES: Tool [toolName] requires review", errorMessage: "" }`
+- **Returns**: `{ cancel: false, contextModification: "WORKSPACE_RULES: Tool [toolName] requires review", errorMessage: "" }`
 - **Use for**: Testing context injection with type prefixes
 - **Note**: Dynamically includes tool name from input
 
@@ -69,7 +69,7 @@ For more control, you can also manually copy fixture files.
 ### PostToolUse Hooks
 
 #### `hooks/posttooluse/success`
-- **Returns**: `{ shouldContinue: true, contextModification: "PostToolUse hook executed successfully", errorMessage: "" }`
+- **Returns**: `{ cancel: false, contextModification: "PostToolUse hook executed successfully", errorMessage: "" }`
 - **Use for**: Testing PostToolUse execution
 
 #### `hooks/posttooluse/error`
@@ -79,34 +79,34 @@ For more control, you can also manually copy fixture files.
 ### UserPromptSubmit Hooks
 
 #### `hooks/userpromptsubmit/success`
-- **Returns**: `{ shouldContinue: true, contextModification: "Prompt approved", errorMessage: "" }`
+- **Returns**: `{ cancel: false, contextModification: "Prompt approved", errorMessage: "" }`
 - **Use for**: Testing successful prompt submission
 
 #### `hooks/userpromptsubmit/blocking`
-- **Returns**: `{ shouldContinue: false, contextModification: "", errorMessage: "Prompt violates policy" }`
+- **Returns**: `{ cancel: true, contextModification: "", errorMessage: "Prompt violates policy" }`
 - **Use for**: Testing prompt submission blocking
 
 #### `hooks/userpromptsubmit/context-injection`
-- **Returns**: `{ shouldContinue: true, contextModification: "CONTEXT_INJECTION: User is in plan mode", errorMessage: "" }`
+- **Returns**: `{ cancel: false, contextModification: "CONTEXT_INJECTION: User is in plan mode", errorMessage: "" }`
 - **Use for**: Testing context injection into task request
 
 #### `hooks/userpromptsubmit/multiline`
-- **Returns**: `{ shouldContinue: true, contextModification: "Line count: N", errorMessage: "" }`
+- **Returns**: `{ cancel: false, contextModification: "Line count: N", errorMessage: "" }`
 - **Use for**: Testing multiline prompt handling
 - **Note**: Dynamically counts newlines in the prompt
 
 #### `hooks/userpromptsubmit/large-prompt`
-- **Returns**: `{ shouldContinue: true, contextModification: "Prompt size: N", errorMessage: "" }`
+- **Returns**: `{ cancel: false, contextModification: "Prompt size: N", errorMessage: "" }`
 - **Use for**: Testing large prompt handling
 - **Note**: Dynamically reports prompt character count
 
 #### `hooks/userpromptsubmit/special-chars`
-- **Returns**: `{ shouldContinue: true, contextModification: "Special chars preserved" | "Missing special chars", errorMessage: "" }`
+- **Returns**: `{ cancel: false, contextModification: "Special chars preserved" | "Missing special chars", errorMessage: "" }`
 - **Use for**: Testing special character preservation
 - **Note**: Checks for @, #, and $ characters
 
 #### `hooks/userpromptsubmit/empty-prompt`
-- **Returns**: `{ shouldContinue: true, contextModification: "Prompt length: 0", errorMessage: "" }`
+- **Returns**: `{ cancel: false, contextModification: "Prompt length: 0", errorMessage: "" }`
 - **Use for**: Testing empty prompt handling
 - **Note**: Safely handles undefined or empty prompts
 
@@ -121,11 +121,11 @@ For more control, you can also manually copy fixture files.
 ### TaskStart Hooks
 
 #### `hooks/taskstart/success`
-- **Returns**: `{ shouldContinue: true, contextModification: "TaskStart hook executed successfully", errorMessage: "" }`
+- **Returns**: `{ cancel: false, contextModification: "TaskStart hook executed successfully", errorMessage: "" }`
 - **Use for**: Testing TaskStart hook success path, allowing task to proceed
 
 #### `hooks/taskstart/blocking`
-- **Returns**: `{ shouldContinue: false, contextModification: "", errorMessage: "Task execution blocked by hook" }`
+- **Returns**: `{ cancel: true, contextModification: "", errorMessage: "Task execution blocked by hook" }`
 - **Use for**: Testing task blocking at start (e.g., policy enforcement)
 
 #### `hooks/taskstart/error`
@@ -158,7 +158,7 @@ cat > src/core/hooks/__tests__/fixtures/hooks/pretooluse/my-new-scenario/PreTool
 #!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "My custom context",
   errorMessage: ""
 }));

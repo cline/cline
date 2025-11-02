@@ -39,9 +39,6 @@ export class TaskState {
 	didAlreadyUseTool = false
 	didEditFile: boolean = false
 
-	// Consecutive request tracking
-	consecutiveAutoApprovedRequestsCount: number = 0
-
 	// Error tracking
 	consecutiveMistakeCount: number = 0
 	didAutomaticallyRetryFailedApiRequest = false
@@ -63,6 +60,14 @@ export class TaskState {
 	abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
+
+	// Hook execution tracking for cancellation
+	activeHookExecution?: {
+		hookName: string
+		toolName?: string
+		messageTs: number
+		abortController: AbortController
+	}
 
 	// Auto-context summarization
 	currentlySummarizing: boolean = false

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+for i in {1..100}; do
+  echo "$i"
+done
+
+sleep 3
+
+cat <<EOF
+{
+  "cancel": false,
+  "contextModification": "WORKSPACE_RULES: This is from the local bar/ workspace.",
+  "errorMessage": "UserPromptSubmit hook custom errorMessage: foo"
+}
+EOF

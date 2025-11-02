@@ -57,15 +57,21 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h4>
 			<ul style={ulStyle}>
 				<li>
-					Cline Teams is now free through the end of the year for unlimited users. Includes Jetbrains, RBAC, centralized
-					billing and more.{" "}
-					<VSCodeLink href="https://app.cline.bot/login" style={linkStyle}>
-						Start using teams
+					Cline Teams is now available with unlimited seats. Includes JetBrains support, role-based access control, and
+					centralized billing.{" "}
+					<VSCodeLink
+						href="https://app.cline.bot/login/?utm_source=ext&utm_medium=banner&utm_campaign=free-teams"
+						style={linkStyle}>
+						Get started with Teams
 					</VSCodeLink>
 				</li>
 				<li>
-					Use the “exacto” versions of GLM-4.6, Kimi-K2, and Qwen3-Coder in the Cline provider model picker for the best
-					balance of cost, speed, accuracy and tool-calling.
+					Native tool calling is now the default for Claude 4+, Gemini 2.5, Grok 4/Code, and GPT-5. Reduces errors by
+					15% and enables parallel tool execution.
+				</li>
+				<li>
+					Auto-approve is now always-on with a redesigned expanding menu. Settings simplified and notifications moved to
+					General Settings.
 				</li>
 			</ul>
 			<div style={hrStyle} />

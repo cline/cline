@@ -52,8 +52,6 @@ func (h *AskHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 		return h.handleResumeCompletedTask(msg, dc)
 	case string(types.AskTypeMistakeLimitReached):
 		return h.handleMistakeLimitReached(msg, dc)
-	case string(types.AskTypeAutoApprovalMaxReached):
-		return h.handleAutoApprovalMaxReached(msg, dc)
 	case string(types.AskTypeBrowserActionLaunch):
 		return h.handleBrowserActionLaunch(msg, dc)
 	case string(types.AskTypeUseMcpServer):
@@ -253,25 +251,6 @@ func (h *AskHandler) handleMistakeLimitReached(msg *types.ClineMessage, dc *Disp
 		return nil
 	}
 	return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("Mistake Limit Reached: %s. Approval required.", msg.Text), true)
-}
-
-// handleAutoApprovalMaxReached handles auto-approval max reached
-func (h *AskHandler) handleAutoApprovalMaxReached(msg *types.ClineMessage, dc *DisplayContext) error {
-	if dc.SystemRenderer != nil {
-		details := make(map[string]string)
-		if msg.Text != "" {
-			details["reason"] = msg.Text
-		}
-		dc.SystemRenderer.RenderError(
-			"warning",
-			"Auto-Approval Limit Reached",
-			"The maximum number of auto-approved requests has been reached. Manual approval is now required.",
-			details,
-		)
-		fmt.Printf("\n**Approval required to continue.**\n")
-		return nil
-	}
-	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Auto-approval limit reached: %s. Approval required.", msg.Text), true)
 }
 
 // handleBrowserActionLaunch handles browser action launch requests

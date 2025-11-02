@@ -46,11 +46,8 @@ message AutoApprovalActions {
 // Auto approval settings for task execution
 message AutoApprovalSettings {
   int32 version = 1;
-  bool enabled = 2;
-  AutoApprovalActions actions = 3;
-  int32 max_requests = 4;
-  bool enable_notifications = 5;
-  repeated string favorites = 6;
+  AutoApprovalActions actions = 2;
+  optional bool enable_notifications = 3;
 }
 
 message Secrets {
@@ -283,11 +280,8 @@ message ResetStateRequest {
 message AutoApprovalSettingsRequest {
   Metadata metadata = 1;
   int32 version = 2;
-  bool enabled = 3;
-  AutoApprovalActions actions = 4;
-  int32 max_requests = 5;
-  bool enable_notifications = 6;
-  repeated string favorites = 7;
+  AutoApprovalActions actions = 3;
+  bool enable_notifications = 4;
 }
 
 enum TelemetrySettingEnum {
@@ -356,6 +350,7 @@ message UpdateSettingsRequest {
   optional bool subagents_enabled = 29;
   optional int32 subagent_terminal_output_line_limit = 30;
   optional string cline_env = 31;
+  optional bool native_tool_call_enabled = 32;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

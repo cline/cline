@@ -54,6 +54,7 @@ export interface GlobalState {
 	lastDismissedInfoBannerVersion: number
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
+	nativeToolCallEnabled: boolean
 }
 
 export interface Settings {

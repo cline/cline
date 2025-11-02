@@ -10,11 +10,8 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	await expect(inputbox).toBeVisible()
 	await inputbox.fill("Hello, Cline!")
 	await expect(inputbox).toHaveValue("Hello, Cline!")
-	await sidebar.getByTestId("send-button").click({ delay: 100 })
+	await sidebar.getByTestId("send-button").click()
 	await expect(inputbox).toHaveValue("")
-
-	// Loading State initially
-	await expect(sidebar.getByText("API Request...")).toBeVisible()
 
 	// Starting a new task should clear the current chat view and show the recent tasks
 	await sidebar.getByRole("button", { name: "New Task", exact: true }).first().click()

@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import type { ToolUse } from "@core/assistant-message"
 import { JSONParser } from "@streamparser/json"
+import { McpHub } from "@/services/mcp/McpHub"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@/shared/mcp"
 import { ClineDefaultTool } from "@/shared/tools"
 
@@ -119,12 +120,12 @@ export class ToolUseHandler {
 			}
 
 			if (pending.name.includes(CLINE_MCP_TOOL_IDENTIFIER)) {
-				const [serverName, toolName] = pending.name.split(CLINE_MCP_TOOL_IDENTIFIER)
+				const [key, toolName] = pending.name.split(CLINE_MCP_TOOL_IDENTIFIER)
 				results.push({
 					type: "tool_use",
 					name: ClineDefaultTool.MCP_USE,
 					params: {
-						server_name: serverName,
+						server_name: McpHub.getMcpServerByKey(key),
 						tool_name: toolName,
 						arguments: JSON.stringify(input),
 					},
