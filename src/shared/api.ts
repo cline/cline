@@ -2441,7 +2441,7 @@ export const liteLlmModelInfoSaneDefaults: LiteLLMModelInfo = {
 	outputPrice: 0,
 	cacheWritesPrice: 0,
 	cacheReadsPrice: 0,
-	temperature: 0,
+	temperature: 1,
 }
 
 // AskSage Models
