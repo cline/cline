@@ -1,8 +1,54 @@
 # GitHub Root Cause Analysis
 
-Automated GitHub issue analysis using Cline CLI. This script uses Cline's autonomous AI capabilities to fetch, analyze, and identify root causes of GitHub issues. It uses Cline's JSON output capability to filter for just the summary at the end for brevity.
+Automated GitHub issue analysis using Cline CLI. This script uses Cline's autonomous AI capabilities to fetch, analyze, and identify root causes of GitHub issues, outputting clean, parseable results that can be easily integrated into your development workflows.
 
-**Full Tutorial:** See the [documentation](https://docs.cline.bot/cline-cli/samples/github-issue-rca)
+<img src="https://storage.googleapis.com/cline_public_images/cli-rca.gif" alt="CLI Root Cause Analysis Demo" width="600">
+
+## Prerequisites
+
+Before using this sample, ensure you have:
+
+- **Cline CLI** installed and configured ([Installation Guide](https://docs.cline.bot/cline-cli/installation))
+- **GitHub CLI** (`gh`) installed and authenticated
+- **jq** installed for JSON parsing
+- **bash** shell (or compatible shell)
+- Basic understanding of command-line scripting, JSON data structures, and GitHub issues
+
+### Installation Instructions
+
+#### macOS
+
+> [!NOTE]
+> These instructions require [Homebrew](https://brew.sh/) to be installed. If you don't have Homebrew, install it first by running:
+> ```bash
+> /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+> ```
+
+```bash
+# Install GitHub CLI
+brew install gh
+
+# Install jq
+brew install jq
+
+# Authenticate with GitHub
+gh auth login
+```
+
+#### Linux
+
+```bash
+# Install GitHub CLI (Debian/Ubuntu)
+sudo apt install gh
+
+# Or for other Linux distributions, see: https://cli.github.com/manual/installation
+
+# Install jq (Debian/Ubuntu)
+sudo apt install jq
+
+# Authenticate with GitHub
+gh auth login
+```
 
 ## Getting the Script
 
@@ -15,64 +61,146 @@ curl -O https://raw.githubusercontent.com/cline/cline/main/src/samples/cli/githu
 chmod +x analyze-issue.sh
 ```
 
-## Quick Start
+## Quick Usage Examples
+
+### Basic Usage
+
+Analyze an issue with the default root cause prompt:
 
 ```bash
-# Basic usage (default prompt analyzes root cause)
 ./analyze-issue.sh https://github.com/owner/repo/issues/123
-
-# Custom analysis prompt
-./analyze-issue.sh https://github.com/owner/repo/issues/123 "What is the security impact?"
-
-# With specific Cline instance address
-./analyze-issue.sh https://github.com/owner/repo/issues/123 "What is the root cause?" 127.0.0.1:46529
 ```
 
-## Prerequisites
+This will:
+- Fetch issue #123 from the repository
+- Analyze the issue to identify root causes
+- Provide detailed analysis with recommendations
 
-- Cline CLI installed and configured
-- GitHub CLI (`gh`) installed (used by Cline to fetch issue details)
-- `jq` installed (for parsing JSON output)
+### Custom Analysis Prompt
+
+Ask specific questions about the issue:
+
+```bash
+./analyze-issue.sh https://github.com/owner/repo/issues/456 "What is the security impact?"
+```
+
+### Using Specific Cline Instance
+
+Target a particular Cline instance by address:
+
+```bash
+./analyze-issue.sh https://github.com/owner/repo/issues/123 \
+    "What is the root cause of this issue?" \
+    127.0.0.1:46529
+```
+
+> [!IMPORTANT]
+> This is useful when:
+> - Running multiple Cline instances
+> - Using a remote Cline server
+> - Testing with specific configurations
+
+> [!NOTE]
+> The script will automatically handle everything: fetching the issue, analyzing it with Cline, and displaying the results. The analysis typically takes 30-60 seconds depending on the issue complexity.
 
 ## How It Works
 
-The script:
-1. Accepts a GitHub issue URL and optional custom prompt
-2. Uses Cline in act mode with yolo (fully autonomous, non-interactive)
-3. Cline automatically:
-   - Fetches the issue details
-   - Explores relevant codebases if needed
-   - Analyzes the issue to identify root causes
-   - Provides a detailed analysis
-4. Outputs JSON results, filtered to the summary output
+Let's analyze each component of the script to understand how it works.
 
-### Command Breakdown
+### Argument Validation
+
+The script validates input and provides usage instructions:
 
 ```bash
+if [ -z "$1" ]; then
+    echo "Usage: $0 <github-issue-url> [prompt] [address]"
+    echo "Example: $0 https://github.com/owner/repo/issues/123"
+    echo "Example: $0 https://github.com/owner/repo/issues/123 'What is the root cause?'"
+    echo "Example: $0 https://github.com/owner/repo/issues/123 'Analyze security impact' 127.0.0.1:46529"
+    exit 1
+fi
+```
+
+**Key Points:**
+- Validates required GitHub issue URL
+- Shows clear usage examples
+- Supports optional custom prompt
+- Supports optional Cline instance address
+
+### Argument Parsing
+
+The script extracts and sets up the arguments:
+
+```bash
+# Gather the args
+ISSUE_URL="$1"
+PROMPT="${2:-What is the root cause of this issue?}"
+if [ -n "$3" ]; then
+    ADDRESS="--address $3"
+fi
+```
+
+**Explanation:**
+- `ISSUE_URL="$1"` - First argument is always the issue URL
+- `PROMPT="${2:-...}"` - Second argument is optional, defaults to root cause analysis
+- `ADDRESS` - Third argument is optional, only set if provided
+
+### The Core Analysis Pipeline
+
+This is where the magic happens:
+
+```bash
+# Ask Cline for his analysis, showing only the summary
 cline -y "$PROMPT: $ISSUE_URL" --mode act $ADDRESS -F json | \
     sed -n '/^{/,$p' | \
     jq -r 'select(.say == "completion_result") | .text' | \
     sed 's/\\n/\n/g'
 ```
 
-**Flags:**
-- `-y` / `--yolo` - Enable yolo mode (non-interactive, auto-approves actions)
-- `--mode act` - Use act mode (actively uses tools to investigate)
-- `$ADDRESS` - Optional `--address` flag to specify which Cline instance to use
-- `-F json` - Output in JSON format for parsing
+<details>
+<summary>Pipeline Breakdown: Understanding Each Component</summary>
 
-**Pipeline:**
-- `sed -n '/^{/,$p'` - Extract JSON from output (skips any non-JSON prefix)
-- `jq -r 'select(.say == "completion_result") | .text'` - Extract the completion result
-- `sed 's/\\n/\n/g'` - Convert escaped newlines to actual newlines
+**1. `cline -y "$PROMPT: $ISSUE_URL"`**
+   - `-y` enables yolo mode (no user interaction)
+   - Constructs prompt with issue URL
+
+**2. `--mode act`**
+   - Enables act mode for active investigation
+   - Allows Cline to use tools (read files, run commands, etc.)
+
+**3. `$ADDRESS`**
+   - Optional address flag for specific instance
+   - Expands to `--address <ip:port>` if set
+
+**4. `-F json`**
+   - Outputs in JSON format for parsing
+
+**5. `sed -n '/^{/,$p'`**
+   - Extracts JSON from output
+   - Skips any non-JSON prefix lines
+
+**6. `jq -r 'select(.say == "completion_result") | .text'`**
+   - Filters for completion result messages
+   - Extracts the text field
+   - `-r` outputs raw strings (no JSON quotes)
+
+**7. `sed 's/\\n/\n/g'`**
+   - Converts escaped newlines to actual newlines
+   - Makes output readable
+
+</details>
 
 ## Sample Output
 
-Here's an abbreviated example analyzing a real issue:
+Here's an example analyzing a real Flutter issue:
 
-```
+```bash
 $ ./analyze-issue.sh https://github.com/csells/flutter_counter/issues/2
+```
 
+**Output:**
+
+```markdown
 **Root Cause Analysis of Issue #2: "setState isn't cutting it"**
 
 After examining the GitHub issue and analyzing the Flutter counter codebase, 
@@ -80,18 +208,124 @@ I've identified the root cause of why setState() is insufficient for this
 project's needs:
 
 ## Current Implementation Problems
-[details elided]
+
+The current Flutter counter app uses setState() for state management, which 
+has several limitations:
+
+1. **Local State Only**: setState() only works within a single widget, making 
+   it difficult to share state across the app
+2. **Rebuild Overhead**: Every setState() call rebuilds the entire widget tree, 
+   causing performance issues with complex UIs
+3. **No State Persistence**: State is lost when the widget is disposed
+4. **Testing Challenges**: setState-based logic is tightly coupled to the UI, 
+   making unit testing difficult
+
+## Why This Matters
+
+As the app grows beyond a simple counter, these limitations become critical:
+- Multiple screens need to access the count
+- State needs to persist across navigation
+- Business logic should be testable independently
+- UI should only rebuild when necessary
 
 ## Recommended Solutions
 
 The issue mentions "Provider or Bloc" - both are excellent alternatives:
 
 1. **Provider**: Simple, lightweight state management using InheritedWidget
+   - Easy migration path from setState
+   - Good for small to medium apps
+   - Official Flutter recommendation
+
 2. **Bloc**: More structured approach with clear separation between events, 
    states, and business logic
-3. **Riverpod**: Modern alternative to Provider with better performance
+   - Better for complex apps
+   - Excellent testability
+   - Clear architectural patterns
+
+3. **Riverpod**: Modern alternative to Provider with better performance and 
+   developer experience
+   - Compile-time safety
+   - Better testing support
+   - More flexible than Provider
+
 4. **GetX**: Full-featured solution with state management, routing, and 
    dependency injection
+   - Minimal boilerplate
+   - Fast and lightweight
+   - All-in-one solution
+
+## Next Steps
 
 The current codebase needs refactoring to implement proper state management 
-architecture to handle more complex state scenarios effectively.
+architecture to handle more complex state scenarios effectively. Provider 
+would be the easiest migration path while Bloc provides better long-term 
+scalability.
+```
+
+## When to Use This Pattern
+
+This script pattern is ideal for various development scenarios where automated GitHub issue analysis can accelerate your workflow.
+
+### Bug Investigation
+
+Quickly analyze bug reports and identify root causes without manual code exploration:
+
+```bash
+./analyze-issue.sh https://github.com/project/repo/issues/123 \
+    "What is the root cause of this bug?"
+```
+
+### Feature Request Analysis
+
+Understand context and implications of feature requests:
+
+```bash
+./analyze-issue.sh https://github.com/project/repo/issues/456 \
+    "What are the implementation challenges?"
+```
+
+### Security Audits
+
+Assess security implications of reported issues:
+
+```bash
+./analyze-issue.sh https://github.com/project/repo/issues/789 \
+    "What are the security implications?"
+```
+
+### Documentation Generation
+
+Generate detailed technical documentation from issues:
+
+```bash
+./analyze-issue.sh https://github.com/project/repo/issues/654 \
+    "Provide detailed technical documentation for this issue"
+```
+
+### Code Review Assistance
+
+Get second opinions on proposed changes:
+
+```bash
+./analyze-issue.sh https://github.com/project/repo/issues/987 \
+    "Review the proposed solution approach"
+```
+
+## Conclusion
+
+This sample demonstrates how to build an autonomous GitHub issue analysis tool using Cline CLI:
+
+1. **Building autonomous CLI tools** using Cline's capabilities
+2. **Parsing structured JSON output** from Cline CLI
+3. **Creating flexible automation scripts** with custom prompting
+4. **Integrating with GitHub** for issue analysis
+5. **Handling command-line arguments** effectively
+
+This pattern can be adapted for many other automation scenarios, from PR reviews to documentation generation to code quality analysis.
+
+## Related Resources
+
+- [CLI Installation Guide](https://docs.cline.bot/cline-cli/installation)
+- [CLI Reference Documentation](https://docs.cline.bot/cline-cli/cli-reference)
+- [Three Core Flows](https://docs.cline.bot/cline-cli/three-core-flows)
