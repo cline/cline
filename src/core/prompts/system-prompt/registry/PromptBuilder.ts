@@ -1,7 +1,6 @@
 import type { ClineDefaultTool } from "@/shared/tools"
-import { getModelFamily } from "../"
 import { ClineToolSet } from "../registry/ClineToolSet"
-import type { ClineToolSpec } from "../spec"
+import { type ClineToolSpec } from "../spec"
 import { STANDARD_PLACEHOLDERS } from "../templates/placeholders"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
@@ -62,7 +61,7 @@ export class PromptBuilder {
 		// Add standard system placeholders
 		placeholders[STANDARD_PLACEHOLDERS.CWD] = this.context.cwd || process.cwd()
 		placeholders[STANDARD_PLACEHOLDERS.SUPPORTS_BROWSER] = this.context.supportsBrowserUse || false
-		placeholders[STANDARD_PLACEHOLDERS.MODEL_FAMILY] = getModelFamily(this.context.providerInfo)
+		placeholders[STANDARD_PLACEHOLDERS.MODEL_FAMILY] = this.variant.family
 		placeholders[STANDARD_PLACEHOLDERS.CURRENT_DATE] = new Date().toISOString().split("T")[0]
 
 		// Add all component sections
@@ -94,7 +93,10 @@ export class PromptBuilder {
 			.trim() // Remove leading/trailing whitespace
 			.replace(/====+\s*$/, "") // Remove trailing ==== after trim
 			.replace(/\n====+\s*\n+\s*====+\n/g, "\n====\n") // Remove empty sections between separators
-			.replace(/====+\n(?!\n)([^\n])/g, (match, nextChar, offset, string) => {
+			.replace(/====\s*\n\s*====\s*\n/g, "====\n") // Remove consecutive empty sections
+			.replace(/^##\s*$[\r\n]*/gm, "") // Remove empty section headers (## with no content)
+			.replace(/\n##\s*$[\r\n]*/gm, "") // Remove empty section headers that appear mid-document
+			.replace(/====+\n(?!\n)([^\n])/g, (match, _nextChar, offset, string) => {
 				// Add extra newline after ====+ if not already followed by a newline
 				// Exception: preserve single newlines when ====+ appears to be part of diff-like content
 				// Look for patterns like "SEARCH\n=======\n" or ";\n=======\n" (diff markers)
@@ -111,6 +113,8 @@ export class PromptBuilder {
 				const isDiffLike = /SEARCH|REPLACE|\+\+\+\+\+\+\+|-------/.test(beforeContext + afterContext)
 				return isDiffLike ? match : prevChar + "\n\n" + match.substring(1).replace(/\n/, "")
 			})
+			.replace(/\n\s*\n\s*\n/g, "\n\n") // Clean up any multiple empty lines created by header removal
+			.trim() // Final trim to remove any whitespace added by regex operations
 	}
 
 	getBuildMetadata(): {
@@ -127,7 +131,7 @@ export class PromptBuilder {
 		}
 	}
 
-	public static async getToolsPrompts(variant: PromptVariant, context: SystemPromptContext) {
+	private static getEnabledTools(variant: PromptVariant, context: SystemPromptContext) {
 		let resolvedTools: ReturnType<typeof ClineToolSet.getTools> = []
 
 		// If the variant explicitly lists tools, resolve each by id with fallback to GENERIC
@@ -150,6 +154,12 @@ export class PromptBuilder {
 		const enabledTools = resolvedTools.filter(
 			(tool) => !tool.config.contextRequirements || tool.config.contextRequirements(context),
 		)
+
+		return enabledTools
+	}
+
+	public static async getToolsPrompts(variant: PromptVariant, context: SystemPromptContext) {
+		const enabledTools = PromptBuilder.getEnabledTools(variant, context)
 
 		const ids = enabledTools.map((tool) => tool.config.id)
 		return Promise.all(enabledTools.map((tool) => PromptBuilder.tool(tool.config, ids, context)))

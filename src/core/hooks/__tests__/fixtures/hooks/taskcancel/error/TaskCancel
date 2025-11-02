@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+// Note: For TaskCancel, contextModification is completely ignored.
+
+console.error("Hook execution error");
+process.exit(1);

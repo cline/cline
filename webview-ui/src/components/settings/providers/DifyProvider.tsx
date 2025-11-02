@@ -39,7 +39,7 @@ export const DifyProvider = ({ showModelOptions, isPopup, currentMode }: DifyPro
 					}}
 					placeholder={"Enter base URL..."}
 					style={{ width: "100%", marginBottom: 10 }}
-					type="url">
+					type="text">
 					<span style={{ fontWeight: 500 }}>Base URL</span>
 				</DebouncedTextField>
 

@@ -10,6 +10,7 @@ import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "@/integrations/editor/DiffViewProvider"
 import { HOSTBRIDGE_PORT, waitForHostBridgeReady } from "./hostbridge-client"
+import { setLockManager } from "./lock-manager"
 import { PROTOBUS_PORT, startProtobusService } from "./protobus-service"
 import { log } from "./utils"
 import { initializeContext } from "./vscode-context"
@@ -45,8 +46,6 @@ async function main() {
 	}
 
 	try {
-		log("\n\n\nStarting cline-core service...\n\n\n")
-
 		// Set up error handlers FIRST (before any service starts)
 		setupGlobalErrorHandlers()
 
@@ -70,15 +69,21 @@ async function main() {
 			instanceAddress: protobusAddress,
 		})
 
+		// Make lock manager available to other modules
+		setLockManager(globalLockManager)
+
 		await globalLockManager.registerInstance({
 			hostAddress,
 		})
 		log(`Registered instance in SQLite locks: ${protobusAddress}`)
 
+		// Clean up any orphaned folder locks from dead instances
+		globalLockManager.cleanupOrphanedFolderLocks()
+
 		// Mark instance healthy after services are up
 		globalLockManager.touchInstance()
 
-		log("✅ All services started successfully")
+		log("All services started successfully")
 	} catch (err) {
 		log(`FATAL ERROR during startup: ${err}`)
 		log(`Cleaning up and shutting down...`)
@@ -192,7 +197,10 @@ async function shutdownGracefully(lockManager?: SqliteLockManager) {
 		// Step 2: Clean up lock manager entry
 		log("Cleaning up lock manager entry...")
 		try {
+			// First unregister the instance
 			lockManager?.unregisterInstance()
+			// Then clean up any folder locks held by this instance
+			lockManager?.cleanupOrphanedFolderLocks()
 			lockManager?.close()
 			log("Lock manager entry cleaned up successfully")
 		} catch (error) {

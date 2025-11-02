@@ -1,3 +1,4 @@
+import { isGLMModelFamily, isLocalModel, isNextGenModelFamily, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -13,6 +14,23 @@ export const config = createVariant(ModelFamily.GENERIC)
 		stable: 1,
 		fallback: 1,
 	})
+	// Generic matcher - fallback for everything that doesn't match other variants
+	// This will match anything that doesn't match the other specific variants
+	.matcher((context) => {
+		const providerInfo = context.providerInfo
+		if (!providerInfo.providerId || !providerInfo.model.id) {
+			return true
+		}
+		const modelId = providerInfo.model.id.toLowerCase()
+		return (
+			// Not a local model with compact prompt enabled
+			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
+			// Not a next-gen model
+			!(isNextGenModelProvider(providerInfo) && isNextGenModelFamily(modelId)) &&
+			// Not a GLM model
+			!isGLMModelFamily(modelId)
+		)
+	})
 	.template(baseTemplate)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
@@ -21,6 +39,7 @@ export const config = createVariant(ModelFamily.GENERIC)
 		SystemPromptSection.MCP,
 		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.ACT_VS_PLAN,
+		SystemPromptSection.CLI_SUBAGENTS,
 		SystemPromptSection.TODO,
 		SystemPromptSection.CAPABILITIES,
 		SystemPromptSection.RULES,

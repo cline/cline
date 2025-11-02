@@ -307,6 +307,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.DIFY
 		case "oca":
 			return ProtoApiProvider.OCA
+		case "minimax":
+			return ProtoApiProvider.MINIMAX
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -387,6 +389,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "dify"
 		case ProtoApiProvider.OCA:
 			return "oca"
+		case ProtoApiProvider.MINIMAX:
+			return "minimax"
 		default:
 			return "anthropic"
 	}
@@ -411,6 +415,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		awsSessionToken: config.awsSessionToken,
 		awsRegion: config.awsRegion,
 		awsUseCrossRegionInference: config.awsUseCrossRegionInference,
+		awsUseGlobalInference: config.awsUseGlobalInference,
 		awsBedrockUsePromptCache: config.awsBedrockUsePromptCache,
 		awsUseProfile: config.awsUseProfile,
 		awsAuthentication: config.awsAuthentication,
@@ -468,6 +473,9 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		difyApiKey: config.difyApiKey,
 		difyBaseUrl: config.difyBaseUrl,
 		ocaBaseUrl: config.ocaBaseUrl,
+		minimaxApiKey: config.minimaxApiKey,
+		minimaxApiLine: config.minimaxApiLine,
+		ocaMode: config.ocaMode,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -560,6 +568,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		awsSessionToken: protoConfig.awsSessionToken,
 		awsRegion: protoConfig.awsRegion,
 		awsUseCrossRegionInference: protoConfig.awsUseCrossRegionInference,
+		awsUseGlobalInference: protoConfig.awsUseGlobalInference,
 		awsBedrockUsePromptCache: protoConfig.awsBedrockUsePromptCache,
 		awsUseProfile: protoConfig.awsUseProfile,
 		awsAuthentication: protoConfig.awsAuthentication,
@@ -617,6 +626,9 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		difyApiKey: protoConfig.difyApiKey,
 		difyBaseUrl: protoConfig.difyBaseUrl,
 		ocaBaseUrl: protoConfig.ocaBaseUrl,
+		ocaMode: protoConfig.ocaMode,
+		minimaxApiKey: protoConfig.minimaxApiKey,
+		minimaxApiLine: protoConfig.minimaxApiLine,
 
 		// Plan mode configurations
 		planModeApiProvider:

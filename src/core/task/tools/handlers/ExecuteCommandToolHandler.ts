@@ -9,7 +9,7 @@ import { fixModelHtmlEscaping } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
@@ -49,6 +49,11 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		const requiresApprovalPerLLM = requiresApprovalRaw?.toLowerCase() === "true"
 		const timeoutParam: string | undefined = block.params.timeout
 		let timeoutSeconds: number | undefined
+
+		// Extract provider using the proven pattern from ReportBugHandler
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 
 		// Validate required parameters
 		if (!command) {
@@ -153,14 +158,20 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			// Auto-approve flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
 			await config.callbacks.say("command", actualCommand, undefined, undefined, false)
-			config.taskState.consecutiveAutoApprovedRequestsCount++
 			didAutoApprove = true
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				true,
+				true,
+				workspaceContext,
+			)
 		} else {
 			// Manual approval flow
-			showNotificationForApprovalIfAutoApprovalEnabled(
+			showNotificationForApproval(
 				`Cline wants to execute a command: ${actualCommand}`,
-				config.autoApprovalSettings.enabled,
 				config.autoApprovalSettings.enableNotifications,
 			)
 
@@ -174,13 +185,22 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 					config.ulid,
 					block.name,
 					config.api.getModel().id,
+					provider,
 					false,
 					false,
 					workspaceContext,
 				)
 				return formatResponse.toolDenied()
 			}
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true, workspaceContext)
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				false,
+				true,
+				workspaceContext,
+			)
 		}
 
 		// Setup timeout notification for long-running auto-approved commands

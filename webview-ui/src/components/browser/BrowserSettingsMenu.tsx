@@ -163,7 +163,7 @@ export const BrowserSettingsMenu = () => {
 			{showInfoPopover && (
 				// InfoPopover - Dropdown container with connection details
 				<div
-					className="absolute top-[30px] right-0 z-[100] w-[60dvw] max-w-[250px] rounded p-2.5 shadow-lg"
+					className="absolute top-[30px] right-0 z-100 w-[60dvw] max-w-[250px] rounded p-2.5 shadow-lg"
 					ref={popoverRef}
 					style={{
 						backgroundColor: "var(--vscode-editorWidget-background)",

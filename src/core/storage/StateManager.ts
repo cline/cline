@@ -1,4 +1,16 @@
 import { ApiConfiguration } from "@shared/api"
+import {
+	GlobalState,
+	GlobalStateAndSettings,
+	GlobalStateAndSettingsKey,
+	GlobalStateKey,
+	LocalState,
+	LocalStateKey,
+	SecretKey,
+	Secrets,
+	Settings,
+	SettingsKey,
+} from "@shared/storage/state-keys"
 import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
@@ -11,18 +23,6 @@ import {
 	writeTaskSettingsToStorage,
 } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
-import {
-	GlobalState,
-	GlobalStateAndSettings,
-	GlobalStateAndSettingsKey,
-	GlobalStateKey,
-	LocalState,
-	LocalStateKey,
-	SecretKey,
-	Secrets,
-	Settings,
-	SettingsKey,
-} from "./state-keys"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 export interface PersistenceErrorEvent {
 	error: Error
@@ -37,6 +37,7 @@ export class StateManager {
 
 	private globalStateCache: GlobalStateAndSettings = {} as GlobalStateAndSettings
 	private taskStateCache: Partial<Settings> = {}
+	private remoteConfigCache: Partial<GlobalStateAndSettings> = {} as GlobalStateAndSettings
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
 	private context: ExtensionContext
@@ -310,6 +311,43 @@ export class StateManager {
 	}
 
 	/**
+	 * Set method for remote config field - updates cache immediately (no persistence)
+	 * Remote config is read-only from the extension's perspective and only stored in memory
+	 */
+	setRemoteConfigField<K extends keyof GlobalStateAndSettings>(key: K, value: GlobalStateAndSettings[K]): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		// Update cache immediately for instant access (no persistence needed)
+		this.remoteConfigCache[key] = value
+	}
+
+	/**
+	 * Set method for remote config field - updates cache immediately (no persistence)
+	 * Remote config is read-only from the extension's perspective and only stored in memory
+	 */
+	getRemoteConfigSettings(): Partial<GlobalStateAndSettings> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		return this.remoteConfigCache
+	}
+
+	/**
+	 * Clear remote config cache
+	 * Used when switching organizations or when remote config is no longer applicable
+	 */
+	clearRemoteConfig(): void {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		this.remoteConfigCache = {} as GlobalStateAndSettings
+	}
+
+	/**
 	 * Initialize chokidar watcher for the taskHistory.json file
 	 * Updates in-memory cache on external changes without writing back to disk.
 	 */
@@ -388,6 +426,7 @@ export class StateManager {
 			awsSessionToken,
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsUseGlobalInference,
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
 			awsBedrockApiKey,
@@ -450,8 +489,11 @@ export class StateManager {
 			difyBaseUrl,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
+			minimaxApiKey,
+			minimaxApiLine,
 			requestTimeoutMs,
 			ocaBaseUrl,
+			ocaMode,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -597,6 +639,7 @@ export class StateManager {
 			// Global state updates
 			awsRegion,
 			awsUseCrossRegionInference,
+			awsUseGlobalInference,
 			awsBedrockUsePromptCache,
 			awsBedrockEndpoint,
 			awsProfile,
@@ -632,6 +675,8 @@ export class StateManager {
 			difyBaseUrl,
 			qwenCodeOauthPath,
 			ocaBaseUrl,
+			minimaxApiLine,
+			ocaMode,
 		})
 
 		// Batch update secrets
@@ -670,15 +715,20 @@ export class StateManager {
 			difyApiKey,
 			vercelAiGatewayApiKey,
 			zaiApiKey,
+			minimaxApiKey,
 		})
 	}
 
 	/**
 	 * Get method for global settings keys - reads from in-memory cache
+	 * Precedence: remote config > task settings > global settings
 	 */
 	getGlobalSettingsKey<K extends keyof Settings>(key: K): Settings[K] {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		if (this.remoteConfigCache[key] !== undefined) {
+			return this.remoteConfigCache[key]
 		}
 		if (this.taskStateCache[key] !== undefined) {
 			return this.taskStateCache[key]
@@ -692,6 +742,9 @@ export class StateManager {
 	getGlobalStateKey<K extends keyof GlobalState>(key: K): GlobalState[K] {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+		if (this.remoteConfigCache[key] !== undefined) {
+			return this.remoteConfigCache[key]
 		}
 		return this.globalStateCache[key]
 	}
@@ -756,6 +809,7 @@ export class StateManager {
 		this.secretsCache = {} as Secrets
 		this.workspaceStateCache = {} as LocalState
 		this.taskStateCache = {}
+		this.remoteConfigCache = {} as GlobalStateAndSettings
 
 		this.isInitialized = false
 	}
@@ -933,22 +987,42 @@ export class StateManager {
 			difyApiKey: this.secretsCache["difyApiKey"],
 			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
 			zaiApiKey: this.secretsCache["zaiApiKey"],
+			minimaxApiKey: this.secretsCache["minimaxApiKey"],
 
-			// Global state
-			awsRegion: this.taskStateCache["awsRegion"] || this.globalStateCache["awsRegion"],
+			// Global state (with remote config precedence for applicable fields)
+			awsRegion:
+				this.remoteConfigCache["awsRegion"] || this.taskStateCache["awsRegion"] || this.globalStateCache["awsRegion"],
 			awsUseCrossRegionInference:
-				this.taskStateCache["awsUseCrossRegionInference"] || this.globalStateCache["awsUseCrossRegionInference"],
+				this.remoteConfigCache["awsUseCrossRegionInference"] ||
+				this.taskStateCache["awsUseCrossRegionInference"] ||
+				this.globalStateCache["awsUseCrossRegionInference"],
+			awsUseGlobalInference:
+				this.remoteConfigCache["awsUseGlobalInference"] ||
+				this.taskStateCache["awsUseGlobalInference"] ||
+				this.globalStateCache["awsUseGlobalInference"],
 			awsBedrockUsePromptCache:
-				this.taskStateCache["awsBedrockUsePromptCache"] || this.globalStateCache["awsBedrockUsePromptCache"],
-			awsBedrockEndpoint: this.taskStateCache["awsBedrockEndpoint"] || this.globalStateCache["awsBedrockEndpoint"],
+				this.remoteConfigCache["awsBedrockUsePromptCache"] ||
+				this.taskStateCache["awsBedrockUsePromptCache"] ||
+				this.globalStateCache["awsBedrockUsePromptCache"],
+			awsBedrockEndpoint:
+				this.remoteConfigCache["awsBedrockEndpoint"] ||
+				this.taskStateCache["awsBedrockEndpoint"] ||
+				this.globalStateCache["awsBedrockEndpoint"],
 			awsProfile: this.taskStateCache["awsProfile"] || this.globalStateCache["awsProfile"],
 			awsUseProfile: this.taskStateCache["awsUseProfile"] || this.globalStateCache["awsUseProfile"],
 			awsAuthentication: this.taskStateCache["awsAuthentication"] || this.globalStateCache["awsAuthentication"],
 			vertexProjectId: this.taskStateCache["vertexProjectId"] || this.globalStateCache["vertexProjectId"],
 			vertexRegion: this.taskStateCache["vertexRegion"] || this.globalStateCache["vertexRegion"],
 			requestyBaseUrl: this.taskStateCache["requestyBaseUrl"] || this.globalStateCache["requestyBaseUrl"],
-			openAiBaseUrl: this.taskStateCache["openAiBaseUrl"] || this.globalStateCache["openAiBaseUrl"],
-			openAiHeaders: this.taskStateCache["openAiHeaders"] || this.globalStateCache["openAiHeaders"] || {},
+			openAiBaseUrl:
+				this.remoteConfigCache["openAiBaseUrl"] ||
+				this.taskStateCache["openAiBaseUrl"] ||
+				this.globalStateCache["openAiBaseUrl"],
+			openAiHeaders:
+				this.remoteConfigCache["openAiHeaders"] ||
+				this.taskStateCache["openAiHeaders"] ||
+				this.globalStateCache["openAiHeaders"] ||
+				{},
 			ollamaBaseUrl: this.taskStateCache["ollamaBaseUrl"] || this.globalStateCache["ollamaBaseUrl"],
 			ollamaApiOptionsCtxNum:
 				this.taskStateCache["ollamaApiOptionsCtxNum"] || this.globalStateCache["ollamaApiOptionsCtxNum"],
@@ -956,7 +1030,10 @@ export class StateManager {
 			lmStudioMaxTokens: this.taskStateCache["lmStudioMaxTokens"] || this.globalStateCache["lmStudioMaxTokens"],
 			anthropicBaseUrl: this.taskStateCache["anthropicBaseUrl"] || this.globalStateCache["anthropicBaseUrl"],
 			geminiBaseUrl: this.taskStateCache["geminiBaseUrl"] || this.globalStateCache["geminiBaseUrl"],
-			azureApiVersion: this.taskStateCache["azureApiVersion"] || this.globalStateCache["azureApiVersion"],
+			azureApiVersion:
+				this.remoteConfigCache["azureApiVersion"] ||
+				this.taskStateCache["azureApiVersion"] ||
+				this.globalStateCache["azureApiVersion"],
 			openRouterProviderSorting:
 				this.taskStateCache["openRouterProviderSorting"] || this.globalStateCache["openRouterProviderSorting"],
 			liteLlmBaseUrl: this.taskStateCache["liteLlmBaseUrl"] || this.globalStateCache["liteLlmBaseUrl"],
@@ -980,9 +1057,14 @@ export class StateManager {
 			qwenCodeOauthPath: this.taskStateCache["qwenCodeOauthPath"] || this.globalStateCache["qwenCodeOauthPath"],
 			difyBaseUrl: this.taskStateCache["difyBaseUrl"] || this.globalStateCache["difyBaseUrl"],
 			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
+			minimaxApiLine: this.taskStateCache["minimaxApiLine"] || this.globalStateCache["minimaxApiLine"],
+			ocaMode: this.globalStateCache["ocaMode"],
 
 			// Plan mode configurations
-			planModeApiProvider: this.taskStateCache["planModeApiProvider"] || this.globalStateCache["planModeApiProvider"],
+			planModeApiProvider:
+				this.remoteConfigCache["planModeApiProvider"] ||
+				this.taskStateCache["planModeApiProvider"] ||
+				this.globalStateCache["planModeApiProvider"],
 			planModeApiModelId: this.taskStateCache["planModeApiModelId"] || this.globalStateCache["planModeApiModelId"],
 			planModeThinkingBudgetTokens:
 				this.taskStateCache["planModeThinkingBudgetTokens"] || this.globalStateCache["planModeThinkingBudgetTokens"],
@@ -1046,7 +1128,10 @@ export class StateManager {
 			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
 
 			// Act mode configurations
-			actModeApiProvider: this.taskStateCache["actModeApiProvider"] || this.globalStateCache["actModeApiProvider"],
+			actModeApiProvider:
+				this.remoteConfigCache["actModeApiProvider"] ||
+				this.taskStateCache["actModeApiProvider"] ||
+				this.globalStateCache["actModeApiProvider"],
 			actModeApiModelId: this.taskStateCache["actModeApiModelId"] || this.globalStateCache["actModeApiModelId"],
 			actModeThinkingBudgetTokens:
 				this.taskStateCache["actModeThinkingBudgetTokens"] || this.globalStateCache["actModeThinkingBudgetTokens"],

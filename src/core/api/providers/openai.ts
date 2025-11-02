@@ -1,12 +1,13 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { AzureOpenAI } from "openai"
-import type { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
+import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 	openAiApiKey?: string
@@ -61,12 +62,17 @@ export class OpenAiHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(
+		systemPrompt: string,
+		messages: Anthropic.Messages.MessageParam[],
+		tools?: ChatCompletionTool[],
+	): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.options.openAiModelId ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 		const isR1FormatRequired = this.options.openAiModelInfo?.isR1FormatRequired ?? false
-		const isReasoningModelFamily = modelId.includes("o1") || modelId.includes("o3") || modelId.includes("o4")
+		const isReasoningModelFamily =
+			["o1", "o3", "o4", "gpt-5"].some((prefix) => modelId.includes(prefix)) && !modelId.includes("chat")
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -100,7 +106,11 @@ export class OpenAiHandler implements ApiHandler {
 			reasoning_effort: reasoningEffort,
 			stream: true,
 			stream_options: { include_usage: true },
+			...getOpenAIToolParams(tools),
 		})
+
+		const toolCallProcessor = new ToolCallProcessor()
+
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
@@ -117,12 +127,15 @@ export class OpenAiHandler implements ApiHandler {
 				}
 			}
 
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+			}
+
 			if (chunk.usage) {
 				yield {
 					type: "usage",
 					inputTokens: chunk.usage.prompt_tokens || 0,
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
 					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
 					// @ts-ignore-next-line
 					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,

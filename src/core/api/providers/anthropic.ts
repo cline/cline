@@ -1,6 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { Tool as AnthropicTool, MessageParam } from "@anthropic-ai/sdk/resources/index"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { AnthropicModelId, anthropicDefaultModelId, anthropicModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
+import { ClineTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
@@ -38,7 +40,7 @@ export class AnthropicHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: ClineTool[]): ApiStream {
 		const client = this.ensureClient()
 
 		const model = this.getModel()
@@ -48,6 +50,9 @@ export class AnthropicHandler implements ApiHandler {
 		const enable1mContextWindow = model.id.endsWith(CLAUDE_SONNET_1M_SUFFIX)
 
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
+
+		// Tools are available only when native tools are enabled.
+		const nativeToolsOn = tools?.length && tools?.length > 0
 		const reasoningOn = !!(
 			(modelId.includes("3-7") || modelId.includes("4-") || modelId.includes("4-5")) &&
 			budget_tokens !== 0
@@ -55,6 +60,7 @@ export class AnthropicHandler implements ApiHandler {
 
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
+			case "claude-haiku-4-5-20251001":
 			case "claude-sonnet-4-5-20250929":
 			case "claude-sonnet-4-20250514":
 			case "claude-3-7-sonnet-20250219":
@@ -67,12 +73,45 @@ export class AnthropicHandler implements ApiHandler {
 				/*
 				The latest message will be the new user message, one before will be the assistant message from a previous request, and the user message before that will be a previously cached user message. So we need to mark the latest user message as ephemeral to cache it for the next request, and mark the second to last user message as ephemeral to let the server know the last message to retrieve from the cache for the current request..
 				*/
-				const userMsgIndices = messages.reduce(
-					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
-					[] as number[],
-				)
+				const userMsgIndices = messages.reduce((acc, msg, index) => {
+					if (msg.role === "user") {
+						acc.push(index)
+					}
+					return acc
+				}, [] as number[])
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
+
+				const anthropicMessages: Array<MessageParam> = messages.map((message, index) => {
+					if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
+						return {
+							...message,
+							content:
+								typeof message.content === "string"
+									? [
+											{
+												type: "text",
+												text: message.content,
+												cache_control: {
+													type: "ephemeral",
+												},
+											},
+										]
+									: message.content.map((content, contentIndex) =>
+											contentIndex === message.content.length - 1
+												? {
+														...content,
+														cache_control: {
+															type: "ephemeral",
+														},
+													}
+												: content,
+										),
+						}
+					}
+					return message
+				})
+
 				stream = await client.messages.create(
 					{
 						model: modelId,
@@ -88,39 +127,16 @@ export class AnthropicHandler implements ApiHandler {
 								cache_control: { type: "ephemeral" },
 							},
 						], // setting cache breakpoint for system prompt so new tasks can reuse it
-						messages: messages.map((message, index) => {
-							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-								return {
-									...message,
-									content:
-										typeof message.content === "string"
-											? [
-													{
-														type: "text",
-														text: message.content,
-														cache_control: {
-															type: "ephemeral",
-														},
-													},
-												]
-											: message.content.map((content, contentIndex) =>
-													contentIndex === message.content.length - 1
-														? {
-																...content,
-																cache_control: {
-																	type: "ephemeral",
-																},
-															}
-														: content,
-												),
-								}
-							}
-							return message
-						}),
+						messages: anthropicMessages,
 						// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
-						// tool_choice: { type: "auto" },
-						// tools: tools,
 						stream: true,
+						tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
+						// tool_choice options:
+						// - none: disables tool use, even if tools are provided. Claude will not call any tools.
+						// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
+						// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
+						// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
+						tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
 					},
 					(() => {
 						// 1m context window beta header
@@ -153,6 +169,7 @@ export class AnthropicHandler implements ApiHandler {
 		}
 
 		let thinkingDeltaAccumulator = ""
+		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 
 		for await (const chunk of stream) {
 			switch (chunk?.type) {
@@ -207,6 +224,14 @@ export class AnthropicHandler implements ApiHandler {
 								data: chunk.content_block.data,
 							}
 							break
+						case "tool_use":
+							if (chunk.content_block.id && chunk.content_block.name) {
+								// Convert Anthropic tool_use to OpenAI-compatible format
+								lastStartedToolCall.id = chunk.content_block.id
+								lastStartedToolCall.name = chunk.content_block.name
+								lastStartedToolCall.arguments = ""
+							}
+							break
 						case "text":
 							// we may receive multiple text blocks, in which case just insert a line break between them
 							if (chunk.index > 0) {
@@ -249,9 +274,30 @@ export class AnthropicHandler implements ApiHandler {
 								text: chunk.delta.text,
 							}
 							break
+						case "input_json_delta":
+							if (lastStartedToolCall.id && lastStartedToolCall.name && chunk.delta.partial_json) {
+								// 	// Convert Anthropic tool_use to OpenAI-compatible format
+								yield {
+									type: "tool_calls",
+									tool_call: {
+										...lastStartedToolCall,
+										function: {
+											...lastStartedToolCall,
+											id: lastStartedToolCall.id,
+											name: lastStartedToolCall.name,
+											arguments: chunk.delta.partial_json,
+										},
+									},
+								}
+							}
+							break
 					}
 					break
+
 				case "content_block_stop":
+					lastStartedToolCall.id = ""
+					lastStartedToolCall.name = ""
+					lastStartedToolCall.arguments = ""
 					break
 			}
 		}

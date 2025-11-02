@@ -11,8 +11,10 @@ export class TaskState {
 	// Content processing
 	currentStreamingContentIndex = 0
 	assistantMessageContent: AssistantMessageContent[] = []
-	userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[] = []
+	userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolResultBlockParam)[] = []
 	userMessageContentReady = false
+	// Map of tool names to their tool_use_id for creating proper ToolResultBlockParam
+	toolUseIdMap: Map<string, string> = new Map()
 
 	// Presentation locks
 	presentAssistantMessageLocked = false
@@ -37,13 +39,13 @@ export class TaskState {
 	didAlreadyUseTool = false
 	didEditFile: boolean = false
 
-	// Consecutive request tracking
-	consecutiveAutoApprovedRequestsCount: number = 0
-
 	// Error tracking
 	consecutiveMistakeCount: number = 0
 	didAutomaticallyRetryFailedApiRequest = false
 	checkpointManagerErrorMessage?: string
+
+	// Retry tracking for auto-retry feature
+	autoRetryAttempts: number = 0
 
 	// Task Initialization
 	isInitialized = false
@@ -58,6 +60,14 @@ export class TaskState {
 	abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
+
+	// Hook execution tracking for cancellation
+	activeHookExecution?: {
+		hookName: string
+		toolName?: string
+		messageTs: number
+		abortController: AbortController
+	}
 
 	// Auto-context summarization
 	currentlySummarizing: boolean = false

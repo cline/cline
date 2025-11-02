@@ -1,4 +1,6 @@
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { updateAutoApproveSettings } from "@/components/chat/auto-approve-menu/AutoApproveSettingsAPI"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import PreferredLanguageSetting from "../PreferredLanguageSetting"
 import Section from "../Section"
@@ -9,7 +11,7 @@ interface GeneralSettingsSectionProps {
 }
 
 const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionProps) => {
-	const { telemetrySetting } = useExtensionState()
+	const { telemetrySetting, remoteConfigSettings, autoApprovalSettings } = useExtensionState()
 
 	return (
 		<div>
@@ -17,17 +19,49 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 			<Section>
 				<PreferredLanguageSetting />
 
-				<div className="mb-[5px]">
+				<div className="mb-[5px]" id="enable-notifications">
 					<VSCodeCheckbox
-						checked={telemetrySetting !== "disabled"}
-						className="mb-[5px]"
-						onChange={(e: any) => {
+						checked={autoApprovalSettings.enableNotifications}
+						onChange={async (e: any) => {
 							const checked = e.target.checked === true
-							updateSetting("telemetrySetting", checked ? "enabled" : "disabled")
+							await updateAutoApproveSettings({
+								...autoApprovalSettings,
+								version: (autoApprovalSettings.version ?? 1) + 1,
+								enableNotifications: checked,
+							})
 						}}>
-						Allow error and usage reporting
+						Enable notifications
 					</VSCodeCheckbox>
-					<p className="text-xs mt-[5px] text-[var(--vscode-descriptionForeground)]">
+
+					<p className="text-sm mt-[5px] text-description">
+						Receive system notifications when Cline requires approval to proceed or when a task is completed.
+					</p>
+				</div>
+
+				<div className="mb-[5px]">
+					<Tooltip>
+						<TooltipContent hidden={remoteConfigSettings?.telemetrySetting === undefined}>
+							This setting is managed by your organization's remote configuration
+						</TooltipContent>
+						<TooltipTrigger asChild>
+							<div className="flex items-center gap-2 mb-[5px]">
+								<VSCodeCheckbox
+									checked={telemetrySetting === "enabled"}
+									disabled={remoteConfigSettings?.telemetrySetting === "disabled"}
+									onChange={(e: any) => {
+										const checked = e.target.checked === true
+										updateSetting("telemetrySetting", checked ? "enabled" : "disabled")
+									}}>
+									Allow error and usage reporting
+								</VSCodeCheckbox>
+								{!!remoteConfigSettings?.telemetrySetting && (
+									<i className="codicon codicon-lock text-description text-sm" />
+								)}
+							</div>
+						</TooltipTrigger>
+					</Tooltip>
+
+					<p className="text-sm mt-[5px] text-description">
 						Help improve Cline by sending usage data and error reports. No code, prompts, or personal information are
 						ever sent. See our{" "}
 						<VSCodeLink

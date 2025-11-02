@@ -1,138 +1,56 @@
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { memo, useEffect, useRef, useState } from "react"
+import { memo, useEffect } from "react"
 import { useRemark } from "react-remark"
-import styled from "styled-components"
-import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
-const StyledMarkdown = styled.div`
-	font-family:
-		var(--vscode-font-family),
-		system-ui,
-		-apple-system,
-		BlinkMacSystemFont,
-		"Segoe UI",
-		Roboto,
-		Oxygen,
-		Ubuntu,
-		Cantarell,
-		"Open Sans",
-		"Helvetica Neue",
-		sans-serif;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-
-	p,
-	li,
-	ol,
-	ul {
-		line-height: 1.25;
-		margin: 0;
-	}
-
-	ol,
-	ul {
-		padding-left: 1.5em;
-		margin-left: 0;
-	}
-
-	p {
-		white-space: pre-wrap;
-	}
-
-	a {
-		text-decoration: none;
-	}
-	a {
-		&:hover {
-			text-decoration: underline;
-		}
-	}
-`
+interface ModelDescriptionMarkdownProps {
+	markdown?: string
+	key: string
+	isExpanded: boolean
+	setIsExpanded: (isExpanded: boolean) => void
+	isPopup?: boolean
+}
 
 export const ModelDescriptionMarkdown = memo(
-	({
-		markdown,
-		key,
-		isExpanded,
-		setIsExpanded,
-		isPopup,
-	}: {
-		markdown?: string
-		key: string
-		isExpanded: boolean
-		setIsExpanded: (isExpanded: boolean) => void
-		isPopup?: boolean
-	}) => {
+	({ markdown, key, isExpanded, setIsExpanded, isPopup }: ModelDescriptionMarkdownProps) => {
+		// Update the markdown content when the prop changes
 		const [reactContent, setMarkdown] = useRemark()
-		const [showSeeMore, setShowSeeMore] = useState(false)
-		const textContainerRef = useRef<HTMLDivElement>(null)
-		const textRef = useRef<HTMLDivElement>(null)
 
 		useEffect(() => {
-			setMarkdown(markdown || "")
+			if (markdown) {
+				setMarkdown(markdown)
+			}
 		}, [markdown, setMarkdown])
 
-		useEffect(() => {
-			if (textRef.current && textContainerRef.current) {
-				const { scrollHeight } = textRef.current
-				const { clientHeight } = textContainerRef.current
-				const isOverflowing = scrollHeight > clientHeight
-				setShowSeeMore(isOverflowing)
-			}
-		}, [reactContent, setIsExpanded])
-
 		return (
-			<StyledMarkdown key={key} style={{ display: "inline-block", marginBottom: 0 }}>
+			<div className="inline-block mb-0 description line-clamp-3" key={key}>
 				<div
-					ref={textContainerRef}
-					style={{
-						overflowY: isExpanded ? "auto" : "hidden",
-						position: "relative",
-						wordBreak: "break-word",
-						overflowWrap: "anywhere",
-					}}>
+					className={cn("relative wrap-anywhere overflow-y-hidden", {
+						"overflow-y-auto": isExpanded,
+					})}>
 					<div
-						ref={textRef}
-						style={{
-							display: "-webkit-box",
-							WebkitLineClamp: isExpanded ? "unset" : 3,
-							WebkitBoxOrient: "vertical",
-							overflow: "hidden",
-						}}>
+						className={cn("overflow-hidden text-sm line-clamp-3", {
+							"line-clamp-none": isExpanded,
+							"h-20": !isExpanded,
+						})}>
 						{reactContent}
 					</div>
-					{!isExpanded && showSeeMore && (
-						<div
-							style={{
-								position: "absolute",
-								right: 0,
-								bottom: 0,
-								display: "flex",
-								alignItems: "center",
-							}}>
-							<div
-								style={{
-									width: 30,
-									height: "1.2em",
-									background: "linear-gradient(to right, transparent, var(--vscode-sideBar-background))",
-								}}
-							/>
-							<VSCodeLink
+					{!isExpanded && (
+						<div className="absolute bottom-0 right-0 flex items-center">
+							<div className="w-10 h-5 bg-linear-to-r from-transparent to-sidebar-background" />
+							<Button
+								className={cn("bg-sidebar-background p-0 m-0 text-sm", {
+									"bg-code-block-background": isPopup,
+								})}
 								onClick={() => setIsExpanded(true)}
-								style={{
-									fontSize: "inherit",
-									paddingRight: 0,
-									paddingLeft: 3,
-									backgroundColor: isPopup ? CODE_BLOCK_BG_COLOR : "var(--vscode-sideBar-background)",
-								}}>
+								variant="link">
 								See more
-							</VSCodeLink>
+							</Button>
 						</div>
 					)}
 				</div>
-			</StyledMarkdown>
+			</div>
 		)
 	},
 )
-
-export default ModelDescriptionMarkdown
+ModelDescriptionMarkdown.displayName = "ModelDescriptionMarkdown"

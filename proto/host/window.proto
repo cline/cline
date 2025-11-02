@@ -1,8 +1,10 @@
 syntax = "proto3";
 
 package host;
-option java_package = "bot.cline.host.proto";
+
+option go_package = "github.com/cline/grpc-go/host";
 option java_multiple_files = true;
+option java_package = "bot.cline.host.proto";
 
 // Provides methods for working with IDE windows and editors.
 service WindowService {
@@ -85,7 +87,6 @@ message ShowMessageRequestOptions {
   repeated string items = 1;
   optional bool modal = 2;
   optional string detail = 3;
-
 }
 
 message SelectedResponse {
