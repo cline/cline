@@ -400,7 +400,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 /**
  * Combines multiple hook runners and executes them in parallel.
  *
- * Used in multi-root workspaces where both global hooks (from ~/Documents/Cline/Rules/Hooks/)
+ * Used in multi-root workspaces where both global hooks (from ~/Documents/Cline/Hooks/)
  * and workspace-specific hooks (from each workspace's .clinerules/hooks/) exist for the
  * same hook type.
  *
@@ -537,7 +537,7 @@ export class HookFactory {
 
 	/**
 	 * @returns A list of paths to scripts for the given hook name.
-	 * Includes both global hooks (from ~/Documents/Cline/Rules/Hooks/) and workspace hooks
+	 * Includes both global hooks (from ~/Documents/Cline/Hooks/) and workspace hooks
 	 * (from .clinerules/hooks/ in each workspace root).
 	 */
 	private static async findHookScripts(hookName: HookName): Promise<string[]> {
