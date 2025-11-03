@@ -10,23 +10,12 @@ description: "This guide explains how administrators configure WorkOS AuthKit fo
 - Access to your identity provider (IdP) configuration (e.g., Okta, Azure AD, Google Workspace)
 - Knowledge of your organization's SSO requirements
 
-## Overview
-
-WorkOS AuthKit provides enterprise-grade SSO authentication and user provisioning for Cline. By configuring WorkOS AuthKit, you can:
-
-- Enable single sign-on (SSO) with your corporate identity provider
-- Automatically provision and deprovision users
-- Manage user access through centralized policies
-
-For detailed information about WorkOS AuthKit capabilities, refer to the [WorkOS AuthKit Documentation](https://workos.com/docs/authkit).
-
----
 
 ## Configuration Steps
 
 ### Step 1: Onboard to Cline Enterprise license
 
-Once you have a Cline Enterprise License, a WorkOS organization will be created for you, and your IdP administrator will recieve instructions for configuration. 
+Once you have a Cline Enterprise License, a WorkOS organization will be created for you automatically via webhook. Your IdP administrator will receive instructions for configuration.
 
 ### Step 2: Configure Your Identity Provider
 
@@ -37,22 +26,20 @@ Connect your identity provider (IdP) to WorkOS:
 3. Select your identity provider (e.g., Okta, Azure AD, Google Workspace, Generic SAML/OIDC)
 4. Follow the provider-specific setup instructions
 
-Each IdP has specific configuration requirements. Refer to the appropriate WorkOS documentation:
+Each identity provider (IdP) will have its own setup process and required fields. Be sure to follow the specific instructions in the WorkOS dashboard for your chosen provider.
+For more explicit instruction on connecting your IdP, refer to the [WorkOS SSO documentation](https://workos.com/docs/authkit/sso)
 
-- [Okta Configuration](https://workos.com/docs/authkit/sso/okta)
-- [Azure AD Configuration](https://workos.com/docs/authkit/sso/azure-ad)
-- [Google Workspace Configuration](https://workos.com/docs/authkit/sso/google-workspace)
-- [Generic SAML/OIDC Configuration](https://workos.com/docs/authkit/sso/generic-saml)
 
 ### Step 3: Configure User Provisioning
 
-Set up automatic user provisioning and deprovisioning:
+Cline Enterprise uses **just-in-time provisioning** that works automatically:
 
-1. Navigate to **AuthKit → User Provisioning** in the WorkOS dashboard
-2. Enable **SCIM provisioning** if your IdP supports it for automatic user sync
-3. Configure user attributes mapping to ensure user data flows correctly
+- **Organizations are created automatically** via webhook when configured in WorkOS
+- **Users gain access automatically** on their first SSO sign-in, once their credentials have been configured by the IdP administrator.
+- **Roles sync automatically** from your IdP (Admin/Owner → Admin, Member → Member)
+- **No manual user invites or seat management** required
 
-For detailed provisioning setup, refer to the [WorkOS User Provisioning Guide](https://workos.com/docs/authkit/user-provisioning).
+No additional configuration is needed. Users are provisioned automatically when they sign in through SSO.
 
 ### Step 4: Configure Redirect URIs
 
@@ -89,20 +76,20 @@ Connect WorkOS to Cline:
    - **API Key**: Your WorkOS API Key
    - **Environment ID**: Your WorkOS Environment ID
 5. Configure additional settings:
-   - **Default Organization**: Set the default organization for new users
-   - **Auto-provisioning**: Enable automatic user provisioning from your IdP
    - **Session Duration**: Set session timeout duration
+
+**Note:** Enterprise organizations use just-in-time provisioning—users are automatically granted access on their first SSO sign-in. Seat limits do not apply to enterprise organizations.
 
 ### Step 7: Configure User Attributes Mapping
 
-Map WorkOS user attributes to Cline user properties:
+User roles are mapped automatically from your IdP:
+- **Admin/Owner** in IdP → **Admin** role in Cline
+- **Member** in IdP → **Member** role in Cline
 
-1. In the Cline Admin console, go to **Settings → Authentication → User Attributes**
-2. Map the following attributes (adjust based on your IdP configuration):
-   - **Email**: `user.email`
-   - **Name**: `user.first_name` + `user.last_name`
-   - **Organization**: `organization.id` or custom attribute
-   - **Groups/Roles**: `user.organization_memberships` or custom attribute
+If needed, you can configure additional user attributes in the Cline Admin console:
+
+1. Go to **Settings → Authentication → User Attributes**
+2. Map attributes such as email and name based on your IdP configuration
 
 For information about available user attributes, see the [WorkOS User Object Documentation](https://workos.com/docs/authkit/user-management).
 
@@ -128,15 +115,49 @@ Activate SSO for your organization:
 
 ---
 
+## How Just-in-Time Provisioning Works
+
+### Organization Creation
+
+When your organization is configured in WorkOS, a webhook automatically creates your organization in Cline with:
+- Your organization name from WorkOS
+- A link to your WorkOS organization ID
+- Enterprise settings (unlimited seats, no subscription plan)
+
+### User Access
+
+On a user's first SSO sign-in:
+1. User authenticates via your IdP (through WorkOS)
+2. Organization lookup happens automatically using the WorkOS organization ID
+3. Membership is created automatically if the user doesn't already have access
+4. Role is assigned automatically based on their IdP role
+
+### Ongoing Synchronization
+
+Changes sync automatically:
+- **Organization updates** via webhooks
+- **Role changes** on next sign-in
+- **Access revocation** when users are removed from your IdP
+
+### Managing Access
+
+Manage users through your IdP:
+- Add users → access granted automatically on first login
+- Change roles → updated on next login
+- Remove users → access revoked automatically
+
+---
+
 ## Verification
 
-To verify the configuration:
+Steps to verify the configuration:
 
-1. **Test User Sign-In**: Have a test user sign in through the SSO flow
-2. **Verify User Provisioning**: Confirm that new users are automatically created in Cline
+1. **Test User Sign-In**: Have a test user sign in through the SSO flow (access is granted automatically on first login)
+2. **Verify User Provisioning**: Confirm that the user is automatically created and has appropriate role permissions
 3. **Check User Attributes**: Verify that user information (name, email, organization) is correctly populated
-4. **Test User Deprovisioning**: Remove a user from your IdP and verify they lose access to Cline
-5. **Review Audit Logs**: Check WorkOS audit logs to ensure authentication events are being recorded
+4. **Test Role Changes**: Update a user's role in your IdP and verify it syncs on their next login
+5. **Test User Deprovisioning**: Remove a user from your IdP and verify they lose access to Cline on their next login attempt
+6. **Review Audit Logs**: Check WorkOS audit logs to ensure authentication events are being recorded
 
 ---
 
@@ -146,7 +167,7 @@ To verify the configuration:
 
 **Error:** Users cannot sign in through SSO  
 **Solution:**
-- Verify WorkOS credentials are correct in Cline Admin console
+- Verify IdP credentials are correct in admin dashboard
 - Check that redirect URIs are properly configured in WorkOS
 - Ensure your IdP connection is active in WorkOS dashboard
 - Review WorkOS logs for authentication errors
@@ -163,13 +184,30 @@ To verify the configuration:
 
 ### Users Not Being Provisioned
 
-**Issue:** New users from IdP are not created in Cline  
+**Issue:** New users from IdP are not granted access in Cline
 **Solution:**
-- Verify auto-provisioning is enabled in Cline Admin console
-- Check WorkOS provisioning settings
-- Ensure SCIM is properly configured if using SCIM provisioning
-- Review provisioning logs in WorkOS dashboard
-- See [WorkOS SCIM Provisioning Guide](https://workos.com/docs/authkit/scim)
+- Verify the user has signed in via SSO (just-in-time provisioning happens on first login)
+- Check that the user is assigned to the correct organization in WorkOS
+- Verify the user has an assigned role in your IdP
+- Ensure the organization exists in Cline (created automatically via webhook)
+- Review WorkOS logs for authentication errors
+
+### Roles Not Syncing
+
+**Issue:** User roles don't match IdP roles
+**Solution:**
+- Roles sync when users sign in—have the user sign out and back in
+- Verify role names in your IdP match expected values (Admin/Owner or Member)
+- Check WorkOS organization membership configuration
+- Allow up to 24 hours for role changes to propagate
+
+### Organization Not Created
+
+**Issue:** Organization doesn't appear in Cline
+**Solution:**
+- Verify the organization exists in WorkOS
+- Check that webhooks are configured correctly
+- Contact support with your organization ID if issues persist after 24 hours
 
 ### Session Timeout Issues
 
@@ -203,12 +241,12 @@ To verify the configuration:
 
 By following these steps, you can successfully configure WorkOS AuthKit for SSO provisioning in Cline Enterprise:
 
-1. **Set Up WorkOS Account**: Create account and organization in WorkOS
+1. **Receive WorkOS Organization**: Your organization is created automatically when you onboard to Cline Enterprise
 2. **Configure Identity Provider**: Connect your IdP (Okta, Azure AD, etc.) to WorkOS
-3. **Enable User Provisioning**: Set up automatic user provisioning and deprovisioning
-4. **Configure Cline**: Connect WorkOS to Cline Admin console with your credentials
-5. **Map User Attributes**: Ensure user data flows correctly from IdP to Cline
-6. **Test and Enable**: Verify configuration and enable SSO for your organization
+3. **Configure Cline**: Connect WorkOS to Cline Admin console with your credentials
+4. **Test and Enable**: Verify configuration and enable SSO for your organization
+
+Just-in-time provisioning handles user access automatically—users gain access on their first SSO sign-in, and roles sync automatically from your IdP.
 
 For further details, consult the [WorkOS AuthKit Documentation](https://workos.com/docs/authkit) and coordinate with your identity and access management team.
 
