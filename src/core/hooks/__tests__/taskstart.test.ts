@@ -46,6 +46,11 @@ describe("TaskStart Hook", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
+
+		// Clean up hook discovery cache
+		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
+		HookDiscoveryCache.resetForTesting()
+
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		} catch (error) {
@@ -61,7 +66,7 @@ const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const metadata = input.taskStart.taskMetadata;
 const hasAllFields = metadata.taskId && metadata.ulid && 'initialTask' in metadata;
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: hasAllFields ? "All metadata present" : "Missing metadata",
   errorMessage: ""
 }))`
@@ -82,7 +87,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("All metadata present")
 		})
 
@@ -94,7 +99,7 @@ const hasAllFields = input.clineVersion && input.hookName === 'TaskStart' &&
                      input.timestamp && input.taskId && 
                      input.workspaceRoots !== undefined;
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: hasAllFields ? "All fields present" : "Missing fields",
   errorMessage: ""
 }))`
@@ -115,7 +120,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("All fields present")
 		})
 
@@ -125,7 +130,7 @@ console.log(JSON.stringify({
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const initialTask = input.taskStart.taskMetadata.initialTask;
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Task length: " + initialTask.length,
   errorMessage: ""
 }))`
@@ -146,17 +151,17 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("Task length: 0")
 		})
 	})
 
 	describe("Hook Behavior", () => {
-		it("should allow task to start when hook returns shouldContinue: true", async () => {
+		it("should allow task to start when hook returns cancel: false", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "TaskStart hook executed successfully",
   errorMessage: ""
 }))`
@@ -177,15 +182,15 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("TaskStart hook executed successfully")
 		})
 
-		it("should block task when hook returns shouldContinue: false", async () => {
+		it("should block task when hook returns cancel: true", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: false,
+  cancel: true,
   contextModification: "",
   errorMessage: "Task execution blocked by hook"
 }))`
@@ -206,7 +211,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.false()
+			result.cancel.should.be.true()
 			result.errorMessage!.should.equal("Task execution blocked by hook")
 		})
 
@@ -215,7 +220,7 @@ console.log(JSON.stringify({
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "TASK_START: Task '" + input.taskStart.taskMetadata.initialTask + "' beginning",
   errorMessage: ""
 }))`
@@ -236,7 +241,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("TASK_START: Task 'Build a todo app' beginning")
 		})
 	})
@@ -280,21 +285,21 @@ console.log("not valid json")`
 			const factory = new HookFactory()
 			const runner = await factory.create("TaskStart")
 
-			try {
-				await runner.run({
-					taskId: "test-task-id",
-					taskStart: {
-						taskMetadata: {
-							taskId: "test-task-id",
-							ulid: "test-ulid",
-							initialTask: "Test task",
-						},
+			// When hook exits 0 but has malformed JSON, it returns success without context
+			const result = await runner.run({
+				taskId: "test-task-id",
+				taskStart: {
+					taskMetadata: {
+						taskId: "test-task-id",
+						ulid: "test-ulid",
+						initialTask: "Test task",
 					},
-				})
-				throw new Error("Should have thrown")
-			} catch (error: any) {
-				error.message.should.match(/Failed to parse hook output/)
-			}
+				},
+			})
+
+			// Hook succeeded (exit 0) but couldn't parse JSON, so returns success without context
+			result.cancel.should.be.false()
+			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
 		})
 	})
 
@@ -321,7 +326,7 @@ console.log("not valid json")`
 			const globalHookPath = path.join(globalHooksDir, "TaskStart")
 			const globalHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "GLOBAL: Task starting",
   errorMessage: ""
 }))`
@@ -331,7 +336,7 @@ console.log(JSON.stringify({
 			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "WORKSPACE: Task starting",
   errorMessage: ""
 }))`
@@ -350,7 +355,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.match(/GLOBAL: Task starting/)
 			result.contextModification!.should.match(/WORKSPACE: Task starting/)
 		})
@@ -359,7 +364,7 @@ console.log(JSON.stringify({
 			const globalHookPath = path.join(globalHooksDir, "TaskStart")
 			const globalHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: false,
+  cancel: true,
   contextModification: "",
   errorMessage: "Global policy blocks this task"
 }))`
@@ -368,7 +373,7 @@ console.log(JSON.stringify({
 			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Workspace allows",
   errorMessage: ""
 }))`
@@ -387,7 +392,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.false()
+			result.cancel.should.be.true()
 			result.errorMessage!.should.match(/Global policy blocks this task/)
 		})
 
@@ -395,7 +400,7 @@ console.log(JSON.stringify({
 			const globalHookPath = path.join(globalHooksDir, "TaskStart")
 			const globalHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Global allows",
   errorMessage: ""
 }))`
@@ -404,7 +409,7 @@ console.log(JSON.stringify({
 			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: false,
+  cancel: true,
   contextModification: "",
   errorMessage: "Workspace blocks"
 }))`
@@ -423,7 +428,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.false()
+			result.cancel.should.be.true()
 			result.errorMessage!.should.match(/Workspace blocks/)
 		})
 	})
@@ -444,7 +449,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 		})
 	})
 
@@ -466,7 +471,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("TaskStart hook executed successfully")
 		})
 
@@ -487,7 +492,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.false()
+			result.cancel.should.be.true()
 			result.errorMessage!.should.equal("Task execution blocked by hook")
 		})
 
