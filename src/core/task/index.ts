@@ -151,35 +151,99 @@ export class Task {
 	}
 
 	/**
-	 * Atomically set active hook execution with mutex protection
-	 * Prevents TOCTOU races when setting hook execution state
-	 * PUBLIC: Exposed for ToolExecutor to use
+	 * Atomically set active hook execution with mutex protection.
+	 *
+	 * This method is part of the Map-based multi-hook architecture that allows
+	 * concurrent execution of multiple hooks (e.g., global + workspace hooks).
+	 * Each hook is tracked by its unique message timestamp.
+	 *
+	 * **Architecture:**
+	 * - Uses Map<messageTs, HookExecution> to track multiple concurrent hooks
+	 * - Each hook gets its own entry keyed by its message timestamp
+	 * - Mutex protection prevents TOCTOU races during state updates
+	 *
+	 * **Cancellation Flow:**
+	 * 1. Hook starts → setActiveHookExecution() adds to Map
+	 * 2. Hook completes → clearActiveHookExecution(messageTs) removes from Map
+	 * 3. User cancels → abortTask() iterates Map, calls abort() on all
+	 *
+	 * @param hookExecution The hook execution state to track
+	 * @param hookExecution.hookName Name of the hook (e.g., "PreToolUse")
+	 * @param hookExecution.toolName Optional tool name for tool-specific hooks
+	 * @param hookExecution.messageTs Unique timestamp identifying this hook's message
+	 * @param hookExecution.abortController Controller for cancelling the hook
+	 * @param hookExecution.scriptPath Path to the hook script for identification
+	 *
+	 * @public Exposed for hook-executor.ts to coordinate hook lifecycle
 	 */
-	public async setActiveHookExecution(hookExecution: NonNullable<typeof this.taskState.activeHookExecution>): Promise<void> {
+	public async setActiveHookExecution(hookExecution: {
+		hookName: string
+		toolName: string | undefined
+		messageTs: number
+		abortController: AbortController
+		scriptPath?: string
+	}): Promise<void> {
 		await this.withStateLock(() => {
-			this.taskState.activeHookExecution = hookExecution
+			this.taskState.activeHookExecutions.set(hookExecution.messageTs, hookExecution)
 		})
 	}
 
 	/**
-	 * Atomically clear active hook execution with mutex protection
-	 * Prevents TOCTOU races when clearing hook execution state
-	 * PUBLIC: Exposed for ToolExecutor to use
+	 * Atomically clear active hook execution with mutex protection.
+	 *
+	 * Removes a specific hook from the active executions Map once it completes.
+	 * If the entry doesn't exist (e.g., already cleared by abortTask), this is a no-op.
+	 *
+	 * @param messageTs The unique timestamp of the hook execution to clear
+	 *
+	 * @public Exposed for hook-executor.ts to signal hook completion
 	 */
-	public async clearActiveHookExecution(): Promise<void> {
+	public async clearActiveHookExecution(messageTs: number): Promise<void> {
 		await this.withStateLock(() => {
-			this.taskState.activeHookExecution = undefined
+			this.taskState.activeHookExecutions.delete(messageTs)
 		})
 	}
 
 	/**
-	 * Atomically read active hook execution state with mutex protection
-	 * Returns a snapshot of the current state to prevent TOCTOU races
-	 * PUBLIC: Exposed for ToolExecutor to use
+	 * Atomically clear all active hook executions with mutex protection.
+	 *
+	 * Used during task cancellation to ensure all hook state is properly cleaned up.
+	 * This is called by abortTask() AFTER aborting all hooks to clear the Map.
+	 *
+	 * @public Used internally by abortTask()
 	 */
-	public async getActiveHookExecution(): Promise<typeof this.taskState.activeHookExecution> {
+	public async clearAllActiveHookExecutions(): Promise<void> {
+		await this.withStateLock(() => {
+			this.taskState.activeHookExecutions.clear()
+		})
+	}
+
+	/**
+	 * Atomically read active hook execution state with mutex protection.
+	 *
+	 * Returns a snapshot array of all currently active hook executions.
+	 * The snapshot prevents TOCTOU races - the returned array is stable
+	 * even if hooks complete or new hooks start after this call.
+	 *
+	 * **Use Cases:**
+	 * - abortTask() uses this to get all hooks to cancel
+	 * - shouldRunTaskCancelHook() uses this to detect active work
+	 *
+	 * @returns Array of active hook execution states (empty if none active)
+	 *
+	 * @public Exposed for abortTask() and hook decision logic
+	 */
+	public async getActiveHookExecutions(): Promise<
+		Array<{
+			hookName: string
+			toolName?: string
+			messageTs: number
+			abortController: AbortController
+			scriptPath?: string
+		}>
+	> {
 		return await this.withStateLock(() => {
-			return this.taskState.activeHookExecution
+			return Array.from(this.taskState.activeHookExecutions.values())
 		})
 	}
 
@@ -536,10 +600,9 @@ export class Task {
 			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
 			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
 			this.switchToActModeCallback.bind(this),
-			// Atomic hook state helpers for ToolExecutor
+			// Atomic hook state helpers for ToolExecutor (Map-based API)
 			this.setActiveHookExecution.bind(this),
 			this.clearActiveHookExecution.bind(this),
-			this.getActiveHookExecution.bind(this),
 		)
 	}
 
@@ -1094,7 +1157,8 @@ export class Task {
 					await this.postStateToWebview()
 				}
 
-				// Return without continuing task - Controller.cancelTask() will handle showing resume button
+				// Call abortTask() to trigger TaskCancel and show resume button again
+				this.abortTask()
 				return
 			}
 
@@ -1233,7 +1297,7 @@ export class Task {
 
 		// Handle hook cancellation request
 		if (userPromptHookResult.cancel === true) {
-			// The hook already updated its status to "cancelled" internally and saved state
+			// Call abortTask() to trigger TaskCancel and show resume button again
 			this.abortTask()
 			return
 		}
@@ -1287,9 +1351,9 @@ export class Task {
 	 * @returns true if the hook should run, false otherwise
 	 */
 	private async shouldRunTaskCancelHook(): Promise<boolean> {
-		// Atomically check for active hook execution (work happening now)
-		const activeHook = await this.getActiveHookExecution()
-		if (activeHook) {
+		// Atomically check for active hook executions (work happening now)
+		const activeHooks = await this.getActiveHookExecutions()
+		if (activeHooks.length > 0) {
 			return true
 		}
 
@@ -1328,7 +1392,11 @@ export class Task {
 		return true
 	}
 
-	async abortTask() {
+	async abortTask(): Promise<{ waitingAtResumeButton: boolean }> {
+		// Flag to determine if we should skip cleanup (when waiting at resume button)
+		let skipCleanup = false
+		let waitingAtResumeButton = false
+
 		try {
 			// PHASE 1: Check if TaskCancel should run BEFORE any cleanup
 			// We must capture this state now because subsequent cleanup will
@@ -1340,17 +1408,20 @@ export class Task {
 			// can properly detect the abort state
 			this.taskState.abort = true
 
-			// PHASE 3: Cancel any running hook execution
-			const activeHook = await this.getActiveHookExecution()
-			if (activeHook) {
+			// PHASE 3: Cancel all running hook executions
+			const activeHooks = await this.getActiveHookExecutions()
+			if (activeHooks.length > 0) {
 				try {
-					await this.cancelHookExecution()
-					// Clear activeHookExecution after hook is signaled
-					await this.clearActiveHookExecution()
+					// Cancel all active hooks
+					for (const hook of activeHooks) {
+						hook.abortController.abort()
+					}
+					// Clear all hook state
+					await this.clearAllActiveHookExecutions()
 				} catch (error) {
-					Logger.error("Failed to cancel hook during task abort", error)
+					Logger.error("Failed to cancel hooks during task abort", error)
 					// Still clear state even on error to prevent stuck state
-					await this.clearActiveHookExecution()
+					await this.clearAllActiveHookExecutions()
 				}
 			}
 
@@ -1362,7 +1433,7 @@ export class Task {
 				try {
 					const { executeHook } = await import("../hooks/hook-executor")
 
-					const taskCancelResult = await executeHook({
+					await executeHook({
 						hookName: "TaskCancel",
 						hookInput: {
 							taskCancel: {
@@ -1382,27 +1453,9 @@ export class Task {
 					})
 
 					// TaskCancel completed successfully
-					// Present resume button after successful TaskCancel hook
-					const lastClineMessage = this.messageStateHandler
-						.getClineMessages()
-						.slice()
-						.reverse()
-						.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"))
-
-					let askType: ClineAsk
-					if (lastClineMessage?.ask === "completion_result") {
-						askType = "resume_completed_task"
-					} else {
-						askType = "resume_task"
-					}
-
-					// Present the resume ask - this will show the resume button in the UI
-					// We don't await this because we want to set the abort flag immediately
-					// The ask will be waiting when the user decides to resume
-					this.ask(askType).catch((error) => {
-						// If ask fails (e.g., task was cleared), that's okay - just log it
-						console.log("[TaskCancel] Resume ask failed (task may have been cleared):", error)
-					})
+					// Skip cleanup to keep task in resumable state
+					// Controller.cancelTask() will see waitingAtResumeButton=true and skip re-init
+					skipCleanup = true
 				} catch (error) {
 					// TaskCancel hook failed - non-fatal, just log
 					console.error("[TaskCancel Hook] Failed (non-fatal):", error)
@@ -1437,24 +1490,32 @@ export class Task {
 				this.FocusChainManager.dispose()
 			}
 		} finally {
-			// Release task folder lock
-			if (this.taskLockAcquired) {
+			// Skip cleanup if we're waiting at resume button
+			if (skipCleanup) {
+				waitingAtResumeButton = true
+			} else {
+				// Release task folder lock
+				if (this.taskLockAcquired) {
+					try {
+						await releaseTaskLock(this.taskId)
+						this.taskLockAcquired = false
+						console.info(`[Task ${this.taskId}] Task lock released`)
+					} catch (error) {
+						console.error(`[Task ${this.taskId}] Failed to release task lock:`, error)
+					}
+				}
+
+				// Final state update to notify UI that abort is complete
 				try {
-					await releaseTaskLock(this.taskId)
-					this.taskLockAcquired = false
-					console.info(`[Task ${this.taskId}] Task lock released`)
+					await this.postStateToWebview()
 				} catch (error) {
-					console.error(`[Task ${this.taskId}] Failed to release task lock:`, error)
+					Logger.error("Failed to post final state after abort", error)
 				}
 			}
-
-			// Final state update to notify UI that abort is complete
-			try {
-				await this.postStateToWebview()
-			} catch (error) {
-				Logger.error("Failed to post final state after abort", error)
-			}
 		}
+
+		// Return the result
+		return { waitingAtResumeButton }
 	}
 
 	// Tools
@@ -1827,49 +1888,6 @@ export class Task {
 			Logger.error("Failed to notify command cancellation", error)
 		}
 		return true
-	}
-
-	/**
-	 * Cancel a currently running hook execution
-	 * @returns true if a hook was cancelled, false if no hook was running
-	 */
-	public async cancelHookExecution(): Promise<boolean> {
-		const activeHook = await this.getActiveHookExecution()
-		if (!activeHook) {
-			return false
-		}
-
-		const { hookName, toolName, messageTs, abortController } = activeHook
-
-		try {
-			// Abort the hook process
-			abortController.abort()
-
-			// Update hook message status to "cancelled"
-			const clineMessages = this.messageStateHandler.getClineMessages()
-			const hookMessageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
-			if (hookMessageIndex !== -1) {
-				const cancelledMetadata = {
-					hookName,
-					toolName,
-					status: "cancelled",
-					exitCode: 130, // Standard SIGTERM exit code
-				}
-				await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
-					text: JSON.stringify(cancelledMetadata),
-				})
-			}
-
-			// Notify UI that hook was cancelled
-			await this.say("hook_output", "\nHook execution cancelled by user")
-
-			// Return success - let caller (abortTask) handle next steps
-			// DON'T call abortTask() here to avoid infinite recursion
-			return true
-		} catch (error) {
-			Logger.error("Failed to cancel hook execution", error)
-			return false
-		}
 	}
 
 	/**

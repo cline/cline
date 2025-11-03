@@ -435,10 +435,18 @@ export class Controller {
 		try {
 			this.updateBackgroundCommandState(false)
 
+			let abortResult: { waitingAtResumeButton: boolean } | undefined
 			try {
-				await this.task.abortTask()
+				abortResult = await this.task.abortTask()
 			} catch (error) {
 				console.error("Failed to abort task", error)
+			}
+
+			// If already waiting at resume button, skip re-initialization
+			if (abortResult?.waitingAtResumeButton) {
+				console.log(`[Controller.cancelTask] Task already showing resume button, skipping re-initialization`)
+				await this.postStateToWebview()
+				return
 			}
 
 			await pWaitFor(

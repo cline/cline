@@ -61,13 +61,17 @@ export class TaskState {
 	didFinishAbortingStream = false
 	abandoned = false
 
-	// Hook execution tracking for cancellation
-	activeHookExecution?: {
-		hookName: string
-		toolName?: string
-		messageTs: number
-		abortController: AbortController
-	}
+	// Hook execution tracking for cancellation (Map for concurrent multi-root hooks)
+	activeHookExecutions: Map<
+		number,
+		{
+			hookName: string
+			toolName?: string
+			messageTs: number
+			abortController: AbortController
+			scriptPath?: string
+		}
+	> = new Map()
 
 	// Auto-context summarization
 	currentlySummarizing: boolean = false

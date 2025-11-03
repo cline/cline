@@ -15,7 +15,7 @@ export interface HookExecutionOptions<Name extends keyof Hooks = any> {
 		abortController: AbortController
 		scriptPath?: string
 	}) => Promise<void>
-	clearActiveHookExecution?: () => Promise<void>
+	clearActiveHookExecution?: (messageTs: number) => Promise<void>
 	messageStateHandler: MessageStateHandler
 	taskId: string
 	hooksEnabled: boolean
@@ -154,7 +154,7 @@ async function executeIndividualHook<Name extends keyof Hooks>(params: {
 		abortController: AbortController
 		scriptPath?: string
 	}) => Promise<void>
-	clearActiveHookExecution?: () => Promise<void>
+	clearActiveHookExecution?: (messageTs: number) => Promise<void>
 	messageStateHandler: MessageStateHandler
 	taskId: string
 	toolName?: string
@@ -248,8 +248,8 @@ async function executeIndividualHook<Name extends keyof Hooks>(params: {
 		}
 
 		// Clear active hook execution after successful completion (only if cancellable)
-		if (isCancellable && clearActiveHookExecution) {
-			await clearActiveHookExecution()
+		if (isCancellable && clearActiveHookExecution && hookMessageTs !== undefined) {
+			await clearActiveHookExecution(hookMessageTs)
 		}
 
 		// Update hook status to completed (only if not cancelled)
@@ -272,8 +272,8 @@ async function executeIndividualHook<Name extends keyof Hooks>(params: {
 		}
 	} catch (hookError) {
 		// Clear active hook execution (only if cancellable)
-		if (isCancellable && clearActiveHookExecution) {
-			await clearActiveHookExecution()
+		if (isCancellable && clearActiveHookExecution && hookMessageTs !== undefined) {
+			await clearActiveHookExecution(hookMessageTs)
 		}
 
 		// Check if this was a user cancellation via abort controller
