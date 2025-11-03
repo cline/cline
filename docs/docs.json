@@ -88,13 +88,7 @@
 							"cline-cli/overview",
 							"cline-cli/installation",
 							"cline-cli/three-core-flows",
-							{
-								"group": "Samples",
-								"pages": [
-									"cline-cli/samples/overview",
-									"cline-cli/samples/github-integration"
-								]
-							},
+							"cline-cli/samples",
 							"cline-cli/cli-reference"
 						]
 					},

@@ -8,11 +8,11 @@ Cline CLI in GitHub Actions.
 
 The goal is to go from a comment on an issue like this:
 
-![alt text](readme/ss0a-comment.png)
+<img src="readme/ss0a-comment.png" alt="GitHub issue comment mentioning @cline" width="600">
 
 And ask Cline to provide his thoughts like this:
 
-![alt text](readme/ss0b-final.png)
+<img src="readme/ss0b-final.png" alt="Cline's automated analysis response" width="600">
 
 Let's get this set up!
 
@@ -69,7 +69,7 @@ Add your AI provider API keys as repository secrets:
 1. Go to your GitHub repository
 2. Navigate to **Settings** → **Environment** and Add a new environment.
 
-   ![Navigate to Actions secrets](readme/ss01-environment.png)
+   <img src="readme/ss01-environment.png" alt="Navigate to Actions secrets" width="600">
 
    Make sure to name it "cline-actions" so that it matches the `environment`
    value at the top of the `cline-responder.yml` file.
@@ -78,11 +78,11 @@ Add your AI provider API keys as repository secrets:
 4. Add a secret for the `OPENROUTER_API_KEY` with a value of an API key from
    [openrouter.com](https://openrouter.com).
 
-   ![Add API key secret](readme/ss02-api-key.png)
+   <img src="readme/ss02-api-key.png" alt="Add API key secret" width="600">
 
 5. Verify your secret is configured:
 
-   ![API key configured](readme/ss03-ready.png)
+   <img src="readme/ss03-ready.png" alt="API key configured" width="600">
 
 Now you're ready to supply Cline with the credentials it needs in a github
 action.
@@ -179,4 +179,4 @@ cline -y "$PROMPT: $ISSUE_URL" --mode act --address "$CLINE_ADDRESS" -F json
 
 ## Related Samples
 
-- **github-issue-rca**: The reusable script that powers this integration
+- **[github-issue-rca](../github-issue-rca)**: The reusable script that powers this integration
