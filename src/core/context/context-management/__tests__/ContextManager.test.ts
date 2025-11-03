@@ -153,5 +153,48 @@ describe("ContextManager", () => {
 			expect(result[1].role).to.equal("assistant")
 			expect(result[2].role).to.equal("user")
 		})
+
+		it("removes orphaned tool_results after truncation", () => {
+			// Create messages with tool_use and tool_result blocks
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: "Initial task" },
+				{ role: "assistant", content: "Response 1" },
+				// Assistant message with tool_use that will be truncated
+				{
+					role: "assistant",
+					content: [
+						{ type: "text", text: "Using a tool" },
+						{ type: "tool_use", id: "tool_123", name: "read_file", input: { path: "test.ts" } },
+					],
+				},
+				// User message with tool_result - should have tool_result removed after truncation
+				{
+					role: "user",
+					content: [
+						{ type: "tool_result", tool_use_id: "tool_123", content: "file content here" },
+						{ type: "text", text: "Additional user text" },
+					],
+				},
+				{ role: "assistant", content: "Response 2" },
+			]
+
+			// Truncate to remove the assistant message with tool_use
+			const range: [number, number] = [2, 2]
+			const result = contextManager.getTruncatedMessages(messages, range)
+
+			// Should have 4 messages (original 5 minus 1 truncated)
+			expect(result).to.have.lengthOf(4)
+
+			// The user message at index 2 should have tool_result removed but text preserved
+			const userMessageAfterTruncation = result[2]
+			expect(userMessageAfterTruncation.role).to.equal("user")
+			expect(Array.isArray(userMessageAfterTruncation.content)).to.be.true
+
+			const content = userMessageAfterTruncation.content as Anthropic.Messages.ContentBlockParam[]
+			// Should only have the text block, not the tool_result
+			expect(content).to.have.lengthOf(1)
+			expect(content[0].type).to.equal("text")
+			expect((content[0] as Anthropic.Messages.TextBlockParam).text).to.equal("Additional user text")
+		})
 	})
 })
