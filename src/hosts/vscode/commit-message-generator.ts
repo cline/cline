@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto"
 import { buildApiHandler } from "@core/api"
 import * as vscode from "vscode"
 import { StateManager } from "@/core/storage/StateManager"
@@ -92,7 +93,9 @@ async function performCommitGeneration(stateManager: StateManager, gitDiff: stri
 		const messages = [{ role: "user" as const, content: prompt }]
 
 		commitGenerationAbortController = new AbortController()
-		const stream = apiHandler.createMessage(systemPrompt, messages)
+		const stream = apiHandler.createMessage(systemPrompt, messages, undefined, {
+			taskId: "commit-message-generator-" + randomUUID(),
+		})
 
 		let response = ""
 		for await (const chunk of stream) {
