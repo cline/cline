@@ -194,18 +194,18 @@ const ClineRulesToggleModal: React.FC = () => {
 	}, [isVisible, viewportWidth, viewportHeight])
 
 	return (
-		<div ref={modalRef}>
-			<div className="inline-flex min-w-0 max-w-full" ref={buttonRef}>
+		<div className="inline-flex min-w-0 max-w-full items-center" ref={modalRef}>
+			<div className="inline-flex w-full items-center" ref={buttonRef}>
 				<Tooltip>
 					{!isVisible && <TooltipContent>Manage Cline Rules & Workflows</TooltipContent>}
 					<TooltipTrigger>
 						<VSCodeButton
 							appearance="icon"
 							aria-label={isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows"}
-							className="h-6"
+							className="flex items-center"
 							onClick={() => setIsVisible(!isVisible)}>
-							<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-								<span className="codicon codicon-law flex items-center" style={{ fontSize: "12.5px" }} />
+							<div className="flex items-center text-xs w-full cursor-pointer">
+								<i className="codicon codicon-law" style={{ fontSize: "14px" }} />
 							</div>
 						</VSCodeButton>
 					</TooltipTrigger>

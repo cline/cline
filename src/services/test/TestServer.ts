@@ -54,7 +54,6 @@ async function updateAutoApprovalSettings(controller?: Controller) {
 		// Enable all actions
 		const updatedSettings: AutoApprovalSettings = {
 			...(autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS),
-			enabled: true,
 			actions: {
 				readFiles: true,
 				readFilesExternally: true,
@@ -65,7 +64,6 @@ async function updateAutoApprovalSettings(controller?: Controller) {
 				useBrowser: false, // Keep browser disabled for tests
 				useMcp: false, // Keep MCP disabled for tests
 			},
-			maxRequests: 10000, // Increase max requests for tests
 		}
 
 		controller?.stateManager.setGlobalState("autoApprovalSettings", updatedSettings)
