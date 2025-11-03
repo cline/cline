@@ -119,10 +119,10 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 						autoFocus={false}
 						className="focus-visible:border-button-background"
 						onChange={(e) => {
-							if (e.target?.value) {
+							if (!e.target?.value) {
 								onSelectModel("")
-								setSearchTerm(e.target.value)
 							}
+							setSearchTerm(e.target.value)
 						}}
 						onClick={() => onSelectModel("")}
 						placeholder="Search model..."
