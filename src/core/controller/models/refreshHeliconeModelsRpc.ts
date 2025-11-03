@@ -8,7 +8,7 @@ import { refreshHeliconeModels } from "./refreshHeliconeModels"
  * Handles protobuf conversion for gRPC service
  * @param controller The controller instance
  * @param request Empty request object
- * @returns Response containing Vercel AI Gateway models (protobuf types)
+ * @returns Response containing Helicone models (protobuf types)
  */
 export async function refreshHeliconeModelsRpc(
 	controller: Controller,
