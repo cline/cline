@@ -572,6 +572,7 @@ export class TelemetryService {
 	 * @param provider The API provider (e.g., OpenAI, Anthropic)
 	 * @param model The specific model used (e.g., GPT-4, Claude)
 	 * @param source The source of the message ("user" | "model"). Used to track message patterns and identify when users need to correct the model's responses.
+	 * @param mode The mode in which the conversation turn occurred ("plan" or "act")
 	 * @param tokenUsage Optional token usage data
 	 */
 	public captureConversationTurnEvent(
@@ -579,6 +580,7 @@ export class TelemetryService {
 		provider: string = "unknown",
 		model: string = "unknown",
 		source: "user" | "assistant",
+		mode: Mode,
 		tokenUsage: {
 			tokensIn?: number
 			tokensOut?: number
@@ -600,6 +602,7 @@ export class TelemetryService {
 				provider,
 				model,
 				source,
+				mode,
 				timestamp: new Date().toISOString(), // Add timestamp for message sequencing
 				...tokenUsage,
 			},
@@ -644,15 +647,23 @@ export class TelemetryService {
 	 * Records when context summarization is triggered due to context window pressure
 	 * @param ulid Unique identifier for the task
 	 * @param modelId The model that triggered summarization
+	 * @param provider The API provider being used
 	 * @param currentTokens Total tokens in context window when summarization was triggered
 	 * @param maxContextWindow Maximum context window size for the model
 	 */
-	public captureSummarizeTask(ulid: string, modelId: string, currentTokens: number, maxContextWindow: number) {
+	public captureSummarizeTask(
+		ulid: string,
+		modelId: string,
+		provider: string,
+		currentTokens: number,
+		maxContextWindow: number,
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.AUTO_COMPACT,
 			properties: {
 				ulid,
 				modelId,
+				provider,
 				currentTokens,
 				maxContextWindow,
 			},
@@ -1086,12 +1097,16 @@ export class TelemetryService {
 	 * @param totalItems Total number of items in the focus chain list
 	 * @param completedItems Number of completed items
 	 * @param incompleteItems Number of incomplete items
+	 * @param modelId The model ID being used
+	 * @param provider The API provider being used
 	 */
 	public captureFocusChainIncompleteOnCompletion(
 		ulid: string,
 		totalItems: number,
 		completedItems: number,
 		incompleteItems: number,
+		modelId: string,
+		provider: string,
 	) {
 		if (!this.isCategoryEnabled("focus_chain")) {
 			return
@@ -1105,6 +1120,8 @@ export class TelemetryService {
 				completedItems,
 				incompleteItems,
 				completionPercentage: totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0,
+				modelId,
+				provider,
 			},
 		})
 	}
