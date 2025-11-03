@@ -63,8 +63,18 @@ vim .clinerules/hooks/TaskStart
 Add your script (must start with shebang)
 ``` bash
 #!/usr/bin/env bash
-echo 'Hello World'
+
+# Store piped input into a variable
+input=$(cat)
+
+# Dump the entire JSON payload
+echo $input | jq .
+
+# Get the type of a field
+echo "$input" | jq -r '.timestamp | type'
 ```
+
+This example script demonstrates the key mechanics of hook input/output: reading the JSON payload from stdin with `input=$(cat)`, and using `jq` to inspect the data structure and field types that your hook receives. This helps you understand what data is available before building more complex hook logic.
 
 #### Make it executable
 
