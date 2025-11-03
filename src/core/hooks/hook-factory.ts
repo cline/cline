@@ -241,7 +241,7 @@ export type HookStreamCallback = (line: string, stream: "stdout" | "stderr") => 
  *
  * @template Name The type of hook this runner represents
  */
-class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
+export class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 	constructor(
 		hookName: Name,
 		public readonly scriptPath: string,

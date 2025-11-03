@@ -88,6 +88,9 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 		// Add small delay to ensure different timestamps even on fast systems
 		await new Promise((resolve) => setTimeout(resolve, 1))
 
+		// Log for debugging
+		console.log(`[Hook ${hookName}] Created message ts=${hookMessageTs} for ${scriptPath}`)
+
 		// Now start the hook execution (don't await - let them run in parallel)
 		const execution = executeIndividualHook({
 			scriptPath,
@@ -175,7 +178,6 @@ async function executeIndividualHook<Name extends keyof Hooks>(params: {
 
 	let hookMessageTs: number | undefined = providedHookMessageTs
 	const abortController = new AbortController()
-	const hookFactory = new HookFactory()
 
 	try {
 		// Only create hook message if not already created
@@ -201,23 +203,20 @@ async function executeIndividualHook<Name extends keyof Hooks>(params: {
 			})
 		}
 
-		// Create streaming callback for this specific hook
-		// Link hook_output messages to their parent hook message via timestamp
+		// Create dedicated output channel for this hook (pub-sub architecture)
+		// The channel handles routing outputs to the correct hook message
+		const outputChannel = new (await import("./HookOutputChannel")).HookOutputChannel(hookMessageTs!, say)
+
+		// Create streaming callback that publishes to the channel
+		// Channel internally handles the timestamp prefixing for routing
 		const streamCallback: HookStreamCallback = async (line: string) => {
-			if (hookMessageTs !== undefined) {
-				// Include parent timestamp in the text so combineHookSequences can group correctly
-				await say("hook_output", `${hookMessageTs}:${line}`)
-			} else {
-				await say("hook_output", line)
-			}
+			await outputChannel.publish(line)
 		}
 
-		// Create and execute this specific hook
-		const hook = await hookFactory.createWithStreaming(
-			hookName,
-			streamCallback,
-			isCancellable ? abortController.signal : undefined,
-		)
+		// Create runner directly for THIS SPECIFIC SCRIPT ONLY
+		// Don't use createWithStreaming() as it rediscovers all scripts!
+		const { StdioHookRunner } = await import("./hook-factory")
+		const hook = new StdioHookRunner(hookName, scriptPath, streamCallback, isCancellable ? abortController.signal : undefined)
 
 		const result = await hook.run({
 			taskId,

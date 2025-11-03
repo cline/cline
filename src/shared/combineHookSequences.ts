@@ -67,16 +67,27 @@ function filterPartialToolMessages(messages: ClineMessage[]): ClineMessage[] {
 }
 
 /**
- * Combines a single hook message with all subsequent hook_output messages.
+ * Combines a single hook message with all hook_output messages routed to it.
  *
- * Hook output messages are now prefixed with their parent hook's timestamp in the format:
- * `${parentTs}:${actualOutput}`
+ * Architecture: Pub-Sub Output Routing
+ * ------------------------------------
+ * Each hook execution gets a dedicated HookOutputChannel that handles routing.
+ * The channel automatically prefixes outputs with the hook's timestamp:
+ * `${hookTimestamp}:${actualOutput}`
  *
- * This allows multiple hooks running in parallel to have separate output streams.
+ * This function trusts the channel's routing and matches outputs by timestamp prefix.
+ * Since channels ensure correct routing, we can scan all messages without worrying
+ * about arrival order - each output is guaranteed to have the correct prefix.
  *
- * @param hookMessage The hook message to start combining from
+ * Benefits:
+ * - Explicit routing via channels (not implicit post-hoc matching)
+ * - Order-independent (outputs can arrive in any sequence)
+ * - Type-safe (channels enforce correct hook-output relationships)
+ * - Timestamps preserved for message identity
+ *
+ * @param hookMessage The hook message to combine with its outputs
  * @param startIndex The index of the hook message in the messages array
- * @param messages The full messages array
+ * @param messages The full messages array (scanned completely for this hook's outputs)
  * @returns Object containing the combined message and the next index to process
  */
 function combineHookWithOutputs(
@@ -89,13 +100,14 @@ function combineHookWithOutputs(
 	const hookTs = hookMessage.ts
 	let i = startIndex + 1
 
-	// Debug logging
-	console.log(`[combineHook] Processing hook at index ${startIndex}, ts=${hookTs}`)
+	// Scan all remaining messages for outputs routed to this hook
+	// Since HookOutputChannel routes via timestamp prefix, we can trust the routing
+	// and don't need to worry about message order
+	console.log(`[combineHookWithOutputs] Scanning ${messages.length - i} messages for hook ts=${hookTs}`)
 	let matchedCount = 0
 	let skippedCount = 0
 
-	// Collect all hook_output messages until we hit another hook or end of array
-	while (i < messages.length && messages[i].say !== "hook") {
+	while (i < messages.length) {
 		if (messages[i].say === "hook_output") {
 			const outputText = messages[i].text || ""
 
@@ -109,22 +121,24 @@ function combineHookWithOutputs(
 				const parentTsStr = outputText.substring(0, colonIndex)
 				const parsedParentTs = parseInt(parentTsStr, 10)
 
-				console.log(`[combineHook]   Output has prefix ${parsedParentTs}, comparing to hook ts ${hookTs}`)
-
 				if (!isNaN(parsedParentTs) && parsedParentTs === hookTs) {
-					// This output belongs to this hook
+					// This output belongs to this hook (routed by HookOutputChannel)
 					belongsToThisHook = true
 					actualOutput = outputText.substring(colonIndex + 1)
 					matchedCount++
+					console.log(
+						`[combineHookWithOutputs]   ✓ Matched: "${actualOutput.substring(0, 30)}..." (prefix=${parsedParentTs})`,
+					)
 				} else {
 					skippedCount++
+					console.log(`[combineHookWithOutputs]   ✗ Skipped: prefix=${parsedParentTs} != ${hookTs}`)
 				}
 			} else {
-				// No parent timestamp prefix - legacy format, include for backward compatibility
-				// This handles old hook_output messages that don't have the parent ts prefix
+				// No parent timestamp prefix - legacy format
+				// For backward compatibility, include all non-prefixed outputs in first hook
 				belongsToThisHook = true
-				console.log(`[combineHook]   Output has no prefix (legacy format), including`)
 				matchedCount++
+				console.log(`[combineHookWithOutputs]   ✓ Legacy format (no prefix)`)
 			}
 
 			if (belongsToThisHook) {
@@ -143,7 +157,7 @@ function combineHookWithOutputs(
 		i++
 	}
 
-	console.log(`[combineHook] Finished: matched ${matchedCount} outputs, skipped ${skippedCount}`)
+	console.log(`[combineHookWithOutputs] Hook ${hookTs}: matched=${matchedCount}, skipped=${skippedCount}`)
 
 	return {
 		combined: { ...hookMessage, text: combinedText },
@@ -164,9 +178,9 @@ function combineAllHooks(messages: ClineMessage[]): ClineMessage[] {
 
 	for (let i = 0; i < messages.length; i++) {
 		if (messages[i].say === "hook") {
-			const { combined, nextIndex } = combineHookWithOutputs(messages[i], i, messages)
+			const { combined } = combineHookWithOutputs(messages[i], i, messages)
 			combinedHooksByTs.set(combined.ts, combined)
-			i = nextIndex - 1 // Adjust for loop increment
+			// Don't skip ahead - each hook independently scans all messages
 		}
 	}
 
