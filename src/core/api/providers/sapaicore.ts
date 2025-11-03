@@ -571,6 +571,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 
 		const anthropicModels = [
+			"anthropic--claude-4.5-sonnet",
 			"anthropic--claude-4-sonnet",
 			"anthropic--claude-4-opus",
 			"anthropic--claude-3.7-sonnet",
@@ -615,6 +616,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
 			if (
+				model.id === "anthropic--claude-4.5-sonnet" ||
 				model.id === "anthropic--claude-4-sonnet" ||
 				model.id === "anthropic--claude-4-opus" ||
 				model.id === "anthropic--claude-3.7-sonnet"
@@ -726,6 +728,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			} else if (openAIModels.includes(model.id)) {
 				yield* this.streamCompletionGPT(response.data, model)
 			} else if (
+				model.id === "anthropic--claude-4.5-sonnet" ||
 				model.id === "anthropic--claude-4-sonnet" ||
 				model.id === "anthropic--claude-4-opus" ||
 				model.id === "anthropic--claude-3.7-sonnet"

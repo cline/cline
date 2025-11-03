@@ -208,9 +208,9 @@ func listLogFiles(logsDir string) ([]logFileInfo, error) {
 		})
 	}
 
-	// Sort by created time (newest first)
+	// Sort by created time (oldest first)
 	sort.Slice(logs, func(i, j int) bool {
-		return logs[i].created.After(logs[j].created)
+		return logs[i].created.Before(logs[j].created)
 	})
 
 	return logs, nil

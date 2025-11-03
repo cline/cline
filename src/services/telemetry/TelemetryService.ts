@@ -684,6 +684,7 @@ export class TelemetryService {
 	 * @param ulid Unique identifier for the task
 	 * @param tool Name of the tool being used
 	 * @param modelId The model ID being used
+	 * @param provider The API provider being used
 	 * @param autoApproved Whether the tool was auto-approved based on settings
 	 * @param success Whether the tool execution was successful
 	 * @param workspaceContext Optional workspace context for multi-root workspace tracking
@@ -692,6 +693,7 @@ export class TelemetryService {
 		ulid: string,
 		tool: string,
 		modelId: string,
+		provider: string,
 		autoApproved: boolean,
 		success: boolean,
 		workspaceContext?: {
@@ -709,6 +711,7 @@ export class TelemetryService {
 				autoApproved,
 				success,
 				modelId,
+				provider,
 				// Workspace context (optional)
 				...(workspaceContext && {
 					workspace_multi_root_enabled: workspaceContext.isMultiRootEnabled,
@@ -782,15 +785,18 @@ export class TelemetryService {
 	/**
 	 * Records when a diff edit (replace_in_file) operation fails
 	 * @param ulid Unique identifier for the task
+	 * @param modelId The model ID being used
+	 * @param provider The API provider being used
 	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
 	 */
-	public captureDiffEditFailure(ulid: string, modelId: string, errorType?: string) {
+	public captureDiffEditFailure(ulid: string, modelId: string, provider: string, errorType?: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.DIFF_EDIT_FAILED,
 			properties: {
 				ulid,
 				errorType,
 				modelId,
+				provider,
 			},
 		})
 	}
