@@ -442,35 +442,29 @@ export class Controller {
 				console.error("Failed to abort task", error)
 			}
 
-			// If already waiting at resume button, skip re-initialization
-			if (abortResult?.waitingAtResumeButton) {
-				console.log(`[Controller.cancelTask] Task already showing resume button, skipping re-initialization`)
-				await this.postStateToWebview()
-				return
+			// Note: If waitingAtResumeButton is true, user clicked resume and task is ready to proceed
+			// Otherwise, we need to do cleanup before re-initializing
+
+			if (!abortResult?.waitingAtResumeButton) {
+				await pWaitFor(
+					() =>
+						this.task === undefined ||
+						this.task.taskState.isStreaming === false ||
+						this.task.taskState.didFinishAbortingStream ||
+						this.task.taskState.isWaitingForFirstChunk,
+					{
+						timeout: 3_000,
+					},
+				).catch(() => {
+					console.error("Failed to abort task")
+				})
+
+				if (this.task) {
+					this.task.taskState.abandoned = true
+				}
 			}
 
-			await pWaitFor(
-				() =>
-					this.task === undefined ||
-					this.task.taskState.isStreaming === false ||
-					this.task.taskState.didFinishAbortingStream ||
-					this.task.taskState.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
-				{
-					timeout: 3_000,
-				},
-			).catch(() => {
-				console.error("Failed to abort task")
-			})
-
-			if (this.task) {
-				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
-				this.task.taskState.abandoned = true
-			}
-
-			// Small delay to ensure state manager has persisted the history update
-			//await new Promise((resolve) => setTimeout(resolve, 100))
-
-			// NOW try to get history after abort has finished (hook may have saved messages)
+			// Get history and re-initialize task
 			let historyItem: HistoryItem | undefined
 			try {
 				const result = await this.getTaskWithId(this.task.taskId)

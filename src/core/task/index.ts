@@ -1456,6 +1456,29 @@ export class Task {
 					// Skip cleanup to keep task in resumable state
 					// Controller.cancelTask() will see waitingAtResumeButton=true and skip re-init
 					skipCleanup = true
+
+					// Reset abort flag BEFORE presenting resume button
+					// This is critical - without this, clicking resume will immediately fail
+					// because the task is still marked as aborted
+					this.taskState.abort = false
+
+					// Present resume button after successful TaskCancel hook
+					const lastClineMessage = this.messageStateHandler
+						.getClineMessages()
+						.slice()
+						.reverse()
+						.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"))
+
+					let askType: ClineAsk
+					if (lastClineMessage?.ask === "completion_result") {
+						askType = "resume_completed_task"
+					} else {
+						askType = "resume_task"
+					}
+
+					// Present the resume ask and wait for the user to click it
+					// This prevents the execution from continuing before the user is ready
+					await this.ask(askType)
 				} catch (error) {
 					// TaskCancel hook failed - non-fatal, just log
 					console.error("[TaskCancel Hook] Failed (non-fatal):", error)
