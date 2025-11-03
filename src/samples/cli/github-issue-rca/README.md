@@ -2,17 +2,24 @@
 
 Automated GitHub issue analysis using Cline CLI. This script uses Cline's autonomous AI capabilities to fetch, analyze, and identify root causes of GitHub issues, outputting clean, parseable results that can be easily integrated into your development workflows.
 
+> [!NOTE]
+> **New to Cline CLI?** This sample assumes you have already completed the [Installation Guide](https://docs.cline.bot/cline-cli/installation) and authenticated with `cline auth`. If you haven't set up Cline CLI yet, please start there first.
+
 <img src="https://storage.googleapis.com/cline_public_images/cli-rca.gif" alt="CLI Root Cause Analysis Demo" width="600">
 
 ## Prerequisites
 
-Before using this sample, ensure you have:
+This sample assumes you have already:
 
-- **Cline CLI** installed and configured ([Installation Guide](https://docs.cline.bot/cline-cli/installation))
+- **Cline CLI** installed and authenticated ([Installation Guide](https://docs.cline.bot/cline-cli/installation))
+- **At least one AI model provider** configured (e.g., OpenRouter, Anthropic, OpenAI)
+- **Basic familiarity** with Cline CLI commands
+
+Additionally, you'll need:
+
 - **GitHub CLI** (`gh`) installed and authenticated
 - **jq** installed for JSON parsing
 - **bash** shell (or compatible shell)
-- Basic understanding of command-line scripting, JSON data structures, and GitHub issues
 
 ### Installation Instructions
 

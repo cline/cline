@@ -3,6 +3,9 @@
 Automatically respond to GitHub issues by mentioning `@cline` in comments using
 Cline CLI in GitHub Actions.
 
+> [!NOTE]
+> **New to Cline CLI?** This sample assumes you understand Cline CLI basics and have completed the [Installation Guide](https://docs.cline.bot/cline-cli/installation). If you're new to Cline CLI, we recommend starting with the [GitHub RCA sample](../github-issue-rca) first, as it's simpler and will help you understand the fundamentals before setting up GitHub Actions.
+
 The goal is to go from a comment on an issue like this:
 
 ![alt text](readme/ss0a-comment.png)
@@ -13,6 +16,15 @@ And ask Cline to provide his thoughts like this:
 
 Let's get this set up!
 
+## Prerequisites
+
+This sample assumes you have:
+
+- **Cline CLI knowledge** - Completed the [Installation Guide](https://docs.cline.bot/cline-cli/installation) and understand basic usage
+- **GitHub repository** - With admin access to configure Actions and secrets
+- **GitHub Actions familiarity** - Basic understanding of workflows and CI/CD
+- **API provider account** - OpenRouter, Anthropic, or similar with API key
+
 ## Setup
 
 ### 1. Copy the Workflow File
@@ -22,18 +34,32 @@ Copy the workflow file from this sample to your repository:
 ```bash
 # In your repository root
 mkdir -p .github/workflows
-cp path/to/cline-responder.yml .github/workflows/
+curl -o .github/workflows/cline-responder.yml https://raw.githubusercontent.com/cline/cline/main/src/samples/cli/github-integration/cline-responder.yml
 ```
 
-Edit the `GITORG` and `GITREPO` variables in the "Download analyze script"
-script so that your github action downloads the script it executes from the
-correct spot.
+> [!IMPORTANT]
+> **You MUST edit the workflow file before committing!**
+> 
+> Open `.github/workflows/cline-responder.yml` and update the "Download analyze script" step:
+> 
+> ```yaml
+> export GITORG="YOUR-GITHUB-ORG"      # Change this!
+> export GITREPO="YOUR-GITHUB-REPO"    # Change this!
+> ```
+> 
+> **Example:** If your repository is `github.com/acme/myproject`, set:
+> ```yaml
+> export GITORG="acme"
+> export GITREPO="myproject"
+> ```
+> 
+> This tells the workflow where to download the analysis script from your repository after you commit it in step 3.
 
-The workflow will look for new or updated issues, check for `@cline` and then
+The workflow will look for new or updated issues, check for `@cline` mentions, and then
 start up an instance of the Cline CLI to dig into the issue, providing feedback
 as a reply to the issue.
 
-**Important**: The workflow file **must** be placed in `.github/workflows/`
+**Note**: The workflow file **must** be placed in `.github/workflows/`
 directory in your repository root for GitHub Actions to detect and run it.
 
 ### 2. Configure API Keys
@@ -61,16 +87,31 @@ Add your AI provider API keys as repository secrets:
 Now you're ready to supply Cline with the credentials it needs in a github
 action.
 
-### 3. Copy Analysis Script
+### 3. Add Analysis Script
 
-Copy the analysis script from this `github-issue-rca` sample to your repository:
+Add the analysis script from the `github-issue-rca` sample to your repository. Choose one of these options:
+
+**Option A: Download directly (Recommended)**
 
 ```bash
 # In your repository root
-mkdir git-scripts
-cp path/to/analyze-issue.sh git-scripts/
+mkdir -p git-scripts
+curl -o git-scripts/analyze-issue.sh https://raw.githubusercontent.com/cline/cline/main/src/samples/cli/github-issue-rca/analyze-issue.sh
+chmod +x git-scripts/analyze-issue.sh
 ```
-This analysis script will call Cline to execute a prompt on a github issue,
+
+**Option B: Copy from local Cline repository**
+
+If you have the Cline repository cloned locally:
+
+```bash
+# In your repository root
+mkdir -p git-scripts
+cp /path/to/cline/src/samples/cli/github-issue-rca/analyze-issue.sh git-scripts/
+chmod +x git-scripts/analyze-issue.sh
+```
+
+This analysis script calls Cline to execute a prompt on a GitHub issue,
 summarizing the output to populate the reply to the issue.
 
 ### 4. Commit and Push
