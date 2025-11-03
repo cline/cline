@@ -209,9 +209,6 @@ async function readHeliconeModels(): Promise<Record<string, ModelInfo> | undefin
 		try {
 			const fileContents = await fs.readFile(modelsFilePath, "utf8")
 			const parsed = JSON.parse(fileContents)
-			try {
-				/* noop */
-			} catch {}
 			return parsed
 		} catch (error) {
 			console.error("Error reading cached Helicone models:", error)
