@@ -167,9 +167,15 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "minimax", label: "MiniMax" },
 		]
 
+		// Filter by platform
 		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
 			// Don't include VS Code LM API for non-VSCode platforms
 			providers = providers.filter((option) => option.value !== "vscode-lm")
+		}
+
+		// Filter by remote config if remoteConfiguredProviders is set
+		if (remoteConfigSettings?.remoteConfiguredProviders && remoteConfigSettings.remoteConfiguredProviders.length > 0) {
+			providers = providers.filter((option) => remoteConfigSettings.remoteConfiguredProviders!.includes(option.value))
 		}
 
 		return providers
@@ -298,7 +304,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				`}
 			</style>
 			<DropdownContainer className="dropdown-container">
-				{remoteConfigSettings?.planModeApiProvider !== undefined ? (
+				{remoteConfigSettings?.remoteConfiguredProviders && remoteConfigSettings.remoteConfiguredProviders.length > 0 ? (
 					<Tooltip>
 						<TooltipTrigger>
 							<div className="flex items-center gap-2 mb-1">
@@ -308,7 +314,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 								<i className="codicon codicon-lock text-description text-sm" />
 							</div>
 						</TooltipTrigger>
-						<TooltipContent>This setting is managed by your organization's remote configuration</TooltipContent>
+						<TooltipContent>Provider options are managed by your organization's remote configuration</TooltipContent>
 					</Tooltip>
 				) : (
 					<label htmlFor="api-provider">
@@ -318,7 +324,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 				<ProviderDropdownWrapper ref={dropdownRef}>
 					<VSCodeTextField
 						data-testid="provider-selector-input"
-						disabled={remoteConfigSettings?.planModeApiProvider !== undefined}
 						id="api-provider"
 						onFocus={() => {
 							setIsDropdownVisible(true)

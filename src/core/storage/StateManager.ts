@@ -37,7 +37,7 @@ export class StateManager {
 
 	private globalStateCache: GlobalStateAndSettings = {} as GlobalStateAndSettings
 	private taskStateCache: Partial<Settings> = {}
-	private remoteConfigCache: Partial<GlobalStateAndSettings> = {} as GlobalStateAndSettings
+	private remoteConfigCache: Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] } = {}
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
 	private context: ExtensionContext
@@ -324,10 +324,10 @@ export class StateManager {
 	}
 
 	/**
-	 * Set method for remote config field - updates cache immediately (no persistence)
+	 * Get method for remote config settings - returns cache immediately (no persistence)
 	 * Remote config is read-only from the extension's perspective and only stored in memory
 	 */
-	getRemoteConfigSettings(): Partial<GlobalStateAndSettings> {
+	getRemoteConfigSettings(): Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] } {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
@@ -728,7 +728,9 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		if (this.remoteConfigCache[key] !== undefined) {
-			return this.remoteConfigCache[key]
+			// type casting here, TS cannot infer that the key will ONLY be one of Settings
+
+			return this.remoteConfigCache[key] as Settings[K]
 		}
 		if (this.taskStateCache[key] !== undefined) {
 			return this.taskStateCache[key]
@@ -744,7 +746,8 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		if (this.remoteConfigCache[key] !== undefined) {
-			return this.remoteConfigCache[key]
+			// type casting here, TS cannot infer that the key will ONLY be one of GlobalState
+			return this.remoteConfigCache[key] as GlobalState[K]
 		}
 		return this.globalStateCache[key]
 	}
