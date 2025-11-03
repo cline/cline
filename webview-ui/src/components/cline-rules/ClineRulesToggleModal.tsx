@@ -202,11 +202,9 @@ const ClineRulesToggleModal: React.FC = () => {
 						<VSCodeButton
 							appearance="icon"
 							aria-label={isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows"}
-							className="flex items-center"
+							className="p-0 m-0 flex items-center"
 							onClick={() => setIsVisible(!isVisible)}>
-							<div className="flex items-center text-xs w-full cursor-pointer">
-								<i className="codicon codicon-law" style={{ fontSize: "14px" }} />
-							</div>
+							<i className="codicon codicon-law" style={{ fontSize: "12.5px" }} />
 						</VSCodeButton>
 					</TooltipTrigger>
 				</Tooltip>
@@ -214,7 +212,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 			{isVisible && (
 				<div
-					className="fixed left-[15px] right-[15px] border border-(--vscode-editorGroup-border) p-3 rounded z-1000 overflow-y-auto"
+					className="fixed left-[15px] right-[15px] border border-editor-group-border p-3 rounded z-1000 overflow-visible"
 					style={{
 						bottom: `calc(100vh - ${menuPosition}px + 6px)`,
 						background: CODE_BLOCK_BG_COLOR,
@@ -222,7 +220,7 @@ const ClineRulesToggleModal: React.FC = () => {
 						overscrollBehavior: "contain",
 					}}>
 					<div
-						className="fixed w-[10px] h-[10px] z-[-1] rotate-45 border-r border-b border-(--vscode-editorGroup-border)"
+						className="fixed h-2.5 w-2.5 z-[-1] rotate-45 border-r border-b border-editor-group-border overflow-y-scroll"
 						style={{
 							bottom: `calc(100vh - ${menuPosition}px)`,
 							right: arrowPosition,
