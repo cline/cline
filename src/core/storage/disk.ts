@@ -108,16 +108,14 @@ export async function ensureMcpServersDirectoryExists(): Promise<string> {
 }
 
 export async function ensureHooksDirectoryExists(): Promise<string> {
-	const rulesDir = await ensureRulesDirectoryExists()
-	const clineHooksDir = path.join(rulesDir, "Hooks")
+	const userDocumentsPath = await getDocumentsPath()
+	const clineHooksDir = path.join(userDocumentsPath, "Cline", "Hooks")
 	try {
 		await fs.mkdir(clineHooksDir, { recursive: true })
-		return clineHooksDir
 	} catch (_error) {
-		// If mkdir fails, return a fallback path based on the Rules directory fallback
-		// This matches the pattern of other ensure*DirectoryExists functions
-		return path.join(rulesDir, "Hooks")
+		return path.join(os.homedir(), "Documents", "Cline", "Hooks") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
 	}
+	return clineHooksDir
 }
 
 export async function ensureSettingsDirectoryExists(): Promise<string> {
