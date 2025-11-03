@@ -34,7 +34,7 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 	await apiKeyInput.fill("test-api-key")
 	await expect(apiKeyInput).toHaveValue("test-api-key")
 	await apiKeyInput.click({ delay: 100 })
-	await sidebar.getByRole("button", { name: "Continue" }).dblclick()
+	await sidebar.getByRole("button", { name: "Continue" }).click()
 
 	await expect(sidebar.getByRole("button", { name: "Login to Cline" })).not.toBeVisible()
 
