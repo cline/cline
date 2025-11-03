@@ -125,7 +125,7 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 							}
 						}}
 						onClick={() => onSelectModel("")}
-						placeholder="e.g. 'opus', '4o', 'gemini-2.5' etc."
+						placeholder="Search model..."
 						type="search"
 						value={searchTerm}
 					/>
