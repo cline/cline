@@ -16,20 +16,20 @@ export const STEP_CONFIG = {
 		description: "Select an option below to get started.",
 		buttons: [
 			{ text: "Continue", action: "next", variant: "default" },
-			{ text: "Login to Cline", action: "auth", variant: "secondary" },
+			{ text: "Login to Cline", action: "signin", variant: "secondary" },
 		],
 	},
 	[NEW_USER_TYPE.FREE]: {
 		title: "Select a free model",
 		buttons: [
-			{ text: "Create my Account", action: "auth", variant: "default" },
+			{ text: "Create my Account", action: "signup", variant: "default" },
 			{ text: "Back", action: "back", variant: "secondary" },
 		],
 	},
 	[NEW_USER_TYPE.POWER]: {
 		title: "Select your model",
 		buttons: [
-			{ text: "Create my Account", action: "auth", variant: "default" },
+			{ text: "Create my Account", action: "signup", variant: "default" },
 			{ text: "Back", action: "back", variant: "secondary" },
 		],
 	},
@@ -39,6 +39,11 @@ export const STEP_CONFIG = {
 			{ text: "Continue", action: "done", variant: "default" },
 			{ text: "Back", action: "back", variant: "secondary" },
 		],
+	},
+	2: {
+		title: "Almost there!",
+		description: "Complete account creation in your browser. Then come back here to finish up.",
+		buttons: [{ text: "Back", action: "back", variant: "secondary" }],
 	},
 } as const
 

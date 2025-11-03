@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { StateServiceClient } from "@/services/grpc-client"
 import Section from "../Section"
 
 interface DebugSectionProps {
@@ -24,7 +25,13 @@ const DebugSection = ({ onResetState, renderSectionHeader }: DebugSectionProps) 
 				</p>
 			</Section>
 			<Section>
-				<Button onClick={() => setShowWelcome(true)} variant="secondary">
+				<Button
+					onClick={async () =>
+						await StateServiceClient.setWelcomeViewCompleted({ value: false })
+							.catch(() => {})
+							.finally(() => setShowWelcome(true))
+					}
+					variant="secondary">
 					Reset Onboarding State
 				</Button>
 			</Section>

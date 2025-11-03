@@ -320,6 +320,8 @@ export const ExtensionStateContextProvider: React.FC<{
 							// Update welcome screen state based on API configuration if welcome view not in progress
 							if (!newState.welcomeViewCompleted && !showWelcome) {
 								setShowWelcome(true)
+							} else if (newState.welcomeViewCompleted) {
+								setShowWelcome(false)
 							}
 							setDidHydrateState(true)
 

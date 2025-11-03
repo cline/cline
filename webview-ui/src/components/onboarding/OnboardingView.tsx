@@ -1,6 +1,5 @@
 import type { ModelInfo } from "@shared/api"
-import { BooleanRequest } from "@shared/proto/index.cline"
-import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, StarIcon, ZapIcon } from "lucide-react"
+import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, StarIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { Badge } from "@/components/ui/badge"
@@ -9,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 import {
@@ -209,11 +208,9 @@ const OnboardingStepContent = ({
 	if (step === 0) {
 		return <UserTypeSelectionStep onSelectUserType={onSelectUserType} userType={userType} />
 	}
-
-	if (userType === NEW_USER_TYPE.BYOK) {
-		return <ApiConfigurationSection />
+	if (step === 2) {
+		return null
 	}
-
 	if (userType === NEW_USER_TYPE.FREE || userType === NEW_USER_TYPE.POWER) {
 		return (
 			<ModelSelection
@@ -226,13 +223,13 @@ const OnboardingStepContent = ({
 			/>
 		)
 	}
-
-	return null
+	// userType === NEW_USER_TYPE.BYOK
+	return <ApiConfigurationSection />
 }
 
 const OnboardingView = () => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
+	const { openRouterModels, hideSettings, hideAccount } = useExtensionState()
 
 	const [stepNumber, setStepNumber] = useState(0)
 	const [userType, setUserType] = useState<NEW_USER_TYPE>(NEW_USER_TYPE.FREE)
@@ -261,14 +258,17 @@ const OnboardingView = () => {
 		}
 		hideAccount()
 		hideSettings()
-		await StateServiceClient.setWelcomeViewCompleted(BooleanRequest.create({ value: true })).catch(() => {})
-		setShowWelcome(false)
-	}, [hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels, setShowWelcome])
+	}, [hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels])
 
 	const handleFooterAction = useCallback(
-		async (action: "auth" | "next" | "back" | "done") => {
+		async (action: "signin" | "next" | "back" | "done" | "signup") => {
 			switch (action) {
-				case "auth":
+				case "signup":
+					setStepNumber(stepNumber + 1)
+					await AccountServiceClient.accountLoginClicked({}).catch(() => {})
+					await finishOnboarding()
+					break
+				case "signin":
 					await AccountServiceClient.accountLoginClicked({}).catch(() => {})
 					await finishOnboarding()
 					break
@@ -287,10 +287,10 @@ const OnboardingView = () => {
 	)
 
 	const stepDisplayInfo = useMemo(() => {
-		const title = stepNumber === 0 ? STEP_CONFIG[0].title : userType ? STEP_CONFIG[userType].title : STEP_CONFIG[0].title
-		const description = stepNumber === 0 ? STEP_CONFIG[0].description : null
-		const buttons =
-			stepNumber === 0 ? STEP_CONFIG[0].buttons : userType ? STEP_CONFIG[userType].buttons : STEP_CONFIG[0].buttons
+		const step = stepNumber === 0 || stepNumber === 2 ? STEP_CONFIG[stepNumber] : null
+		const title = step ? step.title : userType ? STEP_CONFIG[userType].title : STEP_CONFIG[0].title
+		const description = step ? step.description : null
+		const buttons = step ? step.buttons : userType ? STEP_CONFIG[userType].buttons : STEP_CONFIG[0].buttons
 		return { title, description, buttons }
 	}, [stepNumber, userType])
 
@@ -299,6 +299,11 @@ const OnboardingView = () => {
 			<div className="h-full px-5 xs:mx-10 overflow-auto flex flex-col gap-7 items-center justify-center mt-10">
 				<ClineLogoWhite className="size-16" />
 				<h2 className="text-lg font-semibold p-0">{stepDisplayInfo.title}</h2>
+				{stepNumber === 2 && (
+					<div className="flex w-full max-w-lg flex-col gap-6 my-4 items-center ">
+						<LoaderCircleIcon className="animate-spin" />
+					</div>
+				)}
 				{stepDisplayInfo.description && (
 					<p className="text-foreground text-sm text-center m-0 p-0">{stepDisplayInfo.description}</p>
 				)}
@@ -327,9 +332,11 @@ const OnboardingView = () => {
 						</Button>
 					))}
 
-					<div className="items-center justify-center flex text-sm text-foreground gap-2 mb-3 text-pretty">
-						<AlertCircleIcon className="shrink-0 size-2" /> You can change this later in settings
-					</div>
+					{stepNumber !== 2 && (
+						<div className="items-center justify-center flex text-sm text-foreground gap-2 mb-3 text-pretty">
+							<AlertCircleIcon className="shrink-0 size-2" /> You can change this later in settings
+						</div>
+					)}
 				</footer>
 			</div>
 		</div>
