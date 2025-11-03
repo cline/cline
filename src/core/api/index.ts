@@ -15,6 +15,7 @@ import { DoubaoHandler } from "./providers/doubao"
 import { FireworksHandler } from "./providers/fireworks"
 import { GeminiHandler } from "./providers/gemini"
 import { GroqHandler } from "./providers/groq"
+import { HeliconeHandler } from "./providers/helicone"
 import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
 import { HuggingFaceHandler } from "./providers/huggingface"
 import { LiteLlmHandler } from "./providers/litellm"
@@ -369,6 +370,13 @@ function createHandlerForProvider(
 					mode === "plan" ? options.planModeVercelAiGatewayModelId : options.actModeVercelAiGatewayModelId,
 				vercelAiGatewayModelInfo:
 					mode === "plan" ? options.planModeVercelAiGatewayModelInfo : options.actModeVercelAiGatewayModelInfo,
+			})
+		case "helicone":
+			return new HeliconeHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				heliconeApiKey: options.heliconeApiKey,
+				heliconeModelId: mode === "plan" ? options.planModeHeliconeModelId : options.actModeHeliconeModelId,
+				heliconeModelInfo: mode === "plan" ? options.planModeHeliconeModelInfo : options.actModeHeliconeModelInfo,
 			})
 		case "zai":
 			return new ZAiHandler({

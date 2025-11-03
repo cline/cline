@@ -30,6 +30,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "helicone":
+				if (!apiConfiguration.heliconeApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "vertex":
 				if (!apiConfiguration.vertexProjectId || !apiConfiguration.vertexRegion) {
 					return "You must provide a valid Google Cloud Project ID and Region."

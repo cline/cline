@@ -7,6 +7,7 @@ import type { Controller } from "../index"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
 import { refreshGroqModels } from "../models/refreshGroqModels"
+import { refreshHeliconeModels } from "../models/refreshHeliconeModels"
 import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
 import { refreshVercelAiGatewayModels } from "../models/refreshVercelAiGatewayModels"
 import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
@@ -188,6 +189,39 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 					}
 
 					// Post state update if we updated any model info
+					if (Object.keys(updates).length > 0) {
+						controller.stateManager.setGlobalStateBatch(updates)
+						await controller.postStateToWebview()
+					}
+				}
+			}
+		})
+
+		// Refresh Helicone models from API
+		refreshHeliconeModels(controller).then(async (models) => {
+			if (models && Object.keys(models).length > 0) {
+				const apiConfiguration = controller.stateManager.getApiConfiguration()
+				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
+				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
+
+				if (planActSeparateModelsSetting) {
+					const modelIdField = currentMode === "plan" ? "planModeHeliconeModelId" : "actModeHeliconeModelId"
+					const modelInfoField = currentMode === "plan" ? "planModeHeliconeModelInfo" : "actModeHeliconeModelInfo"
+					const modelId = (apiConfiguration as any)[modelIdField]
+					if (modelId && models[modelId]) {
+						controller.stateManager.setGlobalState(modelInfoField as any, models[modelId])
+						await controller.postStateToWebview()
+					}
+				} else {
+					const planModelId = (apiConfiguration as any).planModeHeliconeModelId
+					const actModelId = (apiConfiguration as any).actModeHeliconeModelId
+					const updates: any = {}
+					if (planModelId && models[planModelId]) {
+						updates.planModeHeliconeModelInfo = models[planModelId]
+					}
+					if (actModelId && models[actModelId]) {
+						updates.actModeHeliconeModelInfo = models[actModelId]
+					}
 					if (Object.keys(updates).length > 0) {
 						controller.stateManager.setGlobalStateBatch(updates)
 						await controller.postStateToWebview()

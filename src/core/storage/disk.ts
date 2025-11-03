@@ -19,6 +19,7 @@ export const GlobalFileNames = {
 	uiMessages: "ui_messages.json",
 	openRouterModels: "openrouter_models.json",
 	vercelAiGatewayModels: "vercel_ai_gateway_models.json",
+	heliconeModels: "helicone_models.json",
 	groqModels: "groq_models.json",
 	basetenModels: "baseten_models.json",
 	mcpSettings: "cline_mcp_settings.json",

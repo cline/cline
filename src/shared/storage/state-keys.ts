@@ -144,6 +144,8 @@ export interface Settings {
 	planModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
 	planModeOcaModelId: string | undefined
 	planModeOcaModelInfo: OcaModelInfo | undefined
+	planModeHeliconeModelId: string | undefined
+	planModeHeliconeModelInfo: ModelInfo | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
@@ -180,6 +182,8 @@ export interface Settings {
 	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	actModeOcaModelId: string | undefined
 	actModeOcaModelInfo: OcaModelInfo | undefined
+	actModeHeliconeModelId: string | undefined
+	actModeHeliconeModelInfo: ModelInfo | undefined
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: boolean
@@ -238,6 +242,7 @@ export interface Secrets {
 	ocaApiKey: string | undefined
 	ocaRefreshToken: string | undefined
 	minimaxApiKey: string | undefined
+	heliconeApiKey: string | undefined
 }
 
 export interface LocalState {
