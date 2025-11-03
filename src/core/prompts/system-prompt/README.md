@@ -97,7 +97,7 @@ class PromptRegistry {
 		await this.load()
 
 		// Try model family fallback (e.g., "claude-4" -> "claude")
-		const modelFamily = getModelFamily(context.providerInfo)
+		const modelFamily = this.getModelFamily(context.providerInfo)
 		const variant = this.variants.get(modelFamily ?? ModelFamily.GENERIC)
 
 		if (!variant) {
@@ -225,7 +225,7 @@ class PromptBuilder {
     // Add standard system placeholders
     placeholders[STANDARD_PLACEHOLDERS.CWD] = this.context.cwd || process.cwd();
     placeholders[STANDARD_PLACEHOLDERS.SUPPORTS_BROWSER] = this.context.supportsBrowserUse || false;
-    placeholders[STANDARD_PLACEHOLDERS.MODEL_FAMILY] = getModelFamily(this.variant.id);
+    placeholders[STANDARD_PLACEHOLDERS.MODEL_FAMILY] = this.variant.family;
     placeholders[STANDARD_PLACEHOLDERS.CURRENT_DATE] = new Date().toISOString().split("T")[0];
 
     // Add all component sections
