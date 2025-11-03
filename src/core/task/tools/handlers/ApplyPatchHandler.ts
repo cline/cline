@@ -176,12 +176,12 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			state.currentPreviewPath = targetResolution.resolvedPath
 		}
 
-		let newContent: string | undefined
+		const stream: { content: string | undefined } = { content: undefined }
 
 		switch (actionType) {
 			case PatchActionType.ADD: {
 				const contentLines = lines.slice(contentStartIndex)
-				newContent = contentLines
+				stream.content = contentLines
 					.filter((l) => l.startsWith("+"))
 					.map((l) => l.substring(1))
 					.join("\n")
@@ -201,24 +201,53 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					return
 				}
 
-				// For streaming preview, just show original content - full application happens in execute
-				newContent = originalContent
+				// For streaming preview, try to apply partial patch if possible
+				try {
+					// Store original content first time we see this file
+					if (!state.originalFiles[targetPath]) {
+						state.originalFiles[targetPath] = originalContent
+					}
+
+					// Try to parse and apply the partial patch
+					const filesToLoad = this.extractFilesForOperations(rawInput, [PATCH_MARKERS.UPDATE])
+					const currentFiles = await this.loadFiles(config, filesToLoad)
+
+					if (Object.keys(currentFiles).length > 0) {
+						const parser = new PatchParser(lines, currentFiles)
+						const { patch } = parser.parse()
+
+						// Apply the patch if we have actions for this file
+						if (patch.actions[targetPath]) {
+							const action = patch.actions[targetPath]
+							if (action.type === PatchActionType.UPDATE && action.chunks.length > 0) {
+								stream.content = this.applyChunks(originalContent, action.chunks, targetPath)
+							}
+						}
+					}
+
+					if (stream.content === undefined) {
+						stream.content = originalContent
+					}
+				} catch {
+					// If parsing fails during streaming, just show original content
+					stream.content = originalContent
+				}
 				break
 			}
 			case PatchActionType.DELETE:
-				newContent = ""
+				stream.content = ""
 				provider.editType = "modify"
 				break
 			default:
 				return
 		}
 
-		if (newContent === undefined) {
+		if (stream.content === undefined) {
 			return
 		}
 
 		try {
-			await provider.update(newContent, false)
+			await provider.update(stream.content, false)
 		} catch {
 			// Ignore streaming errors
 		}
