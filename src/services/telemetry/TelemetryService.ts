@@ -393,10 +393,13 @@ export class TelemetryService {
 			...this.telemetryMetadata,
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		const { email, ...anonymousUserInfo } = userInfo
+
 		// Update all providers with error isolation
 		this.providers.forEach((provider) => {
 			try {
-				provider.identifyUser(userInfo, propertiesWithMetadata)
+				provider.identifyUser(anonymousUserInfo, propertiesWithMetadata)
 			} catch (error) {
 				console.error(`[TelemetryService] Provider failed for user identification:`, error)
 			}

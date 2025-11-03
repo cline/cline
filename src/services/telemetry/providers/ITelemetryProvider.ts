@@ -5,6 +5,8 @@
 
 import type { ClineAccountUserInfo } from "../../auth/AuthService"
 
+export type AnonymousClineAccountUserInfo = Omit<ClineAccountUserInfo, "email">
+
 /**
  * JSON-serializable primitive types for telemetry properties
  */
@@ -68,7 +70,7 @@ export interface ITelemetryProvider {
 	 * @param userInfo The user's information
 	 * @param properties Optional additional JSON-serializable properties
 	 */
-	identifyUser(userInfo: ClineAccountUserInfo, properties?: TelemetryProperties): void
+	identifyUser(userInfo: AnonymousClineAccountUserInfo, properties?: TelemetryProperties): void
 
 	/**
 	 * Update telemetry opt-in/out status
