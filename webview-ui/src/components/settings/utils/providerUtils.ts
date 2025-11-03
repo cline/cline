@@ -23,6 +23,8 @@ import {
 	geminiModels,
 	groqDefaultModelId,
 	groqModels,
+	heliconeDefaultModelId,
+	heliconeDefaultModelInfo,
 	huaweiCloudMaasDefaultModelId,
 	huaweiCloudMaasModels,
 	huggingFaceDefaultModelId,
@@ -161,6 +163,16 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: openRouterModelId || openRouterDefaultModelId,
 				selectedModelInfo: openRouterModelInfo || openRouterDefaultModelInfo,
+			}
+		case "helicone":
+			const heliconeModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeHeliconeModelId : apiConfiguration?.actModeHeliconeModelId
+			const heliconeModelInfo =
+				currentMode === "plan" ? apiConfiguration?.planModeHeliconeModelInfo : apiConfiguration?.actModeHeliconeModelInfo
+			return {
+				selectedProvider: provider,
+				selectedModelId: heliconeModelId || heliconeDefaultModelId,
+				selectedModelInfo: heliconeModelInfo || heliconeDefaultModelInfo,
 			}
 		case "requesty":
 			const requestyModelId =
@@ -388,6 +400,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			requestyModelId: undefined,
 			openAiModelId: undefined,
 			openRouterModelId: undefined,
+			heliconeModelId: undefined,
 			groqModelId: undefined,
 			basetenModelId: undefined,
 			huggingFaceModelId: undefined,
@@ -398,6 +411,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			openAiModelInfo: undefined,
 			liteLlmModelInfo: undefined,
 			openRouterModelInfo: undefined,
+			heliconeModelInfo: undefined,
 			requestyModelInfo: undefined,
 			groqModelInfo: undefined,
 			basetenModelInfo: undefined,
@@ -433,6 +447,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		openAiModelId: mode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
 		openRouterModelId:
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelId : apiConfiguration.actModeOpenRouterModelId,
+		heliconeModelId: mode === "plan" ? apiConfiguration.planModeHeliconeModelId : apiConfiguration.actModeHeliconeModelId,
 		groqModelId: mode === "plan" ? apiConfiguration.planModeGroqModelId : apiConfiguration.actModeGroqModelId,
 		basetenModelId: mode === "plan" ? apiConfiguration.planModeBasetenModelId : apiConfiguration.actModeBasetenModelId,
 		huggingFaceModelId:
@@ -448,6 +463,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		liteLlmModelInfo: mode === "plan" ? apiConfiguration.planModeLiteLlmModelInfo : apiConfiguration.actModeLiteLlmModelInfo,
 		openRouterModelInfo:
 			mode === "plan" ? apiConfiguration.planModeOpenRouterModelInfo : apiConfiguration.actModeOpenRouterModelInfo,
+		heliconeModelInfo:
+			mode === "plan" ? apiConfiguration.planModeHeliconeModelInfo : apiConfiguration.actModeHeliconeModelInfo,
 		requestyModelInfo:
 			mode === "plan" ? apiConfiguration.planModeRequestyModelInfo : apiConfiguration.actModeRequestyModelInfo,
 		groqModelInfo: mode === "plan" ? apiConfiguration.planModeGroqModelInfo : apiConfiguration.actModeGroqModelInfo,
@@ -525,6 +542,13 @@ export async function syncModeConfigurations(
 			updates.actModeOpenRouterModelId = sourceFields.openRouterModelId
 			updates.planModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
 			updates.actModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
+			break
+
+		case "helicone":
+			updates.planModeHeliconeModelId = sourceFields.heliconeModelId
+			updates.actModeHeliconeModelId = sourceFields.heliconeModelId
+			updates.planModeHeliconeModelInfo = sourceFields.heliconeModelInfo
+			updates.actModeHeliconeModelInfo = sourceFields.heliconeModelInfo
 			break
 
 		case "requesty":

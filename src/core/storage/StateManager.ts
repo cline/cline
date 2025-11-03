@@ -483,6 +483,7 @@ export class StateManager {
 			claudeCodePath,
 			qwenCodeOauthPath,
 			basetenApiKey,
+			heliconeApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
 			difyApiKey,
@@ -528,6 +529,8 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeHeliconeModelId,
+			planModeHeliconeModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -562,6 +565,8 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeHeliconeModelId,
+			actModeHeliconeModelInfo,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -600,6 +605,8 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeHeliconeModelId,
+			planModeHeliconeModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -635,6 +642,8 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeHeliconeModelId,
+			actModeHeliconeModelInfo,
 
 			// Global state updates
 			awsRegion,
@@ -710,6 +719,7 @@ export class StateManager {
 			sapAiCoreClientId,
 			sapAiCoreClientSecret,
 			basetenApiKey,
+			heliconeApiKey,
 			huggingFaceApiKey,
 			huaweiCloudMaasApiKey,
 			difyApiKey,
@@ -978,6 +988,7 @@ export class StateManager {
 			cerebrasApiKey: this.secretsCache["cerebrasApiKey"],
 			groqApiKey: this.secretsCache["groqApiKey"],
 			basetenApiKey: this.secretsCache["basetenApiKey"],
+			heliconeApiKey: this.secretsCache["heliconeApiKey"],
 			moonshotApiKey: this.secretsCache["moonshotApiKey"],
 			nebiusApiKey: this.secretsCache["nebiusApiKey"],
 			sapAiCoreClientId: this.secretsCache["sapAiCoreClientId"],
@@ -1126,6 +1137,12 @@ export class StateManager {
 				this.globalStateCache["planModeVercelAiGatewayModelInfo"],
 			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
 			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
+			planModeHeliconeModelId:
+				(this.taskStateCache as any)["planModeHeliconeModelId"] ||
+				(this.globalStateCache as any)["planModeHeliconeModelId"],
+			planModeHeliconeModelInfo:
+				(this.taskStateCache as any)["planModeHeliconeModelInfo"] ||
+				(this.globalStateCache as any)["planModeHeliconeModelInfo"],
 
 			// Act mode configurations
 			actModeApiProvider:
@@ -1191,6 +1208,12 @@ export class StateManager {
 				this.globalStateCache["actModeVercelAiGatewayModelInfo"],
 			actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
 			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
+			actModeHeliconeModelId:
+				(this.taskStateCache as any)["actModeHeliconeModelId"] ||
+				(this.globalStateCache as any)["actModeHeliconeModelId"],
+			actModeHeliconeModelInfo:
+				(this.taskStateCache as any)["actModeHeliconeModelInfo"] ||
+				(this.globalStateCache as any)["actModeHeliconeModelInfo"],
 		}
 	}
 }

@@ -718,6 +718,17 @@ export class Controller {
 		return undefined
 	}
 
+	// Read Helicone models from disk cache
+	async readHeliconeModels(): Promise<Record<string, ModelInfo> | undefined> {
+		const heliconeModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.heliconeModels)
+		const fileExists = await fileExistsAtPath(heliconeModelsFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(heliconeModelsFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	}
+
 	// Task history
 
 	async getTaskWithId(id: string): Promise<{

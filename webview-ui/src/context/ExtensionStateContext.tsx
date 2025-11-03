@@ -21,6 +21,8 @@ import {
 	basetenModels,
 	groqDefaultModelId,
 	groqModels,
+	heliconeDefaultModelId,
+	heliconeDefaultModelInfo,
 	type ModelInfo,
 	openRouterDefaultModelId,
 	openRouterDefaultModelInfo,
@@ -42,6 +44,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	basetenModels: Record<string, ModelInfo>
 	huggingFaceModels: Record<string, ModelInfo>
 	vercelAiGatewayModels: Record<string, ModelInfo>
+	heliconeModels: Record<string, ModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	totalTasksSize: number | null
@@ -71,6 +74,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setBasetenModels: (value: Record<string, ModelInfo>) => void
 	setHuggingFaceModels: (value: Record<string, ModelInfo>) => void
 	setVercelAiGatewayModels: (value: Record<string, ModelInfo>) => void
+	setHeliconeModels: (value: Record<string, ModelInfo>) => void
 	setGlobalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
@@ -83,6 +87,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
+	refreshHeliconeModels: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
@@ -255,6 +260,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [vercelAiGatewayModels, setVercelAiGatewayModels] = useState<Record<string, ModelInfo>>({
 		[vercelAiGatewayDefaultModelId]: vercelAiGatewayDefaultModelInfo,
+	})
+	const [heliconeModels, setHeliconeModels] = useState<Record<string, ModelInfo>>({
+		[heliconeDefaultModelId]: heliconeDefaultModelInfo,
 	})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
@@ -631,6 +639,19 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh OpenRouter models:", error))
 	}, [])
 
+	const refreshHeliconeModels = useCallback(() => {
+		ModelsServiceClient.refreshHeliconeModelsRpc(EmptyRequest.create({}))
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = fromProtobufModels(response.models)
+				setHeliconeModels(models)
+			})
+			.catch((error: Error) => console.error("Failed to refresh Helicone models:", error))
+	}, [])
+
+	useEffect(() => {
+		refreshHeliconeModels()
+	}, [refreshHeliconeModels])
+
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
@@ -642,6 +663,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		basetenModels: basetenModelsState,
 		huggingFaceModels,
 		vercelAiGatewayModels,
+		heliconeModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
 		totalTasksSize,
@@ -688,6 +710,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setBasetenModels: (models: Record<string, ModelInfo>) => setBasetenModels(models),
 		setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),
 		setVercelAiGatewayModels: (models: Record<string, ModelInfo>) => setVercelAiGatewayModels(models),
+		setHeliconeModels: (models: Record<string, ModelInfo>) => setHeliconeModels(models),
 		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
 		setShowMcp,
 		closeMcpView,
@@ -724,6 +747,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpTab,
 		setTotalTasksSize,
 		refreshOpenRouterModels,
+		refreshHeliconeModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,

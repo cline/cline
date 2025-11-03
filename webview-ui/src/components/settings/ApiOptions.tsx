@@ -25,6 +25,7 @@ import { DoubaoProvider } from "./providers/DoubaoProvider"
 import { FireworksProvider } from "./providers/FireworksProvider"
 import { GeminiProvider } from "./providers/GeminiProvider"
 import { GroqProvider } from "./providers/GroqProvider"
+import { HeliconeProvider } from "./providers/HeliconeProvider"
 import { HuaweiCloudMaasProvider } from "./providers/HuaweiCloudMaasProvider"
 import { HuggingFaceProvider } from "./providers/HuggingFaceProvider"
 import { LiteLlmProvider } from "./providers/LiteLlmProvider"
@@ -147,6 +148,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "groq", label: "Groq" },
 			{ value: "cerebras", label: "Cerebras" },
 			{ value: "vercel-ai-gateway", label: "Vercel AI Gateway" },
+			{ value: "helicone", label: "Helicone AI Gateway" },
 			{ value: "baseten", label: "Baseten" },
 			{ value: "requesty", label: "Requesty" },
 			{ value: "fireworks", label: "Fireworks AI" },
@@ -457,6 +459,9 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "groq" && (
 				<GroqProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+			{apiConfiguration && selectedProvider === "helicone" && (
+				<HeliconeProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 			{apiConfiguration && selectedProvider === "baseten" && (
 				<BasetenProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />

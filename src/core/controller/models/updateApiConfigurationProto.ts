@@ -69,6 +69,9 @@ export async function updateApiConfigurationProto(
 			planModeVercelAiGatewayModelInfo: protoApiConfiguration.planModeVercelAiGatewayModelInfo
 				? fromProtobufModelInfo(protoApiConfiguration.planModeVercelAiGatewayModelInfo)
 				: undefined,
+			planModeHeliconeModelInfo: protoApiConfiguration.planModeHeliconeModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.planModeHeliconeModelInfo)
+				: undefined,
 			planModeOcaModelInfo: protoApiConfiguration.planModeOcaModelInfo
 				? fromProtobufOcaModelInfo(protoApiConfiguration.planModeOcaModelInfo)
 				: undefined,
@@ -100,6 +103,9 @@ export async function updateApiConfigurationProto(
 				: undefined,
 			actModeVercelAiGatewayModelInfo: protoApiConfiguration.actModeVercelAiGatewayModelInfo
 				? fromProtobufModelInfo(protoApiConfiguration.actModeVercelAiGatewayModelInfo)
+				: undefined,
+			actModeHeliconeModelInfo: protoApiConfiguration.actModeHeliconeModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.actModeHeliconeModelInfo)
 				: undefined,
 			actModeOcaModelInfo: protoApiConfiguration.actModeOcaModelInfo
 				? fromProtobufOcaModelInfo(protoApiConfiguration.actModeOcaModelInfo)

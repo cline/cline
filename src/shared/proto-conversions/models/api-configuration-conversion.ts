@@ -301,6 +301,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.HUAWEI_CLOUD_MAAS
 		case "vercel-ai-gateway":
 			return ProtoApiProvider.VERCEL_AI_GATEWAY
+		case "helicone":
+			return ProtoApiProvider.HELICONE
 		case "zai":
 			return ProtoApiProvider.ZAI
 		case "dify":
@@ -383,6 +385,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "huawei-cloud-maas"
 		case ProtoApiProvider.VERCEL_AI_GATEWAY:
 			return "vercel-ai-gateway"
+		case ProtoApiProvider.HELICONE:
+			return "helicone"
 		case ProtoApiProvider.ZAI:
 			return "zai"
 		case ProtoApiProvider.DIFY:
@@ -458,6 +462,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		sambanovaApiKey: config.sambanovaApiKey,
 		cerebrasApiKey: config.cerebrasApiKey,
 		vercelAiGatewayApiKey: config.vercelAiGatewayApiKey,
+		heliconeApiKey: config.heliconeApiKey,
 		groqApiKey: config.groqApiKey,
 		basetenApiKey: config.basetenApiKey,
 		requestTimeoutMs: config.requestTimeoutMs,
@@ -509,6 +514,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeSapAiCoreDeploymentId: config.planModeSapAiCoreDeploymentId,
 		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
+		planModeHeliconeModelId: config.planModeHeliconeModelId,
+		planModeHeliconeModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHeliconeModelInfo),
 		planModeOcaModelId: config.planModeOcaModelId,
 		planModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.planModeOcaModelInfo),
 
@@ -544,6 +551,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeSapAiCoreDeploymentId: config.actModeSapAiCoreDeploymentId,
 		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
+		actModeHeliconeModelId: config.actModeHeliconeModelId,
+		actModeHeliconeModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHeliconeModelInfo),
 		actModeOcaModelId: config.actModeOcaModelId,
 		actModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.actModeOcaModelInfo),
 	}
@@ -611,6 +620,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		sambanovaApiKey: protoConfig.sambanovaApiKey,
 		cerebrasApiKey: protoConfig.cerebrasApiKey,
 		vercelAiGatewayApiKey: protoConfig.vercelAiGatewayApiKey,
+		heliconeApiKey: protoConfig.heliconeApiKey,
 		groqApiKey: protoConfig.groqApiKey,
 		basetenApiKey: protoConfig.basetenApiKey,
 		requestTimeoutMs: protoConfig.requestTimeoutMs,
@@ -665,6 +675,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeSapAiCoreDeploymentId: protoConfig.planModeSapAiCoreDeploymentId,
 		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
+		planModeHeliconeModelId: protoConfig.planModeHeliconeModelId,
+		planModeHeliconeModelInfo: convertProtoToModelInfo(protoConfig.planModeHeliconeModelInfo),
 		planModeOcaModelId: protoConfig.planModeOcaModelId,
 		planModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.planModeOcaModelInfo),
 
@@ -701,6 +713,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeSapAiCoreDeploymentId: protoConfig.actModeSapAiCoreDeploymentId,
 		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
+		actModeHeliconeModelId: protoConfig.actModeHeliconeModelId,
+		actModeHeliconeModelInfo: convertProtoToModelInfo(protoConfig.actModeHeliconeModelInfo),
 		actModeOcaModelId: protoConfig.actModeOcaModelId,
 		actModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.actModeOcaModelInfo),
 	}

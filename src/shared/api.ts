@@ -4,6 +4,7 @@ export type ApiProvider =
 	| "anthropic"
 	| "claude-code"
 	| "openrouter"
+	| "helicone"
 	| "bedrock"
 	| "vertex"
 	| "openai"
@@ -45,6 +46,7 @@ export interface ApiHandlerSecrets {
 	awsAccessKey?: string
 	awsSecretKey?: string
 	openRouterApiKey?: string
+	heliconeApiKey?: string
 
 	clineAccountId?: string
 	awsSessionToken?: string
@@ -158,6 +160,8 @@ export interface ApiHandlerOptions {
 	planModeVercelAiGatewayModelInfo?: ModelInfo
 	planModeOcaModelId?: string
 	planModeOcaModelInfo?: OcaModelInfo
+	planModeHeliconeModelId?: string
+	planModeHeliconeModelInfo?: ModelInfo
 	// Act mode configurations
 
 	// Act mode configurations
@@ -193,6 +197,8 @@ export interface ApiHandlerOptions {
 	actModeVercelAiGatewayModelInfo?: ModelInfo
 	actModeOcaModelId?: string
 	actModeOcaModelInfo?: OcaModelInfo
+	actModeHeliconeModelId?: string
+	actModeHeliconeModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -3844,3 +3850,17 @@ export const minimaxModels = {
 		cacheReadsPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>
+// HELICONE MODELS
+export type HeliconeModelId = string
+export const heliconeDefaultModelId: HeliconeModelId = "claude-sonnet-4"
+export const heliconeDefaultModelInfo: ModelInfo = {
+	maxTokens: 64_000,
+	contextWindow: 200_000,
+	supportsImages: true,
+	supportsPromptCache: true,
+	inputPrice: 3.0,
+	outputPrice: 15.0,
+	cacheWritesPrice: 3.75,
+	cacheReadsPrice: 0.3,
+	description: "Claude Sonnet 4 via Helicone AI Gateway. Solid balance of intelligence and cost for agentic coding.",
+}
