@@ -153,34 +153,15 @@ vscode-dropdown::part(listbox) {
 }
 
 /* Context mentions */
-
-.mention-context-textarea-highlight {
-	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
-	border-radius: 3px;
-	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
-	color: transparent;
-	/* padding: 0.5px;
-	margin: -0.5px;
-	position: relative;
-	bottom: -0.5px; */
-}
-
 .mention-context-highlight {
 	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
 	border-radius: 3px;
+	padding: 0;
+	margin: 0;
 }
 
-.mention-context-highlight-with-shadow {
-	background-color: color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
-	border-radius: 3px;
+.mention-context-highlight-shadow {
 	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-badge-foreground) 30%, transparent);
-}
-
-.slash-command-match-textarea-highlight {
-	background-color: color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent);
-	border-radius: 3px;
-	box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--vscode-focusBorder) 30%, transparent);
-	color: transparent;
 }
 
 /* Pulse animation for running command indicator */

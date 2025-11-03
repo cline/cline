@@ -1,5 +1,6 @@
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import { StringRequest } from "@shared/proto/cline/common"
+import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 import { validateSlashCommand } from "@/utils/slash-commands"
 
@@ -17,7 +18,11 @@ const highlightSlashCommands = (text: string, withShadow = true) => {
 
 	return [
 		beforeCommand,
-		<span className={withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"} key="slashCommand">
+		<span
+			className={cn("cursor-text bg-badge-foreground/30 rounded-sm p-0 m-0", {
+				"shadow-md shadow-badge-foreground/30": withShadow,
+			})}
+			key="slashCommand">
 			/{commandName}
 		</span>,
 		afterCommand,
@@ -40,7 +45,9 @@ export const highlightMentions = (text: string, withShadow = true) => {
 		} else {
 			result.push(
 				<span
-					className={`${withShadow ? "mention-context-highlight-with-shadow" : "mention-context-highlight"} cursor-pointer`}
+					className={cn("cursor-pointer bg-badge-foreground/30 rounded-sm p-0 m-0", {
+						"shadow-md shadow-badge-foreground/30": withShadow,
+					})}
 					key={`mention-${Math.floor(i / 2)}`}
 					onClick={() => FileServiceClient.openMention(StringRequest.create({ value: parts[i] }))}>
 					@{parts[i]}

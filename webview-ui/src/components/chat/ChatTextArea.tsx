@@ -971,7 +971,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				.replace(/\n$/, "\n\n")
 				.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[c] || c)
 				// highlight @mentions
-				.replace(mentionRegexGlobal, '<mark class="mention-context-textarea-highlight">$&</mark>')
+				.replace(mentionRegexGlobal, '<span class="mention-context-highlight mention-context-highlight-shadow">$&</span>')
 
 			// check for highlighting /slash-commands
 			if (/^\s*\//.test(processedText)) {
@@ -988,7 +988,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (isValidCommand) {
 					const fullCommand = processedText.substring(slashIndex, endIndex) // includes slash
 
-					const highlighted = `<mark class="mention-context-textarea-highlight">${fullCommand}</mark>`
+					const highlighted = `<span class="mention-context-highlight mention-context-highlight-shadow">${fullCommand}</span>`
 					processedText = processedText.substring(0, slashIndex) + highlighted + processedText.substring(endIndex)
 				}
 			}
@@ -996,7 +996,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [localWorkflowToggles, globalWorkflowToggles])
+		}, [textAreaRef?.current, highlightLayerRef?.current, localWorkflowToggles, globalWorkflowToggles])
 
 		useLayoutEffect(() => {
 			updateHighlights()
