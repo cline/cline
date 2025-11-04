@@ -41,6 +41,7 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
+import { StandaloneTerminalManager as StandaloneTerminalManagerImpl } from "@integrations/terminal/StandaloneTerminal"
 import { TerminalManager } from "@integrations/terminal/TerminalManager"
 import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalProcess"
 import { BrowserSession } from "@services/browser/BrowserSession"
@@ -124,12 +125,6 @@ type TaskParams = {
 }
 
 export class Task {
-	// Constants
-	private static readonly STANDALONE_TERMINAL_MODULE_PATH = path.join(
-		__dirname,
-		"../standalone/runtime-files/vscode/enhanced-terminal.js",
-	)
-
 	// Core task variables
 	readonly taskId: string
 	readonly ulid: string
@@ -275,38 +270,14 @@ export class Task {
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.taskLockAcquired = taskLockAcquired
 
-		// TODO(ae) this is a hack to replace the terminal manager for standalone,
-		// until we have proper host bridge support for terminal execution. The
-		// standaloneTerminalManager is defined in the vscode-impls and injected
-		// during compilation of the standalone manager only, so this variable only
-		// exists in that case
+		// Use backgroundExec by default (standalone terminal), only use VSCode terminal if explicitly requested
+		const terminalExecutionMode = vscodeTerminalExecutionMode || "backgroundExec"
+		this.terminalExecutionMode = terminalExecutionMode
 
-		// First check if we're in standalone mode (original automatic detection)
-		if ((global as any).standaloneTerminalManager) {
-			this.terminalManager = (global as any).standaloneTerminalManager
-			this.terminalExecutionMode = "backgroundExec"
+		if (terminalExecutionMode === "backgroundExec") {
+			this.terminalManager = new StandaloneTerminalManagerImpl() as any
 		} else {
-			// Not in standalone mode, use the configured mode (default to vscodeTerminal)
-			const terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
-			this.terminalExecutionMode = terminalExecutionMode
-
-			if (terminalExecutionMode === "backgroundExec") {
-				try {
-					const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
-						StandaloneTerminalManager?: new () => TerminalManager
-					}
-					if (StandaloneTerminalManager) {
-						this.terminalManager = new StandaloneTerminalManager()
-					} else {
-						this.terminalManager = new TerminalManager()
-					}
-				} catch (error) {
-					console.error("[DEBUG] Failed to load standalone terminal manager", error)
-					this.terminalManager = new TerminalManager()
-				}
-			} else {
-				this.terminalManager = new TerminalManager()
-			}
+			this.terminalManager = new TerminalManager()
 		}
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
@@ -1477,19 +1448,7 @@ export class Task {
 		let terminalManager: TerminalManager
 		if (isSubagent) {
 			// Create a background TerminalManager for CLI subagents
-			try {
-				const { StandaloneTerminalManager } = require(Task.STANDALONE_TERMINAL_MODULE_PATH) as {
-					StandaloneTerminalManager?: new () => TerminalManager
-				}
-				if (StandaloneTerminalManager) {
-					terminalManager = new StandaloneTerminalManager()
-				} else {
-					terminalManager = new TerminalManager()
-				}
-			} catch (error) {
-				console.error("[DEBUG] Failed to load standalone terminal manager for subagent", error)
-				terminalManager = new TerminalManager()
-			}
+			terminalManager = new StandaloneTerminalManagerImpl() as any
 			terminalManager.setShellIntegrationTimeout(this.terminalManager["shellIntegrationTimeout"] || 4000)
 			terminalManager.setTerminalReuseEnabled(this.terminalManager["terminalReuseEnabled"] ?? true)
 			terminalManager.setTerminalOutputLineLimit(this.terminalManager["terminalOutputLineLimit"] || 500)

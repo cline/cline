@@ -1,7 +1,7 @@
 console.log("Loading stub impls...")
 
 const { createStub } = require("./stub-utils")
-const { StandaloneTerminalManager } = require("./enhanced-terminal")
+const { StandaloneTerminalManager } = require("../../src/integrations/terminal/StandaloneTerminal")
 
 // Import the base vscode object from stubs
 const vscode = require("./vscode-stubs.js")
@@ -172,8 +172,5 @@ vscode.Uri = {
 		return vscode.Uri.file("/" + joined.replace(/\/+/g, "/"))
 	},
 }
-
-// Export the terminal manager globally for Cline core to use
-global.standaloneTerminalManager = globalTerminalManager
 
 console.log("Finished loading stub impls...")
