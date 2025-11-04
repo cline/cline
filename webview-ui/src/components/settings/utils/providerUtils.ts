@@ -414,6 +414,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			huaweiCloudMaasModelId: undefined,
 			vercelAiGatewayModelId: undefined,
 			hicapModelId: undefined,
+			aihubmixModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
@@ -425,6 +426,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			huggingFaceModelInfo: undefined,
 			vercelAiGatewayModelInfo: undefined,
 			vsCodeLmModelSelector: undefined,
+			aihubmixModelInfo: undefined,
 
 			// AWS Bedrock fields
 			awsBedrockCustomSelected: undefined,
@@ -464,6 +466,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelId : apiConfiguration.actModeVercelAiGatewayModelId,
 		ocaModelId: mode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
 		hicapModelId: mode === "plan" ? apiConfiguration.planModeHicapModelId : apiConfiguration.actModeHicapModelId,
+		aihubmixModelId: mode === "plan" ? apiConfiguration.planModeAihubmixModelId : apiConfiguration.actModeAihubmixModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -483,6 +486,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		vsCodeLmModelSelector:
 			mode === "plan" ? apiConfiguration.planModeVsCodeLmModelSelector : apiConfiguration.actModeVsCodeLmModelSelector,
 		hicapModelInfo: mode === "plan" ? apiConfiguration.planModeHicapModelInfo : apiConfiguration.actModeHicapModelInfo,
+		aihubmixModelInfo:
+			mode === "plan" ? apiConfiguration.planModeAihubmixModelInfo : apiConfiguration.actModeAihubmixModelInfo,
 
 		// AWS Bedrock fields
 		awsBedrockCustomSelected:
