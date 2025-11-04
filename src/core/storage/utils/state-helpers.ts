@@ -53,6 +53,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ocaRefreshToken,
 		minimaxApiKey,
 		hicapApiKey,
+		aihubmixApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -94,6 +95,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("ocaRefreshToken") as Promise<string | undefined>,
 		context.secrets.get("minimaxApiKey") as Promise<Secrets["minimaxApiKey"]>,
 		context.secrets.get("hicapApiKey") as Promise<Secrets["hicapApiKey"]>,
+		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
 	])
 
 	return {
@@ -137,6 +139,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		ocaRefreshToken,
 		minimaxApiKey,
 		hicapApiKey,
+		aihubmixApiKey,
 	}
 }
 
@@ -267,6 +270,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
 		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
 		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
+		const aihubmixBaseUrl = context.globalState.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
+		const aihubmixAppCode = context.globalState.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
 
 		// OpenTelemetry configuration
 		const openTelemetryEnabled =
@@ -375,6 +380,10 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["planModeHicapModelId"]>("planModeHicapModelId")
 		const planModeHicapModelInfo =
 			context.globalState.get<GlobalStateAndSettings["planModeHicapModelInfo"]>("planModeHicapModelInfo")
+		const planModeAihubmixModelId =
+			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelId"]>("planModeAihubmixModelId")
+		const planModeAihubmixModelInfo =
+			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelInfo"]>("planModeAihubmixModelInfo")
 		// Act mode configurations
 		const actModeApiProvider = context.globalState.get<GlobalStateAndSettings["actModeApiProvider"]>("actModeApiProvider")
 		const actModeApiModelId = context.globalState.get<GlobalStateAndSettings["actModeApiModelId"]>("actModeApiModelId")
@@ -446,6 +455,10 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const actModeHicapModelId = context.globalState.get<GlobalStateAndSettings["actModeHicapModelId"]>("actModeHicapModelId")
 		const actModeHicapModelInfo =
 			context.globalState.get<GlobalStateAndSettings["actModeHicapModelInfo"]>("actModeHicapModelInfo")
+		const actModeAihubmixModelId =
+			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelId"]>("actModeAihubmixModelId")
+		const actModeAihubmixModelInfo =
+			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelInfo"]>("actModeAihubmixModelInfo")
 
 		let apiProvider: ApiProvider
 		if (planModeApiProvider) {
@@ -526,6 +539,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			minimaxApiLine,
 			ocaMode: ocaMode || "internal",
 			hicapModelId,
+			aihubmixBaseUrl,
+			aihubmixAppCode,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -564,6 +579,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeOcaModelInfo,
 			planModeHicapModelId,
 			planModeHicapModelInfo,
+			planModeAihubmixModelId,
+			planModeAihubmixModelInfo,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -600,6 +617,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeOcaModelInfo,
 			actModeHicapModelId,
 			actModeHicapModelInfo,
+			actModeAihubmixModelId,
+			actModeAihubmixModelInfo,
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
@@ -720,6 +739,7 @@ export async function resetGlobalState(controller: Controller) {
 		"ocaRefreshToken",
 		"minimaxApiKey",
 		"hicapApiKey",
+		"aihubmixApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()
