@@ -271,7 +271,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			}
 		}
 		return new BedrockRuntimeClient({
-			customUserAgent: [["cline", ExtensionRegistryInfo.version]],
+			userAgentAppId: `cline#${ExtensionRegistryInfo.version}`,
 			region: this.getRegion(),
 			...auth,
 			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
