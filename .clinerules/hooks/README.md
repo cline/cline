@@ -3,7 +3,7 @@
 ## Overview
 
 Cline hooks allow you to execute custom scripts at specific points in the agentic workflow. Hooks can be placed in either:
-- **Global hooks directory**: `~/Documents/Cline/Rules/Hooks/` (applies to all workspaces)
+- **Global hooks directory**: `~/Documents/Cline/Hooks/` (applies to all workspaces)
 - **Workspace hooks directory**: `.clinerules/hooks/` (applies to specific workspace)
 
 Hooks run automatically when enabled.
@@ -20,50 +20,50 @@ Hooks run automatically when enabled.
 ### TaskStart Hook
 - **When**: Runs when a NEW task is started (not when resuming)
 - **Purpose**: Initialize task context, validate task requirements, set up environment
-- **Global Location**: `~/Documents/Cline/Rules/Hooks/TaskStart` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/TaskStart` (all platforms)
 - **Workspace Location**: `.clinerules/hooks/TaskStart` (all platforms)
 
 ### TaskResume Hook
 - **When**: Runs when an EXISTING task is resumed (after user clicks resume button)
 - **Purpose**: Validate resumed task state, restore context, check for changes since last run
-- **Global Location**: `~/Documents/Cline/Rules/Hooks/TaskResume` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/TaskResume` (all platforms)
 - **Workspace Location**: `.clinerules/hooks/TaskResume` (all platforms)
 
 ### TaskCancel Hook
 - **When**: Runs when a task is cancelled by the user (only if there's actual active work or work was started)
 - **Purpose**: Clean up resources, log cancellation, save state
-- **Global Location**: `~/Documents/Cline/Rules/Hooks/TaskCancel` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/TaskCancel` (all platforms)
 - **Workspace Location**: `.clinerules/hooks/TaskCancel` (all platforms)
 - **Note**: This hook is NOT cancellable and will complete even if the task is being aborted
 
 ### TaskComplete Hook
 - **When**: Runs when a task is marked as complete
 - **Purpose**: Log completion status, perform final cleanup, generate reports
-- **Global Location**: `~/Documents/Cline/Rules/Hooks/TaskComplete` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/TaskComplete` (all platforms)
 - **Workspace Location**: `.clinerules/hooks/TaskComplete` (all platforms)
 
 ### UserPromptSubmit Hook
 - **When**: Runs when the user submits a prompt/message (initial task, resume, or feedback)
 - **Purpose**: Validate user input, preprocess prompts, add context to user messages
-- **Global Location**: `~/Documents/Cline/Rules/Hooks/UserPromptSubmit` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/UserPromptSubmit` (all platforms)
 - **Workspace Location**: `.clinerules/hooks/UserPromptSubmit` (all platforms)
 
 ### PreToolUse Hook
 - **When**: Runs BEFORE a tool is executed
 - **Purpose**: Validate parameters, block execution, or add context
-- **Global Location**: `~/Documents/Cline/Rules/Hooks/PreToolUse` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/PreToolUse` (all platforms)
 - **Workspace Location**: `.clinerules/hooks/PreToolUse` (all platforms)
 
 ### PostToolUse Hook
 - **When**: Runs AFTER a tool completes
 - **Purpose**: Observe results, track patterns, or add context
-- **Global Location**: `~/Documents/Cline/Rules/Hooks/PostToolUse` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/PostToolUse` (all platforms)
 - **Workspace Location**: `.clinerules/hooks/PostToolUse` (all platforms)
 
 ### PreCompact Hook
 - **When**: Runs BEFORE the conversation context is compacted/truncated
 - **Purpose**: Observe compaction events, log context management, track token usage
-- **Global Location**: `~/Documents/Cline/Rules/Hooks/PreCompact` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/PreCompact` (all platforms)
 - **Workspace Location**: `.clinerules/hooks/PreCompact` (all platforms)
 
 ## Cross-Platform Hook Format
@@ -92,16 +92,16 @@ This means:
 **On Unix/Linux/macOS:**
 ```bash
 # Create hook file
-nano ~/Documents/Cline/Rules/Hooks/PreToolUse
+nano ~/Documents/Cline/Hooks/PreToolUse
 
 # Make executable
-chmod +x ~/Documents/Cline/Rules/Hooks/PreToolUse
+chmod +x ~/Documents/Cline/Hooks/PreToolUse
 ```
 
 **On Windows:**
 ```batch
 REM Create hook file (note: no file extension)
-notepad %USERPROFILE%\Documents\Cline\Rules\Hooks\PreToolUse
+notepad %USERPROFILE%\Documents\Cline\Hooks\PreToolUse
 ```
 
 ## Context Injection Timing
@@ -328,7 +328,7 @@ echo '{"cancel": false}'
 Cline supports two levels of hooks:
 
 ### Global Hooks
-- **Location**: `~/Documents/Cline/Rules/Hooks/` (macOS/Linux) or `%USERPROFILE%\Documents\Cline\Rules\Hooks\` (Windows)
+- **Location**: `~/Documents/Cline/Hooks/` (macOS/Linux) or `%USERPROFILE%\Documents\Cline\Hooks\` (Windows)
 - **Scope**: Apply to ALL workspaces and projects
 - **Use Case**: Organization-wide policies, personal preferences, universal validations
 - **Priority**: Order not guaranteed when combined with workspace hooks
@@ -355,17 +355,17 @@ When multiple hooks exist (global and/or workspace):
 ### Setting Up Global Hooks
 
 1. The global hooks directory is automatically created at:
-   - macOS/Linux: `~/Documents/Cline/Rules/Hooks/`
-   - Windows: `%USERPROFILE%\Documents\Cline\Rules\Hooks\`
+   - macOS/Linux: `~/Documents/Cline/Hooks/`
+   - Windows: `%USERPROFILE%\Documents\Cline\Hooks\`
 
 2. Add your hook script:
    ```bash
    # Unix/Linux/macOS
-   nano ~/Documents/Cline/Rules/Hooks/PreToolUse
-   chmod +x ~/Documents/Cline/Rules/Hooks/PreToolUse
+   nano ~/Documents/Cline/Hooks/PreToolUse
+   chmod +x ~/Documents/Cline/Hooks/PreToolUse
    
    # Windows
-   notepad %USERPROFILE%\Documents\Cline\Rules\Hooks\PreToolUse
+   notepad %USERPROFILE%\Documents\Cline\Hooks\PreToolUse
    ```
 
 3. Enable hooks in Cline settings
@@ -375,7 +375,7 @@ When multiple hooks exist (global and/or workspace):
 **Global Hook** (applies to all projects):
 ```bash
 #!/usr/bin/env bash
-# ~/Documents/Cline/Rules/Hooks/PreToolUse
+# ~/Documents/Cline/Hooks/PreToolUse
 # Universal rule: Never delete package.json
 input=$(cat)
 tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
