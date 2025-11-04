@@ -658,8 +658,10 @@ export async function syncModeConfigurations(
 			break
 
 		case "aihubmix":
-			updates.planModeAihubmixModelId = sourceFields.apiModelId
-			updates.actModeAihubmixModelId = sourceFields.apiModelId
+			updates.planModeAihubmixModelId = sourceFields.aihubmixModelId
+			updates.planModeAihubmixModelInfo = sourceFields.aihubmixModelInfo
+			updates.actModeAihubmixModelId = sourceFields.aihubmixModelId
+			updates.actModeAihubmixModelInfo = sourceFields.aihubmixModelInfo
 			break
 
 		// Providers that use apiProvider + apiModelId fields
