@@ -2613,7 +2613,6 @@ export class Task {
 				reasoningMessage: "",
 				reasoningDetails: [],
 				antThinkingContent: [],
-				reasoningSignature: "",
 			}
 
 			let chunkProcessor: StreamingChunkProcessor | undefined

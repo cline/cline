@@ -16,7 +16,6 @@ export type StreamingChunkState = {
 	reasoningMessage: string
 	reasoningDetails: Array<unknown>
 	antThinkingContent: Array<Anthropic.Messages.RedactedThinkingBlock | Anthropic.Messages.ThinkingBlock>
-	reasoningSignature: string
 }
 
 export type TokenUsageSnapshot = {
@@ -200,13 +199,13 @@ export class StreamingChunkProcessor {
 			}
 		}
 
-		const { textBlocks, toolBlocks, isContentNotReady } = this.getUserMessageContent()
+		const { textBlocks, toolBlocks, prevLength } = this.getUserMessageContent()
 
 		// Combine any text content with tool uses
 		this.streamingState.assistantMessage += toolBlocks.map((block) => JSON.stringify(block)).join("\n")
 		this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 
-		if (isContentNotReady) {
+		if (this.taskState.assistantMessageContent.length > prevLength) {
 			this.taskState.userMessageContentReady = false
 		}
 		this.presentAssistantMessage()
@@ -220,11 +219,11 @@ export class StreamingChunkProcessor {
 		this.streamingState.assistantMessage += chunk.text
 		this.streamingState.assistantTextOnly += chunk.text
 
-		const { isContentNotReady } = this.getUserMessageContent()
+		const { prevLength } = this.getUserMessageContent()
 
 		this.taskState.assistantMessageContent = parseAssistantMessageV2(this.streamingState.assistantMessage)
 
-		if (isContentNotReady) {
+		if (this.taskState.assistantMessageContent.length > prevLength) {
 			this.taskState.userMessageContentReady = false
 		}
 
@@ -263,13 +262,13 @@ export class StreamingChunkProcessor {
 		}
 
 		// For native tool calls, mark all pending tool uses as complete
-		const { textBlocks, toolBlocks, isContentNotReady } = this.getUserMessageContent()
+		const { textBlocks, toolBlocks, prevLength } = this.getUserMessageContent()
 		// Get all finalized tool uses and mark as complete
 		const finalizedToolBlocks = toolBlocks.map((block) => ({ ...block, partial: false }))
 
 		this.taskState.assistantMessageContent = [...textBlocks, ...finalizedToolBlocks]
 
-		if (isContentNotReady) {
+		if (this.taskState.assistantMessageContent.length > prevLength) {
 			this.taskState.userMessageContentReady = false
 		}
 		this.presentAssistantMessage()
@@ -284,9 +283,8 @@ export class StreamingChunkProcessor {
 		const textContent = this.streamingState.assistantTextOnly.trim()
 		const textBlocks: AssistantMessageContent[] = textContent ? [{ type: "text", content: textContent, partial: false }] : []
 		const toolBlocks = this.toolUseHandler.getPartialToolUsesAsContent()
-		const isContentNotReady = this.taskState.assistantMessageContent.length > prevLength
 
-		return { textBlocks, toolBlocks, isContentNotReady }
+		return { textBlocks, toolBlocks, prevLength }
 	}
 
 	public getFinalizedToolCalls() {

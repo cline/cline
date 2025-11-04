@@ -32,7 +32,6 @@ const createStreamingState = (): StreamingChunkState => ({
 	reasoningMessage: "",
 	reasoningDetails: [],
 	antThinkingContent: [],
-	reasoningSignature: "",
 })
 
 const createProcessorContext = (
