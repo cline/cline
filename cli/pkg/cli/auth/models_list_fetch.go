@@ -14,12 +14,32 @@ import (
 
 // FetchOpenRouterModels fetches available OpenRouter models from Cline Core
 func FetchOpenRouterModels(ctx context.Context, manager *task.Manager) (map[string]*cline.OpenRouterModelInfo, error) {
-	resp, err := manager.GetClient().Models.RefreshOpenRouterModels(ctx, &cline.EmptyRequest{})
+	resp, err := manager.GetClient().Models.RefreshOpenRouterModelsRpc(ctx, &cline.EmptyRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch OpenRouter models: %w", err)
 	}
 	return resp.Models, nil
 }
+
+// FetchOcaModels fetches available Oca models from Cline Core
+func FetchOcaModels(ctx context.Context, manager *task.Manager) (map[string]*cline.OcaModelInfo, error) {
+	resp, err := manager.GetClient().Models.RefreshOcaModels(ctx, &cline.StringRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch Oca models: %w", err)
+	}
+	return resp.Models, nil
+}
+
+// ConvertOpenRouterModelsToInterface converts OpenRouter model map to generic interface map.
+// This allows OpenRouter and Cline models to be used with the generic fetching utilities.
+func ConvertOpenRouterModelsToInterface(models map[string]*cline.OpenRouterModelInfo) map[string]interface{} {
+	result := make(map[string]interface{}, len(models))
+	for k, v := range models {
+		result[k] = v
+	}
+	return result
+}
+
 
 // FetchOpenAiModels fetches available OpenAI models from Cline Core
 // Takes the API key and returns a list of model IDs
@@ -100,9 +120,9 @@ func ConvertModelsMapToSlice(models map[string]interface{}) []string {
 	return result
 }
 
-// ConvertOpenRouterModelsToInterface converts OpenRouter model map to generic interface map.
-// This allows OpenRouter and Cline models to be used with the generic fetching utilities.
-func ConvertOpenRouterModelsToInterface(models map[string]*cline.OpenRouterModelInfo) map[string]interface{} {
+// ConvertOcaModelsToInterface converts Oca model map to generic interface map.
+// This allows Oca and Cline models to be used with the generic fetching utilities.
+func ConvertOcaModelsToInterface(models map[string]*cline.OcaModelInfo) map[string]interface{} {
 	result := make(map[string]interface{}, len(models))
 	for k, v := range models {
 		result[k] = v

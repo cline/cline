@@ -7,6 +7,7 @@ import { DEFAULT_EXTERNAL_OCA_BASE_URL, DEFAULT_INTERNAL_OCA_BASE_URL } from "@/
 import { createOcaHeaders, getAxiosSettings } from "@/services/auth/oca/utils/utils"
 import { Logger } from "@/services/logging/Logger"
 import { ShowMessageType } from "@/shared/proto/index.host"
+import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
 import { Controller } from ".."
 
 /**
@@ -75,13 +76,11 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 			}
 			console.log("OCA models fetched", models)
 
-			// Fetch current config
+			// Fetch current config to determine existing model selections
 			const apiConfiguration = controller.stateManager.getApiConfiguration()
-			const updatedConfig = { ...apiConfiguration }
-
-			// Which mode(s) to update?
 			const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
 			const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
+
 			const planModeSelectedModelId =
 				apiConfiguration?.planModeOcaModelId && models[apiConfiguration.planModeOcaModelId]
 					? apiConfiguration.planModeOcaModelId
@@ -91,23 +90,26 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 					? apiConfiguration.actModeOcaModelId
 					: defaultModelId!
 
-			// Save new model selection(s) to configuration object, per plan/act mode setting
+			// Build updates object based on plan/act mode setting
+			const updates: Partial<GlobalStateAndSettings> = {}
+
 			if (planActSeparateModelsSetting) {
 				if (currentMode === "plan") {
-					updatedConfig.planModeOcaModelId = planModeSelectedModelId
-					updatedConfig.planModeOcaModelInfo = models[planModeSelectedModelId]
+					updates.planModeOcaModelId = planModeSelectedModelId
+					updates.planModeOcaModelInfo = models[planModeSelectedModelId]
 				} else {
-					updatedConfig.actModeOcaModelId = actModeSelectedModelId
-					updatedConfig.actModeOcaModelInfo = models[actModeSelectedModelId]
+					updates.actModeOcaModelId = actModeSelectedModelId
+					updates.actModeOcaModelInfo = models[actModeSelectedModelId]
 				}
 			} else {
-				updatedConfig.planModeOcaModelId = planModeSelectedModelId
-				updatedConfig.planModeOcaModelInfo = models[planModeSelectedModelId]
-				updatedConfig.actModeOcaModelId = actModeSelectedModelId
-				updatedConfig.actModeOcaModelInfo = models[actModeSelectedModelId]
+				updates.planModeOcaModelId = planModeSelectedModelId
+				updates.planModeOcaModelInfo = models[planModeSelectedModelId]
+				updates.actModeOcaModelId = actModeSelectedModelId
+				updates.actModeOcaModelInfo = models[actModeSelectedModelId]
 			}
 
-			controller.stateManager.setApiConfiguration(updatedConfig)
+			// Update state directly using batch method
+			controller.stateManager.setGlobalStateBatch(updates)
 
 			HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
@@ -120,10 +122,10 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 				type: ShowMessageType.ERROR,
 				message: `Failed to fetch OCA models. Please check your configuration from ${baseUrl}`,
 			})
-		}
-	} catch (err) {
-		let userMsg
-		if (err.response) {
+	}
+} catch (err: any) {
+	let userMsg: string
+	if (err.response) {
 			// The request was made and the server responded with a status code that falls out of the range of 2xx
 			userMsg = `Did you set up your OCA access (possibly through entitlements)? OCA service returned ${err.response.status} ${err.response.statusText}.`
 		} else if (err.request) {

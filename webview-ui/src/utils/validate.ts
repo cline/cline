@@ -7,7 +7,6 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 		const {
 			apiProvider,
 			openAiModelId,
-			requestyModelId,
 			togetherModelId,
 			ollamaModelId,
 			lmStudioModelId,
@@ -154,6 +153,16 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid API key or choose a different provider."
 				}
 				break
+			case "minimax":
+				if (!apiConfiguration.minimaxApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
+			case "hicap":
+				if (!apiConfiguration.hicapApiKey) {
+					return "You must provide a valid API key"
+				}
+				break
 		}
 	}
 	return undefined
@@ -172,6 +181,9 @@ export function validateModelId(
 				const modelId = openRouterModelId || openRouterDefaultModelId // in case the user hasn't changed the model id, it will be undefined by default
 				if (!modelId) {
 					return "You must provide a model ID."
+				}
+				if (modelId.startsWith("@preset/")) {
+					break
 				}
 				if (openRouterModels && !Object.keys(openRouterModels).includes(modelId)) {
 					// even if the model list endpoint failed, extensionstatecontext will always have the default model info

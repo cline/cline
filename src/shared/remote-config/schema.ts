@@ -28,10 +28,10 @@ export const OpenAiCompatibleModelSchema = z.object({
 // OpenAiCompatible specific settings
 export const OpenAiCompatibleSchema = z.object({
 	// A list of the allowed models with their settings
-	models: z.array(OpenAiCompatibleModelSchema).default([]),
+	models: z.array(OpenAiCompatibleModelSchema).optional(),
 	// OpenAiCompatible specific settings:
 	openAiBaseUrl: z.string().optional(),
-	openAiHeaders: z.record(z.string(), z.string()).default({}),
+	openAiHeaders: z.record(z.string(), z.string()).optional(),
 	azureApiVersion: z.string().optional(),
 })
 
@@ -51,7 +51,7 @@ export const AwsBedrockCustomModelSchema = z.object({
 // AWS Bedrock specific settings
 export const AwsBedrockSettingsSchema = z.object({
 	// A list of the allowed models with their settings
-	models: z.array(AwsBedrockModelSchema).default([]),
+	models: z.array(AwsBedrockModelSchema).optional(),
 	// Custom models
 	customModels: z.array(AwsBedrockCustomModelSchema).optional(),
 	// AWS Bedrock specific settings:
@@ -62,11 +62,38 @@ export const AwsBedrockSettingsSchema = z.object({
 	awsBedrockEndpoint: z.string().optional(),
 })
 
+// Cline Provider model schema with per-model settings
+export const ClineModelSchema = z.object({
+	id: z.string(), // The model ID is required
+})
+
+// Cline Provider specific settings
+export const ClineSettingsSchema = z.object({
+	// A list of the allowed models with their settings
+	models: z.array(ClineModelSchema).optional(),
+})
+
 // Provider settings schema
 // Each provider becomes an optional field
 const ProviderSettingsSchema = z.object({
 	OpenAiCompatible: OpenAiCompatibleSchema.optional(),
 	AwsBedrock: AwsBedrockSettingsSchema.optional(),
+	Cline: ClineSettingsSchema.optional(),
+})
+
+export const AllowedMCPServerSchema = z.object({
+	// The ID of the MCP is the URL for their github repo.
+	id: z.string(),
+})
+
+// Settings for a global cline rules or workflow file.
+export const GlobalInstructionsFileSchema = z.object({
+	// When this is enabled, the user cannot turn off this rule or workflow.
+	alwaysEnabled: z.boolean(),
+	// The name of the rules or workflow file.
+	name: z.string(),
+	// The contents of the rules or workflow file
+	contents: z.string(),
 })
 
 export const RemoteConfigSchema = z.object({
@@ -74,20 +101,44 @@ export const RemoteConfigSchema = z.object({
 	// This field is for internal use only, and won't be visible to the administrator in the UI.
 	version: z.string(),
 
+	// Provider specific settings
+	providerSettings: ProviderSettingsSchema.optional(),
+
 	// General settings not specific to any provider
 	telemetryEnabled: z.boolean().optional(),
+
+	// MCP settings
 	mcpMarketplaceEnabled: z.boolean().optional(),
+	allowedMCPServers: z.array(AllowedMCPServerSchema).optional(),
+
 	// If the user is allowed to enable YOLO mode. Note this is different from the extension setting
 	// yoloModeEnabled, because we do not want to force YOLO enabled for the user.
 	yoloModeAllowed: z.boolean().optional(),
-	// Other top-level settings can be added here later.
 
-	// Provider specific settings
-	// Each provider in providerSchemasMap is automatically available as an optional field
-	providerSettings: ProviderSettingsSchema.optional(),
+	// OpenTelemetry configuration
+	openTelemetryEnabled: z.boolean().optional(),
+	openTelemetryMetricsExporter: z.string().optional(),
+	openTelemetryLogsExporter: z.string().optional(),
+	openTelemetryOtlpProtocol: z.string().optional(),
+	openTelemetryOtlpEndpoint: z.string().optional(),
+	openTelemetryOtlpHeaders: z.record(z.string(), z.string()).optional(),
+	openTelemetryOtlpMetricsProtocol: z.string().optional(),
+	openTelemetryOtlpMetricsEndpoint: z.string().optional(),
+	openTelemetryOtlpLogsProtocol: z.string().optional(),
+	openTelemetryOtlpLogsEndpoint: z.string().optional(),
+	openTelemetryMetricExportInterval: z.number().optional(),
+	openTelemetryOtlpInsecure: z.boolean().optional(),
+	openTelemetryLogBatchSize: z.number().optional(),
+	openTelemetryLogBatchTimeout: z.number().optional(),
+	openTelemetryLogMaxQueueSize: z.number().optional(),
+
+	// Rules & Workflows
+	globalRules: z.array(GlobalInstructionsFileSchema).optional(),
+	globalWorkflows: z.array(GlobalInstructionsFileSchema).optional(),
 })
 
 // Type inference from schemas
+export type MCPServer = z.infer<typeof AllowedMCPServerSchema>
 export type OpenAiCompatibleModel = z.infer<typeof OpenAiCompatibleModelSchema>
 export type OpenAiCompatible = z.infer<typeof OpenAiCompatibleSchema>
 export type AwsBedrockModel = z.infer<typeof AwsBedrockModelSchema>
@@ -95,3 +146,4 @@ export type AwsBedrockCustomModel = z.infer<typeof AwsBedrockCustomModelSchema>
 export type AwsBedrockSettings = z.infer<typeof AwsBedrockSettingsSchema>
 export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
 export type RemoteConfig = z.infer<typeof RemoteConfigSchema>
+export type GlobalInstructionsFile = z.infer<typeof GlobalInstructionsFileSchema>

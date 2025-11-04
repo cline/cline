@@ -7,6 +7,7 @@ import { Virtuoso } from "react-virtuoso"
 import DangerButton from "@/components/common/DangerButton"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
+import { getEnvironmentColor } from "@/utils/environmentColors"
 import { formatLargeNumber, formatSize } from "@/utils/format"
 
 type HistoryViewProps = {
@@ -28,16 +29,16 @@ interface CustomFilterRadioProps {
 const CustomFilterRadio = ({ checked, onChange, icon, label }: CustomFilterRadioProps) => {
 	return (
 		<div
-			className="flex items-center cursor-pointer py-[0.3em] px-0 mr-[10px] text-[var(--vscode-font-size)] select-none"
+			className="flex items-center cursor-pointer py-[0.3em] px-0 mr-[10px] text-(--vscode-font-size) select-none"
 			onClick={onChange}>
 			<div
-				className={`w-[14px] h-[14px] rounded-full border border-[var(--vscode-checkbox-border)] relative flex justify-center items-center mr-[6px] ${
-					checked ? "bg-[var(--vscode-checkbox-background)]" : "bg-transparent"
+				className={`w-[14px] h-[14px] rounded-full border border-(--vscode-checkbox-border) relative flex justify-center items-center mr-[6px] ${
+					checked ? "bg-(--vscode-checkbox-background)" : "bg-transparent"
 				}`}>
-				{checked && <div className="w-[6px] h-[6px] rounded-full bg-[var(--vscode-checkbox-foreground)]" />}
+				{checked && <div className="w-[6px] h-[6px] rounded-full bg-(--vscode-checkbox-foreground)" />}
 			</div>
 			<span className="flex items-center gap-[3px]">
-				<div className={`codicon codicon-${icon} text-[var(--vscode-button-background)] text-base`} />
+				<div className={`codicon codicon-${icon} text-(--vscode-button-background) text-base`} />
 				{label}
 			</span>
 		</div>
@@ -46,7 +47,7 @@ const CustomFilterRadio = ({ checked, onChange, icon, label }: CustomFilterRadio
 
 const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const extensionStateContext = useExtensionState()
-	const { taskHistory, onRelinquishControl } = extensionStateContext
+	const { taskHistory, onRelinquishControl, environment } = extensionStateContext
 	const [searchQuery, setSearchQuery] = useState("")
 	const [sortOption, setSortOption] = useState<SortOption>("newest")
 	const [lastNonRelevantSort, setLastNonRelevantSort] = useState<SortOption | null>("newest")
@@ -297,17 +298,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					}
 				`}
 			</style>
-			<div
-				style={{
-					position: "fixed",
-					top: 0,
-					left: 0,
-					right: 0,
-					bottom: 0,
-					display: "flex",
-					flexDirection: "column",
-					overflow: "hidden",
-				}}>
+			<div className="fixed overflow-hidden inset-0 flex flex-col">
 				<div
 					style={{
 						display: "flex",
@@ -317,7 +308,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					}}>
 					<h3
 						style={{
-							color: "var(--vscode-foreground)",
+							color: getEnvironmentColor(environment),
 							margin: 0,
 						}}>
 						History
@@ -325,12 +316,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 					<VSCodeButton onClick={() => onDone()}>Done</VSCodeButton>
 				</div>
 				<div style={{ padding: "5px 17px 6px 17px" }}>
-					<div
-						style={{
-							display: "flex",
-							flexDirection: "column",
-							gap: "6px",
-						}}>
+					<div className="flex flex-col gap-3">
 						<VSCodeTextField
 							onInput={(e) => {
 								const newValue = (e.target as HTMLInputElement)?.value
@@ -367,8 +353,8 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 							)}
 						</VSCodeTextField>
 						<VSCodeRadioGroup
+							className="flex flex-wrap"
 							onChange={(e) => setSortOption((e.target as HTMLInputElement).value as SortOption)}
-							style={{ display: "flex", flexWrap: "wrap" }}
 							value={sortOption}>
 							<VSCodeRadio value="newest">Newest</VSCodeRadio>
 							<VSCodeRadio value="oldest">Oldest</VSCodeRadio>

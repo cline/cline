@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
@@ -16,6 +17,7 @@ type StreamingSegment struct {
 	buffer         strings.Builder
 	frozen         bool
 	mdRenderer     *MarkdownRenderer
+	toolRenderer   *ToolRenderer
 	shouldMarkdown bool
 	outputFormat   string
 	msg            *types.ClineMessage
@@ -27,20 +29,21 @@ func NewStreamingSegment(sayType, prefix string, mdRenderer *MarkdownRenderer, s
 		sayType:        sayType,
 		prefix:         prefix,
 		mdRenderer:     mdRenderer,
+		toolRenderer:   NewToolRenderer(mdRenderer, outputFormat),
 		shouldMarkdown: shouldMarkdown,
 		outputFormat:   outputFormat,
 		msg:            msg,
 		toolParser:     NewToolResultParser(mdRenderer),
 	}
-	
-	// Render rich header immediately when creating segment (if in rich mode)
-	if shouldMarkdown && outputFormat != "plain" {
+
+	// Render rich header immediately when creating segment (if in rich mode and TTY)
+	if shouldMarkdown && outputFormat != "plain" && isTTY() {
 		header := ss.generateRichHeader()
 		rendered, _ := mdRenderer.Render(header)
-		fmt.Println()
-		fmt.Print(rendered)
+		output.Println("")
+		output.Print(rendered)
 	}
-	
+
 	return ss
 }
 
@@ -76,75 +79,69 @@ func (ss *StreamingSegment) Freeze() {
 }
 
 func (ss *StreamingSegment) renderFinal(currentBuffer string) {
-	// For ASK messages, parse JSON and extract response field
-	text := currentBuffer
+	var bodyContent string
+
+	// Use ToolRenderer for all body rendering to centralize logic
 	if ss.sayType == "ask" {
-		var askData types.AskData
-		if err := json.Unmarshal([]byte(currentBuffer), &askData); err == nil {
-			// Use the response field as the text to render
-			text = askData.Response
-			
-			// Add options if available
-			if len(askData.Options) > 0 {
-				text += "\n\nOptions:\n"
-				for i, option := range askData.Options {
-					text += fmt.Sprintf("%d. %s\n", i+1, option)
-				}
+		// Handle ASK messages
+		if ss.msg.Ask == string(types.AskTypeTool) {
+			// Tool approval: use ToolRenderer for body
+			var tool types.ToolMessage
+			if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
+				// For approval requests in streaming, use the preview method
+				bodyContent = ss.toolRenderer.GenerateToolContentPreview(&tool)
 			}
+		} else if ss.msg.Ask == string(types.AskTypeFollowup) {
+			// Followup question: use ToolRenderer
+			bodyContent = ss.toolRenderer.GenerateAskFollowupBody(currentBuffer)
+		} else if ss.msg.Ask == string(types.AskTypePlanModeRespond) {
+			// Plan mode respond: use ToolRenderer
+			bodyContent = ss.toolRenderer.GeneratePlanModeRespondBody(currentBuffer)
+		} else if ss.msg.Ask == string(types.AskTypeCommand) {
+			// Command approval: no body needed - header shows command, output shown separately later
+			bodyContent = ""
+		} else {
+			// For other ask types, render as-is
+			bodyContent = currentBuffer
 		}
-	}
-	
-	// For tools, parse JSON and render with enhanced formatting
-	if ss.sayType == string(types.SayTypeTool) {
+	} else if ss.sayType == string(types.SayTypeTool) {
+		// Tool execution (SAY): use ToolRenderer for body
 		var tool types.ToolMessage
 		if err := json.Unmarshal([]byte(currentBuffer), &tool); err == nil {
-			// Use tool parser for enhanced rendering
-			switch tool.Tool {
-			case "listFilesTopLevel", "listFilesRecursive",
-			     "listCodeDefinitionNames", "searchFiles", "webFetch":
-				// Use enhanced tool result parser for final render
-				text = ss.toolParser.ParseToolResult(&tool)
-			
-			case "readFile":
-				// readFile: show header only, no body
-				return
-			
-			case "editedExistingFile":
-				// Show the diff (stored in Content field)
-				if tool.Content != "" {
-					text = "```diff\n" + tool.Content + "\n```"
-				} else {
-					return  // No diff, just header
-				}
-			
-			default:
-				// Other tools: suppress JSON body for now
-				return
+			bodyContent = ss.toolRenderer.GenerateToolContentBody(&tool)
+		}
+	} else if ss.sayType == string(types.SayTypeCommand) {
+		// Command output
+		bodyContent = "```shell\n" + currentBuffer + "\n```"
+		// Render markdown only in rich mode and TTY
+		if ss.shouldMarkdown && ss.outputFormat != "plain" && isTTY() {
+			rendered, err := ss.mdRenderer.Render(bodyContent)
+			if err == nil {
+				bodyContent = rendered
 			}
 		}
-	}
-
-	if ss.sayType == string(types.SayTypeCommand) {
-		text = "```shell\n" + text + "\n```"
-	}
-
-	var rendered string
-	if ss.shouldMarkdown && ss.outputFormat != "plain" {
-		var err error
-		rendered, err = ss.mdRenderer.Render(text)
-		if err != nil {
-			rendered = ss.prefix + ": " + currentBuffer
+	} else {
+		// For other types (reasoning, text, etc.), render markdown as-is
+		if ss.shouldMarkdown && ss.outputFormat != "plain" && isTTY() {
+			rendered, err := ss.mdRenderer.Render(currentBuffer)
+			if err == nil {
+				bodyContent = rendered
+			} else {
+				bodyContent = currentBuffer
+			}
+		} else {
+			bodyContent = currentBuffer
 		}
-	} else {
-		rendered = ss.prefix + ": " + currentBuffer
 	}
 
-	// Print final render once (no clearing needed, header already printed)
-	if !strings.HasSuffix(rendered, "\n") {
-		fmt.Print(rendered)
-		fmt.Println()
-	} else {
-		fmt.Print(rendered)
+	// Print the body content
+	if bodyContent != "" {
+		if !strings.HasSuffix(bodyContent, "\n") {
+			output.Print(bodyContent)
+			output.Println("")
+		} else {
+			output.Print(bodyContent)
+		}
 	}
 }
 
@@ -167,9 +164,34 @@ func (ss *StreamingSegment) generateRichHeader() string {
 	case "ask":
 		// Check the specific ask type
 		if ss.msg.Ask == string(types.AskTypePlanModeRespond) {
-			return "### Cline has a plan\n"
+			return ss.toolRenderer.GeneratePlanModeRespondHeader()
 		}
-		// For other ask types (tool approvals, questions, etc.), show the ask type
+
+		// For tool approvals, show proper tool header
+		if ss.msg.Ask == string(types.AskTypeTool) {
+			var tool types.ToolMessage
+			if err := json.Unmarshal([]byte(ss.msg.Text), &tool); err == nil {
+				// Use ToolRenderer for approval header with "wants to" verbs
+				return ss.toolRenderer.RenderToolApprovalHeader(&tool)
+			}
+		}
+
+		// For command approvals, show command header
+		if ss.msg.Ask == string(types.AskTypeCommand) {
+			command := strings.TrimSpace(ss.msg.Text)
+			if strings.HasSuffix(command, "REQ_APP") {
+				command = strings.TrimSuffix(command, "REQ_APP")
+				command = strings.TrimSpace(command)
+			}
+			return fmt.Sprintf("### Cline wants to run `%s`\n", command)
+		}
+
+		// For followup questions, show question header
+		if ss.msg.Ask == string(types.AskTypeFollowup) {
+			return ss.toolRenderer.GenerateAskFollowupHeader()
+		}
+
+		// For other ask types, show generic message
 		return fmt.Sprintf("### Cline is asking (%s)\n", ss.msg.Ask)
 		
 	default:
@@ -184,59 +206,7 @@ func (ss *StreamingSegment) generateToolHeader() string {
 	if err := json.Unmarshal([]byte(ss.msg.Text), &tool); err != nil {
 		return "### Tool operation\n"
 	}
-	
-	switch tool.Tool {
-	case "readFile":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is reading `%s`\n", tool.Path)
-		}
-		return "### Cline is reading a file\n"
-		
-	case "writeFile", "newFileCreated":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is writing `%s`\n", tool.Path)
-		}
-		return "### Cline is writing a file\n"
-		
-	case "editedExistingFile":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is editing `%s`\n", tool.Path)
-		}
-		return "### Cline is editing a file\n"
-		
-	case "searchFiles":
-		if tool.Regex != "" && tool.Path != "" {
-			return fmt.Sprintf("### Cline is searching for `%s` in `%s`\n", tool.Regex, tool.Path)
-		} else if tool.Regex != "" {
-			return fmt.Sprintf("### Cline is searching for `%s`\n", tool.Regex)
-		}
-		return "### Cline is searching files\n"
-		
-	case "listFilesTopLevel":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is listing files in `%s`\n", tool.Path)
-		}
-		return "### Cline is listing files\n"
-		
-	case "listFilesRecursive":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is recursively listing files in `%s`\n", tool.Path)
-		}
-		return "### Cline is recursively listing files\n"
-		
-	case "listCodeDefinitionNames":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is listing code definitions in `%s`\n", tool.Path)
-		}
-		return "### Cline is listing code definitions\n"
-		
-	case "webFetch":
-		if tool.Path != "" {
-			return fmt.Sprintf("### Cline is fetching `%s`\n", tool.Path)
-		}
-		return "### Cline is fetching a URL\n"
-		
-	default:
-		return fmt.Sprintf("### Tool: %s\n", tool.Tool)
-	}
+
+	// Use unified ToolRenderer for header
+	return ss.toolRenderer.RenderToolExecutionHeader(&tool)
 }

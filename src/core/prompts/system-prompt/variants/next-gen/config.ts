@@ -1,3 +1,4 @@
+import { isGPT5ModelFamily, isLocalModel, isNextGenModelFamily, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -15,6 +16,20 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		production: 1,
 		advanced: 1,
 	})
+	.matcher((context) => {
+		// Match next-gen models
+		const providerInfo = context.providerInfo
+		if (isNextGenModelFamily(providerInfo.model.id) && !context.enableNativeToolCalls) {
+			return true
+		}
+		const modelId = providerInfo.model.id
+		return (
+			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
+			!isNextGenModelProvider(providerInfo) &&
+			isNextGenModelFamily(modelId) &&
+			!(isGPT5ModelFamily(modelId) && !modelId.includes("chat"))
+		)
+	})
 	.template(baseTemplate)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
@@ -23,6 +38,7 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		SystemPromptSection.MCP,
 		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.ACT_VS_PLAN,
+		SystemPromptSection.CLI_SUBAGENTS,
 		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.CAPABILITIES,
 		SystemPromptSection.FEEDBACK,
@@ -61,7 +77,7 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 	.build()
 
 // Compile-time validation
-const validationResult = validateVariant({ ...config, id: "next-gen" }, { strict: true })
+const validationResult = validateVariant({ ...config, id: ModelFamily.NEXT_GEN }, { strict: true })
 if (!validationResult.isValid) {
 	console.error("Next-gen variant configuration validation failed:", validationResult.errors)
 	throw new Error(`Invalid next-gen variant configuration: ${validationResult.errors.join(", ")}`)

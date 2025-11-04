@@ -1,7 +1,11 @@
 import { SystemPromptSection } from "../../templates/placeholders"
 import type { SystemPromptContext } from "../../types"
 
-export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
+/**
+ * Base template for GPT-5 variant with structured sections
+ * Removed SystemPromptSection.TASK_PROGRESS
+ */
+export const BASE = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 {{${SystemPromptSection.TOOL_USE}}}
 
@@ -20,6 +24,10 @@ export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 ====
 
 {{${SystemPromptSection.ACT_VS_PLAN}}}
+
+====
+
+{{${SystemPromptSection.CLI_SUBAGENTS}}}
 
 ====
 
@@ -49,7 +57,7 @@ export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 {{${SystemPromptSection.USER_INSTRUCTIONS}}}`
 
-export const rules_template = (context: SystemPromptContext) => `RULES
+const RULES = (context: SystemPromptContext) => `RULES
 
 - Your current working directory is: {{CWD}}
 - You cannot \`cd\` into a different directory to complete a task. You are stuck operating from '{{CWD}}', so be sure to pass in the correct 'path' parameter when using tools that require a path.
@@ -76,3 +84,8 @@ export const rules_template = (context: SystemPromptContext) => `RULES
 - When using the replace_in_file tool, Do NOT add extra characters to the markers (e.g., ------- SEARCH> is INVALID). Do NOT forget to use the closing +++++++ REPLACE marker. Do NOT modify the marker format in any way. Malformed XML will cause complete tool failure and break the entire editing process.
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.{{BROWSER_WAIT_RULES}}
 - MCP operations should be used one at a time, similar to other tool usage. Wait for confirmation of success before proceeding with additional operations.`
+
+export const GPT_5_TEMPLATE_OVERRIDES = {
+	BASE,
+	RULES,
+} as const

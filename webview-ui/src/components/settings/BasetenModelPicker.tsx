@@ -1,5 +1,6 @@
 import { basetenDefaultModelId, basetenModels } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
+import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
@@ -52,11 +53,11 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 	}, [apiConfiguration, currentMode])
 
 	useMount(() => {
-		ModelsServiceClient.refreshBasetenModels(EmptyRequest.create({}))
+		ModelsServiceClient.refreshBasetenModelsRpc(EmptyRequest.create({}))
 			.then((response) => {
 				setBasetenModels({
 					[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
-					...response.models,
+					...fromProtobufModels(response.models),
 				})
 			})
 			.catch((err) => {
@@ -241,7 +242,7 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 					</VSCodeTextField>
 					{isDropdownVisible && (
 						<div
-							className="absolute top-[calc(100%-3px)] left-0 w-[calc(100%-2px)] max-h-[200px] overflow-y-auto border border-[var(--vscode-list-activeSelectionBackground)] rounded-b-[3px]"
+							className="absolute top-[calc(100%-3px)] left-0 w-[calc(100%-2px)] max-h-[200px] overflow-y-auto border border-(--vscode-list-activeSelectionBackground) rounded-b-[3px]"
 							ref={dropdownListRef}
 							style={{
 								backgroundColor: "var(--vscode-dropdown-background)",
@@ -249,8 +250,8 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 							}}>
 							{modelSearchResults.map((item, index) => (
 								<div
-									className={`px-2.5 py-1.5 cursor-pointer break-all whitespace-normal hover:bg-[var(--vscode-list-activeSelectionBackground)] ${
-										index === selectedIndex ? "bg-[var(--vscode-list-activeSelectionBackground)]" : ""
+									className={`px-2.5 py-1.5 cursor-pointer break-all whitespace-normal hover:bg-(--vscode-list-activeSelectionBackground) ${
+										index === selectedIndex ? "bg-(--vscode-list-activeSelectionBackground)" : ""
 									}`}
 									key={item.id}
 									onClick={() => {
@@ -272,7 +273,7 @@ const BasetenModelPicker: React.FC<BasetenModelPickerProps> = ({ isPopup, curren
 			{hasInfo ? (
 				<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 			) : (
-				<p className="text-xs mt-0 text-[var(--vscode-descriptionForeground)]">
+				<p className="text-xs mt-0 text-(--vscode-descriptionForeground)">
 					The extension automatically fetches the latest list of models available on{" "}
 					<VSCodeLink className="inline text-inherit" href="https://www.baseten.co/products/model-apis/">
 						Baseten.

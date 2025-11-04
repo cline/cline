@@ -1,17 +1,11 @@
 import { ensureCacheDirectoryExists, GlobalFileNames } from "@core/storage/disk"
-import { EmptyRequest } from "@shared/proto/cline/common"
-import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
+import type { ModelInfo } from "@shared/api"
 import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
-import {
-	CLAUDE_SONNET_1M_TIERS,
-	clineCodeSupernovaModelInfo,
-	openRouterClaudeSonnet41mModelId,
-	openRouterClaudeSonnet451mModelId,
-} from "@/shared/api"
-import { Controller } from ".."
+import { CLAUDE_SONNET_1M_TIERS, openRouterClaudeSonnet41mModelId, openRouterClaudeSonnet451mModelId } from "@/shared/api"
+import type { Controller } from ".."
 
 type OpenRouterSupportedParams =
 	| "frequency_penalty"
@@ -65,25 +59,21 @@ interface OpenRouterRawModelInfo {
 		input_cache_read: string
 		input_cache_write: string
 	} | null
-	thinking_config: any | null
+	thinking_config: Record<string, unknown> | null
 	supports_global_endpoint: boolean | null
 	tiers: any[] | null
 	supported_parameters?: OpenRouterSupportedParams[] | null
 }
 
 /**
- * Refreshes the OpenRouter models and returns the updated model listhttps://openrouter.ai/docs/overview/models
+ * Core function: Refreshes the OpenRouter models and returns application types
  * @param controller The controller instance
- * @param request Empty request object
- * @returns Response containing the OpenRouter models
+ * @returns Record of model ID to ModelInfo (application types)
  */
-export async function refreshOpenRouterModels(
-	controller: Controller,
-	_request: EmptyRequest,
-): Promise<OpenRouterCompatibleModelInfo> {
+export async function refreshOpenRouterModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
 
-	const models: Record<string, OpenRouterModelInfo> = {}
+	const models: Record<string, ModelInfo> = {}
 	try {
 		const response = await axios.get("https://openrouter.ai/api/v1/models")
 
@@ -97,7 +87,7 @@ export async function refreshOpenRouterModels(
 			}
 			for (const rawModel of rawModels as OpenRouterRawModelInfo[]) {
 				const supportThinking = rawModel.supported_parameters?.some((p) => p === "include_reasoning")
-				const modelInfo = OpenRouterModelInfo.create({
+				const modelInfo: ModelInfo = {
 					maxTokens: rawModel.top_provider?.max_completion_tokens ?? 0,
 					contextWindow: rawModel.context_length ?? 0,
 					supportsImages: rawModel.architecture?.modality?.includes("image") ?? false,
@@ -107,10 +97,10 @@ export async function refreshOpenRouterModels(
 					cacheWritesPrice: parsePrice(rawModel.pricing?.input_cache_write),
 					cacheReadsPrice: parsePrice(rawModel.pricing?.input_cache_read),
 					description: rawModel.description ?? "",
-					thinkingConfig: supportThinking ? (rawModel.thinking_config ?? {}) : undefined,
+					thinkingConfig: (supportThinking && rawModel.thinking_config) || undefined,
 					supportsGlobalEndpoint: rawModel.supports_global_endpoint ?? undefined,
-					tiers: rawModel.tiers ?? [],
-				})
+					tiers: rawModel.tiers ?? undefined,
+				}
 
 				switch (rawModel.id) {
 					case "anthropic/claude-sonnet-4.5":
@@ -146,6 +136,8 @@ export async function refreshOpenRouterModels(
 						modelInfo.cacheWritesPrice = 3.75
 						modelInfo.cacheReadsPrice = 0.3
 						break
+					case "anthropic/claude-haiku-4.5":
+					case "anthropic/claude-4.5-haiku":
 					case "anthropic/claude-3-5-haiku":
 					case "anthropic/claude-3-5-haiku:beta":
 					case "anthropic/claude-3-5-haiku-20241022":
@@ -241,37 +233,23 @@ export async function refreshOpenRouterModels(
 		// If we failed to fetch models, try to read cached models
 		const cachedModels = await controller.readOpenRouterModels()
 		if (cachedModels) {
-			return OpenRouterCompatibleModelInfo.create({ models: cachedModels })
+			// Cached models are already in application format (ModelInfo)
+			return appendClineStealthModels(cachedModels as Record<string, ModelInfo>)
 		}
 	}
 	// Append stealth models if any
-	return OpenRouterCompatibleModelInfo.create({ models: appendClineStealthModels(models) })
+	return appendClineStealthModels(models)
 }
 
 /**
  * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
  */
-const CLINE_STEALTH_MODELS: Record<string, OpenRouterModelInfo> = {
-	"cline/code-supernova-1-million": OpenRouterModelInfo.create({
-		maxTokens: clineCodeSupernovaModelInfo.maxTokens ?? 0,
-		contextWindow: clineCodeSupernovaModelInfo.contextWindow ?? 0,
-		supportsImages: clineCodeSupernovaModelInfo.supportsImages ?? false,
-		supportsPromptCache: clineCodeSupernovaModelInfo.supportsPromptCache ?? false,
-		inputPrice: clineCodeSupernovaModelInfo.inputPrice ?? 0,
-		outputPrice: clineCodeSupernovaModelInfo.outputPrice ?? 0,
-		cacheWritesPrice: clineCodeSupernovaModelInfo.cacheWritesPrice ?? 0,
-		cacheReadsPrice: clineCodeSupernovaModelInfo.cacheReadsPrice ?? 0,
-		description: clineCodeSupernovaModelInfo.description ?? "",
-		thinkingConfig: clineCodeSupernovaModelInfo.thinkingConfig ?? undefined,
-		supportsGlobalEndpoint: clineCodeSupernovaModelInfo.supportsGlobalEndpoint ?? undefined,
-		tiers: clineCodeSupernovaModelInfo.tiers ?? [],
-	}),
+const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {
 	// Add more stealth models here as needed
+	// Right now this list is empty as the latest stealth model was removed
 }
 
-export function appendClineStealthModels(
-	currentModels: Record<string, OpenRouterModelInfo>,
-): Record<string, OpenRouterModelInfo> {
+export function appendClineStealthModels(currentModels: Record<string, ModelInfo>): Record<string, ModelInfo> {
 	// Create a shallow clone of the current models to avoid mutating the original object
 	const cloned = { ...currentModels }
 	for (const [modelId, modelInfo] of Object.entries(CLINE_STEALTH_MODELS)) {

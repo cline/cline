@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.1.4/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.2.5/schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
@@ -60,29 +60,31 @@
 				"useTemplate": "off",
 				"noUselessElse": "off"
 			},
-			"suspicious": {
-				"noDoubleEquals": "warn",
-				"noImplicitAnyLet": "info",
-				"noThenProperty": "off",
-				"noAsyncPromiseExecutor": "off",
-				"noImportAssign": "off",
-				"noExplicitAny": "off",
-				"noControlCharactersInRegex": "off",
-				"noShadowRestrictedNames": "off",
-				"noArrayIndexKey": "info",
-				"noAssignInExpressions": "warn"
-			},
-			"complexity": {
-				"noUselessConstructor": "off",
-				"useOptionalChain": "off",
-				"noBannedTypes": "off",
-				"useLiteralKeys": "off",
-				"noUselessCatch": "off",
-				"noUselessSwitchCase": "off",
-				"noStaticOnlyClass": "off"
-			},
+		"suspicious": {
+			"noDoubleEquals": "warn",
+			"noImplicitAnyLet": "info",
+			"noThenProperty": "off",
+			"noAsyncPromiseExecutor": "off",
+			"noImportAssign": "off",
+			"noExplicitAny": "off",
+			"noControlCharactersInRegex": "off",
+			"noShadowRestrictedNames": "off",
+			"noArrayIndexKey": "info",
+			"noAssignInExpressions": "info",
+			"noUnknownAtRules": "off"
+		},
+		"complexity": {
+			"noUselessConstructor": "off",
+			"useOptionalChain": "off",
+			"noBannedTypes": "off",
+			"useLiteralKeys": "off",
+			"noUselessCatch": "off",
+			"noUselessSwitchCase": "off",
+			"noStaticOnlyClass": "off",
+			"noImportantStyles": "off"
+		},
 			"security": {
-				"noDangerouslySetInnerHtml": "warn"
+				"noDangerouslySetInnerHtml": "info"
 			}
 		}
 	},

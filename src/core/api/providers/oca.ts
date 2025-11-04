@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { APIError, OpenAIError } from "openai"
 import type { FinalRequestOptions, Headers as OpenAIHeaders } from "openai/core"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import {
 	DEFAULT_EXTERNAL_OCA_BASE_URL,
@@ -14,6 +15,7 @@ import { ApiHandler, type CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 export interface OcaHandlerOptions extends CommonApiHandlerOptions {
 	ocaBaseUrl?: string
@@ -135,7 +137,7 @@ export class OcaHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const formattedMessages = convertToOpenAiMessages(messages)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
@@ -145,9 +147,9 @@ export class OcaHandler implements ApiHandler {
 		const modelId = this.options.ocaModelId || liteLlmDefaultModelId
 		const isOminiModel = modelId.includes("o1-mini") || modelId.includes("o3-mini") || modelId.includes("o4-mini")
 
-		// Configuration for extended thinking
-		const budgetTokens = this.options.thinkingBudgetTokens || 0
-		const reasoningOn = budgetTokens !== 0 ? true : false
+	// Configuration for extended thinking
+	const budgetTokens = this.options.thinkingBudgetTokens || 0
+	const reasoningOn = budgetTokens !== 0
 		const thinkingConfig = reasoningOn ? { type: "enabled", budget_tokens: budgetTokens } : undefined
 
 		let temperature: number | undefined = this.options.ocaModelInfo?.temperature ?? 0
@@ -187,6 +189,8 @@ export class OcaHandler implements ApiHandler {
 			return message
 		})
 
+		const toolCallProcessor = new ToolCallProcessor()
+
 		const stream = await client.chat.completions.create({
 			model: this.options.ocaModelId || liteLlmDefaultModelId,
 			messages: [enhancedSystemMessage, ...enhancedMessages],
@@ -198,6 +202,7 @@ export class OcaHandler implements ApiHandler {
 			...(thinkingConfig && { thinking: thinkingConfig }), // Add thinking configuration when applicable
 			...(this.options.taskId && {
 				litellm_session_id: `cline-${this.options.taskId}`,
+				...getOpenAIToolParams(tools),
 			}), // Add session ID for LiteLLM tracking
 		})
 
@@ -226,6 +231,10 @@ export class OcaHandler implements ApiHandler {
 					type: "reasoning",
 					reasoning: (delta as ThinkingDelta).thinking || "",
 				}
+			}
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			// Handle token usage information

@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cline/cli/pkg/cli/display"
+	"github.com/cline/cli/pkg/cli/clerror"
 	"github.com/cline/cli/pkg/cli/types"
+	"github.com/cline/cli/pkg/cli/output"
 )
 
 // SayHandler handles SAY type messages
@@ -51,6 +52,8 @@ func (h *SayHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 		return h.handleUserFeedbackDiff(msg, dc)
 	case string(types.SayTypeAPIReqRetried):
 		return h.handleAPIReqRetried(msg, dc)
+	case string(types.SayTypeErrorRetry):
+		return h.handleErrorRetry(msg, dc)
 	case string(types.SayTypeCommand):
 		return h.handleCommand(msg, dc)
 	case string(types.SayTypeCommandOutput):
@@ -110,6 +113,14 @@ func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayCon
 		return dc.Renderer.RenderMessage("API INFO", msg.Text, true)
 	}
 
+	// Check for streaming failed message with error details
+	if apiInfo.StreamingFailedMessage != "" {
+		clineErr, _ := clerror.ParseClineError(apiInfo.StreamingFailedMessage)
+		if clineErr != nil {
+			return h.renderClineError(clineErr, dc)
+		}
+	}
+
 	// Handle different API request states
 	if apiInfo.CancelReason != "" {
 		if apiInfo.CancelReason == "user_cancelled" {
@@ -135,6 +146,24 @@ func (h *SayHandler) handleAPIReqStarted(msg *types.ClineMessage, dc *DisplayCon
 	return dc.Renderer.RenderAPI("processing request", &apiInfo)
 }
 
+// renderClineError renders a ClineError with appropriate formatting based on type
+func (h *SayHandler) renderClineError(err *clerror.ClineError, dc *DisplayContext) error {
+	if dc.SystemRenderer == nil {
+		return dc.Renderer.RenderMessage("ERROR", err.Message, true)
+	}
+
+	switch err.GetErrorType() {
+	case clerror.ErrorTypeBalance:
+		return dc.SystemRenderer.RenderBalanceError(err)
+	case clerror.ErrorTypeAuth:
+		return dc.SystemRenderer.RenderAuthError(err)
+	case clerror.ErrorTypeRateLimit:
+		return dc.SystemRenderer.RenderRateLimitError(err)
+	default:
+		return dc.SystemRenderer.RenderAPIError(err)
+	}
+}
+
 // handleAPIReqFinished handles API request finished messages
 func (h *SayHandler) handleAPIReqFinished(msg *types.ClineMessage, dc *DisplayContext) error {
 	// This message type is typically not displayed as it's handled by the started message
@@ -151,8 +180,8 @@ func (h *SayHandler) handleText(msg *types.ClineMessage, dc *DisplayContext) err
 	if dc.MessageIndex == 0 {
 		markdown := formatUserMessage(msg.Text)
 		rendered := dc.Renderer.RenderMarkdown(markdown)
-		fmt.Printf("%s", rendered)
-		fmt.Printf("\n")
+		output.Printf("%s", rendered)
+		output.Printf("\n")
 		return nil
 	}
 
@@ -161,12 +190,12 @@ func (h *SayHandler) handleText(msg *types.ClineMessage, dc *DisplayContext) err
 	if dc.IsStreamingMode {
 		// In streaming mode, header already shown by partial stream
 		rendered = dc.Renderer.RenderMarkdown(msg.Text)
-		fmt.Printf("%s\n", rendered)
+		output.Printf("%s\n", rendered)
 	} else {
 		// In non-streaming mode, render header + body together
 		markdown := fmt.Sprintf("### Cline responds\n\n%s", msg.Text)
 		rendered = dc.Renderer.RenderMarkdown(markdown)
-		fmt.Printf("\n%s\n", rendered)
+		output.Printf("\n%s\n", rendered)
 	}
 	return nil
 }
@@ -181,12 +210,12 @@ func (h *SayHandler) handleReasoning(msg *types.ClineMessage, dc *DisplayContext
 	if dc.IsStreamingMode {
 		// In streaming mode, header already shown by partial stream
 		rendered = dc.Renderer.RenderMarkdown(msg.Text)
-		fmt.Printf("%s\n", rendered)
+		output.Printf("%s\n", rendered)
 	} else {
 		// In non-streaming mode, render header + body together
 		markdown := fmt.Sprintf("### Cline is thinking\n\n%s", msg.Text)
 		rendered = dc.Renderer.RenderMarkdown(markdown)
-		fmt.Printf("\n%s\n", rendered)
+		output.Printf("\n%s\n", rendered)
 	}
 	return nil
 }
@@ -202,12 +231,12 @@ func (h *SayHandler) handleCompletionResult(msg *types.ClineMessage, dc *Display
 	if dc.IsStreamingMode {
 		// In streaming mode, header already shown by partial stream
 		rendered = dc.Renderer.RenderMarkdown(text)
-		fmt.Printf("%s\n", rendered)
+		output.Printf("%s\n", rendered)
 	} else {
 		// In non-streaming mode, render header + body together
 		markdown := fmt.Sprintf("### Task completed\n\n%s", text)
 		rendered = dc.Renderer.RenderMarkdown(markdown)
-		fmt.Printf("\n%s\n", rendered)
+		output.Printf("\n%s\n", rendered)
 	}
 	return nil
 }
@@ -231,7 +260,7 @@ func (h *SayHandler) handleUserFeedback(msg *types.ClineMessage, dc *DisplayCont
 	if msg.Text != "" {
 		markdown := formatUserMessage(msg.Text)
 		rendered := dc.Renderer.RenderMarkdown(markdown)
-		fmt.Printf("%s", rendered)
+		output.Printf("%s", rendered)
 		return nil
 	} else {
 		return dc.Renderer.RenderMessage("USER", "[Provided feedback without text]", true)
@@ -257,27 +286,61 @@ func (h *SayHandler) handleAPIReqRetried(msg *types.ClineMessage, dc *DisplayCon
 	return dc.Renderer.RenderMessage("API INFO", "Retrying request", true)
 }
 
+// handleErrorRetry handles error retry status messages
+func (h *SayHandler) handleErrorRetry(msg *types.ClineMessage, dc *DisplayContext) error {
+	// Parse retry info from message text
+	type ErrorRetryInfo struct {
+		Attempt      int  `json:"attempt"`
+		MaxAttempts  int  `json:"maxAttempts"`
+		DelaySeconds int  `json:"delaySeconds"`
+		Failed       bool `json:"failed"`
+	}
+
+	var retryInfo ErrorRetryInfo
+	if err := json.Unmarshal([]byte(msg.Text), &retryInfo); err != nil {
+		// Fallback to simple message if parsing fails
+		return dc.Renderer.RenderMessage("API INFO", "Auto-retry in progress", true)
+	}
+
+	if retryInfo.Failed {
+		// Retry failed after max attempts
+		message := fmt.Sprintf("Auto-retry failed after %d attempts. Manual intervention required.", retryInfo.MaxAttempts)
+		if dc.SystemRenderer != nil {
+			return dc.SystemRenderer.RenderWarning("Auto-Retry Failed", message)
+		}
+		return dc.Renderer.RenderMessage("WARNING", message, true)
+	}
+
+	// Retry in progress
+	message := fmt.Sprintf("Attempt %d/%d - Retrying in %d seconds...",
+		retryInfo.Attempt, retryInfo.MaxAttempts, retryInfo.DelaySeconds)
+	return dc.Renderer.RenderMessage("API INFO", message, true)
+}
+
 // handleCommand handles command execution announcements
 func (h *SayHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) error {
 	if msg.Text == "" {
 		return nil
 	}
 
-	command := strings.TrimSpace(msg.Text)
-
-	markdown := fmt.Sprintf("### Cline wants to run a command: `%s`", command)
-	rendered := dc.Renderer.RenderMarkdown(markdown)
-
-	// Render markdown with syntax highlighting
-	fmt.Printf("%s\n", rendered)
+	// Use unified ToolRenderer
+	rendered := dc.ToolRenderer.RenderCommandExecution(msg.Text)
+	output.Print(rendered)
 
 	return nil
 }
 
 // handleCommandOutput handles command output messages
 func (h *SayHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayContext) error {
-	commandOutput := msg.Text
-	return dc.Renderer.RenderMessage("TERMINAL", fmt.Sprintf("Current terminal output: %s", commandOutput), true)
+	if msg.Text == "" {
+		return nil
+	}
+
+	// Use unified ToolRenderer
+	rendered := dc.ToolRenderer.RenderCommandOutput(msg.Text)
+	output.Print(rendered)
+
+	return nil
 }
 
 func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) error {
@@ -286,86 +349,9 @@ func (h *SayHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 		return dc.Renderer.RenderMessage("TOOL", msg.Text, true)
 	}
 
-	return h.renderToolMessage(&tool, dc)
-}
-
-func (h *SayHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayContext) error {
-	var markdown string
-	
-	// Generate header with consistent phrasing
-	switch tool.Tool {
-	case string(types.ToolTypeEditedExistingFile):
-		markdown = fmt.Sprintf("### Cline is editing `%s`", tool.Path)
-	case string(types.ToolTypeNewFileCreated):
-		markdown = fmt.Sprintf("### Cline is writing `%s`", tool.Path)
-	case string(types.ToolTypeReadFile):
-		markdown = fmt.Sprintf("### Cline is reading `%s`", tool.Path)
-	case string(types.ToolTypeListFilesTopLevel):
-		markdown = fmt.Sprintf("### Cline is listing files in `%s`", tool.Path)
-	case string(types.ToolTypeListFilesRecursive):
-		markdown = fmt.Sprintf("### Cline is recursively listing files in `%s`", tool.Path)
-	case string(types.ToolTypeSearchFiles):
-		if tool.Regex != "" && tool.Path != "" {
-			markdown = fmt.Sprintf("### Cline is searching for `%s` in `%s`", tool.Regex, tool.Path)
-		} else if tool.Regex != "" {
-			markdown = fmt.Sprintf("### Cline is searching for `%s`", tool.Regex)
-		} else {
-			markdown = "### Cline is searching files"
-		}
-	case string(types.ToolTypeWebFetch):
-		markdown = fmt.Sprintf("### Cline is fetching `%s`", tool.Path)
-	case string(types.ToolTypeListCodeDefinitionNames):
-		markdown = fmt.Sprintf("### Cline is listing code definitions in `%s`", tool.Path)
-	case string(types.ToolTypeSummarizeTask):
-		markdown = "### Cline condensed the conversation"
-	default:
-		markdown = fmt.Sprintf("### Tool: %s", tool.Tool)
-	}
-	
-	rendered := dc.Renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
-
-	// Use enhanced tool result parser for supported tools
-	toolParser := display.NewToolResultParser(dc.Renderer.GetMdRenderer())
-	
-	switch tool.Tool {
-	case string(types.ToolTypeReadFile):
-		// readFile: show header only, no body
-		return nil
-		
-	case string(types.ToolTypeListFilesTopLevel), 
-	     string(types.ToolTypeListFilesRecursive), 
-		 string(types.ToolTypeListCodeDefinitionNames),
-	     string(types.ToolTypeSearchFiles), 
-		 string(types.ToolTypeWebFetch):
-
-		if tool.Content != "" {
-			preview := toolParser.ParseToolResult(tool)
-			previewRendered := dc.Renderer.RenderMarkdown(preview)
-			fmt.Printf("\n%s\n", previewRendered)
-		}
-		return nil
-		
-	case string(types.ToolTypeEditedExistingFile):
-		// Show the diff if available
-		if tool.Content != "" {
-			diffMarkdown := fmt.Sprintf("```diff\n%s\n```", tool.Content)
-			diffRendered := dc.Renderer.RenderMarkdown(diffMarkdown)
-			fmt.Printf("%s", diffRendered)
-		}
-		return nil
-	
-	default:
-		// Show content preview for other tools, truncating if necessary
-		preview := tool.Content
-		if preview != "" {
-			preview = strings.TrimSpace(tool.Content)
-			if len(preview) > 1000 {
-				preview = preview[:1000] + "..."
-			}
-			fmt.Printf("Content: %s\n", preview)
-		}
-	}
+	// Use unified ToolRenderer
+	rendered := dc.ToolRenderer.RenderToolExecution(&tool)
+	output.Print(rendered)
 
 	return nil
 }
@@ -467,27 +453,49 @@ func (h *SayHandler) handleUseMcpServer(msg *types.ClineMessage, dc *DisplayCont
 
 // handleDiffError handles diff error messages
 func (h *SayHandler) handleDiffError(msg *types.ClineMessage, dc *DisplayContext) error {
+	if dc.SystemRenderer != nil {
+		return dc.SystemRenderer.RenderWarning(
+			"Diff Edit Failure",
+			"The model used search patterns that don't match anything in the file. Retrying...",
+		)
+	}
 	return dc.Renderer.RenderMessage("WARNING", "Diff Edit Failure - The model used an invalid diff edit format or used search patterns that don't match anything in the file.", true)
 }
 
 // handleDeletedAPIReqs handles deleted API requests messages
 func (h *SayHandler) handleDeletedAPIReqs(msg *types.ClineMessage, dc *DisplayContext) error {
-	// This message includes api metrics of deleted messages, which we do not log
-	return dc.Renderer.RenderMessage("GEN INFO", "Checkpoint restored", true)
+	// Don't render - this is internal metadata (aggregated API metrics from deleted checkpoint messages)
+	return nil
 }
 
 // handleClineignoreError handles .clineignore error messages
 func (h *SayHandler) handleClineignoreError(msg *types.ClineMessage, dc *DisplayContext) error {
+	if dc.SystemRenderer != nil {
+		return dc.SystemRenderer.RenderInfo(
+			"Access Denied",
+			fmt.Sprintf("Cline tried to access `%s` which is blocked by the .clineignore file.", msg.Text),
+		)
+	}
 	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Access Denied - Cline tried to access %s which is blocked by the .clineignore file", msg.Text), true)
 }
 
 func (h *SayHandler) handleCheckpointCreated(msg *types.ClineMessage, dc *DisplayContext, timestamp string) error {
-	return dc.Renderer.RenderCheckpointMessage(timestamp, "GEN INFO", msg.Timestamp)
+	if dc.SystemRenderer != nil {
+		return dc.SystemRenderer.RenderCheckpoint(timestamp, msg.Timestamp)
+	}
+	// Fallback to basic renderer if SystemRenderer not available
+	markdown := fmt.Sprintf("## [%s] Checkpoint created `%d`", timestamp, msg.Timestamp)
+	rendered := dc.Renderer.RenderMarkdown(markdown)
+	output.Print(rendered)
+	return nil
 }
 
 // handleLoadMcpDocumentation handles load MCP documentation messages
 func (h *SayHandler) handleLoadMcpDocumentation(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("GEN INFO", "Loading MCP documentation", true)
+	if dc.SystemRenderer != nil {
+		return dc.SystemRenderer.RenderInfo("MCP", "Loading MCP documentation")
+	}
+	return dc.Renderer.RenderMessage("INFO", "Loading MCP documentation", true)
 }
 
 // handleInfo handles info messages
@@ -503,7 +511,7 @@ func (h *SayHandler) handleTaskProgress(msg *types.ClineMessage, dc *DisplayCont
 
 	markdown := fmt.Sprintf("### Progress\n\n%s", msg.Text)
 	rendered := dc.Renderer.RenderMarkdown(markdown)
-	fmt.Printf("\n%s\n", rendered)
+	output.Printf("\n%s\n", rendered)
 	return nil
 }
 

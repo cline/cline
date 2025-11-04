@@ -93,6 +93,8 @@ const ENABLED_PROVIDERS = [
 	"bedrock", // AWS Bedrock
 	"gemini", // Google Gemini
 	"ollama", // Ollama local models
+	"cerebras", // Cerebras models
+	"oca", // Oracle Code Assist
 ]
 
 /**
@@ -115,9 +117,9 @@ function extractDefaultModelIds(content) {
 	for (const regex of patterns) {
 		// Reset regex state for each pattern
 		regex.lastIndex = 0
-		let match
+		let match = regex.exec(content)
 
-		while ((match = regex.exec(content)) !== null) {
+		while (match !== null) {
 			const [, providerPrefix, modelId] = match
 			// Map prefix to provider ID (e.g., "anthropic" -> "anthropic", "openAiNative" -> "openai-native")
 			const providerId = providerPrefix
@@ -125,14 +127,15 @@ function extractDefaultModelIds(content) {
 				.toLowerCase()
 				.replace(/^-/, "")
 
-			// Don't overwrite if already found (first match wins)
-			if (!defaultIds[providerId]) {
-				// Clean up model ID - remove any suffix like ":1m"
-				const cleanModelId = modelId.split(":")[0]
-				defaultIds[providerId] = cleanModelId
-			}
+		// Don't overwrite if already found (first match wins)
+		if (!defaultIds[providerId]) {
+			// Clean up model ID - remove any suffix like ":1m"
+			const cleanModelId = modelId.split(":")[0]
+			defaultIds[providerId] = cleanModelId
 		}
+		match = regex.exec(content)
 	}
+}
 
 	return defaultIds
 }
@@ -198,7 +201,9 @@ async function parseApiDefinitions() {
 	const validation = validateApiKeyMappings(providerIds, providerApiKeyMap)
 	console.log(chalk.green(`   Mapped API keys for ${validation.mappedProviders}/${validation.totalProviders} providers`))
 	if (validation.warnings.length > 0) {
-		validation.warnings.forEach((warning) => console.log(chalk.yellow(`   ${warning}`)))
+		for (const warning of validation.warnings) {
+			console.log(chalk.yellow(`   ${warning}`))
+		}
 	}
 
 	// Extract ApiHandlerOptions interface to understand configuration fields
@@ -464,7 +469,7 @@ function parseModelInfo(modelContent) {
 	for (const prop of numericProps) {
 		const match = modelContent.match(new RegExp(`${prop}:\\s*([0-9_,]+)`))
 		if (match) {
-			info[prop] = parseInt(match[1].replace(/[_,]/g, ""))
+			info[prop] = parseInt(match[1].replace(/[_,]/g, ""), 10)
 		}
 	}
 

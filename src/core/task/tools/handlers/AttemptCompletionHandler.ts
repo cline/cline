@@ -52,8 +52,8 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 		config.taskState.consecutiveMistakeCount = 0
 
-		// Show notification if auto-approval is enabled
-		if (config.autoApprovalSettings.enabled && config.autoApprovalSettings.enableNotifications) {
+		// Show notification if enabled
+		if (config.autoApprovalSettings.enableNotifications) {
 			showSystemNotification({
 				subtitle: "Task Completed",
 				message: result.replace(/\n/g, " "),
@@ -78,6 +78,22 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 					text: lastCompletionResultMessage.text + COMPLETION_RESULT_CHANGES_FLAG,
 				})
 			}
+		}
+
+		// Remove any partial completion_result message that may exist
+		// PreToolUse hook inserts messages after the partial, so we need to search backwards to find it
+		const clineMessages = config.messageState.getClineMessages()
+		const partialCompletionIndex = findLastIndex(
+			clineMessages,
+			(m) => m.partial === true && m.type === "say" && m.say === "completion_result",
+		)
+		if (partialCompletionIndex !== -1) {
+			const updatedMessages = [
+				...clineMessages.slice(0, partialCompletionIndex),
+				...clineMessages.slice(partialCompletionIndex + 1),
+			]
+			config.messageState.setClineMessages(updatedMessages)
+			await config.messageState.saveClineMessagesAndUpdateHistory()
 		}
 
 		let commandResult: any
@@ -115,6 +131,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			// user didn't reject, but the command may have output
 			commandResult = execCommandResult
 		} else {
+			// Send the complete completion_result message (partial was already removed above)
 			const completionMessageTs = await config.callbacks.say("completion_result", result, undefined, undefined, false)
 			await config.callbacks.saveCheckpoint(true, completionMessageTs)
 			await addNewChangesFlagToLastCompletionResultMessage()

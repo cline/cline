@@ -12,8 +12,10 @@ import type { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
 import { type TerminalProfile } from "@shared/proto/cline/state"
 import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-message"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
 import type React from "react"
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import { Environment } from "../../../src/config"
 import {
 	basetenDefaultModelId,
 	basetenModels,
@@ -34,6 +36,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
 	openRouterModels: Record<string, ModelInfo>
+	hicapModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
 	groqModels: Record<string, ModelInfo>
@@ -43,6 +46,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
 	totalTasksSize: number | null
+	lastDismissedCliBannerVersion: number
 
 	availableTerminalProfiles: TerminalProfile[]
 
@@ -80,6 +84,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
+	refreshHicapModels: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
@@ -187,6 +192,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		openaiReasoningEffort: "medium",
 		mode: "act",
 		platform: DEFAULT_PLATFORM,
+		environment: Environment.production,
 		telemetrySetting: "unset",
 		distinctId: "",
 		planActSeparateModelsSetting: true,
@@ -200,7 +206,10 @@ export const ExtensionStateContextProvider: React.FC<{
 		globalWorkflowToggles: {},
 		shellIntegrationTimeout: 4000,
 		terminalReuseEnabled: true,
+		vscodeTerminalExecutionMode: "vscodeTerminal",
 		terminalOutputLineLimit: 500,
+		maxConsecutiveMistakes: 3,
+		subagentTerminalOutputLineLimit: 2000,
 		defaultTerminalProfile: "default",
 		isNewUser: false,
 		welcomeViewCompleted: false,
@@ -213,6 +222,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		favoritedModelIds: [],
 		lastDismissedInfoBannerVersion: 0,
 		lastDismissedModelBannerVersion: 0,
+		remoteConfigSettings: {},
+		backgroundCommandRunning: false,
+		backgroundCommandTaskId: undefined,
+		lastDismissedCliBannerVersion: 0,
+		subagentsEnabled: false,
 
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
@@ -220,6 +234,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		isMultiRootWorkspace: false,
 		multiRootSetting: { user: false, featureFlag: false },
 		hooksEnabled: { user: false, featureFlag: false },
+		nativeToolCallSetting: { user: false, featureFlag: false },
 	})
 	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
 	const [didHydrateState, setDidHydrateState] = useState(false)
@@ -227,6 +242,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [openRouterModels, setOpenRouterModels] = useState<Record<string, ModelInfo>>({
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
+	const [hicapModels, setHicapModels] = useState<Record<string, ModelInfo>>({})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([])
 
@@ -260,6 +276,7 @@ export const ExtensionStateContextProvider: React.FC<{
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
+	const hicapModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
 	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
 
@@ -470,7 +487,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		openRouterModelsUnsubscribeRef.current = ModelsServiceClient.subscribeToOpenRouterModels(EmptyRequest.create({}), {
 			onResponse: (response: OpenRouterCompatibleModelInfo) => {
 				console.log("[DEBUG] Received OpenRouter models update from gRPC stream")
-				const models = response.models
+				const models = fromProtobufModels(response.models)
 				setOpenRouterModels({
 					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
 					...models,
@@ -608,9 +625,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [])
 
 	const refreshOpenRouterModels = useCallback(() => {
-		ModelsServiceClient.refreshOpenRouterModels(EmptyRequest.create({}))
+		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
 			.then((response: OpenRouterCompatibleModelInfo) => {
-				const models = response.models
+				const models = fromProtobufModels(response.models)
 				setOpenRouterModels({
 					[openRouterDefaultModelId]: openRouterDefaultModelInfo, // in case the extension sent a model list without the default model
 					...models,
@@ -619,11 +636,23 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh OpenRouter models:", error))
 	}, [])
 
+	const refreshHicapModels = useCallback(() => {
+		ModelsServiceClient.refreshHicapModels(EmptyRequest.create({}))
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = response.models
+				setHicapModels({
+					...models,
+				})
+			})
+			.catch((error: Error) => console.error("Failed to refresh Hicap models:", error))
+	}, [])
+
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
 		showWelcome,
 		openRouterModels,
+		hicapModels,
 		openAiModels,
 		requestyModels,
 		groqModels: groqModelsState,
@@ -712,6 +741,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setMcpTab,
 		setTotalTasksSize,
 		refreshOpenRouterModels,
+		refreshHicapModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,

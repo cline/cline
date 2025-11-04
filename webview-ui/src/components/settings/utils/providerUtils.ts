@@ -23,6 +23,7 @@ import {
 	geminiModels,
 	groqDefaultModelId,
 	groqModels,
+	hicapModelInfoSaneDefaults,
 	huaweiCloudMaasDefaultModelId,
 	huaweiCloudMaasModels,
 	huggingFaceDefaultModelId,
@@ -37,6 +38,8 @@ import {
 	mainlandQwenModels,
 	mainlandZAiDefaultModelId,
 	mainlandZAiModels,
+	minimaxDefaultModelId,
+	minimaxModels,
 	mistralDefaultModelId,
 	mistralModels,
 	moonshotDefaultModelId,
@@ -194,6 +197,14 @@ export function normalizeApiConfiguration(
 				selectedProvider: provider,
 				selectedModelId: openAiModelId || "",
 				selectedModelInfo: openAiModelInfo || openAiModelInfoSaneDefaults,
+			}
+		case "hicap":
+			const hicapModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeHicapModelId : apiConfiguration?.actModeHicapModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: hicapModelId || "",
+				selectedModelInfo: hicapModelInfoSaneDefaults,
 			}
 		case "ollama":
 			const ollamaModelId =
@@ -359,7 +370,6 @@ export function normalizeApiConfiguration(
 				selectedModelInfo: ocaModelInfo || liteLlmModelInfoSaneDefaults,
 			}
 		case "aihubmix":
-			// 仅使用 AIhubmix 专属字段，不再回退到全局或 OpenAI 兼容字段
 			const aihubmixModelId =
 				currentMode === "plan" ? apiConfiguration?.planModeAihubmixModelId : apiConfiguration?.actModeAihubmixModelId
 			const aihubmixModelInfo =
@@ -369,6 +379,8 @@ export function normalizeApiConfiguration(
 				selectedModelId: aihubmixModelId || "",
 				selectedModelInfo: aihubmixModelInfo || openAiModelInfoSaneDefaults,
 			}
+		case "minimax":
+			return getProviderData(minimaxModels, minimaxDefaultModelId)
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -401,6 +413,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			huggingFaceModelId: undefined,
 			huaweiCloudMaasModelId: undefined,
 			vercelAiGatewayModelId: undefined,
+			hicapModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
@@ -450,6 +463,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		vercelAiGatewayModelId:
 			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelId : apiConfiguration.actModeVercelAiGatewayModelId,
 		ocaModelId: mode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
+		hicapModelId: mode === "plan" ? apiConfiguration.planModeHicapModelId : apiConfiguration.actModeHicapModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -468,6 +482,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 				: apiConfiguration.actModeVercelAiGatewayModelInfo,
 		vsCodeLmModelSelector:
 			mode === "plan" ? apiConfiguration.planModeVsCodeLmModelSelector : apiConfiguration.actModeVsCodeLmModelSelector,
+		hicapModelInfo: mode === "plan" ? apiConfiguration.planModeHicapModelInfo : apiConfiguration.actModeHicapModelInfo,
 
 		// AWS Bedrock fields
 		awsBedrockCustomSelected:
@@ -622,6 +637,13 @@ export async function syncModeConfigurations(
 			// The model is configured in the Dify application itself
 			break
 
+		case "hicap":
+			updates.planModeHicapModelId = sourceFields.hicapModelId
+			updates.actModeHicapModelId = sourceFields.hicapModelId
+			updates.planModeHicapModelInfo = sourceFields.hicapModelInfo
+			updates.actModeHicapModelInfo = sourceFields.hicapModelInfo
+			break
+
 		case "vercel-ai-gateway":
 			updates.planModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
 			updates.actModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
@@ -657,6 +679,7 @@ export async function syncModeConfigurations(
 		case "cerebras":
 		case "sapaicore":
 		case "zai":
+		case "minimax":
 		default:
 			updates.planModeApiModelId = sourceFields.apiModelId
 			updates.actModeApiModelId = sourceFields.apiModelId

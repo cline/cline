@@ -5,20 +5,27 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/huh"
+	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/task"
 	"github.com/cline/grpc-go/cline"
 )
 
+// contextKey is a distinct type for context keys to avoid collisions
+type contextKey string
+
+const authInstanceAddressKey contextKey = "authInstanceAddress"
+
 // AuthAction represents the type of authentication action
 type AuthAction string
 
 const (
-	AuthActionClineLogin       AuthAction = "cline_login"
-	AuthActionBYOSetup         AuthAction = "provider_setup"
-	AuthActionChangeClineModel AuthAction = "change_cline_model"
-	AuthActionSelectProvider   AuthAction = "select_provider"
-	AuthActionExit             AuthAction = "exit_wizard"
+	AuthActionClineLogin         AuthAction = "cline_login"
+	AuthActionBYOSetup           AuthAction = "provider_setup"
+	AuthActionChangeClineModel   AuthAction = "change_cline_model"
+	AuthActionSelectOrganization AuthAction = "select_organization"
+	AuthActionSelectProvider     AuthAction = "select_provider"
+	AuthActionExit               AuthAction = "exit_wizard"
 )
 
 //  Cline Auth Menu
@@ -32,25 +39,65 @@ const (
 //	┃   Change Cline model (only if authenticated)				- hidden if not authenticated
 //	┃   Authenticate with Cline account / Sign out of Cline		- changes based on auth status
 //	┃   Select active provider (Cline or BYO)					- always shown. Used to switch between Cline and BYO providers
-//	┃   Configure API provider									- always shown. Launches provider setup wizard
+//	┃   Configure BYO API providers								- always shown. Launches provider setup wizard
 //	┃   Exit authorization wizard								- always shown. Exits the auth menu
+
+// RunAuthFlow is the entry point for the entire auth flow with instance management
+// It spawns a fresh instance for auth operations and cleans it up when done
+func RunAuthFlow(ctx context.Context, args []string) error {
+	// Spawn a fresh instance for auth operations
+	instanceInfo, err := global.Clients.StartNewInstance(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start auth instance: %w", err)
+	}
+
+	// Cleanup when done (success, error, or panic)
+	defer func() {
+		verboseLog("Shutting down auth instance at %s", instanceInfo.Address)
+		if err := global.KillInstanceByAddress(context.Background(), global.Clients.GetRegistry(), instanceInfo.Address); err != nil {
+			verboseLog("Warning: Failed to kill auth instance: %v", err)
+		}
+	}()
+
+	// Store instance address in context for all auth handlers to use
+	authCtx := context.WithValue(ctx, authInstanceAddressKey, instanceInfo.Address)
+
+	// Route to existing auth flow
+	return HandleAuthCommand(authCtx, args)
+}
 
 // Main entry point for handling the `cline auth` command
 // HandleAuthCommand routes the auth command based on the number of arguments
 func HandleAuthCommand(ctx context.Context, args []string) error {
+
+	// Check if flags are provided for quick setup
+	if QuickProvider != "" || QuickAPIKey != "" || QuickModelID != "" || QuickBaseURL != "" {
+		if QuickProvider == "" || QuickAPIKey == "" || QuickModelID == "" {
+			return fmt.Errorf("quick setup requires --provider, --apikey, and --modelid flags. Use 'cline auth --help' for more information")
+		}
+		return QuickSetupFromFlags(ctx, QuickProvider, QuickAPIKey, QuickModelID, QuickBaseURL)
+	}
+
 	switch len(args) {
 	case 0:
-		// No args: Show menu (ShowAuthMenuNoArgs)
+		// No args: Show uth wizard
 		return HandleAuthMenuNoArgs(ctx)
-	case 1:
-		// One arg: Provider ID only, prompt for API key
-		return QuickAPISetup(args[0], "")
-	case 2:
-		// Two args: Provider ID and API key
-		return QuickAPISetup(args[0], args[1])
+	case 1, 2, 3, 4:
+		fmt.Println("Invalid positional arguments. Correct usage:")
+		fmt.Println("  cline auth --provider <provider> --apikey <key> --modelid <model> --baseurl <optional>")
+		return nil
 	default:
-		return fmt.Errorf("quick BYO API setup is currently stubbed - not yet implemented")
+		return fmt.Errorf("too many arguments. Use flags for quick setup: --provider, --apikey, --modelid --baseurl(optional)")
 	}
+}
+
+// getAuthInstanceAddress retrieves the auth instance address from context
+// Returns empty string if not found (falls back to default behavior)
+func getAuthInstanceAddress(ctx context.Context) string {
+	if addr, ok := ctx.Value(authInstanceAddressKey).(string); ok {
+		return addr
+	}
+	return ""
 }
 
 // HandleAuthMenuNoArgs prepares the auth menu when no arguments are provided
@@ -64,14 +111,28 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 	if manager, err := createTaskManager(ctx); err == nil {
 		if providerList, err := GetProviderConfigurations(ctx, manager); err == nil {
 			if providerList.ActProvider != nil {
-				currentProvider = getProviderDisplayName(providerList.ActProvider.Provider)
+				currentProvider = GetProviderDisplayName(providerList.ActProvider.Provider)
 				currentModel = providerList.ActProvider.ModelID
 			}
 		}
 	}
 
-	action, err := ShowAuthMenuWithStatus(isClineAuth, currentProvider, currentModel)
+	// Fetch organizations if authenticated
+	var hasOrganizations bool
+	if isClineAuth {
+		if client, err := global.GetDefaultClient(ctx); err == nil {
+			if orgsResponse, err := client.Account.GetUserOrganizations(ctx, &cline.EmptyRequest{}); err == nil {
+				hasOrganizations = len(orgsResponse.GetOrganizations()) > 0
+			}
+		}
+	}
+
+	action, err := ShowAuthMenuWithStatus(isClineAuth, hasOrganizations, currentProvider, currentModel)
 	if err != nil {
+		// Check if user cancelled - propagate for clean exit
+		if err == huh.ErrUserAborted {
+			return huh.ErrUserAborted
+		}
 		return err
 	}
 
@@ -82,6 +143,8 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 		return HandleAPIProviderSetup(ctx)
 	case AuthActionChangeClineModel:
 		return HandleChangeClineModel(ctx)
+	case AuthActionSelectOrganization:
+		return HandleSelectOrganization(ctx)
 	case AuthActionSelectProvider:
 		return HandleSelectProvider(ctx)
 	case AuthActionExit:
@@ -92,7 +155,7 @@ func HandleAuthMenuNoArgs(ctx context.Context) error {
 }
 
 // ShowAuthMenuWithStatus displays the main auth menu with Cline + provider status
-func ShowAuthMenuWithStatus(isClineAuthenticated bool, currentProvider, currentModel string) (AuthAction, error) {
+func ShowAuthMenuWithStatus(isClineAuthenticated bool, hasOrganizations bool, currentProvider, currentModel string) (AuthAction, error) {
 	var action AuthAction
 	var options []huh.Option[AuthAction]
 
@@ -100,34 +163,44 @@ func ShowAuthMenuWithStatus(isClineAuthenticated bool, currentProvider, currentM
 	if isClineAuthenticated {
 		options = []huh.Option[AuthAction]{
 			huh.NewOption("Change Cline model", AuthActionChangeClineModel),
+		}
+
+		// Add organization selection if user has organizations
+		if hasOrganizations {
+			options = append(options, huh.NewOption("Select organization", AuthActionSelectOrganization))
+		}
+
+		options = append(options,
 			huh.NewOption("Sign out of Cline", AuthActionClineLogin),
 			huh.NewOption("Select active provider (Cline or BYO)", AuthActionSelectProvider),
-			huh.NewOption("Configure API provider", AuthActionBYOSetup),
+			huh.NewOption("Configure BYO API providers", AuthActionBYOSetup),
 			huh.NewOption("Exit authorization wizard", AuthActionExit),
-		}
+		)
 	} else {
 		options = []huh.Option[AuthAction]{
 			huh.NewOption("Authenticate with Cline account", AuthActionClineLogin),
 			huh.NewOption("Select active provider (Cline or BYO)", AuthActionSelectProvider),
-			huh.NewOption("Configure API provider", AuthActionBYOSetup),
+			huh.NewOption("Configure BYO API providers", AuthActionBYOSetup),
 			huh.NewOption("Exit authorization wizard", AuthActionExit),
 		}
 	}
 
 	// Determine menu title based on status
 	var title string
+	renderer := display.NewRenderer(global.Config.OutputFormat)
 
 	// Always show Cline authentication status
 	if isClineAuthenticated {
-		title = "Cline Account: \033[32m✓\033[0m Authenticated\n"
+		title = fmt.Sprintf("Cline Account: %s Authenticated\n", renderer.Green("✓"))
 	} else {
-		title = "Cline Account: \033[31m✗\033[0m Not authenticated\n"
+		title = fmt.Sprintf("Cline Account: %s Not authenticated\n", renderer.Red("✗"))
 	}
 
 	// Show active provider and model if configured (regardless of Cline auth status)
-	// ANSI color codes: Normal intensity = \033[22m, White = \033[37m, Reset = \033[0m
 	if currentProvider != "" && currentModel != "" {
-		title += fmt.Sprintf("Active Provider: \033[22m\033[37m%s\033[0m\nActive Model: \033[22m\033[37m%s\033[0m\n", currentProvider, currentModel)
+		title += fmt.Sprintf("Active Provider: %s\nActive Model: %s\n",
+			renderer.White(currentProvider),
+			renderer.White(currentModel))
 	}
 
 	// Always end with a huh?
@@ -143,6 +216,11 @@ func ShowAuthMenuWithStatus(isClineAuthenticated bool, currentProvider, currentM
 	)
 
 	if err := form.Run(); err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			// Return the error to allow deferred cleanup to run
+			return "", huh.ErrUserAborted
+		}
 		return "", fmt.Errorf("failed to get menu choice: %w", err)
 	}
 
@@ -179,7 +257,7 @@ func HandleSelectProvider(ctx context.Context) error {
 
 	// Add each configured provider to the selection menu
 	for _, provider := range availableProviders {
-		providerName := getProviderDisplayName(provider)
+		providerName := GetProviderDisplayName(provider)
 		providerKey := fmt.Sprintf("provider_%d", provider)
 		providerOptions = append(providerOptions, huh.NewOption(providerName, providerKey))
 		providerMapping[providerKey] = provider
@@ -187,11 +265,6 @@ func HandleSelectProvider(ctx context.Context) error {
 
 	if len(providerOptions) == 0 {
 		fmt.Println("No providers available. Please configure a provider first.")
-		return HandleAuthMenuNoArgs(ctx)
-	}
-
-	if len(providerOptions) == 1 {
-		fmt.Println("Only one provider is configured. Configure another provider to switch between them.")
 		return HandleAuthMenuNoArgs(ctx)
 	}
 
@@ -209,6 +282,10 @@ func HandleSelectProvider(ctx context.Context) error {
 	)
 
 	if err := form.Run(); err != nil {
+		// Check if user cancelled with Control-C
+		if err == huh.ErrUserAborted {
+			return huh.ErrUserAborted
+		}
 		return fmt.Errorf("failed to select provider: %w", err)
 	}
 
@@ -230,7 +307,12 @@ func HandleSelectProvider(ctx context.Context) error {
 }
 
 // createTaskManager is a helper to create a task manager (avoids import cycles)
+// Uses the auth instance address from context if available, otherwise falls back to default
 func createTaskManager(ctx context.Context) (*task.Manager, error) {
+	authAddr := getAuthInstanceAddress(ctx)
+	if authAddr != "" {
+		return task.NewManagerForAddress(ctx, authAddr)
+	}
 	return task.NewManagerForDefault(ctx)
 }
 

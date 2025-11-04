@@ -588,24 +588,30 @@ class NewFileContentConstructor {
 			if (removeLineCount > 0) {
 				pendingNonStandardLineLimit = pendingNonStandardLineLimit - removeLineCount
 			}
-			if (this.hasPendingNonStandardLines(pendingNonStandardLineLimit)) {
-				this.tryFixSearchReplaceBlock(pendingNonStandardLineLimit)
-				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
+		if (this.hasPendingNonStandardLines(pendingNonStandardLineLimit)) {
+			this.tryFixSearchReplaceBlock(pendingNonStandardLineLimit)
+			if (canWritependingNonStandardLines) {
+				this.pendingNonStandardLines.length = 0
 			}
+		}
 			this.activateSearchState()
 		} else if (isSearchBlockEnd(line)) {
-			// 校验非标内容
-			if (!this.isSearchingActive()) {
-				this.tryFixSearchBlock(pendingNonStandardLineLimit)
-				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
+		// 校验非标内容
+		if (!this.isSearchingActive()) {
+			this.tryFixSearchBlock(pendingNonStandardLineLimit)
+			if (canWritependingNonStandardLines) {
+				this.pendingNonStandardLines.length = 0
 			}
+		}
 			this.activateReplaceState()
 			this.beforeReplace()
-		} else if (isReplaceBlockEnd(line)) {
-			if (!this.isReplacingActive()) {
-				this.tryFixReplaceBlock(pendingNonStandardLineLimit)
-				canWritependingNonStandardLines && (this.pendingNonStandardLines.length = 0)
+	} else if (isReplaceBlockEnd(line)) {
+		if (!this.isReplacingActive()) {
+			this.tryFixReplaceBlock(pendingNonStandardLineLimit)
+			if (canWritependingNonStandardLines) {
+				this.pendingNonStandardLines.length = 0
 			}
+		}
 			this.lastProcessedIndex = this.searchEndIndex
 			this.resetForNextBlock()
 		} else {

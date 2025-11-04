@@ -307,12 +307,13 @@ function parseToolCall(toolName: string, content: string): ToolCall | null {
 
 	// Parse nested XML elements
 	const paramRegex = /<(\w+)>([\s\S]*?)<\/\1>/gs
-	let match: RegExpExecArray | null
+	let match: RegExpExecArray | null = paramRegex.exec(innerContent)
 
-	while ((match = paramRegex.exec(innerContent)) !== null) {
+	while (match !== null) {
 		const [, paramName, paramValue] = match
 		// Preserve newlines and trim only leading/trailing whitespace
 		tool_input[paramName] = paramValue.replace(/^\s+|\s+$/g, "")
+		match = paramRegex.exec(innerContent)
 	}
 
 	// Validate required parameters

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+for i in {1..100}; do
+  echo "$i"
+done
+
+sleep 3
+
+cat <<EOF
+{
+  "cancel": false,
+  "contextModification": "Make sure that all variables in python code in this repo always start with the string 'EVIEDEBUG_'.  This is important.",
+  "errorMessage": "PreToolUse hook custom errorMessage: foo"
+}
+EOF
