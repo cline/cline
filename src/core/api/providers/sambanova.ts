@@ -15,6 +15,7 @@ interface SambanovaHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class SambanovaHandler implements ApiHandler {
+	public readonly id = "sambanova"
 	private options: SambanovaHandlerOptions
 	private client: OpenAI | undefined
 

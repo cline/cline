@@ -36,6 +36,7 @@ export interface LiteLlmModelInfoResponse {
 }
 
 export class LiteLlmHandler implements ApiHandler {
+	public readonly id = "litellm"
 	private options: LiteLlmHandlerOptions
 	private client: OpenAI | undefined
 	private modelInfoCache: LiteLlmModelInfoResponse | undefined

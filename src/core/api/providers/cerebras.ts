@@ -11,6 +11,7 @@ interface CerebrasHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class CerebrasHandler implements ApiHandler {
+	public readonly id = "cerebras"
 	private options: CerebrasHandlerOptions
 	private client: Cerebras | undefined
 

@@ -16,6 +16,7 @@ interface HuggingFaceHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class HuggingFaceHandler implements ApiHandler {
+	public readonly id = "huggingface"
 	private options: HuggingFaceHandlerOptions
 	private client: OpenAI | undefined
 	private cachedModel: { id: HuggingFaceModelId; info: ModelInfo } | undefined

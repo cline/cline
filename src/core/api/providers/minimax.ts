@@ -15,6 +15,7 @@ interface MinimaxHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class MinimaxHandler implements ApiHandler {
+	public readonly id = "minimax"
 	private options: MinimaxHandlerOptions
 	private client: Anthropic | undefined
 

@@ -20,6 +20,7 @@ interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class OpenAiHandler implements ApiHandler {
+	public readonly id = "openai"
 	private options: OpenAiHandlerOptions
 	private client: OpenAI | undefined
 

@@ -15,6 +15,7 @@ interface BasetenHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class BasetenHandler implements ApiHandler {
+	public readonly id = "baseten"
 	private options: BasetenHandlerOptions
 	private client: OpenAI | undefined
 
@@ -156,5 +157,12 @@ export class BasetenHandler implements ApiHandler {
 		// Use dynamic API data when available, fallback to true since all current Baseten models support tools
 		// (as of 2025-09-16 - could change if Baseten add non-tool models in future, currently no plans to do so)
 		return modelInfo.supportedFeatures ? modelInfo.supportedFeatures.includes("tools") : true
+	}
+
+	getModelInfo() {
+		return {
+			providerId: this.id,
+			model: this.getModel(),
+		}
 	}
 }

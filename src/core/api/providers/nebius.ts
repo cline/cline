@@ -15,6 +15,7 @@ interface NebiusHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class NebiusHandler implements ApiHandler {
+	public readonly id = "nebius"
 	private client: OpenAI | undefined
 
 	constructor(private readonly options: NebiusHandlerOptions) {}

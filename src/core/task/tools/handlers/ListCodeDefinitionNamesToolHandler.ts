@@ -50,11 +50,6 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		const relDirPath: string | undefined = block.params.path
 
-		// Extract provider using the proven pattern from ReportBugHandler
-		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-
 		// Validate required parameters
 		const pathValidation = this.validator.assertRequiredParams(block, "path")
 		if (!pathValidation.ok) {
@@ -80,6 +75,9 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 			operationIsLocatedInWorkspace: await isLocatedInWorkspace(relDirPath!),
 		}
 
+		const modelId = config.api.getModel().id
+		const providerId = config.api.id
+
 		const completeMessage = JSON.stringify(sharedMessageProps)
 
 		if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relDirPath)) {
@@ -88,7 +86,7 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
 
 			// Capture telemetry
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, provider, true, true)
+			telemetryService.captureToolUsage(config.ulid, block.name, modelId, providerId, true, true)
 		} else {
 			// Manual approval flow
 			const notificationMessage = `Cline wants to analyze code definitions in ${getWorkspaceBasename(absolutePath, "ListCodeDefinitionNamesToolHandler.notification")}`
@@ -100,10 +98,10 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 
 			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
 			if (!didApprove) {
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, provider, false, false)
+				telemetryService.captureToolUsage(config.ulid, block.name, modelId, providerId, false, false)
 				return formatResponse.toolDenied()
 			} else {
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, provider, false, true)
+				telemetryService.captureToolUsage(config.ulid, block.name, modelId, providerId, false, true)
 			}
 		}
 

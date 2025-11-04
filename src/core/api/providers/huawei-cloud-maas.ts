@@ -15,6 +15,7 @@ interface HuaweiCloudMaaSHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class HuaweiCloudMaaSHandler implements ApiHandler {
+	public readonly id = "huawei-cloud-maas"
 	private options: HuaweiCloudMaaSHandlerOptions
 	private client: OpenAI | undefined
 	constructor(options: HuaweiCloudMaaSHandlerOptions) {

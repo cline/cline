@@ -24,6 +24,7 @@ interface ZAiHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class ZAiHandler implements ApiHandler {
+	public readonly id = "zai"
 	private options: ZAiHandlerOptions
 	private client: OpenAI | undefined
 	constructor(options: ZAiHandlerOptions) {

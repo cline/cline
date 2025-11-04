@@ -15,6 +15,7 @@ interface VercelAIGatewayHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class VercelAIGatewayHandler implements ApiHandler {
+	public readonly id = "vercel-ai-gateway"
 	private options: VercelAIGatewayHandlerOptions
 	private client: OpenAI | undefined
 

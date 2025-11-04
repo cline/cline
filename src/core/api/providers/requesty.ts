@@ -28,6 +28,7 @@ interface RequestyUsage extends OpenAI.CompletionUsage {
 }
 
 export class RequestyHandler implements ApiHandler {
+	public readonly id = "requesty"
 	private options: RequestyHandlerOptions
 	private client: OpenAI | undefined
 

@@ -352,6 +352,7 @@ namespace Gemini {
 }
 
 export class SapAiCoreHandler implements ApiHandler {
+	public readonly id = "sapaicore"
 	private options: SapAiCoreHandlerOptions
 	private token?: Token
 	private deployments?: Deployment[]

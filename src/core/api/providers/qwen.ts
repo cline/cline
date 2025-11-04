@@ -26,6 +26,7 @@ interface QwenHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class QwenHandler implements ApiHandler {
+	public readonly id = "qwen"
 	private options: QwenHandlerOptions
 	private client: OpenAI | undefined
 

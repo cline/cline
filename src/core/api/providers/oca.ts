@@ -28,6 +28,7 @@ export interface OcaHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class OcaHandler implements ApiHandler {
+	public readonly id = "oca"
 	protected options: OcaHandlerOptions
 	protected client: OpenAI | undefined
 

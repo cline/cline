@@ -942,16 +942,15 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		primaryFile: string,
 	): Promise<boolean> {
 		// Extract provider using the proven pattern from ReportBugHandler
-		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		const modelId = config.api.getModel().id
+		const providerId = config.api.id
 
 		const messageStr = JSON.stringify(message)
 		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, primaryFile)
 
 		if (shouldAutoApprove) {
 			await config.callbacks.say("tool", messageStr, undefined, undefined, false)
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, provider, true, true)
+			telemetryService.captureToolUsage(config.ulid, block.name, modelId, providerId, true, true)
 			return true
 		}
 
@@ -971,7 +970,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		const approved = response === "yesButtonClicked"
 		config.taskState.didRejectTool = !approved
-		telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, provider, false, approved)
+		telemetryService.captureToolUsage(config.ulid, block.name, modelId, providerId, false, approved)
 
 		return approved
 	}

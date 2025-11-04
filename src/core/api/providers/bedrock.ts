@@ -114,6 +114,7 @@ const JP_SUPPORTED_CRIS_MODELS = ["anthropic.claude-sonnet-4-5-20250929-v1:0", "
 
 // https://docs.anthropic.com/en/api/claude-on-amazon-bedrock
 export class AwsBedrockHandler implements ApiHandler {
+	public readonly id = "bedrock"
 	private options: AwsBedrockHandlerOptions
 
 	constructor(options: AwsBedrockHandlerOptions) {

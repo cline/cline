@@ -53,6 +53,7 @@ interface GeminiHandlerOptions extends CommonApiHandlerOptions {
  * 4. Separating immediate costs from ongoing costs to avoid double-counting
  */
 export class GeminiHandler implements ApiHandler {
+	public readonly id = "gemini"
 	private options: GeminiHandlerOptions
 	private client: GoogleGenAI | undefined
 

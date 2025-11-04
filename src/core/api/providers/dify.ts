@@ -71,6 +71,7 @@ interface DifyConversationResponse {
 }
 
 export class DifyHandler implements ApiHandler {
+	public readonly id = "dify"
 	private options: DifyHandlerOptions
 	private baseUrl: string
 	private apiKey: string

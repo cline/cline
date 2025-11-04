@@ -30,6 +30,7 @@ type AskSageResponse = {
 }
 
 export class AskSageHandler implements ApiHandler {
+	public readonly id = "asksage"
 	private options: AskSageHandlerOptions
 	private apiUrl: string
 	private apiKey: string
@@ -111,6 +112,13 @@ export class AskSageHandler implements ApiHandler {
 		return {
 			id: askSageDefaultModelId,
 			info: askSageModels[askSageDefaultModelId],
+		}
+	}
+
+	getModelInfo() {
+		return {
+			providerId: this.id,
+			model: this.getModel(),
 		}
 	}
 }

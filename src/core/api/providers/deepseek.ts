@@ -16,6 +16,7 @@ interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class DeepSeekHandler implements ApiHandler {
+	public readonly id = "deepseek"
 	private options: DeepSeekHandlerOptions
 	private client: OpenAI | undefined
 

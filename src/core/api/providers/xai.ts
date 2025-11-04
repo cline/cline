@@ -17,6 +17,7 @@ interface XAIHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class XAIHandler implements ApiHandler {
+	public readonly id = "xai"
 	private options: XAIHandlerOptions
 	private client: OpenAI | undefined
 

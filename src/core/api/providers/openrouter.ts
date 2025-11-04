@@ -22,6 +22,7 @@ interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class OpenRouterHandler implements ApiHandler {
+	public readonly id = "openrouter"
 	private options: OpenRouterHandlerOptions
 	private client: OpenAI | undefined
 	lastGenerationId?: string

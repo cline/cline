@@ -15,6 +15,7 @@ interface LmStudioHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class LmStudioHandler implements ApiHandler {
+	public readonly id = "lmstudio"
 	private options: LmStudioHandlerOptions
 	private client: OpenAI | undefined
 

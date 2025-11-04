@@ -86,6 +86,7 @@ const MODEL_FAMILIES: Record<string, GroqModelFamily> = {
 }
 
 export class GroqHandler implements ApiHandler {
+	public readonly id = "groq"
 	private options: GroqHandlerOptions
 	private client: OpenAI | undefined
 

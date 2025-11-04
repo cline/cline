@@ -13,6 +13,7 @@ interface ClaudeCodeHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class ClaudeCodeHandler implements ApiHandler {
+	public readonly id = "claude-code"
 	private options: ClaudeCodeHandlerOptions
 
 	constructor(options: ClaudeCodeHandlerOptions) {

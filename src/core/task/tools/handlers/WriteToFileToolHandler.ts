@@ -92,11 +92,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		const rawContent = block.params.content // for write_to_file
 		const rawDiff = block.params.diff // for replace_in_file
 
-		// Extract provider information for telemetry
-		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-
 		// Validate required parameters based on tool type
 		if (!rawRelPath) {
 			config.taskState.consecutiveMistakeCount++
@@ -156,6 +151,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			await config.services.diffViewProvider.scrollToFirstDiff()
 			// showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
 
+			const modelId = config.api.getModel().id
+			const providerId = config.api.id
+
 			const completeMessage = JSON.stringify({
 				...sharedMessageProps,
 				content: diff || content,
@@ -174,15 +172,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
 
 				// Capture telemetry
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					provider,
-					true,
-					true,
-					workspaceContext,
-				)
+				telemetryService.captureToolUsage(config.ulid, block.name, modelId, providerId, true, true, workspaceContext)
 
 				// we need an artificial delay to let the diagnostics catch up to the changes
 				await setTimeoutPromise(3_500)
@@ -230,8 +220,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					telemetryService.captureToolUsage(
 						config.ulid,
 						block.name,
-						config.api.getModel().id,
-						provider,
+						modelId,
+						providerId,
 						false,
 						false,
 						workspaceContext,
@@ -257,15 +247,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						await config.callbacks.say("user_feedback", text, images, files)
 					}
 
-					telemetryService.captureToolUsage(
-						config.ulid,
-						block.name,
-						config.api.getModel().id,
-						provider,
-						false,
-						true,
-						workspaceContext,
-					)
+					telemetryService.captureToolUsage(config.ulid, block.name, modelId, providerId, false, true, workspaceContext)
 				}
 			}
 

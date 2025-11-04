@@ -20,6 +20,7 @@ interface VertexHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class VertexHandler implements ApiHandler {
+	public readonly id = "vertex"
 	private geminiHandler: GeminiHandler | undefined
 	private clientAnthropic: AnthropicVertex | undefined
 	private options: VertexHandlerOptions

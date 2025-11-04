@@ -14,6 +14,7 @@ interface FireworksHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class FireworksHandler implements ApiHandler {
+	public readonly id = "fireworks"
 	private options: FireworksHandlerOptions
 	private client: OpenAI | undefined
 

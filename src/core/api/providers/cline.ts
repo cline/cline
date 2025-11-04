@@ -28,6 +28,7 @@ interface ClineHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class ClineHandler implements ApiHandler {
+	public readonly id = "cline"
 	private options: ClineHandlerOptions
 	private clineAccountService = ClineAccountService.getInstance()
 	private _authService: AuthService

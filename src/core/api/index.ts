@@ -47,6 +47,7 @@ export type CommonApiHandlerOptions = {
 }
 
 export interface ApiHandler {
+	id: string
 	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: ClineTool[]): ApiStream
 	getModel(): ApiHandlerModel
 	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
@@ -75,7 +76,7 @@ function createHandlerForProvider(
 ): ApiHandler {
 	switch (apiProvider) {
 		case "anthropic":
-			return new AnthropicHandler({
+			return new AnthropicHandler("anthropic", {
 				onRetryAttempt: options.onRetryAttempt,
 				apiKey: options.apiKey,
 				anthropicBaseUrl: options.anthropicBaseUrl,
@@ -406,7 +407,7 @@ function createHandlerForProvider(
 				hicapModelId: mode === "plan" ? options.planModeHicapModelId : options.actModeHicapModelId,
 			})
 		default:
-			return new AnthropicHandler({
+			return new AnthropicHandler(apiProvider, {
 				onRetryAttempt: options.onRetryAttempt,
 				apiKey: options.apiKey,
 				anthropicBaseUrl: options.anthropicBaseUrl,

@@ -14,6 +14,7 @@ interface MistralHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class MistralHandler implements ApiHandler {
+	public readonly id = "mistral"
 	private options: MistralHandlerOptions
 	private client: Mistral | undefined
 

@@ -12,6 +12,7 @@ interface DoubaoHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class DoubaoHandler implements ApiHandler {
+	public readonly id = "doubao"
 	private options: DoubaoHandlerOptions
 	private client: OpenAI | undefined
 	constructor(options: DoubaoHandlerOptions) {

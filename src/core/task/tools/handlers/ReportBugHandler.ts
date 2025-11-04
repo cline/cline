@@ -74,13 +74,13 @@ export class ReportBugHandler implements IToolHandler, IPartialBlockHandler {
 
 		// Derive system information values algorithmically
 		const operatingSystem = os.platform() + " " + os.release()
-		const currentMode = config.mode
 		const clineVersion = ExtensionRegistryInfo.version
 		const host = await HostProvider.env.getHostVersion({})
 		const systemInfo = `${host.platform}: ${host.version}, Node.js: ${process.version}, Architecture: ${os.arch()}`
-		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const apiProvider = currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-		const providerAndModel = `${apiProvider} / ${config.api.getModel().id}`
+
+		const modelId = config.api.getModel().id
+		const providerId = config.api.id
+		const providerAndModel = `${providerId} / ${modelId}`
 
 		// Ask user for confirmation
 		const bugReportData = JSON.stringify({

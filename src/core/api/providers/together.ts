@@ -15,6 +15,7 @@ interface TogetherHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class TogetherHandler implements ApiHandler {
+	public readonly id = "together"
 	private options: TogetherHandlerOptions
 	private client: OpenAI | undefined
 

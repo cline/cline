@@ -128,6 +128,7 @@ declare module "vscode" {
  * ```
  */
 export class VsCodeLmHandler implements ApiHandler, SingleCompletionHandler {
+	public readonly id = "vscode-lm"
 	private options: VsCodeLmHandlerOptions
 	private client: vscode.LanguageModelChat | null
 	private disposable: vscode.Disposable | null

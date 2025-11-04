@@ -13,6 +13,7 @@ interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class HicapHandler implements ApiHandler {
+	public readonly id = "hicap"
 	private options: OpenAiHandlerOptions
 	private client: OpenAI | undefined
 

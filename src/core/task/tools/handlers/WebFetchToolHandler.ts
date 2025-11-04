@@ -39,11 +39,6 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 		try {
 			const url: string | undefined = block.params.url
 
-			// Extract provider information for telemetry
-			const apiConfig = config.services.stateManager.getApiConfiguration()
-			const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-			const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-
 			// Validate required parameter
 			if (!url) {
 				config.taskState.consecutiveMistakeCount++
@@ -60,11 +55,14 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 			}
 			const completeMessage = JSON.stringify(sharedMessageProps)
 
+			const modelId = config.api.getModel().id
+			const providerId = config.api.id
+
 			if (config.callbacks.shouldAutoApproveTool(this.name)) {
 				// Auto-approve flow
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-				telemetryService.captureToolUsage(config.ulid, "web_fetch", config.api.getModel().id, provider, true, true)
+				telemetryService.captureToolUsage(config.ulid, "web_fetch", modelId, providerId, true, true)
 			} else {
 				// Manual approval flow
 				showNotificationForApproval(
@@ -75,10 +73,10 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 
 				const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
 				if (!didApprove) {
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, provider, false, false)
+					telemetryService.captureToolUsage(config.ulid, block.name, modelId, providerId, false, false)
 					return formatResponse.toolDenied()
 				} else {
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, provider, false, true)
+					telemetryService.captureToolUsage(config.ulid, block.name, modelId, providerId, false, true)
 				}
 			}
 

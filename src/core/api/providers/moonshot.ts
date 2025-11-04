@@ -15,6 +15,7 @@ interface MoonshotHandlerOptions extends CommonApiHandlerOptions {
 }
 
 export class MoonshotHandler implements ApiHandler {
+	public readonly id = "moonshot"
 	private client: OpenAI | undefined
 
 	constructor(private readonly options: MoonshotHandlerOptions) {}

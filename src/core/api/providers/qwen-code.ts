@@ -49,6 +49,7 @@ function objectToUrlEncoded(data: Record<string, string>): string {
 }
 
 export class QwenCodeHandler implements ApiHandler {
+	public readonly id = "qwen-code"
 	private options: QwenCodeHandlerOptions
 	private credentials: QwenOAuthCredentials | null = null
 	private client: OpenAI | undefined

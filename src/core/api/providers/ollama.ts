@@ -15,8 +15,8 @@ interface OllamaHandlerOptions extends CommonApiHandlerOptions {
 }
 
 const DEFAULT_CONTEXT_WINDOW = 32768
-
 export class OllamaHandler implements ApiHandler {
+	public readonly id = "ollama"
 	private options: OllamaHandlerOptions
 	private client: Ollama | undefined
 

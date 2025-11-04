@@ -18,7 +18,10 @@ export class AnthropicHandler implements ApiHandler {
 	private options: AnthropicHandlerOptions
 	private client: Anthropic | undefined
 
-	constructor(options: AnthropicHandlerOptions) {
+	constructor(
+		public readonly id = "anthropic",
+		options: AnthropicHandlerOptions,
+	) {
 		this.options = options
 	}
 
@@ -312,6 +315,13 @@ export class AnthropicHandler implements ApiHandler {
 		return {
 			id: anthropicDefaultModelId,
 			info: anthropicModels[anthropicDefaultModelId],
+		}
+	}
+
+	getModelInfo() {
+		return {
+			providerId: this.id,
+			model: this.getModel(),
 		}
 	}
 }
