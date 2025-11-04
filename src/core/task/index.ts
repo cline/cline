@@ -944,6 +944,10 @@ export class Task {
 
 		await this.say("text", task, images, files)
 
+		// Mark that substantive work is starting as soon as task is displayed
+		// This ensures TaskCancel will run if user cancels during hooks or early execution
+		this.taskState.didPerformWork = true
+
 		this.taskState.isInitialized = true
 
 		const imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
@@ -1007,8 +1011,9 @@ export class Task {
 					console.log(`[TaskStart Hook] Messages saved successfully, returning from hook`)
 				}
 
-				// abortTask will handle cleanup
-				this.abortTask()
+				// CRITICAL: Must await abortTask() to ensure TaskCancel hooks complete
+				// before the function returns and resume button is shown
+				await this.abortTask()
 				return
 			}
 
@@ -1110,6 +1115,10 @@ export class Task {
 
 		const { response, text, images, files } = await this.ask(askType) // calls poststatetowebview
 
+		// Mark that substantive work begins as soon as user clicks resume
+		// Even if no feedback is provided, clicking resume means work has started
+		this.taskState.didPerformWork = true
+
 		// Initialize newUserContent array for hook context
 		const newUserContent: UserContent = []
 
@@ -1157,8 +1166,9 @@ export class Task {
 					await this.postStateToWebview()
 				}
 
-				// Call abortTask() to trigger TaskCancel and show resume button again
-				this.abortTask()
+				// CRITICAL: Must await abortTask() to ensure TaskCancel hooks complete
+				// before the function returns and resume button is shown
+				await this.abortTask()
 				return
 			}
 
@@ -1297,8 +1307,9 @@ export class Task {
 
 		// Handle hook cancellation request
 		if (userPromptHookResult.cancel === true) {
-			// Call abortTask() to trigger TaskCancel and show resume button again
-			this.abortTask()
+			// CRITICAL: Must await abortTask() to ensure TaskCancel hooks complete
+			// before the function returns and resume button is shown
+			await this.abortTask()
 			return
 		}
 
@@ -1346,53 +1357,75 @@ export class Task {
 
 	/**
 	 * Determines if the TaskCancel hook should run.
-	 * Only runs if there's actual active work happening or if work was started in this session.
-	 * Does NOT run when just showing the resume button with no active work.
-	 * @returns true if the hook should run, false otherwise
+	 *
+	 * Decision Logic:
+	 * - DON'T run if already at resume button (previous cancellation or opened from history with no work)
+	 * - DO run if any substantive work was performed in this session
+	 *
+	 * This eliminates race conditions from checking "currently active" work indicators
+	 * and instead checks "was work started" which is stable and deterministic.
+	 *
+	 * @returns true if TaskCancel should run, false otherwise
 	 */
 	private async shouldRunTaskCancelHook(): Promise<boolean> {
-		// Atomically check for active hook executions (work happening now)
-		const activeHooks = await this.getActiveHookExecutions()
-		if (activeHooks.length > 0) {
-			return true
-		}
-
-		// Run if the API is currently streaming (work happening now)
-		if (this.taskState.isStreaming) {
-			return true
-		}
-
-		// Run if we're waiting for the first chunk (work happening now)
-		if (this.taskState.isWaitingForFirstChunk) {
-			return true
-		}
-
-		// Run if there's active background command (work happening now)
-		if (this.activeBackgroundCommand) {
-			return true
-		}
-
-		// Check if we're at the resume button state (no active work, just waiting)
+		// Check if we're currently showing the resume button
 		const clineMessages = this.messageStateHandler.getClineMessages()
 		const lastMessage = clineMessages.at(-1)
 		const isAtResumeButton =
 			lastMessage?.type === "ask" && (lastMessage.ask === "resume_task" || lastMessage.ask === "resume_completed_task")
 
 		if (isAtResumeButton) {
-			// At resume button - DON'T run hook because we're just waiting for user input
-			// The resume button appears in two scenarios:
-			// 1. Opening from history (no new work)
-			// 2. After cancelling during active work (but work already stopped)
-			// In both cases, we shouldn't run TaskCancel hook
+			// Already showing resume button from a previous cancellation
+			// OR task was opened from history and user hasn't provided new input yet
+			// In both cases, don't run TaskCancel hook again
 			return false
 		}
 
-		// Not at resume button - we're in the middle of work or just finished something
-		// Run the hook since cancelling would interrupt actual work
-		return true
+		// If we're not at resume button and work was performed in this session,
+		// then TaskCancel should run to properly clean up
+		return this.taskState.didPerformWork
 	}
 
 	async abortTask(): Promise<{ waitingAtResumeButton: boolean }> {
+		// Single-flight guard: prevent concurrent abort calls
+		if (this.taskState.isAborting) {
+			console.log(`[Task ${this.taskId}] Already aborting, returning existing promise`)
+
+			// FIX: Signal all active hook AbortControllers before returning
+			// This ensures hooks receive cancellation signal when user presses cancel during TaskResume
+			const activeHooks = await this.getActiveHookExecutions()
+			if (activeHooks.length > 0) {
+				try {
+					for (const hook of activeHooks) {
+						hook.abortController.abort()
+					}
+					await this.clearAllActiveHookExecutions()
+				} catch (error) {
+					Logger.error("Failed to cancel hooks during abort", error)
+					await this.clearAllActiveHookExecutions()
+				}
+			}
+
+			return this.taskState.abortPromise!
+		}
+
+		// Mark as aborting and store promise for concurrent callers
+		this.taskState.isAborting = true
+		this.taskState.abortPromise = this._executeAbort()
+
+		try {
+			const result = await this.taskState.abortPromise
+			return result
+		} finally {
+			this.taskState.isAborting = false
+			this.taskState.abortPromise = undefined
+		}
+	}
+
+	/**
+	 * Internal abort execution - called only once via the single-flight guard in abortTask()
+	 */
+	private async _executeAbort(): Promise<{ waitingAtResumeButton: boolean }> {
 		// Flag to determine if we should skip cleanup (when waiting at resume button)
 		let skipCleanup = false
 		let waitingAtResumeButton = false
@@ -1477,8 +1510,109 @@ export class Task {
 					}
 
 					// Present the resume ask and wait for the user to click it
-					// This prevents the execution from continuing before the user is ready
-					await this.ask(askType)
+					const { response, text, images, files } = await this.ask(askType)
+
+					// After user clicks resume, continue with task execution
+					if (response === "messageResponse" || text || (images && images.length > 0) || (files && files.length > 0)) {
+						await this.say("user_feedback", text, images, files)
+						await this.checkpointManager?.saveCheckpoint()
+					}
+
+					// Prepare user content for continuing the task
+					const newUserContent: UserContent = []
+
+					// Run TaskResume hook BEFORE continuing execution (reuse the executeHook import from TaskCancel)
+					const clineMessages = this.messageStateHandler.getClineMessages()
+					const taskResumeResult = await executeHook({
+						hookName: "TaskResume",
+						hookInput: {
+							taskResume: {
+								taskMetadata: {
+									taskId: this.taskId,
+									ulid: this.ulid,
+								},
+								previousState: {
+									lastMessageTs: lastClineMessage?.ts?.toString() || "",
+									messageCount: clineMessages.length.toString(),
+									conversationHistoryDeleted: (
+										this.taskState.conversationHistoryDeletedRange !== undefined
+									).toString(),
+								},
+							},
+						},
+						isCancellable: true,
+						say: this.say.bind(this),
+						setActiveHookExecution: this.setActiveHookExecution.bind(this),
+						clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
+						messageStateHandler: this.messageStateHandler,
+						taskId: this.taskId,
+						hooksEnabled: true, // We already checked hooksEnabled for TaskCancel, so it's safe to reuse
+					})
+
+					// Handle cancellation from TaskResume hook
+					if (taskResumeResult.cancel === true) {
+						// User cancelled during TaskResume - treat as abort and re-run TaskCancel
+						console.log(`[TaskResume Hook] User cancelled, recursively calling abortTask()`)
+
+						// Recursive abort will:
+						// 1. Run TaskCancel hook again
+						// 2. Show resume button again
+						// 3. Stay in aborting_to_resume state
+						if (this.taskState.abort) {
+							const recursiveResult = await this.abortTask()
+							return recursiveResult
+						}
+
+						// If abort flag wasn't set, return waiting at resume button
+						return { waitingAtResumeButton: true }
+					}
+
+					// Add TaskResume hook context if provided
+					if (taskResumeResult.contextModification) {
+						newUserContent.push({
+							type: "text",
+							text: `<hook_context source="TaskResume" type="general">\n${taskResumeResult.contextModification}\n</hook_context>`,
+						})
+					}
+
+					// Add user feedback content
+					if (text) {
+						newUserContent.push({
+							type: "text",
+							text: formatResponse.tooManyMistakes(text),
+						})
+					}
+					if (images && images.length > 0) {
+						newUserContent.push(...formatResponse.imageBlocks(images))
+					}
+					if (files && files.length > 0) {
+						const fileContentString = await processFilesIntoText(files)
+						if (fileContentString) {
+							newUserContent.push({
+								type: "text",
+								text: fileContentString,
+							})
+						}
+					}
+
+					// Start task execution in background
+					// The isAborting guard stays true until task is fully started
+					// This prevents race conditions from concurrent cancel attempts
+					this.initiateTaskLoop(newUserContent.length > 0 ? newUserContent : [])
+						.catch((error) => {
+							// Task failed to start or was aborted - log but don't crash
+							console.error("[Task] Background task loop failed:", error)
+						})
+						.finally(() => {
+							// Now it's safe to clear the guard - task is either:
+							// 1. Running and can handle future aborts, or
+							// 2. Already aborted/failed and won't interfere
+							this.taskState.isAborting = false
+							console.log(`[Task ${this.taskId}] Background task startup completed`)
+						})
+
+					// Return immediately so Controller sees waitingAtResumeButton=true
+					// The backgrounded task startup is protected by the isAborting guard
 				} catch (error) {
 					// TaskCancel hook failed - non-fatal, just log
 					console.error("[TaskCancel Hook] Failed (non-fatal):", error)

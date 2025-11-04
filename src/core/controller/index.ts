@@ -442,26 +442,31 @@ export class Controller {
 				console.error("Failed to abort task", error)
 			}
 
-			// Note: If waitingAtResumeButton is true, user clicked resume and task is ready to proceed
+			// If waitingAtResumeButton is true, user clicked resume and task is ready to proceed
+			// The existing task instance is perfectly fine and waiting to continue
+			// DON'T create a new instance - just post state and return
+			if (abortResult?.waitingAtResumeButton) {
+				console.log(`[Controller.cancelTask] Task waiting at resume button, continuing with existing instance`)
+				await this.postStateToWebview()
+				return
+			}
+
 			// Otherwise, we need to do cleanup before re-initializing
+			await pWaitFor(
+				() =>
+					this.task === undefined ||
+					this.task.taskState.isStreaming === false ||
+					this.task.taskState.didFinishAbortingStream ||
+					this.task.taskState.isWaitingForFirstChunk,
+				{
+					timeout: 3_000,
+				},
+			).catch(() => {
+				console.error("Failed to abort task")
+			})
 
-			if (!abortResult?.waitingAtResumeButton) {
-				await pWaitFor(
-					() =>
-						this.task === undefined ||
-						this.task.taskState.isStreaming === false ||
-						this.task.taskState.didFinishAbortingStream ||
-						this.task.taskState.isWaitingForFirstChunk,
-					{
-						timeout: 3_000,
-					},
-				).catch(() => {
-					console.error("Failed to abort task")
-				})
-
-				if (this.task) {
-					this.task.taskState.abandoned = true
-				}
+			if (this.task) {
+				this.task.taskState.abandoned = true
 			}
 
 			// Get history and re-initialize task

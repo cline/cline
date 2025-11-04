@@ -60,6 +60,15 @@ export class TaskState {
 	abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
+	// Single-flight guard to prevent concurrent abortTask() calls
+	isAborting: boolean = false
+	abortPromise?: Promise<{ waitingAtResumeButton: boolean }>
+
+	// Session work tracking for TaskCancel hook decision
+	// Set to true when substantive work begins (API request, tool execution, user feedback)
+	// Used by shouldRunTaskCancelHook() to determine if TaskCancel should run
+	// Eliminates race conditions from checking "currently active" work indicators
+	didPerformWork: boolean = false
 
 	// Hook execution tracking for cancellation (Map for concurrent multi-root hooks)
 	activeHookExecutions: Map<
