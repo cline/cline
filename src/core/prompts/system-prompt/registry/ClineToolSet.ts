@@ -109,6 +109,8 @@ export class ClineToolSet {
 	 */
 	public static getNativeConverter(providerId: string) {
 		switch (providerId) {
+			case "minimax":
+				return toolSpecInputSchema
 			case "anthropic":
 				return toolSpecInputSchema
 			case "gemini":
@@ -187,8 +189,9 @@ export function mcpToolToClineToolSpec(family: ModelFamily, server: McpServer): 
 		return {
 			variant: family,
 			id: ClineDefaultTool.MCP_USE,
-			name: server.name + CLINE_MCP_TOOL_IDENTIFIER + mcpTool.name,
-			description: mcpTool.description || "",
+			// We will use the identifier to reconstruct the MCP server and tool name later
+			name: server.uid + CLINE_MCP_TOOL_IDENTIFIER + mcpTool.name,
+			description: `${server.name}: ${mcpTool.description || mcpTool.name}`,
 			parameters,
 		}
 	})

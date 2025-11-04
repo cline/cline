@@ -71,7 +71,7 @@ import { isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
-import { execa } from "execa"
+import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
@@ -94,7 +94,7 @@ import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
-import { detectAvailableCliTools, updateApiReqMsg } from "./utils"
+import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
 
 export type ToolResponse = string | Array<Anthropic.TextBlockParam | Anthropic.ImageBlockParam>
 type UserContent = Array<Anthropic.ContentBlockParam>
@@ -138,6 +138,50 @@ export class Task {
 	private taskInitializationStartTime: number
 
 	taskState: TaskState
+
+	// ONE mutex for ALL state modifications to prevent race conditions
+	private stateMutex = new Mutex()
+
+	/**
+	 * Execute function with exclusive lock on all task state
+	 * Use this for ANY state modification to prevent races
+	 */
+	private async withStateLock<T>(fn: () => T | Promise<T>): Promise<T> {
+		return await this.stateMutex.withLock(fn)
+	}
+
+	/**
+	 * Atomically set active hook execution with mutex protection
+	 * Prevents TOCTOU races when setting hook execution state
+	 * PUBLIC: Exposed for ToolExecutor to use
+	 */
+	public async setActiveHookExecution(hookExecution: NonNullable<typeof this.taskState.activeHookExecution>): Promise<void> {
+		await this.withStateLock(() => {
+			this.taskState.activeHookExecution = hookExecution
+		})
+	}
+
+	/**
+	 * Atomically clear active hook execution with mutex protection
+	 * Prevents TOCTOU races when clearing hook execution state
+	 * PUBLIC: Exposed for ToolExecutor to use
+	 */
+	public async clearActiveHookExecution(): Promise<void> {
+		await this.withStateLock(() => {
+			this.taskState.activeHookExecution = undefined
+		})
+	}
+
+	/**
+	 * Atomically read active hook execution state with mutex protection
+	 * Returns a snapshot of the current state to prevent TOCTOU races
+	 * PUBLIC: Exposed for ToolExecutor to use
+	 */
+	public async getActiveHookExecution(): Promise<typeof this.taskState.activeHookExecution> {
+		return await this.withStateLock(() => {
+			return this.taskState.activeHookExecution
+		})
+	}
 
 	// Core dependencies
 	private controller: Controller
@@ -437,12 +481,9 @@ export class Task {
 		// Set ulid on browserSession for telemetry tracking
 		this.browserSession.setUlid(this.ulid)
 
-		// Continue with task initialization
-		if (historyItem) {
-			this.resumeTaskFromHistory()
-		} else if (task || images || files) {
-			this.startTask(task, images, files)
-		}
+		// Note: Task initialization (startTask/resumeTaskFromHistory) is now called
+		// from Controller.initTask() AFTER the task instance is fully assigned.
+		// This prevents race conditions where hooks run before controller.task is ready.
 
 		// Set up focus chain file watcher (async, runs in background) only if focus chain is enabled
 		if (this.FocusChainManager) {
@@ -452,12 +493,19 @@ export class Task {
 		}
 
 		// initialize telemetry
+
+		// Extract domain of the provider endpoint if using OpenAI Compatible provider
+		let openAiCompatibleDomain: string | undefined
+		if (currentProvider === "openai" && apiConfiguration.openAiBaseUrl) {
+			openAiCompatibleDomain = extractProviderDomainFromUrl(apiConfiguration.openAiBaseUrl)
+		}
+
 		if (historyItem) {
 			// Open task from history
-			telemetryService.captureTaskRestarted(this.ulid, currentProvider)
+			telemetryService.captureTaskRestarted(this.ulid, currentProvider, openAiCompatibleDomain)
 		} else {
 			// New task started
-			telemetryService.captureTaskCreated(this.ulid, currentProvider)
+			telemetryService.captureTaskCreated(this.ulid, currentProvider, openAiCompatibleDomain)
 		}
 
 		this.toolExecutor = new ToolExecutor(
@@ -476,6 +524,7 @@ export class Task {
 			cwd,
 			this.taskId,
 			this.ulid,
+			this.terminalExecutionMode,
 			this.workspaceManager,
 			isMultiRootEnabled(this.stateManager),
 			this.say.bind(this),
@@ -487,11 +536,11 @@ export class Task {
 			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
 			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
 			this.switchToActModeCallback.bind(this),
+			// Atomic hook state helpers for ToolExecutor
+			this.setActiveHookExecution.bind(this),
+			this.clearActiveHookExecution.bind(this),
+			this.getActiveHookExecution.bind(this),
 		)
-	}
-
-	public resetConsecutiveAutoApprovedRequestsCount(): void {
-		this.taskState.consecutiveAutoApprovedRequestsCount = 0
 	}
 
 	// Communicate with webview
@@ -508,8 +557,8 @@ export class Task {
 		files?: string[]
 		askTs?: number
 	}> {
-		// If this Cline instance was aborted by the provider, then the only thing keeping us alive is a promise still running in the background, in which case we don't want to send its result to the webview as it is attached to a new instance of Cline now. So we can safely ignore the result of any active promises, and this class will be deallocated. (Although we set Cline = undefined in provider, that simply removes the reference to this instance, but the instance is still alive until this promise resolves or rejects.)
-		if (this.taskState.abort) {
+		// Allow resume asks even when aborted to enable resume button after cancellation
+		if (this.taskState.abort && type !== "resume_task" && type !== "resume_completed_task") {
 			throw new Error("Cline instance aborted")
 		}
 		let askTs: number
@@ -643,7 +692,8 @@ export class Task {
 		files?: string[],
 		partial?: boolean,
 	): Promise<number | undefined> {
-		if (this.taskState.abort) {
+		// Allow hook messages even when aborted to enable proper cleanup
+		if (this.taskState.abort && type !== "hook" && type !== "hook_output") {
 			throw new Error("Cline instance aborted")
 		}
 
@@ -756,54 +806,66 @@ export class Task {
 
 	private async runUserPromptSubmitHook(
 		userContent: UserContent,
-		context: "initial_task" | "resume" | "feedback",
-	): Promise<{ shouldContinue: boolean; contextModification?: string; errorMessage?: string }> {
+		_context: "initial_task" | "resume" | "feedback",
+	): Promise<{ cancel?: boolean; contextModification?: string; errorMessage?: string }> {
 		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
 
 		if (!hooksEnabled) {
-			return { shouldContinue: true }
+			return {}
 		}
 
-		try {
-			const { HookFactory } = await import("../hooks/hook-factory")
-			const hookFactory = new HookFactory()
-			const hook = await hookFactory.create("UserPromptSubmit")
+		const { executeHook } = await import("../hooks/hook-executor")
 
-			// Serialize UserContent to string for the hook
-			const promptText = userContent
-				.map((block) => {
-					if (block.type === "text") {
-						return block.text
-					}
-					if (block.type === "image") {
-						return "[IMAGE]"
-					}
-					return ""
-				})
-				.join("\n\n")
+		// Serialize UserContent to string for the hook
+		const promptText = userContent
+			.map((block) => {
+				if (block.type === "text") {
+					return block.text
+				}
+				if (block.type === "image") {
+					return "[IMAGE]"
+				}
+				return ""
+			})
+			.join("\n\n")
 
-			const result = await hook.run({
-				taskId: this.taskId,
+		const userPromptResult = await executeHook({
+			hookName: "UserPromptSubmit",
+			hookInput: {
 				userPromptSubmit: {
 					prompt: promptText,
-					attachments: [], // Images are inline in UserContent
+					attachments: [],
 				},
-			})
+			},
+			isCancellable: true,
+			say: this.say.bind(this),
+			setActiveHookExecution: this.setActiveHookExecution.bind(this),
+			clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
+			messageStateHandler: this.messageStateHandler,
+			taskId: this.taskId,
+			hooksEnabled,
+		})
 
-			return {
-				shouldContinue: result.shouldContinue,
-				contextModification: result.contextModification,
-				errorMessage: result.errorMessage,
-			}
-		} catch (error) {
-			console.error("UserPromptSubmit hook failed:", error)
-			return { shouldContinue: true }
+		// Handle cancellation from hook
+		if (userPromptResult.cancel === true && userPromptResult.wasCancelled) {
+			// Set flag to allow Controller.cancelTask() to proceed
+			this.taskState.didFinishAbortingStream = true
+			// Save BOTH files so Controller.cancelTask() can find the task
+			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			await this.messageStateHandler.overwriteApiConversationHistory(this.messageStateHandler.getApiConversationHistory())
+			await this.postStateToWebview()
+		}
+
+		return {
+			cancel: userPromptResult.cancel,
+			contextModification: userPromptResult.contextModification,
+			errorMessage: userPromptResult.errorMessage,
 		}
 	}
 
 	// Task lifecycle
 
-	private async startTask(task?: string, images?: string[], files?: string[]): Promise<void> {
+	public async startTask(task?: string, images?: string[], files?: string[]): Promise<void> {
 		try {
 			await this.clineIgnoreController.initialize()
 		} catch (error) {
@@ -842,16 +904,13 @@ export class Task {
 		}
 
 		// Add TaskStart hook context to the conversation if provided
-		// This follows the same pattern as PreToolUse, PostToolUse, and UserPromptSubmit hooks
 		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
-			try {
-				const { HookFactory } = await import("../hooks/hook-factory")
-				const hookFactory = new HookFactory()
-				const taskStartHook = await hookFactory.create("TaskStart")
+			const { executeHook } = await import("../hooks/hook-executor")
 
-				const taskStartResult = await taskStartHook.run({
-					taskId: this.taskId,
+			const taskStartResult = await executeHook({
+				hookName: "TaskStart",
+				hookInput: {
 					taskStart: {
 						taskMetadata: {
 							taskId: this.taskId,
@@ -859,40 +918,75 @@ export class Task {
 							initialTask: task || "",
 						},
 					},
-				})
+				},
+				isCancellable: true,
+				say: this.say.bind(this),
+				setActiveHookExecution: this.setActiveHookExecution.bind(this),
+				clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
+				messageStateHandler: this.messageStateHandler,
+				taskId: this.taskId,
+				hooksEnabled,
+			})
 
-				if (!taskStartResult.shouldContinue) {
-					const errorMessage = taskStartResult.errorMessage || "TaskStart hook prevented task from starting"
-					await this.say("error", errorMessage)
-					// Ensure the error message is saved and posted before aborting
+			// Handle cancellation from hook
+			if (taskStartResult.cancel === true) {
+				// If hook was cancelled by user, save state for resume
+				if (taskStartResult.wasCancelled) {
+					console.log(`[TaskStart Hook] User cancelled, saving messages for task ${this.taskId}`)
+					// Set flag to allow Controller.cancelTask() to proceed
+					this.taskState.didFinishAbortingStream = true
+					// Save BOTH clineMessages AND apiConversationHistory so Controller.cancelTask() can find the task
 					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					await this.messageStateHandler.overwriteApiConversationHistory(
+						this.messageStateHandler.getApiConversationHistory(),
+					)
 					await this.postStateToWebview()
-					this.abortTask()
-					return
+					console.log(`[TaskStart Hook] Messages saved successfully, returning from hook`)
 				}
 
-				// Add context modification to the conversation if provided
-				if (taskStartResult.contextModification) {
-					const contextText = taskStartResult.contextModification.trim()
-					if (contextText) {
-						userContent.push({
-							type: "text",
-							text: `<hook_context source="TaskStart">\n${contextText}\n</hook_context>`,
-						})
-					}
-				}
-			} catch (hookError) {
-				const errorMessage = `TaskStart hook failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`
-				Logger.error(errorMessage, hookError)
-				// Show error to user but continue with task (non-fatal)
-				await this.say("error", errorMessage)
+				// abortTask will handle cleanup
+				this.abortTask()
+				return
 			}
+
+			// Add context modification to the conversation if provided
+			if (taskStartResult.contextModification) {
+				const contextText = taskStartResult.contextModification.trim()
+				if (contextText) {
+					userContent.push({
+						type: "text",
+						text: `<hook_context source="TaskStart">\n${contextText}\n</hook_context>`,
+					})
+				}
+			}
+		}
+
+		// Run UserPromptSubmit hook for initial task (after TaskStart for UI ordering)
+		const userPromptHookResult = await this.runUserPromptSubmitHook(userContent, "initial_task")
+
+		// Defensive check: Verify task wasn't aborted during hook execution (handles async cancellation)
+		if (this.taskState.abort) {
+			return
+		}
+
+		// Handle hook cancellation - but DON'T call abortTask()
+		// Controller.cancelTask() already called it, calling again causes double TaskCancel
+		if (userPromptHookResult.cancel === true) {
+			return
+		}
+
+		// Add hook context if provided
+		if (userPromptHookResult.contextModification) {
+			userContent.push({
+				type: "text",
+				text: `<hook_context source="UserPromptSubmit">\n${userPromptHookResult.contextModification}\n</hook_context>`,
+			})
 		}
 
 		await this.initiateTaskLoop(userContent)
 	}
 
-	private async resumeTaskFromHistory() {
+	public async resumeTaskFromHistory() {
 		try {
 			await this.clineIgnoreController.initialize()
 		} catch (error) {
@@ -949,21 +1043,22 @@ export class Task {
 		}
 
 		this.taskState.isInitialized = true
+		this.taskState.abort = false // Reset abort flag when resuming task
+
+		const { response, text, images, files } = await this.ask(askType) // calls poststatetowebview
 
 		// Initialize newUserContent array for hook context
 		const newUserContent: UserContent = []
 
-		// Run TaskResume hook
+		// Run TaskResume hook AFTER user clicks resume button
 		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
-			try {
-				const { HookFactory } = await import("../hooks/hook-factory")
-				const hookFactory = new HookFactory()
-				const taskResumeHook = await hookFactory.create("TaskResume")
+			const { executeHook } = await import("../hooks/hook-executor")
 
-				const clineMessages = this.messageStateHandler.getClineMessages()
-				const taskResumeResult = await taskResumeHook.run({
-					taskId: this.taskId,
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const taskResumeResult = await executeHook({
+				hookName: "TaskResume",
+				hookInput: {
 					taskResume: {
 						taskMetadata: {
 							taskId: this.taskId,
@@ -975,32 +1070,46 @@ export class Task {
 							conversationHistoryDeleted: (this.taskState.conversationHistoryDeletedRange !== undefined).toString(),
 						},
 					},
+				},
+				isCancellable: true,
+				say: this.say.bind(this),
+				setActiveHookExecution: this.setActiveHookExecution.bind(this),
+				clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
+				messageStateHandler: this.messageStateHandler,
+				taskId: this.taskId,
+				hooksEnabled,
+			})
+
+			// Handle cancellation from hook
+			if (taskResumeResult.cancel === true) {
+				// If hook was cancelled by user, save state for resume
+				if (taskResumeResult.wasCancelled) {
+					// Set flag to allow Controller.cancelTask() to proceed
+					this.taskState.didFinishAbortingStream = true
+					// Save BOTH clineMessages AND apiConversationHistory so Controller.cancelTask() can find the task
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					await this.messageStateHandler.overwriteApiConversationHistory(
+						this.messageStateHandler.getApiConversationHistory(),
+					)
+					await this.postStateToWebview()
+				}
+
+				// Return without continuing task - Controller.cancelTask() will handle showing resume button
+				return
+			}
+
+			// Add context if provided
+			if (taskResumeResult.contextModification) {
+				newUserContent.push({
+					type: "text",
+					text: `<hook_context source="TaskResume" type="general">\n${taskResumeResult.contextModification}\n</hook_context>`,
 				})
-
-				// Check if hook indicates an error condition (non-blocking)
-				if (!taskResumeResult.shouldContinue && taskResumeResult.errorMessage) {
-					await this.say("error", taskResumeResult.errorMessage)
-				}
-
-				// Add context if provided
-				if (taskResumeResult.contextModification) {
-					newUserContent.push({
-						type: "text",
-						text: `<hook_context source="TaskResume" type="general">\n${taskResumeResult.contextModification}\n</hook_context>`,
-					})
-				}
-			} catch (hookError) {
-				const errorMessage = `TaskResume hook failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`
-				await this.say("error", errorMessage)
-				// Non-fatal: continue with resume
 			}
 		}
-
-		const { response, text, images, files } = await this.ask(askType) // calls poststatetowebview
 		let responseText: string | undefined
 		let responseImages: string[] | undefined
 		let responseFiles: string[] | undefined
-		if (response === "messageResponse") {
+		if (response === "messageResponse" || text || (images && images.length > 0) || (files && files.length > 0)) {
 			await this.say("user_feedback", text, images, files)
 			await this.checkpointManager?.saveCheckpoint()
 			responseText = text
@@ -1010,9 +1119,9 @@ export class Task {
 
 		// need to make sure that the api conversation history can be resumed by the api, even if it goes out of sync with cline messages
 
-		const existingApiConversationHistory: Anthropic.Messages.MessageParam[] = await getSavedApiConversationHistory(
-			this.taskId,
-		)
+		// Use the already-loaded API conversation history from memory instead of reloading from disk
+		// This prevents issues where the file might be empty or stale after hook execution
+		const existingApiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
 		// Remove the last user message so we can update it with the resume message
 		let modifiedOldUserContent: UserContent // either the last message if its user message, or the user message before the last (assistant) message
@@ -1032,7 +1141,10 @@ export class Task {
 				throw new Error("Unexpected: Last message is not a user or assistant message")
 			}
 		} else {
-			throw new Error("Unexpected: No existing API conversation history")
+			// No API conversation history yet (e.g., cancelled during hook before first API request)
+			// Start fresh with empty history and no previous content
+			modifiedApiConversationHistory = []
+			modifiedOldUserContent = []
 		}
 
 		// Add previous content to newUserContent array
@@ -1111,6 +1223,29 @@ export class Task {
 			})
 		}
 
+		// Run UserPromptSubmit hook for task resumption AFTER all content is assembled
+		const userPromptHookResult = await this.runUserPromptSubmitHook(newUserContent, "resume")
+
+		// Defensive check: Verify task wasn't aborted during hook execution (handles async cancellation)
+		if (this.taskState.abort) {
+			return
+		}
+
+		// Handle hook cancellation request
+		if (userPromptHookResult.cancel === true) {
+			// The hook already updated its status to "cancelled" internally and saved state
+			this.abortTask()
+			return
+		}
+
+		// Add hook context if provided (after all other content)
+		if (userPromptHookResult.contextModification) {
+			newUserContent.push({
+				type: "text",
+				text: `<hook_context source="UserPromptSubmit">\n${userPromptHookResult.contextModification}\n</hook_context>`,
+			})
+		}
+
 		await this.messageStateHandler.overwriteApiConversationHistory(modifiedApiConversationHistory)
 		await this.initiateTaskLoop(newUserContent)
 	}
@@ -1123,7 +1258,6 @@ export class Task {
 			includeFileDetails = false // we only need file details the first time
 
 			//  The way this agentic loop works is that cline will be given a task that he then calls tools to complete. unless there's an attempt_completion call, we keep responding back to him with his tool's responses until he either attempt_completion or does not use anymore tools. If he does not use anymore tools, we ask him to consider if he's completed the task and then call attempt_completion, otherwise proceed with completing the task.
-			// There is a MAX_REQUESTS_PER_TASK limit to prevent infinite requests, but Cline is prompted to finish the task as efficiently as he can.
 
 			//const totalCost = this.calculateApiCost(totalInputTokens, totalOutputTokens)
 			if (didEndLoop) {
@@ -1146,72 +1280,149 @@ export class Task {
 		}
 	}
 
+	/**
+	 * Determines if the TaskCancel hook should run.
+	 * Only runs if there's actual active work happening or if work was started in this session.
+	 * Does NOT run when just showing the resume button with no active work.
+	 * @returns true if the hook should run, false otherwise
+	 */
+	private async shouldRunTaskCancelHook(): Promise<boolean> {
+		// Atomically check for active hook execution (work happening now)
+		const activeHook = await this.getActiveHookExecution()
+		if (activeHook) {
+			return true
+		}
+
+		// Run if the API is currently streaming (work happening now)
+		if (this.taskState.isStreaming) {
+			return true
+		}
+
+		// Run if we're waiting for the first chunk (work happening now)
+		if (this.taskState.isWaitingForFirstChunk) {
+			return true
+		}
+
+		// Run if there's active background command (work happening now)
+		if (this.activeBackgroundCommand) {
+			return true
+		}
+
+		// Check if we're at the resume button state (no active work, just waiting)
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const lastMessage = clineMessages.at(-1)
+		const isAtResumeButton =
+			lastMessage?.type === "ask" && (lastMessage.ask === "resume_task" || lastMessage.ask === "resume_completed_task")
+
+		if (isAtResumeButton) {
+			// At resume button - DON'T run hook because we're just waiting for user input
+			// The resume button appears in two scenarios:
+			// 1. Opening from history (no new work)
+			// 2. After cancelling during active work (but work already stopped)
+			// In both cases, we shouldn't run TaskCancel hook
+			return false
+		}
+
+		// Not at resume button - we're in the middle of work or just finished something
+		// Run the hook since cancelling would interrupt actual work
+		return true
+	}
+
 	async abortTask() {
 		try {
-			// Run TaskCancel hook
-			const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
-			if (hooksEnabled) {
+			// PHASE 1: Check if TaskCancel should run BEFORE any cleanup
+			// We must capture this state now because subsequent cleanup will
+			// clear the active work indicators that shouldRunTaskCancelHook checks
+			const shouldRunTaskCancelHook = await this.shouldRunTaskCancelHook()
+
+			// PHASE 2: Set abort flag to prevent race conditions
+			// This must happen before canceling hooks so that hook catch blocks
+			// can properly detect the abort state
+			this.taskState.abort = true
+
+			// PHASE 3: Cancel any running hook execution
+			const activeHook = await this.getActiveHookExecution()
+			if (activeHook) {
 				try {
-					const { HookFactory } = await import("../hooks/hook-factory")
-					const hookFactory = new HookFactory()
-					const taskCancelHook = await hookFactory.create("TaskCancel")
-
-					const taskCancelResult = await taskCancelHook.run({
-						taskId: this.taskId,
-						taskCancel: {
-							taskMetadata: {
-								taskId: this.taskId,
-								ulid: this.ulid,
-								completionStatus: this.taskState.abandoned ? "abandoned" : "cancelled",
-							},
-						},
-					})
-
-					// Surface errors from hook but don't block cancellation
-					// Only try to display errors if not already aborted (to prevent blocking cleanup)
-					if (!this.taskState.abort) {
-						// Display error message if present, or default message if shouldContinue is false
-						if (taskCancelResult.errorMessage) {
-							await this.say("error", taskCancelResult.errorMessage).catch(() => {
-								// If say() fails, log to console instead
-								console.error("TaskCancel hook error:", taskCancelResult.errorMessage)
-							})
-						} else if (!taskCancelResult.shouldContinue) {
-							// For consistency with other hooks, show a default error when shouldContinue: false with no message
-							await this.say("error", "TaskCancel hook indicated an issue but provided no error message").catch(
-								() => {
-									console.error("TaskCancel hook indicated an issue (shouldContinue: false)")
-								},
-							)
-						}
-					} else {
-						// Already aborted, just log to console
-						if (taskCancelResult.errorMessage) {
-							console.error("TaskCancel hook error (already aborted):", taskCancelResult.errorMessage)
-						} else if (!taskCancelResult.shouldContinue) {
-							console.error("TaskCancel hook indicated an issue (already aborted, shouldContinue: false)")
-						}
-					}
-					// TaskCancel is fire-and-forget - we don't block cancellation based on hook result
-				} catch (hookError) {
-					const errorMessage = `TaskCancel hook failed: ${hookError instanceof Error ? hookError.message : String(hookError)}`
-					Logger.error(errorMessage, hookError)
-					// Show error to user but continue with abort (non-fatal)
-					// Only display if not already aborted
-					if (!this.taskState.abort) {
-						await this.say("error", errorMessage).catch(() => {
-							// If say() fails, already logged above
-						})
-					}
+					await this.cancelHookExecution()
+					// Clear activeHookExecution after hook is signaled
+					await this.clearActiveHookExecution()
+				} catch (error) {
+					Logger.error("Failed to cancel hook during task abort", error)
+					// Still clear state even on error to prevent stuck state
+					await this.clearActiveHookExecution()
 				}
 			}
 
-			// Check for incomplete progress before aborting
+			// PHASE 4: Run TaskCancel hook
+			// This allows the hook UI to appear in the webview
+			// Use the shouldRunTaskCancelHook value we captured in Phase 1
+			const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+			if (hooksEnabled && shouldRunTaskCancelHook) {
+				try {
+					const { executeHook } = await import("../hooks/hook-executor")
+
+					const taskCancelResult = await executeHook({
+						hookName: "TaskCancel",
+						hookInput: {
+							taskCancel: {
+								taskMetadata: {
+									taskId: this.taskId,
+									ulid: this.ulid,
+									completionStatus: this.taskState.abandoned ? "abandoned" : "cancelled",
+								},
+							},
+						},
+						isCancellable: false, // TaskCancel is NOT cancellable
+						say: this.say.bind(this),
+						// No setActiveHookExecution or clearActiveHookExecution for non-cancellable hooks
+						messageStateHandler: this.messageStateHandler,
+						taskId: this.taskId,
+						hooksEnabled,
+					})
+
+					// TaskCancel completed successfully
+					// Present resume button after successful TaskCancel hook
+					const lastClineMessage = this.messageStateHandler
+						.getClineMessages()
+						.slice()
+						.reverse()
+						.find((m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task"))
+
+					let askType: ClineAsk
+					if (lastClineMessage?.ask === "completion_result") {
+						askType = "resume_completed_task"
+					} else {
+						askType = "resume_task"
+					}
+
+					// Present the resume ask - this will show the resume button in the UI
+					// We don't await this because we want to set the abort flag immediately
+					// The ask will be waiting when the user decides to resume
+					this.ask(askType).catch((error) => {
+						// If ask fails (e.g., task was cleared), that's okay - just log it
+						console.log("[TaskCancel] Resume ask failed (task may have been cleared):", error)
+					})
+				} catch (error) {
+					// TaskCancel hook failed - non-fatal, just log
+					console.error("[TaskCancel Hook] Failed (non-fatal):", error)
+				}
+			}
+
+			// PHASE 5: Immediately update UI to reflect abort state
+			try {
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				await this.postStateToWebview()
+			} catch (error) {
+				Logger.error("Failed to post state after setting abort flag", error)
+			}
+
+			// PHASE 6: Check for incomplete progress
 			if (this.FocusChainManager) {
 				this.FocusChainManager.checkIncompleteProgressOnCompletion()
 			}
 
-			this.taskState.abort = true // will stop any autonomously running promises
+			// PHASE 7: Clean up resources
 			this.terminalManager.disposeAll()
 			this.urlContentFetcher.closeBrowser()
 			await this.browserSession.dispose()
@@ -1236,87 +1447,17 @@ export class Task {
 					console.error(`[Task ${this.taskId}] Failed to release task lock:`, error)
 				}
 			}
+
+			// Final state update to notify UI that abort is complete
+			try {
+				await this.postStateToWebview()
+			} catch (error) {
+				Logger.error("Failed to post final state after abort", error)
+			}
 		}
 	}
 
 	// Tools
-
-	/**
-	 * Executes a command directly in Node.js using execa
-	 * This is used in test mode to capture the full output without using the VS Code terminal
-	 * Commands are automatically terminated after 30 seconds using Promise.race
-	 */
-	private async executeCommandInNode(command: string): Promise<[boolean, ToolResponse]> {
-		try {
-			// Create a child process
-			const childProcess = execa(command, {
-				shell: true,
-				cwd: this.cwd,
-				reject: false,
-				all: true, // Merge stdout and stderr
-			})
-
-			// Set up variables to collect output
-			let output = ""
-
-			// Collect output in real-time
-			if (childProcess.all) {
-				childProcess.all.on("data", (data) => {
-					output += data.toString()
-				})
-			}
-
-			// Create a timeout promise that rejects after 30 seconds
-			const timeoutPromise = new Promise<never>((_, reject) => {
-				setTimeout(() => {
-					if (childProcess.pid) {
-						childProcess.kill("SIGKILL") // Use SIGKILL for more forceful termination
-					}
-					reject(new Error("Command timeout after 30s"))
-				}, 30000)
-			})
-
-			// Race between command completion and timeout
-			const result = await Promise.race([childProcess, timeoutPromise]).catch((_error) => {
-				// If we get here due to timeout, return a partial result with timeout flag
-				Logger.info(`Command timed out after 30s: ${command}`)
-				return {
-					stdout: "",
-					stderr: "",
-					exitCode: 124, // Standard timeout exit code
-					timedOut: true,
-				}
-			})
-
-			// Check if timeout occurred
-			const wasTerminated = result.timedOut === true
-
-			// Use collected output or result output
-			if (!output) {
-				output = result.stdout || result.stderr || ""
-			}
-
-			Logger.info(`Command executed in Node: ${command}\nOutput:\n${output}`)
-
-			// Add termination message if the command was terminated
-			if (wasTerminated) {
-				output += "\nCommand was taking a while to run so it was auto terminated after 30s"
-			}
-
-			// Format the result similar to terminal output
-			return [
-				false,
-				`Command executed${wasTerminated ? " (terminated after 30s)" : ""} with exit code ${
-					result.exitCode
-				}.${output.length > 0 ? `\nOutput:\n${output}` : ""}`,
-			]
-		} catch (error) {
-			// Handle any errors that might occur
-			const errorMessage = error instanceof Error ? error.message : String(error)
-			return [false, `Error executing command: ${errorMessage}`]
-		}
-	}
-
 	async executeCommandTool(command: string, timeoutSeconds: number | undefined): Promise<[boolean, ToolResponse]> {
 		// For Cline CLI subagents, we want to parse and process the command to ensure flags are correct
 		const isSubagent = isSubagentCommand(command)
@@ -1328,13 +1469,6 @@ export class Task {
 		const subAgentStartTime = isSubagent ? performance.now() : 0
 
 		Logger.info("IS_TEST: " + isInTestMode())
-
-		// Check if we're in test mode
-		if (isInTestMode()) {
-			// In test mode, execute the command directly in Node
-			Logger.info("Executing command in Node: " + command)
-			return this.executeCommandInNode(command)
-		}
 
 		// Force subagents to use background terminal (hidden execution)
 
@@ -1696,6 +1830,49 @@ export class Task {
 	}
 
 	/**
+	 * Cancel a currently running hook execution
+	 * @returns true if a hook was cancelled, false if no hook was running
+	 */
+	public async cancelHookExecution(): Promise<boolean> {
+		const activeHook = await this.getActiveHookExecution()
+		if (!activeHook) {
+			return false
+		}
+
+		const { hookName, toolName, messageTs, abortController } = activeHook
+
+		try {
+			// Abort the hook process
+			abortController.abort()
+
+			// Update hook message status to "cancelled"
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const hookMessageIndex = clineMessages.findIndex((m) => m.ts === messageTs)
+			if (hookMessageIndex !== -1) {
+				const cancelledMetadata = {
+					hookName,
+					toolName,
+					status: "cancelled",
+					exitCode: 130, // Standard SIGTERM exit code
+				}
+				await this.messageStateHandler.updateClineMessage(hookMessageIndex, {
+					text: JSON.stringify(cancelledMetadata),
+				})
+			}
+
+			// Notify UI that hook was cancelled
+			await this.say("hook_output", "\nHook execution cancelled by user")
+
+			// Return success - let caller (abortTask) handle next steps
+			// DON'T call abortTask() here to avoid infinite recursion
+			return true
+		} catch (error) {
+			Logger.error("Failed to cancel hook execution", error)
+			return false
+		}
+	}
+
+	/**
 	 * Migrates the disableBrowserTool setting from VSCode configuration to browserSettings
 	 */
 	private async migrateDisableBrowserToolSetting(): Promise<void> {
@@ -1833,7 +2010,8 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
-			enableNativeToolCalls: featureFlagsService.getNativeToolCallEnabled(),
+			enableNativeToolCalls:
+				featureFlagsService.getNativeToolCallEnabled() && this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
@@ -2142,8 +2320,9 @@ export class Task {
 	}
 
 	async recursivelyMakeClineRequests(userContent: UserContent, includeFileDetails: boolean = false): Promise<boolean> {
+		// Check abort flag at the very start to prevent any execution after cancellation
 		if (this.taskState.abort) {
-			throw new Error("Cline instance aborted")
+			throw new Error("Task instance aborted")
 		}
 
 		// Increment API request counter for focus chain list management
@@ -2164,7 +2343,7 @@ export class Task {
 
 		if (this.taskState.consecutiveMistakeCount >= this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")) {
 			const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-			if (autoApprovalSettings.enabled && autoApprovalSettings.enableNotifications) {
+			if (autoApprovalSettings.enableNotifications) {
 				showSystemNotification({
 					subtitle: "Error",
 					message: "Cline is having trouble. Would you like to continue the task?",
@@ -2208,71 +2387,11 @@ export class Task {
 			this.taskState.autoRetryAttempts = 0 // need to reset this if the user chooses to manually retry after the mistake limit is reached
 		}
 
-		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-
-		if (
-			!this.stateManager.getGlobalSettingsKey("yoloModeToggled") &&
-			autoApprovalSettings.enabled &&
-			this.taskState.consecutiveAutoApprovedRequestsCount >= autoApprovalSettings.maxRequests
-		) {
-			if (autoApprovalSettings.enableNotifications) {
-				showSystemNotification({
-					subtitle: "Max Requests Reached",
-					message: `Cline has auto-approved ${autoApprovalSettings.maxRequests.toString()} API requests.`,
-				})
-			}
-			const { response, text, images, files } = await this.ask(
-				"auto_approval_max_req_reached",
-				`Cline has auto-approved ${autoApprovalSettings.maxRequests.toString()} API requests. Would you like to reset the count and proceed with the task?`,
-			)
-			// if we get past the promise it means the user approved and did not start a new task
-			this.taskState.consecutiveAutoApprovedRequestsCount = 0
-
-			// Process user feedback if provided
-			if (response === "messageResponse") {
-				// Display the user's message in the chat UI
-				await this.say("user_feedback", text, images, files)
-
-				// This userContent is for the *next* API call.
-				const feedbackUserContent: UserContent = []
-				feedbackUserContent.push({
-					type: "text",
-					text: formatResponse.autoApprovalMaxReached(text),
-				})
-				if (images && images.length > 0) {
-					feedbackUserContent.push(...formatResponse.imageBlocks(images))
-				}
-
-				let fileContentString = ""
-				if (files && files.length > 0) {
-					fileContentString = await processFilesIntoText(files)
-				}
-
-				if (fileContentString) {
-					feedbackUserContent.push({
-						type: "text",
-						text: fileContentString,
-					})
-				}
-
-				userContent = feedbackUserContent
-			}
-		}
-
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
 		const previousApiReqIndex = findLastIndex(this.messageStateHandler.getClineMessages(), (m) => m.say === "api_req_started")
 
 		// Save checkpoint if this is the first API request
 		const isFirstRequest = this.messageStateHandler.getClineMessages().filter((m) => m.say === "api_req_started").length === 0
-
-		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
-		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
-		await this.say(
-			"api_req_started",
-			JSON.stringify({
-				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
-			}),
-		)
 
 		// Initialize checkpointManager first if enabled and it's the first request
 		if (
@@ -2447,27 +2566,14 @@ export class Task {
 			userContent.push({ type: "text", text: environmentDetails })
 		}
 
-		// Run UserPromptSubmit hook before sending to API
-		const hookResult = await this.runUserPromptSubmitHook(
-			userContent,
-			this.taskState.apiRequestCount === 1 ? "initial_task" : "feedback",
+		// getting verbose details is an expensive operation, it uses globby to top-down build file structure of project which for large projects can take a few seconds
+		// for the best UX we show a placeholder api_req_started message with a loading spinner as this happens
+		await this.say(
+			"api_req_started",
+			JSON.stringify({
+				request: userContent.map((block) => formatContentBlockToMarkdown(block)).join("\n\n") + "\n\nLoading...",
+			}),
 		)
-
-		// Handle hook blocking
-		if (!hookResult.shouldContinue) {
-			const errorMessage = hookResult.errorMessage || "UserPromptSubmit hook prevented this request"
-			await this.say("error", errorMessage)
-			// Return true to end the loop gracefully
-			return true
-		}
-
-		// Add hook context if provided
-		if (hookResult.contextModification) {
-			userContent.push({
-				type: "text",
-				text: `<hook_context source="UserPromptSubmit">\n${hookResult.contextModification}\n</hook_context>`,
-			})
-		}
 
 		await this.messageStateHandler.addToApiConversationHistory({
 			role: "user",
