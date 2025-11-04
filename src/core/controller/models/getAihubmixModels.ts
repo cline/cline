@@ -14,7 +14,6 @@ export async function getAihubmixModels(_controller: Controller, _request: Empty
 		const response = await axios.get("https://aihubmix.com/call/mdl_info_platform?tag=coding")
 
 		if (!response.data?.success || !Array.isArray(response.data?.data)) {
-			console.error("Invalid response from AIhubmix API:", response.data)
 			return OpenRouterCompatibleModelInfo.create({ models: {} })
 		}
 		// Raw data is an array and cannot be directly reused as a map; need to construct a separate modelsMap
@@ -63,10 +62,8 @@ export async function getAihubmixModels(_controller: Controller, _request: Empty
 			})
 		}
 
-		console.log(`Fetched ${Object.keys(modelsMap).length} AIhubmix models`)
 		return OpenRouterCompatibleModelInfo.create({ models: modelsMap })
 	} catch (error) {
-		console.error("Failed to fetch AIhubmix models:", error)
 		return OpenRouterCompatibleModelInfo.create({ models: {} })
 	}
 }
