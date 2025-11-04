@@ -139,7 +139,7 @@ export abstract class WebviewProvider {
 
 		return readFile(portFilePath, "utf8")
 			.then((portFile) => {
-				const port = parseInt(portFile.trim()) || DEFAULT_PORT
+				const port = parseInt(portFile.trim(), 10) || DEFAULT_PORT
 				console.info(`[getDevServerPort] Using dev server port ${port} from .vite-port file`)
 
 				return port

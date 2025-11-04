@@ -131,11 +131,11 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	/**
 	 * Metrics are not supported in PostHog provider. These are intentional no-ops.
 	 */
-	public incrementCounter(name: string, value: number = 1, attributes?: TelemetryProperties): void {
+	public incrementCounter(_name: string, _value: number = 1, _attributes?: TelemetryProperties): void {
 		// no-op
 	}
 
-	public recordHistogram(name: string, value: number, attributes?: TelemetryProperties): void {
+	public recordHistogram(_name: string, _value: number, _attributes?: TelemetryProperties): void {
 		// no-op
 	}
 

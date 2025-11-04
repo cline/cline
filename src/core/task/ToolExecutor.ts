@@ -117,7 +117,7 @@ export class ToolExecutor {
 		// Atomic hook state helpers from Task
 		private setActiveHookExecution: (hookExecution: NonNullable<typeof taskState.activeHookExecution>) => Promise<void>,
 		private clearActiveHookExecution: () => Promise<void>,
-		private getActiveHookExecution: () => Promise<typeof taskState.activeHookExecution>,
+		_getActiveHookExecution: () => Promise<typeof taskState.activeHookExecution>,
 	) {
 		this.autoApprover = new AutoApprove(this.stateManager)
 

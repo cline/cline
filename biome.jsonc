@@ -60,29 +60,29 @@
 				"useTemplate": "off",
 				"noUselessElse": "off"
 			},
-		"suspicious": {
-			"noDoubleEquals": "warn",
-			"noImplicitAnyLet": "info",
-			"noThenProperty": "off",
-			"noAsyncPromiseExecutor": "off",
-			"noImportAssign": "off",
-			"noExplicitAny": "off",
-			"noControlCharactersInRegex": "off",
-			"noShadowRestrictedNames": "off",
-			"noArrayIndexKey": "info",
-			"noAssignInExpressions": "info",
-			"noUnknownAtRules": "off"
-		},
-		"complexity": {
-			"noUselessConstructor": "off",
-			"useOptionalChain": "off",
-			"noBannedTypes": "off",
-			"useLiteralKeys": "off",
-			"noUselessCatch": "off",
-			"noUselessSwitchCase": "off",
-			"noStaticOnlyClass": "off",
-			"noImportantStyles": "off"
-		},
+			"suspicious": {
+				"noDoubleEquals": "warn",
+				"noImplicitAnyLet": "info",
+				"noThenProperty": "off",
+				"noAsyncPromiseExecutor": "off",
+				"noImportAssign": "off",
+				"noExplicitAny": "off",
+				"noControlCharactersInRegex": "off",
+				"noShadowRestrictedNames": "off",
+				"noArrayIndexKey": "info",
+				"noAssignInExpressions": "info",
+				"noUnknownAtRules": "off"
+			},
+			"complexity": {
+				"noUselessConstructor": "off",
+				"useOptionalChain": "off",
+				"noBannedTypes": "off",
+				"useLiteralKeys": "off",
+				"noUselessCatch": "off",
+				"noUselessSwitchCase": "off",
+				"noStaticOnlyClass": "off",
+				"noImportantStyles": "off"
+			},
 			"security": {
 				"noDangerouslySetInnerHtml": "info"
 			}

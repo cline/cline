@@ -27,7 +27,7 @@ describe("Hook Executor", () => {
 	let tempDir: string
 	let baseTempDir: string // Store base directory for cleanup
 	let testHandler: MessageStateHandler
-	let mockMessages: ClineMessage[]
+	let _mockMessages: ClineMessage[]
 	let stateManagerStub: sinon.SinonStub
 
 	/**
@@ -75,7 +75,7 @@ setTimeout(() => {
 		tempDir = path.join(baseTempDir, ".clinerules", "hooks")
 		await fs.mkdir(tempDir, { recursive: true })
 		testHandler = createTestHandler()
-		mockMessages = []
+		_mockMessages = []
 
 		// Mock StateManager to return baseTempDir as workspace root
 		// This allows HookFactory to find hooks in baseTempDir/.clinerules/hooks/
@@ -93,7 +93,7 @@ setTimeout(() => {
 		// Clean up temporary directory (including entire base directory)
 		try {
 			await fs.rm(baseTempDir, { recursive: true, force: true })
-		} catch (error) {
+		} catch (_error) {
 			// Ignore cleanup errors
 		}
 
@@ -287,7 +287,7 @@ setTimeout(() => {
 			})
 
 			// For non-cancellable hooks, setActiveHookExecution should not be called
-			let setHookCalled = false
+			let _setHookCalled = false
 
 			const result = await executeHook({
 				hookName: "TaskCancel",
@@ -303,7 +303,7 @@ setTimeout(() => {
 				isCancellable: false, // Not cancellable
 				say: async () => Date.now(),
 				setActiveHookExecution: async () => {
-					setHookCalled = true
+					_setHookCalled = true
 				},
 				messageStateHandler: testHandler,
 				taskId: "test-task",

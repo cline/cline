@@ -26,7 +26,9 @@ async function tryFixEntry(
 	spec: SpecFile,
 	specPath: string,
 ): Promise<boolean> {
-	if (!shouldAttemptFix()) return false
+	if (!shouldAttemptFix()) {
+		return false
+	}
 
 	console.warn(`✏️ Updating response for RequestID: ${entry.requestId}`)
 	entry.response.message = actualResponse
@@ -48,7 +50,7 @@ async function runSpec(specPath: string, grpcAdapter: GrpcAdapter) {
 
 	for (const entry of spec.entries) {
 		console.log(`▶️ ${entry.service}.${entry.method}`)
-		let actualResponse
+		let actualResponse: any
 		let fixed = false
 
 		try {

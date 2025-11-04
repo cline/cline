@@ -306,7 +306,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 					}
 
 					return output
-				} catch (parseError) {
+				} catch (_parseError) {
 					// Try to extract JSON from stdout (it might have debug output before/after)
 					const jsonMatch = stdout.match(/\{[\s\S]*\}/)
 					if (jsonMatch) {

@@ -82,7 +82,7 @@ const ServerRow = ({
 	const handleTimeoutChange = (e: any) => {
 		const select = e.target as HTMLSelectElement
 		const value = select.value
-		const num = parseInt(value)
+		const num = parseInt(value, 10)
 		setTimeoutValue(value)
 
 		McpServiceClient.updateMcpTimeout({

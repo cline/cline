@@ -26,7 +26,7 @@ const collectSystemInfo = () => {
 		if (process.platform === "darwin") {
 			cpuInfo = execSync("sysctl -n machdep.cpu.brand_string").toString().trim()
 			memoryInfo = execSync("sysctl -n hw.memsize").toString().trim()
-			memoryInfo = `${Math.round(parseInt(memoryInfo) / 1e9)} GB RAM`
+			memoryInfo = `${Math.round(parseInt(memoryInfo, 10) / 1e9)} GB RAM`
 		} else {
 			// Linux specific commands
 			cpuInfo = execSync("lscpu").toString().split("\n").slice(0, 5).join("\n")

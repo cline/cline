@@ -96,12 +96,12 @@ export class SqliteLockManager {
 				const timestampStr = fs.readFileSync(lockFile, "utf8").trim()
 				const timestamp = parseInt(timestampStr, 10)
 
-				if (isNaN(timestamp) || Date.now() - timestamp > this.STALE_LOCK_TIMEOUT) {
+				if (Number.isNaN(timestamp) || Date.now() - timestamp > this.STALE_LOCK_TIMEOUT) {
 					// Stale lock, remove it
 					unlinkSync(lockFile)
 					console.warn(`Removed stale database lock file: ${lockFile}`)
 				}
-			} catch (readError) {
+			} catch (_readError) {
 				// If we can't read the timestamp, assume it's stale
 				unlinkSync(lockFile)
 				console.warn(`Removed unreadable database lock file: ${lockFile}`)

@@ -783,13 +783,13 @@ export class AwsBedrockHandler implements ApiHandler {
 		// Format messages for Anthropic model using unified formatter
 		const formattedMessages = this.formatMessagesForConverseAPI(messages)
 
-	// Get model info and message indices for caching
-	const userMsgIndices = messages.reduce((acc, msg, index) => {
-		if (msg.role === "user") {
-			acc.push(index)
-		}
-		return acc
-	}, [] as number[])
+		// Get model info and message indices for caching
+		const userMsgIndices = messages.reduce((acc, msg, index) => {
+			if (msg.role === "user") {
+				acc.push(index)
+			}
+			return acc
+		}, [] as number[])
 		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
@@ -976,13 +976,13 @@ export class AwsBedrockHandler implements ApiHandler {
 		// Format messages for Nova model using unified formatter
 		const formattedMessages = this.formatMessagesForConverseAPI(messages)
 
-	// Get model info and message indices for caching (for Nova models that support it)
-	const userMsgIndices = messages.reduce((acc, msg, index) => {
-		if (msg.role === "user") {
-			acc.push(index)
-		}
-		return acc
-	}, [] as number[])
+		// Get model info and message indices for caching (for Nova models that support it)
+		const userMsgIndices = messages.reduce((acc, msg, index) => {
+			if (msg.role === "user") {
+				acc.push(index)
+			}
+			return acc
+		}, [] as number[])
 		const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 		const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 

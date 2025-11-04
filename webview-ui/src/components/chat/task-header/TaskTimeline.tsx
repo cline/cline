@@ -71,7 +71,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 	}, [taskTimelinePropsMessages])
 
 	// Calculate the item size (width of block + gap)
-	const itemWidth = parseInt(BLOCK_WIDTH.replace("px", "")) + parseInt(BLOCK_GAP.replace("px", ""))
+	const itemWidth = parseInt(BLOCK_WIDTH.replace("px", ""), 10) + parseInt(BLOCK_GAP.replace("px", ""), 10)
 
 	// Virtuoso requires a reference to scroll to the end
 	const virtuosoRef = useRef<any>(null)

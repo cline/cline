@@ -1362,7 +1362,7 @@ export class Task {
 				try {
 					const { executeHook } = await import("../hooks/hook-executor")
 
-					const taskCancelResult = await executeHook({
+					const _taskCancelResult = await executeHook({
 						hookName: "TaskCancel",
 						hookInput: {
 							taskCancel: {
@@ -2991,7 +2991,7 @@ export class Task {
 						type: "text",
 						text: assistantTextOnly,
 						// reasoning_details only exists for cline/openrouter providers
-						// @ts-ignore-next-line
+						// @ts-expect-error-next-line
 						reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
 					})
 				}

@@ -122,10 +122,10 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 				type: ShowMessageType.ERROR,
 				message: `Failed to fetch OCA models. Please check your configuration from ${baseUrl}`,
 			})
-	}
-} catch (err: any) {
-	let userMsg: string
-	if (err.response) {
+		}
+	} catch (err: any) {
+		let userMsg: string
+		if (err.response) {
 			// The request was made and the server responded with a status code that falls out of the range of 2xx
 			userMsg = `Did you set up your OCA access (possibly through entitlements)? OCA service returned ${err.response.status} ${err.response.statusText}.`
 		} else if (err.request) {
