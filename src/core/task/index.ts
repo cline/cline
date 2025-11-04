@@ -2,7 +2,6 @@ import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
-import { AssistantMessageContent, parseAssistantMessageV2 } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
@@ -63,7 +62,6 @@ import {
 } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
-import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
@@ -76,7 +74,6 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
 import * as vscode from "vscode"
-import { ToolUseHandler } from "@/core/api/transform/tool-use-handler"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
@@ -92,6 +89,7 @@ import { Controller } from "../controller"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
+import { StreamingChunkProcessor, StreamingChunkState } from "./streaming-chunk-processor"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
@@ -204,7 +202,6 @@ export class Task {
 	 * because of the expected format from the tool calls is different.
 	 */
 	private useNativeToolCalls: boolean = false
-	private toolUseHandler: ToolUseHandler
 
 	private terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	private activeBackgroundCommand?: {
@@ -318,7 +315,6 @@ export class Task {
 		this.browserSession = new BrowserSession(stateManager)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
-		this.toolUseHandler = new ToolUseHandler()
 		this.cwd = cwd
 		this.stateManager = stateManager
 		this.workspaceManager = workspaceManager
@@ -2609,6 +2605,19 @@ export class Task {
 			let outputTokens = 0
 			let totalCost: number | undefined
 
+			const streamingState: StreamingChunkState = {
+				// For UI display (includes XML)
+				assistantMessage: "",
+				// For API history (text only, no tool XML)
+				assistantTextOnly: "",
+				reasoningMessage: "",
+				reasoningDetails: [],
+				antThinkingContent: [],
+				reasoningSignature: "",
+			}
+
+			let chunkProcessor: StreamingChunkProcessor | undefined
+
 			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
 				if (this.diffViewProvider.isEditing) {
 					await this.diffViewProvider.revertChanges() // closes diff view
@@ -2631,7 +2640,7 @@ export class Task {
 						{
 							type: "text",
 							text:
-								assistantMessage +
+								streamingState.assistantMessage +
 								`\n\n[${
 									cancelReason === "streaming_failed"
 										? "Response interrupted by API Error"
@@ -2640,6 +2649,20 @@ export class Task {
 						},
 					],
 				})
+
+				const usageSnapshot = chunkProcessor?.getUsageSnapshot() ?? {
+					inputTokens,
+					outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+					totalCost,
+				}
+
+				inputTokens = usageSnapshot.inputTokens
+				outputTokens = usageSnapshot.outputTokens
+				cacheWriteTokens = usageSnapshot.cacheWriteTokens
+				cacheReadTokens = usageSnapshot.cacheReadTokens
+				totalCost = usageSnapshot.totalCost
 
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
 				await updateApiReqMsg({
@@ -2680,173 +2703,40 @@ export class Task {
 			this.taskState.presentAssistantMessageHasPendingUpdates = false
 			this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			await this.diffViewProvider.reset()
-			this.toolUseHandler.reset()
 			this.taskState.toolUseIdMap.clear()
 
+			chunkProcessor = new StreamingChunkProcessor({
+				taskState: this.taskState,
+				say: this.say.bind(this),
+				presentAssistantMessage: this.presentAssistantMessage.bind(this),
+				useNativeToolCalls: this.useNativeToolCalls,
+				abortStream,
+				streamingState,
+			})
+
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
-			let assistantMessage = "" // For UI display (includes XML)
-			let assistantTextOnly = "" // For API history (text only, no tool XML)
-			let reasoningMessage = ""
-			const reasoningDetails = []
-			const antThinkingContent: (Anthropic.Messages.RedactedThinkingBlock | Anthropic.Messages.ThinkingBlock)[] = []
+
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
+
+			const syncUsageFromProcessor = () => {
+				if (!chunkProcessor) {
+					return
+				}
+				const usageSnapshot = chunkProcessor.getUsageSnapshot()
+				inputTokens = usageSnapshot.inputTokens
+				outputTokens = usageSnapshot.outputTokens
+				cacheWriteTokens = usageSnapshot.cacheWriteTokens
+				cacheReadTokens = usageSnapshot.cacheReadTokens
+				totalCost = usageSnapshot.totalCost
+			}
+
 			try {
-				for await (const chunk of stream) {
-					if (!chunk) {
-						continue
-					}
-					switch (chunk.type) {
-						case "usage":
-							didReceiveUsageChunk = true
-							inputTokens += chunk.inputTokens
-							outputTokens += chunk.outputTokens
-							cacheWriteTokens += chunk.cacheWriteTokens ?? 0
-							cacheReadTokens += chunk.cacheReadTokens ?? 0
-							totalCost = chunk.totalCost
-							break
-						case "reasoning":
-							// reasoning will always come before assistant message
-							reasoningMessage += chunk.reasoning
-							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
-							if (!this.taskState.abort) {
-								await this.say("reasoning", reasoningMessage, undefined, undefined, true)
-							}
-							break
-						// for cline/openrouter providers
-						case "reasoning_details":
-							// reasoning_details may be an array of 0 or 1 items depending on how openrouter returns it
-							if (Array.isArray(chunk.reasoning_details)) {
-								reasoningDetails.push(...chunk.reasoning_details)
-							} else {
-								reasoningDetails.push(chunk.reasoning_details)
-							}
-							break
-						// for anthropic providers
-						case "ant_thinking":
-							antThinkingContent.push({
-								type: "thinking",
-								thinking: chunk.thinking,
-								signature: chunk.signature,
-							})
-							break
-						case "ant_redacted_thinking":
-							antThinkingContent.push({
-								type: "redacted_thinking",
-								data: chunk.data,
-							})
-							break
-						case "tool_calls": {
-							if (!chunk.tool_call) {
-								console.log("no tool call in chunk, skipping...", chunk)
-								break
-							}
-							// Accumulate tool use blocks in proper Anthropic format
-							this.toolUseHandler.processToolUseDelta({
-								id: chunk.tool_call.function?.id,
-								type: "tool_use",
-								name: chunk.tool_call.function?.name,
-								input: chunk.tool_call.function?.arguments,
-							})
-
-							// Extract and store tool_use_id for creating proper ToolResultBlockParam
-							if (chunk.tool_call.function?.id && chunk.tool_call.function?.name) {
-								this.taskState.toolUseIdMap.set(chunk.tool_call.function.name, chunk.tool_call.function.id)
-
-								// For MCP tools, also store the mapping with the transformed name
-								// since getPartialToolUsesAsContent() will transform the name to "use_mcp_tool"
-								if (chunk.tool_call.function.name.includes(CLINE_MCP_TOOL_IDENTIFIER)) {
-									this.taskState.toolUseIdMap.set(ClineDefaultTool.MCP_USE, chunk.tool_call.function.id)
-								}
-							}
-
-							const prevLength = this.taskState.assistantMessageContent.length
-
-							// Combine any text content with tool uses
-							const textContent = assistantTextOnly.trim()
-							const textBlocks: AssistantMessageContent[] = textContent
-								? [{ type: "text", content: textContent, partial: false }]
-								: []
-							const toolBlocks = this.toolUseHandler.getPartialToolUsesAsContent()
-							assistantMessage += toolBlocks.map((block) => JSON.stringify(block)).join("\n")
-							this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
-
-							if (this.taskState.assistantMessageContent.length > prevLength) {
-								this.taskState.userMessageContentReady = false
-							}
-							this.presentAssistantMessage()
-							break
-						}
-						case "text": {
-							if (reasoningMessage && assistantMessage.length === 0) {
-								// complete reasoning message
-								await this.say("reasoning", reasoningMessage, undefined, undefined, false)
-							}
-							assistantMessage += chunk.text
-							assistantTextOnly += chunk.text // Accumulate text separately
-							// parse raw assistant message into content blocks
-							const prevLength = this.taskState.assistantMessageContent.length
-
-							this.taskState.assistantMessageContent = parseAssistantMessageV2(assistantMessage)
-
-							if (this.taskState.assistantMessageContent.length > prevLength) {
-								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
-							}
-							// present content to user
-							this.presentAssistantMessage()
-							break
-						}
-					}
-
-					if (this.taskState.abort) {
-						console.log("aborting stream...")
-						if (!this.taskState.abandoned) {
-							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
-							await abortStream("user_cancelled")
-						}
-						break // aborts the stream
-					}
-
-					if (this.taskState.didRejectTool) {
-						// userContent has a tool rejection, so interrupt the assistant's response to present the user's feedback
-						assistantMessage += "\n\n[Response interrupted by user feedback]"
-						// this.userMessageContentReady = true // instead of setting this preemptively, we allow the present iterator to finish and set userMessageContentReady when its ready
-						break
-					}
-
-					// PREV: we need to let the request finish for openrouter to get generation details
-					// UPDATE: it's better UX to interrupt the request at the cost of the api cost not being retrieved
-					if (this.taskState.didAlreadyUseTool) {
-						assistantMessage +=
-							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
-						break
-					}
-				}
-
-				// Finalize any remaining tool calls at the end of the stream
-				if (this.useNativeToolCalls) {
-					// For native tool calls, mark all pending tool uses as complete
-					const prevLength = this.taskState.assistantMessageContent.length
-
-					// Get finalized tool uses and mark them as complete
-					const textContent = assistantTextOnly.trim()
-					const textBlocks: AssistantMessageContent[] = textContent
-						? [{ type: "text", content: textContent, partial: false }]
-						: []
-
-					// Get all finalized tool uses and mark as complete
-					const toolBlocks = this.toolUseHandler
-						.getPartialToolUsesAsContent()
-						.map((block) => ({ ...block, partial: false }))
-
-					this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
-
-					if (this.taskState.assistantMessageContent.length > prevLength) {
-						this.taskState.userMessageContentReady = false
-					}
-					this.presentAssistantMessage()
-				}
+				const { didReceiveUsageChunk: usageFlag } = await chunkProcessor.processStream(stream)
+				didReceiveUsageChunk = usageFlag
+				syncUsageFromProcessor()
 			} catch (error) {
+				syncUsageFromProcessor()
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.taskState.abandoned) {
 					const clineError = ErrorService.get().toClineError(error, this.api.getModel().id)
@@ -2960,7 +2850,7 @@ export class Task {
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
-			if (assistantMessage.length > 0 || this.useNativeToolCalls) {
+			if (streamingState.assistantMessage.length > 0 || this.useNativeToolCalls) {
 				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
@@ -2970,7 +2860,7 @@ export class Task {
 				})
 
 				// Get finalized tool use blocks from the handler
-				const toolUseBlocks = this.toolUseHandler.getAllFinalizedToolUses()
+				const toolUseBlocks = chunkProcessor.getFinalizedToolCalls()
 
 				// Build content array with thinking blocks, text (if any), and tool use blocks
 				const assistantContent: Array<
@@ -2982,17 +2872,18 @@ export class Task {
 					// This is critical for maintaining the model's reasoning flow and conversation integrity.
 					// "When providing thinking blocks, the entire sequence of consecutive thinking blocks must match the outputs generated by the model during the original request; you cannot rearrange or modify the sequence of these blocks." The signature_delta is used to verify that the thinking was generated by Claude, and the thinking blocks will be ignored if it's incorrect or missing.
 					// https://docs.claude.com/en/docs/build-with-claude/extended-thinking#preserving-thinking-blocks
-					...antThinkingContent,
+					...streamingState.antThinkingContent,
 				]
 
 				// Only add text block if there's actual text (not just tool XML)
-				if (assistantTextOnly.trim().length > 0) {
+				if (streamingState.assistantTextOnly.trim().length > 0) {
 					assistantContent.push({
 						type: "text",
-						text: assistantTextOnly,
+						text: streamingState.assistantTextOnly,
 						// reasoning_details only exists for cline/openrouter providers
 						// @ts-ignore-next-line
-						reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
+						reasoning_details:
+							streamingState.reasoningDetails.length > 0 ? streamingState.reasoningDetails : undefined,
 					})
 				}
 
