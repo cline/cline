@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os/exec"
 	"strconv"
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -124,6 +126,16 @@ func NormalizeAddressForGRPC(address string) (string, error) {
 	return address, nil
 }
 
+// GetNodeVersion returns the current Node.js version, or "unknown" if unable to detect
+func GetNodeVersion() string {
+	cmd := exec.Command("node", "--version")
+	output, err := cmd.Output()
+	if err != nil {
+		return "unknown"
+	}
+	return strings.TrimSpace(string(output))
+}
+
 // RetryOperation performs an operation with retry logic
 func RetryOperation(maxRetries int, timeoutPerAttempt time.Duration, operation func() error) error {
 	var lastErr error
@@ -155,5 +167,19 @@ func RetryOperation(maxRetries int, timeoutPerAttempt time.Duration, operation f
 		}
 	}
 
-	return fmt.Errorf("operation failed after %d attempts: %w", maxRetries, lastErr)
+	return fmt.Errorf(`operation failed to after %d attempts: %w
+
+This is usually caused by an incompatible Node.js version
+
+REQUIREMENTS:
+• Node.js version 20+ is required
+• Current Node.js version: %s
+
+DEBUGGING STEPS:
+1. View recent logs: cline log list
+2. Logs are available in: ~/.cline/logs/
+3. The most recent cline-core log file is usually valuable
+
+For additional help, visit: https://github.com/cline/cline/issues
+`, maxRetries, lastErr, GetNodeVersion())
 }

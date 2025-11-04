@@ -10,7 +10,7 @@ The goal is to go from a comment on an issue like this:
 
 <img src="readme/ss0a-comment.png" alt="GitHub issue comment mentioning @cline" width="600">
 
-And ask Cline to provide his thoughts like this:
+And ask Cline to provide its thoughts like this:
 
 <img src="readme/ss0b-final.png" alt="Cline's automated analysis response" width="600">
 

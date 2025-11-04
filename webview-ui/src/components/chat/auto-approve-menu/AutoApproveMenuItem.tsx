@@ -1,58 +1,17 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import React from "react"
 import styled from "styled-components"
-import HeroTooltip from "@/components/common/HeroTooltip"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { ActionMetadata } from "./types"
 
 interface AutoApproveMenuItemProps {
 	action: ActionMetadata
 	isChecked: (action: ActionMetadata) => boolean
-	isFavorited?: (action: ActionMetadata) => boolean
 	onToggle: (action: ActionMetadata, checked: boolean) => Promise<void>
-	onToggleFavorite?: (actionId: string) => Promise<void>
-	condensed?: boolean
 	showIcon?: boolean
+	disabled?: boolean
 }
-
-const CheckboxContainer = styled.div.withConfig({
-	shouldForwardProp: (prop) => !["isFavorited"].includes(prop),
-})<{ isFavorited?: boolean; onClick?: (e: MouseEvent) => void; onMouseDown?: (e: React.MouseEvent) => void }>`
-	display: flex;
-	align-items: center;
-	justify-content: space-between; /* Push content to edges */
-	padding-left: 4px;
-	padding-right: 1px;
-	border-radius: 4px;
-	cursor: pointer;
-	transition: all 0.2s ease;
-
-	&:hover {
-		background-color: var(--vscode-textBlockQuote-background);
-	}
-
-	.left-content {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-
-	.icon {
-		color: var(--vscode-foreground);
-		font-size: 14px;
-	}
-
-	.label {
-		color: var(--vscode-foreground);
-		font-size: 12px;
-		font-weight: 500;
-	}
-
-	.star {
-		color: ${(props) => (props.isFavorited ? "var(--vscode-terminal-ansiYellow)" : "var(--vscode-descriptionForeground)")};
-		opacity: ${(props) => (props.isFavorited ? 1 : 0.6)};
-		font-size: 14px;
-	}
-`
 
 const SubOptionAnimateIn = styled.div<{ show: boolean }>`
 	position: relative;
@@ -69,67 +28,43 @@ const ActionButtonContainer = styled.div`
 	padding: 2px;
 `
 
-const AutoApproveMenuItem = ({
-	action,
-	isChecked,
-	isFavorited,
-	onToggle,
-	onToggleFavorite,
-	condensed = false,
-	showIcon = true,
-}: AutoApproveMenuItemProps) => {
+const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true, disabled = false }: AutoApproveMenuItemProps) => {
 	const checked = isChecked(action)
-	const favorited = isFavorited?.(action)
 
 	const onChange = async (e: Event) => {
+		if (disabled) {
+			return
+		}
 		e.stopPropagation()
 		await onToggle(action, !checked)
 	}
 
 	const content = (
-		<>
-			<ActionButtonContainer>
-				<HeroTooltip content={action.description} delay={500}>
-					<CheckboxContainer isFavorited={favorited} onClick={onChange}>
-						<div className="left-content">
-							{onToggleFavorite && !condensed && (
-								<HeroTooltip
-									content={favorited ? "Remove from quick-access menu" : "Add to quick-access menu"}
-									delay={500}>
-									<span
-										className={`p-0.5 codicon codicon-${favorited ? "star-full" : "star-empty"} star`}
-										onClick={async (e) => {
-											e.stopPropagation()
-											if (action.id === "enableAll") {
-												return
-											}
-											await onToggleFavorite?.(action.id)
-										}}
-										style={{
-											cursor: "pointer",
-										}}
-									/>
-								</HeroTooltip>
-							)}
-							<VSCodeCheckbox checked={checked} />
+		<div className="w-full" style={{ opacity: disabled ? 0.5 : 1 }}>
+			<ActionButtonContainer className="w-full">
+				<Tooltip>
+					<TooltipContent showArrow={false}>{action.description}</TooltipContent>
+					<TooltipTrigger asChild>
+						<Button
+							className={cn("w-full flex text-sm items-center justify-start text-foreground gap-2")}
+							disabled={disabled}
+							onClick={(e) => onChange(e as unknown as Event)}
+							size="icon"
+							style={{ cursor: disabled ? "not-allowed" : "pointer" }}
+							variant="icon">
+							<VSCodeCheckbox checked={checked} disabled={disabled} />
 							{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
-							<span className="label">{condensed ? action.shortName : action.label}</span>
-						</div>
-					</CheckboxContainer>
-				</HeroTooltip>
+							<span className="label">{action.label}</span>
+						</Button>
+					</TooltipTrigger>
+				</Tooltip>
 			</ActionButtonContainer>
-			{action.subAction && !condensed && (
+			{action.subAction && (
 				<SubOptionAnimateIn show={checked}>
-					<AutoApproveMenuItem
-						action={action.subAction}
-						isChecked={isChecked}
-						isFavorited={isFavorited}
-						onToggle={onToggle}
-						onToggleFavorite={onToggleFavorite}
-					/>
+					<AutoApproveMenuItem action={action.subAction} isChecked={isChecked} onToggle={onToggle} />
 				</SubOptionAnimateIn>
 			)}
-		</>
+		</div>
 	)
 
 	return content
