@@ -25,6 +25,7 @@ import { DoubaoProvider } from "./providers/DoubaoProvider"
 import { FireworksProvider } from "./providers/FireworksProvider"
 import { GeminiProvider } from "./providers/GeminiProvider"
 import { GroqProvider } from "./providers/GroqProvider"
+import { HicapProvider } from "./providers/HicapProvider"
 import { HuaweiCloudMaasProvider } from "./providers/HuaweiCloudMaasProvider"
 import { HuggingFaceProvider } from "./providers/HuggingFaceProvider"
 import { LiteLlmProvider } from "./providers/LiteLlmProvider"
@@ -165,6 +166,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "dify", label: "Dify.ai" },
 			{ value: "oca", label: "Oracle Code Assist" },
 			{ value: "minimax", label: "MiniMax" },
+			{ value: "hicap", label: "Hicap" },
 		]
 
 		// Filter by platform
@@ -377,6 +379,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 					)}
 				</ProviderDropdownWrapper>
 			</DropdownContainer>
+
+			{apiConfiguration && selectedProvider === "hicap" && (
+				<HicapProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
 
 			{apiConfiguration && selectedProvider === "cline" && (
 				<ClineProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />

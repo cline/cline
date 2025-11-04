@@ -1528,7 +1528,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							borderRight: isTextAreaFocused || isVoiceRecording ? 0 : undefined,
 							borderTop: isTextAreaFocused || isVoiceRecording ? 0 : undefined,
 							borderBottom: isTextAreaFocused || isVoiceRecording ? 0 : undefined,
-							padding: `9px 28px ${9 + thumbnailsHeight}px 9px`,
+							padding: `9px ${dictationSettings?.dictationEnabled ? "48" : "28"}px ${9 + thumbnailsHeight}px 9px`,
 						}}
 					/>
 					<DynamicTextArea

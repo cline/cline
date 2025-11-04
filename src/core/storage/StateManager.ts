@@ -494,6 +494,8 @@ export class StateManager {
 			requestTimeoutMs,
 			ocaBaseUrl,
 			ocaMode,
+			hicapApiKey,
+			hicapModelId,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -528,6 +530,8 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeHicapModelId,
+			planModeHicapModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -562,6 +566,8 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeHicapModelId,
+			actModeHicapModelInfo,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -600,6 +606,8 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeHicapModelId,
+			planModeHicapModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -635,6 +643,8 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeHicapModelId,
+			actModeHicapModelInfo,
 
 			// Global state updates
 			awsRegion,
@@ -677,6 +687,7 @@ export class StateManager {
 			ocaBaseUrl,
 			minimaxApiLine,
 			ocaMode,
+			hicapModelId,
 		})
 
 		// Batch update secrets
@@ -716,6 +727,7 @@ export class StateManager {
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 			minimaxApiKey,
+			hicapApiKey,
 		})
 	}
 
@@ -991,6 +1003,7 @@ export class StateManager {
 			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
 			zaiApiKey: this.secretsCache["zaiApiKey"],
 			minimaxApiKey: this.secretsCache["minimaxApiKey"],
+			hicapApiKey: this.secretsCache["hicapApiKey"],
 
 			// Global state (with remote config precedence for applicable fields)
 			awsRegion:
@@ -1062,6 +1075,7 @@ export class StateManager {
 			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
 			minimaxApiLine: this.taskStateCache["minimaxApiLine"] || this.globalStateCache["minimaxApiLine"],
 			ocaMode: this.globalStateCache["ocaMode"],
+			hicapModelId: this.globalStateCache["hicapModelId"],
 
 			// Plan mode configurations
 			planModeApiProvider:
@@ -1129,6 +1143,9 @@ export class StateManager {
 				this.globalStateCache["planModeVercelAiGatewayModelInfo"],
 			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
 			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
+			planModeHicapModelId: this.taskStateCache["planModeHicapModelId"] || this.globalStateCache["planModeHicapModelId"],
+			planModeHicapModelInfo:
+				this.taskStateCache["planModeHicapModelInfo"] || this.globalStateCache["planModeHicapModelInfo"],
 
 			// Act mode configurations
 			actModeApiProvider:
@@ -1194,6 +1211,8 @@ export class StateManager {
 				this.globalStateCache["actModeVercelAiGatewayModelInfo"],
 			actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
 			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
+			actModeHicapModelId: this.globalStateCache["actModeHicapModelId"],
+			actModeHicapModelInfo: this.globalStateCache["actModeHicapModelInfo"],
 		}
 	}
 }
