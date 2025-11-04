@@ -697,7 +697,16 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		if (shouldAutoApprove) {
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-			telemetryService.captureToolUsage(config.ulid, this.name, modelId, providerId, true, true)
+			telemetryService.captureToolUsage(
+				config.ulid,
+				this.name,
+				modelId,
+				providerId,
+				true,
+				true,
+				undefined,
+				block.isNativeToolCall,
+			)
 			return true
 		}
 
@@ -714,7 +723,16 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		const approved = response === "yesButtonClicked"
 		config.taskState.didRejectTool = !approved
-		telemetryService.captureToolUsage(config.ulid, this.name, modelId, providerId, false, approved)
+		telemetryService.captureToolUsage(
+			config.ulid,
+			this.name,
+			modelId,
+			providerId,
+			false,
+			approved,
+			undefined,
+			block.isNativeToolCall,
+		)
 
 		return approved
 	}

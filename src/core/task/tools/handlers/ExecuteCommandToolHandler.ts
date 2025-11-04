@@ -166,6 +166,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				true,
 				true,
 				workspaceContext,
+				block.isNativeToolCall,
 			)
 		} else {
 			// Manual approval flow
@@ -188,6 +189,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 					false,
 					false,
 					workspaceContext,
+					block.isNativeToolCall,
 				)
 				return formatResponse.toolDenied()
 			}
@@ -199,6 +201,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				false,
 				true,
 				workspaceContext,
+				block.isNativeToolCall,
 			)
 		}
 

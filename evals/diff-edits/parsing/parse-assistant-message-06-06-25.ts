@@ -68,6 +68,7 @@ export interface ToolUse {
 	// params is a partial record, allowing only some or none of the possible parameters to be used
 	params: Partial<Record<ToolParamName, string>>
 	partial: boolean
+	isNativeToolCall?: boolean
 }
 
 // parseAssistantmessageV1 removed in https://github.com/cline/cline/pull/5425
@@ -96,11 +97,11 @@ export interface ToolUse {
 export function parseAssistantMessageV2(assistantMessage: string): AssistantMessageContent[] {
 	const contentBlocks: AssistantMessageContent[] = []
 	let currentTextContentStart = 0 // Index where the current text block started
-	let currentTextContent: TextContent | undefined = undefined
+	let currentTextContent: TextContent | undefined
 	let currentToolUseStart = 0 // Index *after* the opening tag of the current tool use
-	let currentToolUse: ToolUse | undefined = undefined
+	let currentToolUse: ToolUse | undefined
 	let currentParamValueStart = 0 // Index *after* the opening tag of the current param
-	let currentParamName: ToolParamName | undefined = undefined
+	let currentParamName: ToolParamName | undefined
 
 	// Precompute tags for faster lookups
 	const toolUseOpenTags = new Map<string, ToolUseName>()
