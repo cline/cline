@@ -279,4 +279,8 @@ Environment Variables:
 `)
 }
 
+// Import and re-export StandaloneTerminalManager for vscode stub integration
+import { StandaloneTerminalManager } from "@integrations/terminal/StandaloneTerminal"
+export { StandaloneTerminalManager }
+
 main()

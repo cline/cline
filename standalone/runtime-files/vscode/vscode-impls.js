@@ -1,13 +1,19 @@
 console.log("Loading stub impls...")
 
 const { createStub } = require("./stub-utils")
-const { StandaloneTerminalManager } = require("../../src/integrations/terminal/StandaloneTerminal")
 
 // Import the base vscode object from stubs
 const vscode = require("./vscode-stubs.js")
 
-// Create global terminal manager instance
-const globalTerminalManager = new StandaloneTerminalManager()
+// Lazy-load terminal manager to avoid circular dependency
+let globalTerminalManager = null
+function getTerminalManager() {
+	if (!globalTerminalManager) {
+		const { StandaloneTerminalManager } = require("../../cline-core")
+		globalTerminalManager = new StandaloneTerminalManager()
+	}
+	return globalTerminalManager
+}
 
 // Extend the existing window object from stubs rather than overwriting it
 vscode.window = {
@@ -60,7 +66,7 @@ vscode.window = {
 		}
 
 		// Use our enhanced terminal manager to create a terminal
-		const terminalInfo = globalTerminalManager.registry.createTerminal({
+		const terminalInfo = getTerminalManager().registry.createTerminal({
 			name: options.name || `Terminal ${Date.now()}`,
 			cwd: options.cwd || process.cwd(),
 			shellPath: options.shellPath,

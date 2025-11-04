@@ -1,7 +1,7 @@
 // GENERATED CODE -- DO NOT EDIT!
 console.log("Loading stubs...")
 const { createStub } = require("./stub-utils")
-vscode = {}
+const vscode = {}
 vscode.version = createStub("vscode.version")
 vscode.Position = class {
 	constructor(...args) {
