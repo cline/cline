@@ -77,9 +77,6 @@ export class TelemetryProviderFactory {
 			case "no-op":
 				return new NoOpTelemetryProvider()
 		}
-
-		console.error("Unsupported telemetry provider type")
-		return new NoOpTelemetryProvider()
 	}
 
 	/**
