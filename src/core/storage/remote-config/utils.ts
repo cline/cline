@@ -1,16 +1,14 @@
 import { RemoteConfig } from "@shared/remote-config/schema"
-import { GlobalStateAndSettings } from "@shared/storage/state-keys"
+import { RemoteConfigFields } from "@shared/storage/state-keys"
 import { StateManager } from "../StateManager"
 
 /**
- * Transforms RemoteConfig schema to GlobalStateAndSettings shape
+ * Transforms RemoteConfig schema to RemoteConfigFields shape
  * @param remoteConfig The remote configuration object
- * @returns Partial<GlobalStateAndSettings> containing only the fields present in remote config, plus availableProviders
+ * @returns Partial<RemoteConfigFields> containing only the fields present in remote config
  */
-export function transformRemoteConfigToStateShape(
-	remoteConfig: RemoteConfig,
-): Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] } {
-	const transformed: Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] } = {}
+export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): Partial<RemoteConfigFields> {
+	const transformed: Partial<RemoteConfigFields> = {}
 
 	// Map top-level settings
 	if (remoteConfig.telemetryEnabled !== undefined) {
@@ -18,6 +16,9 @@ export function transformRemoteConfigToStateShape(
 	}
 	if (remoteConfig.mcpMarketplaceEnabled !== undefined) {
 		transformed.mcpMarketplaceEnabled = remoteConfig.mcpMarketplaceEnabled
+	}
+	if (remoteConfig.allowedMCPServers !== undefined) {
+		transformed.allowedMCPServers = remoteConfig.allowedMCPServers
 	}
 	if (remoteConfig.yoloModeAllowed !== undefined) {
 		// only set the yoloModeToggled field if yolo mode is not allowed. Otherwise, we let the user toggle it.
@@ -152,6 +153,6 @@ export function applyRemoteConfig(remoteConfig?: RemoteConfig): void {
 
 	// Populate remote config cache with transformed values
 	for (const [key, value] of Object.entries(transformed)) {
-		stateManager.setRemoteConfigField(key as keyof GlobalStateAndSettings, value)
+		stateManager.setRemoteConfigField(key as keyof RemoteConfigFields, value)
 	}
 }

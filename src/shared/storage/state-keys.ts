@@ -23,6 +23,13 @@ export type GlobalStateAndSettingsKey = keyof (GlobalState & Settings)
 
 export type GlobalStateAndSettings = GlobalState & Settings
 
+export interface RemoteConfigExtraFields {
+	remoteConfiguredProviders: string[]
+	allowedMCPServers: Array<{ id: string }>
+}
+
+export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtraFields
+
 export interface GlobalState {
 	lastShownAnnouncementId: string | undefined
 	taskHistory: HistoryItem[]
