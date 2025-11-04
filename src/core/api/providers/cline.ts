@@ -184,8 +184,9 @@ export class ClineHandler implements ApiHandler {
 					!shouldSkipReasoningForModel(this.options.openRouterModelId)
 				) {
 					yield {
-						type: "reasoning_details",
-						reasoning_details: delta.reasoning_details,
+						type: "reasoning",
+						reasoning: "",
+						details: delta.reasoning_details,
 					}
 				}
 

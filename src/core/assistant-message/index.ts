@@ -1,5 +1,5 @@
 import { ClineDefaultTool } from "@shared/tools"
-export type AssistantMessageContent = TextContent | ToolUse
+export type AssistantMessageContent = TextContent | ToolUse | Reasoning
 
 export { parseAssistantMessageV2 } from "./parse-assistant-message"
 
@@ -50,5 +50,15 @@ export interface ToolUse {
 	name: ClineDefaultTool // id of the tool being used
 	// params is a partial record, allowing only some or none of the possible parameters to be used
 	params: Partial<Record<ToolParamName, string>>
+	partial: boolean
+}
+
+export interface Reasoning {
+	type: "reasoning"
+	reasoning: string
+	details?: any // openrouter has various properties that we can pass back unmodified in api requests to preserve reasoning traces
+	signature?: string
+	redacted?: boolean
+	data?: string // redacted data
 	partial: boolean
 }

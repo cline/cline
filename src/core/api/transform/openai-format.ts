@@ -102,7 +102,12 @@ export function convertToOpenAiMessages(
 				}
 			} else if (anthropicMessage.role === "assistant") {
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
+					nonToolMessages: (
+						| Anthropic.TextBlockParam
+						| Anthropic.ImageBlockParam
+						| Anthropic.Messages.RedactedThinkingBlock
+						| Anthropic.Messages.ThinkingBlock
+					)[]
 					toolMessages: Anthropic.ToolUseBlockParam[]
 				}>(
 					(acc, part) => {
@@ -119,6 +124,7 @@ export function convertToOpenAiMessages(
 				// Process non-tool messages
 				let content: string | undefined
 				const reasoningDetails: any[] = []
+				const thinkingBlock = []
 				if (nonToolMessages.length > 0) {
 					nonToolMessages.forEach((part) => {
 						// @ts-ignore-next-line
@@ -134,13 +140,16 @@ export function convertToOpenAiMessages(
 							// @ts-ignore-next-line
 							// delete part.reasoning_details
 						}
+						if (part.type === "thinking" && part.thinking) {
+							thinkingBlock.push(part)
+						}
 					})
 					content = nonToolMessages
 						.map((part) => {
-							if (part.type === "image") {
-								return "" // impossible as the assistant cannot send images
+							if (part.type === "text" && part.text) {
+								return part.text
 							}
-							return part.text
+							return ""
 						})
 						.join("\n")
 				}

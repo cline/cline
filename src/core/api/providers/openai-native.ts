@@ -112,7 +112,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			}
 			case "gpt-5-2025-08-07":
 			case "gpt-5-mini-2025-08-07":
-			case "gpt-5-nano-2025-08-07":
+			case "gpt-5-nano-2025-08-07": {
 				const stream = await client.chat.completions.create({
 					model: model.id,
 					temperature: 1,
@@ -146,6 +146,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					}
 				}
 				break
+			}
 			default: {
 				const stream = await client.chat.completions.create({
 					model: model.id,

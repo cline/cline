@@ -2691,6 +2691,7 @@ export class Task {
 			const antThinkingContent: (Anthropic.Messages.RedactedThinkingBlock | Anthropic.Messages.ThinkingBlock)[] = []
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
+			let reasoningSignature = ""
 			try {
 				for await (const chunk of stream) {
 					if (!chunk) {
@@ -2707,34 +2708,35 @@ export class Task {
 							break
 						case "reasoning":
 							// reasoning will always come before assistant message
-							reasoningMessage += chunk.reasoning
+							if (chunk.reasoning) {
+								reasoningMessage += chunk.reasoning
+							}
 							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
 							if (!this.taskState.abort) {
 								await this.say("reasoning", reasoningMessage, undefined, undefined, true)
 							}
-							break
-						// for cline/openrouter providers
-						case "reasoning_details":
-							// reasoning_details may be an array of 0 or 1 items depending on how openrouter returns it
-							if (Array.isArray(chunk.reasoning_details)) {
-								reasoningDetails.push(...chunk.reasoning_details)
-							} else {
-								reasoningDetails.push(chunk.reasoning_details)
+							if (chunk.signature) {
+								reasoningSignature = chunk.signature
+								break
 							}
-							break
-						// for anthropic providers
-						case "ant_thinking":
-							antThinkingContent.push({
-								type: "thinking",
-								thinking: chunk.thinking,
-								signature: chunk.signature,
-							})
-							break
-						case "ant_redacted_thinking":
-							antThinkingContent.push({
-								type: "redacted_thinking",
-								data: chunk.data,
-							})
+							if (chunk.details) {
+								// reasoning_details may be an array of 0 or 1 items depending on how openrouter returns it
+								if (Array.isArray(chunk.details)) {
+									reasoningDetails.push(...chunk.details)
+								} else {
+									reasoningDetails.push(chunk.details)
+								}
+								break
+							}
+
+							if (chunk.redacted_data) {
+								antThinkingContent.push({
+									type: "redacted_thinking",
+									data: chunk.redacted_data,
+								})
+								break
+							}
+
 							break
 						case "tool_calls": {
 							if (!chunk.tool_call) {
@@ -2984,7 +2986,13 @@ export class Task {
 					// https://docs.claude.com/en/docs/build-with-claude/extended-thinking#preserving-thinking-blocks
 					...antThinkingContent,
 				]
-
+				if (reasoningMessage.trim().length > 0) {
+					assistantContent.push({
+						type: "thinking",
+						thinking: reasoningMessage,
+						signature: reasoningSignature,
+					})
+				}
 				// Only add text block if there's actual text (not just tool XML)
 				if (assistantTextOnly.trim().length > 0) {
 					assistantContent.push({
