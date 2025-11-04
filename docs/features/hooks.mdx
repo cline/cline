@@ -250,6 +250,7 @@ Runs when a task is cancelled. Use it to cleanup resources, log cancellation det
 }
 ```
 
+{/*
 #### TaskComplete
 
 Runs when a task finishes successfully. Use it for final cleanup, tracking metrics, generating reports, and triggering post-task workflows.
@@ -271,11 +272,13 @@ Runs when a task finishes successfully. Use it for final cleanup, tracking metri
   }
 }
 ```
+*/}
 
 ### System Events
 
 These hooks monitor internal Cline operations and system-level events. Use them to track context usage, log system behavior, and analyze performance patterns.
 
+{/*
 #### PreCompact
 
 Runs before conversation context is truncated to fit token limits. Use it to monitor compaction frequency, log events, and track context usage patterns.
@@ -296,6 +299,7 @@ Runs before conversation context is truncated to fit token limits. Use it to mon
   }
 }
 ```
+*/}
 
 ### JSON Communication
 
