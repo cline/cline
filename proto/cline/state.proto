@@ -218,6 +218,10 @@ message Settings {
   optional string aihubmix_api_key = 127;
   optional string aihubmix_base_url = 128;
   optional string aihubmix_app_code = 129;
+  optional string plan_mode_aihubmix_model_id = 130;
+  optional OpenRouterModelInfo plan_mode_aihubmix_model_info = 131;
+  optional string act_mode_aihubmix_model_id = 132;
+  optional OpenRouterModelInfo act_mode_aihubmix_model_info = 133;
 }
 
 message DictationSettings {
