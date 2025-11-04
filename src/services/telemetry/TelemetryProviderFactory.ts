@@ -107,17 +107,20 @@ export class TelemetryProviderFactory {
  * or for testing purposes
  */
 export class NoOpTelemetryProvider implements ITelemetryProvider {
+	private isOptIn = true
+
 	log(_event: string, _properties?: TelemetryProperties): void {
-		// no-op
+		Logger.log(`[NoOpTelemetryProvider] ${_event}: ${JSON.stringify(_properties)}`)
 	}
 	logRequired(_event: string, _properties?: TelemetryProperties): void {
-		// no-op
+		Logger.log(`[NoOpTelemetryProvider] REQUIRED ${_event}: ${JSON.stringify(_properties)}`)
 	}
 	identifyUser(_userInfo: any, _properties?: TelemetryProperties): void {
-		// no-op
+		Logger.info(`[NoOpTelemetryProvider] identifyUser - ${JSON.stringify(_userInfo)} - ${JSON.stringify(_properties)}`)
 	}
 	setOptIn(_optIn: boolean): void {
-		// no-op
+		Logger.info(`[NoOpTelemetryProvider] setOptIn(${_optIn})`)
+		this.isOptIn = _optIn
 	}
 	isEnabled(): boolean {
 		return false
@@ -139,6 +142,6 @@ export class NoOpTelemetryProvider implements ITelemetryProvider {
 		// no-op
 	}
 	async dispose(): Promise<void> {
-		// no-op
+		Logger.info(`[NoOpTelemetryProvider] Disposing (optIn=${this.isOptIn})`)
 	}
 }
