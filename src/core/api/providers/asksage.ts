@@ -114,11 +114,4 @@ export class AskSageHandler implements ApiHandler {
 			info: askSageModels[askSageDefaultModelId],
 		}
 	}
-
-	getModelInfo() {
-		return {
-			providerId: this.id,
-			model: this.getModel(),
-		}
-	}
 }

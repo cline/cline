@@ -158,11 +158,4 @@ export class BasetenHandler implements ApiHandler {
 		// (as of 2025-09-16 - could change if Baseten add non-tool models in future, currently no plans to do so)
 		return modelInfo.supportedFeatures ? modelInfo.supportedFeatures.includes("tools") : true
 	}
-
-	getModelInfo() {
-		return {
-			providerId: this.id,
-			model: this.getModel(),
-		}
-	}
 }

@@ -317,11 +317,4 @@ export class AnthropicHandler implements ApiHandler {
 			info: anthropicModels[anthropicDefaultModelId],
 		}
 	}
-
-	getModelInfo() {
-		return {
-			providerId: this.id,
-			model: this.getModel(),
-		}
-	}
 }
