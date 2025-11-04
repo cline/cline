@@ -29,7 +29,7 @@ export async function resetState(controller: Controller, request: ResetStateRequ
 		}
 
 		if (controller.task) {
-			controller.task.abortTask()
+			await controller.task.abortTask("user_cancel")
 			controller.task = undefined
 		}
 

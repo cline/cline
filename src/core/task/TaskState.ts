@@ -63,12 +63,18 @@ export class TaskState {
 	// Single-flight guard to prevent concurrent abortTask() calls
 	isAborting: boolean = false
 	abortPromise?: Promise<{ waitingAtResumeButton: boolean }>
+	// Abort reason to distinguish user cancellation from internal resume flow
+	abortReason: "user_cancel" | "internal_resume" = "user_cancel"
 
 	// Session work tracking for TaskCancel hook decision
 	// Set to true when substantive work begins (API request, tool execution, user feedback)
 	// Used by shouldRunTaskCancelHook() to determine if TaskCancel should run
 	// Eliminates race conditions from checking "currently active" work indicators
 	didPerformWork: boolean = false
+
+	// Flag to prevent duplicate TaskCancel hook execution
+	// Set to true once TaskCancel hook has run, prevents running it again on subsequent abortTask() calls
+	didRunTaskCancelHook: boolean = false
 
 	// Hook execution tracking for cancellation (Map for concurrent multi-root hooks)
 	activeHookExecutions: Map<

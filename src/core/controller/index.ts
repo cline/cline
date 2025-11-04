@@ -20,7 +20,6 @@ import { UserInfo } from "@shared/UserInfo"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
-import pWaitFor from "p-wait-for"
 import * as path from "path"
 import type { FolderLockWithRetryResult } from "src/core/locks/types"
 import * as vscode from "vscode"
@@ -435,59 +434,19 @@ export class Controller {
 		try {
 			this.updateBackgroundCommandState(false)
 
-			let abortResult: { waitingAtResumeButton: boolean } | undefined
+			// Task.abortTask() now handles everything:
+			// - Runs TaskCancel hook if needed
+			// - Presents resume button and waits for user
+			// - Runs TaskResume hook
+			// - Starts task execution in background
+			// No need for Controller to do any re-initialization or double-checking
 			try {
-				abortResult = await this.task.abortTask()
+				await this.task.abortTask()
 			} catch (error) {
 				console.error("Failed to abort task", error)
 			}
 
-			// If waitingAtResumeButton is true, user clicked resume and task is ready to proceed
-			// The existing task instance is perfectly fine and waiting to continue
-			// DON'T create a new instance - just post state and return
-			if (abortResult?.waitingAtResumeButton) {
-				console.log(`[Controller.cancelTask] Task waiting at resume button, continuing with existing instance`)
-				await this.postStateToWebview()
-				return
-			}
-
-			// Otherwise, we need to do cleanup before re-initializing
-			await pWaitFor(
-				() =>
-					this.task === undefined ||
-					this.task.taskState.isStreaming === false ||
-					this.task.taskState.didFinishAbortingStream ||
-					this.task.taskState.isWaitingForFirstChunk,
-				{
-					timeout: 3_000,
-				},
-			).catch(() => {
-				console.error("Failed to abort task")
-			})
-
-			if (this.task) {
-				this.task.taskState.abandoned = true
-			}
-
-			// Get history and re-initialize task
-			let historyItem: HistoryItem | undefined
-			try {
-				const result = await this.getTaskWithId(this.task.taskId)
-				historyItem = result.historyItem
-			} catch (error) {
-				// Task not in history yet (new task with no messages); catch the
-				// error to enable the agent to continue making progress.
-				console.log(`[Controller.cancelTask] Task not found in history: ${error}`)
-			}
-
-			// Only re-initialize if we found a history item, otherwise just clear
-			if (historyItem) {
-				// Re-initialize task to keep it visible in UI with resume button
-				await this.initTask(undefined, undefined, undefined, historyItem, undefined)
-			} else {
-				await this.clearTask()
-			}
-
+			// Update UI to reflect current state
 			await this.postStateToWebview()
 		} finally {
 			// Always clear the flag, even if cancellation fails

@@ -103,7 +103,6 @@ function combineHookWithOutputs(
 	// Scan all remaining messages for outputs routed to this hook
 	// Since HookOutputChannel routes via timestamp prefix, we can trust the routing
 	// and don't need to worry about message order
-	console.log(`[combineHookWithOutputs] Scanning ${messages.length - i} messages for hook ts=${hookTs}`)
 	let matchedCount = 0
 	let skippedCount = 0
 
@@ -126,19 +125,14 @@ function combineHookWithOutputs(
 					belongsToThisHook = true
 					actualOutput = outputText.substring(colonIndex + 1)
 					matchedCount++
-					console.log(
-						`[combineHookWithOutputs]   ✓ Matched: "${actualOutput.substring(0, 30)}..." (prefix=${parsedParentTs})`,
-					)
 				} else {
 					skippedCount++
-					console.log(`[combineHookWithOutputs]   ✗ Skipped: prefix=${parsedParentTs} != ${hookTs}`)
 				}
 			} else {
 				// No parent timestamp prefix - legacy format
 				// For backward compatibility, include all non-prefixed outputs in first hook
 				belongsToThisHook = true
 				matchedCount++
-				console.log(`[combineHookWithOutputs]   ✓ Legacy format (no prefix)`)
 			}
 
 			if (belongsToThisHook) {
@@ -156,8 +150,6 @@ function combineHookWithOutputs(
 		}
 		i++
 	}
-
-	console.log(`[combineHookWithOutputs] Hook ${hookTs}: matched=${matchedCount}, skipped=${skippedCount}`)
 
 	return {
 		combined: { ...hookMessage, text: combinedText },
