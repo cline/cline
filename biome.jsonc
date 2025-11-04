@@ -114,17 +114,17 @@
 	"files": {
 		"includes": [
 			"**",
-			"!**/dist/**",
-			"!**/dist-*/**",
-			"!**/out/**",
-			"!**/evals/**",
-			"!**/playwright/**",
-			"!**/test-results/**",
-			"!**/node_modules/**",
-			"!**/webview-ui/build/**",
-			"!**/generated/**",
-			"!**/proto/**",
-			"!**/tests/specs/**"
+			"!**/dist",
+			"!**/dist-*",
+			"!**/out",
+			"!**/evals",
+			"!**/playwright",
+			"!**/test-results",
+			"!**/node_modules",
+			"!**/webview-ui/build",
+			"!**/generated",
+			"!**/proto",
+			"!**/tests/specs"
 		]
 	},
 	"plugins": [

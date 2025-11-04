@@ -66,7 +66,7 @@ export class VercelAIGatewayHandler implements ApiHandler {
 						(chunk.usage.completion_tokens || 0) + (chunk.usage.completion_tokens_details?.reasoning_tokens || 0)
 
 					const cacheReadTokens = chunk.usage.prompt_tokens_details?.cached_tokens || 0
-					// @ts-ignore - Vercel AI Gateway extends OpenAI types
+					// @ts-expect-error - Vercel AI Gateway extends OpenAI types
 					const cacheWriteTokens = chunk.usage.cache_creation_input_tokens || 0
 
 					yield {

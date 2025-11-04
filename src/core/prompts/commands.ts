@@ -253,16 +253,16 @@ Get-ChildItem -Recurse -Include "*.py","*.js","*.ts","*.java","*.cpp","*.go" | S
 find . -type f -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.java" -o -name "*.cpp" -o -name "*.go" | head -30 | cat
 
 # Find all class and function definitions
-grep -r "class\|function\|def\|interface\|struct\|func\|type.*struct\|type.*interface" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" --include="*.go" . | cat
+grep -r "class|function|def|interface|struct|func|type.*struct|type.*interface" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" --include="*.go" . | cat
 
 # Analyze import patterns and dependencies
-grep -r "import\|from\|require\|#include" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" . | sort | uniq | cat
+grep -r "import|from|require|#include" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" . | sort | uniq | cat
 
 # Find dependency manifests
 find . -name "requirements*.txt" -o -name "package.json" -o -name "Cargo.toml" -o -name "pom.xml" -o -name "Gemfile" -o -name "go.mod" | xargs cat
 
 # Identify technical debt and TODOs
-grep -r "TODO\|FIXME\|XXX\|HACK\|NOTE" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" --include="*.go" . | cat
+grep -r "TODO|FIXME|XXX|HACK|NOTE" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.cpp" --include="*.go" . | cat
 `
 }
 
@@ -381,28 +381,28 @@ $content = Get-Content implementation_plan.md; $start = ($content | Select-Strin
 `
 		: `
 # Read Overview section
-sed -n '/\[Overview\]/,/\[Types\]/p' implementation_plan.md | head -n 1 | cat
+sed -n '/[Overview]/,/[Types]/p' implementation_plan.md | head -n 1 | cat
 
 # Read Types section  
-sed -n '/\[Types\]/,/\[Files\]/p' implementation_plan.md | head -n 1 | cat
+sed -n '/[Types]/,/[Files]/p' implementation_plan.md | head -n 1 | cat
 
 # Read Files section
-sed -n '/\[Files\]/,/\[Functions\]/p' implementation_plan.md | head -n 1 | cat
+sed -n '/[Files]/,/[Functions]/p' implementation_plan.md | head -n 1 | cat
 
 # Read Functions section
-sed -n '/\[Functions\]/,/\[Classes\]/p' implementation_plan.md | head -n 1 | cat
+sed -n '/[Functions]/,/[Classes]/p' implementation_plan.md | head -n 1 | cat
 
 # Read Classes section
-sed -n '/\[Classes\]/,/\[Dependencies\]/p' implementation_plan.md | head -n 1 | cat
+sed -n '/[Classes]/,/[Dependencies]/p' implementation_plan.md | head -n 1 | cat
 
 # Read Dependencies section
-sed -n '/\[Dependencies\]/,/\[Testing\]/p' implementation_plan.md | head -n 1 | cat
+sed -n '/[Dependencies]/,/[Testing]/p' implementation_plan.md | head -n 1 | cat
 
 # Read Testing section
-sed -n '/\[Testing\]/,/\[Implementation Order\]/p' implementation_plan.md | head -n 1 | cat
+sed -n '/[Testing]/,/[Implementation Order]/p' implementation_plan.md | head -n 1 | cat
 
 # Read Implementation Order section
-sed -n '/\[Implementation Order\]/,$p' implementation_plan.md | cat
+sed -n '/[Implementation Order]/,$p' implementation_plan.md | cat
 `
 }
 
