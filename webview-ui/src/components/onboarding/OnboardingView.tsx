@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { AccountServiceClient } from "@/services/grpc-client"
+import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 import {
@@ -229,7 +229,7 @@ const OnboardingStepContent = ({
 
 const OnboardingView = () => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-	const { openRouterModels, hideSettings, hideAccount } = useExtensionState()
+	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
 
 	const [stepNumber, setStepNumber] = useState(0)
 	const [userType, setUserType] = useState<NEW_USER_TYPE>(NEW_USER_TYPE.FREE)
@@ -245,20 +245,23 @@ const OnboardingView = () => {
 		setSelectedModelId(userGroupInitModel.id)
 	}, [userType])
 
-	const finishOnboarding = useCallback(async () => {
-		if (selectedModelId) {
-			await handleFieldsChange({
-				planModeOpenRouterModelId: selectedModelId,
-				actModeOpenRouterModelId: selectedModelId,
-				planModeOpenRouterModelInfo: openRouterModels[selectedModelId],
-				actModeOpenRouterModelInfo: openRouterModels[selectedModelId],
-				planModeApiProvider: "cline",
-				actModeApiProvider: "cline",
-			})
-		}
-		hideAccount()
-		hideSettings()
-	}, [hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels])
+	const finishOnboarding = useCallback(
+		async (updateModelId: boolean) => {
+			if (updateModelId && selectedModelId) {
+				await handleFieldsChange({
+					planModeOpenRouterModelId: selectedModelId,
+					actModeOpenRouterModelId: selectedModelId,
+					planModeOpenRouterModelInfo: openRouterModels[selectedModelId],
+					actModeOpenRouterModelInfo: openRouterModels[selectedModelId],
+					planModeApiProvider: "cline",
+					actModeApiProvider: "cline",
+				})
+			}
+			hideAccount()
+			hideSettings()
+		},
+		[hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels],
+	)
 
 	const handleFooterAction = useCallback(
 		async (action: "signin" | "next" | "back" | "done" | "signup") => {
@@ -266,11 +269,11 @@ const OnboardingView = () => {
 				case "signup":
 					setStepNumber(stepNumber + 1)
 					await AccountServiceClient.accountLoginClicked({}).catch(() => {})
-					await finishOnboarding()
+					await finishOnboarding(true)
 					break
 				case "signin":
 					await AccountServiceClient.accountLoginClicked({}).catch(() => {})
-					await finishOnboarding()
+					await finishOnboarding(true)
 					break
 				case "next":
 					setStepNumber(stepNumber + 1)
@@ -279,11 +282,13 @@ const OnboardingView = () => {
 					setStepNumber(stepNumber - 1)
 					break
 				case "done":
-					await finishOnboarding()
+					await StateServiceClient.setWelcomeViewCompleted({ value: true }).catch(() => {})
+					setShowWelcome(false)
+					await finishOnboarding(false)
 					break
 			}
 		},
-		[stepNumber, finishOnboarding],
+		[stepNumber, finishOnboarding, setShowWelcome],
 	)
 
 	const stepDisplayInfo = useMemo(() => {
