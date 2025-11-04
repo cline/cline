@@ -245,9 +245,28 @@ const OnboardingView = () => {
 		setSelectedModelId(userGroupInitModel.id)
 	}, [userType])
 
+	const onUserTypeClick = useCallback((userType: NEW_USER_TYPE) => {
+		setUserType(userType)
+		const action =
+			userType === NEW_USER_TYPE.POWER
+				? "power_user_selected"
+				: userType === NEW_USER_TYPE.FREE
+					? "free_user_selected"
+					: "byok_user_selected"
+		// User selection is available in step 0 only
+		StateServiceClient.captureOnboardingProgress({ step: 0, action })
+	}, [])
+
+	const onModelClick = useCallback((modelSelected: string) => {
+		setSelectedModelId(modelSelected)
+		// User selection is available in step 1 only
+		StateServiceClient.captureOnboardingProgress({ step: 1, modelSelected, action: "model_selected" })
+	}, [])
+
 	const finishOnboarding = useCallback(
-		async (updateModelId: boolean) => {
-			if (updateModelId && selectedModelId) {
+		async (updateModelId: boolean, step: number) => {
+			const modelSelected = (updateModelId && selectedModelId) || undefined
+			if (modelSelected) {
 				await handleFieldsChange({
 					planModeOpenRouterModelId: selectedModelId,
 					actModeOpenRouterModelId: selectedModelId,
@@ -259,6 +278,8 @@ const OnboardingView = () => {
 			}
 			hideAccount()
 			hideSettings()
+			const action = "onboarding_completed"
+			StateServiceClient.captureOnboardingProgress({ step, modelSelected, action, completed: true })
 		},
 		[hideAccount, hideSettings, handleFieldsChange, selectedModelId, openRouterModels],
 	)
@@ -269,22 +290,24 @@ const OnboardingView = () => {
 				case "signup":
 					setStepNumber(stepNumber + 1)
 					await AccountServiceClient.accountLoginClicked({}).catch(() => {})
-					await finishOnboarding(true)
+					await finishOnboarding(true, stepNumber + 1)
 					break
 				case "signin":
 					await AccountServiceClient.accountLoginClicked({}).catch(() => {})
-					await finishOnboarding(true)
+					await finishOnboarding(true, stepNumber + 1)
 					break
 				case "next":
+					StateServiceClient.captureOnboardingProgress({ step: stepNumber + 1 })
 					setStepNumber(stepNumber + 1)
 					break
 				case "back":
+					StateServiceClient.captureOnboardingProgress({ step: stepNumber - 1 })
 					setStepNumber(stepNumber - 1)
 					break
 				case "done":
 					await StateServiceClient.setWelcomeViewCompleted({ value: true }).catch(() => {})
 					setShowWelcome(false)
-					await finishOnboarding(false)
+					await finishOnboarding(false, stepNumber)
 					break
 			}
 		},
@@ -316,8 +339,8 @@ const OnboardingView = () => {
 				<div className="flex-1 w-full flex max-w-lg overflow-y-scroll">
 					<OnboardingStepContent
 						models={openRouterModels}
-						onSelectModel={setSelectedModelId}
-						onSelectUserType={setUserType}
+						onSelectModel={onModelClick}
+						onSelectUserType={onUserTypeClick}
 						searchTerm={searchTerm}
 						selectedModelId={selectedModelId}
 						setSearchTerm={setSearchTerm}

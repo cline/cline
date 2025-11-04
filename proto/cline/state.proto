@@ -23,6 +23,7 @@ service StateService {
   rpc updateSettingsCli(UpdateSettingsRequestCli) returns (Empty);
   rpc updateTaskSettings(UpdateTaskSettingsRequest) returns (Empty);
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
+  rpc captureOnboardingProgress(OnboardingProgressRequest) returns (Empty);
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
   rpc updateInfoBannerVersion(Int64Request) returns (Empty);
   rpc updateModelBannerVersion(Int64Request) returns (Empty);
@@ -370,4 +371,11 @@ message ProcessInfo {
   int32 process_id = 1;
   optional string version = 2;
   optional int64 uptime_ms = 3;
+}
+
+message OnboardingProgressRequest {
+  int32 step = 1;
+  optional string action = 2;
+  optional bool completed = 3;
+  optional string model_selected = 4;
 }

@@ -93,6 +93,7 @@ export class TelemetryService {
 			AUTH_SUCCEEDED: "user.auth_succeeded",
 			AUTH_FAILED: "user.auth_failed",
 			AUTH_LOGGED_OUT: "user.auth_logged_out",
+			ONBOARDING_PROGRESS: "user.onboarding_progress",
 		},
 		DICTATION: {
 			// Tracks when voice recording is started
@@ -1580,6 +1581,15 @@ export class TelemetryService {
 				outputLines,
 				success,
 				timestamp: new Date().toISOString(),
+			},
+		})
+	}
+
+	public captureOnboardingProgress(args: { step: number; action?: string; model?: string; completed?: boolean }) {
+		this.capture({
+			event: TelemetryService.EVENTS.USER.ONBOARDING_PROGRESS,
+			properties: {
+				...args,
 			},
 		})
 	}
