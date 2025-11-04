@@ -3016,13 +3016,13 @@ export type CerebrasModelId = keyof typeof cerebrasModels
 export const cerebrasDefaultModelId: CerebrasModelId = "zai-glm-4.6"
 export const cerebrasModels = {
 	"zai-glm-4.6": {
-		maxTokens: 40000,
-		contextWindow: 128000,
+		maxTokens: 40960,
+		contextWindow: 131072,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0,
 		outputPrice: 0,
-		description: "Intelligent general purpose model with 2,000 tokens/s",
+		description: "Highly intelligent general purpose model with up to 1,000 tokens/s",
 	},
 	"gpt-oss-120b": {
 		maxTokens: 65536,
