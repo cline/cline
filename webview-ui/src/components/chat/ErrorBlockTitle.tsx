@@ -62,8 +62,7 @@ export const ErrorBlockTitle = ({
 			details.title = titleText
 			details.classNames.push("font-bold text-(--vscode-errorForeground)")
 		} else if (retryStatus) {
-			// Handle retry state
-			details.title = "API Request"
+			// Handle retry state - keep default "API Request..." title but add styling
 			details.classNames.push("text-(--vscode-foreground)")
 		}
 
