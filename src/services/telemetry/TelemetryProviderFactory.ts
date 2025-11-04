@@ -38,7 +38,7 @@ export class TelemetryProviderFactory {
 				const provider = await TelemetryProviderFactory.createProvider(config)
 				providers.push(provider)
 			} catch (error) {
-				console.error(`Failed to create telemetry provider: ${config.type}`, error)
+				Logger.error(`Failed to create telemetry provider: ${config.type}`, error)
 			}
 		}
 
