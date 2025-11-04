@@ -2,7 +2,7 @@ import { OcaAuthState, OcaUserInfo } from "@shared/proto/cline/oca_account"
 import axios from "axios"
 import { jwtDecode } from "jwt-decode"
 import { Controller } from "@/core/controller"
-import { getAxiosSettings } from "@/services/auth/oca/utils/utils"
+import { getAxiosSettings } from "@/shared/net"
 import type { OcaConfig } from "../utils/types"
 import { generateCodeVerifier, generateRandomString, pkceChallengeFromVerifier } from "../utils/utils"
 
