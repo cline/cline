@@ -76,6 +76,9 @@ export class TelemetryProviderFactory {
 			}
 			case "no-op":
 				return new NoOpTelemetryProvider()
+			default:
+				Logger.error(`Unsupported telemetry provider type: ${(config as { type?: string }).type ?? "unknown"}`)
+				return new NoOpTelemetryProvider()
 		}
 	}
 
