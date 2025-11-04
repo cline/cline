@@ -794,6 +794,7 @@ export class TelemetryService {
 	 * @param modelId The model ID being used
 	 * @param provider The API provider being used
 	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
+	 * @param isNativeToolCall Whether the diff edit was invoked by a native tool call
 	 */
 	public captureDiffEditFailure(ulid: string, modelId: string, provider: string, errorType?: string, isNativeToolCall = false) {
 		this.capture({
