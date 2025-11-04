@@ -37,7 +37,7 @@ export class StateManager {
 
 	private globalStateCache: GlobalStateAndSettings = {} as GlobalStateAndSettings
 	private taskStateCache: Partial<Settings> = {}
-	private remoteConfigCache: Partial<GlobalStateAndSettings> = {} as GlobalStateAndSettings
+	private remoteConfigCache: Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] } = {}
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
 	private context: ExtensionContext
@@ -324,10 +324,10 @@ export class StateManager {
 	}
 
 	/**
-	 * Set method for remote config field - updates cache immediately (no persistence)
+	 * Get method for remote config settings - returns cache immediately (no persistence)
 	 * Remote config is read-only from the extension's perspective and only stored in memory
 	 */
-	getRemoteConfigSettings(): Partial<GlobalStateAndSettings> {
+	getRemoteConfigSettings(): Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] } {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
@@ -494,6 +494,11 @@ export class StateManager {
 			requestTimeoutMs,
 			ocaBaseUrl,
 			ocaMode,
+			hicapApiKey,
+			hicapModelId,
+			aihubmixApiKey,
+			aihubmixBaseUrl,
+			aihubmixAppCode,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -528,6 +533,10 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeHicapModelId,
+			planModeHicapModelInfo,
+			planModeAihubmixModelId,
+			planModeAihubmixModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -562,6 +571,10 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeHicapModelId,
+			actModeHicapModelInfo,
+			actModeAihubmixModelId,
+			actModeAihubmixModelInfo,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -600,6 +613,8 @@ export class StateManager {
 			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeHicapModelId,
+			planModeHicapModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -635,6 +650,8 @@ export class StateManager {
 			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeHicapModelId,
+			actModeHicapModelInfo,
 
 			// Global state updates
 			awsRegion,
@@ -677,6 +694,9 @@ export class StateManager {
 			ocaBaseUrl,
 			minimaxApiLine,
 			ocaMode,
+			hicapModelId,
+			aihubmixBaseUrl,
+			aihubmixAppCode,
 		})
 
 		// Batch update secrets
@@ -716,6 +736,8 @@ export class StateManager {
 			vercelAiGatewayApiKey,
 			zaiApiKey,
 			minimaxApiKey,
+			hicapApiKey,
+			aihubmixApiKey,
 		})
 	}
 
@@ -728,7 +750,9 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		if (this.remoteConfigCache[key] !== undefined) {
-			return this.remoteConfigCache[key]
+			// type casting here, TS cannot infer that the key will ONLY be one of Settings
+
+			return this.remoteConfigCache[key] as Settings[K]
 		}
 		if (this.taskStateCache[key] !== undefined) {
 			return this.taskStateCache[key]
@@ -744,7 +768,8 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 		if (this.remoteConfigCache[key] !== undefined) {
-			return this.remoteConfigCache[key]
+			// type casting here, TS cannot infer that the key will ONLY be one of GlobalState
+			return this.remoteConfigCache[key] as GlobalState[K]
 		}
 		return this.globalStateCache[key]
 	}
@@ -988,6 +1013,8 @@ export class StateManager {
 			vercelAiGatewayApiKey: this.secretsCache["vercelAiGatewayApiKey"],
 			zaiApiKey: this.secretsCache["zaiApiKey"],
 			minimaxApiKey: this.secretsCache["minimaxApiKey"],
+			hicapApiKey: this.secretsCache["hicapApiKey"],
+			aihubmixApiKey: this.secretsCache["aihubmixApiKey"],
 
 			// Global state (with remote config precedence for applicable fields)
 			awsRegion:
@@ -1059,6 +1086,9 @@ export class StateManager {
 			ocaBaseUrl: this.globalStateCache["ocaBaseUrl"],
 			minimaxApiLine: this.taskStateCache["minimaxApiLine"] || this.globalStateCache["minimaxApiLine"],
 			ocaMode: this.globalStateCache["ocaMode"],
+			hicapModelId: this.globalStateCache["hicapModelId"],
+			aihubmixBaseUrl: this.taskStateCache["aihubmixBaseUrl"] || this.globalStateCache["aihubmixBaseUrl"],
+			aihubmixAppCode: this.taskStateCache["aihubmixAppCode"] || this.globalStateCache["aihubmixAppCode"],
 
 			// Plan mode configurations
 			planModeApiProvider:
@@ -1126,6 +1156,13 @@ export class StateManager {
 				this.globalStateCache["planModeVercelAiGatewayModelInfo"],
 			planModeOcaModelId: this.globalStateCache["planModeOcaModelId"],
 			planModeOcaModelInfo: this.globalStateCache["planModeOcaModelInfo"],
+			planModeHicapModelId: this.taskStateCache["planModeHicapModelId"] || this.globalStateCache["planModeHicapModelId"],
+			planModeHicapModelInfo:
+				this.taskStateCache["planModeHicapModelInfo"] || this.globalStateCache["planModeHicapModelInfo"],
+			planModeAihubmixModelId:
+				this.taskStateCache["planModeAihubmixModelId"] || this.globalStateCache["planModeAihubmixModelId"],
+			planModeAihubmixModelInfo:
+				this.taskStateCache["planModeAihubmixModelInfo"] || this.globalStateCache["planModeAihubmixModelInfo"],
 
 			// Act mode configurations
 			actModeApiProvider:
@@ -1191,6 +1228,12 @@ export class StateManager {
 				this.globalStateCache["actModeVercelAiGatewayModelInfo"],
 			actModeOcaModelId: this.globalStateCache["actModeOcaModelId"],
 			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
+			actModeHicapModelId: this.globalStateCache["actModeHicapModelId"],
+			actModeHicapModelInfo: this.globalStateCache["actModeHicapModelInfo"],
+			actModeAihubmixModelId:
+				this.taskStateCache["actModeAihubmixModelId"] || this.globalStateCache["actModeAihubmixModelId"],
+			actModeAihubmixModelInfo:
+				this.taskStateCache["actModeAihubmixModelInfo"] || this.globalStateCache["actModeAihubmixModelInfo"],
 		}
 	}
 }
