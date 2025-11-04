@@ -1,6 +1,13 @@
 # Changelog
 
-## 3.35.0
+## [3.35.1]
+
+- Add: Hicap API integration as provider
+- Fix: enable Add Header button in OpenAICompatibleProvider UI
+- Fix: Remove orphaned tool_results after truncation and empty content field issues in native tool call
+- Fix: render model description in markdown
+
+## [3.35.0]
 
 - Add native tool calling support with configurable setting.
 - Auto-approve is now always-on with a redesigned expanding menu. Settings simplified and notifications moved to General Settings.
