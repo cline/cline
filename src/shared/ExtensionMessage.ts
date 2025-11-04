@@ -95,7 +95,7 @@ export interface ExtensionState {
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
 	hooksEnabled?: ClineFeatureSetting
-	remoteConfigSettings?: Partial<GlobalStateAndSettings>
+	remoteConfigSettings?: Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] }
 	subagentsEnabled?: boolean
 	nativeToolCallSetting?: ClineFeatureSetting
 }
