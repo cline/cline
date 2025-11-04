@@ -1,10 +1,11 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { Tool as AnthropicTool, MessageParam } from "@anthropic-ai/sdk/resources/index"
+import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { AnthropicModelId, anthropicDefaultModelId, anthropicModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
 import { ClineTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
+import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
 import { ApiStream } from "../transform/stream"
 
 interface AnthropicHandlerOptions extends CommonApiHandlerOptions {
@@ -61,6 +62,7 @@ export class AnthropicHandler implements ApiHandler {
 		switch (modelId) {
 			// 'latest' alias does not support cache_control
 			case "claude-haiku-4-5-20251001":
+			case "claude-sonnet-4-5-20250929:1m":
 			case "claude-sonnet-4-5-20250929":
 			case "claude-sonnet-4-20250514":
 			case "claude-3-7-sonnet-20250219":
@@ -82,35 +84,7 @@ export class AnthropicHandler implements ApiHandler {
 				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
 				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
-				const anthropicMessages: Array<MessageParam> = messages.map((message, index) => {
-					if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-						return {
-							...message,
-							content:
-								typeof message.content === "string"
-									? [
-											{
-												type: "text",
-												text: message.content,
-												cache_control: {
-													type: "ephemeral",
-												},
-											},
-										]
-									: message.content.map((content, contentIndex) =>
-											contentIndex === message.content.length - 1
-												? {
-														...content,
-														cache_control: {
-															type: "ephemeral",
-														},
-													}
-												: content,
-										),
-						}
-					}
-					return message
-				})
+				const anthropicMessages = sanitizeAnthropicMessages(messages, lastUserMsgIndex, secondLastMsgUserIndex)
 
 				stream = await client.messages.create(
 					{
@@ -159,7 +133,7 @@ export class AnthropicHandler implements ApiHandler {
 					max_tokens: model.info.maxTokens || 8192,
 					temperature: 0,
 					system: [{ text: systemPrompt, type: "text" }],
-					messages,
+					messages: sanitizeAnthropicMessages(messages),
 					// tools,
 					// tool_choice: { type: "auto" },
 					stream: true,
