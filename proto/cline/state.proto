@@ -215,6 +215,9 @@ message Settings {
   optional int32 max_consecutive_mistakes = 124;
   optional bool subagents_enabled = 125;
   optional int32 subagent_terminal_output_line_limit = 126;
+  optional string aihubmix_api_key = 127;
+  optional string aihubmix_base_url = 128;
+  optional string aihubmix_app_code = 129;
 }
 
 message DictationSettings {

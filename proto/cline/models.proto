@@ -45,6 +45,8 @@ service ModelsService {
   rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (SapAiCoreModelsResponse);
   // Fetches available models from OCA
   rpc refreshOcaModels(StringRequest) returns (OcaCompatibleModelInfo);
+  // Fetches available models from AIhubmix
+  rpc getAihubmixModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -413,6 +415,7 @@ enum ApiProvider {
   OCA = 35;
   MINIMAX = 36;
   HICAP = 37;
+  AIHUBMIX = 38;
 }
 
 // Model info for OpenAI-compatible models
@@ -534,6 +537,9 @@ message ModelsApiConfiguration {
   optional string minimax_api_line = 79;
   optional string hicap_model_id = 80;
   optional string hicap_api_key = 81;
+  optional string aihubmix_api_key = 82;
+  optional string aihubmix_base_url = 83;
+  optional string aihubmix_app_code = 84;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -571,6 +577,8 @@ message ModelsApiConfiguration {
   optional OcaModelInfo plan_mode_oca_model_info = 132;
   optional string plan_mode_hicap_model_id = 133;
   optional OpenRouterModelInfo plan_mode_hicap_model_info = 134;
+  optional string plan_mode_aihubmix_model_id = 135;
+  optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 136;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -608,4 +616,6 @@ message ModelsApiConfiguration {
   optional OcaModelInfo act_mode_oca_model_info = 232;
   optional string act_mode_hicap_model_id = 233;
   optional OpenRouterModelInfo act_mode_hicap_model_info = 234;
+  optional string act_mode_aihubmix_model_id = 235;
+  optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 236;
 }
