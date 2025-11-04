@@ -5,7 +5,7 @@ Automated GitHub issue analysis using Cline CLI. This script uses Cline's autono
 > [!NOTE]
 > **New to Cline CLI?** This sample assumes you have already completed the [Installation Guide](https://docs.cline.bot/cline-cli/installation) and authenticated with `cline auth`. If you haven't set up Cline CLI yet, please start there first.
 
-<img src="https://storage.googleapis.com/cline_public_images/cli-rca.gif" alt="CLI Root Cause Analysis Demo" width="600">
+![cli-rca](https://github.com/user-attachments/assets/e481c508-7ef8-42f2-bc61-88fe1cbc5019)
 
 ## Prerequisites
 
