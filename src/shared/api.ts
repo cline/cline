@@ -37,6 +37,7 @@ export type ApiProvider =
 	| "vercel-ai-gateway"
 	| "zai"
 	| "oca"
+	| "aihubmix"
 	| "minimax"
 	| "hicap"
 
@@ -46,6 +47,9 @@ export interface ApiHandlerSecrets {
 	awsAccessKey?: string
 	awsSecretKey?: string
 	openRouterApiKey?: string
+	aihubmixApiKey?: string
+	aihubmixBaseUrl?: string
+	aihubmixAppCode?: string
 
 	clineAccountId?: string
 	awsSessionToken?: string
@@ -128,6 +132,8 @@ export interface ApiHandlerOptions {
 	ocaBaseUrl?: string
 	minimaxApiLine?: string
 	ocaMode?: string
+	aihubmixBaseUrl?: string
+	aihubmixAppCode?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -162,6 +168,8 @@ export interface ApiHandlerOptions {
 	planModeVercelAiGatewayModelInfo?: ModelInfo
 	planModeOcaModelId?: string
 	planModeOcaModelInfo?: OcaModelInfo
+	planModeAihubmixModelId?: string
+	planModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
 	planModeHicapModelId?: string
 	planModeHicapModelInfo?: ModelInfo
 	// Act mode configurations
@@ -199,6 +207,8 @@ export interface ApiHandlerOptions {
 	actModeVercelAiGatewayModelInfo?: ModelInfo
 	actModeOcaModelId?: string
 	actModeOcaModelInfo?: OcaModelInfo
+	actModeAihubmixModelId?: string
+	actModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
 	actModeHicapModelId?: string
 	actModeHicapModelInfo?: ModelInfo
 }
