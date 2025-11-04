@@ -5,10 +5,12 @@ import { StateManager } from "../StateManager"
 /**
  * Transforms RemoteConfig schema to GlobalStateAndSettings shape
  * @param remoteConfig The remote configuration object
- * @returns Partial<GlobalStateAndSettings> containing only the fields present in remote config
+ * @returns Partial<GlobalStateAndSettings> containing only the fields present in remote config, plus availableProviders
  */
-export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): Partial<GlobalStateAndSettings> {
-	const transformed: Partial<GlobalStateAndSettings> = {}
+export function transformRemoteConfigToStateShape(
+	remoteConfig: RemoteConfig,
+): Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] } {
+	const transformed: Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] } = {}
 
 	// Map top-level settings
 	if (remoteConfig.telemetryEnabled !== undefined) {
@@ -68,11 +70,16 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		transformed.openTelemetryLogMaxQueueSize = remoteConfig.openTelemetryLogMaxQueueSize
 	}
 
+	// Map provider settings
+
+	const providers: string[] = []
+
 	// Map OpenAiCompatible provider settings
 	const openAiSettings = remoteConfig.providerSettings?.OpenAiCompatible
 	if (openAiSettings) {
 		transformed.planModeApiProvider = "openai"
 		transformed.actModeApiProvider = "openai"
+		providers.push("openai")
 
 		if (openAiSettings.openAiBaseUrl !== undefined) {
 			transformed.openAiBaseUrl = openAiSettings.openAiBaseUrl
@@ -90,6 +97,7 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	if (awsBedrockSettings) {
 		transformed.planModeApiProvider = "bedrock"
 		transformed.actModeApiProvider = "bedrock"
+		providers.push("bedrock")
 
 		if (awsBedrockSettings.awsRegion !== undefined) {
 			transformed.awsRegion = awsBedrockSettings.awsRegion
@@ -112,6 +120,12 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 	if (clineSettings) {
 		transformed.planModeApiProvider = "cline"
 		transformed.actModeApiProvider = "cline"
+		providers.push("cline")
+	}
+
+	// This line needs to stay here, it is order dependent on the above code checking the configured providers
+	if (providers.length > 0) {
+		transformed.remoteConfiguredProviders = providers
 	}
 
 	return transformed

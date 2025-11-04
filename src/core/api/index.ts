@@ -15,6 +15,7 @@ import { DoubaoHandler } from "./providers/doubao"
 import { FireworksHandler } from "./providers/fireworks"
 import { GeminiHandler } from "./providers/gemini"
 import { GroqHandler } from "./providers/groq"
+import { HicapHandler } from "./providers/hicap"
 import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
 import { HuggingFaceHandler } from "./providers/huggingface"
 import { LiteLlmHandler } from "./providers/litellm"
@@ -401,6 +402,12 @@ function createHandlerForProvider(
 				minimaxApiKey: options.minimaxApiKey,
 				minimaxApiLine: options.minimaxApiLine,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
+		case "hicap":
+			return new HicapHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				hicapApiKey: options.hicapApiKey,
+				hicapModelId: mode === "plan" ? options.planModeHicapModelId : options.actModeHicapModelId,
 			})
 		default:
 			return new AnthropicHandler({

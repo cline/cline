@@ -39,6 +39,7 @@ export type ApiProvider =
 	| "oca"
 	| "aistupidlevel"
 	| "minimax"
+	| "hicap"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -79,6 +80,7 @@ export interface ApiHandlerSecrets {
 	difyApiKey?: string
 	aiStupidLevelApiKey?: string
 	minimaxApiKey?: string
+	hicapApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -122,6 +124,8 @@ export interface ApiHandlerOptions {
 	sapAiCoreUseOrchestrationMode?: boolean
 	difyBaseUrl?: string
 	zaiApiLine?: string
+	hicapApiKey?: string
+	hicapModelId?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
 	minimaxApiLine?: string
@@ -160,6 +164,8 @@ export interface ApiHandlerOptions {
 	planModeVercelAiGatewayModelInfo?: ModelInfo
 	planModeOcaModelId?: string
 	planModeOcaModelInfo?: OcaModelInfo
+	planModeHicapModelId?: string
+	planModeHicapModelInfo?: ModelInfo
 	// Act mode configurations
 
 	// Act mode configurations
@@ -195,6 +201,8 @@ export interface ApiHandlerOptions {
 	actModeVercelAiGatewayModelInfo?: ModelInfo
 	actModeOcaModelId?: string
 	actModeOcaModelInfo?: OcaModelInfo
+	actModeHicapModelId?: string
+	actModeHicapModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -264,6 +272,20 @@ export const CLAUDE_SONNET_1M_TIERS = [
 		cacheReadsPrice: 0.6,
 	},
 ]
+
+export interface HicapCompatibleModelInfo extends ModelInfo {
+	temperature?: number
+}
+
+export const hicapModelInfoSaneDefaults: HicapCompatibleModelInfo = {
+	maxTokens: -1,
+	contextWindow: 128_000,
+	supportsImages: true,
+	supportsPromptCache: true,
+	inputPrice: 0,
+	outputPrice: 0,
+	temperature: 1,
+}
 
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
