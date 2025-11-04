@@ -29,7 +29,7 @@ func QuickSetupFromFlags(ctx context.Context, provider, apiKey, modelID, baseURL
 	}
 
 	// Create task manager for state operations
-	manager, err := task.NewManagerForDefault(ctx)
+	manager, err := createTaskManager(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create task manager: %w", err)
 	}
