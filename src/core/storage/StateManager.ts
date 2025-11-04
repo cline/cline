@@ -6,6 +6,7 @@ import {
 	GlobalStateKey,
 	LocalState,
 	LocalStateKey,
+	RemoteConfigFields,
 	SecretKey,
 	Secrets,
 	Settings,
@@ -37,7 +38,7 @@ export class StateManager {
 
 	private globalStateCache: GlobalStateAndSettings = {} as GlobalStateAndSettings
 	private taskStateCache: Partial<Settings> = {}
-	private remoteConfigCache: Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] } = {}
+	private remoteConfigCache: Partial<RemoteConfigFields> = {} as RemoteConfigFields
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
 	private context: ExtensionContext
@@ -314,7 +315,7 @@ export class StateManager {
 	 * Set method for remote config field - updates cache immediately (no persistence)
 	 * Remote config is read-only from the extension's perspective and only stored in memory
 	 */
-	setRemoteConfigField<K extends keyof GlobalStateAndSettings>(key: K, value: GlobalStateAndSettings[K]): void {
+	setRemoteConfigField<K extends keyof RemoteConfigFields>(key: K, value: RemoteConfigFields[K]): void {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
@@ -327,7 +328,7 @@ export class StateManager {
 	 * Get method for remote config settings - returns cache immediately (no persistence)
 	 * Remote config is read-only from the extension's perspective and only stored in memory
 	 */
-	getRemoteConfigSettings(): Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] } {
+	getRemoteConfigSettings(): Partial<RemoteConfigFields> {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
