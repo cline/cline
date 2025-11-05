@@ -2,12 +2,13 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { AzureOpenAI } from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
-import { ApiHandler, CommonApiHandlerOptions } from "../index"
+import { ApiHandler, ApiHandlerCreateMessageMetadata, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import { DEFAULT_HEADERS } from "./constants"
 
 interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 	openAiApiKey?: string
@@ -32,6 +33,18 @@ export class OpenAiHandler implements ApiHandler {
 			if (!this.options.openAiApiKey) {
 				throw new Error("OpenAI API key is required")
 			}
+			const modelId = this.options.openAiModelId ?? ""
+			const baseUrl = this.options.openAiBaseUrl ?? ""
+			const isMoonshotModel = 
+				modelId.toLowerCase().includes("kimi") 
+				|| modelId.toLowerCase().includes("k2")
+				|| baseUrl.toLowerCase().includes("moonshot")
+				|| baseUrl.toLowerCase().includes("kimi")
+			const defaultHeaders = {
+				...(isMoonshotModel ? DEFAULT_HEADERS : {}),
+				...this.options.openAiHeaders,
+			}
+
 			try {
 				// Azure API shape slightly differs from the core API shape: https://github.com/openai/openai-node?tab=readme-ov-file#microsoft-azure-openai
 				// Use azureApiVersion to determine if this is an Azure endpoint, since the URL may not always contain 'azure.com'
@@ -45,13 +58,13 @@ export class OpenAiHandler implements ApiHandler {
 						baseURL: this.options.openAiBaseUrl,
 						apiKey: this.options.openAiApiKey,
 						apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
-						defaultHeaders: this.options.openAiHeaders,
+						defaultHeaders,
 					})
 				} else {
 					this.client = new OpenAI({
 						baseURL: this.options.openAiBaseUrl,
 						apiKey: this.options.openAiApiKey,
-						defaultHeaders: this.options.openAiHeaders,
+						defaultHeaders,
 					})
 				}
 			} catch (error: any) {
@@ -65,14 +78,21 @@ export class OpenAiHandler implements ApiHandler {
 	async *createMessage(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
-		tools?: ChatCompletionTool[],
+		tools: undefined | ChatCompletionTool[],
+		metadata: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.options.openAiModelId ?? ""
+		const baseUrl = this.options.openAiBaseUrl ?? ""
 		const isDeepseekReasoner = modelId.includes("deepseek-reasoner")
 		const isR1FormatRequired = this.options.openAiModelInfo?.isR1FormatRequired ?? false
 		const isReasoningModelFamily =
 			["o1", "o3", "o4", "gpt-5"].some((prefix) => modelId.includes(prefix)) && !modelId.includes("chat")
+		const isMoonshotModel = 
+			modelId.toLowerCase().includes("kimi") 
+			|| modelId.toLowerCase().includes("k2")
+			|| baseUrl.toLowerCase().includes("moonshot")
+			|| baseUrl.toLowerCase().includes("kimi")
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -107,6 +127,9 @@ export class OpenAiHandler implements ApiHandler {
 			stream: true,
 			stream_options: { include_usage: true },
 			...getOpenAIToolParams(tools),
+			...isMoonshotModel ? {
+				prompt_cache_key: metadata.taskId || undefined,
+			} : {},
 		})
 
 		const toolCallProcessor = new ToolCallProcessor()
