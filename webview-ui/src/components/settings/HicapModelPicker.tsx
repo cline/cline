@@ -170,7 +170,7 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 
 				<div className="relative w-full" ref={dropdownRef}>
 					<VSCodeTextField
-						className={`w-full z-[${HICAP_MODEL_PICKER_Z_INDEX}] relative`}
+						className="w-full relative"
 						disabled={apiConfiguration?.hicapApiKey?.length !== 32 || Object.keys(hicapModels).length === 0}
 						id="model-search"
 						onFocus={() => setIsDropdownVisible(true)}
@@ -180,6 +180,7 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 						}}
 						onKeyDown={handleKeyDown}
 						placeholder="Search and select a model..."
+						style={{ zIndex: HICAP_MODEL_PICKER_Z_INDEX }}
 						value={searchTerm}>
 						{searchTerm && (
 							<div
@@ -195,11 +196,12 @@ const HicapModelPicker: React.FC<HicapModelPickerProps> = ({ isPopup, currentMod
 					</VSCodeTextField>
 					{isDropdownVisible && (
 						<div
-							className={`absolute top-[calc(100%-3px)] left-0 w-[calc(100%-2px)]
+							className="absolute top-[calc(100%-3px)] left-0 w-[calc(100%-2px)]
 							max-h-[200px] overflow-y-auto bg-[var(--vscode-dropdown-background)]
 							border border-[var(--vscode-list-activeSelectionBackground)]
-							z-[${HICAP_MODEL_PICKER_Z_INDEX - 1}] rounded-b-[3px]`}
-							ref={dropdownListRef}>
+							rounded-b-[3px]"
+							ref={dropdownListRef}
+							style={{ zIndex: HICAP_MODEL_PICKER_Z_INDEX - 1 }}>
 							{modelSearchResults.map((item, index) => {
 								const isFavorite = (favoritedModelIds || []).includes(item.id)
 								return (

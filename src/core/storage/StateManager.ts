@@ -6,6 +6,7 @@ import {
 	GlobalStateKey,
 	LocalState,
 	LocalStateKey,
+	RemoteConfigFields,
 	SecretKey,
 	Secrets,
 	Settings,
@@ -37,7 +38,7 @@ export class StateManager {
 
 	private globalStateCache: GlobalStateAndSettings = {} as GlobalStateAndSettings
 	private taskStateCache: Partial<Settings> = {}
-	private remoteConfigCache: Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] } = {}
+	private remoteConfigCache: Partial<RemoteConfigFields> = {} as RemoteConfigFields
 	private secretsCache: Secrets = {} as Secrets
 	private workspaceStateCache: LocalState = {} as LocalState
 	private context: ExtensionContext
@@ -314,7 +315,7 @@ export class StateManager {
 	 * Set method for remote config field - updates cache immediately (no persistence)
 	 * Remote config is read-only from the extension's perspective and only stored in memory
 	 */
-	setRemoteConfigField<K extends keyof GlobalStateAndSettings>(key: K, value: GlobalStateAndSettings[K]): void {
+	setRemoteConfigField<K extends keyof RemoteConfigFields>(key: K, value: RemoteConfigFields[K]): void {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
@@ -327,7 +328,7 @@ export class StateManager {
 	 * Get method for remote config settings - returns cache immediately (no persistence)
 	 * Remote config is read-only from the extension's perspective and only stored in memory
 	 */
-	getRemoteConfigSettings(): Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] } {
+	getRemoteConfigSettings(): Partial<RemoteConfigFields> {
 		if (!this.isInitialized) {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
@@ -496,6 +497,9 @@ export class StateManager {
 			ocaMode,
 			hicapApiKey,
 			hicapModelId,
+			aihubmixApiKey,
+			aihubmixBaseUrl,
+			aihubmixAppCode,
 			// Plan mode configurations
 			planModeApiProvider,
 			planModeApiModelId,
@@ -532,6 +536,8 @@ export class StateManager {
 			planModeOcaModelInfo,
 			planModeHicapModelId,
 			planModeHicapModelInfo,
+			planModeAihubmixModelId,
+			planModeAihubmixModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -568,6 +574,8 @@ export class StateManager {
 			actModeOcaModelInfo,
 			actModeHicapModelId,
 			actModeHicapModelInfo,
+			actModeAihubmixModelId,
+			actModeAihubmixModelInfo,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -688,6 +696,8 @@ export class StateManager {
 			minimaxApiLine,
 			ocaMode,
 			hicapModelId,
+			aihubmixBaseUrl,
+			aihubmixAppCode,
 		})
 
 		// Batch update secrets
@@ -728,6 +738,7 @@ export class StateManager {
 			zaiApiKey,
 			minimaxApiKey,
 			hicapApiKey,
+			aihubmixApiKey,
 		})
 	}
 
@@ -1004,6 +1015,7 @@ export class StateManager {
 			zaiApiKey: this.secretsCache["zaiApiKey"],
 			minimaxApiKey: this.secretsCache["minimaxApiKey"],
 			hicapApiKey: this.secretsCache["hicapApiKey"],
+			aihubmixApiKey: this.secretsCache["aihubmixApiKey"],
 
 			// Global state (with remote config precedence for applicable fields)
 			awsRegion:
@@ -1076,6 +1088,8 @@ export class StateManager {
 			minimaxApiLine: this.taskStateCache["minimaxApiLine"] || this.globalStateCache["minimaxApiLine"],
 			ocaMode: this.globalStateCache["ocaMode"],
 			hicapModelId: this.globalStateCache["hicapModelId"],
+			aihubmixBaseUrl: this.taskStateCache["aihubmixBaseUrl"] || this.globalStateCache["aihubmixBaseUrl"],
+			aihubmixAppCode: this.taskStateCache["aihubmixAppCode"] || this.globalStateCache["aihubmixAppCode"],
 
 			// Plan mode configurations
 			planModeApiProvider:
@@ -1146,6 +1160,10 @@ export class StateManager {
 			planModeHicapModelId: this.taskStateCache["planModeHicapModelId"] || this.globalStateCache["planModeHicapModelId"],
 			planModeHicapModelInfo:
 				this.taskStateCache["planModeHicapModelInfo"] || this.globalStateCache["planModeHicapModelInfo"],
+			planModeAihubmixModelId:
+				this.taskStateCache["planModeAihubmixModelId"] || this.globalStateCache["planModeAihubmixModelId"],
+			planModeAihubmixModelInfo:
+				this.taskStateCache["planModeAihubmixModelInfo"] || this.globalStateCache["planModeAihubmixModelInfo"],
 
 			// Act mode configurations
 			actModeApiProvider:
@@ -1213,6 +1231,10 @@ export class StateManager {
 			actModeOcaModelInfo: this.globalStateCache["actModeOcaModelInfo"],
 			actModeHicapModelId: this.globalStateCache["actModeHicapModelId"],
 			actModeHicapModelInfo: this.globalStateCache["actModeHicapModelInfo"],
+			actModeAihubmixModelId:
+				this.taskStateCache["actModeAihubmixModelId"] || this.globalStateCache["actModeAihubmixModelId"],
+			actModeAihubmixModelInfo:
+				this.taskStateCache["actModeAihubmixModelInfo"] || this.globalStateCache["actModeAihubmixModelInfo"],
 		}
 	}
 }
