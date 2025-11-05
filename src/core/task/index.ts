@@ -1555,40 +1555,17 @@ export class Task {
 		let waitingAtResumeButton = false
 
 		try {
-			// PHASE 1: Check if TaskCancel already ran in this abort sequence
-			// This prevents running TaskCancel twice when:
-			// - First cancel → TaskCancel runs → Resume button shows
-			// - Resume clicked → Background task starts
-			// - Second cancel → We check here and skip TaskCancel
-			//
-			// The key insight: didRunTaskCancelHook is set when TaskCancel runs, but is NOT
-			// reset when the user clicks resume. This means if they cancel again, we know
-			// TaskCancel already ran for this session and shouldn't run again.
-			if (this.taskState.didRunTaskCancelHook) {
-				// TaskCancel already ran earlier in this task session
-				// Just set abort=true to stop any background execution
-				console.log(`[Task ${this.taskId}] TaskCancel already ran, setting abort=true to stop background task`)
-				this.taskState.abort = true
-
-				// Don't call _handleResumeFlow() again - that would reset abort=false!
-				// Just mark that we're waiting at resume button and return
-				skipCleanup = true
-				waitingAtResumeButton = true
-				this.taskState.isAborting = false
-				return { waitingAtResumeButton: true, abortReason: this.taskState.abortReason || "user_cancel" }
-			}
-
-			// PHASE 2: Check if TaskCancel should run BEFORE any cleanup
+			// PHASE 1: Check if TaskCancel should run BEFORE any cleanup
 			// We must capture this state now because subsequent cleanup will
 			// clear the active work indicators that shouldRunTaskCancelHook checks
 			const shouldRunTaskCancelHook = await this.shouldRunTaskCancelHook()
 
-			// PHASE 3: Set abort flag to prevent race conditions
+			// PHASE 2: Set abort flag to prevent race conditions
 			// This must happen before canceling hooks so that hook catch blocks
 			// can properly detect the abort state
 			this.taskState.abort = true
 
-			// PHASE 4: Cancel all running hook executions
+			// PHASE 3: Cancel all running hook executions
 			const activeHooks = await this.getActiveHookExecutions()
 			if (activeHooks.length > 0) {
 				try {
@@ -1605,8 +1582,8 @@ export class Task {
 				}
 			}
 
-			// PHASE 5: Run TaskCancel hook if conditions are met
-			// Use the shouldRunTaskCancelHook value we captured in Phase 2
+			// PHASE 4: Run TaskCancel hook if conditions are met
+			// Use the shouldRunTaskCancelHook value we captured in Phase 1
 			const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
 
 			// Check if TaskCancel already ran to prevent duplicate execution from sequential abort calls
@@ -1639,43 +1616,46 @@ export class Task {
 
 					// CRITICAL: Flush all hook status updates to webview before showing resume button
 					// This prevents race condition where hooks show "Running" after completing
+					// The hook executor now ensures all status updates are persisted before returning,
+					// so we don't need artificial delays here
 					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 					await this.postStateToWebview()
 
-					// TaskCancel hook completed - now decide what to do next based on abort reason
-					// Only show resume button if this was an internal_resume abort (not a user cancellation)
-					const shouldShowResumeButton = this.taskState.abortReason === "internal_resume"
+					// TaskCancel hook completed - now decide what to do next
+					// Show resume button if:
+					// 1. internal_resume (consecutive mistakes feature), OR
+					// 2. TaskCancel ran (meaning work was done, regardless of abort reason)
+					const shouldShowResumeButton =
+						this.taskState.abortReason === "internal_resume" || this.taskState.didRunTaskCancelHook
 
 					if (shouldShowResumeButton) {
-						// Skip cleanup to keep task in resumable state
+						// Show resume button - either consecutive mistakes OR TaskCancel ran
 						skipCleanup = true
 
-						// Handle resume flow for internal_resume
+						// CRITICAL FIX: Clear single-flight guard BEFORE _handleResumeFlow
+						// This allows user to cancel during TaskResume hooks without deadlock
+						// The original abort sequence is complete; _handleResumeFlow starts a NEW user interaction phase
+						this.taskState.isAborting = false
+						this.taskState.abortPromise = undefined
+
+						// Handle resume flow
 						const resumed = await this._handleResumeFlow()
 						if (!resumed) {
 							// User cancelled during TaskResume - return to resume button state
 							waitingAtResumeButton = true
-							return { waitingAtResumeButton: true, abortReason: this.taskState.abortReason || "internal_resume" }
+							return {
+								waitingAtResumeButton: true,
+								abortReason: this.taskState.abortReason || "user_cancel",
+							}
 						}
-
-						// Clear the single-flight guard before returning
-						this.taskState.isAborting = false
-					} else {
-						// User cancellation - TaskCancel hook ran, now handle resume like internal_resume
-						// Skip cleanup to keep task in resumable state
-						skipCleanup = true
-
-						// Handle resume flow for user_cancel
-						const resumed = await this._handleResumeFlow()
-						if (!resumed) {
-							// User cancelled during TaskResume - return to resume button state
-							waitingAtResumeButton = true
-							return { waitingAtResumeButton: true, abortReason: this.taskState.abortReason || "user_cancel" }
+						// Task resumed successfully and is running in background
+						// Return successfully without cleanup
+						return {
+							waitingAtResumeButton: false,
+							abortReason: this.taskState.abortReason || "user_cancel",
 						}
-
-						// Clear the single-flight guard before returning
-						this.taskState.isAborting = false
 					}
+					// else: No work done (e.g., X button at startup) - just cleanup and close
 				} catch (error) {
 					// TaskCancel hook failed - non-fatal, just log
 					console.error("[TaskCancel Hook] Failed (non-fatal):", error)
@@ -1871,19 +1851,6 @@ export class Task {
 					userFeedback = undefined
 				} else {
 					userFeedback = { text, images, files }
-				}
-				didContinue = true
-				process.continue()
-
-				if (didCancelViaUi) {
-					outputBuffer = []
-					outputBufferSize = 0
-					await this.say("command_output", "Command cancelled")
-				}
-
-				// If more output accumulated, flush again
-				if (!didCancelViaUi && outputBuffer.length > 0) {
-					await flushBuffer()
 				}
 			} catch {
 				Logger.error("Error while asking for command output")

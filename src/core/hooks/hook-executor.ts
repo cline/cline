@@ -330,7 +330,8 @@ async function executeIndividualHook<Name extends keyof Hooks>(params: {
 }
 
 /**
- * Helper to update hook message status in message state
+ * Helper to update hook message status in message state.
+ * Ensures the update is persisted and posted to webview before returning.
  */
 async function updateHookMessage(
 	messageStateHandler: MessageStateHandler,
@@ -343,5 +344,8 @@ async function updateHookMessage(
 		await messageStateHandler.updateClineMessage(hookMessageIndex, {
 			text: JSON.stringify(metadata),
 		})
+		// CRITICAL: Persist and post the update so it's reflected in the UI
+		// before the hook execution function returns
+		await messageStateHandler.saveClineMessagesAndUpdateHistory()
 	}
 }
