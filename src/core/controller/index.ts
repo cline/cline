@@ -454,6 +454,15 @@ export class Controller {
 		}
 	}
 
+	/**
+	 * Called by Task when it enters the resume flow (_handleResumeFlow).
+	 * This clears the Controller's cancel guard to allow cancellation during hooks.
+	 */
+	clearCancelInProgress() {
+		console.log(`[Controller.clearCancelInProgress] Clearing cancel guard for resume flow`)
+		this.cancelInProgress = false
+	}
+
 	updateBackgroundCommandState(running: boolean, taskId?: string) {
 		const nextTaskId = running ? taskId : undefined
 		if (this.backgroundCommandRunning === running && this.backgroundCommandTaskId === nextTaskId) {

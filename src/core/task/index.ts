@@ -1367,6 +1367,10 @@ export class Task {
 	 * @returns true if resumed successfully, false if cancelled during resume
 	 */
 	private async _handleResumeFlow(): Promise<boolean> {
+		// CRITICAL FIX: Clear Controller's cancel guard so user can cancel during hooks
+		// This must happen BEFORE presenting the resume button
+		this.controller.clearCancelInProgress()
+
 		// Reset abort flag so resume button can be shown
 		this.taskState.abort = false
 
@@ -1430,7 +1434,6 @@ export class Task {
 
 		// Check if user cancelled during TaskResume
 		if (taskResumeResult.cancel === true) {
-			console.log(`[_handleResumeFlow] TaskResume hook cancelled, returning to resume button state`)
 			return false // Indicate cancellation
 		}
 
@@ -1467,13 +1470,11 @@ export class Task {
 
 		// Defensive check: Verify task wasn't aborted during hook execution
 		if (this.taskState.abort) {
-			console.log(`[_handleResumeFlow] Task aborted during UserPromptSubmit hook`)
 			return false // Indicate cancellation
 		}
 
 		// Handle hook cancellation request
 		if (userPromptHookResult.cancel === true) {
-			console.log(`[_handleResumeFlow] UserPromptSubmit hook cancelled, returning to resume button state`)
 			return false // Indicate cancellation
 		}
 
@@ -1529,11 +1530,8 @@ export class Task {
 	): Promise<{ waitingAtResumeButton: boolean; abortReason: "user_cancel" | "internal_resume" }> {
 		// Single-flight guard: prevent concurrent abort calls
 		if (this.taskState.isAborting) {
-			console.log(`[Task ${this.taskId}] Already aborting (reason: ${reason}), returning existing promise`)
-
 			// If user is cancelling, override internal resume behavior
 			if (reason === "user_cancel") {
-				console.log(`[Task ${this.taskId}] User cancel overriding internal resume`)
 				this.taskState.abortReason = "user_cancel"
 			}
 
@@ -1668,14 +1666,14 @@ export class Task {
 							waitingAtResumeButton = true
 							return {
 								waitingAtResumeButton: true,
-								abortReason: this.taskState.abortReason || "user_cancel",
+								abortReason: (this.taskState.abortReason || "user_cancel") as "user_cancel" | "internal_resume",
 							}
 						}
 						// Task resumed successfully and is running in background
 						// Return successfully without cleanup
 						return {
 							waitingAtResumeButton: false,
-							abortReason: this.taskState.abortReason || "user_cancel",
+							abortReason: (this.taskState.abortReason || "user_cancel") as "user_cancel" | "internal_resume",
 						}
 					}
 					// else: No work done (e.g., X button at startup) - just cleanup and close
@@ -1738,7 +1736,10 @@ export class Task {
 		}
 
 		// Return the result, including the reason so Controller can make informed decisions
-		return { waitingAtResumeButton, abortReason: this.taskState.abortReason || "user_cancel" }
+		return {
+			waitingAtResumeButton,
+			abortReason: this.taskState.abortReason || "user_cancel",
+		}
 	}
 
 	// Tools

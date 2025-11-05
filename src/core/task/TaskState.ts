@@ -62,7 +62,7 @@ export class TaskState {
 	abandoned = false
 	// Single-flight guard to prevent concurrent abortTask() calls
 	isAborting: boolean = false
-	abortPromise?: Promise<{ waitingAtResumeButton: boolean }>
+	abortPromise?: Promise<{ waitingAtResumeButton: boolean; abortReason: "user_cancel" | "internal_resume" }>
 	// Abort reason to distinguish user cancellation from internal resume flow
 	abortReason: "user_cancel" | "internal_resume" = "user_cancel"
 
