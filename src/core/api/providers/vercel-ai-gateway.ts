@@ -5,14 +5,16 @@ import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/com
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
+import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream } from "../transform/stream"
 import { ToolCallProcessor } from "../transform/tool-call-processor"
-import { createVercelAIGatewayStream } from "../transform/vercel-ai-gateway-stream"
 
 interface VercelAIGatewayHandlerOptions extends CommonApiHandlerOptions {
 	vercelAiGatewayApiKey?: string
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
+	openRouterProviderSorting?: string
+	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 }
 
@@ -53,12 +55,14 @@ export class VercelAIGatewayHandler implements ApiHandler {
 		const modelInfo = this.getModel().info
 
 		try {
-			const stream = await createVercelAIGatewayStream(
+			const stream = await createOpenRouterStream(
 				client,
 				systemPrompt,
 				messages,
 				{ id: modelId, info: modelInfo },
+				this.options.reasoningEffort,
 				this.options.thinkingBudgetTokens,
+				this.options.openRouterProviderSorting,
 				tools,
 			)
 			let didOutputUsage: boolean = false
