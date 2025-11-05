@@ -183,9 +183,6 @@ The workflow will look for new or updated issues, check for `@cline` mentions, a
 start up an instance of the Cline CLI to dig into the issue, providing feedback
 as a reply to the issue.
 
-**Note**: The workflow file **must** be placed in `.github/workflows/`
-directory in your repository root for GitHub Actions to detect and run it.
-
 ### 2. Configure API Keys
 
 Add your AI provider API keys as repository secrets:
@@ -214,8 +211,7 @@ Add your AI provider API keys as repository secrets:
      <img src="https://storage.googleapis.com/cline_public_images/ss03-ready.png" alt="API key configured" width="600" />
    </Frame>
 
-Now you're ready to supply Cline with the credentials it needs in a github
-action.
+Now you're ready to supply Cline with the credentials it needs in a GitHub Action.
 
 ### 3. Add Analysis Script
 
@@ -230,18 +226,7 @@ curl -o git-scripts/analyze-issue.sh https://raw.githubusercontent.com/cline/cli
 chmod +x git-scripts/analyze-issue.sh
 ```
 
-**Option B: Copy from local Cline repository**
-
-If you have the Cline repository cloned locally:
-
-```bash
-# In your repository root, create the directory and copy the script
-mkdir -p git-scripts
-cp /path/to/cline/src/samples/cli/github-issue-rca/analyze-issue.sh git-scripts/
-chmod +x git-scripts/analyze-issue.sh
-```
-
-**Option C: Manual copy-paste**
+**Option B: Manual copy-paste**
 
 Create the directory and file manually, then paste the script content:
 
@@ -336,4 +321,4 @@ The workflow (`cline-responder.yml`):
 
 ## Related Samples
 
-- **[github-issue-rca](../github-issue-rca)**: The reusable script that powers this integration
+- **[github-issue-rca](./github-issue-rca)**: The reusable script that powers this integration
