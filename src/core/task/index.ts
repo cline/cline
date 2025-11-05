@@ -1575,7 +1575,7 @@ export class Task {
 				skipCleanup = true
 				waitingAtResumeButton = true
 				this.taskState.isAborting = false
-				return { waitingAtResumeButton: true, abortReason: this.taskState.abortReason }
+				return { waitingAtResumeButton: true, abortReason: this.taskState.abortReason || "user_cancel" }
 			}
 
 			// PHASE 2: Check if TaskCancel should run BEFORE any cleanup
@@ -1637,6 +1637,11 @@ export class Task {
 						hooksEnabled,
 					})
 
+					// CRITICAL: Flush all hook status updates to webview before showing resume button
+					// This prevents race condition where hooks show "Running" after completing
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+					await this.postStateToWebview()
+
 					// TaskCancel hook completed - now decide what to do next based on abort reason
 					// Only show resume button if this was an internal_resume abort (not a user cancellation)
 					const shouldShowResumeButton = this.taskState.abortReason === "internal_resume"
@@ -1650,7 +1655,7 @@ export class Task {
 						if (!resumed) {
 							// User cancelled during TaskResume - return to resume button state
 							waitingAtResumeButton = true
-							return { waitingAtResumeButton: true, abortReason: this.taskState.abortReason }
+							return { waitingAtResumeButton: true, abortReason: this.taskState.abortReason || "internal_resume" }
 						}
 
 						// Clear the single-flight guard before returning
@@ -1665,7 +1670,7 @@ export class Task {
 						if (!resumed) {
 							// User cancelled during TaskResume - return to resume button state
 							waitingAtResumeButton = true
-							return { waitingAtResumeButton: true, abortReason: this.taskState.abortReason }
+							return { waitingAtResumeButton: true, abortReason: this.taskState.abortReason || "user_cancel" }
 						}
 
 						// Clear the single-flight guard before returning
