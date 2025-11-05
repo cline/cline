@@ -314,7 +314,7 @@ message ApiConfiguration {
 // Request for updating API configuration (new - uses separate options and secrets)
 message UpdateApiConfigurationRequestNew {
   Metadata metadata = 1;
-  ApiConfiguration api_configuration = 2;
+  ApiConfiguration updates = 2;
   
   // Required field mask specifying which fields to update.
   // Field paths use dot notation with camelCase field names:
