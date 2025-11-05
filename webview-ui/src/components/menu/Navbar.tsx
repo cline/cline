@@ -1,8 +1,7 @@
-import { TooltipContent } from "@radix-ui/react-tooltip"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { HistoryIcon, PlusIcon, SettingsIcon, UserCircleIcon } from "lucide-react"
 import { useMemo } from "react"
-import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 
@@ -67,23 +66,22 @@ export const Navbar = () => {
 
 	return (
 		<nav
-			className="flex-none inline-flex justify-end bg-transparent gap-1 mb-1 z-10 border-none items-center mr-4!"
+			className="flex-none inline-flex justify-end bg-transparent gap-2 mb-1 z-10 border-none items-center mr-4!"
 			id="cline-navbar-container">
 			{SETTINGS_TABS.map((tab) => (
 				<Tooltip key={`navbar-tooltip-${tab.id}`}>
 					<TooltipContent side="bottom">{tab.tooltip}</TooltipContent>
 					<TooltipTrigger asChild>
-						<VSCodeButton
-							appearance="icon"
+						<Button
 							aria-label={tab.tooltip}
+							className="p-0 h-7"
 							data-testid={`tab-${tab.id}`}
 							key={`navbar-button-${tab.id}`}
 							onClick={() => tab.navigate()}
-							style={{ padding: "0px", height: "20px" }}>
-							<div className="flex items-center gap-1 text-xs whitespace-nowrap min-w-0 w-full">
-								<tab.icon className="text-(--vscode-foreground)" size={18} strokeWidth={1} />
-							</div>
-						</VSCodeButton>
+							size="icon"
+							variant="icon">
+							<tab.icon className="stroke-1 [svg]:size-4" size={18} />
+						</Button>
 					</TooltipTrigger>
 				</Tooltip>
 			))}

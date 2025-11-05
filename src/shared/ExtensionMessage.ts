@@ -1,7 +1,7 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
 import { WorkspaceRoot } from "@shared/multi-root/types"
-import { GlobalStateAndSettings } from "@shared/storage/state-keys"
+import { RemoteConfigFields } from "@shared/storage/state-keys"
 import type { Environment } from "../config"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
@@ -95,7 +95,7 @@ export interface ExtensionState {
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
 	hooksEnabled?: ClineFeatureSetting
-	remoteConfigSettings?: Partial<GlobalStateAndSettings> & { remoteConfiguredProviders?: string[] }
+	remoteConfigSettings?: Partial<RemoteConfigFields>
 	subagentsEnabled?: boolean
 	nativeToolCallSetting?: ClineFeatureSetting
 }

@@ -406,6 +406,14 @@ describe("Remote Config Schema", () => {
 					Cline: {
 						models: [{ id: "claude-3-5-sonnet-20241022" }, { id: "claude-3-5-haiku-20241022" }],
 					},
+					Vertex: {
+						models: [
+							{ id: "claude-3-5-sonnet-v2@20241022", thinkingBudgetTokens: 1600 },
+							{ id: "claude-3-5-haiku@20241022" },
+						],
+						vertexProjectId: "my-gcp-project",
+						vertexRegion: "us-central1",
+					},
 				},
 			}
 			const result = RemoteConfigSchema.parse(config)
@@ -436,6 +444,15 @@ describe("Remote Config Schema", () => {
 			expect(result.providerSettings?.Cline?.models).to.have.lengthOf(2)
 			expect(result.providerSettings?.Cline?.models?.[0].id).to.equal("claude-3-5-sonnet-20241022")
 			expect(result.providerSettings?.Cline?.models?.[1].id).to.equal("claude-3-5-haiku-20241022")
+
+			// Verify Vertex settings
+			expect(result.providerSettings?.Vertex?.models).to.have.lengthOf(2)
+			expect(result.providerSettings?.Vertex?.models?.[0].id).to.equal("claude-3-5-sonnet-v2@20241022")
+			expect(result.providerSettings?.Vertex?.models?.[0].thinkingBudgetTokens).to.equal(1600)
+			expect(result.providerSettings?.Vertex?.models?.[1].id).to.equal("claude-3-5-haiku@20241022")
+			expect(result.providerSettings?.Vertex?.models?.[1].thinkingBudgetTokens).to.be.undefined
+			expect(result.providerSettings?.Vertex?.vertexProjectId).to.equal("my-gcp-project")
+			expect(result.providerSettings?.Vertex?.vertexRegion).to.equal("us-central1")
 
 			// Verify OpenTelemetry settings
 			expect(result.openTelemetryEnabled).to.equal(true)
