@@ -250,15 +250,8 @@
 						"group": "Enterprise Solutions",
 						"pages": [
 							"enterprise-solutions/overview",
-							"enterprise-solutions/Onboarding your Organization",
-							{
-								"group": "Members",
-								"pages": [
-									"enterprise-solutions/members/overview",
-									"enterprise-solutions/members/roles-and-permissions",
-									"enterprise-solutions/members/managing-members"
-								]
-							},
+							"enterprise-solutions/onboarding",
+							"enterprise-solutions/members/roles-and-permissions",
 							{
 								"group": "Provider Remote Configuration",
 								"pages": [
@@ -347,7 +340,11 @@
 		},
 		{
 			"source": "/enterprise-solutions/configure-workOS-authkit",
-			"destination": "/enterprise-solutions/Onboarding your Organization"
+			"destination": "/enterprise-solutions/onboarding"
+		},
+		{
+			"source": "/enterprise-solutions/Onboarding your Organization",
+			"destination": "/enterprise-solutions/onboarding"
 		}
 	],
 	"search": {
