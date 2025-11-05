@@ -179,6 +179,8 @@ export class TelemetryService {
 			AUTO_COMPACT: "task.summarize_task",
 			// Tracks when slash commands or workflows are activated
 			SLASH_COMMAND_USED: "task.slash_command_used",
+			// Tracks when a feature is toggled on/off
+			FEATURE_TOGGLED: "task.feature_toggled",
 			// Tracks when individual Cline rules are toggled on/off
 			RULE_TOGGLED: "task.rule_toggled",
 			// Tracks when auto condense setting is toggled on/off
@@ -684,6 +686,7 @@ export class TelemetryService {
 	 * @param ulid Unique identifier for the task
 	 * @param tool Name of the tool being used
 	 * @param modelId The model ID being used
+	 * @param provider The API provider being used
 	 * @param autoApproved Whether the tool was auto-approved based on settings
 	 * @param success Whether the tool execution was successful
 	 * @param workspaceContext Optional workspace context for multi-root workspace tracking
@@ -692,6 +695,7 @@ export class TelemetryService {
 		ulid: string,
 		tool: string,
 		modelId: string,
+		provider: string,
 		autoApproved: boolean,
 		success: boolean,
 		workspaceContext?: {
@@ -700,6 +704,7 @@ export class TelemetryService {
 			resolvedToNonPrimary: boolean
 			resolutionMethod: "hint" | "primary_fallback" | "path_detection"
 		},
+		isNativeToolCall = false,
 	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TOOL_USED,
@@ -709,6 +714,7 @@ export class TelemetryService {
 				autoApproved,
 				success,
 				modelId,
+				provider,
 				// Workspace context (optional)
 				...(workspaceContext && {
 					workspace_multi_root_enabled: workspaceContext.isMultiRootEnabled,
@@ -716,6 +722,7 @@ export class TelemetryService {
 					workspace_resolved_non_primary: workspaceContext.resolvedToNonPrimary,
 					workspace_resolution_method: workspaceContext.resolutionMethod,
 				}),
+				isNativeToolCall,
 			},
 		})
 	}
@@ -740,6 +747,7 @@ export class TelemetryService {
 		status: "started" | "success" | "error",
 		errorMessage?: string,
 		argumentKeys?: string[],
+		isNativeToolCall = false,
 	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.MCP_TOOL_CALLED,
@@ -750,6 +758,7 @@ export class TelemetryService {
 				status,
 				errorMessage,
 				argumentKeys,
+				isNativeToolCall,
 			},
 		})
 	}
@@ -782,15 +791,20 @@ export class TelemetryService {
 	/**
 	 * Records when a diff edit (replace_in_file) operation fails
 	 * @param ulid Unique identifier for the task
+	 * @param modelId The model ID being used
+	 * @param provider The API provider being used
 	 * @param errorType Type of error that occurred (e.g., "search_not_found", "invalid_format")
+	 * @param isNativeToolCall Whether the diff edit was invoked by a native tool call
 	 */
-	public captureDiffEditFailure(ulid: string, modelId: string, errorType?: string) {
+	public captureDiffEditFailure(ulid: string, modelId: string, provider: string, errorType?: string, isNativeToolCall = false) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.DIFF_EDIT_FAILED,
 			properties: {
 				ulid,
 				errorType,
 				modelId,
+				provider,
+				isNativeToolCall,
 			},
 		})
 	}
@@ -1150,6 +1164,25 @@ export class TelemetryService {
 				ulid,
 				commandName,
 				commandType,
+			},
+		})
+	}
+
+	/**
+	 * Records when a feature is enabled/disabled by the user
+	 * @param ulid Unique identifier for the task
+	 * @param featureName The name of the feature being toggled
+	 * @param enabled Whether the feature was enabled (true) or disabled (false)
+	 * @param modelId The model ID being used when the toggle occurred
+	 */
+	public captureFeatureToggle(ulid: string, featureName: string, enabled: boolean, modelId: string) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.FEATURE_TOGGLED,
+			properties: {
+				ulid,
+				featureName,
+				enabled,
+				modelId,
 			},
 		})
 	}
