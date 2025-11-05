@@ -3,6 +3,7 @@ import { EventEmitter } from "events"
 import * as vscode from "vscode"
 import { stripAnsi } from "./ansiUtils"
 import { getLatestTerminalOutput } from "./get-latest-output"
+import { appendWithByteLimit, buildTruncationNotice, DEFAULT_TERMINAL_OUTPUT_BYTE_LIMIT } from "./truncateTerminalBuffer"
 
 export interface TerminalProcessEvents {
 	line: [line: string]
@@ -22,6 +23,10 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	private buffer: string = ""
 	private fullOutput: string = ""
 	private lastRetrievedIndex: number = 0
+	private truncated: boolean = false
+	private omittedBytes: number = 0
+	private byteLimit: number = DEFAULT_TERMINAL_OUTPUT_BYTE_LIMIT
+	private didEmitTruncationNotice: boolean = false
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
 
@@ -180,9 +185,30 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 					didEmitEmptyLine = true
 				}
 
-				this.fullOutput += data
-				if (this.isListening) {
-					this.emitIfEol(data)
+				// Apply byte limit when appending to fullOutput
+				const appendResult = appendWithByteLimit({
+					existing: this.fullOutput,
+					addition: data,
+					byteLimit: this.byteLimit,
+				})
+
+				this.fullOutput = appendResult.nextBuffer
+
+				// Track truncation metadata
+				if (appendResult.truncated) {
+					this.truncated = true
+					this.omittedBytes += appendResult.omittedBytes
+
+					// Emit truncation notice once
+					if (!this.didEmitTruncationNotice) {
+						this.didEmitTruncationNotice = true
+						const notice = buildTruncationNotice(this.byteLimit, this.omittedBytes)
+						this.emit("line", notice)
+					}
+				}
+
+				if (this.isListening && appendResult.appendedText) {
+					this.emitIfEol(appendResult.appendedText)
 					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
 				}
 			}

@@ -6,6 +6,94 @@ const _os = require("os")
 // Enhanced terminal management for standalone Cline
 // This replaces VSCode's terminal integration with real subprocess management
 
+// Terminal output truncation utilities (inline for standalone compatibility)
+const DEFAULT_TERMINAL_OUTPUT_BYTE_LIMIT = 256 * 1024
+
+function byteLength(str) {
+	return Buffer.byteLength(str, "utf8")
+}
+
+function formatByteSize(bytes) {
+	if (!Number.isFinite(bytes) || bytes <= 0) {
+		return "0 B"
+	}
+	const units = ["B", "KB", "MB", "GB", "TB"]
+	let size = bytes
+	let unitIndex = 0
+	while (size >= 1024 && unitIndex < units.length - 1) {
+		size /= 1024
+		unitIndex++
+	}
+	const formatted = size >= 10 || unitIndex === 0 ? Math.round(size).toString() : size.toFixed(1)
+	return `${formatted} ${units[unitIndex]}`
+}
+
+function buildTruncationNotice(limitBytes, omittedBytes) {
+	return ` [output truncated at ${formatByteSize(limitBytes)}; ${formatByteSize(omittedBytes)} omitted]`
+}
+
+function appendWithByteLimit(existing, addition, byteLimit) {
+	if (!addition || addition.length === 0) {
+		return {
+			nextBuffer: existing,
+			appendedText: "",
+			truncated: false,
+			omittedBytes: 0,
+		}
+	}
+
+	if (byteLimit <= 0) {
+		return {
+			nextBuffer: existing,
+			appendedText: "",
+			truncated: addition.length > 0,
+			omittedBytes: byteLength(addition),
+		}
+	}
+
+	const existingBytes = byteLength(existing)
+	const additionBytes = byteLength(addition)
+
+	if (existingBytes >= byteLimit) {
+		return {
+			nextBuffer: existing,
+			appendedText: "",
+			truncated: additionBytes > 0,
+			omittedBytes: additionBytes,
+		}
+	}
+
+	const availableBytes = byteLimit - existingBytes
+
+	if (additionBytes <= availableBytes) {
+		return {
+			nextBuffer: existing + addition,
+			appendedText: addition,
+			truncated: false,
+			omittedBytes: 0,
+		}
+	}
+
+	let allowedText = ""
+	let consumedBytes = 0
+
+	for (const char of addition) {
+		const charBytes = byteLength(char)
+		if (consumedBytes + charBytes > availableBytes) {
+			break
+		}
+		allowedText += char
+		consumedBytes += charBytes
+	}
+
+	return {
+		nextBuffer: existing + allowedText,
+		appendedText: allowedText,
+		truncated: true,
+		omittedBytes: additionBytes - consumedBytes,
+	}
+}
+
 class StandaloneTerminalProcess extends EventEmitter {
 	constructor() {
 		super()
@@ -14,6 +102,10 @@ class StandaloneTerminalProcess extends EventEmitter {
 		this.buffer = ""
 		this.fullOutput = ""
 		this.lastRetrievedIndex = 0
+		this.truncated = false
+		this.omittedBytes = 0
+		this.byteLimit = DEFAULT_TERMINAL_OUTPUT_BYTE_LIMIT
+		this.didEmitTruncationNotice = false
 		this.isHot = false
 		this.hotTimer = null
 		this.childProcess = null
@@ -127,11 +219,25 @@ class StandaloneTerminalProcess extends EventEmitter {
 			this.isHot = false
 		}, hotTimeout)
 
-		// Store full output
-		this.fullOutput += data
+		// Apply byte limit when appending to fullOutput
+		const appendResult = appendWithByteLimit(this.fullOutput, data, this.byteLimit)
+		this.fullOutput = appendResult.nextBuffer
 
-		if (this.isListening) {
-			this.emitLines(data)
+		// Track truncation metadata
+		if (appendResult.truncated) {
+			this.truncated = true
+			this.omittedBytes += appendResult.omittedBytes
+
+			// Emit truncation notice once
+			if (!this.didEmitTruncationNotice) {
+				this.didEmitTruncationNotice = true
+				const notice = buildTruncationNotice(this.byteLimit, this.omittedBytes)
+				this.emit("line", notice)
+			}
+		}
+
+		if (this.isListening && appendResult.appendedText) {
+			this.emitLines(appendResult.appendedText)
 			this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
 		}
 	}
@@ -437,15 +543,24 @@ class StandaloneTerminalManager {
 		return process ? process.isHot : false
 	}
 
-	processOutput(outputLines, overrideLimit, isSubagentCommand) {
+	processOutput(outputLines, overrideLimit, isSubagentCommand, truncationInfo) {
 		const limit = isSubagentCommand && overrideLimit ? overrideLimit : this.terminalOutputLineLimit
+
+		// Note: Byte-level truncation notice is already included in outputLines from StandaloneTerminalProcess,
+		// so we only need to handle line-level truncation here
+		let result = ""
+
+		// Apply line-level truncation
 		if (outputLines.length > limit) {
 			const halfLimit = Math.floor(limit / 2)
 			const start = outputLines.slice(0, halfLimit)
 			const end = outputLines.slice(outputLines.length - halfLimit)
-			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()
+			result += `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`
+		} else {
+			result += outputLines.join("\n")
 		}
-		return outputLines.join("\n").trim()
+
+		return result.trim()
 	}
 
 	disposeAll() {
