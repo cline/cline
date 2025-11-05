@@ -73,12 +73,27 @@ export const ClineSettingsSchema = z.object({
 	models: z.array(ClineModelSchema).optional(),
 })
 
+// Vertex Provider model schema with per-model settings
+export const VertexModelSchema = z.object({
+	id: z.string(), // The model ID is required
+	thinkingBudgetTokens: z.number().optional(),
+})
+
+// GCP Vertex Provider specific settings
+export const VertexSettingsSchema = z.object({
+	// A list of the allowed models with their settings
+	models: z.array(VertexModelSchema).optional(),
+	vertexProjectId: z.string().optional(),
+	vertexRegion: z.string().optional(),
+})
+
 // Provider settings schema
 // Each provider becomes an optional field
 const ProviderSettingsSchema = z.object({
 	OpenAiCompatible: OpenAiCompatibleSchema.optional(),
 	AwsBedrock: AwsBedrockSettingsSchema.optional(),
 	Cline: ClineSettingsSchema.optional(),
+	Vertex: VertexSettingsSchema.optional(),
 })
 
 export const AllowedMCPServerSchema = z.object({
@@ -86,10 +101,23 @@ export const AllowedMCPServerSchema = z.object({
 	id: z.string(),
 })
 
+// Settings for a global cline rules or workflow file.
+export const GlobalInstructionsFileSchema = z.object({
+	// When this is enabled, the user cannot turn off this rule or workflow.
+	alwaysEnabled: z.boolean(),
+	// The name of the rules or workflow file.
+	name: z.string(),
+	// The contents of the rules or workflow file
+	contents: z.string(),
+})
+
 export const RemoteConfigSchema = z.object({
 	// The version of the remote config settings, e.g. v1
 	// This field is for internal use only, and won't be visible to the administrator in the UI.
 	version: z.string(),
+
+	// Provider specific settings
+	providerSettings: ProviderSettingsSchema.optional(),
 
 	// General settings not specific to any provider
 	telemetryEnabled: z.boolean().optional(),
@@ -119,11 +147,9 @@ export const RemoteConfigSchema = z.object({
 	openTelemetryLogBatchTimeout: z.number().optional(),
 	openTelemetryLogMaxQueueSize: z.number().optional(),
 
-	// Other top-level settings can be added here later.
-
-	// Provider specific settings
-	// Each provider in providerSchemasMap is automatically available as an optional field
-	providerSettings: ProviderSettingsSchema.optional(),
+	// Rules & Workflows
+	globalRules: z.array(GlobalInstructionsFileSchema).optional(),
+	globalWorkflows: z.array(GlobalInstructionsFileSchema).optional(),
 })
 
 // Type inference from schemas
@@ -135,3 +161,4 @@ export type AwsBedrockCustomModel = z.infer<typeof AwsBedrockCustomModelSchema>
 export type AwsBedrockSettings = z.infer<typeof AwsBedrockSettingsSchema>
 export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
 export type RemoteConfig = z.infer<typeof RemoteConfigSchema>
+export type GlobalInstructionsFile = z.infer<typeof GlobalInstructionsFileSchema>

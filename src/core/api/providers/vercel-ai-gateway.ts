@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
@@ -36,6 +37,7 @@ export class VercelAIGatewayHandler implements ApiHandler {
 						"http-referer": "https://cline.bot",
 						"x-title": "Cline",
 					},
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Vercel AI Gateway client: ${error.message}`)
