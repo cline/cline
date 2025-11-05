@@ -13,10 +13,6 @@
 
 import { z } from "zod"
 
-export const LiteLLMSchema = z.object({
-	baseUrl: z.string().optional(),
-})
-
 // OpenAI Compatible model schema with per-model settings
 export const OpenAiCompatibleModelSchema = z.object({
 	id: z.string(), // The model ID is required
@@ -91,6 +87,17 @@ export const VertexSettingsSchema = z.object({
 	vertexRegion: z.string().optional(),
 })
 
+export const LiteLLMModelSchema = z.object({
+	id: z.string(),
+	thinkingBudgetTokens: z.number().optional(),
+	promptCachingEnabled: z.boolean().optional(),
+})
+
+export const LiteLLMSchema = z.object({
+	models: z.array(LiteLLMModelSchema).optional(),
+	baseUrl: z.string().optional(),
+})
+
 // Provider settings schema
 // Each provider becomes an optional field
 const ProviderSettingsSchema = z.object({
@@ -158,12 +165,21 @@ export const RemoteConfigSchema = z.object({
 })
 
 // Type inference from schemas
+export type RemoteConfig = z.infer<typeof RemoteConfigSchema>
 export type MCPServer = z.infer<typeof AllowedMCPServerSchema>
-export type OpenAiCompatibleModel = z.infer<typeof OpenAiCompatibleModelSchema>
+export type GlobalInstructionsFile = z.infer<typeof GlobalInstructionsFileSchema>
+
+export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
+
 export type OpenAiCompatible = z.infer<typeof OpenAiCompatibleSchema>
+export type OpenAiCompatibleModel = z.infer<typeof OpenAiCompatibleModelSchema>
+
+export type AwsBedrockSettings = z.infer<typeof AwsBedrockSettingsSchema>
 export type AwsBedrockModel = z.infer<typeof AwsBedrockModelSchema>
 export type AwsBedrockCustomModel = z.infer<typeof AwsBedrockCustomModelSchema>
-export type AwsBedrockSettings = z.infer<typeof AwsBedrockSettingsSchema>
-export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
-export type RemoteConfig = z.infer<typeof RemoteConfigSchema>
-export type GlobalInstructionsFile = z.infer<typeof GlobalInstructionsFileSchema>
+
+export type VertexSettings = z.infer<typeof VertexSettingsSchema>
+export type VertexModel = z.infer<typeof VertexModelSchema>
+
+export type LiteLLMSettings = z.infer<typeof LiteLLMSchema>
+export type LiteLLMModel = z.infer<typeof LiteLLMModelSchema>
