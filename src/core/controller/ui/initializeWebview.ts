@@ -9,7 +9,6 @@ import { refreshBasetenModels } from "../models/refreshBasetenModels"
 import { refreshGroqModels } from "../models/refreshGroqModels"
 import { refreshHicapModels } from "../models/refreshHicapModels"
 import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
-import { refreshVercelAiGatewayModels } from "../models/refreshVercelAiGatewayModels"
 import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 
 /**
@@ -146,51 +145,6 @@ export async function initializeWebview(controller: Controller, _request: EmptyR
 
 					// Post state update if we updated any model info
 					if ((planModelId && models[planModelId]) || (actModelId && models[actModelId])) {
-						await controller.postStateToWebview()
-					}
-				}
-			}
-		})
-
-		// Refresh Vercel AI Gateway models from API
-		refreshVercelAiGatewayModels(controller).then(async (models) => {
-			if (models && Object.keys(models).length > 0) {
-				// Update model info in state for Vercel AI Gateway (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-				const apiConfiguration = controller.stateManager.getApiConfiguration()
-				const planActSeparateModelsSetting = controller.stateManager.getGlobalSettingsKey("planActSeparateModelsSetting")
-				const currentMode = controller.stateManager.getGlobalSettingsKey("mode")
-
-				if (planActSeparateModelsSetting) {
-					// Separate models: update only current mode
-					const modelIdField =
-						currentMode === "plan" ? "planModeVercelAiGatewayModelId" : "actModeVercelAiGatewayModelId"
-					const modelInfoField =
-						currentMode === "plan" ? "planModeVercelAiGatewayModelInfo" : "actModeVercelAiGatewayModelInfo"
-					const modelId = apiConfiguration[modelIdField]
-
-					if (modelId && models[modelId]) {
-						controller.stateManager.setGlobalState(modelInfoField, models[modelId])
-						await controller.postStateToWebview()
-					}
-				} else {
-					// Shared models: update both plan and act modes
-					const planModelId = apiConfiguration.planModeVercelAiGatewayModelId
-					const actModelId = apiConfiguration.actModeVercelAiGatewayModelId
-					const updates: Partial<GlobalStateAndSettings> = {}
-
-					// Update plan mode model info if we have a model ID
-					if (planModelId && models[planModelId]) {
-						updates.planModeVercelAiGatewayModelInfo = models[planModelId]
-					}
-
-					// Update act mode model info if we have a model ID
-					if (actModelId && models[actModelId]) {
-						updates.actModeVercelAiGatewayModelInfo = models[actModelId]
-					}
-
-					// Post state update if we updated any model info
-					if (Object.keys(updates).length > 0) {
-						controller.stateManager.setGlobalStateBatch(updates)
 						await controller.postStateToWebview()
 					}
 				}
