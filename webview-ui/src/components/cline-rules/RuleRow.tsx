@@ -77,7 +77,7 @@ const RuleRow: React.FC<{
 	return (
 		<div className="mb-2.5">
 			<div
-				className={`flex items-center p-2 py-4 rounded bg-(--vscode-textCodeBlock-background) h-[18px] ${
+				className={`flex items-center p-2 py-4 rounded bg-text-block-background max-h-4 ${
 					enabled ? "opacity-100" : "opacity-60"
 				}`}>
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1" title={rulePath}>
@@ -86,15 +86,15 @@ const RuleRow: React.FC<{
 				</span>
 
 				{/* Toggle Switch */}
-				<div className="flex items-center ml-2 space-x-2">
+				<div className="flex items-center space-x-2">
 					<Switch checked={enabled} key={rulePath} onClick={() => toggleRule(rulePath, !enabled)} />
-					<Button aria-label="Edit rule file" onClick={handleEditClick} size="sm" title="Edit rule file" variant="icon">
+					<Button aria-label="Edit rule file" onClick={handleEditClick} size="xs" title="Edit rule file" variant="icon">
 						<PenIcon />
 					</Button>
 					<Button
 						aria-label="Delete rule file"
 						onClick={handleDeleteClick}
-						size="sm"
+						size="xs"
 						title="Delete rule file"
 						variant="icon">
 						<Trash2Icon />

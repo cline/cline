@@ -212,7 +212,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 			{isVisible && (
 				<div
-					className="fixed left-[15px] right-[15px] border border-editor-group-border p-3 rounded z-1000 overflow-visible"
+					className="fixed left-[15px] right-[15px] border border-editor-group-border py-3 px-2 rounded z-1000 overflow-y-scroll"
 					style={{
 						bottom: `calc(100vh - ${menuPosition}px + 6px)`,
 						background: CODE_BLOCK_BG_COLOR,
@@ -220,7 +220,7 @@ const ClineRulesToggleModal: React.FC = () => {
 						overscrollBehavior: "contain",
 					}}>
 					<div
-						className="fixed h-2.5 w-2.5 z-[-1] rotate-45 border-r border-b border-editor-group-border overflow-y-scroll"
+						className="fixed h-2.5 w-2.5 z-[-1] rotate-45 border-r border-b border-editor-group-border"
 						style={{
 							bottom: `calc(100vh - ${menuPosition}px)`,
 							right: arrowPosition,
