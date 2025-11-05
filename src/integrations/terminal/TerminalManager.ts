@@ -361,22 +361,13 @@ export class TerminalManager {
 				? overrideLimit
 				: this.subagentTerminalOutputLineLimit
 			: this.terminalOutputLineLimit
-
-		// Note: Byte-level truncation notice is already included in outputLines from TerminalProcess,
-		// so we only need to handle line-level truncation here
-		let result = ""
-
-		// Apply line-level truncation
 		if (outputLines.length > limit) {
 			const halfLimit = Math.floor(limit / 2)
 			const start = outputLines.slice(0, halfLimit)
 			const end = outputLines.slice(outputLines.length - halfLimit)
-			result += `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`
-		} else {
-			result += outputLines.join("\n")
+			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()
 		}
-
-		return result.trim()
+		return outputLines.join("\n").trim()
 	}
 
 	setDefaultTerminalProfile(profileId: string): { closedCount: number; busyTerminals: TerminalInfo[] } {
