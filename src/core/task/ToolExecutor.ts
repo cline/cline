@@ -459,7 +459,6 @@ export class ToolExecutor {
 
 		const executionTimeMs = Date.now() - executionStartTime
 
-		console.log(`[HOOK-UI] PostToolUse executing for tool: ${block.name}`)
 		const postToolResult = await executeHook({
 			hookName: "PostToolUse",
 			hookInput: {
@@ -595,7 +594,6 @@ export class ToolExecutor {
 				pendingToolInfo.resourceUri = block.params.uri
 			}
 
-			console.log(`[HOOK-UI] PreToolUse executing for tool: ${block.name}`)
 			const preToolResult = await executeHook({
 				hookName: "PreToolUse",
 				hookInput: {
