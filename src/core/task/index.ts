@@ -1430,7 +1430,7 @@ export class Task {
 
 		// Check if user cancelled during TaskResume
 		if (taskResumeResult.cancel === true) {
-			console.log(`[TaskResume Hook] User cancelled, returning to resume button state`)
+			console.log(`[_handleResumeFlow] TaskResume hook cancelled, returning to resume button state`)
 			return false // Indicate cancellation
 		}
 
@@ -1460,6 +1460,29 @@ export class Task {
 					text: fileContentString,
 				})
 			}
+		}
+
+		// Run UserPromptSubmit hook for internal resume (after TaskResume for UI ordering)
+		const userPromptHookResult = await this.runUserPromptSubmitHook(newUserContent, "resume")
+
+		// Defensive check: Verify task wasn't aborted during hook execution
+		if (this.taskState.abort) {
+			console.log(`[_handleResumeFlow] Task aborted during UserPromptSubmit hook`)
+			return false // Indicate cancellation
+		}
+
+		// Handle hook cancellation request
+		if (userPromptHookResult.cancel === true) {
+			console.log(`[_handleResumeFlow] UserPromptSubmit hook cancelled, returning to resume button state`)
+			return false // Indicate cancellation
+		}
+
+		// Add hook context if provided (after all other content)
+		if (userPromptHookResult.contextModification) {
+			newUserContent.push({
+				type: "text",
+				text: `<hook_context source="UserPromptSubmit">\n${userPromptHookResult.contextModification}\n</hook_context>`,
+			})
 		}
 
 		// Start task execution in background
@@ -1641,7 +1664,7 @@ export class Task {
 						// Handle resume flow
 						const resumed = await this._handleResumeFlow()
 						if (!resumed) {
-							// User cancelled during TaskResume - return to resume button state
+							// User cancelled during TaskResume or UserPromptSubmit - return to resume button state
 							waitingAtResumeButton = true
 							return {
 								waitingAtResumeButton: true,
