@@ -3001,10 +3001,13 @@ export class Task {
 					assistantContent.push(...toolUseBlocks)
 				}
 
-				await this.messageStateHandler.addToApiConversationHistory({
-					role: "assistant",
-					content: assistantContent,
-				})
+				// Append the assistant's content to the API conversation history only if there's content
+				if (assistantContent.length > 0) {
+					await this.messageStateHandler.addToApiConversationHistory({
+						role: "assistant",
+						content: assistantContent,
+					})
+				}
 
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
 				// in case the content blocks finished
