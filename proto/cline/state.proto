@@ -88,6 +88,7 @@ message Secrets {
   optional string dify_api_key = 36;
   optional string oca_api_key = 37;
   optional string oca_refresh_token = 38;
+  optional string hicap_api_key = 39;
 }
 
 message Settings {
@@ -215,6 +216,13 @@ message Settings {
   optional int32 max_consecutive_mistakes = 124;
   optional bool subagents_enabled = 125;
   optional int32 subagent_terminal_output_line_limit = 126;
+  optional string aihubmix_api_key = 127;
+  optional string aihubmix_base_url = 128;
+  optional string aihubmix_app_code = 129;
+  optional string plan_mode_aihubmix_model_id = 130;
+  optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 131;
+  optional string act_mode_aihubmix_model_id = 132;
+  optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 133;
 }
 
 message DictationSettings {

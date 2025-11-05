@@ -1,21 +1,27 @@
-import { memo } from "react"
+import { memo, useEffect } from "react"
+import { useRemark } from "react-remark"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+interface ModelDescriptionMarkdownProps {
+	markdown?: string
+	key: string
+	isExpanded: boolean
+	setIsExpanded: (isExpanded: boolean) => void
+	isPopup?: boolean
+}
+
 export const ModelDescriptionMarkdown = memo(
-	({
-		markdown,
-		key,
-		isExpanded,
-		setIsExpanded,
-		isPopup,
-	}: {
-		markdown?: string
-		key: string
-		isExpanded: boolean
-		setIsExpanded: (isExpanded: boolean) => void
-		isPopup?: boolean
-	}) => {
+	({ markdown, key, isExpanded, setIsExpanded, isPopup }: ModelDescriptionMarkdownProps) => {
+		// Update the markdown content when the prop changes
+		const [reactContent, setMarkdown] = useRemark()
+
+		useEffect(() => {
+			if (markdown) {
+				setMarkdown(markdown)
+			}
+		}, [markdown, setMarkdown])
+
 		return (
 			<div className="inline-block mb-0 description line-clamp-3" key={key}>
 				<div
@@ -23,10 +29,11 @@ export const ModelDescriptionMarkdown = memo(
 						"overflow-y-auto": isExpanded,
 					})}>
 					<div
-						className={cn("overflow-hidden line-clamp-3 text-sm", {
+						className={cn("overflow-hidden text-sm line-clamp-3", {
 							"line-clamp-none": isExpanded,
+							"h-20": !isExpanded,
 						})}>
-						{markdown}
+						{reactContent}
 					</div>
 					{!isExpanded && (
 						<div className="absolute bottom-0 right-0 flex items-center">

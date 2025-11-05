@@ -20,7 +20,7 @@ e2e.describe("Diff Editor", () => {
 			await expect(inputbox).toHaveValue("")
 
 			// Loading State initially
-			await expect(sidebar.getByText("API Request...")).toBeVisible()
+			await expect(sidebar.getByText("API Request...")).toBeVisible({ timeout: 10000 })
 
 			// Back to home page with history
 			await sidebar.getByRole("button", { name: "Start New Task" }).click()

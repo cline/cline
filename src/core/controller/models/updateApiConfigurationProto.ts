@@ -72,6 +72,9 @@ export async function updateApiConfigurationProto(
 			planModeOcaModelInfo: protoApiConfiguration.planModeOcaModelInfo
 				? fromProtobufOcaModelInfo(protoApiConfiguration.planModeOcaModelInfo)
 				: undefined,
+			planModeAihubmixModelInfo: protoApiConfiguration.planModeAihubmixModelInfo
+				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.planModeAihubmixModelInfo)
+				: undefined,
 
 			// Act Mode
 			actModeOpenRouterModelInfo: protoApiConfiguration.actModeOpenRouterModelInfo
@@ -103,6 +106,9 @@ export async function updateApiConfigurationProto(
 				: undefined,
 			actModeOcaModelInfo: protoApiConfiguration.actModeOcaModelInfo
 				? fromProtobufOcaModelInfo(protoApiConfiguration.actModeOcaModelInfo)
+				: undefined,
+			actModeAihubmixModelInfo: protoApiConfiguration.actModeAihubmixModelInfo
+				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.actModeAihubmixModelInfo)
 				: undefined,
 		}
 

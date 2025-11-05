@@ -4,6 +4,7 @@ import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -33,6 +34,7 @@ export class XAIHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: "https://api.x.ai/v1",
 					apiKey: this.options.xaiApiKey,
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating xAI client: ${error.message}`)

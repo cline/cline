@@ -137,7 +137,17 @@ export const OpenAICompatibleProvider = ({ showModelOptions, isPopup, currentMod
 									This setting is managed by your organization's remote configuration
 								</TooltipContent>
 							</Tooltip>
-							<VSCodeButton disabled={true}>Add Header</VSCodeButton>
+							<VSCodeButton
+								disabled={remoteConfigSettings?.openAiHeaders !== undefined}
+								onClick={() => {
+									const currentHeaders = { ...(apiConfiguration?.openAiHeaders || {}) }
+									const headerCount = Object.keys(currentHeaders).length
+									const newKey = `header${headerCount + 1}`
+									currentHeaders[newKey] = ""
+									handleFieldChange("openAiHeaders", currentHeaders)
+								}}>
+								Add Header
+							</VSCodeButton>
 						</div>
 
 						<div>

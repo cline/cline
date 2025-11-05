@@ -4,6 +4,7 @@ import { Controller } from "@/core/controller"
 import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewCompleted"
 import { WebviewProvider } from "@/core/webview"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
+import { fetch } from "@/shared/net"
 import { AuthService } from "./AuthService"
 
 // TODO: Consider adding a mock auth provider implementing IAuthProvider for more realistic testing
