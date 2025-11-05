@@ -1283,7 +1283,7 @@ export class Task {
 	/**
 	 * Determines if the TaskCancel hook should run.
 	 * Only runs if there's actual active work happening or if work was started in this session.
-	 * Does NOT run when just showing the resume button with no active work.
+	 * Does NOT run when just showing the resume button or completion button with no active work.
 	 * @returns true if the hook should run, false otherwise
 	 */
 	private async shouldRunTaskCancelHook(): Promise<boolean> {
@@ -1308,22 +1308,26 @@ export class Task {
 			return true
 		}
 
-		// Check if we're at the resume button state (no active work, just waiting)
+		// Check if we're at a button-only state (no active work, just waiting for user action)
 		const clineMessages = this.messageStateHandler.getClineMessages()
 		const lastMessage = clineMessages.at(-1)
-		const isAtResumeButton =
-			lastMessage?.type === "ask" && (lastMessage.ask === "resume_task" || lastMessage.ask === "resume_completed_task")
+		const isAtButtonOnlyState =
+			lastMessage?.type === "ask" &&
+			(lastMessage.ask === "resume_task" ||
+				lastMessage.ask === "resume_completed_task" ||
+				lastMessage.ask === "completion_result")
 
-		if (isAtResumeButton) {
-			// At resume button - DON'T run hook because we're just waiting for user input
-			// The resume button appears in two scenarios:
-			// 1. Opening from history (no new work)
-			// 2. After cancelling during active work (but work already stopped)
-			// In both cases, we shouldn't run TaskCancel hook
+		if (isAtButtonOnlyState) {
+			// At button-only state - DON'T run hook because we're just waiting for user input
+			// These button states appear when:
+			// 1. Opening from history (resume_task/resume_completed_task)
+			// 2. After task completion (completion_result with "Start New Task" button)
+			// 3. After cancelling during active work (but work already stopped)
+			// In all cases, we shouldn't run TaskCancel hook
 			return false
 		}
 
-		// Not at resume button - we're in the middle of work or just finished something
+		// Not at a button-only state - we're in the middle of work or just finished something
 		// Run the hook since cancelling would interrupt actual work
 		return true
 	}
