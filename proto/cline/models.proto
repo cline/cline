@@ -27,6 +27,8 @@ service ModelsService {
   rpc refreshVercelAiGatewayModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Requesty models
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns Hicap models
+  rpc refreshHicapModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Subscribe to OpenRouter models updates
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Updates API configuration (legacy - uses combined configuration)
@@ -43,6 +45,8 @@ service ModelsService {
   rpc getSapAiCoreModels(SapAiCoreModelsRequest) returns (SapAiCoreModelsResponse);
   // Fetches available models from OCA
   rpc refreshOcaModels(StringRequest) returns (OcaCompatibleModelInfo);
+  // Fetches available models from AIhubmix
+  rpc getAihubmixModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
 }
 
 // List of VS Code LM models
@@ -170,6 +174,7 @@ message ModelsApiSecrets {
   optional string oca_api_key = 36;
   optional string oca_refresh_token = 37;
   optional string minimax_api_key = 38;
+  optional string aihubmix_api_key = 39;
 }
 
 // API configuration options (non-secret settings)
@@ -216,6 +221,8 @@ message ModelsApiOptions {
   optional string oca_mode = 39;
   optional bool aws_use_global_inference = 40;
   optional string minimax_api_line = 41;
+  optional string aihubmix_base_url = 42;
+  optional string aihubmix_app_code = 43;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -251,6 +258,8 @@ message ModelsApiOptions {
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 130;
   optional string plan_mode_oca_model_id = 131;
   optional OcaModelInfo plan_mode_oca_model_info = 132;
+  optional string plan_mode_aihubmix_model_id = 133;
+  optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 134;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -286,6 +295,8 @@ message ModelsApiOptions {
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
   optional string act_mode_oca_model_id = 231;
   optional OcaModelInfo act_mode_oca_model_info = 232;
+  optional string act_mode_aihubmix_model_id = 233;
+  optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 234;
 }
 
 // Request for updating API configuration (legacy - uses combined configuration)
@@ -294,11 +305,24 @@ message UpdateApiConfigurationRequest {
   ModelsApiConfiguration api_configuration = 2;
 }
 
+// Combined API configuration containing both options and secrets
+message ApiConfiguration {
+  ModelsApiOptions options = 1;
+  ModelsApiSecrets secrets = 2;
+}
+
 // Request for updating API configuration (new - uses separate options and secrets)
 message UpdateApiConfigurationRequestNew {
   Metadata metadata = 1;
-  ModelsApiOptions options = 2;
-  ModelsApiSecrets secrets = 3;
+  ApiConfiguration api_configuration = 2;
+
+  // Required field mask specifying which fields to update.
+  // Field paths use dot notation with camelCase field names:
+  // - "options.ulid" (for options fields)
+  // - "options.openAiHeaders" (for options fields)
+  // - "secrets.apiKey" (for secrets fields)
+  // - "secrets.openRouterApiKey" (for secrets fields)
+  google.protobuf.FieldMask update_mask = 3;
 }
 
 // Request for partially updating API configuration using FieldMask
@@ -397,6 +421,8 @@ enum ApiProvider {
   DIFY = 34;
   OCA = 35;
   MINIMAX = 36;
+  HICAP = 37;
+  AIHUBMIX = 38;
 }
 
 // Model info for OpenAI-compatible models
@@ -516,6 +542,11 @@ message ModelsApiConfiguration {
   optional bool aws_use_global_inference = 77;
   optional string minimax_api_key = 78;
   optional string minimax_api_line = 79;
+  optional string hicap_model_id = 80;
+  optional string hicap_api_key = 81;
+  optional string aihubmix_api_key = 82;
+  optional string aihubmix_base_url = 83;
+  optional string aihubmix_app_code = 84;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -551,6 +582,10 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 130;
   optional string plan_mode_oca_model_id = 131;
   optional OcaModelInfo plan_mode_oca_model_info = 132;
+  optional string plan_mode_hicap_model_id = 133;
+  optional OpenRouterModelInfo plan_mode_hicap_model_info = 134;
+  optional string plan_mode_aihubmix_model_id = 135;
+  optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 136;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -586,4 +621,8 @@ message ModelsApiConfiguration {
   optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 230;
   optional string act_mode_oca_model_id = 231;
   optional OcaModelInfo act_mode_oca_model_info = 232;
+  optional string act_mode_hicap_model_id = 233;
+  optional OpenRouterModelInfo act_mode_hicap_model_info = 234;
+  optional string act_mode_aihubmix_model_id = 235;
+  optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 236;
 }

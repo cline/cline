@@ -434,13 +434,6 @@ export class ContextManager {
 				}
 			}
 
-			// Add any orphaned tool_results not in toolUseIds (shouldn't happen, but be safe)
-			for (const [toolUseId, toolResult] of toolResultMap) {
-				if (!processedToolResults.has(toolUseId)) {
-					newContent.push(toolResult)
-				}
-			}
-
 			// Add all other blocks
 			newContent.push(...otherBlocks)
 
@@ -463,6 +456,21 @@ export class ContextManager {
 		const firstChunk = messages.slice(0, 2) // get first user-assistant pair
 		const secondChunk = messages.slice(startFromIndex) // get remaining messages within context
 		const messagesToUpdate = [...firstChunk, ...secondChunk]
+
+		// Remove orphaned tool_results from the first message after truncation (if it's a user message)
+		if (startFromIndex > 2 && messagesToUpdate.length > 2) {
+			const firstMessageAfterTruncation = messagesToUpdate[2]
+			if (firstMessageAfterTruncation.role === "user" && Array.isArray(firstMessageAfterTruncation.content)) {
+				const hasToolResults = firstMessageAfterTruncation.content.some((block) => block.type === "tool_result")
+				if (hasToolResults) {
+					// Clone and filter out all tool_result blocks
+					messagesToUpdate[2] = cloneDeep(firstMessageAfterTruncation)
+					;(messagesToUpdate[2].content as Anthropic.Messages.ContentBlockParam[]) = (
+						firstMessageAfterTruncation.content as Anthropic.Messages.ContentBlockParam[]
+					).filter((block) => block.type !== "tool_result")
+				}
+			}
+		}
 
 		// we need the mapping from the local indices in messagesToUpdate to the global array of updates in this.contextHistoryUpdates
 		const originalIndices = [

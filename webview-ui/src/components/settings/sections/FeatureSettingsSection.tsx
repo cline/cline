@@ -33,6 +33,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		hooksEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
+		nativeToolCallSetting,
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
@@ -395,6 +396,22 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									</span>
 								</p>
 							)}
+						</div>
+					)}
+					{nativeToolCallSetting?.featureFlag && (
+						<div className="mt-2.5">
+							<VSCodeCheckbox
+								checked={nativeToolCallSetting?.user}
+								onChange={(e) => {
+									const enabled = (e?.target as HTMLInputElement).checked
+									updateSetting("nativeToolCallEnabled", enabled)
+								}}>
+								Enable Native Tool Call
+							</VSCodeCheckbox>
+							<p className="text-xs">
+								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
+								<span className="text-description">Allows Cline to call tools through the native API.</span>
+							</p>
 						</div>
 					)}
 					<div style={{ marginTop: 10 }}>

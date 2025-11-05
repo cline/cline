@@ -307,8 +307,12 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.DIFY
 		case "oca":
 			return ProtoApiProvider.OCA
+		case "aihubmix":
+			return ProtoApiProvider.AIHUBMIX
 		case "minimax":
 			return ProtoApiProvider.MINIMAX
+		case "hicap":
+			return ProtoApiProvider.HICAP
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -385,10 +389,14 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "vercel-ai-gateway"
 		case ProtoApiProvider.ZAI:
 			return "zai"
+		case ProtoApiProvider.HICAP:
+			return "hicap"
 		case ProtoApiProvider.DIFY:
 			return "dify"
 		case ProtoApiProvider.OCA:
 			return "oca"
+		case ProtoApiProvider.AIHUBMIX:
+			return "aihubmix"
 		case ProtoApiProvider.MINIMAX:
 			return "minimax"
 		default:
@@ -476,6 +484,11 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		minimaxApiKey: config.minimaxApiKey,
 		minimaxApiLine: config.minimaxApiLine,
 		ocaMode: config.ocaMode,
+		aihubmixApiKey: config.aihubmixApiKey,
+		aihubmixBaseUrl: config.aihubmixBaseUrl,
+		aihubmixAppCode: config.aihubmixAppCode,
+		hicapApiKey: config.hicapApiKey,
+		hicapModelId: config.hicapModelId,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -511,6 +524,10 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
 		planModeOcaModelId: config.planModeOcaModelId,
 		planModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.planModeOcaModelInfo),
+		planModeAihubmixModelId: config.planModeAihubmixModelId,
+		planModeAihubmixModelInfo: convertOpenAiCompatibleModelInfoToProto(config.planModeAihubmixModelInfo),
+		planModeHicapModelId: config.planModeHicapModelId,
+		planModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHicapModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -546,6 +563,10 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
 		actModeOcaModelId: config.actModeOcaModelId,
 		actModeOcaModelInfo: convertOcaModelInfoToProtoOcaModelInfo(config.actModeOcaModelInfo),
+		actModeAihubmixModelId: config.actModeAihubmixModelId,
+		actModeAihubmixModelInfo: convertOpenAiCompatibleModelInfoToProto(config.actModeAihubmixModelInfo),
+		actModeHicapModelId: config.actModeHicapModelId,
+		actModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHicapModelInfo),
 	}
 }
 
@@ -627,8 +648,13 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		difyBaseUrl: protoConfig.difyBaseUrl,
 		ocaBaseUrl: protoConfig.ocaBaseUrl,
 		ocaMode: protoConfig.ocaMode,
+		aihubmixApiKey: protoConfig.aihubmixApiKey,
+		aihubmixBaseUrl: protoConfig.aihubmixBaseUrl,
+		aihubmixAppCode: protoConfig.aihubmixAppCode,
 		minimaxApiKey: protoConfig.minimaxApiKey,
 		minimaxApiLine: protoConfig.minimaxApiLine,
+		hicapApiKey: protoConfig.hicapApiKey,
+		hicapModelId: protoConfig.hicapModelId,
 
 		// Plan mode configurations
 		planModeApiProvider:
@@ -667,6 +693,10 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
 		planModeOcaModelId: protoConfig.planModeOcaModelId,
 		planModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.planModeOcaModelInfo),
+		planModeAihubmixModelId: protoConfig.planModeAihubmixModelId,
+		planModeAihubmixModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.planModeAihubmixModelInfo),
+		planModeHicapModelId: protoConfig.planModeHicapModelId,
+		planModeHicapModelInfo: convertProtoToModelInfo(protoConfig.planModeHicapModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -703,5 +733,9 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
 		actModeOcaModelId: protoConfig.actModeOcaModelId,
 		actModeOcaModelInfo: convertProtoOcaModelInfoToOcaModelInfo(protoConfig.actModeOcaModelInfo),
+		actModeAihubmixModelId: protoConfig.actModeAihubmixModelId,
+		actModeAihubmixModelInfo: convertProtoToOpenAiCompatibleModelInfo(protoConfig.actModeAihubmixModelInfo),
+		actModeHicapModelId: protoConfig.actModeHicapModelId,
+		actModeHicapModelInfo: convertProtoToModelInfo(protoConfig.actModeHicapModelInfo),
 	}
 }

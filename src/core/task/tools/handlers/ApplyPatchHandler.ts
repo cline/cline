@@ -951,7 +951,16 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		if (shouldAutoApprove) {
 			await config.callbacks.say("tool", messageStr, undefined, undefined, false)
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, provider, true, true)
+			telemetryService.captureToolUsage(
+				config.ulid,
+				this.name,
+				config.api.getModel().id,
+				provider,
+				true,
+				true,
+				undefined,
+				block.isNativeToolCall,
+			)
 			return true
 		}
 
@@ -971,7 +980,16 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		const approved = response === "yesButtonClicked"
 		config.taskState.didRejectTool = !approved
-		telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, provider, false, approved)
+		telemetryService.captureToolUsage(
+			config.ulid,
+			this.name,
+			config.api.getModel().id,
+			provider,
+			false,
+			approved,
+			undefined,
+			block.isNativeToolCall,
+		)
 
 		return approved
 	}

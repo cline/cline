@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.35.0",
+	"version": "3.35.1",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.84.0"
@@ -405,8 +405,8 @@
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.37.0",
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
-		"@aws-sdk/client-bedrock-runtime": "^3.840.0",
-		"@aws-sdk/credential-providers": "^3.840.0",
+		"@aws-sdk/client-bedrock-runtime": "^3.922.0",
+		"@aws-sdk/credential-providers": "^3.922.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
 		"@google-cloud/vertexai": "^1.9.3",

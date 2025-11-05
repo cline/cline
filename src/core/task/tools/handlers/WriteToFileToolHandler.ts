@@ -182,6 +182,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					true,
 					true,
 					workspaceContext,
+					block.isNativeToolCall,
 				)
 
 				// we need an artificial delay to let the diagnostics catch up to the changes
@@ -235,6 +236,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						false,
 						false,
 						workspaceContext,
+						block.isNativeToolCall,
 					)
 
 					await config.services.diffViewProvider.revertChanges()
@@ -265,6 +267,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						false,
 						true,
 						workspaceContext,
+						block.isNativeToolCall,
 					)
 				}
 			}
@@ -409,6 +412,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// Full original behavior - comprehensive error handling even for partial blocks
 				await config.callbacks.say("diff_error", relPath)
 
+				// Extract provider information for telemetry
+				const apiConfig = config.services.stateManager.getApiConfiguration()
+				const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+				const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
 				// Extract error type from error message if possible
 				const errorType =
 					error instanceof Error && error.message.includes("does not match anything")
@@ -416,7 +424,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						: "other_diff_error"
 
 				// Add telemetry for diff edit failure
-				telemetryService.captureDiffEditFailure(config.ulid, config.api.getModel().id, provider, errorType)
+				const isNativeToolCall = block.isNativeToolCall === true
+				telemetryService.captureDiffEditFailure(
+					config.ulid,
+					config.api.getModel().id,
+					provider,
+					errorType,
+					isNativeToolCall,
+				)
 
 				// Push tool result with detailed error using existing utilities
 				const errorResponse = formatResponse.toolError(
