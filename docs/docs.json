@@ -250,6 +250,7 @@
 						"group": "Enterprise Solutions",
 						"pages": [
 							"enterprise-solutions/overview",
+							"enterprise-solutions/Onboarding your Organization",
 							{
 								"group": "Members",
 								"pages": [
@@ -269,8 +270,7 @@
 										]
 									}
 								]
-							},
-							"enterprise-solutions/Onboarding your Organization"
+							}
 						]
 					}
 				]
