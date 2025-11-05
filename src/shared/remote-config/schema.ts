@@ -13,6 +13,10 @@
 
 import { z } from "zod"
 
+export const LiteLLMSchema = z.object({
+	baseUrl: z.string().optional(),
+})
+
 // OpenAI Compatible model schema with per-model settings
 export const OpenAiCompatibleModelSchema = z.object({
 	id: z.string(), // The model ID is required
@@ -94,6 +98,7 @@ const ProviderSettingsSchema = z.object({
 	AwsBedrock: AwsBedrockSettingsSchema.optional(),
 	Cline: ClineSettingsSchema.optional(),
 	Vertex: VertexSettingsSchema.optional(),
+	LiteLLM: LiteLLMSchema.optional(),
 })
 
 export const AllowedMCPServerSchema = z.object({
