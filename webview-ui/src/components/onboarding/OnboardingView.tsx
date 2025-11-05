@@ -15,6 +15,7 @@ import {
 	getCapabilities,
 	getOverviewLabel,
 	getPriceRange,
+	getSpeedLabel,
 	ONBOARDING_MODEL_SELECTIONS,
 	type OnboardingModelOption,
 } from "./data-models"
@@ -80,7 +81,7 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 							<div className="inline-flex gap-1 [&_svg]:stroke-success [&_svg]:size-3 items-center text-sm">
 								<ZapIcon />
 								<span>Speed: </span>
-								<span className="text-foreground/70">{model.speed}</span>
+								<span className="text-foreground/70">{getSpeedLabel(model.latency)}</span>
 							</div>
 							<div className="flex w-full justify-between">
 								<div className="inline-flex gap-1 [&_svg]:stroke-foreground [&_svg]:size-3 items-center text-sm">

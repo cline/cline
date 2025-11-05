@@ -7,7 +7,7 @@ export interface OnboardingModelOption extends ModelInfo {
 	badge?: string
 	supported_parameters?: string[]
 	score?: number
-	speed?: string
+	latency?: number
 }
 
 type ModelGroup = {
@@ -24,7 +24,7 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 					id: "x-ai/grok-code-fast-1",
 					name: "xAI: Grok Code Fast 1",
 					score: 90,
-					speed: "Fast",
+					latency: 1,
 					badge: "Best",
 					contextWindow: 256000,
 					supportsImages: true,
@@ -37,7 +37,7 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 					name: "MiniMax: MiniMax M1",
 					badge: "Trending",
 					score: 90,
-					speed: "Fast",
+					latency: 2.5,
 					contextWindow: 1000000,
 					supportsImages: false,
 					supportsPromptCache: false,
@@ -56,7 +56,7 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 					name: "Anthropic: Claude Sonnet 4.5",
 					badge: "Best",
 					score: 97,
-					speed: "Fast",
+					latency: 3,
 					contextWindow: 200000,
 					supportsImages: true,
 					supportsPromptCache: true,
@@ -68,7 +68,7 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 					name: "OpenAI: GPT-5 Codex",
 					badge: "Best",
 					score: 97,
-					speed: "Slow",
+					latency: 7,
 					contextWindow: 400000,
 					supportsImages: true,
 					supportsPromptCache: true,
@@ -85,7 +85,7 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 					name: "Z.AI: GLM 4.6 (exacto)",
 					badge: "Trending",
 					score: 90,
-					speed: "Average",
+					latency: 2,
 					contextWindow: 202752,
 					supportsImages: false,
 					supportsPromptCache: false,
@@ -97,7 +97,7 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 					name: "MoonshotAI: Kimi Dev 72B (free)",
 					badge: "Free",
 					score: 90,
-					speed: "Fast",
+					latency: 1,
 					contextWindow: 131072,
 					supportsImages: false,
 					supportsPromptCache: false,
@@ -151,4 +151,21 @@ export function getCapabilities(modelInfo: ModelInfo): string[] {
 	}
 	capabilities.add("Tools")
 	return Array.from(capabilities)
+}
+
+export function getSpeedLabel(latency?: number): string {
+	if (!latency) {
+		return "Average"
+	}
+	if (latency < 1) {
+		return "Instant"
+	}
+	if (latency < 2) {
+		return "Fast"
+	}
+	if (latency > 5) {
+		return "Slow"
+	}
+
+	return "Average"
 }
