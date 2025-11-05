@@ -109,8 +109,11 @@ export interface Settings {
 	ocaBaseUrl: string | undefined
 	minimaxApiLine: string | undefined
 	ocaMode: string | undefined
+	aihubmixBaseUrl: string | undefined
+	aihubmixAppCode: string | undefined
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
+	hicapModelId: string | undefined
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -144,6 +147,10 @@ export interface Settings {
 	planModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
 	planModeOcaModelId: string | undefined
 	planModeOcaModelInfo: OcaModelInfo | undefined
+	planModeHicapModelId: string | undefined
+	planModeHicapModelInfo: ModelInfo | undefined
+	planModeAihubmixModelId: string | undefined
+	planModeAihubmixModelInfo: ModelInfo | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
@@ -180,6 +187,10 @@ export interface Settings {
 	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	actModeOcaModelId: string | undefined
 	actModeOcaModelInfo: OcaModelInfo | undefined
+	actModeHicapModelId: string | undefined
+	actModeHicapModelInfo: ModelInfo | undefined
+	actModeAihubmixModelId: string | undefined
+	actModeAihubmixModelInfo: ModelInfo | undefined
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: boolean
@@ -238,6 +249,8 @@ export interface Secrets {
 	ocaApiKey: string | undefined
 	ocaRefreshToken: string | undefined
 	minimaxApiKey: string | undefined
+	hicapApiKey: string | undefined
+	aihubmixApiKey: string | undefined
 }
 
 export interface LocalState {
