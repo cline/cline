@@ -106,7 +106,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 								</VSCodeOption>
 							))}
 						</VSCodeDropdown>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
+						<p className="text-xs text-(--vscode-descriptionForeground) mt-1">
 							Select the default terminal Cline will use. 'Default' uses your VSCode global setting.
 						</p>
 					</div>
@@ -123,9 +123,9 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 									value={inputValue}
 								/>
 							</div>
-							{inputError && <div className="text-[var(--vscode-errorForeground)] text-xs mt-1">{inputError}</div>}
+							{inputError && <div className="text-(--vscode-errorForeground) text-xs mt-1">{inputError}</div>}
 						</div>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+						<p className="text-xs text-(--vscode-descriptionForeground)">
 							Set how long Cline waits for shell integration to activate before executing commands. Increase this
 							value if you experience terminal connection timeouts.
 						</p>
@@ -139,7 +139,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 								Enable aggressive terminal reuse
 							</VSCodeCheckbox>
 						</div>
-						<p className="text-xs text-[var(--vscode-descriptionForeground)]">
+						<p className="text-xs text-(--vscode-descriptionForeground)">
 							When enabled, Cline will reuse existing terminal windows that aren't in the current working directory.
 							Disable this if you experience issues with task lockout after a terminal command.
 						</p>
@@ -163,11 +163,11 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 						</div>
 					)}
 					<TerminalOutputLineLimitSlider />
-					<div className="mt-5 p-3 bg-[var(--vscode-textBlockQuote-background)] rounded border border-[var(--vscode-textBlockQuote-border)]">
+					<div className="mt-5 p-3 bg-(--vscode-textBlockQuote-background) rounded border border-(--vscode-textBlockQuote-border)">
 						<p className="text-[13px] m-0">
 							<strong>Having terminal issues?</strong> Check our{" "}
 							<a
-								className="text-[var(--vscode-textLink-foreground)] underline hover:no-underline"
+								className="text-(--vscode-textLink-foreground) underline hover:no-underline"
 								href="https://docs.cline.bot/troubleshooting/terminal-quick-fixes"
 								rel="noopener noreferrer"
 								target="_blank">
@@ -175,7 +175,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 							</a>{" "}
 							or the{" "}
 							<a
-								className="text-[var(--vscode-textLink-foreground)] underline hover:no-underline"
+								className="text-(--vscode-textLink-foreground) underline hover:no-underline"
 								href="https://docs.cline.bot/troubleshooting/terminal-integration-guide"
 								rel="noopener noreferrer"
 								target="_blank">

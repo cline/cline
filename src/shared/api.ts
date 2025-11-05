@@ -37,6 +37,9 @@ export type ApiProvider =
 	| "vercel-ai-gateway"
 	| "zai"
 	| "oca"
+	| "aihubmix"
+	| "minimax"
+	| "hicap"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -44,6 +47,9 @@ export interface ApiHandlerSecrets {
 	awsAccessKey?: string
 	awsSecretKey?: string
 	openRouterApiKey?: string
+	aihubmixApiKey?: string
+	aihubmixBaseUrl?: string
+	aihubmixAppCode?: string
 
 	clineAccountId?: string
 	awsSessionToken?: string
@@ -75,6 +81,8 @@ export interface ApiHandlerSecrets {
 	basetenApiKey?: string
 	vercelAiGatewayApiKey?: string
 	difyApiKey?: string
+	minimaxApiKey?: string
+	hicapApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -118,9 +126,14 @@ export interface ApiHandlerOptions {
 	sapAiCoreUseOrchestrationMode?: boolean
 	difyBaseUrl?: string
 	zaiApiLine?: string
+	hicapApiKey?: string
+	hicapModelId?: string
 	onRetryAttempt?: (attempt: number, maxRetries: number, delay: number, error: any) => void
 	ocaBaseUrl?: string
+	minimaxApiLine?: string
 	ocaMode?: string
+	aihubmixBaseUrl?: string
+	aihubmixAppCode?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -155,6 +168,10 @@ export interface ApiHandlerOptions {
 	planModeVercelAiGatewayModelInfo?: ModelInfo
 	planModeOcaModelId?: string
 	planModeOcaModelInfo?: OcaModelInfo
+	planModeAihubmixModelId?: string
+	planModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
+	planModeHicapModelId?: string
+	planModeHicapModelInfo?: ModelInfo
 	// Act mode configurations
 
 	// Act mode configurations
@@ -190,6 +207,10 @@ export interface ApiHandlerOptions {
 	actModeVercelAiGatewayModelInfo?: ModelInfo
 	actModeOcaModelId?: string
 	actModeOcaModelInfo?: OcaModelInfo
+	actModeAihubmixModelId?: string
+	actModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
+	actModeHicapModelId?: string
+	actModeHicapModelInfo?: ModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -259,6 +280,20 @@ export const CLAUDE_SONNET_1M_TIERS = [
 		cacheReadsPrice: 0.6,
 	},
 ]
+
+export interface HicapCompatibleModelInfo extends ModelInfo {
+	temperature?: number
+}
+
+export const hicapModelInfoSaneDefaults: HicapCompatibleModelInfo = {
+	maxTokens: -1,
+	contextWindow: 128_000,
+	supportsImages: true,
+	supportsPromptCache: true,
+	inputPrice: 0,
+	outputPrice: 0,
+	temperature: 1,
+}
 
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
@@ -697,18 +732,6 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	cacheReadsPrice: 0.3,
 	description:
 		"Claude Sonnet 4.5 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
-}
-
-// Cline custom model - code-supernova
-export const clineCodeSupernovaModelInfo: ModelInfo = {
-	contextWindow: 1000000,
-	supportsImages: true,
-	supportsPromptCache: true,
-	inputPrice: 0,
-	outputPrice: 0,
-	cacheReadsPrice: 0,
-	cacheWritesPrice: 0,
-	description: "A versatile agentic coding stealth model that supports image inputs.",
 }
 
 export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; allow_fallbacks: boolean }> = {
@@ -3016,8 +3039,17 @@ export const sambanovaModels = {
 // Cerebras
 // https://inference-docs.cerebras.ai/api-reference/models
 export type CerebrasModelId = keyof typeof cerebrasModels
-export const cerebrasDefaultModelId: CerebrasModelId = "qwen-3-coder-480b-free"
+export const cerebrasDefaultModelId: CerebrasModelId = "zai-glm-4.6"
 export const cerebrasModels = {
+	"zai-glm-4.6": {
+		maxTokens: 40000,
+		contextWindow: 128000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+		description: "Intelligent general purpose model with 2,000 tokens/s",
+	},
 	"gpt-oss-120b": {
 		maxTokens: 65536,
 		contextWindow: 128000,
@@ -3245,6 +3277,13 @@ export const sapAiCoreDefaultModelId: SapAiCoreModelId = "anthropic--claude-3.5-
 // Pricing is calculated using Capacity Units, not directly in USD
 const sapAiCoreModelDescription = "Pricing is calculated using SAP's Capacity Units rather than direct USD pricing."
 export const sapAiCoreModels = {
+	"anthropic--claude-4.5-sonnet": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		description: sapAiCoreModelDescription,
+	},
 	"anthropic--claude-4-sonnet": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -3842,3 +3881,21 @@ export const qwenCodeModels = {
 } as const satisfies Record<string, ModelInfo>
 export type QwenCodeModelId = keyof typeof qwenCodeModels
 export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
+
+// Minimax
+// https://www.minimax.io/platform/document/text_api_intro
+// https://www.minimax.io/platform/document/pricing
+export type MinimaxModelId = keyof typeof minimaxModels
+export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2"
+export const minimaxModels = {
+	"MiniMax-M2": {
+		maxTokens: 128_000,
+		contextWindow: 192_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>

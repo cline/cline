@@ -13,6 +13,7 @@ export const toolParamNames = [
 	"command",
 	"requires_approval",
 	"path",
+	"absolutePath",
 	"content",
 	"diff",
 	"regex",
@@ -39,6 +40,7 @@ export const toolParamNames = [
 	"needs_more_exploration",
 	"task_progress",
 	"timeout",
+	"input",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -49,4 +51,6 @@ export interface ToolUse {
 	// params is a partial record, allowing only some or none of the possible parameters to be used
 	params: Partial<Record<ToolParamName, string>>
 	partial: boolean
+	// Whether this tool use was initiated by a native tool call
+	isNativeToolCall?: boolean
 }

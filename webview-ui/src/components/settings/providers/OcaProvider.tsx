@@ -6,13 +6,7 @@ import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeProgressRing } from "@v
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient, OcaAccountServiceClient } from "@/services/grpc-client"
-import {
-	VSC_BUTTON_BACKGROUND,
-	VSC_BUTTON_FOREGROUND,
-	VSC_DESCRIPTION_FOREGROUND,
-	VSC_INPUT_BACKGROUND,
-	VSC_INPUT_BORDER,
-} from "@/utils/vscStyles"
+import { VSC_BUTTON_BACKGROUND, VSC_BUTTON_FOREGROUND, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 import OcaModelPicker from "./OcaModelPicker"
@@ -28,8 +22,8 @@ interface OcaProviderProps {
 function InfoCard({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
 	return (
 		<div
-			className={`mt-2 mb-2 flex items-start gap-3 rounded-none px-5 py-4 pb-8 border shadow-sm min-w-[40%] max-w-[90%] w-full box-border
-                 bg-[var(${VSC_INPUT_BACKGROUND})] border-[var(${VSC_INPUT_BORDER})]`}>
+			className="mt-2 mb-2 flex items-start gap-3 rounded-none px-5 py-4 pb-8 border shadow-sm min-w-[40%] max-w-[90%] w-full box-border
+                 bg-input-background border-input-border">
 			<div className="min-w-[22px] h-[22px] flex items-center justify-center shrink-0 mt-2">{icon}</div>
 			<div className="flex-1">{children}</div>
 		</div>
@@ -306,7 +300,7 @@ export const OcaProvider = ({ isPopup, currentMode }: OcaProviderProps) => {
 						}}>
 						Sign in with Oracle Code Assist
 					</VSCodeButton>
-					<p className="text-xs mt-0 text-[var(--vscode-descriptionForeground)]">
+					<p className="text-xs mt-0 text-(--vscode-descriptionForeground)">
 						Please ask your IT administrator to set up Oracle Code Assist as a model provider. Oracle Employees,
 						please see the{" "}
 						<VSCodeLink
