@@ -171,9 +171,15 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			)
 
 			if (telemetryData) {
+				// Extract provider information for telemetry
+				const apiConfig = config.services.stateManager.getApiConfiguration()
+				const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+				const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
 				telemetryService.captureSummarizeTask(
 					config.ulid,
 					config.api.getModel().id,
+					provider,
 					telemetryData.tokensUsed,
 					telemetryData.maxContextWindow,
 				)

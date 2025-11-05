@@ -1419,7 +1419,15 @@ export class Task {
 
 			// PHASE 6: Check for incomplete progress
 			if (this.FocusChainManager) {
-				this.FocusChainManager.checkIncompleteProgressOnCompletion()
+				// Extract current model and provider for telemetry
+				const apiConfig = this.stateManager.getApiConfiguration()
+				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+				const currentProvider = (
+					currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+				) as string
+				const currentModelId = this.api.getModel().id
+
+				this.FocusChainManager.checkIncompleteProgressOnCompletion(currentModelId, currentProvider)
 			}
 
 			// PHASE 7: Clean up resources
@@ -2580,7 +2588,8 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user")
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user", currentMode)
 
 		// Capture task initialization timing telemetry for the first API request
 		if (isFirstRequest) {
@@ -2656,13 +2665,21 @@ export class Task {
 				})
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-				telemetryService.captureConversationTurnEvent(this.ulid, providerId, this.api.getModel().id, "assistant", {
-					tokensIn: inputTokens,
-					tokensOut: outputTokens,
-					cacheWriteTokens,
-					cacheReadTokens,
-					totalCost,
-				})
+				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+				telemetryService.captureConversationTurnEvent(
+					this.ulid,
+					providerId,
+					this.api.getModel().id,
+					"assistant",
+					currentMode,
+					{
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens,
+						totalCost,
+					},
+				)
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.taskState.didFinishAbortingStream = true
@@ -2961,7 +2978,8 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0 || this.useNativeToolCalls) {
-				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", {
+				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", currentMode, {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWriteTokens,
