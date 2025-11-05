@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ModelInfo, MoonshotModelId, moonshotDefaultModelId, moonshotModels } from "@/shared/api"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -29,6 +30,7 @@ export class MoonshotHandler implements ApiHandler {
 					baseURL:
 						this.options.moonshotApiLine === "china" ? "https://api.moonshot.cn/v1" : "https://api.moonshot.ai/v1",
 					apiKey: this.options.moonshotApiKey,
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating Moonshot client: ${error.message}`)
