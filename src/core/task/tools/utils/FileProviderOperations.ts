@@ -33,9 +33,9 @@ export class FileProviderOperations {
 	}
 
 	async deleteFile(path: string): Promise<void> {
-		this.provider.editType = "modify"
+		this.provider.editType = "delete"
 		await this.provider.open(path)
-		await this.provider.revertChanges()
+		await this.provider.deleteFile(path)
 	}
 
 	async moveFile(oldPath: string, newPath: string, content: string): Promise<FileOpsResult> {

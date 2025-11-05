@@ -29,7 +29,7 @@ EOF
 
 Where [YOUR_PATCH] is the actual content of your patch, specified in the following V4A diff format.
 
-*** [ACTION] File: [path/to/file] -> ACTION can be one of Add or Update. 
+*** [ACTION] File: [path/to/file] -> ACTION can be one of Add, Update, or Delete. 
 For each snippet of code that needs to be changed, repeat the following:
 [context_before] -> See below for further instructions on context.
 - [old_code] -> Precede the old code with a minus sign.
