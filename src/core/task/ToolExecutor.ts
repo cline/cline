@@ -431,10 +431,12 @@ export class ToolExecutor {
 			content = typeMatch[2] ? [typeMatch[2], ...remainingLines].join("\n") : remainingLines.join("\n")
 		}
 
-		this.taskState.userMessageContent.push({
-			type: "text",
+		const hookContextBlock = {
+			type: "text" as const,
 			text: `<hook_context source="${source}" type="${contextType}">\n${content}\n</hook_context>`,
-		})
+		}
+
+		this.taskState.userMessageContent.push(hookContextBlock)
 	}
 
 	/**
