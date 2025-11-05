@@ -1869,6 +1869,9 @@ export class Task {
 					if (text || (images && images.length > 0) || (files && files.length > 0)) {
 						userFeedback = { text, images, files }
 					}
+					// Continue command execution in background
+					didContinue = true
+					process.continue()
 				} else if (response === "noButtonClicked" && text === COMMAND_CANCEL_TOKEN) {
 					telemetryService.captureTerminalUserIntervention(TerminalUserInterventionAction.CANCELLED)
 					didCancelViaUi = true

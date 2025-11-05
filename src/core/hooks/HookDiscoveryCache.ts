@@ -64,8 +64,8 @@ export class HookDiscoveryCache {
 	private createFileWatcher: ((dir: string) => FileWatcher | null) | null = null
 	private disposed = false
 
-	// Debug logging (always enabled for troubleshooting)
-	private debug = true
+	// Debug logging (enabled via DEBUG_HOOKS env var)
+	private debug = process.env.DEBUG_HOOKS === "true"
 
 	private constructor() {}
 

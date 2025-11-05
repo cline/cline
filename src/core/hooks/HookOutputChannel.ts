@@ -35,10 +35,13 @@ export class HookOutputChannel {
 	 * @param line The output line to publish
 	 */
 	async publish(line: string): Promise<void> {
-		// Prefix with timestamp for routing in combineHookSequences
 		const prefixedOutput = `${this.hookTs}:${line}`
-		console.log(`[Channel ${this.hookTs}] Publishing: ${line.substring(0, 30)}`)
-		await this.say("hook_output", prefixedOutput)
+		try {
+			await this.say("hook_output", prefixedOutput)
+		} catch (error) {
+			console.error(`[HookOutputChannel ${this.hookTs}] Failed to publish output:`, error)
+			// Don't throw - allow hook execution to continue even if output fails
+		}
 	}
 
 	/**
