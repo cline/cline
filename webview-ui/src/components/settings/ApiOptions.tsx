@@ -131,7 +131,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		let providers = [
 			{ value: "cline", label: "Cline" },
 			{ value: "openrouter", label: "OpenRouter" },
-			{ value: "aihubmix", label: "AIhubmix" },
 			{ value: "gemini", label: "Google Gemini" },
 			{ value: "openai", label: "OpenAI Compatible" },
 			{ value: "anthropic", label: "Anthropic" },
@@ -168,6 +167,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "oca", label: "Oracle Code Assist" },
 			{ value: "minimax", label: "MiniMax" },
 			{ value: "hicap", label: "Hicap" },
+			{ value: "aihubmix", label: "AIhubmix" },
 		]
 
 		// Filter by platform
