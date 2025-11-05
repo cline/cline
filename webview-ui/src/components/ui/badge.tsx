@@ -14,7 +14,7 @@ const badgeVariants = cva(
 				outline: "text-foreground",
 			},
 			type: {
-				default: "rounded-md px-1 font-normal",
+				default: "rounded-sm px-1 font-normal",
 				round: "rounded-full h-5 w-auto",
 			},
 		},
