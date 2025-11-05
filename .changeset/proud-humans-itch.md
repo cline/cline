@@ -2,4 +2,4 @@
 "claude-dev": patch
 ---
 
-fixes a bug where the check box shows in the model selector dropdown.
+Fixes a bug where the checkbox shows in the model selector dropdown.
