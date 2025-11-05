@@ -213,13 +213,15 @@ func extractProviderFromState(stateData map[string]interface{}, mode string) *Pr
 // mapProviderStringToEnum converts provider string from state to ApiProvider enum
 // Returns (provider, ok) where ok is false if the provider is unknown
 func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
+	normalizedStr := strings.ToLower(providerStr)
+	
 	// Map string values to enum values
-	switch providerStr {
+	switch normalizedStr {
 	case "anthropic":
 		return cline.ApiProvider_ANTHROPIC, true
-	case "openai-compatible": // internal name is 'openai', but this is actually the openai-compatible provider
+	case "openai", "openai-compatible": // internal name is 'openai', but this is actually the openai-compatible provider
 		return cline.ApiProvider_OPENAI, true
-	case "openai", "openai-native": // This is the native, official Open AI provider
+	case "openai-native": // This is the native, official Open AI provider
 		return cline.ApiProvider_OPENAI_NATIVE, true
 	case "openrouter":
 		return cline.ApiProvider_OPENROUTER, true
