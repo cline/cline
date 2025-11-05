@@ -67,43 +67,90 @@ function filterPartialToolMessages(messages: ClineMessage[]): ClineMessage[] {
 }
 
 /**
- * Combines a single hook message with all subsequent hook_output messages.
+ * Combines a single hook message with all hook_output messages routed to it.
  *
- * @param hookMessage The hook message to start combining from
+ * Architecture: Pub-Sub Output Routing
+ * ------------------------------------
+ * Each hook execution gets a dedicated HookOutputChannel that handles routing.
+ * The channel automatically prefixes outputs with the hook's timestamp:
+ * `${hookTimestamp}:${actualOutput}`
+ *
+ * This function trusts the channel's routing and matches outputs by timestamp prefix.
+ * Since channels ensure correct routing, we can scan all messages without worrying
+ * about arrival order - each output is guaranteed to have the correct prefix.
+ *
+ * Benefits:
+ * - Explicit routing via channels (not implicit post-hoc matching)
+ * - Order-independent (outputs can arrive in any sequence)
+ * - Type-safe (channels enforce correct hook-output relationships)
+ * - Timestamps preserved for message identity
+ *
+ * @param hookMessage The hook message to combine with its outputs
  * @param startIndex The index of the hook message in the messages array
- * @param messages The full messages array
+ * @param messages The full messages array (scanned completely for this hook's outputs)
  * @returns Object containing the combined message and the next index to process
  */
 function combineHookWithOutputs(
 	hookMessage: ClineMessage,
 	startIndex: number,
 	messages: ClineMessage[],
+	consumedOutputIndices: Set<number>,
 ): { combined: ClineMessage; nextIndex: number } {
 	let combinedText = hookMessage.text || ""
 	let hasOutput = false
-	let i = startIndex + 1
+	const hookTs = hookMessage.ts
 
-	// Collect all hook_output messages until we hit another hook or end of array
-	while (i < messages.length && messages[i].say !== "hook") {
+	// Scan all remaining messages for outputs routed to this hook
+	// Since HookOutputChannel routes via timestamp prefix, we can trust the routing
+	// and don't need to worry about message order
+	for (let i = startIndex + 1; i < messages.length; i++) {
 		if (messages[i].say === "hook_output") {
-			// Add marker before first output
-			if (!hasOutput) {
-				combinedText += `\n${HOOK_OUTPUT_STRING}`
-				hasOutput = true
+			const outputText = messages[i].text || ""
+
+			// Check if this output belongs to this hook
+			// Format: ${parentTs}:${actualOutput}
+			const colonIndex = outputText.indexOf(":")
+			let belongsToThisHook = false
+			let actualOutput = outputText
+
+			if (colonIndex > 0) {
+				const parentTsStr = outputText.substring(0, colonIndex)
+				const parsedParentTs = parseInt(parentTsStr, 10)
+
+				if (!isNaN(parsedParentTs) && parsedParentTs === hookTs) {
+					// This output belongs to this hook (routed by HookOutputChannel)
+					belongsToThisHook = true
+					actualOutput = outputText.substring(colonIndex + 1)
+				}
+			} else {
+				// No parent timestamp prefix - legacy format
+				// For backward compatibility, only consume if not already consumed by another hook
+				if (!consumedOutputIndices.has(i)) {
+					belongsToThisHook = true
+				}
 			}
 
-			// Append output if not empty
-			const output = messages[i].text || ""
-			if (output.length > 0) {
-				combinedText += "\n" + output
+			if (belongsToThisHook) {
+				// Mark this output as consumed
+				consumedOutputIndices.add(i)
+
+				// Add marker before first output
+				if (!hasOutput) {
+					combinedText += `\n${HOOK_OUTPUT_STRING}`
+					hasOutput = true
+				}
+
+				// Append output if not empty
+				if (actualOutput.length > 0) {
+					combinedText += "\n" + actualOutput
+				}
 			}
 		}
-		i++
 	}
 
 	return {
 		combined: { ...hookMessage, text: combinedText },
-		nextIndex: i,
+		nextIndex: messages.length,
 	}
 }
 
@@ -117,12 +164,13 @@ function combineHookWithOutputs(
 function combineAllHooks(messages: ClineMessage[]): ClineMessage[] {
 	// Pass 1: Build map of combined hooks by timestamp
 	const combinedHooksByTs = new Map<number, ClineMessage>()
+	const consumedOutputIndices = new Set<number>()
 
 	for (let i = 0; i < messages.length; i++) {
 		if (messages[i].say === "hook") {
-			const { combined, nextIndex } = combineHookWithOutputs(messages[i], i, messages)
+			const { combined } = combineHookWithOutputs(messages[i], i, messages, consumedOutputIndices)
 			combinedHooksByTs.set(combined.ts, combined)
-			i = nextIndex - 1 // Adjust for loop increment
+			// Don't skip ahead - each hook independently scans all messages
 		}
 	}
 

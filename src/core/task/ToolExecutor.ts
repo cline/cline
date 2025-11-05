@@ -114,10 +114,15 @@ export class ToolExecutor {
 		private updateFCListFromToolResponse: (taskProgress: string | undefined) => Promise<void>,
 		private switchToActMode: () => Promise<boolean>,
 
-		// Atomic hook state helpers from Task
-		private setActiveHookExecution: (hookExecution: NonNullable<typeof taskState.activeHookExecution>) => Promise<void>,
-		private clearActiveHookExecution: () => Promise<void>,
-		private getActiveHookExecution: () => Promise<typeof taskState.activeHookExecution>,
+		// Atomic hook state helpers from Task (Map-based API)
+		private setActiveHookExecution: (hookExecution: {
+			hookName: string
+			toolName: string | undefined
+			messageTs: number
+			abortController: AbortController
+			scriptPath?: string
+		}) => Promise<void>,
+		private clearActiveHookExecution: (messageTs: number) => Promise<void>,
 	) {
 		this.autoApprover = new AutoApprove(this.stateManager)
 

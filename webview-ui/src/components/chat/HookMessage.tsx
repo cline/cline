@@ -81,11 +81,6 @@ interface HookMetadata {
  * - Running hooks: Always shows pending tool info
  */
 const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
-	// Log when component mounts/updates
-	console.log(
-		`[HOOK-UI RENDER] HookMessage rendering: ${JSON.stringify({ hookName: message.text?.substring(0, 100), ts: message.ts })}`,
-	)
-
 	// Parse hook metadata and output
 	const { metadata, output } = useMemo(() => {
 		const splitMessage = (text: string) => {

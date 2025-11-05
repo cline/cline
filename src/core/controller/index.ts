@@ -20,7 +20,6 @@ import { UserInfo } from "@shared/UserInfo"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
-import pWaitFor from "p-wait-for"
 import * as path from "path"
 import type { FolderLockWithRetryResult } from "src/core/locks/types"
 import * as vscode from "vscode"
@@ -435,57 +434,33 @@ export class Controller {
 		try {
 			this.updateBackgroundCommandState(false)
 
+			// Task.abortTask() now handles everything:
+			// - Runs TaskCancel hook if needed
+			// - Presents resume button and waits for user
+			// - Runs TaskResume hook
+			// - Starts task execution in background
+			// No need for Controller to do any re-initialization or double-checking
 			try {
 				await this.task.abortTask()
 			} catch (error) {
 				console.error("Failed to abort task", error)
 			}
 
-			await pWaitFor(
-				() =>
-					this.task === undefined ||
-					this.task.taskState.isStreaming === false ||
-					this.task.taskState.didFinishAbortingStream ||
-					this.task.taskState.isWaitingForFirstChunk, // if only first chunk is processed, then there's no need to wait for graceful abort (closes edits, browser, etc)
-				{
-					timeout: 3_000,
-				},
-			).catch(() => {
-				console.error("Failed to abort task")
-			})
-
-			if (this.task) {
-				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
-				this.task.taskState.abandoned = true
-			}
-
-			// Small delay to ensure state manager has persisted the history update
-			//await new Promise((resolve) => setTimeout(resolve, 100))
-
-			// NOW try to get history after abort has finished (hook may have saved messages)
-			let historyItem: HistoryItem | undefined
-			try {
-				const result = await this.getTaskWithId(this.task.taskId)
-				historyItem = result.historyItem
-			} catch (error) {
-				// Task not in history yet (new task with no messages); catch the
-				// error to enable the agent to continue making progress.
-				console.log(`[Controller.cancelTask] Task not found in history: ${error}`)
-			}
-
-			// Only re-initialize if we found a history item, otherwise just clear
-			if (historyItem) {
-				// Re-initialize task to keep it visible in UI with resume button
-				await this.initTask(undefined, undefined, undefined, historyItem, undefined)
-			} else {
-				await this.clearTask()
-			}
-
+			// Update UI to reflect current state
 			await this.postStateToWebview()
 		} finally {
 			// Always clear the flag, even if cancellation fails
 			this.cancelInProgress = false
 		}
+	}
+
+	/**
+	 * Called by Task when it enters the resume flow (_handleResumeFlow).
+	 * This clears the Controller's cancel guard to allow cancellation during hooks.
+	 */
+	clearCancelInProgress() {
+		console.log(`[Controller.clearCancelInProgress] Clearing cancel guard for resume flow`)
+		this.cancelInProgress = false
 	}
 
 	updateBackgroundCommandState(running: boolean, taskId?: string) {

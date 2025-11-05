@@ -241,7 +241,7 @@ export type HookStreamCallback = (line: string, stream: "stdout" | "stderr") => 
  *
  * @template Name The type of hook this runner represents
  */
-class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
+export class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 	constructor(
 		hookName: Name,
 		public readonly scriptPath: string,
@@ -492,6 +492,16 @@ export class HookFactory {
 	async hasHook<Name extends HookName>(hookName: Name): Promise<boolean> {
 		const scripts = await HookFactory.findHookScripts(hookName)
 		return scripts.length > 0
+	}
+
+	/**
+	 * Discover all hook scripts for the given hook name without creating runners.
+	 * This is useful when you want to execute each hook individually with separate contexts.
+	 * @returns Array of paths to hook scripts
+	 */
+	async discoverHookScripts<Name extends HookName>(hookName: Name): Promise<string[]> {
+		const { HookDiscoveryCache } = await import("./HookDiscoveryCache")
+		return await HookDiscoveryCache.getInstance().get(hookName)
 	}
 
 	/**

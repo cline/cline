@@ -132,6 +132,11 @@ export class HookDiscoveryCache {
 			const hooksDirs = await getAllHooksDirs()
 			this.log(`Scanning ${hooksDirs.length} directories for ${hookName}`)
 
+			// Log each directory being scanned
+			hooksDirs.forEach((dir, index) => {
+				this.log(`  [${index + 1}] ${dir}`)
+			})
+
 			// Ensure watchers are set up for each directory (lazy initialization)
 			for (const dir of hooksDirs) {
 				this.ensureWatcher(dir)
@@ -144,6 +149,11 @@ export class HookDiscoveryCache {
 			const scripts = results.filter((path): path is string => path !== undefined)
 
 			this.log(`Found ${scripts.length} scripts for ${hookName}`)
+
+			// Log each found script
+			scripts.forEach((script, index) => {
+				this.log(`  [${index + 1}] ${script}`)
+			})
 
 			// Cache the result
 			this.cache.set(hookName, {
