@@ -22,7 +22,7 @@ export const BASH_WRAPPERS = ["%%bash", "apply_patch", "EOF", "```"] as const
  */
 export enum PatchActionType {
 	ADD = "add",
-	DELETE = "delete",
+	DELETE = "delete", // TODO: Implement delete action in diff editor.
 	UPDATE = "update",
 }
 

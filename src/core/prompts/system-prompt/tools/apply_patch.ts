@@ -18,7 +18,7 @@ import { TASK_PROGRESS_PARAMETER } from "../types"
 //     },
 // }
 
-const APPLY_PATCH_TOOL_DESC = `This is a custom utility that makes it more convenient to add, remove, move, or edit code files. \`apply_patch\` effectively allows you to execute a diff/patch against a file, but the format of the diff specification is unique to this task, so pay careful attention to these instructions. To use the \`apply_patch\` command, you should pass a message of the following structure as "input":
+const APPLY_PATCH_TOOL_DESC = `This is a custom utility that makes it more convenient to add, remove, move, or edit code in a single file. \`apply_patch\` effectively allows you to execute a diff/patch against a file, but the format of the diff specification is unique to this task, so pay careful attention to these instructions. To use the \`apply_patch\` command, you should pass a message of the following structure as "input":
 
 %%bash
 apply_patch <<"EOF"
@@ -29,7 +29,7 @@ EOF
 
 Where [YOUR_PATCH] is the actual content of your patch, specified in the following V4A diff format.
 
-*** [ACTION] File: [path/to/file] -> ACTION can be one of Add, Update, or Delete.
+*** [ACTION] File: [path/to/file] -> ACTION can be one of Add or Update. 
 For each snippet of code that needs to be changed, repeat the following:
 [context_before] -> See below for further instructions on context.
 - [old_code] -> Precede the old code with a minus sign.

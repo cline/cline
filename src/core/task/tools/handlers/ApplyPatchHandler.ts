@@ -489,7 +489,16 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		return { changes }
 	}
 
-	private applyChunks(content: string, chunks: PatchChunk[], path: string): string {
+	/**
+	 * Applies patch chunks to the given content.
+	 * @param content The original file content.
+	 * @param chunks The patch chunks to apply.
+	 * @param path The file path (for error messages).
+	 * NOTE: Remove tryPreserveEscaping and related logic once we can confirm this is not an issue across providers.
+	 * @param tryPreserveEscaping Whether to attempt preserving escaping style in cases where the provider has escaped the shared content during the API call.
+	 * @returns The modified content after applying the chunks.
+	 */
+	private applyChunks(content: string, chunks: PatchChunk[], path: string, tryPreserveEscaping = false): string {
 		if (chunks.length === 0) {
 			return content
 		}
@@ -517,7 +526,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			// Add inserted lines, preserving escaping style from original
 			const insertedLines = chunk.insLines.map((line) => {
 				// Only preserve escaping if we have original text to compare against
-				if (originalText) {
+				if (tryPreserveEscaping && originalText) {
 					return preserveEscaping(originalText, line)
 				}
 				return line
@@ -643,7 +652,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 							content: change.movePath ? change.oldContent : change.newContent,
 							operationIsLocatedInWorkspace,
 						} as ClineSayTool
-					// case PatchActionType.DELETE:
+					case PatchActionType.DELETE:
 					default:
 						return {
 							tool: "editedExistingFile",
