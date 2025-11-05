@@ -318,7 +318,7 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 					// Scan from the end to find the last complete JSON object
 					for (let i = lines.length - 1; i >= 0; i--) {
-						const line = lines[i]
+						const line = lines[i].trimEnd()
 
 						// Count braces to track JSON object boundaries
 						for (let j = line.length - 1; j >= 0; j--) {
@@ -344,7 +344,13 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 					if (jsonCandidate.trim()) {
 						try {
-							const outputData = JSON.parse(jsonCandidate.trim())
+							// Trim everything before the first opening bracket
+							const trimmedCandidate = jsonCandidate.trim()
+							const firstBraceIndex = trimmedCandidate.indexOf("{")
+							const cleanedJson =
+								firstBraceIndex !== -1 ? trimmedCandidate.slice(firstBraceIndex) : trimmedCandidate
+
+							const outputData = JSON.parse(cleanedJson)
 
 							// Validate structure
 							const validation = validateHookOutput(outputData)
