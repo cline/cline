@@ -111,8 +111,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 								italic: !isExpanded,
 							},
 						)}
-						onChange={(e) => (isExpanded ? setFilename(e.target.value) : null)}
-						onKeyDown={(e) => (isExpanded ? handleKeyDown(e) : null)}
+						onChange={(e) => setFilename(e.target.value)}
 						placeholder={
 							isExpanded
 								? ruleType === "workflow"
@@ -136,14 +135,12 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 									: "New rule file..."
 						}
 						className="mx-2"
-						onClick={(e) =>
-							isExpanded
-								? null
-								: (() => {
-										e.stopPropagation()
-										setIsExpanded(true)
-									})()
-						}
+						onClick={(e) => {
+							e.stopPropagation()
+							if (!isExpanded) {
+								setIsExpanded(true)
+							}
+						}}
 						size="icon"
 						title={isExpanded ? "Create rule file" : "New rule file"}
 						type={isExpanded ? "submit" : "button"}

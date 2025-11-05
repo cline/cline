@@ -167,7 +167,7 @@ const ServerRow = ({
 
 	return (
 		<div className="mb-2.5">
-			<div className="flex align-center bg-code-block-background p-2 gap-4 items-center" onClick={handleRowClick}>
+			<div className="flex bg-code-block-background p-2 gap-4 items-center" onClick={handleRowClick}>
 				{!server.error && isExpandable && (
 					<span
 						className={cn("mr-2 codicon", {
@@ -207,14 +207,7 @@ const ServerRow = ({
 					</Button>
 				)}
 				{/* Toggle Switch */}
-				<Switch
-					checked={!server.disabled}
-					key={server.name}
-					onClick={(e) => {
-						e.preventDefault()
-						handleToggleMcpServer()
-					}}
-				/>
+				<Switch checked={!server.disabled} key={server.name} onClick={handleToggleMcpServer} />
 				<div
 					className={cn("h-2 w-2 ml-0.5 rounded-full", {
 						"bg-success": server.status === "connected",
