@@ -68,16 +68,12 @@ gh auth login
 
 ## Getting the Script
 
-**Option 1: Clone or view the repository**
-- Script location: [`analyze-issue.sh`](./analyze-issue.sh)
-
-**Option 2: Download directly with curl**
+**Option 1: Download directly with curl**
 ```bash
 curl -O https://raw.githubusercontent.com/cline/cline/main/src/samples/cli/github-issue-rca/analyze-issue.sh
-chmod +x analyze-issue.sh
 ```
 
-**Option 3: Copy the full script**
+**Option 2: Copy the full script**
 
 <Accordion title="Click to view the complete analyze-issue.sh script">
 
@@ -109,11 +105,18 @@ cline -y "$PROMPT: $ISSUE_URL" --mode act $ADDRESS -F json | \
 
 </Accordion>
 
+<Note>
+**After downloading or creating the script**, make it executable by running:
+```bash
+chmod +x analyze-issue.sh
+```
+</Note>
+
 ## Quick Usage Examples
 
 ### Basic Usage
 
-Analyze an issue with the default root cause prompt:
+Run this command in your terminal from the directory where you saved the script to analyze an issue with the default root cause prompt:
 
 ```bash
 ./analyze-issue.sh https://github.com/owner/repo/issues/123
