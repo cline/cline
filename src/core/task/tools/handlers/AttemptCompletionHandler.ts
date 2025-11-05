@@ -117,7 +117,10 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			}
 
 			// complete command message - need to ask for approval
-			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
+			// In YOLO mode, auto-approve command execution
+			const didApprove = config.callbacks.shouldAutoApproveTool(this.name)
+				? true
+				: await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
 			if (!didApprove) {
 				return formatResponse.toolDenied()
 			}
@@ -146,6 +149,11 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 		if (!block.partial && config.focusChainSettings.enabled) {
 			await config.callbacks.updateFCListFromToolResponse(block.params.task_progress)
+		}
+
+		// In YOLO mode, auto-complete without asking for user confirmation
+		if (config.callbacks.shouldAutoApproveTool(this.name)) {
+			return "" // signals to recursive loop to stop
 		}
 
 		const { response, text, images, files: completionFiles } = await config.callbacks.ask("completion_result", "", false)
