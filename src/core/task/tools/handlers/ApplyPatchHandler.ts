@@ -201,37 +201,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					return
 				}
 
-				// For streaming preview, try to apply partial patch if possible
-				try {
-					// Store original content first time we see this file
-					if (!state.originalFiles[targetPath]) {
-						state.originalFiles[targetPath] = originalContent
-					}
-
-					// Try to parse and apply the partial patch
-					const filesToLoad = this.extractFilesForOperations(rawInput, [PATCH_MARKERS.UPDATE])
-					const currentFiles = await this.loadFiles(config, filesToLoad)
-
-					if (Object.keys(currentFiles).length > 0) {
-						const parser = new PatchParser(lines, currentFiles)
-						const { patch } = parser.parse()
-
-						// Apply the patch if we have actions for this file
-						if (patch.actions[targetPath]) {
-							const action = patch.actions[targetPath]
-							if (action.type === PatchActionType.UPDATE && action.chunks.length > 0) {
-								stream.content = this.applyChunks(originalContent, action.chunks, targetPath)
-							}
-						}
-					}
-
-					if (stream.content === undefined) {
-						stream.content = originalContent
-					}
-				} catch {
-					// If parsing fails during streaming, just show original content
-					stream.content = originalContent
-				}
+				// For streaming preview, just show original content - full application happens in execute
+				stream.content = originalContent
 				break
 			}
 			case PatchActionType.DELETE:
@@ -447,7 +418,12 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		for (const line of lines) {
 			for (const marker of markers) {
 				if (line.startsWith(marker)) {
-					files.push(line.substring(marker.length).trim())
+					const file = line.substring(marker.length).trim()
+					if (text.trim().endsWith(file)) {
+						// Ignore if the file path is at the very end of the text (likely incomplete)
+						continue
+					}
+					files.push(file)
 					break
 				}
 			}
@@ -477,7 +453,6 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			if (!(await fileExistsAtPath(absolutePath))) {
 				throw new DiffError(`File not found: ${filePath}`)
 			}
-
 			const fileContent = await readFile(absolutePath, "utf8")
 			const normalizedContent = fileContent.replace(/\r\n/g, "\n")
 			files[filePath] = normalizedContent
