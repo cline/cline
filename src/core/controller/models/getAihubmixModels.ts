@@ -17,7 +17,6 @@ export async function getAihubmixModels(_controller: Controller, _request: Empty
 			console.error("Invalid response from AIhubmix API:", response.data)
 			return OpenRouterCompatibleModelInfo.create({ models: {} })
 		}
-		// 原始数据为数组，不能直接复用为 map；需构造独立的 modelsMap
 		const modelsArray = response.data.data as any[]
 		const modelsMap: Record<string, OpenRouterModelInfo> = {}
 
@@ -26,17 +25,14 @@ export async function getAihubmixModels(_controller: Controller, _request: Empty
 				continue
 			}
 
-			// 检查是否支持图像
 			const supportsImages =
 				modelData.modalities?.includes("vision") ||
 				modelData.modalities?.includes("image") ||
 				modelData.features?.includes("vision") ||
 				false
 
-			// 检查是否支持思维链
 			const supportsThinking = modelData.features?.includes("thinking") || false
 
-			// 检查是否支持缓存：cache_ratio 非1 或 读价与输入价不同
 			const pricing = modelData.pricing || {}
 			const supportsPromptCache =
 				(modelData.cache_ratio !== undefined && modelData.cache_ratio !== 1) ||
