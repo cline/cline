@@ -31,6 +31,12 @@ interface Commit {
 	changes: Record<string, FileChange>
 }
 
+export const PatchClineSayMap = {
+	[PatchActionType.ADD]: "newFileCreated",
+	[PatchActionType.DELETE]: "fileDeleted",
+	[PatchActionType.UPDATE]: "editedExistingFile",
+}
+
 export class ApplyPatchHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.APPLY_PATCH
 	private appliedCommit?: Commit
@@ -121,7 +127,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			}
 		}
 
-		if (!targetPath || targetPath.length === 0 || targetPath.includes("***")) {
+		if (!targetPath || targetPath.length === 0 || targetPath.includes("***") || !actionType) {
 			return
 		}
 
@@ -156,7 +162,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			.ask(
 				"tool",
 				JSON.stringify({
-					tool: actionType === PatchActionType.ADD ? "newFileCreated" : "editedExistingFile",
+					tool: PatchClineSayMap[actionType],
 					path: getReadablePath(config.cwd, finalPath),
 					content: rawInput,
 					operationIsLocatedInWorkspace: await isLocatedInWorkspace(finalPath),
@@ -653,9 +659,8 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 							operationIsLocatedInWorkspace,
 						} as ClineSayTool
 					case PatchActionType.DELETE:
-					default:
 						return {
-							tool: "editedExistingFile",
+							tool: "fileDeleted",
 							path: file,
 							content: change.newContent,
 							operationIsLocatedInWorkspace,
