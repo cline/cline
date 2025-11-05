@@ -954,7 +954,7 @@ export class Controller {
 			},
 			hooksEnabled: {
 				user: this.stateManager.getGlobalStateKey("hooksEnabled"),
-				featureFlag: featureFlagsService.getHooksEnabled(),
+				featureFlag: true, // Hooks feature is now always available
 			},
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,

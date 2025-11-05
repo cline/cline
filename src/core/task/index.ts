@@ -808,7 +808,7 @@ export class Task {
 		userContent: UserContent,
 		_context: "initial_task" | "resume" | "feedback",
 	): Promise<{ cancel?: boolean; contextModification?: string; errorMessage?: string }> {
-		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 
 		if (!hooksEnabled) {
 			return {}
@@ -904,7 +904,7 @@ export class Task {
 		}
 
 		// Add TaskStart hook context to the conversation if provided
-		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
 			const { executeHook } = await import("../hooks/hook-executor")
 
@@ -1051,7 +1051,7 @@ export class Task {
 		const newUserContent: UserContent = []
 
 		// Run TaskResume hook AFTER user clicks resume button
-		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
 			const { executeHook } = await import("../hooks/hook-executor")
 
@@ -1361,7 +1361,7 @@ export class Task {
 			// PHASE 4: Run TaskCancel hook
 			// This allows the hook UI to appear in the webview
 			// Use the shouldRunTaskCancelHook value we captured in Phase 1
-			const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+			const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 			if (hooksEnabled && shouldRunTaskCancelHook) {
 				try {
 					const { executeHook } = await import("../hooks/hook-executor")
