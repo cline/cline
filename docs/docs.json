@@ -270,7 +270,7 @@
 									}
 								]
 							},
-							"enterprise-solutions/configure-workOS-authkit"
+							"enterprise-solutions/Onboarding your Organization"
 						]
 					}
 				]
@@ -344,6 +344,10 @@
 		{
 			"source": "/enterprise-solutions/configure-AWS-Bedrock-Member",
 			"destination": "/enterprise-solutions/provider-remote-config/aws-bedrock/member-configuration"
+		},
+		{
+			"source": "/enterprise-solutions/configure-workOS-authkit",
+			"destination": "/enterprise-solutions/Onboarding your Organization"
 		}
 	],
 	"search": {
