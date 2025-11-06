@@ -71,6 +71,7 @@ import { ClineAskResponse } from "@shared/WebviewMessage"
 import { isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
+import * as chokidar from "chokidar"
 import cloneDeep from "clone-deep"
 import Mutex from "p-mutex"
 import pWaitFor from "p-wait-for"
@@ -221,6 +222,7 @@ export class Task {
 
 	// Context configuration
 	private contextConfigLoader: ContextConfigLoader
+	private contextConfigWatcher?: chokidar.FSWatcher
 
 	// Focus Chain
 	private FocusChainManager?: FocusChainManager
@@ -363,6 +365,11 @@ export class Task {
 
 		// Initialize context config loader
 		this.contextConfigLoader = new ContextConfigLoader()
+
+		// Set up context config file watcher (async, runs in background)
+		this.setupContextConfigWatcher().catch((error: Error) => {
+			console.error(`[Task ${this.taskId}] Failed to setup context config file watcher:`, error)
+		})
 
 		// Initialize focus chain manager only if enabled
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
@@ -1455,6 +1462,11 @@ export class Task {
 			if (this.FocusChainManager) {
 				this.FocusChainManager.dispose()
 			}
+			// Close context config watcher
+			if (this.contextConfigWatcher) {
+				this.contextConfigWatcher.close()
+				this.contextConfigWatcher = undefined
+			}
 		} finally {
 			// Release task folder lock
 			if (this.taskLockAcquired) {
@@ -1473,6 +1485,50 @@ export class Task {
 			} catch (error) {
 				Logger.error("Failed to post final state after abort", error)
 			}
+		}
+	}
+
+	/**
+	 * Sets up a file watcher to monitor changes to the context configuration file (.cline/context.json).
+	 * Automatically reloads the configuration when the file is created, modified, or deleted.
+	 * @requires this.taskId, this.cwd to be initialized
+	 * @returns Promise<void> - Resolves when watcher is set up, logs errors if setup fails
+	 */
+	private async setupContextConfigWatcher(): Promise<void> {
+		try {
+			const contextConfigPath = path.join(this.cwd, ".cline", "context.json")
+
+			// Initialize chokidar watcher
+			this.contextConfigWatcher = chokidar.watch(contextConfigPath, {
+				persistent: true,
+				ignoreInitial: true,
+				awaitWriteFinish: {
+					stabilityThreshold: 300,
+					pollInterval: 100,
+				},
+			})
+
+			// Handle file changes
+			this.contextConfigWatcher
+				.on("add", async () => {
+					console.log(`[Task ${this.taskId}] Context config file created, reloading...`)
+					await this.contextConfigLoader.loadConfig(this.cwd)
+				})
+				.on("change", async () => {
+					console.log(`[Task ${this.taskId}] Context config file changed, reloading...`)
+					await this.contextConfigLoader.loadConfig(this.cwd)
+				})
+				.on("unlink", async () => {
+					console.log(`[Task ${this.taskId}] Context config file deleted, using defaults...`)
+					await this.contextConfigLoader.loadConfig(this.cwd)
+				})
+				.on("error", (error) => {
+					console.error(`[Task ${this.taskId}] Failed to watch context config file:`, error)
+				})
+
+			console.log(`[Task ${this.taskId}] Context config file watcher initialized`)
+		} catch (error) {
+			console.error(`[Task ${this.taskId}] Failed to setup context config file watcher:`, error)
 		}
 	}
 
