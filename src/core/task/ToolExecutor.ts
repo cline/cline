@@ -4,7 +4,6 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { featureFlagsService } from "@services/feature-flags"
 import { McpHub } from "@services/mcp/McpHub"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineDefaultTool } from "@shared/tools"
@@ -432,10 +431,12 @@ export class ToolExecutor {
 			content = typeMatch[2] ? [typeMatch[2], ...remainingLines].join("\n") : remainingLines.join("\n")
 		}
 
-		this.taskState.userMessageContent.push({
-			type: "text",
+		const hookContextBlock = {
+			type: "text" as const,
 			text: `<hook_context source="${source}" type="${contextType}">\n${content}\n</hook_context>`,
-		})
+		}
+
+		this.taskState.userMessageContent.push(hookContextBlock)
 	}
 
 	/**
@@ -544,10 +545,8 @@ export class ToolExecutor {
 			return
 		}
 
-		// Check if hooks are enabled (both feature flag and user setting must be true)
-		const featureFlagEnabled = featureFlagsService.getHooksEnabled()
-		const userEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
-		const hooksEnabled = featureFlagEnabled && userEnabled
+		// Check if hooks are enabled via user setting
+		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 
 		// Track if we need to cancel after hooks complete
 		let shouldCancelAfterHook = false
