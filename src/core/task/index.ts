@@ -47,7 +47,7 @@ import { TerminalProcessResultPromise } from "@integrations/terminal/TerminalPro
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { featureFlagsService } from "@services/feature-flags"
-import { listFiles } from "@services/glob/list-files"
+import { listFiles, listFilesWithGlobFilter } from "@services/glob/list-files"
 import { Logger } from "@services/logging/Logger"
 import { McpHub } from "@services/mcp/McpHub"
 import { ApiConfiguration } from "@shared/api"
@@ -3447,9 +3447,23 @@ export class Task {
 				// don't want to immediately access desktop since it would show permission popup
 				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
 			} else {
-				const [files, didHitLimit] = await listFiles(this.cwd, true, 200)
-				const result = formatResponse.formatFilesList(this.cwd, files, didHitLimit, this.clineIgnoreController)
-				details += result
+				// Check file tree style from config
+				if (config.fileTreeStyle === "flat") {
+					// Use flat list with glob filtering
+					const [files, didHitLimit] = await listFilesWithGlobFilter(
+						this.cwd,
+						config.workdir.includePatterns,
+						config.workdir.excludePatterns,
+						config.workdir.maxFileCount,
+					)
+					const result = formatResponse.formatFlatFileList(this.cwd, files, didHitLimit)
+					details += result
+				} else {
+					// Use tree style (default)
+					const [files, didHitLimit] = await listFiles(this.cwd, true, 200)
+					const result = formatResponse.formatFilesList(this.cwd, files, didHitLimit, this.clineIgnoreController)
+					details += result
+				}
 			}
 
 			// Add workspace information in JSON format

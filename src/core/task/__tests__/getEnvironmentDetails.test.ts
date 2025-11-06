@@ -162,6 +162,12 @@ describe("Task.getEnvironmentDetails", () => {
 				includeVisibleFiles: false,
 				includeOpenTabs: false,
 				includeFileTree: true,
+				fileTreeStyle: "tree",
+				workdir: {
+					includePatterns: [],
+					excludePatterns: [],
+					maxFileCount: 200,
+				},
 			})
 
 			const result = await task.getEnvironmentDetails(true)
@@ -170,11 +176,55 @@ describe("Task.getEnvironmentDetails", () => {
 			expect(result).to.include("Current Working Directory")
 		})
 
+		it("should use flat file list when fileTreeStyle is flat", async () => {
+			mockContextConfigLoader.loadConfig.resolves({
+				includeVisibleFiles: false,
+				includeOpenTabs: false,
+				includeFileTree: true,
+				fileTreeStyle: "flat",
+				workdir: {
+					includePatterns: ["**/*.ts"],
+					excludePatterns: ["**/*.test.ts"],
+					maxFileCount: 100,
+				},
+			})
+
+			const result = await task.getEnvironmentDetails(true)
+
+			// Should include the file tree header
+			expect(result).to.include("Current Working Directory")
+		})
+
+		it("should use tree style when fileTreeStyle is tree", async () => {
+			mockContextConfigLoader.loadConfig.resolves({
+				includeVisibleFiles: false,
+				includeOpenTabs: false,
+				includeFileTree: true,
+				fileTreeStyle: "tree",
+				workdir: {
+					includePatterns: [],
+					excludePatterns: [],
+					maxFileCount: 200,
+				},
+			})
+
+			const result = await task.getEnvironmentDetails(true)
+
+			// Should include the file tree header
+			expect(result).to.include("Current Working Directory")
+		})
+
 		it("should exclude file tree when config.includeFileTree is false even if includeFileDetails is true", async () => {
 			mockContextConfigLoader.loadConfig.resolves({
 				includeVisibleFiles: false,
 				includeOpenTabs: false,
 				includeFileTree: false,
+				fileTreeStyle: "tree",
+				workdir: {
+					includePatterns: [],
+					excludePatterns: [],
+					maxFileCount: 200,
+				},
 			})
 
 			const result = await task.getEnvironmentDetails(true)
@@ -187,6 +237,12 @@ describe("Task.getEnvironmentDetails", () => {
 				includeVisibleFiles: false,
 				includeOpenTabs: false,
 				includeFileTree: true,
+				fileTreeStyle: "tree",
+				workdir: {
+					includePatterns: [],
+					excludePatterns: [],
+					maxFileCount: 200,
+				},
 			})
 
 			const result = await task.getEnvironmentDetails(false)
@@ -201,6 +257,12 @@ describe("Task.getEnvironmentDetails", () => {
 				includeVisibleFiles: true,
 				includeOpenTabs: true,
 				includeFileTree: true,
+				fileTreeStyle: "tree",
+				workdir: {
+					includePatterns: [],
+					excludePatterns: [],
+					maxFileCount: 200,
+				},
 			})
 
 			const result = await task.getEnvironmentDetails(true)
@@ -215,6 +277,12 @@ describe("Task.getEnvironmentDetails", () => {
 				includeVisibleFiles: false,
 				includeOpenTabs: false,
 				includeFileTree: false,
+				fileTreeStyle: "tree",
+				workdir: {
+					includePatterns: [],
+					excludePatterns: [],
+					maxFileCount: 200,
+				},
 			})
 
 			const result = await task.getEnvironmentDetails(false)

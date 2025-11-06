@@ -79,6 +79,32 @@ Otherwise, if you have not completed the task and do not need additional informa
 		return formatImagesIntoBlocks(images)
 	},
 
+	formatFlatFileList: (workspaceRoot: string, files: string[], didHitLimit: boolean): string => {
+		// Convert absolute paths to relative paths
+		const relativePaths = files.map((file) => path.relative(workspaceRoot, file).toPosix())
+
+		// Sort alphabetically with numeric sorting
+		const sorted = relativePaths.sort((a, b) =>
+			a.localeCompare(b, undefined, {
+				numeric: true,
+				sensitivity: "base",
+			}),
+		)
+
+		// Handle empty list
+		if (sorted.length === 0) {
+			return "No files found."
+		}
+
+		// Join with newlines and add truncation message if needed
+		const fileList = sorted.join("\n")
+		if (didHitLimit) {
+			return `${fileList}\n\n(File list truncated. Use list_files on specific subdirectories if you need to explore further.)`
+		}
+
+		return fileList
+	},
+
 	formatFilesList: (
 		absolutePath: string,
 		files: string[],
