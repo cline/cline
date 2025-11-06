@@ -10,6 +10,7 @@ import {
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
+import { ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { TerminalInfo } from "@/integrations/terminal/TerminalRegistry"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
@@ -17,6 +18,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
+import { accountLogoutClicked } from "../account/accountLogoutClicked"
 
 /**
  * Updates multiple extension settings in a single request
@@ -26,6 +28,11 @@ import { Controller } from ".."
  */
 export async function updateSettings(controller: Controller, request: UpdateSettingsRequest): Promise<Empty> {
 	try {
+		if (request.clineEnv !== undefined) {
+			ClineEnv.setEnvironment(request.clineEnv)
+			await accountLogoutClicked(controller, Empty.create())
+		}
+
 		if (request.apiConfiguration) {
 			const protoApiConfiguration = request.apiConfiguration
 
@@ -142,6 +149,34 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		// Update terminal output line limit
 		if (request.terminalOutputLineLimit !== undefined) {
 			controller.stateManager.setGlobalState("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
+		}
+
+		if (request.vscodeTerminalExecutionMode !== undefined && request.vscodeTerminalExecutionMode !== "") {
+			controller.stateManager.setGlobalState(
+				"vscodeTerminalExecutionMode",
+				request.vscodeTerminalExecutionMode === "backgroundExec" ? "backgroundExec" : "vscodeTerminal",
+			)
+		}
+
+		// Update subagent terminal output line limit
+		if (request.subagentTerminalOutputLineLimit !== undefined) {
+			controller.stateManager.setGlobalState(
+				"subagentTerminalOutputLineLimit",
+				Number(request.subagentTerminalOutputLineLimit),
+			)
+		}
+
+		// Update subagent terminal output line limit
+		if (request.subagentTerminalOutputLineLimit !== undefined) {
+			controller.stateManager.setGlobalState(
+				"subagentTerminalOutputLineLimit",
+				Number(request.subagentTerminalOutputLineLimit),
+			)
+		}
+
+		// Update max consecutive mistakes
+		if (request.maxConsecutiveMistakes !== undefined) {
+			controller.stateManager.setGlobalState("maxConsecutiveMistakes", Number(request.maxConsecutiveMistakes))
 		}
 
 		// Update strict plan mode setting
@@ -289,6 +324,48 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.multiRootEnabled !== undefined) {
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
+		}
+
+		if (request.hooksEnabled !== undefined) {
+			const isEnabled = !!request.hooksEnabled
+
+			// Platform validation: Only allow enabling hooks on macOS and Linux
+			if (isEnabled && process.platform === "win32") {
+				throw new Error("Hooks are not yet supported on Windows")
+			}
+
+			controller.stateManager.setGlobalState("hooksEnabled", isEnabled)
+		}
+
+		if (request.subagentsEnabled !== undefined) {
+			const currentSettings = controller.stateManager.getGlobalSettingsKey("subagentsEnabled")
+			const wasEnabled = currentSettings ?? false
+			const isEnabled = !!request.subagentsEnabled
+
+			// Platform validation: Only allow enabling subagents on macOS and Linux
+			if (isEnabled && process.platform !== "darwin" && process.platform !== "linux") {
+				throw new Error("CLI subagents are only supported on macOS and Linux platforms")
+			}
+
+			controller.stateManager.setGlobalState("subagentsEnabled", isEnabled)
+
+			// Capture telemetry when setting changes
+			if (wasEnabled !== isEnabled) {
+				telemetryService.captureSubagentToggle(isEnabled)
+			}
+			controller.stateManager.setGlobalState("subagentsEnabled", !!request.subagentsEnabled)
+		}
+
+		if (request.nativeToolCallEnabled !== undefined) {
+			controller.stateManager.setGlobalState("nativeToolCallEnabled", !!request.nativeToolCallEnabled)
+			if (controller.task) {
+				telemetryService.captureFeatureToggle(
+					controller.task.ulid,
+					"native-tool-call",
+					request.nativeToolCallEnabled,
+					controller.task.api.getModel().id,
+				)
+			}
 		}
 
 		// Post updated state to webview

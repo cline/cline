@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
+import { tryAcquireTaskLockWithRetry } from "@core/task/TaskLockUtils"
 import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { setupWorkspaceManager } from "@core/workspace/setup"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
@@ -11,7 +12,8 @@ import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
-import { McpMarketplaceCatalog } from "@shared/mcp"
+import { McpMarketplaceCatalog, McpMarketplaceItem } from "@shared/mcp"
+import { Settings } from "@shared/storage/state-keys"
 import { Mode } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
@@ -20,8 +22,9 @@ import axios from "axios"
 import fs from "fs/promises"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
+import type { FolderLockWithRetryResult } from "src/core/locks/types"
 import * as vscode from "vscode"
-import { clineEnvConfig } from "@/config"
+import { ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { AuthService } from "@/services/auth/AuthService"
@@ -31,6 +34,7 @@ import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { AuthState } from "@/shared/proto/index.cline"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { PromptRegistry } from "../prompts/system-prompt"
@@ -39,12 +43,15 @@ import {
 	ensureMcpServersDirectoryExists,
 	ensureSettingsDirectoryExists,
 	GlobalFileNames,
+	writeMcpMarketplaceCatalogToCache,
 } from "../storage/disk"
+import { fetchRemoteConfig } from "../storage/remote-config/fetch"
 import { PersistenceErrorEvent, StateManager } from "../storage/StateManager"
-import { Settings } from "../storage/state-keys"
 import { Task } from "../task"
+import { StreamingResponseHandler } from "./grpc-handler"
 import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceCatalog"
 import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
+import { checkCliInstallation } from "./state/checkCliInstallation"
 import { sendStateUpdate } from "./state/subscribeToState"
 import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
 
@@ -65,6 +72,20 @@ export class Controller {
 
 	// NEW: Add workspace manager (optional initially)
 	private workspaceManager?: WorkspaceRootManager
+	private backgroundCommandRunning = false
+	private backgroundCommandTaskId?: string
+
+	// Flag to prevent duplicate cancellations from spam clicking
+	private cancelInProgress = false
+
+	// Shell integration warning tracker
+	private shellIntegrationWarningTracker: {
+		timestamps: number[]
+		lastSuggestionShown?: number
+	} = { timestamps: [] }
+
+	// Timer for periodic remote config fetching
+	private remoteConfigTimer?: NodeJS.Timeout
 
 	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
@@ -86,15 +107,21 @@ export class Controller {
 		return this.workspaceManager
 	}
 
+	/**
+	 * Starts the periodic remote config fetching timer
+	 * Fetches immediately and then every 30 seconds
+	 */
+	private startRemoteConfigTimer() {
+		// Initial fetch
+		fetchRemoteConfig(this)
+		// Set up 30-second interval
+		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 30000) // 30 seconds
+	}
+
 	constructor(readonly context: vscode.ExtensionContext) {
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("ClineProvider instantiated")
 		this.stateManager = StateManager.get()
-		this.authService = AuthService.getInstance(this)
-		this.ocaAuthService = OcaAuthService.initialize(this)
-		this.accountService = ClineAccountService.getInstance()
-		this.authService.restoreRefreshTokenAndRetrieveAuthInfo()
-
 		StateManager.get().registerCallbacks({
 			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
 				console.error("[Controller] Cache persistence failed, recovering:", error)
@@ -117,6 +144,20 @@ export class Controller {
 				await this.postStateToWebview()
 			},
 		})
+		this.authService = AuthService.getInstance(this)
+		this.ocaAuthService = OcaAuthService.initialize(this)
+		this.accountService = ClineAccountService.getInstance()
+
+		const authStatusHandler: StreamingResponseHandler<AuthState> = async (response, _isLast, _seqNumber): Promise<void> => {
+			if (response.user) {
+				fetchRemoteConfig(this)
+			}
+		}
+		this.authService.subscribeToAuthStatusUpdate(this, {}, authStatusHandler, undefined)
+
+		this.authService.restoreRefreshTokenAndRetrieveAuthInfo().then(() => {
+			this.startRemoteConfigTimer()
+		})
 
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
@@ -129,6 +170,9 @@ export class Controller {
 		cleanupLegacyCheckpoints().catch((error) => {
 			console.error("Failed to cleanup legacy checkpoints:", error)
 		})
+
+		// Check CLI installation status once on startup
+		checkCliInstallation(this)
 	}
 
 	/*
@@ -137,6 +181,12 @@ export class Controller {
 	- https://github.com/microsoft/vscode-extension-samples/blob/main/webview-sample/src/extension.ts
 	*/
 	async dispose() {
+		// Clear the remote config timer
+		if (this.remoteConfigTimer) {
+			clearInterval(this.remoteConfigTimer)
+			this.remoteConfigTimer = undefined
+		}
+
 		await this.clearTask()
 		this.mcpHub.dispose()
 
@@ -199,12 +249,16 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	) {
+		await fetchRemoteConfig(this)
+
 		await this.clearTask() // ensures that an existing task doesn't exist before starting a new one, although this shouldn't be possible since user must clear task before starting a new one
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
 		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
+		const vscodeTerminalExecutionMode = this.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
+		const subagentTerminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("subagentTerminalOutputLineLimit")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const taskHistory = this.stateManager.getGlobalStateKey("taskHistory")
@@ -235,6 +289,24 @@ export class Controller {
 
 		const taskId = historyItem?.id || Date.now().toString()
 
+		// Acquire task lock
+		let taskLockAcquired = false
+		const lockResult: FolderLockWithRetryResult = await tryAcquireTaskLockWithRetry(taskId)
+
+		if (!lockResult.acquired && !lockResult.skipped) {
+			const errorMessage = lockResult.conflictingLock
+				? `Task locked by instance (${lockResult.conflictingLock.held_by})`
+				: "Failed to acquire task lock"
+			throw new Error(errorMessage) // Prevents task initialization
+		}
+
+		taskLockAcquired = lockResult.acquired
+		if (lockResult.acquired) {
+			console.debug(`[Task ${taskId}] Task lock acquired`)
+		} else {
+			console.debug(`[Task ${taskId}] Task lock skipped (VS Code)`)
+		}
+
 		await this.stateManager.loadTaskSettings(taskId)
 		if (taskSettings) {
 			this.stateManager.setTaskSettingsBatch(taskId, taskSettings)
@@ -250,7 +322,9 @@ export class Controller {
 			shellIntegrationTimeout,
 			terminalReuseEnabled: terminalReuseEnabled ?? true,
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
+			subagentTerminalOutputLineLimit: subagentTerminalOutputLineLimit ?? 2000,
 			defaultTerminalProfile: defaultTerminalProfile ?? "default",
+			vscodeTerminalExecutionMode,
 			cwd,
 			stateManager: this.stateManager,
 			workspaceManager: this.workspaceManager,
@@ -259,7 +333,14 @@ export class Controller {
 			files,
 			historyItem,
 			taskId,
+			taskLockAcquired,
 		})
+
+		if (historyItem) {
+			this.task.resumeTaskFromHistory()
+		} else if (task || images || files) {
+			this.task.startTask(task, images, files)
+		}
 
 		return this.task.taskId
 	}
@@ -338,13 +419,28 @@ export class Controller {
 	}
 
 	async cancelTask() {
-		if (this.task) {
-			const { historyItem } = await this.getTaskWithId(this.task.taskId)
+		// Prevent duplicate cancellations from spam clicking
+		if (this.cancelInProgress) {
+			console.log(`[Controller.cancelTask] Cancellation already in progress, ignoring duplicate request`)
+			return
+		}
+
+		if (!this.task) {
+			return
+		}
+
+		// Set flag to prevent concurrent cancellations
+		this.cancelInProgress = true
+
+		try {
+			this.updateBackgroundCommandState(false)
+
 			try {
 				await this.task.abortTask()
 			} catch (error) {
 				console.error("Failed to abort task", error)
 			}
+
 			await pWaitFor(
 				() =>
 					this.task === undefined ||
@@ -357,14 +453,88 @@ export class Controller {
 			).catch(() => {
 				console.error("Failed to abort task")
 			})
+
 			if (this.task) {
 				// 'abandoned' will prevent this cline instance from affecting future cline instance gui. this may happen if its hanging on a streaming request
 				this.task.taskState.abandoned = true
 			}
-			await this.initTask(undefined, undefined, undefined, historyItem) // clears task again, so we need to abortTask manually above
-			// Dont send the state to the webview, the new Cline instance will send state when it's ready.
-			// Sending the state here sent an empty messages array to webview leading to virtuoso having to reload the entire list
+
+			// Small delay to ensure state manager has persisted the history update
+			//await new Promise((resolve) => setTimeout(resolve, 100))
+
+			// NOW try to get history after abort has finished (hook may have saved messages)
+			let historyItem: HistoryItem | undefined
+			try {
+				const result = await this.getTaskWithId(this.task.taskId)
+				historyItem = result.historyItem
+			} catch (error) {
+				// Task not in history yet (new task with no messages); catch the
+				// error to enable the agent to continue making progress.
+				console.log(`[Controller.cancelTask] Task not found in history: ${error}`)
+			}
+
+			// Only re-initialize if we found a history item, otherwise just clear
+			if (historyItem) {
+				// Re-initialize task to keep it visible in UI with resume button
+				await this.initTask(undefined, undefined, undefined, historyItem, undefined)
+			} else {
+				await this.clearTask()
+			}
+
+			await this.postStateToWebview()
+		} finally {
+			// Always clear the flag, even if cancellation fails
+			this.cancelInProgress = false
 		}
+	}
+
+	updateBackgroundCommandState(running: boolean, taskId?: string) {
+		const nextTaskId = running ? taskId : undefined
+		if (this.backgroundCommandRunning === running && this.backgroundCommandTaskId === nextTaskId) {
+			return
+		}
+		this.backgroundCommandRunning = running
+		this.backgroundCommandTaskId = nextTaskId
+		void this.postStateToWebview()
+	}
+
+	async cancelBackgroundCommand(): Promise<void> {
+		const didCancel = await this.task?.cancelBackgroundCommand()
+		if (!didCancel) {
+			this.updateBackgroundCommandState(false)
+		}
+	}
+
+	/**
+	 * Check if we should show the background terminal suggestion based on shell integration warning frequency
+	 * @returns true if we should show the suggestion, false otherwise
+	 */
+	shouldShowBackgroundTerminalSuggestion(): boolean {
+		const oneHourAgo = Date.now() - 60 * 60 * 1000
+
+		// Clean old timestamps (older than 1 hour)
+		this.shellIntegrationWarningTracker.timestamps = this.shellIntegrationWarningTracker.timestamps.filter(
+			(ts) => ts > oneHourAgo,
+		)
+
+		// Add current warning
+		this.shellIntegrationWarningTracker.timestamps.push(Date.now())
+
+		// Check if we've shown suggestion recently (within last hour)
+		if (
+			this.shellIntegrationWarningTracker.lastSuggestionShown &&
+			Date.now() - this.shellIntegrationWarningTracker.lastSuggestionShown < 60 * 60 * 1000
+		) {
+			return false
+		}
+
+		// Show suggestion if 3+ warnings in last hour
+		if (this.shellIntegrationWarningTracker.timestamps.length >= 3) {
+			this.shellIntegrationWarningTracker.lastSuggestionShown = Date.now()
+			return true
+		}
+
+		return false
 	}
 
 	async handleAuthCallback(customToken: string, provider: string | null = null) {
@@ -475,99 +645,50 @@ export class Controller {
 	}
 
 	// MCP Marketplace
-	private async fetchMcpMarketplaceFromApi(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
-		try {
-			const response = await axios.get(`${clineEnvConfig.mcpBaseUrl}/marketplace`, {
-				headers: {
-					"Content-Type": "application/json",
-				},
-			})
+	private async fetchMcpMarketplaceFromApi(): Promise<McpMarketplaceCatalog> {
+		const response = await axios.get(`${ClineEnv.config().mcpBaseUrl}/marketplace`, {
+			headers: {
+				"Content-Type": "application/json",
+				"User-Agent": "cline-vscode-extension",
+			},
+		})
 
-			if (!response.data) {
-				throw new Error("Invalid response from MCP marketplace API")
-			}
-
-			const catalog: McpMarketplaceCatalog = {
-				items: (response.data || []).map((item: any) => ({
-					...item,
-					githubStars: item.githubStars ?? 0,
-					downloadCount: item.downloadCount ?? 0,
-					tags: item.tags ?? [],
-				})),
-			}
-
-			// Store in global state
-			this.stateManager.setGlobalState("mcpMarketplaceCatalog", catalog)
-			return catalog
-		} catch (error) {
-			console.error("Failed to fetch MCP marketplace:", error)
-			if (!silent) {
-				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				HostProvider.window.showMessage({
-					type: ShowMessageType.ERROR,
-					message: errorMessage,
-				})
-			}
-			return undefined
+		if (!response.data) {
+			throw new Error("Invalid response from MCP marketplace API")
 		}
+
+		// Get allowlist from remote config
+		const allowedMCPServers = this.stateManager.getRemoteConfigSettings().allowedMCPServers
+
+		let items: McpMarketplaceItem[] = (response.data || []).map((item: McpMarketplaceItem) => ({
+			...item,
+			githubStars: item.githubStars ?? 0,
+			downloadCount: item.downloadCount ?? 0,
+			tags: item.tags ?? [],
+		}))
+
+		// Filter by allowlist if configured
+		if (allowedMCPServers) {
+			const allowedIds = new Set(allowedMCPServers.map((server) => server.id))
+			items = items.filter((item: McpMarketplaceItem) => allowedIds.has(item.mcpId))
+		}
+
+		const catalog: McpMarketplaceCatalog = { items }
+
+		// Store in cache file
+		await writeMcpMarketplaceCatalogToCache(catalog)
+		return catalog
 	}
 
-	private async fetchMcpMarketplaceFromApiRPC(silent: boolean = false): Promise<McpMarketplaceCatalog | undefined> {
+	async refreshMcpMarketplace(sendCatalogEvent: boolean): Promise<McpMarketplaceCatalog | undefined> {
 		try {
-			const response = await axios.get(`${clineEnvConfig.mcpBaseUrl}/marketplace`, {
-				headers: {
-					"Content-Type": "application/json",
-					"User-Agent": "cline-vscode-extension",
-				},
-			})
-
-			if (!response.data) {
-				throw new Error("Invalid response from MCP marketplace API")
-			}
-
-			const catalog: McpMarketplaceCatalog = {
-				items: (response.data || []).map((item: any) => ({
-					...item,
-					githubStars: item.githubStars ?? 0,
-					downloadCount: item.downloadCount ?? 0,
-					tags: item.tags ?? [],
-				})),
-			}
-
-			// Store in global state
-			this.stateManager.setGlobalState("mcpMarketplaceCatalog", catalog)
-			return catalog
-		} catch (error) {
-			console.error("Failed to fetch MCP marketplace:", error)
-			if (!silent) {
-				const errorMessage = error instanceof Error ? error.message : "Failed to fetch MCP marketplace"
-				throw new Error(errorMessage)
-			}
-			return undefined
-		}
-	}
-
-	async silentlyRefreshMcpMarketplace() {
-		try {
-			const catalog = await this.fetchMcpMarketplaceFromApi(true)
-			if (catalog) {
+			const catalog = await this.fetchMcpMarketplaceFromApi()
+			if (catalog && sendCatalogEvent) {
 				await sendMcpMarketplaceCatalogEvent(catalog)
 			}
+			return catalog
 		} catch (error) {
-			console.error("Failed to silently refresh MCP marketplace:", error)
-		}
-	}
-
-	/**
-	 * RPC variant that silently refreshes the MCP marketplace catalog and returns the result
-	 * Unlike silentlyRefreshMcpMarketplace, this doesn't send a message to the webview
-	 * @returns MCP marketplace catalog or undefined if refresh failed
-	 */
-	async silentlyRefreshMcpMarketplaceRPC() {
-		try {
-			return await this.fetchMcpMarketplaceFromApiRPC(true)
-		} catch (error) {
-			console.error("Failed to silently refresh MCP marketplace (RPC):", error)
+			console.error("Failed to refresh MCP marketplace:", error)
 			return undefined
 		}
 	}
@@ -608,6 +729,25 @@ export class Controller {
 		// Dont send settingsButtonClicked because its bad ux if user is on welcome
 	}
 
+	// Requesty
+
+	async handleRequestyCallback(code: string) {
+		const requesty: ApiProvider = "requesty"
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+		const currentApiConfiguration = this.stateManager.getApiConfiguration()
+		const updatedConfig = {
+			...currentApiConfiguration,
+			planModeApiProvider: requesty,
+			actModeApiProvider: requesty,
+			requestyApiKey: code,
+		}
+		this.stateManager.setApiConfiguration(updatedConfig)
+		await this.postStateToWebview()
+		if (this.task) {
+			this.task.api = buildApiHandler({ ...updatedConfig, ulid: this.task.ulid }, currentMode)
+		}
+	}
+
 	// Read OpenRouter models from disk cache
 	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
 		const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
@@ -620,17 +760,6 @@ export class Controller {
 			}
 		} catch (error) {
 			console.error("Error reading cached OpenRouter models:", error)
-		}
-		return undefined
-	}
-
-	// Read Vercel AI Gateway models from disk cache
-	async readVercelAiGatewayModels(): Promise<Record<string, ModelInfo> | undefined> {
-		const vercelAiGatewayModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.vercelAiGatewayModels)
-		const fileExists = await fileExistsAtPath(vercelAiGatewayModelsFilePath)
-		if (fileExists) {
-			const fileContents = await fs.readFile(vercelAiGatewayModelsFilePath, "utf8")
-			return JSON.parse(fileContents)
 		}
 		return undefined
 	}
@@ -721,6 +850,7 @@ export class Controller {
 		const globalWorkflowToggles = this.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
 		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
+		const vscodeTerminalExecutionMode = this.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		const welcomeViewCompleted = Boolean(
@@ -729,9 +859,13 @@ export class Controller {
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
 		const mcpResponsesCollapsed = this.stateManager.getGlobalStateKey("mcpResponsesCollapsed")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
+		const maxConsecutiveMistakes = this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
+		const subagentTerminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("subagentTerminalOutputLineLimit")
 		const favoritedModelIds = this.stateManager.getGlobalStateKey("favoritedModelIds")
 		const lastDismissedInfoBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedInfoBannerVersion") || 0
 		const lastDismissedModelBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedModelBannerVersion") || 0
+		const lastDismissedCliBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
+		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -753,6 +887,7 @@ export class Controller {
 		const platform = process.platform as Platform
 		const distinctId = getDistinctId()
 		const version = ExtensionRegistryInfo.version
+		const environment = ClineEnv.config().environment
 
 		// Set feature flag in dictation settings based on platform
 		const updatedDictationSettings = {
@@ -783,6 +918,8 @@ export class Controller {
 			telemetrySetting,
 			planActSeparateModelsSetting,
 			enableCheckpointsSetting: enableCheckpointsSetting ?? true,
+			platform,
+			environment,
 			distinctId,
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			localClineRulesToggles: localClineRulesToggles || {},
@@ -792,27 +929,42 @@ export class Controller {
 			globalWorkflowToggles: globalWorkflowToggles || {},
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
+			vscodeTerminalExecutionMode: vscodeTerminalExecutionMode,
 			defaultTerminalProfile,
 			isNewUser,
 			welcomeViewCompleted: welcomeViewCompleted as boolean, // Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
+			maxConsecutiveMistakes,
+			subagentTerminalOutputLineLimit,
 			customPrompt,
 			taskHistory: processedTaskHistory,
-			platform,
 			shouldShowAnnouncement,
 			favoritedModelIds,
 			autoCondenseThreshold,
+			backgroundCommandRunning: this.backgroundCommandRunning,
+			backgroundCommandTaskId: this.backgroundCommandTaskId,
 			// NEW: Add workspace information
 			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
 			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,
 			isMultiRootWorkspace: (this.workspaceManager?.getRoots().length ?? 0) > 1,
 			multiRootSetting: {
 				user: this.stateManager.getGlobalStateKey("multiRootEnabled"),
-				featureFlag: featureFlagsService.getMultiRootEnabled(),
+				featureFlag: true, // Multi-root workspace is now always enabled
+			},
+			hooksEnabled: {
+				user: this.stateManager.getGlobalStateKey("hooksEnabled"),
+				featureFlag: true, // Hooks feature is now always available
 			},
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,
+			remoteConfigSettings: this.stateManager.getRemoteConfigSettings(),
+			lastDismissedCliBannerVersion,
+			subagentsEnabled,
+			nativeToolCallSetting: {
+				user: this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+				featureFlag: featureFlagsService.getNativeToolCallEnabled(),
+			},
 		}
 	}
 

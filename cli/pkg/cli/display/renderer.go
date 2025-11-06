@@ -4,54 +4,68 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/types"
 	"github.com/cline/grpc-go/cline"
 )
 
 type Renderer struct {
-	typewriter *TypewriterPrinter
+	typewriter   *TypewriterPrinter
+	mdRenderer   *MarkdownRenderer
+	outputFormat string
+
+	// Lipgloss styles that respect outputFormat
+	dimStyle     lipgloss.Style
+	greenStyle   lipgloss.Style
+	redStyle     lipgloss.Style
+	yellowStyle  lipgloss.Style
+	blueStyle    lipgloss.Style
+	whiteStyle   lipgloss.Style
+	boldStyle    lipgloss.Style
+	successStyle lipgloss.Style
 }
 
-func NewRenderer() *Renderer {
-	return &Renderer{
-		typewriter: NewTypewriterPrinter(DefaultTypewriterConfig()),
+func NewRenderer(outputFormat string) *Renderer {
+	mdRenderer, err := NewMarkdownRenderer()
+	if err != nil {
+		mdRenderer = nil
 	}
+
+	r := &Renderer{
+		typewriter:   NewTypewriterPrinter(DefaultTypewriterConfig()),
+		mdRenderer:   mdRenderer,
+		outputFormat: outputFormat,
+	}
+
+	// Initialize lipgloss styles (will respect the global color profile)
+	r.dimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	r.greenStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	r.redStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	r.yellowStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+	r.blueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
+	r.whiteStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
+	r.boldStyle = lipgloss.NewStyle().Bold(true)
+	r.successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true)
+
+	return r
 }
 
-func (r *Renderer) RenderMessage(prefix, text string) error {
+func (r *Renderer) RenderMessage(prefix, text string, newline bool) error {
 	if text == "" {
 		return nil
 	}
 
-	cleanText := r.sanitizeText(text)
-	if cleanText == "" {
+	clean := r.sanitizeText(text)
+	if clean == "" {
 		return nil
 	}
 
-	fmt.Printf("%s: %s\n", prefix, cleanText)
-	return nil
-}
-
-func (r *Renderer) RenderMessageWithTimestamp(timestamp, prefix, text string) error {
-	if text == "" {
-		return nil
-	}
-
-	cleanText := r.sanitizeText(text)
-	if cleanText == "" {
-		return nil
-	}
-
-	fmt.Printf("[%s] %s: %s\n", timestamp, prefix, cleanText)
-	return nil
-}
-
-func (r *Renderer) RenderCommand(command string, isExecuting bool) error {
-	if isExecuting {
-		r.typewriter.PrintMessageLine("EXEC", command)
+	if newline {
+		output.Printf("%s: %s\n", prefix, clean)
 	} else {
-		r.typewriter.PrintMessageLine("CMD", command)
+		output.Printf("%s: %s", prefix, clean)
 	}
 	return nil
 }
@@ -68,21 +82,40 @@ func formatNumber(n int) string {
 
 // formatUsageInfo formats token usage information (extracted from RenderAPI)
 func (r *Renderer) formatUsageInfo(tokensIn, tokensOut, cacheReads, cacheWrites int, cost float64) string {
-	tokenDetails := fmt.Sprintf("[tokens in: %s, out: %s; cache read: %s, write: %s]",
-		formatNumber(tokensIn),
-		formatNumber(tokensOut),
-		formatNumber(cacheReads),
-		formatNumber(cacheWrites))
+    parts := make([]string, 0, 4)
 
-	return fmt.Sprintf("%s ($%.4f)", tokenDetails, cost)
+    if tokensIn != 0 {
+        parts = append(parts, fmt.Sprintf("↑ %s", formatNumber(tokensIn)))
+    }
+    if tokensOut != 0 {
+        parts = append(parts, fmt.Sprintf("↓ %s", formatNumber(tokensOut)))
+    }
+    if cacheReads != 0 {
+        parts = append(parts, fmt.Sprintf("→ %s", formatNumber(cacheReads)))
+    }
+    if cacheWrites != 0 {
+        parts = append(parts, fmt.Sprintf("← %s", formatNumber(cacheWrites)))
+    }
+
+    if len(parts) == 0 {
+        return fmt.Sprintf("$%.4f", cost)
+    }
+
+    return fmt.Sprintf("%s $%.4f", strings.Join(parts, " "), cost)
 }
+
 
 func (r *Renderer) RenderAPI(status string, apiInfo *types.APIRequestInfo) error {
 	if apiInfo.Cost >= 0 {
-		message := fmt.Sprintf("%s %s", status, r.formatUsageInfo(apiInfo.TokensIn, apiInfo.TokensOut, apiInfo.CacheReads, apiInfo.CacheWrites, apiInfo.Cost))
-		r.typewriter.PrintMessageLine("API INFO", message)
+		usageInfo := r.formatUsageInfo(apiInfo.TokensIn, apiInfo.TokensOut, apiInfo.CacheReads, apiInfo.CacheWrites, apiInfo.Cost)
+		markdown := fmt.Sprintf("## API %s `%s`", status, usageInfo)
+		rendered := r.RenderMarkdown(markdown)
+		output.Print(rendered)
 	} else {
-		r.typewriter.PrintMessageLine("API INFO", status)
+		// honestly i see no point in showing "### API processing request" here...
+		// markdown := fmt.Sprintf("## API %s", status)
+		// rendered := r.RenderMarkdown(markdown)
+		// output.Printf("\n%s\n", rendered)
 	}
 	return nil
 }
@@ -94,6 +127,13 @@ func (r *Renderer) RenderRetry(attempt, maxAttempts, delaySec int) error {
 	}
 	message += "..."
 	r.typewriter.PrintMessageLine("API INFO", message)
+	return nil
+}
+
+func (r *Renderer) RenderTaskCancelled() error {
+	markdown := "## Task cancelled"
+	rendered := r.RenderMarkdown(markdown)
+	output.Printf("\n%s\n", rendered)
 	return nil
 }
 
@@ -110,16 +150,16 @@ func (r *Renderer) RenderTaskList(tasks []*cline.TaskItem) error {
 
 	r.typewriter.PrintfLn("=== Task History (showing last %d of %d total tasks) ===\n", len(recentTasks), len(tasks))
 
-	for i, task := range recentTasks {
-		r.typewriter.PrintfLn("Task ID: %s", task.Id)
+	for i, taskItem := range recentTasks {
+		r.typewriter.PrintfLn("Task ID: %s", taskItem.Id)
 
-		description := task.Task
+		description := taskItem.Task
 		if len(description) > 1000 {
 			description = description[:1000] + "..."
 		}
 		r.typewriter.PrintfLn("Message: %s", description)
 
-		usageInfo := r.formatUsageInfo(int(task.TokensIn), int(task.TokensOut), int(task.CacheReads), int(task.CacheWrites), task.TotalCost)
+		usageInfo := r.formatUsageInfo(int(taskItem.TokensIn), int(taskItem.TokensOut), int(taskItem.CacheReads), int(taskItem.CacheWrites), taskItem.TotalCost)
 		r.typewriter.PrintfLn("Usage  : %s", usageInfo)
 
 		// Single space between tasks (except last)
@@ -140,11 +180,11 @@ func (r *Renderer) RenderDebug(format string, args ...interface{}) error {
 }
 
 func (r *Renderer) ClearLine() {
-	fmt.Print("\r\033[K")
+	output.Print("\r\033[K")
 }
 
 func (r *Renderer) MoveCursorUp(n int) {
-	fmt.Printf("\033[%dA", n)
+	output.Printf("\033[%dA", n)
 }
 
 func (r *Renderer) sanitizeText(text string) string {
@@ -181,4 +221,84 @@ func (r *Renderer) SetTypewriterSpeed(multiplier float64) {
 
 func (r *Renderer) GetTypewriter() *TypewriterPrinter {
 	return r.typewriter
+}
+
+func (r *Renderer) GetMdRenderer() *MarkdownRenderer {
+	return r.mdRenderer
+}
+
+// RenderMarkdown renders markdown text to terminal format with ANSI codes
+// Falls back to plaintext if markdown rendering is unavailable or fails
+// Respects output format - skips rendering in plain mode or non-TTY contexts
+func (r *Renderer) RenderMarkdown(markdown string) string {
+	// Skip markdown rendering if:
+	// 1. Output format is explicitly "plain"
+	// 2. Not in a TTY (piped output, file redirect, CI, etc.)
+	if r.outputFormat == "plain" || !isTTY() {
+		return markdown
+	}
+
+	if r.mdRenderer == nil {
+		return markdown
+	}
+
+	rendered, err := r.mdRenderer.Render(markdown)
+	if err != nil {
+		return markdown
+	}
+
+	return rendered
+}
+
+// Lipgloss-based color rendering methods
+// These automatically respect the output format via lipgloss color profile
+
+// Dim renders text in dim gray (bright black)
+func (r *Renderer) Dim(text string) string {
+	return r.dimStyle.Render(text)
+}
+
+// Green renders text in green
+func (r *Renderer) Green(text string) string {
+	return r.greenStyle.Render(text)
+}
+
+// Red renders text in red
+func (r *Renderer) Red(text string) string {
+	return r.redStyle.Render(text)
+}
+
+// Yellow renders text in yellow
+func (r *Renderer) Yellow(text string) string {
+	return r.yellowStyle.Render(text)
+}
+
+// Blue renders text in 256-color blue (index 39)
+func (r *Renderer) Blue(text string) string {
+	return r.blueStyle.Render(text)
+}
+
+// White renders text in white
+func (r *Renderer) White(text string) string {
+	return r.whiteStyle.Render(text)
+}
+
+// Bold renders text in bold
+func (r *Renderer) Bold(text string) string {
+	return r.boldStyle.Render(text)
+}
+
+// Success renders text in green with bold
+func (r *Renderer) Success(text string) string {
+	return r.successStyle.Render(text)
+}
+
+// SuccessWithCheckmark renders text in green with bold and a checkmark prefix
+func (r *Renderer) SuccessWithCheckmark(text string) string {
+	return r.Success("✓ " + text)
+}
+
+// ErrorWithX renders text in red with an X prefix
+func (r *Renderer) ErrorWithX(text string) string {
+	return r.Red("✗ " + text)
 }

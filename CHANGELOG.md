@@ -1,10 +1,72 @@
 # Changelog
 
+## [3.36.0]
+
+- Add: Hooks allow you to inject custom logic into Cline's workflow
+- Add: new provider AIhubmix
+- Add: Use http_proxy, https_proxy and no_proxy in JetBrains
+- Fix: Oca Token Refresh logic
+- Fix: issues where assistant message with empty content is added to conversation history
+- Fix: bug where the checkbox shows in the model selector dropdown
+- Fix: Switch from defaultUserAgentProvider to customUserAgent for Bedrock
+- Fix: support for `<think>` tags for better compatibility with open-source models
+- Fix: refinements to the GLM-4.6 system prompt
+
+## [3.35.1]
+
+- Add: Hicap API integration as provider
+- Fix: enable Add Header button in OpenAICompatibleProvider UI
+- Fix: Remove orphaned tool_results after truncation and empty content field issues in native tool call
+- Fix: render model description in markdown
+
+## [3.35.0]
+
+- Add native tool calling support with configurable setting.
+- Auto-approve is now always-on with a redesigned expanding menu. Settings simplified and notifications moved to General Settings.
+- added zai-glm-4.6 as a Cerebras model
+- Created GPT5 family specific system prompt template
+- Fix: show reasoning budget slider to models with valid thinking config
+- Requesty base URL, and API key fixes
+- Delete all Auth Tokens when logging out
+- Support for <think> tags for models that prefer that over <thinking>
+
+## [3.34.1]
+
+- Added support for MiniMax provider with MiniMax-M2 model
+- Remove Cline/code-supernova-1-million model
+- Changes to allow users to manually enter model names (eg. presets) when using OpenRouter
+
+## [3.34.0]
+
+- Cline Teams is now free through 2025 for unlimited users. Includes Jetbrains, RBAC, centralized billing and more.
+- Use the “exacto” versions of GLM-4.6, Kimi-K2, and Qwen3-Coder in the Cline provider for the best balance of cost, speed, accuracy and tool-calling.
+
+## [3.33.1]
+
+- Fix CLI installation copy text
+
+## [3.33.0]
+
+- Added Cline CLI (Preview)
+- Added Subagent support (Experimental)
+- Added Multi-Root Workspaces support (Enable in feature settings)
+- Add auto-retry with exponential backof for failed API requests
+
+## [3.32.8]
+
+- Add Claude Haiku 4.5 support
+
+## [3.32.7]
+
+- Add JP and Global inference profile options to AWS Bedrock
+- Adding Improvements to VSCode multi root workspaces
+- Added markdown support to focus chain text, allowing the model to display more interesting focus chains
+
 ## [3.32.6]
 
 - Add experimental support for VSCode multi root workspaces
 - Add Claude Sonnet 4.5 to Claude Code provider
-- Add Glm 4.6 to Z AI provider 
+- Add Glm 4.6 to Z AI provider
 
 ## [3.32.5]
 

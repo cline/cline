@@ -123,7 +123,11 @@ const copyWasmFiles = {
 	},
 }
 
-const buildEnvVars = { "import.meta.url": "_importMetaUrl" }
+const buildEnvVars = {
+	"import.meta.url": "_importMetaUrl",
+	"process.env.IS_STANDALONE": JSON.stringify(standalone),
+}
+
 if (production) {
 	// IS_DEV is always disable in production builds.
 	buildEnvVars["process.env.IS_DEV"] = "false"
@@ -142,6 +146,30 @@ if (process.env.ERROR_SERVICE_API_KEY) {
 
 if (process.env.POSTHOG_TELEMETRY_ENABLED) {
 	buildEnvVars["process.env.POSTHOG_TELEMETRY_ENABLED"] = JSON.stringify(process.env.POSTHOG_TELEMETRY_ENABLED)
+}
+
+// OpenTelemetry configuration (injected at build time from GitHub secrets)
+// These provide production defaults that can be overridden at runtime via environment variables
+if (process.env.OTEL_TELEMETRY_ENABLED) {
+	buildEnvVars["process.env.OTEL_TELEMETRY_ENABLED"] = JSON.stringify(process.env.OTEL_TELEMETRY_ENABLED)
+}
+if (process.env.OTEL_LOGS_EXPORTER) {
+	buildEnvVars["process.env.OTEL_LOGS_EXPORTER"] = JSON.stringify(process.env.OTEL_LOGS_EXPORTER)
+}
+if (process.env.OTEL_METRICS_EXPORTER) {
+	buildEnvVars["process.env.OTEL_METRICS_EXPORTER"] = JSON.stringify(process.env.OTEL_METRICS_EXPORTER)
+}
+if (process.env.OTEL_EXPORTER_OTLP_PROTOCOL) {
+	buildEnvVars["process.env.OTEL_EXPORTER_OTLP_PROTOCOL"] = JSON.stringify(process.env.OTEL_EXPORTER_OTLP_PROTOCOL)
+}
+if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+	buildEnvVars["process.env.OTEL_EXPORTER_OTLP_ENDPOINT"] = JSON.stringify(process.env.OTEL_EXPORTER_OTLP_ENDPOINT)
+}
+if (process.env.OTEL_EXPORTER_OTLP_HEADERS) {
+	buildEnvVars["process.env.OTEL_EXPORTER_OTLP_HEADERS"] = JSON.stringify(process.env.OTEL_EXPORTER_OTLP_HEADERS)
+}
+if (process.env.OTEL_METRIC_EXPORT_INTERVAL) {
+	buildEnvVars["process.env.OTEL_METRIC_EXPORT_INTERVAL"] = JSON.stringify(process.env.OTEL_METRIC_EXPORT_INTERVAL)
 }
 // Base configuration shared between extension and standalone builds
 const baseConfig = {

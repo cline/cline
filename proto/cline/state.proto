@@ -1,10 +1,13 @@
 syntax = "proto3";
 package cline;
+
+import "cline/browser.proto";
 import "cline/common.proto";
 import "cline/models.proto";
+
 option go_package = "github.com/cline/grpc-go/cline";
-option java_package = "bot.cline.proto";
 option java_multiple_files = true;
+option java_package = "bot.cline.proto";
 
 service StateService {
   rpc getLatestState(EmptyRequest) returns (State);
@@ -17,12 +20,210 @@ service StateService {
   rpc togglePlanActModeProto(TogglePlanActModeRequest) returns (Boolean);
   rpc updateAutoApprovalSettings(AutoApprovalSettingsRequest) returns (Empty);
   rpc updateSettings(UpdateSettingsRequest) returns (Empty);
+  rpc updateSettingsCli(UpdateSettingsRequestCli) returns (Empty);
+  rpc updateTaskSettings(UpdateTaskSettingsRequest) returns (Empty);
   rpc updateTelemetrySetting(TelemetrySettingRequest) returns (Empty);
   rpc setWelcomeViewCompleted(BooleanRequest) returns (Empty);
   rpc updateInfoBannerVersion(Int64Request) returns (Empty);
   rpc updateModelBannerVersion(Int64Request) returns (Empty);
+  rpc updateCliBannerVersion(Int64Request) returns (Empty);
+  rpc installClineCli(EmptyRequest) returns (Empty);
+  rpc checkCliInstallation(EmptyRequest) returns (Boolean);
   rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
 }
+
+message AutoApprovalActions {
+  optional bool read_files = 1;
+  optional bool read_files_externally = 2;
+  optional bool edit_files = 3;
+  optional bool edit_files_externally = 4;
+  optional bool execute_safe_commands = 5;
+  optional bool execute_all_commands = 6;
+  optional bool use_browser = 7;
+  optional bool use_mcp = 8;
+}
+
+// Auto approval settings for task execution
+message AutoApprovalSettings {
+  int32 version = 1;
+  AutoApprovalActions actions = 2;
+  optional bool enable_notifications = 3;
+}
+
+message Secrets {
+  optional string api_key = 1;
+  optional string open_router_api_key = 4;
+  optional string aws_access_key = 5;
+  optional string aws_secret_key = 6;
+  optional string aws_session_token = 7;
+  optional string aws_bedrock_api_key = 8;
+  optional string open_ai_api_key = 9;
+  optional string gemini_api_key = 10;
+  optional string open_ai_native_api_key = 11;
+  optional string ollama_api_key = 12;
+  optional string deep_seek_api_key = 13;
+  optional string requesty_api_key = 14;
+  optional string together_api_key = 15;
+  optional string fireworks_api_key = 16;
+  optional string qwen_api_key = 17;
+  optional string doubao_api_key = 18;
+  optional string mistral_api_key = 19;
+  optional string lite_llm_api_key = 20;
+  optional string auth_nonce = 21;
+  optional string asksage_api_key = 22;
+  optional string xai_api_key = 23;
+  optional string moonshot_api_key = 24;
+  optional string zai_api_key = 25;
+  optional string hugging_face_api_key = 26;
+  optional string nebius_api_key = 27;
+  optional string sambanova_api_key = 28;
+  optional string cerebras_api_key = 29;
+  optional string sap_ai_core_client_id = 30;
+  optional string sap_ai_core_client_secret = 31;
+  optional string groq_api_key = 32;
+  optional string huawei_cloud_maas_api_key = 33;
+  optional string baseten_api_key = 34;
+  optional string vercel_ai_gateway_api_key = 35;
+  optional string dify_api_key = 36;
+  optional string oca_api_key = 37;
+  optional string oca_refresh_token = 38;
+  optional string hicap_api_key = 39;
+}
+
+message Settings {
+  optional string aws_region = 1;
+  optional bool aws_use_cross_region_inference = 2;
+  optional bool aws_bedrock_use_prompt_cache = 3;
+  optional string aws_bedrock_endpoint = 4;
+  optional string aws_profile = 5;
+  optional string aws_authentication = 6;
+  optional bool aws_use_profile = 7;
+  optional string vertex_project_id = 8;
+  optional string vertex_region = 9;
+  optional string requesty_base_url = 10;
+  optional string open_ai_base_url = 11;
+  // map<string, string> open_ai_headers = 12;
+  optional string ollama_base_url = 13;
+  optional string ollama_api_options_ctx_num = 14;
+  optional string lm_studio_base_url = 15;
+  optional string lm_studio_max_tokens = 16;
+  optional string anthropic_base_url = 17;
+  optional string gemini_base_url = 18;
+  optional string azure_api_version = 19;
+  optional string open_router_provider_sorting = 20;
+  optional AutoApprovalSettings auto_approval_settings = 21;
+  optional BrowserSettings browser_settings = 24;
+  optional string lite_llm_base_url = 25;
+  optional bool lite_llm_use_prompt_cache = 26;
+  optional int32 fireworks_model_max_completion_tokens = 27;
+  optional int32 fireworks_model_max_tokens = 28;
+  optional string qwen_api_line = 29;
+  optional string moonshot_api_line = 30;
+  optional string zai_api_line = 31;
+  optional string telemetry_setting = 32;
+  optional string asksage_api_url = 33;
+  optional bool plan_act_separate_models_setting = 34;
+  optional bool enable_checkpoints_setting = 35;
+  optional int32 request_timeout_ms = 36;
+  optional int32 shell_integration_timeout = 37;
+  optional string default_terminal_profile = 38;
+  optional int32 terminal_output_line_limit = 39;
+  optional string sap_ai_core_token_url = 40;
+  optional string sap_ai_core_base_url = 41;
+  optional string sap_ai_resource_group = 42;
+  optional bool sap_ai_core_use_orchestration_mode = 43;
+  optional string claude_code_path = 44;
+  optional string qwen_code_oauth_path = 45;
+  optional bool strict_plan_mode_enabled = 46;
+  optional bool yolo_mode_toggled = 47;
+  optional bool use_auto_condense = 48;
+  optional string preferred_language = 49;
+  optional OpenaiReasoningEffort openai_reasoning_effort = 50;
+  optional PlanActMode mode = 51;
+  optional DictationSettings dictation_settings = 52;
+  optional FocusChainSettings focus_chain_settings = 53;
+  optional string custom_prompt = 54;
+  optional string dify_base_url = 55;
+  optional double auto_condense_threshold = 56;
+  optional string oca_base_url = 57;
+  optional ApiProvider plan_mode_api_provider = 58;
+  optional string plan_mode_api_model_id = 59;
+  optional int64 plan_mode_thinking_budget_tokens = 60;
+  optional string plan_mode_reasoning_effort = 61;
+  optional LanguageModelChatSelector plan_mode_vs_code_lm_model_selector = 62;
+  optional bool plan_mode_aws_bedrock_custom_selected = 63;
+  optional string plan_mode_aws_bedrock_custom_model_base_id = 64;
+  optional string plan_mode_open_router_model_id = 65;
+  optional OpenRouterModelInfo plan_mode_open_router_model_info = 66;
+  optional string plan_mode_open_ai_model_id = 67;
+  optional OpenAiCompatibleModelInfo plan_mode_open_ai_model_info = 68;
+  optional string plan_mode_ollama_model_id = 69;
+  optional string plan_mode_lm_studio_model_id = 70;
+  optional string plan_mode_lite_llm_model_id = 71;
+  optional LiteLLMModelInfo plan_mode_lite_llm_model_info = 72;
+  optional string plan_mode_requesty_model_id = 73;
+  optional OpenRouterModelInfo plan_mode_requesty_model_info = 74;
+  optional string plan_mode_together_model_id = 75;
+  optional string plan_mode_fireworks_model_id = 76;
+  optional string plan_mode_sap_ai_core_model_id = 77;
+  optional string plan_mode_sap_ai_core_deployment_id = 78;
+  optional string plan_mode_groq_model_id = 79;
+  optional OpenRouterModelInfo plan_mode_groq_model_info = 80;
+  optional string plan_mode_baseten_model_id = 81;
+  optional OpenRouterModelInfo plan_mode_baseten_model_info = 82;
+  optional string plan_mode_hugging_face_model_id = 83;
+  optional OpenRouterModelInfo plan_mode_hugging_face_model_info = 84;
+  optional string plan_mode_huawei_cloud_maas_model_id = 85;
+  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 86;
+  optional string plan_mode_oca_model_id = 87;
+  optional OcaModelInfo plan_mode_oca_model_info = 88;
+  optional ApiProvider act_mode_api_provider = 89;
+  optional string act_mode_api_model_id = 90;
+  optional int64 act_mode_thinking_budget_tokens = 91;
+  optional string act_mode_reasoning_effort = 92;
+  optional LanguageModelChatSelector act_mode_vs_code_lm_model_selector = 93;
+  optional bool act_mode_aws_bedrock_custom_selected = 94;
+  optional string act_mode_aws_bedrock_custom_model_base_id = 95;
+  optional string act_mode_open_router_model_id = 96;
+  optional OpenRouterModelInfo act_mode_open_router_model_info = 97;
+  optional string act_mode_open_ai_model_id = 98;
+  optional OpenAiCompatibleModelInfo act_mode_open_ai_model_info = 99;
+  optional string act_mode_ollama_model_id = 100;
+  optional string act_mode_lm_studio_model_id = 101;
+  optional string act_mode_lite_llm_model_id = 102;
+  optional LiteLLMModelInfo act_mode_lite_llm_model_info = 103;
+  optional string act_mode_requesty_model_id = 104;
+  optional OpenRouterModelInfo act_mode_requesty_model_info = 105;
+  optional string act_mode_together_model_id = 106;
+  optional string act_mode_fireworks_model_id = 107;
+  optional string act_mode_sap_ai_core_model_id = 108;
+  optional string act_mode_sap_ai_core_deployment_id = 109;
+  optional string act_mode_groq_model_id = 110;
+  optional OpenRouterModelInfo act_mode_groq_model_info = 111;
+  optional string act_mode_baseten_model_id = 112;
+  optional OpenRouterModelInfo act_mode_baseten_model_info = 113;
+  optional string act_mode_hugging_face_model_id = 114;
+  optional OpenRouterModelInfo act_mode_hugging_face_model_info = 115;
+  optional string act_mode_huawei_cloud_maas_model_id = 116;
+  optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 117;
+  optional string plan_mode_vercel_ai_gateway_model_id = 118;
+  optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 119;
+  optional string act_mode_vercel_ai_gateway_model_id = 120;
+  optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 121;
+  optional string act_mode_oca_model_id = 122;
+  optional OcaModelInfo act_mode_oca_model_info = 123;
+  optional int32 max_consecutive_mistakes = 124;
+  optional bool subagents_enabled = 125;
+  optional int32 subagent_terminal_output_line_limit = 126;
+  optional string aihubmix_api_key = 127;
+  optional string aihubmix_base_url = 128;
+  optional string aihubmix_app_code = 129;
+  optional string plan_mode_aihubmix_model_id = 130;
+  optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 131;
+  optional string act_mode_aihubmix_model_id = 132;
+  optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 133;
+}
+
 message DictationSettings {
   bool feature_enabled = 1;
   bool dictation_enabled = 2;
@@ -86,22 +287,9 @@ message ResetStateRequest {
 
 message AutoApprovalSettingsRequest {
   Metadata metadata = 1;
-  message Actions {
-    bool read_files = 1;
-    bool read_files_externally = 2;
-    bool edit_files = 3;
-    bool edit_files_externally = 4;
-    bool execute_safe_commands = 5;
-    bool execute_all_commands = 6;
-    bool use_browser = 7;
-    bool use_mcp = 8;
-  }
   int32 version = 2;
-  bool enabled = 3;
-  Actions actions = 4;
-  int32 max_requests = 5;
-  bool enable_notifications = 6;
-  repeated string favorites = 7;
+  AutoApprovalActions actions = 3;
+  bool enable_notifications = 4;
 }
 
 enum TelemetrySettingEnum {
@@ -125,10 +313,23 @@ message BrowserSettingsUpdate {
   optional string custom_args = 6;
 }
 
+message UpdateSettingsRequestCli {
+  Metadata metadata = 1;
+  optional Settings settings = 2;
+  optional Secrets secrets = 3;
+  optional string environment = 4;
+}
+
+message UpdateTaskSettingsRequest {
+  Metadata metadata = 1;
+  optional Settings settings = 2;
+  optional string task_id = 3;
+}
+
 // Message for updating settings
 message UpdateSettingsRequest {
   Metadata metadata = 1;
-  optional ApiConfiguration api_configuration = 2;
+  optional ModelsApiConfiguration api_configuration = 2;
   optional string telemetry_setting = 3;
   optional bool plan_act_separate_models_setting = 4;
   optional bool enable_checkpoints_setting = 5;
@@ -149,145 +350,15 @@ message UpdateSettingsRequest {
   optional string default_terminal_profile = 21;
   optional bool yolo_mode_toggled = 22;
   optional DictationSettings dictation_settings = 23;
-  optional int32 auto_condense_threshold = 24;
+  optional double auto_condense_threshold = 24;
   optional bool multi_root_enabled = 25;
-}
-
-// Complete API Configuration message
-message ApiConfiguration {
-  // Global configuration fields (not mode-specific)
-  optional string api_key = 1; // anthropic
-  optional string cline_api_key = 2;
-  optional string ulid = 3;
-  optional string lite_llm_base_url = 4;
-  optional string lite_llm_api_key = 5;
-  optional bool lite_llm_use_prompt_cache = 6;
-  map<string, string> open_ai_headers = 7;
-  optional string anthropic_base_url = 8;
-  optional string open_router_api_key = 9;
-  optional string open_router_provider_sorting = 10;
-  optional string aws_access_key = 11;
-  optional string aws_secret_key = 12;
-  optional string aws_session_token = 13;
-  optional string aws_region = 14;
-  optional bool aws_use_cross_region_inference = 15;
-  optional bool aws_bedrock_use_prompt_cache = 16;
-  optional bool aws_use_profile = 17;
-  optional string aws_profile = 18;
-  optional string aws_bedrock_endpoint = 19;
-  optional string claude_code_path = 20;
-  optional string vertex_project_id = 21;
-  optional string vertex_region = 22;
-  optional string open_ai_base_url = 23;
-  optional string open_ai_api_key = 24;
-  optional string ollama_base_url = 25;
-  optional string ollama_api_options_ctx_num = 26;
-  optional string lm_studio_base_url = 27;
-  optional string gemini_api_key = 28;
-  optional string gemini_base_url = 29;
-  optional string open_ai_native_api_key = 30;
-  optional string deep_seek_api_key = 31;
-  optional string requesty_api_key = 32;
-  optional string requesty_base_url = 33;
-  optional string together_api_key = 34;
-  optional string fireworks_api_key = 35;
-  optional int32 fireworks_model_max_completion_tokens = 36;
-  optional int32 fireworks_model_max_tokens = 37;
-  optional string qwen_api_key = 38;
-  optional string doubao_api_key = 39;
-  optional string mistral_api_key = 40;
-  optional string azure_api_version = 41;
-  optional string qwen_api_line = 42;
-  optional string nebius_api_key = 43;
-  optional string asksage_api_url = 44;
-  optional string asksage_api_key = 45;
-  optional string xai_api_key = 46;
-  optional string sambanova_api_key = 47;
-  optional string cerebras_api_key = 48;
-  optional int32 request_timeout_ms = 49;
-  optional string sap_ai_core_client_id = 50;
-  optional string sap_ai_core_client_secret = 51;
-  optional string sap_ai_resource_group = 52;
-  optional string sap_ai_core_token_url = 53;
-  optional string sap_ai_core_base_url = 54;
-  optional string moonshot_api_key = 55;
-  optional string moonshot_api_line = 56;
-  optional string huawei_cloud_maas_api_key = 57;
-  optional string ollama_api_key = 58;
-  optional string zai_api_key = 59;
-  optional string zai_api_line = 60;
-  optional string lm_studio_max_tokens = 61;
-  optional string vercel_ai_gateway_api_key = 62;
-  optional string qwen_code_oauth_path = 63;
-  optional string dify_api_key = 64;
-  optional string dify_base_url = 65;
-  optional string oca_base_url = 66;
-  optional string oca_api_key = 67;
-  optional string oca_refresh_token = 68;
-  optional string oca_mode = 69;
-  optional bool aws_use_global_inference = 70;
-  
-  // Plan mode configurations
-  optional ApiProvider plan_mode_api_provider = 100;
-  optional string plan_mode_api_model_id = 101;
-  optional int32 plan_mode_thinking_budget_tokens = 102;
-  optional string plan_mode_reasoning_effort = 103;
-  optional LanguageModelChatSelector plan_mode_vs_code_lm_model_selector = 104;
-  optional bool plan_mode_aws_bedrock_custom_selected = 105;
-  optional string plan_mode_aws_bedrock_custom_model_base_id = 106;
-  optional string plan_mode_open_router_model_id = 107;
-  optional OpenRouterModelInfo plan_mode_open_router_model_info = 108;
-  optional string plan_mode_open_ai_model_id = 109;
-  optional OpenAiCompatibleModelInfo plan_mode_open_ai_model_info = 110;
-  optional string plan_mode_ollama_model_id = 111;
-  optional string plan_mode_lm_studio_model_id = 112;
-  optional string plan_mode_lite_llm_model_id = 113;
-  optional LiteLLMModelInfo plan_mode_lite_llm_model_info = 114;
-  optional string plan_mode_requesty_model_id = 115;
-  optional OpenRouterModelInfo plan_mode_requesty_model_info = 116;
-  optional string plan_mode_together_model_id = 117;
-  optional string plan_mode_fireworks_model_id = 118;
-  optional string plan_mode_sap_ai_core_model_id = 119;
-  optional string plan_mode_huawei_cloud_maas_model_id = 120;
-  optional OpenRouterModelInfo plan_mode_huawei_cloud_maas_model_info = 121;
-  optional string plan_mode_vercel_ai_gateway_model_id = 122;
-  optional OpenRouterModelInfo plan_mode_vercel_ai_gateway_model_info = 123;
-  optional string plan_mode_oca_model_id = 124;
-  optional OcaModelInfo plan_mode_oca_model_info = 125;
-  
-  // Act mode configurations
-  optional ApiProvider act_mode_api_provider = 200;
-  optional string act_mode_api_model_id = 201;
-  optional int32 act_mode_thinking_budget_tokens = 202;
-  optional string act_mode_reasoning_effort = 203;
-  optional LanguageModelChatSelector act_mode_vs_code_lm_model_selector = 204;
-  optional bool act_mode_aws_bedrock_custom_selected = 205;
-  optional string act_mode_aws_bedrock_custom_model_base_id = 206;
-  optional string act_mode_open_router_model_id = 207;
-  optional OpenRouterModelInfo act_mode_open_router_model_info = 208;
-  optional string act_mode_open_ai_model_id = 209;
-  optional OpenAiCompatibleModelInfo act_mode_open_ai_model_info = 210;
-  optional string act_mode_ollama_model_id = 211;
-  optional string act_mode_lm_studio_model_id = 212;
-  optional string act_mode_lite_llm_model_id = 213;
-  optional LiteLLMModelInfo act_mode_lite_llm_model_info = 214;
-  optional string act_mode_requesty_model_id = 215;
-  optional OpenRouterModelInfo act_mode_requesty_model_info = 216;
-  optional string act_mode_together_model_id = 217;
-  optional string act_mode_fireworks_model_id = 218;
-  optional string act_mode_sap_ai_core_model_id = 219;
-  optional string act_mode_huawei_cloud_maas_model_id = 220;
-  optional OpenRouterModelInfo act_mode_huawei_cloud_maas_model_info = 221;
-  optional string act_mode_vercel_ai_gateway_model_id = 222;
-  optional OpenRouterModelInfo act_mode_vercel_ai_gateway_model_info = 223;
-  optional string act_mode_oca_model_id = 224;
-  optional OcaModelInfo act_mode_oca_model_info = 225;
-
-  // Extension fields for Bedrock Api Keys
-  optional string aws_authentication = 301;
-  optional string aws_bedrock_api_key = 302;
-
-  optional string cline_account_id = 303;
+  optional bool hooks_enabled = 26;
+  optional string vscode_terminal_execution_mode = 27;
+  optional int32 max_consecutive_mistakes = 28;
+  optional bool subagents_enabled = 29;
+  optional int32 subagent_terminal_output_line_limit = 30;
+  optional string cline_env = 31;
+  optional bool native_tool_call_enabled = 32;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
@@ -299,15 +370,9 @@ message FocusChainSettings {
   int32 remind_cline_interval = 2;
 }
 
-message Viewport {
-  int32 width = 1;
-  int32 height = 2;
-}
-
 message UpdateTerminalConnectionTimeoutResponse {
   optional int32 timeout_ms = 1;
 }
-
 
 message ProcessInfo {
   int32 process_id = 1;

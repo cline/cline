@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
 import {
+	cleanupMcpMarketplaceCatalogFromGlobalState,
 	migrateCustomInstructionsToGlobalRules,
 	migrateTaskHistoryToFile,
 	migrateWelcomeViewCompleted,
@@ -13,6 +14,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { FileContextTracker } from "./core/context/context-tracking/FileContextTracker"
 import { StateManager } from "./core/storage/StateManager"
 import { ExtensionRegistryInfo } from "./registry"
+import { BannerService } from "./services/banner/BannerService"
 import { audioRecordingService } from "./services/dictation/AudioRecordingService"
 import { ErrorService } from "./services/error"
 import { featureFlagsService } from "./services/feature-flags"
@@ -60,12 +62,29 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 	// Ensure taskHistory.json exists and migrate legacy state (runs once)
 	await migrateTaskHistoryToFile(context)
 
+	// Clean up MCP marketplace catalog from global state (moved to disk cache)
+	await cleanupMcpMarketplaceCatalogFromGlobalState(context)
+
 	// Clean up orphaned file context warnings (startup cleanup)
 	await FileContextTracker.cleanupOrphanedWarnings(context)
 
 	const webview = HostProvider.get().createWebviewProvider()
 
 	await showVersionUpdateAnnouncement(context)
+
+	// Initialize banner service
+	BannerService.initialize(webview.controller)
+	BannerService.get()
+		.fetchActiveBanners()
+		.then((banners) => {
+			if (banners.length > 0) {
+				Logger.log(`BannerService: ${banners.length} active banner(s) fetched.`)
+				// Banners are now cached and can be accessed by the frontend when needed
+			}
+		})
+		.catch((error) => {
+			Logger.error("BannerService: Failed to fetch banners on startup", error)
+		})
 
 	telemetryService.captureExtensionActivated()
 

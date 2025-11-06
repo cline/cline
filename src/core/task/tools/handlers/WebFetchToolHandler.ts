@@ -5,7 +5,7 @@ import { telemetryService } from "@/services/telemetry"
 import { ToolUse } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
 import { ToolResponse } from "../.."
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
@@ -39,6 +39,11 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 		try {
 			const url: string | undefined = block.params.url
 
+			// Extract provider information for telemetry
+			const apiConfig = config.services.stateManager.getApiConfiguration()
+			const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+			const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
 			// Validate required parameter
 			if (!url) {
 				config.taskState.consecutiveMistakeCount++
@@ -59,23 +64,48 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 				// Auto-approve flow
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-				config.taskState.consecutiveAutoApprovedRequestsCount++
-				telemetryService.captureToolUsage(config.ulid, "web_fetch", config.api.getModel().id, true, true)
+				telemetryService.captureToolUsage(
+					config.ulid,
+					"web_fetch",
+					config.api.getModel().id,
+					provider,
+					true,
+					true,
+					undefined,
+					block.isNativeToolCall,
+				)
 			} else {
 				// Manual approval flow
-				showNotificationForApprovalIfAutoApprovalEnabled(
+				showNotificationForApproval(
 					`Cline wants to fetch content from ${url}`,
-					config.autoApprovalSettings.enabled,
 					config.autoApprovalSettings.enableNotifications,
 				)
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 
 				const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
 				if (!didApprove) {
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
+					telemetryService.captureToolUsage(
+						config.ulid,
+						block.name,
+						config.api.getModel().id,
+						provider,
+						false,
+						false,
+						undefined,
+						block.isNativeToolCall,
+					)
 					return formatResponse.toolDenied()
 				} else {
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
+					telemetryService.captureToolUsage(
+						config.ulid,
+						block.name,
+						config.api.getModel().id,
+						provider,
+						false,
+						true,
+						undefined,
+						block.isNativeToolCall,
+					)
 				}
 			}
 

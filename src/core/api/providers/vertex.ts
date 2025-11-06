@@ -1,8 +1,12 @@
 import { Anthropic } from "@anthropic-ai/sdk"
+import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
+import { FunctionDeclaration as GoogleTool } from "@google/genai"
 import { ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
+import { ClineTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
+import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
 import { ApiStream } from "../transform/stream"
 import { GeminiHandler } from "./gemini"
 
@@ -63,14 +67,14 @@ export class VertexHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: ClineTool[]): ApiStream {
 		const model = this.getModel()
 		const modelId = model.id
 
 		// For Gemini models, use the GeminiHandler
 		if (!modelId.includes("claude")) {
 			const geminiHandler = this.ensureGeminiHandler()
-			yield* geminiHandler.createMessage(systemPrompt, messages)
+			yield* geminiHandler.createMessage(systemPrompt, messages, tools as GoogleTool[])
 			return
 		}
 
@@ -79,12 +83,17 @@ export class VertexHandler implements ApiHandler {
 		// Claude implementation
 		const budget_tokens = this.options.thinkingBudgetTokens || 0
 		const reasoningOn = !!(
-			(modelId.includes("3-7") || modelId.includes("sonnet-4") || modelId.includes("opus-4")) &&
+			(modelId.includes("3-7") ||
+				modelId.includes("sonnet-4") ||
+				modelId.includes("opus-4") ||
+				modelId.includes("haiku-4-5")) &&
 			budget_tokens !== 0
 		)
 		let stream
 
 		switch (modelId) {
+			case "claude-haiku-4-5@20251001":
+			case "claude-sonnet-4-5@20250929":
 			case "claude-sonnet-4@20250514":
 			case "claude-opus-4-1@20250805":
 			case "claude-opus-4@20250514":
@@ -114,47 +123,14 @@ export class VertexHandler implements ApiHandler {
 								cache_control: { type: "ephemeral" },
 							},
 						],
-						messages: messages.map((message, index) => {
-							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-								return {
-									...message,
-									content:
-										typeof message.content === "string"
-											? [
-													{
-														type: "text",
-														text: message.content,
-														cache_control: {
-															type: "ephemeral",
-														},
-													},
-												]
-											: message.content.map((content, contentIndex) =>
-													contentIndex === message.content.length - 1
-														? {
-																...content,
-																cache_control: {
-																	type: "ephemeral",
-																},
-															}
-														: content,
-												),
-								}
-							}
-							return {
-								...message,
-								content:
-									typeof message.content === "string"
-										? [
-												{
-													type: "text",
-													text: message.content,
-												},
-											]
-										: message.content,
-							}
-						}),
+						messages: sanitizeAnthropicMessages(messages, lastUserMsgIndex, secondLastMsgUserIndex),
 						stream: true,
+						tools: tools?.length ? (tools as AnthropicTool[]) : undefined,
+						// tool_choice options:
+						// - none: disables tool use, even if tools are provided. Claude will not call any tools.
+						// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
+						// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
+						tool_choice: tools ? { type: "any" } : undefined,
 					},
 					{
 						headers: {},
@@ -173,23 +149,20 @@ export class VertexHandler implements ApiHandler {
 							type: "text",
 						},
 					],
-					messages: messages.map((message) => ({
-						...message,
-						content:
-							typeof message.content === "string"
-								? [
-										{
-											type: "text",
-											text: message.content,
-										},
-									]
-								: message.content,
-					})),
+					messages: sanitizeAnthropicMessages(messages),
 					stream: true,
+					tools: tools?.length ? (tools as AnthropicTool[]) : undefined,
+					// tool_choice options:
+					// - none: disables tool use, even if tools are provided. Claude will not call any tools.
+					// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
+					// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
+					tool_choice: tools ? { type: "any" } : undefined,
 				})
 				break
 			}
 		}
+
+		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 
 		for await (const chunk of stream) {
 			switch (chunk?.type) {
@@ -228,6 +201,14 @@ export class VertexHandler implements ApiHandler {
 								reasoning: "[Redacted thinking block]",
 							}
 							break
+						case "tool_use":
+							if (chunk.content_block.id && chunk.content_block.name) {
+								// Convert Anthropic tool_use to OpenAI-compatible format
+								lastStartedToolCall.id = chunk.content_block.id
+								lastStartedToolCall.name = chunk.content_block.name
+								lastStartedToolCall.arguments = ""
+							}
+							break
 						case "text":
 							if (chunk.index > 0) {
 								yield {
@@ -250,6 +231,22 @@ export class VertexHandler implements ApiHandler {
 								reasoning: chunk.delta.thinking,
 							}
 							break
+						case "input_json_delta":
+							if (lastStartedToolCall.id && lastStartedToolCall.name && chunk.delta.partial_json) {
+								// 	// Convert Anthropic tool_use to OpenAI-compatible format
+								yield {
+									type: "tool_calls",
+									tool_call: {
+										...lastStartedToolCall,
+										function: {
+											id: lastStartedToolCall.id,
+											name: lastStartedToolCall.name,
+											arguments: chunk.delta.partial_json,
+										},
+									},
+								}
+							}
+							break
 						case "text_delta":
 							yield {
 								type: "text",
@@ -259,6 +256,9 @@ export class VertexHandler implements ApiHandler {
 					}
 					break
 				case "content_block_stop":
+					lastStartedToolCall.id = ""
+					lastStartedToolCall.name = ""
+					lastStartedToolCall.arguments = ""
 					break
 			}
 		}

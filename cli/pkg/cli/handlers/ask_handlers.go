@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cline/cli/pkg/cli/clerror"
+	"github.com/cline/cli/pkg/cli/output"
 	"github.com/cline/cli/pkg/cli/types"
 )
 
@@ -26,6 +28,9 @@ func (h *AskHandler) CanHandle(msg *types.ClineMessage) bool {
 }
 
 func (h *AskHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
+	// Always display approval messages so user can see what they're approving
+	// The input handler will show the approval prompt form after the content is displayed
+
 	switch msg.Ask {
 	case string(types.AskTypeFollowup):
 		return h.handleFollowup(msg, dc)
@@ -47,8 +52,6 @@ func (h *AskHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 		return h.handleResumeCompletedTask(msg, dc)
 	case string(types.AskTypeMistakeLimitReached):
 		return h.handleMistakeLimitReached(msg, dc)
-	case string(types.AskTypeAutoApprovalMaxReached):
-		return h.handleAutoApprovalMaxReached(msg, dc)
 	case string(types.AskTypeBrowserActionLaunch):
 		return h.handleBrowserActionLaunch(msg, dc)
 	case string(types.AskTypeUseMcpServer):
@@ -66,32 +69,24 @@ func (h *AskHandler) Handle(msg *types.ClineMessage, dc *DisplayContext) error {
 
 // handleFollowup handles followup questions
 func (h *AskHandler) handleFollowup(msg *types.ClineMessage, dc *DisplayContext) error {
-	var question string
-	var options []string
+	body := dc.ToolRenderer.GenerateAskFollowupBody(msg.Text)
 
-	var askData types.AskData
-	if err := json.Unmarshal([]byte(msg.Text), &askData); err == nil {
-		question = askData.Question
-		options = askData.Options
-	} else {
-		question = msg.Text
-	}
-
-	if question == "" {
+	if body == "" {
 		return nil
 	}
 
-	err := dc.Renderer.RenderMessage("QUESTION", question)
-	if err != nil {
-		return err
-	}
-
-	// Display options if available
-	if len(options) > 0 {
-		fmt.Println("\nOptions:")
-		for i, option := range options {
-			fmt.Printf("%d. %s\n", i+1, option)
-		}
+	if dc.IsStreamingMode {
+		// In streaming mode, header was already shown by partial stream
+		// Just render the body content
+		output.Print(body)
+	} else {
+		// Non-streaming mode: render header + body together
+		header := dc.ToolRenderer.GenerateAskFollowupHeader()
+		rendered := dc.Renderer.RenderMarkdown(header)
+		output.Print("\n")
+		output.Print(rendered)
+		output.Print("\n")
+		output.Print(body)
 	}
 
 	return nil
@@ -99,41 +94,41 @@ func (h *AskHandler) handleFollowup(msg *types.ClineMessage, dc *DisplayContext)
 
 // handlePlanModeRespond handles plan mode responses
 func (h *AskHandler) handlePlanModeRespond(msg *types.ClineMessage, dc *DisplayContext) error {
-	var response string
-	var options []string
-
-	// Try to parse as JSON
-	type PlanModeResponse struct {
-		Response string   `json:"response"`
-		Options  []string `json:"options,omitempty"`
-	}
-
-	var planData PlanModeResponse
-	if err := json.Unmarshal([]byte(msg.Text), &planData); err == nil {
-		response = planData.Response
-		options = planData.Options
-	} else {
-		response = msg.Text
-	}
-
-	if response == "" {
-		return nil
-	}
-
-	err := dc.Renderer.RenderMessage("ASST PLAN", response)
-	if err != nil {
-		return err
-	}
-
-	// Display options if available
-	if len(options) > 0 {
-		fmt.Println("\nOptions:")
-		for i, option := range options {
-			fmt.Printf("%d. %s\n", i+1, option)
+	if dc.IsStreamingMode {
+		// In streaming mode, header was already shown by partial stream
+		// Just render the body content
+		body := dc.ToolRenderer.GeneratePlanModeRespondBody(msg.Text)
+		if body != "" {
+			output.Print(body)
 		}
+	} else {
+		// In non-streaming mode, render header + body together
+		header := dc.ToolRenderer.GeneratePlanModeRespondHeader()
+		body := dc.ToolRenderer.GeneratePlanModeRespondBody(msg.Text)
+
+		if body == "" {
+			return nil
+		}
+
+		// Render header
+		rendered := dc.Renderer.RenderMarkdown(header)
+		output.Print("\n")
+		output.Print(rendered)
+		output.Print("\n")
+
+		// Render body
+		output.Print(body)
 	}
 
 	return nil
+}
+
+// showApprovalHint displays a hint in non-interactive mode about how to approve/deny
+func (h *AskHandler) showApprovalHint(dc *DisplayContext) {
+	if !dc.IsInteractive {
+		output.Printf("\n%s\n", dc.Renderer.Dim("Cline is requesting approval to use this tool"))
+		output.Printf("%s\n", dc.Renderer.Dim("Use cline task send --approve or --deny to respond"))
+	}
 }
 
 // handleCommand handles command execution requests
@@ -142,27 +137,14 @@ func (h *AskHandler) handleCommand(msg *types.ClineMessage, dc *DisplayContext) 
 		return nil
 	}
 
-	command := msg.Text
+	// Check if this command was flagged despite auto-approval settings
+	autoApprovalConflict := strings.HasSuffix(msg.Text, "REQ_APP")
 
-	// Check if this command was flagged despite auto-approval settings turned on for safe commands
-	hasAutoApprovalConflict := strings.HasSuffix(command, "REQ_APP")
-	if hasAutoApprovalConflict {
-		command = strings.TrimSuffix(command, "REQ_APP")
-	}
+	// Use unified ToolRenderer
+	rendered := dc.ToolRenderer.RenderCommandApprovalRequest(msg.Text, autoApprovalConflict)
+	output.Print(rendered)
 
-	err := dc.Renderer.RenderMessage("TERMINAL", "Cline wants to execute this command:")
-	if err != nil {
-		return fmt.Errorf("failed to render handleCommand: %w", err)
-	}
-
-	fmt.Printf("\n```shell\n%s\n```\n", strings.TrimSpace(command))
-
-	if hasAutoApprovalConflict {
-		fmt.Printf("\nThe model has determined this command requires explicit approval.\n")
-	} else {
-		fmt.Printf("\nApproval required for this command.\n")
-	}
-
+	h.showApprovalHint(dc)
 	return nil
 }
 
@@ -174,12 +156,10 @@ func (h *AskHandler) handleCommandOutput(msg *types.ClineMessage, dc *DisplayCon
 
 	commandOutput := msg.Text
 
-	err := dc.Renderer.RenderMessage("TERMINAL", fmt.Sprintf("Current terminal output: %s", commandOutput))
-	if err != nil {
-		return fmt.Errorf("failed to render handleCommandOutput: %w", err)
-	}
+	markdown := fmt.Sprintf("```\n%s\n```", commandOutput)
+	rendered := dc.Renderer.RenderMarkdown(markdown)
 
-	fmt.Println("")
+	fmt.Printf("%s", rendered)
 
 	return nil
 }
@@ -195,85 +175,90 @@ func (h *AskHandler) handleTool(msg *types.ClineMessage, dc *DisplayContext) err
 	var tool types.ToolMessage
 	if err := json.Unmarshal([]byte(msg.Text), &tool); err != nil {
 		// Fallback to simple display
-		return dc.Renderer.RenderMessage("TOOL", msg.Text)
+		return dc.Renderer.RenderMessage("TOOL", msg.Text, true)
 	}
 
-	return h.renderToolMessage(&tool, dc)
-}
-
-// renderToolMessage renders a tool message with appropriate formatting
-func (h *AskHandler) renderToolMessage(tool *types.ToolMessage, dc *DisplayContext) error {
-	switch tool.Tool {
-	case string(types.ToolTypeEditedExistingFile):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to edit file: %s", tool.Path))
-	case string(types.ToolTypeNewFileCreated):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to create file: %s", tool.Path))
-	case string(types.ToolTypeReadFile):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to read file: %s", tool.Path))
-	case string(types.ToolTypeListFilesTopLevel):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to list files in: %s", tool.Path))
-	case string(types.ToolTypeListFilesRecursive):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to recursively list files in: %s", tool.Path))
-	case string(types.ToolTypeSearchFiles):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to search for '%s' in: %s", tool.Regex, tool.Path))
-	case string(types.ToolTypeWebFetch):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to fetch URL: %s", tool.Path))
-	case string(types.ToolTypeListCodeDefinitionNames):
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to list code definitions for: %s", tool.Path))
-	default:
-		dc.Renderer.RenderMessage("TOOL", fmt.Sprintf("Cline wants to use tool: %s", tool.Tool))
-	}
-
-	// Skip content preview for readFile and webFetch tools
-	if tool.Tool == string(types.ToolTypeReadFile) || tool.Tool == string(types.ToolTypeWebFetch) {
-		return nil
-	}
-
-	// Show content preview, truncating if necessary
-	preview := tool.Content
-	if preview != "" {
-		preview = strings.TrimSpace(tool.Content)
-		if len(preview) > 1000 {
-			preview = preview[:1000] + "..."
+	if dc.IsStreamingMode {
+		// In streaming mode, header was already shown by partial stream
+		// Just render the content preview
+		contentPreview := dc.ToolRenderer.GenerateToolContentPreview(&tool)
+		if contentPreview != "" {
+			output.Print("\n")
+			output.Print(contentPreview)
 		}
-
-		fmt.Printf("Preview: %s\n", preview)
+	} else {
+		// Non-streaming mode: render full approval (header + preview)
+		rendered := dc.ToolRenderer.RenderToolApprovalRequest(&tool)
+		output.Print(rendered)
 	}
 
-	fmt.Printf("\nApproval required.\n")
-
+	h.showApprovalHint(dc)
 	return nil
 }
 
 // handleAPIReqFailed handles API request failures
 func (h *AskHandler) handleAPIReqFailed(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("API Request Failed: %s. Approve to retry request.", msg.Text))
+	// Try to parse as ClineError for better error display
+	clineErr, _ := clerror.ParseClineError(msg.Text)
+	if clineErr != nil {
+		if dc.SystemRenderer != nil {
+			// Render the error with system renderer
+			switch clineErr.GetErrorType() {
+			case clerror.ErrorTypeBalance:
+				dc.SystemRenderer.RenderBalanceError(clineErr)
+			case clerror.ErrorTypeAuth:
+				dc.SystemRenderer.RenderAuthError(clineErr)
+			case clerror.ErrorTypeRateLimit:
+				dc.SystemRenderer.RenderRateLimitError(clineErr)
+			default:
+				dc.SystemRenderer.RenderAPIError(clineErr)
+			}
+			return nil
+		}
+		// Fallback: render with basic renderer using parsed message
+		return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("API Request Failed: %s. Approve to retry request.", clineErr.Message), true)
+	}
+	// Last resort: display raw text if parsing completely failed
+	return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("API Request Failed: %s. Approve to retry request.", msg.Text), true)
 }
 
 // handleResumeTask handles resume task requests
 func (h *AskHandler) handleResumeTask(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("GEN INFO", "Resuming interrupted task.")
+	// Don't render - this is metadata only, user already knows they're resuming
+	return nil
 }
 
 // handleResumeCompletedTask handles resume completed task requests
 func (h *AskHandler) handleResumeCompletedTask(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("GEN INFO", "Resuming completed task.")
+	// Don't render - this is metadata only, user already knows they're resuming
+	return nil
 }
 
 // handleMistakeLimitReached handles mistake limit reached
 func (h *AskHandler) handleMistakeLimitReached(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("Mistake Limit Reached: %s. Approval required.", msg.Text))
-}
-
-// handleAutoApprovalMaxReached handles auto-approval max reached
-func (h *AskHandler) handleAutoApprovalMaxReached(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("WARNING", fmt.Sprintf("Auto-approval limit reached: %s. Approval required.", msg.Text))
+	if dc.SystemRenderer != nil {
+		details := make(map[string]string)
+		if msg.Text != "" {
+			details["details"] = msg.Text
+		}
+		dc.SystemRenderer.RenderError(
+			"critical",
+			"Mistake Limit Reached",
+			"Cline has made too many consecutive mistakes and needs your guidance to proceed.",
+			details,
+		)
+		fmt.Printf("\n**Approval required to continue.**\n")
+		return nil
+	}
+	return dc.Renderer.RenderMessage("ERROR", fmt.Sprintf("Mistake Limit Reached: %s. Approval required.", msg.Text), true)
 }
 
 // handleBrowserActionLaunch handles browser action launch requests
 func (h *AskHandler) handleBrowserActionLaunch(msg *types.ClineMessage, dc *DisplayContext) error {
 	url := strings.TrimSpace(msg.Text)
-	return dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Cline wants to launch browser and navigate to: %s. Approval required.", url))
+	err := dc.Renderer.RenderMessage("BROWSER", fmt.Sprintf("Cline wants to launch browser and navigate to: %s. Approval required.", url), true)
+	h.showApprovalHint(dc)
+	return err
 }
 
 // handleUseMcpServer handles MCP server usage requests
@@ -289,7 +274,7 @@ func (h *AskHandler) handleUseMcpServer(msg *types.ClineMessage, dc *DisplayCont
 
 	var mcpReq McpServerRequest
 	if err := json.Unmarshal([]byte(msg.Text), &mcpReq); err != nil {
-		return dc.Renderer.RenderMessage("MCP", msg.Text)
+		return dc.Renderer.RenderMessage("MCP", msg.Text, true)
 	}
 
 	var operation string
@@ -302,18 +287,21 @@ func (h *AskHandler) handleUseMcpServer(msg *types.ClineMessage, dc *DisplayCont
 		}
 	}
 
-	return dc.Renderer.RenderMessage("MCP",
-		fmt.Sprintf("Cline wants to %s on the %s MCP server", operation, mcpReq.ServerName))
+	err := dc.Renderer.RenderMessage("MCP",
+		fmt.Sprintf("Cline wants to %s on the %s MCP server", operation, mcpReq.ServerName), true)
+
+	h.showApprovalHint(dc)
+	return err
 }
 
 // handleNewTask handles new task creation requests
 func (h *AskHandler) handleNewTask(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("NEW TASK", fmt.Sprintf("Cline wants to start a new task: %s. Approval required.", msg.Text))
+	return dc.Renderer.RenderMessage("NEW TASK", fmt.Sprintf("Cline wants to start a new task: %s. Approval required.", msg.Text), true)
 }
 
 // handleCondense handles conversation condensing requests
 func (h *AskHandler) handleCondense(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("CONDENSE", fmt.Sprintf("Cline wants to condense the conversation: %s. Approval required.", msg.Text))
+	return dc.Renderer.RenderMessage("CONDENSE", fmt.Sprintf("Cline wants to condense the conversation: %s. Approval required.", msg.Text), true)
 }
 
 // handleReportBug handles bug report requests
@@ -327,10 +315,10 @@ func (h *AskHandler) handleReportBug(msg *types.ClineMessage, dc *DisplayContext
 	}
 
 	if err := json.Unmarshal([]byte(msg.Text), &bugData); err != nil {
-		return dc.Renderer.RenderMessage("BUG REPORT", fmt.Sprintf("Cline wants to create a GitHub issue: %s. Approval required.", msg.Text))
+		return dc.Renderer.RenderMessage("BUG REPORT", fmt.Sprintf("Cline wants to create a GitHub issue: %s. Approval required.", msg.Text), true)
 	}
 
-	err := dc.Renderer.RenderMessage("BUG REPORT", "Cline wants to create a GitHub issue:")
+	err := dc.Renderer.RenderMessage("BUG REPORT", "Cline wants to create a GitHub issue:", true)
 	if err != nil {
 		return fmt.Errorf("failed to render handleReportBug: %w", err)
 	}
@@ -347,5 +335,5 @@ func (h *AskHandler) handleReportBug(msg *types.ClineMessage, dc *DisplayContext
 
 // handleDefault handles unknown ASK message types
 func (h *AskHandler) handleDefault(msg *types.ClineMessage, dc *DisplayContext) error {
-	return dc.Renderer.RenderMessage("ASK", msg.Text)
+	return dc.Renderer.RenderMessage("ASK", msg.Text, true)
 }

@@ -1,14 +1,15 @@
 import { liteLlmModelInfoSaneDefaults } from "@shared/api"
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the LiteLlmProvider component
@@ -24,7 +25,6 @@ interface LiteLlmProviderProps {
  */
 export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: LiteLlmProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -39,15 +39,37 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 		<div>
 			<DebouncedTextField
 				initialValue={apiConfiguration?.liteLlmBaseUrl || ""}
-				onChange={(value) => handleFieldChange("liteLlmBaseUrl", value)}
+				onChange={async (value) => {
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							apiConfiguration: {
+								options: {
+									liteLlmBaseUrl: value,
+								},
+							},
+							updateMask: ["options.liteLlmBaseUrl"],
+						}),
+					)
+				}}
 				placeholder={"Default: http://localhost:4000"}
 				style={{ width: "100%" }}
-				type="url">
+				type="text">
 				<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
 			</DebouncedTextField>
 			<DebouncedTextField
 				initialValue={apiConfiguration?.liteLlmApiKey || ""}
-				onChange={(value) => handleFieldChange("liteLlmApiKey", value)}
+				onChange={async (value) => {
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							apiConfiguration: {
+								secrets: {
+									liteLlmApiKey: value,
+								},
+							},
+							updateMask: ["secrets.liteLlmApiKey"],
+						}),
+					)
+				}}
 				placeholder="Default: noop"
 				style={{ width: "100%" }}
 				type="password">
@@ -55,9 +77,18 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 			</DebouncedTextField>
 			<DebouncedTextField
 				initialValue={liteLlmModelId || ""}
-				onChange={(value) =>
-					handleModeFieldChange({ plan: "planModeLiteLlmModelId", act: "actModeLiteLlmModelId" }, value, currentMode)
-				}
+				onChange={async (value) => {
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							apiConfiguration: {
+								options:
+									currentMode === "plan" ? { planModeLiteLlmModelId: value } : { actModeLiteLlmModelId: value },
+							},
+							updateMask:
+								currentMode === "plan" ? ["options.planModeLiteLlmModelId"] : ["options.actModeLiteLlmModelId"],
+						}),
+					)
+				}}
 				placeholder={"e.g. anthropic/claude-sonnet-4-20250514"}
 				style={{ width: "100%" }}>
 				<span style={{ fontWeight: 500 }}>Model ID</span>
@@ -68,10 +99,19 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 					<>
 						<VSCodeCheckbox
 							checked={apiConfiguration?.liteLlmUsePromptCache || false}
-							onChange={(e: any) => {
+							onChange={async (e: any) => {
 								const isChecked = e.target.checked === true
 
-								handleFieldChange("liteLlmUsePromptCache", isChecked)
+								await ModelsServiceClient.updateApiConfiguration(
+									UpdateApiConfigurationRequestNew.create({
+										apiConfiguration: {
+											options: {
+												liteLlmUsePromptCache: isChecked,
+											},
+										},
+										updateMask: ["options.liteLlmUsePromptCache"],
+									}),
+								)
 							}}
 							style={{ fontWeight: 500, color: "var(--vscode-charts-green)" }}>
 							Use prompt caching (GA)
@@ -124,15 +164,24 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 				<>
 					<VSCodeCheckbox
 						checked={!!liteLlmModelInfo?.supportsImages}
-						onChange={(e: any) => {
+						onChange={async (e: any) => {
 							const isChecked = e.target.checked === true
 							const modelInfo = liteLlmModelInfo ? liteLlmModelInfo : { ...liteLlmModelInfoSaneDefaults }
 							modelInfo.supportsImages = isChecked
 
-							handleModeFieldChange(
-								{ plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
-								modelInfo,
-								currentMode,
+							await ModelsServiceClient.updateApiConfiguration(
+								UpdateApiConfigurationRequestNew.create({
+									apiConfiguration: {
+										options:
+											currentMode === "plan"
+												? { planModeLiteLlmModelInfo: modelInfo }
+												: { actModeLiteLlmModelInfo: modelInfo },
+									},
+									updateMask:
+										currentMode === "plan"
+											? ["options.planModeLiteLlmModelInfo"]
+											: ["options.actModeLiteLlmModelInfo"],
+								}),
 							)
 						}}>
 						Supports Images
@@ -144,14 +193,23 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 									? liteLlmModelInfo.contextWindow.toString()
 									: (liteLlmModelInfoSaneDefaults.contextWindow?.toString() ?? "")
 							}
-							onChange={(value) => {
+							onChange={async (value) => {
 								const modelInfo = liteLlmModelInfo ? liteLlmModelInfo : { ...liteLlmModelInfoSaneDefaults }
 								modelInfo.contextWindow = Number(value)
 
-								handleModeFieldChange(
-									{ plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
-									modelInfo,
-									currentMode,
+								await ModelsServiceClient.updateApiConfiguration(
+									UpdateApiConfigurationRequestNew.create({
+										apiConfiguration: {
+											options:
+												currentMode === "plan"
+													? { planModeLiteLlmModelInfo: modelInfo }
+													: { actModeLiteLlmModelInfo: modelInfo },
+										},
+										updateMask:
+											currentMode === "plan"
+												? ["options.planModeLiteLlmModelInfo"]
+												: ["options.actModeLiteLlmModelInfo"],
+									}),
 								)
 							}}
 							style={{ flex: 1 }}>
@@ -163,14 +221,23 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 									? liteLlmModelInfo.maxTokens.toString()
 									: (liteLlmModelInfoSaneDefaults.maxTokens?.toString() ?? "")
 							}
-							onChange={(value) => {
+							onChange={async (value) => {
 								const modelInfo = liteLlmModelInfo ? liteLlmModelInfo : { ...liteLlmModelInfoSaneDefaults }
 								modelInfo.maxTokens = Number(value)
 
-								handleModeFieldChange(
-									{ plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
-									modelInfo,
-									currentMode,
+								await ModelsServiceClient.updateApiConfiguration(
+									UpdateApiConfigurationRequestNew.create({
+										apiConfiguration: {
+											options:
+												currentMode === "plan"
+													? { planModeLiteLlmModelInfo: modelInfo }
+													: { actModeLiteLlmModelInfo: modelInfo },
+										},
+										updateMask:
+											currentMode === "plan"
+												? ["options.planModeLiteLlmModelInfo"]
+												: ["options.actModeLiteLlmModelInfo"],
+									}),
 								)
 							}}
 							style={{ flex: 1 }}>
@@ -184,7 +251,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 									? liteLlmModelInfo.temperature.toString()
 									: (liteLlmModelInfoSaneDefaults.temperature?.toString() ?? "")
 							}
-							onChange={(value) => {
+							onChange={async (value) => {
 								const modelInfo = liteLlmModelInfo ? liteLlmModelInfo : { ...liteLlmModelInfoSaneDefaults }
 
 								// Check if the input ends with a decimal point or has trailing zeros after decimal
@@ -193,10 +260,19 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 								modelInfo.temperature =
 									value === "" ? liteLlmModelInfoSaneDefaults.temperature : parseFloat(value)
 
-								handleModeFieldChange(
-									{ plan: "planModeLiteLlmModelInfo", act: "actModeLiteLlmModelInfo" },
-									modelInfo,
-									currentMode,
+								await ModelsServiceClient.updateApiConfiguration(
+									UpdateApiConfigurationRequestNew.create({
+										apiConfiguration: {
+											options:
+												currentMode === "plan"
+													? { planModeLiteLlmModelInfo: modelInfo }
+													: { actModeLiteLlmModelInfo: modelInfo },
+										},
+										updateMask:
+											currentMode === "plan"
+												? ["options.planModeLiteLlmModelInfo"]
+												: ["options.actModeLiteLlmModelInfo"],
+									}),
 								)
 							}}>
 							<span style={{ fontWeight: 500 }}>Temperature</span>

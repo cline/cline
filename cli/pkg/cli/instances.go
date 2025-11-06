@@ -4,15 +4,59 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"syscall"
 	"text/tabwriter"
 	"time"
 
+	"github.com/cline/cli/pkg/cli/display"
 	"github.com/cline/cli/pkg/cli/global"
+	"github.com/cline/cli/pkg/common"
+	client2 "github.com/cline/grpc-go/client"
 	"github.com/cline/grpc-go/cline"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
+
+const (
+	platformCLI       = "CLI"
+	platformJetBrains = "JetBrains"
+	platformNA        = "N/A"
+	hostPlatformCLI   = "Cline CLI" // Value returned by host bridge for CLI instances
+)
+
+// detectInstancePlatform connects to an instance's host bridge and determines its platform
+func detectInstancePlatform(ctx context.Context, instance *common.CoreInstanceInfo) (string, error) {
+	hostTarget, err := common.NormalizeAddressForGRPC(instance.HostServiceAddress)
+	if err != nil {
+		return platformNA, err
+	}
+
+	hostClient, err := client2.NewClineClient(hostTarget)
+	if err != nil {
+		return platformNA, err
+	}
+	defer hostClient.Disconnect()
+
+	if err := hostClient.Connect(ctx); err != nil {
+		return platformNA, err
+	}
+
+	hostVersion, err := hostClient.Env.GetHostVersion(ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return platformNA, err
+	}
+
+	if hostVersion.Platform == nil {
+		return platformNA, fmt.Errorf("host returned nil platform")
+	}
+
+	platformStr := *hostVersion.Platform
+	if platformStr == hostPlatformCLI {
+		return platformCLI, nil
+	}
+	return platformJetBrains, nil
+}
 
 func NewInstanceCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -23,7 +67,7 @@ func NewInstanceCommand() *cobra.Command {
 	}
 
 	cmd.AddCommand(newInstanceListCommand())
-	cmd.AddCommand(newInstanceUseCommand())
+	cmd.AddCommand(newInstanceDefaultCommand())
 	cmd.AddCommand(newInstanceNewCommand())
 	cmd.AddCommand(newInstanceKillCommand())
 
@@ -31,7 +75,7 @@ func NewInstanceCommand() *cobra.Command {
 }
 
 func newInstanceKillCommand() *cobra.Command {
-	var killAll bool
+	var killAllCLI bool
 
 	cmd := &cobra.Command{
 		Use:     "kill <address>",
@@ -39,11 +83,11 @@ func newInstanceKillCommand() *cobra.Command {
 		Short:   "Kill a Cline instance by address",
 		Long:    `Kill a running Cline instance and clean up its registry entry.`,
 		Args: func(cmd *cobra.Command, args []string) error {
-			if killAll && len(args) > 0 {
-				return fmt.Errorf("cannot specify both --all flag and address argument")
+			if killAllCLI && len(args) > 0 {
+				return fmt.Errorf("cannot specify both --all-cli flag and address argument")
 			}
-			if !killAll && len(args) != 1 {
-				return fmt.Errorf("requires exactly one address argument when --all is not specified")
+			if !killAllCLI && len(args) != 1 {
+				return fmt.Errorf("requires exactly one address argument when --all-cli is not specified")
 			}
 			return nil
 		},
@@ -55,76 +99,20 @@ func newInstanceKillCommand() *cobra.Command {
 			ctx := cmd.Context()
 			registry := global.Clients.GetRegistry()
 
-			if killAll {
-				return killAllInstances(ctx, registry)
+			if killAllCLI {
+				return killAllCLIInstances(ctx, registry)
 			} else {
-				return killSingleInstance(ctx, registry, args[0])
+				return global.KillInstanceByAddress(ctx, registry, args[0])
 			}
 		},
 	}
 
-	cmd.Flags().BoolVar(&killAll, "all", false, "kill all running instances")
+	cmd.Flags().BoolVarP(&killAllCLI, "all-cli", "a", false, "kill all running CLI instances (excludes JetBrains)")
 
 	return cmd
 }
 
-func killSingleInstance(ctx context.Context, registry *global.ClientRegistry, address string) error {
-	// Check if the instance exists in the registry
-	_, err := registry.GetInstance(address)
-	if err != nil {
-		return fmt.Errorf("instance %s not found in registry", address)
-	}
-
-	fmt.Printf("Killing instance: %s\n", address)
-
-	// Get gRPC client and process info
-	client, err := registry.GetClient(ctx, address)
-	if err != nil {
-		return fmt.Errorf("failed to connect to instance %s: %w", address, err)
-	}
-
-	processInfo, err := client.State.GetProcessInfo(ctx, &cline.EmptyRequest{})
-	if err != nil {
-		return fmt.Errorf("failed to get process info for instance %s: %w", address, err)
-	}
-
-	pid := int(processInfo.ProcessId)
-	fmt.Printf("Terminating process PID %d...\n", pid)
-
-	// Kill the process
-	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
-		return fmt.Errorf("failed to kill process %d: %w", pid, err)
-	}
-
-	// Wait for the instance to remove itself from registry
-	fmt.Printf("Waiting for instance to clean up registry entry...\n")
-	for i := 0; i < 5; i++ {
-		time.Sleep(1 * time.Second)
-		if !registry.HasInstanceAtAddress(address) {
-			fmt.Printf("Instance %s successfully killed and removed from registry.\n", address)
-
-			// Update default instance if needed
-			instances, err := registry.ListInstancesCleaned(ctx)
-			if err == nil && len(instances) > 0 {
-				// ensureDefaultInstance logic will handle setting a new default
-				defaultInstance := registry.GetDefaultInstance()
-				if defaultInstance == address || defaultInstance == "" {
-					if len(instances) > 0 {
-						if err := registry.SetDefaultInstance(instances[0].Address); err == nil {
-							fmt.Printf("Updated default instance to: %s\n", instances[0].Address)
-						}
-					}
-				}
-			}
-
-			return nil
-		}
-	}
-
-	return fmt.Errorf("instance killed but failed to remove itself from registry within 5 seconds")
-}
-
-func killAllInstances(ctx context.Context, registry *global.ClientRegistry) error {
+func killAllCLIInstances(ctx context.Context, registry *global.ClientRegistry) error {
 	// Get all instances from registry
 	instances, err := registry.ListInstancesCleaned(ctx)
 	if err != nil {
@@ -136,12 +124,42 @@ func killAllInstances(ctx context.Context, registry *global.ClientRegistry) erro
 		return nil
 	}
 
-	fmt.Printf("Killing %d instances...\n", len(instances))
+	// Filter to only CLI instances
+	var cliInstances []*common.CoreInstanceInfo
+	var skippedNonCLI int
+	for _, instance := range instances {
+		if instance.Status == grpc_health_v1.HealthCheckResponse_SERVING {
+			platform, err := detectInstancePlatform(ctx, instance)
+			if err == nil {
+				if platform == platformCLI {
+					cliInstances = append(cliInstances, instance)
+				} else {
+					skippedNonCLI++
+					fmt.Printf("⊘ Skipping %s instance: %s\n", platform, instance.Address)
+				}
+			}
+		}
+	}
+
+	if len(cliInstances) == 0 {
+		if skippedNonCLI > 0 {
+			fmt.Printf("No CLI instances to kill. Skipped %d JetBrains instance(s).\n", skippedNonCLI)
+		} else {
+			fmt.Println("No CLI instances found to kill.")
+		}
+		return nil
+	}
+
+	fmt.Printf("Killing %d CLI instance(s)...\n", len(cliInstances))
+	if skippedNonCLI > 0 {
+		fmt.Printf("Skipping %d JetBrains instance(s).\n", skippedNonCLI)
+	}
 
 	var killResults []killResult
+	killedAddresses := make(map[string]bool)
 
-	// Kill all instances
-	for _, instance := range instances {
+	// Kill all CLI instances
+	for _, instance := range cliInstances {
 		result := killInstanceProcess(ctx, registry, instance.Address)
 		killResults = append(killResults, result)
 
@@ -151,31 +169,42 @@ func killAllInstances(ctx context.Context, registry *global.ClientRegistry) erro
 			fmt.Printf("⚠ Instance %s appears to be already dead\n", instance.Address)
 		} else {
 			fmt.Printf("✓ Killed %s (PID %d)\n", instance.Address, result.pid)
+			killedAddresses[instance.Address] = true
 		}
 	}
 
-	// Wait for all instances to clean up their registry entries
-	fmt.Printf("Waiting for instances to clean up registry entries...\n")
+	// Wait for killed instances to clean up their registry entries
+	if len(killedAddresses) > 0 {
+		fmt.Printf("Waiting for instances to clean up registry entries...\n")
 
-	maxWaitTime := 10 // seconds
-	for i := 0; i < maxWaitTime; i++ {
-		time.Sleep(1 * time.Second)
+		maxWaitTime := 10 // seconds
+		for i := 0; i < maxWaitTime; i++ {
+			time.Sleep(1 * time.Second)
 
-		remainingInstances, err := registry.ListInstancesCleaned(ctx)
-		if err != nil {
-			fmt.Printf("Warning: failed to check registry status: %v\n", err)
-			continue
-		}
+			remainingInstances, err := registry.ListInstancesCleaned(ctx)
+			if err != nil {
+				fmt.Printf("Warning: failed to check registry status: %v\n", err)
+				continue
+			}
 
-		if len(remainingInstances) == 0 {
-			fmt.Printf("✓ All instances successfully removed from registry.\n")
-			break
-		}
-
-		if i == maxWaitTime-1 {
-			fmt.Printf("⚠ %d instances still in registry after %d seconds\n", len(remainingInstances), maxWaitTime)
+			// Check if any of the killed instances are still in the registry
+			stillPresent := []string{}
 			for _, remaining := range remainingInstances {
-				fmt.Printf("  - %s\n", remaining.Address)
+				if killedAddresses[remaining.Address] {
+					stillPresent = append(stillPresent, remaining.Address)
+				}
+			}
+
+			if len(stillPresent) == 0 {
+				fmt.Printf("✓ All killed instances successfully removed from registry.\n")
+				break
+			}
+
+			if i == maxWaitTime-1 {
+				fmt.Printf("⚠ %d killed instance(s) still in registry after %d seconds\n", len(stillPresent), maxWaitTime)
+				for _, addr := range stillPresent {
+					fmt.Printf("  - %s\n", addr)
+				}
 			}
 		}
 	}
@@ -267,14 +296,22 @@ func newInstanceListCommand() *cobra.Command {
 				return nil
 			}
 
-			// Always output a table
-			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "ADDRESS\tSTATUS\tVERSION\tLAST SEEN\tPID\tDEFAULT")
+			// Build instance data
+			type instanceRow struct {
+				address   string
+				status    string
+				version   string
+				lastSeen  string
+				pid       string
+				platform  string
+				isDefault string
+			}
 
+			var rows []instanceRow
 			for _, instance := range instances {
 				isDefault := ""
 				if instance.Address == defaultInstance {
-					isDefault = "*"
+					isDefault = "✓"
 				}
 
 				lastSeen := instance.LastSeen.Format("15:04:05")
@@ -282,9 +319,11 @@ func newInstanceListCommand() *cobra.Command {
 					lastSeen = instance.LastSeen.Format("2006-01-02")
 				}
 
-				// Get PID via RPC if instance is healthy
-				pid := "N/A"
+				// Get PID and platform via RPC if instance is healthy
+				pid := platformNA
+				platform := platformNA
 				if instance.Status == grpc_health_v1.HealthCheckResponse_SERVING {
+					// Get PID from core
 					if client, err := registry.GetClient(ctx, instance.Address); err == nil {
 						if processInfo, err := client.State.GetProcessInfo(ctx, &cline.EmptyRequest{}); err == nil {
 							pid = fmt.Sprintf("%d", processInfo.ProcessId)
@@ -294,19 +333,84 @@ func newInstanceListCommand() *cobra.Command {
 							}
 						}
 					}
+
+					// Get platform from host bridge
+					if detectedPlatform, err := detectInstancePlatform(ctx, instance); err == nil {
+						platform = detectedPlatform
+					}
 				}
 
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-					instance.Address,
-					instance.Status,
-					instance.Version,
-					lastSeen,
-					pid,
-					isDefault,
-				)
+				rows = append(rows, instanceRow{
+					address:   instance.Address,
+					status:    instance.Status.String(),
+					version:   instance.Version,
+					lastSeen:  lastSeen,
+					pid:       pid,
+					platform:  platform,
+					isDefault: isDefault,
+				})
 			}
 
-			w.Flush()
+			// Check output format
+			if global.Config.OutputFormat == "plain" {
+				// Use tabwriter for plain output
+				w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+				fmt.Fprintln(w, "ADDRESS\tSTATUS\tVERSION\tLAST SEEN\tPID\tPLATFORM\tDEFAULT")
+
+				for _, row := range rows {
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+						row.address,
+						row.status,
+						row.version,
+						row.lastSeen,
+						row.pid,
+						row.platform,
+						row.isDefault,
+					)
+				}
+
+				w.Flush()
+			} else {
+				// Use markdown table for rich output
+				var markdown strings.Builder
+				markdown.WriteString("| **ADDRESS (ID)** | **STATUS** | **VERSION** | **LAST SEEN** | **PID** | **PLATFORM** | **DEFAULT** |\n")
+				markdown.WriteString("|---------|--------|---------|-----------|-----|----------|---------|")
+
+				for _, row := range rows {
+					markdown.WriteString(fmt.Sprintf("\n| %s | %s | %s | %s | %s | %s | %s |",
+						row.address,
+						row.status,
+						row.version,
+						row.lastSeen,
+						row.pid,
+						row.platform,
+						row.isDefault,
+					))
+				}
+
+				// Render the markdown table with terminal width for nice table layout
+				mdRenderer, err := display.NewMarkdownRendererForTerminal()
+				if err != nil {
+					// Fallback to plain table if markdown renderer fails
+					fmt.Println(markdown.String())
+				} else {
+					rendered, err := mdRenderer.Render(markdown.String())
+					if err != nil {
+						fmt.Println(markdown.String())
+					} else {
+						// Post-process to colorize status values
+						colorRenderer := display.NewRenderer(global.Config.OutputFormat)
+						rendered = strings.ReplaceAll(rendered, "SERVING", colorRenderer.Green("SERVING"))
+						rendered = strings.ReplaceAll(rendered, "✓", colorRenderer.Green("✓"))
+						rendered = strings.ReplaceAll(rendered, "NOT_SERVING", colorRenderer.Red("NOT_SERVING"))
+						rendered = strings.ReplaceAll(rendered, "UNKNOWN", colorRenderer.Yellow("UNKNOWN"))
+
+						fmt.Print(strings.TrimLeft(rendered, "\n"))
+					}
+					fmt.Println("\n")
+				}
+			}
+
 			return nil
 		},
 	}
@@ -314,10 +418,10 @@ func newInstanceListCommand() *cobra.Command {
 	return cmd
 }
 
-func newInstanceUseCommand() *cobra.Command {
+func newInstanceDefaultCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "use <address>",
-		Aliases: []string{"u"},
+		Use:     "default <address>",
+		Aliases: []string{"d"},
 		Short:   "Set the default Cline instance",
 		Long:    `Set the default Cline instance to use for subsequent commands.`,
 		Args:    cobra.ExactArgs(1),
@@ -350,6 +454,8 @@ func newInstanceUseCommand() *cobra.Command {
 }
 
 func newInstanceNewCommand() *cobra.Command {
+	var setDefault bool
+
 	cmd := &cobra.Command{
 		Use:     "new",
 		Aliases: []string{"n"},
@@ -374,15 +480,27 @@ func newInstanceNewCommand() *cobra.Command {
 			fmt.Printf("  Core Port: %d\n", instance.CorePort())
 			fmt.Printf("  Host Bridge Port: %d\n", instance.HostPort())
 
-			// Check if this is now the default instance
 			registry := global.Clients.GetRegistry()
-			if registry.GetDefaultInstance() == instance.Address {
-				fmt.Printf("  Status: Default instance\n")
+
+			// If --default flag provided, set this instance as the default
+			if setDefault {
+				if err := registry.SetDefaultInstance(instance.Address); err != nil {
+					fmt.Printf("Warning: Failed to set as default: %v\n", err)
+				} else {
+					fmt.Printf("  Status: Set as default instance\n")
+				}
+			} else {
+				// Otherwise, check if EnsureDefaultInstance already set it as default
+				if registry.GetDefaultInstance() == instance.Address {
+					fmt.Printf("  Status: Default instance\n")
+				}
 			}
 
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVarP(&setDefault, "default", "d", false, "set as default instance")
 
 	return cmd
 }

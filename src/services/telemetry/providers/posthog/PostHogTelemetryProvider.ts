@@ -43,7 +43,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 		HostProvider.env.subscribeToTelemetrySettings(
 			{},
 			{
-				onResponse: (event) => {
+				onResponse: (event: { isEnabled: Setting }) => {
 					const hostEnabled = event.isEnabled === Setting.ENABLED || event.isEnabled === Setting.UNSUPPORTED
 					this.telemetrySettings.hostEnabled = hostEnabled
 				},
@@ -126,6 +126,17 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 
 	public getSettings(): TelemetrySettings {
 		return { ...this.telemetrySettings }
+	}
+
+	/**
+	 * Metrics are not supported in PostHog provider. These are intentional no-ops.
+	 */
+	public incrementCounter(name: string, value: number = 1, attributes?: TelemetryProperties): void {
+		// no-op
+	}
+
+	public recordHistogram(name: string, value: number, attributes?: TelemetryProperties): void {
+		// no-op
 	}
 
 	public async dispose(): Promise<void> {

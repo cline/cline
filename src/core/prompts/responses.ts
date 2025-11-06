@@ -11,15 +11,8 @@ export const formatResponse = {
 	contextTruncationNotice: () =>
 		`[NOTE] Some previous conversation history with the user has been removed to maintain optimal context window length. The initial user task has been retained for continuity, while intermediate conversation history has been removed. Keep this in mind as you continue assisting the user. Pay special attention to the user's latest messages.`,
 
-	processFirstUserMessageForTruncation: (originalContent: string) => {
-		const MAX_CHARS = 400_000
-
-		if (originalContent.length <= MAX_CHARS) {
-			return originalContent
-		}
-
-		const truncated = originalContent.substring(0, MAX_CHARS)
-		return truncated + "\n\n[[NOTE] This message was truncated past this point to preserve context window space.]"
+	processFirstUserMessageForTruncation: () => {
+		return "[Continue assisting the user!]"
 	},
 
 	condense: () =>
@@ -32,8 +25,10 @@ export const formatResponse = {
 	clineIgnoreError: (path: string) =>
 		`Access to ${path} is blocked by the .clineignore file settings. You must try to continue in the task without using this file, or ask the user to update the .clineignore file.`,
 
-	noToolsUsed: () =>
-		`[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
+	noToolsUsed: (usingNativeToolCalls: boolean) =>
+		usingNativeToolCalls
+			? "[ERROR] You did not use a tool in your previous response! Please retry with a tool use."
+			: `[ERROR] You did not use a tool in your previous response! Please retry with a tool use.
 
 ${toolUseInstructionsReminder}
 
@@ -46,9 +41,6 @@ Otherwise, if you have not completed the task and do not need additional informa
 
 	tooManyMistakes: (feedback?: string) =>
 		`You seem to be having trouble proceeding. The user has provided the following feedback to help guide you:\n<feedback>\n${feedback}\n</feedback>`,
-
-	autoApprovalMaxReached: (feedback?: string) =>
-		`Auto-approval limit reached. The user has provided the following feedback to help guide you:\n<feedback>\n${feedback}\n</feedback>`,
 
 	missingToolParameterError: (paramName: string) =>
 		`Missing value for required parameter '${paramName}'. Please retry with complete response.\n\n${toolUseInstructionsReminder}`,
@@ -291,21 +283,16 @@ const formatImagesIntoBlocks = (images?: string[]): Anthropic.ImageBlockParam[] 
 }
 
 const toolUseInstructionsReminder = `# Reminder: Instructions for Tool Use
-
 Tool uses are formatted using XML-style tags. The tool name is enclosed in opening and closing tags, and each parameter is similarly enclosed within its own set of tags. Here's the structure:
-
 <tool_name>
 <parameter1_name>value1</parameter1_name>
 <parameter2_name>value2</parameter2_name>
 ...
 </tool_name>
-
 For example:
-
 <attempt_completion>
 <result>
 I have completed the task...
 </result>
 </attempt_completion>
-
 Always adhere to this format for all tool uses to ensure proper parsing and execution.`

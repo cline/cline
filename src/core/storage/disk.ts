@@ -3,12 +3,15 @@ import { TaskMetadata } from "@core/context/context-tracking/ContextTrackerTypes
 import { execa } from "@packages/execa"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
-import { fileExistsAtPath } from "@utils/fs"
+import { RemoteConfig } from "@shared/remote-config/schema"
+import { GlobalState, Settings } from "@shared/storage/state-keys"
+import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import os from "os"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
-import { GlobalState, Settings } from "./state-keys"
+import { McpMarketplaceCatalog } from "@/shared/mcp"
+import { StateManager } from "./StateManager"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -18,13 +21,17 @@ export const GlobalFileNames = {
 	vercelAiGatewayModels: "vercel_ai_gateway_models.json",
 	groqModels: "groq_models.json",
 	basetenModels: "baseten_models.json",
+	hicapModels: "hicap_models.json",
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
 	workflows: ".clinerules/workflows",
+	hooksDir: ".clinerules/hooks",
 	cursorRulesDir: ".cursor/rules",
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",
 	taskMetadata: "task_metadata.json",
+	mcpMarketplaceCatalog: "mcp_marketplace_catalog.json",
+	remoteConfig: (orgId: string) => `remote_config_${orgId}.json`,
 }
 
 export async function getDocumentsPath(): Promise<string> {
@@ -98,6 +105,17 @@ export async function ensureMcpServersDirectoryExists(): Promise<string> {
 		return path.join(os.homedir(), "Documents", "Cline", "MCP") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine since this path is only ever used in the system prompt
 	}
 	return mcpServersDir
+}
+
+export async function ensureHooksDirectoryExists(): Promise<string> {
+	const userDocumentsPath = await getDocumentsPath()
+	const clineHooksDir = path.join(userDocumentsPath, "Cline", "Hooks")
+	try {
+		await fs.mkdir(clineHooksDir, { recursive: true })
+	} catch (_error) {
+		return path.join(os.homedir(), "Documents", "Cline", "Hooks") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
+	}
+	return clineHooksDir
 }
 
 export async function ensureSettingsDirectoryExists(): Promise<string> {
@@ -177,6 +195,30 @@ export async function ensureStateDirectoryExists(): Promise<string> {
 
 export async function ensureCacheDirectoryExists(): Promise<string> {
 	return getGlobalStorageDir("cache")
+}
+
+export async function readMcpMarketplaceCatalogFromCache(): Promise<McpMarketplaceCatalog | undefined> {
+	try {
+		const mcpMarketplaceCatalogFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.mcpMarketplaceCatalog)
+		const fileExists = await fileExistsAtPath(mcpMarketplaceCatalogFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(mcpMarketplaceCatalogFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	} catch (error) {
+		console.error("Failed to read MCP marketplace catalog from cache:", error)
+		return undefined
+	}
+}
+
+export async function writeMcpMarketplaceCatalogToCache(catalog: McpMarketplaceCatalog): Promise<void> {
+	try {
+		const mcpMarketplaceCatalogFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.mcpMarketplaceCatalog)
+		await fs.writeFile(mcpMarketplaceCatalogFilePath, JSON.stringify(catalog))
+	} catch (error) {
+		console.error("Failed to write MCP marketplace catalog to cache:", error)
+	}
 }
 
 async function getGlobalStorageDir(...subdirs: string[]) {
@@ -259,4 +301,97 @@ export async function writeTaskSettingsToStorage(taskId: string, settings: Parti
 		console.error("[Disk] Failed to write task settings:", error)
 		throw error
 	}
+}
+
+export async function readRemoteConfigFromCache(organizationId: string): Promise<RemoteConfig | undefined> {
+	try {
+		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
+		const fileExists = await fileExistsAtPath(remoteConfigFilePath)
+		if (fileExists) {
+			const fileContents = await fs.readFile(remoteConfigFilePath, "utf8")
+			return JSON.parse(fileContents)
+		}
+		return undefined
+	} catch (error) {
+		console.error("Failed to read remote config from cache:", error)
+		return undefined
+	}
+}
+
+export async function writeRemoteConfigToCache(organizationId: string, config: RemoteConfig): Promise<void> {
+	try {
+		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
+		await fs.writeFile(remoteConfigFilePath, JSON.stringify(config))
+	} catch (error) {
+		console.error("Failed to write remote config to cache:", error)
+	}
+}
+
+export async function deleteRemoteConfigFromCache(organizationId: string): Promise<void> {
+	try {
+		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
+		const fileExists = await fileExistsAtPath(remoteConfigFilePath)
+		if (fileExists) {
+			await fs.unlink(remoteConfigFilePath)
+		}
+	} catch (error) {
+		console.error("Failed to delete remote config from cache:", error)
+	}
+}
+
+/**
+ * Gets the path to the global hooks directory if it exists.
+ * Returns undefined if the directory doesn't exist.
+ */
+export async function getGlobalHooksDir(): Promise<string | undefined> {
+	const globalHooksDir = await ensureHooksDirectoryExists()
+	return (await isDirectory(globalHooksDir)) ? globalHooksDir : undefined
+}
+
+/**
+ * Gets the paths to all hooks directories to search for hooks, including:
+ * 1. The global hooks directory (if it exists)
+ * 2. Each workspace root's .clinerules/hooks directory (if they exist)
+ *
+ * Note: Hooks from different directories may be executed concurrently.
+ * No execution order is guaranteed between hooks from different directories.
+ * A workspace may not use hooks, and the resulting array will be empty. A
+ * multi-root workspace may have multiple hooks directories.
+ */
+export async function getAllHooksDirs(): Promise<string[]> {
+	const hooksDirs: string[] = []
+
+	// Add global hooks directory (if it exists)
+	const globalHooksDir = await getGlobalHooksDir()
+	if (globalHooksDir) {
+		hooksDirs.push(globalHooksDir)
+	}
+
+	// Add workspace hooks directories
+	const workspaceHooksDirs = await getWorkspaceHooksDirs()
+	hooksDirs.push(...workspaceHooksDirs)
+
+	return hooksDirs
+}
+
+/**
+ * Gets the paths to the workspace's .clinerules/hooks directories to search for
+ * hooks. A workspace may not use hooks, and the resulting array will be empty. A
+ * multi-root workspace may have multiple hooks directories.
+ */
+export async function getWorkspaceHooksDirs(): Promise<string[]> {
+	const workspaceRootPaths =
+		StateManager.get()
+			.getGlobalStateKey("workspaceRoots")
+			?.map((root) => root.path) || []
+
+	return (
+		await Promise.all(
+			workspaceRootPaths.map(async (workspaceRootPath) => {
+				// Look for a .clinerules/hooks folder in this workspace root.
+				const candidate = path.join(workspaceRootPath, GlobalFileNames.hooksDir)
+				return (await isDirectory(candidate)) ? candidate : undefined
+			}),
+		)
+	).filter((path): path is string => Boolean(path))
 }

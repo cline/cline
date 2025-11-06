@@ -585,6 +585,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 			const sambanovaApiKey = await context.secrets.get("sambanovaApiKey")
 			const sapAiCoreClientId = await context.secrets.get("sapAiCoreClientId")
 			const difyApiKey = await context.secrets.get("difyApiKey")
+			const hicapApiKey = await context.secrets.get("hicapApiKey")
 
 			// Fetch configuration values from global state
 			const awsRegion = context.globalState.get("awsRegion")
@@ -626,6 +627,7 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 				sambanovaApiKey,
 				sapAiCoreClientId,
 				difyApiKey,
+				hicapApiKey,
 			].some((key) => key !== undefined)
 
 			// Set welcomeViewCompleted based on whether user has keys
@@ -636,5 +638,24 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 	} catch (error) {
 		console.error("Failed to migrate welcomeViewCompleted:", error)
 		// Continue execution - migration failure shouldn't break extension startup
+	}
+}
+
+export async function cleanupMcpMarketplaceCatalogFromGlobalState(context: vscode.ExtensionContext) {
+	try {
+		// Check if mcpMarketplaceCatalog exists in global state
+		const mcpMarketplaceCatalog = await context.globalState.get("mcpMarketplaceCatalog")
+
+		if (mcpMarketplaceCatalog !== undefined) {
+			console.log("Cleaning up mcpMarketplaceCatalog from global state...")
+
+			// Delete it from global state
+			await context.globalState.update("mcpMarketplaceCatalog", undefined)
+
+			console.log("Successfully removed mcpMarketplaceCatalog from global state")
+		}
+	} catch (error) {
+		console.error("Failed to cleanup mcpMarketplaceCatalog from global state:", error)
+		// Continue execution - cleanup failure shouldn't break extension startup
 	}
 }

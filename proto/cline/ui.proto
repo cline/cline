@@ -1,10 +1,12 @@
 syntax = "proto3";
 
 package cline;
+
 import "cline/common.proto";
+
 option go_package = "github.com/cline/grpc-go/cline";
-option java_package = "bot.cline.proto";
 option java_multiple_files = true;
+option java_package = "bot.cline.proto";
 
 // Enum for ClineMessage type
 enum ClineMessageType {
@@ -24,13 +26,12 @@ enum ClineAsk {
   RESUME_TASK = 7;
   RESUME_COMPLETED_TASK = 8;
   MISTAKE_LIMIT_REACHED = 9;
-  AUTO_APPROVAL_MAX_REQ_REACHED = 10;
-  BROWSER_ACTION_LAUNCH = 11;
-  USE_MCP_SERVER = 12;
-  NEW_TASK = 13;
-  CONDENSE = 14;
-  REPORT_BUG = 15;
-  SUMMARIZE_TASK = 16;
+  BROWSER_ACTION_LAUNCH = 10;
+  USE_MCP_SERVER = 11;
+  NEW_TASK = 12;
+  CONDENSE = 13;
+  REPORT_BUG = 14;
+  SUMMARIZE_TASK = 15;
 }
 
 // Enum for ClineSay types
@@ -63,6 +64,7 @@ enum ClineSay {
   LOAD_MCP_DOCUMENTATION = 25;
   INFO = 26;
   TASK_PROGRESS = 27;
+  ERROR_RETRY = 28;
 }
 
 // Enum for ClineSayTool tool types
@@ -75,6 +77,7 @@ enum ClineSayToolType {
   LIST_CODE_DEFINITION_NAMES = 5;
   SEARCH_FILES = 6;
   WEB_FETCH = 7;
+  FILE_DELETED = 8;
 }
 
 // Enum for browser actions
@@ -197,7 +200,7 @@ message ClineMessage {
   bool is_operation_outside_workspace = 12;
   int32 conversation_history_index = 13;
   ConversationHistoryDeletedRange conversation_history_deleted_range = 14;
-  
+
   // Additional fields for specific ask/say types
   ClineSayTool say_tool = 15;
   ClineSayBrowserAction say_browser_action = 16;
@@ -213,49 +216,52 @@ message ClineMessage {
 service UiService {
   // Scrolls to a specific settings section in the settings view
   rpc scrollToSettings(StringRequest) returns (KeyValuePair);
-  
+
+  // Sets the terminal execution mode (vscodeTerminal or backgroundExec)
+  rpc setTerminalExecutionMode(BooleanRequest) returns (KeyValuePair);
+
   // Marks the current announcement as shown and returns whether an announcement should still be shown
   rpc onDidShowAnnouncement(EmptyRequest) returns (Boolean);
-  
+
   // Subscribe to addToInput events (when user adds content via context menu)
   rpc subscribeToAddToInput(EmptyRequest) returns (stream String);
-  
+
   // Subscribe to MCP button clicked events
   rpc subscribeToMcpButtonClicked(EmptyRequest) returns (stream Empty);
-  
+
   // Subscribe to history button click events
   rpc subscribeToHistoryButtonClicked(EmptyRequest) returns (stream Empty);
-  
+
   // Subscribe to chat button clicked events (when the chat button is clicked in VSCode)
   rpc subscribeToChatButtonClicked(EmptyRequest) returns (stream Empty);
-  
+
   // Subscribe to account button click events
   rpc subscribeToAccountButtonClicked(EmptyRequest) returns (stream Empty);
-  
+
   // Subscribe to settings button clicked events
   rpc subscribeToSettingsButtonClicked(EmptyRequest) returns (stream Empty);
-  
+
   // Subscribe to partial message updates (streaming Cline messages as they're built)
   rpc subscribeToPartialMessage(EmptyRequest) returns (stream ClineMessage);
-  
+
   // Initialize webview when it launches
   rpc initializeWebview(EmptyRequest) returns (Empty);
-  
+
   // Subscribe to relinquish control events
   rpc subscribeToRelinquishControl(EmptyRequest) returns (stream Empty);
-  
+
   // Subscribe to focus chat input events
   rpc subscribeToFocusChatInput(EmptyRequest) returns (stream Empty);
-  
+
   // Subscribe to webview visibility change events
   rpc subscribeToDidBecomeVisible(EmptyRequest) returns (stream Empty);
 
   // Returns the HTML for the webview index page. This is only used by external clients, not by the vscode webview.
   rpc getWebviewHtml(EmptyRequest) returns (String);
-  
+
   // Opens a URL in the default browser
   rpc openUrl(StringRequest) returns (Empty);
-  
+
   // Opens the Cline walkthrough
   rpc openWalkthrough(EmptyRequest) returns (Empty);
 }

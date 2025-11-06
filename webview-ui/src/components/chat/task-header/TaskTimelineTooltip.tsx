@@ -35,6 +35,8 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								return `File Edit: ${toolData.path || "Unknown file"}`
 							} else if (toolData.tool === "newFileCreated") {
 								return `New File: ${toolData.path || "Unknown file"}`
+							} else if (toolData.tool === "fileDeleted") {
+								return `Delete File: ${toolData.path || "Unknown file"}`
 							} else if (toolData.tool === "webFetch") {
 								return `Web Fetch: ${toolData.path || "Unknown URL"}`
 							}
@@ -81,6 +83,8 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								return `File Edit Approval: ${toolData.path || "Unknown file"}`
 							} else if (toolData.tool === "newFileCreated") {
 								return `New File Approval: ${toolData.path || "Unknown file"}`
+							} else if (toolData.tool === "fileDeleted") {
+								return `File Deletion Approval: ${toolData.path || "Unknown file"}`
 							} else if (toolData.tool === "webFetch") {
 								return `Web Fetch: ${toolData.path || "Unknown URL"}`
 							}
@@ -154,7 +158,7 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 	return (
 		<Tooltip
 			classNames={{
-				base: "bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)] border-[var(--vscode-widget-border)] py-1 rounded-[3px] max-w-[calc(100dvw-2rem)] text-xs",
+				base: "bg-(--vscode-editor-background) text-(--vscode-editor-foreground) border-(--vscode-widget-border) py-1 rounded-[3px] max-w-[calc(100dvw-2rem)] text-xs",
 			}}
 			closeDelay={100}
 			content={

@@ -30,6 +30,7 @@ export interface PromptVariant {
 	readonly labels: Readonly<Record<string, number>> // Immutable labels mapping
 	readonly family: ModelFamily // Model family enum
 	readonly description: string // Brief description of the variant
+	readonly matcher: (context: SystemPromptContext) => boolean // Function to determine if this variant should be used for the given providerInfo
 
 	// Prompt configuration
 	readonly config: PromptConfig // Model-specific config
@@ -53,6 +54,7 @@ export interface MutablePromptVariant {
 	labels: Record<string, number>
 	family: ModelFamily
 	description?: string
+	matcher?: (providerInfo: ApiProviderInfo) => boolean
 	config: PromptConfig
 	baseTemplate?: string
 	componentOrder: SystemPromptSection[]
@@ -108,6 +110,9 @@ export interface SystemPromptContext {
 	readonly yoloModeToggled?: boolean
 	readonly isMultiRootEnabled?: boolean
 	readonly workspaceRoots?: Array<{ path: string; name: string; vcs?: string }>
+	readonly isSubagentsEnabledAndCliInstalled?: boolean
+	readonly isCliSubagent?: boolean
+	readonly enableNativeToolCalls?: boolean
 }
 
 /**
@@ -180,6 +185,7 @@ export interface VariantBuilder {
 	version(version: number): this
 	tags(...tags: string[]): this
 	labels(labels: Record<string, number>): this
+	matcher(matcherFn: (providerInfo: ApiProviderInfo) => boolean): this
 	template(baseTemplate: string): this
 	components(...sections: SystemPromptSection[]): this
 	overrideComponent(section: SystemPromptSection, override: ConfigOverride): this

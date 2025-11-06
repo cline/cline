@@ -9,12 +9,15 @@ import { fixModelHtmlEscaping } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
+
+// Default timeout for commands in yolo mode and background exec mode
+const DEFAULT_COMMAND_TIMEOUT_SECONDS = 30
 
 export class ExecuteCommandToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.BASH
@@ -50,6 +53,11 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		const timeoutParam: string | undefined = block.params.timeout
 		let timeoutSeconds: number | undefined
 
+		// Extract provider using the proven pattern from ReportBugHandler
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
 		// Validate required parameters
 		if (!command) {
 			config.taskState.consecutiveMistakeCount++
@@ -63,14 +71,10 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		config.taskState.consecutiveMistakeCount = 0
 
-		// Handling of timeout while in yolo mode
-		if (config.yoloModeToggled) {
-			if (!timeoutParam) {
-				timeoutSeconds = 30
-			} else {
-				const parsedTimeoutParam = parseInt(timeoutParam, 10)
-				timeoutSeconds = isNaN(parsedTimeoutParam) || parsedTimeoutParam <= 0 ? 30 : parsedTimeoutParam
-			}
+		// Handling of timeout while in yolo mode or background exec mode
+		if (config.yoloModeToggled || config.vscodeTerminalExecutionMode === "backgroundExec") {
+			const parsed = timeoutParam ? parseInt(timeoutParam, 10) : NaN
+			timeoutSeconds = parsed > 0 ? parsed : DEFAULT_COMMAND_TIMEOUT_SECONDS
 		}
 
 		// Pre-process command for certain models
@@ -153,14 +157,21 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			// Auto-approve flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
 			await config.callbacks.say("command", actualCommand, undefined, undefined, false)
-			config.taskState.consecutiveAutoApprovedRequestsCount++
 			didAutoApprove = true
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				true,
+				true,
+				workspaceContext,
+				block.isNativeToolCall,
+			)
 		} else {
 			// Manual approval flow
-			showNotificationForApprovalIfAutoApprovalEnabled(
+			showNotificationForApproval(
 				`Cline wants to execute a command: ${actualCommand}`,
-				config.autoApprovalSettings.enabled,
 				config.autoApprovalSettings.enableNotifications,
 			)
 
@@ -174,13 +185,24 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 					config.ulid,
 					block.name,
 					config.api.getModel().id,
+					provider,
 					false,
 					false,
 					workspaceContext,
+					block.isNativeToolCall,
 				)
 				return formatResponse.toolDenied()
 			}
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true, workspaceContext)
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				false,
+				true,
+				workspaceContext,
+				block.isNativeToolCall,
+			)
 		}
 
 		// Setup timeout notification for long-running auto-approved commands

@@ -143,6 +143,8 @@ const (
 	GEMINI = "gemini"
 	OPENAI_NATIVE = "openai-native"
 	XAI = "xai"
+	CEREBRAS = "cerebras"
+	OCA = "oca"
 )
 
 // AllProviders returns a slice of enabled provider IDs for the CLI build.
@@ -157,6 +159,8 @@ var AllProviders = []string{
 	"gemini",
 	"openai-native",
 	"xai",
+	"cerebras",
+	"oca",
 }
 
 // ConfigField represents a configuration field requirement
@@ -306,6 +310,15 @@ var rawConfigFields = `	[
 	    "placeholder": "Enter your API key"
 	  },
 	  {
+	    "name": "cerebrasApiKey",
+	    "type": "string",
+	    "comment": "",
+	    "category": "cerebras",
+	    "required": true,
+	    "fieldType": "password",
+	    "placeholder": "Enter your API key"
+	  },
+	  {
 	    "name": "ulid",
 	    "type": "string",
 	    "comment": "Used to identify the task in API requests",
@@ -421,7 +434,25 @@ var rawConfigFields = `	[
 	    "required": false,
 	    "fieldType": "url",
 	    "placeholder": "https://api.example.com"
-	  }
+	  },
+	  {
+	    "name": "ocaMode",
+	    "type": "string",
+	    "comment": "",
+	    "category": "general",
+	    "required": false,
+	    "fieldType": "string",
+	    "placeholder": ""
+	  },
+	  {
+	    "name": "hicapApiKey",
+	    "type": "string",
+	    "comment": "",
+	    "category": "general",
+	    "required": true,
+	    "fieldType": "password",
+	    "placeholder": "Enter your API key"
+	  },
 	]`
 
 // Raw model definitions data (parsed from TypeScript)
@@ -443,6 +474,16 @@ var rawModelDefinitions = `	{
 	      "inputPrice": 3,
 	      "outputPrice": 15,
 	      "cacheWritesPrice": 3,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "claude-haiku-4-5-20251001": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "inputPrice": 1,
+	      "outputPrice": 5,
+	      "cacheWritesPrice": 1,
 	      "cacheReadsPrice": 0,
 	      "supportsImages": true,
 	      "supportsPromptCache": true
@@ -555,6 +596,16 @@ var rawModelDefinitions = `	{
 	      "inputPrice": 3,
 	      "outputPrice": 15,
 	      "cacheWritesPrice": 3,
+	      "cacheReadsPrice": 0,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
+	    "anthropic.claude-haiku-4-5-20251001-v1:0": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "inputPrice": 1,
+	      "outputPrice": 5,
+	      "cacheWritesPrice": 1,
 	      "cacheReadsPrice": 0,
 	      "supportsImages": true,
 	      "supportsPromptCache": true
@@ -1147,6 +1198,71 @@ var rawModelDefinitions = `	{
 	      "supportsPromptCache": false,
 	      "description": "X AI's Grok Beta model (legacy) with 131K context window"
 	    }
+	  },
+	  "cerebras": {
+	    "gpt-oss-120b": {
+	      "maxTokens": 65536,
+	      "contextWindow": 128000,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": false,
+	      "supportsPromptCache": false,
+	      "description": "Intelligent general purpose model with 3,000 tokens/s"
+	    },
+	    "qwen-3-coder-480b-free": {
+	      "maxTokens": 40000,
+	      "contextWindow": 64000,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": false,
+	      "supportsPromptCache": false,
+	      "description": "SOTA coding model with ~2000 tokens/s ($0 free tier)\\n\\n• Use this if you don't have a Cerebras subscription\\n• 64K context window\\n• Rate limits: 150K TPM, 1M TPH/TPD, 10 RPM, 100 RPH/RPD\\n\\nUpgrade for higher limits: [https://cloud.cerebras.ai/?utm=cline](https://cloud.cerebras.ai/?utm=cline)"
+	    },
+	    "qwen-3-coder-480b": {
+	      "maxTokens": 40000,
+	      "contextWindow": 128000,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": false,
+	      "supportsPromptCache": false,
+	      "description": "SOTA coding model with ~2000 tokens/s ($50/$250 paid tiers)\\n\\n• Use this if you have a Cerebras subscription\\n• 131K context window with higher rate limits"
+	    },
+	    "qwen-3-235b-a22b-instruct-2507": {
+	      "maxTokens": 64000,
+	      "contextWindow": 64000,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": false,
+	      "supportsPromptCache": false,
+	      "description": "Intelligent model with ~1400 tokens/s"
+	    },
+	    "llama-3.3-70b": {
+	      "maxTokens": 64000,
+	      "contextWindow": 64000,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": false,
+	      "supportsPromptCache": false,
+	      "description": "Powerful model with ~2600 tokens/s"
+	    },
+	    "qwen-3-32b": {
+	      "maxTokens": 64000,
+	      "contextWindow": 64000,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": false,
+	      "supportsPromptCache": false,
+	      "description": "SOTA coding performance with ~2500 tokens/s"
+	    },
+	    "qwen-3-235b-a22b-thinking-2507": {
+	      "maxTokens": 32000,
+	      "contextWindow": 65000,
+	      "inputPrice": 0,
+	      "outputPrice": 0,
+	      "supportsImages": false,
+	      "supportsPromptCache": false,
+	      "description": "SOTA performance with ~1500 tokens/s"
+	    }
 	  }
 	}`
 
@@ -1292,6 +1408,30 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		HasDynamicModels: false,
 		SetupInstructions: `Get your API key from https://console.x.ai/`,
 	}
+
+	// Cerebras
+	definitions["cerebras"] = ProviderDefinition{
+		ID:              "cerebras",
+		Name:            "Cerebras",
+		RequiredFields:  getFieldsByProvider("cerebras", configFields, true),
+		OptionalFields:  getFieldsByProvider("cerebras", configFields, false),
+		Models:          modelDefinitions["cerebras"],
+		DefaultModelID:  "qwen-3-coder-480b-free",
+		HasDynamicModels: false,
+		SetupInstructions: `Get your API key from https://cloud.cerebras.ai/`,
+	}
+
+	// Oca
+	definitions["oca"] = ProviderDefinition{
+		ID:              "oca",
+		Name:            "Oca",
+		RequiredFields:  getFieldsByProvider("oca", configFields, true),
+		OptionalFields:  getFieldsByProvider("oca", configFields, false),
+		Models:          modelDefinitions["oca"],
+		DefaultModelID:  "",
+		HasDynamicModels: false,
+		SetupInstructions: `Configure Oca API credentials`,
+	}
 	
 	return definitions, nil
 }
@@ -1317,6 +1457,8 @@ func GetProviderDisplayName(providerID string) string {
 		"gemini": "Google Gemini",
 		"openai-native": "OpenAI",
 		"xai": "X AI (Grok)",
+		"cerebras": "Cerebras",
+		"oca": "Oca",
 	}
 	
 	if name, exists := displayNames[providerID]; exists {

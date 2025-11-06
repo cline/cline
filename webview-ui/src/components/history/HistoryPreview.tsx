@@ -98,7 +98,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 			</div>
 
 			{isExpanded && (
-				<div style={{ padding: "0px 20px 0 20px" }}>
+				<div className="px-5">
 					{taskHistory.filter((item) => item.ts && item.task).length > 0 ? (
 						<>
 							{taskHistory
@@ -134,45 +134,28 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 											)}
 
 											<div
-												className="history-preview-task"
+												className="history-preview-task text-base text-description mb-2 overflow-hidden whitespace-pre-wrap wrap-anywhere"
 												id={`history-preview-task-${item.id}`}
 												style={{
-													fontSize: "var(--vscode-font-size)",
-													color: "var(--vscode-descriptionForeground)",
-													marginBottom: "8px",
 													display: "-webkit-box",
 													WebkitLineClamp: 3,
 													WebkitBoxOrient: "vertical",
-													overflow: "hidden",
-													whiteSpace: "pre-wrap",
-													wordBreak: "break-word",
-													overflowWrap: "anywhere",
 												}}>
 												<span className="ph-no-capture">{item.task}</span>
 											</div>
-											<div
-												style={{
-													fontSize: "0.85em",
-													color: "var(--vscode-descriptionForeground)",
-												}}>
-												<span>
+											<div className="text-sm text-description">
+												<span className="mr-1">
 													Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓
 													{formatLargeNumber(item.tokensOut || 0)}
 												</span>
 												{!!item.cacheWrites && (
-													<>
-														{" • "}
-														<span>
-															Cache: +{formatLargeNumber(item.cacheWrites || 0)} →{" "}
-															{formatLargeNumber(item.cacheReads || 0)}
-														</span>
-													</>
+													<span className="mr-1">
+														• Cache: +{formatLargeNumber(item.cacheWrites || 0)} →{" "}
+														{formatLargeNumber(item.cacheReads || 0)}
+													</span>
 												)}
 												{!!item.totalCost && (
-													<>
-														{" • "}
-														<span>API Cost: ${item.totalCost?.toFixed(4)}</span>
-													</>
+													<span className="mr-1">• API Cost: ${item.totalCost?.toFixed(4)}</span>
 												)}
 											</div>
 										</div>

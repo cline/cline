@@ -7,13 +7,19 @@
  */
 
 export { config as genericConfig, type GenericVariantConfig } from "./generic/config"
+export { config as glmConfig, type GLMVariantConfig } from "./glm/config"
 export { config as gpt5Config, type GPT5VariantConfig } from "./gpt-5/config"
+export { config as NativeGPT5Config } from "./native-gpt-5/config"
+export { config as nativeNextGenConfig, type NativeNextGenVariantConfig } from "./native-next-gen/config"
 export { config as nextGenConfig, type NextGenVariantConfig } from "./next-gen/config"
 export { config as xsConfig, type XsVariantConfig } from "./xs/config"
 
 import { ModelFamily } from "@/shared/prompts"
 import { config as genericConfig } from "./generic/config"
+import { config as glmConfig } from "./glm/config"
 import { config as gpt5Config } from "./gpt-5/config"
+import { config as NativeGPT5Config } from "./native-gpt-5/config"
+import { config as NativeNextGenVariantConfig } from "./native-next-gen/config"
 import { config as nextGenConfig } from "./next-gen/config"
 import { config as xsConfig } from "./xs/config"
 
@@ -24,24 +30,37 @@ import { config as xsConfig } from "./xs/config"
  */
 export const VARIANT_CONFIGS = {
 	/**
-	 * Generic variant - Fallback for all model types
-	 * Optimized for broad compatibility and stable performance
+	 * GPT-5 variant with native tool support.
 	 */
-	[ModelFamily.GENERIC]: genericConfig,
+	[ModelFamily.NATIVE_GPT_5]: NativeGPT5Config,
+	/**
+	 * GPT-5 variant without native tool support.
+	 */
+	[ModelFamily.GPT_5]: gpt5Config,
+	/**
+	 * Next-gen variant with native tool support.
+	 */
+	[ModelFamily.NATIVE_NEXT_GEN]: NativeNextGenVariantConfig,
+	/**
+	 * GLM variant - Optimized for GLM-4.6 model
+	 * Configured for advanced agentic coding capabilities
+	 */
+	[ModelFamily.GLM]: glmConfig,
 	/**
 	 * Next-gen variant - Advanced models with enhanced capabilities
 	 * Includes additional features like feedback loops and web fetching
 	 */
 	[ModelFamily.NEXT_GEN]: nextGenConfig,
 	/**
-	 * GPT-5 variant
-	 */
-	[ModelFamily.GPT_5]: gpt5Config,
-	/**
 	 * XS variant - Compact models with limited context windows
 	 * Streamlined for efficiency with essential tools only
 	 */
 	[ModelFamily.XS]: xsConfig,
+	/**
+	 * Generic variant - Fallback for any model types not specifically covered above.
+	 * Optimized for broad compatibility and stable performance.
+	 */
+	[ModelFamily.GENERIC]: genericConfig,
 } as const
 
 /**
