@@ -342,9 +342,33 @@ export class McpHub {
 						console.error(`Transport error for "${name}":`, error)
 						const connection = this.findConnection(name, source)
 						if (connection) {
+							// Check if it's a StreamableHTTPError with status code 404 (session expired)
+							const errorMessage = error instanceof Error ? error.message : String(error)
+							const isSessionExpired =
+								(error.constructor.name === "StreamableHTTPError" && (error as any).code === 404) ||
+								errorMessage.includes("404") ||
+								errorMessage.toLowerCase().includes("not found")
+
+							if (isSessionExpired) {
+								console.log(`Session expired for "${name}", reinitializing connection...`)
+								connection.server.status = "connecting"
+								await this.notifyWebviewOfServerChanges()
+
+								// Reinitialize by closing and reconnecting
+								await this.deleteConnection(name)
+								try {
+									await this.connectToServer(name, config, source)
+									console.log(`Successfully reinitialized "${name}" after session expiry`)
+								} catch (reconnectError) {
+									console.error(`Failed to reinitialize "${name}":`, reconnectError)
+								}
+								return
+							}
+
+							// For all other errors, mark as disconnected
 							connection.server.status = "disconnected"
 							McpHub.mcpServerKeys.delete(connection.server.uid || name)
-							this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
+							this.appendErrorMessage(connection, errorMessage)
 						}
 						await this.notifyWebviewOfServerChanges()
 					}
@@ -545,6 +569,21 @@ export class McpHub {
 		const connection = this.connections.find((conn) => conn.server.name === name)
 		if (connection) {
 			try {
+				// For StreamableHTTP transport, terminate the session gracefully
+				if (connection.transport && "terminateSession" in connection.transport) {
+					try {
+						await (connection.transport as StreamableHTTPClientTransport).terminateSession()
+						console.log(`Session terminated for "${name}"`)
+					} catch (terminateError) {
+						// 405 Method Not Allowed is expected if server doesn't support session termination
+						// Other errors are logged but don't prevent cleanup
+						const errorMsg = terminateError instanceof Error ? terminateError.message : String(terminateError)
+						if (!errorMsg.includes("405")) {
+							console.error(`Error terminating session for "${name}":`, terminateError)
+						}
+					}
+				}
+
 				// Only close transport and client if they exist (disabled servers don't have them)
 				if (connection.transport) {
 					await connection.transport.close()
