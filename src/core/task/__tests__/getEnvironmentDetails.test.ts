@@ -5,6 +5,7 @@ import * as listFilesModule from "../../../services/glob/list-files"
 import * as pathUtils from "../../../utils/path"
 import * as tabFiltering from "../../../utils/tabFiltering"
 import { Task } from "../index"
+import * as taskUtils from "../utils"
 
 describe("Task.getEnvironmentDetails", () => {
 	let task: Task
@@ -14,6 +15,7 @@ describe("Task.getEnvironmentDetails", () => {
 	let arePathsEqualStub: sinon.SinonStub
 	let getDesktopDirStub: sinon.SinonStub
 	let filterExistingFilesStub: sinon.SinonStub
+	let detectAvailableCliToolsStub: sinon.SinonStub
 
 	beforeEach(() => {
 		// Stub file listing functions to prevent actual file system access
@@ -26,6 +28,9 @@ describe("Task.getEnvironmentDetails", () => {
 
 		// Stub file filtering to prevent checking if files actually exist
 		filterExistingFilesStub = sinon.stub(tabFiltering, "filterExistingFiles").callsFake(async (paths) => paths)
+
+		// Stub CLI tools detection to prevent real system checks
+		detectAvailableCliToolsStub = sinon.stub(taskUtils, "detectAvailableCliTools").resolves([])
 
 		// Initialize HostProvider with mock implementations
 		const mockHostBridge = {
