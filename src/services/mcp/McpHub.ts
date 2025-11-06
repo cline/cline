@@ -350,7 +350,6 @@ export class McpHub {
 								errorMessage.toLowerCase().includes("not found")
 
 							if (isSessionExpired) {
-								console.log(`Session expired for "${name}", reinitializing connection...`)
 								connection.server.status = "connecting"
 								await this.notifyWebviewOfServerChanges()
 
@@ -358,7 +357,6 @@ export class McpHub {
 								await this.deleteConnection(name)
 								try {
 									await this.connectToServer(name, config, source)
-									console.log(`Successfully reinitialized "${name}" after session expiry`)
 								} catch (reconnectError) {
 									console.error(`Failed to reinitialize "${name}":`, reconnectError)
 								}
@@ -573,7 +571,6 @@ export class McpHub {
 				if (connection.transport && "terminateSession" in connection.transport) {
 					try {
 						await (connection.transport as StreamableHTTPClientTransport).terminateSession()
-						console.log(`Session terminated for "${name}"`)
 					} catch (terminateError) {
 						// 405 Method Not Allowed is expected if server doesn't support session termination
 						// Other errors are logged but don't prevent cleanup
