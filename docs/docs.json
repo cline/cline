@@ -117,6 +117,7 @@
 							"features/auto-compact",
 							"features/checkpoints",
 							"features/cline-rules",
+							"features/clinecontext-config",
 							{
 								"group": "Commands & Shortcuts",
 								"pages": [

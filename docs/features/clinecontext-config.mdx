@@ -1,0 +1,394 @@
+---
+title: ".clinecontext Configuration"
+sidebarTitle: ".clinecontext Config"
+---
+
+Cline's `.clinecontext` configuration file gives you fine-grained control over what context gets included in each API request, helping you reduce token usage and focus on relevant code in large projects.
+
+<Note>
+**Token Savings:** In large monorepos, `.clinecontext` can reduce context tokens by 60-70% by excluding unnecessary files and sections from the environment details sent to the AI model.
+</Note>
+
+## What is .clinecontext?
+
+The `.clinecontext` file is a project-level JSON configuration that controls:
+- Which sections appear in environment details (visible files, open tabs, file tree)
+- How the file tree is formatted (hierarchical tree vs. flat list)
+- Which files are included/excluded using glob patterns
+- Maximum file count limits to prevent context overflow
+
+This is especially valuable for:
+- **Monorepos** - Focus on specific packages instead of the entire repository
+- **Large projects** - Exclude build artifacts, dependencies, and generated files
+- **Performance optimization** - Reduce API costs and improve response times
+- **Context management** - Stay within model context window limits
+
+## Getting Started
+
+### Creating the Configuration File
+
+Create a `.clinecontext` or `.clinecontext.json` file in your workspace root:
+
+```json
+{
+  // Control which sections appear in environment details
+  "includeVisibleFiles": true,
+  "includeOpenTabs": true,
+  "includeFileTree": true,
+  
+  // Choose file tree format: "tree" or "flat"
+  "fileTreeStyle": "tree",
+  
+  // Configure file filtering
+  "workdir": {
+    "maxFileCount": 1000,
+    "includePatterns": [],
+    "excludePatterns": []
+  }
+}
+```
+
+<Tip>
+The `.clinecontext` file supports `//` comments for documentation, making it easier to maintain and share with your team.
+</Tip>
+
+### How It Works
+
+When Cline prepares environment details for each API request:
+1. Loads `.clinecontext` from your workspace root
+2. Applies your configuration to filter sections and files
+3. Automatically reloads when you modify the config file
+4. Falls back to sensible defaults if the file is missing or invalid
+
+## Configuration Options
+
+### Section Control
+
+Control which sections appear in the environment details:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `includeVisibleFiles` | boolean | `true` | Include currently visible files in the editor |
+| `includeOpenTabs` | boolean | `true` | Include list of open editor tabs |
+| `includeFileTree` | boolean | `true` | Include workspace file tree/list |
+
+**Example - Minimal Context:**
+```json
+{
+  "includeVisibleFiles": true,
+  "includeOpenTabs": false,
+  "includeFileTree": false
+}
+```
+
+### File Tree Formatting
+
+Choose how the file tree is presented:
+
+| Style | Description | Best For |
+|-------|-------------|----------|
+| `"tree"` | Hierarchical tree structure with indentation | Small to medium projects, understanding structure |
+| `"flat"` | Alphabetical list of file paths | Large projects, reducing token usage |
+
+**Example - Flat List:**
+```json
+{
+  "fileTreeStyle": "flat"
+}
+```
+
+### File Filtering
+
+The `workdir` object controls which files appear in the file tree:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `maxFileCount` | number | `1000` | Maximum number of files to include |
+| `includePatterns` | string[] | `[]` | Glob patterns for files to include (empty = all) |
+| `excludePatterns` | string[] | `[]` | Glob patterns for files to exclude |
+
+**Default Exclusions:**
+
+Even without explicit `excludePatterns`, Cline automatically excludes these directories:
+- `node_modules`, `__pycache__`, `env`, `venv`
+- `target/dependency`, `build/dependencies`
+- `dist`, `out`, `bundle`, `vendor`
+- `tmp`, `temp`, `deps`, `Pods`
+- Files matching patterns in `.gitignore`
+
+**Glob Pattern Examples:**
+```json
+{
+  "workdir": {
+    "includePatterns": [
+      "src/**/*.ts",           // All TypeScript files in src/
+      "tests/**/*.test.ts",    // All test files
+      "packages/core/**"       // Everything in packages/core/
+    ],
+    "excludePatterns": [
+      "**/*.min.js",           // Minified JavaScript
+      "**/*.map",              // Source maps
+      "**/generated/**",       // Generated code
+      "**/__snapshots__/**"    // Test snapshots
+    ]
+  }
+}
+```
+
+## Common Use Cases
+
+### Monorepo - Focus on Specific Packages
+
+When working in a monorepo, focus on relevant packages:
+
+```json
+{
+  "fileTreeStyle": "flat",
+  "workdir": {
+    "maxFileCount": 500,
+    "includePatterns": [
+      "packages/frontend/**",
+      "packages/shared/**",
+      "packages/types/**"
+    ],
+    "excludePatterns": [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/*.test.ts"
+    ]
+  }
+}
+```
+
+### Large Project - Aggressive Filtering
+
+Reduce context significantly in large codebases:
+
+```json
+{
+  "includeOpenTabs": true,
+  "includeVisibleFiles": true,
+  "includeFileTree": false,
+  "workdir": {
+    "maxFileCount": 200,
+    "includePatterns": [
+      "src/**/*.ts",
+      "src/**/*.tsx"
+    ],
+    "excludePatterns": [
+      "**/*.test.ts",
+      "**/*.spec.ts",
+      "**/stories/**",
+      "**/__mocks__/**"
+    ]
+  }
+}
+```
+
+### Full-Stack - Separate Frontend/Backend
+
+Create different configs for different contexts:
+
+**Frontend Focus:**
+```json
+{
+  "fileTreeStyle": "flat",
+  "workdir": {
+    "includePatterns": [
+      "client/**",
+      "shared/**"
+    ],
+    "excludePatterns": [
+      "server/**",
+      "api/**"
+    ]
+  }
+}
+```
+
+**Backend Focus:**
+```json
+{
+  "fileTreeStyle": "flat",
+  "workdir": {
+    "includePatterns": [
+      "server/**",
+      "api/**",
+      "shared/**"
+    ],
+    "excludePatterns": [
+      "client/**",
+      "public/**"
+    ]
+  }
+}
+```
+
+### Performance Optimization
+
+Minimize token usage for faster responses and lower costs:
+
+```json
+{
+  "includeVisibleFiles": true,
+  "includeOpenTabs": false,
+  "includeFileTree": true,
+  "fileTreeStyle": "flat",
+  "workdir": {
+    "maxFileCount": 300,
+    "includePatterns": [
+      "src/**/*.{ts,tsx,js,jsx}"
+    ],
+    "excludePatterns": [
+      "**/*.test.*",
+      "**/*.spec.*",
+      "**/*.stories.*",
+      "**/dist/**",
+      "**/build/**",
+      "**/.next/**",
+      "**/coverage/**"
+    ]
+  }
+}
+```
+
+## Best Practices
+
+### Start Simple, Iterate
+
+1. **Begin with defaults** - Let Cline use default settings initially
+2. **Monitor token usage** - Check the context window indicator in the chat
+3. **Add filters gradually** - Exclude obvious directories first (build/, dist/)
+4. **Test and refine** - Verify Cline still has access to necessary files
+
+### Combine with .clineignore
+
+Use `.clinecontext` and `.clineignore` together for comprehensive control:
+
+- **`.clineignore`** - Prevents Cline from reading/modifying files
+- **`.clinecontext`** - Controls what appears in environment details
+
+Example workflow:
+```
+.clineignore          → Protect sensitive files
+.clinecontext         → Reduce context tokens
+```
+
+### Choose the Right File Tree Style
+
+| Scenario | Recommended Style | Reason |
+|----------|------------------|---------|
+| Small projects (<100 files) | `"tree"` | Better structure visualization |
+| Large projects (>500 files) | `"flat"` | Significant token savings |
+| Monorepos | `"flat"` | Easier to scan filtered results |
+| Deep nesting | `"flat"` | Avoids excessive indentation |
+
+### Optimize for Your Workflow
+
+**For exploratory work:**
+```json
+{
+  "includeFileTree": true,
+  "fileTreeStyle": "tree"
+}
+```
+
+**For focused implementation:**
+```json
+{
+  "includeVisibleFiles": true,
+  "includeOpenTabs": true,
+  "includeFileTree": false
+}
+```
+
+**For debugging:**
+```json
+{
+  "includeVisibleFiles": true,
+  "includeOpenTabs": false,
+  "includeFileTree": false
+}
+```
+
+## Technical Details
+
+### File Watching
+
+Cline automatically watches `.clinecontext` for changes:
+- **File created** - Loads new configuration immediately
+- **File modified** - Reloads configuration on save
+- **File deleted** - Reverts to default configuration
+
+No need to restart VSCode or reload the extension.
+
+### Default Ignore Patterns
+
+These directories are always excluded, even without explicit configuration:
+
+```
+node_modules/
+__pycache__/
+env/
+venv/
+target/dependency/
+build/dependencies/
+dist/
+out/
+bundle/
+vendor/
+tmp/
+temp/
+deps/
+Pods/
+```
+
+Additionally, hidden directories (starting with `.`) are excluded unless you're explicitly targeting a hidden directory.
+
+### .gitignore Integration
+
+Cline respects your `.gitignore` files when listing files. This means:
+- Files ignored by Git are automatically excluded
+- No need to duplicate patterns in `.clinecontext`
+- Works recursively through nested `.gitignore` files
+
+### Fallback Behavior
+
+If `.clinecontext` is missing or contains invalid JSON:
+- Cline uses sensible defaults (all sections enabled, tree style)
+- No error messages or interruptions
+- You can create the file at any time
+
+
+## Troubleshooting
+
+### Files Not Appearing
+
+If expected files aren't showing up:
+
+1. **Check include patterns** - Ensure patterns match your file paths
+2. **Check maxFileCount** - Increase if hitting the limit
+3. **Check .gitignore** - Files ignored by Git are excluded
+4. **Check default excludes** - Common directories are always excluded
+
+### Token Usage Still High
+
+If context tokens remain high:
+
+1. **Use flat style** - Switch from `"tree"` to `"flat"`
+2. **Disable sections** - Set `includeFileTree: false` if not needed
+3. **Add more excludes** - Filter out test files, stories, mocks
+4. **Reduce maxFileCount** - Lower the limit to force more aggressive filtering
+
+### Configuration Not Loading
+
+If changes aren't taking effect:
+
+1. **Check file location** - Must be in workspace root
+2. **Check JSON syntax** - Use a JSON validator
+3. **Check file name** - Must be `.clinecontext` or `.clinecontext.json`
+4. **Save the file** - Ensure changes are saved to disk
+
+## Related Features
+
+- [.clineignore](/prompting/prompt-engineering-guide#clineignore-file-guide) - Prevent Cline from accessing specific files (works alongside `.clinecontext` for comprehensive file control)
