@@ -64,7 +64,6 @@ interface OpenRouterRawModelInfo {
 		input_cache_read: string
 		input_cache_write: string
 	} | null
-	thinking_config: Record<string, unknown> | null
 	supports_global_endpoint: boolean | null
 	tiers: any[] | null
 	supported_parameters?: OpenRouterSupportedParams[] | null
@@ -92,11 +91,6 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 			}
 			for (const rawModel of rawModels as OpenRouterRawModelInfo[]) {
 				const supportThinking = rawModel.supported_parameters?.some((p) => p === "include_reasoning" || p === "reasoning")
-				// If thinking is supported, ensure maxBudget is set. If not provided, set to default max for Anthropic model.
-				const thinkingBudget =
-					typeof rawModel.thinking_config?.maxBudget === "number"
-						? rawModel.thinking_config?.maxBudget
-						: ANTHROPIC_MAX_THINKING_BUDGET
 
 				const modelInfo: ModelInfo = {
 					maxTokens: rawModel.top_provider?.max_completion_tokens ?? 0,
@@ -108,7 +102,9 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 					cacheWritesPrice: parsePrice(rawModel.pricing?.input_cache_write),
 					cacheReadsPrice: parsePrice(rawModel.pricing?.input_cache_read),
 					description: rawModel.description ?? "",
-					thinkingConfig: supportThinking ? { ...rawModel.thinking_config, maxBudget: thinkingBudget } : undefined,
+					// If thinking is supported, set maxBudget with a default value as a placeholder
+					// to ensure it has a valid thinkingConfig that lets the application know thinking is supported.
+					thinkingConfig: supportThinking ? { maxBudget: ANTHROPIC_MAX_THINKING_BUDGET } : undefined,
 					supportsGlobalEndpoint: rawModel.supports_global_endpoint ?? undefined,
 					tiers: rawModel.tiers ?? undefined,
 				}
