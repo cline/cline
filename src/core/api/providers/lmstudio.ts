@@ -1,10 +1,13 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
 import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { fetch } from "@/shared/net"
 import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import type { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface LmStudioHandlerOptions extends CommonApiHandlerOptions {
 	lmStudioBaseUrl?: string
@@ -27,6 +30,7 @@ export class LmStudioHandler implements ApiHandler {
 					// Docs on the new v0 api endpoint: https://lmstudio.ai/docs/app/api/endpoints/rest
 					baseURL: new URL("api/v0", this.options.lmStudioBaseUrl || "http://localhost:1234").toString(),
 					apiKey: "noop",
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating LM Studio client: ${error.message}`)
@@ -36,7 +40,7 @@ export class LmStudioHandler implements ApiHandler {
 	}
 
 	@withRetry({ retryAllErrors: true })
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -50,7 +54,11 @@ export class LmStudioHandler implements ApiHandler {
 				stream: true,
 				stream_options: { include_usage: true },
 				max_completion_tokens: this.options.lmStudioMaxTokens ? Number(this.options.lmStudioMaxTokens) : undefined,
+				...getOpenAIToolParams(tools),
 			})
+
+			const toolCallProcessor = new ToolCallProcessor()
+
 			for await (const chunk of stream) {
 				const choice = chunk.choices[0]
 				const delta = choice?.delta
@@ -66,6 +74,11 @@ export class LmStudioHandler implements ApiHandler {
 						reasoning: (delta.reasoning_content as string | undefined) || "",
 					}
 				}
+
+				if (delta?.tool_calls) {
+					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+				}
+
 				if (chunk.usage) {
 					yield {
 						type: "usage",

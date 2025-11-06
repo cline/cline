@@ -42,6 +42,11 @@ describe("UserPromptSubmit Hook", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
+
+		// Clean up hook discovery cache
+		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
+		HookDiscoveryCache.resetForTesting()
+
 		try {
 			await fs.rm(tempDir, { recursive: true, force: true })
 		} catch (error) {
@@ -58,7 +63,7 @@ describe("UserPromptSubmit Hook", () => {
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasPrompt = input.userPromptSubmit && typeof input.userPromptSubmit.prompt === 'string' && input.userPromptSubmit.prompt.length > 0;
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: hasPrompt ? "Received prompt" : "Missing prompt"
 }))`
 
@@ -75,7 +80,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("Received prompt")
 		})
 
@@ -85,7 +90,7 @@ console.log(JSON.stringify({
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const lineCount = (input.userPromptSubmit.prompt.match(/\\n/g) || []).length + 1;
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Line count: " + lineCount
 }))`
 
@@ -112,7 +117,7 @@ console.log(JSON.stringify({
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const size = input.userPromptSubmit.prompt.length;
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Prompt size: " + size
 }))`
 
@@ -140,7 +145,7 @@ const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasAllFields = input.clineVersion && input.hookName && input.timestamp && 
                      input.taskId && input.workspaceRoots !== undefined;
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: hasAllFields ? "All fields present" : "Missing fields"
 }))`
 
@@ -169,14 +174,14 @@ const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const promptData = input.userPromptSubmit;
 if (!promptData) {
   console.log(JSON.stringify({
-    shouldContinue: false,
+    cancel: true,
     errorMessage: "No userPromptSubmit data"
   }));
   process.exit(0);
 }
 const promptLength = typeof promptData.prompt === 'string' ? promptData.prompt.length : (promptData.prompt ? String(promptData.prompt).length : 0);
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Prompt length: " + promptLength
 }))`
 
@@ -203,7 +208,7 @@ const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const prompt = input.userPromptSubmit.prompt;
 const hasSpecialChars = prompt.includes("@") && prompt.includes("#") && prompt.includes("$");
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: hasSpecialChars ? "Special chars preserved" : "Missing special chars"
 }))`
 
@@ -235,18 +240,18 @@ console.log("not valid json")`
 			const factory = new HookFactory()
 			const runner = await factory.create("UserPromptSubmit")
 
-			try {
-				await runner.run({
-					taskId: "test-task",
-					userPromptSubmit: {
-						prompt: "Test",
-						attachments: [],
-					},
-				})
-				throw new Error("Should have thrown parse error")
-			} catch (error: any) {
-				error.message.should.match(/Failed to parse hook output/)
-			}
+			// When hook exits 0 but has malformed JSON, it returns success without context
+			const result = await runner.run({
+				taskId: "test-task",
+				userPromptSubmit: {
+					prompt: "Test",
+					attachments: [],
+				},
+			})
+
+			// Hook succeeded (exit 0) but couldn't parse JSON, so returns success without context
+			result.cancel.should.be.false()
+			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
 		})
 
 		it("should handle hook script errors", async () => {
@@ -299,7 +304,7 @@ process.exit(1)`
 			const globalHookPath = path.join(globalHooksDir, "UserPromptSubmit")
 			const globalHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "GLOBAL: Prompt received"
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
@@ -308,7 +313,7 @@ console.log(JSON.stringify({
 			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "WORKSPACE: Prompt received"
 }))`
 			await writeHookScript(workspaceHookPath, workspaceHookScript)
@@ -324,7 +329,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.match(/GLOBAL: Prompt received/)
 			result.contextModification!.should.match(/WORKSPACE: Prompt received/)
 		})
@@ -334,7 +339,7 @@ console.log(JSON.stringify({
 			const globalHookPath = path.join(globalHooksDir, "UserPromptSubmit")
 			const globalHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: true,
+  cancel: false,
   contextModification: "Global allows"
 }))`
 			await writeHookScript(globalHookPath, globalHookScript)
@@ -343,7 +348,7 @@ console.log(JSON.stringify({
 			const workspaceHookPath = path.join(tempDir, ".clinerules", "hooks", "UserPromptSubmit")
 			const workspaceHookScript = `#!/usr/bin/env node
 console.log(JSON.stringify({
-  shouldContinue: false,
+  cancel: true,
   errorMessage: "Workspace blocks"
 }))`
 			await writeHookScript(workspaceHookPath, workspaceHookScript)
@@ -359,7 +364,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.false()
+			result.cancel.should.be.true()
 			result.errorMessage!.should.match(/Workspace blocks/)
 		})
 	})
@@ -379,7 +384,7 @@ console.log(JSON.stringify({
 			})
 
 			// NoOpRunner always returns success
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 		})
 	})
 
@@ -407,7 +412,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("Prompt approved")
 		})
 
@@ -422,7 +427,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.false()
+			result.cancel.should.be.true()
 			result.errorMessage!.should.equal("Prompt violates policy")
 		})
 
@@ -437,7 +442,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("CONTEXT_INJECTION: User is in plan mode")
 		})
 
@@ -461,18 +466,18 @@ console.log(JSON.stringify({
 		it("should work with malformed-json fixture", async () => {
 			const runner = await loadFixtureAndCreateRunner("malformed-json")
 
-			try {
-				await runner.run({
-					taskId: "test-task",
-					userPromptSubmit: {
-						prompt: "Test",
-						attachments: [],
-					},
-				})
-				throw new Error("Should have thrown parse error")
-			} catch (error: any) {
-				error.message.should.match(/Failed to parse hook output/)
-			}
+			// When hook exits 0 but has malformed JSON, it returns success without context
+			const result = await runner.run({
+				taskId: "test-task",
+				userPromptSubmit: {
+					prompt: "Test",
+					attachments: [],
+				},
+			})
+
+			// Hook succeeded (exit 0) but couldn't parse JSON, so returns success without context
+			result.cancel.should.be.false()
+			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
 		})
 
 		it("should work with multiline fixture", async () => {
@@ -486,7 +491,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("Line count: 3")
 		})
 
@@ -502,7 +507,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("Prompt size: 10000")
 		})
 
@@ -517,7 +522,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("Special chars preserved")
 		})
 
@@ -532,7 +537,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.shouldContinue.should.be.true()
+			result.cancel.should.be.false()
 			result.contextModification!.should.equal("Prompt length: 0")
 		})
 	})

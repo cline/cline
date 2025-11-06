@@ -8,6 +8,7 @@
 	--color-code: var(--vscode-editor-background);
 	--color-code-foreground: var(--vscode-editor-foreground);
 	--color-code-border: var(--vscode-editor-border);
+	--color-code-block-background: var(--vscode-editor-background, --vscode-sideBar-background, rgb(30 30 30));
 	--color-sidebar-background: var(--vscode-sideBar-background);
 	--color-sidebar-foreground: var(--vscode-sideBar-foreground);
 	--color-input-foreground: var(--vscode-input-foreground);
@@ -56,6 +57,8 @@
 	--text-sm: calc(0.95 * var(--vscode-font-size));
 	--text-xs: calc(0.85 * var(--vscode-font-size));
 	--text-xxs: calc(0.5 * var(--vscode-font-size));
+	--breakpoint-xs: 400px;
+	--breakpoint-xxs: 180px;
 }
 
 @theme inline {

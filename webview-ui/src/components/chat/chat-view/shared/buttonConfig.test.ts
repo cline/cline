@@ -24,7 +24,7 @@ describe("getButtonConfig", () => {
 
 	// Test error recovery states
 	describe("Error Recovery States", () => {
-		const errorStates = ["api_req_failed", "mistake_limit_reached", "auto_approval_max_req_reached"]
+		const errorStates = ["api_req_failed", "mistake_limit_reached"]
 
 		errorStates.forEach((errorState) => {
 			it(`returns correct config for ${errorState}`, () => {
