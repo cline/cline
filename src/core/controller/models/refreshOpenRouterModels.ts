@@ -4,7 +4,12 @@ import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
-import { CLAUDE_SONNET_1M_TIERS, openRouterClaudeSonnet41mModelId, openRouterClaudeSonnet451mModelId } from "@/shared/api"
+import {
+	ANTHROPIC_MAX_THINKING_BUDGET,
+	CLAUDE_SONNET_1M_TIERS,
+	openRouterClaudeSonnet41mModelId,
+	openRouterClaudeSonnet451mModelId,
+} from "@/shared/api"
 import type { Controller } from ".."
 
 type OpenRouterSupportedParams =
@@ -86,7 +91,13 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 				return undefined
 			}
 			for (const rawModel of rawModels as OpenRouterRawModelInfo[]) {
-				const supportThinking = rawModel.supported_parameters?.some((p) => p === "include_reasoning")
+				const supportThinking = rawModel.supported_parameters?.some((p) => p === "include_reasoning" || p === "reasoning")
+				// If thinking is supported, ensure maxBudget is set. If not provided, set to default max for Anthropic model.
+				const thinkingBudget =
+					typeof rawModel.thinking_config?.maxBudget === "number"
+						? rawModel.thinking_config?.maxBudget
+						: ANTHROPIC_MAX_THINKING_BUDGET
+
 				const modelInfo: ModelInfo = {
 					maxTokens: rawModel.top_provider?.max_completion_tokens ?? 0,
 					contextWindow: rawModel.context_length ?? 0,
@@ -97,7 +108,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 					cacheWritesPrice: parsePrice(rawModel.pricing?.input_cache_write),
 					cacheReadsPrice: parsePrice(rawModel.pricing?.input_cache_read),
 					description: rawModel.description ?? "",
-					thinkingConfig: (supportThinking && rawModel.thinking_config) || undefined,
+					thinkingConfig: supportThinking ? { ...rawModel.thinking_config, maxBudget: thinkingBudget } : undefined,
 					supportsGlobalEndpoint: rawModel.supports_global_endpoint ?? undefined,
 					tiers: rawModel.tiers ?? undefined,
 				}
