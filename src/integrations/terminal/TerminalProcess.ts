@@ -4,6 +4,7 @@ import * as vscode from "vscode"
 import { stripAnsi } from "./ansiUtils"
 import { getLatestTerminalOutput } from "./get-latest-output"
 
+const DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT = 500
 export interface TerminalProcessEvents {
 	line: [line: string]
 	continue: []
