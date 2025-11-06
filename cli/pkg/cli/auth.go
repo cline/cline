@@ -25,8 +25,9 @@ Quick Setup Mode:
     cline auth --provider openai-native --apikey sk-xxx --modelid gpt-5
     cline auth -p anthropic -k sk-ant-xxx -m claude-sonnet-4-5-20250929
     cline auth -p openai-compatible -k xxx -m gpt-4 -b https://api.example.com/v1
+    cline auth -p vertex --vertex-project my-project --vertex-region us-central1 -m claude-sonnet-4-5@20250929
     
-  Supported providers: openai-native, openai, anthropic, gemini, openrouter, xai, cerebras, ollama
+  Supported providers: openai-native, openai, anthropic, gemini, vertex, openrouter, xai, cerebras, ollama
   Note: Bedrock provider requires interactive setup due to complex auth fields`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return auth.RunAuthFlow(cmd.Context(), args)
@@ -38,6 +39,8 @@ Quick Setup Mode:
 	cmd.Flags().StringVarP(&auth.QuickAPIKey, "apikey", "k", "", "API key for the provider")
 	cmd.Flags().StringVarP(&auth.QuickModelID, "modelid", "m", "", "Model ID to configure (e.g., gpt-4o, claude-sonnet-4-5-20250929)")
 	cmd.Flags().StringVarP(&auth.QuickBaseURL, "baseurl", "b", "", "Base URL (optional, only for openai provider)")
+	cmd.Flags().StringVar(&auth.QuickVertexProject, "vertex-project", "", "Vertex AI project ID (for vertex provider)")
+	cmd.Flags().StringVar(&auth.QuickVertexRegion, "vertex-region", "", "Vertex AI region (for vertex provider)")
 
 	return cmd
 }

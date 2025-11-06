@@ -71,10 +71,27 @@ func RunAuthFlow(ctx context.Context, args []string) error {
 func HandleAuthCommand(ctx context.Context, args []string) error {
 
 	// Check if flags are provided for quick setup
-	if QuickProvider != "" || QuickAPIKey != "" || QuickModelID != "" || QuickBaseURL != "" {
-		if QuickProvider == "" || QuickAPIKey == "" || QuickModelID == "" {
-			return fmt.Errorf("quick setup requires --provider, --apikey, and --modelid flags. Use 'cline auth --help' for more information")
+	if QuickProvider != "" || QuickAPIKey != "" || QuickModelID != "" || QuickBaseURL != "" || QuickVertexProject != "" || QuickVertexRegion != "" {
+		// Validate required flags based on provider
+		if QuickProvider == "" {
+			return fmt.Errorf("quick setup requires --provider flag. Use 'cline auth --help' for more information")
 		}
+		if QuickModelID == "" {
+			return fmt.Errorf("quick setup requires --modelid flag. Use 'cline auth --help' for more information")
+		}
+		
+		// For Vertex AI, require vertex-specific flags instead of apikey
+		if QuickProvider == "vertex" {
+			if QuickVertexProject == "" || QuickVertexRegion == "" {
+				return fmt.Errorf("vertex provider requires --vertex-project and --vertex-region flags. Use 'cline auth --help' for more information")
+			}
+		} else {
+			// For other providers, require apikey (except ollama)
+			if QuickAPIKey == "" && QuickProvider != "ollama" {
+				return fmt.Errorf("quick setup requires --apikey flag for %s provider. Use 'cline auth --help' for more information", QuickProvider)
+			}
+		}
+		
 		return QuickSetupFromFlags(ctx, QuickProvider, QuickAPIKey, QuickModelID, QuickBaseURL)
 	}
 

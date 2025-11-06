@@ -110,6 +110,14 @@ func GetProviderFields(provider cline.ApiProvider) (ProviderFields, error) {
 			ActModeModelIDField:  "actModeApiModelId",
 		}, nil
 
+	case cline.ApiProvider_VERTEX:
+		return ProviderFields{
+			APIKeyField:          "vertexProjectId",
+			BaseURLField:         "vertexRegion",
+			PlanModeModelIDField: "planModeApiModelId",
+			ActModeModelIDField:  "actModeApiModelId",
+		}, nil
+
 	case cline.ApiProvider_OPENAI_NATIVE:
 		return ProviderFields{
 			APIKeyField:          "openAiNativeApiKey",
@@ -268,6 +276,8 @@ func setAPIKeyField(apiConfig *cline.ModelsApiConfiguration, fieldName string, v
 		apiConfig.AwsAccessKey = value
 	case "geminiApiKey":
 		apiConfig.GeminiApiKey = value
+	case "vertexProjectId":
+		apiConfig.VertexProjectId = value
 	case "ollamaBaseUrl":
 		apiConfig.OllamaBaseUrl = value
 	case "cerebrasApiKey":
@@ -476,6 +486,8 @@ func setBaseURLField(apiConfig *cline.ModelsApiConfiguration, fieldName string, 
 		apiConfig.OllamaBaseUrl = value
 	case "openAiBaseUrl":
 		apiConfig.OpenAiBaseUrl = value
+	case "vertexRegion":
+		apiConfig.VertexRegion = value
 	case "geminiBaseUrl":
 		apiConfig.GeminiBaseUrl = value
 	case "liteLlmBaseUrl":

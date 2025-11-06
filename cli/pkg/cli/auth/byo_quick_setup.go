@@ -16,6 +16,8 @@ var (
 	QuickAPIKey   string // API key for the provider
 	QuickModelID  string // Model ID to configure
 	QuickBaseURL  string // Base URL (optional, for openai compatible only)
+	QuickVertexProject string // Vertex AI project ID (for vertex provider)
+	QuickVertexRegion  string // Vertex AI region (for vertex provider)
 )
 
 // QuickSetupFromFlags performs quick setup using command-line flags
@@ -55,6 +57,9 @@ func QuickSetupFromFlags(ctx context.Context, provider, apiKey, modelID, baseURL
 			finalAPIKey = "http://localhost:11434"
 			finalBaseURL = ""
 		}
+	} else if providerEnum == cline.ApiProvider_VERTEX {
+		finalAPIKey = QuickVertexProject
+		finalBaseURL = QuickVertexRegion
 	}
 
 	// Configure the provider using existing AddProviderPartial function
@@ -80,10 +85,13 @@ func QuickSetupFromFlags(ctx context.Context, provider, apiKey, modelID, baseURL
 	fmt.Printf("  Model: %s\n", finalModelID)
 	if providerEnum == cline.ApiProvider_OLLAMA {
 		fmt.Printf("  Base URL: %s\n", finalAPIKey)
+	} else if providerEnum == cline.ApiProvider_VERTEX {
+		fmt.Printf("  Project ID: %s\n", finalAPIKey)
+		fmt.Printf("  Region: %s\n", finalBaseURL)
 	} else {
 		fmt.Println("  API Key: Configured")
 	}
-	if finalBaseURL != "" {
+	if finalBaseURL != "" && providerEnum != cline.ApiProvider_VERTEX {
 		fmt.Printf("  Custom Base URL: %s\n", finalBaseURL)
 	}
 	fmt.Println("\nYou can now use Cline with this provider.")
@@ -100,7 +108,7 @@ func validateQuickSetupInputs(provider, apiKey, modelID, baseURL string) (cline.
 		return cline.ApiProvider_ANTHROPIC, fmt.Errorf("provider is required. Use --provider or -p flag")
 	}
 
-	if strings.TrimSpace(apiKey) == "" && provider != "ollama" {
+	if strings.TrimSpace(apiKey) == "" && provider != "ollama" && provider != "vertex" {
 		return cline.ApiProvider_ANTHROPIC, fmt.Errorf("API key is required for %s provider. Use --apikey or -k flag", provider)
 	}
 
@@ -112,6 +120,16 @@ func validateQuickSetupInputs(provider, apiKey, modelID, baseURL string) (cline.
 	providerEnum, err := validateQuickSetupProvider(provider)
 	if err != nil {
 		return cline.ApiProvider_ANTHROPIC, err
+	}
+
+	// Validate vertex-specific flags
+	if providerEnum == cline.ApiProvider_VERTEX {
+		if strings.TrimSpace(QuickVertexProject) == "" {
+			return cline.ApiProvider_ANTHROPIC, fmt.Errorf("vertex AI requires --vertex-project flag")
+		}
+		if strings.TrimSpace(QuickVertexRegion) == "" {
+			return cline.ApiProvider_ANTHROPIC, fmt.Errorf("vertex AI requires --vertex-region flag")
+		}
 	}
 
 	// Validate that baseURL is only provided for OpenAI-compatible providers
@@ -150,7 +168,7 @@ func validateQuickSetupProvider(providerID string) (cline.ApiProvider, error) {
 	if !ok {
 		// Provider not found - provide helpful error message
 		supportedProviders := []string{
-			"openai-native", "openai", "anthropic", "gemini",
+			"openai-native", "openai", "anthropic", "gemini", "vertex",
 			"openrouter", "xai", "cerebras", "ollama",
 		}
 		return cline.ApiProvider_ANTHROPIC, fmt.Errorf(
@@ -166,6 +184,7 @@ func validateQuickSetupProvider(providerID string) (cline.ApiProvider, error) {
 		cline.ApiProvider_OPENAI:        true,
 		cline.ApiProvider_ANTHROPIC:     true,
 		cline.ApiProvider_GEMINI:        true,
+		cline.ApiProvider_VERTEX:        true,
 		cline.ApiProvider_OPENROUTER:    true,
 		cline.ApiProvider_XAI:           true,
 		cline.ApiProvider_CEREBRAS:      true,

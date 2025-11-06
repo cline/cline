@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/charmbracelet/huh"
 	"github.com/cline/grpc-go/cline"
@@ -24,6 +25,7 @@ func GetBYOProviderList() []BYOProviderOption {
 		{Name: "X AI (Grok)", Provider: cline.ApiProvider_XAI},
 		{Name: "AWS Bedrock", Provider: cline.ApiProvider_BEDROCK},
 		{Name: "Google Gemini", Provider: cline.ApiProvider_GEMINI},
+		{Name: "Google Vertex AI", Provider: cline.ApiProvider_VERTEX},
 		{Name: "Ollama", Provider: cline.ApiProvider_OLLAMA},
 		{Name: "Cerebras", Provider: cline.ApiProvider_CEREBRAS},
 		{Name: "Oracle Code Assist", Provider: cline.ApiProvider_OCA},
@@ -96,6 +98,8 @@ func GetBYOProviderPlaceholder(provider cline.ApiProvider) string {
 		return "e.g., anthropic.claude-sonnet-4-5-20250929-v1:0"
 	case cline.ApiProvider_GEMINI:
 		return "e.g., gemini-2.5-pro"
+	case cline.ApiProvider_VERTEX:
+		return "e.g., claude-sonnet-4-5@20250929"
 	case cline.ApiProvider_OLLAMA:
 		return "e.g., qwen3-coder:30b"
 	case cline.ApiProvider_CEREBRAS:
@@ -134,6 +138,10 @@ func GetBYOAPIKeyFieldConfig(provider cline.ApiProvider) APIKeyFieldConfig {
 // PromptForAPIKey prompts the user to enter an API key (or base URL for Ollama).
 // For OpenAI (Compatible) provider, also prompts for an optional base URL.
 func PromptForAPIKey(provider cline.ApiProvider) (string, string, error) {
+	if provider == cline.ApiProvider_VERTEX {
+		return promptForVertexAIConfig()
+	}
+
 	var apiKey string
 	config := GetBYOAPIKeyFieldConfig(provider)
 
@@ -178,4 +186,62 @@ func PromptForAPIKey(provider cline.ApiProvider) (string, string, error) {
 	}
 
 	return apiKey, "", nil
+}
+
+// promptForVertexAIConfig handles Vertex AI configuration with environment variable support
+func promptForVertexAIConfig() (string, string, error) {
+	// Check for VERTEXAI_PROJECT environment variable
+	vertexProjectId := os.Getenv("VERTEXAI_PROJECT")
+	if vertexProjectId != "" {
+		fmt.Printf("Using VERTEXAI_PROJECT from environment: %s\n", vertexProjectId)
+	} else {
+		// Prompt for Project ID
+		projectIDForm := huh.NewForm(
+			huh.NewGroup(
+				huh.NewInput().
+					Title("Project ID").
+					Placeholder("e.g., my-gcp-project").
+					Value(&vertexProjectId).
+					Validate(func(s string) error {
+						if s == "" {
+							return fmt.Errorf("project ID cannot be empty")
+						}
+						return nil
+					}),
+			),
+		)
+
+		if err := projectIDForm.Run(); err != nil {
+			return "", "", fmt.Errorf("failed to get Project ID: %w", err)
+		}
+	}
+
+	// Check for VERTEXAI_LOCATION environment variable
+	vertexRegion := os.Getenv("VERTEXAI_LOCATION")
+	if vertexRegion != "" {
+		fmt.Printf("Using VERTEXAI_LOCATION from environment: %s\n", vertexRegion)
+	} else {
+		// Prompt for Region
+		regionForm := huh.NewForm(
+			huh.NewGroup(
+				huh.NewInput().
+					Title("Region").
+					Placeholder("e.g., us-central1").
+					Value(&vertexRegion).
+					Validate(func(s string) error {
+						if s == "" {
+							return fmt.Errorf("region cannot be empty")
+						}
+						return nil
+					}),
+			),
+		)
+
+		if err := regionForm.Run(); err != nil {
+			return "", "", fmt.Errorf("failed to get Region: %w", err)
+		}
+	}
+
+	// Return projectId as apiKey and region as baseURL
+	return vertexProjectId, vertexRegion, nil
 }
