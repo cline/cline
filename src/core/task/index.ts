@@ -3,6 +3,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
 import { AssistantMessageContent, parseAssistantMessageV2 } from "@core/assistant-message"
+import { ContextConfigLoader } from "@core/context/context-config/ContextConfigLoader"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
@@ -218,6 +219,9 @@ export class Task {
 	private fileContextTracker: FileContextTracker
 	private modelContextTracker: ModelContextTracker
 
+	// Context configuration
+	private contextConfigLoader: ContextConfigLoader
+
 	// Focus Chain
 	private FocusChainManager?: FocusChainManager
 
@@ -356,6 +360,9 @@ export class Task {
 		// Initialize file context tracker
 		this.fileContextTracker = new FileContextTracker(controller, this.taskId)
 		this.modelContextTracker = new ModelContextTracker(this.taskId)
+
+		// Initialize context config loader
+		this.contextConfigLoader = new ContextConfigLoader()
 
 		// Initialize focus chain manager only if enabled
 		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
@@ -3295,45 +3302,54 @@ export class Task {
 	}
 
 	async getEnvironmentDetails(includeFileDetails: boolean = false) {
+		// Load context configuration
+		const config = await this.contextConfigLoader.loadConfig(this.cwd)
+
 		const host = await HostProvider.env.getHostVersion({})
 		let details = ""
 
 		// Workspace roots (multi-root)
 		details += this.formatWorkspaceRootsSection()
 
-		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
-		details += `\n\n# ${host.platform} Visible Files`
-		const rawVisiblePaths = (await HostProvider.window.getVisibleTabs({})).paths
-		const filteredVisiblePaths = await filterExistingFiles(rawVisiblePaths)
-		const visibleFilePaths = filteredVisiblePaths.map((absolutePath) => path.relative(this.cwd, absolutePath))
+		// Conditionally include visible files based on config
+		if (config.includeVisibleFiles) {
+			// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
+			details += `\n\n# ${host.platform} Visible Files`
+			const rawVisiblePaths = (await HostProvider.window.getVisibleTabs({})).paths
+			const filteredVisiblePaths = await filterExistingFiles(rawVisiblePaths)
+			const visibleFilePaths = filteredVisiblePaths.map((absolutePath) => path.relative(this.cwd, absolutePath))
 
-		// Filter paths through clineIgnoreController
-		const allowedVisibleFiles = this.clineIgnoreController
-			.filterPaths(visibleFilePaths)
-			.map((p) => p.toPosix())
-			.join("\n")
+			// Filter paths through clineIgnoreController
+			const allowedVisibleFiles = this.clineIgnoreController
+				.filterPaths(visibleFilePaths)
+				.map((p) => p.toPosix())
+				.join("\n")
 
-		if (allowedVisibleFiles) {
-			details += `\n${allowedVisibleFiles}`
-		} else {
-			details += "\n(No visible files)"
+			if (allowedVisibleFiles) {
+				details += `\n${allowedVisibleFiles}`
+			} else {
+				details += "\n(No visible files)"
+			}
 		}
 
-		details += `\n\n# ${host.platform} Open Tabs`
-		const rawOpenTabPaths = (await HostProvider.window.getOpenTabs({})).paths
-		const filteredOpenTabPaths = await filterExistingFiles(rawOpenTabPaths)
-		const openTabPaths = filteredOpenTabPaths.map((absolutePath) => path.relative(this.cwd, absolutePath))
+		// Conditionally include open tabs based on config
+		if (config.includeOpenTabs) {
+			details += `\n\n# ${host.platform} Open Tabs`
+			const rawOpenTabPaths = (await HostProvider.window.getOpenTabs({})).paths
+			const filteredOpenTabPaths = await filterExistingFiles(rawOpenTabPaths)
+			const openTabPaths = filteredOpenTabPaths.map((absolutePath) => path.relative(this.cwd, absolutePath))
 
-		// Filter paths through clineIgnoreController
-		const allowedOpenTabs = this.clineIgnoreController
-			.filterPaths(openTabPaths)
-			.map((p) => p.toPosix())
-			.join("\n")
+			// Filter paths through clineIgnoreController
+			const allowedOpenTabs = this.clineIgnoreController
+				.filterPaths(openTabPaths)
+				.map((p) => p.toPosix())
+				.join("\n")
 
-		if (allowedOpenTabs) {
-			details += `\n${allowedOpenTabs}`
-		} else {
-			details += "\n(No open tabs)"
+			if (allowedOpenTabs) {
+				details += `\n${allowedOpenTabs}`
+			} else {
+				details += "\n(No open tabs)"
+			}
 		}
 
 		const busyTerminals = this.terminalManager.getTerminals(true)
@@ -3423,7 +3439,8 @@ export class Task {
 		const timeZoneOffsetStr = `${timeZoneOffset >= 0 ? "+" : ""}${timeZoneOffset}:00`
 		details += `\n\n# Current Time\n${formatter.format(now)} (${timeZone}, UTC${timeZoneOffsetStr})`
 
-		if (includeFileDetails) {
+		// Conditionally include file tree based on config
+		if (includeFileDetails && config.includeFileTree) {
 			details += this.formatFileDetailsHeader()
 			const isDesktop = arePathsEqual(this.cwd, getDesktopDir())
 			if (isDesktop) {

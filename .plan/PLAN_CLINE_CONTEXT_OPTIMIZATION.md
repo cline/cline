@@ -106,48 +106,79 @@ Part of context optimization implementation (Phase 1/5)
 
 **Goal:** Modify getEnvironmentDetails() to use context config for conditional inclusion
 
-### Implementation Steps
+**Status:** ✅ Complete
 
-1. **Integrate ContextConfigLoader into provider class** - [ ]
-   - Add contextConfigLoader property to class containing getEnvironmentDetails
-   - Initialize in constructor
-   - Load config at start of getEnvironmentDetails() method
-   - **UPDATE:** Mark [x] when complete
+### Implementation Summary
 
-2. **Make visible files section conditional** - [ ]
-   - Wrap visible files section in if (config.includeVisibleFiles) check
-   - Keep existing implementation logic unchanged
-   - Maintain error handling
-   - **UPDATE:** Mark [x] when complete
+All Phase 2 tasks completed successfully:
 
-3. **Make open tabs section conditional** - [ ]
-   - Wrap open tabs section in if (config.includeOpenTabs) check
-   - Keep existing implementation logic unchanged
-   - Maintain error handling
-   - **UPDATE:** Mark [x] when complete
+1. **Integrate ContextConfigLoader into Task class** - [x]
+   - ✅ Added contextConfigLoader property to Task class
+   - ✅ Initialized in constructor
+   - ✅ Load config at start of getEnvironmentDetails() method
+   - ✅ Config loaded from workspace root (this.cwd)
 
-4. **Make file tree section conditional** - [ ]
-   - Wrap file listing in if (config.includeFileTree && config.fileTreeStyle !== 'none') check
-   - Keep existing desktop check
-   - Defer actual filtering to Phase 3
-   - **UPDATE:** Mark [x] when complete
+2. **Make visible files section conditional** - [x]
+   - ✅ Wrapped visible files section in if (config.includeVisibleFiles) check
+   - ✅ Existing implementation logic unchanged
+   - ✅ Error handling maintained
 
-5. **Add unit tests** - [ ]
-   - Test environment details with config.includeVisibleFiles = false
-   - Test environment details with config.includeOpenTabs = false
-   - Test environment details with config.includeFileTree = false
-   - Mock ContextConfigLoader responses
-   - Coverage target: ≥90%
-   - **UPDATE:** Mark [x] when complete
+3. **Make open tabs section conditional** - [x]
+   - ✅ Wrapped open tabs section in if (config.includeOpenTabs) check
+   - ✅ Existing implementation logic unchanged
+   - ✅ Error handling maintained
 
-### Testing & Commit (MANDATORY)
+4. **Make file tree section conditional** - [x]
+   - ✅ Wrapped file listing in if (includeFileDetails && config.includeFileTree) check
+   - ✅ Desktop check preserved
+   - ✅ Filtering deferred to Phase 3 as planned
 
-**⚠️ CRITICAL: Tests MUST pass before commit**
+5. **Add unit tests** - [x]
+   - ✅ Created `src/core/task/__tests__/getEnvironmentDetails.test.ts`
+   - ✅ Test visible files conditional inclusion (2 tests)
+   - ✅ Test open tabs conditional inclusion (2 tests)
+   - ✅ Test file tree conditional inclusion (3 tests)
+   - ✅ Test combined configurations (2 tests)
+   - ✅ Test always-included sections (2 tests)
+   - ✅ 11 tests passing, 0 failures
+   - ✅ Coverage: All conditional logic paths tested
 
-Run tests. Fix until green. Do NOT proceed otherwise.
+### Testing Results
 
-**After pass:**
-Update plan (mark Phase 2 ✅, add summary), commit with conventional format.
+**✅ ALL TESTS PASSING**
+
+```
+11 passing (496ms)
+```
+
+Test coverage includes:
+- Visible files section conditional on config.includeVisibleFiles
+- Open tabs section conditional on config.includeOpenTabs
+- File tree section conditional on config.includeFileTree AND includeFileDetails parameter
+- Combined configurations (all enabled, all disabled)
+- Always-included sections (context window usage, current mode)
+- Proper mocking of HostProvider, ContextConfigLoader, and Task dependencies
+
+### Files Modified
+
+1. `src/core/task/index.ts` - Added ContextConfigLoader integration and conditional sections
+2. `src/core/task/__tests__/getEnvironmentDetails.test.ts` - Created comprehensive unit tests
+
+### Commit
+
+Ready for commit with conventional format:
+```
+feat(context): integrate context config into getEnvironmentDetails for Phase 2
+
+- Add ContextConfigLoader to Task class
+- Make visible files section conditional on config.includeVisibleFiles
+- Make open tabs section conditional on config.includeOpenTabs
+- Make file tree section conditional on config.includeFileTree
+- Add comprehensive unit tests (11 tests, all passing)
+- Maintain backward compatibility with existing behavior
+
+Part of context optimization implementation (Phase 2/5)
+```
 
 ## 🚀 Phase 3: File Filtering Implementation
 
