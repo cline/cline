@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  cline-cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cline-cli:latest
+    container_name: cline-cli
+    environment:
+      # API Keys (set these in .env file or pass via command line)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      
+      # Optional: Repository to clone
+      - REPO_URL=${REPO_URL:-}
+      - REPO_BRANCH=${REPO_BRANCH:-}
+    volumes:
+      # Mount local directory for persistent workspace
+      - ./workspace:/workspace
+      
+      # Optional: Mount Cline config directory
+      - cline-home:/root/.cline
+    stdin_open: true
+    tty: true
+    # Override default command if needed
+    # command: ["--help"]
+
+volumes:
+  cline-home:
+    driver: local

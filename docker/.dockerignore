@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node modules
+node_modules
+npm-debug.log
+
+# Build artifacts
+dist
+build
+*.log
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+
+# Tests
+tests
+*.test.js
+*.spec.js
+
+# CI/CD
+.github
+.gitlab-ci.yml
