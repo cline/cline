@@ -256,6 +256,8 @@ func determineAutoApprovalAction(msg *types.ClineMessage) (string, error) {
 		case types.ToolTypeEditedExistingFile,
 			types.ToolTypeNewFileCreated:
 			return "edit_files", nil
+		case types.ToolTypeFileDeleted:
+			return "apply_patch", nil
 		default:
 			return "", fmt.Errorf("unsupported tool type: %s", toolMsg.Tool)
 		}
