@@ -58,6 +58,10 @@ func QuickSetupFromFlags(ctx context.Context, provider, apiKey, modelID, baseURL
 			finalBaseURL = ""
 		}
 	} else if providerEnum == cline.ApiProvider_VERTEX {
+		// Validation: do not allow both baseURL and vertex-region to be set
+		if baseURL != "" && QuickVertexRegion != "" {
+			return fmt.Errorf("cannot specify both --baseurl and --vertex-region for Vertex provider; use --vertex-region")
+		}
 		finalAPIKey = QuickVertexProject
 		finalBaseURL = QuickVertexRegion
 	}
