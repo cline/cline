@@ -1,13 +1,20 @@
 import { expect } from "chai"
 import * as sinon from "sinon"
 import { HostProvider } from "../../../hosts/host-provider"
+import * as listFilesModule from "../../../services/glob/list-files"
 import { Task } from "../index"
 
 describe("Task.getEnvironmentDetails", () => {
 	let task: Task
 	let mockContextConfigLoader: any
+	let listFilesStub: sinon.SinonStub
+	let listFilesWithGlobFilterStub: sinon.SinonStub
 
 	beforeEach(() => {
+		// Stub file listing functions to prevent actual file system access
+		listFilesStub = sinon.stub(listFilesModule, "listFiles").resolves([[], false])
+		listFilesWithGlobFilterStub = sinon.stub(listFilesModule, "listFilesWithGlobFilter").resolves([[], false])
+
 		// Initialize HostProvider with mock implementations
 		const mockHostBridge = {
 			envClient: {

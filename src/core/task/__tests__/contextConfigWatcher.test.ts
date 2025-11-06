@@ -1,5 +1,6 @@
 import { expect } from "chai"
 import * as chokidar from "chokidar"
+import * as path from "path"
 import * as sinon from "sinon"
 import { Task } from "../index"
 
@@ -47,7 +48,8 @@ describe("Task.contextConfigWatcher", () => {
 			await task["setupContextConfigWatcher"]()
 
 			expect(chokidarWatchStub.calledOnce).to.be.true
-			expect(chokidarWatchStub.firstCall.args[0]).to.equal("/test/workspace/.cline/context.json")
+			const expectedPath = path.join("/test/workspace", ".cline", "context.json")
+			expect(chokidarWatchStub.firstCall.args[0]).to.equal(expectedPath)
 		})
 
 		it("should configure watcher with correct options", async () => {
