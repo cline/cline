@@ -225,6 +225,15 @@ export function toolSpecInputSchema(tool: ClineToolSpec, context: SystemPromptCo
 	return toolInputSchema
 }
 
+const GOOGLE_TOOL_PARAM_MAP: Record<string, string> = {
+	string: GoogleToolParamType.STRING,
+	number: GoogleToolParamType.NUMBER,
+	integer: GoogleToolParamType.NUMBER,
+	boolean: GoogleToolParamType.BOOLEAN,
+	object: GoogleToolParamType.OBJECT,
+	array: GoogleToolParamType.STRING,
+}
+
 /**
  * Converts a ClineToolSpec into a Google Gemini function.
  * Docs: https://ai.google.dev/gemini-api/docs/function-calling
@@ -246,21 +255,38 @@ export function toolSpecFunctionDeclarations(tool: ClineToolSpec, context: Syste
 				continue
 			}
 
+			if (!param.name) {
+				continue
+			}
+
 			// Add to required array if parameter is required
 			if (param.required) {
 				required.push(param.name)
 			}
 
-			// Determine parameter type - use explicit type if provided.
-			// Default to string
-			const paramType: string = param.type || GoogleToolParamType.STRING
-
-			// Build parameter schema
 			const paramSchema: any = {
-				type: paramType,
-				items: paramType === GoogleToolParamType.ARRAY ? { type: GoogleToolParamType.STRING } : undefined,
-				description: replacer(param.instruction, context),
+				type: GOOGLE_TOOL_PARAM_MAP[param.type || "object"] || GoogleToolParamType.OBJECT,
+				properties: {},
 			}
+
+			if (param.properties) {
+				for (const [key, prop] of Object.entries<any>(param.properties)) {
+					// Skip $schema property
+					if (key === "$schema") {
+						continue
+					}
+					paramSchema.properties[key] = {
+						type: GOOGLE_TOOL_PARAM_MAP[prop.type] || "STRING",
+						description: replacer(param.instruction, context),
+					}
+
+					// Handle enum values
+					if (prop.enum) {
+						paramSchema.properties[key].enum = prop.enum
+					}
+				}
+			}
+
 			properties[param.name] = paramSchema
 		}
 	}
