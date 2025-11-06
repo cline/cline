@@ -2,6 +2,8 @@ import { expect } from "chai"
 import * as sinon from "sinon"
 import { HostProvider } from "../../../hosts/host-provider"
 import * as listFilesModule from "../../../services/glob/list-files"
+import * as pathUtils from "../../../utils/path"
+import * as tabFiltering from "../../../utils/tabFiltering"
 import { Task } from "../index"
 
 describe("Task.getEnvironmentDetails", () => {
@@ -9,11 +11,21 @@ describe("Task.getEnvironmentDetails", () => {
 	let mockContextConfigLoader: any
 	let listFilesStub: sinon.SinonStub
 	let listFilesWithGlobFilterStub: sinon.SinonStub
+	let arePathsEqualStub: sinon.SinonStub
+	let getDesktopDirStub: sinon.SinonStub
+	let filterExistingFilesStub: sinon.SinonStub
 
 	beforeEach(() => {
 		// Stub file listing functions to prevent actual file system access
 		listFilesStub = sinon.stub(listFilesModule, "listFiles").resolves([[], false])
 		listFilesWithGlobFilterStub = sinon.stub(listFilesModule, "listFilesWithGlobFilter").resolves([[], false])
+
+		// Stub path utility functions to prevent real file system checks
+		arePathsEqualStub = sinon.stub(pathUtils, "arePathsEqual").returns(false)
+		getDesktopDirStub = sinon.stub(pathUtils, "getDesktopDir").returns("/fake/desktop")
+
+		// Stub file filtering to prevent checking if files actually exist
+		filterExistingFilesStub = sinon.stub(tabFiltering, "filterExistingFiles").callsFake(async (paths) => paths)
 
 		// Initialize HostProvider with mock implementations
 		const mockHostBridge = {
