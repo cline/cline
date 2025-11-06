@@ -1,6 +1,6 @@
 import { askSageDefaultURL, askSageModels, ModelInfo } from "@shared/api"
 import { Mode } from "@shared/storage/types"
-import React, { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
