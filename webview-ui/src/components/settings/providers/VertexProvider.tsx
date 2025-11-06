@@ -1,14 +1,15 @@
 import { vertexGlobalModels, vertexModels } from "@shared/api"
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the VertexProvider component
@@ -37,7 +38,6 @@ const SUPPORTED_THINKING_MODELS = [
  */
 export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: VertexProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -54,7 +54,18 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 			}}>
 			<DebouncedTextField
 				initialValue={apiConfiguration?.vertexProjectId || ""}
-				onChange={(value) => handleFieldChange("vertexProjectId", value)}
+				onChange={async (value) => {
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							updates: {
+								options: {
+									vertexProjectId: value,
+								},
+							},
+							updateMask: ["options.vertexProjectId"],
+						}),
+					)
+				}}
 				placeholder="Enter Project ID..."
 				style={{ width: "100%" }}>
 				<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
@@ -66,7 +77,18 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 				</label>
 				<VSCodeDropdown
 					id="vertex-region-dropdown"
-					onChange={(e: any) => handleFieldChange("vertexRegion", e.target.value)}
+					onChange={async (e: any) => {
+						await ModelsServiceClient.updateApiConfiguration(
+							UpdateApiConfigurationRequestNew.create({
+								updates: {
+									options: {
+										vertexRegion: e.target.value,
+									},
+								},
+								updateMask: ["options.vertexRegion"],
+							}),
+						)
+					}}
 					style={{ width: "100%" }}
 					value={apiConfiguration?.vertexRegion || ""}>
 					<VSCodeOption value="">Select a region...</VSCodeOption>
@@ -103,13 +125,23 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					<ModelSelector
 						label="Model"
 						models={modelsToUse}
-						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
+						onChange={async (e: any) => {
+							const value = e.target.value
+
+							await ModelsServiceClient.updateApiConfiguration(
+								UpdateApiConfigurationRequestNew.create(
+									currentMode === "plan"
+										? {
+												updates: { options: { planModeApiModelId: value } },
+												updateMask: ["options.planModeApiModelId"],
+											}
+										: {
+												updates: { options: { actModeApiModelId: value } },
+												updateMask: ["options.actModeApiModelId"],
+											},
+								),
 							)
-						}
+						}}
 						selectedModelId={selectedModelId}
 						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>

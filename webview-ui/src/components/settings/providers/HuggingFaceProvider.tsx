@@ -1,9 +1,10 @@
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { HuggingFaceModelPicker } from "../HuggingFaceModelPicker"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
  * Props for the HuggingFaceProvider component
@@ -19,7 +20,6 @@ interface HuggingFaceProviderProps {
  */
 export const HuggingFaceProvider = ({ showModelOptions, isPopup, currentMode }: HuggingFaceProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -28,7 +28,18 @@ export const HuggingFaceProvider = ({ showModelOptions, isPopup, currentMode }: 
 		<div>
 			<DebouncedTextField
 				initialValue={apiConfiguration?.huggingFaceApiKey || ""}
-				onChange={(value) => handleFieldChange("huggingFaceApiKey", value)}
+				onChange={async (value) => {
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							updates: {
+								secrets: {
+									huggingFaceApiKey: value,
+								},
+							},
+							updateMask: ["secrets.huggingFaceApiKey"],
+						}),
+					)
+				}}
 				placeholder="Enter API Key..."
 				style={{ width: "100%" }}
 				type="password">

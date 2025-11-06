@@ -1,6 +1,8 @@
 import { anthropicModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher"
@@ -8,7 +10,6 @@ import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
@@ -36,21 +37,43 @@ interface AnthropicProviderProps {
  */
 export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: AnthropicProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	// Helper function for model switching
-	const handleModelChange = (modelId: string) => {
-		handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, modelId, currentMode)
+	const handleModelChange = async (modelId: string) => {
+		await ModelsServiceClient.updateApiConfiguration(
+			UpdateApiConfigurationRequestNew.create(
+				currentMode === "plan"
+					? {
+							updates: { options: { planModeApiModelId: modelId } },
+							updateMask: ["options.planModeApiModelId"],
+						}
+					: {
+							updates: { options: { actModeApiModelId: modelId } },
+							updateMask: ["options.actModeApiModelId"],
+						},
+			),
+		)
 	}
 
 	return (
 		<div>
 			<ApiKeyField
 				initialValue={apiConfiguration?.apiKey || ""}
-				onChange={(value) => handleFieldChange("apiKey", value)}
+				onChange={async (value) => {
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							updates: {
+								secrets: {
+									apiKey: value,
+								},
+							},
+							updateMask: ["secrets.apiKey"],
+						}),
+					)
+				}}
 				providerName="Anthropic"
 				signupUrl="https://console.anthropic.com/settings/keys"
 			/>
@@ -58,7 +81,18 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 			<BaseUrlField
 				initialValue={apiConfiguration?.anthropicBaseUrl}
 				label="Use custom base URL"
-				onChange={(value) => handleFieldChange("anthropicBaseUrl", value)}
+				onChange={async (value) => {
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							updates: {
+								options: {
+									anthropicBaseUrl: value,
+								},
+							},
+							updateMask: ["options.anthropicBaseUrl"],
+						}),
+					)
+				}}
 				placeholder="Default: https://api.anthropic.com"
 			/>
 
@@ -67,13 +101,23 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 					<ModelSelector
 						label="Model"
 						models={anthropicModels}
-						onChange={(e) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
+						onChange={async (e: any) => {
+							const value = e.target.value
+
+							await ModelsServiceClient.updateApiConfiguration(
+								UpdateApiConfigurationRequestNew.create(
+									currentMode === "plan"
+										? {
+												updates: { options: { planModeApiModelId: value } },
+												updateMask: ["options.planModeApiModelId"],
+											}
+										: {
+												updates: { options: { actModeApiModelId: value } },
+												updateMask: ["options.actModeApiModelId"],
+											},
+								),
 							)
-						}
+						}}
 						selectedModelId={selectedModelId}
 					/>
 

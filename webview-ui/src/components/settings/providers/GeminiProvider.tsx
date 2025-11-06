@@ -1,13 +1,14 @@
 import { geminiModels } from "@shared/api"
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 // Gemini models that support thinking/reasoning mode
 const SUPPORTED_THINKING_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite-preview-06-17"]
@@ -26,7 +27,6 @@ interface GeminiProviderProps {
  */
 export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: GeminiProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -35,7 +35,18 @@ export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: Gemin
 		<div>
 			<ApiKeyField
 				initialValue={apiConfiguration?.geminiApiKey || ""}
-				onChange={(value) => handleFieldChange("geminiApiKey", value)}
+				onChange={async (value) => {
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							updates: {
+								secrets: {
+									geminiApiKey: value,
+								},
+							},
+							updateMask: ["secrets.geminiApiKey"],
+						}),
+					)
+				}}
 				providerName="Gemini"
 				signupUrl="https://aistudio.google.com/apikey"
 			/>
@@ -43,7 +54,18 @@ export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: Gemin
 			<BaseUrlField
 				initialValue={apiConfiguration?.geminiBaseUrl}
 				label="Use custom base URL"
-				onChange={(value) => handleFieldChange("geminiBaseUrl", value)}
+				onChange={async (value) => {
+					await ModelsServiceClient.updateApiConfiguration(
+						UpdateApiConfigurationRequestNew.create({
+							updates: {
+								options: {
+									geminiBaseUrl: value,
+								},
+							},
+							updateMask: ["options.geminiBaseUrl"],
+						}),
+					)
+				}}
 				placeholder="Default: https://generativelanguage.googleapis.com"
 			/>
 
@@ -52,13 +74,23 @@ export const GeminiProvider = ({ showModelOptions, isPopup, currentMode }: Gemin
 					<ModelSelector
 						label="Model"
 						models={geminiModels}
-						onChange={(e: any) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
+						onChange={async (e: any) => {
+							const value = e.target.value
+
+							await ModelsServiceClient.updateApiConfiguration(
+								UpdateApiConfigurationRequestNew.create(
+									currentMode === "plan"
+										? {
+												updates: { options: { planModeApiModelId: value } },
+												updateMask: ["options.planModeApiModelId"],
+											}
+										: {
+												updates: { options: { actModeApiModelId: value } },
+												updateMask: ["options.actModeApiModelId"],
+											},
+								),
 							)
-						}
+						}}
 						selectedModelId={selectedModelId}
 					/>
 
