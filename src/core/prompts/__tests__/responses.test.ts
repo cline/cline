@@ -15,11 +15,7 @@ describe("formatResponse.formatFlatFileList", () => {
 
 	it("should sort files alphabetically", () => {
 		const workspaceRoot = "/Users/test/project"
-		const files = [
-			"/Users/test/project/zebra.ts",
-			"/Users/test/project/apple.ts",
-			"/Users/test/project/banana.ts",
-		]
+		const files = ["/Users/test/project/zebra.ts", "/Users/test/project/apple.ts", "/Users/test/project/banana.ts"]
 
 		const result = formatResponse.formatFlatFileList(workspaceRoot, files, false)
 
@@ -31,11 +27,7 @@ describe("formatResponse.formatFlatFileList", () => {
 
 	it("should handle numeric sorting correctly", () => {
 		const workspaceRoot = "/Users/test/project"
-		const files = [
-			"/Users/test/project/file10.ts",
-			"/Users/test/project/file2.ts",
-			"/Users/test/project/file1.ts",
-		]
+		const files = ["/Users/test/project/file10.ts", "/Users/test/project/file2.ts", "/Users/test/project/file1.ts"]
 
 		const result = formatResponse.formatFlatFileList(workspaceRoot, files, false)
 
@@ -62,7 +54,9 @@ describe("formatResponse.formatFlatFileList", () => {
 
 		expect(result).to.include("file1.ts")
 		expect(result).to.include("file2.ts")
-		expect(result).to.include("(File list truncated. Use list_files on specific subdirectories if you need to explore further.)")
+		expect(result).to.include(
+			"(File list truncated. Use list_files on specific subdirectories if you need to explore further.)",
+		)
 	})
 
 	it("should not add truncation message when didHitLimit is false", () => {
@@ -111,11 +105,7 @@ describe("formatResponse.formatFlatFileList", () => {
 
 	it("should sort case-insensitively", () => {
 		const workspaceRoot = "/Users/test/project"
-		const files = [
-			"/Users/test/project/Zebra.ts",
-			"/Users/test/project/apple.ts",
-			"/Users/test/project/Banana.ts",
-		]
+		const files = ["/Users/test/project/Zebra.ts", "/Users/test/project/apple.ts", "/Users/test/project/Banana.ts"]
 
 		const result = formatResponse.formatFlatFileList(workspaceRoot, files, false)
 

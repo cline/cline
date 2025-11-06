@@ -1,7 +1,7 @@
 import { expect } from "chai"
 import * as fs from "fs"
-import * as path from "path"
 import * as os from "os"
+import * as path from "path"
 import { listFilesWithGlobFilter } from "../list-files"
 
 describe("listFilesWithGlobFilter", () => {
@@ -72,12 +72,7 @@ describe("listFilesWithGlobFilter", () => {
 	})
 
 	it("should exclude default ignore directories", async () => {
-		createTestFiles([
-			"src/index.ts",
-			"node_modules/package/index.js",
-			"dist/bundle.js",
-			"__pycache__/module.pyc",
-		])
+		createTestFiles(["src/index.ts", "node_modules/package/index.js", "dist/bundle.js", "__pycache__/module.pyc"])
 
 		const [files, didHitLimit] = await listFilesWithGlobFilter(testDir, [], [], 100)
 

@@ -36,7 +36,7 @@ export class ContextConfigLoader {
 				// Cache the successfully loaded config
 				this.configCache.set(workspaceRoot, config)
 				return config
-			} catch (error) {}
+			} catch (_error) {}
 		}
 
 		// No config file found, use defaults

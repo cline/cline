@@ -6,12 +6,6 @@ import { Task } from "../index"
 describe("Task.getEnvironmentDetails", () => {
 	let task: Task
 	let mockContextConfigLoader: any
-	let hostProviderStubs: {
-		getHostVersion: sinon.SinonStub
-		getVisibleTabs: sinon.SinonStub
-		getOpenTabs: sinon.SinonStub
-	}
-	let mockHostProvider: any
 
 	beforeEach(() => {
 		// Initialize HostProvider with mock implementations
@@ -46,13 +40,6 @@ describe("Task.getEnvironmentDetails", () => {
 			"/extension/path", // extensionFsPath
 			"/global/storage/path", // globalStorageFsPath
 		)
-
-		// Store references for easy access in tests
-		hostProviderStubs = {
-			getHostVersion: mockHostBridge.envClient.getHostVersion,
-			getVisibleTabs: mockHostBridge.windowClient.getVisibleTabs,
-			getOpenTabs: mockHostBridge.windowClient.getOpenTabs,
-		}
 
 		// Create mock context config loader
 		mockContextConfigLoader = {
