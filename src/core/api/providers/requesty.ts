@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
+import { fetch } from "@/shared/net"
 import { toRequestyServiceStringUrl } from "@/shared/providers/requesty"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
@@ -48,6 +49,7 @@ export class RequestyHandler implements ApiHandler {
 						"HTTP-Referer": "https://cline.bot",
 						"X-Title": "Cline",
 					},
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Requesty client: ${error.message}`)
