@@ -11,6 +11,8 @@ option java_package = "bot.cline.proto";
 
 // Service for model-related operations
 service ModelsService {
+  // Refreshes and returns Cline models
+  rpc refreshClineModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Fetches available models from Ollama
   rpc getOllamaModels(StringRequest) returns (StringArray);
   // Fetches available models from LM Studio
@@ -27,6 +29,8 @@ service ModelsService {
   rpc refreshRequestyModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns Hicap models
   rpc refreshHicapModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns Vercel AI Gateway models
+  rpc refreshVercelAiGatewayModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Subscribe to OpenRouter models updates
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Updates API configuration (legacy - uses combined configuration)

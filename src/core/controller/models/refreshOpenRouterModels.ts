@@ -5,7 +5,9 @@ import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
 import { CLAUDE_SONNET_1M_TIERS, openRouterClaudeSonnet41mModelId, openRouterClaudeSonnet451mModelId } from "@/shared/api"
+import { fileExistsAtPath } from "@/utils/fs"
 import type { Controller } from ".."
+import { appendClineStealthModels } from "./refreshClineModels"
 
 type OpenRouterSupportedParams =
 	| "frequency_penalty"
@@ -231,7 +233,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 		console.error("Error fetching OpenRouter models:", error)
 
 		// If we failed to fetch models, try to read cached models
-		const cachedModels = await controller.readOpenRouterModels()
+		const cachedModels = await getOpenRouterCachedModels()
 		if (cachedModels) {
 			// Cached models are already in application format (ModelInfo)
 			return appendClineStealthModels(cachedModels as Record<string, ModelInfo>)
@@ -241,21 +243,17 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 	return appendClineStealthModels(models)
 }
 
-/**
- * Stealth models are models that are compatible with the OpenRouter API but not listed on the OpenRouter website or API.
- */
-const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {
-	// Add more stealth models here as needed
-	// Right now this list is empty as the latest stealth model was removed
-}
-
-export function appendClineStealthModels(currentModels: Record<string, ModelInfo>): Record<string, ModelInfo> {
-	// Create a shallow clone of the current models to avoid mutating the original object
-	const cloned = { ...currentModels }
-	for (const [modelId, modelInfo] of Object.entries(CLINE_STEALTH_MODELS)) {
-		if (!cloned[modelId]) {
-			cloned[modelId] = modelInfo
+export async function getOpenRouterCachedModels(): Promise<Record<string, ModelInfo> | undefined> {
+	const openRouterModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.openRouterModels)
+	try {
+		if (await fileExistsAtPath(openRouterModelsFilePath)) {
+			const fileContents = await fs.readFile(openRouterModelsFilePath, "utf8")
+			const models = JSON.parse(fileContents)
+			// Append stealth models
+			return appendClineStealthModels(models)
 		}
+	} catch (error) {
+		console.error("Error reading cached OpenRouter models:", error)
 	}
-	return cloned
+	return undefined
 }

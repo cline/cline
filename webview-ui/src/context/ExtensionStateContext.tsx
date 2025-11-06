@@ -79,7 +79,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setExpandTaskHeader: (value: boolean) => void
 
 	// Refresh functions
-	refreshOpenRouterModels: () => void
+	refreshModels: (provider: "openRouter" | "cline") => void
 	refreshHicapModels: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
 
@@ -617,8 +617,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		}
 	}, [])
 
-	const refreshOpenRouterModels = useCallback(() => {
-		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
+	const refreshModels = useCallback((provider: "openRouter" | "cline") => {
+		const refreshFunc =
+			provider === "openRouter" ? ModelsServiceClient.refreshOpenRouterModelsRpc : ModelsServiceClient.refreshClineModelsRpc
+
+		refreshFunc(EmptyRequest.create({}))
 			.then((response: OpenRouterCompatibleModelInfo) => {
 				const models = fromProtobufModels(response.models)
 				setOpenRouterModels({
@@ -626,7 +629,7 @@ export const ExtensionStateContextProvider: React.FC<{
 					...models,
 				})
 			})
-			.catch((error: Error) => console.error("Failed to refresh OpenRouter models:", error))
+			.catch((error: Error) => console.error(`Failed to refresh ${provider} models:`, error))
 	}, [])
 
 	const refreshHicapModels = useCallback(() => {
@@ -731,7 +734,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			})),
 		setMcpTab,
 		setTotalTasksSize,
-		refreshOpenRouterModels,
+		refreshModels,
 		refreshHicapModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),

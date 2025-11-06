@@ -66,7 +66,7 @@ const FREE_CLINE_MODELS = featuredModels.filter((m) => m.isFree)
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
-	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
+	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshModels } = useExtensionState()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
@@ -112,7 +112,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		return selected
 	}, [apiConfiguration, currentMode])
 
-	useMount(refreshOpenRouterModels)
+	useMount(() => refreshModels("openRouter"))
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {

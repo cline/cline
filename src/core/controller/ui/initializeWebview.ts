@@ -6,9 +6,9 @@ import { GlobalStateAndSettings } from "@/shared/storage/state-keys"
 import type { Controller } from "../index"
 import { sendMcpMarketplaceCatalogEvent } from "../mcp/subscribeToMcpMarketplaceCatalog"
 import { refreshBasetenModels } from "../models/refreshBasetenModels"
+import { getClineCachedModels, refreshClineModels } from "../models/refreshClineModels"
 import { refreshGroqModels } from "../models/refreshGroqModels"
 import { refreshHicapModels } from "../models/refreshHicapModels"
-import { refreshOpenRouterModels } from "../models/refreshOpenRouterModels"
 import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels"
 
 /**
@@ -20,13 +20,12 @@ import { sendOpenRouterModelsEvent } from "../models/subscribeToOpenRouterModels
 export async function initializeWebview(controller: Controller, _request: EmptyRequest): Promise<Empty> {
 	try {
 		// Post last cached models as soon as possible for immediate availability in the UI
-		const lastCachedModels = await controller.readOpenRouterModels()
-		if (lastCachedModels) {
-			sendOpenRouterModelsEvent(OpenRouterCompatibleModelInfo.create({ models: lastCachedModels }))
-		}
+		await getClineCachedModels().then(async (cache) =>
+			sendOpenRouterModelsEvent(OpenRouterCompatibleModelInfo.create({ models: cache })),
+		)
 
 		// Refresh OpenRouter models from API
-		refreshOpenRouterModels(controller).then(async (models) => {
+		refreshClineModels(controller).then(async (models) => {
 			if (models && Object.keys(models).length > 0) {
 				// Update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
 				const apiConfiguration = controller.stateManager.getApiConfiguration()

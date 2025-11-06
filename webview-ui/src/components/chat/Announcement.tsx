@@ -1,9 +1,7 @@
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { XIcon } from "lucide-react"
 import { CSSProperties, memo } from "react"
-import { useMount } from "react-use"
 import { Button } from "@/components/ui/button"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
 
 interface AnnouncementProps {
@@ -38,9 +36,6 @@ Patch releases (3.19.1 → 3.19.2) will not trigger new announcements.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
-	const { refreshOpenRouterModels } = useExtensionState()
-	// Need to get latest model list in case user hits shortcut button to set model
-	useMount(refreshOpenRouterModels)
 
 	return (
 		<div style={containerStyle}>

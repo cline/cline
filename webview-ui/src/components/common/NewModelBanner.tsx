@@ -1,7 +1,6 @@
 import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
 import { Megaphone, XIcon } from "lucide-react"
 import { useCallback } from "react"
-import { useMount } from "react-use"
 import { Button } from "@/components/ui/button"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -13,12 +12,9 @@ export const CURRENT_MODEL_BANNER_VERSION = 2
 
 export const NewModelBanner: React.FC = () => {
 	const { clineUser } = useClineAuth()
-	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
+	const { openRouterModels, setShowChatModelSelector } = useExtensionState()
 	const user = clineUser || undefined
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-
-	// Need to get latest model list in case user hits shortcut button to set model
-	useMount(refreshOpenRouterModels)
 
 	const handleClose = useCallback((e?: React.MouseEvent) => {
 		e?.preventDefault()

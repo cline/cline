@@ -1,5 +1,6 @@
 import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
 import { useEffect } from "react"
+import { useMount } from "react-use"
 import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
@@ -30,9 +31,12 @@ const AppContent = () => {
 		hideHistory,
 		hideAccount,
 		hideAnnouncement,
+		refreshModels,
 	} = useExtensionState()
 
 	const { clineUser, organizations, activeOrganization } = useClineAuth()
+
+	useMount(() => refreshModels("cline"))
 
 	useEffect(() => {
 		if (shouldShowAnnouncement) {
