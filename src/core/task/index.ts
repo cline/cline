@@ -64,6 +64,7 @@ import {
 import { HistoryItem } from "@shared/HistoryItem"
 import { DEFAULT_LANGUAGE_SETTINGS, getLanguageKey, LanguageDisplay } from "@shared/Languages"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
+import type { Mode } from "@shared/storage/types"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
 import { isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
@@ -2458,7 +2459,10 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user")
+		const modeSetting = this.stateManager.getGlobalSettingsKey("mode")
+		const currentMode: Mode = modeSetting === "act" ? "act" : "plan"
+
+		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user", currentMode)
 
 		// Capture task initialization timing telemetry for the first API request
 		if (isFirstRequest) {
@@ -2534,13 +2538,20 @@ export class Task {
 				})
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-				telemetryService.captureConversationTurnEvent(this.ulid, providerId, this.api.getModel().id, "assistant", {
-					tokensIn: inputTokens,
-					tokensOut: outputTokens,
-					cacheWriteTokens,
-					cacheReadTokens,
-					totalCost,
-				})
+				telemetryService.captureConversationTurnEvent(
+					this.ulid,
+					providerId,
+					this.api.getModel().id,
+					"assistant",
+					currentMode,
+					{
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens,
+						totalCost,
+					},
+				)
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.taskState.didFinishAbortingStream = true
@@ -2770,7 +2781,7 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0) {
-				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", {
+				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", currentMode, {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWriteTokens,
@@ -2789,7 +2800,7 @@ export class Task {
 							type: "text",
 							text: assistantMessage,
 							// reasoning_details only exists for cline/openrouter providers
-							// @ts-ignore-next-line
+							// @ts-expect-error-next-line
 							reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
 						},
 					] as Array<

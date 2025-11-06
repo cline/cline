@@ -67,7 +67,7 @@ describe("TelemetryService metrics", () => {
 		const service = createTelemetryService(provider)
 		service.identifyAccount({ id: "user-1", email: "user@example.com" } as any)
 
-		service.captureConversationTurnEvent("task-2", "openai", "gpt-4", "assistant", {
+		service.captureConversationTurnEvent("task-2", "openai", "gpt-4", "assistant", "plan", {
 			tokensIn: 150,
 			tokensOut: 200,
 			cacheWriteTokens: 40,
@@ -84,6 +84,7 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(costEntry?.attributes.ulid, "task-2")
 		assert.strictEqual(costEntry?.attributes.provider, "openai")
 		assert.strictEqual(costEntry?.attributes.model, "gpt-4")
+		assert.strictEqual(costEntry?.attributes.mode, "plan")
 		assert.strictEqual(costEntry?.attributes.currency, "USD")
 		assert.strictEqual(costEntry?.attributes.email, "user@example.com")
 	})

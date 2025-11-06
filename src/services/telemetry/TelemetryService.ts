@@ -625,6 +625,7 @@ export class TelemetryService {
 		provider: string = "unknown",
 		model: string = "unknown",
 		source: "user" | "assistant",
+		mode: Mode,
 		tokenUsage: {
 			tokensIn?: number
 			tokensOut?: number
@@ -646,23 +647,40 @@ export class TelemetryService {
 				provider,
 				model,
 				source,
+				mode,
 				timestamp: new Date().toISOString(), // Add timestamp for message sequencing
 				...tokenUsage,
 			},
 		})
 
-		this.recordCounter("cline.turns.total", 1, { ulid, provider, model, source })
+		this.recordCounter("cline.turns.total", 1, { ulid, provider, model, source, mode })
 
 		if (tokenUsage.cacheWriteTokens && tokenUsage.cacheWriteTokens > 0) {
-			this.recordCounter("cline.cache.write.tokens.total", tokenUsage.cacheWriteTokens, { ulid, provider, model })
+			this.recordCounter("cline.cache.write.tokens.total", tokenUsage.cacheWriteTokens, {
+				ulid,
+				provider,
+				model,
+				mode,
+			})
 		}
 
 		if (tokenUsage.cacheReadTokens && tokenUsage.cacheReadTokens > 0) {
-			this.recordCounter("cline.cache.read.tokens.total", tokenUsage.cacheReadTokens, { ulid, provider, model })
+			this.recordCounter("cline.cache.read.tokens.total", tokenUsage.cacheReadTokens, {
+				ulid,
+				provider,
+				model,
+				mode,
+			})
 		}
 
 		if (typeof tokenUsage.totalCost === "number") {
-			this.recordCounter("cline.cost.total", tokenUsage.totalCost, { ulid, provider, model, currency: "USD" })
+			this.recordCounter("cline.cost.total", tokenUsage.totalCost, {
+				ulid,
+				provider,
+				model,
+				mode,
+				currency: "USD",
+			})
 		}
 	}
 
