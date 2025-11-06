@@ -270,8 +270,12 @@ export class AwsBedrockHandler implements ApiHandler {
 				},
 			}
 		}
+
+		// TODO: Add proxy support for AWS SDK
+		// AWS SDK uses a different architecture than fetch-based SDKs.
+		// To add proxy support, we need to provide a custom requestHandler.
 		return new BedrockRuntimeClient({
-			defaultUserAgentProvider: () => Promise.resolve([["cline", ExtensionRegistryInfo.version]]),
+			userAgentAppId: `cline#${ExtensionRegistryInfo.version}`,
 			region: this.getRegion(),
 			...auth,
 			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),

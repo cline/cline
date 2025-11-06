@@ -138,14 +138,6 @@ export async function createOcaHeaders(accessToken: string, taskId: string): Pro
 }
 
 /**
- *
- * @returns Axios settings including fetch adapter for compatibility
- */
-export function getAxiosSettings(): { adapter?: any } {
-	return { adapter: "fetch" as any }
-}
-
-/**
  * Decodes a JWT payload without validation and returns the 'sub' claim.
  * Use only for non-security, informational, or display purposes.
  * @param token JWT string

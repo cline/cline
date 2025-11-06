@@ -23,6 +23,13 @@ export type GlobalStateAndSettingsKey = keyof (GlobalState & Settings)
 
 export type GlobalStateAndSettings = GlobalState & Settings
 
+export interface RemoteConfigExtraFields {
+	remoteConfiguredProviders: string[]
+	allowedMCPServers: Array<{ id: string }>
+}
+
+export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtraFields
+
 export interface GlobalState {
 	lastShownAnnouncementId: string | undefined
 	taskHistory: HistoryItem[]
@@ -181,10 +188,6 @@ export interface Settings {
 	actModeHuggingFaceModelInfo: ModelInfo | undefined
 	actModeHuaweiCloudMaasModelId: string | undefined
 	actModeHuaweiCloudMaasModelInfo: ModelInfo | undefined
-	planModeVercelAiGatewayModelId: string | undefined
-	planModeVercelAiGatewayModelInfo: ModelInfo | undefined
-	actModeVercelAiGatewayModelId: string | undefined
-	actModeVercelAiGatewayModelInfo: ModelInfo | undefined
 	actModeOcaModelId: string | undefined
 	actModeOcaModelInfo: OcaModelInfo | undefined
 	actModeHicapModelId: string | undefined
