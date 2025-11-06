@@ -308,10 +308,49 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 					return output
 				} catch (parseError) {
 					// Try to extract JSON from stdout (it might have debug output before/after)
-					const jsonMatch = stdout.match(/\{[\s\S]*\}/)
-					if (jsonMatch) {
+					// Scan from the end to find the last complete JSON object
+					// This handles cases where hooks output debug info before the actual JSON response
+
+					const lines = stdout.split("\n")
+					let jsonCandidate = ""
+					let braceCount = 0
+					let startCollecting = false
+
+					// Scan from the end to find the last complete JSON object
+					for (let i = lines.length - 1; i >= 0; i--) {
+						const line = lines[i].trimEnd()
+
+						// Count braces to track JSON object boundaries
+						for (let j = line.length - 1; j >= 0; j--) {
+							if (line[j] === "}") {
+								braceCount++
+								if (!startCollecting) {
+									startCollecting = true
+								}
+							} else if (line[j] === "{") {
+								braceCount--
+							}
+						}
+
+						if (startCollecting) {
+							jsonCandidate = line + "\n" + jsonCandidate
+						}
+
+						// If we've closed all braces, we have a complete JSON object
+						if (startCollecting && braceCount === 0) {
+							break
+						}
+					}
+
+					if (jsonCandidate.trim()) {
 						try {
-							const outputData = JSON.parse(jsonMatch[0])
+							// Trim everything before the first opening bracket
+							const trimmedCandidate = jsonCandidate.trim()
+							const firstBraceIndex = trimmedCandidate.indexOf("{")
+							const cleanedJson =
+								firstBraceIndex !== -1 ? trimmedCandidate.slice(firstBraceIndex) : trimmedCandidate
+
+							const outputData = JSON.parse(cleanedJson)
 
 							// Validate structure
 							const validation = validateHookOutput(outputData)

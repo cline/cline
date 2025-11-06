@@ -764,17 +764,6 @@ export class Controller {
 		return undefined
 	}
 
-	// Read Vercel AI Gateway models from disk cache
-	async readVercelAiGatewayModels(): Promise<Record<string, ModelInfo> | undefined> {
-		const vercelAiGatewayModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.vercelAiGatewayModels)
-		const fileExists = await fileExistsAtPath(vercelAiGatewayModelsFilePath)
-		if (fileExists) {
-			const fileContents = await fs.readFile(vercelAiGatewayModelsFilePath, "utf8")
-			return JSON.parse(fileContents)
-		}
-		return undefined
-	}
-
 	// Task history
 
 	async getTaskWithId(id: string): Promise<{
@@ -965,7 +954,7 @@ export class Controller {
 			},
 			hooksEnabled: {
 				user: this.stateManager.getGlobalStateKey("hooksEnabled"),
-				featureFlag: featureFlagsService.getHooksEnabled(),
+				featureFlag: true, // Hooks feature is now always available
 			},
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,
