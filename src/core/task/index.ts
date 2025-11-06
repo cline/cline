@@ -2593,7 +2593,7 @@ export class Task {
 		const modeSetting = this.stateManager.getGlobalSettingsKey("mode")
 		const currentMode: Mode = modeSetting === "act" ? "act" : "plan"
 
-		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user", currentMode, currentMode)
+		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user", currentMode)
 
 		// Capture task initialization timing telemetry for the first API request
 		if (isFirstRequest) {
@@ -2981,7 +2981,7 @@ export class Task {
 			let didEndLoop = false
 			if (assistantMessage.length > 0 || this.useNativeToolCalls) {
 				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
-				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", currentMode, currentMode, {
+				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", currentMode, {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWriteTokens,
