@@ -256,7 +256,7 @@ export interface VariantSchema {
 export const TASK_PROGRESS_PARAMETER = {
 	name: "task_progress",
 	required: false,
-	instruction: `A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)`,
+	instruction: `A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details). This MUST be inlcuded as it's own parameter, not inside other content or argument blocks.`,
 	usage: "Checklist here (optional)",
 	dependencies: [ClineDefaultTool.TODO],
 }
