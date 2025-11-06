@@ -53,7 +53,7 @@ export function isGemini2dot5ModelFamily(id: string): boolean {
 
 export function isGrok4ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
-	return modelId.includes("grok-4") || modelId.includes("grok-code")
+	return modelId.includes("grok-4")
 }
 
 export function isGPT5ModelFamily(id: string): boolean {
