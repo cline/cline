@@ -156,13 +156,16 @@ export class TerminalManager {
 		return arePathsEqual(currentCwd, targetCwd)
 	}
 
-	runCommand(terminalInfo: TerminalInfo, command: string): TerminalProcessResultPromise {
+	runCommand(terminalInfo: TerminalInfo, command: string, isSubagent: boolean = false): TerminalProcessResultPromise {
 		console.log(`[TerminalManager] Running command on terminal ${terminalInfo.id}: "${command}"`)
 		console.log(`[TerminalManager] Terminal ${terminalInfo.id} busy state before: ${terminalInfo.busy}`)
 
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
-		const process = new TerminalProcess()
+
+		// Determine line limit: hardcoded 2000 for subagents, otherwise use configured limit
+		const lineLimit = isSubagent ? this.subagentTerminalOutputLineLimit : this.terminalOutputLineLimit
+		const process = new TerminalProcess(lineLimit)
 		this.processes.set(terminalInfo.id, process)
 
 		process.once("completed", () => {
@@ -355,18 +358,9 @@ export class TerminalManager {
 		this.subagentTerminalOutputLineLimit = limit
 	}
 
-	public processOutput(outputLines: string[], overrideLimit?: number, isSubagentCommand?: boolean): string {
-		const limit = isSubagentCommand
-			? overrideLimit !== undefined
-				? overrideLimit
-				: this.subagentTerminalOutputLineLimit
-			: this.terminalOutputLineLimit
-		if (outputLines.length > limit) {
-			const halfLimit = Math.floor(limit / 2)
-			const start = outputLines.slice(0, halfLimit)
-			const end = outputLines.slice(outputLines.length - halfLimit)
-			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()
-		}
+	public processOutput(outputLines: string[]): string {
+		// Output is already truncated by TerminalProcess based on line limits,
+		// so we just need to join the lines and return
 		return outputLines.join("\n").trim()
 	}
 

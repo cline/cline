@@ -1509,7 +1509,7 @@ export class Task {
 
 		const terminalInfo = await terminalManager.getOrCreateTerminal(this.cwd)
 		terminalInfo.terminal.show() // weird visual bug when creating new terminals (even manually) where there's an empty space at the top.
-		const process = terminalManager.runCommand(terminalInfo, command)
+		const process = terminalManager.runCommand(terminalInfo, command, isSubagent)
 
 		// Track command execution for both terminal modes
 		this.controller.updateBackgroundCommandState(true, this.taskId)
@@ -1725,7 +1725,7 @@ export class Task {
 
 					// Process any output we captured before timeout
 					await setTimeoutPromise(50)
-					const result = this.terminalManager.processOutput(outputLines, undefined, false)
+					const result = this.terminalManager.processOutput(outputLines)
 
 					if (error.message === "COMMAND_TIMEOUT") {
 						return [
@@ -1757,11 +1757,7 @@ export class Task {
 			await setTimeoutPromise(50)
 		}
 
-		const result = terminalManager.processOutput(
-			outputLines,
-			isSubagent ? terminalManager["subagentTerminalOutputLineLimit"] : undefined,
-			isSubagent,
-		)
+		const result = terminalManager.processOutput(outputLines)
 
 		if (didCancelViaUi) {
 			return [

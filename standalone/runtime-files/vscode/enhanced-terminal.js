@@ -6,14 +6,50 @@ const _os = require("os")
 // Enhanced terminal management for standalone Cline
 // This replaces VSCode's terminal integration with real subprocess management
 
+// Terminal output truncation utilities (inline for standalone compatibility)
+const DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT = 500
+const DEFAULT_SUBAGENT_OUTPUT_LINE_LIMIT = 2000
+
+/**
+ * Truncates lines to first half + last half when over limit.
+ * Used after command completion to store context for LLM.
+ */
+function truncateToFirstAndLastHalfJS(allLines, halfLimit) {
+	const fullLimit = halfLimit * 2
+
+	if (allLines.length <= fullLimit) {
+		// Under limit, return all lines
+		return {
+			outputLines: [...allLines],
+			truncated: false,
+			omittedLines: 0,
+		}
+	}
+
+	// Over limit: first half + last half
+	const firstHalf = allLines.slice(0, halfLimit)
+	const lastHalf = allLines.slice(-halfLimit)
+
+	return {
+		outputLines: [...firstHalf, ...lastHalf],
+		truncated: true,
+		omittedLines: allLines.length - fullLimit,
+	}
+}
+
 class StandaloneTerminalProcess extends EventEmitter {
-	constructor() {
+	constructor(lineLimit) {
 		super()
 		this.waitForShellIntegration = false // We don't need to wait since we control the process
 		this.isListening = true
 		this.buffer = ""
-		this.fullOutput = ""
-		this.lastRetrievedIndex = 0
+		this.outputLines = []
+		this.allLines = [] // Keep all lines in memory
+		this.lineLimit = lineLimit !== undefined ? lineLimit : DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT
+		this.halfLimit = Math.floor((lineLimit !== undefined ? lineLimit : DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT) / 2)
+		this.truncated = false
+		this.omittedLines = 0
+		this.reachedHalfLimit = false
 		this.isHot = false
 		this.hotTimer = null
 		this.childProcess = null
@@ -127,22 +163,32 @@ class StandaloneTerminalProcess extends EventEmitter {
 			this.isHot = false
 		}, hotTimeout)
 
-		// Store full output
-		this.fullOutput += data
-
-		if (this.isListening) {
+		// Process data and emit lines with truncation
+		if (this.isListening && data) {
 			this.emitLines(data)
-			this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
 		}
 	}
 
 	emitLines(chunk) {
 		this.buffer += chunk
-		let lineEndIndex
-		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
+		let lineEndIndex = this.buffer.indexOf("\n")
+		while (lineEndIndex !== -1) {
 			const line = this.buffer.slice(0, lineEndIndex).trimEnd()
-			this.emit("line", line)
+
+			// Always add to allLines (keep everything in memory)
+			this.allLines.push(line)
+
+			// Emit to UI only if we haven't reached half limit yet
+			if (this.allLines.length <= this.halfLimit) {
+				this.emit("line", line)
+			} else if (!this.reachedHalfLimit) {
+				// Just reached half limit, emit notice
+				this.reachedHalfLimit = true
+				this.emit("line", `\n[Collecting remaining output... Will show last ${this.halfLimit} lines when complete]\n`)
+			}
+
 			this.buffer = this.buffer.slice(lineEndIndex + 1)
+			lineEndIndex = this.buffer.indexOf("\n")
 		}
 	}
 
@@ -150,11 +196,26 @@ class StandaloneTerminalProcess extends EventEmitter {
 		if (this.buffer && this.isListening) {
 			const remainingBuffer = this.removeLastLineArtifacts(this.buffer)
 			if (remainingBuffer) {
-				this.emit("line", remainingBuffer)
+				// Add remaining buffer to allLines
+				this.allLines.push(remainingBuffer)
 			}
 			this.buffer = ""
-			this.lastRetrievedIndex = this.fullOutput.length
 		}
+
+		// After command completes, emit the last half of lines if needed
+		if (this.allLines.length > this.halfLimit) {
+			const lastHalf = this.allLines.slice(-this.halfLimit)
+			this.emit("line", `\n[Showing last ${this.halfLimit} lines of output]\n`)
+			for (const line of lastHalf) {
+				this.emit("line", line)
+			}
+		}
+
+		// Use helper function to truncate and store for LLM context
+		const result = truncateToFirstAndLastHalfJS(this.allLines, this.halfLimit)
+		this.outputLines = result.outputLines
+		this.truncated = result.truncated
+		this.omittedLines = result.omittedLines
 	}
 
 	continue() {
@@ -165,9 +226,8 @@ class StandaloneTerminalProcess extends EventEmitter {
 	}
 
 	getUnretrievedOutput() {
-		const unretrieved = this.fullOutput.slice(this.lastRetrievedIndex)
-		this.lastRetrievedIndex = this.fullOutput.length
-		return this.removeLastLineArtifacts(unretrieved)
+		// Return first half + last half (what's stored in outputLines)
+		return this.removeLastLineArtifacts(this.outputLines.join("\n"))
 	}
 
 	removeLastLineArtifacts(output) {
@@ -340,17 +400,20 @@ class StandaloneTerminalManager {
 		this.shellIntegrationTimeout = 4000
 		this.terminalReuseEnabled = true
 		this.terminalOutputLineLimit = 500
-		this.subagentTerminalOutputLineLimit = 2000
+		this.subagentTerminalOutputLineLimit = DEFAULT_SUBAGENT_OUTPUT_LINE_LIMIT
 		this.defaultTerminalProfile = "default"
 	}
 
-	runCommand(terminalInfo, command) {
+	runCommand(terminalInfo, command, isSubagent = false) {
 		console.log(`[StandaloneTerminalManager] Running command on terminal ${terminalInfo.id}: ${command}`)
 
 		terminalInfo.busy = true
 		terminalInfo.lastCommand = command
 
-		const process = new StandaloneTerminalProcess()
+		// Determine line limit: hardcoded 2000 for subagents, otherwise use setting
+		const lineLimit = isSubagent ? this.subagentTerminalOutputLineLimit : this.terminalOutputLineLimit
+
+		const process = new StandaloneTerminalProcess(lineLimit)
 		this.processes.set(terminalInfo.id, process)
 
 		process.once("completed", () => {
@@ -439,13 +502,22 @@ class StandaloneTerminalManager {
 
 	processOutput(outputLines, overrideLimit, isSubagentCommand) {
 		const limit = isSubagentCommand && overrideLimit ? overrideLimit : this.terminalOutputLineLimit
+
+		// Note: Byte-level truncation notice is already included in outputLines from StandaloneTerminalProcess,
+		// so we only need to handle line-level truncation here
+		let result = ""
+
+		// Apply line-level truncation
 		if (outputLines.length > limit) {
 			const halfLimit = Math.floor(limit / 2)
 			const start = outputLines.slice(0, halfLimit)
 			const end = outputLines.slice(outputLines.length - halfLimit)
-			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()
+			result += `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`
+		} else {
+			result += outputLines.join("\n")
 		}
-		return outputLines.join("\n").trim()
+
+		return result.trim()
 	}
 
 	disposeAll() {

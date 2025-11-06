@@ -12,6 +12,40 @@ export interface TerminalProcessEvents {
 	no_shell_integration: []
 }
 
+export interface TruncateToFirstAndLastHalfResult {
+	outputLines: string[]
+	truncated: boolean
+	omittedLines: number
+}
+
+/**
+ * Truncates lines to first half + last half when over limit.
+ * Used after command completion to store context for LLM.
+ */
+
+export function truncateToFirstAndLastHalf(allLines: string[], halfLimit: number): TruncateToFirstAndLastHalfResult {
+	const fullLimit = halfLimit * 2
+
+	if (allLines.length <= fullLimit) {
+		// Under limit, return all lines
+		return {
+			outputLines: [...allLines],
+			truncated: false,
+			omittedLines: 0,
+		}
+	}
+
+	// Over limit: first half + last half
+	const firstHalf = allLines.slice(0, halfLimit)
+	const lastHalf = allLines.slice(-halfLimit)
+
+	return {
+		outputLines: [...firstHalf, ...lastHalf],
+		truncated: true,
+		omittedLines: allLines.length - fullLimit,
+	}
+}
+
 // how long to wait after a process outputs anything before we consider it "cool" again
 const PROCESS_HOT_TIMEOUT_NORMAL = 2_000
 const PROCESS_HOT_TIMEOUT_COMPILING = 15_000
@@ -20,10 +54,23 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	waitForShellIntegration: boolean = true
 	private isListening: boolean = true
 	private buffer: string = ""
-	private fullOutput: string = ""
-	private lastRetrievedIndex: number = 0
+	private outputLines: string[] = []
+	private allLines: string[] = [] // Keep all lines in memory
+	private lineLimit: number = DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT
+	private halfLimit: number = Math.floor(DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT / 2)
+	private truncated: boolean = false
+	private omittedLines: number = 0
+	private reachedHalfLimit: boolean = false
 	isHot: boolean = false
 	private hotTimer: NodeJS.Timeout | null = null
+
+	constructor(lineLimit?: number) {
+		super()
+		if (lineLimit !== undefined) {
+			this.lineLimit = lineLimit
+			this.halfLimit = Math.floor(this.lineLimit / 2)
+		}
+	}
 
 	async run(terminal: vscode.Terminal, command: string) {
 		// When command does not produce any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
@@ -175,22 +222,21 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 				// For non-immediately returning commands we want to show loading spinner right away but this wouldn't happen until it emits a line break, so as soon as we get any output we emit "" to let webview know to show spinner
 				// This is only done for the sake of unblocking the UI, in case there may be some time before the command emits a full line
-				if (!didEmitEmptyLine && !this.fullOutput && data) {
+				if (!didEmitEmptyLine && this.outputLines.length === 0 && data) {
 					this.emit("line", "") // empty line to indicate start of command output stream
 					didEmitEmptyLine = true
 				}
 
-				this.fullOutput += data
-				if (this.isListening) {
+				// Process data and emit lines
+				if (this.isListening && data) {
 					this.emitIfEol(data)
-					this.lastRetrievedIndex = this.fullOutput.length - this.buffer.length
 				}
 			}
 
 			this.emitRemainingBufferIfListening()
 
 			// the command process is finished, let's check the output to see if we need to use the terminal capture fallback
-			if (!this.fullOutput.trim()) {
+			if (this.outputLines.length === 0 || this.outputLines.join("").trim() === "") {
 				// No output captured via shell integration, trying fallback
 				telemetryService.captureTerminalOutputFailure(TerminalOutputFailureReason.TIMEOUT)
 				await returnCurrentTerminalContents()
@@ -247,15 +293,24 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	// Inspired by https://github.com/sindresorhus/execa/blob/main/lib/transform/split.js
 	private emitIfEol(chunk: string) {
 		this.buffer += chunk
-		let lineEndIndex: number
-		while ((lineEndIndex = this.buffer.indexOf("\n")) !== -1) {
+		let lineEndIndex = this.buffer.indexOf("\n")
+		while (lineEndIndex !== -1) {
 			const line = this.buffer.slice(0, lineEndIndex).trimEnd() // removes trailing \r
-			// Remove \r if present (for Windows-style line endings)
-			// if (line.endsWith("\r")) {
-			// 	line = line.slice(0, -1)
-			// }
-			this.emit("line", line)
+
+			// Always add to allLines (keep everything in memory)
+			this.allLines.push(line)
+
+			// Emit to UI only if we haven't reached half limit yet
+			if (this.allLines.length <= this.halfLimit) {
+				this.emit("line", line)
+			} else if (!this.reachedHalfLimit) {
+				// Just reached half limit, emit notice
+				this.reachedHalfLimit = true
+				this.emit("line", `\n[Collecting remaining output... Will show last ${this.halfLimit} lines when complete]\n`)
+			}
+
 			this.buffer = this.buffer.slice(lineEndIndex + 1)
+			lineEndIndex = this.buffer.indexOf("\n")
 		}
 	}
 
@@ -263,11 +318,26 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 		if (this.buffer && this.isListening) {
 			const remainingBuffer = this.removeLastLineArtifacts(this.buffer)
 			if (remainingBuffer) {
-				this.emit("line", remainingBuffer)
+				// Add remaining buffer to allLines
+				this.allLines.push(remainingBuffer)
 			}
 			this.buffer = ""
-			this.lastRetrievedIndex = this.fullOutput.length
 		}
+
+		// After command completes, emit the last half of lines if needed
+		if (this.allLines.length > this.halfLimit) {
+			const lastHalf = this.allLines.slice(-this.halfLimit)
+			this.emit("line", `\n[Showing last ${this.halfLimit} lines of output]\n`)
+			for (const line of lastHalf) {
+				this.emit("line", line)
+			}
+		}
+
+		// Use helper function to truncate and store for LLM context
+		const result = truncateToFirstAndLastHalf(this.allLines, this.halfLimit)
+		this.outputLines = result.outputLines
+		this.truncated = result.truncated
+		this.omittedLines = result.omittedLines
 	}
 
 	continue() {
@@ -278,9 +348,8 @@ export class TerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	}
 
 	getUnretrievedOutput(): string {
-		const unretrieved = this.fullOutput.slice(this.lastRetrievedIndex)
-		this.lastRetrievedIndex = this.fullOutput.length
-		return this.removeLastLineArtifacts(unretrieved)
+		// Return first half + last half (what's stored in outputLines)
+		return this.removeLastLineArtifacts(this.outputLines.join("\n"))
 	}
 
 	// some processing to remove artifacts like '%' at the end of the buffer (it seems that since vsode uses % at the beginning of newlines in terminal, it makes its way into the stream)
