@@ -1,5 +1,5 @@
 import { vertexGlobalModels, vertexModels } from "@shared/api"
-import VertexData from "@shared/providers/vertex.json"
+import VertexData from "@shared/remote-config/providers/vertex.json"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"

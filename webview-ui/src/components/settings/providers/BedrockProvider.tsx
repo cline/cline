@@ -1,5 +1,5 @@
 import { bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
-import BedrockData from "@shared/providers/bedrock.json"
+import BedrockData from "@shared/remote-config/providers/bedrock.json"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeRadio, VSCodeRadioGroup } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
