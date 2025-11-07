@@ -265,11 +265,11 @@ export function toolSpecFunctionDeclarations(tool: ClineToolSpec, context: Syste
 			}
 
 			const paramSchema: any = {
-				type: GOOGLE_TOOL_PARAM_MAP[param.type || "object"] || GoogleToolParamType.OBJECT,
-				properties: {},
+				type: GOOGLE_TOOL_PARAM_MAP[param.type || "string"] || GoogleToolParamType.OBJECT,
 			}
 
 			if (param.properties) {
+				paramSchema.properties = {}
 				for (const [key, prop] of Object.entries<any>(param.properties)) {
 					// Skip $schema property
 					if (key === "$schema") {
