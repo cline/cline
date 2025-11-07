@@ -610,6 +610,8 @@ export class StateManager {
 			planModeOcaModelInfo,
 			planModeHicapModelId,
 			planModeHicapModelInfo,
+			planModeAihubmixModelId,
+			planModeAihubmixModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -645,6 +647,8 @@ export class StateManager {
 			actModeOcaModelInfo,
 			actModeHicapModelId,
 			actModeHicapModelInfo,
+			actModeAihubmixModelId,
+			actModeAihubmixModelInfo,
 
 			// Global state updates
 			awsRegion,
