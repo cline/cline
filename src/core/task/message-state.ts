@@ -216,4 +216,99 @@ export class MessageStateHandler {
 			await this.saveClineMessagesAndUpdateHistoryInternal()
 		})
 	}
+
+	/**
+	 * Insert a message at a specific index in the clineMessages array
+	 * Used for dynamically reordering messages (e.g., PreToolUse hook messages)
+	 *The entire operation (validate, insert, save) is atomic to prevent races (RC-4)
+	 */
+	async insertClineMessageAt(index: number, message: ClineMessage): Promise<void> {
+		return await this.withStateLock(async () => {
+			// Validate index (allow inserting at end)
+			if (index < 0 || index > this.clineMessages.length) {
+				throw new Error(`Invalid index ${index} for message insertion (array length: ${this.clineMessages.length})`)
+			}
+
+			// Set conversation history metadata (same as addToClineMessages)
+			message.conversationHistoryIndex = this.apiConversationHistory.length - 1
+			message.conversationHistoryDeletedRange = this.taskState.conversationHistoryDeletedRange
+
+			// Insert message at the specified position
+			this.clineMessages.splice(index, 0, message)
+
+			// Save changes and update history
+			await this.saveClineMessagesAndUpdateHistoryInternal()
+		})
+	}
+
+	/**
+	 * Find message index by timestamp
+	 * Returns -1 if not found
+	 */
+	findMessageIndexByTs(ts: number): number {
+		return this.clineMessages.findIndex((m) => m.ts === ts)
+	}
+
+	/**
+	 * Update message by timestamp (convenience method)
+	 * Returns true if message was found and updated, false otherwise
+	 * The entire operation is atomic to prevent races (RC-4)
+	 */
+	async updateClineMessageByTs(ts: number, updates: Partial<ClineMessage>): Promise<boolean> {
+		return await this.withStateLock(async () => {
+			const index = this.findMessageIndexByTs(ts)
+			if (index === -1) {
+				return false
+			}
+
+			// Apply updates to the message
+			Object.assign(this.clineMessages[index], updates)
+
+			// Save changes and update history
+			await this.saveClineMessagesAndUpdateHistoryInternal()
+
+			return true
+		})
+	}
+
+	/**
+	 * Insert a message before another message (by timestamp)
+	 * Used for dynamic message ordering (e.g., PreToolUse before tool approval)
+	 * The entire operation is atomic to prevent races (RC-4)
+	 */
+	async insertMessageBefore(messageToMoveTs: number, targetMessageTs: number): Promise<void> {
+		return await this.withStateLock(async () => {
+			// Find both messages
+			const messageToMoveIndex = this.findMessageIndexByTs(messageToMoveTs)
+			const targetMessageIndex = this.findMessageIndexByTs(targetMessageTs)
+
+			// Validate both messages exist
+			if (messageToMoveIndex === -1) {
+				console.warn(`Message to move with ts ${messageToMoveTs} not found`)
+				return
+			}
+			if (targetMessageIndex === -1) {
+				console.warn(`Target message with ts ${targetMessageTs} not found`)
+				return
+			}
+
+			// Remove the message from its current position
+			const [messageToMove] = this.clineMessages.splice(messageToMoveIndex, 1)
+
+			// Recalculate target index (may have shifted if we removed a message before it)
+			const newTargetIndex = this.findMessageIndexByTs(targetMessageTs)
+			if (newTargetIndex === -1) {
+				console.error(`Target message disappeared during move operation`)
+				// Re-insert at original position to avoid data loss
+				this.clineMessages.splice(messageToMoveIndex, 0, messageToMove)
+				return
+			}
+
+			// Insert before the target
+			this.clineMessages.splice(newTargetIndex, 0, messageToMove)
+
+			// Save changes
+			await this.saveClineMessagesAndUpdateHistoryInternal()
+		})
+	}
 }

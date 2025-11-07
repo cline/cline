@@ -124,7 +124,8 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			}
 
 			// complete command message - need to ask for approval
-			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
+			const { didApprove, askTs } = await ToolResultUtils.askApprovalAndPushFeedback("command", command, config)
+			config.taskState.currentToolAskMessageTs = askTs
 			if (!didApprove) {
 				return formatResponse.toolDenied()
 			}

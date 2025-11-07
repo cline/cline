@@ -673,6 +673,7 @@ export class Task {
 			text: this.taskState.askResponseText,
 			images: this.taskState.askResponseImages,
 			files: this.taskState.askResponseFiles,
+			askTs,
 		}
 		this.taskState.askResponse = undefined
 		this.taskState.askResponseText = undefined

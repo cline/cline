@@ -100,7 +100,12 @@ export class BrowserToolHandler implements IFullyManagedTool {
 						config.autoApprovalSettings.enableNotifications,
 					)
 					await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "browser_action_launch")
-					const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("browser_action_launch", url, config)
+					const { didApprove, askTs } = await ToolResultUtils.askApprovalAndPushFeedback(
+						"browser_action_launch",
+						url,
+						config,
+					)
+					config.taskState.currentToolAskMessageTs = askTs
 					if (!didApprove) {
 						return formatResponse.toolDenied()
 					}

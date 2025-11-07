@@ -39,6 +39,12 @@ export class TaskState {
 	didAlreadyUseTool = false
 	didEditFile: boolean = false
 
+	/**
+	 * Timestamp of the current tool ask message being processed
+	 * Used to insert PreToolUse hook messages at the correct position
+	 */
+	currentToolAskMessageTs?: number
+
 	// Error tracking
 	consecutiveMistakeCount: number = 0
 	didAutomaticallyRetryFailedApiRequest = false

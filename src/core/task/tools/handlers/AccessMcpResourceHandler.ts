@@ -100,7 +100,12 @@ export class AccessMcpResourceHandler implements IFullyManagedTool {
 
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
 
-			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("use_mcp_server", completeMessage, config)
+			const { didApprove, askTs } = await ToolResultUtils.askApprovalAndPushFeedback(
+				"use_mcp_server",
+				completeMessage,
+				config,
+			)
+			config.taskState.currentToolAskMessageTs = askTs
 			if (!didApprove) {
 				telemetryService.captureToolUsage(
 					config.ulid,

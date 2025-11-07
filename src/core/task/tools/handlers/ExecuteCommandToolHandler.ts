@@ -176,11 +176,12 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				config.autoApprovalSettings.enableNotifications,
 			)
 
-			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback(
+			const { didApprove, askTs } = await ToolResultUtils.askApprovalAndPushFeedback(
 				"command",
 				actualCommand + `${autoApproveSafe && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`,
 				config,
 			)
+			config.taskState.currentToolAskMessageTs = askTs
 			if (!didApprove) {
 				telemetryService.captureToolUsage(
 					config.ulid,

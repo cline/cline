@@ -20,6 +20,7 @@ export interface HookExecutionOptions<Name extends keyof Hooks = any> {
 	hooksEnabled: boolean
 	toolName?: string // Optional tool name for PreToolUse/PostToolUse hooks
 	pendingToolInfo?: any // Optional metadata about pending tool execution for PreToolUse
+	taskState?: any // Optional taskState for accessing currentToolAskMessageTs (PreToolUse hook ordering)
 }
 
 // Import Hooks type from HookFactory
@@ -78,6 +79,13 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 			...(options.pendingToolInfo && { pendingToolInfo: options.pendingToolInfo }),
 		}
 		hookMessageTs = await say("hook", JSON.stringify(hookMetadata))
+
+		// SPECIAL HANDLING: For PreToolUse hooks, insert the message BEFORE the tool ask message
+		// This makes the UI show the hook running before the tool approval, which is more intuitive
+		if (hookName === "PreToolUse" && hookMessageTs && options.taskState?.currentToolAskMessageTs) {
+			const toolAskTs = options.taskState.currentToolAskMessageTs
+			await messageStateHandler.insertMessageBefore(hookMessageTs, toolAskTs)
+		}
 
 		// Track active hook execution for cancellation (only if cancellable and message was created)
 		if (isCancellable && hookMessageTs !== undefined && setActiveHookExecution) {

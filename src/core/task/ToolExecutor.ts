@@ -620,6 +620,7 @@ export class ToolExecutor {
 							hooksEnabled,
 							toolName: block.name,
 							pendingToolInfo,
+							taskState: this.taskState, // Pass taskState for hook message ordering
 						})
 
 						// Handle cancellation from hook

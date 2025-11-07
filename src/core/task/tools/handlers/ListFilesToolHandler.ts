@@ -125,7 +125,8 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 
-			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
+			const { didApprove, askTs } = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
+			config.taskState.currentToolAskMessageTs = askTs
 			if (!didApprove) {
 				telemetryService.captureToolUsage(
 					config.ulid,

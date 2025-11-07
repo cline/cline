@@ -116,9 +116,14 @@ export class ToolResultUtils {
 
 	/**
 	 * Handles tool approval flow and processes any user feedback
+	 * Returns approval status and the timestamp of the tool ask message (for hook ordering)
 	 */
-	static async askApprovalAndPushFeedback(type: ClineAsk, completeMessage: string, config: TaskConfig) {
-		const { response, text, images, files } = await config.callbacks.ask(type, completeMessage, false)
+	static async askApprovalAndPushFeedback(
+		type: ClineAsk,
+		completeMessage: string,
+		config: TaskConfig,
+	): Promise<{ didApprove: boolean; askTs?: number }> {
+		const { response, text, images, files, askTs } = await config.callbacks.ask(type, completeMessage, false)
 
 		if (text || (images && images.length > 0) || (files && files.length > 0)) {
 			let fileContentString = ""
@@ -133,10 +138,10 @@ export class ToolResultUtils {
 		if (response !== "yesButtonClicked") {
 			// User pressed reject button or responded with a message, which we treat as a rejection
 			config.taskState.didRejectTool = true // Prevent further tool uses in this message
-			return false
+			return { didApprove: false, askTs }
 		} else {
 			// User hit the approve button, and may have provided feedback
-			return true
+			return { didApprove: true, askTs }
 		}
 	}
 }
