@@ -1,4 +1,3 @@
-import crypto from "node:crypto"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { GlobalFileNames } from "@core/storage/disk"
@@ -29,6 +28,7 @@ import { secondsToMs } from "@utils/time"
 import chokidar, { FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
 import * as fs from "fs/promises"
+import { nanoid } from "nanoid"
 import * as path from "path"
 import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
@@ -98,19 +98,17 @@ export class McpHub {
 	 * This avoids making a tool name too long while still ensuring uniqueness.
 	 */
 	private getMcpServerKey(server: string): string {
-		const cleanedName = server.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()
-
-		// 6 characters from hex hash = ~24 bits of entropy
-		let key = crypto.createHash("sha256").update(cleanedName).digest("hex").slice(0, 6)
-
-		const stored = McpHub.mcpServerKeys.get(key)
-		if (stored && stored !== server) {
-			// Use 8 chars on collision - assumes very rare collisions
-			key = crypto.createHash("sha256").update(cleanedName).digest("hex").slice(0, 8)
+		// Reuse existing key if server is already registered
+		for (const [existingKey, existingServer] of McpHub.mcpServerKeys.entries()) {
+			if (existingServer === server) {
+				return existingKey
+			}
 		}
-
-		McpHub.mcpServerKeys.set(key, server)
-		return key
+		// Generate a 118 bytes unique ID for the server
+		// Add c prefix to ensure it starts with a letter (for compatibility with Gemini)
+		const uid = "c" + nanoid()
+		McpHub.mcpServerKeys.set(uid, server)
+		return uid
 	}
 
 	async getMcpSettingsFilePath(): Promise<string> {
