@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.36.1]
+
+- fix: remove native tool calling support from Gemini and XAI provider due to invalid tool names issues
+- fix: disable native tool callings for grok code models
+- Add MCP tool usage to GLM
+- Removes reasoning_details content field from Anthropic providers
+
 ## [3.36.0]
 
 - Add: Hooks allow you to inject custom logic into Cline's workflow
