@@ -2474,16 +2474,18 @@ export class Task {
 			if (this.taskState.currentlySummarizing) {
 				this.taskState.currentlySummarizing = false
 
-				if (this.taskState.conversationHistoryDeletedRange) {
-					const [start, end] = this.taskState.conversationHistoryDeletedRange
-					const apiHistory = this.messageStateHandler.getApiConversationHistory()
+				const apiHistory = this.messageStateHandler.getApiConversationHistory()
 
-					// we want to increment the deleted range to remove the pre-summarization tool call output, with additional safety check
-					const safeEnd = Math.min(end + 2, apiHistory.length - 1)
-					if (end + 2 <= safeEnd) {
-						this.taskState.conversationHistoryDeletedRange = [start, end + 2]
-						await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-					}
+				// Calculate new deleted range: keep first 2 messages (initial user-assistant pair)
+				// and last 8 messages, delete everything in between
+				// The new deleted range starts after the first pair (index 2) and ends 8 messages before the current length
+				const start = 2 // Always keep the first user-assistant pair
+				const keepLastNMessages = 8 * 2 // 8 exchanges = 16 messages (user + assistant pairs)
+				const end = Math.max(start, apiHistory.length - keepLastNMessages - 1) // Ensure end is never before start
+
+				if (end >= start) {
+					this.taskState.conversationHistoryDeletedRange = [start, end]
+					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 				}
 			} else {
 				const autoCondenseThreshold = this.stateManager.getGlobalSettingsKey("autoCondenseThreshold") as
@@ -2514,6 +2516,20 @@ export class Task {
 						shouldCompact = false
 					}
 				}
+
+				// Failsafe: Don't compact if the middle section is too small
+				// This prevents wasting an API call when compaction won't meaningfully reduce context
+				if (shouldCompact) {
+					const apiHistory = this.messageStateHandler.getApiConversationHistory()
+					const keepLastNMessages = 8 * 2 // 8 exchanges = 16 messages
+					const middleMessageCount = apiHistory.length - 2 - keepLastNMessages // First 2 + last N
+
+					// If middle section has fewer than 16 messages (8 exchanges), skip compaction
+					// Let the legacy truncation system handle edge cases instead
+					if (middleMessageCount < 16) {
+						shouldCompact = false
+					}
+				}
 			}
 
 			let parsedUserContent: UserContent
@@ -2526,6 +2542,7 @@ export class Task {
 				environmentDetails = ""
 				clinerulesError = false
 				this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
+				this.taskState.currentlySummarizing = true
 			} else {
 				;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
 					userContent,

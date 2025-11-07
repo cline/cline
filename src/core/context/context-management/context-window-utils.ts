@@ -17,19 +17,16 @@ export function getContextWindowInfo(api: ApiHandler) {
 	}
 
 	let maxAllowedSize: number
-	switch (contextWindow) {
-		case 64_000: // deepseek models
-			maxAllowedSize = contextWindow - 27_000
-			break
-		case 128_000: // most models
-			maxAllowedSize = contextWindow - 30_000
-			break
-		case 200_000: // claude models
-			maxAllowedSize = contextWindow - 40_000
-			break
-		default:
-			maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8) // for deepseek, 80% of 64k meant only ~10k buffer which was too small and resulted in users getting context window errors.
-	}
+	// New strategy: Use "75% OR 20K headroom" rule
+	// Trigger when either condition is met (whichever comes first):
+	// - 75% of context window is used, OR
+	// - Only 20K tokens of headroom remaining
+	const seventyFivePercent = Math.floor(contextWindow * 0.75)
+	const twentyKHeadroom = contextWindow - 20_000
+	maxAllowedSize = Math.min(seventyFivePercent, twentyKHeadroom)
+
+	// Ensure we don't allow negative values for very small context windows
+	maxAllowedSize = Math.max(maxAllowedSize, Math.floor(contextWindow * 0.6))
 
 	return { contextWindow, maxAllowedSize }
 }
