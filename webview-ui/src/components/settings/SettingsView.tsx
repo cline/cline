@@ -1,7 +1,6 @@
 import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import debounce from "debounce"
 import {
 	CheckCheck,
 	FlaskConical,
@@ -12,10 +11,11 @@ import {
 	SquareTerminal,
 	Wrench,
 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent } from "react-use"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { cn } from "@/lib/utils"
 import { StateServiceClient } from "@/services/grpc-client"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
@@ -29,15 +29,6 @@ import GeneralSettingsSection from "./sections/GeneralSettingsSection"
 import TerminalSettingsSection from "./sections/TerminalSettingsSection"
 
 const IS_DEV = process.env.IS_DEV
-
-// Styles for the tab system
-const settingsTabsContainer = "flex flex-1 overflow-hidden [&.narrow_.tab-label]:hidden"
-const settingsTabList =
-	"w-48 data-[compact=true]:w-12 shrink-0 flex flex-col overflow-y-auto overflow-x-hidden border-r border-(--vscode-sideBar-background)"
-const settingsTabTrigger =
-	"whitespace-nowrap overflow-hidden min-w-0 h-12 px-4 py-3 box-border flex items-center border-l-2 border-transparent text-(--vscode-foreground) opacity-70 bg-transparent hover:bg-(--vscode-list-hoverBackground) data-[compact=true]:w-12 data-[compact=true]:p-4 cursor-pointer"
-const settingsTabTriggerActive =
-	"opacity-100 border-l-2 border-l-(--vscode-focusBorder) border-t-0 border-r-0 border-b-0 bg-(--vscode-list-activeSelectionBackground)"
 
 // Tab definitions
 interface SettingsTab {
@@ -142,12 +133,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 	const { version, environment } = useExtensionState()
 
-	// Initialize active tab with memoized calculation
-	const initialTab = useMemo(() => targetSection || SETTINGS_TABS[0].id, [targetSection])
-
-	const [activeTab, setActiveTab] = useState<string>(initialTab)
-	const [isCompactMode, setIsCompactMode] = useState(true)
-	const containerRef = useRef<HTMLDivElement>(null)
+	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 
 	// Optimized message handler with early returns
 	const handleMessage = useCallback((event: MessageEvent) => {
@@ -207,78 +193,31 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		}
 	}, [targetSection])
 
-	// Simplified tab change handler without debugging
-	const handleTabChange = useCallback((tabId: string) => {
-		setActiveTab(tabId)
-	}, [])
-
-	// Optimized resize observer with debouncing
-	useEffect(() => {
-		const container = containerRef.current
-		if (!container) {
-			return
-		}
-
-		const checkCompactMode = debounce((width: number) => {
-			setIsCompactMode(width < 500)
-		}, 100)
-
-		const observer = new ResizeObserver((entries) => {
-			const entry = entries[0]
-			if (entry) {
-				checkCompactMode(entry.contentRect.width)
-			}
-		})
-
-		observer.observe(container)
-		return () => observer.disconnect()
-	}, [])
-
 	// Memoized tab item renderer
 	const renderTabItem = useCallback(
 		(tab: (typeof SETTINGS_TABS)[0]) => {
-			const isActive = activeTab === tab.id
-			const tabClassName = `${isActive ? `${settingsTabTrigger} ${settingsTabTriggerActive}` : settingsTabTrigger} focus:ring-0`
-			const iconContainerClassName = `flex items-center gap-2 ${isCompactMode ? "justify-center" : ""}`
-
-			const TabIcon = tab.icon
-			const tabContent = (
-				<div className={iconContainerClassName}>
-					<TabIcon className="w-4 h-4" />
-					<span className="tab-label">{tab.name}</span>
-				</div>
-			)
-
-			if (isCompactMode) {
-				return (
+			return (
+				<TabTrigger className="flex justify-baseline" data-testid={`tab-${tab.id}`} key={tab.id} value={tab.id}>
 					<Tooltip key={tab.id}>
 						<TooltipTrigger>
 							<div
-								className={tabClassName}
-								data-compact={isCompactMode}
-								data-testid={`tab-${tab.id}`}
-								data-value={tab.id}
-								onClick={() => handleTabChange(tab.id)}>
-								{tabContent}
+								className={cn(
+									"whitespace-nowrap overflow-hidden h-12 sm:py-3 box-border flex items-center border-l-2 border-transparent text-foreground opacity-70 bg-transparent hover:bg-list-hover p-4 cursor-pointer gap-2",
+									{
+										"opacity-100 border-l-2 border-l-foreground border-t-0 border-r-0 border-b-0 bg-selection":
+											activeTab === tab.id,
+									},
+								)}>
+								<tab.icon className="w-4 h-4" />
+								<span className="hidden sm:block">{tab.name}</span>
 							</div>
 						</TooltipTrigger>
 						<TooltipContent side="right">{tab.tooltipText}</TooltipContent>
 					</Tooltip>
-				)
-			}
-
-			return (
-				<TabTrigger
-					className={tabClassName}
-					data-compact={isCompactMode}
-					data-testid={`tab-${tab.id}`}
-					key={tab.id}
-					value={tab.id}>
-					{tabContent}
 				</TabTrigger>
 			)
 		},
-		[activeTab, isCompactMode, handleTabChange],
+		[activeTab],
 	)
 
 	// Memoized active content component
@@ -314,11 +253,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				</div>
 			</TabHeader>
 
-			<div className={`${settingsTabsContainer} ${isCompactMode ? "narrow" : ""}`} ref={containerRef}>
+			<div className="flex flex-1 overflow-hidden">
 				<TabList
-					className={settingsTabList}
-					data-compact={isCompactMode}
-					onValueChange={handleTabChange}
+					className="shrink-0 flex flex-col overflow-y-auto border-r border-sidebar-background"
+					onValueChange={setActiveTab}
 					value={activeTab}>
 					{SETTINGS_TABS.filter((tab) => !tab.hidden).map(renderTabItem)}
 				</TabList>
