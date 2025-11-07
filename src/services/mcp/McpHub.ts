@@ -98,6 +98,12 @@ export class McpHub {
 	 * This avoids making a tool name too long while still ensuring uniqueness.
 	 */
 	private getMcpServerKey(server: string): string {
+		// Reuse existing key if server is already registered
+		for (const [existingKey, existingServer] of McpHub.mcpServerKeys.entries()) {
+			if (existingServer === server) {
+				return existingKey
+			}
+		}
 		// Generate a 118 bytes unique ID for the server
 		// Add c prefix to ensure it starts with a letter (for compatibility with Gemini)
 		const uid = "c" + nanoid()

@@ -276,7 +276,7 @@ export function toolSpecFunctionDeclarations(tool: ClineToolSpec, context: Syste
 						continue
 					}
 					paramSchema.properties[key] = {
-						type: GOOGLE_TOOL_PARAM_MAP[prop.type] || "STRING",
+						type: GOOGLE_TOOL_PARAM_MAP[prop.type || "string"] || GoogleToolParamType.OBJECT,
 						description: replacer(param.instruction, context),
 					}
 
