@@ -3,6 +3,7 @@
 	--color-background: var(--vscode-sideBar-background);
 	--color-border: var(--vscode-focusBorder);
 	--color-border-panel: var(--vscode-panel-border);
+	--color-seperator: var(--vscode-textSeparator-foreground);
 	--color-foreground: var(--vscode-foreground);
 	--color-shadow: var(--vscode-widget-shadow);
 	--color-code: var(--vscode-editor-background);
@@ -32,11 +33,18 @@
 	--color-menu-foreground: var(--vscode-menu-foreground);
 	--color-menu-border: var(--vscode-menu-border);
 	--color-menu-shadow: var(--vscode-menu-shadow);
+	--color-accent: var(--vscode-contrastActiveBorder);
+	--color-popover: var(--vscode-dropdown-background);
+	--color-popover-foreground: var(--vscode-dropdown-foreground);
+	--color-popover-border: var(--vscode-dropdown-border);
+	--color-popover-list: var(--vscode-dropdown-listBackground);
 	--color-link: var(--vscode-textLink-foreground);
 	--color-link-hover: var(--vscode-textLink-activeForeground);
 	--color-list-hover: var(--vscode-list-hoverBackground);
 	--color-badge-foreground: var(--vscode-badge-foreground);
 	--color-badge-background: var(--vscode-badge-background);
+	--color-badge-error-background: var(--vscode-activityErrorBadge-background);
+	--color-badge-error-foreground: var(--vscode-activityErrorBadge-foreground);
 	--color-banner-background: var(--vscode-banner-background);
 	--color-banner-foreground: var(--vscode-banner-foreground);
 	--color-banner-icon: var(--vscode-banner-iconForeground);
@@ -47,6 +55,7 @@
 	--color-description: var(--vscode-descriptionForeground);
 	--color-success: var(--vscode-charts-green);
 	--color-warning: var(--vscode-charts-yellow);
+	--color-info: var(--vscode-inputValidation-infoBorder, --vscode-charts-blue);
 	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 	--font-azeret-mono: Azeret Mono, monospace;
 	--text-2xl: calc(2.25 * var(--vscode-font-size));
@@ -68,8 +77,6 @@
 	--radius-xl: calc(var(--radius) + 4px);
 	--color-card: var(--card);
 	--color-card-foreground: var(--card-foreground);
-	--color-popover: var(--popover);
-	--color-popover-foreground: var(--popover-foreground);
 	--color-primary: var(--primary);
 	--color-primary-foreground: var(--primary-foreground);
 	--color-secondary: var(--secondary);

@@ -1,13 +1,15 @@
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ModelRefreshProvider, useModelContext } from "@/context/ModelContext"
+import { useModelContext } from "@/context/ModelContext"
 import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { ModelDropdown } from "./ModelDropdown"
 
 /**
  * Props for the VercelAIGatewayProvider component
@@ -17,8 +19,6 @@ interface VercelAIGatewayProviderProps {
 	isPopup?: boolean
 	currentMode: Mode
 }
-
-const VERCEL_AI_GATEWAY_ID = ModelRefreshProvider.VercelAIGateway
 
 /**
  * The Vercel AI Gateway provider configuration component
@@ -32,6 +32,14 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 
 	const { models } = useModelContext()
 
+	const { vercelModels, vercelModelIds } = useMemo(() => {
+		const vercelModels = models["vercel-ai-gateway"]
+		return {
+			vercelModels,
+			vercelModelIds: Object.keys(vercelModels),
+		}
+	}, [models["vercel-ai-gateway"]])
+
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
 		handleModeFieldsChange(
@@ -41,15 +49,10 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 			},
 			{
 				openRouterModelId: newModelId,
-				openRouterModelInfo: models[VERCEL_AI_GATEWAY_ID][newModelId],
+				openRouterModelInfo: vercelModels[newModelId],
 			},
 			currentMode,
 		)
-	}
-
-	if (!Object.keys(models[VERCEL_AI_GATEWAY_ID]).length) {
-		// Still loading models
-		return <p>Loading models...</p>
 	}
 
 	return (
@@ -78,25 +81,16 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 				</p>
 			</div>
 
-			{showModelOptions && Object.keys(models[VERCEL_AI_GATEWAY_ID]).length > 0 && (
-				<div className="w-full">
-					<div className="w-full flex flex-col">
+			{showModelOptions && (
+				<div className="w-full dropdown-container">
+					<div className="w-full flex flex-col z-[3000]">
 						<span className="font-semibold">Model</span>
-						<select
-							className="p-1 w-full my-2 z-2000 bg-input-background border border-input-border rounded-sm"
-							onChange={(e) => {
-								const target = (e.target as HTMLSelectElement | null)?.value
-								if (target) {
-									handleModelChange(target)
-								}
-							}}
-							value={selectedModelId}>
-							{Object.keys(models[VERCEL_AI_GATEWAY_ID]).map((modelId) => (
-								<option key={modelId} value={modelId}>
-									{modelId}
-								</option>
-							))}
-						</select>
+						<ModelDropdown
+							modelIds={vercelModelIds}
+							onSelect={handleModelChange}
+							provider={"vercel-ai-gateway"}
+							selectedModelId={selectedModelId}
+						/>
 
 						{/* Context window switcher for Claude Sonnet 4.5 */}
 						<ContextWindowSwitcher

@@ -68,7 +68,7 @@ export const ModelContextProvider: React.FC<{ children: React.ReactNode }> = ({ 
 	}, [])
 
 	useEffect(() => {
-		if (!cachedModels.openRouter) {
+		if (Object.keys(cachedModels[ModelRefreshProvider.VercelAIGateway]).length < 2) {
 			ModelsServiceClient.refreshVercelAiGatewayModelsRpc({})
 				.then((response: OpenRouterCompatibleModelInfo) => {
 					dispatch({
@@ -81,7 +81,7 @@ export const ModelContextProvider: React.FC<{ children: React.ReactNode }> = ({ 
 				})
 				.catch((error: Error) => console.error("Failed to refresh models:", error))
 		}
-	}, [cachedModels.openRouter])
+	}, [cachedModels])
 
 	// Handle auth status update events
 	useEffect(() => {
