@@ -2,8 +2,6 @@
 
 ## 3.36.1
 
-### Patch Changes
-
 - d983b45: fix: remove native tool calling support from Gemini and XAI provider due to invalid tool names issues
 - bb32aac: fix: disable native tool callings for grok code models
 - 5005676: Add MCP tool usage to GLM
