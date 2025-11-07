@@ -226,12 +226,12 @@ export function toolSpecInputSchema(tool: ClineToolSpec, context: SystemPromptCo
 }
 
 const GOOGLE_TOOL_PARAM_MAP: Record<string, string> = {
-	string: GoogleToolParamType.STRING,
-	number: GoogleToolParamType.NUMBER,
-	integer: GoogleToolParamType.NUMBER,
-	boolean: GoogleToolParamType.BOOLEAN,
-	object: GoogleToolParamType.OBJECT,
-	array: GoogleToolParamType.STRING,
+	string: "STRING",
+	number: "NUMBER",
+	integer: "NUMBER",
+	boolean: "BOOLEAN",
+	object: "OBJECT",
+	array: "STRING",
 }
 
 /**
