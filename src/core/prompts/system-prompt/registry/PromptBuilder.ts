@@ -204,11 +204,12 @@ export class PromptBuilder {
 		}
 
 		// Build prompt sections efficiently
+		// Exclude XML usage examples for models using native tool calling
 		const sections = [
 			title,
 			description.join("\n"),
 			PromptBuilder.buildParametersSection(filteredParams),
-			PromptBuilder.buildUsageSection(config.id, filteredParams),
+			!context.enableNativeToolCalls ? PromptBuilder.buildUsageSection(config.id, filteredParams) : "",
 		]
 
 		return sections.filter(Boolean).join("\n")

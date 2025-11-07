@@ -1,4 +1,4 @@
-import { isGPT5ModelFamily, isNextGenModelFamily, isNextGenModelProvider } from "@utils/model-utils"
+import { isNativeToolCallingConfig } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -18,15 +18,7 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 		use_native_tools: 1,
 	})
 	.matcher((context) => {
-		if (!context.enableNativeToolCalls) {
-			return false
-		}
-		const providerInfo = context.providerInfo
-		if (!isNextGenModelProvider(providerInfo)) {
-			return false
-		}
-		const modelId = providerInfo.model.id.toLowerCase()
-		return !isGPT5ModelFamily(modelId) && isNextGenModelFamily(modelId)
+		return isNativeToolCallingConfig(context.providerInfo, context.enableNativeToolCalls || false)
 	})
 	.template(TEMPLATE_OVERRIDES.BASE)
 	.components(
@@ -55,7 +47,6 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 		ClineDefaultTool.WEB_FETCH,
 		ClineDefaultTool.MCP_ACCESS,
 		ClineDefaultTool.ATTEMPT,
-		ClineDefaultTool.NEW_TASK,
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
