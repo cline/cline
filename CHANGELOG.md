@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.36.1]
+
+- fix: remove native tool calling support from Gemini and XAI provider due to invalid tool names issues
+- fix: disable native tool callings for grok code models
+- Add MCP tool usage to GLM
+- Removes reasoning_details content field from Anthropic providers
+
+## [3.36.0]
+
+- Add: Hooks allow you to inject custom logic into Cline's workflow
+- Add: new provider AIhubmix
+- Add: Use http_proxy, https_proxy and no_proxy in JetBrains
+- Fix: Oca Token Refresh logic
+- Fix: issues where assistant message with empty content is added to conversation history
+- Fix: bug where the checkbox shows in the model selector dropdown
+- Fix: Switch from defaultUserAgentProvider to customUserAgent for Bedrock
+- Fix: support for `<think>` tags for better compatibility with open-source models
+- Fix: refinements to the GLM-4.6 system prompt
+
 ## [3.35.1]
 
 - Add: Hicap API integration as provider

@@ -59,8 +59,6 @@ import {
 	sambanovaModels,
 	sapAiCoreDefaultModelId,
 	sapAiCoreModels,
-	vercelAiGatewayDefaultModelId,
-	vercelAiGatewayDefaultModelInfo,
 	vertexDefaultModelId,
 	vertexModels,
 	xaiDefaultModelId,
@@ -331,18 +329,17 @@ export function normalizeApiConfiguration(
 				},
 			}
 		case "vercel-ai-gateway":
-			const vercelAiGatewayModelId =
+			// Vercel AI Gateway uses OpenRouter model fields
+			const vercelModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeOpenRouterModelId : apiConfiguration?.actModeOpenRouterModelId
+			const vercelModelInfo =
 				currentMode === "plan"
-					? apiConfiguration?.planModeVercelAiGatewayModelId
-					: apiConfiguration?.actModeVercelAiGatewayModelId
-			const vercelAiGatewayModelInfo =
-				currentMode === "plan"
-					? apiConfiguration?.planModeVercelAiGatewayModelInfo
-					: apiConfiguration?.actModeVercelAiGatewayModelInfo
+					? apiConfiguration?.planModeOpenRouterModelInfo
+					: apiConfiguration?.actModeOpenRouterModelInfo
 			return {
 				selectedProvider: provider,
-				selectedModelId: vercelAiGatewayModelId || vercelAiGatewayDefaultModelId,
-				selectedModelInfo: vercelAiGatewayModelInfo || vercelAiGatewayDefaultModelInfo,
+				selectedModelId: vercelModelId || openRouterDefaultModelId,
+				selectedModelInfo: vercelModelInfo || openRouterDefaultModelInfo,
 			}
 		case "zai":
 			const zaiModels = apiConfiguration?.zaiApiLine === "china" ? mainlandZAiModels : internationalZAiModels
@@ -412,7 +409,6 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			basetenModelId: undefined,
 			huggingFaceModelId: undefined,
 			huaweiCloudMaasModelId: undefined,
-			vercelAiGatewayModelId: undefined,
 			hicapModelId: undefined,
 			aihubmixModelId: undefined,
 
@@ -424,7 +420,6 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			groqModelInfo: undefined,
 			basetenModelInfo: undefined,
 			huggingFaceModelInfo: undefined,
-			vercelAiGatewayModelInfo: undefined,
 			vsCodeLmModelSelector: undefined,
 			aihubmixModelInfo: undefined,
 
@@ -462,8 +457,6 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			mode === "plan" ? apiConfiguration.planModeHuggingFaceModelId : apiConfiguration.actModeHuggingFaceModelId,
 		huaweiCloudMaasModelId:
 			mode === "plan" ? apiConfiguration.planModeHuaweiCloudMaasModelId : apiConfiguration.actModeHuaweiCloudMaasModelId,
-		vercelAiGatewayModelId:
-			mode === "plan" ? apiConfiguration.planModeVercelAiGatewayModelId : apiConfiguration.actModeVercelAiGatewayModelId,
 		ocaModelId: mode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
 		hicapModelId: mode === "plan" ? apiConfiguration.planModeHicapModelId : apiConfiguration.actModeHicapModelId,
 		aihubmixModelId: mode === "plan" ? apiConfiguration.planModeAihubmixModelId : apiConfiguration.actModeAihubmixModelId,
@@ -479,10 +472,6 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		basetenModelInfo: mode === "plan" ? apiConfiguration.planModeBasetenModelInfo : apiConfiguration.actModeBasetenModelInfo,
 		huggingFaceModelInfo:
 			mode === "plan" ? apiConfiguration.planModeHuggingFaceModelInfo : apiConfiguration.actModeHuggingFaceModelInfo,
-		vercelAiGatewayModelInfo:
-			mode === "plan"
-				? apiConfiguration.planModeVercelAiGatewayModelInfo
-				: apiConfiguration.actModeVercelAiGatewayModelInfo,
 		vsCodeLmModelSelector:
 			mode === "plan" ? apiConfiguration.planModeVsCodeLmModelSelector : apiConfiguration.actModeVsCodeLmModelSelector,
 		hicapModelInfo: mode === "plan" ? apiConfiguration.planModeHicapModelInfo : apiConfiguration.actModeHicapModelInfo,
@@ -650,10 +639,11 @@ export async function syncModeConfigurations(
 			break
 
 		case "vercel-ai-gateway":
-			updates.planModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
-			updates.actModeVercelAiGatewayModelId = sourceFields.vercelAiGatewayModelId
-			updates.planModeVercelAiGatewayModelInfo = sourceFields.vercelAiGatewayModelInfo
-			updates.actModeVercelAiGatewayModelInfo = sourceFields.vercelAiGatewayModelInfo
+			// Vercel AI Gateway uses OpenRouter model fields
+			updates.planModeOpenRouterModelId = sourceFields.openRouterModelId
+			updates.actModeOpenRouterModelId = sourceFields.openRouterModelId
+			updates.planModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
+			updates.actModeOpenRouterModelInfo = sourceFields.openRouterModelInfo
 			break
 		case "oca":
 			updates.planModeOcaModelId = sourceFields.ocaModelId

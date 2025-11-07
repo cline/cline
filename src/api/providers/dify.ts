@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo } from "@shared/api"
+import { fetch } from "@/shared/net"
 import { ApiHandler } from "../../core/api/index"
 import { ApiStream } from "../../core/api/transform/stream"
 

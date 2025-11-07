@@ -147,7 +147,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 				return !id.includes(":free")
 			})
 		}
-		// For OpenRouter provider: exclude Cline-specific models
+		// For OpenRouter and Vercel AI Gateway providers: exclude Cline-specific models
 		return unfilteredModelIds.filter((id) => !id.startsWith("cline/"))
 	}, [openRouterModels, modeFields.apiProvider])
 
@@ -423,7 +423,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						anthropic/claude-sonnet-4.5.
 					</VSCodeLink>
 					You can also try searching "free" for no-cost options currently available. OpenRouter presets can be used by
-					entering <strong>@preset/your-preset-name</strong>.
+					entering @preset/your-preset-name
 				</p>
 			)}
 		</div>
