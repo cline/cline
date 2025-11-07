@@ -1,7 +1,6 @@
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import { findLastIndex } from "@shared/array"
 import { DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
-import { ClineFeatureSetting } from "@shared/ClineFeatureSetting"
 import { DEFAULT_DICTATION_SETTINGS, DictationSettings } from "@shared/DictationSettings"
 import { DEFAULT_PLATFORM, type ExtensionState } from "@shared/ExtensionMessage"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS } from "@shared/FocusChainSettings"
@@ -14,7 +13,7 @@ import { convertProtoToClineMessage } from "@shared/proto-conversions/cline-mess
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
 import type React from "react"
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react"
 import { Environment } from "../../../src/config"
 import {
 	basetenDefaultModelId,
@@ -47,22 +46,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	availableTerminalProfiles: TerminalProfile[]
 
-	// View state
-	showMcp: boolean
-	hooksEnabled?: ClineFeatureSetting
-	mcpTab?: McpViewTab
-	showSettings: boolean
-	showHistory: boolean
-	showAccount: boolean
-	showAnnouncement: boolean
-	showChatModelSelector: boolean
-	expandTaskHeader: boolean
-
 	// Setters
 	setDictationSettings: (value: DictationSettings) => void
-	setShowAnnouncement: (value: boolean) => void
-	setShowChatModelSelector: (value: boolean) => void
-	setShouldShowAnnouncement: (value: boolean) => void
 	setMcpServers: (value: McpServer[]) => void
 	setRequestyModels: (value: Record<string, ModelInfo>) => void
 	setGroqModels: (value: Record<string, ModelInfo>) => void
@@ -76,31 +61,17 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
-	setExpandTaskHeader: (value: boolean) => void
 
 	// Refresh functions
-	refreshOpenRouterModels: () => void
+	refreshModels: (provider: "openRouter" | "cline") => void
 	refreshHicapModels: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
 
-	// Navigation state setters
-	setShowMcp: (value: boolean) => void
-	setMcpTab: (tab?: McpViewTab) => void
-
 	// Navigation functions
-	navigateToMcp: (tab?: McpViewTab) => void
-	navigateToSettings: () => void
-	navigateToHistory: () => void
-	navigateToAccount: () => void
-	navigateToChat: () => void
-
-	// Hide functions
-	hideSettings: () => void
-	hideHistory: () => void
-	hideAccount: () => void
-	hideAnnouncement: () => void
-	hideChatModelSelector: () => void
-	closeMcpView: () => void
+	uiViewState: UIViewState
+	uiShowState: UIShowState
+	navigateToView: (view: NavigationView, tab?: McpViewTab, close?: boolean) => void
+	setShow(type: UIShowType, value: boolean): void
 
 	// Event callbacks
 	onRelinquishControl: (callback: () => void) => () => void
@@ -108,72 +79,64 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
 
+export enum NavigationView {
+	MCP = "MCP",
+	SETTINGS = "SETTINGS",
+	HISTORY = "HISTORY",
+	ACCOUNT = "ACCOUNT",
+	CHAT = "CHAT",
+}
+
+// Types for state management
+type UIViewState = {
+	view: NavigationView
+	tab?: McpViewTab
+}
+
+type UIShowState = {
+	showAnnouncement: boolean
+	showChatModelSelector: boolean
+}
+
+export enum UIShowType {
+	ANNOUNCEMENT = "announcement",
+	CHAT_MODEL_SELECTOR = "chat_model_selector",
+	WELCOME = "welcome",
+	TASK_HEADER = "task_header",
+}
+
 export const ExtensionStateContextProvider: React.FC<{
 	children: React.ReactNode
 }> = ({ children }) => {
-	// UI view state
-	const [showMcp, setShowMcp] = useState(false)
-	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
-	const [showSettings, setShowSettings] = useState(false)
-	const [showHistory, setShowHistory] = useState(false)
-	const [showAccount, setShowAccount] = useState(false)
-	const [showAnnouncement, setShowAnnouncement] = useState(false)
-	const [showChatModelSelector, setShowChatModelSelector] = useState(false)
-
-	// Helper for MCP view
-	const closeMcpView = useCallback(() => {
-		setShowMcp(false)
-		setMcpTab(undefined)
-	}, [setShowMcp, setMcpTab])
-
-	// Hide functions
-	const hideSettings = useCallback(() => setShowSettings(false), [setShowSettings])
-	const hideHistory = useCallback(() => setShowHistory(false), [setShowHistory])
-	const hideAccount = useCallback(() => setShowAccount(false), [setShowAccount])
-	const hideAnnouncement = useCallback(() => setShowAnnouncement(false), [setShowAnnouncement])
-	const hideChatModelSelector = useCallback(() => setShowChatModelSelector(false), [setShowChatModelSelector])
-
-	// Navigation functions
-	const navigateToMcp = useCallback(
-		(tab?: McpViewTab) => {
-			setShowSettings(false)
-			setShowHistory(false)
-			setShowAccount(false)
-			if (tab) {
-				setMcpTab(tab)
+	const [uiViewState, setUIViewState] = useState<UIViewState>({ view: NavigationView.CHAT })
+	const [uiShowState, dispatchUIShowAction] = useReducer(
+		(state: UIShowState, action: { type: UIShowType; value: boolean }) => {
+			switch (action.type) {
+				case UIShowType.ANNOUNCEMENT:
+					return { ...state, showAnnouncement: action.value }
+				case UIShowType.CHAT_MODEL_SELECTOR:
+					return { ...state, showChatModelSelector: action.value }
+				default:
+					return state
 			}
-			setShowMcp(true)
 		},
-		[setShowMcp, setMcpTab, setShowSettings, setShowHistory, setShowAccount],
+		{
+			showAnnouncement: false,
+			showChatModelSelector: false,
+		},
 	)
 
-	const navigateToSettings = useCallback(() => {
-		setShowHistory(false)
-		closeMcpView()
-		setShowAccount(false)
-		setShowSettings(true)
-	}, [setShowSettings, setShowHistory, closeMcpView, setShowAccount])
+	const { showAnnouncement, showChatModelSelector } = uiShowState
 
-	const navigateToHistory = useCallback(() => {
-		setShowSettings(false)
-		closeMcpView()
-		setShowAccount(false)
-		setShowHistory(true)
-	}, [setShowSettings, closeMcpView, setShowAccount, setShowHistory])
+	// Navigation functions using dispatch
+	const navigateToView = useCallback((view: NavigationView, tab?: McpViewTab, close = false) => {
+		const targetView = close ? NavigationView.CHAT : view
+		setUIViewState((prevState) => ({ ...prevState, view: targetView, tab }))
+	}, [])
 
-	const navigateToAccount = useCallback(() => {
-		setShowSettings(false)
-		closeMcpView()
-		setShowHistory(false)
-		setShowAccount(true)
-	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount])
-
-	const navigateToChat = useCallback(() => {
-		setShowSettings(false)
-		closeMcpView()
-		setShowHistory(false)
-		setShowAccount(false)
-	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount])
+	const setShow = useCallback((type: UIShowType, value: boolean) => {
+		dispatchUIShowAction({ type, value })
+	}, [])
 
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
@@ -269,7 +232,6 @@ export const ExtensionStateContextProvider: React.FC<{
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
-	const hicapModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
 	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
 
@@ -342,7 +304,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			{
 				onResponse: () => {
 					console.log("[DEBUG] Received mcpButtonClicked event from gRPC stream")
-					navigateToMcp()
+					navigateToView(NavigationView.MCP)
 				},
 				onError: (error) => {
 					console.error("Error in mcpButtonClicked subscription:", error)
@@ -360,7 +322,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				onResponse: () => {
 					// When history button is clicked, navigate to history view
 					console.log("[DEBUG] Received history button clicked event from gRPC stream")
-					navigateToHistory()
+					navigateToView(NavigationView.HISTORY)
 				},
 				onError: (error) => {
 					console.error("Error in history button clicked subscription:", error)
@@ -378,7 +340,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				onResponse: () => {
 					// When chat button is clicked, navigate to chat
 					console.log("[DEBUG] Received chat button clicked event from gRPC stream")
-					navigateToChat()
+					navigateToView(NavigationView.CHAT)
 				},
 				onError: (error) => {
 					console.error("Error in chat button subscription:", error)
@@ -419,7 +381,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		settingsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToSettingsButtonClicked(EmptyRequest.create({}), {
 			onResponse: () => {
 				// When settings button is clicked, navigate to settings
-				navigateToSettings()
+				navigateToView(NavigationView.SETTINGS)
 			},
 			onError: (error) => {
 				console.error("Error in settings button clicked subscription:", error)
@@ -508,7 +470,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			onResponse: () => {
 				// When account button is clicked, navigate to account view
 				console.log("[DEBUG] Received account button clicked event from gRPC stream")
-				navigateToAccount()
+				navigateToView(NavigationView.ACCOUNT)
 			},
 			onError: (error) => {
 				console.error("Error in account button clicked subscription:", error)
@@ -617,8 +579,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		}
 	}, [])
 
-	const refreshOpenRouterModels = useCallback(() => {
-		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
+	const refreshModels = useCallback((provider: "openRouter" | "cline") => {
+		const refreshFunc =
+			provider === "openRouter" ? ModelsServiceClient.refreshOpenRouterModelsRpc : ModelsServiceClient.refreshClineModelsRpc
+
+		refreshFunc(EmptyRequest.create({}))
 			.then((response: OpenRouterCompatibleModelInfo) => {
 				const models = fromProtobufModels(response.models)
 				setOpenRouterModels({
@@ -626,7 +591,7 @@ export const ExtensionStateContextProvider: React.FC<{
 					...models,
 				})
 			})
-			.catch((error: Error) => console.error("Failed to refresh OpenRouter models:", error))
+			.catch((error: Error) => console.error(`Failed to refresh ${provider} models:`, error))
 	}, [])
 
 	const refreshHicapModels = useCallback(() => {
@@ -640,109 +605,118 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh Hicap models:", error))
 	}, [])
 
-	const contextValue: ExtensionStateContextType = {
-		...state,
-		didHydrateState,
-		showWelcome,
-		openRouterModels,
-		hicapModels,
-		openAiModels,
-		requestyModels,
-		groqModels: groqModelsState,
-		basetenModels: basetenModelsState,
-		huggingFaceModels,
-		mcpServers,
-		mcpMarketplaceCatalog,
-		totalTasksSize,
-		availableTerminalProfiles,
-		showMcp,
-		mcpTab,
-		showSettings,
-		showHistory,
-		showAccount,
-		showAnnouncement,
-		showChatModelSelector,
-		globalClineRulesToggles: state.globalClineRulesToggles || {},
-		localClineRulesToggles: state.localClineRulesToggles || {},
-		localCursorRulesToggles: state.localCursorRulesToggles || {},
-		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
-		localWorkflowToggles: state.localWorkflowToggles || {},
-		globalWorkflowToggles: state.globalWorkflowToggles || {},
-		enableCheckpointsSetting: state.enableCheckpointsSetting,
-		currentFocusChainChecklist: state.currentFocusChainChecklist,
+	const contextValue: ExtensionStateContextType = useMemo(
+		() => ({
+			...state,
+			didHydrateState,
+			showWelcome,
+			openRouterModels,
+			hicapModels,
+			openAiModels,
+			requestyModels,
+			groqModels: groqModelsState,
+			basetenModels: basetenModelsState,
+			huggingFaceModels,
+			mcpServers,
+			mcpMarketplaceCatalog,
+			totalTasksSize,
+			availableTerminalProfiles,
+			showAnnouncement,
+			showChatModelSelector,
+			globalClineRulesToggles: state.globalClineRulesToggles || {},
+			localClineRulesToggles: state.localClineRulesToggles || {},
+			localCursorRulesToggles: state.localCursorRulesToggles || {},
+			localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
+			localWorkflowToggles: state.localWorkflowToggles || {},
+			globalWorkflowToggles: state.globalWorkflowToggles || {},
+			enableCheckpointsSetting: state.enableCheckpointsSetting,
+			currentFocusChainChecklist: state.currentFocusChainChecklist,
 
-		// Navigation functions
-		navigateToMcp,
-		navigateToSettings,
-		navigateToHistory,
-		navigateToAccount,
-		navigateToChat,
+			// Navigation functions
+			uiViewState,
+			uiShowState,
+			navigateToView,
+			setShow,
 
-		// Hide functions
-		hideSettings,
-		hideHistory,
-		hideAccount,
-		hideAnnouncement,
-		setShowAnnouncement,
-		hideChatModelSelector,
-		setShowChatModelSelector,
-		setShouldShowAnnouncement: (value) =>
-			setState((prevState) => ({
-				...prevState,
-				shouldShowAnnouncement: value,
-			})),
-		setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
-		setRequestyModels: (models: Record<string, ModelInfo>) => setRequestyModels(models),
-		setGroqModels: (models: Record<string, ModelInfo>) => setGroqModels(models),
-		setBasetenModels: (models: Record<string, ModelInfo>) => setBasetenModels(models),
-		setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),
-		setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
-		setShowMcp,
-		closeMcpView,
-		setGlobalClineRulesToggles: (toggles) =>
-			setState((prevState) => ({
-				...prevState,
-				globalClineRulesToggles: toggles,
-			})),
-		setLocalClineRulesToggles: (toggles) =>
-			setState((prevState) => ({
-				...prevState,
-				localClineRulesToggles: toggles,
-			})),
-		setLocalCursorRulesToggles: (toggles) =>
-			setState((prevState) => ({
-				...prevState,
-				localCursorRulesToggles: toggles,
-			})),
-		setLocalWindsurfRulesToggles: (toggles) =>
-			setState((prevState) => ({
-				...prevState,
-				localWindsurfRulesToggles: toggles,
-			})),
-		setLocalWorkflowToggles: (toggles) =>
-			setState((prevState) => ({
-				...prevState,
-				localWorkflowToggles: toggles,
-			})),
-		setGlobalWorkflowToggles: (toggles) =>
-			setState((prevState) => ({
-				...prevState,
-				globalWorkflowToggles: toggles,
-			})),
-		setMcpTab,
-		setTotalTasksSize,
-		refreshOpenRouterModels,
-		refreshHicapModels,
-		onRelinquishControl,
-		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
-		expandTaskHeader,
-		setExpandTaskHeader,
-		setDictationSettings: (value: DictationSettings) =>
-			setState((prevState) => ({
-				...prevState,
-				dictationSettings: value,
-			})),
-	}
+			setMcpServers: (mcpServers: McpServer[]) => setMcpServers(mcpServers),
+			setRequestyModels: (models: Record<string, ModelInfo>) => setRequestyModels(models),
+			setGroqModels: (models: Record<string, ModelInfo>) => setGroqModels(models),
+			setBasetenModels: (models: Record<string, ModelInfo>) => setBasetenModels(models),
+			setHuggingFaceModels: (models: Record<string, ModelInfo>) => setHuggingFaceModels(models),
+			setMcpMarketplaceCatalog: (catalog: McpMarketplaceCatalog) => setMcpMarketplaceCatalog(catalog),
+
+			setGlobalClineRulesToggles: (toggles) =>
+				setState((prevState) => ({
+					...prevState,
+					globalClineRulesToggles: toggles,
+				})),
+			setLocalClineRulesToggles: (toggles) =>
+				setState((prevState) => ({
+					...prevState,
+					localClineRulesToggles: toggles,
+				})),
+			setLocalCursorRulesToggles: (toggles) =>
+				setState((prevState) => ({
+					...prevState,
+					localCursorRulesToggles: toggles,
+				})),
+			setLocalWindsurfRulesToggles: (toggles) =>
+				setState((prevState) => ({
+					...prevState,
+					localWindsurfRulesToggles: toggles,
+				})),
+			setLocalWorkflowToggles: (toggles) =>
+				setState((prevState) => ({
+					...prevState,
+					localWorkflowToggles: toggles,
+				})),
+			setGlobalWorkflowToggles: (toggles) =>
+				setState((prevState) => ({
+					...prevState,
+					globalWorkflowToggles: toggles,
+				})),
+			setTotalTasksSize,
+			refreshModels,
+			refreshHicapModels,
+			onRelinquishControl,
+			setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
+			expandTaskHeader,
+			setExpandTaskHeader,
+			setDictationSettings: (value: DictationSettings) =>
+				setState((prevState) => ({
+					...prevState,
+					dictationSettings: value,
+				})),
+		}),
+		[
+			state,
+			didHydrateState,
+			openRouterModels,
+			hicapModels,
+			openAiModels,
+			requestyModels,
+			groqModelsState,
+			basetenModelsState,
+			huggingFaceModels,
+			mcpServers,
+			mcpMarketplaceCatalog,
+			totalTasksSize,
+			availableTerminalProfiles,
+			setMcpServers,
+			setRequestyModels,
+			setGroqModels,
+			setBasetenModels,
+			setHuggingFaceModels,
+			setMcpMarketplaceCatalog,
+			setTotalTasksSize,
+			refreshModels,
+			refreshHicapModels,
+			onRelinquishControl,
+			setState,
+			expandTaskHeader,
+			setExpandTaskHeader,
+		],
+	)
 
 	return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>
 }
