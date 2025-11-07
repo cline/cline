@@ -99,7 +99,8 @@ export class McpHub {
 	 */
 	private getMcpServerKey(server: string): string {
 		// Generate a 118 bytes unique ID for the server
-		const uid = nanoid()
+		// Add c prefix to ensure it starts with a letter (for compatibility with Gemini)
+		const uid = "c" + nanoid()
 		McpHub.mcpServerKeys.set(uid, server)
 		return uid
 	}
