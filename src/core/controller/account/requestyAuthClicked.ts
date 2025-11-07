@@ -1,6 +1,6 @@
 import { Empty, StringRequest } from "@shared/proto/cline/common"
-import { toRequestyServiceUrl } from "@shared/providers/requesty"
 import { HostProvider } from "@/hosts/host-provider"
+import { toRequestyServiceUrl } from "@/shared/clients/requesty"
 import { openExternal } from "@/utils/env"
 import { Controller } from ".."
 

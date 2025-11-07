@@ -112,6 +112,7 @@ func (r *ProviderListResult) GetAllReadyProviders() []*ProviderDisplay {
 		cline.ApiProvider_OLLAMA,
 		cline.ApiProvider_CEREBRAS,
 		cline.ApiProvider_OCA,
+		cline.ApiProvider_HICAP,
 	}
 
 	// Check each provider to see if it's ready to use
@@ -212,13 +213,15 @@ func extractProviderFromState(stateData map[string]interface{}, mode string) *Pr
 // mapProviderStringToEnum converts provider string from state to ApiProvider enum
 // Returns (provider, ok) where ok is false if the provider is unknown
 func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
+	normalizedStr := strings.ToLower(providerStr)
+	
 	// Map string values to enum values
-	switch providerStr {
+	switch normalizedStr {
 	case "anthropic":
 		return cline.ApiProvider_ANTHROPIC, true
-	case "openai-compatible": // internal name is 'openai', but this is actually the openai-compatible provider
+	case "openai", "openai-compatible": // internal name is 'openai', but this is actually the openai-compatible provider
 		return cline.ApiProvider_OPENAI, true
-	case "openai", "openai-native": // This is the native, official Open AI provider
+	case "openai-native": // This is the native, official Open AI provider
 		return cline.ApiProvider_OPENAI_NATIVE, true
 	case "openrouter":
 		return cline.ApiProvider_OPENROUTER, true
@@ -236,6 +239,8 @@ func mapProviderStringToEnum(providerStr string) (cline.ApiProvider, bool) {
 		return cline.ApiProvider_CLINE, true
 	case "oca":
 		return cline.ApiProvider_OCA, true
+	case "hicap":
+		return cline.ApiProvider_HICAP, true
 	default:
 		return cline.ApiProvider_ANTHROPIC, false // Return 0 value with false
 	}
@@ -267,6 +272,8 @@ func GetProviderIDForEnum(provider cline.ApiProvider) string {
 		return "cline"
 	case cline.ApiProvider_OCA:
 		return "oca"
+	case cline.ApiProvider_HICAP:
+		return "hicap"
 	default:
 		return ""
 	}
@@ -344,6 +351,8 @@ func GetProviderDisplayName(provider cline.ApiProvider) string {
 		return "Cline (Official)"
 	case cline.ApiProvider_OCA:
 		return "Oracle Code Assist"
+	case cline.ApiProvider_HICAP:
+		return "Hicap"
 	default:
 		return "Unknown"
 	}
@@ -465,6 +474,7 @@ func DetectAllConfiguredProviders(ctx context.Context, manager *task.Manager) ([
 		{cline.ApiProvider_GEMINI, "geminiApiKey"},
 		{cline.ApiProvider_OLLAMA, "ollamaBaseUrl"}, // Ollama uses baseUrl instead of API key
 		{cline.ApiProvider_CEREBRAS, "cerebrasApiKey"},
+		{cline.ApiProvider_HICAP, "hicapApiKey"},
 	}
 
 	for _, providerCheck := range providersToCheck {
