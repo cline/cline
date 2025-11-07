@@ -113,6 +113,13 @@ export const AllowedMCPServerSchema = z.object({
 	id: z.string(),
 })
 
+export const RemoteMCPServerSchema = z.object({
+	// The name of the MCP server
+	name: z.string(),
+	// The URL of the MCP server
+	url: z.string(),
+})
+
 // Settings for a global cline rules or workflow file.
 export const GlobalInstructionsFileSchema = z.object({
 	// When this is enabled, the user cannot turn off this rule or workflow.
@@ -137,6 +144,7 @@ export const RemoteConfigSchema = z.object({
 	// MCP settings
 	mcpMarketplaceEnabled: z.boolean().optional(),
 	allowedMCPServers: z.array(AllowedMCPServerSchema).optional(),
+	remoteMCPServers: z.array(RemoteMCPServerSchema).optional(),
 
 	// If the user is allowed to enable YOLO mode. Note this is different from the extension setting
 	// yoloModeEnabled, because we do not want to force YOLO enabled for the user.
@@ -167,6 +175,7 @@ export const RemoteConfigSchema = z.object({
 // Type inference from schemas
 export type RemoteConfig = z.infer<typeof RemoteConfigSchema>
 export type MCPServer = z.infer<typeof AllowedMCPServerSchema>
+export type RemoteMCPServer = z.infer<typeof RemoteMCPServerSchema>
 export type GlobalInstructionsFile = z.infer<typeof GlobalInstructionsFileSchema>
 
 export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
