@@ -23,6 +23,14 @@ import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { TASK_CALLBACKS_KEYS, TASK_CONFIG_KEYS, TASK_SERVICES_KEYS } from "../utils/ToolConstants"
 
 /**
+ * Runner for PreToolUse hook execution.
+ * Handlers should call run() after approval succeeds but before execution.
+ */
+export interface PreToolUseRunner {
+	run(): Promise<void>
+}
+
+/**
  * Strongly-typed configuration object passed to tool handlers
  */
 export interface TaskConfig {
@@ -59,6 +67,13 @@ export interface TaskConfig {
 
 	// Tool coordination
 	coordinator: ToolExecutorCoordinator
+
+	/**
+	 * Optional PreToolUse hook runner.
+	 * When present, handlers must call this after approval but before execution.
+	 * Will throw PreToolUseHookCancellationError if hook requests cancellation.
+	 */
+	preToolUseRunner?: PreToolUseRunner
 }
 
 /**

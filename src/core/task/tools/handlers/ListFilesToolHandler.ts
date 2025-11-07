@@ -12,6 +12,7 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolHookUtils } from "../utils/ToolHookUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ListFilesToolHandler implements IFullyManagedTool {
@@ -149,6 +150,12 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 					block.isNativeToolCall,
 				)
 			}
+		}
+
+		// Run PreToolUse hook after approval
+		const shouldContinue = await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		if (!shouldContinue) {
+			return formatResponse.toolCancelled()
 		}
 
 		return result

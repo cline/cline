@@ -8,6 +8,7 @@ import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolHookUtils } from "../utils/ToolHookUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class AccessMcpResourceHandler implements IFullyManagedTool {
@@ -126,6 +127,13 @@ export class AccessMcpResourceHandler implements IFullyManagedTool {
 			}
 		}
 
+		// Run PreToolUse hook after approval
+		const shouldContinue = await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		if (!shouldContinue) {
+			return formatResponse.toolCancelled()
+		}
+
+		// Show MCP request started message
 		await config.callbacks.say("mcp_server_request_started")
 
 		// Execute the MCP resource access

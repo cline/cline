@@ -11,6 +11,7 @@ import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolHookUtils } from "../utils/ToolHookUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHandler {
@@ -51,6 +52,12 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
+
+		// Run PreToolUse hook (no approval needed for attempt_completion, so run it early)
+		const shouldContinue = await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		if (!shouldContinue) {
+			return formatResponse.toolCancelled()
+		}
 
 		// Show notification if enabled
 		if (config.autoApprovalSettings.enableNotifications) {

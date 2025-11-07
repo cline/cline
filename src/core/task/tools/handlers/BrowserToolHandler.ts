@@ -7,6 +7,7 @@ import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolHookUtils } from "../utils/ToolHookUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class BrowserToolHandler implements IFullyManagedTool {
@@ -165,6 +166,13 @@ export class BrowserToolHandler implements IFullyManagedTool {
 						browserActionResult = await browserSession.closeBrowser()
 						break
 				}
+			}
+
+			// Run PreToolUse hook after approval but before execution
+			const shouldContinue = await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+			if (!shouldContinue) {
+				await config.services.browserSession.closeBrowser()
+				return formatResponse.toolCancelled()
 			}
 
 			// Handle results based on action type

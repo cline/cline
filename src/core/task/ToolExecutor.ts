@@ -526,15 +526,10 @@ export class ToolExecutor {
 	 * Handle complete block execution.
 	 *
 	 * This is the main execution flow for a tool:
-	 * 1. Run PreToolUse hooks (if enabled) - can block execution
-	 * 2. Execute the actual tool
-	 * 3. Run PostToolUse hooks (if enabled) - cannot block, only observe
-	 * 4. Add hook context modifications to the conversation
-	 * 5. Update focus chain tracking
-	 *
-	 * Hooks are executed with streaming output to provide real-time feedback.
-	 * PreToolUse hooks can prevent tool execution by returning shouldContinue: false.
-	 * PostToolUse hooks are for observation/logging only and cannot block.
+	 * 1. Create PreToolUse hook runner (but don't execute yet)
+	 * 2. Tool handler performs approval and calls hook runner after approval
+	 * 3. Execute the actual tool
+	 * 4. Run PostToolUse hook (only if tool executed)
 	 *
 	 * @param block The complete tool use block with all parameters
 	 * @param config The task configuration containing all necessary context
@@ -551,96 +546,6 @@ export class ToolExecutor {
 		// Track if we need to cancel after hooks complete
 		let shouldCancelAfterHook = false
 
-		// ============================================================
-		// PHASE 1: Run PreToolUse hook (OUTSIDE try-catch-finally)
-		// This allows early return on cancellation without triggering finally block
-		// ============================================================
-		if (hooksEnabled) {
-			const { executeHook } = await import("../hooks/hook-executor")
-
-			// Build pending tool info for display
-			const pendingToolInfo: any = {
-				tool: block.name,
-			}
-
-			// Add relevant parameters for display based on tool type
-			if (block.params.path) {
-				pendingToolInfo.path = block.params.path
-			}
-			if (block.params.command) {
-				pendingToolInfo.command = block.params.command
-			}
-			if (block.params.content && typeof block.params.content === "string") {
-				pendingToolInfo.content = block.params.content.slice(0, 200)
-			}
-			if (block.params.diff && typeof block.params.diff === "string") {
-				pendingToolInfo.diff = block.params.diff.slice(0, 200)
-			}
-			if (block.params.regex) {
-				pendingToolInfo.regex = block.params.regex
-			}
-			if (block.params.url) {
-				pendingToolInfo.url = block.params.url
-			}
-			// For MCP operations, show tool/resource identifiers
-			if (block.params.tool_name) {
-				pendingToolInfo.mcpTool = block.params.tool_name
-			}
-			if (block.params.server_name) {
-				pendingToolInfo.mcpServer = block.params.server_name
-			}
-			if (block.params.uri) {
-				pendingToolInfo.resourceUri = block.params.uri
-			}
-
-			const preToolResult = await executeHook({
-				hookName: "PreToolUse",
-				hookInput: {
-					preToolUse: {
-						toolName: block.name,
-						parameters: block.params,
-					},
-				},
-				isCancellable: true,
-				say: this.say,
-				setActiveHookExecution: this.setActiveHookExecution,
-				clearActiveHookExecution: this.clearActiveHookExecution,
-				messageStateHandler: this.messageStateHandler,
-				taskId: this.taskId,
-				hooksEnabled,
-				toolName: block.name,
-				pendingToolInfo,
-			})
-
-			// Handle cancellation from hook
-			if (preToolResult.cancel === true) {
-				// Trigger task cancellation (same as clicking cancel button)
-				await config.callbacks.cancelTask()
-				// Early return - never enters try-catch-finally, so PostToolUse won't run
-				return
-			}
-
-			// If task was aborted (e.g., via cancel button during hook), stop execution
-			if (this.taskState.abort) {
-				shouldCancelAfterHook = true
-			}
-
-			// Add context modification to the conversation if provided by the hook
-			if (preToolResult.contextModification) {
-				this.addHookContextToConversation(preToolResult.contextModification, "PreToolUse")
-			}
-		}
-
-		// ============================================================
-		// PHASE 2: Execute tool with PostToolUse hook in finally block
-		// This only runs if PreToolUse didn't cancel above
-		// ============================================================
-
-		// Check abort again before tool execution (could have been set by PreToolUse hook)
-		if (this.taskState.abort) {
-			return
-		}
-
 		let executionSuccess = true
 		let toolResult: any = null
 		let toolWasExecuted = false
@@ -652,7 +557,92 @@ export class ToolExecutor {
 				return
 			}
 
-			// Execute the actual tool
+			// ============================================================
+			// Create PreToolUse hook runner but don't execute yet
+			// Handlers will call this after approval
+			// ============================================================
+			if (hooksEnabled) {
+				const { executeHook } = await import("../hooks/hook-executor")
+				const { PreToolUseHookCancellationError } = await import("../hooks/PreToolUseHookCancellationError")
+
+				// Build pending tool info for display
+				const pendingToolInfo: any = {
+					tool: block.name,
+				}
+
+				// Add relevant parameters for display based on tool type
+				if (block.params.path) {
+					pendingToolInfo.path = block.params.path
+				}
+				if (block.params.command) {
+					pendingToolInfo.command = block.params.command
+				}
+				if (block.params.content && typeof block.params.content === "string") {
+					pendingToolInfo.content = block.params.content.slice(0, 200)
+				}
+				if (block.params.diff && typeof block.params.diff === "string") {
+					pendingToolInfo.diff = block.params.diff.slice(0, 200)
+				}
+				if (block.params.regex) {
+					pendingToolInfo.regex = block.params.regex
+				}
+				if (block.params.url) {
+					pendingToolInfo.url = block.params.url
+				}
+				// For MCP operations, show tool/resource identifiers
+				if (block.params.tool_name) {
+					pendingToolInfo.mcpTool = block.params.tool_name
+				}
+				if (block.params.server_name) {
+					pendingToolInfo.mcpServer = block.params.server_name
+				}
+				if (block.params.uri) {
+					pendingToolInfo.resourceUri = block.params.uri
+				}
+
+				// Create runner that handlers will call after approval
+				config.preToolUseRunner = {
+					run: async () => {
+						const preToolResult = await executeHook({
+							hookName: "PreToolUse",
+							hookInput: {
+								preToolUse: {
+									toolName: block.name,
+									parameters: block.params,
+								},
+							},
+							isCancellable: true,
+							say: this.say,
+							setActiveHookExecution: this.setActiveHookExecution,
+							clearActiveHookExecution: this.clearActiveHookExecution,
+							messageStateHandler: this.messageStateHandler,
+							taskId: this.taskId,
+							hooksEnabled,
+							toolName: block.name,
+							pendingToolInfo,
+						})
+
+						// Handle cancellation from hook
+						if (preToolResult.cancel === true) {
+							throw new PreToolUseHookCancellationError(
+								preToolResult.errorMessage || "PreToolUse hook requested cancellation",
+							)
+						}
+
+						// Check if task was aborted during hook execution
+						if (this.taskState.abort) {
+							throw new PreToolUseHookCancellationError("Task was aborted during hook execution")
+						}
+
+						// Add context modification to the conversation if provided by the hook
+						if (preToolResult.contextModification) {
+							this.addHookContextToConversation(preToolResult.contextModification, "PreToolUse")
+						}
+					},
+				}
+			}
+
+			// Execute the actual tool - handlers will invoke the hook after approval
 			toolResult = await this.coordinator.execute(config, block)
 			toolWasExecuted = true
 			this.pushToolResult(toolResult, block)

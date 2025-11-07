@@ -20,6 +20,8 @@ export const formatResponse = {
 
 	toolDenied: () => `The user denied this operation.`,
 
+	toolCancelled: () => `Tool execution was cancelled by a PreToolUse hook.`,
+
 	toolError: (error?: string) => `The tool execution failed with the following error:\n<error>\n${error}\n</error>`,
 
 	clineIgnoreError: (path: string) =>

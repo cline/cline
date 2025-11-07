@@ -9,6 +9,7 @@ import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolHookUtils } from "../utils/ToolHookUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class WebFetchToolHandler implements IFullyManagedTool {
@@ -107,6 +108,12 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 						block.isNativeToolCall,
 					)
 				}
+			}
+
+			// Run PreToolUse hook after approval
+			const shouldContinue = await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+			if (!shouldContinue) {
+				return formatResponse.toolCancelled()
 			}
 
 			// Execute the actual fetch

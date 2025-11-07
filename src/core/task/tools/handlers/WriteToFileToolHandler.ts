@@ -18,6 +18,7 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
+import { ToolHookUtils } from "../utils/ToolHookUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class WriteToFileToolHandler implements IFullyManagedTool {
@@ -268,6 +269,13 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						block.isNativeToolCall,
 					)
 				}
+			}
+
+			// Run PreToolUse hook after approval
+			const shouldContinue = await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+			if (!shouldContinue) {
+				await config.services.diffViewProvider.revertChanges()
+				return formatResponse.toolCancelled()
 			}
 
 			// Mark the file as edited by Cline

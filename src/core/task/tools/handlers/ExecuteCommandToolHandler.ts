@@ -14,6 +14,7 @@ import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
+import { ToolHookUtils } from "../utils/ToolHookUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 // Default timeout for commands in yolo mode and background exec mode
@@ -203,6 +204,12 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				workspaceContext,
 				block.isNativeToolCall,
 			)
+		}
+
+		// Run PreToolUse hook after approval
+		const shouldContinue = await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		if (!shouldContinue) {
+			return formatResponse.toolCancelled()
 		}
 
 		// Setup timeout notification for long-running auto-approved commands
