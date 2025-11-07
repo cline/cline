@@ -28,6 +28,8 @@ import {
 	requestyDefaultModelInfo,
 } from "../../../src/shared/api"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
+import { updateSetting } from "../components/settings/utils/settingsHandlers"
+import i18n from "../i18n/i18n"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 
 export interface ExtensionStateContextType extends ExtensionState {
@@ -186,6 +188,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		dictationSettings: DEFAULT_DICTATION_SETTINGS,
 		focusChainSettings: DEFAULT_FOCUS_CHAIN_SETTINGS,
 		preferredLanguage: "English",
+		uiLanguage: undefined, // 不再使用localStorage或默认值，让后端设置决定
 		openaiReasoningEffort: "medium",
 		mode: "act",
 		platform: DEFAULT_PLATFORM,
@@ -289,6 +292,52 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
+		// Initialize state on component mount
+		StateServiceClient.getLatestState(EmptyRequest.create({}))
+			.then((response) => {
+				if (response.stateJson) {
+					try {
+						const stateData = JSON.parse(response.stateJson) as ExtensionState
+
+						// Initialize i18n with the uiLanguage from backend, not localStorage
+						// Only fallback to localStorage if backend doesn't provide a valid uiLanguage
+						if (stateData.uiLanguage && ["en", "zh-CN"].includes(stateData.uiLanguage)) {
+							i18n.changeLanguage(stateData.uiLanguage)
+							// Also save to localStorage to keep it in sync
+							localStorage.setItem("i18nextLng", stateData.uiLanguage)
+						} else {
+							// Fallback to localStorage saved language if backend doesn't have valid value
+							const savedLanguage = localStorage.getItem("i18nextLng")
+							if (savedLanguage && ["en", "zh-CN"].includes(savedLanguage)) {
+								i18n.changeLanguage(savedLanguage)
+								// Update backend with localStorage value since it wasn't set
+								updateSetting("uiLanguage", savedLanguage)
+							}
+						}
+
+						setState((prevState) => {
+							const newState = {
+								...stateData,
+								autoApprovalSettings: stateData.autoApprovalSettings || prevState.autoApprovalSettings,
+								// Ensure uiLanguage is set in state
+								uiLanguage: stateData.uiLanguage || prevState.uiLanguage,
+							}
+
+							// Update welcome screen state based on API configuration
+							setShowWelcome(!newState.welcomeViewCompleted)
+							setDidHydrateState(true)
+
+							return newState
+						})
+					} catch (error) {
+						console.error("Error parsing initial state JSON:", error)
+					}
+				}
+			})
+			.catch((error) => {
+				console.error("Error getting initial state:", error)
+			})
+
 		// Set up state subscription
 		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
 			onResponse: (response) => {
@@ -321,6 +370,14 @@ export const ExtensionStateContextProvider: React.FC<{
 								setShowWelcome(false)
 							}
 							setDidHydrateState(true)
+
+							// Update i18n language if uiLanguage changed
+							// Always use the backend uiLanguage setting instead of localStorage when it's available
+							if (stateData.uiLanguage && stateData.uiLanguage !== prevState.uiLanguage) {
+								i18n.changeLanguage(stateData.uiLanguage)
+								// Also save to localStorage to keep it in sync
+								localStorage.setItem("i18nextLng", stateData.uiLanguage)
+							}
 
 							console.log("[DEBUG] returning new state in ESC")
 

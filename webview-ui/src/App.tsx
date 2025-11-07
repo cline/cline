@@ -10,6 +10,7 @@ import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { Providers } from "./Providers"
 import { UiServiceClient } from "./services/grpc-client"
+import "./i18n/i18n"
 
 const AppContent = () => {
 	const {

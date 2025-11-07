@@ -136,6 +136,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("preferredLanguage", request.preferredLanguage)
 		}
 
+		if (request.uiLanguage !== undefined) {
+			controller.stateManager.setGlobalState("uiLanguage", request.uiLanguage)
+		}
+
 		// Update terminal timeout setting
 		if (request.shellIntegrationTimeout !== undefined) {
 			controller.stateManager.setGlobalState("shellIntegrationTimeout", Number(request.shellIntegrationTimeout))

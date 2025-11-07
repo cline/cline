@@ -106,6 +106,7 @@ export interface Settings {
 	yoloModeToggled: boolean
 	useAutoCondense: boolean
 	preferredLanguage: string
+	uiLanguage: string // 添加界面语言字段
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
 	dictationSettings: DictationSettings

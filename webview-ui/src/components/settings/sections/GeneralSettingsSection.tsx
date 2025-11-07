@@ -4,6 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import PreferredLanguageSetting from "../PreferredLanguageSetting"
 import Section from "../Section"
+import UILanguageSetting from "../UILanguageSetting"
 import { updateSetting } from "../utils/settingsHandlers"
 
 interface GeneralSettingsSectionProps {
@@ -18,6 +19,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 			{renderSectionHeader("general")}
 			<Section>
 				<PreferredLanguageSetting />
+				<UILanguageSetting />
 
 				<div className="mb-[5px]" id="enable-notifications">
 					<VSCodeCheckbox

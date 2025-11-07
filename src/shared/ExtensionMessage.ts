@@ -43,6 +43,7 @@ export interface ExtensionState {
 	browserSettings: BrowserSettings
 	remoteBrowserHost?: string
 	preferredLanguage?: string
+	uiLanguage?: string // 添加界面语言字段
 	openaiReasoningEffort?: OpenaiReasoningEffort
 	mode: Mode
 	checkpointManagerErrorMessage?: string

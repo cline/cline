@@ -12,6 +12,7 @@ import {
 	Wrench,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useEvent } from "react-use"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -43,44 +44,44 @@ interface SettingsTab {
 export const SETTINGS_TABS: SettingsTab[] = [
 	{
 		id: "api-config",
-		name: "API Configuration",
-		tooltipText: "API Configuration",
-		headerText: "API Configuration",
+		name: "settings.tabs.api_config",
+		tooltipText: "settings.tooltips.api_config",
+		headerText: "settings.headers.api_config",
 		icon: SlidersHorizontal,
 	},
 	{
 		id: "features",
-		name: "Features",
-		tooltipText: "Feature Settings",
-		headerText: "Feature Settings",
+		name: "settings.tabs.features",
+		tooltipText: "settings.tooltips.features",
+		headerText: "settings.headers.features",
 		icon: CheckCheck,
 	},
 	{
 		id: "browser",
-		name: "Browser",
-		tooltipText: "Browser Settings",
-		headerText: "Browser Settings",
+		name: "settings.tabs.browser",
+		tooltipText: "settings.tooltips.browser",
+		headerText: "settings.headers.browser",
 		icon: SquareMousePointer,
 	},
 	{
 		id: "terminal",
-		name: "Terminal",
-		tooltipText: "Terminal Settings",
-		headerText: "Terminal Settings",
+		name: "settings.tabs.terminal",
+		tooltipText: "settings.tooltips.terminal",
+		headerText: "settings.headers.terminal",
 		icon: SquareTerminal,
 	},
 	{
 		id: "general",
-		name: "General",
-		tooltipText: "General Settings",
-		headerText: "General Settings",
+		name: "settings.tabs.general",
+		tooltipText: "settings.tooltips.general",
+		headerText: "settings.headers.general",
 		icon: Wrench,
 	},
 	{
 		id: "about",
-		name: "About",
-		tooltipText: "About Cline",
-		headerText: "About",
+		name: "settings.tabs.about",
+		tooltipText: "settings.tooltips.about",
+		headerText: "settings.headers.about",
 		icon: Info,
 	},
 	// Only show in dev mode
@@ -100,7 +101,7 @@ type SettingsViewProps = {
 }
 
 // Helper to render section header - moved outside component for better performance
-const renderSectionHeader = (tabId: string) => {
+const renderSectionHeader = (tabId: string, t: (key: string) => string) => {
 	const tab = SETTINGS_TABS.find((t) => t.id === tabId)
 	if (!tab) {
 		return null
@@ -110,7 +111,7 @@ const renderSectionHeader = (tabId: string) => {
 		<SectionHeader>
 			<div className="flex items-center gap-2">
 				<tab.icon className="w-4" />
-				<div>{tab.headerText}</div>
+				<div>{t(tab.headerText)}</div>
 			</div>
 		</SectionHeader>
 	)
@@ -132,6 +133,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	) // Empty deps - these imports never change
 
 	const { version, environment } = useExtensionState()
+	const { t } = useTranslation("common")
 
 	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 
@@ -212,12 +214,12 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 								<span className="hidden sm:block">{tab.name}</span>
 							</div>
 						</TooltipTrigger>
-						<TooltipContent side="right">{tab.tooltipText}</TooltipContent>
+						<TooltipContent side="right">{t(tab.tooltipText)}</TooltipContent>
 					</Tooltip>
 				</TabTrigger>
 			)
 		},
-		[activeTab],
+		[activeTab, isCompactMode, handleTabChange, t],
 	)
 
 	// Memoized active content component
@@ -228,7 +230,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		}
 
 		// Special props for specific components
-		const props: any = { renderSectionHeader }
+		const props: any = {
+			renderSectionHeader: (tabId: string) => renderSectionHeader(tabId, t),
+		}
 		if (activeTab === "debug") {
 			props.onResetState = handleResetState
 		} else if (activeTab === "about") {
@@ -236,7 +240,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		}
 
 		return <Component {...props} />
-	}, [activeTab, handleResetState, version])
+	}, [activeTab, handleResetState, version, t])
 
 	const titleColor = getEnvironmentColor(environment)
 
@@ -245,11 +249,11 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			<TabHeader className="flex justify-between items-center gap-2">
 				<div className="flex items-center gap-1">
 					<h3 className="text-md m-0" style={{ color: titleColor }}>
-						Settings
+						{t("settings.title")}
 					</h3>
 				</div>
 				<div className="flex gap-2">
-					<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+					<VSCodeButton onClick={onDone}>{t("settings.done_button")}</VSCodeButton>
 				</div>
 			</TabHeader>
 

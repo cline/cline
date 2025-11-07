@@ -8,7 +8,7 @@ import { StateServiceClient } from "@/services/grpc-client"
  * @returns The converted value
  * @throws Error if the value is invalid for the field
  */
-const convertToProtoValue = (field: keyof UpdateSettingsRequest, value: any): any => {
+const convertToProtoValue = (field: string, value: any): any => {
 	if (field === "openaiReasoningEffort" && typeof value === "string") {
 		switch (value) {
 			case "minimal":
@@ -43,13 +43,31 @@ const convertToProtoValue = (field: keyof UpdateSettingsRequest, value: any): an
  * @param field - The field key to update
  * @param value - The new value for the field
  */
-export const updateSetting = (field: keyof UpdateSettingsRequest, value: any) => {
-	const updateRequest: Partial<UpdateSettingsRequest> = {}
+export const updateSetting = (field: string, value: any) => {
+	const updateRequest: Partial<UpdateSettingsRequest> = {} as Partial<UpdateSettingsRequest>
 
 	const convertedValue = convertToProtoValue(field, value)
-	updateRequest[field] = convertedValue
+	updateRequest[field as keyof UpdateSettingsRequest] = convertedValue
 
 	StateServiceClient.updateSettings(UpdateSettingsRequest.create(updateRequest)).catch((error) => {
 		console.error(`Failed to update setting ${field}:`, error)
+	})
+}
+
+/**
+ * Updates multiple fields in the settings at once.
+ *
+ * @param settings - An object containing the fields and values to update
+ */
+export const updateMultipleSettings = (settings: Record<string, any>) => {
+	const updateRequest: Partial<UpdateSettingsRequest> = {} as Partial<UpdateSettingsRequest>
+
+	for (const [field, value] of Object.entries(settings)) {
+		const convertedValue = convertToProtoValue(field, value)
+		updateRequest[field as keyof UpdateSettingsRequest] = convertedValue
+	}
+
+	StateServiceClient.updateSettings(UpdateSettingsRequest.create(updateRequest)).catch((error) => {
+		console.error(`Failed to update multiple settings:`, error)
 	})
 }

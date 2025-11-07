@@ -1,0 +1,45 @@
+{
+	"welcome": {
+		"title": "Hi, I'm Cline",
+		"description1": "I can do all kinds of tasks thanks to breakthroughs in",
+		"description2": "Claude 4 Sonnet's",
+		"description3": "agentic coding capabilities and access to tools that let me create & edit files, explore complex projects, use a browser, and execute terminal commands",
+		"description4": "(with your permission, of course)",
+		"description5": "I can even use MCP to create new tools and extend my own capabilities.",
+		"signup_prompt": "Sign up for an account to get started for free, or use an API key that provides access to models like Claude Sonnet.",
+		"get_started_button": "Get Started for Free",
+		"api_key_button": "Use your own API key",
+		"lets_go_button": "Let's go!"
+	},
+	"settings": {
+		"title": "Settings",
+		"tabs": {
+			"api_config": "API Configuration",
+			"features": "Features",
+			"browser": "Browser",
+			"terminal": "Terminal",
+			"debug": "Debug",
+			"general": "General",
+			"about": "About"
+		},
+		"tooltips": {
+			"api_config": "API Configuration",
+			"features": "Feature Settings",
+			"browser": "Browser Settings",
+			"terminal": "Terminal Settings",
+			"debug": "Debug Tools",
+			"general": "General Settings",
+			"about": "About Cline"
+		},
+		"headers": {
+			"api_config": "API Configuration",
+			"features": "Feature Settings",
+			"browser": "Browser Settings",
+			"terminal": "Terminal Settings",
+			"debug": "Debug",
+			"general": "General Settings",
+			"about": "About"
+		},
+		"done_button": "Done"
+	}
+}

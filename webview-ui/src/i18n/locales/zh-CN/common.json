@@ -1,0 +1,45 @@
+{
+	"welcome": {
+		"title": "你好，我是 Cline",
+		"description1": "得益于",
+		"description2": "Claude 4 Sonnet 的",
+		"description3": "代理编码功能和工具访问权限，我可以执行各种任务，包括创建和编辑文件、探索复杂项目、使用浏览器以及执行终端命令",
+		"description4": "（当然需要您的许可）",
+		"description5": "我甚至可以使用MCP创建新工具并扩展自己的功能。",
+		"signup_prompt": "免费注册账户开始使用，或使用提供Claude Sonnet等模型访问权限的API密钥。",
+		"get_started_button": "免费开始使用",
+		"api_key_button": "使用您自己的API密钥",
+		"lets_go_button": "开始吧！"
+	},
+	"settings": {
+		"title": "设置",
+		"tabs": {
+			"api_config": "API配置",
+			"features": "功能",
+			"browser": "浏览器",
+			"terminal": "终端",
+			"debug": "调试",
+			"general": "通用",
+			"about": "关于"
+		},
+		"tooltips": {
+			"api_config": "API配置",
+			"features": "功能设置",
+			"browser": "浏览器设置",
+			"terminal": "终端设置",
+			"debug": "调试工具",
+			"general": "通用设置",
+			"about": "关于Cline"
+		},
+		"headers": {
+			"api_config": "API配置",
+			"features": "功能设置",
+			"browser": "浏览器设置",
+			"terminal": "终端设置",
+			"debug": "调试",
+			"general": "通用设置",
+			"about": "关于"
+		},
+		"done_button": "完成"
+	}
+}

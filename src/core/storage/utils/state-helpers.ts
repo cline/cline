@@ -253,6 +253,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const openaiReasoningEffort =
 			context.globalState.get<GlobalStateAndSettings["openaiReasoningEffort"]>("openaiReasoningEffort")
 		const preferredLanguage = context.globalState.get<GlobalStateAndSettings["preferredLanguage"]>("preferredLanguage")
+		const uiLanguage = context.globalState.get<GlobalStateAndSettings["uiLanguage"]>("uiLanguage")
 		const focusChainSettings = context.globalState.get<GlobalStateAndSettings["focusChainSettings"]>("focusChainSettings")
 		const dictationSettings = context.globalState.get<GlobalStateAndSettings["dictationSettings"]>("dictationSettings") as
 			| DictationSettings
@@ -620,6 +621,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			globalClineRulesToggles: globalClineRulesToggles || {},
 			browserSettings: { ...DEFAULT_BROWSER_SETTINGS, ...browserSettings }, // this will ensure that older versions of browserSettings (e.g. before remoteBrowserEnabled was added) are merged with the default values (false for remoteBrowserEnabled)
 			preferredLanguage: preferredLanguage || "English",
+			uiLanguage: uiLanguage || "en", // 添加界面语言的默认值
 			openaiReasoningEffort: (openaiReasoningEffort as OpenaiReasoningEffort) || "medium",
 			mode: mode || "act",
 			userInfo,
