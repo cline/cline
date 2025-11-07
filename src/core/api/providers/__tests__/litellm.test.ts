@@ -3,6 +3,7 @@ import { LiteLlmHandler, type LiteLlmModelInfoResponse } from "@core/api/provide
 import { convertToOpenAiMessages } from "@core/api/transform/openai-format"
 import { expect } from "chai"
 import sinon from "sinon"
+import { mockFetchForTesting } from "@/shared/net"
 
 const fakeClient = {
 	chat: {
@@ -10,12 +11,12 @@ const fakeClient = {
 			create: sinon.stub(),
 		},
 	},
-	baseURL: "fake",
+	baseURL: "https://fake.example",
 }
 
 describe("LiteLlmHandler", () => {
-	const originalFetch = global.fetch
 	const mockFetch = sinon.stub()
+	let doneMockingFetch: (value: any) => void = () => {}
 
 	const mockModelFetch = (modelInfo: LiteLlmModelInfoResponse["data"][number]) => {
 		mockFetch.resolves({
@@ -45,7 +46,11 @@ describe("LiteLlmHandler", () => {
 	}
 
 	beforeEach(() => {
-		global.fetch = mockFetch
+		mockFetchForTesting(mockFetch, () => {
+			return new Promise((resolve) => {
+				doneMockingFetch = resolve
+			})
+		})
 
 		// Configure the stub to return a stream that closes immediately with usage data
 		fakeClient.chat.completions.create.resolves(
@@ -68,8 +73,7 @@ describe("LiteLlmHandler", () => {
 
 	afterEach(() => {
 		sinon.reset()
-
-		global.fetch = originalFetch
+		doneMockingFetch(void 0)
 	})
 
 	const createAsyncIterable = (data: any[] = []) => {

@@ -8,6 +8,7 @@ import { ChatMessages, LlmModuleConfig, OrchestrationClient, TemplatingModuleCon
 import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
 import axios, { AxiosError } from "axios"
 import OpenAI from "openai"
+import { getAxiosSettings } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -476,6 +477,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		const tokenUrl = this.options.sapAiCoreTokenUrl!.replace(/\/+$/, "") + "/oauth/token"
 		const response = await axios.post(tokenUrl, payload, {
 			headers: { "Content-Type": "application/x-www-form-urlencoded" },
+			...getAxiosSettings(),
 		})
 		const token = response.data as Token
 		token.expires_at = Date.now() + token.expires_in * 1000
@@ -502,7 +504,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		const url = `${this.options.sapAiCoreBaseUrl}/v2/lm/deployments?$top=10000&$skip=0`
 
 		try {
-			const response = await axios.get(url, { headers })
+			const response = await axios.get(url, { headers, ...getAxiosSettings() })
 			const deployments = response.data.resources
 
 			return deployments
@@ -646,6 +648,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 
 		const anthropicModels = [
+			"anthropic--claude-4.5-sonnet",
 			"anthropic--claude-4-sonnet",
 			"anthropic--claude-4-opus",
 			"anthropic--claude-3.7-sonnet",
@@ -690,6 +693,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 
 			if (
+				model.id === "anthropic--claude-4.5-sonnet" ||
 				model.id === "anthropic--claude-4-sonnet" ||
 				model.id === "anthropic--claude-4-opus" ||
 				model.id === "anthropic--claude-3.7-sonnet"
@@ -772,6 +776,7 @@ export class SapAiCoreHandler implements ApiHandler {
 				transformResponse: [(data, headers) => data],
 				// Validate status to ensure we get proper error responses
 				validateStatus: (status) => status >= 200 && status < 600,
+				...getAxiosSettings(),
 			})
 
 			// Check if we got an error status code
@@ -798,7 +803,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			}
 
 			if (model.id === "o3-mini") {
-				const response = await axios.post(url, JSON.stringify(payload, null, 2), { headers })
+				const response = await axios.post(url, JSON.stringify(payload, null, 2), { headers, ...getAxiosSettings() })
 
 				// Yield the usage information
 				if (response.data.usage) {
@@ -828,6 +833,7 @@ export class SapAiCoreHandler implements ApiHandler {
 			} else if (openAIModels.includes(model.id)) {
 				yield* this.streamCompletionGPT(response.data, model)
 			} else if (
+				model.id === "anthropic--claude-4.5-sonnet" ||
 				model.id === "anthropic--claude-4-sonnet" ||
 				model.id === "anthropic--claude-4-opus" ||
 				model.id === "anthropic--claude-3.7-sonnet"

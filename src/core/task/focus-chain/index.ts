@@ -363,17 +363,26 @@ export class FocusChainManager {
 	/**
 	 * Analyzes the current focus chain list for incomplete items when a task is marked as complete.
 	 * Captures telemetry data about unfinished progress items to help improve the focus chain system.
+	 * @param modelId The model ID being used (for telemetry)
+	 * @param provider The API provider being used (for telemetry)
 	 * @requires this.focusChainSettings.enabled and this.taskState.currentFocusChainChecklist to exist
 	 * @returns void - Sends telemetry data if incomplete items found, no return value
 	 */
-	public checkIncompleteProgressOnCompletion() {
+	public checkIncompleteProgressOnCompletion(modelId: string, provider: string) {
 		if (this.focusChainSettings.enabled && this.taskState.currentFocusChainChecklist) {
 			const { totalItems, completedItems } = parseFocusChainListCounts(this.taskState.currentFocusChainChecklist)
 
 			// Only track if there are items and not all are marked as completed
 			if (totalItems > 0 && completedItems < totalItems) {
 				const incompleteItems = totalItems - completedItems
-				telemetryService.captureFocusChainIncompleteOnCompletion(this.taskId, totalItems, completedItems, incompleteItems)
+				telemetryService.captureFocusChainIncompleteOnCompletion(
+					this.taskId,
+					totalItems,
+					completedItems,
+					incompleteItems,
+					modelId,
+					provider,
+				)
 			}
 		}
 	}

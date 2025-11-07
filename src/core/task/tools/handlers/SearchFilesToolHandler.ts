@@ -207,6 +207,11 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 		const regex: string | undefined = block.params.regex
 		const filePattern: string | undefined = block.params.file_pattern
 
+		// Extract provider information for telemetry
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
 		// Validate required parameters
 		const pathValidation = this.validator.assertRequiredParams(block, "path")
 		if (!pathValidation.ok) {
@@ -306,7 +311,16 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
 
 			// Capture telemetry
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true, workspaceContext)
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				true,
+				true,
+				workspaceContext,
+				block.isNativeToolCall,
+			)
 		} else {
 			// Manual approval flow
 			const notificationMessage = `Cline wants to search files for ${regex}`
@@ -322,9 +336,11 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 					config.ulid,
 					block.name,
 					config.api.getModel().id,
+					provider,
 					false,
 					false,
 					workspaceContext,
+					block.isNativeToolCall,
 				)
 				return formatResponse.toolDenied()
 			} else {
@@ -332,9 +348,11 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 					config.ulid,
 					block.name,
 					config.api.getModel().id,
+					provider,
 					false,
 					true,
 					workspaceContext,
+					block.isNativeToolCall,
 				)
 			}
 		}

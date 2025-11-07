@@ -100,6 +100,8 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		info: ClineSay.INFO,
 		task_progress: ClineSay.TASK_PROGRESS,
 		error_retry: ClineSay.ERROR_RETRY,
+		hook: ClineSay.INFO,
+		hook_output: ClineSay.COMMAND_OUTPUT_SAY,
 	}
 
 	const result = mapping[say]

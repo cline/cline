@@ -367,33 +367,35 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable Multi-Root Workspace
 							</VSCodeCheckbox>
 							<p className="text-xs">
-								<span className="text-xs bg-button-background/80 text-button-foreground px-2 py-1 rounded-lg mr-1">
-									Experimental
-								</span>
+								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
 								<span className="text-description">Allows cline to work across multiple workspaces.</span>
 							</p>
 						</div>
 					)}
-					{hooksEnabled?.featureFlag && (
-						<div className="mt-2.5">
-							<VSCodeCheckbox
-								checked={hooksEnabled.user}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									updateSetting("hooksEnabled", checked)
-								}}>
-								Enable Hooks
-							</VSCodeCheckbox>
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={hooksEnabled?.user}
+							disabled={!isMacOSOrLinux()}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("hooksEnabled", checked)
+							}}>
+							Enable Hooks
+						</VSCodeCheckbox>
+						{!isMacOSOrLinux() ? (
+							<p className="text-xs mt-1" style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
+								Hooks are not yet supported on Windows. This feature is currently available on macOS and Linux
+								only.
+							</p>
+						) : (
 							<p className="text-xs">
-								<span className="text-xs bg-button-background/80 text-button-foreground px-2 py-1 rounded-lg mr-1">
-									Experimental
-								</span>
+								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
 								<span className="text-description">
 									Allows execution of hooks from .clinerules/hooks/ directory.
 								</span>
 							</p>
-						</div>
-					)}
+						)}
+					</div>
 					{nativeToolCallSetting?.featureFlag && (
 						<div className="mt-2.5">
 							<VSCodeCheckbox
@@ -405,9 +407,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								Enable Native Tool Call
 							</VSCodeCheckbox>
 							<p className="text-xs">
-								<span className="text-xs bg-button-background/80 text-button-foreground px-2 py-1 rounded-lg mr-1">
-									Experimental
-								</span>
+								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
 								<span className="text-description">Allows Cline to call tools through the native API.</span>
 							</p>
 						</div>
@@ -439,9 +439,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</Tooltip>
 
 						<p className="text-xs text-(--vscode-errorForeground)">
-							This mode disables safety checks and user confirmations. Cline will automatically approve all actions
-							without asking. This special mode does not use plan mode or ask questions, and it is recommended to
-							enable all auto-approve actions instead.
+							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
+							automatically approve all actions without asking. Use with extreme caution.
 						</p>
 					</div>
 				</div>
