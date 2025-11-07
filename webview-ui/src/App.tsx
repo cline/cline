@@ -9,6 +9,7 @@ import SettingsView from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeView"
 import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
+import { ModelRefreshProvider, useModelContext } from "./context/ModelContext"
 import { Providers } from "./Providers"
 import { UiServiceClient } from "./services/grpc-client"
 
@@ -31,12 +32,12 @@ const AppContent = () => {
 		hideHistory,
 		hideAccount,
 		hideAnnouncement,
-		refreshModels,
 	} = useExtensionState()
 
 	const { clineUser, organizations, activeOrganization } = useClineAuth()
+	const { refreshModels } = useModelContext()
 
-	useMount(() => refreshModels("cline"))
+	useMount(() => refreshModels(ModelRefreshProvider.Cline))
 
 	useEffect(() => {
 		if (shouldShowAnnouncement) {

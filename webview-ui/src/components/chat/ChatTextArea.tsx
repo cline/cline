@@ -23,6 +23,7 @@ import { getModeSpecificFields, normalizeApiConfiguration } from "@/components/s
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useModelContext } from "@/context/ModelContext"
 import { usePlatform } from "@/context/PlatformContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
@@ -263,7 +264,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const {
 			mode,
 			apiConfiguration,
-			openRouterModels,
 			platform,
 			localWorkflowToggles,
 			globalWorkflowToggles,
@@ -271,6 +271,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			setShowChatModelSelector: setShowModelSelector,
 			dictationSettings,
 		} = useExtensionState()
+		const { models } = useModelContext()
 		const { clineUser } = useClineAuth()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -1020,7 +1021,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		// Separate the API config submission logic
 		const submitApiConfig = useCallback(async () => {
 			const apiValidationResult = validateApiConfiguration(mode, apiConfiguration)
-			const modelIdValidationResult = validateModelId(mode, apiConfiguration, openRouterModels)
+			const modelIdValidationResult = validateModelId(mode, apiConfiguration, models.openRouter)
 
 			if (!apiValidationResult && !modelIdValidationResult && apiConfiguration) {
 				try {
@@ -1041,7 +1042,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						console.error("Error refreshing state:", error)
 					})
 			}
-		}, [apiConfiguration, openRouterModels])
+		}, [apiConfiguration, models])
 
 		const onModeToggle = useCallback(() => {
 			// if (textAreaDisabled) return

@@ -1,12 +1,12 @@
-import { ModelInfo } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useEffect, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelRefreshProvider, useModelContext } from "@/context/ModelContext"
 import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
+import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -16,34 +16,24 @@ interface VercelAIGatewayProviderProps {
 	showModelOptions: boolean
 	isPopup?: boolean
 	currentMode: Mode
-	vercelModels: Record<string, ModelInfo>
 }
+
+const VERCEL_AI_GATEWAY_ID = ModelRefreshProvider.VercelAIGateway
 
 /**
  * The Vercel AI Gateway provider configuration component
  */
-export const VercelAIGatewayProvider = ({
-	showModelOptions,
-	isPopup,
-	currentMode,
-	vercelModels,
-}: VercelAIGatewayProviderProps) => {
+export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode }: VercelAIGatewayProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
-	const [selectedModelId, setSelectedModelId] = useState<string>("")
-	const [selectedModel, setSelectedModel] = useState<ModelInfo | undefined>(undefined)
 
-	useEffect(() => {
-		if (!selectedModelId) {
-			setSelectedModelId(Object.keys(vercelModels)[0] || "")
-		}
-	}, [vercelModels])
+	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+
+	const { models } = useModelContext()
 
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
-		setSelectedModelId(newModelId)
-		setSelectedModel(vercelModels[newModelId])
 		handleModeFieldsChange(
 			{
 				openRouterModelId: { plan: "planModeOpenRouterModelId", act: "actModeOpenRouterModelId" },
@@ -51,13 +41,13 @@ export const VercelAIGatewayProvider = ({
 			},
 			{
 				openRouterModelId: newModelId,
-				openRouterModelInfo: vercelModels[newModelId],
+				openRouterModelInfo: models[VERCEL_AI_GATEWAY_ID][newModelId],
 			},
 			currentMode,
 		)
 	}
 
-	if (!Object.keys(vercelModels).length) {
+	if (!Object.keys(models[VERCEL_AI_GATEWAY_ID]).length) {
 		// Still loading models
 		return <p>Loading models...</p>
 	}
@@ -88,7 +78,7 @@ export const VercelAIGatewayProvider = ({
 				</p>
 			</div>
 
-			{showModelOptions && Object.keys(vercelModels).length > 0 && (
+			{showModelOptions && Object.keys(models[VERCEL_AI_GATEWAY_ID]).length > 0 && (
 				<div className="w-full">
 					<div className="w-full flex flex-col">
 						<span className="font-semibold">Model</span>
@@ -99,8 +89,9 @@ export const VercelAIGatewayProvider = ({
 								if (target) {
 									handleModelChange(target)
 								}
-							}}>
-							{Object.keys(vercelModels).map((modelId) => (
+							}}
+							value={selectedModelId}>
+							{Object.keys(models[VERCEL_AI_GATEWAY_ID]).map((modelId) => (
 								<option key={modelId} value={modelId}>
 									{modelId}
 								</option>
@@ -124,9 +115,9 @@ export const VercelAIGatewayProvider = ({
 						/>
 					</div>
 
-					{selectedModel?.thinkingConfig?.maxBudget && <ThinkingBudgetSlider currentMode={currentMode} />}
-					{selectedModelId && selectedModel ? (
-						<ModelInfoView isPopup={isPopup} modelInfo={selectedModel} selectedModelId={selectedModelId} />
+					{selectedModelInfo?.thinkingConfig?.maxBudget && <ThinkingBudgetSlider currentMode={currentMode} />}
+					{selectedModelId && selectedModelInfo ? (
+						<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 					) : (
 						<p className="mt-1 text-description text-sm">
 							The extension automatically fetches the latest available models from

@@ -4,6 +4,7 @@ import { useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useModelContext } from "@/context/ModelContext"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
@@ -12,9 +13,10 @@ export const CURRENT_MODEL_BANNER_VERSION = 2
 
 export const NewModelBanner: React.FC = () => {
 	const { clineUser } = useClineAuth()
-	const { openRouterModels, setShowChatModelSelector } = useExtensionState()
+	const { setShowChatModelSelector } = useExtensionState()
 	const user = clineUser || undefined
 	const { handleFieldsChange } = useApiConfigurationHandlers()
+	const { models } = useModelContext()
 
 	const handleClose = useCallback((e?: React.MouseEvent) => {
 		e?.preventDefault()
@@ -32,8 +34,8 @@ export const NewModelBanner: React.FC = () => {
 		handleFieldsChange({
 			planModeOpenRouterModelId: modelId,
 			actModeOpenRouterModelId: modelId,
-			planModeOpenRouterModelInfo: openRouterModels[modelId],
-			actModeOpenRouterModelInfo: openRouterModels[modelId],
+			planModeOpenRouterModelInfo: models.openRouter[modelId],
+			actModeOpenRouterModelInfo: models.openRouter[modelId],
 			planModeApiProvider: "cline",
 			actModeApiProvider: "cline",
 		})

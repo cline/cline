@@ -1,7 +1,4 @@
-import { ModelInfo } from "@shared/api"
 import { StringRequest } from "@shared/proto/cline/common"
-import { OpenRouterCompatibleModelInfo } from "@shared/proto/cline/models"
-import { fromProtobufModels } from "@shared/proto-conversions/models/typeConversion"
 import { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
@@ -96,21 +93,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
-	const [vercelModels, setVercelModels] = useState<Record<string, ModelInfo> | undefined>(undefined)
-
-	useEffect(() => {
-		if (!vercelModels) {
-			ModelsServiceClient.refreshVercelAiGatewayModelsRpc({})
-				.then((response: OpenRouterCompatibleModelInfo) => {
-					const models = fromProtobufModels(response.models)
-					console.log(models)
-					if (models) {
-						setVercelModels(models)
-					}
-				})
-				.catch((error: Error) => console.error("Failed to refresh models:", error))
-		}
-	}, [selectedProvider])
 
 	// Poll ollama/vscode-lm models
 	const requestLocalModels = useCallback(async () => {
@@ -456,12 +438,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			)}
 
 			{apiConfiguration && selectedProvider === "vercel-ai-gateway" && (
-				<VercelAIGatewayProvider
-					currentMode={currentMode}
-					isPopup={isPopup}
-					showModelOptions={showModelOptions}
-					vercelModels={vercelModels || {}}
-				/>
+				<VercelAIGatewayProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "sambanova" && (

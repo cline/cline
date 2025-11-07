@@ -8,6 +8,7 @@ import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelRefreshProvider, useModelContext } from "@/context/ModelContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
@@ -16,6 +17,8 @@ import FeaturedModelCard from "./FeaturedModelCard"
 import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
+
+const PROVIDER_ID = ModelRefreshProvider.VercelAIGateway
 
 // Star icon for favorites
 const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
@@ -66,7 +69,9 @@ const FREE_CLINE_MODELS = featuredModels.filter((m) => m.isFree)
 
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
-	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshModels } = useExtensionState()
+	const { apiConfiguration, favoritedModelIds } = useExtensionState()
+	const { models, refreshModels } = useModelContext()
+	const openRouterModels = models[PROVIDER_ID]
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
@@ -87,7 +92,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			},
 			{
 				openRouterModelId: newModelId,
-				openRouterModelInfo: openRouterModels[newModelId],
+				openRouterModelInfo: models.openRouter[newModelId],
 			},
 			currentMode,
 		)
@@ -112,7 +117,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 		return selected
 	}, [apiConfiguration, currentMode])
 
-	useMount(() => refreshModels("openRouter"))
+	useMount(() => refreshModels(PROVIDER_ID))
 
 	// Sync external changes when the modelId changes
 	useEffect(() => {
