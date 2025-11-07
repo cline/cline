@@ -74,7 +74,7 @@ function checkIsCerebrasContextWindowError(response: any): boolean {
 
 function checkIsSapAiCoreContextWindowError(error: any): boolean {
 	// Check for ValidationException Error instance (created by SAP AI Core provider)
-	if (error instanceof Error && error.name === "ValidationException" && error.message.includes("Input is too long")) {
+	if (error instanceof Error && error.name === "ValidationException" && error.message.includes("Context is too long")) {
 		console.log("[SAP AI Core] Context error detected via ValidationException instance")
 		return true
 	}

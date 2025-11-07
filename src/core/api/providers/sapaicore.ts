@@ -381,8 +381,31 @@ export class SapAiCoreHandler implements ApiHandler {
 	/**
 	 * Checks if an error message indicates a context window issue
 	 */
-	private isContextWindowError(message: string): boolean {
-		return message.toLowerCase().includes("input is too long")
+	private isContextWindowError(message: string, errorCode: number, modelName: string): boolean {
+		if (modelName.startsWith("gemini")) {
+			// Gemini returns just Internal Server Error? and no message
+			return errorCode === 500
+		}
+
+		if (errorCode !== 400) {
+			return false
+		}
+
+		const lowerMessage = message.toLowerCase()
+
+		const contextWindowPatterns = [
+			"input is too long",
+			"exceed context limit",
+			"context length",
+			"context window exceeded",
+			"input exceeds maximum",
+			"request too large",
+			"context size limit",
+			"token limit exceeded",
+			"tokens exceed the configured limit",
+		]
+
+		return contextWindowPatterns.some((pattern) => lowerMessage.includes(pattern))
 	}
 
 	/**
@@ -422,8 +445,9 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 
 		// Check for context window errors using unified logic
-		if (this.isContextWindowError(detailedMessage)) {
-			throw new ValidationException("Input is too long for requested model", code || error.response?.status || 0)
+		const errorCode = code || error.response?.status || 0
+		if (this.isContextWindowError(detailedMessage, errorCode, this.getModel().id)) {
+			throw new ValidationException("Context is too long for requested model", errorCode)
 		}
 
 		if (error.response) {
