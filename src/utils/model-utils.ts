@@ -143,7 +143,7 @@ export function isNativeToolCallingConfig(providerInfo: ApiProviderInfo, enableN
 		return false
 	}
 	const modelId = providerInfo.model.id.toLowerCase()
-	return !isGPT5ModelFamily(modelId) && isNextGenModelFamily(modelId)
+	return isNextGenModelFamily(modelId)
 }
 
 function normalize(text: string): string {

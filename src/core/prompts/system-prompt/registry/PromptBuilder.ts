@@ -204,7 +204,6 @@ export class PromptBuilder {
 		}
 
 		// Build prompt sections efficiently
-		// Exclude XML usage examples for models using native tool calling
 		const sections = [
 			title,
 			description.join("\n"),

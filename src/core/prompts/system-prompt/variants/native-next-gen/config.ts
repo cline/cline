@@ -1,4 +1,4 @@
-import { isNativeToolCallingConfig } from "@utils/model-utils"
+import { isGPT5ModelFamily, isNextGenModelFamily, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -18,7 +18,15 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 		use_native_tools: 1,
 	})
 	.matcher((context) => {
-		return isNativeToolCallingConfig(context.providerInfo, context.enableNativeToolCalls || false)
+		if (!context.enableNativeToolCalls) {
+			return false
+		}
+		const providerInfo = context.providerInfo
+		if (!isNextGenModelProvider(providerInfo)) {
+			return false
+		}
+		const modelId = providerInfo.model.id.toLowerCase()
+		return !isGPT5ModelFamily(modelId) && isNextGenModelFamily(modelId)
 	})
 	.template(TEMPLATE_OVERRIDES.BASE)
 	.components(
