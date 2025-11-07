@@ -1,11 +1,11 @@
-import { ExtensionMessage } from "@shared/ExtensionMessage"
+import type { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import {
 	CheckCheck,
 	FlaskConical,
 	Info,
-	LucideIcon,
+	type LucideIcon,
 	SlidersHorizontal,
 	SquareMousePointer,
 	SquareTerminal,
@@ -69,15 +69,6 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		headerText: "Terminal Settings",
 		icon: SquareTerminal,
 	},
-	// Only show in dev mode
-	{
-		id: "debug",
-		name: "Debug",
-		tooltipText: "Debug Tools",
-		headerText: "Debug",
-		icon: FlaskConical,
-		hidden: !IS_DEV,
-	},
 	{
 		id: "general",
 		name: "General",
@@ -91,6 +82,15 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "About Cline",
 		headerText: "About",
 		icon: Info,
+	},
+	// Only show in dev mode
+	{
+		id: "debug",
+		name: "Debug",
+		tooltipText: "Debug Tools",
+		headerText: "Debug",
+		icon: FlaskConical,
+		hidden: !IS_DEV,
 	},
 ]
 
