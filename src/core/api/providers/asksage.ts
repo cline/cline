@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AskSageModelId, askSageDefaultModelId, askSageDefaultURL, askSageModels, ModelInfo } from "@shared/api"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"

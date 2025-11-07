@@ -12,7 +12,7 @@ import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
-import { McpMarketplaceCatalog } from "@shared/mcp"
+import { McpMarketplaceCatalog, McpMarketplaceItem } from "@shared/mcp"
 import { Settings } from "@shared/storage/state-keys"
 import { Mode } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
@@ -657,14 +657,23 @@ export class Controller {
 			throw new Error("Invalid response from MCP marketplace API")
 		}
 
-		const catalog: McpMarketplaceCatalog = {
-			items: (response.data || []).map((item: any) => ({
-				...item,
-				githubStars: item.githubStars ?? 0,
-				downloadCount: item.downloadCount ?? 0,
-				tags: item.tags ?? [],
-			})),
+		// Get allowlist from remote config
+		const allowedMCPServers = this.stateManager.getRemoteConfigSettings().allowedMCPServers
+
+		let items: McpMarketplaceItem[] = (response.data || []).map((item: McpMarketplaceItem) => ({
+			...item,
+			githubStars: item.githubStars ?? 0,
+			downloadCount: item.downloadCount ?? 0,
+			tags: item.tags ?? [],
+		}))
+
+		// Filter by allowlist if configured
+		if (allowedMCPServers) {
+			const allowedIds = new Set(allowedMCPServers.map((server) => server.id))
+			items = items.filter((item: McpMarketplaceItem) => allowedIds.has(item.mcpId))
 		}
+
+		const catalog: McpMarketplaceCatalog = { items }
 
 		// Store in cache file
 		await writeMcpMarketplaceCatalogToCache(catalog)
@@ -751,17 +760,6 @@ export class Controller {
 			}
 		} catch (error) {
 			console.error("Error reading cached OpenRouter models:", error)
-		}
-		return undefined
-	}
-
-	// Read Vercel AI Gateway models from disk cache
-	async readVercelAiGatewayModels(): Promise<Record<string, ModelInfo> | undefined> {
-		const vercelAiGatewayModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.vercelAiGatewayModels)
-		const fileExists = await fileExistsAtPath(vercelAiGatewayModelsFilePath)
-		if (fileExists) {
-			const fileContents = await fs.readFile(vercelAiGatewayModelsFilePath, "utf8")
-			return JSON.parse(fileContents)
 		}
 		return undefined
 	}
@@ -956,7 +954,7 @@ export class Controller {
 			},
 			hooksEnabled: {
 				user: this.stateManager.getGlobalStateKey("hooksEnabled"),
-				featureFlag: featureFlagsService.getHooksEnabled(),
+				featureFlag: true, // Hooks feature is now always available
 			},
 			lastDismissedInfoBannerVersion,
 			lastDismissedModelBannerVersion,

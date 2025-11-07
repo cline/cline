@@ -1,5 +1,5 @@
 import { ModelFamily } from "@/shared/prompts"
-import { ClineTool } from "@/shared/tools"
+import type { ClineTool } from "@/shared/tools"
 import { ClineToolSet } from ".."
 import { getSystemPromptComponents } from "../components"
 import { registerClineToolSets } from "../tools"
@@ -68,18 +68,21 @@ export class PromptRegistry {
 	}
 
 	getModelFamily(context: SystemPromptContext) {
-		// Loop through all registered variants to find the first one that matches
-		for (const [id, v] of this.variants.entries()) {
-			try {
-				if (v.matcher(context)) {
-					return v.family
+		// Ensure providerInfo and model ID are available
+		if (context.providerInfo?.model?.id) {
+			// Loop through all registered variants to find the first one that matches
+			for (const [_, v] of this.variants.entries()) {
+				try {
+					if (v.matcher(context)) {
+						return v.family
+					}
+				} catch {
+					// Continue to next variant if matcher throws
 				}
-			} catch (error) {
-				console.warn(`Matcher function error for variant '${id}':`, error)
-				// Continue to next variant if matcher throws
 			}
 		}
-
+		// Fallback to generic variant if no match found
+		console.log("No matching variant found, falling back to generic")
 		return ModelFamily.GENERIC
 	}
 	/**

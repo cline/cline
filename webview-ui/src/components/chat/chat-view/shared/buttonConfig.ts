@@ -233,7 +233,7 @@ export function getButtonConfig(message: ClineMessage | undefined, _mode: Mode =
 				// Only parse JSON if we need to determine save vs approve
 				try {
 					const tool = JSON.parse(message.text || "{}") as ClineSayTool
-					if (tool.tool === "editedExistingFile" || tool.tool === "newFileCreated") {
+					if (tool.tool === "editedExistingFile" || tool.tool === "newFileCreated" || tool.tool === "fileDeleted") {
 						return BUTTON_CONFIGS.tool_save
 					}
 				} catch {

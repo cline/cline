@@ -4,6 +4,7 @@ import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/services/logging/Logger"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
+import { fetch } from "@/shared/net"
 import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 import { IAuthProvider } from "./IAuthProvider"
 
