@@ -33,7 +33,7 @@ export const ModelDescriptionMarkdown = memo(({ markdown, key, isPopup }: ModelD
 
 	return (
 		<div className="inline-block mb-2 description line-clamp-3" key={key}>
-			<div className={cn("relative wrap-anywhere overflow-y-hidden", {})}>
+			<div className="relative wrap-anywhere overflow-y-hidden">
 				<div
 					className={cn("overflow-hidden text-sm line-clamp-3", {
 						"line-clamp-none": isExpanded,
