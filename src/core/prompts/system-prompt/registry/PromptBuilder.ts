@@ -209,7 +209,7 @@ export class PromptBuilder {
 			title,
 			description.join("\n"),
 			PromptBuilder.buildParametersSection(filteredParams),
-			!context.enableNativeToolCalls ? PromptBuilder.buildUsageSection(config.id, filteredParams) : "",
+			PromptBuilder.buildUsageSection(config.id, filteredParams),
 		]
 
 		return sections.filter(Boolean).join("\n")
