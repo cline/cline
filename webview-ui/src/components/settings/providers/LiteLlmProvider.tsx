@@ -42,7 +42,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 				onChange={async (value) => {
 					await ModelsServiceClient.updateApiConfiguration(
 						UpdateApiConfigurationRequestNew.create({
-							apiConfiguration: {
+							updates: {
 								options: {
 									liteLlmBaseUrl: value,
 								},
@@ -61,7 +61,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 				onChange={async (value) => {
 					await ModelsServiceClient.updateApiConfiguration(
 						UpdateApiConfigurationRequestNew.create({
-							apiConfiguration: {
+							updates: {
 								secrets: {
 									liteLlmApiKey: value,
 								},
@@ -79,14 +79,17 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 				initialValue={liteLlmModelId || ""}
 				onChange={async (value) => {
 					await ModelsServiceClient.updateApiConfiguration(
-						UpdateApiConfigurationRequestNew.create({
-							apiConfiguration: {
-								options:
-									currentMode === "plan" ? { planModeLiteLlmModelId: value } : { actModeLiteLlmModelId: value },
-							},
-							updateMask:
-								currentMode === "plan" ? ["options.planModeLiteLlmModelId"] : ["options.actModeLiteLlmModelId"],
-						}),
+						UpdateApiConfigurationRequestNew.create(
+							currentMode === "plan"
+								? {
+										updates: { options: { planModeLiteLlmModelId: value } },
+										updateMask: ["options.planModeLiteLlmModelId"],
+									}
+								: {
+										updates: { options: { actModeLiteLlmModelId: value } },
+										updateMask: ["options.actModeLiteLlmModelId"],
+									},
+						),
 					)
 				}}
 				placeholder={"e.g. anthropic/claude-sonnet-4-20250514"}
@@ -104,7 +107,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 
 								await ModelsServiceClient.updateApiConfiguration(
 									UpdateApiConfigurationRequestNew.create({
-										apiConfiguration: {
+										updates: {
 											options: {
 												liteLlmUsePromptCache: isChecked,
 											},
@@ -170,18 +173,17 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 							modelInfo.supportsImages = isChecked
 
 							await ModelsServiceClient.updateApiConfiguration(
-								UpdateApiConfigurationRequestNew.create({
-									apiConfiguration: {
-										options:
-											currentMode === "plan"
-												? { planModeLiteLlmModelInfo: modelInfo }
-												: { actModeLiteLlmModelInfo: modelInfo },
-									},
-									updateMask:
-										currentMode === "plan"
-											? ["options.planModeLiteLlmModelInfo"]
-											: ["options.actModeLiteLlmModelInfo"],
-								}),
+								UpdateApiConfigurationRequestNew.create(
+									currentMode === "plan"
+										? {
+												updates: { options: { planModeLiteLlmModelInfo: modelInfo } },
+												updateMask: ["options.planModeLiteLlmModelInfo"],
+											}
+										: {
+												updates: { options: { actModeLiteLlmModelInfo: modelInfo } },
+												updateMask: ["options.actModeLiteLlmModelInfo"],
+											},
+								),
 							)
 						}}>
 						Supports Images
@@ -198,18 +200,17 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 								modelInfo.contextWindow = Number(value)
 
 								await ModelsServiceClient.updateApiConfiguration(
-									UpdateApiConfigurationRequestNew.create({
-										apiConfiguration: {
-											options:
-												currentMode === "plan"
-													? { planModeLiteLlmModelInfo: modelInfo }
-													: { actModeLiteLlmModelInfo: modelInfo },
-										},
-										updateMask:
-											currentMode === "plan"
-												? ["options.planModeLiteLlmModelInfo"]
-												: ["options.actModeLiteLlmModelInfo"],
-									}),
+									UpdateApiConfigurationRequestNew.create(
+										currentMode === "plan"
+											? {
+													updates: { options: { planModeLiteLlmModelInfo: modelInfo } },
+													updateMask: ["options.planModeLiteLlmModelInfo"],
+												}
+											: {
+													updates: { options: { actModeLiteLlmModelInfo: modelInfo } },
+													updateMask: ["options.actModeLiteLlmModelInfo"],
+												},
+									),
 								)
 							}}
 							style={{ flex: 1 }}>
@@ -226,18 +227,17 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 								modelInfo.maxTokens = Number(value)
 
 								await ModelsServiceClient.updateApiConfiguration(
-									UpdateApiConfigurationRequestNew.create({
-										apiConfiguration: {
-											options:
-												currentMode === "plan"
-													? { planModeLiteLlmModelInfo: modelInfo }
-													: { actModeLiteLlmModelInfo: modelInfo },
-										},
-										updateMask:
-											currentMode === "plan"
-												? ["options.planModeLiteLlmModelInfo"]
-												: ["options.actModeLiteLlmModelInfo"],
-									}),
+									UpdateApiConfigurationRequestNew.create(
+										currentMode === "plan"
+											? {
+													updates: { options: { planModeLiteLlmModelInfo: modelInfo } },
+													updateMask: ["options.planModeLiteLlmModelInfo"],
+												}
+											: {
+													updates: { options: { actModeLiteLlmModelInfo: modelInfo } },
+													updateMask: ["options.actModeLiteLlmModelInfo"],
+												},
+									),
 								)
 							}}
 							style={{ flex: 1 }}>
@@ -261,18 +261,17 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 									value === "" ? liteLlmModelInfoSaneDefaults.temperature : parseFloat(value)
 
 								await ModelsServiceClient.updateApiConfiguration(
-									UpdateApiConfigurationRequestNew.create({
-										apiConfiguration: {
-											options:
-												currentMode === "plan"
-													? { planModeLiteLlmModelInfo: modelInfo }
-													: { actModeLiteLlmModelInfo: modelInfo },
-										},
-										updateMask:
-											currentMode === "plan"
-												? ["options.planModeLiteLlmModelInfo"]
-												: ["options.actModeLiteLlmModelInfo"],
-									}),
+									UpdateApiConfigurationRequestNew.create(
+										currentMode === "plan"
+											? {
+													updates: { options: { planModeLiteLlmModelInfo: modelInfo } },
+													updateMask: ["options.planModeLiteLlmModelInfo"],
+												}
+											: {
+													updates: { options: { actModeLiteLlmModelInfo: modelInfo } },
+													updateMask: ["options.actModeLiteLlmModelInfo"],
+												},
+									),
 								)
 							}}>
 							<span style={{ fontWeight: 500 }}>Temperature</span>
