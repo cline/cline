@@ -1,15 +1,15 @@
 import { Mode } from "@shared/storage/types"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useModelContext } from "@/context/ModelContext"
 import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
+import { DropdownContainer } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { ModelDropdown } from "./ModelDropdown"
 
 /**
  * Props for the VercelAIGatewayProvider component
@@ -85,12 +85,20 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 				<div className="w-full dropdown-container">
 					<div className="w-full flex flex-col z-[3000]">
 						<span className="font-semibold">Model</span>
-						<ModelDropdown
-							modelIds={vercelModelIds}
-							onSelect={handleModelChange}
-							provider={"vercel-ai-gateway"}
-							selectedModelId={selectedModelId}
-						/>
+						<DropdownContainer className="dropdown-container" zIndex={2000}>
+							<VSCodeDropdown
+								className="w-full mt-2"
+								onChange={(e: any) => {
+									handleModelChange(e.target.value)
+								}}
+								value={selectedModelId}>
+								{vercelModelIds.map((model) => (
+									<VSCodeOption className="p-1 px-2" key={model} value={model}>
+										{model}
+									</VSCodeOption>
+								))}
+							</VSCodeDropdown>
+						</DropdownContainer>
 
 						{/* Context window switcher for Claude Sonnet 4.5 */}
 						<ContextWindowSwitcher
