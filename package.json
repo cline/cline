@@ -414,7 +414,7 @@
 		"@grpc/grpc-js": "^1.9.15",
 		"@grpc/reflection": "^1.0.4",
 		"@mistralai/mistralai": "^1.5.0",
-		"@modelcontextprotocol/sdk": "^1.11.1",
+		"@modelcontextprotocol/sdk": "^1.21.1",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/core": "^2.1.0",
 		"@opentelemetry/exporter-logs-otlp-grpc": "^0.56.0",
@@ -497,7 +497,8 @@
 		"zod": "^3.24.2"
 	},
 	"overrides": {
-		"tar-fs": ">=3.1.1"
+		"tar-fs": ">=3.1.1",
+		"tar@<=7.5.2": "7.5.2"
 	},
 	"c8": {
 		"reporter": [
