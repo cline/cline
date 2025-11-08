@@ -96,6 +96,7 @@ message OpenRouterModelInfo {
   optional ThinkingConfig thinking_config = 10;
   optional bool supports_global_endpoint = 11;
   repeated ModelTier tiers = 12;
+  optional string name = 13;
 }
 
 // Shared response message for model information
@@ -312,7 +313,7 @@ message ApiConfiguration {
 // Request for updating API configuration (new - uses separate options and secrets)
 message UpdateApiConfigurationRequestNew {
   Metadata metadata = 1;
-  ApiConfiguration api_configuration = 2;
+  ApiConfiguration updates = 2;
 
   // Required field mask specifying which fields to update.
   // Field paths use dot notation with camelCase field names:
@@ -320,7 +321,7 @@ message UpdateApiConfigurationRequestNew {
   // - "options.openAiHeaders" (for options fields)
   // - "secrets.apiKey" (for secrets fields)
   // - "secrets.openRouterApiKey" (for secrets fields)
-  google.protobuf.FieldMask update_mask = 3;
+  repeated string update_mask = 3;
 }
 
 // Request for partially updating API configuration using FieldMask
