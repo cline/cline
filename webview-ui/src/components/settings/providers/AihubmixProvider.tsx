@@ -29,7 +29,6 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 
 	const [models, setModels] = useState<Record<string, ModelInfo>>({})
 
-	// 保证当前选中的模型在下拉列表中可见
 	const ensureSelectedPresent = (base: Record<string, ModelInfo>): Record<string, ModelInfo> => {
 		if (selectedModelId && !base[selectedModelId]) {
 			const info = (selectedModelInfo as ModelInfo) || {
@@ -48,7 +47,6 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 
 	// Get the normalized configuration
 
-	// 先回显本地缓存数据，再异步刷新并持久化到 localStorage
 	useEffect(() => {
 		try {
 			const cached = window.localStorage.getItem("aihubmixModels")
@@ -59,11 +57,9 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 				}
 			}
 		} catch {
-			// 解析失败则回显空集，仅注入当前选中模型（若有）
 			setModels(ensureSelectedPresent({}))
 		}
 
-		// 异步刷新模型列表
 		ModelsServiceClient.getAihubmixModels(EmptyRequest.create({}))
 			.then((response) => {
 				if (response.models) {
@@ -77,7 +73,6 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 			})
 			.catch((error) => {
 				console.error("Failed to fetch AIhubmix models:", error)
-				// 失败时保持当前 models，不打断用户
 			})
 	}, [])
 
@@ -90,7 +85,7 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 				initialValue={apiConfiguration?.aihubmixApiKey || ""}
 				onChange={(value) => handleFieldChange("aihubmixApiKey", value)}
 				providerName="AIhubmix"
-				signupUrl="https://console.aihubmix.com/token" // 转英文
+				signupUrl="https://console.aihubmix.com/token"
 			/>
 
 			{showModelOptions && (
@@ -101,7 +96,6 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 						onChange={(e) => {
 							const newModelId = e.target.value
 							const newModelInfo = models[newModelId] as ModelInfo | undefined
-							// 同步保存 ID 和 ModelInfo，避免切换后丢失
 							if (newModelInfo) {
 								handleModeFieldsChange(
 									{
@@ -111,15 +105,12 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 									{ id: newModelId, info: newModelInfo },
 									currentMode,
 								)
-								// 不同步写全局字段，保持 AIhubmix 与全局字段隔离
 							} else {
-								// 仅保存 ID（无信息时退化）
 								handleModeFieldChange(
 									{ plan: "planModeAihubmixModelId", act: "actModeAihubmixModelId" },
 									newModelId,
 									currentMode,
 								)
-								// 不同步写全局字段
 							}
 						}}
 						selectedModelId={selectedModelId}

@@ -4,7 +4,7 @@
 
 Cline hooks allow you to execute custom scripts at specific points in the agentic workflow. Hooks can be placed in either:
 - **Global hooks directory**: `~/Documents/Cline/Hooks/` (applies to all workspaces)
-- **Workspace hooks directory**: `.clinerules/hooks/` (applies to specific workspace)
+- **Workspace hooks directory**: `.clinerules/hooks/` (applies to the workspace the repo is part of)
 
 Hooks run automatically when enabled.
 
@@ -20,51 +20,51 @@ Hooks run automatically when enabled.
 ### TaskStart Hook
 - **When**: Runs when a NEW task is started (not when resuming)
 - **Purpose**: Initialize task context, validate task requirements, set up environment
-- **Global Location**: `~/Documents/Cline/Hooks/TaskStart` (all platforms)
-- **Workspace Location**: `.clinerules/hooks/TaskStart` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/TaskStart`
+- **Workspace Location**: `.clinerules/hooks/TaskStart`
 
 ### TaskResume Hook
 - **When**: Runs when an EXISTING task is resumed (after user clicks resume button)
 - **Purpose**: Validate resumed task state, restore context, check for changes since last run
-- **Global Location**: `~/Documents/Cline/Hooks/TaskResume` (all platforms)
-- **Workspace Location**: `.clinerules/hooks/TaskResume` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/TaskResume`
+- **Workspace Location**: `.clinerules/hooks/TaskResume`
 
 ### TaskCancel Hook
-- **When**: Runs when a task is cancelled by the user (only if there's actual active work or work was started)
+- **When**: Runs when a task is cancelled or a hook is aborted by the user (only if there's actual active work or work was started)
 - **Purpose**: Clean up resources, log cancellation, save state
-- **Global Location**: `~/Documents/Cline/Hooks/TaskCancel` (all platforms)
-- **Workspace Location**: `.clinerules/hooks/TaskCancel` (all platforms)
-- **Note**: This hook is NOT cancellable and will complete even if the task is being aborted
+- **Global Location**: `~/Documents/Cline/Hooks/TaskCancel`
+- **Workspace Location**: `.clinerules/hooks/TaskCancel`
+- **Note**: This hook is NOT cancellable
 
-### TaskComplete Hook
+### TaskComplete Hook (coming soon!)
 - **When**: Runs when a task is marked as complete
 - **Purpose**: Log completion status, perform final cleanup, generate reports
-- **Global Location**: `~/Documents/Cline/Hooks/TaskComplete` (all platforms)
-- **Workspace Location**: `.clinerules/hooks/TaskComplete` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/TaskComplete`
+- **Workspace Location**: `.clinerules/hooks/TaskComplete`
 
 ### UserPromptSubmit Hook
 - **When**: Runs when the user submits a prompt/message (initial task, resume, or feedback)
 - **Purpose**: Validate user input, preprocess prompts, add context to user messages
-- **Global Location**: `~/Documents/Cline/Hooks/UserPromptSubmit` (all platforms)
-- **Workspace Location**: `.clinerules/hooks/UserPromptSubmit` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/UserPromptSubmit`
+- **Workspace Location**: `.clinerules/hooks/UserPromptSubmit`
 
 ### PreToolUse Hook
 - **When**: Runs BEFORE a tool is executed
 - **Purpose**: Validate parameters, block execution, or add context
-- **Global Location**: `~/Documents/Cline/Hooks/PreToolUse` (all platforms)
-- **Workspace Location**: `.clinerules/hooks/PreToolUse` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/PreToolUse`
+- **Workspace Location**: `.clinerules/hooks/PreToolUse`
 
 ### PostToolUse Hook
 - **When**: Runs AFTER a tool completes
 - **Purpose**: Observe results, track patterns, or add context
-- **Global Location**: `~/Documents/Cline/Hooks/PostToolUse` (all platforms)
-- **Workspace Location**: `.clinerules/hooks/PostToolUse` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/PostToolUse`
+- **Workspace Location**: `.clinerules/hooks/PostToolUse`
 
-### PreCompact Hook
+### PreCompact Hook (coming soon!)
 - **When**: Runs BEFORE the conversation context is compacted/truncated
 - **Purpose**: Observe compaction events, log context management, track token usage
-- **Global Location**: `~/Documents/Cline/Hooks/PreCompact` (all platforms)
-- **Workspace Location**: `.clinerules/hooks/PreCompact` (all platforms)
+- **Global Location**: `~/Documents/Cline/Hooks/PreCompact`
+- **Workspace Location**: `.clinerules/hooks/PreCompact`
 
 ## Cross-Platform Hook Format
 
@@ -74,13 +74,12 @@ Cline uses a git-style approach for hooks that works consistently across all pla
 - **No file extensions**: Hooks are named exactly `PreToolUse` or `PostToolUse` (no `.bat`, `.cmd`, `.sh` etc.)
 - **Shebang required**: First line must be a shebang (e.g., `#!/usr/bin/env bash` or `#!/usr/bin/env node`)
 - **Executable on Unix**: On Unix/Linux/macOS, hooks must be executable: `chmod +x PreToolUse`
-- **Windows**: No special permissions needed - hooks are executed through the shell
+- **Windows**: Not currently supported.
 
 ### How It Works
 
 Like git hooks, Cline executes hook files through a shell that interprets the shebang line:
 - On Unix/Linux/macOS: Native shell execution with shebang support
-- On Windows: Shell execution handles shebang interpretation
 
 This means:
 - ✅ Same hook script works on all platforms
@@ -96,12 +95,6 @@ nano ~/Documents/Cline/Hooks/PreToolUse
 
 # Make executable
 chmod +x ~/Documents/Cline/Hooks/PreToolUse
-```
-
-**On Windows:**
-```batch
-REM Create hook file (note: no file extension)
-notepad %USERPROFILE%\Documents\Cline\Hooks\PreToolUse
 ```
 
 ## Context Injection Timing
@@ -218,27 +211,6 @@ All hooks must return:
 - `false` (or omitted): Allow execution to continue
 - `true`: Block execution and show error message to user
 
-## Context Modification Format
-
-Use structured prefixes to help the AI understand context type:
-
-- `WORKSPACE_RULES:` - Project conventions and requirements
-- `FILE_OPERATIONS:` - File creation/modification patterns
-- `TOOL_RESULT:` - Outcomes of tool executions
-- `PERFORMANCE:` - Performance concerns
-- `VALIDATION:` - Validation results
-- Custom prefixes as needed
-
-Example:
-```bash
-cat <<EOF
-{
-  "cancel": false,
-  "contextModification": "WORKSPACE_RULES: This is a TypeScript project. All new files must use .ts or .tsx extensions."
-}
-EOF
-```
-
 ## Hook Execution Limits
 
 - **Timeout**: Hooks must complete within 30 seconds (configurable via `HOOK_EXECUTION_TIMEOUT_MS`)
@@ -260,7 +232,7 @@ if [[ "$tool_name" == "write_to_file" && "$path" == *.js ]]; then
 {
   "cancel": true,
   "errorMessage": "Cannot create .js files in TypeScript project",
-  "contextModification": "WORKSPACE_RULES: Use .ts/.tsx extensions only"
+  "contextModification": "Use .ts/.tsx extensions only"
 }
 EOF
   exit 0
@@ -282,7 +254,7 @@ if [[ "$tool_name" == "write_to_file" && "$success" == "true" ]]; then
   cat <<EOF
 {
   "cancel": false,
-  "contextModification": "FILE_OPERATIONS: Created '$path'. Maintain consistency with this file's patterns in future operations."
+  "contextModification": "Created '$path'. Maintain consistency with this file's patterns in future operations."
 }
 EOF
 else
@@ -302,7 +274,7 @@ if [[ "$execution_time" -gt 5000 ]]; then
   cat <<EOF
 {
   "cancel": false,
-  "contextModification": "PERFORMANCE: Tool '$tool_name' took ${execution_time}ms. Consider optimizing future similar operations."
+  "contextModification": "Tool '$tool_name' took ${execution_time}ms. Consider optimizing future similar operations."
 }
 EOF
 else
@@ -328,7 +300,7 @@ echo '{"cancel": false}'
 Cline supports two levels of hooks:
 
 ### Global Hooks
-- **Location**: `~/Documents/Cline/Hooks/` (macOS/Linux) or `%USERPROFILE%\Documents\Cline\Hooks\` (Windows)
+- **Location**: `~/Documents/Cline/Hooks/` (macOS/Linux)
 - **Scope**: Apply to ALL workspaces and projects
 - **Use Case**: Organization-wide policies, personal preferences, universal validations
 - **Priority**: Order not guaranteed when combined with workspace hooks
@@ -356,16 +328,12 @@ When multiple hooks exist (global and/or workspace):
 
 1. The global hooks directory is automatically created at:
    - macOS/Linux: `~/Documents/Cline/Hooks/`
-   - Windows: `%USERPROFILE%\Documents\Cline\Hooks\`
 
 2. Add your hook script:
    ```bash
    # Unix/Linux/macOS
    nano ~/Documents/Cline/Hooks/PreToolUse
    chmod +x ~/Documents/Cline/Hooks/PreToolUse
-   
-   # Windows
-   notepad %USERPROFILE%\Documents\Cline\Hooks\PreToolUse
    ```
 
 3. Enable hooks in Cline settings
@@ -433,7 +401,6 @@ If you have multiple workspace roots, you can place hooks in each root's `.cline
 
 ### Context Not Affecting Behavior
 - Remember: context affects FUTURE decisions, not the current tool
-- Use PreToolUse for validation (blocking) if you need immediate effect
 - Ensure context modifications are clear and actionable
 - Check that context isn't being truncated (50KB limit)
 
