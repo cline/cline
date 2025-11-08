@@ -114,8 +114,5 @@ async function readVercelAiGatewayModels(): Promise<Record<string, ModelInfo> | 
 }
 
 const parsePrice = (price?: string | null) => {
-	if (price) {
-		return parseFloat(price) * 1_000_000
-	}
-	return 0
+	return price !== null && price !== undefined ? parseFloat(price) * 1_000_000 : undefined
 }

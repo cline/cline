@@ -28,8 +28,7 @@ const PROVIDER_ID = ModelRefreshProvider.VercelAIGateway
  */
 export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode }: VercelAIGatewayProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
-	const { handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
 
 	const { models, refreshModels } = useModelContext()
 

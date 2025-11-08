@@ -3,7 +3,7 @@
 	--color-background: var(--vscode-sideBar-background);
 	--color-border: var(--vscode-focusBorder);
 	--color-border-panel: var(--vscode-panel-border);
-	--color-seperator: var(--vscode-textSeparator-foreground);
+	--color-separator: var(--vscode-textSeparator-foreground);
 	--color-foreground: var(--vscode-foreground);
 	--color-shadow: var(--vscode-widget-shadow);
 	--color-code: var(--vscode-editor-background);
