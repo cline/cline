@@ -2,6 +2,7 @@ import { vertexGlobalModels, vertexModels } from "@shared/api"
 import VertexData from "@shared/providers/vertex.json"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -41,6 +42,7 @@ const REGIONS = VertexData.regions
 export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: VertexProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { t } = useTranslation("common")
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -58,14 +60,14 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 			<DebouncedTextField
 				initialValue={apiConfiguration?.vertexProjectId || ""}
 				onChange={(value) => handleFieldChange("vertexProjectId", value)}
-				placeholder="Enter Project ID..."
+				placeholder={t("api_provider.vertex.project_id_placeholder")}
 				style={{ width: "100%" }}>
-				<span style={{ fontWeight: 500 }}>Google Cloud Project ID</span>
+				<span style={{ fontWeight: 500 }}>{t("api_provider.vertex.project_id_label")}</span>
 			</DebouncedTextField>
 
 			<DropdownContainer className="dropdown-container" zIndex={DROPDOWN_Z_INDEX - 1}>
 				<label htmlFor="vertex-region-dropdown">
-					<span style={{ fontWeight: 500 }}>Google Cloud Region</span>
+					<span style={{ fontWeight: 500 }}>{t("api_provider.vertex.region_label")}</span>
 				</label>
 				<VSCodeDropdown
 					id="vertex-region-dropdown"
@@ -87,23 +89,23 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					marginTop: "5px",
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				To use Google Cloud Vertex AI, you need to
+				{t("api_provider.vertex.setup_instructions")}
 				<VSCodeLink
 					href="https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#before_you_begin"
 					style={{ display: "inline", fontSize: "inherit" }}>
-					{"1) create a Google Cloud account › enable the Vertex AI API › enable the desired Claude models,"}
+					{t("api_provider.vertex.setup_step1")}
 				</VSCodeLink>{" "}
 				<VSCodeLink
 					href="https://cloud.google.com/docs/authentication/provide-credentials-adc#google-idp"
 					style={{ display: "inline", fontSize: "inherit" }}>
-					{"2) install the Google Cloud CLI › configure Application Default Credentials."}
+					{t("api_provider.vertex.setup_step2")}
 				</VSCodeLink>
 			</p>
 
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("api_provider.vertex.model_label")}
 						models={modelsToUse}
 						onChange={(e: any) =>
 							handleModeFieldChange(

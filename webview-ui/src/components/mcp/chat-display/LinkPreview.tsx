@@ -1,6 +1,7 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import DOMPurify from "dompurify"
 import React from "react"
+import { useTranslation } from "react-i18next"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
 import { WebServiceClient } from "@/services/grpc-client"
 import { getSafeHostname, normalizeRelativeUrl } from "./utils/mcpRichUtil"
@@ -164,6 +165,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 	}
 
 	render() {
+		const { t } = useTranslation()
 		const { url } = this.props
 		const { loading, error, errorMessage, ogData, fetchStartTime } = this.state
 
@@ -205,13 +207,20 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 								}
 							`}
 						</style>
-						Loading preview for {getSafeHostname(url)}...
+						{t("mcp.chat_display.loading_preview", "Loading preview for {{hostname}}...", {
+							hostname: getSafeHostname(url),
+						})}
 					</div>
 					{elapsedSeconds > 5 && (
 						<div style={{ fontSize: "11px", color: "var(--vscode-descriptionForeground)" }}>
 							{elapsedSeconds > 60
-								? `Waiting for ${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s...`
-								: `Waiting for ${elapsedSeconds}s...`}
+								? t("mcp.chat_display.waiting_minutes", "Waiting for {{minutes}}m {{seconds}}s...", {
+										minutes: Math.floor(elapsedSeconds / 60),
+										seconds: elapsedSeconds % 60,
+									})
+								: t("mcp.chat_display.waiting_seconds", "Waiting for {{seconds}}s...", {
+										seconds: elapsedSeconds,
+									})}
 						</div>
 					)}
 				</div>
@@ -220,12 +229,12 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 
 		// Handle different error states with specific messages
 		if (error) {
-			let errorDisplay = "Unable to load preview"
+			let errorDisplay = t("mcp.chat_display.unable_to_load_preview", "Unable to load preview")
 
 			if (error === "timeout") {
-				errorDisplay = "Preview request timed out"
+				errorDisplay = t("mcp.chat_display.preview_timeout", "Preview request timed out")
 			} else if (error === "network") {
-				errorDisplay = "Network error loading preview"
+				errorDisplay = t("mcp.chat_display.network_error", "Network error loading preview")
 			}
 
 			return (
@@ -255,7 +264,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
 					{errorMessage && <div style={{ fontSize: "11px", marginTop: "4px", opacity: 0.8 }}>{errorMessage}</div>}
 					<div style={{ fontSize: "11px", marginTop: "8px", color: "var(--vscode-textLink-foreground)" }}>
-						Click to open in browser
+						{t("mcp.chat_display.click_to_open_in_browser", "Click to open in browser")}
 					</div>
 				</div>
 			)
@@ -264,7 +273,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 		// Create a fallback object if ogData is null
 		const data = ogData || {
 			title: getSafeHostname(url),
-			description: "No description available",
+			description: t("mcp.chat_display.no_description", "No description available"),
 			siteName: getSafeHostname(url),
 			url: url,
 		}
@@ -348,7 +357,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 								overflow: "hidden",
 								textOverflow: "ellipsis",
 							}}>
-							{data.title || "No title"}
+							{data.title || t("mcp.chat_display.no_title", "No title")}
 						</div>
 
 						<div
@@ -385,7 +394,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 								WebkitBoxOrient: "vertical",
 								textOverflow: "ellipsis",
 							}}>
-							{data.description || "No description available"}
+							{data.description || t("mcp.chat_display.no_description", "No description available")}
 						</div>
 					</div>
 				</div>
@@ -402,8 +411,10 @@ const MemoizedLinkPreview = React.memo(
 
 // Wrap the LinkPreview component with an error boundary
 const LinkPreviewWithErrorBoundary: React.FC<LinkPreviewProps> = (props) => {
+	const { t } = useTranslation()
 	return (
-		<ChatErrorBoundary errorTitle="Something went wrong displaying this link preview">
+		<ChatErrorBoundary
+			errorTitle={t("mcp.chat_display.error_displaying_link_preview", "Something went wrong displaying this link preview")}>
 			<MemoizedLinkPreview {...props} />
 		</ChatErrorBoundary>
 	)

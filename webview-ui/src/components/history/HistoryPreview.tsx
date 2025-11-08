@@ -1,6 +1,7 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { memo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { formatLargeNumber } from "@/utils/format"
@@ -10,6 +11,7 @@ type HistoryPreviewProps = {
 }
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
+	const { t } = useTranslation()
 	const { taskHistory } = useExtensionState()
 	const [isExpanded, setIsExpanded] = useState(true)
 
@@ -93,7 +95,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						fontSize: "0.85em",
 						textTransform: "uppercase",
 					}}>
-					Recent Tasks
+					{t("history.recent_tasks", "Recent Tasks")}
 				</span>
 			</div>
 
@@ -129,7 +131,10 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 														right: "12px",
 														color: "var(--vscode-button-background)",
 													}}>
-													<span aria-label="Favorited" className="codicon codicon-star-full" />
+													<span
+														aria-label={t("history.favorited", "Favorited")}
+														className="codicon codicon-star-full"
+													/>
 												</div>
 											)}
 
@@ -145,17 +150,21 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 											</div>
 											<div className="text-sm text-description">
 												<span className="mr-1">
-													Tokens: ↑{formatLargeNumber(item.tokensIn || 0)} ↓
+													{t("history.tokens_label", "Tokens:")} ↑
+													{formatLargeNumber(item.tokensIn || 0)} ↓
 													{formatLargeNumber(item.tokensOut || 0)}
 												</span>
 												{!!item.cacheWrites && (
 													<span className="mr-1">
-														• Cache: +{formatLargeNumber(item.cacheWrites || 0)} →{" "}
+														• {t("history.cache_label", "Cache:")} +
+														{formatLargeNumber(item.cacheWrites || 0)} →{" "}
 														{formatLargeNumber(item.cacheReads || 0)}
 													</span>
 												)}
 												{!!item.totalCost && (
-													<span className="mr-1">• API Cost: ${item.totalCost?.toFixed(4)}</span>
+													<span className="mr-1">
+														• {t("history.api_cost_label", "API Cost:")} ${item.totalCost?.toFixed(4)}
+													</span>
 												)}
 											</div>
 										</div>
@@ -169,7 +178,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								}}>
 								<VSCodeButton
 									appearance="icon"
-									aria-label="View all history"
+									aria-label={t("history.view_all", "View all history")}
 									onClick={() => showHistoryView()}
 									style={{
 										opacity: 0.9,
@@ -179,7 +188,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 											fontSize: "var(--vscode-font-size)",
 											color: "var(--vscode-descriptionForeground)",
 										}}>
-										View all history
+										{t("history.view_all_history", "View all history")}
 									</div>
 								</VSCodeButton>
 							</div>
@@ -192,7 +201,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								fontSize: "var(--vscode-font-size)",
 								padding: "10px 0",
 							}}>
-							No recent tasks
+							{t("history.no_recent_tasks", "No recent tasks")}
 						</div>
 					)}
 				</div>

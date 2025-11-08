@@ -1,4 +1,5 @@
 import { memo, useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { getLanguageFromPath } from "@/utils/getLanguageFromPath"
 
@@ -33,6 +34,7 @@ const CodeAccordian = ({
 	onToggleExpand,
 	isLoading,
 }: CodeAccordianProps) => {
+	const { t } = useTranslation()
 	const inferredLanguage = useMemo(
 		() => code && (language ?? (path ? getLanguageFromPath(path) : undefined)),
 		[path, language, code],
@@ -81,7 +83,7 @@ const CodeAccordian = ({
 									textOverflow: "ellipsis",
 									marginRight: "8px",
 								}}>
-								{isFeedback ? "User Edits" : "Console Logs"}
+								{isFeedback ? t("code_accordian.user_edits") : t("code_accordian.console_logs")}
 							</span>
 						</div>
 					) : (

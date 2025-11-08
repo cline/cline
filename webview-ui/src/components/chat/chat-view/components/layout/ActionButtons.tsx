@@ -3,6 +3,7 @@ import type { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import type React from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { VirtuosoHandle } from "react-virtuoso"
 import { ButtonActionType, getButtonConfig } from "../../shared/buttonConfig"
 import type { ChatState, MessageHandlers } from "../../types/chatTypes"
@@ -32,6 +33,9 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 	messageHandlers,
 	scrollBehavior,
 }) => {
+	// 添加翻译钩子
+	const { t } = useTranslation("common")
+
 	const { inputValue, selectedImages, selectedFiles, setSendingDisabled } = chatState
 	const [isProcessing, setIsProcessing] = useState(false)
 
@@ -126,7 +130,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 			<div className="flex px-3.5">
 				<VSCodeButton
 					appearance="icon"
-					aria-label={showScrollToBottom ? "Scroll to bottom" : "Scroll to top"}
+					aria-label={showScrollToBottom ? t("chat.scroll_to_bottom") : t("chat.scroll_to_top")}
 					className="text-lg text-(--vscode-primaryButton-foreground) bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_55%,transparent)] rounded-[3px] overflow-hidden cursor-pointer flex justify-center items-center flex-1 h-[25px] hover:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_90%,transparent)] active:bg-[color-mix(in_srgb,var(--vscode-toolbar-hoverBackground)_70%,transparent)] border-0"
 					onClick={showScrollToBottom ? handleScrollToBottom : handleScrollToTop}
 					onKeyDown={(e) => {
@@ -151,24 +155,50 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 	const opacity = canInteract || isStreaming ? 1 : 0.5
 
+	// Translate button texts
+	const translateButtonText = (text: string | undefined): string | undefined => {
+		if (!text) return text
+
+		const buttonTranslations: Record<string, string> = {
+			Approve: t("chat.buttons.approve"),
+			Reject: t("chat.buttons.reject"),
+			Save: t("chat.buttons.save"),
+			"Run Command": t("chat.buttons.run_command"),
+			"Proceed While Running": t("chat.buttons.proceed_while_running"),
+			"Start New Task": t("chat.buttons.start_new_task"),
+			"Resume Task": t("chat.buttons.resume_task"),
+			"Start New Task with Context": t("chat.buttons.start_new_task_with_context"),
+			"Condense Conversation": t("chat.buttons.condense_conversation"),
+			"Report GitHub issue": t("chat.buttons.report_github_issue"),
+			Retry: t("chat.buttons.retry"),
+			"Proceed Anyways": t("chat.buttons.proceed_anyways"),
+			Cancel: t("chat.buttons.cancel"),
+		}
+
+		return buttonTranslations[text] || text
+	}
+
+	const translatedPrimaryText = translateButtonText(primaryText)
+	const translatedSecondaryText = translateButtonText(secondaryText)
+
 	return (
 		<div className="flex px-3.5" style={{ opacity }}>
-			{primaryText && primaryAction && (
+			{translatedPrimaryText && primaryAction && (
 				<VSCodeButton
 					appearance="primary"
-					className={secondaryText ? "flex-1 mr-[6px]" : "flex-2"}
+					className={translatedSecondaryText ? "flex-1 mr-[6px]" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(primaryAction, inputValue, selectedImages, selectedFiles)}>
-					{primaryText}
+					{translatedPrimaryText}
 				</VSCodeButton>
 			)}
-			{secondaryText && secondaryAction && (
+			{translatedSecondaryText && secondaryAction && (
 				<VSCodeButton
 					appearance="secondary"
-					className={primaryText ? "flex-1" : "flex-2"}
+					className={translatedPrimaryText ? "flex-1" : "flex-2"}
 					disabled={!canInteract}
 					onClick={() => handleActionClick(secondaryAction, inputValue, selectedImages, selectedFiles)}>
-					{secondaryText}
+					{translatedSecondaryText}
 				</VSCodeButton>
 			)}
 		</div>

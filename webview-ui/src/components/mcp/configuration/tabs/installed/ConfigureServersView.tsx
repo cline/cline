@@ -1,10 +1,12 @@
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient, UiServiceClient } from "@/services/grpc-client"
 import ServersToggleList from "./ServersToggleList"
 
 const ConfigureServersView = () => {
+	const { t } = useTranslation()
 	const { mcpServers: servers, navigateToSettings } = useExtensionState()
 
 	return (
@@ -16,18 +18,23 @@ const ConfigureServersView = () => {
 					marginBottom: "16px",
 					marginTop: "5px",
 				}}>
-				The{" "}
+				{t("mcp.configure.description_part1", "The")}{" "}
 				<VSCodeLink href="https://github.com/modelcontextprotocol" style={{ display: "inline" }}>
-					Model Context Protocol
+					{t("mcp.configure.model_context_protocol", "Model Context Protocol")}
 				</VSCodeLink>{" "}
-				enables communication with locally running MCP servers that provide additional tools and resources to extend
-				Cline's capabilities. You can use{" "}
+				{t(
+					"mcp.configure.description_part2",
+					"enables communication with locally running MCP servers that provide additional tools and resources to extend Cline's capabilities. You can use",
+				)}{" "}
 				<VSCodeLink href="https://github.com/modelcontextprotocol/servers" style={{ display: "inline" }}>
-					community-made servers
+					{t("mcp.configure.community_servers", "community-made servers")}
 				</VSCodeLink>{" "}
-				or ask Cline to create new tools specific to your workflow (e.g., "add a tool that gets the latest npm docs").{" "}
+				{t(
+					"mcp.configure.description_part3",
+					'or ask Cline to create new tools specific to your workflow (e.g., "add a tool that gets the latest npm docs").',
+				)}{" "}
 				<VSCodeLink href="https://x.com/sdrzn/status/1867271665086074969" style={{ display: "inline" }}>
-					See a demo here.
+					{t("mcp.configure.see_demo", "See a demo here.")}
 				</VSCodeLink>
 			</div>
 
@@ -44,7 +51,7 @@ const ConfigureServersView = () => {
 					}}
 					style={{ width: "100%", marginBottom: "5px" }}>
 					<span className="codicon codicon-server" style={{ marginRight: "6px" }}></span>
-					Configure MCP Servers
+					{t("mcp.configure.configure_mcp_servers", "Configure MCP Servers")}
 				</VSCodeButton>
 
 				<div style={{ textAlign: "center" }}>
@@ -63,7 +70,7 @@ const ConfigureServersView = () => {
 							}, 300)
 						}}
 						style={{ fontSize: "12px" }}>
-						Advanced MCP Settings
+						{t("mcp.configure.advanced_settings", "Advanced MCP Settings")}
 					</VSCodeLink>
 				</div>
 			</div>

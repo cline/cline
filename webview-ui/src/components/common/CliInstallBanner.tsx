@@ -3,6 +3,7 @@ import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { Terminal, XIcon } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient, UiServiceClient } from "@/services/grpc-client"
@@ -12,6 +13,7 @@ import { getAsVar, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
 export const CURRENT_CLI_BANNER_VERSION = 1
 
 export const CliInstallBanner: React.FC = () => {
+	const { t } = useTranslation()
 	const { navigateToSettings, subagentsEnabled } = useExtensionState()
 	const [isCopied, setIsCopied] = useState(false)
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
@@ -102,31 +104,29 @@ export const CliInstallBanner: React.FC = () => {
 			}}>
 			<h4 className="m-0 flex items-center gap-2" style={{ paddingRight: "24px" }}>
 				<Terminal className="w-4 h-4" />
-				{isMacOSOrLinux() ? "Cline for CLI is here!" : "Cline CLI Information"}
+				{isMacOSOrLinux() ? t("cli_banner.cline_cli_here") : t("cli_banner.cline_cli_info")}
 			</h4>
 			<p className="m-0">
 				{isMacOSOrLinux() ? (
 					<>
-						Install to use Cline directly in your terminal and enable subagent capabilities. Cline can spawn{" "}
-						<code>cline</code> commands to handle focused tasks like exploring large codebases for information. This
-						keeps your main context window clean by running these operations in separate subprocesses.{" "}
+						{t("cli_banner.install_to_use_cline")} <code>cline</code> {t("cli_banner.cline_can_spawn_commands")}{" "}
 						<a
 							href="https://docs.cline.bot/cline-cli/overview"
 							rel="noopener noreferrer"
 							style={{ color: "var(--vscode-textLink-foreground)" }}
 							target="_blank">
-							Learn more
+							{t("cli_banner.learn_more")}
 						</a>
 					</>
 				) : (
 					<>
-						Cline CLI is available for macOS and Linux! Coming <code>soon</code> to other platforms.{" "}
+						{t("cli_banner.cline_cli_available")}{" "}
 						<a
 							href="https://docs.cline.bot/cline-cli/overview"
 							rel="noopener noreferrer"
 							style={{ color: "var(--vscode-textLink-foreground)" }}
 							target="_blank">
-							Learn more
+							{t("cli_banner.learn_more")}
 						</a>
 					</>
 				)}
@@ -144,7 +144,7 @@ export const CliInstallBanner: React.FC = () => {
 						appearance="icon"
 						onClick={handleCopyCommand}
 						style={{ marginLeft: "8px", flexShrink: 0 }}
-						title={isCopied ? "Copied!" : "Copy command"}>
+						title={isCopied ? t("cli_banner.copied") : t("cli_banner.copy_command")}>
 						<span className={`codicon ${isCopied ? "codicon-check" : "codicon-copy"}`}></span>
 					</VSCodeButton>
 				</div>
@@ -158,10 +158,10 @@ export const CliInstallBanner: React.FC = () => {
 							{isClineCliInstalled ? (
 								<>
 									<span className="codicon codicon-check" style={{ marginRight: "4px" }}></span>
-									Installed
+									{t("cli_banner.installed")}
 								</>
 							) : (
-								"Install"
+								t("cli_banner.install")
 							)}
 						</VSCodeButton>
 						<VSCodeButton
@@ -169,8 +169,8 @@ export const CliInstallBanner: React.FC = () => {
 							className="flex-1"
 							disabled={subagentsEnabled}
 							onClick={handleEnableSubagents}
-							title="Configure Subagents">
-							Enable Subagents
+							title={t("cli_banner.configure_subagents")}>
+							{t("cli_banner.enable_subagents")}
 						</VSCodeButton>
 					</div>
 				) : (
@@ -183,18 +183,18 @@ export const CliInstallBanner: React.FC = () => {
 							{isClineCliInstalled ? (
 								<>
 									<span className="codicon codicon-check" style={{ marginRight: "4px" }}></span>
-									Installed
+									{t("cli_banner.installed")}
 								</>
 							) : (
-								"Install CLI"
+								t("cli_banner.install_cli")
 							)}
 						</VSCodeButton>
 						<VSCodeButton
 							appearance="secondary"
 							className="flex-1"
 							disabled
-							title="Cline CLI & subagents are only available on macOS & Linux">
-							Subagents (Windows coming soon)
+							title={t("cli_banner.subagents_available")}>
+							{t("cli_banner.subagents_windows")}
 						</VSCodeButton>
 					</div>
 				)}

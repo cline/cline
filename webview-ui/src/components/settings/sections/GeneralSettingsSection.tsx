@@ -1,4 +1,5 @@
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { updateAutoApproveSettings } from "@/components/chat/auto-approve-menu/AutoApproveSettingsAPI"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -13,6 +14,7 @@ interface GeneralSettingsSectionProps {
 
 const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionProps) => {
 	const { telemetrySetting, remoteConfigSettings, autoApprovalSettings } = useExtensionState()
+	const { t } = useTranslation("common")
 
 	return (
 		<div>
@@ -32,18 +34,16 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 								enableNotifications: checked,
 							})
 						}}>
-						Enable notifications
+						{t("settings.general.enable_notifications")}
 					</VSCodeCheckbox>
 
-					<p className="text-sm mt-[5px] text-description">
-						Receive system notifications when Cline requires approval to proceed or when a task is completed.
-					</p>
+					<p className="text-sm mt-[5px] text-description">{t("settings.general.enable_notifications_description")}</p>
 				</div>
 
 				<div className="mb-[5px]">
 					<Tooltip>
 						<TooltipContent hidden={remoteConfigSettings?.telemetrySetting === undefined}>
-							This setting is managed by your organization's remote configuration
+							{t("settings.general.remote_config_tooltip")}
 						</TooltipContent>
 						<TooltipTrigger asChild>
 							<div className="flex items-center gap-2 mb-[5px]">
@@ -54,7 +54,7 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 										const checked = e.target.checked === true
 										updateSetting("telemetrySetting", checked ? "enabled" : "disabled")
 									}}>
-									Allow error and usage reporting
+									{t("settings.general.allow_error_usage_reporting")}
 								</VSCodeCheckbox>
 								{!!remoteConfigSettings?.telemetrySetting && (
 									<i className="codicon codicon-lock text-description text-sm" />
@@ -64,22 +64,21 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 					</Tooltip>
 
 					<p className="text-sm mt-[5px] text-description">
-						Help improve Cline by sending usage data and error reports. No code, prompts, or personal information are
-						ever sent. See our{" "}
+						{t("settings.general.allow_error_usage_reporting_description_part1")}
 						<VSCodeLink
 							className="text-inherit"
 							href="https://docs.cline.bot/more-info/telemetry"
 							style={{ fontSize: "inherit", textDecoration: "underline" }}>
-							telemetry overview
+							{t("settings.general.telemetry_overview_link")}
 						</VSCodeLink>{" "}
-						and{" "}
+						{t("settings.general.allow_error_usage_reporting_description_part2")}
 						<VSCodeLink
 							className="text-inherit"
 							href="https://cline.bot/privacy"
 							style={{ fontSize: "inherit", textDecoration: "underline" }}>
-							privacy policy
+							{t("settings.general.privacy_policy_link")}
 						</VSCodeLink>{" "}
-						for more details.
+						{t("settings.general.allow_error_usage_reporting_description_part3")}
 					</p>
 				</div>
 			</Section>

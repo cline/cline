@@ -1,5 +1,6 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { forwardRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 
 // ======== Interfaces ========
@@ -60,6 +61,7 @@ const ButtonContainer = styled.div<{ $position?: "top-right" | "bottom-right" }>
  * Base copy button component with clipboard functionality
  */
 export const CopyButton: React.FC<CopyButtonProps> = ({ textToCopy, onCopy, className = "", ariaLabel }) => {
+	const { t } = useTranslation()
 	const [copied, setCopied] = useState(false)
 
 	const handleCopy = () => {
@@ -90,7 +92,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ textToCopy, onCopy, clas
 	return (
 		<StyledButton
 			appearance="icon"
-			aria-label={copied ? "Copied" : ariaLabel || "Copy"}
+			aria-label={copied ? t("copy_button.copied") : ariaLabel || t("copy_button.copy")}
 			className={className}
 			onClick={handleCopy}>
 			<span className={`codicon codicon-${copied ? "check" : "copy"}`}></span>

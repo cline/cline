@@ -3,6 +3,7 @@ import { EmptyRequest } from "@shared/proto/index.cline"
 import { OpenaiReasoningEffort } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { memo, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import McpDisplayModeDropdown from "@/components/mcp/chat-display/McpDisplayModeDropdown"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
@@ -37,6 +38,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
+	const { t } = useTranslation("common")
 
 	const handleReasoningEffortChange = (newValue: OpenaiReasoningEffort) => {
 		updateSetting("openaiReasoningEffort", newValue)
@@ -83,7 +85,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									backgroundColor: "var(--vscode-button-secondaryBackground)",
 									color: "var(--vscode-button-secondaryForeground)",
 								}}>
-								NEW
+								{t("settings.features.subagents.new_badge")}
 							</div>
 
 							<div
@@ -98,7 +100,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										className="codicon codicon-warning mr-1"
 										style={{ fontSize: "12px", marginTop: "1px", flexShrink: 0 }}></span>
 									<span>
-										Cline for CLI is required for subagents. Install it with:
+										{t("settings.features.subagents.warning_message")}
 										<code
 											className="ml-1 px-1 rounded"
 											style={{
@@ -106,7 +108,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 												color: "var(--vscode-foreground)",
 												opacity: 0.9,
 											}}>
-											npm install -g cline
+											{t("settings.features.subagents.install_command")}
 										</code>
 										, then run
 										<code
@@ -116,7 +118,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 												color: "var(--vscode-foreground)",
 												opacity: 0.9,
 											}}>
-											cline auth
+											{t("settings.features.subagents.auth_command")}
 										</code>
 										To authenticate with Cline or configure an API provider.
 									</span>
@@ -136,7 +138,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 											transformOrigin: "left center",
 											marginLeft: "-2px",
 										}}>
-										Install Now
+										{t("settings.features.subagents.install_now_button")}
 									</VSCodeButton>
 								)}
 							</div>
@@ -148,15 +150,16 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									updateSetting("subagentsEnabled", checked)
 								}}>
 								<span className="font-semibold">
-									{subagentsEnabled ? "Subagents Enabled" : "Enable Subagents"}
+									{subagentsEnabled
+										? t("settings.features.subagents.checkbox_label_enabled")
+										: t("settings.features.subagents.checkbox_label_disabled")}
 								</span>
 							</VSCodeCheckbox>
 							<p className="text-xs mt-1 mb-0">
-								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
-								<span className="text-description">
-									Allows Cline to spawn subprocesses to handle focused tasks like exploring large codebases,
-									keeping your main context clean.
-								</span>
+								<span className="text-[var(--vscode-errorForeground)]">
+									{t("settings.features.subagents.experimental_tag")}{" "}
+								</span>{" "}
+								<span className="text-description">{t("settings.features.subagents.description")}</span>
 							</p>
 							{subagentsEnabled && (
 								<div className="mt-3">
@@ -173,11 +176,10 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								const checked = e.target.checked === true
 								updateSetting("enableCheckpointsSetting", checked)
 							}}>
-							Enable Checkpoints
+							{t("settings.features.enable_checkpoints")}
 						</VSCodeCheckbox>
 						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which
-							may not work well with large workspaces.
+							{t("settings.features.enable_checkpoints_description")}
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
@@ -191,7 +193,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 											const checked = e.target.checked === true
 											updateSetting("mcpMarketplaceEnabled", checked)
 										}}>
-										Enable MCP Marketplace
+										{t("settings.features.enable_mcp_marketplace")}
 									</VSCodeCheckbox>
 									{remoteConfigSettings?.mcpMarketplaceEnabled !== undefined && (
 										<i className="codicon codicon-lock text-description text-sm" />
@@ -203,15 +205,13 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</TooltipContent>
 						</Tooltip>
 
-						<p className="text-xs text-description">
-							Enables the MCP Marketplace tab for discovering and installing MCP servers.
-						</p>
+						<p className="text-xs text-description">{t("settings.features.enable_mcp_marketplace_description")}</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
 						<label
 							className="block text-sm font-medium text-(--vscode-foreground) mb-1"
 							htmlFor="mcp-display-mode-dropdown">
-							MCP Display Mode
+							{t("settings.features.mcp_display_mode")}
 						</label>
 						<McpDisplayModeDropdown
 							className="w-full"
@@ -220,8 +220,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							value={mcpDisplayMode}
 						/>
 						<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
-							Controls how MCP responses are displayed: plain text, rich formatting with links/images, or markdown
-							rendering.
+							{t("settings.features.mcp_display_mode_description")}
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
@@ -231,17 +230,17 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								const checked = e.target.checked === true
 								updateSetting("mcpResponsesCollapsed", checked)
 							}}>
-							Collapse MCP Responses
+							{t("settings.features.collapse_mcp_responses")}
 						</VSCodeCheckbox>
 						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Sets the default display mode for MCP response panels
+							{t("settings.features.collapse_mcp_responses_description")}
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
 						<label
 							className="block text-sm font-medium text-(--vscode-foreground) mb-1"
 							htmlFor="openai-reasoning-effort-dropdown">
-							OpenAI Reasoning Effort
+							{t("settings.features.openai_reasoning_effort")}
 						</label>
 						<VSCodeDropdown
 							className="w-full"
@@ -257,7 +256,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							<VSCodeOption value="high">High</VSCodeOption>
 						</VSCodeDropdown>
 						<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
-							Reasoning effort for the OpenAI family of models(applies to all OpenAI model providers)
+							{t("settings.features.openai_reasoning_effort_description")}
 						</p>
 					</div>
 					<div style={{ marginTop: 10 }}>
@@ -267,10 +266,10 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								const checked = e.target.checked === true
 								updateSetting("strictPlanModeEnabled", checked)
 							}}>
-							Enable strict plan mode
+							{t("settings.features.enable_strict_plan_mode")}
 						</VSCodeCheckbox>
 						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Enforces strict tool use while in plan mode, preventing file edits.
+							{t("settings.features.enable_strict_plan_mode_description")}
 						</p>
 					</div>
 					{
@@ -281,11 +280,10 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									const checked = e.target.checked === true
 									updateSetting("focusChainSettings", { ...focusChainSettings, enabled: checked })
 								}}>
-								Enable Focus Chain
+								{t("settings.features.enable_focus_chain")}
 							</VSCodeCheckbox>
 							<p className="text-xs text-(--vscode-descriptionForeground)">
-								Enables enhanced task progress tracking and automatic focus chain list management throughout
-								tasks.
+								{t("settings.features.enable_focus_chain_description")}
 							</p>
 						</div>
 					}
@@ -294,7 +292,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							<label
 								className="block text-sm font-medium text-(--vscode-foreground) mb-1"
 								htmlFor="focus-chain-remind-interval">
-								Focus Chain Reminder Interval
+								{t("settings.features.focus_chain_reminder_interval")}
 							</label>
 							<VSCodeTextField
 								className="w-20"
@@ -311,8 +309,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								value={String(focusChainSettings?.remindClineInterval || 6)}
 							/>
 							<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
-								Interval (in messages) to remind Cline about its focus chain checklist (1-100). Lower values
-								provide more frequent reminders.
+								{t("settings.features.focus_chain_reminder_interval_description")}
 							</p>
 						</div>
 					)}
@@ -328,12 +325,9 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									}
 									updateSetting("dictationSettings", updatedDictationSettings)
 								}}>
-								Enable Dictation
+								{t("settings.features.enable_dictation")}
 							</VSCodeCheckbox>
-							<p className="text-xs text-description mt-1">
-								Enables speech-to-text transcription using your Cline account. Uses the Aqua Voice's Avalon model,
-								at $0.0065 credits per minute of audio processed. 5 minutes max per message.
-							</p>
+							<p className="text-xs text-description mt-1">{t("settings.features.enable_dictation_description")}</p>
 						</div>
 					)}
 					<div style={{ marginTop: 10 }}>
@@ -343,16 +337,16 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								const checked = e.target.checked === true
 								updateSetting("useAutoCondense", checked)
 							}}>
-							Enable Auto Compact
+							{t("settings.features.enable_auto_compact")}
 						</VSCodeCheckbox>
 						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Enables advanced context management system which uses LLM based condensing for next-gen models.{" "}
+							{t("settings.features.enable_auto_compact_description")}{" "}
 							<a
 								className="text-(--vscode-textLink-foreground) hover:text-(--vscode-textLink-activeForeground)"
 								href="https://docs.cline.bot/features/auto-compact"
 								rel="noopener noreferrer"
 								target="_blank">
-								Learn more
+								{t("settings.features.learn_more_link")}
 							</a>
 						</p>
 					</div>
@@ -364,11 +358,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									const checked = e.target.checked === true
 									updateSetting("multiRootEnabled", checked)
 								}}>
-								Enable Multi-Root Workspace
+								{t("settings.features.enable_multi_root_workspace")}
 							</VSCodeCheckbox>
 							<p className="text-xs">
-								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
-								<span className="text-description">Allows cline to work across multiple workspaces.</span>
+								<span className="text-(--vscode-errorForeground)">
+									{t("settings.features.subagents.experimental_tag")}{" "}
+								</span>{" "}
+								<span className="text-description">
+									{t("settings.features.enable_multi_root_workspace_description")}
+								</span>
 							</p>
 						</div>
 					)}
@@ -380,19 +378,18 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 								const checked = e.target.checked === true
 								updateSetting("hooksEnabled", checked)
 							}}>
-							Enable Hooks
+							{t("settings.features.enable_hooks")}
 						</VSCodeCheckbox>
 						{!isMacOSOrLinux() ? (
 							<p className="text-xs mt-1" style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
-								Hooks are not yet supported on Windows. This feature is currently available on macOS and Linux
-								only.
+								{t("settings.features.enable_hooks_not_supported")}
 							</p>
 						) : (
 							<p className="text-xs">
-								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
-								<span className="text-description">
-									Allows execution of hooks from .clinerules/hooks/ directory.
-								</span>
+								<span className="text-(--vscode-errorForeground)">
+									{t("settings.features.subagents.experimental_tag")}{" "}
+								</span>{" "}
+								<span className="text-description">{t("settings.features.enable_hooks_description")}</span>
 							</p>
 						)}
 					</div>
@@ -404,11 +401,15 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									const enabled = (e?.target as HTMLInputElement).checked
 									updateSetting("nativeToolCallEnabled", enabled)
 								}}>
-								Enable Native Tool Call
+								{t("settings.features.enable_native_tool_call")}
 							</VSCodeCheckbox>
 							<p className="text-xs">
-								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
-								<span className="text-description">Allows Cline to call tools through the native API.</span>
+								<span className="text-[var(--vscode-errorForeground)]">
+									{t("settings.features.subagents.experimental_tag")}{" "}
+								</span>{" "}
+								<span className="text-description">
+									{t("settings.features.enable_native_tool_call_description")}
+								</span>
 							</p>
 						</div>
 					)}
@@ -423,7 +424,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 											const checked = e.target.checked === true
 											updateSetting("yoloModeToggled", checked)
 										}}>
-										Enable YOLO Mode
+										{t("settings.features.enable_yolo_mode")}
 									</VSCodeCheckbox>
 									{remoteConfigSettings?.yoloModeToggled !== undefined && (
 										<i className="codicon codicon-lock text-description text-sm" />
@@ -439,8 +440,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 						</Tooltip>
 
 						<p className="text-xs text-(--vscode-errorForeground)">
-							EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will
-							automatically approve all actions without asking. Use with extreme caution.
+							{t("settings.features.enable_yolo_mode_description")}
 						</p>
 					</div>
 				</div>

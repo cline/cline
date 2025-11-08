@@ -9,6 +9,7 @@ import {
 } from "@shared/proto/cline/file"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useClickAway, useWindowSize } from "react-use"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
@@ -18,6 +19,7 @@ import { FileServiceClient } from "@/services/grpc-client"
 import RulesToggleList from "./RulesToggleList"
 
 const ClineRulesToggleModal: React.FC = () => {
+	const { t } = useTranslation()
 	const {
 		globalClineRulesToggles = {},
 		localClineRulesToggles = {},
@@ -197,11 +199,11 @@ const ClineRulesToggleModal: React.FC = () => {
 		<div className="inline-flex min-w-0 max-w-full items-center" ref={modalRef}>
 			<div className="inline-flex w-full items-center" ref={buttonRef}>
 				<Tooltip>
-					{!isVisible && <TooltipContent>Manage Cline Rules & Workflows</TooltipContent>}
+					{!isVisible && <TooltipContent>{t("cline_rules.manage_rules_workflows")}</TooltipContent>}
 					<TooltipTrigger>
 						<VSCodeButton
 							appearance="icon"
-							aria-label={isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows"}
+							aria-label={isVisible ? t("cline_rules.hide_rules_workflows") : t("cline_rules.show_rules_workflows")}
 							className="flex items-center"
 							onClick={() => setIsVisible(!isVisible)}>
 							<div className="flex items-center text-xs w-full cursor-pointer">
@@ -244,10 +246,10 @@ const ClineRulesToggleModal: React.FC = () => {
 								borderBottom: "1px solid var(--vscode-panel-border)",
 							}}>
 							<TabButton isActive={currentView === "rules"} onClick={() => setCurrentView("rules")}>
-								Rules
+								{t("cline_rules.rules")}
 							</TabButton>
 							<TabButton isActive={currentView === "workflows"} onClick={() => setCurrentView("workflows")}>
-								Workflows
+								{t("cline_rules.workflows")}
 							</TabButton>
 						</div>
 					</div>
@@ -256,30 +258,28 @@ const ClineRulesToggleModal: React.FC = () => {
 					<div className="text-xs text-(--vscode-descriptionForeground) mb-4">
 						{currentView === "rules" ? (
 							<p>
-								Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way to
-								include context and preferences for your projects or globally for every conversation.{" "}
+								{t("cline_rules.rules_description")}{" "}
 								<VSCodeLink
 									className="text-xs"
 									href="https://docs.cline.bot/features/cline-rules"
 									style={{ display: "inline" }}>
-									Docs
+									{t("cline_rules.docs")}
 								</VSCodeLink>
 							</p>
 						) : (
 							<p>
-								Workflows allow you to define a series of steps to guide Cline through a repetitive set of tasks,
-								such as deploying a service or submitting a PR. To invoke a workflow, type{" "}
+								{t("cline_rules.workflows_description")}{" "}
 								<span
 									className=" 
 								text-(--vscode-foreground) font-bold">
-									/workflow-name
+									{t("cline_rules.workflow_name_example")}
 								</span>{" "}
-								in the chat.{" "}
+								{t("cline_rules.workflows_chat_instruction")}{" "}
 								<VSCodeLink
 									className="text-xs"
 									href="https://docs.cline.bot/features/slash-commands/workflows"
 									style={{ display: "inline" }}>
-									Docs
+									{t("cline_rules.docs")}
 								</VSCodeLink>
 							</p>
 						)}
@@ -289,7 +289,7 @@ const ClineRulesToggleModal: React.FC = () => {
 						<>
 							{/* Global Rules Section */}
 							<div className="mb-3">
-								<div className="text-sm font-normal mb-2">Global Rules</div>
+								<div className="text-sm font-normal mb-2">{t("cline_rules.global_rules")}</div>
 								<RulesToggleList
 									isGlobal={true}
 									listGap="small"
@@ -303,7 +303,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 							{/* Local Rules Section */}
 							<div style={{ marginBottom: -10 }}>
-								<div className="text-sm font-normal mb-2">Workspace Rules</div>
+								<div className="text-sm font-normal mb-2">{t("cline_rules.workspace_rules")}</div>
 								<RulesToggleList
 									isGlobal={false}
 									listGap="small"
@@ -337,7 +337,7 @@ const ClineRulesToggleModal: React.FC = () => {
 						<>
 							{/* Global Workflows Section */}
 							<div className="mb-3">
-								<div className="text-sm font-normal mb-2">Global Workflows</div>
+								<div className="text-sm font-normal mb-2">{t("cline_rules.global_workflows")}</div>
 								<RulesToggleList
 									isGlobal={true}
 									listGap="small"
@@ -351,7 +351,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 							{/* Local Workflows Section */}
 							<div style={{ marginBottom: -10 }}>
-								<div className="text-sm font-normal mb-2">Workspace Workflows</div>
+								<div className="text-sm font-normal mb-2">{t("cline_rules.workspace_workflows")}</div>
 								<RulesToggleList
 									isGlobal={false}
 									listGap="small"

@@ -1,5 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { useClineAuth } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
@@ -7,6 +8,7 @@ import { AccountServiceClient } from "@/services/grpc-client"
 export const ClineAccountInfoCard = () => {
 	const { clineUser } = useClineAuth()
 	const { navigateToAccount } = useExtensionState()
+	const { t } = useTranslation("common")
 
 	const user = clineUser || undefined
 
@@ -24,12 +26,12 @@ export const ClineAccountInfoCard = () => {
 		<div className="max-w-[600px]">
 			{user ? (
 				<VSCodeButton appearance="secondary" onClick={handleShowAccount}>
-					View Billing & Usage
+					{t("settings.about.account.view_billing_usage")}
 				</VSCodeButton>
 			) : (
 				<div>
 					<VSCodeButton className="mt-0" onClick={handleLogin}>
-						Sign Up with Cline
+						{t("settings.about.account.sign_up_with_cline")}
 					</VSCodeButton>
 				</div>
 			)}

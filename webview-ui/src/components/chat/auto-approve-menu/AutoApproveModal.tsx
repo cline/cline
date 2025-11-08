@@ -1,5 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import React, { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useClickAway } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
@@ -18,6 +19,7 @@ interface AutoApproveModalProps {
 }
 
 const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVisible, buttonRef, ACTION_METADATA }) => {
+	const { t } = useTranslation()
 	const { navigateToSettings } = useExtensionState()
 	const { isChecked, updateAction } = useAutoApproveActions()
 
@@ -90,12 +92,12 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 					maxHeight: "60vh",
 				}}>
 				<div className="mb-2.5 text-muted-foreground text-xs cursor-pointer" onClick={() => setIsVisible(false)}>
-					Let Cline take these actions without asking for approval.{" "}
+					{t("auto_approve.actions_description")}{" "}
 					<span
 						className="underline cursor-pointer hover:text-foreground"
 						onClick={handleNotificationsLinkClick}
 						style={{ textDecoration: "underline" }}>
-						Configure notification settings
+						{t("auto_approve.configure_notifications")}
 					</span>
 				</div>
 

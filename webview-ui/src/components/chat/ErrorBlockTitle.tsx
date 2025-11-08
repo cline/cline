@@ -1,3 +1,4 @@
+import { TFunction } from "i18next"
 import React from "react"
 import { ClineError, ClineErrorType } from "../../../../src/services/error/ClineError"
 import { ProgressIndicator } from "./ChatRow"
@@ -12,6 +13,8 @@ interface ErrorBlockTitleProps {
 		delaySec?: number
 		errorSnippet?: string
 	}
+	// 添加翻译函数作为可选参数
+	t?: TFunction<"translation", undefined>
 }
 
 export const ErrorBlockTitle = ({
@@ -19,6 +22,7 @@ export const ErrorBlockTitle = ({
 	apiReqCancelReason,
 	apiRequestFailedMessage,
 	retryStatus,
+	t,
 }: ErrorBlockTitleProps): [React.ReactElement, React.ReactElement] => {
 	const getIconSpan = (iconName: string, colorClass: string) => (
 		<div className="w-4 h-4 flex items-center justify-center">
@@ -43,27 +47,32 @@ export const ErrorBlockTitle = ({
 
 	const title = (() => {
 		// Default loading state
-		const details = { title: "API Request...", classNames: ["font-bold"] }
+		const details = {
+			title: t?.("error_block_title.api_request", "API Request...") || "API Request...",
+			classNames: ["font-bold"],
+		}
 		// Handle cancellation states first
 		if (apiReqCancelReason === "user_cancelled") {
-			details.title = "API Request Cancelled"
+			details.title = t?.("error_block_title.api_request_cancelled", "API Request Cancelled") || "API Request Cancelled"
 			details.classNames.push("text-(--vscode-foreground)")
 		} else if (apiReqCancelReason != null) {
-			details.title = "API Request Failed"
+			details.title = t?.("error_block_title.api_request_failed", "API Request Failed") || "API Request Failed"
 			details.classNames.push("text-(--vscode-errorForeground)")
 		} else if (cost != null) {
 			// Handle completed request
-			details.title = "API Request"
+			details.title = t?.("error_block_title.api_request", "API Request") || "API Request"
 			details.classNames.push("text-(--vscode-foreground)")
 		} else if (apiRequestFailedMessage) {
 			// Handle failed request
 			const clineError = ClineError.parse(apiRequestFailedMessage)
-			const titleText = clineError?.isErrorType(ClineErrorType.Balance) ? "Credit Limit Reached" : "API Request Failed"
+			const titleText = clineError?.isErrorType(ClineErrorType.Balance)
+				? t?.("error_block_title.credit_limit_reached", "Credit Limit Reached") || "Credit Limit Reached"
+				: t?.("error_block_title.api_request_failed", "API Request Failed") || "API Request Failed"
 			details.title = titleText
 			details.classNames.push("font-bold text-(--vscode-errorForeground)")
 		} else if (retryStatus) {
 			// Handle retry state
-			details.title = "API Request"
+			details.title = t?.("error_block_title.api_request", "API Request") || "API Request"
 			details.classNames.push("text-(--vscode-foreground)")
 		}
 

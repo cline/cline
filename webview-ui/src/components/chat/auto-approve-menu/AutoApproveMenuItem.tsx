@@ -1,4 +1,5 @@
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -29,6 +30,7 @@ const ActionButtonContainer = styled.div`
 `
 
 const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true, disabled = false }: AutoApproveMenuItemProps) => {
+	const { t } = useTranslation()
 	const checked = isChecked(action)
 
 	const onChange = async (e: Event) => {
@@ -43,7 +45,7 @@ const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true, dis
 		<div className="w-full" style={{ opacity: disabled ? 0.5 : 1 }}>
 			<ActionButtonContainer className="w-full">
 				<Tooltip>
-					<TooltipContent showArrow={false}>{action.description}</TooltipContent>
+					<TooltipContent showArrow={false}>{t(action.description, action.description)}</TooltipContent>
 					<TooltipTrigger asChild>
 						<Button
 							className={cn("w-full flex text-sm items-center justify-start text-foreground gap-2")}
@@ -54,7 +56,7 @@ const AutoApproveMenuItem = ({ action, isChecked, onToggle, showIcon = true, dis
 							variant="icon">
 							<VSCodeCheckbox checked={checked} disabled={disabled} />
 							{showIcon && <span className={`codicon ${action.icon} icon`}></span>}
-							<span className="label">{action.label}</span>
+							<span className="label">{t(action.label, action.label)}</span>
 						</Button>
 					</TooltipTrigger>
 				</Tooltip>

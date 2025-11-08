@@ -10,6 +10,7 @@ import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { AtSignIcon, PlusIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import DynamicTextArea from "react-textarea-autosize"
 import { useClickAway, useWindowSize } from "react-use"
 import styled from "styled-components"
@@ -54,19 +55,19 @@ import VoiceRecorder from "./VoiceRecorder"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
 
-const getImageDimensions = (dataUrl: string): Promise<{ width: number; height: number }> => {
+const getImageDimensions = (dataUrl: string, t: (key: string) => string): Promise<{ width: number; height: number }> => {
 	return new Promise((resolve, reject) => {
 		const img = new Image()
 		img.onload = () => {
 			if (img.naturalWidth > 7500 || img.naturalHeight > 7500) {
-				reject(new Error("Image dimensions exceed maximum allowed size of 7500px."))
+				reject(new Error(t("chat.errors.image_dimensions_exceeded")))
 			} else {
 				resolve({ width: img.naturalWidth, height: img.naturalHeight })
 			}
 		}
 		img.onerror = (err) => {
 			console.error("Failed to load image for dimension check:", err)
-			reject(new Error("Failed to load image to check dimensions."))
+			reject(new Error(t("chat.errors.failed_to_load_image")))
 		}
 		img.src = dataUrl
 	})
@@ -260,6 +261,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
+		// 添加翻译钩子
+		const { t } = useTranslation("common")
+
 		const {
 			mode,
 			apiConfiguration,
@@ -903,7 +907,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									const result = reader.result
 									if (typeof result === "string") {
 										try {
-											await getImageDimensions(result)
+											await getImageDimensions(result, t)
 											resolve(result)
 										} catch (error) {
 											console.warn((error as Error).message)
@@ -1406,7 +1410,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									const result = reader.result
 									if (typeof result === "string") {
 										try {
-											await getImageDimensions(result) // Check dimensions
+											await getImageDimensions(result, t) // Check dimensions
 											resolve(result)
 										} catch (error) {
 											console.warn((error as Error).message)
@@ -1607,7 +1611,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
 						<div className="text-xs absolute bottom-5 left-6.5 right-16 text-(--vscode-input-placeholderForeground)/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
-							Type @ for context, / for slash commands & workflows, hold shift to drag in files/images
+							{t("chat.textarea_placeholder")}
 						</div>
 					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
@@ -1693,11 +1697,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						{/* ButtonGroup - always in DOM but visibility controlled */}
 						<ButtonGroup className="absolute top-0 left-0 right-0 ease-in-out w-full h-5 z-10 flex items-center">
 							<Tooltip>
-								<TooltipContent>Add Context</TooltipContent>
+								<TooltipContent>{t("chat.add_context")}</TooltipContent>
 								<TooltipTrigger>
 									<VSCodeButton
 										appearance="icon"
-										aria-label="Add Context"
+										aria-label={t("chat.add_context")}
 										className="p-0 m-0 flex items-center"
 										data-testid="context-button"
 										onClick={handleContextButtonClick}>
@@ -1709,11 +1713,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</Tooltip>
 
 							<Tooltip>
-								<TooltipContent>Add Files & Images</TooltipContent>
+								<TooltipContent>{t("chat.add_files_images")}</TooltipContent>
 								<TooltipTrigger>
 									<VSCodeButton
 										appearance="icon"
-										aria-label="Add Files & Images"
+										aria-label={t("chat.add_files_images")}
 										className="p-0 m-0 flex items-center"
 										data-testid="files-button"
 										disabled={shouldDisableFilesAndImages}
@@ -1741,7 +1745,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										onClick={handleModelButtonClick}
 										role="button"
 										tabIndex={0}
-										title="Select Model / API Provider">
+										title={t("chat.select_model")}>
 										<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
 									</ModelDisplayButton>
 								</ModelButtonWrapper>
@@ -1770,23 +1774,26 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							className="text-xs px-2 flex flex-col gap-1"
 							hidden={shownTooltipMode === null}
 							side="top">
-							{`In ${shownTooltipMode === "act" ? "Act" : "Plan"}  mode, Cline will ${shownTooltipMode === "act" ? "complete the task immediately" : "gather information to architect a plan"}`}
+							{t("chat.mode_tooltip", {
+								mode: shownTooltipMode === "act" ? t("chat.act_mode") : t("chat.plan_mode"),
+								action: shownTooltipMode === "act" ? t("chat.mode_action_act") : t("chat.mode_action_plan"),
+							})}
 							<p className="text-description/80 text-xs mb-0">
-								Toggle w/ <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
+								{t("chat.toggle_mode")} <kbd className="text-muted-foreground mx-1">{togglePlanActKeys}</kbd>
 							</p>
 						</TooltipContent>
 						<TooltipTrigger>
 							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
-								{["Plan", "Act"].map((m) => (
+								{[t("chat.plan_mode"), t("chat.act_mode")].map((m, index) => (
 									<div
-										aria-checked={mode === m.toLowerCase()}
+										aria-checked={mode === (index === 0 ? "plan" : "act")}
 										className={cn(
 											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
-											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
+											mode === (index === 0 ? "plan" : "act") ? "text-white" : "text-input-foreground",
 										)}
 										onMouseLeave={() => setShownTooltipMode(null)}
-										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
+										onMouseOver={() => setShownTooltipMode(index === 0 ? "plan" : "act")}
 										role="switch">
 										{m}
 									</div>

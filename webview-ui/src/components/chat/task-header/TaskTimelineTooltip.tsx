@@ -1,6 +1,7 @@
 import { Tooltip } from "@heroui/react"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import React from "react"
+import { useTranslation } from "react-i18next"
 import { getColor } from "./util"
 
 interface TaskTimelineTooltipProps {
@@ -9,16 +10,17 @@ interface TaskTimelineTooltipProps {
 }
 
 const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) => {
+	const { t } = useTranslation()
 	const getMessageDescription = (message: ClineMessage): string => {
 		if (message.type === "say") {
 			switch (message.say) {
 				// TODO: Need to confirm these classifcations with design
 				case "task":
-					return "Task Message"
+					return t("task_header.task_timeline.task_message")
 				case "user_feedback":
-					return "User Message"
+					return t("task_header.task_timeline.user_message")
 				case "text":
-					return "Assistant Response"
+					return t("task_header.task_timeline.assistant_response")
 				case "tool":
 					if (message.text) {
 						try {
@@ -30,43 +32,51 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								toolData.tool === "listCodeDefinitionNames" ||
 								toolData.tool === "searchFiles"
 							) {
-								return `File Read: ${toolData.tool}`
+								return t("task_header.task_timeline.file_read", { tool: toolData.tool })
 							} else if (toolData.tool === "editedExistingFile") {
-								return `File Edit: ${toolData.path || "Unknown file"}`
+								return t("task_header.task_timeline.file_edit", {
+									path: toolData.path || t("task_header.task_timeline.unknown_file"),
+								})
 							} else if (toolData.tool === "newFileCreated") {
-								return `New File: ${toolData.path || "Unknown file"}`
+								return t("task_header.task_timeline.new_file", {
+									path: toolData.path || t("task_header.task_timeline.unknown_file"),
+								})
 							} else if (toolData.tool === "fileDeleted") {
-								return `Delete File: ${toolData.path || "Unknown file"}`
+								return t("task_header.task_timeline.delete_file", {
+									path: toolData.path || t("task_header.task_timeline.unknown_file"),
+								})
 							} else if (toolData.tool === "webFetch") {
-								return `Web Fetch: ${toolData.path || "Unknown URL"}`
+								return t("task_header.task_timeline.web_fetch", {
+									path: toolData.path || t("task_header.task_timeline.unknown_url"),
+								})
 							}
-							return `Tool: ${toolData.tool}`
+							return t("task_header.task_timeline.tool", { tool: toolData.tool })
 						} catch (_e) {
-							return "Tool Use"
+							return t("task_header.task_timeline.tool_use")
 						}
 					}
-					return "Tool Use"
+					return t("task_header.task_timeline.tool_use")
 				case "command":
-					return "Terminal Command"
+					return t("task_header.task_timeline.terminal_command")
 				case "command_output":
-					return "Terminal Output"
+					return t("task_header.task_timeline.terminal_output")
 				case "browser_action":
-					return "Browser Action"
+					return t("task_header.task_timeline.browser_action")
 				case "browser_action_result":
-					return "Browser Result"
+					return t("task_header.task_timeline.browser_result")
 				case "completion_result":
-					return "Task Completed"
+					return t("task_header.task_timeline.task_completed")
 				case "checkpoint_created":
-					return "Checkpoint Created"
+					return t("task_header.task_timeline.checkpoint_created")
 				default:
-					return message.say || "Unknown"
+					return message.say || t("task_header.task_timeline.unknown")
 			}
 		} else if (message.type === "ask") {
 			switch (message.ask) {
 				case "followup":
-					return "Assistant Message"
+					return t("task_header.task_timeline.assistant_message")
 				case "plan_mode_respond":
-					return "Planning Response"
+					return t("task_header.task_timeline.planning_response")
 				case "tool":
 					if (message.text) {
 						try {
@@ -78,31 +88,39 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								toolData.tool === "listCodeDefinitionNames" ||
 								toolData.tool === "searchFiles"
 							) {
-								return `File Read Approval: ${toolData.tool}`
+								return t("task_header.task_timeline.file_read_approval", { tool: toolData.tool })
 							} else if (toolData.tool === "editedExistingFile") {
-								return `File Edit Approval: ${toolData.path || "Unknown file"}`
+								return t("task_header.task_timeline.file_edit_approval", {
+									path: toolData.path || t("task_header.task_timeline.unknown_file"),
+								})
 							} else if (toolData.tool === "newFileCreated") {
-								return `New File Approval: ${toolData.path || "Unknown file"}`
+								return t("task_header.task_timeline.new_file_approval", {
+									path: toolData.path || t("task_header.task_timeline.unknown_file"),
+								})
 							} else if (toolData.tool === "fileDeleted") {
-								return `File Deletion Approval: ${toolData.path || "Unknown file"}`
+								return t("task_header.task_timeline.file_deletion_approval", {
+									path: toolData.path || t("task_header.task_timeline.unknown_file"),
+								})
 							} else if (toolData.tool === "webFetch") {
-								return `Web Fetch: ${toolData.path || "Unknown URL"}`
+								return t("task_header.task_timeline.web_fetch", {
+									path: toolData.path || t("task_header.task_timeline.unknown_url"),
+								})
 							}
-							return `Tool Approval: ${toolData.tool}`
+							return t("task_header.task_timeline.tool_approval", { tool: toolData.tool })
 						} catch (_e) {
-							return "Tool Approval"
+							return t("task_header.task_timeline.tool_approval")
 						}
 					}
-					return "Tool Approval"
+					return t("task_header.task_timeline.tool_approval")
 				case "command":
-					return "Terminal Command Approval"
+					return t("task_header.task_timeline.terminal_command_approval")
 				case "browser_action_launch":
-					return "Browser Action Approval"
+					return t("task_header.task_timeline.browser_action_approval")
 				default:
-					return message.ask || "Unknown"
+					return message.ask || t("task_header.task_timeline.unknown")
 			}
 		}
-		return "Unknown Message Type"
+		return t("task_header.task_timeline.unknown_message_type")
 	}
 
 	const getMessageContent = (message: ClineMessage): string => {

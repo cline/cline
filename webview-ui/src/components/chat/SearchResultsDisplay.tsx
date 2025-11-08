@@ -1,4 +1,5 @@
 import React, { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import CodeAccordian from "../common/CodeAccordian"
 
 interface SearchResultsDisplayProps {
@@ -16,6 +17,8 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 	path,
 	filePattern,
 }) => {
+	const { t } = useTranslation()
+
 	const parsedData = useMemo(() => {
 		// Check if this is a multi-workspace result
 		const multiWorkspaceMatch = content.match(/^Found \d+ results? across \d+ workspaces?\./m)
@@ -159,7 +162,8 @@ const SearchResultsDisplay: React.FC<SearchResultsDisplayProps> = ({
 										fontWeight: "500",
 										color: "var(--vscode-foreground)",
 									}}>
-									Workspace: {section.workspace}
+									{t("search_results_display.workspace_label")}
+									{section.workspace}
 								</span>
 							</div>
 

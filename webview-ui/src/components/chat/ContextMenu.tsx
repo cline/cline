@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { cleanPathPrefix } from "@/components/common/CodeAccordian"
 import { ContextMenuOptionType, ContextMenuQueryItem, getContextMenuOptions, SearchResult } from "@/utils/context-mentions"
 
@@ -26,6 +27,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	isLoading = false,
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
+	const { t } = useTranslation()
 
 	// State to show delayed loading indicator
 	const [showDelayedLoading, setShowDelayedLoading] = useState(false)
@@ -82,13 +84,13 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	const renderOptionContent = (option: ContextMenuQueryItem) => {
 		switch (option.type) {
 			case ContextMenuOptionType.Problems:
-				return <span>Problems</span>
+				return <span>{t("context_mentions.problems")}</span>
 			case ContextMenuOptionType.Terminal:
-				return <span>Terminal</span>
+				return <span>{t("context_mentions.terminal")}</span>
 			case ContextMenuOptionType.URL:
-				return <span>Paste URL to fetch contents</span>
+				return <span>{t("context_mentions.paste_url")}</span>
 			case ContextMenuOptionType.NoResults:
-				return <span>No results found</span>
+				return <span>{t("context_mentions.no_results")}</span>
 			case ContextMenuOptionType.Git:
 				if (option.value) {
 					return (
@@ -111,7 +113,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						</div>
 					)
 				} else {
-					return <span>Git Commits</span>
+					return <span>{t("context_mentions.git_commits")}</span>
 				}
 			case ContextMenuOptionType.File:
 			case ContextMenuOptionType.Folder:
@@ -138,7 +140,12 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 						</>
 					)
 				} else {
-					return <span>Add {option.type === ContextMenuOptionType.File ? "File" : "Folder"}</span>
+					return (
+						<span>
+							{t("context_mentions.add_file")}
+							{option.type === ContextMenuOptionType.Folder && t("context_mentions.add_folder").substring(4)}
+						</span>
+					)
 				}
 		}
 	}
@@ -202,7 +209,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 							opacity: 0.7,
 						}}>
 						<i className="codicon codicon-loading codicon-modifier-spin" style={{ fontSize: "14px" }} />
-						<span>Searching...</span>
+						<span>{t("context_mentions.searching")}</span>
 					</div>
 				)}
 				{filteredOptions.map((option, index) => {

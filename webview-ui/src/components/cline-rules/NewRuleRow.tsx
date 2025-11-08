@@ -1,6 +1,7 @@
 import { RuleFileRequest } from "@shared/proto/index.cline"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useClickAway } from "react-use"
 import { FileServiceClient } from "@/services/grpc-client"
 
@@ -10,6 +11,7 @@ interface NewRuleRowProps {
 }
 
 const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
+	const { t } = useTranslation()
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [filename, setFilename] = useState("")
 	const inputRef = useRef<HTMLInputElement>(null)
@@ -52,7 +54,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 			const extension = getExtension(trimmedFilename)
 
 			if (!isValidExtension(extension)) {
-				setError("Only .md, .txt, or no file extension allowed")
+				setError(t("new_rule_row.invalid_extension"))
 				return
 			}
 
@@ -103,8 +105,8 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 							onKeyDown={handleKeyDown}
 							placeholder={
 								ruleType === "workflow"
-									? "workflow-name (.md, .txt, or no extension)"
-									: "rule-name (.md, .txt, or no extension)"
+									? t("new_rule_row.workflow_placeholder")
+									: t("new_rule_row.rule_placeholder")
 							}
 							ref={inputRef}
 							style={{
@@ -117,9 +119,9 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 						<div className="flex items-center ml-2 space-x-2">
 							<VSCodeButton
 								appearance="icon"
-								aria-label="Create rule file"
+								aria-label={t("new_rule_row.create_rule_file")}
 								style={{ padding: "0px" }}
-								title="Create rule file"
+								title={t("new_rule_row.create_rule_file")}
 								type="submit">
 								<span className="codicon codicon-add text-[14px]" />
 							</VSCodeButton>
@@ -128,18 +130,22 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 				) : (
 					<>
 						<span className="flex-1 text-(--vscode-descriptionForeground) bg-input-background italic text-xs">
-							{ruleType === "workflow" ? "New workflow file..." : "New rule file..."}
+							{ruleType === "workflow" ? t("new_rule_row.new_workflow_file") : t("new_rule_row.new_rule_file")}
 						</span>
 						<div className="flex items-center ml-2 space-x-2">
 							<VSCodeButton
 								appearance="icon"
-								aria-label={ruleType === "workflow" ? "New workflow file..." : "New rule file..."}
+								aria-label={
+									ruleType === "workflow"
+										? t("new_rule_row.new_workflow_file")
+										: t("new_rule_row.new_rule_file")
+								}
 								onClick={(e) => {
 									e.stopPropagation()
 									setIsExpanded(true)
 								}}
 								style={{ padding: "0px" }}
-								title="New rule file">
+								title={t("new_rule_row.new_rule_file")}>
 								<span className="codicon codicon-add text-[14px]" />
 							</VSCodeButton>
 						</div>

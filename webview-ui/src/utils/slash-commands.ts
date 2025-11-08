@@ -1,3 +1,5 @@
+import { t } from "i18next"
+
 export interface SlashCommand {
 	name: string
 	description?: string
@@ -7,32 +9,32 @@ export interface SlashCommand {
 export const DEFAULT_SLASH_COMMANDS: SlashCommand[] = [
 	{
 		name: "newtask",
-		description: "Create a new task with context from the current task",
+		description: t("slash_commands.newtask.description"),
 		section: "default",
 	},
 	{
 		name: "smol",
-		description: "Condenses your current context window",
+		description: t("slash_commands.smol.description"),
 		section: "default",
 	},
 	{
 		name: "newrule",
-		description: "Create a new Cline rule based on your conversation",
+		description: t("slash_commands.newrule.description"),
 		section: "default",
 	},
 	{
 		name: "reportbug",
-		description: "Create a Github issue with Cline",
+		description: t("slash_commands.reportbug.description"),
 		section: "default",
 	},
 	{
 		name: "deep-planning",
-		description: "Create a comprehensive implementation plan before coding",
+		description: t("slash_commands.deep-planning.description"),
 		section: "default",
 	},
 	{
 		name: "subagent",
-		description: "Invoke a Cline CLI subagent for focused research tasks",
+		description: t("slash_commands.subagent.description"),
 		section: "default",
 	},
 ]

@@ -1,6 +1,7 @@
 import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
 import { Megaphone, XIcon } from "lucide-react"
 import { useCallback } from "react"
+import { useTranslation } from "react-i18next"
 import { useMount } from "react-use"
 import { Button } from "@/components/ui/button"
 import { useClineAuth } from "@/context/ClineAuthContext"
@@ -12,6 +13,7 @@ import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurati
 export const CURRENT_MODEL_BANNER_VERSION = 2
 
 export const NewModelBanner: React.FC = () => {
+	const { t } = useTranslation()
 	const { clineUser } = useClineAuth()
 	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
 	const user = clineUser || undefined
@@ -74,11 +76,13 @@ export const NewModelBanner: React.FC = () => {
 			}}>
 			<h4 className="m-0 flex items-center gap-2">
 				<Megaphone className="w-4 h-4" />
-				Claude Haiku 4.5
+				{t("new_model_banner.title")}
 			</h4>
 			<p className="m-0">
-				Anthropic's fastest model with frontier-level coding intelligence at a fraction of the cost.{" "}
-				<span className="text-link cursor-pointer">{user ? "Try new model" : "Try with Cline account"} →</span>
+				{t("new_model_banner.description")}{" "}
+				<span className="text-link cursor-pointer">
+					{user ? t("new_model_banner.try_new_model") : t("new_model_banner.try_with_account")} →
+				</span>
 			</p>
 
 			{/* Close button */}

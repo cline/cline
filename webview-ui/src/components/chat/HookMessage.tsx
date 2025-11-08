@@ -1,6 +1,7 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { memo, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { CHAT_ROW_EXPANDED_BG_COLOR } from "../common/CodeBlock"
 import { HOOK_OUTPUT_STRING } from "./constants"
@@ -124,6 +125,8 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 		return { metadata: hookMetadata, output }
 	}, [message.text])
 
+	const { t } = useTranslation()
+
 	// Determine initial expansion state using pure function
 	const [isHookOutputExpanded, setIsHookOutputExpanded] = useState(() => shouldExpandHookByDefault(message, metadata))
 
@@ -148,7 +151,7 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 						color: normalColor,
 						marginBottom: "-1.5px",
 					}}></span>
-				<span style={{ color: normalColor, fontWeight: "bold" }}>Hook:</span>
+				<span style={{ color: normalColor, fontWeight: "bold" }}>{t("hook_message.hook_label")}</span>
 				<span style={{ color: normalColor }}>{metadata.hookName}</span>
 				{metadata.toolName && (
 					<span style={{ color: "var(--vscode-descriptionForeground)", fontSize: "0.9em" }}>({metadata.toolName})</span>
@@ -200,14 +203,14 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 								flexShrink: 0,
 							}}>
 							{isRunning
-								? "Running"
+								? t("hook_message.running")
 								: isFailed
-									? "Failed"
+									? t("hook_message.failed")
 									: isCancelled
-										? "Aborted"
+										? t("hook_message.aborted")
 										: isCompleted
-											? "Completed"
-											: "Unknown"}
+											? t("hook_message.completed")
+											: t("hook_message.unknown")}
 						</span>
 						{metadata.exitCode !== undefined && metadata.exitCode !== 0 && (
 							<span
@@ -244,7 +247,7 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 								cursor: "pointer",
 								fontFamily: "inherit",
 							}}>
-							Abort
+							{t("hook_message.abort_button")}
 						</button>
 					)}
 				</div>
@@ -258,7 +261,7 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 							fontSize: "13px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Took longer than 30 seconds. Check for infinite loops or add timeouts to network requests.
+						{t("hook_message.timeout_error")}
 					</div>
 				)}
 
@@ -270,7 +273,7 @@ const HookMessage = memo(({ message, CommandOutput }: HookMessageProps) => {
 							fontSize: "13px",
 							color: "var(--vscode-descriptionForeground)",
 						}}>
-						Hook returned invalid JSON. See error details below for more information.
+						{t("hook_message.validation_error")}
 					</div>
 				)}
 

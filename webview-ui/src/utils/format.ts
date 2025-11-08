@@ -1,3 +1,4 @@
+import { t } from "i18next"
 import prettyBytes from "pretty-bytes"
 
 export function formatLargeNumber(num: number): string {
@@ -57,14 +58,14 @@ export function formatTimestamp(timestamp: string): string {
 
 export function formatSize(bytes?: number) {
 	if (bytes === undefined) {
-		return "--kb"
+		return t("format.size_unknown")
 	}
 
 	return prettyBytes(bytes)
 }
 export function formatSeconds(seconds?: number): string {
 	if (seconds === undefined) {
-		return "--:--"
+		return t("format.time_unknown")
 	}
 
 	const mins = Math.floor(seconds / 60)

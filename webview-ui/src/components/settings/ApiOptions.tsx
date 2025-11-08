@@ -3,6 +3,7 @@ import { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useInterval } from "react-use"
 import styled from "styled-components"
 import { normalizeApiConfiguration } from "@/components/settings/utils/providerUtils"
@@ -87,6 +88,7 @@ declare module "vscode" {
 const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, isPopup, currentMode }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
+	const { t } = useTranslation("common")
 
 	const { selectedProvider } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
@@ -129,45 +131,45 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 	const providerOptions = useMemo(() => {
 		let providers = [
-			{ value: "cline", label: "Cline" },
-			{ value: "openrouter", label: "OpenRouter" },
-			{ value: "gemini", label: "Google Gemini" },
-			{ value: "openai", label: "OpenAI Compatible" },
-			{ value: "anthropic", label: "Anthropic" },
-			{ value: "bedrock", label: "Amazon Bedrock" },
-			{ value: "vscode-lm", label: "VS Code LM API" },
-			{ value: "deepseek", label: "DeepSeek" },
-			{ value: "openai-native", label: "OpenAI" },
-			{ value: "ollama", label: "Ollama" },
-			{ value: "vertex", label: "GCP Vertex AI" },
-			{ value: "litellm", label: "LiteLLM" },
-			{ value: "claude-code", label: "Claude Code" },
-			{ value: "sapaicore", label: "SAP AI Core" },
-			{ value: "mistral", label: "Mistral" },
-			{ value: "zai", label: "Z AI" },
-			{ value: "groq", label: "Groq" },
-			{ value: "cerebras", label: "Cerebras" },
-			{ value: "vercel-ai-gateway", label: "Vercel AI Gateway" },
-			{ value: "baseten", label: "Baseten" },
-			{ value: "requesty", label: "Requesty" },
-			{ value: "fireworks", label: "Fireworks AI" },
-			{ value: "together", label: "Together" },
-			{ value: "qwen", label: "Alibaba Qwen" },
-			{ value: "qwen-code", label: "Qwen Code" },
-			{ value: "doubao", label: "Bytedance Doubao" },
-			{ value: "lmstudio", label: "LM Studio" },
-			{ value: "moonshot", label: "Moonshot" },
-			{ value: "huggingface", label: "Hugging Face" },
-			{ value: "nebius", label: "Nebius AI Studio" },
-			{ value: "asksage", label: "AskSage" },
-			{ value: "xai", label: "xAI" },
-			{ value: "sambanova", label: "SambaNova" },
-			{ value: "huawei-cloud-maas", label: "Huawei Cloud MaaS" },
-			{ value: "dify", label: "Dify.ai" },
-			{ value: "oca", label: "Oracle Code Assist" },
-			{ value: "minimax", label: "MiniMax" },
-			{ value: "hicap", label: "Hicap" },
-			{ value: "aihubmix", label: "AIhubmix" },
+			{ value: "cline", label: t("api_options.provider_options.cline") },
+			{ value: "openrouter", label: t("api_options.provider_options.openrouter") },
+			{ value: "gemini", label: t("api_options.provider_options.gemini") },
+			{ value: "openai", label: t("api_options.provider_options.openai_compatible") },
+			{ value: "anthropic", label: t("api_options.provider_options.anthropic") },
+			{ value: "bedrock", label: t("api_options.provider_options.bedrock") },
+			{ value: "vscode-lm", label: t("api_options.provider_options.vscode_lm") },
+			{ value: "deepseek", label: t("api_options.provider_options.deepseek") },
+			{ value: "openai-native", label: t("api_options.provider_options.openai") },
+			{ value: "ollama", label: t("api_options.provider_options.ollama") },
+			{ value: "vertex", label: t("api_options.provider_options.vertex") },
+			{ value: "litellm", label: t("api_options.provider_options.litellm") },
+			{ value: "claude-code", label: t("api_options.provider_options.claude_code") },
+			{ value: "sapaicore", label: t("api_options.provider_options.sapaicore") },
+			{ value: "mistral", label: t("api_options.provider_options.mistral") },
+			{ value: "zai", label: t("api_options.provider_options.zai") },
+			{ value: "groq", label: t("api_options.provider_options.groq") },
+			{ value: "cerebras", label: t("api_options.provider_options.cerebras") },
+			{ value: "vercel-ai-gateway", label: t("api_options.provider_options.vercel_ai_gateway") },
+			{ value: "baseten", label: t("api_options.provider_options.baseten") },
+			{ value: "requesty", label: t("api_options.provider_options.requesty") },
+			{ value: "fireworks", label: t("api_options.provider_options.fireworks") },
+			{ value: "together", label: t("api_options.provider_options.together") },
+			{ value: "qwen", label: t("api_options.provider_options.qwen") },
+			{ value: "qwen-code", label: t("api_options.provider_options.qwen_code") },
+			{ value: "doubao", label: t("api_options.provider_options.doubao") },
+			{ value: "lmstudio", label: t("api_options.provider_options.lmstudio") },
+			{ value: "moonshot", label: t("api_options.provider_options.moonshot") },
+			{ value: "huggingface", label: t("api_options.provider_options.huggingface") },
+			{ value: "nebius", label: t("api_options.provider_options.nebius") },
+			{ value: "asksage", label: t("api_options.provider_options.asksage") },
+			{ value: "xai", label: t("api_options.provider_options.xai") },
+			{ value: "sambanova", label: t("api_options.provider_options.sambanova") },
+			{ value: "huawei-cloud-maas", label: t("api_options.provider_options.huawei_cloud_maas") },
+			{ value: "dify", label: t("api_options.provider_options.dify") },
+			{ value: "oca", label: t("api_options.provider_options.oca") },
+			{ value: "minimax", label: t("api_options.provider_options.minimax") },
+			{ value: "hicap", label: t("api_options.provider_options.hicap") },
+			{ value: "aihubmix", label: t("api_options.provider_options.aihubmix") },
 		]
 
 		// Filter by platform
@@ -182,7 +184,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 		}
 
 		return providers
-	}, [remoteConfigSettings])
+	}, [remoteConfigSettings, t])
 
 	const currentProviderLabel = useMemo(() => {
 		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
@@ -310,16 +312,16 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 						<TooltipTrigger>
 							<div className="flex items-center gap-2 mb-1">
 								<label htmlFor="api-provider">
-									<span style={{ fontWeight: 500 }}>API Provider</span>
+									<span style={{ fontWeight: 500 }}>{t("api_options.provider_label")}</span>
 								</label>
 								<i className="codicon codicon-lock text-description text-sm" />
 							</div>
 						</TooltipTrigger>
-						<TooltipContent>Provider options are managed by your organization's remote configuration</TooltipContent>
+						<TooltipContent>{t("api_options.provider_tooltip")}</TooltipContent>
 					</Tooltip>
 				) : (
 					<label htmlFor="api-provider">
-						<span style={{ fontWeight: 500 }}>API Provider</span>
+						<span style={{ fontWeight: 500 }}>{t("api_options.provider_label")}</span>
 					</label>
 				)}
 				<ProviderDropdownWrapper ref={dropdownRef}>
@@ -335,7 +337,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 							setIsDropdownVisible(true)
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="Search and select provider..."
+						placeholder={t("api_options.provider_placeholder")}
 						style={{
 							width: "100%",
 							zIndex: DROPDOWN_Z_INDEX,

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef } from "react"
+import { useTranslation } from "react-i18next"
 import { getMatchingSlashCommands, SlashCommand } from "@/utils/slash-commands"
 
 interface SlashCommandMenuProps {
@@ -21,6 +22,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 	globalWorkflowToggles = {},
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
+	const { t } = useTranslation()
 
 	const handleClick = useCallback(
 		(command: SlashCommand) => {
@@ -100,12 +102,19 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 				style={{ maxHeight: "min(200px, calc(50vh))", overscrollBehavior: "contain" }}>
 				{filteredCommands.length > 0 ? (
 					<>
-						{renderCommandSection(defaultCommands, "Default Commands", 0, true)}
-						{renderCommandSection(workflowCommands, "Workflow Commands", defaultCommands.length, false)}
+						{renderCommandSection(defaultCommands, t("slash_command_menu.default_commands"), 0, true)}
+						{renderCommandSection(
+							workflowCommands,
+							t("slash_command_menu.workflow_commands"),
+							defaultCommands.length,
+							false,
+						)}
 					</>
 				) : (
 					<div className="py-2 px-3 cursor-default flex flex-col">
-						<div className="text-[0.85em] text-(--vscode-descriptionForeground)">No matching commands found</div>
+						<div className="text-[0.85em] text-(--vscode-descriptionForeground)">
+							{t("slash_command_menu.no_matching_commands")}
+						</div>
 					</div>
 				)}
 			</div>

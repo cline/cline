@@ -1,5 +1,6 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { UiServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
@@ -11,6 +12,7 @@ interface AutoApproveBarProps {
 }
 
 const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
+	const { t } = useTranslation()
 	const { autoApprovalSettings, yoloModeToggled, navigateToSettings } = useExtensionState()
 
 	const [isModalVisible, setIsModalVisible] = useState(false)
@@ -57,14 +59,14 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 		})
 
 		if (actionsToShow.length === 0) {
-			return <span className={baseClasses}>None</span>
+			return <span className={baseClasses}>{t("auto_approve.none")}</span>
 		}
 
 		return (
 			<span className={baseClasses}>
 				{actionsToShow.map((action, index) => (
 					<span key={action?.id}>
-						{action?.shortName}
+						{action?.shortName ? t(action.shortName) : ""}
 						{index < actionsToShow.length - 1 && ", "}
 					</span>
 				))}
@@ -110,11 +112,11 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				/>
 
 				<div className="pt-4 pb-3.5 px-3.5">
-					<div className="text-sm mb-1">Auto-approve: YOLO</div>
+					<div className="text-sm mb-1">{t("auto_approve.yolo_mode")}</div>
 					<div className="text-muted-foreground text-xs">
-						YOLO mode is enabled.{" "}
+						{t("auto_approve.yolo_enabled")}{" "}
 						<span className="underline cursor-pointer hover:text-foreground" onClick={handleNavigateToFeatures}>
-							Disable it in Settings
+							{t("auto_approve.disable_in_settings")}
 						</span>
 						.
 					</div>
@@ -160,7 +162,7 @@ const AutoApproveBar = ({ style }: AutoApproveBarProps) => {
 				}}
 				ref={buttonRef}>
 				<div className="flex flex-nowrap items-center gap-1 min-w-0 flex-1">
-					<span className="whitespace-nowrap">Auto-approve:</span>
+					<span className="whitespace-nowrap">{t("auto_approve.auto_approve")}:</span>
 					{getEnabledActionsText()}
 				</div>
 				{isModalVisible ? (

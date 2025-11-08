@@ -11,6 +11,641 @@
 		"api_key_button": "Use your own API key",
 		"lets_go_button": "Let's go!"
 	},
+	"alert_dialog": {
+		"unsaved_changes_title": "Unsaved Changes",
+		"unsaved_changes_description": "You have unsaved changes. Are you sure you want to discard them?",
+		"cancel": "Cancel",
+		"discard_changes": "Discard Changes",
+		"save_continue": "Save & Continue"
+	},
+	"cli_banner": {
+		"cline_cli_here": "Cline for CLI is here!",
+		"cline_cli_info": "Cline CLI Information",
+		"install_to_use_cline": "Install to use Cline directly in your terminal and enable subagent capabilities. Cline can spawn",
+		"cline_can_spawn_commands": "commands to handle focused tasks like exploring large codebases for information. This keeps your main context window clean by running these operations in separate subprocesses.",
+		"learn_more": "Learn more",
+		"cline_cli_available": "Cline CLI is available for macOS and Linux! Coming soon to other platforms.",
+		"copied": "Copied!",
+		"copy_command": "Copy command",
+		"installed": "Installed",
+		"install": "Install",
+		"configure_subagents": "Configure Subagents",
+		"enable_subagents": "Enable Subagents",
+		"install_cli": "Install CLI",
+		"subagents_available": "Cline CLI & subagents are only available on macOS & Linux",
+		"subagents_windows": "Subagents (Windows coming soon)"
+	},
+	"info_banner": {
+		"title": "Cline in the Right Sidebar",
+		"description": "Keep your files visible when chatting with Cline. Drag the Cline icon to the right sidebar panel for a better experience.",
+		"see_how": "See how →"
+	},
+	"cline_rules": {
+		"manage_rules_workflows": "Manage Cline Rules & Workflows",
+		"hide_rules_workflows": "Hide Cline Rules & Workflows",
+		"show_rules_workflows": "Show Cline Rules & Workflows",
+		"rules": "Rules",
+		"workflows": "Workflows",
+		"rules_description": "Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way to include context and preferences for your projects or globally for every conversation.",
+		"workflows_description": "Workflows allow you to define a series of steps to guide Cline through a repetitive set of tasks, such as deploying a service or submitting a PR. To invoke a workflow, type",
+		"workflow_name_example": "/workflow-name",
+		"workflows_chat_instruction": "in the chat.",
+		"docs": "Docs",
+		"global_rules": "Global Rules",
+		"workspace_rules": "Workspace Rules",
+		"global_workflows": "Global Workflows",
+		"workspace_workflows": "Workspace Workflows"
+	},
+	"rule_row": {
+		"edit_rule_file": "Edit rule file",
+		"delete_rule_file": "Delete rule file"
+	},
+	"new_rule_row": {
+		"invalid_extension": "Only .md, .txt, or no file extension allowed",
+		"workflow_placeholder": "workflow-name (.md, .txt, or no extension)",
+		"rule_placeholder": "rule-name (.md, .txt, or no extension)",
+		"create_rule_file": "Create rule file",
+		"new_workflow_file": "New workflow file...",
+		"new_rule_file": "New rule file..."
+	},
+	"rules_toggle_list": {
+		"no_workflows_found": "No workflows found",
+		"no_rules_found": "No rules found"
+	},
+	"checkmark_control": {
+		"checkpoint_restored": "Checkpoint (restored)",
+		"checkpoint": "Checkpoint",
+		"compare": "Compare",
+		"restore": "Restore",
+		"restore_files": "Restore Files",
+		"restore_files_description": "Restores your project's files back to a snapshot taken at this point (use \"Compare\" to see what will be reverted)",
+		"restore_task_only": "Restore Task Only",
+		"restore_task_only_description": "Deletes messages after this point (does not affect workspace)",
+		"restore_files_and_task": "Restore Files & Task",
+		"restore_files_and_task_description": "Restores your project's files and deletes all messages after this point"
+	},
+	"checkpoint_controls": {
+		"compare": "Compare",
+		"restore": "Restore",
+		"restore_task_and_workspace": "Restore Task and Workspace",
+		"restore_task_and_workspace_description": "Restores the task and your project's files back to a snapshot taken at this point",
+		"restore_task_only": "Restore Task Only",
+		"restore_task_only_description": "Deletes messages after this point (does not affect workspace)",
+		"restore_workspace_only": "Restore Workspace Only",
+		"restore_workspace_only_description": "Restores your project's files to a snapshot taken at this point (task may become out of sync)"
+	},
+	"code_accordian": {
+		"user_edits": "User Edits",
+		"console_logs": "Console Logs"
+	},
+	"copy_button": {
+		"copied": "Copied",
+		"copy": "Copy"
+	},
+	"new_model_banner": {
+		"title": "Claude Haiku 4.5",
+		"description": "Anthropic's fastest model with frontier-level coding intelligence at a fraction of the cost.",
+		"try_new_model": "Try new model",
+		"try_with_account": "Try with Cline account"
+	},
+	"telemetry_banner": {
+		"title": "Help Improve Cline",
+		"subtitle": "(and access experimental features)",
+		"description": "Cline collects error and usage data to help us fix bugs and improve the extension. No code, prompts, or personal information is ever sent.",
+		"settings_instruction": "You can turn this setting off in",
+		"settings": "settings",
+		"close_banner": "Close banner and enable telemetry"
+	},
+	"navbar": {
+		"new_task": "New Task",
+		"mcp": "MCP",
+		"mcp_servers": "MCP Servers",
+		"history": "History",
+		"account": "Account",
+		"settings": "Settings"
+	},
+	"account": {
+		"title": "Account",
+		"done": "Done",
+		"personal": "Personal",
+		"organization_locked_tooltip": "This cannot be changed while your organization has remote configuration enabled.",
+		"dashboard": "Dashboard",
+		"logout": "Log out",
+		"welcome": {
+			"description": "Sign up for an account to get access to the latest models, billing dashboard to view usage and credits, and more upcoming features.",
+			"sign_up": "Sign up with Cline",
+			"agreement_prefix": "By continuing, you agree to the",
+			"terms_of_service": "Terms of Service",
+			"and": "and",
+			"privacy_policy": "Privacy Policy"
+		},
+		"credit": {
+			"last_updated": "Last updated",
+			"current_balance": "CURRENT BALANCE",
+			"add_credits": "Add Credits",
+			"usage_history": "USAGE HISTORY",
+			"payments_history": "PAYMENTS HISTORY",
+			"loading": "Loading...",
+			"date": "Date",
+			"model": "Model",
+			"credits_used": "Credits Used",
+			"total_cost": "Total Cost",
+			"credits": "Credits",
+			"no_usage_history": "No usage history",
+			"no_payment_history": "No payment history"
+		},
+		"cline_environment": "Cline Environment"
+	},
+	"credit_limit_error": {
+		"default_message": "You have run out of credits.",
+		"current_balance": "Current Balance:",
+		"total_spent": "Total Spent:",
+		"total_promotions": "Total Promotions:",
+		"buy_credits": "Buy Credits",
+		"retry_request": "Retry Request"
+	},
+	"error_block_title": {
+		"api_request": "API Request",
+		"api_request_cancelled": "API Request Cancelled",
+		"api_request_failed": "API Request Failed",
+		"credit_limit_reached": "Credit Limit Reached"
+	},
+	"hook_message": {
+		"hook_label": "Hook:",
+		"running": "Running",
+		"failed": "Failed",
+		"aborted": "Aborted",
+		"completed": "Completed",
+		"unknown": "Unknown",
+		"abort_button": "Abort",
+		"timeout_error": "Took longer than 30 seconds. Check for infinite loops or add timeouts to network requests.",
+		"validation_error": "Hook returned invalid JSON. See error details below for more information."
+	},
+	"new_task_preview": {
+		"task_label": "Task"
+	},
+	"quote_button": {
+		"aria_label": "Quote selection",
+		"title": "Quote selection in reply"
+	},
+	"quoted_message_preview": {
+		"dismiss_quote": "Dismiss quote"
+	},
+	"report_bug_preview": {
+		"bug_report_title": "Bug Report",
+		"what_happened": "What Happened?",
+		"steps_to_reproduce": "Steps to Reproduce",
+		"relevant_api_request_output": "Relevant API Request Output",
+		"provider_model": "Provider/Model",
+		"operating_system": "Operating System",
+		"system_info": "System Info",
+		"cline_version": "Cline Version",
+		"additional_context": "Additional Context"
+	},
+	"search_results_display": {
+		"workspace_label": "Workspace: "
+	},
+	"servers_toggle_modal": {
+		"manage_mcp_servers": "Manage MCP Servers",
+		"show_mcp_servers": "Show MCP Servers",
+		"hide_mcp_servers": "Hide MCP Servers",
+		"mcp_servers_title": "MCP Servers",
+		"go_to_mcp_settings": "Go to MCP server settings"
+	},
+	"slash_command_menu": {
+		"default_commands": "Default Commands",
+		"workflow_commands": "Workflow Commands",
+		"no_matching_commands": "No matching commands found"
+	},
+	"task_feedback_buttons": {
+		"this_was_helpful": "This was helpful",
+		"this_wasnt_helpful": "This wasn't helpful"
+	},
+	"browser_session": {
+		"cline_is_using_browser": "Cline is using the browser:",
+		"cline_wants_to_use_browser": "Cline wants to use the browser:",
+		"console_logs": "Console Logs",
+		"step_of": "Step {{current}} of {{total}}",
+		"previous": "Previous",
+		"next": "Next",
+		"browser_session_started": "Browser Session Started",
+		"launch_browser_at": "Launch browser at",
+		"click_action": "Click",
+		"type_action": "Type",
+		"scroll_down_action": "Scroll down",
+		"scroll_up_action": "Scroll up",
+		"close_browser_action": "Close browser",
+		"browse_action": "Browse Action:"
+	},
+	"chat": {
+		"new_task_label": "Cline wants to start a new task:",
+		"condense_conversation_label": "Cline wants to condense your conversation:",
+		"report_bug_label": "Cline wants to create a Github issue:",
+		"thinking": "Thinking",
+		"type_message_placeholder": "Type a message...",
+		"type_task_placeholder": "Type your task here...",
+		"tool": {
+			"edit_file": "Cline wants to edit this file:",
+			"delete_file": "Cline wants to delete this file:",
+			"create_file": "Cline wants to create a new file:",
+			"read_file": "Cline wants to read this file:",
+			"view_top_level_files": "Cline wants to view the top level files in this directory:",
+			"view_top_level_files_done": "Cline viewed the top level files in this directory:",
+			"view_files_recursively": "Cline wants to recursively view all files in this directory:",
+			"view_files_recursively_done": "Cline recursively viewed all files in this directory:",
+			"view_definitions": "Cline wants to view source code definition names used in this directory:",
+			"view_definitions_done": "Cline viewed source code definition names used in this directory:",
+			"search_files": "Cline wants to search this directory for",
+			"condense_conversation": "Cline is condensing the conversation:",
+			"fetch_url": "Cline wants to fetch content from this URL:",
+			"fetch_url_done": "Cline fetched content from this URL:"
+		},
+		"outside_workspace": "This file is outside of your workspace",
+		"outside_workspace_directory": "This is outside of your workspace",
+		"outside_workspace_url": "This URL is external",
+		"textarea_placeholder": "Type @ for context, / for slash commands & workflows, hold shift to drag in files/images",
+		"add_context": "Add Context",
+		"add_files_images": "Add Files & Images",
+		"select_model": "Select Model / API Provider",
+		"mode_tooltip": "In {{mode}} mode, Cline will {{action}}",
+		"act_mode": "Act",
+		"plan_mode": "Plan",
+		"mode_action_act": "complete the task immediately",
+		"mode_action_plan": "gather information to architect a plan",
+		"toggle_mode": "Toggle w/",
+		"scroll_to_bottom": "Scroll to bottom",
+		"scroll_to_top": "Scroll to top",
+		"errors": {
+			"image_dimensions_exceeded": "Image dimensions exceed maximum allowed size of 7500px",
+			"failed_to_load_image": "Failed to load image to check dimensions"
+		},
+		"buttons": {
+			"approve": "Approve",
+			"reject": "Reject",
+			"save": "Save",
+			"run_command": "Run Command",
+			"proceed_while_running": "Proceed While Running",
+			"start_new_task": "Start New Task",
+			"resume_task": "Resume Task",
+			"start_new_task_with_context": "Start New Task with Context",
+			"condense_conversation": "Condense Conversation",
+			"report_github_issue": "Report GitHub issue",
+			"retry": "Retry",
+			"proceed_anyways": "Proceed Anyways",
+			"cancel": "Cancel"
+		}
+	},
+	"command": {
+		"status": {
+			"running": "Running",
+			"pending": "Pending",
+			"completed": "Completed",
+			"not_executed": "Not Executed"
+		},
+		"requires_approval": "The model has determined this command requires explicit approval.",
+		"cancel": "cancel",
+		"stop": "stop",
+		"terminal_manual_stop": "This command is running in the VSCode terminal. You can manually stop it using Ctrl+C in the terminal, or switch to Background Execution mode in settings for cancellable commands.",
+		"subagent_output": "Subagent Output",
+		"command_output": "Command Output",
+		"use_subagent": "Cline wants to use a subagent:"
+	},
+	"reasoning": {
+		"thinking": "Thinking"
+	},
+	"shell_integration": {
+		"unavailable": "Shell Integration Unavailable",
+		"troubleshooting": "Cline may have trouble viewing the command's output. Please update VSCode (CMD/CTRL + Shift + P → \"Update\") and make sure you're using a supported shell: zsh, bash, fish, or PowerShell (CMD/CTRL + Shift + P → \"Terminal: Select Default Profile\"). Still having trouble?"
+	},
+	"error_retry": {
+		"auto_retry_failed": "Auto-Retry Failed",
+		"auto_retry_in_progress": "Auto-Retry in Progress",
+		"auto_retry_failed_message": "Auto-retry failed after {{maxAttempts}} attempts. Manual intervention required.",
+		"auto_retry_progress_message": "Attempt {{attempt}} of {{maxAttempts}} - Retrying in {{delaySeconds}} seconds..."
+	},
+	"shell_integration_suggestion": {
+		"title": "Shell integration issues",
+		"description": "Since you're experiencing repeated shell integration issues, we recommend switching to Background Terminal mode for better reliability.",
+		"enable_background_terminal": "Enable Background Terminal (Recommended)",
+		"background_terminal_enabled": "Background Terminal Enabled"
+	},
+	"completion_result": {
+		"see_new_changes": "See new changes"
+	},
+	"user_message": {
+		"restore_all": "Restore All",
+		"restore_chat": "Restore Chat",
+		"restore_all_title": "Restore both the chat and workspace files to this checkpoint and send your edited message",
+		"restore_chat_title": "Restore just the chat to this checkpoint and send your edited message"
+	},
+	"voice_recorder": {
+		"transcribing": "Transcribing...",
+		"starting_recording": "Starting recording...",
+		"voice_input": "Voice Input",
+		"error": "Error: {{error}}",
+		"stop_recording": "Stop Recording",
+		"cancel_recording": "Cancel Recording",
+		"no_audio_data": "No audio data received"
+	},
+	"home_header": {
+		"title": "What can I do for you?",
+		"tooltip": "I can develop software step-by-step by editing files, exploring projects, running commands, and using browsers. I can even extend my capabilities with MCP tools to assist beyond basic code completion.",
+		"take_a_tour": "Take a Tour"
+	},
+	"suggested_tasks": {
+		"title": "Quick {{wins}} with Cline",
+		"wins": "Wins"
+	},
+	"quick_win_tasks": {
+		"nextjs_notetaking_app": {
+			"title": "Build a Next.js App",
+			"description": "Create a beautiful notetaking app with Next.js and Tailwind"
+		},
+		"terminal_cli_tool": {
+			"title": "Craft a CLI Tool",
+			"description": "Develop a powerful terminal CLI to automate a cool task"
+		},
+		"snake_game": {
+			"title": "Develop a Game",
+			"description": "Code a classic Snake game that runs in the browser."
+		}
+	},
+	"api_options": {
+		"provider_label": "API Provider",
+		"provider_placeholder": "Search and select provider...",
+		"provider_tooltip": "Provider options are managed by your organization's remote configuration",
+		"provider_options": {
+			"cline": "Cline",
+			"openrouter": "OpenRouter",
+			"gemini": "Google Gemini",
+			"openai_compatible": "OpenAI Compatible",
+			"anthropic": "Anthropic",
+			"bedrock": "Amazon Bedrock",
+			"vscode_lm": "VS Code LM API",
+			"deepseek": "DeepSeek",
+			"openai": "OpenAI",
+			"ollama": "Ollama",
+			"vertex": "GCP Vertex AI",
+			"litellm": "LiteLLM",
+			"claude_code": "Claude Code",
+			"sapaicore": "SAP AI Core",
+			"mistral": "Mistral",
+			"zai": "Z AI",
+			"groq": "Groq",
+			"cerebras": "Cerebras",
+			"vercel_ai_gateway": "Vercel AI Gateway",
+			"baseten": "Baseten",
+			"requesty": "Requesty",
+			"fireworks": "Fireworks AI",
+			"together": "Together",
+			"qwen": "Alibaba Qwen",
+			"qwen_code": "Qwen Code",
+			"doubao": "Bytedance Doubao",
+			"lmstudio": "LM Studio",
+			"moonshot": "Moonshot",
+			"huggingface": "Hugging Face",
+			"nebius": "Nebius AI Studio",
+			"asksage": "AskSage",
+			"xai": "xAI",
+			"sambanova": "SambaNova",
+			"huawei_cloud_maas": "Huawei Cloud MaaS",
+			"dify": "Dify.ai",
+			"oca": "Oracle Code Assist",
+			"minimax": "MiniMax",
+			"hicap": "Hicap",
+			"aihubmix": "AIhubmix"
+		}
+	},
+	"api_provider": {
+		"common": {
+			"api_key_label": "{{providerName}} API Key",
+			"api_key_placeholder": "Enter API Key...",
+			"api_key_help_text": "This key is stored locally and only used to make API requests from this extension.",
+			"api_key_signup_text": "You can get a{{article}} {{providerName}} API key by signing up here.",
+			"base_url_label": "Use custom base URL",
+			"base_url_placeholder": "Default: https://api.example.com",
+			"model_label": "Model",
+			"select_model_option": "Select a model...",
+			"context_window_switcher": {
+				"switch_to_1m": "Switch to 1M context window model",
+				"switch_to_200k": "Switch to 200K context window model"
+			},
+			"model_info": {
+				"supports_images": "Supports images",
+				"does_not_support_images": "Does not support images",
+				"supports_browser_use": "Supports browser use",
+				"does_not_support_browser_use": "Does not support browser use",
+				"supports_prompt_caching": "Supports prompt caching",
+				"does_not_support_prompt_caching": "Does not support prompt caching",
+				"context_window": "Context Window",
+				"input_price": "Input price",
+				"output_price": "Output price",
+				"output_price_standard": "Output price (Standard)",
+				"output_price_thinking": "Output price (Thinking Budget > 0)",
+				"cache_writes_price": "Cache writes price",
+				"cache_reads_price": "Cache reads price",
+				"tokens": "tokens",
+				"million_tokens": "million tokens",
+				"based_on_input_tokens": "(based on input tokens)",
+				"greater_than": ">",
+				"less_than_or_equal": "<=",
+				"see_more": "See more"
+			},
+			"thinking_budget": {
+				"enable_thinking": "Enable thinking",
+				"tokens": "tokens"
+			}
+		},
+		"openai_compatible": {
+			"base_url_label": "Base URL",
+			"base_url_placeholder": "Enter base URL...",
+			"model_id_label": "Model ID",
+			"model_id_placeholder": "Enter Model ID...",
+			"custom_headers_label": "Custom Headers",
+			"add_header_button": "Add Header",
+			"header_name_placeholder": "Header name",
+			"header_value_placeholder": "Header value",
+			"remove_header_button": "Remove",
+			"azure_api_version_label": "Set Azure API version",
+			"azure_api_version_placeholder": "Default: {{version}}",
+			"model_configuration_title": "Model Configuration",
+			"supports_images_label": "Supports Images",
+			"enable_r1_format_label": "Enable R1 messages format",
+			"context_window_size_label": "Context Window Size",
+			"max_output_tokens_label": "Max Output Tokens",
+			"input_price_label": "Input Price / 1M tokens",
+			"output_price_label": "Output Price / 1M tokens",
+			"temperature_label": "Temperature",
+			"note_text": "Note",
+			"note_content": "Cline uses complex prompts and works best with Claude models. Less capable models may not work as expected."
+		},
+		"anthropic": {
+			"custom_base_url_label": "Use custom base URL",
+			"custom_base_url_placeholder": "Default: https://api.anthropic.com"
+		},
+		"gemini": {
+			"custom_base_url_label": "Use custom base URL",
+			"custom_base_url_placeholder": "Default: https://generativelanguage.googleapis.com"
+		},
+		"bedrock": {
+			"authentication_method": "Authentication Method",
+			"api_key_option": "API Key",
+			"aws_profile_option": "AWS Profile",
+			"aws_credentials_option": "AWS Credentials",
+			"aws_profile_name_label": "AWS Profile Name",
+			"aws_profile_name_placeholder": "Enter profile name (default if empty)",
+			"aws_bedrock_api_key_label": "AWS Bedrock Api Key",
+			"aws_bedrock_api_key_placeholder": "Enter Bedrock Api Key",
+			"aws_access_key_label": "AWS Access Key",
+			"aws_access_key_placeholder": "Enter Access Key...",
+			"aws_secret_key_label": "AWS Secret Key",
+			"aws_secret_key_placeholder": "Enter Secret Key...",
+			"aws_session_token_label": "AWS Session Token",
+			"aws_session_token_placeholder": "Enter Session Token...",
+			"aws_region_label": "AWS Region",
+			"aws_region_select_placeholder": "Select a region...",
+			"use_custom_vpc_endpoint": "Use custom VPC endpoint",
+			"vpc_endpoint_placeholder": "Enter VPC Endpoint URL (optional)",
+			"use_cross_region_inference": "Use cross-region inference",
+			"use_global_inference_profile": "Use global inference profile",
+			"use_prompt_caching": "Use prompt caching",
+			"aws_profile_credentials_info": "Using AWS Profile credentials from ~/.aws/credentials. Leave profile name empty to use the default profile. These credentials are only used locally to make API requests from this extension.",
+			"aws_default_credentials_info": "Authenticate by either providing the keys above or use the default AWS credential providers, i.e. ~/.aws/credentials or environment variables. These credentials are only used locally to make API requests from this extension.",
+			"model_label": "Model",
+			"model_select_placeholder": "Select a model...",
+			"custom_model_option": "Custom",
+			"custom_model_info": "Select \"Custom\" when using the Application Inference Profile in Bedrock. Enter the Application Inference Profile ARN in the Model ID field.",
+			"model_id_label": "Model ID",
+			"model_id_placeholder": "Enter custom model ID...",
+			"base_inference_model_label": "Base Inference Model",
+			"base_inference_model_placeholder": "Select a model..."
+		},
+		"ollama": {
+			"custom_base_url_label": "Use custom base URL",
+			"custom_base_url_placeholder": "Default: http://localhost:11434",
+			"api_key_label": "API Key",
+			"api_key_placeholder": "Enter API Key (optional)...",
+			"api_key_help_text": "Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations.",
+			"model_label": "Model",
+			"model_search_placeholder": "Search and select a model...",
+			"model_manual_placeholder": "e.g. llama3.1",
+			"unable_to_fetch_models": "Unable to fetch models from Ollama server. Please ensure Ollama is running and accessible, or enter the model ID manually above.",
+			"model_context_window_label": "Model Context Window",
+			"request_timeout_label": "Request Timeout (ms)",
+			"request_timeout_placeholder": "Default: 30000 (30 seconds)",
+			"request_timeout_description": "Maximum time in milliseconds to wait for API responses before timing out.",
+			"note_text": "Note",
+			"note_content": "Cline uses complex prompts and works best with Claude models. Less capable models may not work as expected.",
+			"quickstart_guide": "quickstart guide"
+		},
+		"cline": {
+			"sort_provider_routing_label": "Sort underlying provider routing",
+			"provider_sorting_options": {
+				"default": "Default",
+				"price": "Price",
+				"throughput": "Throughput",
+				"latency": "Latency"
+			},
+			"provider_sorting_descriptions": {
+				"default": "Default behavior is to load balance requests across providers (like AWS, Google Vertex, Anthropic), prioritizing price while considering provider uptime",
+				"price": "Sort providers by price, prioritizing the lowest cost provider",
+				"throughput": "Sort providers by throughput, prioritizing the provider with the highest throughput (may increase cost)",
+				"latency": "Sort providers by response time, prioritizing the provider with the lowest latency"
+			},
+			"model_label": "Model",
+			"model_search_placeholder": "Search and select a model...",
+			"featured_models": {
+				"best": "Best",
+				"trending": "Trending",
+				"free": "Free",
+				"best_description": "Recommended for agentic coding in Cline",
+				"trending_description": "Fast open-source model with improved performance in Cline",
+				"free_description": "Advanced model with 262K context for complex coding"
+			},
+			"model_info": {
+				"preset_info": "Using OpenRouter preset: {{presetName}}. Preset models reference your configured model preferences on OpenRouter. Model info and pricing will depend on your preset configuration.",
+				"model_fetch_info": "The extension automatically fetches the latest list of models available on OpenRouter. If you're unsure which model to choose, Cline works best with anthropic/claude-sonnet-4.5. You can also try searching \"free\" for no-cost options currently available. OpenRouter presets can be used by entering @preset/your-preset-name"
+			}
+		},
+		"vertex": {
+			"project_id_label": "Google Cloud Project ID",
+			"project_id_placeholder": "Enter Project ID...",
+			"region_label": "Google Cloud Region",
+			"region_select_placeholder": "Select a region...",
+			"regions": {
+				"us-east5": "us-east5",
+				"us-central1": "us-central1",
+				"europe-west1": "europe-west1",
+				"europe-west4": "europe-west4",
+				"asia-southeast1": "asia-southeast1",
+				"global": "global"
+			},
+			"setup_instructions": "To use Google Cloud Vertex AI, you need to",
+			"setup_step1": "1) create a Google Cloud account › enable the Vertex AI API › enable the desired Claude models,",
+			"setup_step2": "2) install the Google Cloud CLI › configure Application Default Credentials.",
+			"model_label": "Model"
+		},
+		"vscode_lm": {
+			"language_model_label": "Language Model",
+			"model_select_placeholder": "Select a model...",
+			"no_models_available": "The VS Code Language Model API allows you to run models provided by other VS Code extensions (including but not limited to GitHub Copilot). The easiest way to get started is to install the Copilot extension from the VS Marketplace and enabling Claude 4 Sonnet.",
+			"experimental_note": "Note: This is a very experimental integration and may not work as expected."
+		}
+	},
+	"validation": {
+		"api_key_required": "You must provide a valid API key or choose a different provider.",
+		"region_required": "You must choose a region to use with AWS Bedrock.",
+		"project_id_region_required": "You must provide a valid Google Cloud Project ID and Region.",
+		"base_url_api_key_model_required": "You must provide a valid base URL, API key, and model ID.",
+		"model_id_required": "You must provide a valid model ID.",
+		"model_selector_required": "You must provide a valid model selector.",
+		"sap_base_url_required": "You must provide a valid Base URL key or choose a different provider.",
+		"sap_client_id_required": "You must provide a valid Client Id or choose a different provider.",
+		"sap_client_secret_required": "You must provide a valid Client Secret or choose a different provider.",
+		"sap_token_url_required": "You must provide a valid Auth URL or choose a different provider.",
+		"dify_base_url_required": "You must provide a valid Base URL or choose a different provider.",
+		"hicap_api_key_required": "You must provide a valid API key",
+		"model_not_available": "The model ID you provided is not available. Please choose a different model."
+	},
+	"format": {
+		"size_unknown": "--kb",
+		"time_unknown": "--:--"
+	},
+	"context_mentions": {
+		"working_changes": "Working changes",
+		"current_uncommitted_changes": "Current uncommitted changes",
+		"git_commits": "Git Commits",
+		"search_repository_history": "Search repository history",
+		"commit": "Commit",
+		"problems": "Problems",
+		"terminal": "Terminal",
+		"paste_url": "Paste URL to fetch contents",
+		"no_results": "No results found",
+		"add_file": "Add File",
+		"add_folder": "Add Folder",
+		"searching": "Searching...",
+		"git_commit_hash": "Git commit hash"
+	},
+	"slash_commands": {
+		"newtask": {
+			"description": "Create a new task with context from the current task"
+		},
+		"smol": {
+			"description": "Condenses your current context window"
+		},
+		"newrule": {
+			"description": "Create a new Cline rule based on your conversation"
+		},
+		"reportbug": {
+			"description": "Create a Github issue with Cline"
+		},
+		"deep-planning": {
+			"description": "Create a comprehensive implementation plan before coding"
+		},
+		"subagent": {
+			"description": "Invoke a Cline CLI subagent for focused research tasks"
+		}
+	},
 	"settings": {
 		"title": "Settings",
 		"tabs": {
@@ -40,6 +675,394 @@
 			"general": "General Settings",
 			"about": "About"
 		},
+		"api_configuration": {
+			"plan_mode_tab": "Plan Mode",
+			"act_mode_tab": "Act Mode",
+			"separate_models_checkbox": "Use different models for Plan and Act modes",
+			"separate_models_description": "Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on."
+		},
+		"features": {
+			"subagents": {
+				"new_badge": "NEW",
+				"warning_message": "Cline for CLI is required for subagents. Install it with:",
+				"install_command": "npm install -g cline",
+				"auth_command": "cline auth",
+				"install_now_button": "Install Now",
+				"checkbox_label_enabled": "Subagents Enabled",
+				"checkbox_label_disabled": "Enable Subagents",
+				"experimental_tag": "Experimental:",
+				"description": "Allows Cline to spawn subprocesses to handle focused tasks like exploring large codebases, keeping your main context clean."
+			},
+			"enable_checkpoints": "Enable Checkpoints",
+			"enable_checkpoints_description": "Enables extension to save checkpoints of workspace throughout the task. Uses git under the hood which may not work well with large workspaces.",
+			"enable_mcp_marketplace": "Enable MCP Marketplace",
+			"enable_mcp_marketplace_description": "Enables the MCP Marketplace tab for discovering and installing MCP servers.",
+			"mcp_display_mode": "MCP Display Mode",
+			"mcp_display_mode_description": "Controls how MCP responses are displayed: plain text, rich formatting with links/images, or markdown rendering.",
+			"collapse_mcp_responses": "Collapse MCP Responses",
+			"collapse_mcp_responses_description": "Sets the default display mode for MCP response panels",
+			"openai_reasoning_effort": "OpenAI Reasoning Effort",
+			"openai_reasoning_effort_description": "Reasoning effort for the OpenAI family of models(applies to all OpenAI model providers)",
+			"enable_strict_plan_mode": "Enable strict plan mode",
+			"enable_strict_plan_mode_description": "Enforces strict tool use while in plan mode, preventing file edits.",
+			"enable_focus_chain": "Enable Focus Chain",
+			"enable_focus_chain_description": "Enables enhanced task progress tracking and automatic focus chain list management throughout tasks.",
+			"focus_chain_reminder_interval": "Focus Chain Reminder Interval",
+			"focus_chain_reminder_interval_description": "Interval (in messages) to remind Cline about its focus chain checklist (1-100). Lower values provide more frequent reminders.",
+			"enable_dictation": "Enable Dictation",
+			"enable_dictation_description": "Enables speech-to-text transcription using your Cline account. Uses the Aqua Voice's Avalon model, at $0.0065 credits per minute of audio processed. 5 minutes max per message.",
+			"enable_auto_compact": "Enable Auto Compact",
+			"enable_auto_compact_description": "Enables advanced context management system which uses LLM based condensing for next-gen models.",
+			"learn_more_link": "Learn more",
+			"enable_multi_root_workspace": "Enable Multi-Root Workspace",
+			"enable_multi_root_workspace_description": "Allows cline to work across multiple workspaces.",
+			"enable_hooks": "Enable Hooks",
+			"enable_hooks_not_supported": "Hooks are not yet supported on Windows. This feature is currently available on macOS and Linux only.",
+			"enable_hooks_description": "Allows execution of hooks from .clinerules/hooks/ directory.",
+			"enable_native_tool_call": "Enable Native Tool Call",
+			"enable_native_tool_call_description": "Allows Cline to call tools through the native API.",
+			"enable_yolo_mode": "Enable YOLO Mode",
+			"enable_yolo_mode_description": "EXPERIMENTAL & DANGEROUS: This mode disables safety checks and user confirmations. Cline will automatically approve all actions without asking. Use with extreme caution."
+		},
+		"browser": {
+			"disable_tool_usage": "Disable browser tool usage",
+			"disable_tool_usage_description": "Prevent Cline from using browser actions (e.g. launch, click, type).",
+			"viewport_size": "Viewport size",
+			"viewport_size_description": "Set the size of the browser viewport for screenshots and interactions.",
+			"use_remote_browser": "Use remote browser connection",
+			"checking_connection": "Checking connection...",
+			"connected": "Connected",
+			"not_connected": "Not connected",
+			"remote_browser_description_part1": "Enable Cline to use your Chrome",
+			"remote_browser_description_part2": "(not detected on your machine)",
+			"remote_browser_description_part3": "You can specify a custom path below. Using a remote browser connection requires starting Chrome in debug mode",
+			"remote_browser_description_part4": " manually (",
+			"remote_browser_description_part5": "--remote-debugging-port=9222",
+			"remote_browser_description_part6": ") or using the button below. Enter the host address or leave it blank for automatic discovery.",
+			"remote_browser_description_part7": ".",
+			"launch_browser_debug_mode": "Launch Browser with Debug Mode",
+			"launching_browser": "Launching Browser...",
+			"chrome_executable_path": "Chrome Executable Path (Optional)",
+			"chrome_executable_path_placeholder": "e.g., /usr/bin/google-chrome or C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+			"chrome_executable_path_description": "Leave blank to auto-detect.",
+			"custom_browser_args": "Custom Browser Arguments (Optional)",
+			"custom_browser_args_placeholder": "e.g., --no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu --no-first-run --no-zygote",
+			"custom_browser_args_description": "Space-separated arguments to pass to the browser executable."
+		},
+		"terminal": {
+			"default_terminal_profile": "Default Terminal Profile",
+			"default_terminal_profile_description": "Select the default terminal Cline will use. 'Default' uses your VSCode global setting.",
+			"shell_integration_timeout": "Shell integration timeout (seconds)",
+			"shell_integration_timeout_placeholder": "Enter timeout in seconds",
+			"shell_integration_timeout_error": "Please enter a positive number",
+			"shell_integration_timeout_description": "Set how long Cline waits for shell integration to activate before executing commands. Increase this value if you experience terminal connection timeouts.",
+			"enable_aggressive_terminal_reuse": "Enable aggressive terminal reuse",
+			"enable_aggressive_terminal_reuse_description": "When enabled, Cline will reuse existing terminal windows that aren't in the current working directory. Disable this if you experience issues with task lockout after a terminal command.",
+			"terminal_execution_mode": "Terminal Execution Mode",
+			"terminal_execution_mode_description": "Choose whether Cline runs commands in the VS Code terminal or a background process.",
+			"terminal_issues_help_text": "Having terminal issues?",
+			"terminal_quick_fixes_link": "Terminal Quick Fixes",
+			"complete_troubleshooting_guide_link": "Complete Troubleshooting Guide",
+			"terminal_output_limit": "Terminal output limit",
+			"terminal_output_limit_description": "Maximum number of lines to include in terminal output when executing commands. When exceeded, lines will be removed from the middle, saving tokens."
+		},
+		"general": {
+			"enable_notifications": "Enable notifications",
+			"enable_notifications_description": "Receive system notifications when Cline requires approval to proceed or when a task is completed.",
+			"allow_error_usage_reporting": "Allow error and usage reporting",
+			"allow_error_usage_reporting_description_part1": "Help improve Cline by sending usage data and error reports. No code, prompts, or personal information are ever sent. See our ",
+			"telemetry_overview_link": "telemetry overview",
+			"allow_error_usage_reporting_description_part2": " and ",
+			"privacy_policy_link": "privacy policy",
+			"allow_error_usage_reporting_description_part3": " for more details.",
+			"remote_config_tooltip": "This setting is managed by your organization's remote configuration",
+			"preferred_language": "Preferred Language",
+			"preferred_language_description": "The language that Cline should use for communication.",
+			"ui_language": "Interface Language",
+			"ui_language_description": "Select the language for the user interface."
+		},
+		"about": {
+			"title": "Cline v{{version}}",
+			"description": "An AI assistant that can use your CLI and Editor. Cline can handle complex software development tasks step-by-step with tools that let him create & edit files, explore large projects, use the browser, and execute terminal commands (after you grant permission).",
+			"community_support": "Community & Support",
+			"development": "Development",
+			"resources": "Resources",
+			"x_link": "X",
+			"discord_link": "Discord",
+			"reddit_link": "r/cline",
+			"github_link": "GitHub",
+			"issues_link": "Issues",
+			"feature_requests_link": "Feature Requests",
+			"documentation_link": "Documentation",
+			"website_link": "https://cline.bot",
+			"account": {
+				"view_billing_usage": "View Billing & Usage",
+				"sign_up_with_cline": "Sign Up with Cline"
+			}
+		},
 		"done_button": "Done"
+	},
+	"history": {
+		"title": "History",
+		"search_placeholder": "Fuzzy search history...",
+		"clear_search": "Clear search",
+		"sort": {
+			"newest": "Newest",
+			"oldest": "Oldest",
+			"most_expensive": "Most Expensive",
+			"most_tokens": "Most Tokens",
+			"most_relevant": "Most Relevant"
+		},
+		"filter": {
+			"workspace": "Workspace",
+			"favorites": "Favorites"
+		},
+		"select_all": "Select All",
+		"select_none": "Select None",
+		"delete_item": "Delete",
+		"remove_from_favorites": "Remove from favorites",
+		"add_to_favorites": "Add to favorites",
+		"tokens": "Tokens:",
+		"cache": "Cache:",
+		"api_cost": "API Cost:",
+		"export": "EXPORT",
+		"delete_selected": "Delete selected items",
+		"delete_selected_items": "Delete {{count}} Selected",
+		"delete_all": "Delete all history",
+		"delete_all_history": "Delete All History",
+		"recent_tasks": "Recent Tasks",
+		"favorited": "Favorited",
+		"tokens_label": "Tokens:",
+		"cache_label": "Cache:",
+		"api_cost_label": "API Cost:",
+		"view_all": "View all history",
+		"view_all_history": "View all history",
+		"no_recent_tasks": "No recent tasks"
+	},
+	"mcp": {
+		"title": "MCP Servers",
+		"arguments": "Arguments",
+		"notification": "MCP Notification:",
+		"loading_documentation": "Loading MCP documentation",
+		"tabs": {
+			"marketplace": "Marketplace",
+			"remote_servers": "Remote Servers",
+			"configure": "Configure"
+		},
+		"marketplace": {
+			"search_placeholder": "Search MCPs...",
+			"clear_search": "Clear search",
+			"filter": "Filter:",
+			"all_categories": "All Categories",
+			"sort": "Sort:",
+			"sort_most_installs": "Most Installs",
+			"sort_newest": "Newest",
+			"sort_github_stars": "GitHub Stars",
+			"sort_name": "Name",
+			"org_configured": "Your organization has pre-configured the available MCP servers",
+			"no_matching_servers": "No matching MCP servers found",
+			"no_servers_found": "No MCP servers found in the marketplace",
+			"server_logo_alt": "{{name}} logo",
+			"installed": "Installed",
+			"installing": "Installing...",
+			"install": "Install",
+			"requires_api_key": "Requires API key",
+			"submit_title": "Submit MCP Server",
+			"submit_description": "Help others discover great MCP servers by submitting an issue to",
+			"error_failed_to_load": "Failed to load marketplace data",
+			"retry": "Retry"
+		},
+		"add_remote": {
+			"description": "Add a remote MCP server by providing a name and its URL endpoint. Learn more",
+			"learn_more": "here.",
+			"server_name": "Server Name",
+			"server_url": "Server URL",
+			"server_name_required": "Server name is required",
+			"server_url_required": "Server URL is required",
+			"invalid_url_format": "Invalid URL format",
+			"adding": "Adding...",
+			"add_server": "Add Server",
+			"connecting": "Connecting to server... This may take a few seconds.",
+			"edit_configuration": "Edit Configuration",
+			"failed_to_add_server": "Failed to add server"
+		},
+		"configure": {
+			"description_part1": "The",
+			"model_context_protocol": "Model Context Protocol",
+			"description_part2": "enables communication with locally running MCP servers that provide additional tools and resources to extend Cline's capabilities. You can use",
+			"community_servers": "community-made servers",
+			"description_part3": "or ask Cline to create new tools specific to your workflow (e.g., \"add a tool that gets the latest npm docs\").",
+			"see_demo": "See a demo here.",
+			"configure_mcp_servers": "Configure MCP Servers",
+			"advanced_settings": "Advanced MCP Settings",
+			"no_servers_installed": "No MCP servers installed"
+		},
+		"server_row": {
+			"restart_server": "Restart Server",
+			"delete_server": "Delete Server",
+			"retrying": "Retrying...",
+			"retry_connection": "Retry Connection",
+			"deleting": "Deleting...",
+			"tools_tab": "Tools ({{count}})",
+			"resources_tab": "Resources ({{count}})",
+			"auto_approve_all_tools": "Auto-approve all tools",
+			"no_tools_found": "No tools found",
+			"no_resources_found": "No resources found",
+			"request_timeout": "Request Timeout",
+			"restarting": "Restarting..."
+		},
+		"chat_display": {
+			"loading_image": "Loading image from {{hostname}}...",
+			"waiting_minutes": "Waiting for {{minutes}}m {{seconds}}s...",
+			"waiting_seconds": "Waiting for {{seconds}}s...",
+			"failed_to_load_image": "Failed to load image",
+			"click_to_open_in_browser": "Click to open in browser",
+			"svg_from": "SVG from {{hostname}}",
+			"image_from": "Image from {{hostname}}",
+			"error_displaying_image": "Something went wrong displaying this image",
+			"loading_preview": "Loading preview for {{hostname}}...",
+			"unable_to_load_preview": "Unable to load preview",
+			"preview_timeout": "Preview request timed out",
+			"network_error": "Network error loading preview",
+			"no_description": "No description available",
+			"no_title": "No title",
+			"error_displaying_link_preview": "Something went wrong displaying this link preview",
+			"plain_text": "Plain Text",
+			"rich_display": "Rich Display",
+			"markdown": "Markdown",
+			"response": "Response",
+			"response_error": "Response (Error)",
+			"error_parsing_response": "Error parsing response:"
+		}
+	},
+	"browser": {
+		"connection_info": "Browser connection info",
+		"connection": "Browser Connection",
+		"status": "Status",
+		"connected": "Connected",
+		"disconnected": "Disconnected",
+		"type": "Type",
+		"remote": "Remote",
+		"local": "Local",
+		"remote_host": "Remote Host"
+	},
+	"auto_approve": {
+		"auto_approve": "Auto-approve",
+		"yolo_mode": "Auto-approve: YOLO",
+		"yolo_enabled": "YOLO mode is enabled.",
+		"disable_in_settings": "Disable it in Settings",
+		"actions_description": "Let Cline take these actions without asking for approval.",
+		"configure_notifications": "Configure notification settings",
+		"none": "None",
+		"read_project_files": "Read project files",
+		"read": "Read",
+		"read_all_files": "Read all files",
+		"read_all": "Read (all)",
+		"read_description": "Allows Cline to read files within your workspace.",
+		"read_all_description": "Allows Cline to read any file on your computer.",
+		"edit_project_files": "Edit project files",
+		"edit": "Edit",
+		"edit_all_files": "Edit all files",
+		"edit_all": "Edit (all)",
+		"edit_description": "Allows Cline to modify files within your workspace.",
+		"edit_all_description": "Allows Cline to modify any file on your computer.",
+		"execute_safe_commands": "Execute safe commands",
+		"safe_commands": "Safe Commands",
+		"execute_all_commands": "Execute all commands",
+		"all_commands": "All Commands",
+		"execute_safe_description": "Allows Cline to execute safe terminal commands. If the model determines a command is potentially destructive, it will still require approval.",
+		"execute_all_description": "Allows Cline to execute all terminal commands. Use at your own risk.",
+		"use_browser": "Use the browser",
+		"browser": "Browser",
+		"browser_description": "Allows Cline to launch and interact with any website in a browser.",
+		"use_mcp": "Use MCP servers",
+		"mcp": "MCP",
+		"mcp_description": "Allows Cline to use configured MCP servers which may modify filesystem or interact with APIs.",
+		"enable_notifications": "Enable notifications",
+		"notifications": "Notifications",
+		"notifications_description": "Receive system notifications when Cline requires approval to proceed or when a task is completed."
+	},
+	"task_header": {
+		"copy_text": "Copy Text",
+		"delete_task": "Delete Task",
+		"start_new_task": "Start a New Task",
+		"compact_task": "Compact Task",
+		"open_conversation_history": "Open Conversation History File",
+		"disable_checkpoints": "Disable Checkpoints",
+		"see_instructions": "See instructions",
+		"git_instructions": "Git must be installed to use checkpoints.",
+		"multi_root_message": "Checkpoints are not supported in multi-root workspaces.",
+		"disabling_checkpoints_message": "disabling checkpoints.",
+		"compact_confirmation_title": "Compact the current task?",
+		"compact_cancel": "Cancel",
+		"compact_confirm": "Yes",
+		"no_token_data": "No token usage data available",
+		"auto_condense_threshold": "Auto Condense Threshold",
+		"click_context_window_bar": "Click on the context window bar to set a new threshold.",
+		"context_window_exceeds": "When the context window usage exceeds this threshold, the task will be automatically condensed.",
+		"context_window": "Context Window",
+		"used": "Used",
+		"total": "Total",
+		"remaining": "Remaining",
+		"token_usage": "Token Usage",
+		"prompt_tokens": "Prompt Tokens",
+		"completion_tokens": "Completion Tokens",
+		"cache_writes": "Cache Writes",
+		"cache_reads": "Cache Reads",
+		"all_tasks_completed": "All tasks have been completed!",
+		"to_do_list": "To-Do list",
+		"new_steps_generated": "New steps will be generated if you continue the task",
+		"click_to_edit_todo": "Click to edit to-do list in file",
+		"task_timeline": {
+			"task_message": "Task Message",
+			"user_message": "User Message",
+			"assistant_response": "Assistant Response",
+			"tool_use": "Tool Use",
+			"terminal_command": "Terminal Command",
+			"terminal_output": "Terminal Output",
+			"browser_action": "Browser Action",
+			"browser_result": "Browser Result",
+			"task_completed": "Task Completed",
+			"checkpoint_created": "Checkpoint Created",
+			"file_read": "File Read: {{tool}}",
+			"file_edit": "File Edit: {{path}}",
+			"new_file": "New File: {{path}}",
+			"delete_file": "Delete File: {{path}}",
+			"web_fetch": "Web Fetch: {{path}}",
+			"tool": "Tool: {{tool}}",
+			"assistant_message": "Assistant Message",
+			"planning_response": "Planning Response",
+			"tool_approval": "Tool Approval",
+			"file_read_approval": "File Read Approval: {{tool}}",
+			"file_edit_approval": "File Edit Approval: {{path}}",
+			"new_file_approval": "New File Approval: {{path}}",
+			"file_deletion_approval": "File Deletion Approval: {{path}}",
+			"terminal_command_approval": "Terminal Command Approval",
+			"browser_action_approval": "Browser Action Approval"
+		},
+		"chat_error_boundary": {
+			"error_title": "Something went wrong displaying this content",
+			"error_body": "Error: {{message}}",
+			"unknown_error": "Unknown error"
+		},
+		"error_row": {
+			"powershell_issue": "It seems like you're having Windows PowerShell issues, please see this",
+			"troubleshooting_guide": "troubleshooting guide",
+			"sign_in_to_cline": "Sign in to Cline",
+			"click_retry_below": "(Click \"Retry\" below)",
+			"diff_error": "The model used search patterns that don't match anything in the file. Retrying...",
+			"clineignore_error": "Cline tried to access {{file}} which is blocked by the {{clineignore}} file."
+		},
+		"announcement": {
+			"new_in_version": "New in v{{version}}",
+			"hooks_title": "Hooks",
+			"hooks_description": "allow you to inject custom logic into Cline's workflow",
+			"hooks_docs": "Hooks Docs",
+			"bug_fixes_and_improvements": "Bug fixes and improvements, including support for <think> tags (for better compatibility with open-source models), refinements to the GLM-4.6 system prompt, CLI auth & provider updates, and fixes for the OpenAI Compatible provider.",
+			"view_full_changelog": "View full changelog",
+			"join_us_on": "Join us on",
+			"or": "or",
+			"for_more_updates": "for more updates"
+		}
 	}
 }

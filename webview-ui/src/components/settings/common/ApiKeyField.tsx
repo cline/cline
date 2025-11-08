@@ -1,4 +1,5 @@
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { useDebouncedInput } from "../utils/useDebouncedInput"
 
 /**
@@ -16,26 +17,20 @@ interface ApiKeyFieldProps {
 /**
  * A reusable component for API key input fields with standard styling and help text for signing up for key
  */
-export const ApiKeyField = ({
-	initialValue,
-	onChange,
-	providerName,
-	signupUrl,
-	placeholder = "Enter API Key...",
-	helpText,
-}: ApiKeyFieldProps) => {
+export const ApiKeyField = ({ initialValue, onChange, providerName, signupUrl, placeholder, helpText }: ApiKeyFieldProps) => {
 	const [localValue, setLocalValue] = useDebouncedInput(initialValue, onChange)
+	const { t } = useTranslation("common")
 
 	return (
 		<div>
 			<VSCodeTextField
 				onInput={(e: any) => setLocalValue(e.target.value)}
-				placeholder={placeholder}
+				placeholder={placeholder || t("api_provider.common.api_key_placeholder")}
 				required={true}
 				style={{ width: "100%" }}
 				type="password"
 				value={localValue}>
-				<span style={{ fontWeight: 500 }}>{providerName} API Key</span>
+				<span style={{ fontWeight: 500 }}>{t("api_provider.common.api_key_label", { providerName })}</span>
 			</VSCodeTextField>
 			<p
 				style={{
@@ -43,7 +38,7 @@ export const ApiKeyField = ({
 					marginTop: 3,
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				{helpText || "This key is stored locally and only used to make API requests from this extension."}
+				{helpText || t("api_provider.common.api_key_help_text")}
 				{!localValue && signupUrl && (
 					<VSCodeLink
 						href={signupUrl}
@@ -51,7 +46,10 @@ export const ApiKeyField = ({
 							display: "inline",
 							fontSize: "inherit",
 						}}>
-						You can get a{/^[aeiou]/i.test(providerName) ? "n" : ""} {providerName} API key by signing up here.
+						{t("api_provider.common.api_key_signup_text", {
+							providerName,
+							article: /^[aeiou]/i.test(providerName) ? "n" : "",
+						})}
 					</VSCodeLink>
 				)}
 			</p>

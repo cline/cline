@@ -17,6 +17,7 @@ import {
 	VSCodePanelView,
 } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useState } from "react"
+import { useTranslation } from "react-i18next"
 import DangerButton from "@/components/common/DangerButton"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
@@ -47,6 +48,7 @@ const ServerRow = ({
 	isExpandable?: boolean
 	hasTrashIcon?: boolean
 }) => {
+	const { t } = useTranslation()
 	const { mcpMarketplaceCatalog, autoApprovalSettings, setMcpServers } = useExtensionState()
 
 	const [isExpanded, setIsExpanded] = useState(false)
@@ -211,7 +213,7 @@ const ServerRow = ({
 								e.stopPropagation()
 								handleRestart()
 							}}
-							title="Restart Server">
+							title={t("mcp.server_row.restart_server", "Restart Server")}>
 							<span className="codicon codicon-sync"></span>
 						</VSCodeButton>
 						{hasTrashIcon && (
@@ -222,7 +224,7 @@ const ServerRow = ({
 									e.stopPropagation()
 									handleDelete()
 								}}
-								title="Delete Server">
+								title={t("mcp.server_row.delete_server", "Delete Server")}>
 								<span className="codicon codicon-trash"></span>
 							</VSCodeButton>
 						)}
@@ -307,14 +309,18 @@ const ServerRow = ({
 							width: "calc(100% - 20px)",
 							margin: "0 10px 10px 10px",
 						}}>
-						{server.status === "connecting" || isRestarting ? "Retrying..." : "Retry Connection"}
+						{server.status === "connecting" || isRestarting
+							? t("mcp.server_row.retrying", "Retrying...")
+							: t("mcp.server_row.retry_connection", "Retry Connection")}
 					</VSCodeButton>
 
 					<DangerButton
 						disabled={isDeleting}
 						onClick={handleDelete}
 						style={{ width: "calc(100% - 20px)", margin: "0 10px 10px 10px" }}>
-						{isDeleting ? "Deleting..." : "Delete Server"}
+						{isDeleting
+							? t("mcp.server_row.deleting", "Deleting...")
+							: t("mcp.server_row.delete_server", "Delete Server")}
 					</DangerButton>
 				</div>
 			) : (
@@ -327,9 +333,13 @@ const ServerRow = ({
 							borderRadius: "0 0 4px 4px",
 						}}>
 						<VSCodePanels>
-							<VSCodePanelTab id="tools">Tools ({server.tools?.length || 0})</VSCodePanelTab>
+							<VSCodePanelTab id="tools">
+								{t("mcp.server_row.tools_tab", "Tools ({{count}})", { count: server.tools?.length || 0 })}
+							</VSCodePanelTab>
 							<VSCodePanelTab id="resources">
-								Resources ({[...(server.resourceTemplates || []), ...(server.resources || [])].length || 0})
+								{t("mcp.server_row.resources_tab", "Resources ({{count}})", {
+									count: [...(server.resourceTemplates || []), ...(server.resources || [])].length || 0,
+								})}
 							</VSCodePanelTab>
 
 							<VSCodePanelView id="tools-view">
@@ -351,7 +361,7 @@ const ServerRow = ({
 												data-tool="all-tools"
 												onChange={handleAutoApproveChange}
 												style={{ marginTop: "4px", marginBottom: "4px" }}>
-												Auto-approve all tools
+												{t("mcp.server_row.auto_approve_all_tools", "Auto-approve all tools")}
 											</VSCodeCheckbox>
 										)}
 									</div>
@@ -361,7 +371,7 @@ const ServerRow = ({
 											padding: "10px 0",
 											color: "var(--vscode-descriptionForeground)",
 										}}>
-										No tools found
+										{t("mcp.server_row.no_tools_found", "No tools found")}
 									</div>
 								)}
 							</VSCodePanelView>
@@ -390,14 +400,16 @@ const ServerRow = ({
 											padding: "10px 0",
 											color: "var(--vscode-descriptionForeground)",
 										}}>
-										No resources found
+										{t("mcp.server_row.no_resources_found", "No resources found")}
 									</div>
 								)}
 							</VSCodePanelView>
 						</VSCodePanels>
 
 						<div style={{ margin: "10px 7px" }}>
-							<label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>Request Timeout</label>
+							<label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>
+								{t("mcp.server_row.request_timeout", "Request Timeout")}
+							</label>
 							<VSCodeDropdown onChange={handleTimeoutChange} style={{ width: "100%" }} value={timeoutValue}>
 								{TimeoutOptions}
 							</VSCodeDropdown>
@@ -410,14 +422,18 @@ const ServerRow = ({
 								width: "calc(100% - 14px)",
 								margin: "0 7px 3px 7px",
 							}}>
-							{server.status === "connecting" || isRestarting ? "Restarting..." : "Restart Server"}
+							{server.status === "connecting" || isRestarting
+								? t("mcp.server_row.restarting", "Restarting...")
+								: t("mcp.server_row.restart_server", "Restart Server")}
 						</VSCodeButton>
 
 						<DangerButton
 							disabled={isDeleting}
 							onClick={handleDelete}
 							style={{ width: "calc(100% - 14px)", margin: "5px 7px 3px 7px" }}>
-							{isDeleting ? "Deleting..." : "Delete Server"}
+							{isDeleting
+								? t("mcp.server_row.deleting", "Deleting...")
+								: t("mcp.server_row.delete_server", "Delete Server")}
 						</DangerButton>
 					</div>
 				)

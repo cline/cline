@@ -1,6 +1,7 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import DOMPurify from "dompurify"
 import React from "react"
+import { useTranslation } from "react-i18next"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
 import { WebServiceClient } from "@/services/grpc-client"
 import { checkIfImageUrl, formatUrlForOpening, getSafeHostname } from "./utils/mcpRichUtil"
@@ -148,6 +149,7 @@ class ImagePreview extends React.Component<
 	}
 
 	render() {
+		const { t } = useTranslation()
 		const { url } = this.props
 		const { loading, error, fetchStartTime } = this.state
 
@@ -190,13 +192,20 @@ class ImagePreview extends React.Component<
 								}
 							`}
 						</style>
-						Loading image from {getSafeHostname(url)}...
+						{t("mcp.chat_display.loading_image", "Loading image from {{hostname}}...", {
+							hostname: getSafeHostname(url),
+						})}
 					</div>
 					{elapsedSeconds > 3 && (
 						<div style={{ fontSize: "11px", color: "var(--vscode-descriptionForeground)" }}>
 							{elapsedSeconds > 60
-								? `Waiting for ${Math.floor(elapsedSeconds / 60)}m ${elapsedSeconds % 60}s...`
-								: `Waiting for ${elapsedSeconds}s...`}
+								? t("mcp.chat_display.waiting_minutes", "Waiting for {{minutes}}m {{seconds}}s...", {
+										minutes: Math.floor(elapsedSeconds / 60),
+										seconds: elapsedSeconds % 60,
+									})
+								: t("mcp.chat_display.waiting_seconds", "Waiting for {{seconds}}s...", {
+										seconds: elapsedSeconds,
+									})}
 						</div>
 					)}
 					{/* Hidden image that we'll use to detect load/error events */}
@@ -244,10 +253,10 @@ class ImagePreview extends React.Component<
 						borderRadius: "4px",
 						color: "var(--vscode-errorForeground)",
 					}}>
-					<div style={{ fontWeight: "bold" }}>Failed to load image</div>
+					<div style={{ fontWeight: "bold" }}>{t("mcp.chat_display.failed_to_load_image", "Failed to load image")}</div>
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
 					<div style={{ fontSize: "11px", marginTop: "8px", color: "var(--vscode-textLink-foreground)" }}>
-						Click to open in browser
+						{t("mcp.chat_display.click_to_open_in_browser", "Click to open in browser")}
 					</div>
 				</div>
 			)
@@ -276,7 +285,7 @@ class ImagePreview extends React.Component<
 				{/\.svg(\?.*)?$/i.test(url) ? (
 					// Special handling for SVG images
 					<object
-						aria-label={`SVG from ${getSafeHostname(url)}`}
+						aria-label={t("mcp.chat_display.svg_from", "SVG from {{hostname}}", { hostname: getSafeHostname(url) })}
 						data={DOMPurify.sanitize(url)}
 						style={{
 							width: "85%",
@@ -286,7 +295,7 @@ class ImagePreview extends React.Component<
 						type="image/svg+xml">
 						{/* Fallback if object tag fails */}
 						<img
-							alt={`SVG from ${getSafeHostname(url)}`}
+							alt={t("mcp.chat_display.svg_from", "SVG from {{hostname}}", { hostname: getSafeHostname(url) })}
 							src={DOMPurify.sanitize(url)}
 							style={{
 								width: "85%",
@@ -297,7 +306,7 @@ class ImagePreview extends React.Component<
 					</object>
 				) : (
 					<img
-						alt={`Image from ${getSafeHostname(url)}`}
+						alt={t("mcp.chat_display.image_from", "Image from {{hostname}}", { hostname: getSafeHostname(url) })}
 						loading="eager"
 						onLoad={(e) => {
 							// Double-check aspect ratio from the actual loaded image
@@ -338,7 +347,11 @@ const MemoizedImagePreview = React.memo(
 // Wrap the ImagePreview component with an error boundary
 const ImagePreviewWithErrorBoundary: React.FC<ImagePreviewProps> = (props) => {
 	return (
-		<ChatErrorBoundary errorTitle="Something went wrong displaying this image">
+		<ChatErrorBoundary
+			errorTitle={useTranslation()[0](
+				"mcp.chat_display.error_displaying_image",
+				"Something went wrong displaying this image",
+			)}>
 			<MemoizedImagePreview {...props} />
 		</ChatErrorBoundary>
 	)

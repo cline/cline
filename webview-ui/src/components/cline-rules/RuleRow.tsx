@@ -1,6 +1,7 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { RuleFileRequest } from "@shared/proto/index.cline"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { FileServiceClient } from "@/services/grpc-client"
 
 const RuleRow: React.FC<{
@@ -10,6 +11,7 @@ const RuleRow: React.FC<{
 	ruleType: string
 	toggleRule: (rulePath: string, enabled: boolean) => void
 }> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType }) => {
+	const { t } = useTranslation()
 	// Check if the path type is Windows
 	const win32Path = /^[a-zA-Z]:\\/.test(rulePath)
 	// Get the filename from the path for display
@@ -109,18 +111,18 @@ const RuleRow: React.FC<{
 					</div>
 					<VSCodeButton
 						appearance="icon"
-						aria-label="Edit rule file"
+						aria-label={t("rule_row.edit_rule_file")}
 						onClick={handleEditClick}
 						style={{ height: "20px" }}
-						title="Edit rule file">
+						title={t("rule_row.edit_rule_file")}>
 						<span className="codicon codicon-edit" style={{ fontSize: "14px" }} />
 					</VSCodeButton>
 					<VSCodeButton
 						appearance="icon"
-						aria-label="Delete rule file"
+						aria-label={t("rule_row.delete_rule_file")}
 						onClick={handleDeleteClick}
 						style={{ height: "20px" }}
-						title="Delete rule file">
+						title={t("rule_row.delete_rule_file")}>
 						<span className="codicon codicon-trash" style={{ fontSize: "14px" }} />
 					</VSCodeButton>
 				</div>

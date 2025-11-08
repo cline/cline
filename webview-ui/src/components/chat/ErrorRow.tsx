@@ -1,6 +1,7 @@
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
+import { useTranslation } from "react-i18next"
 import CreditLimitError from "@/components/chat/CreditLimitError"
 import { handleSignIn, useClineAuth } from "@/context/ClineAuthContext"
 import { ClineError, ClineErrorType } from "../../../../src/services/error/ClineError"
@@ -16,6 +17,7 @@ interface ErrorRowProps {
 
 const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStreamingFailedMessage }: ErrorRowProps) => {
 	const { clineUser } = useClineAuth()
+	const { t } = useTranslation()
 
 	const renderErrorContent = () => {
 		switch (errorType) {
@@ -67,11 +69,11 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 								<>
 									<br />
 									<br />
-									It seems like you're having Windows PowerShell issues, please see this{" "}
+									{t("error_row.powershell_issue")}{" "}
 									<a
 										className="underline text-inherit"
 										href="https://github.com/cline/cline/wiki/TroubleShooting-%E2%80%90-%22PowerShell-is-not-recognized-as-an-internal-or-external-command%22">
-										troubleshooting guide
+										{t("error_row.troubleshooting_guide")}
 									</a>
 									.
 								</>
@@ -82,10 +84,12 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 									<br />
 									{/* The user is signed in or not using cline provider */}
 									{clineUser && !isClineProvider ? (
-										<span className="mb-4 text-(--vscode-descriptionForeground)">(Click "Retry" below)</span>
+										<span className="mb-4 text-(--vscode-descriptionForeground)">
+											{t("error_row.click_retry_below")}
+										</span>
 									) : (
 										<VSCodeButton className="w-full mb-4" onClick={handleSignIn}>
-											Sign in to Cline
+											{t("error_row.sign_in_to_cline")}
 										</VSCodeButton>
 									)}
 								</>
@@ -100,7 +104,7 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 			case "diff_error":
 				return (
 					<div className="flex flex-col p-2 rounded text-xs opacity-80 bg-(--vscode-textBlockQuote-background) text-(--vscode-foreground)">
-						<div>The model used search patterns that don't match anything in the file. Retrying...</div>
+						<div>{t("error_row.diff_error")}</div>
 					</div>
 				)
 
@@ -108,8 +112,10 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 				return (
 					<div className="flex flex-col p-2 rounded text-xs bg-(--vscode-textBlockQuote-background) text-(--vscode-foreground) opacity-80">
 						<div>
-							Cline tried to access <code>{message.text}</code> which is blocked by the <code>.clineignore</code>
-							file.
+							{t("error_row.clineignore_error", {
+								file: <code>{message.text}</code>,
+								clineignore: <code>.clineignore</code>,
+							})}
 						</div>
 					</div>
 				)

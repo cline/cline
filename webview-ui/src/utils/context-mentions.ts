@@ -1,5 +1,6 @@
 import { mentionRegex } from "@shared/context-mentions"
 import { Fzf } from "fzf"
+import { t } from "i18next"
 import { PLATFORM_CONFIG } from "@/config/platform.config"
 
 export interface SearchResult {
@@ -124,8 +125,8 @@ export function getContextMenuOptions(
 	const workingChanges: ContextMenuQueryItem = {
 		type: ContextMenuOptionType.Git,
 		value: "git-changes",
-		label: "Working changes",
-		description: "Current uncommitted changes",
+		label: t("context_mentions.working_changes"),
+		description: t("context_mentions.current_uncommitted_changes"),
 	}
 
 	const searchResultItems: ContextMenuQueryItem[] = dynamicSearchResults.map((result) => {
@@ -182,8 +183,8 @@ export function getContextMenuOptions(
 	if ("git".startsWith(lowerQuery)) {
 		suggestions.push({
 			type: ContextMenuOptionType.Git,
-			label: "Git Commits",
-			description: "Search repository history",
+			label: t("context_mentions.git_commits"),
+			description: t("context_mentions.search_repository_history"),
 		})
 	} else if ("git-changes".startsWith(lowerQuery)) {
 		suggestions.push(workingChanges)
@@ -207,8 +208,8 @@ export function getContextMenuOptions(
 			suggestions.push({
 				type: ContextMenuOptionType.Git,
 				value: lowerQuery,
-				label: `Commit ${lowerQuery}`,
-				description: "Git commit hash",
+				label: `${t("context_mentions.commit")} ${lowerQuery}`,
+				description: t("context_mentions.git_commit_hash"),
 			})
 		}
 	}

@@ -1,6 +1,7 @@
 import { CheckpointRestoreRequest } from "@shared/proto/cline/checkpoints"
 import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import React, { forwardRef, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import DynamicTextArea from "react-textarea-autosize"
 import Thumbnails from "@/components/common/Thumbnails"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -20,6 +21,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 	const [editedText, setEditedText] = useState(text || "")
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const { checkpointManagerErrorMessage } = useExtensionState()
+	const { t } = useTranslation()
 
 	// Create refs for the buttons to check in the blur handler
 	const restoreAllButtonRef = useRef<HTMLButtonElement>(null)
@@ -127,19 +129,19 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 						{!checkpointManagerErrorMessage && (
 							<RestoreButton
 								isPrimary={false}
-								label="Restore All"
+								label={t("user_message.restore_all")}
 								onClick={handleRestoreWorkspace}
 								ref={restoreAllButtonRef}
-								title="Restore both the chat and workspace files to this checkpoint and send your edited message"
+								title={t("user_message.restore_all_title")}
 								type="taskAndWorkspace"
 							/>
 						)}
 						<RestoreButton
 							isPrimary={true}
-							label="Restore Chat"
+							label={t("user_message.restore_chat")}
 							onClick={handleRestoreWorkspace}
 							ref={restoreChatButtonRef}
-							title="Restore just the chat to this checkpoint and send your edited message"
+							title={t("user_message.restore_chat_title")}
 							type="task"
 						/>
 					</div>

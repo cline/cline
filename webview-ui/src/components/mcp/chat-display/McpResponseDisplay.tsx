@@ -1,6 +1,7 @@
 import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
 import React, { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
@@ -74,6 +75,7 @@ interface McpResponseDisplayProps {
 }
 
 const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText }) => {
+	const { t } = useTranslation()
 	const { mcpResponsesCollapsed, mcpDisplayMode } = useExtensionState() // Get setting from context
 	const [isExpanded, setIsExpanded] = useState(!mcpResponsesCollapsed) // Initialize with context setting
 	const [isLoading, setIsLoading] = useState(false) // Initial loading state for rich content
@@ -222,7 +224,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					}}>
 					<div className="header-title">
 						<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"} header-icon`}></span>
-						Response
+						{t("mcp.chat_display.response", "Response")}
 					</div>
 					<DropdownContainer
 						style={{ minWidth: isExpanded ? "auto" : "0", visibility: isExpanded ? "visible" : "hidden" }}>
@@ -246,12 +248,14 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 				<ResponseHeader onClick={toggleExpand}>
 					<div className="header-title">
 						<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"} header-icon`}></span>
-						Response (Error)
+						{t("mcp.chat_display.response_error", "Response (Error)")}
 					</div>
 				</ResponseHeader>
 				{isExpanded && (
 					<div className="response-content">
-						<div style={{ color: "var(--vscode-errorForeground)" }}>Error parsing response:</div>
+						<div style={{ color: "var(--vscode-errorForeground)" }}>
+							{t("mcp.chat_display.error_parsing_response", "Error parsing response:")}
+						</div>
 						<UrlText>{responseText}</UrlText>
 					</div>
 				)}

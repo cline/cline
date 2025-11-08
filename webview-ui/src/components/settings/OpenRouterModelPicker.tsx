@@ -5,6 +5,7 @@ import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
 import type React from "react"
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useMount } from "react-use"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -47,18 +48,18 @@ export interface OpenRouterModelPickerProps {
 const featuredModels = [
 	{
 		id: "anthropic/claude-sonnet-4.5",
-		description: "Recommended for agentic coding in Cline",
-		label: "Best",
+		descriptionKey: "api_provider.cline.featured_models.best_description",
+		labelKey: "api_provider.cline.featured_models.best",
 	},
 	{
 		id: "z-ai/glm-4.6:exacto",
-		description: "Fast open-source model with improved performance in Cline",
-		label: "Trending",
+		descriptionKey: "api_provider.cline.featured_models.trending_description",
+		labelKey: "api_provider.cline.featured_models.trending",
 	},
 	{
 		id: "x-ai/grok-code-fast-1",
-		description: "Advanced model with 262K context for complex coding",
-		label: "Free",
+		descriptionKey: "api_provider.cline.featured_models.free_description",
+		labelKey: "api_provider.cline.featured_models.free",
 		isFree: true,
 	},
 ]
@@ -67,6 +68,7 @@ const FREE_CLINE_MODELS = featuredModels.filter((m) => m.isFree)
 const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, currentMode }) => {
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds, openRouterModels, refreshOpenRouterModels } = useExtensionState()
+	const { t } = useTranslation("common")
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
@@ -275,17 +277,17 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			</style>
 			<div style={{ display: "flex", flexDirection: "column" }}>
 				<label htmlFor="model-search">
-					<span style={{ fontWeight: 500 }}>Model</span>
+					<span style={{ fontWeight: 500 }}>{t("api_provider.cline.model_label")}</span>
 				</label>
 
 				{modeFields.apiProvider === "cline" && (
 					<div style={{ marginBottom: "6px", marginTop: 4 }}>
 						{featuredModels.map((model) => (
 							<FeaturedModelCard
-								description={model.description}
+								description={t(model.descriptionKey)}
 								isSelected={selectedModelId === model.id}
 								key={model.id}
-								label={model.label}
+								label={t(model.labelKey)}
 								modelId={model.id}
 								onClick={() => {
 									handleModelChange(model.id)
@@ -310,7 +312,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 							setIsDropdownVisible(true)
 						}}
 						onKeyDown={handleKeyDown}
-						placeholder="Search and select a model..."
+						placeholder={t("api_provider.cline.model_search_placeholder")}
 						style={{
 							width: "100%",
 							zIndex: OPENROUTER_MODEL_PICKER_Z_INDEX,
@@ -398,12 +400,10 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						marginTop: 3,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					Using OpenRouter preset: <strong>{searchTerm}</strong>. Preset models reference your configured model
-					preferences on{" "}
+					{t("api_provider.cline.model_info.preset_info", { presetName: searchTerm })}{" "}
 					<VSCodeLink href="https://openrouter.ai/settings/presets" style={{ display: "inline", fontSize: "inherit" }}>
 						OpenRouter.
 					</VSCodeLink>
-					Model info and pricing will depend on your preset configuration.
 				</p>
 			) : (
 				<p
@@ -412,18 +412,15 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						marginTop: 0,
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					The extension automatically fetches the latest list of models available on{" "}
+					{t("api_provider.cline.model_info.model_fetch_info")}{" "}
 					<VSCodeLink href="https://openrouter.ai/models" style={{ display: "inline", fontSize: "inherit" }}>
 						OpenRouter.
-					</VSCodeLink>
-					If you're unsure which model to choose, Cline works best with{" "}
+					</VSCodeLink>{" "}
 					<VSCodeLink
 						onClick={() => handleModelChange("anthropic/claude-sonnet-4.5")}
 						style={{ display: "inline", fontSize: "inherit" }}>
 						anthropic/claude-sonnet-4.5.
 					</VSCodeLink>
-					You can also try searching "free" for no-cost options currently available. OpenRouter presets can be used by
-					entering @preset/your-preset-name
 				</p>
 			)}
 		</div>

@@ -5,6 +5,7 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption, VSCodeTag } from "@vscode/webview-ui-toolkit/react"
 import deepEqual from "fast-deep-equal"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useInterval } from "react-use"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type ClineUser, handleSignOut } from "@/context/ClineAuthContext"
@@ -45,14 +46,15 @@ const ClineEnvOptions = ["Production", "Staging", "Local"] as const
 const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: AccountViewProps) => {
 	const { environment } = useExtensionState()
 	const titleColor = getClineEnvironmentClassname(environment)
+	const { t } = useTranslation("common")
 
 	return (
 		<div className="fixed inset-0 flex flex-col overflow-hidden pt-[10px] pl-[20px]">
 			<div className="flex justify-between items-center mb-[17px] pr-[17px]">
 				<h3 className={cn("text-(--vscode-foreground) m-0", titleColor)}>
-					Account {environment !== "production" ? ` - ${environment} environment` : ""}
+					{t("account.title", "Account")} {environment !== "production" ? ` - ${environment} environment` : ""}
 				</h3>
-				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
+				<VSCodeButton onClick={onDone}>{t("account.done", "Done")}</VSCodeButton>
 			</div>
 			<div className="grow overflow-hidden pr-[8px] flex flex-col">
 				<div className="h-full mb-1.5">
@@ -76,6 +78,7 @@ const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: A
 export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganization, clineEnv }: ClineAccountViewProps) => {
 	const { email, displayName, appBaseUrl, uid } = clineUser
 	const { remoteConfigSettings } = useExtensionState()
+	const { t } = useTranslation("common")
 
 	// Determine if dropdown should be locked by remote config
 	const isLockedByRemoteConfig = Object.keys(remoteConfigSettings || {}).length > 0
@@ -337,7 +340,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 											disabled={isLoading || isLockedByRemoteConfig}
 											onChange={handleOrganizationChange}>
 											<VSCodeOption key="personal" value={uid}>
-												Personal
+												{t("account.personal", "Personal")}
 											</VSCodeOption>
 											{userOrganizations?.map((org: UserOrganization) => (
 												<VSCodeOption key={org.organizationId} value={org.organizationId}>
@@ -347,7 +350,10 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 										</VSCodeDropdown>
 									</TooltipTrigger>
 									<TooltipContent hidden={!isLockedByRemoteConfig}>
-										This cannot be changed while your organization has remote configuration enabled.
+										{t(
+											"account.organization_locked_tooltip",
+											"This cannot be changed while your organization has remote configuration enabled.",
+										)}
 									</TooltipContent>
 								</Tooltip>
 								{activeOrganization && (
@@ -363,11 +369,11 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 				<div className="w-full flex gap-2 flex-col min-[225px]:flex-row">
 					<div className="w-full min-[225px]:w-1/2">
 						<VSCodeButtonLink appearance="primary" className="w-full" href={getClineUris(clineUrl, "dashboard").href}>
-							Dashboard
+							{t("account.dashboard", "Dashboard")}
 						</VSCodeButtonLink>
 					</div>
 					<VSCodeButton appearance="secondary" className="w-full min-[225px]:w-1/2" onClick={() => handleSignOut()}>
-						Log out
+						{t("account.logout", "Log out")}
 					</VSCodeButton>
 				</div>
 
@@ -395,7 +401,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 				{isClineTester && (
 					<div className="w-full gap-1 items-end">
 						<VSCodeDivider className="w-full my-3" />
-						<div className="text-sm font-semibold">Cline Environment</div>
+						<div className="text-sm font-semibold">{t("account.cline_environment", "Cline Environment")}</div>
 						<VSCodeDropdown
 							className="w-full mt-1"
 							currentValue={clineEnv}

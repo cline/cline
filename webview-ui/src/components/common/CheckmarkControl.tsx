@@ -5,6 +5,7 @@ import { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -16,6 +17,7 @@ interface CheckmarkControlProps {
 }
 
 export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: CheckmarkControlProps) => {
+	const { t } = useTranslation()
 	const [compareDisabled, setCompareDisabled] = useState(false)
 	const [restoreTaskDisabled, setRestoreTaskDisabled] = useState(false)
 	const [restoreWorkspaceDisabled, setRestoreWorkspaceDisabled] = useState(false)
@@ -176,7 +178,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 			<DottedLine $isCheckedOut={isCheckpointCheckedOut} className="hover-show-inverse" />
 			<div className="hover-content">
 				<Label $isCheckedOut={isCheckpointCheckedOut}>
-					{isCheckpointCheckedOut ? "Checkpoint (restored)" : "Checkpoint"}
+					{isCheckpointCheckedOut ? t("checkmark_control.checkpoint_restored") : t("checkmark_control.checkpoint")}
 				</Label>
 				<DottedLine $isCheckedOut={isCheckpointCheckedOut} />
 				<ButtonGroup>
@@ -198,7 +200,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 							}
 						}}
 						style={{ cursor: compareDisabled ? "wait" : "pointer" }}>
-						Compare
+						{t("checkmark_control.compare")}
 					</CustomButton>
 					<DottedLine $isCheckedOut={isCheckpointCheckedOut} small />
 					<div ref={refs.setReference} style={{ position: "relative", marginTop: -2 }}>
@@ -206,7 +208,7 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 							$isCheckedOut={isCheckpointCheckedOut}
 							isActive={showRestoreConfirm}
 							onClick={() => setShowRestoreConfirm(true)}>
-							Restore
+							{t("checkmark_control.restore")}
 						</CustomButton>
 						{showRestoreConfirm &&
 							createPortal(
@@ -229,12 +231,9 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 												width: "100%",
 												marginBottom: "10px",
 											}}>
-											Restore Files
+											{t("checkmark_control.restore_files")}
 										</VSCodeButton>
-										<p>
-											Restores your project's files back to a snapshot taken at this point (use "Compare" to
-											see what will be reverted)
-										</p>
+										<p>{t("checkmark_control.restore_files_description")}</p>
 									</RestoreOption>
 									<RestoreOption>
 										<VSCodeButton
@@ -245,9 +244,9 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 												width: "100%",
 												marginBottom: "10px",
 											}}>
-											Restore Task Only
+											{t("checkmark_control.restore_task_only")}
 										</VSCodeButton>
-										<p>Deletes messages after this point (does not affect workspace files)</p>
+										<p>{t("checkmark_control.restore_task_only_description")}</p>
 									</RestoreOption>
 									<RestoreOption>
 										<VSCodeButton
@@ -258,9 +257,9 @@ export const CheckmarkControl = ({ messageTs, isCheckpointCheckedOut }: Checkmar
 												width: "100%",
 												marginBottom: "10px",
 											}}>
-											Restore Files & Task
+											{t("checkmark_control.restore_files_and_task")}
 										</VSCodeButton>
-										<p>Restores your project's files and deletes all messages after this point</p>
+										<p>{t("checkmark_control.restore_files_and_task_description")}</p>
 									</RestoreOption>
 								</RestoreConfirmTooltip>,
 								document.body,

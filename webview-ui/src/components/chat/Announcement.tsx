@@ -1,6 +1,7 @@
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { XIcon } from "lucide-react"
 import { CSSProperties, memo } from "react"
+import { useTranslation } from "react-i18next"
 import { useMount } from "react-use"
 import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -39,6 +40,8 @@ Patch releases (3.19.1 → 3.19.2) will not trigger new announcements.
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
 	const { refreshOpenRouterModels } = useExtensionState()
+	const { t } = useTranslation()
+
 	// Need to get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
 
@@ -53,40 +56,40 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<XIcon />
 			</Button>
 			<h4 style={h4TitleStyle}>
-				🎉{"  "}New in v{minorVersion}
+				🎉{"  "}
+				{t("task_header.announcement.new_in_version", { version: minorVersion })}
 			</h4>
 			<ul style={ulStyle}>
 				<li>
-					<strong>Hooks</strong> allow you to inject custom logic into Cline's workflow&nbsp; (
+					<strong>{t("task_header.announcement.hooks_title")}</strong> {t("task_header.announcement.hooks_description")}
+					&nbsp; (
 					<a href="https://docs.cline.bot/features/hooks" style={linkStyle}>
-						Hooks Docs
+						{t("task_header.announcement.hooks_docs")}
 					</a>
 					)
 				</li>
 				<li>
-					Bug fixes and improvements, including support for <code>&lt;think&gt;</code> tags (for better compatibility
-					with open-source models), refinements to the GLM-4.6 system prompt, CLI auth & provider updates, and fixes for
-					the OpenAI Compatible provider.&nbsp; (
+					{t("task_header.announcement.bug_fixes_and_improvements")}&nbsp; (
 					<a href="https://github.com/cline/cline/blob/main/CHANGELOG.md" style={linkStyle}>
-						View full changelog
+						{t("task_header.announcement.view_full_changelog")}
 					</a>
 					)
 				</li>
 			</ul>
 			<div style={hrStyle} />
 			<p style={linkContainerStyle}>
-				Join us on{" "}
+				{t("task_header.announcement.join_us_on")}{" "}
 				<VSCodeLink href="https://x.com/cline" style={linkStyle}>
 					X,
 				</VSCodeLink>{" "}
 				<VSCodeLink href="https://discord.gg/cline" style={linkStyle}>
 					discord,
 				</VSCodeLink>{" "}
-				or{" "}
+				{t("task_header.announcement.or")}{" "}
 				<VSCodeLink href="https://www.reddit.com/r/cline/" style={linkStyle}>
 					r/cline
 				</VSCodeLink>
-				for more updates!
+				{t("task_header.announcement.for_more_updates")}!
 			</p>
 		</div>
 	)

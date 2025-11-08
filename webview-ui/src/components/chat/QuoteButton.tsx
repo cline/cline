@@ -1,5 +1,6 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 
 interface QuoteButtonProps {
@@ -32,18 +33,20 @@ const ButtonContainer = styled.div<ButtonContainerProps>`
 `
 
 const QuoteButton: React.FC<QuoteButtonProps> = ({ top, left, onClick }) => {
+	const { t } = useTranslation()
+
 	return (
 		// Pass transient props to the styled component
 		<ButtonContainer $left={left} $top={top} className="quote-button-class">
 			<VSCodeButton
 				appearance="icon"
-				aria-label="Quote selection"
+				aria-label={t("quote_button.aria_label")}
 				onClick={(e) => {
 					e.stopPropagation() // Prevent triggering mouseup on the parent
 					onClick()
 				}}
 				style={{ padding: "2px 4px", height: "auto", minWidth: "auto" }}
-				title="Quote selection in reply">
+				title={t("quote_button.title")}>
 				{" "}
 				{/* Adjust padding */}
 				<span

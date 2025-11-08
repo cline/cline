@@ -2,6 +2,7 @@ import { ANTHROPIC_MAX_THINKING_BUDGET, ANTHROPIC_MIN_THINKING_BUDGET } from "@s
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { memo, useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { getModeSpecificFields } from "./utils/providerUtils"
@@ -69,6 +70,7 @@ interface ThinkingBudgetSliderProps {
 const ThinkingBudgetSlider = ({ currentMode }: ThinkingBudgetSliderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
+	const { t } = useTranslation("common")
 
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
@@ -120,7 +122,10 @@ const ThinkingBudgetSlider = ({ currentMode }: ThinkingBudgetSliderProps) => {
 	return (
 		<>
 			<VSCodeCheckbox checked={isEnabled} onClick={handleToggleChange}>
-				Enable thinking{localValue && localValue > 0 ? ` (${localValue.toLocaleString()} tokens)` : ""}
+				{t("api_provider.common.thinking_budget.enable_thinking")}
+				{localValue && localValue > 0
+					? ` (${localValue.toLocaleString()} ${t("api_provider.common.thinking_budget.tokens")})`
+					: ""}
 			</VSCodeCheckbox>
 
 			{isEnabled && (
@@ -130,7 +135,7 @@ const ThinkingBudgetSlider = ({ currentMode }: ThinkingBudgetSliderProps) => {
 						$min={0}
 						$value={localValue}
 						aria-describedby="thinking-budget-description"
-						aria-label={`Thinking budget: ${localValue.toLocaleString()} tokens`}
+						aria-label={`${t("api_provider.common.thinking_budget.enable_thinking")}: ${localValue.toLocaleString()} ${t("api_provider.common.thinking_budget.tokens")}`}
 						aria-valuemax={ANTHROPIC_MAX_THINKING_BUDGET}
 						aria-valuemin={ANTHROPIC_MIN_THINKING_BUDGET}
 						aria-valuenow={localValue}

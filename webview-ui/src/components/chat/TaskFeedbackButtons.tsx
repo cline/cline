@@ -2,6 +2,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { TaskFeedbackType } from "@shared/WebviewMessage"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 import { TaskServiceClient } from "@/services/grpc-client"
 
@@ -22,6 +23,7 @@ const ButtonWrapper = styled.div`
 const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, isFromHistory = false, style }) => {
 	const [feedback, setFeedback] = useState<TaskFeedbackType | null>(null)
 	const [shouldShow, setShouldShow] = useState<boolean>(true)
+	const { t } = useTranslation()
 
 	// Check localStorage on mount to see if feedback was already given for this message
 	useEffect(() => {
@@ -76,10 +78,10 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 				<ButtonWrapper>
 					<VSCodeButton
 						appearance="icon"
-						aria-label="This was helpful"
+						aria-label={t("task_feedback_buttons.this_was_helpful")}
 						disabled={feedback !== null}
 						onClick={() => handleFeedback("thumbs_up")}
-						title="This was helpful">
+						title={t("task_feedback_buttons.this_was_helpful")}>
 						<IconWrapper>
 							<span
 								className={`codicon ${feedback === "thumbs_up" ? "codicon-thumbsup-filled" : "codicon-thumbsup"}`}
@@ -90,10 +92,10 @@ const TaskFeedbackButtons: React.FC<TaskFeedbackButtonsProps> = ({ messageTs, is
 				<ButtonWrapper>
 					<VSCodeButton
 						appearance="icon"
-						aria-label="This wasn't helpful"
+						aria-label={t("task_feedback_buttons.this_wasnt_helpful")}
 						disabled={feedback !== null && feedback !== "thumbs_down"}
 						onClick={() => handleFeedback("thumbs_down")}
-						title="This wasn't helpful">
+						title={t("task_feedback_buttons.this_wasnt_helpful")}>
 						<IconWrapper>
 							<span
 								className={`codicon ${feedback === "thumbs_down" ? "codicon-thumbsdown-filled" : "codicon-thumbsdown"}`}

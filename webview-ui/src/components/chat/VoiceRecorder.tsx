@@ -2,6 +2,7 @@ import { TranscribeAudioRequest } from "@shared/proto/cline/dictation"
 import { EmptyRequest } from "@shared/proto/index.cline"
 import { SquareIcon, StopCircleIcon } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -33,6 +34,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 	const [recordingDuration, setRecordingDuration] = useState(0)
 	const [error, setError] = useState<string | null>(null)
 	const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+	const { t } = useTranslation()
 
 	// Notify parent when recording state changes
 	useEffect(() => {
@@ -99,14 +101,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
 			if (!response.audioBase64) {
 				setIsProcessing(false)
-				const errorMessage = "No audio data received"
+				const errorMessage = t("voice_recorder.no_audio_data")
 				setError(errorMessage)
 				onTranscription("")
 				return
 			}
 
 			// Update processing state for transcription
-			onProcessingStateChange?.(true, "Transcribing...")
+			onProcessingStateChange?.(true, t("voice_recorder.transcribing"))
 
 			// Transcribe the audio using OpenAI Whisper
 			const transcriptionResponse = await DictationServiceClient.transcribeAudio(
@@ -131,7 +133,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			}
 		} catch (error) {
 			console.error("Error stopping recording:", error)
-			const errorMessage = error instanceof Error ? error.message : "An error occurred"
+			const errorMessage = error instanceof Error ? error.message : t("error_row.unknown_error")
 			setError(errorMessage)
 			onTranscription("")
 		} finally {
@@ -195,7 +197,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 			console.log("Recording canceled successfully")
 		} catch (error) {
 			console.error("Error canceling recording:", error)
-			const errorMessage = error instanceof Error ? error.message : "Failed to cancel recording"
+			const errorMessage = error instanceof Error ? error.message : t("voice_recorder.cancel_recording")
 			setError(errorMessage)
 		}
 	}, [onProcessingStateChange, onTranscription])
@@ -236,12 +238,12 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 					: "codicon-mic"
 		const iconColor = error ? "text-error" : ""
 		const tooltipContent = isProcessing
-			? "Transcribing..."
+			? t("voice_recorder.transcribing")
 			: isStarting
-				? "Starting recording..."
+				? t("voice_recorder.starting_recording")
 				: error
-					? `Error: ${error}`
-					: "Voice Input"
+					? t("voice_recorder.error", { error })
+					: t("voice_recorder.voice_input")
 
 		return (
 			<Tooltip>
@@ -279,7 +281,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 					</Button>
 				</TooltipTrigger>
 				<TooltipContent side="top">
-					Stop Recording ({formatSeconds(recordingDuration)}/{formatSeconds(MAX_DURATION)})
+					{t("voice_recorder.stop_recording")} ({formatSeconds(recordingDuration)}/{formatSeconds(MAX_DURATION)})
 				</TooltipContent>
 			</Tooltip>
 

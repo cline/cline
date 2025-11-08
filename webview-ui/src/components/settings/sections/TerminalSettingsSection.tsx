@@ -1,6 +1,7 @@
 import { UpdateTerminalConnectionTimeoutResponse } from "@shared/proto/index.cline"
 import { VSCodeCheckbox, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import React, { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { usePlatform } from "@/context/PlatformContext"
@@ -23,6 +24,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 	} = useExtensionState()
 	const platformConfig = usePlatform()
 	const isVsCodePlatform = platformConfig.type === PlatformType.VSCODE
+	const { t } = useTranslation("common")
 
 	const [inputValue, setInputValue] = useState((shellIntegrationTimeout / 1000).toString())
 	const [inputError, setInputError] = useState<string | null>(null)
@@ -35,7 +37,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 
 		const seconds = parseFloat(value)
 		if (Number.isNaN(seconds) || seconds <= 0) {
-			setInputError("Please enter a positive number")
+			setInputError(t("settings.terminal.shell_integration_timeout_error"))
 			return
 		}
 
@@ -93,7 +95,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 				<div className="mb-5" id="terminal-settings-section">
 					<div className="mb-4">
 						<label className="font-medium block mb-1" htmlFor="default-terminal-profile">
-							Default Terminal Profile
+							{t("settings.terminal.default_terminal_profile")}
 						</label>
 						<VSCodeDropdown
 							className="w-full"
@@ -107,27 +109,26 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 							))}
 						</VSCodeDropdown>
 						<p className="text-xs text-(--vscode-descriptionForeground) mt-1">
-							Select the default terminal Cline will use. 'Default' uses your VSCode global setting.
+							{t("settings.terminal.default_terminal_profile_description")}
 						</p>
 					</div>
 
 					<div className="mb-4">
 						<div className="mb-2">
-							<label className="font-medium block mb-1">Shell integration timeout (seconds)</label>
+							<label className="font-medium block mb-1">{t("settings.terminal.shell_integration_timeout")}</label>
 							<div className="flex items-center">
 								<VSCodeTextField
 									className="w-full"
 									onBlur={handleInputBlur}
 									onChange={(event) => handleTimeoutChange(event as Event)}
-									placeholder="Enter timeout in seconds"
+									placeholder={t("settings.terminal.shell_integration_timeout_placeholder")}
 									value={inputValue}
 								/>
 							</div>
 							{inputError && <div className="text-(--vscode-errorForeground) text-xs mt-1">{inputError}</div>}
 						</div>
 						<p className="text-xs text-(--vscode-descriptionForeground)">
-							Set how long Cline waits for shell integration to activate before executing commands. Increase this
-							value if you experience terminal connection timeouts.
+							{t("settings.terminal.shell_integration_timeout_description")}
 						</p>
 					</div>
 
@@ -136,18 +137,17 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 							<VSCodeCheckbox
 								checked={terminalReuseEnabled ?? true}
 								onChange={(event) => handleTerminalReuseChange(event as Event)}>
-								Enable aggressive terminal reuse
+								{t("settings.terminal.enable_aggressive_terminal_reuse")}
 							</VSCodeCheckbox>
 						</div>
 						<p className="text-xs text-(--vscode-descriptionForeground)">
-							When enabled, Cline will reuse existing terminal windows that aren't in the current working directory.
-							Disable this if you experience issues with task lockout after a terminal command.
+							{t("settings.terminal.enable_aggressive_terminal_reuse_description")}
 						</p>
 					</div>
 					{isVsCodePlatform && (
 						<div className="mb-4">
 							<label className="font-medium block mb-1" htmlFor="terminal-execution-mode">
-								Terminal Execution Mode
+								{t("settings.terminal.terminal_execution_mode")}
 							</label>
 							<VSCodeDropdown
 								className="w-full"
@@ -158,21 +158,21 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 								<VSCodeOption value="backgroundExec">Background Terminal (Recommended)</VSCodeOption>
 							</VSCodeDropdown>
 							<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-								Background terminal runs commands without showing terminal windows (recommended for cleaner UI and
-								better performance). Interactive terminal shows VSCode terminal windows for each command.
+					            Background terminal runs commands without showing terminal windows (recommended for cleaner UI and
+								better performance). Interactive terminal shows VSCode terminal windows for each command
 							</p>
 						</div>
 					)}
 					<TerminalOutputLineLimitSlider />
 					<div className="mt-5 p-3 bg-(--vscode-textBlockQuote-background) rounded border border-(--vscode-textBlockQuote-border)">
 						<p className="text-[13px] m-0">
-							<strong>Having terminal issues?</strong> Check our{" "}
+							<strong>{t("settings.terminal.terminal_issues_help_text")}</strong> Check our{" "}
 							<a
 								className="text-(--vscode-textLink-foreground) underline hover:no-underline"
 								href="https://docs.cline.bot/troubleshooting/terminal-quick-fixes"
 								rel="noopener noreferrer"
 								target="_blank">
-								Terminal Quick Fixes
+								{t("settings.terminal.terminal_quick_fixes_link")}
 							</a>{" "}
 							or the{" "}
 							<a
@@ -180,7 +180,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 								href="https://docs.cline.bot/troubleshooting/terminal-integration-guide"
 								rel="noopener noreferrer"
 								target="_blank">
-								Complete Troubleshooting Guide
+								{t("settings.terminal.complete_troubleshooting_guide_link")}
 							</a>
 							.
 						</p>
