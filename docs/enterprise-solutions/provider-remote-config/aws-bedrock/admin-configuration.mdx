@@ -4,11 +4,32 @@ sidebarTitle: "Configure AWS Bedrock (Admin)"
 description: "This guide explains how administrators configure AWS Bedrock as the organization-wide LLM provider for Cline."
 ---
 
-## Prerequisites
+As an administrator, you can add AWS Bedrock as the organization-wide LLM provider for all Cline users. This centralized approach ensures consistent access to Amazon's AI models while maintaining your organization's security and compliance requirements through VPC endpoints, region controls, and prompt caching optimizations.
 
-- Administrator access to the Cline Admin console
-- AWS Bedrock account with appropriate permissions 
-- Knowledge of your preferred AWS region
+## Before You Begin
+
+To get started with setting up AWS Bedrock as your organization's LLM provider, you'll need a few items in place. 
+
+**Administrator access to the Cline Admin console**  
+You need admin privileges to enforce provider settings across your organization. If you can navigate to **Settings → Cline Settings** in the admin console at [app.cline.bot](https://app.cline.bot), you have the right access level.
+
+<Info>
+**Quick Check**: Try accessing the settings page now. If you can see the provider configuration options, you're good to go.
+</Info>
+
+**AWS Bedrock account with the right permissions**  
+Your AWS account needs specific Bedrock permissions to work with Cline. 
+
+<Note>
+If you don't have direct AWS access, coordinate with your cloud team to get these permissions set up before proceeding.
+</Note>
+
+**Your preferred AWS region**  
+Choose your primary AWS region carefully since this will be enforced for all users.
+
+<Tip>
+Check which models are available in your region first. Some newer models might not be available in all regions yet.
+</Tip>
 
 <Frame>
 	<img
@@ -18,58 +39,71 @@ description: "This guide explains how administrators configure AWS Bedrock as th
 
 ## Configuration Steps
 
+<Steps>
+<Step title="Access Cline Settings">
+Navigate to [app.cline.bot](https://app.cline.bot) and sign in with your administrator account. Go to **Settings → Cline Settings**.
 
-### Step 1: Access Cline Settings
+<Info>
+You should see the provider configuration options if you have the correct admin access level.
+</Info>
+</Step>
 
-Navigate to [app.cline.bot](https://app.cline.bot) and sign in with your administrator account. 
-Go to **Settings → Cline Settings**.
-
-
-### Step 2: Enable Remote Provider Configuration
-
-
+<Step title="Enable Remote Provider Configuration">
 Toggle on **Enable settings** to reveal the remote provider configuration options. This allows you to enforce provider settings across your organization.
+</Step>
 
+<Step title="Select AWS Bedrock as the API Provider">
+Open the **API Provider** dropdown menu and select **Amazon Bedrock**. This will open the Bedrock configuration panel where you'll configure all your organization-wide settings.
+</Step>
 
-### Step 3: Select AWS Bedrock as the API Provider
+<Step title="Configure Bedrock Settings">
+The configuration panel includes several settings that control how Bedrock works for your organization. Configure what you need:
 
-Open the **API Provider** dropdown menu and select **Amazon Bedrock**. This will open the Bedrock configuration panel.
+<AccordionGroup>
+<Accordion title="Region (required)">
+Enter your preferred AWS region like `us-west-2` or `us-east-1`. This region will be enforced for all organization members.
 
-### Step 4: Configure Bedrock Settings
+[View AWS Global Infrastructure](https://aws.amazon.com/about-aws/global-infrastructure/regions_az/)
 
-In the provider configuration panel, configure the following settings:
+<Tip>
+I recommend `us-east-1` or `us-west-2` for most organizations - they have the best model availability.
+</Tip>
+</Accordion>
 
-**Region** (required)  
-Enter your preferred AWS region (e.g., `us-west-2`, `us-east-1`). This region will be enforced for all organization members.\
-[AWS Global Infrastructure](https://aws.amazon.com/about-aws/global-infrastructure/regions_az/)
+<Accordion title="Custom VPC Endpoint (optional)">
+If your organization uses a private VPC endpoint for Bedrock, specify it here to ensure all API calls go through your network infrastructure.
 
-**Custom VPC Endpoint** (optional)  
-If your organization uses a private VPC endpoint for Bedrock, specify it here to ensure traffic routes through your network infrastructure.\
 [Learn more about AWS PrivateLink](https://docs.aws.amazon.com/vpc/latest/userguide/endpoint-services-overview.html)
+</Accordion>
 
-**Cross-region Inference** (optional)  
-Enable this option to allow Bedrock to route requests to other regions when your primary region has capacity constraints. Useful for maintaining availability during high-demand periods.\
+<Accordion title="Cross-region Inference (optional)">
+Enable this to let Bedrock automatically route requests to other regions when your primary region has capacity constraints. Useful for maintaining availability during high-demand periods.
+
 [Learn more about Inference Profiles](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html)
+</Accordion>
 
-**Global Inference Profile** (optional)  
-Enable this to use AWS's global inference routing, which automatically directs requests to the optimal region based on availability and latency.
+<Accordion title="Global Inference Profile (optional)">
+Turn this on to use AWS's global inference routing, which automatically directs requests to the optimal region based on availability and latency.
+</Accordion>
 
-**Prompt Caching** (optional)  
-Enable prompt caching to reduce costs and latency for repeated prompts. Bedrock will cache portions of prompts that remain consistent across requests.\
+<Accordion title="Prompt Caching (optional)">
+Enable prompt caching to reduce costs and latency. Bedrock caches portions of prompts that remain consistent across requests, making repeated interactions faster and cheaper.
+
 [Learn more about Prompt Caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html)
+</Accordion>
+</AccordionGroup>
+</Step>
 
----
+<Step title="Save Configuration">
+After configuring your settings, close the provider configuration panel and click **Save** on the settings page to persist your changes.
 
-### Step 5: Save Configuration
+Once saved, all organization members signed into the Cline extension will automatically use AWS Bedrock with your configured settings. They won't be able to select other providers or switch to their personal Cline accounts.
 
-After configuring all settings, close the provider configuration panel and click **Save** on the settings page to persist your changes.
-
-Once saved, all organization members signed into the Cline extension will automatically use AWS Bedrock with your configured settings. They will not be able to select other providers. 
-
-
-**Note:** Members of your organization will not be able to switch to their personal Cline account, or another organization once remote configuration is enabled.
-
----
+<Warning>
+Members can't switch to personal Cline accounts or join other organizations once remote configuration is enabled. This ensures consistent provider usage across your team.
+</Warning>
+</Step>
+</Steps>
 
 ## Verification
 
@@ -77,9 +111,7 @@ To verify the configuration:
 
 1. Check that the provider shows as "Amazon Bedrock" in the Enabled provider field
 2. Confirm the settings persist after refreshing the page
-3. Test with a member account to ensure they see only Bedrock as an option
-
----
+3. Test with a member account to ensure they see only Bedrock as a provider
 
 ## Troubleshooting
 
@@ -92,19 +124,4 @@ Make sure to click the Save button on the main settings page, not just close the
 **Need to change regions later**  
 You can update the region at any time. Members will need to ensure their local AWS credentials have access to the new region. For more information, refer to the [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html).
 
----
-
-## Conclusion
-
-By following these steps, you can successfully configure AWS Bedrock as your organization's centralized LLM provider:
-
-1. **Access Cline Settings:** Navigate to the admin console and enable remote provider configuration
-2. **Select AWS Bedrock:** Choose Amazon Bedrock from the API Provider dropdown
-3. **Configure Settings:** Set your region, VPC endpoint, and other Bedrock features
-4. **Save and Verify:** Persist your changes and verify that members can access the configured provider
-
 For further details, consult the [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/what-is-bedrock.html) and coordinate with your internal cloud team.
-
----
-
-_This guide will be updated as AWS Bedrock and Cline evolve. Always refer to the latest documentation and internal policies for up-to-date practices._
