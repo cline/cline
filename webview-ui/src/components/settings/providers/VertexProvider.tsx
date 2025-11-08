@@ -74,7 +74,7 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					onChange={(e: any) => handleFieldChange("vertexRegion", e.target.value)}
 					style={{ width: "100%" }}
 					value={apiConfiguration?.vertexRegion || ""}>
-					<VSCodeOption value="">Select a region...</VSCodeOption>
+					<VSCodeOption value="">{t("region_select_placeholder")}</VSCodeOption>
 					{REGIONS.map((region) => (
 						<VSCodeOption key={region} value={region}>
 							{region}

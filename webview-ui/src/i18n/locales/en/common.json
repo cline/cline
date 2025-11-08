@@ -572,14 +572,6 @@
 			"project_id_placeholder": "Enter Project ID...",
 			"region_label": "Google Cloud Region",
 			"region_select_placeholder": "Select a region...",
-			"regions": {
-				"us-east5": "us-east5",
-				"us-central1": "us-central1",
-				"europe-west1": "europe-west1",
-				"europe-west4": "europe-west4",
-				"asia-southeast1": "asia-southeast1",
-				"global": "global"
-			},
 			"setup_instructions": "To use Google Cloud Vertex AI, you need to",
 			"setup_step1": "1) create a Google Cloud account › enable the Vertex AI API › enable the desired Claude models,",
 			"setup_step2": "2) install the Google Cloud CLI › configure Application Default Credentials.",
@@ -761,7 +753,9 @@
 			"terminal_execution_mode": "Terminal Execution Mode",
 			"terminal_execution_mode_description": "Choose whether Cline runs commands in the VS Code terminal or a background process.",
 			"terminal_issues_help_text": "Having terminal issues?",
+			"check_our": "Check our",
 			"terminal_quick_fixes_link": "Terminal Quick Fixes",
+			"or_the": "or the",
 			"complete_troubleshooting_guide_link": "Complete Troubleshooting Guide",
 			"terminal_output_limit": "Terminal output limit",
 			"terminal_output_limit_description": "Maximum number of lines to include in terminal output when executing commands. When exceeded, lines will be removed from the middle, saving tokens."

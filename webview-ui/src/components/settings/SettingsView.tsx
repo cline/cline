@@ -11,7 +11,7 @@ import {
 	SquareTerminal,
 	Wrench,
 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useEvent } from "react-use"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -132,10 +132,13 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		[],
 	) // Empty deps - these imports never change
 
-	const { version, environment } = useExtensionState()
-	const { t } = useTranslation("common")
+	const { version, environment, uiLanguage } = useExtensionState()
+	const { t, i18n } = useTranslation("common")
 
 	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
+	const navItemRefs = useRef<HTMLDivElement[]>([])
+	const [navWidthCalculated, setNavWidthCalculated] = useState(false)
+	const [maxNavItemWidth, setMaxNavItemWidth] = useState(0)
 
 	// Optimized message handler with early returns
 	const handleMessage = useCallback((event: MessageEvent) => {
@@ -177,6 +180,54 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		})
 	}, [])
 
+	// Calculate the maximum width for nav items
+	useEffect(() => {
+		// Function to calculate max width
+		const calculateMaxWidth = () => {
+			const widths = navItemRefs.current.filter((ref) => ref !== null).map((ref) => ref.getBoundingClientRect().width)
+
+			if (widths.length > 0) {
+				const maxWidth = Math.max(...widths)
+				setMaxNavItemWidth(maxWidth)
+				setNavWidthCalculated(true)
+			}
+		}
+
+		// Initial calculation
+		calculateMaxWidth()
+
+		// Recalculate if window is resized
+		window.addEventListener("resize", calculateMaxWidth)
+
+		// Set up a MutationObserver to recalculate if DOM changes
+		const observer = new MutationObserver(calculateMaxWidth)
+		observer.observe(document.body, { childList: true, subtree: true })
+
+		return () => {
+			window.removeEventListener("resize", calculateMaxWidth)
+			observer.disconnect()
+		}
+	}, [])
+
+	// Recalculate nav item widths when language changes
+	useEffect(() => {
+		// Reset calculation state to trigger recalculation
+		setNavWidthCalculated(false)
+
+		// Wait for next tick to ensure DOM has updated with new language text
+		const timer = setTimeout(() => {
+			const widths = navItemRefs.current.filter((ref) => ref !== null).map((ref) => ref.getBoundingClientRect().width)
+
+			if (widths.length > 0) {
+				const maxWidth = Math.max(...widths)
+				setMaxNavItemWidth(maxWidth)
+				setNavWidthCalculated(true)
+			}
+		}, 0)
+
+		return () => clearTimeout(timer)
+	}, [uiLanguage, i18n.language])
+
 	useEvent("message", handleMessage)
 
 	// Memoized reset state handler
@@ -198,6 +249,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	// Memoized tab item renderer
 	const renderTabItem = useCallback(
 		(tab: (typeof SETTINGS_TABS)[0]) => {
+			const index = SETTINGS_TABS.filter((t) => !t.hidden).indexOf(tab)
 			return (
 				<TabTrigger className="flex justify-baseline" data-testid={`tab-${tab.id}`} key={tab.id} value={tab.id}>
 					<Tooltip key={tab.id}>
@@ -209,9 +261,15 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 										"opacity-100 border-l-2 border-l-foreground border-t-0 border-r-0 border-b-0 bg-selection":
 											activeTab === tab.id,
 									},
-								)}>
+								)}
+								ref={(el) => {
+									if (el && index >= 0) {
+										navItemRefs.current[index] = el
+									}
+								}}
+								style={{ width: navWidthCalculated ? `${maxNavItemWidth}px` : "auto" }}>
 								<tab.icon className="w-4 h-4" />
-								<span className="hidden sm:block">{tab.name}</span>
+								<span className="hidden sm:block">{t(tab.name)}</span>
 							</div>
 						</TooltipTrigger>
 						<TooltipContent side="right">{t(tab.tooltipText)}</TooltipContent>
@@ -219,7 +277,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				</TabTrigger>
 			)
 		},
-		[activeTab, isCompactMode, handleTabChange, t],
+		[activeTab, t, navWidthCalculated, maxNavItemWidth],
 	)
 
 	// Memoized active content component

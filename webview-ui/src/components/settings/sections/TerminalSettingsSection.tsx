@@ -166,7 +166,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 					<TerminalOutputLineLimitSlider />
 					<div className="mt-5 p-3 bg-(--vscode-textBlockQuote-background) rounded border border-(--vscode-textBlockQuote-border)">
 						<p className="text-[13px] m-0">
-							<strong>{t("settings.terminal.terminal_issues_help_text")}</strong> Check our{" "}
+							<strong>{t("settings.terminal.terminal_issues_help_text")}</strong> {t("settings.terminal.check_our")}{" "}
 							<a
 								className="text-(--vscode-textLink-foreground) underline hover:no-underline"
 								href="https://docs.cline.bot/troubleshooting/terminal-quick-fixes"
@@ -174,7 +174,7 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 								target="_blank">
 								{t("settings.terminal.terminal_quick_fixes_link")}
 							</a>{" "}
-							or the{" "}
+							{t("settings.terminal.or_the")}{" "}
 							<a
 								className="text-(--vscode-textLink-foreground) underline hover:no-underline"
 								href="https://docs.cline.bot/troubleshooting/terminal-integration-guide"

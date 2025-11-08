@@ -572,14 +572,6 @@
 			"project_id_placeholder": "输入项目 ID...",
 			"region_label": "Google Cloud 区域",
 			"region_select_placeholder": "选择一个区域...",
-			"regions": {
-				"us-east5": "us-east5",
-				"us-central1": "us-central1",
-				"europe-west1": "europe-west1",
-				"europe-west4": "europe-west4",
-				"asia-southeast1": "asia-southeast1",
-				"global": "global"
-			},
 			"setup_instructions": "要使用 Google Cloud Vertex AI，您需要",
 			"setup_step1": "1) 创建 Google Cloud 账户 › 启用 Vertex AI API › 启用所需的 Claude 模型，",
 			"setup_step2": "2) 安装 Google Cloud CLI › 配置应用默认凭据。",
@@ -761,7 +753,9 @@
 			"terminal_execution_mode": "终端执行模式",
 			"terminal_execution_mode_description": "选择 Cline 是在 VS Code 终端还是后台进程中运行命令。",
 			"terminal_issues_help_text": "终端有问题？",
+			"check_our": "查看我们的",
 			"terminal_quick_fixes_link": "终端快速修复",
+			"or_the": "或",
 			"complete_troubleshooting_guide_link": "完整故障排除指南",
 			"terminal_output_limit": "终端输出限制",
 			"terminal_output_limit_description": "执行命令时终端输出中包含的最大行数。超出时，将从中间删除行以节省令牌。"
