@@ -321,7 +321,7 @@ message UpdateApiConfigurationRequestNew {
   // - "options.openAiHeaders" (for options fields)
   // - "secrets.apiKey" (for secrets fields)
   // - "secrets.openRouterApiKey" (for secrets fields)
-  google.protobuf.FieldMask update_mask = 3;
+  repeated string update_mask = 3;
 }
 
 // Request for partially updating API configuration using FieldMask
