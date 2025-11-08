@@ -24,6 +24,7 @@ import {
 } from "@shared/mcp"
 import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
 import { fileExistsAtPath } from "@utils/fs"
+import { getCwd } from "@utils/path"
 import { secondsToMs } from "@utils/time"
 import chokidar, { FSWatcher } from "chokidar"
 import deepEqual from "fast-deep-equal"
@@ -203,6 +204,28 @@ export class McpHub {
 		return this.connections.find((conn) => conn.server.name === name)
 	}
 
+	/**
+	 * Resolves variables in the cwd path
+	 * Currently supports: ${workspaceFolder}
+	 */
+	private async resolveCwd(cwd: string | undefined): Promise<string | undefined> {
+		if (!cwd) {
+			return undefined
+		}
+
+		// Replace ${workspaceFolder} with the actual workspace path
+		if (cwd.includes("${workspaceFolder}")) {
+			const workspacePath = await getCwd()
+			if (!workspacePath) {
+				console.warn("Cannot resolve ${workspaceFolder}: no workspace folder open")
+				return cwd
+			}
+			return cwd.replace(/\$\{workspaceFolder\}/g, workspacePath)
+		}
+
+		return cwd
+	}
+
 	private async connectToServer(
 		name: string,
 		config: z.infer<typeof ServerConfigSchema>,
@@ -244,10 +267,13 @@ export class McpHub {
 
 			switch (config.type) {
 				case "stdio": {
+					// Resolve cwd variables like ${workspaceFolder}
+					const resolvedCwd = await this.resolveCwd(config.cwd)
+
 					transport = new StdioClientTransport({
 						command: config.command,
 						args: config.args,
-						cwd: config.cwd,
+						cwd: resolvedCwd,
 						env: {
 							// ...(config.env ? await injectEnv(config.env) : {}), // Commented out as injectEnv is not found
 							...getDefaultEnvironment(),
