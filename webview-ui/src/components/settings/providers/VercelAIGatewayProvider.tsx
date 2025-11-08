@@ -1,13 +1,9 @@
-import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { StarIcon } from "lucide-react"
 import { useMemo } from "react"
 import { useMount } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelRefreshProvider, useModelContext } from "@/context/ModelContext"
-import { cn } from "@/lib/utils"
-import { StateServiceClient } from "@/services/grpc-client"
 import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -31,54 +27,25 @@ const PROVIDER_ID = ModelRefreshProvider.VercelAIGateway
  * The Vercel AI Gateway provider configuration component
  */
 export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode }: VercelAIGatewayProviderProps) => {
-	const { apiConfiguration, favoritedModelIds } = useExtensionState()
+	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 
 	const { models, refreshModels } = useModelContext()
 
-	const { vercelModelIds, userFavorites, selectedModelId, selectedModelInfo } = useMemo(() => {
+	const { vercelModelIds, selectedModelId, selectedModelInfo } = useMemo(() => {
 		const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
-		// Filter out anything after the last colon for favorites comparison
-		const userFavorites = favoritedModelIds.map((id) => id?.replace(/:.*$/, ""))
-
 		const vercelModels = models[PROVIDER_ID]
-		const rawModelIds = Object.keys(vercelModels)
-
-		// Sort by selected then favorite models first
-		const vercelModelIds = rawModelIds.sort((a, b) => {
-			// Selected model first
-			if (a === selectedModelId) {
-				return -1
-			}
-			if (b === selectedModelId) {
-				return 1
-			}
-
-			// Then favorited models
-			const aIsFavorite = userFavorites.includes(a.replace(/:.*$/, ""))
-			const bIsFavorite = userFavorites.includes(b.replace(/:.*$/, ""))
-			if (aIsFavorite && !bIsFavorite) {
-				return -1
-			}
-			if (!aIsFavorite && bIsFavorite) {
-				return 1
-			}
-
-			// Otherwise, sort alphabetically
-			return a.localeCompare(b)
-		})
+		const vercelModelIds = Object.keys(vercelModels)
 
 		return {
 			apiConfiguration,
 			vercelModels,
 			vercelModelIds,
-			// Remove anything after the last colon for favorites
-			userFavorites,
 			selectedModelInfo,
 			selectedModelId,
 		}
-	}, [models, apiConfiguration, currentMode, favoritedModelIds])
+	}, [models, apiConfiguration, currentMode])
 
 	useMount(() => refreshModels(PROVIDER_ID))
 
@@ -139,23 +106,9 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 								}}
 								value={selectedModelId}>
 								{vercelModelIds.map((model) => (
-									<VSCodeOption className="p-1 px-2 w-ful" key={"vercel" + model} value={model}>
+									<VSCodeOption className="p-1 px-2 w-full" key={"vercel" + model} value={model}>
 										<div className="py-2 flex justify-between w-full items-center">
 											<div className="break-words whitespace-normal max-w-full">{model}</div>
-											<StarIcon
-												className={cn(
-													"cursor-pointer ml-2 size-2",
-													userFavorites.includes(model)
-														? "text-button-background fill-button-background"
-														: "text-description hover:text-button-background",
-												)}
-												onClick={(e) => {
-													e.stopPropagation()
-													StateServiceClient.toggleFavoriteModel(
-														StringRequest.create({ value: model }),
-													).catch((error) => console.error("Failed to toggle favorite model:", error))
-												}}
-											/>
 										</div>
 									</VSCodeOption>
 								))}
