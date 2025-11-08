@@ -35,7 +35,6 @@ export const ModelContextProvider: React.FC<{ children: React.ReactNode }> = ({ 
 	// Use reducer state to manage models by provider with action
 	const [cachedModels, dispatch] = useReducer(
 		(state: ProviderModelContext, action: ModelContextAction) => {
-			console.log(`Updating models for provider: ${action.provider}`, action.models)
 			return {
 				...state,
 				[action.provider]: action.models,

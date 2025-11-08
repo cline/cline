@@ -25,6 +25,10 @@ interface VercelAiGatewayRawModelInfo {
 }
 
 const VERCEL_AI_GATEWAY_MODELS_URL = "https://ai-gateway.vercel.sh/v1/models"
+const REFRESH_INTERVAL_MS = 1000 * 60 * 60 // 1 hour
+
+let cache: Record<string, ModelInfo> | undefined
+let lastRefreshTimestamp = 0
 
 /**
  * Core function: Refreshes Vercel AI Gateway models and returns application types
@@ -32,9 +36,14 @@ const VERCEL_AI_GATEWAY_MODELS_URL = "https://ai-gateway.vercel.sh/v1/models"
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshVercelAiGatewayModels(_controller: Controller): Promise<Record<string, ModelInfo>> {
+	// If last refresh was within the interval, return cached models
+	if (cache && Date.now() - lastRefreshTimestamp < REFRESH_INTERVAL_MS) {
+		return cache
+	}
+
 	const vercelAiGatewayModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.vercelAiGatewayModels)
 
-	const models: Record<string, ModelInfo> | undefined = (await readVercelAiGatewayModels()) || {}
+	const models: Record<string, ModelInfo> | undefined = cache || (await readVercelAiGatewayModels()) || {}
 
 	try {
 		const response = await fetch(VERCEL_AI_GATEWAY_MODELS_URL, {
@@ -81,9 +90,15 @@ export async function refreshVercelAiGatewayModels(_controller: Controller): Pro
 			models[raw.id] = modelInfo
 		}
 
+		// Update last refresh timestamp & cache the models in memory and in disk
+		lastRefreshTimestamp = Date.now()
+		cache = models
+
+		console.log("Vercel AI Gateway models refreshed from network")
+
 		try {
 			await fs.writeFile(vercelAiGatewayModelsFilePath, JSON.stringify(models))
-			console.log("Vercel AI Gateway models fetched and saved", JSON.stringify(models).slice(0, 300))
+			console.log("Vercel AI Gateway models written to disk cache")
 		} catch {
 			throw new Error("Failed to write Vercel AI Gateway models to disk")
 		}

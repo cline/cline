@@ -57,7 +57,7 @@ export async function refreshClineModels(controller: Controller): Promise<Record
 			// The refresh model function has already stored the models to disk
 			// const filePath = await getFilePath()
 			// await fs.writeFile(filePath, JSON.stringify(cache.models))
-			console.log("Cline models fetched and saved", JSON.stringify(models).slice(0, 300))
+			// console.log("Cline models fetched and saved", JSON.stringify(models).slice(0, 300))
 		} catch {
 			throw new Error("Failed to write Cline models to disk")
 		}

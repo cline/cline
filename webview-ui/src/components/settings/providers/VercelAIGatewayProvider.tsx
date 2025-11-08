@@ -106,7 +106,7 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 								value={selectedModelId}>
 								{vercelModelIds.map((model) => (
 									<VSCodeOption className="p-1 px-2 w-full" key={"vercel" + model} value={model}>
-										<div className="py-2 flex justify-between w-full items-center">
+										<div className="py-1 px-1 flex justify-between w-full items-center">
 											<div className="break-words whitespace-normal max-w-full">{model}</div>
 										</div>
 									</VSCodeOption>
