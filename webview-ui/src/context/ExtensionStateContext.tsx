@@ -32,6 +32,9 @@ import { updateSetting } from "../components/settings/utils/settingsHandlers"
 import i18n from "../i18n/i18n"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
 
+// 定义支持的语言列表
+const SUPPORTED_LANGUAGES = Object.keys(i18n.options.resources || {})
+
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
 	showWelcome: boolean
@@ -301,14 +304,14 @@ export const ExtensionStateContextProvider: React.FC<{
 
 						// Initialize i18n with the uiLanguage from backend, not localStorage
 						// Only fallback to localStorage if backend doesn't provide a valid uiLanguage
-						if (stateData.uiLanguage && ["en", "zh-CN"].includes(stateData.uiLanguage)) {
+						if (stateData.uiLanguage && SUPPORTED_LANGUAGES.includes(stateData.uiLanguage)) {
 							i18n.changeLanguage(stateData.uiLanguage)
 							// Also save to localStorage to keep it in sync
 							localStorage.setItem("i18nextLng", stateData.uiLanguage)
 						} else {
 							// Fallback to localStorage saved language if backend doesn't have valid value
 							const savedLanguage = localStorage.getItem("i18nextLng")
-							if (savedLanguage && ["en", "zh-CN"].includes(savedLanguage)) {
+							if (savedLanguage && SUPPORTED_LANGUAGES.includes(savedLanguage)) {
 								i18n.changeLanguage(savedLanguage)
 								// Update backend with localStorage value since it wasn't set
 								updateSetting("uiLanguage", savedLanguage)
@@ -373,7 +376,11 @@ export const ExtensionStateContextProvider: React.FC<{
 
 							// Update i18n language if uiLanguage changed
 							// Always use the backend uiLanguage setting instead of localStorage when it's available
-							if (stateData.uiLanguage && stateData.uiLanguage !== prevState.uiLanguage) {
+							if (
+								stateData.uiLanguage &&
+								SUPPORTED_LANGUAGES.includes(stateData.uiLanguage) &&
+								stateData.uiLanguage !== prevState.uiLanguage
+							) {
 								i18n.changeLanguage(stateData.uiLanguage)
 								// Also save to localStorage to keep it in sync
 								localStorage.setItem("i18nextLng", stateData.uiLanguage)
