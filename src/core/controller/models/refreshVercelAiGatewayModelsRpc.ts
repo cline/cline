@@ -15,6 +15,5 @@ export async function refreshVercelAiGatewayModelsRpc(
 	_request: EmptyRequest,
 ): Promise<OpenRouterCompatibleModelInfo> {
 	const models = await refreshVercelAiGatewayModels(controller)
-	console.log("Vercel AI Gateway models refreshed:", models)
 	return OpenRouterCompatibleModelInfo.create({ models: toProtobufModels(models) })
 }

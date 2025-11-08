@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Item, ItemContent, ItemDescription, ItemHeader, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useModelContext } from "@/context/ModelContext"
 import { cn } from "@/lib/utils"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
@@ -230,7 +231,9 @@ const OnboardingStepContent = ({
 
 const OnboardingView = () => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
-	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
+	const { hideSettings, hideAccount, setShowWelcome } = useExtensionState()
+	const { models } = useModelContext()
+	const openRouterModels = useMemo(() => models.openRouter, [models])
 
 	const [stepNumber, setStepNumber] = useState(0)
 	const [userType, setUserType] = useState<NEW_USER_TYPE>(NEW_USER_TYPE.FREE)

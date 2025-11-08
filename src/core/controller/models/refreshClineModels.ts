@@ -36,7 +36,6 @@ const CLINE_STEALTH_MODELS: Record<string, ModelInfo> = {
  * NOTE: WIP - This function is intended to eventually make swapping between multiple Cline-compatible model providers easier.
  * Core function: Refreshes Cline models from specified provider and returns application types
  * @param controller The controller instance (unused)
- * @param provider The model provider to refresh from the current provider
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshClineModels(controller: Controller): Promise<Record<string, ModelInfo>> {
