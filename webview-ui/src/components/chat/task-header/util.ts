@@ -47,6 +47,8 @@ export const getColor = (message: ClineMessage): string => {
 				return COLOR_PURPLE // Purple for browser actions
 			case "completion_result":
 				return COLOR_GREEN // Green for task success
+			case "diff_editing":
+				return COLOR_BLUE // Green for task success
 			default:
 				return COLOR_DARK_GRAY // Dark gray for unknown
 		}

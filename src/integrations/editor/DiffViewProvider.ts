@@ -379,6 +379,26 @@ export abstract class DiffViewProvider {
 		}
 	}
 
+	async deleteFile() {
+		if (!this.absolutePath || !this.isEditing) {
+			return
+		}
+
+		// Close diff views before deleting the file
+		await this.closeAllDiffViews()
+
+		// Delete the file
+		try {
+			await fs.rm(this.absolutePath, { force: true })
+			console.log(`File ${this.absolutePath} has been deleted.`)
+		} catch (error) {
+			console.error(`Failed to delete file ${this.absolutePath}:`, error)
+		}
+
+		// edit is done
+		await this.reset()
+	}
+
 	// close editor if open?
 	async reset() {
 		this.isEditing = false

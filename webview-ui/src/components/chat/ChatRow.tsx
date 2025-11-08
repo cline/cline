@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils"
 import { FileServiceClient, TaskServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate, getMcpServerDisplayName } from "@/utils/mcp"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
+import { DiffEditRow } from "./DiffEditRow"
 import { ErrorBlockTitle } from "./ErrorBlockTitle"
 import ErrorRow from "./ErrorRow"
 import NewTaskPreview from "./NewTaskPreview"
@@ -864,6 +865,17 @@ export const ChatRowContent = memo(
 				return () => clearTimeout(timer)
 			}
 		}, [isCommandMessage, isCommandExecuting, isExpanded, onToggleExpand, message.ts])
+
+		if (message.say === "diff_editing" && message.text) {
+			return (
+				<div className="flex flex-col w-full">
+					{/* <div className="flex items-center">
+						<PenIcon className="size-2 stroke-1 mr-2 font-bold" /> Applying Patch
+					</div> */}
+					<DiffEditRow patch={message.text} />
+				</div>
+			)
+		}
 
 		if (message.ask === "command" || message.say === "command") {
 			const splitMessage = (text: string) => {

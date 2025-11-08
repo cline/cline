@@ -29,6 +29,12 @@ export class MessageStateHandler {
 	private taskId: string
 	private ulid: string
 	private taskState: TaskState
+	/**
+	 * The Cline message that is currently being streamed to the UI.
+	 * This message is not yet part of the clineMessages array until
+	 * it is marked as complete (partial === false).
+	 */
+	private clineMessageInProgress: ClineMessage | null = null
 
 	constructor(params: MessageStateHandlerParams) {
 		this.taskId = params.taskId
@@ -36,6 +42,22 @@ export class MessageStateHandler {
 		this.taskState = params.taskState
 		this.taskIsFavorited = params.taskIsFavorited ?? false
 		this.updateTaskHistory = params.updateTaskHistory
+	}
+
+	/**
+	 * Sets the cline message that is currently being streamed.
+	 * If the message is marked as complete (partial === false),
+	 * it is added to the list of cline messages and the in-progress
+	 * message is cleared.
+	 * @param message The cline message to set as in-progress.
+	 */
+	setClineMessageInProgress(stream: ClineMessage) {
+		const ts = this.clineMessageInProgress?.ts ?? Date.now()
+		this.clineMessageInProgress = { ...stream, ts }
+		if (stream.partial === false) {
+			this.clineMessages.push(this.clineMessageInProgress)
+			this.clineMessageInProgress = null
+		}
 	}
 
 	setCheckpointTracker(tracker: CheckpointTracker | undefined) {
@@ -51,7 +73,12 @@ export class MessageStateHandler {
 	}
 
 	getClineMessages(): ClineMessage[] {
-		return this.clineMessages
+		if (this.clineMessageInProgress === null) {
+			return this.clineMessages
+		}
+		// Append the in-progress message to the list for display purposes.
+		// We do not save this combined list until the in-progress message is complete.
+		return [...this.clineMessages, this.clineMessageInProgress]
 	}
 
 	setClineMessages(newMessages: ClineMessage[]) {

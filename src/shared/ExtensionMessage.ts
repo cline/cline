@@ -168,6 +168,7 @@ export type ClineSay =
 	| "load_mcp_documentation"
 	| "info" // Added for general informational messages like retry status
 	| "task_progress"
+	| "diff_editing"
 
 export interface ClineSayTool {
 	tool:

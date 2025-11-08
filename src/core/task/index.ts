@@ -656,6 +656,20 @@ export class Task {
 			throw new Error("Cline instance aborted")
 		}
 
+		if (type === "diff_editing") {
+			this.messageStateHandler.setClineMessageInProgress({
+				ts: 0,
+				type: "say",
+				say: type,
+				text,
+				images,
+				files,
+				partial,
+			})
+			await this.postStateToWebview()
+			return undefined
+		}
+
 		if (partial !== undefined) {
 			const lastMessage = this.messageStateHandler.getClineMessages().at(-1)
 			const isUpdatingPreviousPartial =

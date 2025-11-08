@@ -72,6 +72,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				await uiHelpers.ask("tool", partialMessage, block.partial).catch(() => {})
 			}
 
+			// const diffBlock = diff && generateDiff(diff)
+			// if (diffBlock) {
+			// 	await config.callbacks.say("diff_editing", diffBlock, undefined, undefined, true)
+			// }
+
 			// CRITICAL: Open editor and stream content in real-time (from original code)
 			if (!config.services.diffViewProvider.isEditing) {
 				// Open the editor and prepare to stream content in
@@ -129,6 +134,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			}
 
 			const { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext } = result
+
+			// const diffBlock = diff && generateDiff(diff)
+			// if (diffBlock) {
+			// 	await config.callbacks.say("diff_editing", diffBlock, undefined, undefined, true)
+			// }
 
 			// Handle approval flow
 			const sharedMessageProps: ClineSayTool = {
@@ -449,4 +459,44 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext }
 	}
+}
+
+function generateDiff(block: string): string | undefined {
+	// Regex to extract SEARCH and REPLACE blocks
+	// Matches content between "------- SEARCH" and "=======" for search block
+	// Matches content between "=======" and "+++++++ REPLACE" for replace block
+	const searchRegex = /-------\s*SEARCH\s*\n([\s\S]*?)\n\s*=======/
+	const replaceRegex = /=======\s*\n([\s\S]*?)\n\s*\+\+\+\+\+\+\+\s*REPLACE/
+
+	// Extract the blocks
+	const searchMatch = block.match(searchRegex)
+	const replaceMatch = block.match(replaceRegex)
+
+	if (!searchMatch || !replaceMatch) {
+		// throw new Error('Invalid diff block format. Expected "------- SEARCH", "=======", and "+++++++ REPLACE" markers.')
+		return undefined
+	}
+
+	const searchBlock = searchMatch[1]
+	const replaceBlock = replaceMatch[1]
+
+	// Split blocks into lines
+	const searchLines = searchBlock.split("\n")
+	const replaceLines = replaceBlock.split("\n")
+
+	// Build the diff output
+	const diffLines: string[] = []
+
+	// Add all search lines with "- " prefix
+	for (const line of searchLines) {
+		diffLines.push(`- ${line}`)
+	}
+
+	// Add all replace lines with "+ " prefix
+	for (const line of replaceLines) {
+		diffLines.push(`+ ${line}`)
+	}
+
+	// Join into final diff string
+	return diffLines.join("\n")
 }
