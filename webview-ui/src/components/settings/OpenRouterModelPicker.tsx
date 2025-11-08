@@ -18,8 +18,6 @@ import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
 import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
-const PROVIDER_ID = ModelRefreshProvider.VercelAIGateway
-
 // Star icon for favorites
 const StarIcon = ({ isFavorite, onClick }: { isFavorite: boolean; onClick: (e: React.MouseEvent) => void }) => {
 	return (
@@ -71,8 +69,12 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const { apiConfiguration, favoritedModelIds } = useExtensionState()
 	const { models, refreshModels } = useModelContext()
-	const openRouterModels = models[PROVIDER_ID]
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+
+	// Determine which provider to use based on the current API provider
+	const PROVIDER_ID = modeFields.apiProvider === "cline" ? ModelRefreshProvider.Cline : ModelRefreshProvider.OpenRouter
+
+	const openRouterModels = models[PROVIDER_ID]
 	const [searchTerm, setSearchTerm] = useState(modeFields.openRouterModelId || openRouterDefaultModelId)
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
 	const [selectedIndex, setSelectedIndex] = useState(-1)
@@ -92,7 +94,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			},
 			{
 				openRouterModelId: newModelId,
-				openRouterModelInfo: models.openRouter[newModelId],
+				openRouterModelInfo: models[PROVIDER_ID][newModelId],
 			},
 			currentMode,
 		)
@@ -266,7 +268,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet") ||
 			selectedModelId?.toLowerCase().includes("claude-3.7-sonnet:thinking")
 		)
-	}, [selectedModelId])
+	}, [selectedModelId, openRouterModels])
 
 	return (
 		<div style={{ width: "100%" }}>

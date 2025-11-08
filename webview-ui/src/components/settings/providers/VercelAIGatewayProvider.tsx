@@ -1,8 +1,13 @@
-import { Mode } from "@shared/storage/types"
+import { StringRequest } from "@shared/proto/cline/common"
+import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
+import { StarIcon } from "lucide-react"
 import { useMemo } from "react"
+import { useMount } from "react-use"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useModelContext } from "@/context/ModelContext"
+import { ModelRefreshProvider, useModelContext } from "@/context/ModelContext"
+import { cn } from "@/lib/utils"
+import { StateServiceClient } from "@/services/grpc-client"
 import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -20,25 +25,62 @@ interface VercelAIGatewayProviderProps {
 	currentMode: Mode
 }
 
+const PROVIDER_ID = ModelRefreshProvider.VercelAIGateway
+
 /**
  * The Vercel AI Gateway provider configuration component
  */
 export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode }: VercelAIGatewayProviderProps) => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, favoritedModelIds } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const { models, refreshModels } = useModelContext()
 
-	const { models } = useModelContext()
+	const { vercelModelIds, userFavorites, selectedModelId, selectedModelInfo } = useMemo(() => {
+		const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+		// Filter out anything after the last colon for favorites comparison
+		const userFavorites = favoritedModelIds.map((id) => id?.replace(/:.*$/, ""))
 
-	const { vercelModels, vercelModelIds } = useMemo(() => {
-		const vercelModels = models["vercel-ai-gateway"]
+		const vercelModels = models[PROVIDER_ID]
+		const rawModelIds = Object.keys(vercelModels)
+
+		// Sort by selected then favorite models first
+		const vercelModelIds = rawModelIds.sort((a, b) => {
+			// Selected model first
+			if (a === selectedModelId) {
+				return -1
+			}
+			if (b === selectedModelId) {
+				return 1
+			}
+
+			// Then favorited models
+			const aIsFavorite = userFavorites.includes(a.replace(/:.*$/, ""))
+			const bIsFavorite = userFavorites.includes(b.replace(/:.*$/, ""))
+			if (aIsFavorite && !bIsFavorite) {
+				return -1
+			}
+			if (!aIsFavorite && bIsFavorite) {
+				return 1
+			}
+
+			// Otherwise, sort alphabetically
+			return a.localeCompare(b)
+		})
+
 		return {
+			apiConfiguration,
 			vercelModels,
-			vercelModelIds: Object.keys(vercelModels),
+			vercelModelIds,
+			// Remove anything after the last colon for favorites
+			userFavorites,
+			selectedModelInfo,
+			selectedModelId,
 		}
-	}, [models["vercel-ai-gateway"]])
+	}, [models, apiConfiguration, currentMode, favoritedModelIds])
+
+	useMount(() => refreshModels(PROVIDER_ID))
 
 	const handleModelChange = (newModelId: string) => {
 		// could be setting invalid model id/undefined info but validation will catch it
@@ -49,14 +91,14 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 			},
 			{
 				openRouterModelId: newModelId,
-				openRouterModelInfo: vercelModels[newModelId],
+				openRouterModelInfo: models[PROVIDER_ID][newModelId],
 			},
 			currentMode,
 		)
 	}
 
 	return (
-		<div className="w-full h-full relative">
+		<div className="w-full h-full relative" id="vercel-ai-gateway-provider">
 			<div className="w-full">
 				<DebouncedTextField
 					className="w-full"
@@ -64,7 +106,7 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 					onChange={(value) => handleFieldChange("vercelAiGatewayApiKey", value)}
 					placeholder="Enter API Key..."
 					type="password">
-					<span style={{ fontWeight: 500 }}>Vercel AI Gateway API Key</span>
+					<span className="font-semibold">Vercel AI Gateway API Key</span>
 				</DebouncedTextField>
 				<p className="mt-0 text-description text-sm">
 					This key is stored locally and only used to make API requests from this extension.
@@ -82,19 +124,39 @@ export const VercelAIGatewayProvider = ({ showModelOptions, isPopup, currentMode
 			</div>
 
 			{showModelOptions && (
-				<div className="w-full dropdown-container">
-					<div className="w-full flex flex-col z-[3000]">
+				<div className="w-full vercel-dropdown-container">
+					<div className="w-full flex flex-col">
 						<span className="font-semibold">Model</span>
-						<DropdownContainer className="dropdown-container" zIndex={2000}>
+						<DropdownContainer className="vercel-dropdown-container" zIndex={1000}>
 							<VSCodeDropdown
 								className="w-full mt-2"
-								onChange={(e: any) => {
-									handleModelChange(e.target.value)
+								data-testid="vercel-model-selector"
+								onChange={(e) => {
+									const target = e.target as HTMLSelectElement
+									if (target) {
+										handleModelChange(target?.value)
+									}
 								}}
 								value={selectedModelId}>
 								{vercelModelIds.map((model) => (
-									<VSCodeOption className="p-1 px-2" key={model} value={model}>
-										{model}
+									<VSCodeOption className="p-1 px-2 w-ful" key={"vercel" + model} value={model}>
+										<div className="py-2 flex justify-between w-full items-center">
+											<div className="break-words whitespace-normal max-w-full">{model}</div>
+											<StarIcon
+												className={cn(
+													"cursor-pointer ml-2 size-2",
+													userFavorites.includes(model)
+														? "text-button-background fill-button-background"
+														: "text-description hover:text-button-background",
+												)}
+												onClick={(e) => {
+													e.stopPropagation()
+													StateServiceClient.toggleFavoriteModel(
+														StringRequest.create({ value: model }),
+													).catch((error) => console.error("Failed to toggle favorite model:", error))
+												}}
+											/>
+										</div>
 									</VSCodeOption>
 								))}
 							</VSCodeDropdown>

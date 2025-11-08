@@ -35,6 +35,7 @@ export const ModelContextProvider: React.FC<{ children: React.ReactNode }> = ({ 
 	// Use reducer state to manage models by provider with action
 	const [cachedModels, dispatch] = useReducer(
 		(state: ProviderModelContext, action: ModelContextAction) => {
+			console.log(`Updating models for provider: ${action.provider}`, action.models)
 			return {
 				...state,
 				[action.provider]: action.models,
@@ -48,11 +49,16 @@ export const ModelContextProvider: React.FC<{ children: React.ReactNode }> = ({ 
 		},
 	)
 
-	const refreshModels = useCallback((provider: ModelRefreshProvider) => {
-		const refreshPromise =
-			provider === ModelRefreshProvider.OpenRouter
-				? ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
-				: ModelsServiceClient.refreshClineModelsRpc(EmptyRequest.create({}))
+	const refreshModels = useCallback((provider: ModelRefreshProvider = ModelRefreshProvider.OpenRouter) => {
+		let refreshPromise: Promise<OpenRouterCompatibleModelInfo>
+
+		if (provider === ModelRefreshProvider.OpenRouter) {
+			refreshPromise = ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
+		} else if (provider === ModelRefreshProvider.VercelAIGateway) {
+			refreshPromise = ModelsServiceClient.refreshVercelAiGatewayModelsRpc(EmptyRequest.create({}))
+		} else {
+			refreshPromise = ModelsServiceClient.refreshClineModelsRpc(EmptyRequest.create({}))
+		}
 
 		refreshPromise
 			.then((response: OpenRouterCompatibleModelInfo) => {
@@ -66,22 +72,6 @@ export const ModelContextProvider: React.FC<{ children: React.ReactNode }> = ({ 
 			})
 			.catch((error: Error) => console.error(`Failed to refresh ${provider} models:`, error))
 	}, [])
-
-	useEffect(() => {
-		if (Object.keys(cachedModels[ModelRefreshProvider.VercelAIGateway]).length < 2) {
-			ModelsServiceClient.refreshVercelAiGatewayModelsRpc({})
-				.then((response: OpenRouterCompatibleModelInfo) => {
-					dispatch({
-						provider: ModelRefreshProvider.VercelAIGateway,
-						models: {
-							...DefaultModel,
-							...fromProtobufModels(response.models),
-						},
-					})
-				})
-				.catch((error: Error) => console.error("Failed to refresh models:", error))
-		}
-	}, [cachedModels])
 
 	// Handle auth status update events
 	useEffect(() => {
