@@ -21,28 +21,12 @@ export function DiscussModeToggle({ className = "" }: DiscussModeToggleProps) {
 	// Only show in Plan Mode
 	const isPlanMode = mode === "plan"
 
-	console.log("[DiscussModeToggle] Component rendered:", {
-		mode,
-		isPlanMode,
-		discussModeSettings,
-		discussModeEnabled,
-	})
-
 	// Check if API key is configured on mount and when settings change
 	useEffect(() => {
 		const checkConfiguration = async () => {
 			try {
-				console.log("[DiscussModeToggle] Checking configuration...")
 				const response = await TtsServiceClient.CheckApiKeyConfigured(EmptyRequest.create())
 				const hasVoice = !!discussModeSettings?.selectedVoice
-
-				console.log("[DiscussModeToggle] Configuration check result:", {
-					apiKeyValid: response.isValid,
-					hasVoice,
-					selectedVoice: discussModeSettings?.selectedVoice,
-					error: response.error,
-				})
-
 				setIsConfigured(response.isValid && hasVoice)
 			} catch (error) {
 				console.error("[DiscussModeToggle] Failed to check TTS configuration:", error)

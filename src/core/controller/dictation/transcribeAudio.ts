@@ -19,8 +19,36 @@ export const transcribeAudio = async (controller: Controller, request: Transcrib
 	telemetryService.captureVoiceTranscriptionStarted(taskId, request.language ?? "en")
 
 	try {
-		// Transcribe the audio
-		const result = await getVoiceTranscriptionService().transcribeAudio(request.audioBase64, request.language ?? "en")
+		// Try ElevenLabs STT first if API key is available
+		const apiKey = await controller.context.secrets.get("elevenLabsApiKey")
+		let result: { text?: string; error?: string } | null = null
+
+		if (apiKey) {
+			try {
+				const { ElevenLabsProvider } = await import("@/services/tts/providers/ElevenLabsProvider")
+				const provider = new ElevenLabsProvider(apiKey)
+
+				// Convert base64 to Buffer
+				const audioBuffer = Buffer.from(request.audioBase64, "base64")
+				result = await provider.transcribeAudio(audioBuffer, request.language ?? "en")
+
+				if (result.text) {
+					console.log("ElevenLabs transcription successful")
+				} else if (result.error) {
+					console.warn("ElevenLabs transcription failed, falling back to Cline service:", result.error)
+					result = null // Fall back to Cline service
+				}
+			} catch (error) {
+				console.warn("ElevenLabs STT error, falling back to Cline service:", error)
+				result = null // Fall back to Cline service
+			}
+		}
+
+		// Fall back to Cline transcription service if ElevenLabs failed or no API key
+		if (!result) {
+			result = await getVoiceTranscriptionService().transcribeAudio(request.audioBase64, request.language ?? "en")
+		}
+
 		const durationMs = Date.now() - startTime
 
 		if (result.error) {

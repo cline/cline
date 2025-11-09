@@ -7,6 +7,8 @@ export const AUDIO_PROGRAM_CONFIG = {
 			"avfoundation",
 			"-i",
 			":default",
+			"-af",
+			"silencedetect=noise=-30dB:d=2", // Detect 2 seconds of silence at -30dB threshold
 			"-c:a",
 			"libopus",
 			"-b:a",
@@ -32,6 +34,8 @@ export const AUDIO_PROGRAM_CONFIG = {
 			"alsa",
 			"-i",
 			"default",
+			"-af",
+			"silencedetect=noise=-30dB:d=2", // Detect 2 seconds of silence at -30dB threshold
 			"-c:a",
 			"libopus",
 			"-b:a",
@@ -61,6 +65,8 @@ export const AUDIO_PROGRAM_CONFIG = {
 			"wasapi",
 			"-i",
 			"audio=default",
+			"-af",
+			"silencedetect=noise=-30dB:d=2", // Detect 2 seconds of silence at -30dB threshold
 			"-c:a",
 			"libopus",
 			"-b:a",

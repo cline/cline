@@ -404,6 +404,29 @@ const VoiceSettingsSection = ({ renderSectionHeader }: VoiceSettingsSectionProps
 						</p>
 					</div>
 				)}
+
+				{/* Voice Input Information */}
+				{isValid && selectedVoice && (
+					<div className="mb-[5px] mt-4 p-3 bg-[rgba(var(--vscode-textBlockQuote-background-rgb),0.5)] border-l-2 border-[var(--vscode-textBlockQuote-border)] rounded">
+						<h5 className="text-sm font-semibold mb-2">Voice Input (Speech-to-Text)</h5>
+						<p className="text-sm text-description mb-2">
+							Voice input for Discuss Mode uses your ElevenLabs API key for transcription (Scribe v1 model).
+						</p>
+						<p className="text-sm text-description mb-2">
+							When both Discuss Mode and Dictation are enabled, you'll see a microphone button in the chat input.
+							Click it to record your voice, and your audio will be transcribed using ElevenLabs' Speech-to-Text
+							API.
+						</p>
+						<p className="text-sm text-description mb-2">
+							<strong>Features:</strong> Supports 99 languages, high accuracy transcription, speaker diarization,
+							and word-level timestamps.
+						</p>
+						<p className="text-sm text-description">
+							<strong>Note:</strong> Voice input requires macOS (for audio recording) and your ElevenLabs API key
+							(already configured above).
+						</p>
+					</div>
+				)}
 			</Section>
 		</div>
 	)

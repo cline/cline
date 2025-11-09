@@ -117,6 +117,12 @@ export const startRecording = async (controller: Controller): Promise<RecordingR
 			throw new Error("Please sign in to your Cline Account to use Dictation.")
 		}
 
+		// Set up silence detection callback to auto-stop recording
+		audioRecordingService.setSilenceDetectedCallback(async () => {
+			// Automatically stop recording when silence is detected
+			await audioRecordingService.stopRecording()
+		})
+
 		// Attempt to start recording
 		const result = await audioRecordingService.startRecording()
 
@@ -128,6 +134,9 @@ export const startRecording = async (controller: Controller): Promise<RecordingR
 				error: "",
 			})
 		}
+
+		// Clear callback on failure
+		audioRecordingService.setSilenceDetectedCallback(null)
 
 		// Check if the error is due to missing dependencies
 		const platform = os.platform() as keyof typeof AUDIO_PROGRAM_CONFIG

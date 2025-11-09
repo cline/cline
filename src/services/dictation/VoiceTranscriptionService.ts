@@ -101,6 +101,7 @@ export class VoiceTranscriptionService {
 	}
 
 	async transcribeAudio(audioBase64: string, language?: string): Promise<{ text?: string; error?: string }> {
+		// Use Cline's transcription service (ElevenLabs STT is now handled in the controller)
 		try {
 			Logger.info("Transcribing audio with Cline transcription service...")
 

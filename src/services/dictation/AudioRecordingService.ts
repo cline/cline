@@ -18,6 +18,7 @@ export class AudioRecordingService {
 	private recordingProcess: ChildProcess | null = null
 	private startTime: number = 0
 	private outputFile: string = ""
+	private silenceDetectedCallback: (() => void) | null = null
 
 	constructor() {}
 
@@ -145,7 +146,26 @@ export class AudioRecordingService {
 
 			this.recordingProcess.stderr?.on("data", (data) => {
 				const message = data.toString().trim()
-				if (message && !message.includes("In:") && !message.includes("Out:")) {
+
+				// Check for silence detection
+				if (message.includes("silence_end")) {
+					// Parse silence duration from FFmpeg output
+					// Format: [silencedetect @ 0x...] silence_end: 4.5 | silence_duration: 2.0
+					const durationMatch = message.match(/silence_duration:\s*([\d.]+)/)
+					if (durationMatch) {
+						const silenceDuration = parseFloat(durationMatch[1])
+						Logger.info(`Detected ${silenceDuration}s of silence`)
+
+						// If silence duration is >= 2 seconds, trigger auto-stop
+						if (silenceDuration >= 2.0 && this.silenceDetectedCallback) {
+							Logger.info("Auto-stopping recording due to silence detection")
+							this.silenceDetectedCallback()
+						}
+					}
+				}
+
+				// Log other stderr output (but filter out common noise)
+				if (message && !message.includes("In:") && !message.includes("Out:") && !message.includes("silencedetect")) {
 					Logger.info(`Recording stderr: ${message}`)
 				}
 			})
@@ -229,6 +249,14 @@ export class AudioRecordingService {
 			isRecording: this.isRecording,
 			durationSeconds,
 		}
+	}
+
+	/**
+	 * Sets a callback to be triggered when silence is detected
+	 * @param callback Function to call when silence is detected
+	 */
+	setSilenceDetectedCallback(callback: (() => void) | null): void {
+		this.silenceDetectedCallback = callback
 	}
 
 	private checkRecordingDependencies(): { available: boolean; error?: string } {

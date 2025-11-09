@@ -3,6 +3,11 @@ import { BaseTTSProvider, type TTSOptions, type TTSSynthesisResult, type TTSVoic
 
 const ELEVENLABS_API_BASE = "https://api.elevenlabs.io/v1"
 
+export interface STTTranscriptionResult {
+	text?: string
+	error?: string
+}
+
 /**
  * ElevenLabs Text-to-Speech Provider
  * Implements TTS using ElevenLabs API
@@ -126,6 +131,109 @@ export class ElevenLabsProvider extends BaseTTSProvider {
 			return true
 		} catch (error) {
 			return false
+		}
+	}
+
+	/**
+	 * Transcribe audio to text using ElevenLabs Speech-to-Text API (Scribe v1 model)
+	 * @param audioBuffer The audio data as a Buffer or Uint8Array
+	 * @param language Optional language code (e.g., 'en', 'es', 'fr')
+	 * @returns Transcription result with text or error
+	 */
+	async transcribeAudio(audioBuffer: Buffer | Uint8Array, language?: string): Promise<STTTranscriptionResult> {
+		try {
+			// Convert Uint8Array to Buffer if needed
+			const buffer = Buffer.isBuffer(audioBuffer) ? audioBuffer : Buffer.from(audioBuffer)
+
+			// Create form data manually
+			const boundary = `----WebKitFormBoundary${Math.random().toString(36).substring(2)}`
+
+			// Build multipart form data body
+			const parts: Buffer[] = []
+
+			// Add audio file part - ElevenLabs expects field name "file"
+			parts.push(Buffer.from(`--${boundary}\r\n`))
+			parts.push(Buffer.from('Content-Disposition: form-data; name="file"; filename="audio.webm"\r\n'))
+			parts.push(Buffer.from("Content-Type: audio/webm\r\n\r\n"))
+			parts.push(buffer)
+			parts.push(Buffer.from("\r\n"))
+
+			// Add language parameter if provided
+			if (language) {
+				parts.push(Buffer.from(`--${boundary}\r\n`))
+				parts.push(Buffer.from('Content-Disposition: form-data; name="language"\r\n\r\n'))
+				parts.push(Buffer.from(`${language}\r\n`))
+			}
+
+			// Add model parameter - Note: use underscore not hyphen
+			parts.push(Buffer.from(`--${boundary}\r\n`))
+			parts.push(Buffer.from('Content-Disposition: form-data; name="model_id"\r\n\r\n'))
+			parts.push(Buffer.from("scribe_v1\r\n"))
+
+			// Close boundary
+			parts.push(Buffer.from(`--${boundary}--\r\n`))
+
+			const body = Buffer.concat(parts)
+
+			const response = await axios.post(`${ELEVENLABS_API_BASE}/speech-to-text`, body, {
+				headers: {
+					"xi-api-key": this.apiKey,
+					"Content-Type": `multipart/form-data; boundary=${boundary}`,
+				},
+				timeout: 120000, // 2 minute timeout for transcription
+			})
+
+			// Extract text from response (ElevenLabs returns detailed JSON with words, timestamps, etc.)
+			const text = response.data?.text || ""
+
+			return { text }
+		} catch (error) {
+			if (axios.isAxiosError(error)) {
+				let errorMessage = error.message
+				let errorDetails = ""
+
+				if (error.response?.data) {
+					if (typeof error.response.data === "string") {
+						errorMessage = error.response.data
+					} else if (error.response.data.detail) {
+						if (typeof error.response.data.detail === "object") {
+							errorMessage = JSON.stringify(error.response.data.detail, null, 2)
+						} else {
+							errorMessage = String(error.response.data.detail)
+						}
+					} else if (error.response.data.message) {
+						errorMessage = String(error.response.data.message)
+					} else if (error.response.data.error) {
+						errorMessage = String(error.response.data.error)
+					} else {
+						// Try to extract useful error info
+						try {
+							errorDetails = JSON.stringify(error.response.data, null, 2)
+							errorMessage = errorDetails
+						} catch (e) {
+							errorMessage = "Invalid response format"
+						}
+					}
+				}
+
+				// Add status code if available
+				const statusCode = error.response?.status || "Unknown"
+				const fullMessage = `${statusCode}: ${errorMessage}`
+
+				console.error("[ElevenLabs STT] Full error details:", {
+					status: error.response?.status,
+					statusText: error.response?.statusText,
+					data: error.response?.data,
+					headers: error.response?.headers,
+				})
+
+				return {
+					error: `ElevenLabs transcription error: ${fullMessage}`,
+				}
+			}
+			return {
+				error: `Failed to transcribe audio: ${error instanceof Error ? error.message : String(error)}`,
+			}
 		}
 	}
 }

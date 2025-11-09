@@ -14,6 +14,9 @@ export const stopRecording = async (controller: Controller): Promise<RecordedAud
 	const recordingDuration = recordingStatus.durationSeconds * 1000 // Convert to milliseconds
 
 	try {
+		// Clear the silence detection callback
+		audioRecordingService.setSilenceDetectedCallback(null)
+
 		const result = await audioRecordingService.stopRecording()
 
 		telemetryService.captureVoiceRecordingStopped(taskId, recordingDuration, result.success, process.platform)

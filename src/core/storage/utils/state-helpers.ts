@@ -683,7 +683,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			openTelemetryLogMaxQueueSize: openTelemetryLogMaxQueueSize ?? 2048,
 			discussModeEnabled: discussModeEnabled ?? false,
 			discussModeSelectedVoice: discussModeSelectedVoice,
-			discussModeSpeechSpeed: discussModeSpeechSpeed ?? 1.0,
+			discussModeSpeechSpeed: discussModeSpeechSpeed ?? 1.2,
 			discussModeAutoSpeak: discussModeAutoSpeak ?? false,
 			discussModeAutoListen: discussModeAutoListen ?? false,
 		}

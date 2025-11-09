@@ -289,7 +289,42 @@ export function useDiscussModeAudio(messages: ClineMessage[]) {
 				setCurrentAudio(audio)
 
 				console.log("[DiscussModeAudio] Playing audio with pre-created element...")
-				await audio.play()
+
+				// Try to play, with fallback handling for autoplay restrictions
+				try {
+					await audio.play()
+				} catch (playError) {
+					console.warn("[DiscussModeAudio] Autoplay failed, creating new blessed audio element:", playError)
+
+					// If autoplay fails, create a new audio element (this might work if called during processing)
+					const newAudio = new Audio()
+					newAudio.src = audioUrl
+					newAudio.preload = "auto"
+
+					// Copy event listeners to new element
+					newAudio.addEventListener("ended", onEnded)
+					newAudio.addEventListener("error", onError)
+
+					// Update references
+					audioElementRef.current = newAudio
+					audioRef.current = newAudio
+					setCurrentAudio(newAudio)
+
+					// Try playing the new element
+					try {
+						await newAudio.play()
+					} catch (retryError) {
+						console.error("[DiscussModeAudio] Failed to play even with new element:", retryError)
+						// Clean up and remove from queue
+						audio.removeEventListener("ended", onEnded)
+						audio.removeEventListener("error", onError)
+						throw retryError
+					}
+
+					// Remove old element's listeners since we're using new one
+					audio.removeEventListener("ended", onEnded)
+					audio.removeEventListener("error", onError)
+				}
 			} catch (error) {
 				console.error("[DiscussModeAudio] Error processing audio:", error)
 				setAudioQueue((prev) => prev.slice(1))

@@ -15,6 +15,9 @@ export const cancelRecording = async (controller: Controller): Promise<Recording
 	let errorMessage = ""
 	let isSuccess = true
 	try {
+		// Clear the silence detection callback
+		audioRecordingService.setSilenceDetectedCallback(null)
+
 		const result = await audioRecordingService.cancelRecording()
 		isSuccess = !!result?.success
 		errorMessage = result?.error ?? ""
