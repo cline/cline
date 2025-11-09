@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package cline;
+
+// TTS Service - Handles text-to-speech synthesis
+service TtsService {
+  // Synthesize speech from text
+  rpc SynthesizeSpeech(SynthesizeRequest) returns (SynthesizeResponse);
+  
+  // Get list of available voices for current provider
+  rpc GetAvailableVoices(GetVoicesRequest) returns (VoicesResponse);
+  
+  // Validate API key for TTS provider
+  rpc ValidateApiKey(ValidateApiKeyRequest) returns (ValidateApiKeyResponse);
+}
+
+// Request to synthesize speech
+message SynthesizeRequest {
+  string text = 1;
+  string voice_id = 2;
+  optional float speed = 3;
+  optional float stability = 4;
+  optional float similarity_boost = 5;
+}
+
+// Response containing synthesized audio
+message SynthesizeResponse {
+  bytes audio_data = 1;
+  string content_type = 2;
+  optional string error = 3;
+}
+
+// Request to get available voices
+message GetVoicesRequest {
+  // Empty for now, could add filtering options later
+}
+
+// Information about a voice
+message Voice {
+  string id = 1;
+  string name = 2;
+  optional string description = 3;
+  optional string preview_url = 4;
+}
+
+// Response containing list of voices
+message VoicesResponse {
+  repeated Voice voices = 1;
+  optional string error = 2;
+}
+
+// Request to validate API key
+message ValidateApiKeyRequest {
+  // Empty - uses current configuration
+}
+
+// Response from API key validation
+message ValidateApiKeyResponse {
+  bool is_valid = 1;
+  optional string error = 2;
+}
