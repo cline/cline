@@ -313,10 +313,6 @@ export class McpHub {
 					break
 				}
 				case "sse": {
-					// Get existing tokens if available for the custom fetch function
-					const tokens = await authProvider?.tokens()
-					const accessToken = tokens?.access_token
-
 					const sseOptions = {
 						authProvider,
 						requestInit: {
@@ -325,16 +321,27 @@ export class McpHub {
 					}
 					const reconnectingEventSourceOptions = {
 						max_retry_time: 5000,
-						withCredentials: !!(config.headers?.["Authorization"] || accessToken),
-						fetch: accessToken
+						withCredentials: !!config.headers?.["Authorization"],
+						// IMPORTANT: Custom fetch function is required for SSE with OAuth
+						// When we provide eventSourceInit, we override the SDK's default fetch
+						// The SDK's default would call _commonHeaders() for auth, but since we're
+						// overriding it, we must provide our own fetch that:
+						// 1. Calls authProvider.tokens() dynamically (not captured once)
+						// 2. Gets fresh tokens for each connection/reconnection
+						// 3. Allows the SDK to auto-refresh expired tokens
+						// Without this, tokens would be stale and fail after expiry
+						fetch: authProvider
 							? async (url: string | URL, init?: RequestInit) => {
-									// If an access token is available, include it in the request headers
+									const tokens = await authProvider.tokens() // Dynamic - gets fresh tokens
 									const headers = new Headers(init?.headers)
-									headers.set("Authorization", `Bearer ${accessToken}`)
+									if (tokens?.access_token) {
+										headers.set("Authorization", `Bearer ${tokens.access_token}`)
+									}
 									return fetch(url.toString(), { ...init, headers })
 								}
 							: undefined,
 					}
+					// Use ReconnectingEventSource for auto-reconnection on connection drops
 					global.EventSource = ReconnectingEventSource
 					transport = new SSEClientTransport(new URL(config.url), {
 						...sseOptions,
