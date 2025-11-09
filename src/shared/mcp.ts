@@ -20,8 +20,10 @@ export type McpServer = {
 	timeout?: number
 	uid?: string
 	oauthRequired?: boolean
-	oauthAuthStatus?: "authenticated" | "unauthenticated" | "pending"
+	oauthAuthStatus?: McpOAuthAuthStatus
 }
+
+export type McpOAuthAuthStatus = "authenticated" | "unauthenticated" | "pending"
 
 export type McpTool = {
 	name: string
