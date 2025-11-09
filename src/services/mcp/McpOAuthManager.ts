@@ -83,9 +83,8 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
 			grant_types: ["authorization_code", "refresh_token"],
 			response_types: ["code"],
 			client_name: "Cline",
-			client_uri: "https://github.com/cline/cline",
-			software_id: "cline-vscode-extension",
-			software_version: "3.36.1",
+			client_uri: "https://cline.bot",
+			software_id: "cline",
 		}
 	}
 
