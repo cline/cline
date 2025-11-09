@@ -35,6 +35,7 @@ import ReconnectingEventSource from "reconnecting-eventsource"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
+import { getServerAuthHash } from "@/utils/mcpAuth"
 import { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
@@ -1291,7 +1292,6 @@ export class McpHub {
 		const connection = this.connections.find((conn) => {
 			const config = JSON.parse(conn.server.config)
 			if (config.url) {
-				const { getServerAuthHash } = require("@/utils/mcpAuth")
 				const hash = getServerAuthHash(conn.server.name, config.url)
 				return hash === serverHash
 			}
