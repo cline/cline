@@ -257,6 +257,11 @@ class ClineOAuthClientProvider implements OAuthClientProvider {
  */
 export class McpOAuthManager {
 	private providers: Map<string, OAuthClientProvider> = new Map()
+	// OAuth state parameter timeout - prevents replay attacks
+	// The state is used for CSRF protection during the redirect back from the OAuth provider
+	// Users typically complete the OAuth flow within seconds/minutes of clicking "Authenticate"
+	// but we allow 10 minutes in case they get distracted or need to create an account
+	// After 10 minutes, the state expires and user must click "Authenticate" again for security
 	private readonly STATE_EXPIRY_MS = 10 * 60 * 1000 // 10 minutes
 
 	/**
