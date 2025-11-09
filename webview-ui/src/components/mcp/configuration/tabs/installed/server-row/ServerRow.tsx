@@ -304,9 +304,7 @@ const ServerRow = ({
 							appearance="primary"
 							onClick={(e) => {
 								e.stopPropagation()
-								McpServiceClient.authenticateMcpServer({
-									value: server.name,
-								} as StringRequest)
+								McpServiceClient.authenticateMcpServer(StringRequest.create({ value: server.name }))
 							}}
 							style={{
 								width: "calc(100% - 20px)",
