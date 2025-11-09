@@ -19,6 +19,8 @@ export type McpServer = {
 	disabled?: boolean
 	timeout?: number
 	uid?: string
+	oauthRequired?: boolean
+	oauthAuthStatus?: "authenticated" | "unauthenticated" | "pending"
 }
 
 export type McpTool = {

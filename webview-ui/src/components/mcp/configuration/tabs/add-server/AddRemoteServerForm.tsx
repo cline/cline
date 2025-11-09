@@ -1,15 +1,18 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { AddRemoteMcpServerRequest, McpServers } from "@shared/proto/cline/mcp"
 import { convertProtoMcpServersToMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
-import { VSCodeButton, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton, VSCodeLink, VSCodeRadio, VSCodeRadioGroup, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
 import { LINKS } from "@/constants"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { McpServiceClient } from "@/services/grpc-client"
 
+type TransportType = "streamableHttp" | "sse"
+
 const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) => {
 	const [serverName, setServerName] = useState("")
 	const [serverUrl, setServerUrl] = useState("")
+	const [transportType, setTransportType] = useState<TransportType>("streamableHttp")
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [error, setError] = useState("")
 	const [showConnectingMessage, setShowConnectingMessage] = useState(false)
@@ -44,6 +47,7 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 				AddRemoteMcpServerRequest.create({
 					serverName: serverName.trim(),
 					serverUrl: serverUrl.trim(),
+					transportType: transportType,
 				}),
 			)
 
@@ -99,6 +103,23 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 						value={serverUrl}>
 						Server URL
 					</VSCodeTextField>
+				</div>
+
+				<div className="mb-3">
+					<label className="block text-sm font-medium mb-2">Transport Type</label>
+					<VSCodeRadioGroup
+						onChange={(e) => {
+							const value = (e.target as HTMLInputElement).value as TransportType
+							setTransportType(value)
+						}}
+						value={transportType}>
+						<VSCodeRadio checked={transportType === "streamableHttp"} value="streamableHttp">
+							Streamable HTTP
+						</VSCodeRadio>
+						<VSCodeRadio checked={transportType === "sse"} value="sse">
+							SSE (Legacy)
+						</VSCodeRadio>
+					</VSCodeRadioGroup>
 				</div>
 
 				{error && <div className="mb-3 text-(--vscode-errorForeground)">{error}</div>}

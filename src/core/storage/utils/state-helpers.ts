@@ -54,6 +54,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		minimaxApiKey,
 		hicapApiKey,
 		aihubmixApiKey,
+		mcpOAuthSecrets,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -96,6 +97,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("minimaxApiKey") as Promise<Secrets["minimaxApiKey"]>,
 		context.secrets.get("hicapApiKey") as Promise<Secrets["hicapApiKey"]>,
 		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
+		context.secrets.get("mcpOAuthSecrets") as Promise<Secrets["mcpOAuthSecrets"]>,
 	])
 
 	return {
@@ -140,6 +142,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		minimaxApiKey,
 		hicapApiKey,
 		aihubmixApiKey,
+		mcpOAuthSecrets,
 	}
 }
 
@@ -726,6 +729,7 @@ export async function resetGlobalState(controller: Controller) {
 		"minimaxApiKey",
 		"hicapApiKey",
 		"aihubmixApiKey",
+		"mcpOAuthSecrets",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()

@@ -33,6 +33,8 @@ export function convertMcpServersToProtoMcpServers(mcpServers: McpServer[]): Pro
 
 		disabled: server.disabled,
 		timeout: server.timeout,
+		oauthRequired: server.oauthRequired,
+		oauthAuthStatus: server.oauthAuthStatus,
 	}))
 	return protoServers
 }
@@ -107,6 +109,8 @@ export function convertProtoMcpServersToMcpServers(protoServers: ProtoMcpServer[
 
 			disabled: protoServer.disabled,
 			timeout: protoServer.timeout,
+			oauthRequired: protoServer.oauthRequired,
+			oauthAuthStatus: protoServer.oauthAuthStatus === "" ? undefined : (protoServer.oauthAuthStatus as any),
 		}
 	})
 	return mcpServers

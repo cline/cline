@@ -150,6 +150,12 @@
 				"when": "cline.isDevMode"
 			},
 			{
+				"command": "cline.dev.expireMcpOAuthTokens",
+				"title": "Expire MCP OAuth Tokens (for testing)",
+				"category": "Cline",
+				"when": "cline.isDevMode"
+			},
+			{
 				"command": "cline.addToChat",
 				"title": "Add to Cline",
 				"category": "Cline"

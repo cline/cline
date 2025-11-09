@@ -299,16 +299,33 @@ const ServerRow = ({
 						}}>
 						{server.error}
 					</div>
-					<VSCodeButton
-						appearance="secondary"
-						disabled={server.status === "connecting"}
-						onClick={handleRestart}
-						style={{
-							width: "calc(100% - 20px)",
-							margin: "0 10px 10px 10px",
-						}}>
-						{server.status === "connecting" || isRestarting ? "Retrying..." : "Retry Connection"}
-					</VSCodeButton>
+					{server.oauthRequired && server.oauthAuthStatus === "unauthenticated" ? (
+						<VSCodeButton
+							appearance="primary"
+							onClick={(e) => {
+								e.stopPropagation()
+								McpServiceClient.authenticateMcpServer({
+									value: server.name,
+								} as StringRequest)
+							}}
+							style={{
+								width: "calc(100% - 20px)",
+								margin: "0 10px 10px 10px",
+							}}>
+							Authenticate
+						</VSCodeButton>
+					) : (
+						<VSCodeButton
+							appearance="secondary"
+							disabled={server.status === "connecting"}
+							onClick={handleRestart}
+							style={{
+								width: "calc(100% - 20px)",
+								margin: "0 10px 10px 10px",
+							}}>
+							{server.status === "connecting" || isRestarting ? "Retrying..." : "Retry Connection"}
+						</VSCodeButton>
+					)}
 
 					<DangerButton
 						disabled={isDeleting}
@@ -342,18 +359,18 @@ const ServerRow = ({
 											width: "100%",
 											paddingTop: "8px",
 										}}>
-										{server.tools.map((tool) => (
-											<McpToolRow key={tool.name} serverName={server.name} tool={tool} />
-										))}
 										{server.name && autoApprovalSettings.actions.useMcp && (
 											<VSCodeCheckbox
 												checked={server.tools.every((tool) => tool.autoApprove)}
 												data-tool="all-tools"
 												onChange={handleAutoApproveChange}
-												style={{ marginTop: "4px", marginBottom: "4px" }}>
+												style={{ marginBottom: "4px", fontSize: "11px" }}>
 												Auto-approve all tools
 											</VSCodeCheckbox>
 										)}
+										{server.tools.map((tool) => (
+											<McpToolRow key={tool.name} serverName={server.name} tool={tool} />
+										))}
 									</div>
 								) : (
 									<div

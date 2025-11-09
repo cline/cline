@@ -1,6 +1,7 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
 import { GlobalFileNames } from "@core/storage/disk"
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
@@ -36,6 +37,7 @@ import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
+import { McpOAuthManager } from "./McpOAuthManager"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig, Transport } from "./types"
 export class McpHub {
@@ -43,6 +45,7 @@ export class McpHub {
 	private getSettingsDirectoryPath: () => Promise<string>
 	private clientVersion: string
 	private telemetryService: TelemetryService
+	private mcpOAuthManager: McpOAuthManager
 
 	private settingsWatcher?: FSWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
@@ -75,6 +78,7 @@ export class McpHub {
 		this.getSettingsDirectoryPath = getSettingsDirectoryPath
 		this.clientVersion = clientVersion
 		this.telemetryService = telemetryService
+		this.mcpOAuthManager = new McpOAuthManager()
 		this.watchMcpSettingsFile()
 		this.initializeMcpServers()
 	}
@@ -242,6 +246,12 @@ export class McpHub {
 
 			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
 
+			// Create OAuth provider for remote transports (SSE and HTTP)
+			const authProvider =
+				config.type === "sse" || config.type === "streamableHttp"
+					? await this.mcpOAuthManager.getOrCreateProvider(name, config.url)
+					: undefined
+
 			switch (config.type) {
 				case "stdio": {
 					transport = new StdioClientTransport({
@@ -303,14 +313,27 @@ export class McpHub {
 					break
 				}
 				case "sse": {
+					// Get existing tokens if available for the custom fetch function
+					const tokens = await authProvider?.tokens()
+					const accessToken = tokens?.access_token
+
 					const sseOptions = {
+						authProvider,
 						requestInit: {
 							headers: config.headers,
 						},
 					}
 					const reconnectingEventSourceOptions = {
 						max_retry_time: 5000,
-						withCredentials: !!config.headers?.["Authorization"],
+						withCredentials: !!(config.headers?.["Authorization"] || accessToken),
+						fetch: accessToken
+							? async (url: string | URL, init?: RequestInit) => {
+									// If an access token is available, include it in the request headers
+									const headers = new Headers(init?.headers)
+									headers.set("Authorization", `Bearer ${accessToken}`)
+									return fetch(url.toString(), { ...init, headers })
+								}
+							: undefined,
 					}
 					global.EventSource = ReconnectingEventSource
 					transport = new SSEClientTransport(new URL(config.url), {
@@ -332,8 +355,9 @@ export class McpHub {
 				}
 				case "streamableHttp": {
 					transport = new StreamableHTTPClientTransport(new URL(config.url), {
+						authProvider,
 						requestInit: {
-							headers: config.headers,
+							headers: config.headers ?? undefined,
 						},
 					})
 					transport.onerror = async (error) => {
@@ -359,14 +383,46 @@ export class McpHub {
 					status: "connecting",
 					disabled: config.disabled,
 					uid: this.getMcpServerKey(name),
+					oauthRequired: false,
+					oauthAuthStatus: "authenticated",
 				},
 				client,
 				transport,
+				authProvider,
 			}
 			this.connections.push(connection)
 
-			// Connect
-			await client.connect(transport)
+			// Connect - wrap in try-catch to detect OAuth requirement
+			try {
+				await client.connect(transport)
+			} catch (error) {
+				if (error instanceof UnauthorizedError) {
+					// Server requires OAuth authentication
+					console.log(`Server "${name}" requires OAuth authentication`)
+					const unauthConnection: McpConnection = {
+						server: {
+							name,
+							config: JSON.stringify(config),
+							status: "disconnected",
+							disabled: false,
+							oauthRequired: true,
+							oauthAuthStatus: "unauthenticated",
+							error: "This MCP server requires authentication to get started.",
+							uid: this.getMcpServerKey(name),
+						},
+						client,
+						transport,
+						authProvider, // CRITICAL: Keep authProvider so it's available when user authenticates!
+					}
+					// Replace the connection with unauthenticated version
+					this.connections = this.connections.filter((conn) => conn.server.name !== name)
+					this.connections.push(unauthConnection)
+					await this.notifyWebviewOfServerChanges()
+					return // Don't throw, just mark as needs auth
+				}
+				// Re-throw other errors
+				throw error
+			}
 
 			connection.server.status = "connected"
 			connection.server.error = ""
@@ -557,6 +613,20 @@ export class McpHub {
 		}
 	}
 
+	async clearOAuthForConnection(name: string): Promise<void> {
+		const connection = this.connections.find((conn) => conn.server.name === name)
+		if (connection) {
+			try {
+				const config = JSON.parse(connection.server.config)
+				if (config.url) {
+					await this.mcpOAuthManager.clearServerAuth(name, config.url)
+				}
+			} catch (error) {
+				console.error(`Failed to clear OAuth data for ${name}:`, error)
+			}
+		}
+	}
+
 	async updateServerConnectionsRPC(newServers: Record<string, McpServerConfig>): Promise<void> {
 		this.isConnecting = true
 		this.removeAllFileWatchers()
@@ -591,7 +661,7 @@ export class McpHub {
 					if (config.type === "stdio") {
 						this.setupFileWatcher(name, config)
 					}
-					await this.deleteConnection(name)
+					await this.deleteConnection(name) // Don't clear OAuth - just reconnecting with new config
 					await this.connectToServer(name, config, "rpc")
 					console.log(`Reconnected MCP server with updated config: ${name}`)
 				} catch (error) {
@@ -613,7 +683,8 @@ export class McpHub {
 		// Delete removed servers
 		for (const name of currentNames) {
 			if (!newNames.has(name)) {
-				await this.deleteConnection(name)
+				await this.clearOAuthForConnection(name) // Clear OAuth data first
+				await this.deleteConnection(name) // Then delete connection
 				console.log(`Deleted MCP server: ${name}`)
 			}
 		}
@@ -1022,7 +1093,11 @@ export class McpHub {
 		}
 	}
 
-	public async addRemoteServer(serverName: string, serverUrl: string): Promise<McpServer[]> {
+	public async addRemoteServer(
+		serverName: string,
+		serverUrl: string,
+		transportType: string = "streamableHttp",
+	): Promise<McpServer[]> {
 		try {
 			const settings = await this.readAndValidateMcpSettingsFile()
 			if (!settings) {
@@ -1040,6 +1115,7 @@ export class McpHub {
 
 			const serverConfig = {
 				url: serverUrl,
+				type: transportType,
 				disabled: false,
 				autoApprove: [],
 			}
@@ -1076,6 +1152,9 @@ export class McpHub {
 	 */
 	public async deleteServerRPC(serverName: string): Promise<McpServer[]> {
 		try {
+			// Clear OAuth data BEFORE removing from config (while we still have the connection/URL)
+			await this.clearOAuthForConnection(serverName)
+
 			const settingsPath = await this.getMcpSettingsFilePath()
 			const content = await fs.readFile(settingsPath, "utf-8")
 			const config = JSON.parse(content)
@@ -1173,6 +1252,71 @@ export class McpHub {
 	clearNotificationCallback(): void {
 		this.notificationCallback = undefined
 		//console.log("[MCP Debug] Notification callback cleared")
+	}
+
+	/**
+	 * Initiates OAuth flow for a server
+	 * Opens browser to authorization URL
+	 */
+	async initiateOAuth(serverName: string): Promise<void> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection) {
+			throw new Error(`No connection found for server: ${serverName}`)
+		}
+
+		// Extract serverUrl from config
+		const config = JSON.parse(connection.server.config)
+		const serverUrl = config.url
+		if (!serverUrl) {
+			throw new Error(`No URL found in config for server: ${serverName}`)
+		}
+
+		// Start OAuth flow - opens the SDK-generated authorization URL in browser
+		await this.mcpOAuthManager.startOAuthFlow(serverName, serverUrl)
+	}
+
+	/**
+	 * Completes OAuth flow after callback
+	 * Validates state, calls finishAuth, and reconnects
+	 */
+	async completeOAuth(serverHash: string, code: string, state: string | null): Promise<void> {
+		// Find the connection by matching the server hash
+		const connection = this.connections.find((conn) => {
+			const config = JSON.parse(conn.server.config)
+			if (config.url) {
+				const { getServerAuthHash } = require("@/utils/mcpAuth")
+				const hash = getServerAuthHash(conn.server.name, config.url)
+				return hash === serverHash
+			}
+			return false
+		})
+
+		if (!connection) {
+			throw new Error(`No connection found for server hash: ${serverHash}`)
+		}
+
+		// Validate state for CSRF protection (if provided)
+		if (state && !this.mcpOAuthManager.validateAndClearState(serverHash, state)) {
+			throw new Error("Invalid OAuth state - possible CSRF attack")
+		}
+
+		// Call finishAuth on the transport - SDK handles token exchange
+		// finishAuth is only available on SSE and StreamableHTTP transports
+		if (connection.transport instanceof SSEClientTransport || connection.transport instanceof StreamableHTTPClientTransport) {
+			await connection.transport.finishAuth(code)
+		} else {
+			throw new Error("OAuth is only supported for SSE and HTTP transports")
+		}
+
+		console.log(`[McpOAuth] Authentication completed for ${connection.server.name}`)
+
+		// Update server status
+		connection.server.oauthAuthStatus = "authenticated"
+		connection.server.oauthRequired = true
+		connection.server.error = ""
+
+		// Restart connection to complete setup with authenticated transport
+		await this.restartConnection(connection.server.name)
 	}
 
 	async dispose(): Promise<void> {
