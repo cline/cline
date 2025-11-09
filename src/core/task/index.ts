@@ -67,7 +67,7 @@ import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import { isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
+import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
@@ -1355,6 +1355,14 @@ export class Task {
 					Logger.error("Failed to cancel hook during task abort", error)
 					// Still clear state even on error to prevent stuck state
 					await this.clearActiveHookExecution()
+				}
+			}
+
+			if (this.activeBackgroundCommand) {
+				try {
+					await this.cancelBackgroundCommand()
+				} catch (error) {
+					Logger.error("Failed to cancel background command during task abort", error)
 				}
 			}
 
@@ -3451,7 +3459,7 @@ export class Task {
 			}
 		}
 
-		// Add context window usage information
+		// Add context window usage information (conditionally for some models)
 		const { contextWindow } = getContextWindowInfo(this.api)
 
 		// Get the token count from the most recent API request to accurately reflect context management
@@ -3479,8 +3487,24 @@ export class Task {
 		const lastApiReqTotalTokens = lastApiReqMessage ? getTotalTokensFromApiReqMessage(lastApiReqMessage) : 0
 		const usagePercentage = Math.round((lastApiReqTotalTokens / contextWindow) * 100)
 
-		details += "\n\n# Context Window Usage"
-		details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
+		// Determine if context window info should be displayed
+		const currentModelId = this.api.getModel().id
+		const isNextGenModel = isClaude4PlusModelFamily(currentModelId) || isGPT5ModelFamily(currentModelId)
+
+		let shouldShowContextWindow = true
+		// For next-gen models, only show context window usage if it exceeds a certain threshold
+		if (isNextGenModel) {
+			const autoCondenseThreshold =
+				(this.stateManager.getGlobalSettingsKey("autoCondenseThreshold") as number | undefined) ?? 0.75
+			const displayThreshold = autoCondenseThreshold - 0.15
+			const currentUsageRatio = lastApiReqTotalTokens / contextWindow
+			shouldShowContextWindow = currentUsageRatio >= displayThreshold
+		}
+
+		if (shouldShowContextWindow) {
+			details += "\n\n# Context Window Usage"
+			details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
+		}
 
 		details += "\n\n# Current Mode"
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
