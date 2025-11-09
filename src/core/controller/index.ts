@@ -8,6 +8,7 @@ import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMi
 import { downloadTask } from "@integrations/misc/export-markdown"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
+import { TextToSpeechService } from "@services/tts/TextToSpeechService"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ExtensionState, Platform } from "@shared/ExtensionMessage"
@@ -69,6 +70,7 @@ export class Controller {
 	authService: AuthService
 	ocaAuthService: OcaAuthService
 	readonly stateManager: StateManager
+	private ttsService?: TextToSpeechService
 
 	// NEW: Add workspace manager (optional initially)
 	private workspaceManager?: WorkspaceRootManager
@@ -105,6 +107,11 @@ export class Controller {
 	// Synchronous getter for workspace manager
 	getWorkspaceManager(): WorkspaceRootManager | undefined {
 		return this.workspaceManager
+	}
+
+	// Getter for TTS service
+	getTtsService(): TextToSpeechService | undefined {
+		return this.ttsService
 	}
 
 	/**
