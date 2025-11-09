@@ -86,6 +86,15 @@ export interface ExtensionState {
 	customPrompt?: string
 	autoCondenseThreshold?: number
 	favoritedModelIds: string[]
+	// Discuss Mode settings
+	discussModeEnabled?: boolean
+	discussModeSettings?: {
+		elevenLabsApiKey?: string
+		selectedVoice?: string
+		speechSpeed?: number
+		autoSpeak?: boolean
+		autoListen?: boolean
+	}
 	// NEW: Add workspace information
 	workspaceRoots: WorkspaceRoot[]
 	primaryRootIndex: number

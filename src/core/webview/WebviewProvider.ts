@@ -114,7 +114,9 @@ export abstract class WebviewProvider {
 					font-src ${this.getCspSource()} data:; 
 					style-src ${this.getCspSource()} 'unsafe-inline'; 
 					img-src ${this.getCspSource()} https: data:; 
+					media-src blob: data:;
 					script-src 'nonce-${nonce}' 'unsafe-eval';">
+				<meta http-equiv="Permissions-Policy" content="autoplay=*, microphone=*">
 				<title>Cline</title>
 			</head>
 			<body>
@@ -201,6 +203,7 @@ export abstract class WebviewProvider {
 			`font-src ${this.getCspSource()}`,
 			`style-src ${this.getCspSource()} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
 			`img-src ${this.getCspSource()} https: data:`,
+			`media-src blob: data:`,
 			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
 			`connect-src https://* ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
 		]
@@ -213,6 +216,7 @@ export abstract class WebviewProvider {
 					<meta charset="utf-8">
 					<meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
 					<meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
+					<meta http-equiv="Permissions-Policy" content="autoplay=*, microphone=*">
 					<link rel="stylesheet" type="text/css" href="${stylesUrl}">
 					<link href="${codiconsUrl}" rel="stylesheet" />
 					<title>Cline</title>

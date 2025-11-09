@@ -2,16 +2,23 @@ syntax = "proto3";
 
 package cline;
 
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
 // TTS Service - Handles text-to-speech synthesis
 service TtsService {
   // Synthesize speech from text
   rpc SynthesizeSpeech(SynthesizeRequest) returns (SynthesizeResponse);
-  
+
   // Get list of available voices for current provider
   rpc GetAvailableVoices(GetVoicesRequest) returns (VoicesResponse);
-  
+
   // Validate API key for TTS provider
   rpc ValidateApiKey(ValidateApiKeyRequest) returns (ValidateApiKeyResponse);
+
+  // Check if API key is configured
+  rpc CheckApiKeyConfigured(GetVoicesRequest) returns (ValidateApiKeyResponse);
 }
 
 // Request to synthesize speech
@@ -51,7 +58,7 @@ message VoicesResponse {
 
 // Request to validate API key
 message ValidateApiKeyRequest {
-  // Empty - uses current configuration
+  string api_key = 1; // The API key to validate
 }
 
 // Response from API key validation

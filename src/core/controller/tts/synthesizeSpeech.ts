@@ -1,4 +1,4 @@
-import type { SynthesizeRequest, SynthesizeResponse } from "../../../shared/proto/tts"
+import type { SynthesizeRequest, SynthesizeResponse } from "../../../shared/proto/cline/tts"
 import type { Controller } from ".."
 
 /**
@@ -9,15 +9,25 @@ import type { Controller } from ".."
  */
 export async function synthesizeSpeech(controller: Controller, request: SynthesizeRequest): Promise<SynthesizeResponse> {
 	try {
-		const ttsService = controller.getTtsService()
+		// Get API key from secrets storage
+		const apiKey = await controller.context.secrets.get("elevenLabsApiKey")
 
-		if (!ttsService || !ttsService.isInitialized()) {
+		if (!apiKey) {
 			return {
-				audioData: Buffer.from(new Uint8Array(0)),
+				audioData: Buffer.alloc(0),
 				contentType: "audio/mpeg",
-				error: "TTS service not initialized. Please configure TTS settings first.",
+				error: "No API key found. Please validate your API key first.",
 			}
 		}
+
+		// Initialize TTS service with the stored key
+		const { TextToSpeechService } = await import("../../../services/tts/TextToSpeechService")
+		const ttsService = new TextToSpeechService()
+
+		await ttsService.initialize({
+			provider: "elevenlabs",
+			apiKey: apiKey,
+		})
 
 		const result = await ttsService.synthesizeSpeech({
 			voiceId: request.voiceId,
@@ -27,16 +37,44 @@ export async function synthesizeSpeech(controller: Controller, request: Synthesi
 			similarityBoost: request.similarityBoost,
 		})
 
-		return {
-			audioData: result.audioData,
+		console.log("[synthesizeSpeech] TTS Service Result:", {
+			audioDataLength: result.audioData?.length,
+			audioDataType: typeof result.audioData,
+			contentType: result.contentType,
+			error: result.error,
+		})
+
+		// Protobuf-ts expects Uint8Array, not Buffer
+		const audioUint8Array = new Uint8Array(result.audioData)
+		console.log("[synthesizeSpeech] Created Uint8Array:", {
+			arrayLength: audioUint8Array.length,
+			arrayType: typeof audioUint8Array,
+			isUint8Array: audioUint8Array instanceof Uint8Array,
+		})
+
+		const response: SynthesizeResponse = {
+			audioData: audioUint8Array as any, // Protobuf bytes field accepts Uint8Array
 			contentType: result.contentType,
 			error: result.error,
 		}
+
+		console.log("[synthesizeSpeech] Returning response:", {
+			audioDataLength: response.audioData?.length,
+			hasAudioData: !!response.audioData,
+			contentType: response.contentType,
+			error: response.error,
+		})
+
+		return response
 	} catch (error) {
+		const emptyArray = new Uint8Array(0)
 		return {
-			audioData: Buffer.from(new Uint8Array(0)),
+			audioData: emptyArray as any,
 			contentType: "audio/mpeg",
 			error: `Failed to synthesize speech: ${error instanceof Error ? error.message : "Unknown error"}`,
 		}
 	}
 }
+
+// Export with PascalCase for proto compatibility
+export { synthesizeSpeech as SynthesizeSpeech }

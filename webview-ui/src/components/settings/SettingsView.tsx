@@ -6,6 +6,7 @@ import {
 	FlaskConical,
 	Info,
 	type LucideIcon,
+	Mic,
 	SlidersHorizontal,
 	SquareMousePointer,
 	SquareTerminal,
@@ -27,6 +28,7 @@ import DebugSection from "./sections/DebugSection"
 import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
 import TerminalSettingsSection from "./sections/TerminalSettingsSection"
+import VoiceSettingsSection from "./sections/VoiceSettingsSection"
 
 const IS_DEV = process.env.IS_DEV
 
@@ -77,6 +79,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		icon: Wrench,
 	},
 	{
+		id: "voice",
+		name: "Voice",
+		tooltipText: "Voice Settings",
+		headerText: "Voice Settings",
+		icon: Mic,
+	},
+	{
 		id: "about",
 		name: "About",
 		tooltipText: "About Cline",
@@ -125,6 +134,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			features: FeatureSettingsSection,
 			browser: BrowserSettingsSection,
 			terminal: TerminalSettingsSection,
+			voice: VoiceSettingsSection,
 			about: AboutSection,
 			debug: DebugSection,
 		}),

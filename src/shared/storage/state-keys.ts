@@ -51,6 +51,7 @@ export interface GlobalState {
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
 	nativeToolCallEnabled: boolean
+	discussModeEnabled: boolean
 }
 
 export interface Settings {
@@ -121,6 +122,11 @@ export interface Settings {
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
 	hicapModelId: string | undefined
+	// Discuss Mode settings
+	discussModeSelectedVoice: string | undefined
+	discussModeSpeechSpeed: number | undefined
+	discussModeAutoSpeak: boolean
+	discussModeAutoListen: boolean
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -254,6 +260,7 @@ export interface Secrets {
 	minimaxApiKey: string | undefined
 	hicapApiKey: string | undefined
 	aihubmixApiKey: string | undefined
+	elevenLabsApiKey: string | undefined
 }
 
 export interface LocalState {

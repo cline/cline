@@ -225,6 +225,15 @@ export const ExtensionStateContextProvider: React.FC<{
 		lastDismissedCliBannerVersion: 0,
 		subagentsEnabled: false,
 
+		// Discuss Mode defaults
+		discussModeEnabled: false,
+		discussModeSettings: {
+			selectedVoice: undefined,
+			speechSpeed: 1.0,
+			autoSpeak: false,
+			autoListen: false,
+		},
+
 		// NEW: Add workspace information with defaults
 		workspaceRoots: [],
 		primaryRootIndex: 0,

@@ -119,7 +119,8 @@ async function generateVscodeProtobusServers(protobusServices) {
 		imports.push(`// ${domain} Service`)
 		servers.push(`const ${serviceName}Handlers: serviceTypes.${serviceName}Handlers = {`)
 		for (const [rpcName, _rpc] of Object.entries(def.service)) {
-			imports.push(`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`)
+			const filePath = toFilePath(rpcName)
+			imports.push(`import { ${rpcName} } from "@core/controller/${dir}/${filePath}"`)
 			servers.push(`    ${rpcName}: ${rpcName},`)
 		}
 		servers.push(`} \n`)
@@ -156,7 +157,8 @@ async function generateStandaloneProtobusServiceSetup(protobusServices) {
 		handlerSetup.push(`    // ${domain} Service`)
 		handlerSetup.push(`    server.addService(cline.${name}Service, {`)
 		for (const [rpcName, rpc] of Object.entries(def.service)) {
-			imports.push(`import { ${rpcName} } from "@core/controller/${dir}/${rpcName}"`)
+			const filePath = toFilePath(rpcName)
+			imports.push(`import { ${rpcName} } from "@core/controller/${dir}/${filePath}"`)
 			const requestType = "cline." + rpc.requestType.type.name
 			const responseType = "cline." + rpc.responseType.type.name
 			if (rpc.requestStream) {
@@ -203,6 +205,10 @@ function getDomainName(serviceName) {
 function getDirName(serviceName) {
 	const domain = getDomainName(serviceName)
 	return domain.charAt(0).toLowerCase() + domain.slice(1)
+}
+function toFilePath(rpcName) {
+	// Convert PascalCase to camelCase for file paths
+	return rpcName.charAt(0).toLowerCase() + rpcName.slice(1)
 }
 
 // Only run main if this script is executed directly

@@ -264,4 +264,18 @@ service UiService {
 
   // Opens the Cline walkthrough
   rpc openWalkthrough(EmptyRequest) returns (Empty);
+
+  // Toggle discuss mode on/off
+  rpc setDiscussModeEnabled(BooleanRequest) returns (BooleanRequest);
+
+  // Update discuss mode voice settings
+  rpc updateDiscussVoiceSettings(DiscussVoiceSettingsRequest) returns (Empty);
+}
+
+// Request to update discuss mode voice settings
+message DiscussVoiceSettingsRequest {
+  optional string selected_voice = 1;
+  optional double speech_speed = 2;
+  optional bool auto_speak = 3;
+  optional bool auto_listen = 4;
 }

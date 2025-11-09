@@ -1,4 +1,4 @@
-import type { GetVoicesRequest, VoicesResponse } from "../../../shared/proto/tts"
+import type { GetVoicesRequest, VoicesResponse } from "../../../shared/proto/cline/tts"
 import type { Controller } from ".."
 
 /**
@@ -9,14 +9,24 @@ import type { Controller } from ".."
  */
 export async function getAvailableVoices(controller: Controller, request: GetVoicesRequest): Promise<VoicesResponse> {
 	try {
-		const ttsService = controller.getTtsService()
+		// Get API key from secrets storage
+		const apiKey = await controller.context.secrets.get("elevenLabsApiKey")
 
-		if (!ttsService || !ttsService.isInitialized()) {
+		if (!apiKey) {
 			return {
 				voices: [],
-				error: "TTS service not initialized. Please configure TTS settings first.",
+				error: "No API key found. Please validate your API key first.",
 			}
 		}
+
+		// Initialize TTS service with the stored key
+		const { TextToSpeechService } = await import("../../../services/tts/TextToSpeechService")
+		const ttsService = new TextToSpeechService()
+
+		await ttsService.initialize({
+			provider: "elevenlabs",
+			apiKey: apiKey,
+		})
 
 		const result = await ttsService.getAvailableVoices()
 
@@ -36,3 +46,6 @@ export async function getAvailableVoices(controller: Controller, request: GetVoi
 		}
 	}
 }
+
+// Export with PascalCase for proto compatibility
+export { getAvailableVoices as GetAvailableVoices }

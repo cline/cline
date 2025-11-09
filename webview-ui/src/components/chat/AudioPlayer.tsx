@@ -1,244 +1,265 @@
-import { SynthesizeRequest } from "@shared/proto/tts"
+import { SynthesizeRequest } from "@shared/proto/cline/tts"
 import React, { useCallback, useEffect, useRef, useState } from "react"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { cn } from "@/lib/utils"
 import { TtsServiceClient } from "@/services/grpc-client"
 
-interface AudioPlayerProps {
+export interface AudioQueueItem {
+	id: string
 	text: string
-	voiceId?: string
+	voiceId: string
 	speed?: number
-	autoPlay?: boolean
-	onPlaybackStart?: () => void
-	onPlaybackComplete?: () => void
-	onError?: (error: string) => void
-	className?: string
 }
 
-export const AudioPlayer: React.FC<AudioPlayerProps> = ({
-	text,
-	voiceId = "21m00Tcm4TlvDq8ikWAM", // Default ElevenLabs voice (Rachel)
-	speed = 1.0,
-	autoPlay = false,
-	onPlaybackStart,
-	onPlaybackComplete,
-	onError,
-	className,
-}) => {
-	const [isPlaying, setIsPlaying] = useState(false)
-	const [isLoading, setIsLoading] = useState(false)
-	const [error, setError] = useState<string | null>(null)
-	const [audioUrl, setAudioUrl] = useState<string | null>(null)
+export interface AudioPlayerProps {
+	/** Called when playback of an item completes */
+	onPlaybackComplete?: (itemId: string) => void
+	/** Called when an error occurs */
+	onError?: (error: string, itemId?: string) => void
+	/** Called when playback state changes */
+	onPlaybackStateChange?: (isPlaying: boolean, itemId?: string) => void
+	/** Default voice ID to use */
+	defaultVoiceId?: string
+	/** Default playback speed */
+	defaultSpeed?: number
+}
 
-	const audioRef = useRef<HTMLAudioElement | null>(null)
-	const audioContextRef = useRef<AudioContext | null>(null)
+export interface AudioPlayerHandle {
+	/** Add audio to the queue */
+	enqueue: (item: AudioQueueItem) => void
+	/** Clear the entire queue */
+	clearQueue: () => void
+	/** Pause current playback */
+	pause: () => void
+	/** Resume current playback */
+	resume: () => void
+	/** Stop current playback and clear queue */
+	stop: () => void
+	/** Get current queue */
+	getQueue: () => AudioQueueItem[]
+	/** Check if currently playing */
+	isPlaying: () => boolean
+}
 
-	// Initialize audio element
-	useEffect(() => {
-		audioRef.current = new Audio()
+/**
+ * AudioPlayer component that handles TTS audio playback with queue management.
+ * Uses the TTS service to synthesize speech and plays it back.
+ */
+const AudioPlayer = React.forwardRef<AudioPlayerHandle, AudioPlayerProps>(
+	(
+		{
+			onPlaybackComplete,
+			onError,
+			onPlaybackStateChange,
+			defaultVoiceId = "EXAVITQu4vr4xnSDxMaL", // Default ElevenLabs voice
+			defaultSpeed = 1.0,
+		},
+		ref,
+	) => {
+		const [queue, setQueue] = useState<AudioQueueItem[]>([])
+		const [currentItem, setCurrentItem] = useState<AudioQueueItem | null>(null)
+		const [isPlaying, setIsPlaying] = useState(false)
+		const [isPaused, setIsPaused] = useState(false)
 
-		// Event listeners for audio element
-		const handleEnded = () => {
-			setIsPlaying(false)
-			onPlaybackComplete?.()
-		}
+		const audioRef = useRef<HTMLAudioElement | null>(null)
+		const currentBlobUrlRef = useRef<string | null>(null)
+		const isProcessingRef = useRef(false)
 
-		const handleError = (e: ErrorEvent) => {
-			console.error("Audio playback error:", e)
-			const errorMessage = "Failed to play audio"
-			setError(errorMessage)
-			setIsPlaying(false)
-			onError?.(errorMessage)
-		}
-
-		const handlePlay = () => {
-			setIsPlaying(true)
-			onPlaybackStart?.()
-		}
-
-		const handlePause = () => {
-			setIsPlaying(false)
-		}
-
-		audioRef.current.addEventListener("ended", handleEnded)
-		audioRef.current.addEventListener("error", handleError as EventListener)
-		audioRef.current.addEventListener("play", handlePlay)
-		audioRef.current.addEventListener("pause", handlePause)
-
-		return () => {
-			if (audioRef.current) {
-				audioRef.current.removeEventListener("ended", handleEnded)
-				audioRef.current.removeEventListener("error", handleError as EventListener)
-				audioRef.current.removeEventListener("play", handlePlay)
-				audioRef.current.removeEventListener("pause", handlePause)
-				audioRef.current.pause()
-				audioRef.current.src = ""
+		// Cleanup blob URL when component unmounts or audio changes
+		const cleanupBlobUrl = useCallback(() => {
+			if (currentBlobUrlRef.current) {
+				URL.revokeObjectURL(currentBlobUrlRef.current)
+				currentBlobUrlRef.current = null
 			}
-			// Clean up audio URL
-			if (audioUrl) {
-				URL.revokeObjectURL(audioUrl)
-			}
-			// Close audio context
-			if (audioContextRef.current) {
-				audioContextRef.current.close()
-			}
-		}
-	}, []) // Only run once on mount
+		}, [])
 
-	// Load audio when text changes
-	useEffect(() => {
-		if (text && text.trim().length > 0) {
-			loadAudio()
-		}
-	}, [text, voiceId, speed])
-
-	// Auto-play when audio is loaded
-	useEffect(() => {
-		if (autoPlay && audioUrl && !isPlaying && !error) {
-			playAudio()
-		}
-	}, [autoPlay, audioUrl, isPlaying, error])
-
-	const loadAudio = useCallback(async () => {
-		try {
-			setIsLoading(true)
-			setError(null)
-
-			// Clean up previous audio URL
-			if (audioUrl) {
-				URL.revokeObjectURL(audioUrl)
-				setAudioUrl(null)
-			}
-
-			// Call TTS service to synthesize speech
-			const response = await TtsServiceClient.synthesizeSpeech(
-				SynthesizeRequest.create({
-					text: text,
-					voiceId: voiceId,
-					speed: speed,
-				}),
-			)
-
-			if (response.error) {
-				const errorMessage = response.error
-				setError(errorMessage)
-				onError?.(errorMessage)
+		// Process the next item in the queue
+		const processNextItem = useCallback(async () => {
+			if (isProcessingRef.current || queue.length === 0) {
 				return
 			}
 
-			if (!response.audioData || response.audioData.length === 0) {
-				const errorMessage = "No audio data received from TTS service"
-				setError(errorMessage)
-				onError?.(errorMessage)
-				return
+			isProcessingRef.current = true
+			const nextItem = queue[0]
+			setCurrentItem(nextItem)
+
+			try {
+				// Synthesize speech via TTS service
+				const response = await TtsServiceClient.SynthesizeSpeech(
+					SynthesizeRequest.create({
+						text: nextItem.text,
+						voiceId: nextItem.voiceId || defaultVoiceId,
+						speed: nextItem.speed || defaultSpeed,
+					}),
+				)
+
+				if (response.error) {
+					throw new Error(response.error)
+				}
+
+				// Convert Buffer to Uint8Array then to Blob
+				const audioArray = new Uint8Array(response.audioData)
+				const audioBlob = new Blob([audioArray], { type: response.contentType || "audio/mpeg" })
+				const audioUrl = URL.createObjectURL(audioBlob)
+
+				// Cleanup previous blob URL
+				cleanupBlobUrl()
+				currentBlobUrlRef.current = audioUrl
+
+				// Create and play audio element
+				if (audioRef.current) {
+					audioRef.current.pause()
+					audioRef.current = null
+				}
+
+				const audio = new Audio(audioUrl)
+				audioRef.current = audio
+
+				// Set up event handlers
+				audio.onplay = () => {
+					setIsPlaying(true)
+					setIsPaused(false)
+					onPlaybackStateChange?.(true, nextItem.id)
+				}
+
+				audio.onpause = () => {
+					if (!audio.ended) {
+						setIsPaused(true)
+						onPlaybackStateChange?.(false, nextItem.id)
+					}
+				}
+
+				audio.onended = () => {
+					setIsPlaying(false)
+					setIsPaused(false)
+					setCurrentItem(null)
+					cleanupBlobUrl()
+
+					// Remove completed item from queue
+					setQueue((prev) => prev.slice(1))
+					onPlaybackComplete?.(nextItem.id)
+					onPlaybackStateChange?.(false, nextItem.id)
+
+					isProcessingRef.current = false
+
+					// Process next item if available
+					setTimeout(() => {
+						if (queue.length > 1) {
+							processNextItem()
+						}
+					}, 0)
+				}
+
+				audio.onerror = (e) => {
+					const errorMessage = `Audio playback error: ${audio.error?.message || "Unknown error"}`
+					console.error(errorMessage, e)
+					setIsPlaying(false)
+					setCurrentItem(null)
+					cleanupBlobUrl()
+
+					// Remove failed item from queue
+					setQueue((prev) => prev.slice(1))
+					onError?.(errorMessage, nextItem.id)
+
+					isProcessingRef.current = false
+
+					// Try next item
+					setTimeout(() => {
+						if (queue.length > 1) {
+							processNextItem()
+						}
+					}, 0)
+				}
+
+				// Start playback
+				await audio.play()
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : "Failed to synthesize speech"
+				console.error("TTS synthesis error:", error)
+
+				setIsPlaying(false)
+				setCurrentItem(null)
+				cleanupBlobUrl()
+
+				// Remove failed item from queue
+				setQueue((prev) => prev.slice(1))
+				onError?.(errorMessage, nextItem.id)
+
+				isProcessingRef.current = false
+
+				// Try next item
+				setTimeout(() => {
+					if (queue.length > 1) {
+						processNextItem()
+					}
+				}, 0)
 			}
+		}, [queue, defaultVoiceId, defaultSpeed, onPlaybackComplete, onError, onPlaybackStateChange, cleanupBlobUrl])
 
-			// Create blob from audio data
-			const audioBlob = new Blob([response.audioData], { type: response.contentType || "audio/mpeg" })
-			const url = URL.createObjectURL(audioBlob)
-			setAudioUrl(url)
-
-			// Set audio source
-			if (audioRef.current) {
-				audioRef.current.src = url
+		// Auto-process queue when items are added
+		useEffect(() => {
+			if (queue.length > 0 && !currentItem && !isProcessingRef.current) {
+				processNextItem()
 			}
-		} catch (err) {
-			console.error("Error loading audio:", err)
-			const errorMessage = err instanceof Error ? err.message : "Failed to load audio"
-			setError(errorMessage)
-			onError?.(errorMessage)
-		} finally {
-			setIsLoading(false)
-		}
-	}, [text, voiceId, speed, audioUrl, onError])
+		}, [queue, currentItem, processNextItem])
 
-	const playAudio = useCallback(async () => {
-		try {
-			if (!audioRef.current || !audioUrl) {
-				return
+		// Expose imperative handle
+		React.useImperativeHandle(ref, () => ({
+			enqueue: (item: AudioQueueItem) => {
+				setQueue((prev) => [...prev, item])
+			},
+			clearQueue: () => {
+				if (audioRef.current) {
+					audioRef.current.pause()
+					audioRef.current = null
+				}
+				setQueue([])
+				setCurrentItem(null)
+				setIsPlaying(false)
+				setIsPaused(false)
+				cleanupBlobUrl()
+				isProcessingRef.current = false
+			},
+			pause: () => {
+				if (audioRef.current && !audioRef.current.paused) {
+					audioRef.current.pause()
+				}
+			},
+			resume: () => {
+				if (audioRef.current && audioRef.current.paused) {
+					audioRef.current.play()
+				}
+			},
+			stop: () => {
+				if (audioRef.current) {
+					audioRef.current.pause()
+					audioRef.current = null
+				}
+				setQueue([])
+				setCurrentItem(null)
+				setIsPlaying(false)
+				setIsPaused(false)
+				cleanupBlobUrl()
+				isProcessingRef.current = false
+			},
+			getQueue: () => queue,
+			isPlaying: () => isPlaying,
+		}))
+
+		// Cleanup on unmount
+		useEffect(() => {
+			return () => {
+				if (audioRef.current) {
+					audioRef.current.pause()
+					audioRef.current = null
+				}
+				cleanupBlobUrl()
 			}
+		}, [cleanupBlobUrl])
 
-			// Initialize AudioContext on first user interaction (required by browsers)
-			if (!audioContextRef.current) {
-				audioContextRef.current = new AudioContext()
-			}
-
-			// Resume AudioContext if suspended
-			if (audioContextRef.current.state === "suspended") {
-				await audioContextRef.current.resume()
-			}
-
-			await audioRef.current.play()
-		} catch (err) {
-			console.error("Error playing audio:", err)
-			const errorMessage = err instanceof Error ? err.message : "Failed to play audio"
-			setError(errorMessage)
-			setIsPlaying(false)
-			onError?.(errorMessage)
-		}
-	}, [audioUrl, onError])
-
-	const pauseAudio = useCallback(() => {
-		if (audioRef.current) {
-			audioRef.current.pause()
-		}
-	}, [])
-
-	const stopAudio = useCallback(() => {
-		if (audioRef.current) {
-			audioRef.current.pause()
-			audioRef.current.currentTime = 0
-			setIsPlaying(false)
-		}
-	}, [])
-
-	const handlePlayPauseClick = useCallback(() => {
-		if (error) {
-			// Retry loading audio on click if there was an error
-			setError(null)
-			loadAudio()
-			return
-		}
-
-		if (isLoading) {
-			return
-		}
-
-		if (isPlaying) {
-			pauseAudio()
-		} else {
-			playAudio()
-		}
-	}, [isPlaying, isLoading, error, playAudio, pauseAudio, loadAudio])
-
-	// Don't render if no text
-	if (!text || text.trim().length === 0) {
+		// This component doesn't render anything visible - it's purely functional
 		return null
-	}
+	},
+)
 
-	const iconAdjustment = "mt-0.5"
-	const iconClass = isLoading ? "codicon-loading" : error ? "codicon-error" : isPlaying ? "codicon-pulse" : "codicon-unmute"
-	const iconColor = error ? "text-error" : isPlaying ? "text-accent" : ""
-	const tooltipContent = isLoading ? "Loading audio..." : error ? `Error: ${error}` : isPlaying ? "Pause" : "Play Audio"
-
-	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<div
-					className={cn("input-icon-button text-base", iconAdjustment, className, {
-						disabled: isLoading,
-						"animate-spin": isLoading,
-						"cursor-pointer": !isLoading,
-					})}
-					data-testid="audio-player-button"
-					onClick={handlePlayPauseClick}
-					style={{ color: iconColor }}>
-					<span className={`codicon ${iconClass}`} />
-				</div>
-			</TooltipTrigger>
-			<TooltipContent side="top">{tooltipContent}</TooltipContent>
-		</Tooltip>
-	)
-}
+AudioPlayer.displayName = "AudioPlayer"
 
 export default AudioPlayer

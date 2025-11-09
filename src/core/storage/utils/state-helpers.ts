@@ -54,6 +54,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		minimaxApiKey,
 		hicapApiKey,
 		aihubmixApiKey,
+		elevenLabsApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -96,6 +97,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("minimaxApiKey") as Promise<Secrets["minimaxApiKey"]>,
 		context.secrets.get("hicapApiKey") as Promise<Secrets["hicapApiKey"]>,
 		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
+		context.secrets.get("elevenLabsApiKey") as Promise<Secrets["elevenLabsApiKey"]>,
 	])
 
 	return {
@@ -140,6 +142,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		minimaxApiKey,
 		hicapApiKey,
 		aihubmixApiKey,
+		elevenLabsApiKey,
 	}
 }
 
@@ -272,6 +275,15 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
 		const aihubmixBaseUrl = context.globalState.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
 		const aihubmixAppCode = context.globalState.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
+		const discussModeEnabled = context.globalState.get<GlobalStateAndSettings["discussModeEnabled"]>("discussModeEnabled")
+		const discussModeSelectedVoice =
+			context.globalState.get<GlobalStateAndSettings["discussModeSelectedVoice"]>("discussModeSelectedVoice")
+		const discussModeSpeechSpeed =
+			context.globalState.get<GlobalStateAndSettings["discussModeSpeechSpeed"]>("discussModeSpeechSpeed")
+		const discussModeAutoSpeak =
+			context.globalState.get<GlobalStateAndSettings["discussModeAutoSpeak"]>("discussModeAutoSpeak")
+		const discussModeAutoListen =
+			context.globalState.get<GlobalStateAndSettings["discussModeAutoListen"]>("discussModeAutoListen")
 
 		// OpenTelemetry configuration
 		const openTelemetryEnabled =
@@ -669,6 +681,11 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			openTelemetryLogBatchSize: openTelemetryLogBatchSize ?? 512,
 			openTelemetryLogBatchTimeout: openTelemetryLogBatchTimeout ?? 5000,
 			openTelemetryLogMaxQueueSize: openTelemetryLogMaxQueueSize ?? 2048,
+			discussModeEnabled: discussModeEnabled ?? false,
+			discussModeSelectedVoice: discussModeSelectedVoice,
+			discussModeSpeechSpeed: discussModeSpeechSpeed ?? 1.0,
+			discussModeAutoSpeak: discussModeAutoSpeak ?? false,
+			discussModeAutoListen: discussModeAutoListen ?? false,
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)

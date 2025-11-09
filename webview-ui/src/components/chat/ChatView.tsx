@@ -11,6 +11,7 @@ import { normalizeApiConfiguration } from "@/components/settings/utils/providerU
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useShowNavbar } from "@/context/PlatformContext"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
+import { DiscussModeToggle } from "../discuss-mode/DiscussModeToggle"
 import { Navbar } from "../menu/Navbar"
 import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 // Import utilities and hooks from the new structure
@@ -29,6 +30,7 @@ import {
 	useScrollBehavior,
 	WelcomeSection,
 } from "./chat-view"
+import { useDiscussModeAudio } from "./hooks/useDiscussModeAudio"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -330,6 +332,9 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	// Use scroll behavior hook
 	const scrollBehavior = useScrollBehavior(messages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
 
+	// Use Discuss Mode audio hook for automatic TTS
+	useDiscussModeAudio(messages)
+
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message..." : "Type your task here..."
 		return text
@@ -376,6 +381,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 			</div>
 			<footer className="bg-(--vscode-sidebar-background)" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
+				<DiscussModeToggle />
 				<ActionButtons
 					chatState={chatState}
 					messageHandlers={messageHandlers}

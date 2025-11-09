@@ -874,6 +874,15 @@ export class Controller {
 		const lastDismissedCliBannerVersion = this.stateManager.getGlobalStateKey("lastDismissedCliBannerVersion") || 0
 		const subagentsEnabled = this.stateManager.getGlobalSettingsKey("subagentsEnabled")
 
+		// Discuss Mode state
+		const discussModeEnabled = this.stateManager.getGlobalStateKey("discussModeEnabled")
+		const discussModeSettings = {
+			selectedVoice: this.stateManager.getGlobalSettingsKey("discussModeSelectedVoice"),
+			speechSpeed: this.stateManager.getGlobalSettingsKey("discussModeSpeechSpeed"),
+			autoSpeak: this.stateManager.getGlobalSettingsKey("discussModeAutoSpeak"),
+			autoListen: this.stateManager.getGlobalSettingsKey("discussModeAutoListen"),
+		}
+
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
 		const localCursorRulesToggles = this.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
@@ -951,6 +960,9 @@ export class Controller {
 			autoCondenseThreshold,
 			backgroundCommandRunning: this.backgroundCommandRunning,
 			backgroundCommandTaskId: this.backgroundCommandTaskId,
+			// Discuss Mode
+			discussModeEnabled,
+			discussModeSettings,
 			// NEW: Add workspace information
 			workspaceRoots: this.workspaceManager?.getRoots() ?? [],
 			primaryRootIndex: this.workspaceManager?.getPrimaryIndex() ?? 0,

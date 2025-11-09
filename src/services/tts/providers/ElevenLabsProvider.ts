@@ -80,14 +80,34 @@ export class ElevenLabsProvider extends BaseTTSProvider {
 			return { voices }
 		} catch (error) {
 			if (axios.isAxiosError(error)) {
+				// Extract error message from different possible sources
+				let errorMessage = error.message
+
+				if (error.response?.data) {
+					if (typeof error.response.data === "string") {
+						errorMessage = error.response.data
+					} else if (error.response.data.detail) {
+						errorMessage = error.response.data.detail
+					} else if (error.response.data.message) {
+						errorMessage = error.response.data.message
+					} else {
+						errorMessage = JSON.stringify(error.response.data)
+					}
+				}
+
+				// Add status code if available
+				if (error.response?.status) {
+					errorMessage = `${error.response.status}: ${errorMessage}`
+				}
+
 				return {
 					voices: [],
-					error: `Failed to fetch voices: ${error.response?.data?.detail || error.message}`,
+					error: `Failed to fetch voices: ${errorMessage}`,
 				}
 			}
 			return {
 				voices: [],
-				error: `Failed to fetch voices: ${error instanceof Error ? error.message : "Unknown error"}`,
+				error: `Failed to fetch voices: ${error instanceof Error ? error.message : String(error)}`,
 			}
 		}
 	}
