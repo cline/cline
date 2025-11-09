@@ -77,6 +77,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
 	setExpandTaskHeader: (value: boolean) => void
+	setShowWelcome: (value: boolean) => void
 
 	// Refresh functions
 	refreshOpenRouterModels: () => void
@@ -313,8 +314,12 @@ export const ExtensionStateContextProvider: React.FC<{
 									: prevState.autoApprovalSettings,
 							}
 
-							// Update welcome screen state based on API configuration
-							setShowWelcome(!newState.welcomeViewCompleted)
+							// Update welcome screen state based on API configuration if welcome view not in progress
+							if (!newState.welcomeViewCompleted && !showWelcome) {
+								setShowWelcome(true)
+							} else if (newState.welcomeViewCompleted) {
+								setShowWelcome(false)
+							}
 							setDidHydrateState(true)
 
 							console.log("[DEBUG] returning new state in ESC")
@@ -685,6 +690,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		hideAnnouncement,
 		setShowAnnouncement,
 		hideChatModelSelector,
+		setShowWelcome,
 		setShowChatModelSelector,
 		setShouldShowAnnouncement: (value) =>
 			setState((prevState) => ({

@@ -1,6 +1,7 @@
 import { String } from "@shared/proto/cline/common"
 import { ClineEnv } from "@/config"
 import { Controller } from "@/core/controller"
+import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewCompleted"
 import { WebviewProvider } from "@/core/webview"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch } from "@/shared/net"
@@ -122,6 +123,7 @@ export class AuthServiceMock extends AuthService {
 	override async handleAuthCallback(_token: string, _provider: string): Promise<void> {
 		try {
 			this._authenticated = true
+			await setWelcomeViewCompleted(this._controller, { value: true })
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
