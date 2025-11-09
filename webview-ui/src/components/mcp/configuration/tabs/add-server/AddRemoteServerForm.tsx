@@ -15,7 +15,6 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 	const [transportType, setTransportType] = useState<TransportType>("streamableHttp")
 	const [isSubmitting, setIsSubmitting] = useState(false)
 	const [error, setError] = useState("")
-	const [showConnectingMessage, setShowConnectingMessage] = useState(false)
 	const { setMcpServers } = useExtensionState()
 
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -40,7 +39,6 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 
 		setError("")
 		setIsSubmitting(true)
-		setShowConnectingMessage(true)
 
 		try {
 			const servers: McpServers = await McpServiceClient.addRemoteMcpServer(
@@ -59,11 +57,9 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 			setServerName("")
 			setServerUrl("")
 			onServerAdded()
-			setShowConnectingMessage(false)
 		} catch (error) {
 			setIsSubmitting(false)
 			setError(error instanceof Error ? error.message : "Failed to add server")
-			setShowConnectingMessage(false)
 		}
 	}
 
@@ -106,8 +102,9 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 				</div>
 
 				<div className="mb-3">
-					<label className="block text-sm font-medium mb-2">Transport Type</label>
+					<label className={`block text-sm font-medium mb-2 ${isSubmitting ? "opacity-50" : ""}`}>Transport Type</label>
 					<VSCodeRadioGroup
+						disabled={isSubmitting}
 						onChange={(e) => {
 							const value = (e.target as HTMLInputElement).value as TransportType
 							setTransportType(value)
@@ -124,17 +121,9 @@ const AddRemoteServerForm = ({ onServerAdded }: { onServerAdded: () => void }) =
 
 				{error && <div className="mb-3 text-(--vscode-errorForeground)">{error}</div>}
 
-				<div className="flex items-center mt-3 w-full">
-					<VSCodeButton className="w-full" disabled={isSubmitting} type="submit">
-						{isSubmitting ? "Adding..." : "Add Server"}
-					</VSCodeButton>
-
-					{showConnectingMessage && (
-						<div className="ml-3 text-(--vscode-notificationsInfoIcon-foreground) text-sm">
-							Connecting to server... This may take a few seconds.
-						</div>
-					)}
-				</div>
+				<VSCodeButton className="w-full" disabled={isSubmitting} type="submit">
+					{isSubmitting ? "Connecting..." : "Add Server"}
+				</VSCodeButton>
 
 				<VSCodeButton
 					appearance="secondary"
