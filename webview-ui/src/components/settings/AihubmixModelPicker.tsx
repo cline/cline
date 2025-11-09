@@ -72,7 +72,7 @@ const AihubmixModelPicker: React.FC<AihubmixModelPickerProps> = ({ isPopup, curr
 	}, [])
 
 	const modelIds = useMemo(() => {
-		// 保持 API 返回的原始顺序，不进行排序
+		// Keep original order from API response, no sorting
 		return Object.keys(models)
 	}, [models])
 
