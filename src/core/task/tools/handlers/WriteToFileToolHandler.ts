@@ -8,7 +8,6 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -17,6 +16,7 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
@@ -390,11 +390,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		if (diff) {
 			// Handle replace_in_file with diff construction
-			if (!config.api.getModel().id.includes("claude")) {
-				// deepseek models tend to use unescaped html entities in diffs
-				diff = fixModelHtmlEscaping(diff)
-				diff = removeInvalidChars(diff)
-			}
+			// Apply model-specific fixes (deepseek models tend to use unescaped html entities in diffs)
+			diff = applyModelContentFixes(diff, config.api.getModel().id, resolvedPath)
 
 			// open the editor if not done already.  This is to fix diff error when model provides correct search-replace text but Cline throws error
 			// because file is not open.
@@ -470,11 +467,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 			}
 
-			if (!config.api.getModel().id.includes("claude")) {
-				// it seems not just llama models are doing this, but also gemini and potentially others
-				newContent = fixModelHtmlEscaping(newContent)
-				newContent = removeInvalidChars(newContent)
-			}
+			// Apply model-specific fixes (llama, gemini, and other models may add escape characters)
+			newContent = applyModelContentFixes(newContent, config.api.getModel().id, resolvedPath)
 		} else {
 			// can't happen, since we already checked for content/diff above. but need to do this for type error
 			return
