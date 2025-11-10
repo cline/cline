@@ -31,6 +31,7 @@ var (
 	settings []string
 	yolo     bool
 	oneshot  bool
+	record   bool // Harbor episode recording
 )
 
 func main() {
@@ -151,6 +152,11 @@ see the manual page: man cline`,
 				yolo = true
 			}
 
+			// Set environment variable for episode recording if --record flag is used
+			if record {
+				os.Setenv("CLINE_RECORD_EPISODES", "true")
+			}
+
 			return cli.CreateAndFollowTask(ctx, prompt, cli.TaskOptions{
 				Images:   images,
 				Files:    files,
@@ -175,6 +181,7 @@ see the manual page: man cline`,
 	rootCmd.Flags().BoolVarP(&yolo, "yolo", "y", false, "enable yolo mode (non-interactive)")
 	rootCmd.Flags().BoolVar(&yolo, "no-interactive", false, "enable yolo mode (non-interactive)")
 	rootCmd.Flags().BoolVarP(&oneshot, "oneshot", "o", false, "full autonomous mode")
+	rootCmd.Flags().BoolVarP(&record, "record", "r", false, "record episodes for Harbor integration")
 
 	rootCmd.AddCommand(cli.NewTaskCommand())
 	rootCmd.AddCommand(cli.NewInstanceCommand())

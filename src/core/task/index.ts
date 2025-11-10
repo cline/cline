@@ -196,6 +196,7 @@ export class Task {
 	private diffViewProvider: DiffViewProvider
 	public checkpointManager?: ICheckpointManager
 	private clineIgnoreController: ClineIgnoreController
+	private episodeRecorder?: import("@core/episode/EpisodeRecorder").EpisodeRecorder
 	private toolExecutor: ToolExecutor
 	/**
 	 * Whether the task is using native tool calls.
@@ -541,6 +542,12 @@ export class Task {
 			this.clearActiveHookExecution.bind(this),
 			this.getActiveHookExecution.bind(this),
 		)
+
+		// Initialize episode recorder for Harbor integration
+		if (process.env.CLINE_RECORD_EPISODES === "true") {
+			const { EpisodeRecorder } = require("@core/episode/EpisodeRecorder")
+			this.episodeRecorder = new EpisodeRecorder(this.taskId)
+		}
 	}
 
 	// Communicate with webview
@@ -2718,6 +2725,7 @@ export class Task {
 			let reasoningMessage = ""
 			const reasoningDetails = []
 			const antThinkingContent: (Anthropic.Messages.RedactedThinkingBlock | Anthropic.Messages.ThinkingBlock)[] = []
+			const apiRequestStartTime = new Date() // For episode recording
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
 			try {
@@ -3036,6 +3044,28 @@ export class Task {
 					await this.messageStateHandler.addToApiConversationHistory({
 						role: "assistant",
 						content: assistantContent,
+					})
+				}
+
+				// Record episode for Harbor integration (if enabled)
+				if (this.episodeRecorder) {
+					await this.episodeRecorder.recordEpisode({
+						input: this.messageStateHandler.getApiConversationHistory(),
+						model: model.id,
+						provider: providerId,
+						temperature: 0,
+						response: {
+							text: assistantTextOnly,
+							toolUses: toolUseBlocks,
+						},
+						startTime: apiRequestStartTime,
+						usage: {
+							inputTokens,
+							outputTokens,
+							cacheWriteTokens,
+							cacheReadTokens,
+						},
+						totalCost,
 					})
 				}
 
