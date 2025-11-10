@@ -11,17 +11,14 @@ import type { Controller } from "../index"
 export async function refreshMcpMarketplace(controller: Controller, _request: EmptyRequest): Promise<McpMarketplaceCatalog> {
 	try {
 		// Call the RPC variant which returns the result directly
-		const catalog = await controller.silentlyRefreshMcpMarketplaceRPC()
-
+		const catalog = await controller.refreshMcpMarketplace(false /* sendCatalogEvent */)
 		if (catalog) {
 			// Types are structurally identical, use direct type assertion
 			return catalog as McpMarketplaceCatalog
 		}
-
-		// Return empty catalog if nothing was fetched
-		return McpMarketplaceCatalog.create({ items: [] })
 	} catch (error) {
 		console.error("Failed to refresh MCP marketplace:", error)
-		return McpMarketplaceCatalog.create({ items: [] })
 	}
+	// Return empty catalog if nothing was fetched
+	return { items: [] }
 }

@@ -191,6 +191,29 @@ describe("Remote Config Schema", () => {
 		})
 	})
 
+	describe("MCPSettingsSchema", () => {
+		it("should reject servers with a missing id", () => {
+			const config = {
+				version: "v1",
+				allowedMCPServers: [{}],
+			}
+
+			expect(() => RemoteConfigSchema.parse(config)).to.throw()
+		})
+
+		it("should accept valid MCP settings", () => {
+			const config = {
+				version: "v1",
+				mcpMarketplaceEnabled: true,
+				allowedMCPServers: [{ id: "https://github.com/mcp/filesystem" }, { id: "https://github.com/mcp/github" }],
+			}
+
+			const result = RemoteConfigSchema.parse(config)
+			expect(result.mcpMarketplaceEnabled).to.equal(true)
+			expect(result.allowedMCPServers).to.deep.equal(config.allowedMCPServers)
+		})
+	})
+
 	describe("RemoteConfigSchema", () => {
 		it("should accept valid complete remote config", () => {
 			const validConfig: RemoteConfig = {
@@ -291,6 +314,7 @@ describe("Remote Config Schema", () => {
 				version: "v1",
 				telemetryEnabled: true,
 				mcpMarketplaceEnabled: false,
+				allowedMCPServers: [{ id: "https://github.com/mcp/filesystem" }, { id: "https://github.com/mcp/github" }],
 				yoloModeAllowed: true,
 				openTelemetryEnabled: true,
 				openTelemetryMetricsExporter: "otlp",
@@ -306,6 +330,25 @@ describe("Remote Config Schema", () => {
 				openTelemetryLogBatchSize: 512,
 				openTelemetryLogBatchTimeout: 5000,
 				openTelemetryLogMaxQueueSize: 2048,
+				globalRules: [
+					{
+						alwaysEnabled: true,
+						name: "company-standards.md",
+						contents: "# Company Standards\n\nAll code must follow these standards...",
+					},
+					{
+						alwaysEnabled: false,
+						name: "optional-guidelines.md",
+						contents: "# Optional Guidelines\n\nConsider these best practices...",
+					},
+				],
+				globalWorkflows: [
+					{
+						alwaysEnabled: true,
+						name: "deployment-workflow.md",
+						contents: "# Deployment Workflow\n\n1. Run tests\n2. Build\n3. Deploy",
+					},
+				],
 				providerSettings: {
 					OpenAiCompatible: {
 						models: [
@@ -363,6 +406,14 @@ describe("Remote Config Schema", () => {
 					Cline: {
 						models: [{ id: "claude-3-5-sonnet-20241022" }, { id: "claude-3-5-haiku-20241022" }],
 					},
+					Vertex: {
+						models: [
+							{ id: "claude-3-5-sonnet-v2@20241022", thinkingBudgetTokens: 1600 },
+							{ id: "claude-3-5-haiku@20241022" },
+						],
+						vertexProjectId: "my-gcp-project",
+						vertexRegion: "us-central1",
+					},
 				},
 			}
 			const result = RemoteConfigSchema.parse(config)
@@ -370,8 +421,10 @@ describe("Remote Config Schema", () => {
 			// Verify all top-level fields
 			expect(result.version).to.equal("v1")
 			expect(result.telemetryEnabled).to.equal(true)
-			expect(result.mcpMarketplaceEnabled).to.equal(false)
 			expect(result.yoloModeAllowed).to.equal(true)
+
+			expect(result.mcpMarketplaceEnabled).to.equal(false)
+			expect(result.allowedMCPServers).to.deep.equal(config.allowedMCPServers)
 
 			// Verify OpenAI Compatible settings
 			expect(result.providerSettings?.OpenAiCompatible?.models).to.have.lengthOf(2)
@@ -392,6 +445,15 @@ describe("Remote Config Schema", () => {
 			expect(result.providerSettings?.Cline?.models?.[0].id).to.equal("claude-3-5-sonnet-20241022")
 			expect(result.providerSettings?.Cline?.models?.[1].id).to.equal("claude-3-5-haiku-20241022")
 
+			// Verify Vertex settings
+			expect(result.providerSettings?.Vertex?.models).to.have.lengthOf(2)
+			expect(result.providerSettings?.Vertex?.models?.[0].id).to.equal("claude-3-5-sonnet-v2@20241022")
+			expect(result.providerSettings?.Vertex?.models?.[0].thinkingBudgetTokens).to.equal(1600)
+			expect(result.providerSettings?.Vertex?.models?.[1].id).to.equal("claude-3-5-haiku@20241022")
+			expect(result.providerSettings?.Vertex?.models?.[1].thinkingBudgetTokens).to.be.undefined
+			expect(result.providerSettings?.Vertex?.vertexProjectId).to.equal("my-gcp-project")
+			expect(result.providerSettings?.Vertex?.vertexRegion).to.equal("us-central1")
+
 			// Verify OpenTelemetry settings
 			expect(result.openTelemetryEnabled).to.equal(true)
 			expect(result.openTelemetryMetricsExporter).to.equal("otlp")
@@ -407,6 +469,19 @@ describe("Remote Config Schema", () => {
 			expect(result.openTelemetryLogBatchSize).to.equal(512)
 			expect(result.openTelemetryLogBatchTimeout).to.equal(5000)
 			expect(result.openTelemetryLogMaxQueueSize).to.equal(2048)
+
+			// Verify Global Instructions settings
+			expect(result.globalRules).to.have.lengthOf(2)
+			expect(result.globalRules?.[0].alwaysEnabled).to.equal(true)
+			expect(result.globalRules?.[0].name).to.equal("company-standards.md")
+			expect(result.globalRules?.[0].contents).to.include("Company Standards")
+			expect(result.globalRules?.[1].alwaysEnabled).to.equal(false)
+			expect(result.globalRules?.[1].name).to.equal("optional-guidelines.md")
+
+			expect(result.globalWorkflows).to.have.lengthOf(1)
+			expect(result.globalWorkflows?.[0].alwaysEnabled).to.equal(true)
+			expect(result.globalWorkflows?.[0].name).to.equal("deployment-workflow.md")
+			expect(result.globalWorkflows?.[0].contents).to.include("Deployment Workflow")
 		})
 	})
 

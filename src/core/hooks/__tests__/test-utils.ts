@@ -37,20 +37,20 @@ export async function createHooksDirectory(baseDir: string): Promise<string> {
  * @example
  * // Create a simple success hook
  * await createTestHook(tempDir, "PreToolUse", {
- *   shouldContinue: true,
+ *   cancel: false,
  *   contextModification: "TEST_CONTEXT"
  * })
  *
  * @example
  * // Create a hook that delays before responding
  * await createTestHook(tempDir, "PreToolUse", {
- *   shouldContinue: true
+ *   cancel: false
  * }, { delay: 100 })
  *
  * @example
  * // Create a hook that exits with an error
  * await createTestHook(tempDir, "PreToolUse", {
- *   shouldContinue: false
+ *   cancel: true
  * }, { exitCode: 1 })
  *
  * @example
@@ -202,17 +202,17 @@ export function buildPostToolUseInput(params: {
  *
  * @example
  * assertHookOutput(result, {
- *   shouldContinue: true,
+ *   cancel: false,
  *   contextModification: "Expected context"
  * })
  */
 export function assertHookOutput(actual: HookOutput, expected: Partial<HookOutput>): void {
-	if (expected.shouldContinue !== undefined) {
-		if (actual.shouldContinue !== expected.shouldContinue) {
+	if (expected.cancel !== undefined) {
+		if (actual.cancel !== expected.cancel) {
 			throw new Error(
-				`Hook output assertion failed for 'shouldContinue':\n` +
-					`  Expected: ${expected.shouldContinue}\n` +
-					`  Received: ${actual.shouldContinue}\n` +
+				`Hook output assertion failed for 'cancel':\n` +
+					`  Expected: ${expected.cancel}\n` +
+					`  Received: ${actual.cancel}\n` +
 					`  Full output: ${JSON.stringify(actual, null, 2)}`,
 			)
 		}
@@ -279,7 +279,7 @@ function isSerializable(value: any): boolean {
  *
  * @example
  * const mockRunner = new MockHookRunner("PreToolUse")
- * mockRunner.setResponse({ shouldContinue: true })
+ * mockRunner.setResponse({ cancel: false })
  *
  * const result = await mockRunner.run(input)
  * mockRunner.assertCalled(1)
@@ -287,7 +287,7 @@ function isSerializable(value: any): boolean {
  */
 export class MockHookRunner<Name extends HookName> {
 	private response: HookOutput = {
-		shouldContinue: true,
+		cancel: false,
 		contextModification: "",
 		errorMessage: "",
 	}
@@ -305,7 +305,7 @@ export class MockHookRunner<Name extends HookName> {
 	 */
 	setResponse(output: Partial<HookOutput>): void {
 		this.response = {
-			shouldContinue: output.shouldContinue ?? true,
+			cancel: output.cancel ?? false,
 			contextModification: output.contextModification ?? "",
 			errorMessage: output.errorMessage ?? "",
 		}
@@ -399,7 +399,7 @@ export class MockHookRunner<Name extends HookName> {
 	reset(): void {
 		this.executionLog = []
 		this.response = {
-			shouldContinue: true,
+			cancel: false,
 			contextModification: "",
 			errorMessage: "",
 		}

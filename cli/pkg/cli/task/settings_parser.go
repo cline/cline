@@ -180,8 +180,6 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 		settings.PlanModeHuaweiCloudMaasModelId = strPtr(value)
 	case "plan_mode_oca_model_id":
 		settings.PlanModeOcaModelId = strPtr(value)
-	case "plan_mode_vercel_ai_gateway_model_id":
-		settings.PlanModeVercelAiGatewayModelId = strPtr(value)
 	case "act_mode_api_model_id":
 		settings.ActModeApiModelId = strPtr(value)
 	case "act_mode_reasoning_effort":
@@ -218,8 +216,6 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 		settings.ActModeHuaweiCloudMaasModelId = strPtr(value)
 	case "act_mode_oca_model_id":
 		settings.ActModeOcaModelId = strPtr(value)
-	case "act_mode_vercel_ai_gateway_model_id":
-		settings.ActModeVercelAiGatewayModelId = strPtr(value)
 
 	// Boolean fields
 	case "aws_use_cross_region_inference":
@@ -416,24 +412,12 @@ func setNestedField(settings *cline.Settings, parentField string, childFields ma
 func setAutoApprovalSettings(settings *cline.AutoApprovalSettings, fields map[string]string) error {
 	for key, value := range fields {
 		switch key {
-		case "enabled":
-			val, err := parseBool(value)
-			if err != nil {
-				return err
-			}
-			settings.Enabled = val
-		case "max_requests":
-			val, err := parseInt32(value)
-			if err != nil {
-				return err
-			}
-			settings.MaxRequests = val
 		case "enable_notifications":
 			val, err := parseBool(value)
 			if err != nil {
 				return err
 			}
-			settings.EnableNotifications = val
+			settings.EnableNotifications = boolPtr(val)
 		case "actions":
 			return fmt.Errorf("auto_approval_settings.actions requires nested dot notation (e.g., auto-approval-settings.actions.read-files=true)")
 		default:
@@ -672,6 +656,8 @@ func parseApiProvider(value string) (cline.ApiProvider, error) {
 		return cline.ApiProvider_DIFY, nil
 	case "oca":
 		return cline.ApiProvider_OCA, nil
+	case "minimax":
+		return cline.ApiProvider_MINIMAX, nil
 	default:
 		return cline.ApiProvider_ANTHROPIC, fmt.Errorf("invalid api_provider '%s'", value)
 	}
@@ -746,14 +732,14 @@ func setSecretField(secrets *cline.Secrets, key, value string) error {
 		secrets.HuaweiCloudMaasApiKey = strPtr(value)
 	case "baseten_api_key":
 		secrets.BasetenApiKey = strPtr(value)
-	case "vercel_ai_gateway_api_key":
-		secrets.VercelAiGatewayApiKey = strPtr(value)
 	case "dify_api_key":
 		secrets.DifyApiKey = strPtr(value)
 	case "oca_api_key":
 		secrets.OcaApiKey = strPtr(value)
 	case "oca_refresh_token":
 		secrets.OcaRefreshToken = strPtr(value)
+	case "hicap_api_key":
+		secrets.HicapApiKey = strPtr(value)
 	default:
 		return fmt.Errorf("unsupported secret field '%s'", key)
 	}

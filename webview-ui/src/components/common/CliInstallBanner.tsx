@@ -1,8 +1,9 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { EmptyRequest, Int64Request } from "@shared/proto/index.cline"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { Terminal } from "lucide-react"
+import { Terminal, XIcon } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { isMacOSOrLinux } from "@/utils/platformUtils"
@@ -200,13 +201,14 @@ export const CliInstallBanner: React.FC = () => {
 			</div>
 
 			{/* Close button */}
-			<VSCodeButton
-				appearance="icon"
+			<Button
+				className="absolute top-2.5 right-2"
 				data-testid="cli-banner-close-button"
 				onClick={handleClose}
-				style={{ position: "absolute", top: "8px", right: "8px" }}>
-				<span className="codicon codicon-close"></span>
-			</VSCodeButton>
+				size="icon"
+				variant="icon">
+				<XIcon />
+			</Button>
 		</div>
 	)
 }

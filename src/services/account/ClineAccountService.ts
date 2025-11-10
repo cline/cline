@@ -9,6 +9,7 @@ import type {
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { ClineEnv } from "@/config"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
+import { getAxiosSettings } from "@/shared/net"
 import { AuthService } from "../auth/AuthService"
 
 export class ClineAccountService {
@@ -60,6 +61,7 @@ export class ClineAccountService {
 				"Content-Type": "application/json",
 				...config.headers,
 			},
+			...getAxiosSettings(),
 		}
 		const response: AxiosResponse<{ data?: T; error: string; success: boolean }> = await axios.request({
 			url,

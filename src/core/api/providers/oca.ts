@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { LiteLLMModelInfo, liteLlmDefaultModelId, liteLlmModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { APIError, OpenAIError } from "openai"
 import type { FinalRequestOptions, Headers as OpenAIHeaders } from "openai/core"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { OcaAuthService } from "@/services/auth/oca/OcaAuthService"
 import {
 	DEFAULT_EXTERNAL_OCA_BASE_URL,
@@ -10,10 +11,12 @@ import {
 } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
 import { Logger } from "@/services/logging/Logger"
+import { fetch } from "@/shared/net"
 import { ApiHandler, type CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 export interface OcaHandlerOptions extends CommonApiHandlerOptions {
 	ocaBaseUrl?: string
@@ -79,6 +82,7 @@ export class OcaHandler implements ApiHandler {
 				options.ocaBaseUrl ||
 				(options.ocaMode === "internal" ? DEFAULT_INTERNAL_OCA_BASE_URL : DEFAULT_EXTERNAL_OCA_BASE_URL),
 			apiKey: "noop",
+			fetch, // Use configured fetch with proxy support
 		})
 	}
 
@@ -135,7 +139,7 @@ export class OcaHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const formattedMessages = convertToOpenAiMessages(messages)
 		const systemMessage: OpenAI.Chat.ChatCompletionSystemMessageParam = {
@@ -187,6 +191,8 @@ export class OcaHandler implements ApiHandler {
 			return message
 		})
 
+		const toolCallProcessor = new ToolCallProcessor()
+
 		const stream = await client.chat.completions.create({
 			model: this.options.ocaModelId || liteLlmDefaultModelId,
 			messages: [enhancedSystemMessage, ...enhancedMessages],
@@ -198,6 +204,7 @@ export class OcaHandler implements ApiHandler {
 			...(thinkingConfig && { thinking: thinkingConfig }), // Add thinking configuration when applicable
 			...(this.options.taskId && {
 				litellm_session_id: `cline-${this.options.taskId}`,
+				...getOpenAIToolParams(tools),
 			}), // Add session ID for LiteLLM tracking
 		})
 
@@ -226,6 +233,10 @@ export class OcaHandler implements ApiHandler {
 					type: "reasoning",
 					reasoning: (delta as ThinkingDelta).thinking || "",
 				}
+			}
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			// Handle token usage information

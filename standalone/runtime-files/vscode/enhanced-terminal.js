@@ -35,8 +35,16 @@ class StandaloneTerminalProcess extends EventEmitter {
 			// Spawn the process
 			this.childProcess = spawn(shell, shellArgs, {
 				cwd: cwd,
-				stdio: ["pipe", "pipe", "pipe"],
-				env: { ...process.env, TERM: "xterm-256color" },
+				stdio: ["ignore", "pipe", "pipe"], // Disable STDIN to prevent interactivity
+				env: {
+					...process.env,
+					TERM: "xterm-256color",
+					PAGER: "cat", // Prevent less from being used, reducing interactivity
+					EDITOR: process.env.EDITOR || "cat", // Set EDITOR if not already set
+					GIT_PAGER: "cat", // Prevent git from using less
+					SYSTEMD_PAGER: "", // Disable systemd pager
+					MANPAGER: "cat", // Disable man pager
+				},
 			})
 
 			// Track process state
