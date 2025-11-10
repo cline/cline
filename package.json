@@ -304,6 +304,7 @@
 		"dev:cli:watch": "node scripts/dev-cli-watch.mjs",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",
 		"postcompile-standalone-npm": "node scripts/package-standalone.mjs --target=npm",
+		"dev": "npm run protos && npm run watch",
 		"watch": "npm-run-all -p watch:*",
 		"watch:esbuild": "node esbuild.mjs --watch",
 		"watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
