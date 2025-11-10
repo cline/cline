@@ -5,6 +5,7 @@ import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { fetch, getAxiosSettings } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
@@ -43,6 +44,7 @@ export class OpenRouterHandler implements ApiHandler {
 						"HTTP-Referer": "https://cline.bot", // Optional, for including your app on openrouter.ai rankings.
 						"X-Title": "Cline", // Optional. Shows in rankings on openrouter.ai.
 					},
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating OpenRouter client: ${error.message}`)
@@ -201,6 +203,7 @@ export class OpenRouterHandler implements ApiHandler {
 					Authorization: `Bearer ${this.options.openRouterApiKey}`,
 				},
 				timeout: 15_000, // this request hangs sometimes
+				...getAxiosSettings(),
 			})
 			yield response.data?.data
 		} catch (error) {

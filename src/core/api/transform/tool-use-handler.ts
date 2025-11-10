@@ -32,7 +32,7 @@ const ESCAPE_MAP: Record<string, string> = {
 const ESCAPE_PATTERN = /\\[ntr"\\]/g
 
 /**
- * Handles streaming tool use blocks and converts them to Anthropic.ToolUseBlockParam format
+ * Handles streaming native tool use blocks and converts them to Anthropic.ToolUseBlockParam format
  */
 export class ToolUseHandler {
 	private pendingToolUses = new Map<string, PendingToolUse>()
@@ -130,6 +130,7 @@ export class ToolUseHandler {
 						arguments: JSON.stringify(input),
 					},
 					partial: true,
+					isNativeToolCall: true,
 				})
 			} else {
 				const params: Record<string, string> = {}
@@ -143,6 +144,7 @@ export class ToolUseHandler {
 					name: pending.name as ClineDefaultTool,
 					params: params as any,
 					partial: true,
+					isNativeToolCall: true,
 				})
 			}
 		}

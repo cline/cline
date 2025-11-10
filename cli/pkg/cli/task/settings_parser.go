@@ -180,8 +180,6 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 		settings.PlanModeHuaweiCloudMaasModelId = strPtr(value)
 	case "plan_mode_oca_model_id":
 		settings.PlanModeOcaModelId = strPtr(value)
-	case "plan_mode_vercel_ai_gateway_model_id":
-		settings.PlanModeVercelAiGatewayModelId = strPtr(value)
 	case "act_mode_api_model_id":
 		settings.ActModeApiModelId = strPtr(value)
 	case "act_mode_reasoning_effort":
@@ -218,8 +216,6 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 		settings.ActModeHuaweiCloudMaasModelId = strPtr(value)
 	case "act_mode_oca_model_id":
 		settings.ActModeOcaModelId = strPtr(value)
-	case "act_mode_vercel_ai_gateway_model_id":
-		settings.ActModeVercelAiGatewayModelId = strPtr(value)
 
 	// Boolean fields
 	case "aws_use_cross_region_inference":
@@ -736,14 +732,14 @@ func setSecretField(secrets *cline.Secrets, key, value string) error {
 		secrets.HuaweiCloudMaasApiKey = strPtr(value)
 	case "baseten_api_key":
 		secrets.BasetenApiKey = strPtr(value)
-	case "vercel_ai_gateway_api_key":
-		secrets.VercelAiGatewayApiKey = strPtr(value)
 	case "dify_api_key":
 		secrets.DifyApiKey = strPtr(value)
 	case "oca_api_key":
 		secrets.OcaApiKey = strPtr(value)
 	case "oca_refresh_token":
 		secrets.OcaRefreshToken = strPtr(value)
+	case "hicap_api_key":
+		secrets.HicapApiKey = strPtr(value)
 	default:
 		return fmt.Errorf("unsupported secret field '%s'", key)
 	}

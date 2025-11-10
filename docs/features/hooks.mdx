@@ -1,0 +1,391 @@
+---
+title: "Hooks"
+sidebarTitle: "Hooks"
+description: "Inject custom logic into Cline's workflow to validate operations, monitor tool usage, and shape AI decisions"
+---
+
+Hooks let you inject custom logic into Cline's workflow at key moments. Think of them as automated checkpoints where you can validate operations before they execute, monitor tool usage as it happens, and shape how Cline makes decisions.
+
+Hooks run automatically when specific events happen during development. They receive detailed information about each operation, can block problematic actions before they cause issues, and can inject context that guides future AI decisions.
+
+The real power comes from combining these capabilities. You can:
+
+- Stop operations before they cause problems (like creating `.js` files in a TypeScript project)
+- Learn from what's happening and build up project knowledge over time
+- Monitor performance and catch issues as they emerge
+- Track everything for analytics or compliance
+- Trigger external tools or services at the right moments
+
+<Warning>
+Hooks are currently supported on macOS and Linux only. Windows support is not available.
+</Warning>
+
+## Getting Started
+
+<Frame>
+	<img src="https://storage.googleapis.com/cline_public_images/hooks.gif" alt="Hooks in action" />
+</Frame>
+
+Enabling hooks in Cline is straightforward. Here's what you need to do:
+
+<Steps>
+<Step title="Enable Hooks in Settings">
+Open Cline settings and check the **"Enable Hooks"** checkbox.
+
+You can find this setting by:
+1. Opening Cline
+2. Click the "Settings" button on the top right corner
+3. Click the "Feature" section in the left side navigation menu.
+4. Scroll down until you see the "Enable Hooks" checkbox and check it. 
+</Step>
+
+<Step title="Choose Your Hook Location">
+Decide where to place your hooks:
+
+**For personal or organization-wide hooks:**
+- Create hooks in `~/Documents/Cline/Rules/Hooks/`
+- These apply to all workspaces automatically
+
+**For project-specific hooks:**
+- Create hooks in `.clinerules/hooks/` in your project root
+- These only apply to the specific workspace
+- Commit them to version control so your team can use them too
+</Step>
+
+<Step title="Create Your First Hook">
+Hook files must have exact names with no file extensions. For example, to create a TaskStart hook:
+
+```bash
+# Create the hook file
+vim .clinerules/hooks/TaskStart
+```
+
+Add your script (must start with shebang)
+``` bash
+#!/usr/bin/env bash
+
+# Store piped input into a variable
+input=$(cat)
+
+# Dump the entire JSON payload
+echo "$input" | jq .
+
+# Get the type of a field
+echo "$input" | jq -r '.timestamp | type'
+```
+
+This example script demonstrates the key mechanics of hook input/output: reading the JSON payload from stdin with `input=$(cat)`, and using `jq` to inspect the data structure and field types that your hook receives. This helps you understand what data is available before building more complex hook logic.
+
+#### Make it executable
+
+```bash
+chmod +x .clinerules/hooks/TaskStart
+```
+</Step>
+
+<Step title="Test Your Hook">
+Start a task in Cline and verify your hook executes.
+</Step>
+</Steps>
+
+<Tip>
+Start with a simple hook that just logs information before building complex validation logic. This helps you understand the data structure and timing.
+</Tip>
+
+## Hook Types
+
+Cline provides multiple hook types that let you tap into different stages of the AI workflow. They're organized into categories based on their trigger points and use cases.
+
+<Note>
+The hook names below are the exact file names you need to create. For example, to use the TaskStart hook, create a file named `TaskStart` (no file extension) in your hooks directory.
+</Note>
+
+Each hook receives base fields in addition to its specific data: `clineVersion`, `hookName`, `timestamp`, `taskId`, `workspaceRoots`, `userId`.
+
+### Tool Execution
+
+These hooks intercept and validate tool operations before and after they execute. Use them to enforce policies, track changes, and learn from operations.
+
+#### PreToolUse
+
+Runs before any tool executes. Use it to block invalid operations, validate parameters, and enforce project policies before changes happen.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "PreToolUse",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "preToolUse": {
+    "toolName": "string",
+    "parameters": {}
+  }
+}
+```
+
+#### PostToolUse
+
+Runs after a tool completes. Use it to learn from results, track performance metrics, and build project knowledge based on operations performed.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "PostToolUse",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "postToolUse": {
+    "toolName": "string",
+    "parameters": {},
+    "result": "string",
+    "success": boolean,
+    "executionTimeMs": number
+  }
+}
+```
+
+### User Interaction
+
+These hooks monitor and enhance user communication with Cline. Use them to validate input, inject context, and track interaction patterns.
+
+#### UserPromptSubmit
+
+Runs when a user sends a message to Cline. Use it to validate input, inject context based on the prompt, and track interaction patterns.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "UserPromptSubmit",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "userPromptSubmit": {
+    "prompt": "string",
+    "attachments": ["string"]
+  }
+}
+```
+
+### Task Lifecycle
+
+These hooks monitor and respond to task state changes from start to finish. Use them to track progress, restore state, and trigger workflows.
+
+#### TaskStart
+
+Runs when a new task begins. Use it to detect project type, initialize tracking, and inject initial context that shapes how Cline approaches the work.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "TaskStart",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "taskStart": {
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string",
+      "initialTask": "string"
+    }
+  }
+}
+```
+
+#### TaskResume
+
+Runs when a task resumes after interruption. Use it to restore state, refresh context, and log resumption for analytics or external system notifications.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "TaskResume",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "taskResume": {
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string"
+    },
+    "previousState": {
+      "lastMessageTs": "string",
+      "messageCount": "string",
+      "conversationHistoryDeleted": "string"
+    }
+  }
+}
+```
+
+#### TaskCancel
+
+Runs when a task is cancelled. Use it to cleanup resources, log cancellation details, and notify external systems about interrupted work.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "TaskCancel",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "taskCancel": {
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string",
+      "completionStatus": "string"
+    }
+  }
+}
+```
+
+{/*
+#### TaskComplete
+
+Runs when a task finishes successfully. Use it for final cleanup, tracking metrics, generating reports, and triggering post-task workflows.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "TaskComplete",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "taskComplete": {
+    "taskMetadata": {
+      "taskId": "string",
+      "ulid": "string"
+    }
+  }
+}
+```
+*/}
+
+### System Events
+
+These hooks monitor internal Cline operations and system-level events. Use them to track context usage, log system behavior, and analyze performance patterns.
+
+{/*
+#### PreCompact
+
+Runs before conversation context is truncated to fit token limits. Use it to monitor compaction frequency, log events, and track context usage patterns.
+
+**Input Fields:**
+```json
+{
+  "clineVersion": "string",
+  "hookName": "PreCompact",
+  "timestamp": "string",
+  "taskId": "string",
+  "workspaceRoots": ["string"],
+  "userId": "string",
+  "preCompact": {
+    "contextSize": number,
+    "messagesToCompact": number,
+    "compactionStrategy": "string"
+  }
+}
+```
+*/}
+
+### JSON Communication
+
+Hooks receive JSON via stdin and return JSON via stdout.
+
+**Output structure:**
+```json
+{
+  "cancel": false,
+  "contextModification": "WORKSPACE_RULES: Use TypeScript",
+  "errorMessage": "Error details if blocking"
+}
+```
+
+Your hook script can output logging or diagnostic information to stdout during execution, as long as the JSON response is the last thing written. Cline will parse only the final JSON object from stdout.
+
+For example:
+```bash
+#!/usr/bin/env bash
+echo "Processing hook..."  # This is fine
+echo "Tool: $tool_name"    # This is also fine
+# The JSON must be last:
+echo '{"cancel": false}'
+```
+
+The `cancel` field controls whether execution continues. Set it to `true` to block an action, `false` to allow it.
+
+The `contextModification` field injects text into the conversation. This affects future AI decisions, not the current one. Use prefixes like `WORKSPACE_RULES:` or `PERFORMANCE:` to help categorize the context.
+
+### Understanding Context Timing
+
+Context injection affects future decisions, not current ones. When a hook runs:
+
+1. The AI has already decided what to do
+2. The hook can block or allow it
+3. Any context gets added to the conversation
+4. The next AI request sees that context
+
+This means PreToolUse hooks are for blocking bad actions, while PostToolUse hooks are for learning from completed ones.
+
+
+## What You Can Build
+
+Once you understand the basics, hooks open up creative possibilities:
+
+- **Intelligent Code Review**:
+Run linters or custom validators before files get saved. Block commits that don't pass checks. Track code quality metrics over time.
+
+- **Security Enforcement**:
+Prevent operations that violate security policies. Detect when sensitive data might be exposed. Audit all file access for compliance.
+
+- **Development Analytics**: Measure how long different operations take. Identify patterns in how the AI works. Generate productivity reports from hook data.
+
+- **Integration Hub**: Connect to issue trackers when certain keywords appear. Update project management tools. Sync with external APIs at the right moments.
+
+The key is combining hooks with external tools. A hook can be the glue between Cline's workflow and the rest of your development ecosystem.
+
+## Troubleshooting
+
+### Hook Not Running
+- Ensure the "Enable Hooks" setting is checked
+- Verify the hook file is executable (`chmod +x hookname`)
+- Check the hook file has no syntax errors
+- Look for errors in VSCode's Output panel (Cline channel)
+
+### Hook Timing Out
+- Reduce complexity of the hook script
+- Avoid expensive operations (network calls, heavy computations)
+- Consider moving complex logic to a background process
+
+### Context Not Affecting Behavior
+- Remember: context affects FUTURE decisions, not the current tool
+- The current AI behavior is based on the previous "API Request..." block
+- Your `contextModification` gets injected into the NEXT "API Request..." block
+- Use PreToolUse for validation (blocking) if you need immediate effect
+- Ensure context modifications are clear and actionable
+- Check that context isn't being truncated (50KB limit)
+
+<Warning>
+Hooks run with the same permissions as VS Code. They can access all workspace files and environment variables. Review hooks from untrusted sources before enabling them.
+</Warning>
+
+## Related Features
+
+Hooks complement other Cline features:
+
+- [Cline Rules](/features/cline-rules) define high-level guidance that hooks can enforce
+- [Checkpoints](/features/checkpoints) let you roll back changes if a hook didn't catch an issue
+- [Auto-Approve](/features/auto-approve) works well with hooks as safety nets for automated operations

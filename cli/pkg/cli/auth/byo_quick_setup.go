@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cline/cli/pkg/cli/global"
 	"github.com/cline/cli/pkg/cli/task"
@@ -28,7 +29,7 @@ func QuickSetupFromFlags(ctx context.Context, provider, apiKey, modelID, baseURL
 	}
 
 	// Create task manager for state operations
-	manager, err := task.NewManagerForDefault(ctx)
+	manager, err := createTaskManager(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create task manager: %w", err)
 	}
@@ -74,6 +75,11 @@ func QuickSetupFromFlags(ctx context.Context, provider, apiKey, modelID, baseURL
 			fmt.Printf("[DEBUG] Warning: failed to mark welcome view as completed: %v\n", err)
 		}
 	}
+
+	// WORKAROUND: Wait for debounced state persistence to complete
+	// Fixes `cline auth` issue when ran in docker environments
+	// TODO: implement better solution w/ changes in StateManager
+	time.Sleep(600 * time.Millisecond)
 
 	// Success message
 	fmt.Printf("\n✓ Successfully configured %s provider\n", GetProviderDisplayName(providerEnum))

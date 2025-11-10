@@ -156,9 +156,14 @@ export function convertToOpenAiMessages(
 					},
 				}))
 
+				// Set content to blank when tool_calls are present but content has no text, per OpenAI API spec
+				const hasToolCalls = tool_calls.length > 0
+				const hasMeaningfulContent = content !== undefined && content.trim() !== ""
+				const finalContent = hasMeaningfulContent ? content : hasToolCalls ? null : undefined
+
 				openAiMessages.push({
 					role: "assistant",
-					content,
+					content: finalContent,
 					// Cannot be an empty array. API expects an array with minimum length 1, and will respond with an error if it's empty
 					tool_calls: tool_calls?.length > 0 ? tool_calls : undefined,
 					// @ts-ignore-next-line

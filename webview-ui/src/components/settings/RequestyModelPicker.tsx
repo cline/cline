@@ -1,6 +1,6 @@
 import { requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
+import { toRequestyServiceUrl } from "@shared/clients/requesty"
 import { EmptyRequest } from "@shared/proto/cline/common"
-import { toRequestyServiceUrl } from "@shared/providers/requesty"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"

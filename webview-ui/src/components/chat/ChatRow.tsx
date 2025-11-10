@@ -556,6 +556,24 @@ export const ChatRowContent = memo(
 							/>
 						</>
 					)
+				case "fileDeleted":
+					return (
+						<>
+							<div style={headerStyle}>
+								{toolIcon("diff-removed")}
+								{tool.operationIsLocatedInWorkspace === false &&
+									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
+								<span style={{ fontWeight: "bold" }}>Cline wants to delete this file:</span>
+							</div>
+							<CodeAccordian
+								// isLoading={message.partial}
+								code={tool.content}
+								isExpanded={isExpanded}
+								onToggleExpand={handleToggle}
+								path={tool.path!}
+							/>
+						</>
+					)
 				case "newFileCreated":
 					return (
 						<>

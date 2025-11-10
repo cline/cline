@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { type ModelInfo, type NebiusModelId, nebiusDefaultModelId, nebiusModels } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -28,6 +29,7 @@ export class NebiusHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: "https://api.studio.nebius.ai/v1",
 					apiKey: this.options.nebiusApiKey,
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating Nebius client: ${error.message}`)

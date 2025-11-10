@@ -26,7 +26,7 @@
 	--color-button-secondary-background: var(--vscode-button-secondaryBackground);
 	--color-button-secondary-background-hover: var(--vscode-button-secondaryHoverBackground);
 	--color-button-secondary-foreground: var(--vscode-button-secondaryForeground);
-	--color-muted: var(--vscode-editor-foldBackground);
+	--color-muted: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
 	--color-muted-foreground: var(--vscode-editor-foldPlaceholderForeground);
 	--color-menu: var(--vscode-menu-background);
 	--color-menu-foreground: var(--vscode-menu-foreground);
@@ -58,6 +58,7 @@
 	--text-xs: calc(0.85 * var(--vscode-font-size));
 	--text-xxs: calc(0.5 * var(--vscode-font-size));
 	--breakpoint-xs: 400px;
+	--radius-xs: 4px;
 	--breakpoint-xxs: 180px;
 }
 
@@ -74,7 +75,7 @@
 	--color-primary-foreground: var(--primary-foreground);
 	--color-secondary: var(--secondary);
 	--color-secondary-foreground: var(--secondary-foreground);
-	--color-muted: var(--muted);
+	--color-muted: color-mix(in srgb, var(--vscode-toolbar-hoverBackground) 65%, transparent);
 	--color-muted-foreground: var(--muted-foreground);
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);

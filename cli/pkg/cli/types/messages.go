@@ -107,6 +107,7 @@ const (
 	ToolTypeEditedExistingFile      ToolType = "editedExistingFile"
 	ToolTypeNewFileCreated          ToolType = "newFileCreated"
 	ToolTypeReadFile                ToolType = "readFile"
+	ToolTypeFileDeleted             ToolType = "fileDeleted"
 	ToolTypeListFilesTopLevel       ToolType = "listFilesTopLevel"
 	ToolTypeListFilesRecursive      ToolType = "listFilesRecursive"
 	ToolTypeListCodeDefinitionNames ToolType = "listCodeDefinitionNames"

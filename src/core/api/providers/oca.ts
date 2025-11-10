@@ -11,6 +11,7 @@ import {
 } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
 import { Logger } from "@/services/logging/Logger"
+import { fetch } from "@/shared/net"
 import { ApiHandler, type CommonApiHandlerOptions } from ".."
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -81,6 +82,7 @@ export class OcaHandler implements ApiHandler {
 				options.ocaBaseUrl ||
 				(options.ocaMode === "internal" ? DEFAULT_INTERNAL_OCA_BASE_URL : DEFAULT_EXTERNAL_OCA_BASE_URL),
 			apiKey: "noop",
+			fetch, // Use configured fetch with proxy support
 		})
 	}
 

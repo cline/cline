@@ -16,6 +16,9 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
+// Default timeout for commands in yolo mode and background exec mode
+const DEFAULT_COMMAND_TIMEOUT_SECONDS = 30
+
 export class ExecuteCommandToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.BASH
 
@@ -68,14 +71,10 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		config.taskState.consecutiveMistakeCount = 0
 
-		// Handling of timeout while in yolo mode
-		if (config.yoloModeToggled) {
-			if (!timeoutParam) {
-				timeoutSeconds = 30
-			} else {
-				const parsedTimeoutParam = parseInt(timeoutParam, 10)
-				timeoutSeconds = isNaN(parsedTimeoutParam) || parsedTimeoutParam <= 0 ? 30 : parsedTimeoutParam
-			}
+		// Handling of timeout while in yolo mode or background exec mode
+		if (config.yoloModeToggled || config.vscodeTerminalExecutionMode === "backgroundExec") {
+			const parsed = timeoutParam ? parseInt(timeoutParam, 10) : NaN
+			timeoutSeconds = parsed > 0 ? parsed : DEFAULT_COMMAND_TIMEOUT_SECONDS
 		}
 
 		// Pre-process command for certain models
@@ -167,6 +166,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				true,
 				true,
 				workspaceContext,
+				block.isNativeToolCall,
 			)
 		} else {
 			// Manual approval flow
@@ -189,6 +189,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 					false,
 					false,
 					workspaceContext,
+					block.isNativeToolCall,
 				)
 				return formatResponse.toolDenied()
 			}
@@ -200,6 +201,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				false,
 				true,
 				workspaceContext,
+				block.isNativeToolCall,
 			)
 		}
 

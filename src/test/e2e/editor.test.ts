@@ -7,7 +7,7 @@ e2e.describe("Code Actions and Editor Panel", () => {
 		e2e.extend({
 			workspaceType,
 		})(title, async ({ page, sidebar }) => {
-			await sidebar.getByRole("button", { name: "Get Started for Free" }).click({ delay: 100 })
+			await sidebar.getByRole("button", { name: "Login to Cline" }).click({ delay: 100 })
 			// Sidebar - input should start empty
 			const sidebarInput = sidebar.getByTestId("chat-input")
 			await sidebarInput.click()

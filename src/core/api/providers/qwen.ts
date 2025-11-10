@@ -11,6 +11,7 @@ import {
 } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -52,6 +53,7 @@ export class QwenHandler implements ApiHandler {
 						? "https://dashscope.aliyuncs.com/compatible-mode/v1"
 						: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 					apiKey: this.options.qwenApiKey,
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Alibaba client: ${error.message}`)

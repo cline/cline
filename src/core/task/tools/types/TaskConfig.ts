@@ -33,6 +33,7 @@ export interface TaskConfig {
 	mode: Mode
 	strictPlanModeEnabled: boolean
 	yoloModeToggled: boolean
+	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	context: vscode.ExtensionContext
 
 	// Multi-workspace support (optional for backward compatibility)

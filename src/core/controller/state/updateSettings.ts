@@ -358,6 +358,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (request.nativeToolCallEnabled !== undefined) {
 			controller.stateManager.setGlobalState("nativeToolCallEnabled", !!request.nativeToolCallEnabled)
+			if (controller.task) {
+				telemetryService.captureFeatureToggle(
+					controller.task.ulid,
+					"native-tool-call",
+					request.nativeToolCallEnabled,
+					controller.task.api.getModel().id,
+				)
+			}
 		}
 
 		// Post updated state to webview

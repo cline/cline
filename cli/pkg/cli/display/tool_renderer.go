@@ -106,6 +106,14 @@ func (tr *ToolRenderer) generateToolHeader(tool *types.ToolMessage, verbTense st
 		}
 		return fmt.Sprintf("### Cline %s `%s`", action, tool.Path)
 
+	case string(types.ToolTypeFileDeleted):
+		if verbTense == "wants to" {
+			action = "wants to delete"
+		} else {
+			action = "is deleting"
+		}
+		return fmt.Sprintf("### Cline %s `%s`", action, tool.Path)
+
 	case string(types.ToolTypeListFilesTopLevel):
 		if verbTense == "wants to" {
 			action = "wants to list files in"
@@ -199,7 +207,7 @@ func (tr *ToolRenderer) GenerateToolContentPreview(tool *types.ToolMessage) stri
 		previewMd := fmt.Sprintf("```\n%s\n```", preview)
 		return tr.renderMarkdown(previewMd)
 
-	case string(types.ToolTypeReadFile), string(types.ToolTypeWebFetch):
+	case string(types.ToolTypeReadFile), string(types.ToolTypeWebFetch), string(types.ToolTypeFileDeleted):
 		// No preview for read/fetch operations
 		return ""
 
@@ -226,7 +234,8 @@ func (tr *ToolRenderer) GenerateToolContentBody(tool *types.ToolMessage) string 
 	toolParser := NewToolResultParser(tr.mdRenderer)
 
 	switch tool.Tool {
-	case string(types.ToolTypeReadFile):
+	case string(types.ToolTypeReadFile),
+		string(types.ToolTypeFileDeleted):
 		// readFile: show header only, no body
 		return ""
 

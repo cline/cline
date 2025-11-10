@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { BasetenModelId, basetenDefaultModelId, basetenModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -31,6 +32,7 @@ export class BasetenHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: "https://inference.baseten.co/v1",
 					apiKey: this.options.basetenApiKey,
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating Baseten client: ${error.message}`)

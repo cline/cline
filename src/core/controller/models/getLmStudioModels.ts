@@ -1,4 +1,5 @@
 import { StringArray, type StringRequest } from "@shared/proto/cline/common"
+import { fetch } from "@/shared/net"
 import type { Controller } from ".."
 
 /**

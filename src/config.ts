@@ -62,7 +62,7 @@ class ClineEndpoint {
 					environment: Environment.staging,
 					appBaseUrl: "https://staging-app.cline.bot",
 					apiBaseUrl: "https://core-api.staging.int.cline.bot",
-					mcpBaseUrl: "https://api.cline.bot/v1/mcp",
+					mcpBaseUrl: "https://core-api.staging.int.cline.bot/v1/mcp",
 					firebase: {
 						apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
 						authDomain: "cline-staging.firebaseapp.com",

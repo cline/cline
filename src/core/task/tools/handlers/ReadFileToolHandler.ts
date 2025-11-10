@@ -111,6 +111,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 				true,
 				true,
 				workspaceContext,
+				block.isNativeToolCall,
 			)
 		} else {
 			// Manual approval flow
@@ -131,6 +132,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 					false,
 					false,
 					workspaceContext,
+					block.isNativeToolCall,
 				)
 				return formatResponse.toolDenied()
 			} else {
@@ -142,6 +144,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 					false,
 					true,
 					workspaceContext,
+					block.isNativeToolCall,
 				)
 			}
 		}

@@ -92,6 +92,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 	return (
 		<div
 			className="absolute bottom-[calc(100%-10px)] left-[15px] right-[15px] overflow-x-hidden z-1000"
+			data-testid="slash-commands-menu"
 			onMouseDown={onMouseDown}>
 			<div
 				className="bg-(--vscode-dropdown-background) border border-(--vscode-editorGroup-border) rounded-[3px] shadow-[0_4px_10px_rgba(0,0,0,0.25)] flex flex-col overflow-y-auto"

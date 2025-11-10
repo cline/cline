@@ -1,0 +1,10 @@
+{
+	"regions": [
+		"us-east5",
+		"us-central1",
+		"europe-west1",
+		"europe-west4",
+		"asia-southeast1",
+		"global"
+	]
+}

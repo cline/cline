@@ -3,6 +3,7 @@ import { HuggingFaceModelId, huggingFaceDefaultModelId, huggingFaceModels, Model
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -37,6 +38,7 @@ export class HuggingFaceHandler implements ApiHandler {
 					defaultHeaders: {
 						"User-Agent": "Cline/1.0",
 					},
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Hugging Face client: ${error.message}`)

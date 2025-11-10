@@ -7,7 +7,7 @@ e2e.describe("Diff Editor", () => {
 		e2e.extend({
 			workspaceType,
 		})(title, async ({ page, sidebar }) => {
-			await sidebar.getByRole("button", { name: "Get Started for Free" }).click({ delay: 100 })
+			await sidebar.getByRole("button", { name: "Login to Cline" }).click({ delay: 100 })
 			// Submit a message
 			await cleanChatView(page)
 
@@ -20,7 +20,7 @@ e2e.describe("Diff Editor", () => {
 			await expect(inputbox).toHaveValue("")
 
 			// Loading State initially
-			await expect(sidebar.getByText("API Request...")).toBeVisible()
+			await expect(sidebar.getByText("API Request...")).toBeVisible({ timeout: 10000 })
 
 			// Back to home page with history
 			await sidebar.getByRole("button", { name: "Start New Task" }).click()

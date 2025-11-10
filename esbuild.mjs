@@ -123,7 +123,11 @@ const copyWasmFiles = {
 	},
 }
 
-const buildEnvVars = { "import.meta.url": "_importMetaUrl" }
+const buildEnvVars = {
+	"import.meta.url": "_importMetaUrl",
+	"process.env.IS_STANDALONE": JSON.stringify(standalone),
+}
+
 if (production) {
 	// IS_DEV is always disable in production builds.
 	buildEnvVars["process.env.IS_DEV"] = "false"
