@@ -2,6 +2,7 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { useOpenRouterKeyInfo } from "../../ui/hooks/useOpenRouterKeyInfo"
@@ -16,9 +17,14 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
  */
 const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 	const { data: keyInfo, isLoading, error } = useOpenRouterKeyInfo(apiKey)
+	const { t } = useTranslation("common")
 
 	if (isLoading) {
-		return <span style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>Loading...</span>
+		return (
+			<span style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)" }}>
+				{t("api_provider.openrouter.loading")}
+			</span>
+		)
 	}
 
 	if (error || !keyInfo || keyInfo.limit === null) {
@@ -41,8 +47,8 @@ const OpenRouterBalanceDisplay = ({ apiKey }: { apiKey: string }) => {
 				paddingLeft: 4,
 				cursor: "pointer",
 			}}
-			title={`Remaining balance: ${formattedBalance}\nLimit: ${formatPrice(keyInfo.limit)}\nUsage: ${formatPrice(keyInfo.usage)}`}>
-			Balance: {formattedBalance}
+			title={`${t("api_provider.openrouter.remaining_balance")}: ${formattedBalance}\n${t("api_provider.openrouter.limit")}: ${formatPrice(keyInfo.limit)}\n${t("api_provider.openrouter.usage")}: ${formatPrice(keyInfo.usage)}`}>
+			{t("api_provider.openrouter.balance")}: {formattedBalance}
 		</VSCodeLink>
 	)
 }
@@ -62,6 +68,7 @@ interface OpenRouterProviderProps {
 export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: OpenRouterProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { t } = useTranslation("common")
 
 	const [providerSortingSelected, setProviderSortingSelected] = useState(!!apiConfiguration?.openRouterProviderSorting)
 
@@ -71,11 +78,11 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 				<DebouncedTextField
 					initialValue={apiConfiguration?.openRouterApiKey || ""}
 					onChange={(value) => handleFieldChange("openRouterApiKey", value)}
-					placeholder="Enter API Key..."
+					placeholder={t("api_provider.common.api_key_placeholder")}
 					style={{ width: "100%" }}
 					type="password">
 					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-						<span style={{ fontWeight: 500 }}>OpenRouter API Key</span>
+						<span style={{ fontWeight: 500 }}>{t("api_provider.openrouter.api_key_label")}</span>
 						{apiConfiguration?.openRouterApiKey && (
 							<OpenRouterBalanceDisplay apiKey={apiConfiguration.openRouterApiKey} />
 						)}
@@ -92,7 +99,7 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 							}
 						}}
 						style={{ margin: "5px 0 0 0" }}>
-						Get OpenRouter API Key
+						{t("api_provider.openrouter.get_api_key")}
 					</VSCodeButton>
 				)}
 				<p
@@ -101,7 +108,7 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 						marginTop: "5px",
 						color: "var(--vscode-descriptionForeground)",
 					}}>
-					This key is stored locally and only used to make API requests from this extension.
+					{t("api_provider.common.api_key_help_text")}
 				</p>
 			</div>
 
@@ -117,7 +124,7 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 							}
 						}}
 						style={{ marginTop: -10 }}>
-						Sort underlying provider routing
+						{t("api_provider.cline.sort_provider_routing_label")}
 					</VSCodeCheckbox>
 
 					{providerSortingSelected && (
@@ -129,21 +136,29 @@ export const OpenRouterProvider = ({ showModelOptions, isPopup, currentMode }: O
 									}}
 									style={{ width: "100%", marginTop: 3 }}
 									value={apiConfiguration?.openRouterProviderSorting}>
-									<VSCodeOption value="">Default</VSCodeOption>
-									<VSCodeOption value="price">Price</VSCodeOption>
-									<VSCodeOption value="throughput">Throughput</VSCodeOption>
-									<VSCodeOption value="latency">Latency</VSCodeOption>
+									<VSCodeOption value="">
+										{t("api_provider.cline.provider_sorting_options.default")}
+									</VSCodeOption>
+									<VSCodeOption value="price">
+										{t("api_provider.cline.provider_sorting_options.price")}
+									</VSCodeOption>
+									<VSCodeOption value="throughput">
+										{t("api_provider.cline.provider_sorting_options.throughput")}
+									</VSCodeOption>
+									<VSCodeOption value="latency">
+										{t("api_provider.cline.provider_sorting_options.latency")}
+									</VSCodeOption>
 								</VSCodeDropdown>
 							</DropdownContainer>
 							<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-descriptionForeground)" }}>
 								{!apiConfiguration?.openRouterProviderSorting &&
-									"Default behavior is to load balance requests across providers (like AWS, Google Vertex, Anthropic), prioritizing price while considering provider uptime"}
+									t("api_provider.cline.provider_sorting_descriptions.default")}
 								{apiConfiguration?.openRouterProviderSorting === "price" &&
-									"Sort providers by price, prioritizing the lowest cost provider"}
+									t("api_provider.cline.provider_sorting_descriptions.price")}
 								{apiConfiguration?.openRouterProviderSorting === "throughput" &&
-									"Sort providers by throughput, prioritizing the provider with the highest throughput (may increase cost)"}
+									t("api_provider.cline.provider_sorting_descriptions.throughput")}
 								{apiConfiguration?.openRouterProviderSorting === "latency" &&
-									"Sort providers by response time, prioritizing the provider with the lowest latency"}
+									t("api_provider.cline.provider_sorting_descriptions.latency")}
 							</p>
 						</div>
 					)}

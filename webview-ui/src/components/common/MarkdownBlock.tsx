@@ -2,6 +2,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state"
 import type { ComponentProps } from "react"
 import React, { memo, useEffect, useRef } from "react"
+import { useTranslation } from "react-i18next"
 import { useRemark } from "react-remark"
 import rehypeHighlight, { Options } from "rehype-highlight"
 import styled from "styled-components"
@@ -16,6 +17,7 @@ import { WithCopyButton } from "./CopyButton"
 // Styled component for Act Mode text with more specific styling
 const ActModeHighlight: React.FC = () => {
 	const { mode } = useExtensionState()
+	const { t } = useTranslation()
 
 	return (
 		<span
@@ -32,7 +34,7 @@ const ActModeHighlight: React.FC = () => {
 					)
 				}
 			}}
-			title={mode === "plan" ? "Click to toggle to Act Mode" : "Already in Act Mode"}>
+			title={mode === "plan" ? t("markdown.act_mode.toggle_title.plan") : t("markdown.act_mode.toggle_title.act")}>
 			<div className="p-1 rounded-[12px] bg-(--vscode-editor-background) flex items-center justify-end w-4 border border-(--vscode-input-border)">
 				<div className="rounded-full bg-(--vscode-textLink-foreground) w-2 h-2" />
 			</div>
@@ -299,6 +301,7 @@ const StyledMarkdown = styled.div<{ compact?: boolean }>`
 
 const PreWithCopyButton = ({ children, ...preProps }: React.HTMLAttributes<HTMLPreElement>) => {
 	const preRef = useRef<HTMLPreElement>(null)
+	const { t } = useTranslation()
 
 	const handleCopy = () => {
 		if (preRef.current) {
@@ -314,7 +317,7 @@ const PreWithCopyButton = ({ children, ...preProps }: React.HTMLAttributes<HTMLP
 	}
 
 	return (
-		<WithCopyButton ariaLabel="Copy code" onCopy={handleCopy} position="top-right">
+		<WithCopyButton ariaLabel={t("markdown.copy_code")} onCopy={handleCopy} position="top-right">
 			<pre {...preProps} ref={preRef}>
 				{children}
 			</pre>
@@ -392,6 +395,7 @@ const MarkdownBlock = memo(({ markdown, compact }: MarkdownBlockProps) => {
 					return <PreWithCopyButton {...preProps}>{children}</PreWithCopyButton>
 				},
 				code: (props: ComponentProps<"code"> & { [key: string]: any }) => {
+					const { t } = useTranslation()
 					const className = props.className || ""
 					if (className.includes("language-mermaid")) {
 						const codeText = String(props.children || "")
@@ -409,7 +413,7 @@ const MarkdownBlock = memo(({ markdown, compact }: MarkdownBlockProps) => {
 								<button
 									className="codicon codicon-link-external bg-transparent border-0 appearance-none p-0 ml-0.5 leading-none align-middle opacity-70 hover:opacity-100 transition-opacity text-[1em] relative top-px text-(--vscode-textPreformat-foreground) translate-y-[-2px]"
 									onClick={() => FileServiceClient.openFileRelativePath({ value: filePath })}
-									title={`Open ${filePath} in editor`}
+									title={t("markdown.open_file", { filePath })}
 									type="button"
 								/>
 							</>

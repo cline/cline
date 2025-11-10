@@ -1,6 +1,7 @@
 import type { ModelInfo } from "@shared/api"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, StarIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -31,6 +32,7 @@ type ModelSelectionProps = {
 }
 
 const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, searchTerm, setSearchTerm }: ModelSelectionProps) => {
+	const { t } = useTranslation("common")
 	const modelGroups = ONBOARDING_MODEL_SELECTIONS[userType === NEW_USER_TYPE.FREE ? "free" : "power"]
 
 	const searchedModels = useMemo(() => {
@@ -62,7 +64,7 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 					</ItemTitle>
 					{isSelected && (
 						<ItemDescription>
-							<span className="text-foreground/70 text-sm">Support: </span>
+							<span className="text-foreground/70 text-sm">{t("onboarding.support")} </span>
 							<span className="text-foreground text-sm">{getCapabilities(model).join(", ")}</span>
 						</ItemDescription>
 					)}
@@ -73,20 +75,20 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 							{model.score && (
 								<div className="inline-flex gap-1 [&_svg]:stroke-warning [&_svg]:size-3 items-center text-sm">
 									<StarIcon />
-									<span>Model Overview: </span>
+									<span>{t("onboarding.model_overview")} </span>
 									<span className="text-foreground/70">{model.score}%</span>
 									<span className="text-foreground/70 hidden xs:block">{getOverviewLabel(model.score)}</span>
 								</div>
 							)}
 							<div className="inline-flex gap-1 [&_svg]:stroke-success [&_svg]:size-3 items-center text-sm">
 								<ZapIcon />
-								<span>Speed: </span>
+								<span>{t("onboarding.speed")} </span>
 								<span className="text-foreground/70">{getSpeedLabel(model.latency)}</span>
 							</div>
 							<div className="flex w-full justify-between">
 								<div className="inline-flex gap-1 [&_svg]:stroke-foreground [&_svg]:size-3 items-center text-sm">
 									<ListIcon />
-									<span>Context: </span>
+									<span>{t("onboarding.context")} </span>
 									<span className="text-foreground/70">{(model?.contextWindow || 0) / 1000}k</span>
 								</div>
 								<Badge>{getPriceRange(model)}</Badge>
@@ -114,7 +116,7 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 			{/* SEARCH MODEL */}
 			<div className="flex w-full max-w-lg flex-col gap-6 my-4 border-t border-muted-foreground">
 				<div className="flex flex-col gap-3 mt-6" key="search-results">
-					<h4 className="text-sm font-bold text-foreground/70 uppercase mb-2">other options</h4>
+					<h4 className="text-sm font-bold text-foreground/70 uppercase mb-2">{t("onboarding.other_options")}</h4>
 					<Input
 						autoFocus={false}
 						className="focus-visible:border-button-background"
@@ -125,7 +127,7 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 							setSearchTerm(e.target.value)
 						}}
 						onClick={() => onSelectModel("")}
-						placeholder="Search model..."
+						placeholder={t("onboarding.search_model")}
 						type="search"
 						value={searchTerm}
 					/>
@@ -143,7 +145,9 @@ const ModelSelection = ({ userType, selectedModelId, onSelectModel, models, sear
 								)
 							})}
 						{searchTerm.length > 0 && searchedModels.length === 0 && (
-							<p className="px-1 mt-1 text-sm text-foreground/70">No result found for "{searchTerm}"</p>
+							<p className="px-1 mt-1 text-sm text-foreground/70">
+								{t("onboarding.no_result_found", { searchTerm })}
+							</p>
 						)}
 					</div>
 				</div>
@@ -157,33 +161,36 @@ type UserTypeSelectionProps = {
 	onSelectUserType: (type: NEW_USER_TYPE) => void
 }
 
-const UserTypeSelectionStep = ({ userType, onSelectUserType }: UserTypeSelectionProps) => (
-	<div className="flex flex-col w-full items-center">
-		<div className="flex w-full max-w-lg flex-col gap-6 my-4">
-			<h3 className="text-base text-left self-start font-semibold">LETS GET STARTED</h3>
-			{USER_TYPE_SELECTIONS.map((option) => {
-				const isSelected = userType === option.type
+const UserTypeSelectionStep = ({ userType, onSelectUserType }: UserTypeSelectionProps) => {
+	const { t } = useTranslation("common")
+	return (
+		<div className="flex flex-col w-full items-center">
+			<div className="flex w-full max-w-lg flex-col gap-6 my-4">
+				<h3 className="text-base text-left self-start font-semibold">{t("onboarding.lets_get_started")}</h3>
+				{USER_TYPE_SELECTIONS.map((option) => {
+					const isSelected = userType === option.type
 
-				return (
-					<Item
-						className={cn("cursor-pointer hover:cursor-pointer w-full", {
-							"bg-input-background/50 border border-input-foreground/30": isSelected,
-						})}
-						key={option.type}
-						onClick={() => onSelectUserType(option.type)}>
-						<ItemMedia className="[&_svg]:stroke-button-background" variant="icon">
-							{isSelected ? <CircleCheckIcon className="stroke-1.5" /> : <CircleIcon className="stroke-1" />}
-						</ItemMedia>
-						<ItemContent className="w-full">
-							<ItemTitle>{option.title}</ItemTitle>
-							<ItemDescription>{option.description}</ItemDescription>
-						</ItemContent>
-					</Item>
-				)
-			})}
+					return (
+						<Item
+							className={cn("cursor-pointer hover:cursor-pointer w-full", {
+								"bg-input-background/50 border border-input-foreground/30": isSelected,
+							})}
+							key={option.type}
+							onClick={() => onSelectUserType(option.type)}>
+							<ItemMedia className="[&_svg]:stroke-button-background" variant="icon">
+								{isSelected ? <CircleCheckIcon className="stroke-1.5" /> : <CircleIcon className="stroke-1" />}
+							</ItemMedia>
+							<ItemContent className="w-full">
+								<ItemTitle>{t(option.title)}</ItemTitle>
+								<ItemDescription>{t(option.description)}</ItemDescription>
+							</ItemContent>
+						</Item>
+					)
+				})}
+			</div>
 		</div>
-	</div>
-)
+	)
+}
 
 type OnboardingStepContentProps = {
 	step: number
@@ -229,6 +236,7 @@ const OnboardingStepContent = ({
 }
 
 const OnboardingView = () => {
+	const { t } = useTranslation("common")
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
 
@@ -317,11 +325,11 @@ const OnboardingView = () => {
 
 	const stepDisplayInfo = useMemo(() => {
 		const step = stepNumber === 0 || stepNumber === 2 ? STEP_CONFIG[stepNumber] : null
-		const title = step ? step.title : userType ? STEP_CONFIG[userType].title : STEP_CONFIG[0].title
-		const description = step ? step.description : null
+		const title = step ? t(step.title) : userType ? t(STEP_CONFIG[userType].title) : t(STEP_CONFIG[0].title)
+		const description = step ? t(step.description || "") : null
 		const buttons = step ? step.buttons : userType ? STEP_CONFIG[userType].buttons : STEP_CONFIG[0].buttons
 		return { title, description, buttons }
-	}, [stepNumber, userType])
+	}, [stepNumber, userType, t])
 
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col w-full">
@@ -357,13 +365,13 @@ const OnboardingView = () => {
 							key={btn.text}
 							onClick={() => handleFooterAction(btn.action)}
 							variant={btn.variant}>
-							{btn.text}
+							{t(btn.text)}
 						</Button>
 					))}
 
 					{stepNumber !== 2 && (
 						<div className="items-center justify-center flex text-sm text-foreground gap-2 mb-3 text-pretty">
-							<AlertCircleIcon className="shrink-0 size-2" /> You can change this later in settings
+							<AlertCircleIcon className="shrink-0 size-2" /> {t("onboarding.change_later_settings")}
 						</div>
 					)}
 				</footer>

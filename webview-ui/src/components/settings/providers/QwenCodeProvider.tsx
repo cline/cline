@@ -1,6 +1,7 @@
 import { qwenCodeModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
@@ -22,37 +23,33 @@ interface QwenCodeProviderProps {
 export const QwenCodeProvider = ({ showModelOptions, isPopup, currentMode }: QwenCodeProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { t } = useTranslation("common")
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	return (
 		<div>
-			<h3 style={{ color: "var(--vscode-foreground)", margin: "8px 0" }}>Qwen Code API Configuration</h3>
+			<h3 style={{ color: "var(--vscode-foreground)", margin: "8px 0" }}>
+				{t("api_provider.qwen_code.configuration_title")}
+			</h3>
 			<VSCodeTextField
 				onInput={(e: any) => handleFieldChange("qwenCodeOauthPath", e.target.value)}
-				placeholder="~/.qwen/oauth_creds.json"
+				placeholder={t("api_provider.qwen_code.oauth_path_placeholder")}
 				style={{ width: "100%" }}
 				value={apiConfiguration?.qwenCodeOauthPath || ""}>
-				OAuth Credentials Path
+				{t("api_provider.qwen_code.oauth_path_label")}
 			</VSCodeTextField>
 			<div style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", marginTop: "4px" }}>
-				Path to your Qwen OAuth credentials file. Use ~/.qwen/oauth_creds.json or provide a custom path.
+				{t("api_provider.qwen_code.oauth_path_description")}
 			</div>
 
 			<div style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", marginTop: "12px" }}>
-				Qwen Code is an OAuth-based API that requires authentication through the official Qwen client. You'll need to set
-				up OAuth credentials first.
+				{t("api_provider.qwen_code.api_description")}
 			</div>
 
 			<div style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", marginTop: "8px" }}>
-				To get started:
-				<br />
-				1. Install the official Qwen client
-				<br />
-				2. Authenticate using your account
-				<br />
-				3. OAuth credentials will be stored automatically
+				{t("api_provider.qwen_code.setup_instructions")}
 			</div>
 
 			<VSCodeLink
@@ -63,13 +60,13 @@ export const QwenCodeProvider = ({ showModelOptions, isPopup, currentMode }: Qwe
 					display: "inline-block",
 					fontSize: "12px",
 				}}>
-				Setup Instructions
+				{t("api_provider.qwen_code.setup_link")}
 			</VSCodeLink>
 
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("api_provider.common.model_label")}
 						models={qwenCodeModels}
 						onChange={(modelId) => {
 							const fieldName = currentMode === "plan" ? "planModeApiModelId" : "actModeApiModelId"

@@ -1,5 +1,6 @@
 import { claudeCodeModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -24,6 +25,7 @@ interface ClaudeCodeProviderProps {
 export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: ClaudeCodeProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { t } = useTranslation("common")
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -33,10 +35,10 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 			<DebouncedTextField
 				initialValue={apiConfiguration?.claudeCodePath || ""}
 				onChange={(value) => handleFieldChange("claudeCodePath", value)}
-				placeholder="Default: claude"
+				placeholder={t("api_provider.claude_code.cli_path_placeholder")}
 				style={{ width: "100%", marginTop: 3 }}
 				type="text">
-				<span style={{ fontWeight: 500 }}>Claude Code CLI Path</span>
+				<span style={{ fontWeight: 500 }}>{t("api_provider.claude_code.cli_path_label")}</span>
 			</DebouncedTextField>
 
 			<p
@@ -45,13 +47,13 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 					marginTop: 3,
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Path to the Claude Code CLI.
+				{t("api_provider.claude_code.cli_path_description")}
 			</p>
 
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("api_provider.common.model_label")}
 						models={claudeCodeModels}
 						onChange={(e: any) =>
 							handleModeFieldChange(
@@ -71,7 +73,7 @@ export const ClaudeCodeProvider = ({ showModelOptions, isPopup, currentMode }: C
 								marginTop: 2,
 								color: "var(--vscode-descriptionForeground)",
 							}}>
-							Use the latest version of {selectedModelId} by default.
+							{t("api_provider.claude_code.model_version_info", { model: selectedModelId })}
 						</p>
 					)}
 

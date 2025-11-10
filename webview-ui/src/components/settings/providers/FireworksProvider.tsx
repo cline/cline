@@ -1,5 +1,6 @@
 import { fireworksModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -22,6 +23,7 @@ interface FireworksProviderProps {
 export const FireworksProvider = ({ currentMode, isPopup, showModelOptions }: FireworksProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange, handleFieldChange } = useApiConfigurationHandlers()
+	const { t } = useTranslation("common")
 
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
@@ -34,7 +36,7 @@ export const FireworksProvider = ({ currentMode, isPopup, showModelOptions }: Fi
 				signupUrl="https://fireworks.ai/"
 			/>
 			<ModelSelector
-				label="Model"
+				label={t("api_provider.common.model_label")}
 				models={fireworksModels}
 				onChange={(e: any) => {
 					handleModeFieldChange(

@@ -2,6 +2,7 @@ import { ModelInfo } from "@shared/api"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
@@ -25,6 +26,7 @@ interface AIhubmixProviderProps {
 export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIhubmixProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { t } = useTranslation("common")
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
 	const [models, setModels] = useState<Record<string, ModelInfo>>({})
@@ -81,7 +83,7 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 	return (
 		<div>
 			<ApiKeyField
-				helpText="Now request 10% discount!"
+				helpText={t("api_provider.aihubmix.discount_help_text")}
 				initialValue={apiConfiguration?.aihubmixApiKey || ""}
 				onChange={(value) => handleFieldChange("aihubmixApiKey", value)}
 				providerName="AIhubmix"
@@ -91,7 +93,7 @@ export const AIhubmixProvider = ({ showModelOptions, isPopup, currentMode }: AIh
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("api_provider.common.model_label")}
 						models={models}
 						onChange={(e) => {
 							const newModelId = e.target.value

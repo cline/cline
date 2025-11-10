@@ -2,6 +2,7 @@ import { internationalZAiModels, mainlandZAiModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -24,6 +25,7 @@ interface ZAiProviderProps {
 export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { t } = useTranslation("common")
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -38,7 +40,7 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 		<div>
 			<DropdownContainer className="dropdown-container" style={{ position: "inherit" }}>
 				<label htmlFor="zai-entrypoint">
-					<span style={{ fontWeight: 500, marginTop: 5 }}>Z AI Entrypoint</span>
+					<span style={{ fontWeight: 500, marginTop: 5 }}>{t("api_provider.zai.entrypoint_label")}</span>
 				</label>
 				<VSCodeDropdown
 					id="zai-entrypoint"
@@ -58,8 +60,7 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 					marginTop: 3,
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Please select the appropriate API entrypoint based on your location. If you are in China, choose open.bigmodel.cn
-				. Otherwise, choose api.z.ai.
+				{t("api_provider.zai.entrypoint_description")}
 			</p>
 			<ApiKeyField
 				initialValue={apiConfiguration?.zaiApiKey || ""}
@@ -75,7 +76,7 @@ export const ZAiProvider = ({ showModelOptions, isPopup, currentMode }: ZAiProvi
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("api_provider.common.model_label")}
 						models={zaiModels}
 						onChange={(e: any) =>
 							handleModeFieldChange(

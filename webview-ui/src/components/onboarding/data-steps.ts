@@ -12,43 +12,55 @@ type UserTypeSelection = {
 
 export const STEP_CONFIG = {
 	0: {
-		title: "How will you use Cline?",
-		description: "Select an option below to get started.",
+		title: "onboarding.how_will_you_use_cline",
+		description: "onboarding.select_option_get_started",
 		buttons: [
-			{ text: "Continue", action: "next", variant: "default" },
-			{ text: "Login to Cline", action: "signin", variant: "secondary" },
+			{ text: "onboarding.continue", action: "next", variant: "default" },
+			{ text: "onboarding.login_to_cline", action: "signin", variant: "secondary" },
 		],
 	},
 	[NEW_USER_TYPE.FREE]: {
-		title: "Select a free model",
+		title: "onboarding.select_free_model",
 		buttons: [
-			{ text: "Create my Account", action: "signup", variant: "default" },
-			{ text: "Back", action: "back", variant: "secondary" },
+			{ text: "onboarding.create_my_account", action: "signup", variant: "default" },
+			{ text: "onboarding.back", action: "back", variant: "secondary" },
 		],
 	},
 	[NEW_USER_TYPE.POWER]: {
-		title: "Select your model",
+		title: "onboarding.select_your_model",
 		buttons: [
-			{ text: "Create my Account", action: "signup", variant: "default" },
-			{ text: "Back", action: "back", variant: "secondary" },
+			{ text: "onboarding.create_my_account", action: "signup", variant: "default" },
+			{ text: "onboarding.back", action: "back", variant: "secondary" },
 		],
 	},
 	[NEW_USER_TYPE.BYOK]: {
-		title: "Configure your provider",
+		title: "onboarding.configure_provider",
 		buttons: [
-			{ text: "Continue", action: "done", variant: "default" },
-			{ text: "Back", action: "back", variant: "secondary" },
+			{ text: "onboarding.continue", action: "done", variant: "default" },
+			{ text: "onboarding.back", action: "back", variant: "secondary" },
 		],
 	},
 	2: {
-		title: "Almost there!",
-		description: "Complete account creation in your browser. Then come back here to finish up.",
-		buttons: [{ text: "Back", action: "back", variant: "secondary" }],
+		title: "onboarding.almost_there",
+		description: "onboarding.complete_account_creation",
+		buttons: [{ text: "onboarding.back", action: "back", variant: "secondary" }],
 	},
 } as const
 
 export const USER_TYPE_SELECTIONS: UserTypeSelection[] = [
-	{ title: "Absolutely Free", description: "Get started at no cost", type: NEW_USER_TYPE.FREE },
-	{ title: "Frontier Model", description: "Claude 4.5, GPT-5 Codex, etc", type: NEW_USER_TYPE.POWER },
-	{ title: "Bring my own API key", description: "Use Cline with your provider of choice", type: NEW_USER_TYPE.BYOK },
+	{
+		title: "onboarding.absolutely_free",
+		description: "onboarding.get_started_no_cost",
+		type: NEW_USER_TYPE.FREE,
+	},
+	{
+		title: "onboarding.frontier_model",
+		description: "onboarding.claude_gpt_etc",
+		type: NEW_USER_TYPE.POWER,
+	},
+	{
+		title: "onboarding.bring_own_api_key",
+		description: "onboarding.use_provider_choice",
+		type: NEW_USER_TYPE.BYOK,
+	},
 ]

@@ -1,5 +1,6 @@
 import { huaweiCloudMaasModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -16,6 +17,7 @@ interface HuaweiCloudMaasProviderProps {
 export const HuaweiCloudMaasProvider = ({ showModelOptions, isPopup, currentMode }: HuaweiCloudMaasProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldsChange } = useApiConfigurationHandlers()
+	const { t } = useTranslation("common")
 
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
@@ -30,7 +32,7 @@ export const HuaweiCloudMaasProvider = ({ showModelOptions, isPopup, currentMode
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("api_provider.common.model_label")}
 						models={huaweiCloudMaasModels}
 						onChange={(e: any) => {
 							const modelId = e.target.value

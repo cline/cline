@@ -3,6 +3,7 @@ import { StringRequest } from "@shared/proto/cline/common"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { AccountServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
@@ -25,6 +26,7 @@ interface RequestyProviderProps {
 export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: RequestyProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { t } = useTranslation("common")
 
 	const [requestyEndpointSelected, setRequestyEndpointSelected] = useState(!!apiConfiguration?.requestyBaseUrl)
 
@@ -54,7 +56,7 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 						}
 					}}
 					style={{ margin: "5px 0 0 0" }}>
-					Get Requesty API Key
+					{t("api_provider.requesty.get_api_key")}
 				</VSCodeButton>
 			)}
 			<VSCodeCheckbox
@@ -67,7 +69,7 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 						handleFieldChange("requestyBaseUrl", undefined)
 					}
 				}}>
-				Use custom base URL
+				{t("api_provider.requesty.use_custom_base_url")}
 			</VSCodeCheckbox>
 			{requestyEndpointSelected && (
 				<DebouncedTextField
@@ -79,7 +81,7 @@ export const RequestyProvider = ({ showModelOptions, isPopup, currentMode }: Req
 							handleFieldChange("requestyBaseUrl", value)
 						}
 					}}
-					placeholder="Custom base URL"
+					placeholder={t("api_provider.requesty.custom_base_url_placeholder")}
 					style={{ width: "100%", marginBottom: 5 }}
 					type="text"
 				/>

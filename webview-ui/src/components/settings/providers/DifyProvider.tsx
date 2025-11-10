@@ -1,4 +1,5 @@
 import { Mode } from "@shared/storage/types"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
@@ -16,6 +17,7 @@ interface DifyProviderProps {
 export const DifyProvider = ({ showModelOptions, isPopup, currentMode }: DifyProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { t } = useTranslation("common")
 
 	// Use debounced input for proper state management
 	const [baseUrlValue, setBaseUrlValue] = useDebouncedInput(apiConfiguration?.difyBaseUrl || "", (value) =>
@@ -37,10 +39,10 @@ export const DifyProvider = ({ showModelOptions, isPopup, currentMode }: DifyPro
 					onChange={(value) => {
 						handleFieldChange("difyBaseUrl", value)
 					}}
-					placeholder={"Enter base URL..."}
+					placeholder={t("api_provider.dify.base_url_placeholder")}
 					style={{ width: "100%", marginBottom: 10 }}
 					type="text">
-					<span style={{ fontWeight: 500 }}>Base URL</span>
+					<span style={{ fontWeight: 500 }}>{t("api_provider.dify.base_url_label")}</span>
 				</DebouncedTextField>
 
 				<ApiKeyField
@@ -52,12 +54,9 @@ export const DifyProvider = ({ showModelOptions, isPopup, currentMode }: DifyPro
 				/>
 
 				<div style={{ fontSize: "12px", color: "var(--vscode-descriptionForeground)", marginTop: "5px" }}>
-					<p>
-						Dify is a platform that provides access to various AI models through a unified API. Configure your Dify
-						instance URL and API key to get started.
-					</p>
+					<p>{t("api_provider.dify.description")}</p>
 					<p style={{ marginTop: "8px" }}>
-						<strong>Note:</strong> The model selection is handled within your Dify application configuration.
+						<strong>{t("api_provider.dify.note")}:</strong> {t("api_provider.dify.note_content")}
 					</p>
 				</div>
 			</div>

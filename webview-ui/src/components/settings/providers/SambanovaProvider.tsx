@@ -1,5 +1,6 @@
 import { sambanovaModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
@@ -22,6 +23,7 @@ interface SambanovaProviderProps {
 export const SambanovaProvider = ({ showModelOptions, isPopup, currentMode }: SambanovaProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { t } = useTranslation("common")
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -38,7 +40,7 @@ export const SambanovaProvider = ({ showModelOptions, isPopup, currentMode }: Sa
 			{showModelOptions && (
 				<>
 					<ModelSelector
-						label="Model"
+						label={t("api_provider.common.model_label")}
 						models={sambanovaModels}
 						onChange={(e: any) =>
 							handleModeFieldChange(

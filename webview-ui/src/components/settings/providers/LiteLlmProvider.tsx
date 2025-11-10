@@ -3,6 +3,7 @@ import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 import { getAsVar, VSC_DESCRIPTION_FOREGROUND } from "@/utils/vscStyles"
@@ -25,6 +26,7 @@ interface LiteLlmProviderProps {
  */
 export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: LiteLlmProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
+	const { t } = useTranslation("common")
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -51,10 +53,10 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 						}),
 					)
 				}}
-				placeholder={"Default: http://localhost:4000"}
+				placeholder={t("api_provider.litellm.base_url_placeholder")}
 				style={{ width: "100%" }}
 				type="text">
-				<span style={{ fontWeight: 500 }}>Base URL (optional)</span>
+				<span style={{ fontWeight: 500 }}>{t("api_provider.litellm.base_url_label")}</span>
 			</DebouncedTextField>
 			<DebouncedTextField
 				initialValue={apiConfiguration?.liteLlmApiKey || ""}
@@ -70,10 +72,10 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 						}),
 					)
 				}}
-				placeholder="Default: noop"
+				placeholder={t("api_provider.litellm.api_key_placeholder")}
 				style={{ width: "100%" }}
 				type="password">
-				<span style={{ fontWeight: 500 }}>API Key</span>
+				<span style={{ fontWeight: 500 }}>{t("api_provider.litellm.api_key_label")}</span>
 			</DebouncedTextField>
 			<DebouncedTextField
 				initialValue={liteLlmModelId || ""}
@@ -92,9 +94,9 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 						),
 					)
 				}}
-				placeholder={"e.g. anthropic/claude-sonnet-4-20250514"}
+				placeholder={t("api_provider.litellm.model_id_placeholder")}
 				style={{ width: "100%" }}>
-				<span style={{ fontWeight: 500 }}>Model ID</span>
+				<span style={{ fontWeight: 500 }}>{t("api_provider.litellm.model_id_label")}</span>
 			</DebouncedTextField>
 
 			<div style={{ display: "flex", flexDirection: "column", marginTop: 10, marginBottom: 10 }}>
@@ -117,10 +119,10 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 								)
 							}}
 							style={{ fontWeight: 500, color: "var(--vscode-charts-green)" }}>
-							Use prompt caching (GA)
+							{t("api_provider.litellm.use_prompt_caching")}
 						</VSCodeCheckbox>
 						<p style={{ fontSize: "12px", marginTop: 3, color: "var(--vscode-charts-green)" }}>
-							Prompt caching requires a supported provider and model
+							{t("api_provider.litellm.prompt_caching_info")}
 						</p>
 					</>
 				)}
@@ -133,11 +135,11 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 					marginTop: "5px",
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				Extended thinking is available for models such as Sonnet-4, o3-mini, Deepseek R1, etc. More info on{" "}
+				{t("api_provider.litellm.thinking_mode_info")}{" "}
 				<VSCodeLink
 					href="https://docs.litellm.ai/docs/reasoning_content"
 					style={{ display: "inline", fontSize: "inherit" }}>
-					thinking mode configuration
+					{t("api_provider.litellm.thinking_mode_config")}
 				</VSCodeLink>
 			</p>
 
@@ -160,7 +162,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 						fontWeight: 700,
 						textTransform: "uppercase",
 					}}>
-					Model Configuration
+					{t("api_provider.litellm.model_configuration_title")}
 				</span>
 			</div>
 			{modelConfigurationSelected && (
@@ -186,7 +188,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 								),
 							)
 						}}>
-						Supports Images
+						{t("api_provider.litellm.supports_images")}
 					</VSCodeCheckbox>
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
 						<DebouncedTextField
@@ -214,7 +216,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 								)
 							}}
 							style={{ flex: 1 }}>
-							<span style={{ fontWeight: 500 }}>Context Window Size</span>
+							<span style={{ fontWeight: 500 }}>{t("api_provider.litellm.context_window_size_label")}</span>
 						</DebouncedTextField>
 						<DebouncedTextField
 							initialValue={
@@ -241,7 +243,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 								)
 							}}
 							style={{ flex: 1 }}>
-							<span style={{ fontWeight: 500 }}>Max Output Tokens</span>
+							<span style={{ fontWeight: 500 }}>{t("api_provider.litellm.max_output_tokens_label")}</span>
 						</DebouncedTextField>
 					</div>
 					<div style={{ display: "flex", gap: 10, marginTop: "5px" }}>
@@ -274,7 +276,7 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 									),
 								)
 							}}>
-							<span style={{ fontWeight: 500 }}>Temperature</span>
+							<span style={{ fontWeight: 500 }}>{t("api_provider.litellm.temperature_label")}</span>
 						</DebouncedTextField>
 					</div>
 				</>
@@ -285,11 +287,11 @@ export const LiteLlmProvider = ({ showModelOptions, isPopup, currentMode }: Lite
 					marginTop: "5px",
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				LiteLLM provides a unified interface to access various LLM providers' models. See their{" "}
+				{t("api_provider.litellm.description")}{" "}
 				<VSCodeLink href="https://docs.litellm.ai/docs/" style={{ display: "inline", fontSize: "inherit" }}>
-					quickstart guide
+					{t("api_provider.litellm.quickstart_guide")}
 				</VSCodeLink>{" "}
-				for more information.
+				{t("api_provider.litellm.more_info")}
 			</p>
 
 			{showModelOptions && (

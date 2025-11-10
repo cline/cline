@@ -417,6 +417,161 @@
 		}
 	},
 	"api_provider": {
+		"openrouter": {
+			"loading": "Loading...",
+			"remaining_balance": "Remaining balance",
+			"limit": "Limit",
+			"usage": "Usage",
+			"balance": "Balance",
+			"api_key_label": "OpenRouter API Key",
+			"get_api_key": "Get OpenRouter API Key"
+		},
+		"vercel_ai_gateway": {
+			"api_key_label": "Vercel AI Gateway API Key",
+			"get_api_key": "Get Vercel AI Gateway API Key"
+		},
+		"qwen_code": {
+			"configuration_title": "Qwen Code API Configuration",
+			"oauth_path_placeholder": "~/.qwen/oauth_creds.json",
+			"oauth_path_label": "OAuth Credentials Path",
+			"oauth_path_description": "Path to your Qwen OAuth credentials file. Use ~/.qwen/oauth_creds.json or provide a custom path.",
+			"api_description": "Qwen Code is an OAuth-based API that requires authentication through the official Qwen client. You'll need to set up OAuth credentials first.",
+			"setup_instructions": "To get started:\n1. Install the official Qwen client\n2. Authenticate using your account\n3. OAuth credentials will be stored automatically",
+			"setup_link": "Setup Instructions"
+		},
+		"sapaicore": {
+			"client_id_placeholder": "Enter AI Core Client Id...",
+			"client_id_label": "AI Core Client Id",
+			"client_id_set": "Client Id is set. To change it, please re-enter the value.",
+			"client_secret_placeholder": "Enter AI Core Client Secret...",
+			"client_secret_label": "AI Core Client Secret",
+			"client_secret_set": "Client Secret is set. To change it, please re-enter the value.",
+			"base_url_placeholder": "Enter AI Core Base URL...",
+			"base_url_label": "AI Core Base URL",
+			"token_url_placeholder": "Enter AI Core Auth URL...",
+			"token_url_label": "AI Core Auth URL",
+			"resource_group_placeholder": "Enter AI Core Resource Group...",
+			"resource_group_label": "AI Core Resource Group",
+			"credentials_info": "These credentials are stored locally and only used to make API requests from this extension.",
+			"more_info_link": "You can find more information about SAP AI Core API access here.",
+			"orchestration_mode_label": "Orchestration Mode",
+			"orchestration_mode_description": "When enabled, provides access to all available models without requiring individual deployments.\n\nWhen disabled, provides access only to deployed models in your AI Core service instance.",
+			"loading_models": "Loading models...",
+			"retry": "Retry",
+			"no_models_error": "Unable to fetch models from SAP AI Core service instance. Please check your SAP AI Core configuration or ensure your deployments are deployed and running in the service instance",
+			"model_picker_placeholder": "Select a model...",
+			"configure_credentials": "Please configure your SAP AI Core credentials to see available models."
+		},
+		"requesty": {
+			"get_api_key": "Get Requesty API Key",
+			"use_custom_base_url": "Use custom base URL",
+			"custom_base_url_placeholder": "Custom base URL"
+		},
+		"minimax": {
+			"entrypoint_label": "MiniMax Entrypoint",
+			"entrypoint_description": "Select the API endpoint according to your region: `api.minimaxi.com` for China, or `api.minimax.io` for all other locations."
+		},
+		"zai": {
+			"entrypoint_label": "Z AI Entrypoint",
+			"entrypoint_description": "Please select the appropriate API entrypoint based on your location. If you are in China, choose open.bigmodel.cn. Otherwise, choose api.z.ai."
+		},
+		"together": {
+			"model_id_placeholder": "Enter Model ID...",
+			"model_id_label": "Model ID"
+		},
+		"nebius": {
+			"api_key_help_text": "This key is stored locally and only used to make API requests from this extension. (Note: Cline uses complex prompts and works best with Claude models. Less capable models may not work as expected.)"
+		},
+		"moonshot": {
+			"entrypoint_label": "Moonshot Entrypoint"
+		},
+		"litellm": {
+			"base_url_placeholder": "Default: http://localhost:4000",
+			"base_url_label": "Base URL (optional)",
+			"api_key_placeholder": "Default: noop",
+			"api_key_label": "API Key",
+			"model_id_placeholder": "e.g. anthropic/claude-sonnet-4-20250514",
+			"model_id_label": "Model ID",
+			"use_prompt_caching": "Use prompt caching (GA)",
+			"prompt_caching_info": "Prompt caching requires a supported provider and model",
+			"thinking_mode_info": "Extended thinking is available for models such as Sonnet-4, o3-mini, Deepseek R1, etc. More info on",
+			"thinking_mode_config": "thinking mode configuration",
+			"model_configuration_title": "Model Configuration",
+			"supports_images": "Supports Images",
+			"context_window_size_label": "Context Window Size",
+			"max_output_tokens_label": "Max Output Tokens",
+			"temperature_label": "Temperature",
+			"description": "LiteLLM provides a unified interface to access various LLM providers' models. See their",
+			"quickstart_guide": "quickstart guide",
+			"more_info": "for more information."
+		},
+		"claude_code": {
+			"cli_path_placeholder": "Default: claude",
+			"cli_path_label": "Claude Code CLI Path",
+			"cli_path_description": "Path to the Claude Code CLI.",
+			"model_version_info": "Use the latest version of {{model}} by default."
+		},
+		" hicap": {
+			"api_key_label": "Hicap API Key"
+		},
+		"dify": {
+			"base_url_placeholder": "Enter base URL...",
+			"base_url_label": "Base URL",
+			"description": "Dify is a platform that provides access to various AI models through a unified API. Configure your Dify instance URL and API key to get started.",
+			"note": "Note",
+			"note_content": "The model selection is handled within your Dify application configuration."
+		},
+		"asksage": {
+			"api_url_placeholder": "Enter AskSage API URL...",
+			"api_url_label": "AskSage API URL"
+		},
+		"aihubmix": {
+			"discount_help_text": "Now request 10% discount!"
+		},
+		"xai": {
+			"modify_reasoning_effort": "Modify reasoning effort",
+			"reasoning_effort": "Reasoning Effort",
+			"reasoning_effort_low": "low",
+			"reasoning_effort_high": "high",
+			"reasoning_effort_description": "High effort may produce more thorough analysis but takes longer and uses more tokens."
+		},
+		"qwen": {
+			"api_line_label": "Alibaba API Line",
+			"api_label": "API",
+			"api_line_description": "Please select the appropriate API interface based on your location. If you are in China, choose the China API interface. Otherwise, choose the International API interface."
+		},
+		"huggingface": {
+			"get_api_key_here": "Get your API key here"
+		},
+		"lmstudio": {
+			"custom_base_url_label": "Use custom base URL",
+			"custom_base_url_placeholder": "Default: http://localhost:1234",
+			"context_window_label": "Context Window",
+			"context_window_title": "Not editable - the value is returned by the connected endpoint",
+			"model_id_placeholder": "e.g. meta-llama-3.1-8b-instruct",
+			"description_part1": "LM Studio allows you to run models locally on your computer. For instructions on how to get started, see their",
+			"quickstart_guide": "quickstart guide",
+			"description_part2": "You will also need to start LM Studio's",
+			"local_server": "local server",
+			"description_part3": "feature with `lms server start` to use it with this extension.",
+			"note": "Note:",
+			"note_content": "Cline uses complex prompts and works best with Claude models. Less capable models may not work as expected."
+		},
+		"oca": {
+			"connecting": "Connecting…",
+			"im_oracle_employee": "I'm an Oracle Employee",
+			"sign_in": "Sign in with Oracle Code Assist",
+			"please_ask_it": "Please ask your IT administrator to set up Oracle Code Assist as a model provider. Oracle Employees, please see the",
+			"quickstart_guide": "quickstart guide",
+			"signed_in": "Signed in",
+			"unknown_user": "Unknown User",
+			"log_out": "Log out",
+			"refresh_failed": "Failed to refresh models. Check your session or network.",
+			"retry": "Retry",
+			"sign_in_again": "Sign in again",
+			"have_idea": "Have an idea for Oracle Code Assist?",
+			"provide_feedback": "Provide feedback"
+		},
 		"common": {
 			"api_key_label": "{{providerName}} API Key",
 			"api_key_placeholder": "Enter API Key...",
@@ -1039,14 +1194,6 @@
 			"error_body": "Error: {{message}}",
 			"unknown_error": "Unknown error"
 		},
-		"error_row": {
-			"powershell_issue": "It seems like you're having Windows PowerShell issues, please see this",
-			"troubleshooting_guide": "troubleshooting guide",
-			"sign_in_to_cline": "Sign in to Cline",
-			"click_retry_below": "(Click \"Retry\" below)",
-			"diff_error": "The model used search patterns that don't match anything in the file. Retrying...",
-			"clineignore_error": "Cline tried to access {{file}} which is blocked by the {{clineignore}} file."
-		},
 		"announcement": {
 			"new_in_version": "New in v{{version}}",
 			"hooks_title": "Hooks",
@@ -1058,5 +1205,54 @@
 			"or": "or",
 			"for_more_updates": "for more updates"
 		}
+	},
+	"vercel_ai_gateway": {
+		"api_key_label": "Vercel AI Gateway API Key"
+	},
+	"markdown": {
+		"act_mode": {
+			"toggle_title": {
+				"plan": "Click to toggle to Act Mode",
+				"act": "Already in Act Mode"
+			}
+		},
+		"copy_code": "Copy code",
+		"open_file": "Open {{filePath}} in editor"
+	},
+	"error_row": {
+		"powershell_issue": "It seems like you're having Windows PowerShell issues, please see this",
+		"troubleshooting_guide": "troubleshooting guide",
+		"sign_in_to_cline": "Sign in to Cline",
+		"click_retry_below": "(Click \"Retry\" below)",
+		"diff_error": "The model used search patterns that don't match anything in the file. Retrying...",
+		"clineignore_error": "Cline tried to access {{file}} which is blocked by the {{clineignore}} file."
+	},
+	"onboarding": {
+		"how_will_you_use_cline": "How will you use Cline?",
+		"select_option_get_started": "Select an option below to get started.",
+		"continue": "Continue",
+		"login_to_cline": "Login to Cline",
+		"lets_get_started": "LETS GET STARTED",
+		"absolutely_free": "Absolutely Free",
+		"get_started_no_cost": "Get started at no cost",
+		"frontier_model": "Frontier Model",
+		"claude_gpt_etc": "Claude 4.5, GPT-5 Codex, etc",
+		"bring_own_api_key": "Bring my own API key",
+		"use_provider_choice": "Use Cline with your provider of choice",
+		"select_free_model": "Select a free model",
+		"select_your_model": "Select your model",
+		"configure_provider": "Configure your provider",
+		"almost_there": "Almost there!",
+		"complete_account_creation": "Complete account creation in your browser. Then come back here to finish up.",
+		"create_my_account": "Create my Account",
+		"back": "Back",
+		"search_model": "Search model...",
+		"other_options": "other options",
+		"no_result_found": "No result found for \"{{searchTerm}}\"",
+		"model_overview": "Model Overview:",
+		"speed": "Speed:",
+		"context": "Context:",
+		"change_later_settings": "You can change this later in settings",
+		"support": "Support:"
 	}
 }

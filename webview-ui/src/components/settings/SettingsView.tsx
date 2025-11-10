@@ -87,9 +87,9 @@ export const SETTINGS_TABS: SettingsTab[] = [
 	// Only show in dev mode
 	{
 		id: "debug",
-		name: "Debug",
-		tooltipText: "Debug Tools",
-		headerText: "Debug",
+		name: "settings.tabs.debug",
+		tooltipText: "settings.tabs.debug",
+		headerText: "settings.tabs.debug",
 		icon: FlaskConical,
 		hidden: !IS_DEV,
 	},

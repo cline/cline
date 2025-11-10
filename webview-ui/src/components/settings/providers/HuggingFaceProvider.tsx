@@ -1,4 +1,5 @@
 import { Mode } from "@shared/storage/types"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { HuggingFaceModelPicker } from "../HuggingFaceModelPicker"
@@ -20,6 +21,7 @@ interface HuggingFaceProviderProps {
 export const HuggingFaceProvider = ({ showModelOptions, isPopup, currentMode }: HuggingFaceProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange } = useApiConfigurationHandlers()
+	const { t } = useTranslation("common")
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -29,10 +31,12 @@ export const HuggingFaceProvider = ({ showModelOptions, isPopup, currentMode }: 
 			<DebouncedTextField
 				initialValue={apiConfiguration?.huggingFaceApiKey || ""}
 				onChange={(value) => handleFieldChange("huggingFaceApiKey", value)}
-				placeholder="Enter API Key..."
+				placeholder={t("api_provider.common.api_key_placeholder")}
 				style={{ width: "100%" }}
 				type="password">
-				<span style={{ fontWeight: 500 }}>Hugging Face API Key</span>
+				<span style={{ fontWeight: 500 }}>
+					{t("api_provider.common.api_key_label", { providerName: "Hugging Face" })}
+				</span>
 			</DebouncedTextField>
 			<p
 				style={{
@@ -40,10 +44,9 @@ export const HuggingFaceProvider = ({ showModelOptions, isPopup, currentMode }: 
 					marginTop: "5px",
 					color: "var(--vscode-descriptionForeground)",
 				}}>
-				This key is stored locally and only used to make API requests from this extension. We don’t show pricing here
-				because it depends on your Hugging Face provider settings and isn’t consistently available via their API{" "}
+				{t("api_provider.common.api_key_help_text")}{" "}
 				<a href="https://huggingface.co/settings/tokens" rel="noopener noreferrer" target="_blank">
-					Get your API key here
+					{t("api_provider.huggingface.get_api_key_here")}
 				</a>
 			</p>
 
