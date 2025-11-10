@@ -132,7 +132,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	 * Record a counter metric by converting to equivalent PostHog event
 	 * This maintains backward compatibility with existing dashboards
 	 */
-	public recordCounter(name: string, value: number, attributes?: TelemetryProperties): void {
+	public recordCounter(name: string, value: number, attributes?: TelemetryProperties, _description?: string): void {
 		if (!this.isEnabled()) return
 
 		// Convert metric to event format for PostHog
@@ -148,7 +148,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	 * Record a histogram metric by converting to equivalent PostHog event
 	 * Histograms track distributions, but PostHog events capture individual values
 	 */
-	public recordHistogram(name: string, value: number, attributes?: TelemetryProperties): void {
+	public recordHistogram(_name: string, _value: number, _attributes?: TelemetryProperties, _description?: string): void {
 		// Histograms are for distribution analysis in OpenTelemetry
 		// PostHog gets the raw values through existing event capture methods
 		// No action needed here - events already capture these values
@@ -158,7 +158,7 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	 * Record a gauge metric by converting to equivalent PostHog event
 	 * Gauges track current state, which we can log as state change events
 	 */
-	public recordGauge(name: string, value: number, attributes?: TelemetryProperties): void {
+	public recordGauge(name: string, value: number, attributes?: TelemetryProperties, _description?: string): void {
 		if (!this.isEnabled()) return
 
 		// Convert gauge updates to state change events

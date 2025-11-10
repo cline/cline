@@ -132,13 +132,13 @@ export class NoOpTelemetryProvider implements ITelemetryProvider {
 			level: "off",
 		}
 	}
-	recordCounter(_name: string, _value: number, _attributes?: TelemetryProperties): void {
+	recordCounter(_name: string, _value: number, _attributes?: TelemetryProperties, _description?: string): void {
 		// no-op
 	}
-	recordHistogram(_name: string, _value: number, _attributes?: TelemetryProperties): void {
+	recordHistogram(_name: string, _value: number, _attributes?: TelemetryProperties, _description?: string): void {
 		// no-op
 	}
-	recordGauge(_name: string, _value: number, _attributes?: TelemetryProperties): void {
+	recordGauge(_name: string, _value: number, _attributes?: TelemetryProperties, _description?: string): void {
 		// no-op
 	}
 	async dispose(): Promise<void> {

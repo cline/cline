@@ -161,16 +161,15 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	 * Record a counter metric (cumulative value that only increases)
 	 * Lazy creation - only creates the counter on first use if meter is available.
 	 */
-	public recordCounter(name: string, value: number, attributes?: TelemetryProperties): void {
+	public recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
 		if (!this.meter || !this.isEnabled()) {
 			return
 		}
 
 		let counter = this.counters.get(name)
 		if (!counter) {
-			counter = this.meter.createCounter(name, {
-				description: `Counter metric: ${name}`,
-			})
+			const options = description ? { description } : undefined
+			counter = this.meter.createCounter(name, options)
 			this.counters.set(name, counter)
 			console.log(`[OTEL] Created counter: ${name}`)
 		}
@@ -182,16 +181,15 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	 * Record a histogram metric (distribution of values for percentile analysis)
 	 * Lazy creation - only creates the histogram on first use if meter is available.
 	 */
-	public recordHistogram(name: string, value: number, attributes?: TelemetryProperties): void {
+	public recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
 		if (!this.meter || !this.isEnabled()) {
 			return
 		}
 
 		let histogram = this.histograms.get(name)
 		if (!histogram) {
-			histogram = this.meter.createHistogram(name, {
-				description: `Histogram metric: ${name}`,
-			})
+			const options = description ? { description } : undefined
+			histogram = this.meter.createHistogram(name, options)
 			this.histograms.set(name, histogram)
 			console.log(`[OTEL] Created histogram: ${name}`)
 		}
@@ -203,7 +201,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	 * Record a gauge metric (point-in-time value that can go up or down)
 	 * Lazy creation - creates an observable gauge that reads from stored values
 	 */
-	public recordGauge(name: string, value: number, attributes?: TelemetryProperties): void {
+	public recordGauge(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
 		if (!this.meter || !this.isEnabled()) {
 			return
 		}
@@ -217,9 +215,8 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 
 		// Create observable gauge on first use
 		if (!this.gauges.has(name)) {
-			const gauge = this.meter.createObservableGauge(name, {
-				description: `Gauge metric: ${name}`,
-			})
+			const options = description ? { description } : undefined
+			const gauge = this.meter.createObservableGauge(name, options)
 
 			// Add callback to observe all values for this gauge
 			gauge.addCallback((observableResult) => {

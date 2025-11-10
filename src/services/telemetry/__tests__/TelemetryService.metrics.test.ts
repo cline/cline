@@ -3,9 +3,9 @@ import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from 
 import { TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
-	public counters: Array<{ name: string; value: number; attributes: TelemetryProperties }> = []
-	public histograms: Array<{ name: string; value: number; attributes: TelemetryProperties }> = []
-	public gauges: Array<{ name: string; value: number; attributes: TelemetryProperties }> = []
+	public counters: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
+	public histograms: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
+	public gauges: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
 
 	log(): void {}
 	logRequired(): void {}
@@ -17,14 +17,14 @@ class FakeProvider implements ITelemetryProvider {
 	getSettings(): TelemetrySettings {
 		return { extensionEnabled: true, hostEnabled: true, level: "all" }
 	}
-	recordCounter(name: string, value: number, attributes?: TelemetryProperties): void {
-		this.counters.push({ name, value, attributes: attributes ?? {} })
+	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
+		this.counters.push({ name, value, attributes: attributes ?? {}, description })
 	}
-	recordHistogram(name: string, value: number, attributes?: TelemetryProperties): void {
-		this.histograms.push({ name, value, attributes: attributes ?? {} })
+	recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
+		this.histograms.push({ name, value, attributes: attributes ?? {}, description })
 	}
-	recordGauge(name: string, value: number, attributes?: TelemetryProperties): void {
-		this.gauges.push({ name, value, attributes: attributes ?? {} })
+	recordGauge(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
+		this.gauges.push({ name, value, attributes: attributes ?? {}, description })
 	}
 	async dispose(): Promise<void> {}
 }

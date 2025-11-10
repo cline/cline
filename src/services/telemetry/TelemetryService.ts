@@ -340,33 +340,33 @@ export class TelemetryService {
 		}
 	}
 
-	private recordCounter(name: string, value: number, attributes?: TelemetryProperties): void {
+	private recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
 		const attrs = this.getStandardAttributes(attributes)
 		this.providers.forEach((provider) => {
 			try {
-				provider.recordCounter(name, value, attrs)
+				provider.recordCounter(name, value, attrs, description)
 			} catch (error) {
 				console.error(`[TelemetryService] recordCounter failed: ${name}`, error)
 			}
 		})
 	}
 
-	private recordHistogram(name: string, value: number, attributes?: TelemetryProperties): void {
+	private recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
 		const attrs = this.getStandardAttributes(attributes)
 		this.providers.forEach((provider) => {
 			try {
-				provider.recordHistogram(name, value, attrs)
+				provider.recordHistogram(name, value, attrs, description)
 			} catch (error) {
 				console.error(`[TelemetryService] recordHistogram failed: ${name}`, error)
 			}
 		})
 	}
 
-	private recordGauge(name: string, value: number, attributes?: TelemetryProperties): void {
+	private recordGauge(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
 		const attrs = this.getStandardAttributes(attributes)
 		this.providers.forEach((provider) => {
 			try {
-				provider.recordGauge(name, value, attrs)
+				provider.recordGauge(name, value, attrs, description)
 			} catch (error) {
 				console.error(`[TelemetryService] recordGauge failed: ${name}`, error)
 			}
