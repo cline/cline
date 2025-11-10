@@ -123,7 +123,9 @@ export class ToolResultUtils {
 		completeMessage: string,
 		config: TaskConfig,
 	): Promise<{ didApprove: boolean; askTs?: number }> {
-		const { response, text, images, files, askTs } = await config.callbacks.ask(type, completeMessage, false)
+		const { response, text, images, files } = await config.callbacks.ask(type, completeMessage, false)
+		// Get the timestamp from the ask message that was just created
+		const askTs = config.messageState.getClineMessages().at(-1)?.ts
 
 		if (text || (images && images.length > 0) || (files && files.length > 0)) {
 			let fileContentString = ""

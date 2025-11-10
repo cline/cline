@@ -685,7 +685,10 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		if (shouldAutoApprove) {
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
-			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
+			const sayTs = await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
+			// When completing a partial message, say() returns undefined but updates the existing message
+			// In that case, get the timestamp from the last message
+			config.taskState.currentToolAskMessageTs = sayTs ?? config.messageState.getClineMessages().at(-1)?.ts
 			telemetryService.captureToolUsage(
 				config.ulid,
 				this.name,

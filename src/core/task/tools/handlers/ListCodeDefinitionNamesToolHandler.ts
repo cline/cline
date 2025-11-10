@@ -86,7 +86,10 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 		if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relDirPath)) {
 			// Auto-approval flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
-			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
+			const sayTs = await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
+			// When completing a partial message, say() returns undefined but updates the existing message
+			// In that case, get the timestamp from the last message
+			config.taskState.currentToolAskMessageTs = sayTs ?? config.messageState.getClineMessages().at(-1)?.ts
 
 			// Capture telemetry
 			telemetryService.captureToolUsage(

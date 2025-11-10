@@ -157,7 +157,10 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		if ((!requiresApprovalPerLLM && autoApproveSafe) || (requiresApprovalPerLLM && autoApproveSafe && autoApproveAll)) {
 			// Auto-approve flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
-			await config.callbacks.say("command", actualCommand, undefined, undefined, false)
+			const sayTs = await config.callbacks.say("command", actualCommand, undefined, undefined, false)
+			// When completing a partial message, say() returns undefined but updates the existing message
+			// In that case, get the timestamp from the last message
+			config.taskState.currentToolAskMessageTs = sayTs ?? config.messageState.getClineMessages().at(-1)?.ts
 			didAutoApprove = true
 			telemetryService.captureToolUsage(
 				config.ulid,
