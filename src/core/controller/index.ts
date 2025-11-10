@@ -33,6 +33,7 @@ import { LogoutReason } from "@/services/auth/types"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
 import { telemetryService } from "@/services/telemetry"
+import { getAxiosSettings } from "@/shared/net"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { AuthState } from "@/shared/proto/index.cline"
 import { getLatestAnnouncementId } from "@/utils/announcements"
@@ -651,6 +652,7 @@ export class Controller {
 				"Content-Type": "application/json",
 				"User-Agent": "cline-vscode-extension",
 			},
+			...getAxiosSettings(),
 		})
 
 		if (!response.data) {
@@ -698,7 +700,7 @@ export class Controller {
 	async handleOpenRouterCallback(code: string) {
 		let apiKey: string
 		try {
-			const response = await axios.post("https://openrouter.ai/api/v1/auth/keys", { code })
+			const response = await axios.post("https://openrouter.ai/api/v1/auth/keys", { code }, getAxiosSettings())
 			if (response.data && response.data.key) {
 				apiKey = response.data.key
 			} else {
