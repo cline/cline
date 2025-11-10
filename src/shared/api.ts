@@ -223,6 +223,7 @@ interface PriceTier {
 }
 
 export interface ModelInfo {
+	name?: string
 	maxTokens?: number
 	contextWindow?: number
 	supportsImages?: boolean
@@ -3805,16 +3806,6 @@ export const fireworksModels = {
 		cacheReadsPrice: 0.15,
 		description:
 			"Kimi K2 model gets a new version update: Agentic coding: more accurate, better generalization across scaffolds. Frontend coding: improved aesthetics and functionalities on web, 3d, and other tasks. Context length: extended from 128k to 256k, providing better long-horizon support.",
-	},
-	"accounts/fireworks/models/kimi-k2-instruct": {
-		maxTokens: 16384,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.6,
-		outputPrice: 2.5,
-		description:
-			"Kimi K2 is a state-of-the-art mixture-of-experts (MoE) language model with 32 billion activated parameters and 1 trillion total parameters. Trained with the Muon optimizer, Kimi K2 achieves exceptional performance across frontier knowledge, reasoning, and coding tasks while being meticulously optimized for agentic capabilities.",
 	},
 	"accounts/fireworks/models/qwen3-235b-a22b-instruct-2507": {
 		maxTokens: 32768,
