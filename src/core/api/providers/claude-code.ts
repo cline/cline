@@ -113,7 +113,18 @@ export class ClaudeCodeHandler implements ApiHandler {
 							}
 							break
 						case "tool_use":
-							console.error(`tool_use is not supported yet. Received: ${JSON.stringify(content)}`)
+							// Yield tool_use blocks to the streaming pipeline for proper tool execution
+							yield {
+								type: "tool_calls",
+								tool_call: {
+									call_id: content.id,
+									function: {
+										id: content.id,
+										name: content.name,
+										arguments: content.input,
+									},
+								},
+							}
 							break
 					}
 				}
