@@ -1,5 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { Controller } from "@/core/controller"
+import { getAxiosSettings } from "@/shared/net"
 import { ClineEnv } from "../../../config"
 import { AuthService } from "../../../services/auth/AuthService"
 import { CLINE_API_ENDPOINT } from "../../../shared/cline/api"
@@ -35,6 +36,7 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
 				Authorization: `Bearer ${authToken}`,
 				"Content-Type": "application/json",
 			},
+			...getAxiosSettings(),
 		}
 
 		const response: AxiosResponse<{
