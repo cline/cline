@@ -24,11 +24,24 @@ export function useDiscussModeAudio(messages: ClineMessage[]) {
 	const taskStartTimeRef = useRef<number>(Date.now()) // Track when we started tracking this task
 	const activeBlobUrlsRef = useRef<Set<string>>(new Set()) // Track all blob URLs for cleanup
 	const audioElementRef = useRef<HTMLAudioElement | null>(null) // Pre-created audio element for autoplay
+	const pendingAudioRef = useRef<{
+		url: string
+		audio: HTMLAudioElement
+		onEnded: () => void
+		onError: (e: Event) => void
+	} | null>(null) // Audio waiting for user interaction
 
-	// Create audio element on mount during user interaction (component load is a user gesture)
+	// Use blessed audio element from window if available, otherwise create one
 	useEffect(() => {
-		if (!audioElementRef.current) {
-			console.log("[DiscussModeAudio] Creating audio element during component mount (user gesture)")
+		// Check if we have a blessed audio element from a user gesture
+		const blessedAudio = (window as any).__discussModeAudio
+		if (blessedAudio && !audioElementRef.current) {
+			console.log("[DiscussModeAudio] Using blessed audio element from user gesture")
+			audioElementRef.current = blessedAudio
+			// Clear it so we don't reuse it
+			delete (window as any).__discussModeAudio
+		} else if (!audioElementRef.current) {
+			console.log("[DiscussModeAudio] Creating audio element (may not be blessed)")
 			const audio = new Audio()
 			audio.preload = "auto"
 			audioElementRef.current = audio
@@ -55,6 +68,17 @@ export function useDiscussModeAudio(messages: ClineMessage[]) {
 				audioRef.current.currentTime = 0
 				audioRef.current.src = ""
 				audioRef.current = null
+			}
+
+			// Clean up pending audio
+			if (pendingAudioRef.current) {
+				const pending = pendingAudioRef.current
+				pending.audio.removeEventListener("ended", pending.onEnded)
+				pending.audio.removeEventListener("error", pending.onError)
+				pending.audio.src = ""
+				URL.revokeObjectURL(pending.url)
+				activeBlobUrlsRef.current.delete(pending.url)
+				pendingAudioRef.current = null
 			}
 
 			// Revoke ALL blob URLs to free memory and prevent replay
@@ -197,6 +221,54 @@ export function useDiscussModeAudio(messages: ClineMessage[]) {
 
 	// Process audio queue
 	useEffect(() => {
+		// First, check if we have pending audio and a blessed element to retry it
+		const blessedAudio = (window as any).__discussModeAudio
+		const pending = pendingAudioRef.current
+
+		if (blessedAudio && pending && !isPlaying) {
+			console.log("[DiscussModeAudio] Blessed audio element available, retrying pending audio playback")
+
+			// Use the blessed audio element
+			audioElementRef.current = blessedAudio
+			delete (window as any).__discussModeAudio
+
+			// Update the pending audio to use the blessed element
+			pending.audio = blessedAudio
+
+			// Set up the audio and retry playback
+			pending.audio.src = pending.url
+			pending.audio.addEventListener("ended", pending.onEnded)
+			pending.audio.addEventListener("error", pending.onError)
+
+			audioRef.current = pending.audio
+			setCurrentAudio(pending.audio)
+			setIsPlaying(true)
+
+			// Try to play
+			pending.audio
+				.play()
+				.then(() => {
+					console.log("[DiscussModeAudio] Pending audio playing successfully after user interaction")
+					pendingAudioRef.current = null // Clear pending
+				})
+				.catch((err) => {
+					console.error("[DiscussModeAudio] Failed to play pending audio even with blessed element:", err)
+					// Clean up on failure
+					pending.audio.removeEventListener("ended", pending.onEnded)
+					pending.audio.removeEventListener("error", pending.onError)
+					pending.audio.src = ""
+					URL.revokeObjectURL(pending.url)
+					activeBlobUrlsRef.current.delete(pending.url)
+					pendingAudioRef.current = null
+					setIsPlaying(false)
+					setCurrentAudio(null)
+					audioRef.current = null
+					// Remove from queue since we can't play it
+					setAudioQueue((prev) => prev.slice(1))
+				})
+			return
+		}
+
 		if (isPlaying || audioQueue.length === 0 || !discussModeSettings?.selectedVoice) {
 			return
 		}
@@ -243,7 +315,15 @@ export function useDiscussModeAudio(messages: ClineMessage[]) {
 				activeBlobUrlsRef.current.add(audioUrl)
 				console.log("[DiscussModeAudio] Created blob URL, total active:", activeBlobUrlsRef.current.size)
 
-				// Use pre-created audio element (created during user gesture)
+				// Check for blessed audio element from user gesture
+				const blessedAudio = (window as any).__discussModeAudio
+				if (blessedAudio) {
+					console.log("[DiscussModeAudio] Found blessed audio element, using it")
+					audioElementRef.current = blessedAudio
+					delete (window as any).__discussModeAudio
+				}
+
+				// Use audio element (blessed or fallback)
 				const audio = audioElementRef.current
 				if (!audio) {
 					console.error("[DiscussModeAudio] Audio element not available!")
@@ -290,40 +370,29 @@ export function useDiscussModeAudio(messages: ClineMessage[]) {
 
 				console.log("[DiscussModeAudio] Playing audio with pre-created element...")
 
-				// Try to play, with fallback handling for autoplay restrictions
+				// Try to play
 				try {
 					await audio.play()
+					console.log("[DiscussModeAudio] Audio playing successfully")
 				} catch (playError) {
-					console.warn("[DiscussModeAudio] Autoplay failed, creating new blessed audio element:", playError)
+					console.warn(
+						"[DiscussModeAudio] Autoplay blocked by browser. Keeping audio ready for retry after user interaction.",
+					)
 
-					// If autoplay fails, create a new audio element (this might work if called during processing)
-					const newAudio = new Audio()
-					newAudio.src = audioUrl
-					newAudio.preload = "auto"
-
-					// Copy event listeners to new element
-					newAudio.addEventListener("ended", onEnded)
-					newAudio.addEventListener("error", onError)
-
-					// Update references
-					audioElementRef.current = newAudio
-					audioRef.current = newAudio
-					setCurrentAudio(newAudio)
-
-					// Try playing the new element
-					try {
-						await newAudio.play()
-					} catch (retryError) {
-						console.error("[DiscussModeAudio] Failed to play even with new element:", retryError)
-						// Clean up and remove from queue
-						audio.removeEventListener("ended", onEnded)
-						audio.removeEventListener("error", onError)
-						throw retryError
+					// Browser blocked autoplay - keep audio ready for retry when user interacts
+					// Store the audio setup so we can retry when blessed audio element becomes available
+					pendingAudioRef.current = {
+						url: audioUrl,
+						audio: audio,
+						onEnded,
+						onError,
 					}
 
-					// Remove old element's listeners since we're using new one
-					audio.removeEventListener("ended", onEnded)
-					audio.removeEventListener("error", onError)
+					// Don't remove from queue or revoke blob URL yet - we'll retry
+					setIsPlaying(false)
+
+					// Note: Audio will automatically retry when user interacts and creates blessed audio element
+					return
 				}
 			} catch (error) {
 				console.error("[DiscussModeAudio] Error processing audio:", error)
@@ -343,6 +412,15 @@ export function useDiscussModeAudio(messages: ClineMessage[]) {
 				audioRef.current.pause()
 				audioRef.current.src = ""
 				audioRef.current = null
+			}
+			// Clean up pending audio
+			if (pendingAudioRef.current) {
+				const pending = pendingAudioRef.current
+				pending.audio.removeEventListener("ended", pending.onEnded)
+				pending.audio.removeEventListener("error", pending.onError)
+				pending.audio.src = ""
+				URL.revokeObjectURL(pending.url)
+				pendingAudioRef.current = null
 			}
 			// Revoke all blob URLs
 			activeBlobUrlsRef.current.forEach((url) => {
@@ -369,6 +447,17 @@ export function useDiscussModeAudio(messages: ClineMessage[]) {
 				audioRef.current = null
 			}
 
+			// Clean up pending audio
+			if (pendingAudioRef.current) {
+				const pending = pendingAudioRef.current
+				pending.audio.removeEventListener("ended", pending.onEnded)
+				pending.audio.removeEventListener("error", pending.onError)
+				pending.audio.src = ""
+				URL.revokeObjectURL(pending.url)
+				activeBlobUrlsRef.current.delete(pending.url)
+				pendingAudioRef.current = null
+			}
+
 			// Revoke ALL blob URLs to delete audio files from memory
 			activeBlobUrlsRef.current.forEach((url) => {
 				console.log("[DiscussModeAudio] Deleting audio blob:", url.substring(0, 50))
@@ -387,8 +476,22 @@ export function useDiscussModeAudio(messages: ClineMessage[]) {
 		}
 	}, [mode, discussModeEnabled])
 
+	// Expose function to stop current audio (useful when user starts recording)
+	const stopAudio = () => {
+		if (audioRef.current) {
+			console.log("[DiscussModeAudio] Stopping current audio playback")
+			audioRef.current.pause()
+			audioRef.current.currentTime = 0
+
+			// Clear queue to prevent auto-continuing
+			setAudioQueue([])
+			setIsPlaying(false)
+		}
+	}
+
 	return {
 		isPlaying,
 		queueLength: audioQueue.length,
+		stopAudio,
 	}
 }

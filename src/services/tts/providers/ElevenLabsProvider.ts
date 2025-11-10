@@ -20,15 +20,18 @@ export class ElevenLabsProvider extends BaseTTSProvider {
 		try {
 			const { voiceId, text, speed = 1.0, stability = 0.5, similarityBoost = 0.75 } = options
 
+			// Clamp speed to ElevenLabs API limits (0.7 to 1.2)
+			const clampedSpeed = Math.max(0.7, Math.min(1.2, speed))
+
 			const response = await axios.post(
 				`${ELEVENLABS_API_BASE}/text-to-speech/${voiceId}`,
 				{
 					text,
-					model_id: "eleven_multilingual_v2",
+					model_id: "eleven_turbo_v2_5",
 					voice_settings: {
 						stability,
 						similarity_boost: similarityBoost,
-						speed,
+						speed: clampedSpeed,
 					},
 				},
 				{

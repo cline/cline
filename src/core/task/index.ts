@@ -3507,8 +3507,13 @@ export class Task {
 
 		details += "\n\n# Current Mode"
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
+		const discussModeEnabled = this.stateManager.getGlobalStateKey("discussModeEnabled") ?? false
 		if (mode === "plan") {
 			details += "\nPLAN MODE\n" + formatResponse.planModeInstructions()
+			if (discussModeEnabled) {
+				details +=
+					"\n\nDISCUSS_MODE is enabled. You are in a voice-enabled conversation where the user may be speaking to you. Adopt a natural, conversational tone and keep responses brief and dialogue-friendly."
+			}
 		} else {
 			details += "\nACT MODE"
 		}

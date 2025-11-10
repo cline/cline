@@ -85,6 +85,7 @@ interface ChatRowProps {
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 	onSetQuote: (text: string) => void
 	onCancelCommand?: () => void
+	discussModeEnabled?: boolean
 }
 
 interface QuoteButtonState {
@@ -273,6 +274,7 @@ export const ChatRowContent = memo(
 		sendMessageFromChatRow,
 		onSetQuote,
 		onCancelCommand,
+		discussModeEnabled,
 	}: ChatRowContentProps) => {
 		const { mcpServers, mcpMarketplaceCatalog, onRelinquishControl, vscodeTerminalExecutionMode } = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
@@ -1333,6 +1335,10 @@ export const ChatRowContent = memo(
 							</div>
 						)
 					case "text":
+						// Hide AI-generated text in discuss mode
+						if (discussModeEnabled) {
+							return null
+						}
 						return (
 							<WithCopyButton
 								onMouseUp={handleMouseUp}
@@ -1352,6 +1358,10 @@ export const ChatRowContent = memo(
 							</WithCopyButton>
 						)
 					case "reasoning":
+						// Hide reasoning text in discuss mode
+						if (discussModeEnabled) {
+							return null
+						}
 						return (
 							<>
 								{message.text && (

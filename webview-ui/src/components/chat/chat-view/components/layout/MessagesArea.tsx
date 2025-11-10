@@ -11,6 +11,7 @@ interface MessagesAreaProps {
 	scrollBehavior: ScrollBehavior
 	chatState: ChatState
 	messageHandlers: MessageHandlers
+	discussModeEnabled?: boolean
 }
 
 /**
@@ -24,6 +25,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 	scrollBehavior,
 	chatState,
 	messageHandlers,
+	discussModeEnabled,
 }) => {
 	const {
 		virtuosoRef,
@@ -47,6 +49,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			setActiveQuote,
 			inputValue,
 			messageHandlers,
+			discussModeEnabled,
 		),
 		[
 			groupedMessages,
@@ -57,6 +60,7 @@ export const MessagesArea: React.FC<MessagesAreaProps> = ({
 			setActiveQuote,
 			inputValue,
 			messageHandlers,
+			discussModeEnabled,
 		],
 	)
 

@@ -15,6 +15,7 @@ interface MessageRendererProps {
 	onSetQuote: (quote: string | null) => void
 	inputValue: string
 	messageHandlers: MessageHandlers
+	discussModeEnabled?: boolean
 }
 
 /**
@@ -32,6 +33,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	onSetQuote,
 	inputValue,
 	messageHandlers,
+	discussModeEnabled,
 }) => {
 	// Browser session group
 	if (Array.isArray(messageOrGroup)) {
@@ -58,6 +60,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	// Regular message
 	return (
 		<ChatRow
+			discussModeEnabled={discussModeEnabled}
 			inputValue={inputValue}
 			isExpanded={expandedRows[messageOrGroup.ts] || false}
 			isLast={isLast}
@@ -86,9 +89,11 @@ export const createMessageRenderer = (
 	onSetQuote: (quote: string | null) => void,
 	inputValue: string,
 	messageHandlers: MessageHandlers,
+	discussModeEnabled?: boolean,
 ) => {
 	return (index: number, messageOrGroup: ClineMessage | ClineMessage[]) => (
 		<MessageRenderer
+			discussModeEnabled={discussModeEnabled}
 			expandedRows={expandedRows}
 			groupedMessages={groupedMessages}
 			index={index}

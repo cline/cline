@@ -367,15 +367,15 @@ const VoiceSettingsSection = ({ renderSectionHeader }: VoiceSettingsSectionProps
 						<label className="text-sm font-medium mb-2 block">Speech Speed: {speechSpeed.toFixed(1)}x</label>
 						<input
 							className="w-full"
-							max="2.0"
-							min="0.5"
+							max="1.2"
+							min="0.7"
 							onChange={handleSpeedChange}
 							step="0.1"
 							type="range"
 							value={speechSpeed}
 						/>
 						<p className="text-sm mt-2 text-description">
-							Adjust how fast Cline speaks (0.5x = slower, 2.0x = faster)
+							Adjust how fast Cline speaks (0.7x = slower, 1.2x = faster)
 						</p>
 					</div>
 				)}

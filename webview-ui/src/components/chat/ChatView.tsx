@@ -55,6 +55,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		userInfo,
 		currentFocusChainChecklist,
 		hooksEnabled,
+		discussModeEnabled,
 	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
@@ -333,7 +334,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 	const scrollBehavior = useScrollBehavior(messages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
 
 	// Use Discuss Mode audio hook for automatic TTS
-	useDiscussModeAudio(messages)
+	const { stopAudio } = useDiscussModeAudio(messages)
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message..." : "Type your task here..."
@@ -371,6 +372,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				{task && (
 					<MessagesArea
 						chatState={chatState}
+						discussModeEnabled={discussModeEnabled}
 						groupedMessages={groupedMessages}
 						messageHandlers={messageHandlers}
 						modifiedMessages={modifiedMessages}
@@ -402,6 +404,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					scrollBehavior={scrollBehavior}
 					selectFilesAndImages={selectFilesAndImages}
 					shouldDisableFilesAndImages={shouldDisableFilesAndImages}
+					stopAudio={stopAudio}
 				/>
 			</footer>
 		</ChatLayout>

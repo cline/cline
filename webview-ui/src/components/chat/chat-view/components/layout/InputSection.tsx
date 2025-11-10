@@ -13,6 +13,7 @@ interface InputSectionProps {
 	placeholderText: string
 	shouldDisableFilesAndImages: boolean
 	selectFilesAndImages: () => Promise<void>
+	stopAudio: () => void
 }
 
 /**
@@ -25,6 +26,7 @@ export const InputSection: React.FC<InputSectionProps> = ({
 	placeholderText,
 	shouldDisableFilesAndImages,
 	selectFilesAndImages,
+	stopAudio,
 }) => {
 	const {
 		activeQuote,
@@ -72,9 +74,25 @@ export const InputSection: React.FC<InputSectionProps> = ({
 							onProcessingStateChange={(isProcessing, message) => {
 								// No need to show processing in input since there's no text field
 							}}
-							onRecordingStateChange={setIsVoiceRecording}
+							onRecordingStateChange={(isRecording) => {
+								setIsVoiceRecording(isRecording)
+								// Stop any playing audio when user starts recording
+								if (isRecording) {
+									stopAudio()
+								}
+							}}
 							onTranscription={(text) => {
 								if (!text) return
+
+								// Create blessed audio element during user gesture (transcription completion)
+								try {
+									const audio = new Audio()
+									audio.preload = "auto"
+									// Store in window for the audio hook to access
+									;(window as any).__discussModeAudio = audio
+								} catch (e) {
+									console.warn("Could not create blessed audio element:", e)
+								}
 
 								// Automatically send the message
 								messageHandlers.handleSendMessage(text, [], [])
