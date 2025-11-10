@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -31,6 +32,7 @@ export class TogetherHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: "https://api.together.xyz/v1",
 					apiKey: this.options.togetherApiKey,
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Together client: ${error.message}`)

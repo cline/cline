@@ -319,6 +319,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 				true,
 				true,
 				workspaceContext,
+				block.isNativeToolCall,
 			)
 		} else {
 			// Manual approval flow
@@ -339,6 +340,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 					false,
 					false,
 					workspaceContext,
+					block.isNativeToolCall,
 				)
 				return formatResponse.toolDenied()
 			} else {
@@ -350,6 +352,7 @@ export class SearchFilesToolHandler implements IFullyManagedTool {
 					false,
 					true,
 					workspaceContext,
+					block.isNativeToolCall,
 				)
 			}
 		}

@@ -4,8 +4,8 @@ import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
 import HistoryView from "./components/history/HistoryView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
+import OnboardingView from "./components/onboarding/OnboardingView"
 import SettingsView from "./components/settings/SettingsView"
-import WelcomeView from "./components/welcome/WelcomeView"
 import { useClineAuth } from "./context/ClineAuthContext"
 import { useExtensionState } from "./context/ExtensionStateContext"
 import { Providers } from "./Providers"
@@ -54,7 +54,7 @@ const AppContent = () => {
 	}
 
 	if (showWelcome) {
-		return <WelcomeView />
+		return <OnboardingView />
 	}
 
 	return (

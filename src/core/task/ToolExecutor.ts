@@ -4,7 +4,6 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
-import { featureFlagsService } from "@services/feature-flags"
 import { McpHub } from "@services/mcp/McpHub"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineDefaultTool } from "@shared/tools"
@@ -82,6 +81,7 @@ export class ToolExecutor {
 		private cwd: string,
 		private taskId: string,
 		private ulid: string,
+		private vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec",
 
 		// Workspace Management
 		private workspaceManager: WorkspaceRootManager | undefined,
@@ -135,6 +135,7 @@ export class ToolExecutor {
 			mode: this.stateManager.getGlobalSettingsKey("mode"),
 			strictPlanModeEnabled: this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
+			vscodeTerminalExecutionMode: this.vscodeTerminalExecutionMode,
 			cwd: this.cwd,
 			workspaceManager: this.workspaceManager,
 			isMultiRootEnabled: this.isMultiRootEnabled,
@@ -430,10 +431,12 @@ export class ToolExecutor {
 			content = typeMatch[2] ? [typeMatch[2], ...remainingLines].join("\n") : remainingLines.join("\n")
 		}
 
-		this.taskState.userMessageContent.push({
-			type: "text",
+		const hookContextBlock = {
+			type: "text" as const,
 			text: `<hook_context source="${source}" type="${contextType}">\n${content}\n</hook_context>`,
-		})
+		}
+
+		this.taskState.userMessageContent.push(hookContextBlock)
 	}
 
 	/**
@@ -457,7 +460,6 @@ export class ToolExecutor {
 
 		const executionTimeMs = Date.now() - executionStartTime
 
-		console.log(`[HOOK-UI] PostToolUse executing for tool: ${block.name}`)
 		const postToolResult = await executeHook({
 			hookName: "PostToolUse",
 			hookInput: {
@@ -543,10 +545,8 @@ export class ToolExecutor {
 			return
 		}
 
-		// Check if hooks are enabled (both feature flag and user setting must be true)
-		const featureFlagEnabled = featureFlagsService.getHooksEnabled()
-		const userEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
-		const hooksEnabled = featureFlagEnabled && userEnabled
+		// Check if hooks are enabled via user setting
+		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 
 		// Track if we need to cancel after hooks complete
 		let shouldCancelAfterHook = false
@@ -593,7 +593,6 @@ export class ToolExecutor {
 				pendingToolInfo.resourceUri = block.params.uri
 			}
 
-			console.log(`[HOOK-UI] PreToolUse executing for tool: ${block.name}`)
 			const preToolResult = await executeHook({
 				hookName: "PreToolUse",
 				hookInput: {
