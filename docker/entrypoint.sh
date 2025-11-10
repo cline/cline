@@ -20,5 +20,28 @@ if [ "$1" = "bash" ] || [ "$1" = "sh" ]; then
     exec "$@"
 fi
 
-# Execute cline with provided arguments
-exec cline "$@"
+# Create Cline instance
+echo "Creating Cline instance..."
+INSTANCE_OUTPUT=$(cline instance new --output-format json 2>&1)
+echo "$INSTANCE_OUTPUT"
+
+# Parse instance address from output
+INSTANCE_ADDRESS=$(echo "$INSTANCE_OUTPUT" | grep -oP 'Address:\s+\K\S+' || echo "localhost:50052")
+echo "Instance address: $INSTANCE_ADDRESS"
+
+# Configure Cline instance
+echo "Configuring Cline instance..."
+if [ -n "$ANTHROPIC_API_KEY" ]; then
+    cline config set --address "$INSTANCE_ADDRESS" \
+        plan-mode-api-provider=anthropic \
+        act-mode-api-provider=anthropic \
+        api-key="$ANTHROPIC_API_KEY" \
+        act-mode-api-model-id=claude-sonnet-4-5-20250929 \
+        plan-mode-api-model-id=claude-sonnet-4-5-20250929
+    echo "Configuration complete"
+else
+    echo "Warning: ANTHROPIC_API_KEY not set, skipping API configuration"
+fi
+
+# Execute cline with provided arguments, using the instance address
+exec cline "$@" --address "$INSTANCE_ADDRESS" --oneshot
