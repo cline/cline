@@ -1,7 +1,7 @@
 import { SystemPromptSection } from "../../templates/placeholders"
 import type { SystemPromptContext } from "../../types"
 
-// Heremes-specific system prompt component overrides - Nous recommends the thinking component be added explicitly for hermes-4
+// Hermes-specific system prompt component overrides - Nous recommends the thinking component be added explicitly for hermes-4
 const HERMES_AGENT_ROLE_TEMPLATE = [
 	"You are a deep thinking AI, you may use extremely long chains of thought to deeply consider the problem and deliberate with yourself via systematic reasoning processes to help come to a correct solution prior to answering. You should enclose your thoughts and internal monologue inside <think> </think> tags, and then provide your solution or response to the problem. \n",
 	"You are Cline, ",
