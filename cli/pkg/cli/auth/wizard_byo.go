@@ -822,10 +822,12 @@ func (pw *ProviderWizard) fetchSapAiCoreModels() ([]string, map[string]interface
 		return nil, nil, err
 	}
 
-	// Convert deployments to model IDs for the generic selection interface
+	// Convert deployments to clean model names for the generic selection interface
+	// We use the clean ModelName directly so no special handling is needed in generic code
 	modelIDs := make([]string, len(deployments))
 	for i, deployment := range deployments {
-		modelIDs[i] = deployment.DisplayName // Use display name for better UX
+		// Use the clean model name directly - this is what should be saved
+		modelIDs[i] = deployment.ModelName
 	}
 
 	return modelIDs, nil, nil
