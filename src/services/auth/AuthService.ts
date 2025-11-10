@@ -3,6 +3,7 @@ import { type EmptyRequest, String } from "@shared/proto/cline/common"
 import { ClineEnv } from "@/config"
 import { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { setWelcomeViewCompleted } from "@/core/controller/state/setWelcomeViewCompleted"
 import { HostProvider } from "@/hosts/host-provider"
 import { telemetryService } from "@/services/telemetry"
 import { openExternal } from "@/utils/env"
@@ -229,8 +230,9 @@ export class AuthService {
 		})
 	}
 
-	async createAuthRequest(): Promise<String> {
-		if (this._authenticated) {
+	async createAuthRequest(strict = false): Promise<String> {
+		// In strict mode, we do not open a new auth window if already authenticated
+		if (strict && this._authenticated) {
 			this.sendAuthStatusUpdate()
 			return String.create({ value: "Already authenticated" })
 		}
@@ -279,11 +281,13 @@ export class AuthService {
 			this._authenticated = this._clineAuthInfo?.idToken !== undefined
 
 			telemetryService.captureAuthSucceeded(this._provider.name)
-			await this.sendAuthStatusUpdate()
+			await setWelcomeViewCompleted(this._controller, { value: true })
 		} catch (error) {
 			console.error("Error signing in with custom token:", error)
 			telemetryService.captureAuthFailed(this._provider.name)
 			throw error
+		} finally {
+			await this.sendAuthStatusUpdate()
 		}
 	}
 

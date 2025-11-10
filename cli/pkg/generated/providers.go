@@ -443,7 +443,16 @@ var rawConfigFields = `	[
 	    "required": false,
 	    "fieldType": "string",
 	    "placeholder": ""
-	  }
+	  },
+	  {
+	    "name": "hicapApiKey",
+	    "type": "string",
+	    "comment": "",
+	    "category": "general",
+	    "required": true,
+	    "fieldType": "password",
+	    "placeholder": "Enter your API key"
+	  },
 	]`
 
 // Raw model definitions data (parsed from TypeScript)

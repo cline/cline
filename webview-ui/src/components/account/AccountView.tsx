@@ -346,7 +346,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 											))}
 										</VSCodeDropdown>
 									</TooltipTrigger>
-									<TooltipContent hidden={isLockedByRemoteConfig}>
+									<TooltipContent hidden={!isLockedByRemoteConfig}>
 										This cannot be changed while your organization has remote configuration enabled.
 									</TooltipContent>
 								</Tooltip>

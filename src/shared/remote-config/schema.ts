@@ -73,17 +73,51 @@ export const ClineSettingsSchema = z.object({
 	models: z.array(ClineModelSchema).optional(),
 })
 
+// Vertex Provider model schema with per-model settings
+export const VertexModelSchema = z.object({
+	id: z.string(), // The model ID is required
+	thinkingBudgetTokens: z.number().optional(),
+})
+
+// GCP Vertex Provider specific settings
+export const VertexSettingsSchema = z.object({
+	// A list of the allowed models with their settings
+	models: z.array(VertexModelSchema).optional(),
+	vertexProjectId: z.string().optional(),
+	vertexRegion: z.string().optional(),
+})
+
+export const LiteLLMModelSchema = z.object({
+	id: z.string(),
+	thinkingBudgetTokens: z.number().optional(),
+	promptCachingEnabled: z.boolean().optional(),
+})
+
+export const LiteLLMSchema = z.object({
+	models: z.array(LiteLLMModelSchema).optional(),
+	baseUrl: z.string().optional(),
+})
+
 // Provider settings schema
 // Each provider becomes an optional field
 const ProviderSettingsSchema = z.object({
 	OpenAiCompatible: OpenAiCompatibleSchema.optional(),
 	AwsBedrock: AwsBedrockSettingsSchema.optional(),
 	Cline: ClineSettingsSchema.optional(),
+	Vertex: VertexSettingsSchema.optional(),
+	LiteLLM: LiteLLMSchema.optional(),
 })
 
 export const AllowedMCPServerSchema = z.object({
 	// The ID of the MCP is the URL for their github repo.
 	id: z.string(),
+})
+
+export const RemoteMCPServerSchema = z.object({
+	// The name of the MCP server
+	name: z.string(),
+	// The URL of the MCP server
+	url: z.string(),
 })
 
 // Settings for a global cline rules or workflow file.
@@ -110,6 +144,7 @@ export const RemoteConfigSchema = z.object({
 	// MCP settings
 	mcpMarketplaceEnabled: z.boolean().optional(),
 	allowedMCPServers: z.array(AllowedMCPServerSchema).optional(),
+	remoteMCPServers: z.array(RemoteMCPServerSchema).optional(),
 
 	// If the user is allowed to enable YOLO mode. Note this is different from the extension setting
 	// yoloModeEnabled, because we do not want to force YOLO enabled for the user.
@@ -138,12 +173,22 @@ export const RemoteConfigSchema = z.object({
 })
 
 // Type inference from schemas
+export type RemoteConfig = z.infer<typeof RemoteConfigSchema>
 export type MCPServer = z.infer<typeof AllowedMCPServerSchema>
-export type OpenAiCompatibleModel = z.infer<typeof OpenAiCompatibleModelSchema>
+export type RemoteMCPServer = z.infer<typeof RemoteMCPServerSchema>
+export type GlobalInstructionsFile = z.infer<typeof GlobalInstructionsFileSchema>
+
+export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
+
 export type OpenAiCompatible = z.infer<typeof OpenAiCompatibleSchema>
+export type OpenAiCompatibleModel = z.infer<typeof OpenAiCompatibleModelSchema>
+
+export type AwsBedrockSettings = z.infer<typeof AwsBedrockSettingsSchema>
 export type AwsBedrockModel = z.infer<typeof AwsBedrockModelSchema>
 export type AwsBedrockCustomModel = z.infer<typeof AwsBedrockCustomModelSchema>
-export type AwsBedrockSettings = z.infer<typeof AwsBedrockSettingsSchema>
-export type ProviderSettings = z.infer<typeof ProviderSettingsSchema>
-export type RemoteConfig = z.infer<typeof RemoteConfigSchema>
-export type GlobalInstructionsFile = z.infer<typeof GlobalInstructionsFileSchema>
+
+export type VertexSettings = z.infer<typeof VertexSettingsSchema>
+export type VertexModel = z.infer<typeof VertexModelSchema>
+
+export type LiteLLMSettings = z.infer<typeof LiteLLMSchema>
+export type LiteLLMModel = z.infer<typeof LiteLLMModelSchema>
