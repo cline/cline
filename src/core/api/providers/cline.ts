@@ -165,8 +165,7 @@ export class ClineHandler implements ApiHandler {
 				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 					yield {
 						type: "reasoning",
-						// @ts-ignore-next-line
-						reasoning: delta.reasoning,
+						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
 					}
 				}
 

@@ -66,7 +66,6 @@ export class MinimaxHandler implements ApiHandler {
 			tool_choice: nativeToolsOn ? { type: "any" } : undefined,
 		})
 
-		let thinkingDeltaAccumulator = ""
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 
 		for await (const chunk of stream) {
@@ -148,7 +147,6 @@ export class MinimaxHandler implements ApiHandler {
 								type: "reasoning",
 								reasoning: chunk.delta.thinking,
 							}
-							thinkingDeltaAccumulator += chunk.delta.thinking
 							break
 						case "signature_delta":
 							// It's used when sending the thinking block back to the API
