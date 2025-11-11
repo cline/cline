@@ -90,6 +90,10 @@ export class FeatureFlagsService {
 		return this.getBooleanFlagEnabled(FeatureFlag.NATIVE_TOOL_CALLS_NEXT_GEN_MODELS)
 	}
 
+	public getOnboardingEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.ONBOARDING)
+	}
+
 	/**
 	 * Get the feature flag payload for advanced use cases
 	 * @param flagName The feature flag key

@@ -89,6 +89,7 @@ message Secrets {
   optional string oca_api_key = 37;
   optional string oca_refresh_token = 38;
   optional string hicap_api_key = 39;
+  optional string mcp_oauth_secrets = 40;
 }
 
 message Settings {
@@ -360,6 +361,7 @@ message UpdateSettingsRequest {
   optional int32 subagent_terminal_output_line_limit = 30;
   optional string cline_env = 31;
   optional bool native_tool_call_enabled = 32;
+  optional bool show_onboarding_flow = 33;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

@@ -54,6 +54,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		minimaxApiKey,
 		hicapApiKey,
 		aihubmixApiKey,
+		mcpOAuthSecrets,
 		nousResearchApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
@@ -97,6 +98,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("minimaxApiKey") as Promise<Secrets["minimaxApiKey"]>,
 		context.secrets.get("hicapApiKey") as Promise<Secrets["hicapApiKey"]>,
 		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
+		context.secrets.get("mcpOAuthSecrets") as Promise<Secrets["mcpOAuthSecrets"]>,
 		context.secrets.get("nousResearchApiKey") as Promise<Secrets["nousResearchApiKey"]>,
 	])
 
@@ -142,6 +144,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		minimaxApiKey,
 		hicapApiKey,
 		aihubmixApiKey,
+		mcpOAuthSecrets,
 		nousResearchApiKey,
 	}
 }
@@ -640,7 +643,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			enableCheckpointsSetting: enableCheckpointsSettingRaw ?? true,
 			shellIntegrationTimeout: shellIntegrationTimeout || 4000,
 			terminalReuseEnabled: terminalReuseEnabled ?? true,
-			vscodeTerminalExecutionMode: vscodeTerminalExecutionMode ?? "backgroundExec",
+			vscodeTerminalExecutionMode: vscodeTerminalExecutionMode ?? "vscodeTerminal",
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			maxConsecutiveMistakes: maxConsecutiveMistakes ?? 3,
 			subagentTerminalOutputLineLimit: subagentTerminalOutputLineLimit ?? 2000,
@@ -735,6 +738,7 @@ export async function resetGlobalState(controller: Controller) {
 		"minimaxApiKey",
 		"hicapApiKey",
 		"aihubmixApiKey",
+		"mcpOAuthSecrets",
 		"nousResearchApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
