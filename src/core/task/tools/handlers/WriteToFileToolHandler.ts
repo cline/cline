@@ -168,24 +168,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			} satisfies ClineSayTool)
 
 			if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relPath)) {
-				// Auto-approval flow
-				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
-				const sayTs = await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-				// When completing a partial message, say() returns undefined but updates the existing message
-				// In that case, get the timestamp from the last message
-				config.taskState.currentToolAskMessageTs = sayTs ?? config.messageState.getClineMessages().at(-1)?.ts
-
-				// Capture telemetry
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					modelId,
-					providerId,
-					true,
-					true,
-					workspaceContext,
-					block.isNativeToolCall,
-				)
+				// Auto-approval flow - Standard pattern for approved tools:
+				// 1. Clean up partial messages and send the complete tool message
+				// 2. Record telemetry for the auto-approved tool execution
+				await ToolResultUtils.cleanupAndSendToolMessage(config, "tool", completeMessage)
+				ToolResultUtils.captureAutoApprovedTool(config, block, workspaceContext)
 
 				// we need an artificial delay to let the diagnostics catch up to the changes
 				await setTimeoutPromise(3_500)

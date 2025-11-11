@@ -1,7 +1,7 @@
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import sinon from "sinon"
-import { createMockTask, createMockToolUse } from "./test-utils"
+import { createMockTask } from "./test-utils"
 
 describe("Hooks integration", () => {
 	let sandbox: sinon.SinonSandbox
@@ -39,11 +39,6 @@ describe("Hooks integration", () => {
 		// 2. PreToolUse hook runs
 		// 3. Tool executes
 		// 4. PostToolUse hook would run (not in scope for this PR)
-
-		const block = createMockToolUse("write_to_file", {
-			path: "test.txt",
-			content: "Hello World",
-		})
 
 		// Step 1: User approves (simulated)
 		executionLog.push("Approval")

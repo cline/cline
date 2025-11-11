@@ -50,21 +50,24 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 		hooksEnabled,
 	} = options
 
-	// Early return if hooks are disabled
+	// Early exit if hooks are disabled or hook doesn't exist
 	if (!hooksEnabled) {
-		return {
-			wasCancelled: false,
-		}
+		return { wasCancelled: false }
 	}
 
-	// Check if the hook exists
 	const hookFactory = new HookFactory()
 	const hasHook = await hookFactory.hasHook(hookName)
 
 	if (!hasHook) {
-		return {
-			wasCancelled: false,
-		}
+		return { wasCancelled: false }
+	}
+
+	// Initialize result with default values
+	const result: HookExecutionResult = {
+		cancel: false,
+		contextModification: undefined,
+		errorMessage: undefined,
+		wasCancelled: false,
 	}
 
 	let hookMessageTs: number | undefined
@@ -109,16 +112,20 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 			isCancellable ? abortController.signal : undefined,
 		)
 
-		const result = await hook.run({
+		const hookResult = await hook.run({
 			taskId,
 			...hookInput,
 		})
 
-		console.log(`[${hookName} Hook]`, result)
+		console.log(`[${hookName} Hook]`, hookResult)
 
-		// Check if hook wants to cancel
-		if (result.cancel === true) {
-			// Update hook status to cancelled
+		// Build up result based on hook execution outcome
+		result.cancel = hookResult.cancel ?? false
+		result.contextModification = hookResult.contextModification
+		result.errorMessage = hookResult.errorMessage
+
+		// Handle hook cancellation
+		if (hookResult.cancel === true) {
 			if (hookMessageTs !== undefined) {
 				await updateHookMessage(messageStateHandler, hookMessageTs, {
 					hookName,
@@ -128,36 +135,22 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 					hasJsonResponse: true,
 				})
 			}
-
-			return {
-				cancel: true,
-				contextModification: result.contextModification,
-				errorMessage: result.errorMessage,
-				wasCancelled: false,
+		} else {
+			// Clear active hook execution after successful completion (only if cancellable)
+			if (isCancellable && clearActiveHookExecution) {
+				await clearActiveHookExecution()
 			}
-		}
 
-		// Clear active hook execution after successful completion (only if cancellable)
-		if (isCancellable && clearActiveHookExecution) {
-			await clearActiveHookExecution()
-		}
-
-		// Update hook status to completed (only if not cancelled)
-		if (hookMessageTs !== undefined) {
-			await updateHookMessage(messageStateHandler, hookMessageTs, {
-				hookName,
-				...(options.toolName && { toolName: options.toolName }),
-				status: "completed",
-				exitCode: 0,
-				hasJsonResponse: true,
-			})
-		}
-
-		return {
-			cancel: result.cancel,
-			contextModification: result.contextModification,
-			errorMessage: result.errorMessage,
-			wasCancelled: false,
+			// Update hook status to completed
+			if (hookMessageTs !== undefined) {
+				await updateHookMessage(messageStateHandler, hookMessageTs, {
+					hookName,
+					...(options.toolName && { toolName: options.toolName }),
+					status: "completed",
+					exitCode: 0,
+					hasJsonResponse: true,
+				})
+			}
 		}
 	} catch (hookError) {
 		// Clear active hook execution (only if cancellable)
@@ -167,7 +160,6 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 
 		// Check if this was a user cancellation via abort controller
 		if (abortController.signal.aborted) {
-			// Update hook status to cancelled
 			if (hookMessageTs !== undefined) {
 				await updateHookMessage(messageStateHandler, hookMessageTs, {
 					hookName,
@@ -176,44 +168,51 @@ export async function executeHook<Name extends keyof Hooks>(options: HookExecuti
 				})
 			}
 
-			return {
-				cancel: true,
-				wasCancelled: true,
+			result.cancel = true
+			result.wasCancelled = true
+		} else {
+			// Update hook status to failed for actual errors
+			const isStructuredError = HookExecutionError.isHookError(hookError)
+			const errorInfo = isStructuredError ? hookError.errorInfo : null
+
+			// Assign error message to result for downstream consumers
+			if (errorInfo) {
+				// Use structured error message with details
+				const messageParts = [errorInfo.message]
+				if (errorInfo.details) {
+					messageParts.push(errorInfo.details)
+				}
+				result.errorMessage = messageParts.join("\n")
+			} else if (hookError instanceof Error) {
+				// Use standard Error message
+				result.errorMessage = hookError.message
+			} else {
+				// Fallback for unknown error types
+				result.errorMessage = String(hookError)
 			}
-		}
 
-		// Update hook status to failed for actual errors
-		// Extract structured error info if available
-		const isStructuredError = HookExecutionError.isHookError(hookError)
-		const errorInfo = isStructuredError ? hookError.errorInfo : null
+			if (hookMessageTs !== undefined) {
+				await updateHookMessage(messageStateHandler, hookMessageTs, {
+					hookName,
+					status: "failed",
+					exitCode: errorInfo?.exitCode ?? 1,
+					...(errorInfo && {
+						error: {
+							type: errorInfo.type,
+							message: errorInfo.message,
+							details: errorInfo.details,
+							scriptPath: errorInfo.scriptPath,
+						},
+					}),
+				})
+			}
 
-		if (hookMessageTs !== undefined) {
-			await updateHookMessage(messageStateHandler, hookMessageTs, {
-				hookName,
-				status: "failed",
-				exitCode: errorInfo?.exitCode ?? 1,
-				...(errorInfo && {
-					error: {
-						type: errorInfo.type,
-						message: errorInfo.message,
-						details: errorInfo.details,
-						scriptPath: errorInfo.scriptPath,
-					},
-				}),
-			})
-		}
-
-		// Log error for non-cancellable hooks or unexpected errors
-		console.error(`${hookName} hook failed:`, hookError)
-
-		// Return safe defaults for all fields to avoid undefined property access
-		return {
-			cancel: false,
-			contextModification: undefined,
-			errorMessage: undefined,
-			wasCancelled: false,
+			// Log error for non-cancellable hooks or unexpected errors
+			console.error(`${hookName} hook failed:`, hookError)
 		}
 	}
+
+	return result
 }
 
 /**

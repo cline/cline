@@ -2,9 +2,11 @@ import { ApiHandler } from "@core/api"
 import { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { ToolResponse } from "@core/task"
-import { processFilesIntoText } from "@/integrations/misc/extract-text"
-import { Logger } from "@/services/logging/Logger"
-import { ClineAsk } from "@/shared/ExtensionMessage"
+import { processFilesIntoText } from "@integrations/misc/extract-text"
+import { Logger } from "@services/logging/Logger"
+import { telemetryService } from "@services/telemetry"
+import { ClineAsk } from "@shared/ExtensionMessage"
+import { showNotificationForApproval } from "../../utils"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { TaskConfig } from "../types/TaskConfig"
 
@@ -145,5 +147,148 @@ export class ToolResultUtils {
 			// User hit the approve button, and may have provided feedback
 			return { didApprove: true, askTs }
 		}
+	}
+
+	/**
+	 * Shows a notification for tool approval (respecting user settings)
+	 */
+	static showToolNotification(notificationMessage: string, enableNotifications: boolean): void {
+		showNotificationForApproval(notificationMessage, enableNotifications)
+	}
+
+	/**
+	 * Asks for tool approval and handles user feedback
+	 * Returns approval status and ask timestamp
+	 */
+	static async askToolApproval(
+		config: TaskConfig,
+		askType: ClineAsk,
+		completeMessage: string,
+	): Promise<{ didApprove: boolean; askTs?: number }> {
+		const { didApprove, askTs } = await ToolResultUtils.askApprovalAndPushFeedback(askType, completeMessage, config)
+		config.taskState.currentToolAskMessageTs = askTs
+		return { didApprove, askTs }
+	}
+
+	/**
+	 * Sends a tool approval message and updates the timestamp
+	 */
+	static async sendToolMessage(config: TaskConfig, sayType: "tool" | "use_mcp_server", completeMessage: string): Promise<void> {
+		const sayTs = await config.callbacks.say(sayType, completeMessage, undefined, undefined, false)
+		// When completing a partial message, say() returns undefined but updates the existing message
+		config.taskState.currentToolAskMessageTs = sayTs ?? config.messageState.getClineMessages().at(-1)?.ts
+	}
+
+	/**
+	 * Captures telemetry for an auto-approved tool execution
+	 */
+	static captureAutoApprovedTool(config: TaskConfig, block: ToolUse, workspaceContext?: any): void {
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
+		telemetryService.captureToolUsage(
+			config.ulid,
+			block.name,
+			config.api.getModel().id,
+			provider,
+			true, // autoApproved
+			true, // approved
+			workspaceContext,
+			block.isNativeToolCall,
+		)
+	}
+
+	/**
+	 * Captures telemetry for a manually approved tool execution
+	 */
+	static captureApprovedTool(config: TaskConfig, block: ToolUse, workspaceContext?: any): void {
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
+		telemetryService.captureToolUsage(
+			config.ulid,
+			block.name,
+			config.api.getModel().id,
+			provider,
+			false, // autoApproved
+			true, // approved
+			workspaceContext,
+			block.isNativeToolCall,
+		)
+	}
+
+	/**
+	 * Captures telemetry for a denied tool execution
+	 */
+	static captureDeniedTool(config: TaskConfig, block: ToolUse, workspaceContext?: any): void {
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
+		telemetryService.captureToolUsage(
+			config.ulid,
+			block.name,
+			config.api.getModel().id,
+			provider,
+			false, // autoApproved
+			false, // approved
+			workspaceContext,
+			block.isNativeToolCall,
+		)
+	}
+
+	/**
+	 * Helper for the common sub-pattern of cleaning up partial messages and sending the complete message
+	 * Used in auto-approval flows where we convert "ask" messages to "say" messages
+	 */
+	static async cleanupAndSendToolMessage(
+		config: TaskConfig,
+		messageType: "tool" | "use_mcp_server",
+		completeMessage: string,
+	): Promise<void> {
+		await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", messageType)
+		await ToolResultUtils.sendToolMessage(config, messageType, completeMessage)
+	}
+
+	/**
+	 * Helper for the common sub-pattern of handling approval results with telemetry
+	 * Returns the appropriate response if denied, or undefined if approved (to continue execution)
+	 */
+	static handleApprovalResult(
+		didApprove: boolean,
+		config: TaskConfig,
+		block: ToolUse,
+		workspaceContext?: any,
+	): ToolResponse | undefined {
+		if (!didApprove) {
+			ToolResultUtils.captureDeniedTool(config, block, workspaceContext)
+			return formatResponse.toolDenied()
+		}
+		ToolResultUtils.captureApprovedTool(config, block, workspaceContext)
+		return undefined
+	}
+
+	/**
+	 * Executes manual approval flow for MCP operations (both tools and resources).
+	 * Handles notification, cleanup, approval, and telemetry for MCP server interactions.
+	 *
+	 * @param config Task configuration
+	 * @param block The tool use block being executed
+	 * @param notificationMessage The full notification message to display to the user
+	 * @param completeMessage The complete message to send for approval
+	 * @returns ToolResponse if denied (to return early), or undefined if approved (to continue execution)
+	 */
+	static async executeManualApprovalForMcpOperation(
+		config: TaskConfig,
+		block: ToolUse,
+		notificationMessage: string,
+		completeMessage: string,
+	): Promise<ToolResponse | undefined> {
+		ToolResultUtils.showToolNotification(notificationMessage, config.autoApprovalSettings.enableNotifications)
+		await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
+		const { didApprove } = await ToolResultUtils.askToolApproval(config, "use_mcp_server", completeMessage)
+		return ToolResultUtils.handleApprovalResult(didApprove, config, block)
 	}
 }

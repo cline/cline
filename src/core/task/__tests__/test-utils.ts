@@ -7,6 +7,139 @@ import { TaskState } from "../TaskState"
 import { ToolExecutor } from "../ToolExecutor"
 
 /**
+ * Creates a set of message handling functions that share state context
+ * This reduces parameter passing and keeps related functionality together
+ */
+function createMessageHandlers(taskState: TaskState, messageStateHandler: any) {
+	const isUpdatingPartialMessage = (type: any): boolean => {
+		const lastMessage = messageStateHandler.getClineMessages().at(-1)
+		return Boolean(lastMessage?.partial && lastMessage?.type === "say" && lastMessage?.say === type)
+	}
+
+	const updatePartialMessage = (text?: string, images?: string[], files?: string[]): void => {
+		const lastMessage = messageStateHandler.getClineMessages().at(-1)
+		lastMessage.text = text
+		lastMessage.images = images
+		lastMessage.files = files
+		lastMessage.partial = false
+	}
+
+	const createNewMessage = async (
+		type: any,
+		text?: string,
+		images?: string[],
+		files?: string[],
+		partial?: boolean,
+	): Promise<number> => {
+		const sayTs = Date.now()
+		taskState.lastMessageTs = sayTs
+		await messageStateHandler.addToClineMessages({
+			ts: sayTs,
+			type: "say",
+			say: type,
+			text,
+			images,
+			files,
+			...(partial && { partial }),
+		})
+		return sayTs
+	}
+
+	const completePartialMessage = async (text?: string, images?: string[], files?: string[]): Promise<number> => {
+		const lastMessage = messageStateHandler.getClineMessages().at(-1)
+		taskState.lastMessageTs = lastMessage.ts
+		updatePartialMessage(text, images, files)
+		await messageStateHandler.saveClineMessagesAndUpdateHistory()
+		return lastMessage.ts
+	}
+
+	return {
+		isUpdatingPartialMessage,
+		createNewMessage,
+		completePartialMessage,
+	}
+}
+
+/**
+ * Creates a mock say method that properly handles partial message logic
+ */
+function createMockSayMethod(taskState: TaskState, messageStateHandler: any) {
+	const handlers = createMessageHandlers(taskState, messageStateHandler)
+
+	return async (
+		type: any,
+		text?: string,
+		images?: string[],
+		files?: string[],
+		partial?: boolean,
+	): Promise<number | undefined> => {
+		// Handle undefined partial flag as a non-partial message
+		if (partial === undefined) {
+			return handlers.createNewMessage(type, text, images, files)
+		}
+
+		const isUpdating = handlers.isUpdatingPartialMessage(type)
+
+		// Handle partial=true: either update existing or create new partial message
+		if (partial) {
+			if (isUpdating) {
+				const lastMessage = messageStateHandler.getClineMessages().at(-1)
+				lastMessage.text = text
+				lastMessage.images = images
+				lastMessage.files = files
+				lastMessage.partial = true
+				return undefined
+			}
+			return handlers.createNewMessage(type, text, images, files, true)
+		}
+
+		// Handle partial=false: either complete existing partial or create new complete message
+		if (isUpdating) {
+			return handlers.completePartialMessage(text, images, files)
+		}
+		return handlers.createNewMessage(type, text, images, files)
+	}
+}
+
+/**
+ * Creates a mock startOrUpdatePartialMessage method for streaming messages
+ */
+function createMockStartOrUpdatePartialMessageMethod(taskState: TaskState, messageStateHandler: any) {
+	const handlers = createMessageHandlers(taskState, messageStateHandler)
+
+	return async (type: any, text?: string, images?: string[], files?: string[]): Promise<number | undefined> => {
+		const lastMessage = messageStateHandler.getClineMessages().at(-1)
+		const isUpdatingPreviousPartial = lastMessage?.partial && lastMessage?.type === "say" && lastMessage?.say === type
+
+		if (isUpdatingPreviousPartial) {
+			lastMessage.text = text
+			lastMessage.images = images
+			lastMessage.files = files
+			lastMessage.partial = true
+			return undefined
+		}
+
+		return handlers.createNewMessage(type, text, images, files, true)
+	}
+}
+
+/**
+ * Creates a mock completePartialMessage method for completing streaming messages
+ */
+function createMockCompletePartialMessageMethod(taskState: TaskState, messageStateHandler: any) {
+	const handlers = createMessageHandlers(taskState, messageStateHandler)
+
+	return async (type: any, text?: string, images?: string[], files?: string[]): Promise<number> => {
+		if (handlers.isUpdatingPartialMessage(type)) {
+			return handlers.completePartialMessage(text, images, files)
+		}
+
+		// No previous partial message to complete, create a new complete message
+		return handlers.createNewMessage(type, text, images, files)
+	}
+}
+
+/**
  * Creates a minimal mock Task instance for testing
  */
 export function createMockTask(options: any = {}): Task {
@@ -62,33 +195,9 @@ export function createMockTask(options: any = {}): Task {
 		getGlobalStateKey: sinon.stub().returns(true),
 	} as any
 
-	const params: any = {
-		controller: mockController,
-		mcpHub: mockController.mcpHub,
-		updateTaskHistory: mockController.updateTaskHistory,
-		postStateToWebview: mockController.postStateToWebview,
-		reinitExistingTaskFromId: mockController.reinitExistingTaskFromId,
-		cancelTask: mockController.cancelTask,
-		shellIntegrationTimeout: 5000,
-		terminalReuseEnabled: true,
-		terminalOutputLineLimit: 500,
-		subagentTerminalOutputLineLimit: 2000,
-		defaultTerminalProfile: "bash",
-		vscodeTerminalExecutionMode: "vscodeTerminal",
-		cwd: "/test/workspace",
-		stateManager: mockStateManager,
-		workspaceManager: undefined,
-		task: "Test task",
-		images: [],
-		files: [],
-		historyItem: undefined,
-		taskId: "test-task-id",
-		taskLockAcquired: false,
-	}
-
 	// Create a partial Task instance for testing
 	const task = Object.create(Task.prototype)
-	task.taskId = params.taskId
+	task.taskId = "test-task-id"
 	task.ulid = "test-ulid"
 	task.taskState = taskState
 	task.messageStateHandler = messageStateHandler
@@ -99,77 +208,10 @@ export function createMockTask(options: any = {}): Task {
 	})
 	task.controller = mockController
 
-	// Add the say method that we're testing
-	task.say = async function (
-		type: any,
-		text?: string,
-		images?: string[],
-		files?: string[],
-		partial?: boolean,
-	): Promise<number | undefined> {
-		if (partial !== undefined) {
-			const lastMessage = messageStateHandler.getClineMessages().at(-1)
-			const isUpdatingPreviousPartial =
-				lastMessage && lastMessage.partial && lastMessage.type === "say" && lastMessage.say === type
-
-			if (partial) {
-				if (isUpdatingPreviousPartial) {
-					lastMessage.text = text
-					lastMessage.images = images
-					lastMessage.files = files
-					lastMessage.partial = partial
-					return undefined
-				} else {
-					const sayTs = Date.now()
-					this.taskState.lastMessageTs = sayTs
-					await messageStateHandler.addToClineMessages({
-						ts: sayTs,
-						type: "say",
-						say: type,
-						text,
-						images,
-						files,
-						partial,
-					})
-					return sayTs
-				}
-			} else {
-				if (isUpdatingPreviousPartial) {
-					this.taskState.lastMessageTs = lastMessage.ts
-					lastMessage.text = text
-					lastMessage.images = images
-					lastMessage.files = files
-					lastMessage.partial = false
-					await messageStateHandler.saveClineMessagesAndUpdateHistory()
-					return lastMessage.ts // Return the timestamp
-				} else {
-					const sayTs = Date.now()
-					this.taskState.lastMessageTs = sayTs
-					await messageStateHandler.addToClineMessages({
-						ts: sayTs,
-						type: "say",
-						say: type,
-						text,
-						images,
-						files,
-					})
-					return sayTs
-				}
-			}
-		} else {
-			const sayTs = Date.now()
-			this.taskState.lastMessageTs = sayTs
-			await messageStateHandler.addToClineMessages({
-				ts: sayTs,
-				type: "say",
-				say: type,
-				text,
-				images,
-				files,
-			})
-			return sayTs
-		}
-	}
+	// Attach mock methods using extracted helper functions
+	task.say = createMockSayMethod(taskState, messageStateHandler)
+	task.startOrUpdatePartialMessage = createMockStartOrUpdatePartialMessageMethod(taskState, messageStateHandler)
+	task.completePartialMessage = createMockCompletePartialMessageMethod(taskState, messageStateHandler)
 
 	return task
 }
