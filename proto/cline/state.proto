@@ -89,6 +89,7 @@ message Secrets {
   optional string oca_api_key = 37;
   optional string oca_refresh_token = 38;
   optional string hicap_api_key = 39;
+  optional string mcp_oauth_secrets = 40;
 }
 
 message Settings {

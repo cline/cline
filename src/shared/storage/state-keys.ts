@@ -256,6 +256,7 @@ export interface Secrets {
 	minimaxApiKey: string | undefined
 	hicapApiKey: string | undefined
 	aihubmixApiKey: string | undefined
+	mcpOAuthSecrets: string | undefined
 	nousResearchApiKey: string | undefined
 }
 
