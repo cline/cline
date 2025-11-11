@@ -1,9 +1,11 @@
 import React from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { updateSetting } from "./utils/settingsHandlers"
 
 const SubagentOutputLineLimitSlider: React.FC = () => {
 	const { subagentTerminalOutputLineLimit } = useExtensionState()
+	const { t } = useTranslation("common")
 
 	const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 		const value = parseInt(event.target.value, 10)
@@ -13,7 +15,7 @@ const SubagentOutputLineLimitSlider: React.FC = () => {
 	return (
 		<div>
 			<label htmlFor="subagent-output-limit" style={{ fontWeight: "700", fontSize: 12, display: "block", marginBottom: 5 }}>
-				Subagent output limit
+				{t("settings.terminal.subagent_output_limit")}
 			</label>
 			<div style={{ display: "flex", alignItems: "center" }}>
 				<input
@@ -29,7 +31,7 @@ const SubagentOutputLineLimitSlider: React.FC = () => {
 				<span>{subagentTerminalOutputLineLimit ?? 2000}</span>
 			</div>
 			<p style={{ fontSize: 11, color: "var(--vscode-descriptionForeground)", margin: "5px 0 0 0" }}>
-				Maximum number of lines to include in output from CLI subagents. Truncates middle to save tokens.
+				{t("settings.terminal.subagent_output_limit_description")}
 			</p>
 		</div>
 	)

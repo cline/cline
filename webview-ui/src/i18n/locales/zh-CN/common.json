@@ -378,7 +378,7 @@
 			"cline": "Cline",
 			"openrouter": "OpenRouter",
 			"gemini": "Google Gemini",
-			"openai_compatible": "OpenAI 兼容",
+			"openai_compatible": "OpenAI Compatible",
 			"anthropic": "Anthropic",
 			"bedrock": "Amazon Bedrock",
 			"vscode_lm": "VS Code LM API",
@@ -398,9 +398,9 @@
 			"requesty": "Requesty",
 			"fireworks": "Fireworks AI",
 			"together": "Together",
-			"qwen": "阿里云千问",
+			"qwen": "Alibaba Qwen",
 			"qwen_code": "Qwen Code",
-			"doubao": "字节跳动豆包",
+			"doubao": "Bytedance Doubao",
 			"lmstudio": "LM Studio",
 			"moonshot": "Moonshot",
 			"huggingface": "Hugging Face",
@@ -408,7 +408,7 @@
 			"asksage": "AskSage",
 			"xai": "xAI",
 			"sambanova": "SambaNova",
-			"huawei_cloud_maas": "华为云 MaaS",
+			"huawei_cloud_maas": "Huawei Cloud MaaS",
 			"dify": "Dify.ai",
 			"oca": "Oracle Code Assist",
 			"minimax": "MiniMax",
@@ -905,14 +905,18 @@
 			"enable_aggressive_terminal_reuse": "启用激进的终端重用",
 			"enable_aggressive_terminal_reuse_description": "启用后，Cline 将重用不在当前工作目录中的现有终端窗口。如果您在终端命令后遇到任务锁定问题，请禁用此功能。",
 			"terminal_execution_mode": "终端执行模式",
-			"terminal_execution_mode_description": "选择 Cline 是在 VS Code 终端还是后台进程中运行命令。",
+			"terminal_execution_mode_description": "后台终端运行命令时不显示终端窗口（推荐使用，以获得更简洁的界面和更好的性能）。交互式终端为每个命令显示 VSCode 终端窗口。",
+			"terminal_execution_mode_interactive": "交互式终端 (VSCode)",
+			"terminal_execution_mode_background": "后台终端 (推荐)",
 			"terminal_issues_help_text": "终端有问题？",
 			"check_our": "查看我们的",
 			"terminal_quick_fixes_link": "终端快速修复",
 			"or_the": "或",
 			"complete_troubleshooting_guide_link": "完整故障排除指南",
 			"terminal_output_limit": "终端输出限制",
-			"terminal_output_limit_description": "执行命令时终端输出中包含的最大行数。超出时，将从中间删除行以节省令牌。"
+			"terminal_output_limit_description": "执行命令时终端输出中包含的最大行数。超出时，将从中间删除行以节省令牌。",
+			"subagent_output_limit": "子代理输出限制",
+			"subagent_output_limit_description": "CLI 子代理输出中包含的最大行数。为节省令牌，将从中间截断。"
 		},
 		"general": {
 			"enable_notifications": "启用通知",
@@ -927,7 +931,10 @@
 			"preferred_language": "首选语言",
 			"preferred_language_description": "Cline 应该用于交流的语言。",
 			"ui_language": "界面语言",
-			"ui_language_description": "选择用户界面的语言。"
+			"ui_language_description": "选择用户界面的语言。",
+			"use_compact_prompt": "使用紧凑提示",
+			"use_compact_prompt_description": "为较小上下文窗口优化的系统提示（例如 8k 或更小）",
+			"use_compact_prompt_warning": "不支持 Mcp 和焦点链"
 		},
 		"about": {
 			"title": "Cline v{{version}}",
@@ -1193,14 +1200,6 @@
 			"error_body": "错误: {{message}}",
 			"unknown_error": "未知错误"
 		},
-		"error_row": {
-			"powershell_issue": "看起来您遇到了 Windows PowerShell 问题，请查看此",
-			"troubleshooting_guide": "故障排除指南",
-			"sign_in_to_cline": "登录 Cline",
-			"click_retry_below": "(点击下方\"重试\")",
-			"diff_error": "模型使用的搜索模式与文件中的任何内容都不匹配。正在重试...",
-			"clineignore_error": "Cline 尝试访问 {{file}}，但被 {{clineignore}} 文件阻止。"
-		},
 		"announcement": {
 			"new_in_version": "v{{version}} 新功能",
 			"hooks_title": "钩子",
@@ -1225,6 +1224,14 @@
 		},
 		"copy_code": "复制代码",
 		"open_file": "在编辑器中打开 {{filePath}}"
+	},
+	"error_row": {
+		"powershell_issue": "看起来您遇到了 Windows PowerShell 问题，请查看此",
+		"troubleshooting_guide": "故障排除指南",
+		"sign_in_to_cline": "登录 Cline",
+		"click_retry_below": "(点击下方\"重试\")",
+		"diff_error": "模型使用的搜索模式与文件中的任何内容都不匹配。正在重试...",
+		"clineignore_error": "Cline 尝试访问 {{file}}，但被 {{clineignore}} 文件阻止。"
 	},
 	"onboarding": {
 		"how_will_you_use_cline": "您将如何使用 Cline？",

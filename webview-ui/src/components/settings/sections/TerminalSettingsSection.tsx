@@ -154,12 +154,15 @@ export const TerminalSettingsSection: React.FC<TerminalSettingsSectionProps> = (
 								id="terminal-execution-mode"
 								onChange={(event) => handleExecutionModeChange(event as Event)}
 								value={vscodeTerminalExecutionMode ?? "backgroundExec"}>
-								<VSCodeOption value="vscodeTerminal">Interactive Terminal (VSCode)</VSCodeOption>
-								<VSCodeOption value="backgroundExec">Background Terminal (Recommended)</VSCodeOption>
+								<VSCodeOption value="vscodeTerminal">
+									{t("settings.terminal.terminal_execution_mode_interactive")}
+								</VSCodeOption>
+								<VSCodeOption value="backgroundExec">
+									{t("settings.terminal.terminal_execution_mode_background")}
+								</VSCodeOption>
 							</VSCodeDropdown>
 							<p className="text-xs text-[var(--vscode-descriptionForeground)] mt-1">
-					            Background terminal runs commands without showing terminal windows (recommended for cleaner UI and
-								better performance). Interactive terminal shows VSCode terminal windows for each command
+								{t("settings.terminal.terminal_execution_mode_description")}
 							</p>
 						</div>
 					)}

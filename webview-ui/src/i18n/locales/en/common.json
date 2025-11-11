@@ -603,8 +603,7 @@
 				"million_tokens": "million tokens",
 				"based_on_input_tokens": "(based on input tokens)",
 				"greater_than": ">",
-				"less_than_or_equal": "<=",
-				"see_more": "See more"
+				"less_than_or_equal": "<="
 			},
 			"thinking_budget": {
 				"enable_thinking": "Enable thinking",
@@ -906,14 +905,18 @@
 			"enable_aggressive_terminal_reuse": "Enable aggressive terminal reuse",
 			"enable_aggressive_terminal_reuse_description": "When enabled, Cline will reuse existing terminal windows that aren't in the current working directory. Disable this if you experience issues with task lockout after a terminal command.",
 			"terminal_execution_mode": "Terminal Execution Mode",
-			"terminal_execution_mode_description": "Choose whether Cline runs commands in the VS Code terminal or a background process.",
+			"terminal_execution_mode_description": "Background terminal runs commands without showing terminal windows (recommended for cleaner UI and better performance). Interactive terminal shows VSCode terminal windows for each command.",
+			"terminal_execution_mode_interactive": "Interactive Terminal (VSCode)",
+			"terminal_execution_mode_background": "Background Terminal (Recommended)",
 			"terminal_issues_help_text": "Having terminal issues?",
 			"check_our": "Check our",
 			"terminal_quick_fixes_link": "Terminal Quick Fixes",
 			"or_the": "or the",
 			"complete_troubleshooting_guide_link": "Complete Troubleshooting Guide",
 			"terminal_output_limit": "Terminal output limit",
-			"terminal_output_limit_description": "Maximum number of lines to include in terminal output when executing commands. When exceeded, lines will be removed from the middle, saving tokens."
+			"terminal_output_limit_description": "Maximum number of lines to include in terminal output when executing commands. When exceeded, lines will be removed from the middle, saving tokens.",
+			"subagent_output_limit": "Subagent output limit",
+			"subagent_output_limit_description": "Maximum number of lines to include in output from CLI subagents. Truncates middle to save tokens."
 		},
 		"general": {
 			"enable_notifications": "Enable notifications",
@@ -928,7 +931,10 @@
 			"preferred_language": "Preferred Language",
 			"preferred_language_description": "The language that Cline should use for communication.",
 			"ui_language": "Interface Language",
-			"ui_language_description": "Select the language for the user interface."
+			"ui_language_description": "Select the language for the user interface.",
+			"use_compact_prompt": "Use compact prompt",
+			"use_compact_prompt_description": "A system prompt optimized for smaller context window (e.g. 8k or less).",
+			"use_compact_prompt_warning": "Does not support Mcp and Focus Chain"
 		},
 		"about": {
 			"title": "Cline v{{version}}",
