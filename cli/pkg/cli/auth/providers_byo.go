@@ -26,6 +26,7 @@ func GetBYOProviderList() []BYOProviderOption {
 		{Name: "Google Gemini", Provider: cline.ApiProvider_GEMINI},
 		{Name: "Ollama", Provider: cline.ApiProvider_OLLAMA},
 		{Name: "Cerebras", Provider: cline.ApiProvider_CEREBRAS},
+		{Name: "NousResearch", Provider: cline.ApiProvider_NOUSRESEARCH},
 		{Name: "Oracle Code Assist", Provider: cline.ApiProvider_OCA},
 	}
 }
@@ -100,6 +101,8 @@ func GetBYOProviderPlaceholder(provider cline.ApiProvider) string {
 		return "e.g., qwen3-coder:30b"
 	case cline.ApiProvider_CEREBRAS:
 		return "e.g., gpt-oss-120b"
+	case cline.ApiProvider_NOUSRESEARCH:
+		return "e.g., Hermes-4-405B"
 	case cline.ApiProvider_OCA:
 		return "e.g., oca/llama4"
 	default:
