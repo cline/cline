@@ -321,7 +321,7 @@ func (pw *ProviderWizard) fetchModelsForProvider(provider cline.ApiProvider, api
 		return ConvertModelsMapToSlice(interfaceMap), interfaceMap, nil
 
 	case cline.ApiProvider_HICAP:
-		models, err := FetchHicapModels(pw.ctx, pw.manager)
+		models, err := FetchHicapModels(pw.ctx, pw.manager, apiKey)
 		if err != nil {
 			return nil, nil, err
 		}
