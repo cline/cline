@@ -94,7 +94,6 @@ export class MessageStateHandler {
 					)
 				]
 			const lastModelInfo = [...this.apiConversationHistory].reverse().find((msg) => msg.modelInfo !== undefined)
-			console.log(lastModelInfo, "lastModelInfo")
 			const taskDir = await ensureTaskDirectoryExists(this.taskId)
 			let taskDirSize = 0
 			try {
