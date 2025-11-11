@@ -81,19 +81,33 @@ _Example of MCP Server config in Cline (STDIO Transport)_
 
 ---
 
+## MCP Configuration Options
+
+- **type**: Transport type (`stdio`, `sse`, or `streamableHttp`).
+- **url**: Server endpoint URL (required for `sse` and `streamableHttp`)
+- **command**: Executable command (required for `stdio`)
+- **args**: Command arguments (optional for `stdio`)
+- **env**: Environment variables (optional for `stdio`)
+- **headers**: HTTP headers for authentication (optional for remote transports)
+- **alwaysAllow**: Array of tool names to auto-approve (optional)
+- **disabled**: Whether the server is disabled (optional, defaults to false)
+- **timeout**: Request timeout in seconds (optional, defaults to 60)
+
+---
+
 ## Understanding Transport Types
 
-MCP supports two transport types for server communication:
+MCP supports three transport types for server communication:
 
 ### STDIO Transport
 
 Used for local servers running on your machine:
 
--   Communicates via standard input/output streams
--   Lower latency (no network overhead)
--   Better security (no network exposure)
--   Simpler setup (no HTTP server needed)
--   Runs as a child process on your machine
+- Communicates via standard input/output streams
+- Lower latency (no network overhead)
+- Better security (no network exposure)
+- Simpler setup (no HTTP server needed)
+- Runs as a child process on your machine
 
 For more in-depth information about how STDIO transport works, see [MCP Transport Mechanisms](/mcp/mcp-transport-mechanisms).
 
@@ -119,11 +133,11 @@ STDIO configuration example:
 
 Used for remote servers accessed over HTTP/HTTPS:
 
--   Communicates via Server-Sent Events protocol
--   Can be hosted on a different machine
--   Supports multiple client connections
--   Requires network access
--   Allows centralized deployment and management
+- Communicates via Server-Sent Events protocol
+- Can be hosted on a different machine
+- Supports multiple client connections
+- Requires network access
+- Allows centralized deployment and management
 
 For more in-depth information about how SSE transport works, see [MCP Transport Mechanisms](/mcp/mcp-transport-mechanisms).
 
@@ -139,6 +153,37 @@ SSE configuration example:
 			},
 			"alwaysAllow": ["tool3"],
 			"disabled": false
+		}
+	}
+}
+```
+
+### Streamable HTTP Transport
+
+Used for remote servers that require flexible HTTP communication with optional streaming:
+
+- Combines HTTP requests with optional Server-Sent Events streaming
+- Supports both direct JSON responses and SSE streaming
+- Provides session management and connection resumption
+- Includes built-in security options
+- Can handle server-initiated notifications and requests
+
+For more in-depth information about how Streamable HTTP transport works, see [MCP Transport Mechanisms](/mcp/mcp-transport-mechanisms).
+
+Streamable HTTP configuration example:
+
+```json
+{
+	"mcpServers": {
+		"streamable-server": {
+			"type": "streamableHttp",
+			"url": "https://your-server-url.com/mcp",
+			"headers": {
+				"Authorization": "Bearer your-token"
+			},
+			"alwaysAllow": ["tool4", "tool5"],
+			"disabled": false,
+			"timeout": 60
 		}
 	}
 }
@@ -160,7 +205,7 @@ Example: "Analyze the performance of my API" might use an MCP tool that tests AP
 
 Common issues and solutions:
 
--   **Server Not Responding:** Check if the server process is running and verify network connectivity
--   **Permission Errors:** Ensure proper API keys and credentials are configured in your `mcp_settings.json` file
--   **Tool Not Available:** Confirm the server is properly implementing the tool and it's not disabled in settings
--   **Slow Performance:** Try adjusting the network timeout value for the specific MCP server
+- **Server Not Responding:** Check if the server process is running and verify network connectivity
+- **Permission Errors:** Ensure proper API keys and credentials are configured in your `mcp_settings.json` file
+- **Tool Not Available:** Confirm the server is properly implementing the tool and it's not disabled in settings
+- **Slow Performance:** Try adjusting the network timeout value for the specific MCP server
