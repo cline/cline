@@ -288,7 +288,7 @@ func setAPIKeyField(apiConfig *cline.ModelsApiConfiguration, fieldName string, v
 	case "hicapApiKey":
 		apiConfig.HicapApiKey = value
 	case "nousResearchApiKey":
-		apiConfig.nousResearchApiKey = value
+		apiConfig.NousResearchApiKey = value
 	}
 }
 
@@ -314,7 +314,7 @@ func setProviderSpecificModelID(apiConfig *cline.ModelsApiConfiguration, fieldNa
 		apiConfig.PlanModeHicapModelId = value
 		apiConfig.ActModeHicapModelId = value
 	case "planModeNousResearchModelId":
-		apiConfig.planModeNousResearchModelId = value
+		apiConfig.PlanModeNousResearchModelId = value
 		apiConfig.ActModeNousResearchModelId = value
 	}
 }
