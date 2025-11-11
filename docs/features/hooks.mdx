@@ -381,7 +381,7 @@ This means PreToolUse hooks are for blocking bad actions, while PostToolUse hook
 - Consider moving complex logic to a background process
 
 ### Context Not Affecting Behavior
-Remember that context modifications affect future AI decisions, not the current operation. The AI's current behavior is based on the previous "API Request..." block, and your `contextModification` gets injected into the next "API Request..." block. This means if you need immediate effect, you should use PreToolUse hooks for validation and blocking instead.
+Remember that context modifications affect future AI decisions, not the current operation. The AI's current behavior is based on the previous "API Request..." block, and your `contextModification` gets injected into the next "API Request..." block. This means if you need immediate effect, you should use PreToolUse hooks for validation and return `cancel: true` in your hook's JSON response to block Cline from continuing.
 
 When adding context, ensure your modifications are clear and actionable so the AI can understand and apply them effectively. Also check that your context isn't being truncated due to the 50KB limit, as this could prevent important information from reaching the AI.
 
