@@ -40,6 +40,16 @@ func ConvertOpenRouterModelsToInterface(models map[string]*cline.OpenRouterModel
 	return result
 }
 
+// ConvertHicapModelsToInterface converts Hicap model map to generic interface map.
+// This allows Hicap models to be used with the generic fetching utilities.
+func ConvertHicapModelsToInterface(models map[string]*cline.OpenRouterModelInfo) map[string]interface{} {
+	result := make(map[string]interface{}, len(models))
+	for k, v := range models {
+		result[k] = v
+	}
+	return result
+}
+
 
 // FetchOpenAiModels fetches available OpenAI models from Cline Core
 // Takes the API key and returns a list of model IDs
@@ -128,6 +138,15 @@ func ConvertOcaModelsToInterface(models map[string]*cline.OcaModelInfo) map[stri
 		result[k] = v
 	}
 	return result
+}
+
+// FetchHicapModels fetches available Hicap models from Cline Core
+func FetchHicapModels(ctx context.Context, manager *task.Manager) (map[string]*cline.OpenRouterModelInfo, error) {
+	resp, err := manager.GetClient().Models.RefreshHicapModels(ctx, &cline.EmptyRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch Hicap models: %w", err)
+	}
+	return resp.Models, nil
 }
 
 // getTerminalHeight returns the terminal height (rows)

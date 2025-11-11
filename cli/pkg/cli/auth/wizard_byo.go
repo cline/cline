@@ -321,6 +321,14 @@ func (pw *ProviderWizard) fetchModelsForProvider(provider cline.ApiProvider, api
 		return ConvertModelsMapToSlice(interfaceMap), interfaceMap, nil
 	}
 
+	case cline.ApiProvider_HICAP:
+		models, err := FetchHicapModels(pw.ctx, pw.manager)
+		if err != nil {
+			return nil, nil, err
+		}
+		interfaceMap := ConvertHicapModelsToInterface(models)
+		return ConvertModelsMapToSlice(interfaceMap), interfaceMap, nil
+
 	// Fall back to static models for providers that don't support dynamic fetching
 	if SupportsStaticModelList(provider) {
 		modelIDs, _, err := FetchStaticModels(provider)

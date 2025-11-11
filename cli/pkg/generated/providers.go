@@ -146,6 +146,7 @@ const (
 	CEREBRAS = "cerebras"
 	OCA = "oca"
 	NOUSRESEARCH = "nousResearch"
+	HICAP = "hicap"
 )
 
 // AllProviders returns a slice of enabled provider IDs for the CLI build.
@@ -163,6 +164,7 @@ var AllProviders = []string{
 	"cerebras",
 	"oca",
 	"nousResearch",
+	"hicap",
 }
 
 // ConfigField represents a configuration field requirement
@@ -1503,6 +1505,17 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		SetupInstructions: `Configure NousResearch API credentials`,
 	}
 	
+	// Hicap
+	definitions["hicap"] = ProviderDefinition{
+		ID:              "hicap",
+		Name:            "Hicap",
+		RequiredFields:  getFieldsByProvider("hicap", configFields, true),
+		OptionalFields:  getFieldsByProvider("hicap", configFields, false),
+		Models:          modelDefinitions["hicap"],
+		DefaultModelID:  "",
+		HasDynamicModels: true,
+	}
+	
 	return definitions, nil
 }
 
@@ -1530,6 +1543,7 @@ func GetProviderDisplayName(providerID string) string {
 		"cerebras": "Cerebras",
 		"oca": "Oca",
 		"nousResearch": "NousResearch",
+		"hicap": "hicap",
 	}
 	
 	if name, exists := displayNames[providerID]; exists {
