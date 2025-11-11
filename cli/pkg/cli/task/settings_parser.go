@@ -180,8 +180,6 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 		settings.PlanModeHuaweiCloudMaasModelId = strPtr(value)
 	case "plan_mode_oca_model_id":
 		settings.PlanModeOcaModelId = strPtr(value)
-	case "plan_mode_hicap_model_id":
-		settings.PlanModeHicapModelId = strPtr(value)
 	case "act_mode_api_model_id":
 		settings.ActModeApiModelId = strPtr(value)
 	case "act_mode_reasoning_effort":
@@ -218,8 +216,6 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 		settings.ActModeHuaweiCloudMaasModelId = strPtr(value)
 	case "act_mode_oca_model_id":
 		settings.ActModeOcaModelId = strPtr(value)
-	case "act_mode_hicap_model_id":
-		settings.ActModeHicapModelId = strPtr(value)
 
 	// Boolean fields
 	case "aws_use_cross_region_inference":
