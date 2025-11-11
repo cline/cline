@@ -659,30 +659,3 @@ export async function cleanupMcpMarketplaceCatalogFromGlobalState(context: vscod
 		// Continue execution - cleanup failure shouldn't break extension startup
 	}
 }
-
-export async function migrateTerminalExecutionModeToBackground(context: vscode.ExtensionContext) {
-	try {
-		// Check if migration already ran using a versioned sentinel flag
-		const migrationCompleted = await context.globalState.get("terminalExecutionModeMigrated_v1")
-		if (migrationCompleted) {
-			console.log("Terminal execution mode migration already completed, skipping...")
-			return
-		}
-
-		console.log("Migrating terminal execution mode to background...")
-
-		// Get current value for logging
-		const currentMode = await context.globalState.get("vscodeTerminalExecutionMode")
-
-		// Force set to backgroundExec for all users (overwrites even if user had vscodeTerminal)
-		await context.globalState.update("vscodeTerminalExecutionMode", "backgroundExec")
-
-		// Mark migration as complete so it never runs again
-		await context.globalState.update("terminalExecutionModeMigrated_v1", true)
-
-		console.log(`Successfully migrated terminal execution mode from ${currentMode ?? "undefined"} to backgroundExec`)
-	} catch (error) {
-		console.error("Failed to migrate terminal execution mode:", error)
-		// Continue execution - migration failure shouldn't break extension startup
-	}
-}
