@@ -47,7 +47,7 @@ describe("TerminalProcess (Integration Tests)", () => {
 		// Remove any event listeners left on the TerminalProcess
 		process.removeAllListeners()
 		// Dispose all terminals created during the test
-		createdTerminals.forEach((t) => t.dispose())
+		createdTerminals.forEach((t) => void t.dispose())
 		createdTerminals = []
 	})
 

@@ -111,6 +111,15 @@
 			"expand": "always"
 		}
 	},
+	"css": {
+		"parser": {
+			"cssModules": true,
+			"allowWrongLineComments": true
+		},
+		"formatter": {
+			"enabled": true
+		}
+	},
 	"files": {
 		"includes": [
 			"**",
