@@ -65,11 +65,11 @@ describe("TelemetryService metrics", () => {
 
 		assert.deepStrictEqual(
 			provider.counters.map((entry) => entry.name),
-			["cline.tokens.input.total", "cline.tokens.output.total"],
+			[TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL],
 		)
 		assert.deepStrictEqual(
 			provider.histograms.map((entry) => entry.name),
-			["cline.tokens.input.per_response", "cline.tokens.output.per_response"],
+			[TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE],
 		)
 		provider.counters.forEach((entry) => {
 			assert.strictEqual(entry.attributes.ulid, "task-1")
@@ -93,7 +93,12 @@ describe("TelemetryService metrics", () => {
 
 		assert.deepStrictEqual(
 			provider.counters.map((entry) => entry.name),
-			["cline.turns.total", "cline.cache.write.tokens.total", "cline.cache.read.tokens.total", "cline.cost.total"],
+			[
+				TelemetryService.METRICS.TASK.TURNS_TOTAL,
+				TelemetryService.METRICS.CACHE.WRITE_TOTAL,
+				TelemetryService.METRICS.CACHE.READ_TOTAL,
+				TelemetryService.METRICS.TASK.COST_TOTAL,
+			],
 		)
 		const costEntry = provider.counters.find((entry) => entry.name === "cline.cost.total")
 		assert.ok(costEntry)
@@ -105,13 +110,13 @@ describe("TelemetryService metrics", () => {
 		assert.deepStrictEqual(
 			provider.histograms.map((entry) => entry.name),
 			[
-				"cline.turns.per_task",
-				"cline.cache.write.tokens.per_event",
-				"cline.cache.read.tokens.per_event",
-				"cline.cost.per_event",
+				TelemetryService.METRICS.TASK.TURNS_PER_TASK,
+				TelemetryService.METRICS.CACHE.WRITE_PER_EVENT,
+				TelemetryService.METRICS.CACHE.READ_PER_EVENT,
+				TelemetryService.METRICS.TASK.COST_PER_EVENT,
 			],
 		)
-		const turnEntry = provider.histograms.find((entry) => entry.name === "cline.turns.per_task")
+		const turnEntry = provider.histograms.find((entry) => entry.name === TelemetryService.METRICS.TASK.TURNS_PER_TASK)
 		assert.ok(turnEntry)
 		assert.strictEqual(turnEntry?.value, 1)
 		assert.strictEqual(turnEntry?.attributes.ulid, "task-2")
@@ -157,7 +162,7 @@ describe("TelemetryService metrics", () => {
 
 		assert.strictEqual(provider.counters.length, 1)
 		const entry = provider.counters[0]
-		assert.strictEqual(entry.name, "cline.errors.total")
+		assert.strictEqual(entry.name, TelemetryService.METRICS.ERRORS.TOTAL)
 		assert.strictEqual(entry.value, 1)
 		assert.strictEqual(entry.attributes.ulid, "task-3")
 		assert.strictEqual(entry.attributes.provider, "anthropic")
@@ -165,7 +170,7 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(entry.attributes.error_status, 500)
 		assert.strictEqual(provider.histograms.length, 1)
 		const errorHistogram = provider.histograms[0]
-		assert.strictEqual(errorHistogram.name, "cline.errors.per_task")
+		assert.strictEqual(errorHistogram.name, TelemetryService.METRICS.ERRORS.PER_TASK)
 		assert.strictEqual(errorHistogram.value, 1)
 		assert.strictEqual(errorHistogram.attributes.ulid, "task-3")
 		assert.strictEqual(errorHistogram.attributes.provider, "anthropic")

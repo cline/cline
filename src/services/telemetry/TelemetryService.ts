@@ -85,6 +85,38 @@ export class TelemetryService {
 	private taskTurnCounts = new Map<string, number>()
 	private taskToolCallCounts = new Map<string, number>()
 	private taskErrorCounts = new Map<string, number>()
+	public static readonly METRICS = {
+		TASK: {
+			TURNS_TOTAL: "cline.turns.total",
+			TURNS_PER_TASK: "cline.turns.per_task",
+			TOKENS_INPUT_TOTAL: "cline.tokens.input.total",
+			TOKENS_INPUT_PER_RESPONSE: "cline.tokens.input.per_response",
+			TOKENS_OUTPUT_TOTAL: "cline.tokens.output.total",
+			TOKENS_OUTPUT_PER_RESPONSE: "cline.tokens.output.per_response",
+			COST_TOTAL: "cline.cost.total",
+			COST_PER_EVENT: "cline.cost.per_event",
+		},
+		CACHE: {
+			WRITE_TOTAL: "cline.cache.write.tokens.total",
+			WRITE_PER_EVENT: "cline.cache.write.tokens.per_event",
+			READ_TOTAL: "cline.cache.read.tokens.total",
+			READ_PER_EVENT: "cline.cache.read.tokens.per_event",
+			HITS_TOTAL: "cline.cache.hits.total",
+		},
+		TOOLS: {
+			CALLS_TOTAL: "cline.tool.calls.total",
+			CALLS_PER_TASK: "cline.tool.calls.per_task",
+		},
+		ERRORS: {
+			TOTAL: "cline.errors.total",
+			PER_TASK: "cline.errors.per_task",
+		},
+		API: {
+			TTFT_SECONDS: "cline.api.ttft.seconds",
+			DURATION_SECONDS: "cline.api.duration.seconds",
+			THROUGHPUT_TOKENS_PER_SECOND: "cline.api.throughput.tokens_per_second",
+		},
+	}
 	// Event constants for tracking user interactions and system events
 	private static readonly EVENTS = {
 		// Task-related events for tracking conversation and execution flow
@@ -678,18 +710,18 @@ export class TelemetryService {
 		const turnCount = this.incrementTaskCounter(this.taskTurnCounts, ulid)
 
 		const turnAttributes = { ulid, provider, model, source, mode }
-		this.recordCounter("cline.turns.total", 1, turnAttributes)
-		this.recordHistogram("cline.turns.per_task", turnCount, turnAttributes)
+		this.recordCounter(TelemetryService.METRICS.TASK.TURNS_TOTAL, 1, turnAttributes)
+		this.recordHistogram(TelemetryService.METRICS.TASK.TURNS_PER_TASK, turnCount, turnAttributes)
 
 		if (Number.isFinite(tokenUsage.cacheWriteTokens)) {
 			const cacheWriteTokens = tokenUsage.cacheWriteTokens ?? 0
-			this.recordCounter("cline.cache.write.tokens.total", cacheWriteTokens, {
+			this.recordCounter(TelemetryService.METRICS.CACHE.WRITE_TOTAL, cacheWriteTokens, {
 				ulid,
 				provider,
 				model,
 				mode,
 			})
-			this.recordHistogram("cline.cache.write.tokens.per_event", cacheWriteTokens, {
+			this.recordHistogram(TelemetryService.METRICS.CACHE.WRITE_PER_EVENT, cacheWriteTokens, {
 				ulid,
 				provider,
 				model,
@@ -699,13 +731,13 @@ export class TelemetryService {
 
 		if (Number.isFinite(tokenUsage.cacheReadTokens)) {
 			const cacheReadTokens = tokenUsage.cacheReadTokens ?? 0
-			this.recordCounter("cline.cache.read.tokens.total", cacheReadTokens, {
+			this.recordCounter(TelemetryService.METRICS.CACHE.READ_TOTAL, cacheReadTokens, {
 				ulid,
 				provider,
 				model,
 				mode,
 			})
-			this.recordHistogram("cline.cache.read.tokens.per_event", cacheReadTokens, {
+			this.recordHistogram(TelemetryService.METRICS.CACHE.READ_PER_EVENT, cacheReadTokens, {
 				ulid,
 				provider,
 				model,
@@ -716,8 +748,8 @@ export class TelemetryService {
 		if (Number.isFinite(tokenUsage.totalCost)) {
 			const totalCost = tokenUsage.totalCost ?? 0
 			const costAttributes = { ulid, provider, model, mode, currency: "USD" }
-			this.recordCounter("cline.cost.total", totalCost, costAttributes)
-			this.recordHistogram("cline.cost.per_event", totalCost, costAttributes)
+			this.recordCounter(TelemetryService.METRICS.TASK.COST_TOTAL, totalCost, costAttributes)
+			this.recordHistogram(TelemetryService.METRICS.TASK.COST_PER_EVENT, totalCost, costAttributes)
 		}
 	}
 
@@ -741,14 +773,14 @@ export class TelemetryService {
 
 		if (Number.isFinite(tokensIn)) {
 			const value = tokensIn ?? 0
-			this.recordCounter("cline.tokens.input.total", value, { ulid, model })
-			this.recordHistogram("cline.tokens.input.per_response", value, { ulid, model })
+			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, value, { ulid, model })
+			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, value, { ulid, model })
 		}
 
 		if (Number.isFinite(tokensOut)) {
 			const value = tokensOut ?? 0
-			this.recordCounter("cline.tokens.output.total", value, { ulid, model })
-			this.recordHistogram("cline.tokens.output.per_response", value, { ulid, model })
+			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL, value, { ulid, model })
+			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE, value, { ulid, model })
 		}
 	}
 
@@ -868,8 +900,8 @@ export class TelemetryService {
 			autoApproved,
 		}
 		const toolCallCount = this.incrementTaskCounter(this.taskToolCallCounts, ulid)
-		this.recordCounter("cline.tool.calls.total", 1, toolAttributes)
-		this.recordHistogram("cline.tool.calls.per_task", toolCallCount, toolAttributes)
+		this.recordCounter(TelemetryService.METRICS.TOOLS.CALLS_TOTAL, 1, toolAttributes)
+		this.recordHistogram(TelemetryService.METRICS.TOOLS.CALLS_PER_TASK, toolCallCount, toolAttributes)
 	}
 
 	/**
@@ -1123,11 +1155,15 @@ export class TelemetryService {
 		})
 
 		if (typeof data.ttftSec === "number") {
-			this.recordHistogram("cline.api.ttft.seconds", data.ttftSec, { ulid, model: modelId, provider: "gemini" })
+			this.recordHistogram(TelemetryService.METRICS.API.TTFT_SECONDS, data.ttftSec, {
+				ulid,
+				model: modelId,
+				provider: "gemini",
+			})
 		}
 
 		if (typeof data.totalDurationSec === "number") {
-			this.recordHistogram("cline.api.duration.seconds", data.totalDurationSec, {
+			this.recordHistogram(TelemetryService.METRICS.API.DURATION_SECONDS, data.totalDurationSec, {
 				ulid,
 				model: modelId,
 				provider: "gemini",
@@ -1135,7 +1171,7 @@ export class TelemetryService {
 		}
 
 		if (typeof data.throughputTokensPerSec === "number") {
-			this.recordHistogram("cline.api.throughput.tokens_per_second", data.throughputTokensPerSec, {
+			this.recordHistogram(TelemetryService.METRICS.API.THROUGHPUT_TOKENS_PER_SECOND, data.throughputTokensPerSec, {
 				ulid,
 				model: modelId,
 				provider: "gemini",
@@ -1143,7 +1179,7 @@ export class TelemetryService {
 		}
 
 		if (data.cacheHit) {
-			this.recordCounter("cline.cache.hits.total", 1, { ulid, model: modelId, provider: "gemini" })
+			this.recordCounter(TelemetryService.METRICS.CACHE.HITS_TOTAL, 1, { ulid, model: modelId, provider: "gemini" })
 		}
 	}
 
@@ -1198,7 +1234,7 @@ export class TelemetryService {
 			},
 		})
 
-		this.recordCounter("cline.errors.total", 1, {
+		this.recordCounter(TelemetryService.METRICS.ERRORS.TOTAL, 1, {
 			ulid: args.ulid,
 			model: args.model,
 			provider: args.provider,
@@ -1211,7 +1247,7 @@ export class TelemetryService {
 			error_status: args.errorStatus,
 		}
 		const errorCount = this.incrementTaskCounter(this.taskErrorCounts, args.ulid)
-		this.recordHistogram("cline.errors.per_task", errorCount, errorAttributes)
+		this.recordHistogram(TelemetryService.METRICS.ERRORS.PER_TASK, errorCount, errorAttributes)
 	}
 
 	/**
