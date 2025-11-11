@@ -1544,7 +1544,7 @@ func GetProviderDisplayName(providerID string) string {
 		"cerebras": "Cerebras",
 		"oca": "Oca",
 		"nousResearch": "NousResearch",
-		"hicap": "hicap",
+		"hicap": "Hicap",
 	}
 	
 	if name, exists := displayNames[providerID]; exists {
