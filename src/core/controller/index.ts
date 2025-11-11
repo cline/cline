@@ -935,6 +935,7 @@ export class Controller {
 			defaultTerminalProfile,
 			isNewUser,
 			welcomeViewCompleted,
+			showOnboardingFlow: featureFlagsService.getOnboardingEnabled(),
 			mcpResponsesCollapsed,
 			terminalOutputLineLimit,
 			maxConsecutiveMistakes,
