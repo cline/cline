@@ -231,11 +231,11 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			const gauge = this.meter.createObservableGauge(name, options)
 
 			gauge.addCallback((observableResult) => {
-				const currentSeries = this.gaugeValues.get(name)
-				if (!currentSeries) {
+				const snapshot = this.snapshotGaugeSeries(name)
+				if (snapshot.length === 0) {
 					return
 				}
-				for (const data of currentSeries.values()) {
+				for (const data of snapshot) {
 					observableResult.observe(data.value, this.flattenProperties(data.attributes))
 				}
 			})
@@ -245,6 +245,21 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 		}
 
 		series.set(attrKey, { value, attributes })
+	}
+
+	private snapshotGaugeSeries(name: string): Array<{ value: number; attributes?: TelemetryProperties }> {
+		const series = this.gaugeValues.get(name)
+		if (!series) {
+			return []
+		}
+		const snapshot: Array<{ value: number; attributes?: TelemetryProperties }> = []
+		for (const data of series.values()) {
+			snapshot.push({
+				value: data.value,
+				attributes: data.attributes ? { ...data.attributes } : undefined,
+			})
+		}
+		return snapshot
 	}
 
 	public async dispose(): Promise<void> {
