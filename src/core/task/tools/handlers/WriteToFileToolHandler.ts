@@ -93,7 +93,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		const rawDiff = block.params.diff // for replace_in_file
 
 		// Extract provider information for telemetry
-		// Extract provider information for telemetry
 		const { providerId, modelId } = this.getModelInfo(config)
 
 		// Validate required parameters based on tool type
