@@ -882,7 +882,7 @@ function getProviderDisplayName(providerId) {
 		nebius: "Nebius AI",
 		fireworks: "Fireworks AI",
 		asksage: "AskSage",
-		xai: "X AI (Grok) 2",
+		xai: "X AI (Grok)",
 		sambanova: "SambaNova",
 		cerebras: "Cerebras",
 		sapaicore: "SAP AI Core",
