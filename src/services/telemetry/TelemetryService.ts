@@ -82,8 +82,6 @@ export class TelemetryService {
 	])
 
 	private userId?: string
-	private userEmail?: string
-
 	// Event constants for tracking user interactions and system events
 	private static readonly EVENTS = {
 		// Task-related events for tracking conversation and execution flow
@@ -335,7 +333,6 @@ export class TelemetryService {
 		return {
 			...this.telemetryMetadata,
 			...(this.userId ? { userId: this.userId } : {}),
-			...(this.userEmail ? { email: this.userEmail } : {}),
 			...(extra ?? {}),
 		}
 	}
@@ -445,8 +442,6 @@ export class TelemetryService {
 		}
 
 		this.userId = userInfo.id
-		this.userEmail = userInfo.email ?? undefined
-
 		// Update all providers with error isolation
 		this.providers.forEach((provider) => {
 			try {

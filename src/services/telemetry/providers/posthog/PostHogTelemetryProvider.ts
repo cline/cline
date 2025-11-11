@@ -98,7 +98,6 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 				distinctId: userInfo.id,
 				properties: {
 					uuid: userInfo.id,
-					email: userInfo.email,
 					name: userInfo.displayName,
 					...properties,
 					alias: distinctId,

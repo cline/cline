@@ -81,7 +81,7 @@ describe("TelemetryService metrics", () => {
 	it("captureConversationTurnEvent emits counters with cache and cost", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
-		service.identifyAccount({ id: "user-1", email: "user@example.com" } as any)
+		service.identifyAccount({ id: "user-1" } as any)
 
 		service.captureConversationTurnEvent("task-2", "openai", "gpt-4", "assistant", "plan", {
 			tokensIn: 150,
@@ -102,7 +102,6 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(costEntry?.attributes.model, "gpt-4")
 		assert.strictEqual(costEntry?.attributes.mode, "plan")
 		assert.strictEqual(costEntry?.attributes.currency, "USD")
-		assert.strictEqual(costEntry?.attributes.email, "user@example.com")
 	})
 
 	it("captureWorkspaceInitialized emits gauge and retires previous series", () => {

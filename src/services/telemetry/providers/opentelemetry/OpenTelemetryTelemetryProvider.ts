@@ -122,7 +122,6 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 			// Store user attributes for future events
 			this.userAttributes = {
 				user_id: userInfo.id,
-				user_email: userInfo.email || "",
 				user_name: userInfo.displayName || "",
 				...this.flattenProperties(properties),
 			}

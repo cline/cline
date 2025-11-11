@@ -91,7 +91,7 @@ export interface ITelemetryProvider {
 	 * Providers that don't support metrics may implement this as a no-op.
 	 * @param name Metric name (e.g., "cline.tokens.input")
 	 * @param value Amount to increment by (default 1)
-	 * @param attributes Optional metric attributes including userId, email, ulid (JSON-serializable)
+	 * @param attributes Optional metric attributes including userId, ulid (JSON-serializable)
 	 */
 	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string): void
 
@@ -100,7 +100,7 @@ export interface ITelemetryProvider {
 	 * Providers that don't support metrics may implement this as a no-op.
 	 * @param name Metric name (e.g., "cline.api.duration_seconds")
 	 * @param value Value to record
-	 * @param attributes Optional metric attributes including userId, email, ulid (JSON-serializable)
+	 * @param attributes Optional metric attributes including userId, ulid (JSON-serializable)
 	 */
 	recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string): void
 
@@ -109,7 +109,7 @@ export interface ITelemetryProvider {
 	 * Providers that don't support metrics may implement this as a no-op.
 	 * @param name Metric name (e.g., "cline.workspace.active_roots")
 	 * @param value Current value, or null to retire the series identified by name + attributes
-	 * @param attributes Optional metric attributes including userId, email, ulid (JSON-serializable). When retiring a series pass the same attribute set that was used when recording it.
+	 * @param attributes Optional metric attributes including userId, ulid (JSON-serializable). When retiring a series pass the same attribute set that was used when recording it.
 	 */
 	recordGauge(name: string, value: number | null, attributes?: TelemetryProperties, description?: string): void
 

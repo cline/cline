@@ -27,7 +27,6 @@ describe("Telemetry system is abstracted and can easily switch between providers
 	})
 	const MOCK_USER_INFO = {
 		id: "test-user-123",
-		email: "test@example.com",
 		displayName: "Test User",
 		createdAt: new Date().toISOString(),
 		organizations: [],
