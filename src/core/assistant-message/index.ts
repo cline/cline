@@ -51,6 +51,8 @@ export interface ToolUse {
 	// params is a partial record, allowing only some or none of the possible parameters to be used
 	params: Partial<Record<ToolParamName, string>>
 	partial: boolean
+	// Whether this tool use was initiated by a native tool call
+	isNativeToolCall?: boolean
 }
 
 export interface Reasoning {

@@ -8,7 +8,6 @@ import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -17,6 +16,7 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
@@ -182,6 +182,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					true,
 					true,
 					workspaceContext,
+					block.isNativeToolCall,
 				)
 
 				// we need an artificial delay to let the diagnostics catch up to the changes
@@ -235,6 +236,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						false,
 						false,
 						workspaceContext,
+						block.isNativeToolCall,
 					)
 
 					await config.services.diffViewProvider.revertChanges()
@@ -265,6 +267,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						false,
 						true,
 						workspaceContext,
+						block.isNativeToolCall,
 					)
 				}
 			}
@@ -324,10 +327,15 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	 * @param relPath The relative path to the target file
 	 * @param diff Optional diff content for replace operations
 	 * @param content Optional direct content for write operations
+	 * @param provider Optional provider string for telemetry (used when capturing diff edit failures)
 	 * @returns Object containing validated path, file existence status, diff/content, and constructed new content,
 	 *          or undefined if validation fails
 	 */
 	async validateAndPrepareFileOperation(config: TaskConfig, block: ToolUse, relPath: string, diff?: string, content?: string) {
+		// Extract provider information for telemetry
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 		// Parse workspace hint and resolve path for multi-workspace support
 		const pathResult = resolveWorkspacePath(config, relPath, "WriteToFileToolHandler.validateAndPrepareFileOperation")
 		const { absolutePath, resolvedPath } =
@@ -382,11 +390,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		if (diff) {
 			// Handle replace_in_file with diff construction
-			if (!config.api.getModel().id.includes("claude")) {
-				// deepseek models tend to use unescaped html entities in diffs
-				diff = fixModelHtmlEscaping(diff)
-				diff = removeInvalidChars(diff)
-			}
+			// Apply model-specific fixes (deepseek models tend to use unescaped html entities in diffs)
+			diff = applyModelContentFixes(diff, config.api.getModel().id, resolvedPath)
 
 			// open the editor if not done already.  This is to fix diff error when model provides correct search-replace text but Cline throws error
 			// because file is not open.
@@ -404,6 +409,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// Full original behavior - comprehensive error handling even for partial blocks
 				await config.callbacks.say("diff_error", relPath)
 
+				// Extract provider information for telemetry
+				const apiConfig = config.services.stateManager.getApiConfiguration()
+				const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+				const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
 				// Extract error type from error message if possible
 				const errorType =
 					error instanceof Error && error.message.includes("does not match anything")
@@ -411,7 +421,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						: "other_diff_error"
 
 				// Add telemetry for diff edit failure
-				telemetryService.captureDiffEditFailure(config.ulid, config.api.getModel().id, errorType)
+				const isNativeToolCall = block.isNativeToolCall === true
+				telemetryService.captureDiffEditFailure(
+					config.ulid,
+					config.api.getModel().id,
+					provider,
+					errorType,
+					isNativeToolCall,
+				)
 
 				// Push tool result with detailed error using existing utilities
 				const errorResponse = formatResponse.toolError(
@@ -450,11 +467,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 			}
 
-			if (!config.api.getModel().id.includes("claude")) {
-				// it seems not just llama models are doing this, but also gemini and potentially others
-				newContent = fixModelHtmlEscaping(newContent)
-				newContent = removeInvalidChars(newContent)
-			}
+			// Apply model-specific fixes (llama, gemini, and other models may add escape characters)
+			newContent = applyModelContentFixes(newContent, config.api.getModel().id, resolvedPath)
 		} else {
 			// can't happen, since we already checked for content/diff above. but need to do this for type error
 			return

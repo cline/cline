@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { ClineTool } from "@/shared/tools"
+import { AIhubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
 import { BasetenHandler } from "./providers/baseten"
@@ -24,6 +25,7 @@ import { MinimaxHandler } from "./providers/minimax"
 import { MistralHandler } from "./providers/mistral"
 import { MoonshotHandler } from "./providers/moonshot"
 import { NebiusHandler } from "./providers/nebius"
+import { NousResearchHandler } from "./providers/nousresearch"
 import { OcaHandler } from "./providers/oca"
 import { OllamaHandler } from "./providers/ollama"
 import { OpenAiHandler } from "./providers/openai"
@@ -366,10 +368,10 @@ function createHandlerForProvider(
 			return new VercelAIGatewayHandler({
 				onRetryAttempt: options.onRetryAttempt,
 				vercelAiGatewayApiKey: options.vercelAiGatewayApiKey,
-				vercelAiGatewayModelId:
-					mode === "plan" ? options.planModeVercelAiGatewayModelId : options.actModeVercelAiGatewayModelId,
-				vercelAiGatewayModelInfo:
-					mode === "plan" ? options.planModeVercelAiGatewayModelInfo : options.actModeVercelAiGatewayModelInfo,
+				openRouterModelId: mode === "plan" ? options.planModeOpenRouterModelId : options.actModeOpenRouterModelId,
+				openRouterModelInfo: mode === "plan" ? options.planModeOpenRouterModelInfo : options.actModeOpenRouterModelInfo,
+				thinkingBudgetTokens:
+					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})
 		case "zai":
 			return new ZAiHandler({
@@ -392,6 +394,16 @@ function createHandlerForProvider(
 						: options.actModeOcaModelInfo?.supportsPromptCache,
 				taskId: options.ulid,
 			})
+		case "aihubmix":
+			return new AIhubmixHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				apiKey: options.aihubmixApiKey,
+				baseURL: options.aihubmixBaseUrl,
+				appCode: options.aihubmixAppCode,
+				modelId: mode === "plan" ? (options as any).planModeAihubmixModelId : (options as any).actModeAihubmixModelId,
+				modelInfo:
+					mode === "plan" ? (options as any).planModeAihubmixModelInfo : (options as any).actModeAihubmixModelInfo,
+			})
 		case "minimax":
 			return new MinimaxHandler({
 				onRetryAttempt: options.onRetryAttempt,
@@ -404,6 +416,12 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				hicapApiKey: options.hicapApiKey,
 				hicapModelId: mode === "plan" ? options.planModeHicapModelId : options.actModeHicapModelId,
+			})
+		case "nousResearch":
+			return new NousResearchHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				nousResearchApiKey: options.nousResearchApiKey,
+				apiModelId: mode === "plan" ? options.planModeNousResearchModelId : options.actModeNousResearchModelId,
 			})
 		default:
 			return new AnthropicHandler({

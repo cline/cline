@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { MinimaxModelId, ModelInfo, minimaxDefaultModelId, minimaxModels } from "@/shared/api"
+import { fetch } from "@/shared/net"
 import { ClineTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
@@ -34,6 +35,7 @@ export class MinimaxHandler implements ApiHandler {
 						this.options.minimaxApiLine === "china"
 							? "https://api.minimaxi.com/anthropic"
 							: "https://api.minimax.io/anthropic",
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating MiniMax client: ${error.message}`)

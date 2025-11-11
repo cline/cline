@@ -5,7 +5,6 @@ import { showSystemNotification } from "@integrations/notifications"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { ClineAsk } from "@shared/ExtensionMessage"
 import { arePathsEqual } from "@utils/path"
-import { fixModelHtmlEscaping } from "@utils/string"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -14,6 +13,7 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 // Default timeout for commands in yolo mode and background exec mode
@@ -79,7 +79,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		// Pre-process command for certain models
 		if (config.api.getModel().id.includes("gemini")) {
-			command = fixModelHtmlEscaping(command)
+			command = applyModelContentFixes(command)
 		}
 
 		// Handle multi-workspace command execution
@@ -166,6 +166,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				true,
 				true,
 				workspaceContext,
+				block.isNativeToolCall,
 			)
 		} else {
 			// Manual approval flow
@@ -188,6 +189,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 					false,
 					false,
 					workspaceContext,
+					block.isNativeToolCall,
 				)
 				return formatResponse.toolDenied()
 			}
@@ -199,6 +201,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				false,
 				true,
 				workspaceContext,
+				block.isNativeToolCall,
 			)
 		}
 

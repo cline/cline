@@ -37,8 +37,10 @@ export type ApiProvider =
 	| "vercel-ai-gateway"
 	| "zai"
 	| "oca"
+	| "aihubmix"
 	| "minimax"
 	| "hicap"
+	| "nousResearch"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -46,6 +48,9 @@ export interface ApiHandlerSecrets {
 	awsAccessKey?: string
 	awsSecretKey?: string
 	openRouterApiKey?: string
+	aihubmixApiKey?: string
+	aihubmixBaseUrl?: string
+	aihubmixAppCode?: string
 
 	clineAccountId?: string
 	awsSessionToken?: string
@@ -79,6 +84,7 @@ export interface ApiHandlerSecrets {
 	difyApiKey?: string
 	minimaxApiKey?: string
 	hicapApiKey?: string
+	nousResearchApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -128,6 +134,8 @@ export interface ApiHandlerOptions {
 	ocaBaseUrl?: string
 	minimaxApiLine?: string
 	ocaMode?: string
+	aihubmixBaseUrl?: string
+	aihubmixAppCode?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -158,12 +166,13 @@ export interface ApiHandlerOptions {
 	planModeHuggingFaceModelInfo?: ModelInfo
 	planModeHuaweiCloudMaasModelId?: string
 	planModeHuaweiCloudMaasModelInfo?: ModelInfo
-	planModeVercelAiGatewayModelId?: string
-	planModeVercelAiGatewayModelInfo?: ModelInfo
 	planModeOcaModelId?: string
 	planModeOcaModelInfo?: OcaModelInfo
+	planModeAihubmixModelId?: string
+	planModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
 	planModeHicapModelId?: string
 	planModeHicapModelInfo?: ModelInfo
+	planModeNousResearchModelId?: string
 	// Act mode configurations
 
 	// Act mode configurations
@@ -195,12 +204,13 @@ export interface ApiHandlerOptions {
 	actModeHuggingFaceModelInfo?: ModelInfo
 	actModeHuaweiCloudMaasModelId?: string
 	actModeHuaweiCloudMaasModelInfo?: ModelInfo
-	actModeVercelAiGatewayModelId?: string
-	actModeVercelAiGatewayModelInfo?: ModelInfo
 	actModeOcaModelId?: string
 	actModeOcaModelInfo?: OcaModelInfo
+	actModeAihubmixModelId?: string
+	actModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
 	actModeHicapModelId?: string
 	actModeHicapModelInfo?: ModelInfo
+	actModeNousResearchModelId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -217,6 +227,7 @@ interface PriceTier {
 }
 
 export interface ModelInfo {
+	name?: string
 	maxTokens?: number
 	contextWindow?: number
 	supportsImages?: boolean
@@ -3091,23 +3102,6 @@ export const cerebrasModels = {
 	},
 } as const satisfies Record<string, ModelInfo>
 
-// VERCEL AI GATEWAY MODELS
-export type VercelAIGatewayModelId = string
-
-export const vercelAiGatewayDefaultModelId = "anthropic/claude-sonnet-4"
-export const vercelAiGatewayDefaultModelInfo: ModelInfo = {
-	maxTokens: 64_000,
-	contextWindow: 200_000,
-	supportsImages: true,
-	supportsPromptCache: true,
-	inputPrice: 3.0,
-	outputPrice: 15.0,
-	cacheWritesPrice: 3.75,
-	cacheReadsPrice: 0.3,
-	description:
-		"Claude Sonnet 4 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
-}
-
 // Groq
 // https://console.groq.com/docs/models
 // https://groq.com/pricing/
@@ -3777,16 +3771,6 @@ export const fireworksModels = {
 		description:
 			"Kimi K2 model gets a new version update: Agentic coding: more accurate, better generalization across scaffolds. Frontend coding: improved aesthetics and functionalities on web, 3d, and other tasks. Context length: extended from 128k to 256k, providing better long-horizon support.",
 	},
-	"accounts/fireworks/models/kimi-k2-instruct": {
-		maxTokens: 16384,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.6,
-		outputPrice: 2.5,
-		description:
-			"Kimi K2 is a state-of-the-art mixture-of-experts (MoE) language model with 32 billion activated parameters and 1 trillion total parameters. Trained with the Muon optimizer, Kimi K2 achieves exceptional performance across frontier knowledge, reasoning, and coding tasks while being meticulously optimized for agentic capabilities.",
-	},
 	"accounts/fireworks/models/qwen3-235b-a22b-instruct-2507": {
 		maxTokens: 32768,
 		contextWindow: 256000,
@@ -3871,5 +3855,32 @@ export const minimaxModels = {
 		outputPrice: 1.2,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// NousResearch
+// https://inference-api.nousResearch.com
+export type NousResearchModelId = keyof typeof nousResearchModels
+export const nousResearchDefaultModelId: NousResearchModelId = "Hermes-4-405B"
+export const nousResearchModels = {
+	"Hermes-4-405B": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.09,
+		outputPrice: 0.37,
+		description:
+			"This is the largest model in the Hermes 4 family, and it is the fullest expression of our design, focused on advanced reasoning and creative depth rather than optimizing inference speed or cost.",
+	},
+	"Hermes-4-70B": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.2,
+		description:
+			"This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases.",
 	},
 } as const satisfies Record<string, ModelInfo>

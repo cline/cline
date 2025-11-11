@@ -1,6 +1,6 @@
 // Prompt for initial list creation
 const initial = `
-# TODO LIST CREATION REQUIRED - ACT MODE ACTIVATED
+# task_progress CREATION REQUIRED - ACT MODE ACTIVATED
 
 **You've just switched from PLAN MODE to ACT MODE!**
 
@@ -11,7 +11,7 @@ const initial = `
 	- [ ] For tasks to be done
 	- [x] For any tasks already completed
 
-**Your todo list should include:**
+**Your todo/task_progress list should include:**
    - All major implementation steps
    - Testing and validation tasks
    - Documentation updates if needed
@@ -25,15 +25,15 @@ const initial = `
    - [ ] Test implementation
    - [ ] Document changes
 
-**Remember:** Keeping the todo list updated helps track progress and ensures nothing is missed.`
+**Remember:** Keeping the task_progress list updated helps track progress and ensures nothing is missed.`
 
 // For when recommending but not requiring a list
 const listInstructionsRecommended = `
-1. Include the task_progress parameter in your next tool call
+1. Include a todo list using the task_progress parameter in your next tool call
 2. Create a comprehensive checklist of all steps needed
 3. Use markdown format: - [ ] for incomplete, - [x] for complete
 
-**Benefits of creating a todo list now:**
+**Benefits of creating a todo/task_progress list now:**
 	- Clear roadmap for implementation
 	- Progress tracking throughout the task
 	- Nothing gets forgotten or missed
@@ -47,7 +47,7 @@ const listInstructionsRecommended = `
 - [ ] Test the implementation
 - [ ] Verify results\`\`\`
 
-Keeping the todo list updated helps track progress and ensures nothing is missed.`
+Keeping the task_progress list updated helps track progress and ensures nothing is missed.`
 
 // Prompt for reminders to update the list periodically
 const reminder = `
@@ -61,11 +61,11 @@ const reminder = `
 		- Reorder if the sequence has changed
 4. Ensure the list accurately reflects the current state
 
-**Remember:** Keeping the todo list updated helps track progress and ensures nothing is missed.`
+**Remember:** Keeping the task_progress list updated helps track progress and ensures nothing is missed.`
 
 const completed = `
 
-**🎉 EXCELLENT! All {{totalItems}} items have been completed!**
+**All {{totalItems}} items have been completed!**
 
 **Completed Items:**
 {{currentFocusChainChecklist}}
@@ -78,7 +78,7 @@ const completed = `
 **Remember:** Only use attempt_completion if you're confident the task is truly finished. If there's any remaining work, create a new focus chain list to track it.`
 
 const planModeReminder = `
-# Todo List (Optional - Plan Mode)
+# task_progress List (Optional - Plan Mode)
 
 While in PLAN MODE, if you've outlined concrete steps or requirements for the user, you may include a preliminary todo list using the task_progress parameter.
 
@@ -87,17 +87,17 @@ Reminder on how to use the task_progress parameter:
 ${reminder}`
 
 const recommended = `
-# TODO LIST RECOMMENDED
+# task_progress RECOMMENDED
 
-When starting a new task, it is recommended to create a todo list.
+When starting a new task, it is recommended to include a todo list using the task_progress parameter.
 
 ${listInstructionsRecommended}
 `
 
 const apiRequestCount = `
-# TODO LIST
+# task_progress
 
-You've made {{apiRequestCount}} API requests without a todo list. Consider creating one to track remaining work.
+You've made {{apiRequestCount}} API requests without a task_progress parameter. It is strongly recomended that you create one to track remaining work.
 
 ${reminder}
 `

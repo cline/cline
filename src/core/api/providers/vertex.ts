@@ -6,6 +6,7 @@ import { ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@s
 import { ClineTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
+import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
 import { ApiStream } from "../transform/stream"
 import { GeminiHandler } from "./gemini"
 
@@ -122,46 +123,7 @@ export class VertexHandler implements ApiHandler {
 								cache_control: { type: "ephemeral" },
 							},
 						],
-						messages: messages.map((message, index) => {
-							if (index === lastUserMsgIndex || index === secondLastMsgUserIndex) {
-								return {
-									...message,
-									content:
-										typeof message.content === "string"
-											? [
-													{
-														type: "text",
-														text: message.content,
-														cache_control: {
-															type: "ephemeral",
-														},
-													},
-												]
-											: message.content.map((content, contentIndex) =>
-													contentIndex === message.content.length - 1
-														? {
-																...content,
-																cache_control: {
-																	type: "ephemeral",
-																},
-															}
-														: content,
-												),
-								}
-							}
-							return {
-								...message,
-								content:
-									typeof message.content === "string"
-										? [
-												{
-													type: "text",
-													text: message.content,
-												},
-											]
-										: message.content,
-							}
-						}),
+						messages: sanitizeAnthropicMessages(messages, lastUserMsgIndex, secondLastMsgUserIndex),
 						stream: true,
 						tools: tools?.length ? (tools as AnthropicTool[]) : undefined,
 						// tool_choice options:
@@ -187,18 +149,7 @@ export class VertexHandler implements ApiHandler {
 							type: "text",
 						},
 					],
-					messages: messages.map((message) => ({
-						...message,
-						content:
-							typeof message.content === "string"
-								? [
-										{
-											type: "text",
-											text: message.content,
-										},
-									]
-								: message.content,
-					})),
+					messages: sanitizeAnthropicMessages(messages),
 					stream: true,
 					tools: tools?.length ? (tools as AnthropicTool[]) : undefined,
 					// tool_choice options:

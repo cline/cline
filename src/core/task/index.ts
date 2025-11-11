@@ -67,7 +67,7 @@ import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import { isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
+import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
@@ -808,7 +808,7 @@ export class Task {
 		userContent: UserContent,
 		_context: "initial_task" | "resume" | "feedback",
 	): Promise<{ cancel?: boolean; contextModification?: string; errorMessage?: string }> {
-		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 
 		if (!hooksEnabled) {
 			return {}
@@ -904,7 +904,7 @@ export class Task {
 		}
 
 		// Add TaskStart hook context to the conversation if provided
-		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
 			const { executeHook } = await import("../hooks/hook-executor")
 
@@ -1051,7 +1051,7 @@ export class Task {
 		const newUserContent: UserContent = []
 
 		// Run TaskResume hook AFTER user clicks resume button
-		const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 		if (hooksEnabled) {
 			const { executeHook } = await import("../hooks/hook-executor")
 
@@ -1283,7 +1283,7 @@ export class Task {
 	/**
 	 * Determines if the TaskCancel hook should run.
 	 * Only runs if there's actual active work happening or if work was started in this session.
-	 * Does NOT run when just showing the resume button with no active work.
+	 * Does NOT run when just showing the resume button or completion button with no active work.
 	 * @returns true if the hook should run, false otherwise
 	 */
 	private async shouldRunTaskCancelHook(): Promise<boolean> {
@@ -1308,22 +1308,26 @@ export class Task {
 			return true
 		}
 
-		// Check if we're at the resume button state (no active work, just waiting)
+		// Check if we're at a button-only state (no active work, just waiting for user action)
 		const clineMessages = this.messageStateHandler.getClineMessages()
 		const lastMessage = clineMessages.at(-1)
-		const isAtResumeButton =
-			lastMessage?.type === "ask" && (lastMessage.ask === "resume_task" || lastMessage.ask === "resume_completed_task")
+		const isAtButtonOnlyState =
+			lastMessage?.type === "ask" &&
+			(lastMessage.ask === "resume_task" ||
+				lastMessage.ask === "resume_completed_task" ||
+				lastMessage.ask === "completion_result")
 
-		if (isAtResumeButton) {
-			// At resume button - DON'T run hook because we're just waiting for user input
-			// The resume button appears in two scenarios:
-			// 1. Opening from history (no new work)
-			// 2. After cancelling during active work (but work already stopped)
-			// In both cases, we shouldn't run TaskCancel hook
+		if (isAtButtonOnlyState) {
+			// At button-only state - DON'T run hook because we're just waiting for user input
+			// These button states appear when:
+			// 1. Opening from history (resume_task/resume_completed_task)
+			// 2. After task completion (completion_result with "Start New Task" button)
+			// 3. After cancelling during active work (but work already stopped)
+			// In all cases, we shouldn't run TaskCancel hook
 			return false
 		}
 
-		// Not at resume button - we're in the middle of work or just finished something
+		// Not at a button-only state - we're in the middle of work or just finished something
 		// Run the hook since cancelling would interrupt actual work
 		return true
 	}
@@ -1354,10 +1358,18 @@ export class Task {
 				}
 			}
 
+			if (this.activeBackgroundCommand) {
+				try {
+					await this.cancelBackgroundCommand()
+				} catch (error) {
+					Logger.error("Failed to cancel background command during task abort", error)
+				}
+			}
+
 			// PHASE 4: Run TaskCancel hook
 			// This allows the hook UI to appear in the webview
 			// Use the shouldRunTaskCancelHook value we captured in Phase 1
-			const hooksEnabled = featureFlagsService.getHooksEnabled() && this.stateManager.getGlobalSettingsKey("hooksEnabled")
+			const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 			if (hooksEnabled && shouldRunTaskCancelHook) {
 				try {
 					const { executeHook } = await import("../hooks/hook-executor")
@@ -1419,7 +1431,15 @@ export class Task {
 
 			// PHASE 6: Check for incomplete progress
 			if (this.FocusChainManager) {
-				this.FocusChainManager.checkIncompleteProgressOnCompletion()
+				// Extract current model and provider for telemetry
+				const apiConfig = this.stateManager.getApiConfiguration()
+				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+				const currentProvider = (
+					currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+				) as string
+				const currentModelId = this.api.getModel().id
+
+				this.FocusChainManager.checkIncompleteProgressOnCompletion(currentModelId, currentProvider)
 			}
 
 			// PHASE 7: Clean up resources
@@ -2580,7 +2600,8 @@ export class Task {
 			content: userContent,
 		})
 
-		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user")
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+		telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "user", currentMode)
 
 		// Capture task initialization timing telemetry for the first API request
 		if (isFirstRequest) {
@@ -2656,13 +2677,21 @@ export class Task {
 				})
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
-				telemetryService.captureConversationTurnEvent(this.ulid, providerId, this.api.getModel().id, "assistant", {
-					tokensIn: inputTokens,
-					tokensOut: outputTokens,
-					cacheWriteTokens,
-					cacheReadTokens,
-					totalCost,
-				})
+				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+				telemetryService.captureConversationTurnEvent(
+					this.ulid,
+					providerId,
+					this.api.getModel().id,
+					"assistant",
+					currentMode,
+					{
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens,
+						totalCost,
+					},
+				)
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
 				this.taskState.didFinishAbortingStream = true
@@ -2963,7 +2992,8 @@ export class Task {
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0 || this.useNativeToolCalls) {
-				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", {
+				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", currentMode, {
 					tokensIn: inputTokens,
 					tokensOut: outputTokens,
 					cacheWriteTokens,
@@ -3009,10 +3039,13 @@ export class Task {
 					assistantContent.push(...toolUseBlocks)
 				}
 
-				await this.messageStateHandler.addToApiConversationHistory({
-					role: "assistant",
-					content: assistantContent,
-				})
+				// Append the assistant's content to the API conversation history only if there's content
+				if (assistantContent.length > 0) {
+					await this.messageStateHandler.addToApiConversationHistory({
+						role: "assistant",
+						content: assistantContent,
+					})
+				}
 
 				// NOTE: this comment is here for future reference - this was a workaround for userMessageContent not getting set to true. It was due to it not recursively calling for partial blocks when didRejectTool, so it would get stuck waiting for a partial block to complete before it could continue.
 				// in case the content blocks finished
@@ -3171,6 +3204,7 @@ export class Task {
 								globalWorkflowToggles,
 								this.ulid,
 								this.stateManager.getGlobalSettingsKey("focusChainSettings"),
+								this.getCurrentProviderInfo(),
 							)
 
 							if (needsCheck) {
@@ -3433,7 +3467,7 @@ export class Task {
 			}
 		}
 
-		// Add context window usage information
+		// Add context window usage information (conditionally for some models)
 		const { contextWindow } = getContextWindowInfo(this.api)
 
 		// Get the token count from the most recent API request to accurately reflect context management
@@ -3461,8 +3495,24 @@ export class Task {
 		const lastApiReqTotalTokens = lastApiReqMessage ? getTotalTokensFromApiReqMessage(lastApiReqMessage) : 0
 		const usagePercentage = Math.round((lastApiReqTotalTokens / contextWindow) * 100)
 
-		details += "\n\n# Context Window Usage"
-		details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
+		// Determine if context window info should be displayed
+		const currentModelId = this.api.getModel().id
+		const isNextGenModel = isClaude4PlusModelFamily(currentModelId) || isGPT5ModelFamily(currentModelId)
+
+		let shouldShowContextWindow = true
+		// For next-gen models, only show context window usage if it exceeds a certain threshold
+		if (isNextGenModel) {
+			const autoCondenseThreshold =
+				(this.stateManager.getGlobalSettingsKey("autoCondenseThreshold") as number | undefined) ?? 0.75
+			const displayThreshold = autoCondenseThreshold - 0.15
+			const currentUsageRatio = lastApiReqTotalTokens / contextWindow
+			shouldShowContextWindow = currentUsageRatio >= displayThreshold
+		}
+
+		if (shouldShowContextWindow) {
+			details += "\n\n# Context Window Usage"
+			details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
+		}
 
 		details += "\n\n# Current Mode"
 		const mode = this.stateManager.getGlobalSettingsKey("mode")

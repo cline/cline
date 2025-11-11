@@ -32,7 +32,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
-		SystemPromptSection.TODO,
+		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.ACT_VS_PLAN,
 		SystemPromptSection.CLI_SUBAGENTS,
 		SystemPromptSection.CAPABILITIES,
@@ -45,8 +45,10 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 	.tools(
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
-		ClineDefaultTool.FILE_NEW,
-		ClineDefaultTool.FILE_EDIT,
+		// Should disable FILE_NEW and FILE_EDIT when enabled
+		// ClineDefaultTool.APPLY_PATCH,
+		ClineDefaultTool.FILE_NEW, // Replaced by APPLY_PATCH
+		ClineDefaultTool.FILE_EDIT, // Replaced by APPLY_PATCH
 		ClineDefaultTool.SEARCH,
 		ClineDefaultTool.LIST_FILES,
 		ClineDefaultTool.LIST_CODE_DEF,
@@ -79,6 +81,9 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 	})
 	.overrideComponent(SystemPromptSection.FEEDBACK, {
 		template: GPT_5_TEMPLATE_OVERRIDES.FEEDBACK,
+	})
+	.overrideComponent(SystemPromptSection.EDITING_FILES, {
+		enabled: false,
 	})
 	.build()
 
