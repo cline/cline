@@ -157,7 +157,7 @@ func validateQuickSetupProvider(providerID string) (cline.ApiProvider, error) {
 		// Provider not found - provide helpful error message
 		supportedProviders := []string{
 			"openai-native", "openai", "anthropic", "gemini",
-			"openrouter", "xai", "cerebras", "ollama",
+			"openrouter", "xai", "cerebras", "ollama", "hicap",
 		}
 		return cline.ApiProvider_ANTHROPIC, fmt.Errorf(
 			"invalid provider '%s'. Supported providers: %s",
@@ -177,6 +177,7 @@ func validateQuickSetupProvider(providerID string) (cline.ApiProvider, error) {
 		cline.ApiProvider_CEREBRAS:      true,
 		cline.ApiProvider_OLLAMA:        true,
 		cline.ApiProvider_NOUSRESEARCH:  true,
+		cline.ApiProvider_HICAP:         true,
 	}
 
 	if !supportedProviders[provider] {
