@@ -237,6 +237,14 @@ export class Task {
 	// Cache service
 	private stateManager: StateManager
 
+	/**
+	 * Get the state manager instance
+	 * PUBLIC: Exposed for testing purposes
+	 */
+	public getStateManager(): StateManager {
+		return this.stateManager
+	}
+
 	// Message and conversation state
 	messageStateHandler: MessageStateHandler
 
