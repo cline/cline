@@ -82,6 +82,9 @@ export class TelemetryService {
 	])
 
 	private userId?: string
+	private taskTurnCounts = new Map<string, number>()
+	private taskToolCallCounts = new Map<string, number>()
+	private taskErrorCounts = new Map<string, number>()
 	// Event constants for tracking user interactions and system events
 	private static readonly EVENTS = {
 		// Task-related events for tracking conversation and execution flow
@@ -374,6 +377,18 @@ export class TelemetryService {
 		})
 	}
 
+	private incrementTaskCounter(store: Map<string, number>, ulid: string): number {
+		const nextValue = (store.get(ulid) ?? 0) + 1
+		store.set(ulid, nextValue)
+		return nextValue
+	}
+
+	private resetTaskAggregates(ulid: string): void {
+		this.taskTurnCounts.delete(ulid)
+		this.taskToolCallCounts.delete(ulid)
+		this.taskErrorCounts.delete(ulid)
+	}
+
 	public captureExtensionActivated() {
 		this.captureToProviders(TelemetryService.EVENTS.USER.EXTENSION_ACTIVATED, {}, false)
 	}
@@ -585,6 +600,7 @@ export class TelemetryService {
 	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
 	 */
 	public captureTaskCreated(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
+		this.resetTaskAggregates(ulid)
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.CREATED,
 			properties: { ulid, apiProvider, openAiCompatibleDomain },
@@ -598,6 +614,7 @@ export class TelemetryService {
 	 * @param openAiCompatibleDomain Optional domain for OpenAI Compatible providers (e.g., "api.example.com")
 	 */
 	public captureTaskRestarted(ulid: string, apiProvider?: string, openAiCompatibleDomain?: string) {
+		this.resetTaskAggregates(ulid)
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.RESTARTED,
 			properties: { ulid, apiProvider, openAiCompatibleDomain },
@@ -613,6 +630,7 @@ export class TelemetryService {
 			event: TelemetryService.EVENTS.TASK.COMPLETED,
 			properties: { ulid },
 		})
+		this.resetTaskAggregates(ulid)
 	}
 
 	/**
@@ -657,10 +675,20 @@ export class TelemetryService {
 			},
 		})
 
-		this.recordCounter("cline.turns.total", 1, { ulid, provider, model, source, mode })
+		const turnCount = this.incrementTaskCounter(this.taskTurnCounts, ulid)
+
+		const turnAttributes = { ulid, provider, model, source, mode }
+		this.recordCounter("cline.turns.total", 1, turnAttributes)
+		this.recordHistogram("cline.turns.per_task", turnCount, turnAttributes)
 
 		if (tokenUsage.cacheWriteTokens && tokenUsage.cacheWriteTokens > 0) {
 			this.recordCounter("cline.cache.write.tokens.total", tokenUsage.cacheWriteTokens, {
+				ulid,
+				provider,
+				model,
+				mode,
+			})
+			this.recordHistogram("cline.cache.write.tokens.per_event", tokenUsage.cacheWriteTokens, {
 				ulid,
 				provider,
 				model,
@@ -675,16 +703,18 @@ export class TelemetryService {
 				model,
 				mode,
 			})
-		}
-
-		if (typeof tokenUsage.totalCost === "number") {
-			this.recordCounter("cline.cost.total", tokenUsage.totalCost, {
+			this.recordHistogram("cline.cache.read.tokens.per_event", tokenUsage.cacheReadTokens, {
 				ulid,
 				provider,
 				model,
 				mode,
-				currency: "USD",
 			})
+		}
+
+		if (typeof tokenUsage.totalCost === "number") {
+			const costAttributes = { ulid, provider, model, mode, currency: "USD" }
+			this.recordCounter("cline.cost.total", tokenUsage.totalCost, costAttributes)
+			this.recordHistogram("cline.cost.per_event", tokenUsage.totalCost, costAttributes)
 		}
 	}
 
@@ -776,6 +806,7 @@ export class TelemetryService {
 				feedbackType,
 			},
 		})
+		this.resetTaskAggregates(ulid)
 	}
 
 	// Tool events
@@ -824,13 +855,16 @@ export class TelemetryService {
 			},
 		})
 
-		this.recordCounter("cline.tool.calls.total", 1, {
+		const toolAttributes = {
 			ulid,
 			tool,
 			model: modelId,
 			success,
 			autoApproved,
-		})
+		}
+		const toolCallCount = this.incrementTaskCounter(this.taskToolCallCounts, ulid)
+		this.recordCounter("cline.tool.calls.total", 1, toolAttributes)
+		this.recordHistogram("cline.tool.calls.per_task", toolCallCount, toolAttributes)
 	}
 
 	/**
@@ -1165,6 +1199,14 @@ export class TelemetryService {
 			provider: args.provider,
 			error_status: args.errorStatus,
 		})
+		const errorAttributes = {
+			ulid: args.ulid,
+			model: args.model,
+			provider: args.provider,
+			error_status: args.errorStatus,
+		}
+		const errorCount = this.incrementTaskCounter(this.taskErrorCounts, args.ulid)
+		this.recordHistogram("cline.errors.per_task", errorCount, errorAttributes)
 	}
 
 	/**

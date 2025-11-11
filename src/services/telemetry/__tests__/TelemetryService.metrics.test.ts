@@ -102,6 +102,23 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(costEntry?.attributes.model, "gpt-4")
 		assert.strictEqual(costEntry?.attributes.mode, "plan")
 		assert.strictEqual(costEntry?.attributes.currency, "USD")
+		assert.deepStrictEqual(
+			provider.histograms.map((entry) => entry.name),
+			[
+				"cline.turns.per_task",
+				"cline.cache.write.tokens.per_event",
+				"cline.cache.read.tokens.per_event",
+				"cline.cost.per_event",
+			],
+		)
+		const turnEntry = provider.histograms.find((entry) => entry.name === "cline.turns.per_task")
+		assert.ok(turnEntry)
+		assert.strictEqual(turnEntry?.value, 1)
+		assert.strictEqual(turnEntry?.attributes.ulid, "task-2")
+		assert.strictEqual(turnEntry?.attributes.provider, "openai")
+		assert.strictEqual(turnEntry?.attributes.model, "gpt-4")
+		assert.strictEqual(turnEntry?.attributes.source, "assistant")
+		assert.strictEqual(turnEntry?.attributes.mode, "plan")
 	})
 
 	it("captureWorkspaceInitialized emits gauge and retires previous series", () => {
@@ -146,5 +163,13 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(entry.attributes.provider, "anthropic")
 		assert.strictEqual(entry.attributes.model, "claude")
 		assert.strictEqual(entry.attributes.error_status, 500)
+		assert.strictEqual(provider.histograms.length, 1)
+		const errorHistogram = provider.histograms[0]
+		assert.strictEqual(errorHistogram.name, "cline.errors.per_task")
+		assert.strictEqual(errorHistogram.value, 1)
+		assert.strictEqual(errorHistogram.attributes.ulid, "task-3")
+		assert.strictEqual(errorHistogram.attributes.provider, "anthropic")
+		assert.strictEqual(errorHistogram.attributes.model, "claude")
+		assert.strictEqual(errorHistogram.attributes.error_status, 500)
 	})
 })
