@@ -11,6 +11,7 @@ export { config as glmConfig, type GLMVariantConfig } from "./glm/config"
 export { config as gpt5Config, type GPT5VariantConfig } from "./gpt-5/config"
 export { config as NativeGPT5Config } from "./native-gpt-5/config"
 export { config as nativeNextGenConfig, type NativeNextGenVariantConfig } from "./native-next-gen/config"
+export { config as hermesConfig, type HermesVariantConfig } from "./hermes/config"
 export { config as nextGenConfig, type NextGenVariantConfig } from "./next-gen/config"
 export { config as xsConfig, type XsVariantConfig } from "./xs/config"
 
@@ -20,6 +21,7 @@ import { config as glmConfig } from "./glm/config"
 import { config as gpt5Config } from "./gpt-5/config"
 import { config as NativeGPT5Config } from "./native-gpt-5/config"
 import { config as NativeNextGenVariantConfig } from "./native-next-gen/config"
+import { config as hermesConfig } from "./hermes/config"
 import { config as nextGenConfig } from "./next-gen/config"
 import { config as xsConfig } from "./xs/config"
 
@@ -46,6 +48,11 @@ export const VARIANT_CONFIGS = {
 	 * Configured for advanced agentic coding capabilities
 	 */
 	[ModelFamily.GLM]: glmConfig,
+	/**
+	 * Hermes variant - Optimized for Hermes-4 model
+	 * Configured for advanced agentic coding capabilities
+	 */
+	[ModelFamily.HERMES]: hermesConfig,
 	/**
 	 * Next-gen variant - Advanced models with enhanced capabilities
 	 * Includes additional features like feedback loops and web fetching
