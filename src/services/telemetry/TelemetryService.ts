@@ -362,7 +362,11 @@ export class TelemetryService {
 		})
 	}
 
-	private recordGauge(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
+	/**
+	 * Gauge values require explicit cleanup: callers must pass null with the same attribute set
+	 * when the series identified by name+attributes ends to prevent stale metric entries.
+	 */
+	private recordGauge(name: string, value: number | null, attributes?: TelemetryProperties, description?: string): void {
 		const attrs = this.getStandardAttributes(attributes)
 		this.providers.forEach((provider) => {
 			try {
@@ -1498,8 +1502,13 @@ export class TelemetryService {
 			},
 		})
 
+		const isMultiRoot = rootCount > 1
 		this.recordGauge("cline.workspace.active_roots", rootCount, {
-			is_multi_root: rootCount > 1,
+			is_multi_root: isMultiRoot,
+		})
+		// Retire the previous series to avoid leaking gauge entries when the flag flips.
+		this.recordGauge("cline.workspace.active_roots", null, {
+			is_multi_root: !isMultiRoot,
 		})
 	}
 

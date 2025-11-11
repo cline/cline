@@ -158,8 +158,8 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	 * Record a gauge metric by converting to equivalent PostHog event
 	 * Gauges track current state, which we can log as state change events
 	 */
-	public recordGauge(name: string, value: number, attributes?: TelemetryProperties, _description?: string): void {
-		if (!this.isEnabled()) return
+	public recordGauge(name: string, value: number | null, attributes?: TelemetryProperties, _description?: string): void {
+		if (!this.isEnabled() || value === null) return
 
 		// Convert gauge updates to state change events
 		if (name === "cline.workspace.active_roots") {

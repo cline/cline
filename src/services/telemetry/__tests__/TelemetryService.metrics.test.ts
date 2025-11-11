@@ -5,7 +5,7 @@ import { TelemetryService } from "../TelemetryService"
 class FakeProvider implements ITelemetryProvider {
 	public counters: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
 	public histograms: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
-	public gauges: Array<{ name: string; value: number; attributes: TelemetryProperties; description?: string }> = []
+	public gauges = new Map<string, Map<string, { value: number; attributes: TelemetryProperties; description?: string }>>()
 
 	log(): void {}
 	logRequired(): void {}
@@ -23,8 +23,24 @@ class FakeProvider implements ITelemetryProvider {
 	recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
 		this.histograms.push({ name, value, attributes: attributes ?? {}, description })
 	}
-	recordGauge(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
-		this.gauges.push({ name, value, attributes: attributes ?? {}, description })
+	recordGauge(name: string, value: number | null, attributes?: TelemetryProperties, description?: string): void {
+		const attrKey = JSON.stringify(attributes ?? {})
+		const series = this.gauges.get(name)
+		if (value === null) {
+			series?.delete(attrKey)
+			if (series && series.size === 0) {
+				this.gauges.delete(name)
+			}
+			return
+		}
+
+		let nextSeries = series
+		if (!nextSeries) {
+			nextSeries = new Map()
+			this.gauges.set(name, nextSeries)
+		}
+
+		nextSeries.set(attrKey, { value, attributes: attributes ?? {}, description })
 	}
 	async dispose(): Promise<void> {}
 }
@@ -89,17 +105,26 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(costEntry?.attributes.email, "user@example.com")
 	})
 
-	it("captureWorkspaceInitialized emits gauge", () => {
+	it("captureWorkspaceInitialized emits gauge and retires previous series", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
 
 		service.captureWorkspaceInitialized(3, ["Git"], 500)
+		const initialSeries = provider.gauges.get("cline.workspace.active_roots")
+		assert.ok(initialSeries)
+		assert.strictEqual(initialSeries.size, 1)
+		const [initialEntry] = Array.from(initialSeries.values())
+		assert.strictEqual(initialEntry.value, 3)
+		assert.strictEqual(initialEntry.attributes.is_multi_root, true)
+		assert.strictEqual(initialEntry.attributes.extension_version, "test")
 
-		assert.strictEqual(provider.gauges.length, 1)
-		assert.strictEqual(provider.gauges[0].name, "cline.workspace.active_roots")
-		assert.strictEqual(provider.gauges[0].value, 3)
-		assert.strictEqual(provider.gauges[0].attributes.is_multi_root, true)
-		assert.strictEqual(provider.gauges[0].attributes.extension_version, "test")
+		service.captureWorkspaceInitialized(1, ["Git"], 200)
+		const updatedSeries = provider.gauges.get("cline.workspace.active_roots")
+		assert.ok(updatedSeries)
+		assert.strictEqual(updatedSeries.size, 1)
+		const [updatedEntry] = Array.from(updatedSeries.values())
+		assert.strictEqual(updatedEntry.value, 1)
+		assert.strictEqual(updatedEntry.attributes.is_multi_root, false)
 	})
 
 	it("captureProviderApiError increments error counter", () => {

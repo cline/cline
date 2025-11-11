@@ -21,7 +21,7 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	private counters = new Map<string, ReturnType<Meter["createCounter"]>>()
 	private histograms = new Map<string, ReturnType<Meter["createHistogram"]>>()
 	private gauges = new Map<string, ReturnType<Meter["createObservableGauge"]>>()
-	private gaugeValues = new Map<string, { value: number; attributes?: TelemetryProperties }>()
+	private gaugeValues = new Map<string, Map<string, { value: number; attributes?: TelemetryProperties }>>()
 
 	constructor() {
 		// Initialize telemetry settings
@@ -201,35 +201,51 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	 * Record a gauge metric (point-in-time value that can go up or down)
 	 * Lazy creation - creates an observable gauge that reads from stored values
 	 */
-	public recordGauge(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
+	public recordGauge(name: string, value: number | null, attributes?: TelemetryProperties, description?: string): void {
 		if (!this.meter || !this.isEnabled()) {
 			return
 		}
 
-		// Create a unique key for this gauge + attribute combination
 		const attrKey = attributes ? JSON.stringify(attributes) : ""
-		const storageKey = `${name}:${attrKey}`
 
-		// Store the current value
-		this.gaugeValues.set(storageKey, { value, attributes })
+		const existingSeries = this.gaugeValues.get(name)
 
-		// Create observable gauge on first use
+		if (value === null) {
+			if (existingSeries) {
+				existingSeries.delete(attrKey)
+				if (existingSeries.size === 0) {
+					this.gaugeValues.delete(name)
+					this.gauges.delete(name)
+				}
+			}
+			return
+		}
+
+		let series = existingSeries
+		if (!series) {
+			series = new Map()
+			this.gaugeValues.set(name, series)
+		}
+
 		if (!this.gauges.has(name)) {
 			const options = description ? { description } : undefined
 			const gauge = this.meter.createObservableGauge(name, options)
 
-			// Add callback to observe all values for this gauge
 			gauge.addCallback((observableResult) => {
-				for (const [key, data] of this.gaugeValues.entries()) {
-					if (key.startsWith(name + ":")) {
-						observableResult.observe(data.value, this.flattenProperties(data.attributes))
-					}
+				const currentSeries = this.gaugeValues.get(name)
+				if (!currentSeries) {
+					return
+				}
+				for (const data of currentSeries.values()) {
+					observableResult.observe(data.value, this.flattenProperties(data.attributes))
 				}
 			})
 
 			this.gauges.set(name, gauge)
 			console.log(`[OTEL] Created gauge: ${name}`)
 		}
+
+		series.set(attrKey, { value, attributes })
 	}
 
 	public async dispose(): Promise<void> {

@@ -108,10 +108,10 @@ export interface ITelemetryProvider {
 	 * Record a gauge metric (point-in-time value that can go up or down)
 	 * Providers that don't support metrics may implement this as a no-op.
 	 * @param name Metric name (e.g., "cline.workspace.active_roots")
-	 * @param value Current value
-	 * @param attributes Optional metric attributes including userId, email, ulid (JSON-serializable)
+	 * @param value Current value, or null to retire the series identified by name + attributes
+	 * @param attributes Optional metric attributes including userId, email, ulid (JSON-serializable). When retiring a series pass the same attribute set that was used when recording it.
 	 */
-	recordGauge(name: string, value: number, attributes?: TelemetryProperties, description?: string): void
+	recordGauge(name: string, value: number | null, attributes?: TelemetryProperties, description?: string): void
 
 	/**
 	 * Clean up resources when the provider is disposed
