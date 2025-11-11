@@ -211,6 +211,12 @@ describe("Prompt System Integration Tests", () => {
 			contextVariations,
 		},
 		{
+			modelGroup: ModelFamily.MISTRAL,
+			modelIds: ["mistral-large-latest"],
+			providerId: "mistral",
+			contextVariations,
+		},
+		{
 			modelGroup: ModelFamily.NEXT_GEN,
 			modelIds: ["claude-sonnet-4"],
 			providerId: "anthropic",
