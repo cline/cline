@@ -13,14 +13,26 @@ export const CheckpointError: React.FC<CheckpointErrorProps> = ({
 }) => {
 	const { t } = useTranslation()
 	const messages = useMemo(() => {
-		const message = checkpointManagerErrorMessage?.replace(
-			new RegExp(t("task_header.disabling_checkpoints_message") + "$"),
-			"",
-		)
+		let message = checkpointManagerErrorMessage
+
+		// Check for specific error messages from backend and translate them
+		if (message?.includes("Cannot use checkpoints in home directory")) {
+			message = t("task_header.cannot_use_checkpoints_in_home_directory")
+		} else if (message?.includes("Cannot use checkpoints in Desktop directory")) {
+			message = t("task_header.cannot_use_checkpoints_in_desktop_directory")
+		} else if (message?.includes("Cannot use checkpoints in Documents directory")) {
+			message = t("task_header.cannot_use_checkpoints_in_documents_directory")
+		} else if (message?.includes("Cannot use checkpoints in Downloads directory")) {
+			message = t("task_header.cannot_use_checkpoints_in_downloads_directory")
+		} else {
+			// Handle existing logic for other messages
+			message = message?.replace(new RegExp(t("task_header.disabling_checkpoints_message") + "$"), "")
+		}
+
 		const showDisableButton =
-			checkpointManagerErrorMessage?.endsWith(t("task_header.disabling_checkpoints_message")) ||
-			checkpointManagerErrorMessage?.includes(t("task_header.multi_root_message"))
-		const showGitInstructions = checkpointManagerErrorMessage?.includes(t("task_header.git_instructions"))
+			checkpointManagerErrorMessage?.endsWith("disabling checkpoints.") ||
+			checkpointManagerErrorMessage?.includes("multi-root workspaces")
+		const showGitInstructions = checkpointManagerErrorMessage?.includes("Git must be installed to use checkpoints.")
 		return { message, showDisableButton, showGitInstructions }
 	}, [checkpointManagerErrorMessage, t])
 

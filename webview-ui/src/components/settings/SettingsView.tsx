@@ -139,6 +139,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	const navItemRefs = useRef<HTMLDivElement[]>([])
 	const [navWidthCalculated, setNavWidthCalculated] = useState(false)
 	const [maxNavItemWidth, setMaxNavItemWidth] = useState(0)
+	const [isCompactMode, setIsCompactMode] = useState(false)
 
 	// Optimized message handler with early returns
 	const handleMessage = useCallback((event: MessageEvent) => {
@@ -181,52 +182,106 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	}, [])
 
 	// Calculate the maximum width for nav items
-	useEffect(() => {
-		// Function to calculate max width
-		const calculateMaxWidth = () => {
-			const widths = navItemRefs.current.filter((ref) => ref !== null).map((ref) => ref.getBoundingClientRect().width)
+	const calculateMaxWidth = useCallback(() => {
+		// Force recalculation by resetting refs
+		const widths = navItemRefs.current
+			.filter((ref) => ref !== null)
+			.map((ref) => {
+				// Temporarily reset width to auto to get natural width
+				const originalWidth = ref.style.width
+				ref.style.width = "auto"
 
-			if (widths.length > 0) {
-				const maxWidth = Math.max(...widths)
-				setMaxNavItemWidth(maxWidth)
-				setNavWidthCalculated(true)
-			}
+				// Temporarily show the text for accurate measurement
+				const span = ref.querySelector("span")
+				if (span) {
+					;(span as HTMLElement).style.display = "inline-block"
+				}
+
+				const width = ref.getBoundingClientRect().width
+
+				// Restore original display and width
+				if (span) {
+					;(span as HTMLElement).style.display = ""
+				}
+				ref.style.width = originalWidth
+
+				return width
+			})
+
+		if (widths.length > 0) {
+			const maxWidth = Math.max(...widths) + 16 // Add padding for better appearance
+			setMaxNavItemWidth(maxWidth)
+			setNavWidthCalculated(true)
 		}
+	}, [])
 
+	useEffect(() => {
 		// Initial calculation
 		calculateMaxWidth()
-
-		// Recalculate if window is resized
-		window.addEventListener("resize", calculateMaxWidth)
 
 		// Set up a MutationObserver to recalculate if DOM changes
 		const observer = new MutationObserver(calculateMaxWidth)
 		observer.observe(document.body, { childList: true, subtree: true })
 
 		return () => {
-			window.removeEventListener("resize", calculateMaxWidth)
 			observer.disconnect()
 		}
-	}, [])
+	}, [calculateMaxWidth])
+
+	// Handle window resize to toggle compact mode
+	useEffect(() => {
+		const handleResize = () => {
+			// Check if we should be in compact mode (narrow window or mobile)
+			const shouldCompact = window.innerWidth < 768
+			setIsCompactMode(shouldCompact)
+
+			// Recalculate max width on resize
+			// Use requestAnimationFrame to ensure DOM updates are completed
+			requestAnimationFrame(() => {
+				// Reset calculation state to trigger recalculation
+				setNavWidthCalculated(false)
+				calculateMaxWidth()
+			})
+		}
+
+		// Initial check
+		handleResize()
+
+		// Add event listener
+		window.addEventListener("resize", handleResize)
+
+		return () => {
+			window.removeEventListener("resize", handleResize)
+		}
+	}, [calculateMaxWidth])
 
 	// Recalculate nav item widths when language changes
 	useEffect(() => {
 		// Reset calculation state to trigger recalculation
 		setNavWidthCalculated(false)
+		setIsCompactMode(window.innerWidth < 768)
 
 		// Wait for next tick to ensure DOM has updated with new language text
 		const timer = setTimeout(() => {
-			const widths = navItemRefs.current.filter((ref) => ref !== null).map((ref) => ref.getBoundingClientRect().width)
-
-			if (widths.length > 0) {
-				const maxWidth = Math.max(...widths)
-				setMaxNavItemWidth(maxWidth)
-				setNavWidthCalculated(true)
-			}
+			calculateMaxWidth()
 		}, 0)
 
 		return () => clearTimeout(timer)
-	}, [uiLanguage, i18n.language])
+	}, [uiLanguage, i18n.language, calculateMaxWidth])
+
+	// Add effect to recalculate when compact mode changes
+	useEffect(() => {
+		// When switching from compact to normal mode, we need to recalculate widths
+		if (!isCompactMode) {
+			// Delay to ensure DOM has updated
+			const timer = setTimeout(() => {
+				setNavWidthCalculated(false)
+				calculateMaxWidth()
+			}, 50) // Small delay to ensure DOM updates
+
+			return () => clearTimeout(timer)
+		}
+	}, [isCompactMode, calculateMaxWidth])
 
 	useEvent("message", handleMessage)
 
@@ -258,7 +313,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 								className={cn(
 									"whitespace-nowrap overflow-hidden h-12 sm:py-3 box-border flex items-center border-l-2 border-transparent text-foreground opacity-70 bg-transparent hover:bg-list-hover p-4 cursor-pointer gap-2",
 									{
-										"opacity-100 border-l-2 border-l-foreground border-t-0 border-r-0 border-b-0 bg-selection":
+										"opacity-100 border-l-2 border-l-[var(--vscode-focusBorder)] border-t-0 border-r-0 border-b-0":
 											activeTab === tab.id,
 									},
 								)}
@@ -267,9 +322,17 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 										navItemRefs.current[index] = el
 									}
 								}}
-								style={{ width: navWidthCalculated ? `${maxNavItemWidth}px` : "auto" }}>
+								style={{
+									width: navWidthCalculated && !isCompactMode ? `${maxNavItemWidth}px` : "auto",
+									justifyContent: isCompactMode ? "center" : "flex-start",
+								}}>
 								<tab.icon className="w-4 h-4" />
-								<span className="hidden sm:block">{t(tab.name)}</span>
+								<span
+									className={cn("hidden transition-all duration-200", {
+										"sm:block": !isCompactMode,
+									})}>
+									{t(tab.name)}
+								</span>
 							</div>
 						</TooltipTrigger>
 						<TooltipContent side="right">{t(tab.tooltipText)}</TooltipContent>
@@ -277,7 +340,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 				</TabTrigger>
 			)
 		},
-		[activeTab, t, navWidthCalculated, maxNavItemWidth],
+		[activeTab, t, navWidthCalculated, maxNavItemWidth, isCompactMode],
 	)
 
 	// Memoized active content component
@@ -317,13 +380,15 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 			<div className="flex flex-1 overflow-hidden">
 				<TabList
-					className="shrink-0 flex flex-col overflow-y-auto border-r border-sidebar-background"
+					className={cn("shrink-0 flex flex-col overflow-y-auto border-r border-sidebar-background", {
+						"w-16": isCompactMode,
+					})}
 					onValueChange={setActiveTab}
 					value={activeTab}>
 					{SETTINGS_TABS.filter((tab) => !tab.hidden).map(renderTabItem)}
 				</TabList>
 
-				<TabContent className="flex-1 overflow-auto">{ActiveContent}</TabContent>
+				<TabContent className="flex-1 overflow-auto p-4">{ActiveContent}</TabContent>
 			</div>
 		</Tab>
 	)
