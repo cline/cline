@@ -227,10 +227,10 @@ export class AnthropicHandler implements ApiHandler {
 						case "signature_delta":
 							// It's used when sending the thinking block back to the API
 							// API expects this in completed form, not as array of deltas
-							if (thinkingDeltaAccumulator && chunk.delta.signature) {
+							if (chunk.delta.signature) {
 								yield {
 									type: "reasoning",
-									reasoning: "",
+									reasoning: "", // reasoning text is already sent via thinking_delta
 									signature: chunk.delta.signature,
 								}
 							}

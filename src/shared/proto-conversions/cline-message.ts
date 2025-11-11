@@ -200,6 +200,7 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 		askQuestion: undefined,
 		askNewTask: undefined,
 		apiReqInfo: undefined,
+		modelInfo: message.modelInfo ?? undefined,
 	}
 
 	return protoMessage

@@ -1,9 +1,10 @@
 import { ClineDefaultTool } from "@shared/tools"
-export type AssistantMessageContent = TextContent | ToolUse | Reasoning
+
+export type AssistantMessageContent = TextStreamContent | ToolUse | ReasoningStreamContent
 
 export { parseAssistantMessageV2 } from "./parse-assistant-message"
 
-export interface TextContent {
+export interface TextStreamContent {
 	type: "text"
 	content: string
 	partial: boolean
@@ -55,12 +56,12 @@ export interface ToolUse {
 	isNativeToolCall?: boolean
 }
 
-export interface Reasoning {
+export interface ReasoningStreamContent {
 	type: "reasoning"
 	reasoning: string
 	details?: any // openrouter has various properties that we can pass back unmodified in api requests to preserve reasoning traces
 	signature?: string
-	redacted?: boolean
+	redacted?: boolean // whether this reasoning block has been redacted
 	data?: string // redacted data
 	partial: boolean
 }

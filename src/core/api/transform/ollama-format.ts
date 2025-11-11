@@ -1,7 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Message } from "ollama"
+import { ClineStorageMessage } from "@/shared/messages/content"
 
-export function convertToOllamaMessages(anthropicMessages: Anthropic.Messages.MessageParam[]): Message[] {
+export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[]): Message[] {
 	const ollamaMessages: Message[] = []
 
 	for (const anthropicMessage of anthropicMessages) {

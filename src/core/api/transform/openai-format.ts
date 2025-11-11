@@ -1,8 +1,9 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import { ClineStorageMessage } from "@/shared/messages/content"
 
 export function convertToOpenAiMessages(
-	anthropicMessages: Anthropic.Messages.MessageParam[],
+	anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[],
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
 	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = []
 

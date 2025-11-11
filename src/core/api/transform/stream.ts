@@ -34,7 +34,7 @@ export interface ApiStreamToolCall {
 export interface ApiStreamThinkingChunk {
 	type: "reasoning"
 	reasoning: string
-	details?: any // openrouter has various properties that we can pass back unmodified in api requests to preserve reasoning traces
+	details?: unknown // openrouter has various properties that we can pass back unmodified in api requests to preserve reasoning traces
 	signature?: string
 	redacted_data?: string
 }
