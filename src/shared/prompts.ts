@@ -6,6 +6,7 @@ export enum ModelFamily {
 	GEMINI = "gemini",
 	QWEN = "qwen",
 	GLM = "glm",
+	HERMES = "hermes",
 	NEXT_GEN = "next-gen",
 	GENERIC = "generic",
 	XS = "xs",
