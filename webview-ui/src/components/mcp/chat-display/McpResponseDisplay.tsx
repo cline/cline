@@ -224,7 +224,7 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 					}}>
 					<div className="header-title">
 						<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"} header-icon`}></span>
-						{t("mcp.chat_display.response", "Response")}
+						{t("mcp.chat_display.response")}
 					</div>
 					<DropdownContainer
 						style={{ minWidth: isExpanded ? "auto" : "0", visibility: isExpanded ? "visible" : "hidden" }}>
@@ -248,13 +248,13 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 				<ResponseHeader onClick={toggleExpand}>
 					<div className="header-title">
 						<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"} header-icon`}></span>
-						{t("mcp.chat_display.response_error", "Response (Error)")}
+						{t("mcp.chat_display.response_error")}
 					</div>
 				</ResponseHeader>
 				{isExpanded && (
 					<div className="response-content">
 						<div style={{ color: "var(--vscode-errorForeground)" }}>
-							{t("mcp.chat_display.error_parsing_response", "Error parsing response:")}
+							{t("mcp.chat_display.error_parsing_response")}
 						</div>
 						<UrlText>{responseText}</UrlText>
 					</div>

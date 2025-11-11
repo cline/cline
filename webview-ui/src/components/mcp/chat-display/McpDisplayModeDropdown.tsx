@@ -22,9 +22,9 @@ const McpDisplayModeDropdown: React.FC<McpDisplayModeDropdownProps> = ({ value, 
 
 	return (
 		<VSCodeDropdown className={className} id={id} onChange={handleChange} onClick={onClick} style={style} value={value}>
-			<VSCodeOption value="plain">{t("mcp.chat_display.plain_text", "Plain Text")}</VSCodeOption>
-			<VSCodeOption value="rich">{t("mcp.chat_display.rich_display", "Rich Display")}</VSCodeOption>
-			<VSCodeOption value="markdown">{t("mcp.chat_display.markdown", "Markdown")}</VSCodeOption>
+			<VSCodeOption value="plain">{t("mcp.chat_display.plain_text")}</VSCodeOption>
+			<VSCodeOption value="rich">{t("mcp.chat_display.rich_display")}</VSCodeOption>
+			<VSCodeOption value="markdown">{t("mcp.chat_display.markdown")}</VSCodeOption>
 		</VSCodeDropdown>
 	)
 }

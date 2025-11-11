@@ -54,7 +54,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 				</div>
 				{serverName && autoApprovalSettings.actions.useMcp && (
 					<VSCodeCheckbox checked={tool.autoApprove ?? false} data-tool={tool.name} onChange={handleAutoApproveChange}>
-						{t("mcp.server_row.auto_approve", "Auto-approve")}
+						{t("mcp.server_row.auto_approve")}
 					</VSCodeCheckbox>
 				)}
 			</div>
@@ -87,7 +87,7 @@ const McpToolRow = ({ tool, serverName }: McpToolRowProps) => {
 								fontSize: "11px",
 								textTransform: "uppercase",
 							}}>
-							{t("mcp.server_row.parameters", "Parameters")}
+							{t("mcp.server_row.parameters")}
 						</div>
 						{Object.entries(tool.inputSchema.properties as Record<string, any>).map(([paramName, schema]) => {
 							const isRequired =

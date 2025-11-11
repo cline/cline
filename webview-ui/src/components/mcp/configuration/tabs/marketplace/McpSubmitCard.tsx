@@ -35,10 +35,10 @@ const McpSubmitCard = () => {
 						fontWeight: 600,
 						color: "var(--vscode-foreground)",
 					}}>
-					{t("mcp.marketplace.submit_title", "Submit MCP Server")}
+					{t("mcp.marketplace.submit_title")}
 				</h3>
 				<p style={{ fontSize: "13px", margin: 0, color: "var(--vscode-descriptionForeground)" }}>
-					{t("mcp.marketplace.submit_description", "Help others discover great MCP servers by submitting an issue to")}{" "}
+					{t("mcp.marketplace.submit_description")}{" "}
 					<a href="https://github.com/cline/mcp-marketplace">github.com/cline/mcp-marketplace</a>
 				</p>
 			</div>

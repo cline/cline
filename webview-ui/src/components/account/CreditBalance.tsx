@@ -17,9 +17,9 @@ export const CreditBalance = ({ balance, fetchCreditBalance, creditUrl, lastFetc
 	return (
 		<div
 			className="w-full flex flex-col items-center"
-			title={`${t("account.credit.last_updated", "Last updated")}: ${new Date(lastFetchTime).toLocaleTimeString()}`}>
+			title={`${t("account.credit.last_updated")}: ${new Date(lastFetchTime).toLocaleTimeString()}`}>
 			<div className="text-sm text-(--vscode-descriptionForeground) mb-3 font-azeret-mono font-light">
-				{t("account.credit.current_balance", "CURRENT BALANCE")}
+				{t("account.credit.current_balance")}
 			</div>
 
 			<div className="font-bold text-2xl mb-6 flex items-center gap-2">
@@ -35,7 +35,7 @@ export const CreditBalance = ({ balance, fetchCreditBalance, creditUrl, lastFetc
 
 			<div className="w-full">
 				<VSCodeButtonLink className="w-full" href={creditUrl.href}>
-					{t("account.credit.add_credits", "Add Credits")}
+					{t("account.credit.add_credits")}
 				</VSCodeButtonLink>
 			</div>
 		</div>

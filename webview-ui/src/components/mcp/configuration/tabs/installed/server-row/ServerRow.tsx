@@ -213,7 +213,7 @@ const ServerRow = ({
 								e.stopPropagation()
 								handleRestart()
 							}}
-							title={t("mcp.server_row.restart_server", "Restart Server")}>
+							title={t("mcp.server_row.restart_server")}>
 							<span className="codicon codicon-sync"></span>
 						</VSCodeButton>
 						{hasTrashIcon && (
@@ -224,7 +224,7 @@ const ServerRow = ({
 									e.stopPropagation()
 									handleDelete()
 								}}
-								title={t("mcp.server_row.delete_server", "Delete Server")}>
+								title={t("mcp.server_row.delete_server")}>
 								<span className="codicon codicon-trash"></span>
 							</VSCodeButton>
 						)}
@@ -334,10 +334,10 @@ const ServerRow = ({
 						}}>
 						<VSCodePanels>
 							<VSCodePanelTab id="tools">
-								{t("mcp.server_row.tools_tab", "Tools ({{count}})", { count: server.tools?.length || 0 })}
+								{t("mcp.server_row.tools_tab", { count: server.tools?.length || 0 })}
 							</VSCodePanelTab>
 							<VSCodePanelTab id="resources">
-								{t("mcp.server_row.resources_tab", "Resources ({{count}})", {
+								{t("mcp.server_row.resources_tab", {
 									count: [...(server.resourceTemplates || []), ...(server.resources || [])].length || 0,
 								})}
 							</VSCodePanelTab>
@@ -361,7 +361,7 @@ const ServerRow = ({
 												data-tool="all-tools"
 												onChange={handleAutoApproveChange}
 												style={{ marginTop: "4px", marginBottom: "4px" }}>
-												{t("mcp.server_row.auto_approve_all_tools", "Auto-approve all tools")}
+												{t("mcp.server_row.auto_approve_all_tools")}
 											</VSCodeCheckbox>
 										)}
 									</div>
@@ -371,7 +371,7 @@ const ServerRow = ({
 											padding: "10px 0",
 											color: "var(--vscode-descriptionForeground)",
 										}}>
-										{t("mcp.server_row.no_tools_found", "No tools found")}
+										{t("mcp.server_row.no_tools_found")}
 									</div>
 								)}
 							</VSCodePanelView>
@@ -400,7 +400,7 @@ const ServerRow = ({
 											padding: "10px 0",
 											color: "var(--vscode-descriptionForeground)",
 										}}>
-										{t("mcp.server_row.no_resources_found", "No resources found")}
+										{t("mcp.server_row.no_resources_found")}
 									</div>
 								)}
 							</VSCodePanelView>
@@ -408,7 +408,7 @@ const ServerRow = ({
 
 						<div style={{ margin: "10px 7px" }}>
 							<label style={{ display: "block", marginBottom: "4px", fontSize: "13px" }}>
-								{t("mcp.server_row.request_timeout", "Request Timeout")}
+								{t("mcp.server_row.request_timeout")}
 							</label>
 							<VSCodeDropdown onChange={handleTimeoutChange} style={{ width: "100%" }} value={timeoutValue}>
 								{TimeoutOptions}

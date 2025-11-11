@@ -126,7 +126,7 @@ const McpMarketplaceView = () => {
 				<div style={{ color: "var(--vscode-errorForeground)" }}>{error}</div>
 				<VSCodeButton appearance="secondary" onClick={() => fetchMarketplace(true)}>
 					<span className="codicon codicon-refresh" style={{ marginRight: "6px" }} />
-					{t("mcp.marketplace.retry", "Retry")}
+					{t("mcp.marketplace.retry")}
 				</VSCodeButton>
 			</div>
 		)
@@ -143,7 +143,7 @@ const McpMarketplaceView = () => {
 				{/* Search row */}
 				<VSCodeTextField
 					onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
-					placeholder={t("mcp.marketplace.search_placeholder", "Search MCPs...")}
+					placeholder={t("mcp.marketplace.search_placeholder")}
 					style={{ width: "100%" }}
 					value={searchQuery}>
 					<div
@@ -156,7 +156,7 @@ const McpMarketplaceView = () => {
 					/>
 					{searchQuery && (
 						<div
-							aria-label={t("mcp.marketplace.clear_search", "Clear search")}
+							aria-label={t("mcp.marketplace.clear_search")}
 							className="codicon codicon-close"
 							onClick={() => setSearchQuery("")}
 							slot="end"
@@ -186,7 +186,7 @@ const McpMarketplaceView = () => {
 							fontWeight: 500,
 							flexShrink: 0,
 						}}>
-						{t("mcp.marketplace.filter", "Filter:")}
+						{t("mcp.marketplace.filter")}
 					</span>
 					<div
 						style={{
@@ -200,7 +200,7 @@ const McpMarketplaceView = () => {
 								width: "100%",
 							}}
 							value={selectedCategory || ""}>
-							<VSCodeOption value="">{t("mcp.marketplace.all_categories", "All Categories")}</VSCodeOption>
+							<VSCodeOption value="">{t("mcp.marketplace.all_categories")}</VSCodeOption>
 							{categories.map((category) => (
 								<VSCodeOption key={category} value={category}>
 									{category}
@@ -224,7 +224,7 @@ const McpMarketplaceView = () => {
 							fontWeight: 500,
 							marginTop: "3px",
 						}}>
-						{t("mcp.marketplace.sort", "Sort:")}
+						{t("mcp.marketplace.sort")}
 					</span>
 					<VSCodeRadioGroup
 						onChange={(e) => setSortBy((e.target as HTMLInputElement).value as typeof sortBy)}
@@ -234,12 +234,10 @@ const McpMarketplaceView = () => {
 							marginTop: "-2.5px",
 						}}
 						value={sortBy}>
-						<VSCodeRadio value="downloadCount">
-							{t("mcp.marketplace.sort_most_installs", "Most Installs")}
-						</VSCodeRadio>
-						<VSCodeRadio value="newest">{t("mcp.marketplace.sort_newest", "Newest")}</VSCodeRadio>
-						<VSCodeRadio value="stars">{t("mcp.marketplace.sort_github_stars", "GitHub Stars")}</VSCodeRadio>
-						<VSCodeRadio value="name">{t("mcp.marketplace.sort_name", "Name")}</VSCodeRadio>
+						<VSCodeRadio value="downloadCount">{t("mcp.marketplace.sort_most_installs")}</VSCodeRadio>
+						<VSCodeRadio value="newest">{t("mcp.marketplace.sort_newest")}</VSCodeRadio>
+						<VSCodeRadio value="stars">{t("mcp.marketplace.sort_github_stars")}</VSCodeRadio>
+						<VSCodeRadio value="name">{t("mcp.marketplace.sort_name")}</VSCodeRadio>
 					</VSCodeRadioGroup>
 				</div>
 			</div>
@@ -268,9 +266,7 @@ const McpMarketplaceView = () => {
 			{remoteConfigSettings?.allowedMCPServers && (
 				<div className="flex items-center gap-2 px-5 py-3 mx-5 mb-4 bg-vscode-textBlockQuote-background border-l-[3px] border-vscode-textLink-foreground">
 					<i className="codicon codicon-lock text-sm" />
-					<span className="text-[13px]">
-						{t("mcp.marketplace.org_configured", "Your organization has pre-configured the available MCP servers")}
-					</span>
+					<span className="text-[13px]">{t("mcp.marketplace.org_configured")}</span>
 				</div>
 			)}
 

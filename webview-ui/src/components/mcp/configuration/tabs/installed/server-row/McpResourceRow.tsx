@@ -43,7 +43,7 @@ const McpResourceRow = ({ item }: McpResourceRowProps) => {
 				style={{
 					fontSize: "12px",
 				}}>
-				<span style={{ opacity: 0.8 }}>{t("mcp.server_row.returns", "Returns ")} </span>
+				<span style={{ opacity: 0.8 }}>{t("mcp.server_row.returns")} </span>
 				<code
 					style={{
 						color: "var(--vscode-textPreformat-foreground)",

@@ -207,7 +207,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 								}
 							`}
 						</style>
-						{t("mcp.chat_display.loading_preview", "Loading preview for {{hostname}}...", {
+						{t("mcp.chat_display.loading_preview", {
 							hostname: getSafeHostname(url),
 						})}
 					</div>
@@ -264,7 +264,7 @@ class LinkPreview extends React.Component<LinkPreviewProps, LinkPreviewState> {
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
 					{errorMessage && <div style={{ fontSize: "11px", marginTop: "4px", opacity: 0.8 }}>{errorMessage}</div>}
 					<div style={{ fontSize: "11px", marginTop: "8px", color: "var(--vscode-textLink-foreground)" }}>
-						{t("mcp.chat_display.click_to_open_in_browser", "Click to open in browser")}
+						{t("mcp.chat_display.click_to_open_in_browser")}
 					</div>
 				</div>
 			)
@@ -413,8 +413,7 @@ const MemoizedLinkPreview = React.memo(
 const LinkPreviewWithErrorBoundary: React.FC<LinkPreviewProps> = (props) => {
 	const { t } = useTranslation()
 	return (
-		<ChatErrorBoundary
-			errorTitle={t("mcp.chat_display.error_displaying_link_preview", "Something went wrong displaying this link preview")}>
+		<ChatErrorBoundary errorTitle={t("mcp.chat_display.error_displaying_link_preview")}>
 			<MemoizedLinkPreview {...props} />
 		</ChatErrorBoundary>
 	)

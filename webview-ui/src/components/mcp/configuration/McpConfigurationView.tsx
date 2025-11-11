@@ -83,9 +83,9 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 						color: getEnvironmentColor(environment),
 						margin: 0,
 					}}>
-					{t("mcp.title", "MCP Servers")}
+					{t("mcp.title")}
 				</h3>
-				<VSCodeButton onClick={onDone}>{t("settings.done_button", "Done")}</VSCodeButton>
+				<VSCodeButton onClick={onDone}>{t("settings.done_button")}</VSCodeButton>
 			</div>
 
 			<div style={{ flex: 1, overflow: "auto" }}>
@@ -99,14 +99,14 @@ const McpConfigurationView = ({ onDone, initialTab }: McpViewProps) => {
 					}}>
 					{mcpMarketplaceEnabled && (
 						<TabButton isActive={activeTab === "marketplace"} onClick={() => handleTabChange("marketplace")}>
-							{t("mcp.tabs.marketplace", "Marketplace")}
+							{t("mcp.tabs.marketplace")}
 						</TabButton>
 					)}
 					<TabButton isActive={activeTab === "addRemote"} onClick={() => handleTabChange("addRemote")}>
-						{t("mcp.tabs.remote_servers", "Remote Servers")}
+						{t("mcp.tabs.remote_servers")}
 					</TabButton>
 					<TabButton isActive={activeTab === "configure"} onClick={() => handleTabChange("configure")}>
-						{t("mcp.tabs.configure", "Configure")}
+						{t("mcp.tabs.configure")}
 					</TabButton>
 				</div>
 

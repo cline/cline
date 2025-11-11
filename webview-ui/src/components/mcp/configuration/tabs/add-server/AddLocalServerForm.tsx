@@ -15,13 +15,9 @@ const AddLocalServerForm = ({}: AddLocalServerFormProps) => {
 	return (
 		<FormContainer>
 			<div className="text-(--vscode-foreground)">
-				{t(
-					"mcp.add_local.description",
-					"Add a local MCP server by configuring it in {{fileName}}. You'll need to specify the server name, command, arguments, and any required environment variables in the JSON configuration. Learn more",
-					{ fileName: "cline_mcp_settings.json" },
-				)}
+				{t("mcp.add_local.description", { fileName: "cline_mcp_settings.json" })}
 				<VSCodeLink href={LINKS.DOCUMENTATION.LOCAL_MCP_SERVER_DOCS} style={{ display: "inline" }}>
-					{t("mcp.add_local.learn_more", "here.")}
+					{t("mcp.add_local.learn_more")}
 				</VSCodeLink>
 			</div>
 
@@ -33,7 +29,7 @@ const AddLocalServerForm = ({}: AddLocalServerFormProps) => {
 					})
 				}}
 				style={{ width: "100%", marginBottom: "5px", marginTop: 8 }}>
-				{t("mcp.add_local.open_settings", "Open cline_mcp_settings.json")}
+				{t("mcp.add_local.open_settings")}
 			</VSCodeButton>
 		</FormContainer>
 	)

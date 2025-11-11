@@ -68,7 +68,7 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 					{/* Logo */}
 					{item.logoUrl && (
 						<img
-							alt={t("mcp.marketplace.server_logo_alt", "{{name}} logo", { name: item.name })}
+							alt={t("mcp.marketplace.server_logo_alt", { name: item.name })}
 							src={item.logoUrl}
 							style={{
 								width: 42,
@@ -210,7 +210,7 @@ const McpMarketplaceCard = ({ item, installedServers, setError }: McpMarketplace
 								<span
 									className="codicon codicon-key"
 									style={{ flexShrink: 0 }}
-									title={t("mcp.marketplace.requires_api_key", "Requires API key")}
+									title={t("mcp.marketplace.requires_api_key")}
 								/>
 							)}
 						</div>

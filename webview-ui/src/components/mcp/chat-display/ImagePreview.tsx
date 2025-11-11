@@ -192,7 +192,7 @@ class ImagePreview extends React.Component<
 								}
 							`}
 						</style>
-						{t("mcp.chat_display.loading_image", "Loading image from {{hostname}}...", {
+						{t("mcp.chat_display.loading_image", {
 							hostname: getSafeHostname(url),
 						})}
 					</div>
@@ -253,10 +253,10 @@ class ImagePreview extends React.Component<
 						borderRadius: "4px",
 						color: "var(--vscode-errorForeground)",
 					}}>
-					<div style={{ fontWeight: "bold" }}>{t("mcp.chat_display.failed_to_load_image", "Failed to load image")}</div>
+					<div style={{ fontWeight: "bold" }}>{t("mcp.chat_display.failed_to_load_image")}</div>
 					<div style={{ fontSize: "12px", marginTop: "4px" }}>{getSafeHostname(url)}</div>
 					<div style={{ fontSize: "11px", marginTop: "8px", color: "var(--vscode-textLink-foreground)" }}>
-						{t("mcp.chat_display.click_to_open_in_browser", "Click to open in browser")}
+						{t("mcp.chat_display.click_to_open_in_browser")}
 					</div>
 				</div>
 			)
@@ -285,7 +285,7 @@ class ImagePreview extends React.Component<
 				{/\.svg(\?.*)?$/i.test(url) ? (
 					// Special handling for SVG images
 					<object
-						aria-label={t("mcp.chat_display.svg_from", "SVG from {{hostname}}", { hostname: getSafeHostname(url) })}
+						aria-label={t("mcp.chat_display.svg_from", { hostname: getSafeHostname(url) })}
 						data={DOMPurify.sanitize(url)}
 						style={{
 							width: "85%",
@@ -295,7 +295,7 @@ class ImagePreview extends React.Component<
 						type="image/svg+xml">
 						{/* Fallback if object tag fails */}
 						<img
-							alt={t("mcp.chat_display.svg_from", "SVG from {{hostname}}", { hostname: getSafeHostname(url) })}
+							alt={t("mcp.chat_display.svg_from", { hostname: getSafeHostname(url) })}
 							src={DOMPurify.sanitize(url)}
 							style={{
 								width: "85%",
@@ -306,7 +306,7 @@ class ImagePreview extends React.Component<
 					</object>
 				) : (
 					<img
-						alt={t("mcp.chat_display.image_from", "Image from {{hostname}}", { hostname: getSafeHostname(url) })}
+						alt={t("mcp.chat_display.image_from", { hostname: getSafeHostname(url) })}
 						loading="eager"
 						onLoad={(e) => {
 							// Double-check aspect ratio from the actual loaded image

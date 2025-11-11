@@ -31,7 +31,7 @@ const ServersToggleList = ({
 		</div>
 	) : (
 		<div className="flex flex-col items-center gap-3 my-5 text-(--vscode-descriptionForeground)">
-			{t("mcp.configure.no_servers_installed", "No MCP servers installed")}
+			{t("mcp.configure.no_servers_installed")}
 		</div>
 	)
 }

@@ -152,7 +152,7 @@ export const BrowserSettingsMenu = () => {
 				className="browser-info-icon"
 				onClick={toggleInfoPopover}
 				style={{ marginRight: "4px" }}
-				title={t("browser.connection_info", "Browser connection info")}>
+				title={t("browser.connection_info")}>
 				<i
 					className={`codicon ${getIconClass()}`}
 					style={{
@@ -172,11 +172,11 @@ export const BrowserSettingsMenu = () => {
 						border: "1px solid var(--vscode-widget-border)",
 						boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
 					}}>
-					<h4 style={{ margin: "0 0 8px 0" }}>{t("browser.connection", "Browser Connection")}</h4>
+					<h4 style={{ margin: "0 0 8px 0" }}>{t("browser.connection")}</h4>
 					{/* InfoRow - Status row container */}
 					<div className="flex flex-wrap whitespace-nowrap mb-1">
 						{/* InfoLabel - Fixed-width label */}
-						<div className="flex-none w-[90px] font-medium">{t("browser.status", "Status")}:</div>
+						<div className="flex-none w-[90px] font-medium">{t("browser.status")}:</div>
 						{/* InfoValue - Flexible value container */}
 						<div
 							className="flex-1 break-words"
@@ -194,7 +194,7 @@ export const BrowserSettingsMenu = () => {
 						// InfoRow - Type row container
 						<div className="flex flex-wrap whitespace-nowrap mb-1">
 							{/* InfoLabel - Fixed-width label */}
-							<div className="flex-none w-[90px] font-medium">{t("browser.type", "Type")}:</div>
+							<div className="flex-none w-[90px] font-medium">{t("browser.type")}:</div>
 							{/* InfoValue - Flexible value container */}
 							<div className="flex-1 break-words">
 								{connectionInfo.isRemote ? t("browser.remote", "Remote") : t("browser.local", "Local")}
@@ -205,7 +205,7 @@ export const BrowserSettingsMenu = () => {
 						// InfoRow - Remote host row container
 						<div className="flex flex-wrap whitespace-nowrap mb-1">
 							{/* InfoLabel - Fixed-width label */}
-							<div className="flex-none w-[90px] font-medium">{t("browser.remote_host", "Remote Host")}:</div>
+							<div className="flex-none w-[90px] font-medium">{t("browser.remote_host")}:</div>
 							{/* InfoValue - Flexible value container */}
 							<div className="flex-1 break-words">{connectionInfo.host}</div>
 						</div>

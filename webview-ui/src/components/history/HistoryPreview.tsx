@@ -95,7 +95,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 						fontSize: "0.85em",
 						textTransform: "uppercase",
 					}}>
-					{t("history.recent_tasks", "Recent Tasks")}
+					{t("history.recent_tasks")}
 				</span>
 			</div>
 
@@ -132,7 +132,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 														color: "var(--vscode-button-background)",
 													}}>
 													<span
-														aria-label={t("history.favorited", "Favorited")}
+														aria-label={t("history.favorited")}
 														className="codicon codicon-star-full"
 													/>
 												</div>
@@ -150,20 +150,18 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 											</div>
 											<div className="text-sm text-description">
 												<span className="mr-1">
-													{t("history.tokens_label", "Tokens:")} ↑
-													{formatLargeNumber(item.tokensIn || 0)} ↓
+													{t("history.tokens_label")} ↑{formatLargeNumber(item.tokensIn || 0)} ↓
 													{formatLargeNumber(item.tokensOut || 0)}
 												</span>
 												{!!item.cacheWrites && (
 													<span className="mr-1">
-														• {t("history.cache_label", "Cache:")} +
-														{formatLargeNumber(item.cacheWrites || 0)} →{" "}
+														• {t("history.cache_label")} +{formatLargeNumber(item.cacheWrites || 0)} →{" "}
 														{formatLargeNumber(item.cacheReads || 0)}
 													</span>
 												)}
 												{!!item.totalCost && (
 													<span className="mr-1">
-														• {t("history.api_cost_label", "API Cost:")} ${item.totalCost?.toFixed(4)}
+														• {t("history.api_cost_label")} ${item.totalCost?.toFixed(4)}
 													</span>
 												)}
 											</div>
@@ -178,7 +176,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								}}>
 								<VSCodeButton
 									appearance="icon"
-									aria-label={t("history.view_all", "View all history")}
+									aria-label={t("history.view_all")}
 									onClick={() => showHistoryView()}
 									style={{
 										opacity: 0.9,
@@ -188,7 +186,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 											fontSize: "var(--vscode-font-size)",
 											color: "var(--vscode-descriptionForeground)",
 										}}>
-										{t("history.view_all_history", "View all history")}
+										{t("history.view_all_history")}
 									</div>
 								</VSCodeButton>
 							</div>
@@ -201,7 +199,7 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 								fontSize: "var(--vscode-font-size)",
 								padding: "10px 0",
 							}}>
-							{t("history.no_recent_tasks", "No recent tasks")}
+							{t("history.no_recent_tasks")}
 						</div>
 					)}
 				</div>
