@@ -681,29 +681,15 @@ export class TelemetryService {
 		this.recordCounter("cline.turns.total", 1, turnAttributes)
 		this.recordHistogram("cline.turns.per_task", turnCount, turnAttributes)
 
-		if (tokenUsage.cacheWriteTokens && tokenUsage.cacheWriteTokens > 0) {
-			this.recordCounter("cline.cache.write.tokens.total", tokenUsage.cacheWriteTokens, {
+		if (Number.isFinite(tokenUsage.cacheWriteTokens)) {
+			const cacheWriteTokens = tokenUsage.cacheWriteTokens ?? 0
+			this.recordCounter("cline.cache.write.tokens.total", cacheWriteTokens, {
 				ulid,
 				provider,
 				model,
 				mode,
 			})
-			this.recordHistogram("cline.cache.write.tokens.per_event", tokenUsage.cacheWriteTokens, {
-				ulid,
-				provider,
-				model,
-				mode,
-			})
-		}
-
-		if (tokenUsage.cacheReadTokens && tokenUsage.cacheReadTokens > 0) {
-			this.recordCounter("cline.cache.read.tokens.total", tokenUsage.cacheReadTokens, {
-				ulid,
-				provider,
-				model,
-				mode,
-			})
-			this.recordHistogram("cline.cache.read.tokens.per_event", tokenUsage.cacheReadTokens, {
+			this.recordHistogram("cline.cache.write.tokens.per_event", cacheWriteTokens, {
 				ulid,
 				provider,
 				model,
@@ -711,10 +697,27 @@ export class TelemetryService {
 			})
 		}
 
-		if (typeof tokenUsage.totalCost === "number") {
+		if (Number.isFinite(tokenUsage.cacheReadTokens)) {
+			const cacheReadTokens = tokenUsage.cacheReadTokens ?? 0
+			this.recordCounter("cline.cache.read.tokens.total", cacheReadTokens, {
+				ulid,
+				provider,
+				model,
+				mode,
+			})
+			this.recordHistogram("cline.cache.read.tokens.per_event", cacheReadTokens, {
+				ulid,
+				provider,
+				model,
+				mode,
+			})
+		}
+
+		if (Number.isFinite(tokenUsage.totalCost)) {
+			const totalCost = tokenUsage.totalCost ?? 0
 			const costAttributes = { ulid, provider, model, mode, currency: "USD" }
-			this.recordCounter("cline.cost.total", tokenUsage.totalCost, costAttributes)
-			this.recordHistogram("cline.cost.per_event", tokenUsage.totalCost, costAttributes)
+			this.recordCounter("cline.cost.total", totalCost, costAttributes)
+			this.recordHistogram("cline.cost.per_event", totalCost, costAttributes)
 		}
 	}
 
@@ -736,14 +739,16 @@ export class TelemetryService {
 			},
 		})
 
-		if (tokensIn > 0) {
-			this.recordCounter("cline.tokens.input.total", tokensIn, { ulid, model })
-			this.recordHistogram("cline.tokens.input.per_response", tokensIn, { ulid, model })
+		if (Number.isFinite(tokensIn)) {
+			const value = tokensIn ?? 0
+			this.recordCounter("cline.tokens.input.total", value, { ulid, model })
+			this.recordHistogram("cline.tokens.input.per_response", value, { ulid, model })
 		}
 
-		if (tokensOut > 0) {
-			this.recordCounter("cline.tokens.output.total", tokensOut, { ulid, model })
-			this.recordHistogram("cline.tokens.output.per_response", tokensOut, { ulid, model })
+		if (Number.isFinite(tokensOut)) {
+			const value = tokensOut ?? 0
+			this.recordCounter("cline.tokens.output.total", value, { ulid, model })
+			this.recordHistogram("cline.tokens.output.per_response", value, { ulid, model })
 		}
 	}
 
