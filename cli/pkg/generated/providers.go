@@ -1514,6 +1514,7 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		Models:          modelDefinitions["hicap"],
 		DefaultModelID:  "",
 		HasDynamicModels: true,
+		SetupInstructions: `Configure Hicap API credentials`,
 	}
 	
 	return definitions, nil
