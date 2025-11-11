@@ -79,7 +79,7 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		// Pre-process command for certain models
 		if (config.api.getModel().id.includes("gemini")) {
-			command = applyModelContentFixes(command, config.api.getModel().id)
+			command = applyModelContentFixes(command)
 		}
 
 		// Handle multi-workspace command execution

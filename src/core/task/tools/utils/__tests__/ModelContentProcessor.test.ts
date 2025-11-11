@@ -118,6 +118,11 @@ describe("ModelContentProcessor", () => {
 				const input = "x &gt; 5"
 				expect(applyModelContentFixes(input, MODELS.GEMINI, undefined)).to.equal("x > 5")
 			})
+
+			it("should apply fixes when modelId is not provided", () => {
+				const input = "x &gt; 5"
+				expect(applyModelContentFixes(input)).to.equal("x > 5")
+			})
 		})
 
 		describe("Integration with real-world use cases", () => {
