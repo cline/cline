@@ -29,6 +29,8 @@ service ModelsService {
   rpc refreshHicapModels(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
   // Refreshes and returns LiteLLM models
   rpc refreshLiteLlmModelsRpc(EmptyRequest) returns (OpenRouterCompatibleModelInfo);
+  // Refreshes and returns Hicap models to Cline CLI
+  rpc refreshHicapModelsCli(StringRequest) returns (OpenRouterCompatibleModelInfo);
   // Subscribe to OpenRouter models updates
   rpc subscribeToOpenRouterModels(EmptyRequest) returns (stream OpenRouterCompatibleModelInfo);
   // Subscribe to LiteLLM models updates
