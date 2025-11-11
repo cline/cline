@@ -141,8 +141,11 @@ func ConvertOcaModelsToInterface(models map[string]*cline.OcaModelInfo) map[stri
 }
 
 // FetchHicapModels fetches available Hicap models from Cline Core
-func FetchHicapModels(ctx context.Context, manager *task.Manager) (map[string]*cline.OpenRouterModelInfo, error) {
-	resp, err := manager.GetClient().Models.RefreshHicapModels(ctx, &cline.EmptyRequest{})
+func FetchHicapModels(ctx context.Context, manager *task.Manager, apiKey string) (map[string]*cline.OpenRouterModelInfo, error) {
+	req := &cline.StringRequest{
+		Value: apiKey,
+	}
+	resp, err := manager.GetClient().Models.RefreshHicapModelsCli(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch Hicap models: %w", err)
 	}
