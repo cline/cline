@@ -96,6 +96,7 @@ const ENABLED_PROVIDERS = [
 	"cerebras", // Cerebras models
 	"oca", // Oracle Code Assist
 	"nousResearch", // NousResearch provider
+	"hicap", // Hicap
 ]
 
 /**
@@ -881,7 +882,7 @@ function getProviderDisplayName(providerId) {
 		nebius: "Nebius AI",
 		fireworks: "Fireworks AI",
 		asksage: "AskSage",
-		xai: "X AI (Grok)",
+		xai: "X AI (Grok) 2",
 		sambanova: "SambaNova",
 		cerebras: "Cerebras",
 		sapaicore: "SAP AI Core",
