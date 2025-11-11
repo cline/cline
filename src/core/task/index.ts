@@ -754,7 +754,7 @@ export class Task {
 					// await this.postStateToWebview()
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
-					return undefined
+					return lastMessage.ts // Return the timestamp of the completed message
 				} else {
 					// this is a new partial=false message, so add it like normal
 					const sayTs = Date.now()

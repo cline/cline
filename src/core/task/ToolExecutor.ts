@@ -683,6 +683,16 @@ export class ToolExecutor {
 
 			// Re-throw the error after PostToolUse completes
 			throw error
+		} finally {
+			// Clean up the hook runner after tool execution completes (success or error)
+			if (config.preToolUseRunner) {
+				delete config.preToolUseRunner
+			}
+
+			// Clear any pending tool message state if it exists
+			if (this.taskState.currentToolAskMessageTs !== undefined) {
+				this.taskState.currentToolAskMessageTs = undefined
+			}
 		}
 
 		// Early return if hook requested cancellation
