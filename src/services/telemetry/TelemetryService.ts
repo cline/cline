@@ -372,22 +372,34 @@ export class TelemetryService {
 		}
 	}
 
-	private recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
+	private recordCounter(
+		name: string,
+		value: number,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required = false,
+	): void {
 		const attrs = this.getStandardAttributes(attributes)
 		this.providers.forEach((provider) => {
 			try {
-				provider.recordCounter(name, value, attrs, description)
+				provider.recordCounter(name, value, attrs, description, required)
 			} catch (error) {
 				console.error(`[TelemetryService] recordCounter failed: ${name}`, error)
 			}
 		})
 	}
 
-	private recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
+	private recordHistogram(
+		name: string,
+		value: number,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required = false,
+	): void {
 		const attrs = this.getStandardAttributes(attributes)
 		this.providers.forEach((provider) => {
 			try {
-				provider.recordHistogram(name, value, attrs, description)
+				provider.recordHistogram(name, value, attrs, description, required)
 			} catch (error) {
 				console.error(`[TelemetryService] recordHistogram failed: ${name}`, error)
 			}
@@ -398,11 +410,17 @@ export class TelemetryService {
 	 * Gauge values require explicit cleanup: callers must pass null with the same attribute set
 	 * when the series identified by name+attributes ends to prevent stale metric entries.
 	 */
-	private recordGauge(name: string, value: number | null, attributes?: TelemetryProperties, description?: string): void {
+	private recordGauge(
+		name: string,
+		value: number | null,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required = false,
+	): void {
 		const attrs = this.getStandardAttributes(attributes)
 		this.providers.forEach((provider) => {
 			try {
-				provider.recordGauge(name, value, attrs, description)
+				provider.recordGauge(name, value, attrs, description, required)
 			} catch (error) {
 				console.error(`[TelemetryService] recordGauge failed: ${name}`, error)
 			}

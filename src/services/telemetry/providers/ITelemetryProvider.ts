@@ -93,7 +93,7 @@ export interface ITelemetryProvider {
 	 * @param value Amount to increment by (default 1)
 	 * @param attributes Optional metric attributes including userId, ulid (JSON-serializable)
 	 */
-	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string): void
+	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string, required?: boolean): void
 
 	/**
 	 * Record a histogram metric (distribution of values for percentile analysis)
@@ -102,7 +102,7 @@ export interface ITelemetryProvider {
 	 * @param value Value to record
 	 * @param attributes Optional metric attributes including userId, ulid (JSON-serializable)
 	 */
-	recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string): void
+	recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string, required?: boolean): void
 
 	/**
 	 * Record a gauge metric (point-in-time value that can go up or down)
@@ -111,7 +111,13 @@ export interface ITelemetryProvider {
 	 * @param value Current value, or null to retire the series identified by name + attributes
 	 * @param attributes Optional metric attributes including userId, ulid (JSON-serializable). When retiring a series pass the same attribute set that was used when recording it.
 	 */
-	recordGauge(name: string, value: number | null, attributes?: TelemetryProperties, description?: string): void
+	recordGauge(
+		name: string,
+		value: number | null,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required?: boolean,
+	): void
 
 	/**
 	 * Clean up resources when the provider is disposed

@@ -131,8 +131,14 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	 * Record a counter metric by converting to equivalent PostHog event
 	 * This maintains backward compatibility with existing dashboards
 	 */
-	public recordCounter(name: string, value: number, attributes?: TelemetryProperties, _description?: string): void {
-		if (!this.isEnabled()) return
+	public recordCounter(
+		name: string,
+		value: number,
+		attributes?: TelemetryProperties,
+		_description?: string,
+		required = false,
+	): void {
+		if (!this.isEnabled() && !required) return
 
 		// Convert metric to event format for PostHog
 		// Most counters don't need individual events - they're aggregated in OpenTelemetry
@@ -147,7 +153,13 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	 * Record a histogram metric by converting to equivalent PostHog event
 	 * Histograms track distributions, but PostHog events capture individual values
 	 */
-	public recordHistogram(_name: string, _value: number, _attributes?: TelemetryProperties, _description?: string): void {
+	public recordHistogram(
+		_name: string,
+		_value: number,
+		_attributes?: TelemetryProperties,
+		_description?: string,
+		_required = false,
+	): void {
 		// Histograms are for distribution analysis in OpenTelemetry
 		// PostHog gets the raw values through existing event capture methods
 		// No action needed here - events already capture these values
@@ -157,8 +169,14 @@ export class PostHogTelemetryProvider implements ITelemetryProvider {
 	 * Record a gauge metric by converting to equivalent PostHog event
 	 * Gauges track current state, which we can log as state change events
 	 */
-	public recordGauge(name: string, value: number | null, attributes?: TelemetryProperties, _description?: string): void {
-		if (!this.isEnabled() || value === null) return
+	public recordGauge(
+		name: string,
+		value: number | null,
+		attributes?: TelemetryProperties,
+		_description?: string,
+		required = false,
+	): void {
+		if ((!this.isEnabled() && !required) || value === null) return
 
 		// Convert gauge updates to state change events
 		if (name === "cline.workspace.active_roots") {

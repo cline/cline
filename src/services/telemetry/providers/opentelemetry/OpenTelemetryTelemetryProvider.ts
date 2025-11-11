@@ -160,8 +160,14 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	 * Record a counter metric (cumulative value that only increases)
 	 * Lazy creation - only creates the counter on first use if meter is available.
 	 */
-	public recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
-		if (!this.meter || !this.isEnabled()) {
+	public recordCounter(
+		name: string,
+		value: number,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required = false,
+	): void {
+		if (!this.meter || (!required && !this.isEnabled())) {
 			return
 		}
 
@@ -180,8 +186,14 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	 * Record a histogram metric (distribution of values for percentile analysis)
 	 * Lazy creation - only creates the histogram on first use if meter is available.
 	 */
-	public recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
-		if (!this.meter || !this.isEnabled()) {
+	public recordHistogram(
+		name: string,
+		value: number,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required = false,
+	): void {
+		if (!this.meter || (!required && !this.isEnabled())) {
 			return
 		}
 
@@ -200,8 +212,14 @@ export class OpenTelemetryTelemetryProvider implements ITelemetryProvider {
 	 * Record a gauge metric (point-in-time value that can go up or down)
 	 * Lazy creation - creates an observable gauge that reads from stored values
 	 */
-	public recordGauge(name: string, value: number | null, attributes?: TelemetryProperties, description?: string): void {
-		if (!this.meter || !this.isEnabled()) {
+	public recordGauge(
+		name: string,
+		value: number | null,
+		attributes?: TelemetryProperties,
+		description?: string,
+		required = false,
+	): void {
+		if (!this.meter || (!required && !this.isEnabled())) {
 			return
 		}
 

@@ -17,13 +17,25 @@ class FakeProvider implements ITelemetryProvider {
 	getSettings(): TelemetrySettings {
 		return { extensionEnabled: true, hostEnabled: true, level: "all" }
 	}
-	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
+	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string, _required = false): void {
 		this.counters.push({ name, value, attributes: attributes ?? {}, description })
 	}
-	recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string): void {
+	recordHistogram(
+		name: string,
+		value: number,
+		attributes?: TelemetryProperties,
+		description?: string,
+		_required = false,
+	): void {
 		this.histograms.push({ name, value, attributes: attributes ?? {}, description })
 	}
-	recordGauge(name: string, value: number | null, attributes?: TelemetryProperties, description?: string): void {
+	recordGauge(
+		name: string,
+		value: number | null,
+		attributes?: TelemetryProperties,
+		description?: string,
+		_required = false,
+	): void {
 		const attrKey = JSON.stringify(attributes ?? {})
 		const series = this.gauges.get(name)
 		if (value === null) {
