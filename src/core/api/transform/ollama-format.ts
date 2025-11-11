@@ -1,6 +1,11 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { Message } from "ollama"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import {
+	ClineAssistantToolUseBlock,
+	ClineImageContentBlock,
+	ClineStorageMessage,
+	ClineTextContentBlock,
+	ClineUserToolResultContentBlock,
+} from "@/shared/messages/content"
 
 export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[]): Message[] {
 	const ollamaMessages: Message[] = []
@@ -14,8 +19,8 @@ export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMess
 		} else {
 			if (anthropicMessage.role === "user") {
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
-					toolMessages: Anthropic.ToolResultBlockParam[]
+					nonToolMessages: (ClineTextContentBlock | ClineImageContentBlock)[]
+					toolMessages: ClineUserToolResultContentBlock[]
 				}>(
 					(acc, part) => {
 						if (part.type === "tool_result") {
@@ -71,8 +76,8 @@ export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMess
 				}
 			} else if (anthropicMessage.role === "assistant") {
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
-					toolMessages: Anthropic.ToolUseBlockParam[]
+					nonToolMessages: (ClineTextContentBlock | ClineImageContentBlock)[]
+					toolMessages: ClineAssistantToolUseBlock[]
 				}>(
 					(acc, part) => {
 						if (part.type === "tool_use") {

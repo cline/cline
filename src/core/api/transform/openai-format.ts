@@ -1,6 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import {
+	ClineAssistantRedactedThinkingBlock,
+	ClineAssistantThinkingBlock,
+	ClineAssistantToolUseBlock,
+	ClineImageContentBlock,
+	ClineStorageMessage,
+	ClineTextContentBlock,
+	ClineUserToolResultContentBlock,
+} from "@/shared/messages/content"
 
 export function convertToOpenAiMessages(
 	anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[],
@@ -24,8 +32,8 @@ export function convertToOpenAiMessages(
          */
 			if (anthropicMessage.role === "user") {
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
-					toolMessages: Anthropic.ToolResultBlockParam[]
+					nonToolMessages: (ClineTextContentBlock | ClineImageContentBlock)[]
+					toolMessages: ClineUserToolResultContentBlock[]
 				}>(
 					(acc, part) => {
 						if (part.type === "tool_result") {
@@ -39,7 +47,7 @@ export function convertToOpenAiMessages(
 				)
 
 				// Process tool result messages FIRST since they must follow the tool use messages
-				const toolResultImages: Anthropic.Messages.ImageBlockParam[] = []
+				const toolResultImages: ClineImageContentBlock[] = []
 				toolMessages.forEach((toolMessage) => {
 					// The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the OpenAI SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
 					let content: string
@@ -104,12 +112,12 @@ export function convertToOpenAiMessages(
 			} else if (anthropicMessage.role === "assistant") {
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
 					nonToolMessages: (
-						| Anthropic.TextBlockParam
-						| Anthropic.ImageBlockParam
-						| Anthropic.Messages.RedactedThinkingBlock
-						| Anthropic.Messages.ThinkingBlock
+						| ClineTextContentBlock
+						| ClineImageContentBlock
+						| ClineAssistantThinkingBlock
+						| ClineAssistantRedactedThinkingBlock
 					)[]
-					toolMessages: Anthropic.ToolUseBlockParam[]
+					toolMessages: ClineAssistantToolUseBlock[]
 				}>(
 					(acc, part) => {
 						if (part.type === "tool_use") {
