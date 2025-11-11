@@ -3,7 +3,6 @@ import {
 	cleanupMcpMarketplaceCatalogFromGlobalState,
 	migrateCustomInstructionsToGlobalRules,
 	migrateTaskHistoryToFile,
-	migrateTerminalExecutionModeToBackground,
 	migrateWelcomeViewCompleted,
 	migrateWorkspaceToGlobalStorage,
 } from "./core/storage/state-migrations"
@@ -62,9 +61,6 @@ export async function initialize(context: vscode.ExtensionContext): Promise<Webv
 
 	// Ensure taskHistory.json exists and migrate legacy state (runs once)
 	await migrateTaskHistoryToFile(context)
-
-	// Migrate terminal execution mode to background (one-time migration for all users)
-	await migrateTerminalExecutionModeToBackground(context)
 
 	// Clean up MCP marketplace catalog from global state (moved to disk cache)
 	await cleanupMcpMarketplaceCatalogFromGlobalState(context)

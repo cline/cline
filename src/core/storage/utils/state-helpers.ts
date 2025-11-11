@@ -640,7 +640,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			enableCheckpointsSetting: enableCheckpointsSettingRaw ?? true,
 			shellIntegrationTimeout: shellIntegrationTimeout || 4000,
 			terminalReuseEnabled: terminalReuseEnabled ?? true,
-			vscodeTerminalExecutionMode: vscodeTerminalExecutionMode ?? "backgroundExec",
+			vscodeTerminalExecutionMode: vscodeTerminalExecutionMode ?? "vscodeTerminal",
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			maxConsecutiveMistakes: maxConsecutiveMistakes ?? 3,
 			subagentTerminalOutputLineLimit: subagentTerminalOutputLineLimit ?? 2000,
