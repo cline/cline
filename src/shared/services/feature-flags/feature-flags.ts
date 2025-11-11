@@ -17,7 +17,7 @@ export const FeatureFlagDefaultValue: Partial<Record<FeatureFlag, boolean>> = {
 	[FeatureFlag.DO_NOTHING]: false,
 	[FeatureFlag.HOOKS]: false,
 	[FeatureFlag.NATIVE_TOOL_CALLS_NEXT_GEN_MODELS]: process.env.IS_DEV === "true",
-	[FeatureFlag.ONBOARDING]: true,
+	[FeatureFlag.ONBOARDING]: process.env.E2E_TEST === "true",
 }
 
 export const FEATURE_FLAGS = Object.values(FeatureFlag)
