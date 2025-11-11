@@ -81,7 +81,13 @@ export class OpenAiHandler implements ApiHandler {
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-		let temperature: number | undefined = this.options.openAiModelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
+		let temperature: number | undefined
+		if (this.options.openAiModelInfo?.temperature !== undefined) {
+			const tempValue = Number(this.options.openAiModelInfo.temperature)
+			temperature = tempValue === 0 ? undefined : tempValue
+		} else {
+			temperature = openAiModelInfoSaneDefaults.temperature
+		}
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined
 		let maxTokens: number | undefined
 
