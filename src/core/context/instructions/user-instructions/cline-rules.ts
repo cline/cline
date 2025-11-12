@@ -39,7 +39,9 @@ export const getGlobalClineRules = async (globalClineRulesFilePath: string, togg
 		const isEnabled = rule.alwaysEnabled || remoteToggles[rule.name] !== false
 
 		if (isEnabled) {
-			if (combinedContent) combinedContent += "\n\n"
+			if (combinedContent) {
+				combinedContent += "\n\n"
+			}
 			combinedContent += `${rule.name}\n${rule.contents}`
 		}
 	}

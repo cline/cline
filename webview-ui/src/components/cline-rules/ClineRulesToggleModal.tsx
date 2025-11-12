@@ -362,7 +362,7 @@ const ClineRulesToggleModal: React.FC = () => {
 									<div className="text-sm font-normal mb-2">Remote Rules</div>
 									<div className="flex flex-col gap-0">
 										{remoteGlobalRules.map((rule) => {
-											const enabled = rule.alwaysEnabled || remoteRulesToggles[rule.name] !== false
+											const enabled = rule.alwaysEnabled || remoteRulesToggles[rule.name] === true
 											return (
 												<RuleRow
 													alwaysEnabled={rule.alwaysEnabled}
@@ -437,7 +437,7 @@ const ClineRulesToggleModal: React.FC = () => {
 									<div className="flex flex-col gap-0">
 										{remoteGlobalWorkflows.map((workflow) => {
 											const enabled =
-												workflow.alwaysEnabled || remoteWorkflowToggles[workflow.name] !== false
+												workflow.alwaysEnabled || remoteWorkflowToggles[workflow.name] === true
 											return (
 												<RuleRow
 													alwaysEnabled={workflow.alwaysEnabled}
