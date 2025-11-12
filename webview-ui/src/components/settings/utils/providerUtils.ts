@@ -9,6 +9,8 @@ import {
 	basetenModels,
 	bedrockDefaultModelId,
 	bedrockModels,
+	burncloudDefaultModelId,
+	burncloudModels,
 	cerebrasDefaultModelId,
 	cerebrasModels,
 	claudeCodeDefaultModelId,
@@ -392,6 +394,17 @@ export function normalizeApiConfiguration(
 					nousResearchModelId && nousResearchModelId in nousResearchModels
 						? nousResearchModels[nousResearchModelId as keyof typeof nousResearchModels]
 						: nousResearchModels[nousResearchDefaultModelId],
+			}
+		case "burncloud":
+			const burncloudModelId =
+				currentMode === "plan" ? apiConfiguration?.planModeBurncloudModelId : apiConfiguration?.actModeBurncloudModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: burncloudModelId || burncloudDefaultModelId,
+				selectedModelInfo:
+					burncloudModelId && burncloudModelId in burncloudModels
+						? burncloudModels[burncloudModelId as keyof typeof burncloudModels]
+						: burncloudModels[burncloudDefaultModelId],
 			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)

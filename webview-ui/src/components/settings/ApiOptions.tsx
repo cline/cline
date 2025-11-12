@@ -16,6 +16,7 @@ import { AnthropicProvider } from "./providers/AnthropicProvider"
 import { AskSageProvider } from "./providers/AskSageProvider"
 import { BasetenProvider } from "./providers/BasetenProvider"
 import { BedrockProvider } from "./providers/BedrockProvider"
+import { BurnCloudProvider } from "./providers/BurncloudProvider"
 import { CerebrasProvider } from "./providers/CerebrasProvider"
 import { ClaudeCodeProvider } from "./providers/ClaudeCodeProvider"
 import { ClineProvider } from "./providers/ClineProvider"
@@ -170,6 +171,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 			{ value: "hicap", label: "Hicap" },
 			{ value: "aihubmix", label: "AIhubmix" },
 			{ value: "nousResearch", label: "NousResearch" },
+			{ value: "burncloud", label: "BurnCloud" },
 		]
 
 		// Filter by platform
@@ -529,6 +531,10 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage, is
 
 			{apiConfiguration && selectedProvider === "nousResearch" && (
 				<NousResearchProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
+			)}
+
+			{apiConfiguration && selectedProvider === "burncloud" && (
+				<BurnCloudProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
 			{apiConfiguration && selectedProvider === "oca" && <OcaProvider currentMode={currentMode} isPopup={isPopup} />}

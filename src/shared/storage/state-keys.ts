@@ -121,6 +121,7 @@ export interface Settings {
 	hooksEnabled: boolean
 	subagentsEnabled: boolean
 	hicapModelId: string | undefined
+	burncloudBaseUrl: string | undefined
 
 	// Plan mode configurations
 	planModeApiProvider: ApiProvider
@@ -159,6 +160,7 @@ export interface Settings {
 	planModeAihubmixModelId: string | undefined
 	planModeAihubmixModelInfo: ModelInfo | undefined
 	planModeNousResearchModelId: string | undefined
+	planModeBurncloudModelId: string | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
@@ -196,6 +198,7 @@ export interface Settings {
 	actModeAihubmixModelId: string | undefined
 	actModeAihubmixModelInfo: ModelInfo | undefined
 	actModeNousResearchModelId: string | undefined
+	actModeBurncloudModelId: string | undefined
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: boolean
@@ -258,6 +261,7 @@ export interface Secrets {
 	aihubmixApiKey: string | undefined
 	mcpOAuthSecrets: string | undefined
 	nousResearchApiKey: string | undefined
+	burncloudApiKey: string | undefined
 }
 
 export interface LocalState {

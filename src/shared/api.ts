@@ -41,6 +41,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "burncloud"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -85,6 +86,8 @@ export interface ApiHandlerSecrets {
 	minimaxApiKey?: string
 	hicapApiKey?: string
 	nousResearchApiKey?: string
+	burncloudApiKey?: string
+	burncloudBaseUrl?: string
 }
 
 export interface ApiHandlerOptions {
@@ -173,6 +176,7 @@ export interface ApiHandlerOptions {
 	planModeHicapModelId?: string
 	planModeHicapModelInfo?: ModelInfo
 	planModeNousResearchModelId?: string
+	planModeBurncloudModelId?: string
 	// Act mode configurations
 
 	// Act mode configurations
@@ -211,6 +215,7 @@ export interface ApiHandlerOptions {
 	actModeHicapModelId?: string
 	actModeHicapModelInfo?: ModelInfo
 	actModeNousResearchModelId?: string
+	actModeBurncloudModelId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -3884,3 +3889,219 @@ export const nousResearchModels = {
 			"This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases.",
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// BurnCloud
+// https://ai.burncloud.com
+export const burncloudModels = {
+	// Claude 系列
+	"claude-sonnet-4-5-20250929": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		description: "Claude Sonnet 4.5 - 最新旗舰模型,卓越的编码和推理能力",
+	},
+	"claude-3-7-sonnet-20250219": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		description: "Claude 3.7 Sonnet - 强大的多模态模型",
+	},
+	"claude-3-5-sonnet-20241022": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		description: "Claude 3.5 Sonnet - 在编码、推理等方面表现出色",
+	},
+	"claude-3-5-haiku-20241022": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
+		description: "Claude 3.5 Haiku - 快速响应,适合日常任务",
+	},
+	"claude-haiku-4-5-20251001": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 1.0,
+		outputPrice: 5.0,
+		cacheWritesPrice: 1.25,
+		cacheReadsPrice: 0.1,
+		description: "Claude Haiku 4.5 - 最新快速模型",
+	},
+	"claude-opus-4-20250514": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
+		description: "Claude Opus 4 - 最强大的 Claude 模型",
+	},
+	"claude-sonnet-4-20250514": {
+		maxTokens: 8192,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+		description: "Claude Sonnet 4 - 平衡性能与成本",
+	},
+	// GPT 系列
+	"gpt-4o": {
+		maxTokens: 16384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.5,
+		outputPrice: 10.0,
+		description: "GPT-4o - OpenAI 多模态旗舰模型",
+	},
+	"gpt-4o-mini": {
+		maxTokens: 16384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		description: "GPT-4o Mini - 性价比高的快速模型",
+	},
+	"gpt-4o-2024-11-20": {
+		maxTokens: 16384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 2.5,
+		outputPrice: 10.0,
+		description: "GPT-4o (2024-11-20) - 稳定版本",
+	},
+	"gpt-5": {
+		maxTokens: 16384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 5.0,
+		outputPrice: 20.0,
+		description: "GPT-5 - OpenAI 最新一代模型",
+	},
+	"gpt-5-mini": {
+		maxTokens: 16384,
+		contextWindow: 128_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.5,
+		outputPrice: 2.0,
+		description: "GPT-5 Mini - 新一代快速模型",
+	},
+	// o1 系列 (推理模型)
+	o1: {
+		maxTokens: 100000,
+		contextWindow: 200_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 15.0,
+		outputPrice: 60.0,
+		description: "o1 - OpenAI 高级推理模型",
+	},
+	"o1-mini": {
+		maxTokens: 65536,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 12.0,
+		description: "o1-mini - 快速推理模型",
+	},
+	"o3-mini": {
+		maxTokens: 65536,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 3.0,
+		outputPrice: 12.0,
+		description: "o3-mini - 新一代推理模型",
+	},
+	// DeepSeek 系列
+	"deepseek-chat": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.14,
+		outputPrice: 0.28,
+		description: "DeepSeek Chat - 高性价比对话模型",
+	},
+	"deepseek-reasoner": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.55,
+		outputPrice: 2.19,
+		description: "DeepSeek Reasoner - 推理专用模型",
+	},
+	"deepseek-v3": {
+		maxTokens: 8192,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.27,
+		outputPrice: 1.1,
+		description: "DeepSeek V3 - 最新版本",
+	},
+	// Gemini 系列
+	"gemini-2.5-pro": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 1.25,
+		outputPrice: 5.0,
+		description: "Gemini 2.5 Pro - Google 最新旗舰模型",
+	},
+	"gemini-2.5-flash": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.075,
+		outputPrice: 0.3,
+		description: "Gemini 2.5 Flash - 快速多模态模型",
+	},
+	"gemini-2.0-flash": {
+		maxTokens: 8192,
+		contextWindow: 1_000_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.075,
+		outputPrice: 0.3,
+		description: "Gemini 2.0 Flash - 高效多模态模型",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+export type BurnCloudModelId = keyof typeof burncloudModels
+export const burncloudDefaultModelId: BurnCloudModelId = "claude-sonnet-4-5-20250929"

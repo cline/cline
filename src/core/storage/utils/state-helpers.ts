@@ -56,6 +56,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
+		burncloudApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -100,6 +101,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
 		context.secrets.get("mcpOAuthSecrets") as Promise<Secrets["mcpOAuthSecrets"]>,
 		context.secrets.get("nousResearchApiKey") as Promise<Secrets["nousResearchApiKey"]>,
+		context.secrets.get("burncloudApiKey") as Promise<Secrets["burncloudApiKey"]>,
 	])
 
 	return {
@@ -146,6 +148,7 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		aihubmixApiKey,
 		mcpOAuthSecrets,
 		nousResearchApiKey,
+		burncloudApiKey,
 	}
 }
 
@@ -278,6 +281,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
 		const aihubmixBaseUrl = context.globalState.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
 		const aihubmixAppCode = context.globalState.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
+		const burncloudBaseUrl = context.globalState.get<GlobalStateAndSettings["burncloudBaseUrl"]>("burncloudBaseUrl")
 
 		// OpenTelemetry configuration
 		const openTelemetryEnabled =
@@ -459,6 +463,10 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelId"]>("actModeAihubmixModelId")
 		const actModeAihubmixModelInfo =
 			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelInfo"]>("actModeAihubmixModelInfo")
+		const planModeBurncloudModelId =
+			context.globalState.get<GlobalStateAndSettings["planModeBurncloudModelId"]>("planModeBurncloudModelId")
+		const actModeBurncloudModelId =
+			context.globalState.get<GlobalStateAndSettings["actModeBurncloudModelId"]>("actModeBurncloudModelId")
 
 		let apiProvider: ApiProvider
 		if (planModeApiProvider) {
@@ -541,6 +549,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			hicapModelId,
 			aihubmixBaseUrl,
 			aihubmixAppCode,
+			burncloudBaseUrl,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -580,6 +589,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
+			planModeBurncloudModelId,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -617,6 +627,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
+			actModeBurncloudModelId,
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
