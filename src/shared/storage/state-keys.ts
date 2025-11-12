@@ -163,6 +163,7 @@ export interface Settings {
 	planModeHicapModelInfo: ModelInfo | undefined
 	planModeAihubmixModelId: string | undefined
 	planModeAihubmixModelInfo: ModelInfo | undefined
+	planModeNousResearchModelId: string | undefined
 	// Act mode configurations
 	actModeApiProvider: ApiProvider
 	actModeApiModelId: string | undefined
@@ -199,6 +200,7 @@ export interface Settings {
 	actModeHicapModelInfo: ModelInfo | undefined
 	actModeAihubmixModelId: string | undefined
 	actModeAihubmixModelInfo: ModelInfo | undefined
+	actModeNousResearchModelId: string | undefined
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: boolean
@@ -259,6 +261,8 @@ export interface Secrets {
 	minimaxApiKey: string | undefined
 	hicapApiKey: string | undefined
 	aihubmixApiKey: string | undefined
+	mcpOAuthSecrets: string | undefined
+	nousResearchApiKey: string | undefined
 }
 
 export interface LocalState {
