@@ -9,18 +9,15 @@
 export { config as genericConfig, type GenericVariantConfig } from "./generic/config"
 export { config as glmConfig, type GLMVariantConfig } from "./glm/config"
 export { config as gpt5Config, type GPT5VariantConfig } from "./gpt-5/config"
-export { config as NativeGPT5Config } from "./native-gpt-5/config"
-export { config as nativeNextGenConfig, type NativeNextGenVariantConfig } from "./native-next-gen/config"
 export { config as hermesConfig, type HermesVariantConfig } from "./hermes/config"
 export { config as nextGenConfig, type NextGenVariantConfig } from "./next-gen/config"
 export { config as xsConfig, type XsVariantConfig } from "./xs/config"
 
 import { ModelFamily } from "@/shared/prompts"
+import { SystemPromptContext, VariantConfig, VariantConfigList } from "../types"
 import { config as genericConfig } from "./generic/config"
 import { config as glmConfig } from "./glm/config"
 import { config as gpt5Config } from "./gpt-5/config"
-import { config as NativeGPT5Config } from "./native-gpt-5/config"
-import { config as NativeNextGenVariantConfig } from "./native-next-gen/config"
 import { config as hermesConfig } from "./hermes/config"
 import { config as nextGenConfig } from "./next-gen/config"
 import { config as xsConfig } from "./xs/config"
@@ -30,19 +27,11 @@ import { config as xsConfig } from "./xs/config"
  *
  * This registry allows for loading variant configurations.
  */
-export const VARIANT_CONFIGS = {
+const VARIANT_CONFIGS: VariantConfigList = {
 	/**
-	 * GPT-5 variant with native tool support.
-	 */
-	[ModelFamily.NATIVE_GPT_5]: NativeGPT5Config,
-	/**
-	 * GPT-5 variant without native tool support.
+	 * GPT-5 variant
 	 */
 	[ModelFamily.GPT_5]: gpt5Config,
-	/**
-	 * Next-gen variant with native tool support.
-	 */
-	[ModelFamily.NATIVE_NEXT_GEN]: NativeNextGenVariantConfig,
 	/**
 	 * GLM variant - Optimized for GLM-4.6 model
 	 * Configured for advanced agentic coding capabilities
@@ -68,7 +57,7 @@ export const VARIANT_CONFIGS = {
 	 * Optimized for broad compatibility and stable performance.
 	 */
 	[ModelFamily.GENERIC]: genericConfig,
-} as const
+}
 
 /**
  * Type-safe variant identifier
@@ -93,16 +82,21 @@ export function isValidVariantId(id: string): id is VariantId {
 /**
  * Load a variant configuration dynamically
  * @param variantId - The ID of the variant to load
+ * @param context - The prompt context
  * @returns Variant configuration
  */
-export function loadVariantConfig(variantId: VariantId) {
-	return VARIANT_CONFIGS[variantId]
+export function loadVariantConfig(variantId: VariantId, context: SystemPromptContext) {
+	return VARIANT_CONFIGS[variantId] ? VARIANT_CONFIGS[variantId](context) : undefined
 }
 
 /**
  * Load all variant configurations
  * @returns A map of all variant configurations
  */
-export function loadAllVariantConfigs() {
-	return VARIANT_CONFIGS
+export function loadAllVariantConfigs(context: SystemPromptContext): { [k in keyof VariantConfigList]: VariantConfig } {
+	const ret: { -readonly [P in keyof VariantConfigList]: VariantConfig } = {}
+	for (const [key, value] of Object.entries(VARIANT_CONFIGS)) {
+		ret[key as ModelFamily] = value(context)
+	}
+	return ret
 }

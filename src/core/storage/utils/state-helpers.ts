@@ -194,6 +194,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["ollamaApiOptionsCtxNum"]>("ollamaApiOptionsCtxNum")
 		const lmStudioBaseUrl = context.globalState.get<GlobalStateAndSettings["lmStudioBaseUrl"]>("lmStudioBaseUrl")
 		const lmStudioMaxTokens = context.globalState.get<GlobalStateAndSettings["lmStudioMaxTokens"]>("lmStudioMaxTokens")
+		const lmStudioCapabilities =
+			context.globalState.get<GlobalStateAndSettings["lmStudioCapabilities"]>("lmStudioCapabilities")
 		const anthropicBaseUrl = context.globalState.get<GlobalStateAndSettings["anthropicBaseUrl"]>("anthropicBaseUrl")
 		const geminiBaseUrl = context.globalState.get<GlobalStateAndSettings["geminiBaseUrl"]>("geminiBaseUrl")
 		const azureApiVersion = context.globalState.get<GlobalStateAndSettings["azureApiVersion"]>("azureApiVersion")
@@ -516,6 +518,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
 			lmStudioMaxTokens,
+			lmStudioCapabilities,
 			anthropicBaseUrl,
 			geminiBaseUrl,
 			qwenApiLine,

@@ -224,6 +224,7 @@ message Settings {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 131;
   optional string act_mode_aihubmix_model_id = 132;
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 133;
+  optional string lm_studio_capabilities = 134;
 }
 
 message DictationSettings {

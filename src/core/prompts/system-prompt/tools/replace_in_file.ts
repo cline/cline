@@ -51,8 +51,8 @@ const generic: ClineToolSpec = {
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
-	variant: ModelFamily.NATIVE_NEXT_GEN,
+const NEXT_GEN: ClineToolSpec = {
+	variant: ModelFamily.NEXT_GEN,
 	id,
 	name: "replace_in_file",
 	description:
@@ -95,9 +95,9 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	],
 }
 
-const NATIVE_GPT_5: ClineToolSpec = {
-	...NATIVE_NEXT_GEN,
-	variant: ModelFamily.NATIVE_GPT_5,
+const GPT_5: ClineToolSpec = {
+	...NEXT_GEN,
+	variant: ModelFamily.GPT_5,
 }
 
-export const replace_in_file_variants = [generic, NATIVE_NEXT_GEN, NATIVE_GPT_5]
+export const replace_in_file_variants = [generic, NEXT_GEN, GPT_5]

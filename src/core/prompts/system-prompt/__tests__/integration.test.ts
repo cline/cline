@@ -229,7 +229,7 @@ describe("Prompt System Integration Tests", () => {
 			contextVariations,
 		},
 		{
-			modelGroup: ModelFamily.NATIVE_NEXT_GEN,
+			modelGroup: ModelFamily.NEXT_GEN,
 			modelIds: ["claude-4-5-sonnet"],
 			providerId: "cline",
 			contextVariations,
@@ -241,7 +241,7 @@ describe("Prompt System Integration Tests", () => {
 			contextVariations,
 		},
 		{
-			modelGroup: ModelFamily.NATIVE_GPT_5,
+			modelGroup: ModelFamily.GPT_5,
 			modelIds: ["gpt-5-codex"],
 			providerId: "openai",
 			contextVariations,
@@ -269,8 +269,7 @@ describe("Prompt System Integration Tests", () => {
 							...baseContext,
 							providerInfo: makeMockProviderInfo(modelId, providerId),
 							isTesting: true,
-							enableNativeToolCalls:
-								modelGroup === ModelFamily.NATIVE_NEXT_GEN || modelGroup === ModelFamily.NATIVE_GPT_5,
+							enableNativeToolCalls: true,
 						}
 						it(`should generate consistent prompt for ${providerId}/${modelId} with ${contextName} context`, async function () {
 							this.timeout(30000) // Allow more time for prompt generation

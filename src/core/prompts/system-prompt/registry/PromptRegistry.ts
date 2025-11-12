@@ -29,12 +29,12 @@ export class PromptRegistry {
 	/**
 	 * Load all prompts and components on initialization
 	 */
-	async load(): Promise<void> {
+	async load(context: SystemPromptContext): Promise<void> {
 		if (this.loaded) {
 			return
 		}
 
-		await Promise.all([this.loadVariants(), this.loadComponents()])
+		await Promise.all([this.loadVariants(context), this.loadComponents()])
 
 		// Perform health check to ensure critical variants are available
 		this.performHealthCheck()
@@ -89,7 +89,7 @@ export class PromptRegistry {
 	 * Get prompt by matching against all registered variants
 	 */
 	async get(context: SystemPromptContext): Promise<string> {
-		await this.load()
+		await this.load(context)
 
 		// Loop through all registered variants to find the first one that matches
 		const family = this.getModelFamily(context)
@@ -134,7 +134,7 @@ export class PromptRegistry {
 		context: SystemPromptContext,
 		isNextGenModelFamily?: boolean,
 	): Promise<string> {
-		await this.load()
+		await this.load(context)
 
 		// If isNextGenModelFamily is true, prioritize next-gen variant with the specified version
 		if (isNextGenModelFamily) {
@@ -172,12 +172,12 @@ export class PromptRegistry {
 	 */
 	async getByTag(
 		modelId: string,
+		context: SystemPromptContext,
 		tag?: string,
 		label?: string,
-		context?: SystemPromptContext,
 		isNextGenModelFamily?: boolean,
 	): Promise<string> {
-		await this.load()
+		await this.load(context)
 
 		if (!context) {
 			throw new Error("Context is required for prompt building")
@@ -254,38 +254,38 @@ export class PromptRegistry {
 	/**
 	 * Load all variants from the variants directory
 	 */
-	private loadVariants(): void {
+	private loadVariants(context: SystemPromptContext): void {
 		try {
 			this.variants = new Map<string, PromptVariant>()
 
-			for (const [id, config] of Object.entries(loadAllVariantConfigs())) {
+			for (const [id, config] of Object.entries(loadAllVariantConfigs(context))) {
 				this.variants.set(id, { ...config, id })
 			}
 
 			// Ensure generic variant is always available as a safety fallback
-			this.ensureGenericFallback()
+			this.ensureGenericFallback(context)
 		} catch (error) {
 			console.warn("Warning: Could not load variants:", error)
 			// Even if variant loading fails completely, create a minimal generic fallback
-			this.createMinimalGenericFallback()
+			this.createMinimalGenericFallback(context)
 		}
 	}
 
 	/**
 	 * Ensure generic variant is available, create minimal one if missing
 	 */
-	private ensureGenericFallback(): void {
+	private ensureGenericFallback(context: SystemPromptContext): void {
 		if (!this.variants.has(ModelFamily.GENERIC)) {
 			console.warn("Generic variant not found, creating minimal fallback")
-			this.createMinimalGenericFallback()
+			this.createMinimalGenericFallback(context)
 		}
 	}
 
 	/**
 	 * Create a minimal generic variant as absolute fallback
 	 */
-	private createMinimalGenericFallback(): void {
-		this.loadVariantFromConfig(ModelFamily.GENERIC, genericConfig)
+	private createMinimalGenericFallback(context: SystemPromptContext): void {
+		this.loadVariantFromConfig(ModelFamily.GENERIC, genericConfig(context))
 	}
 
 	/**

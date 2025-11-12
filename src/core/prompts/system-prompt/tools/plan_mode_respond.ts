@@ -55,8 +55,8 @@ However, if while writing your response you realize you actually need to do more
 	],
 }
 
-const NATIVE_GPT_5: ClineToolSpec = {
-	variant: ModelFamily.NATIVE_GPT_5,
+const GPT_5: ClineToolSpec = {
+	variant: ModelFamily.GPT_5,
 	id,
 	name: "plan_mode_respond",
 	description: `Respond to the user's inquiry in an effort to plan a solution to the user's task. This tool should ONLY be used when you have already explored the relevant files and are ready to present a concrete plan. DO NOT use this tool to announce what files you're going to read - just read them first. This tool is only available in PLAN MODE. The environment_details will specify the current mode; if it is not PLAN_MODE then you should not use this tool.
@@ -76,9 +76,9 @@ However, if while writing your response you realize you actually need to do more
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
-	...NATIVE_GPT_5,
-	variant: ModelFamily.NATIVE_NEXT_GEN,
+const NEXT_GEN: ClineToolSpec = {
+	...GPT_5,
+	variant: ModelFamily.NEXT_GEN,
 }
 
-export const plan_mode_respond_variants = [generic, NATIVE_GPT_5, NATIVE_NEXT_GEN]
+export const plan_mode_respond_variants = [generic, GPT_5, NEXT_GEN]

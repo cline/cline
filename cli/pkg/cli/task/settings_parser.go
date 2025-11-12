@@ -104,6 +104,8 @@ func setSimpleField(settings *cline.Settings, key, value string) error {
 		settings.LmStudioBaseUrl = strPtr(value)
 	case "lm_studio_max_tokens":
 		settings.LmStudioMaxTokens = strPtr(value)
+	case "lm_studio_capabilities":
+		settings.LmStudioCapabilities = strPtr(value)
 	case "anthropic_base_url":
 		settings.AnthropicBaseUrl = strPtr(value)
 	case "gemini_base_url":

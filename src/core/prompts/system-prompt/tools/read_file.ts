@@ -22,8 +22,8 @@ const generic: ClineToolSpec = {
 	],
 }
 
-const NATIVE_GPT_5: ClineToolSpec = {
-	variant: ModelFamily.NATIVE_GPT_5,
+const GPT_5: ClineToolSpec = {
+	variant: ModelFamily.GPT_5,
 	id,
 	name: "read_file",
 	description:
@@ -39,9 +39,9 @@ const NATIVE_GPT_5: ClineToolSpec = {
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
-	...NATIVE_GPT_5,
-	variant: ModelFamily.NATIVE_NEXT_GEN,
+const NEXT_GEN: ClineToolSpec = {
+	...GPT_5,
+	variant: ModelFamily.NEXT_GEN,
 }
 
-export const read_file_variants = [generic, NATIVE_NEXT_GEN, NATIVE_GPT_5]
+export const read_file_variants = [generic, NEXT_GEN, GPT_5]
