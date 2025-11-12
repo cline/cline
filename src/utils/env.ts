@@ -1,5 +1,4 @@
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import open from "open"
 import { HostProvider } from "@/hosts/host-provider"
 
 /**
@@ -39,6 +38,12 @@ export async function readTextFromClipboard(): Promise<string> {
  * @throws Error if the operation fails
  */
 export async function openExternal(url: string): Promise<void> {
-	console.log("Opening browser:", url)
-	await open(url)
+	try {
+		console.log("Opening browser:", url)
+
+		await HostProvider.env.openExternal(StringRequest.create({ value: url }))
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error)
+		throw new Error(`Failed to write to clipboard: ${errorMessage}`)
+	}
 }
