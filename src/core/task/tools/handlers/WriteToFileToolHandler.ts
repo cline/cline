@@ -93,9 +93,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		const rawDiff = block.params.diff // for replace_in_file
 
 		// Extract provider information for telemetry
-		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		const { providerId, modelId } = this.getModelInfo(config)
 
 		// Validate required parameters based on tool type
 		if (!rawRelPath) {
@@ -177,8 +175,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				telemetryService.captureToolUsage(
 					config.ulid,
 					block.name,
-					config.api.getModel().id,
-					provider,
+					modelId,
+					providerId,
 					true,
 					true,
 					workspaceContext,
@@ -231,8 +229,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					telemetryService.captureToolUsage(
 						config.ulid,
 						block.name,
-						config.api.getModel().id,
-						provider,
+						modelId,
+						providerId,
 						false,
 						false,
 						workspaceContext,
@@ -262,8 +260,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					telemetryService.captureToolUsage(
 						config.ulid,
 						block.name,
-						config.api.getModel().id,
-						provider,
+						modelId,
+						providerId,
 						false,
 						true,
 						workspaceContext,
@@ -332,10 +330,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	 *          or undefined if validation fails
 	 */
 	async validateAndPrepareFileOperation(config: TaskConfig, block: ToolUse, relPath: string, diff?: string, content?: string) {
-		// Extract provider information for telemetry
-		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 		// Parse workspace hint and resolve path for multi-workspace support
 		const pathResult = resolveWorkspacePath(config, relPath, "WriteToFileToolHandler.validateAndPrepareFileOperation")
 		const { absolutePath, resolvedPath } =
@@ -372,6 +366,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				config.coordinator,
 				config.taskState.toolUseIdMap,
 			)
+
 			return
 		}
 
@@ -410,9 +405,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				await config.callbacks.say("diff_error", relPath)
 
 				// Extract provider information for telemetry
-				const apiConfig = config.services.stateManager.getApiConfiguration()
-				const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-				const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+				const { providerId, modelId } = this.getModelInfo(config)
 
 				// Extract error type from error message if possible
 				const errorType =
@@ -422,13 +415,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 				// Add telemetry for diff edit failure
 				const isNativeToolCall = block.isNativeToolCall === true
-				telemetryService.captureDiffEditFailure(
-					config.ulid,
-					config.api.getModel().id,
-					provider,
-					errorType,
-					isNativeToolCall,
-				)
+				telemetryService.captureDiffEditFailure(config.ulid, modelId, providerId, errorType, isNativeToolCall)
 
 				// Push tool result with detailed error using existing utilities
 				const errorResponse = formatResponse.toolError(
@@ -477,5 +464,14 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
 
 		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext }
+	}
+
+	private getModelInfo(config: TaskConfig) {
+		// Extract provider information for telemetry
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		const modelId = config.api.getModel().id
+		return { providerId, modelId }
 	}
 }
