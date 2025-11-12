@@ -75,7 +75,15 @@ const ClineRulesToggleModal: React.FC = () => {
 					console.error("Failed to refresh rules:", error)
 				})
 		}
-	}, [isVisible])
+	}, [
+		isVisible,
+		setGlobalClineRulesToggles,
+		setLocalClineRulesToggles,
+		setGlobalWorkflowToggles,
+		setLocalCursorRulesToggles,
+		setLocalWindsurfRulesToggles,
+		setLocalWorkflowToggles,
+	])
 
 	// Format global rules for display with proper typing
 	const globalRules = Object.entries(globalClineRulesToggles || {})
@@ -269,7 +277,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 			{isVisible && (
 				<div
-					className="fixed left-[15px] right-[15px] border border-editor-group-border py-3 px-2 rounded z-1000 overflow-y-scroll"
+					className="fixed left-[15px] right-[15px] border border-editor-group-border pb-3 px-2 rounded z-1000"
 					style={{
 						bottom: `calc(100vh - ${menuPosition}px + 6px)`,
 						background: CODE_BLOCK_BG_COLOR,
@@ -308,27 +316,24 @@ const ClineRulesToggleModal: React.FC = () => {
 					</div>
 
 					{/* Remote config banner */}
-					{((currentView === "rules" && hasRemoteRules) || (currentView === "workflows" && hasRemoteWorkflows)) && (
+					{(currentView === "rules" && hasRemoteRules) || (currentView === "workflows" && hasRemoteWorkflows) ? (
 						<div className="flex items-center gap-2 px-5 py-3 mb-4 bg-vscode-textBlockQuote-background border-l-[3px] border-vscode-textLink-foreground">
 							<i className="codicon codicon-lock text-sm" />
-							<span className="text-[13px]">
+							<span className="text-base">
 								{currentView === "rules"
 									? "Your organization manages some rules"
 									: "Your organization manages some workflows"}
 							</span>
 						</div>
-					)}
+					) : null}
 
 					{/* Description text */}
-					<div className="text-xs text-(--vscode-descriptionForeground) mb-4">
+					<div className="text-xs text-description mb-4">
 						{currentView === "rules" ? (
 							<p>
 								Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way to
 								include context and preferences for your projects or globally for every conversation.{" "}
-								<VSCodeLink
-									className="text-xs"
-									href="https://docs.cline.bot/features/cline-rules"
-									style={{ display: "inline" }}>
+								<VSCodeLink className="text-xs inline" href="https://docs.cline.bot/features/cline-rules">
 									Docs
 								</VSCodeLink>
 							</p>
@@ -336,16 +341,10 @@ const ClineRulesToggleModal: React.FC = () => {
 							<p>
 								Workflows allow you to define a series of steps to guide Cline through a repetitive set of tasks,
 								such as deploying a service or submitting a PR. To invoke a workflow, type{" "}
-								<span
-									className=" 
-								text-(--vscode-foreground) font-bold">
-									/workflow-name
-								</span>{" "}
-								in the chat.{" "}
+								<span className="text-foreground font-bold">/workflow-name</span> in the chat.{" "}
 								<VSCodeLink
-									className="text-xs"
-									href="https://docs.cline.bot/features/slash-commands/workflows"
-									style={{ display: "inline" }}>
+									className="text-xs inline"
+									href="https://docs.cline.bot/features/slash-commands/workflows">
 									Docs
 								</VSCodeLink>
 							</p>
