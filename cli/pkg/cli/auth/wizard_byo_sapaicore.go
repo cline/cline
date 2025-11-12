@@ -457,7 +457,7 @@ func SetupSapAiCoreWithDynamicModels(ctx context.Context, manager *task.Manager)
 		selectedDeploymentID = ""
 
 	} else {
-		// In non-orchestration mode: fetch deployments dynamically
+		// In non-orchestration mode: fetch deployments dynamically and merge with static models
 		// Use provided sensitive values, or fall back to existing stored ones if left blank
 		clientIDForFetch := strings.TrimSpace(config.ClientId)
 		clientSecretForFetch := strings.TrimSpace(config.ClientSecret)
@@ -471,7 +471,8 @@ func SetupSapAiCoreWithDynamicModels(ctx context.Context, manager *task.Manager)
 			}
 		}
 
-		models, _, err := FetchSapAiCoreModels(
+		// Fetch dynamic deployments
+		dynamicModels, _, err := FetchSapAiCoreModels(
 			ctx, manager,
 			clientIDForFetch,
 			clientSecretForFetch,
@@ -480,8 +481,33 @@ func SetupSapAiCoreWithDynamicModels(ctx context.Context, manager *task.Manager)
 			config.ResourceGroup,
 		)
 
-		if err != nil || len(models) == 0 {
-			// Create renderer for prominent warning display
+		// Fetch static models
+		staticModelIDs, _, staticErr := FetchStaticModels(cline.ApiProvider_SAPAICORE)
+		if staticErr != nil {
+			return fmt.Errorf("failed to get static models: %w", staticErr)
+		}
+
+		// Merge: Add static models that aren't already in the dynamic list
+		mergedModels := dynamicModels
+		if err == nil && len(dynamicModels) > 0 {
+			// Create a map of existing model names for quick lookup
+			existingModelNames := make(map[string]bool)
+			for _, deployment := range dynamicModels {
+				existingModelNames[deployment.ModelName] = true
+			}
+
+			// Add static models that don't exist in dynamic deployments
+			for _, staticModelID := range staticModelIDs {
+				if !existingModelNames[staticModelID] {
+					mergedModels = append(mergedModels, SapAiCoreDeployment{
+						ModelName:    staticModelID,
+						DeploymentID: "", // No deployment ID for static models
+						DisplayName:  staticModelID,
+					})
+				}
+			}
+		} else {
+			// If fetching failed or returned no results, use static models only
 			renderer := display.NewRenderer("auto")
 
 			if err != nil {
@@ -498,27 +524,25 @@ func SetupSapAiCoreWithDynamicModels(ctx context.Context, manager *task.Manager)
 				fmt.Printf("%s\n\n", renderer.Dim(fallbackMsg))
 			}
 
-			staticModels, _, staticErr := FetchStaticModels(cline.ApiProvider_SAPAICORE)
-			if staticErr != nil {
-				return fmt.Errorf("failed to get static models as fallback: %w", staticErr)
+			// Convert static model IDs to deployment structure
+			mergedModels = make([]SapAiCoreDeployment, len(staticModelIDs))
+			for i, modelID := range staticModelIDs {
+				mergedModels[i] = SapAiCoreDeployment{
+					ModelName:    modelID,
+					DeploymentID: "",
+					DisplayName:  modelID,
+				}
 			}
-
-			selectedModel, err = DisplayModelSelectionMenu(staticModels, "SAP AI Core")
-			if err != nil {
-				return fmt.Errorf("failed to select static model: %w", err)
-			}
-			// No deployment ID for static models
-			selectedDeploymentID = ""
-
-		} else {
-			selectedDeployment, err := DisplaySapAiCoreDeploymentSelectionMenu(models, "SAP AI Core")
-			if err != nil {
-				return fmt.Errorf("failed to select dynamic deployment: %w", err)
-			}
-
-			selectedModel = selectedDeployment.ModelName
-			selectedDeploymentID = selectedDeployment.DeploymentID
 		}
+
+		// Present merged list to user
+		selectedDeployment, err := DisplaySapAiCoreDeploymentSelectionMenu(mergedModels, "SAP AI Core")
+		if err != nil {
+			return fmt.Errorf("failed to select deployment: %w", err)
+		}
+
+		selectedModel = selectedDeployment.ModelName
+		selectedDeploymentID = selectedDeployment.DeploymentID
 	}
 
 	// Step 3: Apply the configuration
