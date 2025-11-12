@@ -284,11 +284,11 @@
 			"commandPalette": [
 				{
 					"command": "cline.generateGitCommitMessage",
-					"when": "config.git.enabled && scmProvider == git && !cline.isGeneratingCommit"
+					"when": "config.git.enabled && !cline.isGeneratingCommit"
 				},
 				{
 					"command": "cline.abortGitCommitMessage",
-					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
+					"when": "config.git.enabled && cline.isGeneratingCommit"
 				}
 			]
 		},
