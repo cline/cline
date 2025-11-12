@@ -23,11 +23,11 @@ type SapAiCoreConfig struct {
 	TokenUrl     string // Required: SAP AI Core token URL
 
 	// Optional fields
-	ResourceGroup                string // Optional: SAP AI resource group
-	UseOrchestrationMode         bool   // Use orchestration mode (required: true/false)
+	ResourceGroup        string // Optional: SAP AI resource group
+	UseOrchestrationMode bool   // Use orchestration mode (required: true/false)
 }
 
- // Helpers to load existing SAP AI Core config without exposing sensitive values
+// Helpers to load existing SAP AI Core config without exposing sensitive values
 type sapExistingFlags struct {
 	HasClientID bool
 	HasSecret   bool
@@ -426,65 +426,40 @@ func ApplySapAiCoreConfig(ctx context.Context, manager *task.Manager, config *Sa
 	return nil
 }
 
-// SetupSapAiCoreWithDynamicModels sets up SAP AI Core with dynamic model fetching
-func SetupSapAiCoreWithDynamicModels(ctx context.Context, manager *task.Manager) error {
-	// Step 1: Collect configuration with enhanced validation
-	existing, flags := LoadExistingSapAiCoreConfig(ctx, manager)
-	config, err := PromptForSapAiCoreConfigWithValidation(existing, flags)
-	if err != nil {
-		return fmt.Errorf("failed to get SAP AI Core configuration: %w", err)
-	}
+// GetSapAiCoreModelsWithMerging handles the orchestration mode logic and static/dynamic model merging
+// Returns a list of model names for simple selection or deployments for deployment selection
+func GetSapAiCoreModelsWithMerging(ctx context.Context, manager *task.Manager,
+	clientID, clientSecret, baseURL, tokenURL, resourceGroup string,
+	useOrchestrationMode bool) ([]string, []SapAiCoreDeployment, error) {
 
-	var selectedModel string
-	var selectedDeploymentID string
-
-	// Step 2: Handle orchestration mode differently from non-orchestration mode
-	if config.UseOrchestrationMode {
+	if useOrchestrationMode {
 		// In orchestration mode: use static model list only (no deployment fetching)
 		renderer := display.NewRenderer("auto")
 		fmt.Printf("\n%s\n\n", renderer.Dim("Using orchestration mode - selecting from standard model list"))
 
 		staticModels, _, staticErr := FetchStaticModels(cline.ApiProvider_SAPAICORE)
 		if staticErr != nil {
-			return fmt.Errorf("failed to get static models: %w", staticErr)
+			return nil, nil, fmt.Errorf("failed to get static models: %w", staticErr)
 		}
 
-		selectedModel, err = DisplayModelSelectionMenu(staticModels, "SAP AI Core")
-		if err != nil {
-			return fmt.Errorf("failed to select model: %w", err)
-		}
-		// No deployment ID needed in orchestration mode
-		selectedDeploymentID = ""
+		return staticModels, nil, nil
 
 	} else {
 		// In non-orchestration mode: fetch deployments dynamically and merge with static models
-		// Use provided sensitive values, or fall back to existing stored ones if left blank
-		clientIDForFetch := strings.TrimSpace(config.ClientId)
-		clientSecretForFetch := strings.TrimSpace(config.ClientSecret)
-		if (clientIDForFetch == "" || clientSecretForFetch == "") && (flags.HasClientID || flags.HasSecret) {
-			existingID, existingSecret := getExistingSapAiCoreSensitive(ctx, manager)
-			if clientIDForFetch == "" {
-				clientIDForFetch = existingID
-			}
-			if clientSecretForFetch == "" {
-				clientSecretForFetch = existingSecret
-			}
-		}
-
 		// Fetch dynamic deployments
 		dynamicModels, _, err := FetchSapAiCoreModels(
 			ctx, manager,
-			clientIDForFetch,
-			clientSecretForFetch,
-			config.BaseUrl,
-			config.TokenUrl,
-			config.ResourceGroup,
+			clientID,
+			clientSecret,
+			baseURL,
+			tokenURL,
+			resourceGroup,
 		)
 
 		// Fetch static models
 		staticModelIDs, _, staticErr := FetchStaticModels(cline.ApiProvider_SAPAICORE)
 		if staticErr != nil {
-			return fmt.Errorf("failed to get static models: %w", staticErr)
+			return nil, nil, fmt.Errorf("failed to get static models: %w", staticErr)
 		}
 
 		// Merge: Add static models that aren't already in the dynamic list
@@ -535,8 +510,60 @@ func SetupSapAiCoreWithDynamicModels(ctx context.Context, manager *task.Manager)
 			}
 		}
 
+		return nil, mergedModels, nil
+	}
+}
+
+// SetupSapAiCoreWithDynamicModels sets up SAP AI Core with dynamic model fetching
+func SetupSapAiCoreWithDynamicModels(ctx context.Context, manager *task.Manager) error {
+	// Step 1: Collect configuration with enhanced validation
+	existing, flags := LoadExistingSapAiCoreConfig(ctx, manager)
+	config, err := PromptForSapAiCoreConfigWithValidation(existing, flags)
+	if err != nil {
+		return fmt.Errorf("failed to get SAP AI Core configuration: %w", err)
+	}
+
+	var selectedModel string
+	var selectedDeploymentID string
+
+	// Step 2: Use provided sensitive values, or fall back to existing stored ones if left blank
+	clientIDForFetch := strings.TrimSpace(config.ClientId)
+	clientSecretForFetch := strings.TrimSpace(config.ClientSecret)
+	if (clientIDForFetch == "" || clientSecretForFetch == "") && (flags.HasClientID || flags.HasSecret) {
+		existingID, existingSecret := getExistingSapAiCoreSensitive(ctx, manager)
+		if clientIDForFetch == "" {
+			clientIDForFetch = existingID
+		}
+		if clientSecretForFetch == "" {
+			clientSecretForFetch = existingSecret
+		}
+	}
+
+	// Step 3: Get models using the common logic
+	staticModels, deployments, err := GetSapAiCoreModelsWithMerging(
+		ctx, manager,
+		clientIDForFetch,
+		clientSecretForFetch,
+		config.BaseUrl,
+		config.TokenUrl,
+		config.ResourceGroup,
+		config.UseOrchestrationMode,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to get SAP AI Core models: %w", err)
+	}
+
+	// Step 4: Handle model selection based on mode
+	if config.UseOrchestrationMode {
+		selectedModel, err = DisplayModelSelectionMenu(staticModels, "SAP AI Core")
+		if err != nil {
+			return fmt.Errorf("failed to select model: %w", err)
+		}
+		// No deployment ID needed in orchestration mode
+		selectedDeploymentID = ""
+	} else {
 		// Present merged list to user
-		selectedDeployment, err := DisplaySapAiCoreDeploymentSelectionMenu(mergedModels, "SAP AI Core")
+		selectedDeployment, err := DisplaySapAiCoreDeploymentSelectionMenu(deployments, "SAP AI Core")
 		if err != nil {
 			return fmt.Errorf("failed to select deployment: %w", err)
 		}
@@ -545,7 +572,7 @@ func SetupSapAiCoreWithDynamicModels(ctx context.Context, manager *task.Manager)
 		selectedDeploymentID = selectedDeployment.DeploymentID
 	}
 
-	// Step 3: Apply the configuration
+	// Step 5: Apply the configuration
 	if err := ApplySapAiCoreConfig(ctx, manager, config, selectedModel, selectedDeploymentID); err != nil {
 		return fmt.Errorf("failed to apply configuration: %w", err)
 	}

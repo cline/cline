@@ -805,30 +805,39 @@ func (pw *ProviderWizard) fetchSapAiCoreModels() ([]string, map[string]interface
 		return nil, nil, fmt.Errorf("no API configuration found in state")
 	}
 
-	// Extract SAP AI Core credentials
+	// Extract SAP AI Core credentials and configuration
 	clientID, _ := apiConfig["sapAiCoreClientId"].(string)
 	clientSecret, _ := apiConfig["sapAiCoreClientSecret"].(string)
 	baseURL, _ := apiConfig["sapAiCoreBaseUrl"].(string)
 	tokenURL, _ := apiConfig["sapAiCoreTokenUrl"].(string)
 	resourceGroup, _ := apiConfig["sapAiResourceGroup"].(string)
+	useOrchestrationMode, _ := apiConfig["sapAiCoreUseOrchestrationMode"].(bool)
 
 	if clientID == "" || clientSecret == "" || baseURL == "" || tokenURL == "" {
 		return nil, nil, fmt.Errorf("SAP AI Core credentials not found in configuration")
 	}
 
-	// Fetch deployments using existing function
-	deployments, _, err := FetchSapAiCoreModels(pw.ctx, pw.manager, clientID, clientSecret, baseURL, tokenURL, resourceGroup)
+	// Use the common logic that handles orchestration mode and model merging
+	staticModels, deployments, err := GetSapAiCoreModelsWithMerging(
+		pw.ctx, pw.manager,
+		clientID, clientSecret, baseURL, tokenURL, resourceGroup,
+		useOrchestrationMode,
+	)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Convert deployments to clean model names for the generic selection interface
-	// We use the clean ModelName directly so no special handling is needed in generic code
-	modelIDs := make([]string, len(deployments))
-	for i, deployment := range deployments {
-		// Use the clean model name directly - this is what should be saved
-		modelIDs[i] = deployment.ModelName
+	// Return the appropriate model list based on orchestration mode
+	if useOrchestrationMode {
+		// For orchestration mode, return static models
+		return staticModels, nil, nil
+	} else {
+		// For direct deployment mode, convert deployments to model names
+		modelIDs := make([]string, len(deployments))
+		for i, deployment := range deployments {
+			// Use the clean model name directly - this is what should be saved
+			modelIDs[i] = deployment.ModelName
+		}
+		return modelIDs, nil, nil
 	}
-
-	return modelIDs, nil, nil
 }
