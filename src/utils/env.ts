@@ -1,5 +1,5 @@
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import open from "open"
+import opn from "opn"
 import { HostProvider } from "@/hosts/host-provider"
 
 /**
@@ -40,5 +40,5 @@ export async function readTextFromClipboard(): Promise<string> {
  */
 export async function openExternal(url: string): Promise<void> {
 	console.log("Opening browser:", url)
-	await open(url)
+	await opn(url)
 }
