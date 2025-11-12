@@ -66,12 +66,11 @@ export class MinimaxHandler implements ApiHandler {
 			tool_choice: nativeToolsOn ? { type: "any" } : undefined,
 		})
 
-		let thinkingDeltaAccumulator = ""
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 
 		for await (const chunk of stream) {
 			switch (chunk?.type) {
-				case "message_start":
+				case "message_start": {
 					// tells us cache reads/writes/input/output
 					const usage = chunk.message.usage
 					yield {
@@ -82,6 +81,7 @@ export class MinimaxHandler implements ApiHandler {
 						cacheReadTokens: usage.cache_read_input_tokens || undefined,
 					}
 					break
+				}
 				case "message_delta":
 					// tells us stop_reason, stop_sequence, and output tokens along the way and at the end of the message
 					yield {
@@ -100,13 +100,11 @@ export class MinimaxHandler implements ApiHandler {
 								type: "reasoning",
 								reasoning: chunk.content_block.thinking || "",
 							}
-							const thinking = chunk.content_block.thinking
-							const signature = chunk.content_block.signature
-							if (thinking && signature) {
+							if (chunk.content_block.thinking && chunk.content_block.signature) {
 								yield {
-									type: "ant_thinking",
-									thinking,
-									signature,
+									type: "reasoning",
+									reasoning: chunk.content_block.thinking,
+									signature: chunk.content_block.signature,
 								}
 							}
 							break
@@ -115,10 +113,7 @@ export class MinimaxHandler implements ApiHandler {
 							yield {
 								type: "reasoning",
 								reasoning: "[Redacted thinking block]",
-							}
-							yield {
-								type: "ant_redacted_thinking",
-								data: chunk.content_block.data,
+								redacted_data: chunk.content_block.data,
 							}
 							break
 						case "tool_use":
@@ -152,15 +147,14 @@ export class MinimaxHandler implements ApiHandler {
 								type: "reasoning",
 								reasoning: chunk.delta.thinking,
 							}
-							thinkingDeltaAccumulator += chunk.delta.thinking
 							break
 						case "signature_delta":
 							// It's used when sending the thinking block back to the API
 							// API expects this in completed form, not as array of deltas
-							if (thinkingDeltaAccumulator && chunk.delta.signature) {
+							if (chunk.delta.signature) {
 								yield {
-									type: "ant_thinking",
-									thinking: thinkingDeltaAccumulator,
+									type: "reasoning",
+									reasoning: "",
 									signature: chunk.delta.signature,
 								}
 							}
