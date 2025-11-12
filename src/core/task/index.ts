@@ -2691,6 +2691,7 @@ export class Task {
 						cacheReadTokens,
 						totalCost,
 					},
+					this.useNativeToolCalls, // For assistant turn only.
 				)
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
@@ -2991,13 +2992,21 @@ export class Task {
 			let didEndLoop = false
 			if (assistantMessage.length > 0 || this.useNativeToolCalls) {
 				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
-				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", currentMode, {
-					tokensIn: inputTokens,
-					tokensOut: outputTokens,
-					cacheWriteTokens,
-					cacheReadTokens,
-					totalCost,
-				})
+				telemetryService.captureConversationTurnEvent(
+					this.ulid,
+					providerId,
+					model.id,
+					"assistant",
+					currentMode,
+					{
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens,
+						totalCost,
+					},
+					this.useNativeToolCalls,
+				)
 
 				// Get finalized tool use blocks from the handler
 				const toolUseBlocks = this.toolUseHandler.getAllFinalizedToolUses()
@@ -3084,6 +3093,7 @@ export class Task {
 					provider: providerId,
 					errorMessage: "empty_assistant_message",
 					requestId: reqId,
+					isNativeToolCall: this.useNativeToolCalls,
 				})
 
 				const baseErrorMessage =
