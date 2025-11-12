@@ -3,6 +3,7 @@ import { RuleFileRequest } from "@shared/proto/index.cline"
 import { PenIcon, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 
 const RuleRow: React.FC<{
@@ -11,11 +12,17 @@ const RuleRow: React.FC<{
 	isGlobal: boolean
 	ruleType: string
 	toggleRule: (rulePath: string, enabled: boolean) => void
-}> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType }) => {
+	isRemote?: boolean
+	alwaysEnabled?: boolean
+}> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType, isRemote = false, alwaysEnabled = false }) => {
 	// Check if the path type is Windows
 	const win32Path = /^[a-zA-Z]:\\/.test(rulePath)
 	// Get the filename from the path for display
 	const displayName = rulePath.split(win32Path ? "\\" : "/").pop() || rulePath
+
+	// For remote rules, the rulePath is already the display name
+	const finalDisplayName = isRemote ? rulePath : displayName
+	const isDisabled = !enabled || (isRemote && alwaysEnabled)
 
 	const getRuleTypeIcon = () => {
 		switch (ruleType) {
@@ -77,28 +84,45 @@ const RuleRow: React.FC<{
 	return (
 		<div className="mb-2.5">
 			<div
-				className={`flex items-center px-2 py-4 rounded bg-text-block-background max-h-4 ${
-					enabled ? "opacity-100" : "opacity-60"
-				}`}>
+				className={cn("flex items-center px-2 py-4 rounded bg-text-block-background max-h-4", {
+					isDisabled: "opacity-60",
+				})}>
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1" title={rulePath}>
 					{getRuleTypeIcon() && <span className="mr-1.5">{getRuleTypeIcon()}</span>}
-					<span className="ph-no-capture">{displayName}</span>
+					<span className="ph-no-capture">{finalDisplayName}</span>
 				</span>
 
 				{/* Toggle Switch */}
 				<div className="flex items-center space-x-2">
-					<Switch checked={enabled} key={rulePath} onClick={() => toggleRule(rulePath, !enabled)} />
-					<Button aria-label="Edit rule file" onClick={handleEditClick} size="xs" title="Edit rule file" variant="icon">
-						<PenIcon />
-					</Button>
-					<Button
-						aria-label="Delete rule file"
-						onClick={handleDeleteClick}
-						size="xs"
-						title="Delete rule file"
-						variant="icon">
-						<Trash2Icon />
-					</Button>
+					<Switch
+						checked={enabled}
+						disabled={isDisabled}
+						key={rulePath}
+						onClick={() => toggleRule(rulePath, !enabled)}
+						title={isDisabled ? "This rule is required and cannot be disabled" : undefined}
+					/>
+					{!isRemote && (
+						<div>
+							<Button
+								aria-label="Edit rule file"
+								disabled={isDisabled}
+								onClick={handleEditClick}
+								size="xs"
+								title="Edit rule file"
+								variant="icon">
+								<PenIcon />
+							</Button>
+							<Button
+								aria-label="Delete rule file"
+								disabled={isDisabled}
+								onClick={handleDeleteClick}
+								size="xs"
+								title="Delete rule file"
+								variant="icon">
+								<Trash2Icon />
+							</Button>
+						</div>
+					)}
 				</div>
 			</div>
 		</div>

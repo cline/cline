@@ -4,7 +4,13 @@ import axios from "axios"
 import cloneDeep from "clone-deep"
 import fs from "fs/promises"
 import path from "path"
-import { CLAUDE_SONNET_1M_TIERS, openRouterClaudeSonnet41mModelId, openRouterClaudeSonnet451mModelId } from "@/shared/api"
+import {
+	ANTHROPIC_MAX_THINKING_BUDGET,
+	CLAUDE_SONNET_1M_TIERS,
+	openRouterClaudeSonnet41mModelId,
+	openRouterClaudeSonnet451mModelId,
+} from "@/shared/api"
+import { getAxiosSettings } from "@/shared/net"
 import type { Controller } from ".."
 
 type OpenRouterSupportedParams =
@@ -59,7 +65,6 @@ interface OpenRouterRawModelInfo {
 		input_cache_read: string
 		input_cache_write: string
 	} | null
-	thinking_config: Record<string, unknown> | null
 	supports_global_endpoint: boolean | null
 	tiers: any[] | null
 	supported_parameters?: OpenRouterSupportedParams[] | null
@@ -75,7 +80,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 
 	const models: Record<string, ModelInfo> = {}
 	try {
-		const response = await axios.get("https://openrouter.ai/api/v1/models")
+		const response = await axios.get("https://openrouter.ai/api/v1/models", getAxiosSettings())
 
 		if (response.data?.data) {
 			const rawModels = response.data.data
@@ -86,7 +91,8 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 				return undefined
 			}
 			for (const rawModel of rawModels as OpenRouterRawModelInfo[]) {
-				const supportThinking = rawModel.supported_parameters?.some((p) => p === "include_reasoning")
+				const supportThinking = rawModel.supported_parameters?.some((p) => p === "include_reasoning" || p === "reasoning")
+
 				const modelInfo: ModelInfo = {
 					name: rawModel.name,
 					maxTokens: rawModel.top_provider?.max_completion_tokens ?? 0,
@@ -98,7 +104,9 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 					cacheWritesPrice: parsePrice(rawModel.pricing?.input_cache_write),
 					cacheReadsPrice: parsePrice(rawModel.pricing?.input_cache_read),
 					description: rawModel.description ?? "",
-					thinkingConfig: (supportThinking && rawModel.thinking_config) || undefined,
+					// If thinking is supported, set maxBudget with a default value as a placeholder
+					// to ensure it has a valid thinkingConfig that lets the application know thinking is supported.
+					thinkingConfig: supportThinking ? { maxBudget: ANTHROPIC_MAX_THINKING_BUDGET } : undefined,
 					supportsGlobalEndpoint: rawModel.supports_global_endpoint ?? undefined,
 					tiers: rawModel.tiers ?? undefined,
 				}

@@ -67,7 +67,7 @@ import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import { isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
+import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
@@ -452,10 +452,6 @@ export class Task {
 						// Post the updated state to the webview so the UI reflects the retry attempt
 						await this.postStateToWebview().catch((e) =>
 							console.error("Error posting state to webview in onRetryAttempt:", e),
-						)
-
-						console.log(
-							`[Task ${this.taskId}] API Auto-Retry Status Update: Attempt ${attempt}/${maxRetries}, Delay: ${delay}ms`,
 						)
 					} catch (e) {
 						console.error(`[Task ${this.taskId}] Error updating api_req_started with retryStatus:`, e)
@@ -932,7 +928,6 @@ export class Task {
 			if (taskStartResult.cancel === true) {
 				// If hook was cancelled by user, save state for resume
 				if (taskStartResult.wasCancelled) {
-					console.log(`[TaskStart Hook] User cancelled, saving messages for task ${this.taskId}`)
 					// Set flag to allow Controller.cancelTask() to proceed
 					this.taskState.didFinishAbortingStream = true
 					// Save BOTH clineMessages AND apiConversationHistory so Controller.cancelTask() can find the task
@@ -941,7 +936,6 @@ export class Task {
 						this.messageStateHandler.getApiConversationHistory(),
 					)
 					await this.postStateToWebview()
-					console.log(`[TaskStart Hook] Messages saved successfully, returning from hook`)
 				}
 
 				// abortTask will handle cleanup
@@ -1355,6 +1349,14 @@ export class Task {
 					Logger.error("Failed to cancel hook during task abort", error)
 					// Still clear state even on error to prevent stuck state
 					await this.clearActiveHookExecution()
+				}
+			}
+
+			if (this.activeBackgroundCommand) {
+				try {
+					await this.cancelBackgroundCommand()
+				} catch (error) {
+					Logger.error("Failed to cancel background command during task abort", error)
 				}
 			}
 
@@ -2683,6 +2685,7 @@ export class Task {
 						cacheReadTokens,
 						totalCost,
 					},
+					this.useNativeToolCalls, // For assistant turn only.
 				)
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
@@ -2983,13 +2986,21 @@ export class Task {
 			let didEndLoop = false
 			if (assistantMessage.length > 0 || this.useNativeToolCalls) {
 				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
-				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", currentMode, {
-					tokensIn: inputTokens,
-					tokensOut: outputTokens,
-					cacheWriteTokens,
-					cacheReadTokens,
-					totalCost,
-				})
+				telemetryService.captureConversationTurnEvent(
+					this.ulid,
+					providerId,
+					model.id,
+					"assistant",
+					currentMode,
+					{
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens,
+						totalCost,
+					},
+					this.useNativeToolCalls,
+				)
 
 				// Get finalized tool use blocks from the handler
 				const toolUseBlocks = this.toolUseHandler.getAllFinalizedToolUses()
@@ -3076,6 +3087,7 @@ export class Task {
 					provider: providerId,
 					errorMessage: "empty_assistant_message",
 					requestId: reqId,
+					isNativeToolCall: this.useNativeToolCalls,
 				})
 
 				const baseErrorMessage =
@@ -3188,6 +3200,7 @@ export class Task {
 								globalWorkflowToggles,
 								this.ulid,
 								this.stateManager.getGlobalSettingsKey("focusChainSettings"),
+								this.getCurrentProviderInfo(),
 							)
 
 							if (needsCheck) {
@@ -3450,7 +3463,7 @@ export class Task {
 			}
 		}
 
-		// Add context window usage information
+		// Add context window usage information (conditionally for some models)
 		const { contextWindow } = getContextWindowInfo(this.api)
 
 		// Get the token count from the most recent API request to accurately reflect context management
@@ -3478,8 +3491,24 @@ export class Task {
 		const lastApiReqTotalTokens = lastApiReqMessage ? getTotalTokensFromApiReqMessage(lastApiReqMessage) : 0
 		const usagePercentage = Math.round((lastApiReqTotalTokens / contextWindow) * 100)
 
-		details += "\n\n# Context Window Usage"
-		details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
+		// Determine if context window info should be displayed
+		const currentModelId = this.api.getModel().id
+		const isNextGenModel = isClaude4PlusModelFamily(currentModelId) || isGPT5ModelFamily(currentModelId)
+
+		let shouldShowContextWindow = true
+		// For next-gen models, only show context window usage if it exceeds a certain threshold
+		if (isNextGenModel) {
+			const autoCondenseThreshold =
+				(this.stateManager.getGlobalSettingsKey("autoCondenseThreshold") as number | undefined) ?? 0.75
+			const displayThreshold = autoCondenseThreshold - 0.15
+			const currentUsageRatio = lastApiReqTotalTokens / contextWindow
+			shouldShowContextWindow = currentUsageRatio >= displayThreshold
+		}
+
+		if (shouldShowContextWindow) {
+			details += "\n\n# Context Window Usage"
+			details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
+		}
 
 		details += "\n\n# Current Mode"
 		const mode = this.stateManager.getGlobalSettingsKey("mode")

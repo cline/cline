@@ -492,6 +492,7 @@ export class StateManager {
 			zaiApiKey,
 			minimaxApiKey,
 			minimaxApiLine,
+			nousResearchApiKey,
 			requestTimeoutMs,
 			ocaBaseUrl,
 			ocaMode,
@@ -536,6 +537,7 @@ export class StateManager {
 			planModeHicapModelInfo,
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
+			planModeNousResearchModelId,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -572,6 +574,7 @@ export class StateManager {
 			actModeHicapModelInfo,
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
+			actModeNousResearchModelId,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -612,6 +615,7 @@ export class StateManager {
 			planModeHicapModelInfo,
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
+			planModeNousResearchModelId,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -649,6 +653,7 @@ export class StateManager {
 			actModeHicapModelInfo,
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
+			actModeNousResearchModelId,
 
 			// Global state updates
 			awsRegion,
@@ -735,6 +740,7 @@ export class StateManager {
 			minimaxApiKey,
 			hicapApiKey,
 			aihubmixApiKey,
+			nousResearchApiKey,
 		})
 	}
 
@@ -1155,6 +1161,8 @@ export class StateManager {
 				this.taskStateCache["planModeAihubmixModelId"] || this.globalStateCache["planModeAihubmixModelId"],
 			planModeAihubmixModelInfo:
 				this.taskStateCache["planModeAihubmixModelInfo"] || this.globalStateCache["planModeAihubmixModelInfo"],
+			planModeNousResearchModelId:
+				this.taskStateCache["planModeNousResearchModelId"] || this.globalStateCache["planModeNousResearchModelId"],
 
 			// Act mode configurations
 			actModeApiProvider:
@@ -1221,6 +1229,9 @@ export class StateManager {
 				this.taskStateCache["actModeAihubmixModelId"] || this.globalStateCache["actModeAihubmixModelId"],
 			actModeAihubmixModelInfo:
 				this.taskStateCache["actModeAihubmixModelInfo"] || this.globalStateCache["actModeAihubmixModelInfo"],
+			actModeNousResearchModelId:
+				this.taskStateCache["actModeNousResearchModelId"] || this.globalStateCache["actModeNousResearchModelId"],
+			nousResearchApiKey: this.secretsCache["nousResearchApiKey"],
 		}
 	}
 }

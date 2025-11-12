@@ -134,7 +134,7 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 									? "New workflow file..."
 									: "New rule file..."
 						}
-						className="mx-2"
+						className="mx-1"
 						onClick={(e) => {
 							e.stopPropagation()
 							if (!isExpanded) {
