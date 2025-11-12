@@ -20,12 +20,14 @@ const ResponseHeader = styled.div`
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 9px 10px;
+	padding: 5px 5px 5px 8px;
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
 	user-select: none;
 	border-bottom: 1px dashed var(--vscode-editorGroup-border);
 	margin-bottom: 8px;
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
 
 	.header-title {
 		display: flex;

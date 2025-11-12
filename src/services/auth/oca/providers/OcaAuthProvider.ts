@@ -102,7 +102,7 @@ export class OcaAuthProvider {
 			if (!idcs_url || !client_id) {
 				throw new Error("IDCS URL or Client ID are not configured")
 			}
-			const discovery = await axios.get(`${idcs_url}/.well-known/openid-configuration`, { ...getAxiosSettings() })
+			const discovery = await axios.get(`${idcs_url}/.well-known/openid-configuration`, getAxiosSettings())
 			const tokenEndpoint = discovery.data.token_endpoint
 			const params: any = {
 				grant_type: "refresh_token",
@@ -183,7 +183,7 @@ export class OcaAuthProvider {
 			}
 			const { code_verifier, nonce, redirect_uri } = entry
 			OcaAuthProvider.pkceStateMap.delete(state)
-			const discovery = await axios.get(`${idcs_url}/.well-known/openid-configuration`, { ...getAxiosSettings() })
+			const discovery = await axios.get(`${idcs_url}/.well-known/openid-configuration`, getAxiosSettings())
 			const tokenEndpoint = discovery.data.token_endpoint
 			const params: any = {
 				grant_type: "authorization_code",

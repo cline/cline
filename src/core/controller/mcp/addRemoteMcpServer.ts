@@ -20,7 +20,7 @@ export async function addRemoteMcpServer(controller: Controller, request: AddRem
 		}
 
 		// Call the McpHub method to add the remote server
-		const servers = await controller.mcpHub?.addRemoteServer(request.serverName, request.serverUrl)
+		const servers = await controller.mcpHub?.addRemoteServer(request.serverName, request.serverUrl, request.transportType)
 
 		const protoServers = convertMcpServersToProtoMcpServers(servers)
 

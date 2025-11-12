@@ -5,6 +5,7 @@ import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
 import { telemetryService } from "@/services/telemetry"
+import { getAxiosSettings } from "@/shared/net"
 import { groqModels } from "../../../shared/api"
 import { Controller } from ".."
 
@@ -52,6 +53,7 @@ export async function refreshGroqModels(controller: Controller): Promise<Record<
 					"User-Agent": "Cline-VSCode-Extension",
 				},
 				timeout: 10000, // 10 second timeout
+				...getAxiosSettings(),
 			})
 
 			if (response.data?.data) {

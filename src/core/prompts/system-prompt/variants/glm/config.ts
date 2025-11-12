@@ -22,6 +22,7 @@ export const config = createVariant(ModelFamily.GLM)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
+		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.RULES,
 		SystemPromptSection.ACT_VS_PLAN,
 		SystemPromptSection.CLI_SUBAGENTS,
@@ -29,7 +30,6 @@ export const config = createVariant(ModelFamily.GLM)
 		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.TODO,
 		SystemPromptSection.MCP,
-		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.USER_INSTRUCTIONS,

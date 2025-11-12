@@ -76,7 +76,7 @@ echo "$input" | jq -r '.timestamp | type'
 
 This example script demonstrates the key mechanics of hook input/output: reading the JSON payload from stdin with `input=$(cat)`, and using `jq` to inspect the data structure and field types that your hook receives. This helps you understand what data is available before building more complex hook logic.
 
-#### Make it executable
+**Make it executable**
 
 ```bash
 chmod +x .clinerules/hooks/TaskStart
@@ -91,6 +91,32 @@ Start a task in Cline and verify your hook executes.
 <Tip>
 Start with a simple hook that just logs information before building complex validation logic. This helps you understand the data structure and timing.
 </Tip>
+
+
+## What You Can Build
+
+Once you understand the basics, hooks open up creative possibilities:
+
+<CardGroup cols={2}>
+  <Card title="Intelligent Code Review" icon="code-branch">
+    Run linters or custom validators before files get saved. Block commits that don't pass checks. Track code quality metrics over time.
+  </Card>
+  
+  <Card title="Security Enforcement" icon="shield-halved">
+    Prevent operations that violate security policies. Detect when sensitive data might be exposed. Audit all file access for compliance.
+  </Card>
+  
+  <Card title="Development Analytics" icon="chart-line">
+    Measure how long different operations take. Identify patterns in how the AI works. Generate productivity reports from hook data.
+  </Card>
+  
+  <Card title="Integration Hub" icon="plug">
+    Connect to issue trackers when certain keywords appear. Update project management tools. Sync with external APIs at the right moments.
+  </Card>
+</CardGroup>
+
+The key is combining hooks with external tools. A hook can be the glue between Cline's workflow and the rest of your development ecosystem.
+
 
 ## Hook Types
 
@@ -341,22 +367,6 @@ Context injection affects future decisions, not current ones. When a hook runs:
 This means PreToolUse hooks are for blocking bad actions, while PostToolUse hooks are for learning from completed ones.
 
 
-## What You Can Build
-
-Once you understand the basics, hooks open up creative possibilities:
-
-- **Intelligent Code Review**:
-Run linters or custom validators before files get saved. Block commits that don't pass checks. Track code quality metrics over time.
-
-- **Security Enforcement**:
-Prevent operations that violate security policies. Detect when sensitive data might be exposed. Audit all file access for compliance.
-
-- **Development Analytics**: Measure how long different operations take. Identify patterns in how the AI works. Generate productivity reports from hook data.
-
-- **Integration Hub**: Connect to issue trackers when certain keywords appear. Update project management tools. Sync with external APIs at the right moments.
-
-The key is combining hooks with external tools. A hook can be the glue between Cline's workflow and the rest of your development ecosystem.
-
 ## Troubleshooting
 
 ### Hook Not Running
@@ -371,12 +381,30 @@ The key is combining hooks with external tools. A hook can be the glue between C
 - Consider moving complex logic to a background process
 
 ### Context Not Affecting Behavior
-- Remember: context affects FUTURE decisions, not the current tool
-- The current AI behavior is based on the previous "API Request..." block
-- Your `contextModification` gets injected into the NEXT "API Request..." block
-- Use PreToolUse for validation (blocking) if you need immediate effect
-- Ensure context modifications are clear and actionable
-- Check that context isn't being truncated (50KB limit)
+Remember that context modifications affect future AI decisions, not the current operation. The AI's current behavior is based on the previous "API Request..." block, and your `contextModification` gets injected into the next "API Request..." block. This means if you need immediate effect, you should use PreToolUse hooks for validation and return `cancel: true` in your hook's JSON response to block Cline from continuing.
+
+When adding context, ensure your modifications are clear and actionable so the AI can understand and apply them effectively. Also check that your context isn't being truncated due to the 50KB limit, as this could prevent important information from reaching the AI.
+
+### Handling Strings with Quotes in JSON Payloads
+When your hook needs to include strings containing unescaped quote characters (`"`) in JSON output, use jq's `--arg` flag for proper escaping:
+
+```bash
+#!/usr/bin/env bash
+
+# When $output contains unescaped quote characters (")...
+output='{"foo":"bar"}'
+
+# Use the --arg flag for automatic string escaping
+jq -n --arg ctx "$output" '{cancel: false, contextModification: $ctx}'
+
+# This will result in:
+# {
+#     "cancel": false,
+#     "contextModification": "{\"foo\":\"bar\"}"
+# }
+```
+
+The `--arg` flag automatically escapes special characters, preventing JSON parsing errors when your context modification includes complex strings or nested JSON structures.
 
 <Warning>
 Hooks run with the same permissions as VS Code. They can access all workspace files and environment variables. Review hooks from untrusted sources before enabling them.

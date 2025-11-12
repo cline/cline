@@ -5,6 +5,7 @@ import { jwtDecode } from "jwt-decode"
 import { ClineEnv, EnvironmentConfig } from "@/config"
 import { Controller } from "@/core/controller"
 import { ErrorService } from "@/services/error"
+import { getAxiosSettings } from "@/shared/net"
 import type { ClineAccountUserInfo, ClineAuthInfo } from "../AuthService"
 import { IAuthProvider } from "./IAuthProvider"
 
@@ -55,6 +56,7 @@ export class FirebaseAuthProvider implements IAuthProvider {
 				headers: {
 					Authorization: `Bearer ${idToken}`,
 				},
+				...getAxiosSettings(),
 			})
 
 			// Store user data
@@ -78,6 +80,7 @@ export class FirebaseAuthProvider implements IAuthProvider {
 				headers: {
 					"Content-Type": "application/x-www-form-urlencoded",
 				},
+				...getAxiosSettings(),
 			},
 		)
 

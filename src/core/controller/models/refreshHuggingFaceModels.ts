@@ -6,6 +6,7 @@ import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
 import { ensureCacheDirectoryExists } from "@/core/storage/disk"
+import { getAxiosSettings } from "@/shared/net"
 import { Controller } from ".."
 
 /**
@@ -26,6 +27,7 @@ export async function refreshHuggingFaceModels(
 		// Fetch models from Hugging Face API
 		const response = await axios.get("https://router.huggingface.co/v1/models", {
 			timeout: 10000,
+			...getAxiosSettings(),
 		})
 
 		if (response.data?.data) {

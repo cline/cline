@@ -4,6 +4,7 @@ import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
+import { getAxiosSettings } from "@/shared/net"
 import { Controller } from ".."
 
 /**
@@ -17,7 +18,7 @@ export async function refreshVercelAiGatewayModels(_controller: Controller): Pro
 	let models: Record<string, ModelInfo> = {}
 
 	try {
-		const response = await axios.get("https://ai-gateway.vercel.sh/v1/models")
+		const response = await axios.get("https://ai-gateway.vercel.sh/v1/models", getAxiosSettings())
 
 		if (response.data?.data) {
 			const rawModels = response.data.data

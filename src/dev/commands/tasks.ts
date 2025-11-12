@@ -13,6 +13,44 @@ import { ShowMessageType } from "@/shared/proto/host/window"
  */
 export function registerTaskCommands(controller: Controller): vscode.Disposable[] {
 	return [
+		vscode.commands.registerCommand("cline.dev.expireMcpOAuthTokens", async () => {
+			try {
+				const stateManager = controller.stateManager
+				const secretsJson = stateManager.getSecretKey("mcpOAuthSecrets")
+
+				if (!secretsJson) {
+					vscode.window.showInformationMessage("No MCP OAuth secrets found - no servers are authenticated")
+					return
+				}
+
+				const secrets = JSON.parse(secretsJson)
+				let expiredCount = 0
+
+				// Set all tokens_saved_at to 2 hours ago (past expiration)
+				for (const hash in secrets) {
+					if (secrets[hash].tokens_saved_at) {
+						secrets[hash].tokens_saved_at = Date.now() - 2 * 60 * 60 * 1000 // 2 hours ago
+						expiredCount++
+						console.log(`[Dev] Expired tokens for hash: ${hash}`)
+					}
+				}
+
+				stateManager.setSecret("mcpOAuthSecrets", JSON.stringify(secrets))
+
+				const action = await vscode.window.showInformationMessage(
+					`Expired ${expiredCount} MCP OAuth token(s). Reload window to test token refresh flow.`,
+					"Reload Window",
+					"Cancel",
+				)
+
+				if (action === "Reload Window") {
+					vscode.commands.executeCommand("workbench.action.reloadWindow")
+				}
+			} catch (error) {
+				vscode.window.showErrorMessage(`Failed to expire tokens: ${error}`)
+				console.error("[Dev] Error expiring MCP OAuth tokens:", error)
+			}
+		}),
 		vscode.commands.registerCommand("cline.dev.createTestTasks", async () => {
 			const count = (
 				await HostProvider.window.showInputBox({

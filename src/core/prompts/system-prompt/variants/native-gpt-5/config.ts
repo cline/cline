@@ -32,7 +32,7 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
-		SystemPromptSection.TODO,
+		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.ACT_VS_PLAN,
 		SystemPromptSection.CLI_SUBAGENTS,
 		SystemPromptSection.CAPABILITIES,

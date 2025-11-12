@@ -10,6 +10,7 @@ import {
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 } from "@/shared/api"
+import { getAxiosSettings } from "@/shared/net"
 import type { Controller } from ".."
 
 type OpenRouterSupportedParams =
@@ -79,7 +80,7 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 
 	const models: Record<string, ModelInfo> = {}
 	try {
-		const response = await axios.get("https://openrouter.ai/api/v1/models")
+		const response = await axios.get("https://openrouter.ai/api/v1/models", getAxiosSettings())
 
 		if (response.data?.data) {
 			const rawModels = response.data.data

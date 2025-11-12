@@ -29,10 +29,32 @@ The "Remote Servers" tab allows you to connect to any MCP server that's accessib
 2. Fill in the required information:
     - **Server Name**: Provide a unique, descriptive name for the server
     - **Server URL**: Enter the complete URL endpoint of the MCP server (e.g., `https://example.com/mcp-sse`)
+    - **Transport Type**: Select the connection protocol (Streamable HTTP is recommended for modern servers)
 3. Click "Add Server" to initiate the connection
 4. Cline will attempt to connect to the server and display the connection status
 
 > **Note**: When connecting to a remote server, ensure you trust the source, as MCP servers can execute code in your environment.
+
+#### Transport Types
+
+Cline supports two transport protocols for remote MCP servers:
+
+-   **Streamable HTTP (Recommended)**: The modern MCP transport protocol with better performance, reliability, and full OAuth 2.1 authentication support. Use this for most remote servers.
+-   **SSE (Legacy)**: Server-Sent Events transport. Use this only if the server specifically requires SSE or doesn't support Streamable HTTP.
+
+#### OAuth Authentication
+
+Some MCP servers (like Vercel's MCP) require OAuth authentication to access your data securely. When connecting to an OAuth-enabled server:
+
+1. Add the server as usual with its URL
+2. If the server requires authentication, you'll see an error message asking to authenticate.
+3. Click the **"Authenticate"** button that appears
+4. Your browser will open to the server's authorization page
+5. Sign in and grant permission
+6. You'll be redirected back to Cline automatically
+7. The server will connect and show a green status dot
+
+Once authenticated, your credentials are securely stored and the server will reconnect automatically when you reload Cline. You won't need to authenticate again unless you delete the server or your credentials expire.
 
 ### Remote Server Discovery
 
@@ -90,9 +112,20 @@ Toggle the switch next to each server to enable or disable it:
 If a server fails to connect:
 
 1. An error message will be displayed with details about the failure
-2. Check that the server URL is correct and the server is running
-3. Use the "Restart Server" button to attempt reconnection
-4. If problems persist, you can delete the server and try adding it again
+2. **For OAuth errors**: Click the "Authenticate" button to complete the authorization flow
+3. Check that the server URL is correct and the server is running
+4. Try selecting a different transport type (Streamable HTTP vs SSE)
+5. Use the "Restart Server" button to attempt reconnection
+6. If problems persist, you can delete the server and try adding it again
+
+#### OAuth-Specific Issues
+
+If you're having trouble authenticating with an OAuth-enabled server:
+
+-   **"Authentication required" persists**: Make sure you completed the authorization flow in your browser and didn't cancel it
+-   **Browser doesn't open**: Check your system's default browser settings and ensure external URLs can be opened
+-   **Redirect errors**: Verify you're using the latest version of Cline - older versions may not support OAuth
+-   **Reset authentication**: Delete the server and re-add it to start fresh with a new OAuth flow
 
 ### Advanced Configuration
 
@@ -105,10 +138,11 @@ For advanced users, Cline stores MCP server configurations in a JSON file that c
 {
 	"mcpServers": {
 		"exampleServer": {
-			"url": "https://example.com/mcp-sse",
+			"url": "https://example.com/mcp-server",
+			"type": "streamableHttp",
 			"disabled": false,
 			"autoApprove": ["tool1", "tool2"],
-			"timeout": 30
+			"timeout": 60
 		}
 	}
 }
@@ -117,9 +151,10 @@ For advanced users, Cline stores MCP server configurations in a JSON file that c
 Key configuration options:
 
 -   **url**: The endpoint URL (for remote servers)
+-   **type**: Transport protocol - `"streamableHttp"` (recommended) or `"sse"` (legacy)
 -   **disabled**: Whether the server is currently enabled (true/false)
 -   **autoApprove**: List of tool names that don't require confirmation
--   **timeout**: Maximum time in seconds to wait for server responses
+-   **timeout**: Maximum time in seconds to wait for server responses (default: 60)
 
 For additional MCP settings, click the "Advanced MCP Settings" link to access VSCode settings.
 
@@ -130,3 +165,20 @@ Once connected, Cline can use the tools and resources provided by the MCP server
 1. A tool approval prompt will appear (unless auto-approved)
 2. Review the tool details and parameters before approving
 3. The tool will execute and return results to Cline
+
+### Example: Connecting to Vercel MCP
+
+[Vercel MCP](https://vercel.com/docs/mcp/vercel-mcp) is an OAuth-enabled server that provides tools for managing your Vercel projects and deployments:
+
+1. Click "Remote Servers" tab
+2. Enter:
+    - **Server Name**: `vercel`
+    - **Server URL**: `https://mcp.vercel.com`
+    - **Transport Type**: Streamable HTTP (pre-selected)
+3. Click "Add Server"
+4. You'll see "Authentication required" - click the **"Authenticate"** button
+5. Sign in to Vercel in your browser and authorize Cline
+6. Return to Cline - the server will automatically connect
+7. Vercel's tools (deploy, logs, projects) are now available to Cline!
+
+Your Vercel authentication persists across sessions, so you won't need to re-authenticate each time you use Cline.

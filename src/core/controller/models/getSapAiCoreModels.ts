@@ -1,4 +1,5 @@
 import axios from "axios"
+import { getAxiosSettings } from "@/shared/net"
 import { SapAiCoreModelDeployment, SapAiCoreModelsRequest, SapAiCoreModelsResponse } from "@/shared/proto/cline/models"
 import { Controller } from ".."
 
@@ -33,6 +34,7 @@ async function getToken(clientId: string, clientSecret: string, tokenUrl: string
 	const url = tokenUrl.replace(/\/+$/, "") + "/oauth/token"
 	const response = await axios.post(url, payload, {
 		headers: { "Content-Type": "application/x-www-form-urlencoded" },
+		...getAxiosSettings(),
 	})
 	const token = response.data as Token
 	token.expires_at = Date.now() + token.expires_in * 1000
@@ -65,7 +67,7 @@ async function fetchAiCoreDeploymentsAndOrchestration(
 	const url = `${baseUrl}/v2/lm/deployments?$top=10000&$skip=0`
 
 	try {
-		const response = await axios.get(url, { headers })
+		const response = await axios.get(url, { headers, ...getAxiosSettings() })
 		const allDeployments = response.data.resources
 
 		// Filter running deployments

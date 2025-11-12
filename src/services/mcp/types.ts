@@ -1,3 +1,4 @@
+import { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
@@ -12,6 +13,7 @@ export type McpConnection = {
 	server: McpServer
 	client: Client
 	transport: Transport
+	authProvider?: OAuthClientProvider
 }
 
 export type McpTransportType = "stdio" | "sse" | "http"

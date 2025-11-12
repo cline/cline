@@ -3,6 +3,7 @@ import { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { ToolResponse } from "@core/task"
 import { processFilesIntoText } from "@/integrations/misc/extract-text"
+import { Logger } from "@/services/logging/Logger"
 import { ClineAsk } from "@/shared/ExtensionMessage"
 import type { ToolExecutorCoordinator } from "../ToolExecutorCoordinator"
 import { TaskConfig } from "../types/TaskConfig"
@@ -37,6 +38,14 @@ export class ToolResultUtils {
 
 			// Get tool_use_id from map, or use "cline" as fallback for backward compatibility
 			const toolUseId = toolUseIdMap?.get(block.name) || "cline"
+
+			// If we have already added a tool result for this tool use, skip adding another one
+			if (
+				userMessageContent.some((item) => item.type === "tool_result" && item.tool_use_id === toolUseId && item.content)
+			) {
+				Logger.warn(`ToolResultUtils: Tool result for tool_use_id ${toolUseId} already exists. Skipping duplicate.`)
+				return
+			}
 
 			// Create ToolResultBlockParam with description and result
 			userMessageContent.push(ToolResultUtils.createToolResultBlock(`${description} Result:\n${resultText}`, toolUseId))

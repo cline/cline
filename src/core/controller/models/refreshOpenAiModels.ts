@@ -2,6 +2,7 @@ import { StringArray } from "@shared/proto/cline/common"
 import { OpenAiModelsRequest } from "@shared/proto/cline/models"
 import type { AxiosRequestConfig } from "axios"
 import axios from "axios"
+import { getAxiosSettings } from "@/shared/net"
 import { Controller } from ".."
 
 /**
@@ -25,7 +26,7 @@ export async function refreshOpenAiModels(_controller: Controller, request: Open
 			config["headers"] = { Authorization: `Bearer ${request.apiKey}` }
 		}
 
-		const response = await axios.get(`${request.baseUrl}/models`, config)
+		const response = await axios.get(`${request.baseUrl}/models`, { ...config, ...getAxiosSettings() })
 		const modelsArray = response.data?.data?.map((model: any) => model.id) || []
 		const models = [...new Set<string>(modelsArray)]
 

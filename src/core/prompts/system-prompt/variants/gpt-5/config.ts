@@ -31,12 +31,11 @@ export const config = createVariant(ModelFamily.GPT_5)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
-		SystemPromptSection.TODO,
+		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.MCP,
 		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.ACT_VS_PLAN,
 		SystemPromptSection.CLI_SUBAGENTS,
-		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.CAPABILITIES,
 		SystemPromptSection.FEEDBACK,
 		SystemPromptSection.RULES,

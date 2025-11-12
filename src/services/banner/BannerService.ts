@@ -4,6 +4,7 @@ import axios from "axios"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
+import { getAxiosSettings } from "@/shared/net"
 import { AuthService } from "../auth/AuthService"
 import { Logger } from "../logging/Logger"
 
@@ -93,6 +94,7 @@ export class BannerService {
 				headers: {
 					"Content-Type": "application/json",
 				},
+				...getAxiosSettings(),
 			})
 
 			if (!response.data?.data?.banners) {

@@ -46,7 +46,11 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
     ```bash
     npm run install:all
     ```
-4. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
+4. Generate Protocol Buffer files (required before first build):
+    ```bash
+    npm run protos
+    ```
+5. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
 
 
 
@@ -85,8 +89,10 @@ We also welcome contributions to our [documentation](https://github.com/cline/cl
 
 2. **Local Development**
     - Run `npm run install:all` to install dependencies
+    - Run `npm run protos` to generate Protocol Buffer files (required before first build)
     - Run `npm run test` to run tests locally
     - Run → Start Debugging or `>Debug: Select and Start Debugging` and wait for a new VS Code instance to open
+    - **Terminal Workflow**: Use `npm run dev` (generates protos + runs watch mode) or `npm run watch` (if protos already generated)
     - Before submitting PR, run `npm run format:fix` to format your code
 
 3. **Linux-specific Setup**

@@ -46,6 +46,8 @@ import {
 	moonshotModels,
 	nebiusDefaultModelId,
 	nebiusModels,
+	nousResearchDefaultModelId,
+	nousResearchModels,
 	openAiModelInfoSaneDefaults,
 	openAiNativeDefaultModelId,
 	openAiNativeModels,
@@ -378,6 +380,19 @@ export function normalizeApiConfiguration(
 			}
 		case "minimax":
 			return getProviderData(minimaxModels, minimaxDefaultModelId)
+		case "nousResearch":
+			const nousResearchModelId =
+				currentMode === "plan"
+					? apiConfiguration?.planModeNousResearchModelId
+					: apiConfiguration?.actModeNousResearchModelId
+			return {
+				selectedProvider: provider,
+				selectedModelId: nousResearchModelId || nousResearchDefaultModelId,
+				selectedModelInfo:
+					nousResearchModelId && nousResearchModelId in nousResearchModels
+						? nousResearchModels[nousResearchModelId as keyof typeof nousResearchModels]
+						: nousResearchModels[nousResearchDefaultModelId],
+			}
 		default:
 			return getProviderData(anthropicModels, anthropicDefaultModelId)
 	}
@@ -411,6 +426,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			huaweiCloudMaasModelId: undefined,
 			hicapModelId: undefined,
 			aihubmixModelId: undefined,
+			nousResearchModelId: undefined,
 
 			// Model info objects
 			openAiModelInfo: undefined,
@@ -460,6 +476,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		ocaModelId: mode === "plan" ? apiConfiguration.planModeOcaModelId : apiConfiguration.actModeOcaModelId,
 		hicapModelId: mode === "plan" ? apiConfiguration.planModeHicapModelId : apiConfiguration.actModeHicapModelId,
 		aihubmixModelId: mode === "plan" ? apiConfiguration.planModeAihubmixModelId : apiConfiguration.actModeAihubmixModelId,
+		nousResearchModelId:
+			mode === "plan" ? apiConfiguration.planModeNousResearchModelId : apiConfiguration.actModeNousResearchModelId,
 
 		// Model info objects
 		openAiModelInfo: mode === "plan" ? apiConfiguration.planModeOpenAiModelInfo : apiConfiguration.actModeOpenAiModelInfo,
@@ -650,6 +668,10 @@ export async function syncModeConfigurations(
 			updates.actModeOcaModelId = sourceFields.ocaModelId
 			updates.planModeOcaModelInfo = sourceFields.ocaModelInfo
 			updates.actModeOcaModelInfo = sourceFields.ocaModelInfo
+			break
+		case "nousResearch":
+			updates.planModeNousResearchModelId = sourceFields.nousResearchModelId
+			updates.actModeNousResearchModelId = sourceFields.nousResearchModelId
 			break
 
 		case "aihubmix":

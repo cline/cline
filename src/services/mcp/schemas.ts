@@ -37,6 +37,7 @@ const createServerTypeSchema = () => {
 			})
 			.refine((data) => data.type === "stdio", { message: TYPE_ERROR_MESSAGE }),
 		// SSE config (has url field)
+		// IMPORTANT: The fact that this is listed first before streamableHttp means that when type is not specified, it will default to sse. Since there may be users with older MCP servers configured without a type specified, rearranging this to make streamableHttp first will be a breaking change.
 		BaseConfigSchema.extend({
 			type: z.literal("sse").optional(),
 			transportType: z.string().optional(), // Support legacy field
