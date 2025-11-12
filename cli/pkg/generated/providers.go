@@ -144,9 +144,9 @@ const (
 	OPENAI_NATIVE = "openai-native"
 	XAI = "xai"
 	CEREBRAS = "cerebras"
+	SAPAICORE = "sapaicore"
 	OCA = "oca"
 	NOUSRESEARCH = "nousResearch"
-	SAPAICORE = "sapaicore"
 )
 
 // AllProviders returns a slice of enabled provider IDs for the CLI build.
@@ -162,9 +162,9 @@ var AllProviders = []string{
 	"openai-native",
 	"xai",
 	"cerebras",
+	"sapaicore",
 	"oca",
 	"nousResearch",
-	"sapaicore",
 }
 
 // ConfigField represents a configuration field requirement
@@ -1370,6 +1370,12 @@ var rawModelDefinitions = `	{
 	    }
 	  },
 	  "sapaicore": {
+	    "anthropic--claude-4.5-sonnet": {
+	      "maxTokens": 8192,
+	      "contextWindow": 200000,
+	      "supportsImages": true,
+	      "supportsPromptCache": true
+	    },
 	    "anthropic--claude-4-sonnet": {
 	      "maxTokens": 8192,
 	      "contextWindow": 200000,
@@ -1642,6 +1648,18 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		SetupInstructions: `Get your API key from https://cloud.cerebras.ai/`,
 	}
 
+	// SAP AI Core
+	definitions["sapaicore"] = ProviderDefinition{
+		ID:              "sapaicore",
+		Name:            "SAP AI Core",
+		RequiredFields:  getFieldsByProvider("sapaicore", configFields, true),
+		OptionalFields:  getFieldsByProvider("sapaicore", configFields, false),
+		Models:          modelDefinitions["sapaicore"],
+		DefaultModelID:  "anthropic--claude-4.5-sonnet",
+		HasDynamicModels: true,
+		SetupInstructions: `Configure SAP AI Core client credentials (Client ID, Client Secret, Auth URL, Base URL)`,
+	}
+
 	// Oca
 	definitions["oca"] = ProviderDefinition{
 		ID:              "oca",
@@ -1664,17 +1682,6 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		DefaultModelID:  "Hermes-4-405B",
 		HasDynamicModels: false,
 		SetupInstructions: `Configure NousResearch API credentials`,
-	}
-	// SAP AI Core
-	definitions["sapaicore"] = ProviderDefinition{
-		ID:              "sapaicore",
-		Name:            "SAP AI Core",
-		RequiredFields:  getFieldsByProvider("sapaicore", configFields, true),
-		OptionalFields:  getFieldsByProvider("sapaicore", configFields, false),
-		Models:          modelDefinitions["sapaicore"],
-		DefaultModelID:  "anthropic--claude-4-sonnet",
-		HasDynamicModels: true,
-		SetupInstructions: `Configure SAP AI Core client credentials (Client ID, Client Secret, Auth URL, Base URL)`,
 	}
 	
 	return definitions, nil
@@ -1702,9 +1709,9 @@ func GetProviderDisplayName(providerID string) string {
 		"openai-native": "OpenAI",
 		"xai": "X AI (Grok)",
 		"cerebras": "Cerebras",
+		"sapaicore": "SAP AI Core",
 		"oca": "Oca",
 		"nousResearch": "NousResearch",
-		"sapaicore": "SAP AI Core",
 	}
 	
 	if name, exists := displayNames[providerID]; exists {
