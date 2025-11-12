@@ -519,7 +519,7 @@ var rawConfigFields = `	[
 	    "required": true,
 	    "fieldType": "password",
 	    "placeholder": "Enter your API key"
-	  },
+	  }
 	]`
 
 // Raw model definitions data (parsed from TypeScript)

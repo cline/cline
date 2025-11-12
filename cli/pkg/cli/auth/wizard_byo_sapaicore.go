@@ -435,73 +435,93 @@ func SetupSapAiCoreWithDynamicModels(ctx context.Context, manager *task.Manager)
 		return fmt.Errorf("failed to get SAP AI Core configuration: %w", err)
 	}
 
-	// Step 2: Fetch models with enhanced error handling
-	// Use provided sensitive values, or fall back to existing stored ones if left blank
-	clientIDForFetch := strings.TrimSpace(config.ClientId)
-	clientSecretForFetch := strings.TrimSpace(config.ClientSecret)
-	if (clientIDForFetch == "" || clientSecretForFetch == "") && (flags.HasClientID || flags.HasSecret) {
-		existingID, existingSecret := getExistingSapAiCoreSensitive(ctx, manager)
-		if clientIDForFetch == "" {
-			clientIDForFetch = existingID
-		}
-		if clientSecretForFetch == "" {
-			clientSecretForFetch = existingSecret
-		}
-	}
-	// models, orchestrationAvailable, err := FetchSapAiCoreModels(
-	models, _, err := FetchSapAiCoreModels(
-		ctx, manager,
-		clientIDForFetch,
-		clientSecretForFetch,
-		config.BaseUrl,
-		config.TokenUrl,
-		config.ResourceGroup,
-	)
-
 	var selectedModel string
 	var selectedDeploymentID string
 
-	if err != nil || len(models) == 0 {
-		// Create renderer for prominent warning display
+	// Step 2: Handle orchestration mode differently from non-orchestration mode
+	if config.UseOrchestrationMode {
+		// In orchestration mode: use static model list only (no deployment fetching)
 		renderer := display.NewRenderer("auto")
-		
-		if err != nil {
-			warningMsg := "⚠️  Unable to fetch models from SAP AI Core."
-			errorMsg := fmt.Sprintf("Error: %s", err.Error())
-			fallbackMsg := "Using default model list instead."
-			fmt.Printf("\n%s\n", renderer.Yellow(renderer.Bold(warningMsg)))
-			fmt.Printf("%s\n", renderer.Red(errorMsg))
-			fmt.Printf("%s\n\n", renderer.Dim(fallbackMsg))
-		} else {
-			warningMsg := "⚠️  No running deployments found in SAP AI Core.\nThis is probably due to a misconfiguration."
-			fallbackMsg := "Using default model list instead"
-			fmt.Printf("\n%s\n", renderer.Red(renderer.Bold(warningMsg)))
-			fmt.Printf("%s\n\n", renderer.Dim(fallbackMsg))
-		}
+		fmt.Printf("\n%s\n\n", renderer.Dim("Using orchestration mode - selecting from standard model list"))
 
 		staticModels, _, staticErr := FetchStaticModels(cline.ApiProvider_SAPAICORE)
 		if staticErr != nil {
-			return fmt.Errorf("failed to get static models as fallback: %w", staticErr)
+			return fmt.Errorf("failed to get static models: %w", staticErr)
 		}
 
 		selectedModel, err = DisplayModelSelectionMenu(staticModels, "SAP AI Core")
 		if err != nil {
-			return fmt.Errorf("failed to select static model: %w", err)
+			return fmt.Errorf("failed to select model: %w", err)
 		}
-		// No deployment ID for static models
+		// No deployment ID needed in orchestration mode
 		selectedDeploymentID = ""
 
 	} else {
-		selectedDeployment, err := DisplaySapAiCoreDeploymentSelectionMenu(models, "SAP AI Core")
-		if err != nil {
-			return fmt.Errorf("failed to select dynamic deployment: %w", err)
+		// In non-orchestration mode: fetch deployments dynamically
+		// Use provided sensitive values, or fall back to existing stored ones if left blank
+		clientIDForFetch := strings.TrimSpace(config.ClientId)
+		clientSecretForFetch := strings.TrimSpace(config.ClientSecret)
+		if (clientIDForFetch == "" || clientSecretForFetch == "") && (flags.HasClientID || flags.HasSecret) {
+			existingID, existingSecret := getExistingSapAiCoreSensitive(ctx, manager)
+			if clientIDForFetch == "" {
+				clientIDForFetch = existingID
+			}
+			if clientSecretForFetch == "" {
+				clientSecretForFetch = existingSecret
+			}
 		}
-		
-		selectedModel = selectedDeployment.ModelName
-		selectedDeploymentID = selectedDeployment.DeploymentID
+
+		models, _, err := FetchSapAiCoreModels(
+			ctx, manager,
+			clientIDForFetch,
+			clientSecretForFetch,
+			config.BaseUrl,
+			config.TokenUrl,
+			config.ResourceGroup,
+		)
+
+		if err != nil || len(models) == 0 {
+			// Create renderer for prominent warning display
+			renderer := display.NewRenderer("auto")
+
+			if err != nil {
+				warningMsg := "⚠️  Unable to fetch models from SAP AI Core."
+				errorMsg := fmt.Sprintf("Error: %s", err.Error())
+				fallbackMsg := "Using default model list instead."
+				fmt.Printf("\n%s\n", renderer.Yellow(renderer.Bold(warningMsg)))
+				fmt.Printf("%s\n", renderer.Red(errorMsg))
+				fmt.Printf("%s\n\n", renderer.Dim(fallbackMsg))
+			} else {
+				warningMsg := "⚠️  No running deployments found in SAP AI Core.\nThis is probably due to a misconfiguration."
+				fallbackMsg := "Using default model list instead"
+				fmt.Printf("\n%s\n", renderer.Red(renderer.Bold(warningMsg)))
+				fmt.Printf("%s\n\n", renderer.Dim(fallbackMsg))
+			}
+
+			staticModels, _, staticErr := FetchStaticModels(cline.ApiProvider_SAPAICORE)
+			if staticErr != nil {
+				return fmt.Errorf("failed to get static models as fallback: %w", staticErr)
+			}
+
+			selectedModel, err = DisplayModelSelectionMenu(staticModels, "SAP AI Core")
+			if err != nil {
+				return fmt.Errorf("failed to select static model: %w", err)
+			}
+			// No deployment ID for static models
+			selectedDeploymentID = ""
+
+		} else {
+			selectedDeployment, err := DisplaySapAiCoreDeploymentSelectionMenu(models, "SAP AI Core")
+			if err != nil {
+				return fmt.Errorf("failed to select dynamic deployment: %w", err)
+			}
+
+			selectedModel = selectedDeployment.ModelName
+			selectedDeploymentID = selectedDeployment.DeploymentID
+		}
 	}
 
-	// Apply the configuration
+	// Step 3: Apply the configuration
 	if err := ApplySapAiCoreConfig(ctx, manager, config, selectedModel, selectedDeploymentID); err != nil {
 		return fmt.Errorf("failed to apply configuration: %w", err)
 	}
