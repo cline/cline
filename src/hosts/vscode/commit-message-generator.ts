@@ -40,7 +40,8 @@ export async function generateCommitMessage(stateManager: StateManager, scm?: vs
 			throw new Error("Git extension not found or no repositories available")
 		}
 
-		const gitDiff = await getGitDiff(cwd)
+		const gitRepoRoot = scm?.rootUri?.fsPath || cwd
+		const gitDiff = await getGitDiff(gitRepoRoot)
 		if (!gitDiff) {
 			throw new Error("No changes in workspace for commit message")
 		}
