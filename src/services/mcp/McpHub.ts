@@ -988,7 +988,7 @@ export class McpHub {
 
 			return {
 				...result,
-				content: result.content ?? [],
+				content: (result.content ?? []) as McpToolCallResponse["content"],
 			}
 		} catch (error) {
 			this.telemetryService.captureMcpToolCall(

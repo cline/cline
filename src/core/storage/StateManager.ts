@@ -16,13 +16,7 @@ import chokidar, { FSWatcher } from "chokidar"
 import type { ExtensionContext } from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/index.host"
-import {
-	getTaskHistoryStateFilePath,
-	readTaskHistoryFromState,
-	readTaskSettingsFromStorage,
-	writeTaskHistoryToState,
-	writeTaskSettingsToStorage,
-} from "./disk"
+import { getTaskHistoryStateFilePath, readTaskSettingsFromStorage, writeTaskSettingsToStorage } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { readGlobalStateFromDisk, readSecretsFromDisk, readWorkspaceStateFromDisk } from "./utils/state-helpers"
 export interface PersistenceErrorEvent {
@@ -43,6 +37,7 @@ export class StateManager {
 	private workspaceStateCache: LocalState = {} as LocalState
 	private context: ExtensionContext
 	private isInitialized = false
+	private taskHistoryWatcher: FSWatcher | null = null
 
 	// Debounced persistence state
 	private pendingGlobalState = new Set<GlobalStateAndSettingsKey>()
@@ -51,7 +46,6 @@ export class StateManager {
 	private pendingWorkspaceState = new Set<LocalStateKey>()
 	private persistenceTimeout: NodeJS.Timeout | null = null
 	private readonly PERSISTENCE_DELAY_MS = 500
-	private taskHistoryWatcher: FSWatcher | null = null
 
 	// Callback for persistence errors
 	onPersistenceError?: (event: PersistenceErrorEvent) => void
@@ -84,9 +78,6 @@ export class StateManager {
 			// Populate the cache with all extension state and secrets fields
 			// Use populate method to avoid triggering persistence during initialization
 			StateManager.instance.populateCache(globalState, secrets, workspaceState)
-
-			// Start watcher for taskHistory.json so external edits update cache (no persist loop)
-			await StateManager.instance.setupTaskHistoryWatcher()
 
 			StateManager.instance.isInitialized = true
 		} catch (error) {
@@ -301,9 +292,12 @@ export class StateManager {
 			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
 		}
 
-		// Update cache immediately for all keys
-		Object.entries(updates).forEach(([key, value]) => {
-			this.workspaceStateCache[key as keyof LocalState] = value
+		// Update cache in one go
+		// Using object.assign to because typescript is not able to infer the type of the updates object when using Object.entries
+		Object.assign(this.workspaceStateCache, updates)
+
+		// Then track the keys for persistence
+		Object.keys(updates).forEach((key) => {
 			this.pendingWorkspaceState.add(key as LocalStateKey)
 		})
 
@@ -350,7 +344,8 @@ export class StateManager {
 
 	/**
 	 * Initialize chokidar watcher for the taskHistory.json file
-	 * Updates in-memory cache on external changes without writing back to disk.
+	 * Notifies when external changes occur without caching in globalStateCache
+	 * (taskHistory is file-only storage, not in GlobalState interface)
 	 */
 	private async setupTaskHistoryWatcher(): Promise<void> {
 		try {
@@ -374,12 +369,9 @@ export class StateManager {
 					if (!this.isInitialized) {
 						return
 					}
-					const onDisk = await readTaskHistoryFromState()
-					const cached = this.globalStateCache["taskHistory"]
-					if (JSON.stringify(onDisk) !== JSON.stringify(cached)) {
-						this.globalStateCache["taskHistory"] = onDisk
-						await this.onSyncExternalChange?.()
-					}
+					// Just notify of change, don't cache in globalStateCache
+					// taskHistory is stored only in file, not in GlobalState
+					await this.onSyncExternalChange?.()
 				} catch (err) {
 					console.error("[StateManager] Failed to reload task history on change:", err)
 				}
@@ -389,7 +381,7 @@ export class StateManager {
 				.on("add", () => syncTaskHistoryFromDisk())
 				.on("change", () => syncTaskHistoryFromDisk())
 				.on("unlink", async () => {
-					this.globalStateCache["taskHistory"] = []
+					// Notify of file deletion
 					await this.onSyncExternalChange?.()
 				})
 				.on("error", (error) => console.error("[StateManager] TaskHistory watcher error:", error))
@@ -822,11 +814,6 @@ export class StateManager {
 			clearTimeout(this.persistenceTimeout)
 			this.persistenceTimeout = null
 		}
-		// Close file watcher if active
-		if (this.taskHistoryWatcher) {
-			this.taskHistoryWatcher.close()
-			this.taskHistoryWatcher = null
-		}
 
 		this.pendingGlobalState.clear()
 		this.pendingSecrets.clear()
@@ -882,15 +869,8 @@ export class StateManager {
 	 */
 	private async persistGlobalStateBatch(keys: Set<GlobalStateAndSettingsKey>): Promise<void> {
 		try {
-			await Promise.all(
-				Array.from(keys).map((key) => {
-					if (key === "taskHistory") {
-						// Route task history persistence to file, not VS Code globalState
-						return writeTaskHistoryToState(this.globalStateCache[key])
-					}
-					return this.context.globalState.update(key, this.globalStateCache[key])
-				}),
-			)
+			// taskHistory now in LocalState, no special handling needed
+			await Promise.all(Array.from(keys).map((key) => this.context.globalState.update(key, this.globalStateCache[key])))
 		} catch (error) {
 			console.error("[StateManager] Failed to persist global state batch:", error)
 			throw error
