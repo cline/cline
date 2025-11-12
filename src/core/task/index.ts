@@ -453,10 +453,6 @@ export class Task {
 						await this.postStateToWebview().catch((e) =>
 							console.error("Error posting state to webview in onRetryAttempt:", e),
 						)
-
-						console.log(
-							`[Task ${this.taskId}] API Auto-Retry Status Update: Attempt ${attempt}/${maxRetries}, Delay: ${delay}ms`,
-						)
 					} catch (e) {
 						console.error(`[Task ${this.taskId}] Error updating api_req_started with retryStatus:`, e)
 					}
@@ -932,7 +928,6 @@ export class Task {
 			if (taskStartResult.cancel === true) {
 				// If hook was cancelled by user, save state for resume
 				if (taskStartResult.wasCancelled) {
-					console.log(`[TaskStart Hook] User cancelled, saving messages for task ${this.taskId}`)
 					// Set flag to allow Controller.cancelTask() to proceed
 					this.taskState.didFinishAbortingStream = true
 					// Save BOTH clineMessages AND apiConversationHistory so Controller.cancelTask() can find the task
@@ -941,7 +936,6 @@ export class Task {
 						this.messageStateHandler.getApiConversationHistory(),
 					)
 					await this.postStateToWebview()
-					console.log(`[TaskStart Hook] Messages saved successfully, returning from hook`)
 				}
 
 				// abortTask will handle cleanup

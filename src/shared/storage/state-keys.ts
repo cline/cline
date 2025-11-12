@@ -7,6 +7,7 @@ import { FocusChainSettings } from "@shared/FocusChainSettings"
 import { HistoryItem } from "@shared/HistoryItem"
 import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { WorkspaceRoot } from "@shared/multi-root/types"
+import { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { Mode, OpenaiReasoningEffort } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
@@ -26,6 +27,8 @@ export type GlobalStateAndSettings = GlobalState & Settings
 export interface RemoteConfigExtraFields {
 	remoteConfiguredProviders: string[]
 	allowedMCPServers: Array<{ id: string }>
+	remoteGlobalRules?: GlobalInstructionsFile[]
+	remoteGlobalWorkflows?: GlobalInstructionsFile[]
 }
 
 export type RemoteConfigFields = GlobalStateAndSettings & RemoteConfigExtraFields
@@ -51,6 +54,8 @@ export interface GlobalState {
 	lastDismissedModelBannerVersion: number
 	lastDismissedCliBannerVersion: number
 	nativeToolCallEnabled: boolean
+	remoteRulesToggles: ClineRulesToggles
+	remoteWorkflowToggles: ClineRulesToggles
 }
 
 export interface Settings {
