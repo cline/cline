@@ -51,6 +51,11 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
+		id: "openai/gpt-5.1",
+		description: "Latest flagship model from OpenAI with enhanced coding capabilities",
+		label: "New",
+	},
+	{
 		id: "z-ai/glm-4.6:exacto",
 		description: "Fast open-source model with improved performance in Cline",
 		label: "Trending",
