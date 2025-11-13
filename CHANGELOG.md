@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.37.0]
+
+## Added
+- GPT-5.1 with model-specific prompting: tailored system prompts, tool usage, focus chain, and deep-planning optimizations
+- Nous Research provider with Hermes 4 model family and custom system prompts
+- Model-family breakouts for deep-planning prompting, laying groundwork for enhanced slash commands
+- Expanded HTTP proxy support throughout the codebase
+- Improved focus chain prompting for frontier models (Anthropic, OpenAI, Gemini, xAI)
+
+## Fixed
+- Duplicate tool results prevention through existence checking
+- XML entity escaping in model content processor
+- Commit message generation in command palette
+- OpenAI Compatible provider temperature parameter type conversion
+
+## Documentation
+- Added missing proto generation step in CONTRIBUTING.md
+- New `npm run dev` script for streamlined terminal workflow (fixes #7335)
+
 ## [3.36.1]
 
 - fix: remove native tool calling support from Gemini and XAI provider due to invalid tool names issues
