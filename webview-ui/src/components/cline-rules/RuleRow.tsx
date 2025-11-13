@@ -9,11 +9,17 @@ const RuleRow: React.FC<{
 	isGlobal: boolean
 	ruleType: string
 	toggleRule: (rulePath: string, enabled: boolean) => void
-}> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType }) => {
+	isRemote?: boolean
+	alwaysEnabled?: boolean
+}> = ({ rulePath, enabled, isGlobal, toggleRule, ruleType, isRemote = false, alwaysEnabled = false }) => {
 	// Check if the path type is Windows
 	const win32Path = /^[a-zA-Z]:\\/.test(rulePath)
 	// Get the filename from the path for display
 	const displayName = rulePath.split(win32Path ? "\\" : "/").pop() || rulePath
+
+	// For remote rules, the rulePath is already the display name
+	const finalDisplayName = isRemote ? rulePath : displayName
+	const isDisabled = isRemote && alwaysEnabled
 
 	const getRuleTypeIcon = () => {
 		switch (ruleType) {
@@ -77,52 +83,59 @@ const RuleRow: React.FC<{
 			<div
 				className={`flex items-center p-2 py-4 rounded bg-(--vscode-textCodeBlock-background) h-[18px] ${
 					enabled ? "opacity-100" : "opacity-60"
-				}`}>
+				} ${isDisabled ? "opacity-50" : ""}`}>
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1" title={rulePath}>
 					{getRuleTypeIcon() && <span className="mr-1.5">{getRuleTypeIcon()}</span>}
-					<span className="ph-no-capture">{displayName}</span>
+					<span className="ph-no-capture">{finalDisplayName}</span>
 				</span>
 
 				{/* Toggle Switch */}
 				<div className="flex items-center ml-2 space-x-2">
 					<div
 						aria-checked={enabled}
-						className={`w-[20px] h-[10px] rounded-[5px] relative cursor-pointer transition-colors duration-200 ${
+						className={`w-[20px] h-[10px] rounded-[5px] relative transition-colors duration-200 outline-none focus:outline-none ${
+							isDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
+						} ${
 							enabled
 								? "bg-(--vscode-testing-iconPassed) opacity-90"
 								: "bg-(--vscode-titleBar-inactiveForeground) opacity-50"
 						}`}
-						onClick={() => toggleRule(rulePath, !enabled)}
+						onClick={() => !isDisabled && toggleRule(rulePath, !enabled)}
 						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
+							if (!isDisabled && (e.key === "Enter" || e.key === " ")) {
 								e.preventDefault()
 								toggleRule(rulePath, !enabled)
 							}
 						}}
 						role="switch"
-						tabIndex={0}>
+						tabIndex={isDisabled ? -1 : 0}
+						title={isDisabled ? "This rule is required and cannot be disabled" : undefined}>
 						<div
-							className={`w-[6px] h-[6px] bg-white border border-[#66666699] rounded-full absolute top-px transition-all duration-200 ${
-								enabled ? "left-[12px]" : "left-[2px]"
+							className={`w-[8px] h-[8px] bg-white border border-[#66666699] rounded-full absolute top-[1px] transition-all duration-200 pointer-events-none ${
+								enabled ? "left-[11px]" : "left-[1px]"
 							}`}
 						/>
 					</div>
-					<VSCodeButton
-						appearance="icon"
-						aria-label="Edit rule file"
-						onClick={handleEditClick}
-						style={{ height: "20px" }}
-						title="Edit rule file">
-						<span className="codicon codicon-edit" style={{ fontSize: "14px" }} />
-					</VSCodeButton>
-					<VSCodeButton
-						appearance="icon"
-						aria-label="Delete rule file"
-						onClick={handleDeleteClick}
-						style={{ height: "20px" }}
-						title="Delete rule file">
-						<span className="codicon codicon-trash" style={{ fontSize: "14px" }} />
-					</VSCodeButton>
+					{!isRemote && (
+						<>
+							<VSCodeButton
+								appearance="icon"
+								aria-label="Edit rule file"
+								onClick={handleEditClick}
+								style={{ height: "20px" }}
+								title="Edit rule file">
+								<span className="codicon codicon-edit" style={{ fontSize: "14px" }} />
+							</VSCodeButton>
+							<VSCodeButton
+								appearance="icon"
+								aria-label="Delete rule file"
+								onClick={handleDeleteClick}
+								style={{ height: "20px" }}
+								title="Delete rule file">
+								<span className="codicon codicon-trash" style={{ fontSize: "14px" }} />
+							</VSCodeButton>
+						</>
+					)}
 				</div>
 			</div>
 		</div>
