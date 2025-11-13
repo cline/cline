@@ -2,6 +2,7 @@ package hostbridge
 
 import (
 	"context"
+	"errors"
 	"log"
 	"os"
 	"os/exec"
@@ -178,7 +179,7 @@ func openBrowser(url string) error {
     case "linux":
         cmd = exec.Command("xdg-open", url)
     default:
-        return log.Errorf("unsupported platform")
+		return errors.New("unsupported platform")
     }
 
     return cmd.Start()
