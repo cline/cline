@@ -155,23 +155,63 @@ func DisplayModelSelectionMenu(models []string, providerName string) (string, er
 
 // DisplaySapAiCoreDeploymentSelectionMenu shows an interactive menu for selecting a SAP AI Core deployment.
 // Deployments are displayed with both model name and deployment ID for clarity.
+// Separates deployed models from not-deployed models with section headers.
 // Returns the selected deployment.
 func DisplaySapAiCoreDeploymentSelectionMenu(deployments []SapAiCoreDeployment, providerName string) (SapAiCoreDeployment, error) {
 	if len(deployments) == 0 {
 		return SapAiCoreDeployment{}, fmt.Errorf("no deployments available for selection")
 	}
 
-	// Sort deployments by model name for consistent display
-	sort.Slice(deployments, func(i, j int) bool {
-		return deployments[i].ModelName < deployments[j].ModelName
-	})
+	// Separate deployments into deployed (has deployment ID) and not deployed (no deployment ID)
+	var deployed []SapAiCoreDeployment
+	var notDeployed []SapAiCoreDeployment
 
-	var selectedIndex int
-	options := make([]huh.Option[int], len(deployments))
-	for i, deployment := range deployments {
-		options[i] = huh.NewOption(deployment.DisplayName, i)
+	for _, deployment := range deployments {
+		if deployment.DeploymentID != "" {
+			deployed = append(deployed, deployment)
+		} else {
+			notDeployed = append(notDeployed, deployment)
+		}
 	}
 
+	// Sort each section by model name for consistent display
+	sort.Slice(deployed, func(i, j int) bool {
+		return deployed[i].ModelName < deployed[j].ModelName
+	})
+	sort.Slice(notDeployed, func(i, j int) bool {
+		return notDeployed[i].ModelName < notDeployed[j].ModelName
+	})
+
+	// Build options with section separators
+	var options []huh.Option[int]
+	deploymentIndex := 0
+
+	// Add deployed models section
+	if len(deployed) > 0 {
+		// Add section separator (disabled option)
+		options = append(options, huh.NewOption("── Deployed Models ──", -1).Selected(false))
+		
+		for _, deployment := range deployed {
+			options = append(options, huh.NewOption(deployment.DisplayName, deploymentIndex))
+			deploymentIndex++
+		}
+	}
+
+	// Add not deployed models section
+	if len(notDeployed) > 0 {
+		// Add section separator (disabled option)
+		options = append(options, huh.NewOption("── Not Deployed Models ──", -1).Selected(false))
+		
+		for _, deployment := range notDeployed {
+			options = append(options, huh.NewOption(deployment.ModelName, deploymentIndex))
+			deploymentIndex++
+		}
+	}
+
+	// Combine all deployments in order for index mapping
+	allDeployments := append(deployed, notDeployed...)
+
+	var selectedIndex int
 	title := fmt.Sprintf("Select a %s deployment", providerName)
 
 	form := huh.NewForm(
@@ -189,7 +229,12 @@ func DisplaySapAiCoreDeploymentSelectionMenu(deployments []SapAiCoreDeployment, 
 		return SapAiCoreDeployment{}, fmt.Errorf("failed to select deployment: %w", err)
 	}
 
-	return deployments[selectedIndex], nil
+	// Reject selection of separator headers
+	if selectedIndex == -1 {
+		return SapAiCoreDeployment{}, fmt.Errorf("invalid selection")
+	}
+
+	return allDeployments[selectedIndex], nil
 }
 
 // ConvertModelsMapToSlice converts a map of models to a sorted slice of model IDs.
