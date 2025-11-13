@@ -1,8 +1,8 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { OpenRouterCompatibleModelInfo, OpenRouterModelInfo } from "@shared/proto/cline/models"
 import axios from "axios"
-import { toRequestyServiceUrl } from "@/shared/clients/requesty"
 import { getAxiosSettings } from "@/shared/net"
+import { toRequestyServiceUrl } from "@/shared/clients/requesty"
 import { Controller } from ".."
 
 /**
