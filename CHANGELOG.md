@@ -5,6 +5,8 @@
 ## Added
 - GPT-5.1 with model-specific prompting: tailored system prompts, tool usage, focus chain, and deep-planning optimizations
 - Nous Research provider with Hermes 4 model family and custom system prompts
+- Switched to Aqua Voice's Avalon model in speech to text transcription
+- Added Linux support for speech to text 
 - Model-family breakouts for deep-planning prompting, laying groundwork for enhanced slash commands
 - Expanded HTTP proxy support throughout the codebase
 - Improved focus chain prompting for frontier models (Anthropic, OpenAI, Gemini, xAI)

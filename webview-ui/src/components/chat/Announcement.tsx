@@ -66,6 +66,10 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 				<li>
 					<strong>Smarter focus chain prompting</strong> for frontier models
 				</li>
+				<li>
+					Switched to Aqua Voice's Avalon model for speech-to-text transcription and{" "}
+					<strong> added Linux support</strong>a
+				</li>
 			</ul>
 			<div style={hrStyle} />
 			<p style={linkContainerStyle}>
