@@ -148,7 +148,6 @@ const ClineRulesToggleModal: React.FC = () => {
 	}
 
 	const toggleCursorRule = (rulePath: string, enabled: boolean) => {
-		console.log("toggleCursorRule", rulePath, enabled)
 		FileServiceClient.toggleCursorRule(
 			ToggleCursorRuleRequest.create({
 				rulePath,
