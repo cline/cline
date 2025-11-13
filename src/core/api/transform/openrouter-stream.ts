@@ -34,7 +34,7 @@ export async function createOpenRouterStream(
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
 	}
 
-	const { supportTemperature, supportReasoning } = model.info
+	const { supportsTemperature, supportsReasoning } = model.info
 	const budget_tokens = thinkingBudgetTokens || 0
 	const reasoningOn = budget_tokens !== 0
 
@@ -173,7 +173,7 @@ export async function createOpenRouterStream(
 	}
 
 	// Disable temperature when reasoning is on or not supported
-	if (supportReasoning || reasoningOn || !supportTemperature) {
+	if (supportsReasoning || reasoningOn || !supportsTemperature) {
 		temperature = undefined
 	}
 

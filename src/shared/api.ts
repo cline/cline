@@ -242,8 +242,8 @@ export interface ModelInfo {
 		outputPriceTiers?: PriceTier[] // Optional: Tiered output price when budget > 0
 	}
 	supportsGlobalEndpoint?: boolean // Whether the model supports a global endpoint with Vertex AI
-	supportTemperature?: boolean // Whether the model supports temperature parameter
-	supportReasoning?: boolean // Whether the model is a reasoning model
+	supportsTemperature?: boolean // Whether the model supports temperature parameter
+	supportsReasoning?: boolean // Whether the model is a reasoning model
 	cacheWritesPrice?: number
 	cacheReadsPrice?: number
 	description?: string
