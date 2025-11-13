@@ -109,7 +109,7 @@ const RuleRow: React.FC<{
 									<i className="codicon codicon-info" style={{ fontSize: "12px", opacity: 0.7 }} />
 								</span>
 							</TooltipTrigger>
-							<TooltipContent>Searches recursively for all AGENTS.md files in the workspace</TooltipContent>
+							<TooltipContent>Searches recursively for all AGENTS.md files in the workspace when a top-level AGENTS.md exists</TooltipContent>
 						</Tooltip>
 					)}
 				</span>
