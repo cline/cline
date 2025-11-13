@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises"
 import type { ToolUse } from "@core/assistant-message"
 import { resolveWorkspacePath } from "@core/workspace"
-import { processFilesIntoText } from "@integrations/misc/extract-text"
 import type { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
 import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
@@ -18,6 +17,7 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { type FileOpsResult, FileProviderOperations } from "../utils/FileProviderOperations"
 import { PatchParser } from "../utils/PatchParser"
 import { PathResolver } from "../utils/PathResolver"
+import { ToolHookUtils } from "../utils/ToolHookUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 interface FileChange {
@@ -685,7 +685,10 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 		if (shouldAutoApprove) {
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
-			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
+			const sayTs = await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
+			// When completing a partial message, say() returns undefined but updates the existing message
+			// In that case, get the timestamp from the last message
+			config.taskState.currentToolAskMessageTs = sayTs ?? config.messageState.getClineMessages().at(-1)?.ts
 			telemetryService.captureToolUsage(
 				config.ulid,
 				this.name,
@@ -696,32 +699,48 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				undefined,
 				block.isNativeToolCall,
 			)
-			return true
+		} else {
+			showNotificationForApproval(`Cline wants to edit '${message.path}'`, config.autoApprovalSettings.enableNotifications)
+
+			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
+
+			const { didApprove, askTs } = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
+			config.taskState.currentToolAskMessageTs = askTs
+
+			if (!didApprove) {
+				telemetryService.captureToolUsage(
+					config.ulid,
+					this.name,
+					modelId,
+					providerId,
+					false,
+					false,
+					undefined,
+					block.isNativeToolCall,
+				)
+				return false
+			}
+
+			telemetryService.captureToolUsage(
+				config.ulid,
+				this.name,
+				modelId,
+				providerId,
+				false,
+				true,
+				undefined,
+				block.isNativeToolCall,
+			)
 		}
 
-		showNotificationForApproval(`Cline wants to edit '${message.path}'`, config.autoApprovalSettings.enableNotifications)
-
-		await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
-		const { response, text, images, files } = await config.callbacks.ask("tool", completeMessage, false)
-
-		if (text || images?.length || files?.length) {
-			const fileContent = files?.length ? await processFilesIntoText(files) : ""
-			ToolResultUtils.pushAdditionalToolFeedback(config.taskState.userMessageContent, text, images, fileContent)
-			await config.callbacks.say("user_feedback", text, images, files)
+		// Run PreToolUse hook after approval
+		const shouldContinue = await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		if (!shouldContinue) {
+			await this.revertChanges()
+			config.taskState.didRejectTool = true
+			return false
 		}
 
-		const approved = response === "yesButtonClicked"
-		config.taskState.didRejectTool = !approved
-		telemetryService.captureToolUsage(
-			config.ulid,
-			this.name,
-			modelId,
-			providerId,
-			false,
-			approved,
-			undefined,
-			block.isNativeToolCall,
-		)
-		return approved
+		return true
 	}
 }

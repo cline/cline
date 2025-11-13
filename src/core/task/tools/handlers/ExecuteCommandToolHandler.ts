@@ -14,6 +14,7 @@ import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
+import { ToolHookUtils } from "../utils/ToolHookUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 // Default timeout for commands in yolo mode and background exec mode
@@ -156,7 +157,10 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 		if ((!requiresApprovalPerLLM && autoApproveSafe) || (requiresApprovalPerLLM && autoApproveSafe && autoApproveAll)) {
 			// Auto-approve flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "command")
-			await config.callbacks.say("command", actualCommand, undefined, undefined, false)
+			const sayTs = await config.callbacks.say("command", actualCommand, undefined, undefined, false)
+			// When completing a partial message, say() returns undefined but updates the existing message
+			// In that case, get the timestamp from the last message
+			config.taskState.currentToolAskMessageTs = sayTs ?? config.messageState.getClineMessages().at(-1)?.ts
 			didAutoApprove = true
 			telemetryService.captureToolUsage(
 				config.ulid,
@@ -175,11 +179,12 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				config.autoApprovalSettings.enableNotifications,
 			)
 
-			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback(
+			const { didApprove, askTs } = await ToolResultUtils.askApprovalAndPushFeedback(
 				"command",
 				actualCommand + `${autoApproveSafe && requiresApprovalPerLLM ? COMMAND_REQ_APP_STRING : ""}`,
 				config,
 			)
+			config.taskState.currentToolAskMessageTs = askTs
 			if (!didApprove) {
 				telemetryService.captureToolUsage(
 					config.ulid,
@@ -203,6 +208,12 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 				workspaceContext,
 				block.isNativeToolCall,
 			)
+		}
+
+		// Run PreToolUse hook after approval
+		const shouldContinue = await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		if (!shouldContinue) {
+			return formatResponse.toolCancelled()
 		}
 
 		// Setup timeout notification for long-running auto-approved commands

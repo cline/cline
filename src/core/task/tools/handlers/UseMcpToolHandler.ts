@@ -1,13 +1,12 @@
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { ClineAsk, ClineAskUseMcpServer } from "@shared/ExtensionMessage"
-import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
-import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolHookUtils } from "../utils/ToolHookUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class UseMcpToolHandler implements IFullyManagedTool {
@@ -90,55 +89,26 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 			?.server.tools?.find((tool: any) => tool.name === tool_name)?.autoApprove
 
 		if (config.callbacks.shouldAutoApproveTool(block.name) && isToolAutoApproved) {
-			// Auto-approval flow
-			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
-			await config.callbacks.say("use_mcp_server", completeMessage, undefined, undefined, false)
-
-			// Capture telemetry
-			telemetryService.captureToolUsage(
-				config.ulid,
-				block.name,
-				config.api.getModel().id,
-				provider,
-				true,
-				true,
-				undefined,
-				block.isNativeToolCall,
-			)
+			// Auto-approval flow - Standard pattern for approved tools:
+			// 1. Clean up partial messages and send the complete tool message
+			// 2. Record telemetry for the auto-approved tool execution
+			await ToolResultUtils.cleanupAndSendToolMessage(config, "use_mcp_server", completeMessage)
+			ToolResultUtils.captureAutoApprovedTool(config, block)
 		} else {
 			// Manual approval flow
-			const notificationMessage = `Cline wants to use ${tool_name || "unknown tool"} on ${server_name || "unknown server"}`
+			const result = await ToolResultUtils.executeManualApprovalForMcpOperation(
+				config,
+				block,
+				`Cline wants to use ${tool_name || "unknown tool"} on ${server_name || "unknown server"}`,
+				completeMessage,
+			)
+			if (result) return result
+		}
 
-			// Show notification
-			showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)
-
-			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
-
-			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("use_mcp_server", completeMessage, config)
-			if (!didApprove) {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					provider,
-					false,
-					false,
-					undefined,
-					block.isNativeToolCall,
-				)
-				return formatResponse.toolDenied()
-			} else {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					provider,
-					false,
-					true,
-					undefined,
-					block.isNativeToolCall,
-				)
-			}
+		// Run PreToolUse hook after approval
+		const shouldContinue = await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		if (!shouldContinue) {
+			return formatResponse.toolCancelled()
 		}
 
 		// Show MCP request started message

@@ -4,14 +4,13 @@ import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { listFiles } from "@services/glob/list-files"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
-import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { ToolHookUtils } from "../utils/ToolHookUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class ListFilesToolHandler implements IFullyManagedTool {
@@ -100,55 +99,32 @@ export class ListFilesToolHandler implements IFullyManagedTool {
 		const completeMessage = JSON.stringify(sharedMessageProps)
 
 		if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relDirPath)) {
-			// Auto-approval flow
-			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
-			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-
-			// Capture telemetry
-			telemetryService.captureToolUsage(
-				config.ulid,
-				block.name,
-				config.api.getModel().id,
-				provider,
-				true,
-				true,
-				workspaceContext,
-				block.isNativeToolCall,
-			)
+			// Auto-approval flow - Standard pattern for approved tools:
+			// 1. Clean up partial messages and send the complete tool message
+			// 2. Record telemetry for the auto-approved tool execution
+			await ToolResultUtils.cleanupAndSendToolMessage(config, "tool", completeMessage)
+			ToolResultUtils.captureAutoApprovedTool(config, block, workspaceContext)
 		} else {
-			// Manual approval flow
-			const notificationMessage = `Cline wants to view directory ${getWorkspaceBasename(absolutePath, "ListFilesToolHandler.notification")}/`
-
-			// Show notification
-			showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)
-
+			// Manual approval flow - Standard pattern for tools requiring approval:
+			// 1. Show notification to user
+			// 2. Clean up any partial messages from the UI
+			// 3. Ask for approval and handle any user feedback
+			// 4. Handle approval result with telemetry and return early if denied
+			ToolResultUtils.showToolNotification(
+				`Cline wants to view directory ${getWorkspaceBasename(absolutePath, "ListFilesToolHandler.notification")}/`,
+				config.autoApprovalSettings.enableNotifications,
+			)
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
+			const { didApprove } = await ToolResultUtils.askToolApproval(config, "tool", completeMessage)
 
-			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
-			if (!didApprove) {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					provider,
-					false,
-					false,
-					workspaceContext,
-					block.isNativeToolCall,
-				)
-				return formatResponse.toolDenied()
-			} else {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					provider,
-					false,
-					true,
-					workspaceContext,
-					block.isNativeToolCall,
-				)
-			}
+			const result = ToolResultUtils.handleApprovalResult(didApprove, config, block, workspaceContext)
+			if (result) return result
+		}
+
+		// Run PreToolUse hook after approval
+		const shouldContinue = await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		if (!shouldContinue) {
+			return formatResponse.toolCancelled()
 		}
 
 		return result

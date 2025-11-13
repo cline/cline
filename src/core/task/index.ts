@@ -238,6 +238,14 @@ export class Task {
 	// Cache service
 	private stateManager: StateManager
 
+	/**
+	 * Get the state manager instance
+	 * PUBLIC: Exposed for testing purposes
+	 */
+	public getStateManager(): StateManager {
+		return this.stateManager
+	}
+
 	// Message and conversation state
 	messageStateHandler: MessageStateHandler
 
@@ -674,6 +682,7 @@ export class Task {
 			text: this.taskState.askResponseText,
 			images: this.taskState.askResponseImages,
 			files: this.taskState.askResponseFiles,
+			askTs,
 		}
 		this.taskState.askResponse = undefined
 		this.taskState.askResponseText = undefined
@@ -754,7 +763,7 @@ export class Task {
 					// await this.postStateToWebview()
 					const protoMessage = convertClineMessageToProto(lastMessage)
 					await sendPartialMessageEvent(protoMessage) // more performant than an entire postStateToWebview
-					return undefined
+					return lastMessage.ts // Return the timestamp of the completed message
 				} else {
 					// this is a new partial=false message, so add it like normal
 					const sayTs = Date.now()

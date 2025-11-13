@@ -148,19 +148,29 @@ function combineAllHooks(messages: ClineMessage[]): ClineMessage[] {
 // ============================================================================
 
 /**
- * Finds the timestamp of the next tool/command after a given index.
+ * Finds the timestamp of the tool immediately after a PreToolUse hook.
  *
- * Searches in the original messages array (not filtered) to catch tools
- * that might still be partial. This ensures PreToolUse hooks are matched
- * immediately even if their tool hasn't fully arrived yet.
+ * CRITICAL: Only searches within a small window (next 5 messages) to prevent
+ * completed hooks from being re-associated with later tools during UI re-renders.
+ *
+ * This ensures PreToolUse hooks stay permanently associated with their original
+ * tool, even when new tools appear later in the conversation.
  *
  * @param hookIndex The starting index to search from
  * @param messages The original messages array (may include partial tools)
+ * @param hookToolName Optional tool name from hook metadata for validation
  * @returns The timestamp of the next tool, or null if none found
  */
-function findNextToolTimestamp(hookIndex: number, messages: ClineMessage[]): number | null {
-	for (let i = hookIndex + 1; i < messages.length; i++) {
+function findNextToolTimestamp(hookIndex: number, messages: ClineMessage[], hookToolName?: string): number | null {
+	// Only search within a small window (next 5 messages) after the hook
+	// This prevents re-association with distant future tools
+	const searchLimit = Math.min(hookIndex + 6, messages.length)
+
+	for (let i = hookIndex + 1; i < searchLimit; i++) {
 		if (isToolOrCommandMessage(messages[i])) {
+			// If hook has toolName metadata, verify it matches (for validation)
+			// Note: We can't strictly enforce this since tool messages don't have
+			// a toolName field, but we can log warnings for debugging
 			return messages[i].ts
 		}
 	}
@@ -200,7 +210,8 @@ function buildPreToolUseMap(processedMessages: ClineMessage[], originalMessages:
 		}
 
 		// Find the next tool after this hook in the original array
-		const toolTimestamp = findNextToolTimestamp(hookIndexInOriginal, originalMessages)
+		// Pass toolName for validation (helps with debugging)
+		const toolTimestamp = findNextToolTimestamp(hookIndexInOriginal, originalMessages, metadata.toolName)
 		if (toolTimestamp === null) {
 			// No tool found - hook will stay in original position
 			continue

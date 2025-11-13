@@ -18,6 +18,7 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
+import { ToolHookUtils } from "../utils/ToolHookUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class WriteToFileToolHandler implements IFullyManagedTool {
@@ -167,21 +168,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			} satisfies ClineSayTool)
 
 			if (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relPath)) {
-				// Auto-approval flow
-				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
-				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-
-				// Capture telemetry
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					modelId,
-					providerId,
-					true,
-					true,
-					workspaceContext,
-					block.isNativeToolCall,
-				)
+				// Auto-approval flow - Standard pattern for approved tools:
+				// 1. Clean up partial messages and send the complete tool message
+				// 2. Record telemetry for the auto-approved tool execution
+				await ToolResultUtils.cleanupAndSendToolMessage(config, "tool", completeMessage)
+				ToolResultUtils.captureAutoApprovedTool(config, block, workspaceContext)
 
 				// we need an artificial delay to let the diagnostics catch up to the changes
 				await setTimeoutPromise(3_500)
@@ -268,6 +259,13 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						block.isNativeToolCall,
 					)
 				}
+			}
+
+			// Run PreToolUse hook after approval
+			const shouldContinue = await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+			if (!shouldContinue) {
+				await config.services.diffViewProvider.revertChanges()
+				return formatResponse.toolCancelled()
 			}
 
 			// Mark the file as edited by Cline
