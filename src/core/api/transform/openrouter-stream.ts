@@ -125,7 +125,7 @@ export async function createOpenRouterStream(
 			break
 	}
 	// NOTE: Extended thinking does not support non-1 temperature
-	// Some models do not support temperaturs, some do not support 0,
+	// Some models do not support temperatures, some do not support 0,
 	// so only set them for models that are known to support them.
 	let temperature: number | undefined = 0
 	let topP: number | undefined
