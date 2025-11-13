@@ -386,7 +386,7 @@ const ClineRulesToggleModal: React.FC = () => {
 							{/* Remote Rules Section */}
 							{hasRemoteRules && (
 								<div className="mb-3">
-									<div className="text-sm font-normal mb-2">Remote Rules</div>
+									<div className="text-sm font-normal mb-2">Enterprise Rules</div>
 									<div className="flex flex-col gap-0">
 										{remoteGlobalRules.map((rule) => {
 											const enabled = rule.alwaysEnabled || remoteRulesToggles[rule.name] === true
@@ -470,7 +470,7 @@ const ClineRulesToggleModal: React.FC = () => {
 							{/* Remote Workflows Section */}
 							{hasRemoteWorkflows && (
 								<div className="mb-3">
-									<div className="text-sm font-normal mb-2">Remote Workflows</div>
+									<div className="text-sm font-normal mb-2">Enterprise Workflows</div>
 									<div className="flex flex-col gap-0">
 										{remoteGlobalWorkflows.map((workflow) => {
 											const enabled =
