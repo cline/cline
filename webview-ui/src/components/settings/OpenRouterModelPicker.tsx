@@ -52,7 +52,7 @@ const featuredModels = [
 	},
 	{
 		id: "openai/gpt-5.1",
-		description: "New SOTA coding model from OpenAI",
+		description: "Latest flagship model from OpenAI with enhanced coding capabilities",
 		label: "New",
 	},
 	{
