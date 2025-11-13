@@ -81,6 +81,7 @@ export interface ExtensionState {
 	localWindsurfRulesToggles: ClineRulesToggles
 	remoteRulesToggles?: ClineRulesToggles
 	remoteWorkflowToggles?: ClineRulesToggles
+	localAgentsRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
 	strictPlanModeEnabled?: boolean
 	yoloModeToggled?: boolean

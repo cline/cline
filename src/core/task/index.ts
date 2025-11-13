@@ -13,6 +13,7 @@ import {
 	refreshClineRulesToggles,
 } from "@core/context/instructions/user-instructions/cline-rules"
 import {
+	getLocalAgentsRules,
 	getLocalCursorRules,
 	getLocalWindsurfRules,
 	refreshExternalRulesToggles,
@@ -1985,7 +1986,10 @@ export class Task {
 		}
 
 		const { globalToggles, localToggles } = await refreshClineRulesToggles(this.controller, this.cwd)
-		const { windsurfLocalToggles, cursorLocalToggles } = await refreshExternalRulesToggles(this.controller, this.cwd)
+		const { windsurfLocalToggles, cursorLocalToggles, agentsLocalToggles } = await refreshExternalRulesToggles(
+			this.controller,
+			this.cwd,
+		)
 
 		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 		const globalClineRulesFileInstructions = await getGlobalClineRules(globalClineRulesFilePath, globalToggles)
@@ -1996,6 +2000,8 @@ export class Task {
 			cursorLocalToggles,
 		)
 		const localWindsurfRulesFileInstructions = await getLocalWindsurfRules(this.cwd, windsurfLocalToggles)
+
+		const localAgentsRulesFileInstructions = await getLocalAgentsRules(this.cwd, agentsLocalToggles)
 
 		const clineIgnoreContent = this.clineIgnoreController.clineIgnoreContent
 		let clineIgnoreInstructions: string | undefined
@@ -2032,6 +2038,7 @@ export class Task {
 			localCursorRulesFileInstructions,
 			localCursorRulesDirInstructions,
 			localWindsurfRulesFileInstructions,
+			localAgentsRulesFileInstructions,
 			clineIgnoreInstructions,
 			preferredLanguageInstructions,
 			browserSettings: this.stateManager.getGlobalSettingsKey("browserSettings"),

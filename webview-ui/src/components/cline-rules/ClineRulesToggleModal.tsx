@@ -3,6 +3,7 @@ import {
 	ClineRulesToggles,
 	RefreshedRules,
 	RuleScope,
+	ToggleAgentsRuleRequest,
 	ToggleClineRuleRequest,
 	ToggleCursorRuleRequest,
 	ToggleWindsurfRuleRequest,
@@ -25,6 +26,7 @@ const ClineRulesToggleModal: React.FC = () => {
 		localClineRulesToggles = {},
 		localCursorRulesToggles = {},
 		localWindsurfRulesToggles = {},
+		localAgentsRulesToggles = {},
 		localWorkflowToggles = {},
 		globalWorkflowToggles = {},
 		remoteRulesToggles = {},
@@ -34,6 +36,7 @@ const ClineRulesToggleModal: React.FC = () => {
 		setLocalClineRulesToggles,
 		setLocalCursorRulesToggles,
 		setLocalWindsurfRulesToggles,
+		setLocalAgentsRulesToggles,
 		setLocalWorkflowToggles,
 		setGlobalWorkflowToggles,
 		setRemoteRulesToggles,
@@ -64,6 +67,9 @@ const ClineRulesToggleModal: React.FC = () => {
 					if (response.localWindsurfRulesToggles?.toggles) {
 						setLocalWindsurfRulesToggles(response.localWindsurfRulesToggles.toggles)
 					}
+					if (response.localAgentsRulesToggles?.toggles) {
+						setLocalAgentsRulesToggles(response.localAgentsRulesToggles.toggles)
+					}
 					if (response.localWorkflowToggles?.toggles) {
 						setLocalWorkflowToggles(response.localWorkflowToggles.toggles)
 					}
@@ -92,6 +98,10 @@ const ClineRulesToggleModal: React.FC = () => {
 		.sort(([a], [b]) => a.localeCompare(b))
 
 	const windsurfRules = Object.entries(localWindsurfRulesToggles || {})
+		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
+		.sort(([a], [b]) => a.localeCompare(b))
+
+	const agentsRules = Object.entries(localAgentsRulesToggles || {})
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
@@ -138,6 +148,7 @@ const ClineRulesToggleModal: React.FC = () => {
 	}
 
 	const toggleCursorRule = (rulePath: string, enabled: boolean) => {
+		console.log("toggleCursorRule", rulePath, enabled)
 		FileServiceClient.toggleCursorRule(
 			ToggleCursorRuleRequest.create({
 				rulePath,
@@ -169,6 +180,23 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 			.catch((error) => {
 				console.error("Error toggling Windsurf rule:", error)
+			})
+	}
+
+	const toggleAgentsRule = (rulePath: string, enabled: boolean) => {
+		FileServiceClient.toggleAgentsRule(
+			ToggleAgentsRuleRequest.create({
+				rulePath,
+				enabled,
+			} as ToggleAgentsRuleRequest),
+		)
+			.then((response: ClineRulesToggles) => {
+				if (response.toggles) {
+					setLocalAgentsRulesToggles(response.toggles)
+				}
+			})
+			.catch((error) => {
+				console.error("Error toggling Agents rule:", error)
 			})
 	}
 
@@ -408,6 +436,7 @@ const ClineRulesToggleModal: React.FC = () => {
 									showNoRules={false}
 									toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}
 								/>
+
 								<RulesToggleList
 									isGlobal={false}
 									listGap="small"
@@ -422,9 +451,18 @@ const ClineRulesToggleModal: React.FC = () => {
 									listGap="small"
 									rules={windsurfRules}
 									ruleType={"windsurf"}
-									showNewRule={true}
+									showNewRule={false}
 									showNoRules={false}
 									toggleRule={toggleWindsurfRule}
+								/>
+								<RulesToggleList
+									isGlobal={false}
+									listGap="small"
+									rules={agentsRules}
+									ruleType={"agents"}
+									showNewRule={true}
+									showNoRules={false}
+									toggleRule={toggleAgentsRule}
 								/>
 							</div>
 						</>

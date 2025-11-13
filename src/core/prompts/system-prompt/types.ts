@@ -102,6 +102,7 @@ export interface SystemPromptContext {
 	readonly localCursorRulesFileInstructions?: string
 	readonly localCursorRulesDirInstructions?: string
 	readonly localWindsurfRulesFileInstructions?: string
+	readonly localAgentsRulesFileInstructions?: string
 	readonly clineIgnoreInstructions?: string
 	readonly preferredLanguageInstructions?: string
 	readonly browserSettings?: BrowserSettings
