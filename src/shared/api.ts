@@ -752,7 +752,7 @@ export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; 
 		allow_fallbacks: false,
 	},
 	"qwen/qwen3-coder:exacto": {
-		order: ["baseten", "cerebras"],
+		order: ["baseten"],
 		allow_fallbacks: false,
 	},
 	"openai/gpt-oss-120b:exacto": {
@@ -3072,26 +3072,6 @@ export const cerebrasModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		description: "Intelligent general purpose model with 3,000 tokens/s",
-	},
-	"qwen-3-coder-480b-free": {
-		maxTokens: 40000,
-		contextWindow: 64000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description:
-			"SOTA coding model with ~2000 tokens/s ($0 free tier)\n\n• Use this if you don't have a Cerebras subscription\n• 64K context window\n• Rate limits: 150K TPM, 1M TPH/TPD, 10 RPM, 100 RPH/RPD\n\nUpgrade for higher limits: [https://cloud.cerebras.ai/?utm=cline](https://cloud.cerebras.ai/?utm=cline)",
-	},
-	"qwen-3-coder-480b": {
-		maxTokens: 40000,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description:
-			"SOTA coding model with ~2000 tokens/s ($50/$250 paid tiers)\n\n• Use this if you have a Cerebras subscription\n• 131K context window with higher rate limits",
 	},
 	"qwen-3-235b-a22b-instruct-2507": {
 		maxTokens: 64000,
