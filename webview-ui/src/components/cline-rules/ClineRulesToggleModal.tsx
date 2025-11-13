@@ -357,7 +357,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								<VSCodeLink
 									className="text-xs"
 									href="https://docs.cline.bot/features/cline-rules"
-									style={{ display: "inline" }}>
+									style={{ display: "inline", fontSize: "inherit" }}>
 									Docs
 								</VSCodeLink>
 							</p>
