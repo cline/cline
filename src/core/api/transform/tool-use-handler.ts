@@ -1,8 +1,8 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import type { ToolUse } from "@core/assistant-message"
 import { JSONParser } from "@streamparser/json"
 import { McpHub } from "@/services/mcp/McpHub"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@/shared/mcp"
+import { ClineAssistantToolUseBlock } from "@/shared/messages/content"
 import { ClineDefaultTool } from "@/shared/tools"
 
 export interface PendingToolUse {
@@ -32,7 +32,7 @@ const ESCAPE_MAP: Record<string, string> = {
 const ESCAPE_PATTERN = /\\[ntr"\\]/g
 
 /**
- * Handles streaming native tool use blocks and converts them to Anthropic.ToolUseBlockParam format
+ * Handles streaming native tool use blocks and converts them to ClineAssistantToolUseBlock format
  */
 export class ToolUseHandler {
 	private pendingToolUses = new Map<string, PendingToolUse>()
@@ -60,7 +60,7 @@ export class ToolUseHandler {
 		}
 	}
 
-	getFinalizedToolUse(id: string): Anthropic.ToolUseBlockParam | undefined {
+	getFinalizedToolUse(id: string): ClineAssistantToolUseBlock | undefined {
 		const pending = this.pendingToolUses.get(id)
 		if (!pending?.name) {
 			return undefined
@@ -85,8 +85,8 @@ export class ToolUseHandler {
 		}
 	}
 
-	getAllFinalizedToolUses(): Anthropic.ToolUseBlockParam[] {
-		const results: Anthropic.ToolUseBlockParam[] = []
+	getAllFinalizedToolUses(): ClineAssistantToolUseBlock[] {
+		const results: ClineAssistantToolUseBlock[] = []
 		for (const id of this.pendingToolUses.keys()) {
 			const toolUse = this.getFinalizedToolUse(id)
 			if (toolUse) {

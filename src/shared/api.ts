@@ -40,6 +40,7 @@ export type ApiProvider =
 	| "aistupidlevel"
 	| "minimax"
 	| "hicap"
+	| "nousResearch"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -84,6 +85,7 @@ export interface ApiHandlerSecrets {
 	aiStupidLevelApiKey?: string
 	minimaxApiKey?: string
 	hicapApiKey?: string
+	nousResearchApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -171,6 +173,7 @@ export interface ApiHandlerOptions {
 	planModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
 	planModeHicapModelId?: string
 	planModeHicapModelInfo?: ModelInfo
+	planModeNousResearchModelId?: string
 	// Act mode configurations
 
 	// Act mode configurations
@@ -208,6 +211,7 @@ export interface ApiHandlerOptions {
 	actModeAihubmixModelInfo?: OpenAiCompatibleModelInfo
 	actModeHicapModelId?: string
 	actModeHicapModelInfo?: ModelInfo
+	actModeNousResearchModelId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -3919,5 +3923,32 @@ export const minimaxModels = {
 		outputPrice: 1.2,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// NousResearch
+// https://inference-api.nousResearch.com
+export type NousResearchModelId = keyof typeof nousResearchModels
+export const nousResearchDefaultModelId: NousResearchModelId = "Hermes-4-405B"
+export const nousResearchModels = {
+	"Hermes-4-405B": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.09,
+		outputPrice: 0.37,
+		description:
+			"This is the largest model in the Hermes 4 family, and it is the fullest expression of our design, focused on advanced reasoning and creative depth rather than optimizing inference speed or cost.",
+	},
+	"Hermes-4-70B": {
+		maxTokens: 8192,
+		contextWindow: 128_000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.05,
+		outputPrice: 0.2,
+		description:
+			"This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases.",
 	},
 } as const satisfies Record<string, ModelInfo>

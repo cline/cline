@@ -24,6 +24,7 @@ import { MinimaxHandler } from "./providers/minimax"
 import { MistralHandler } from "./providers/mistral"
 import { MoonshotHandler } from "./providers/moonshot"
 import { NebiusHandler } from "./providers/nebius"
+import { NousResearchHandler } from "./providers/nousresearch"
 import { OcaHandler } from "./providers/oca"
 import { OllamaHandler } from "./providers/ollama"
 import { OpenAiHandler } from "./providers/openai"
@@ -408,6 +409,12 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				hicapApiKey: options.hicapApiKey,
 				hicapModelId: mode === "plan" ? options.planModeHicapModelId : options.actModeHicapModelId,
+			})
+		case "nousResearch":
+			return new NousResearchHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				nousResearchApiKey: options.nousResearchApiKey,
+				apiModelId: mode === "plan" ? options.planModeNousResearchModelId : options.actModeNousResearchModelId,
 			})
 		default:
 			return new AnthropicHandler({
