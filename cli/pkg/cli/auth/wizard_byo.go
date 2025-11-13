@@ -13,6 +13,9 @@ import (
 	"github.com/cline/grpc-go/cline"
 )
 
+// Special marker to indicate that model selection was already done (e.g., SAP AI Core deployment selection)
+const selectedMarker = "__SELECTED__:"
+
 // ProviderWizard handles the interactive provider configuration process
 type ProviderWizard struct {
 	ctx     context.Context
@@ -266,6 +269,13 @@ func (pw *ProviderWizard) selectModel(provider cline.ApiProvider, apiKey string)
 		if len(models) == 0 {
 			fmt.Println("\n⚠ No models found from the provider. Please enter the model ID manually instead.")
 			return pw.manualModelEntry(provider)
+		}
+
+		// Special marker: if the first model starts with selectedMarker, it means selection was already done
+		if len(models) == 1 && strings.HasPrefix(models[0], selectedMarker) {
+			// Extract the actual model name and return it along with any modelInfo
+			actualModelName := strings.TrimPrefix(models[0], selectedMarker)
+			return actualModelName, modelInfoMap, nil
 		}
 
 		// Let user select from available models (includes manual entry option)
@@ -541,6 +551,20 @@ func (pw *ProviderWizard) applyModelChange(provider cline.ApiProvider, modelID s
 		ModelInfo: modelInfo,
 	}
 
+	// Check if this provider supports deployment IDs by checking its ProviderFields configuration
+	if fields, err := GetProviderFields(provider); err == nil {
+		// If the provider has deployment ID fields configured, try to extract it from modelInfo
+		if fields.PlanModeDeploymentIDField != "" && fields.ActModeDeploymentIDField != "" && modelInfo != nil {
+			if modelInfoMap, ok := modelInfo.(map[string]interface{}); ok {
+				if deploymentID, exists := modelInfoMap["deploymentId"]; exists {
+					if deploymentIDStr, ok := deploymentID.(string); ok && deploymentIDStr != "" {
+						updates.DeploymentID = &deploymentIDStr
+					}
+				}
+			}
+		}
+	}
+
 	return UpdateProviderPartial(pw.ctx, pw.manager, provider, updates, false)
 }
 
@@ -788,6 +812,7 @@ func setWelcomeViewCompleted(ctx context.Context, manager *task.Manager) error {
 }
 
 // fetchSapAiCoreModels fetches available SAP AI Core deployments from the current state configuration
+// For direct deployment mode, it directly handles the deployment selection UI to show deployment IDs
 func (pw *ProviderWizard) fetchSapAiCoreModels() ([]string, map[string]interface{}, error) {
 	// Extract credentials from state to fetch deployments
 	state, err := pw.manager.GetClient().State.GetLatestState(pw.ctx, &cline.EmptyRequest{})
@@ -827,17 +852,32 @@ func (pw *ProviderWizard) fetchSapAiCoreModels() ([]string, map[string]interface
 		return nil, nil, err
 	}
 
-	// Return the appropriate model list based on orchestration mode
+	// Always use the SAP AI Core deployment selection UI for consistent experience
+	// This shows the same UI as the setup wizard (sorted, with deployment IDs for deployments, clean names for static models)
+	var allOptions []SapAiCoreDeployment
+	
 	if useOrchestrationMode {
-		// For orchestration mode, return static models
-		return staticModels, nil, nil
-	} else {
-		// For direct deployment mode, convert deployments to model names
-		modelIDs := make([]string, len(deployments))
-		for i, deployment := range deployments {
-			// Use the clean model name directly - this is what should be saved
-			modelIDs[i] = deployment.ModelName
+		// For orchestration mode, convert static models to deployment-like options
+		for _, modelName := range staticModels {
+			allOptions = append(allOptions, SapAiCoreDeployment{
+				ModelName: modelName,
+				// No deployment ID for static models
+			})
 		}
-		return modelIDs, nil, nil
+	} else {
+		// For direct deployment mode, use the actual deployments
+		allOptions = deployments
 	}
+
+	selectedDeployment, err := DisplaySapAiCoreDeploymentSelectionMenu(allOptions, "SAP AI Core")
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to select deployment: %w", err)
+	}
+
+	// Return the selected model name with a special marker to indicate selection was already done
+	// Also include deployment ID in the modelInfo map for saving
+	modelInfo := map[string]interface{}{
+		"deploymentId": selectedDeployment.DeploymentID,
+	}
+	return []string{selectedMarker + selectedDeployment.ModelName}, modelInfo, nil
 }
