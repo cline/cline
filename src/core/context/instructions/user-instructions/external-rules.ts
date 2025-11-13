@@ -1,3 +1,6 @@
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import {
 	combineRuleToggles,
 	getRuleFilesTotalContent,
@@ -9,9 +12,47 @@ import { GlobalFileNames } from "@core/storage/disk"
 import { listFiles } from "@services/glob/list-files"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
-import fs from "fs/promises"
-import path from "path"
 import { Controller } from "@/core/controller"
+
+// Types for better code clarity
+type RuleSource = {
+	filePath: string
+	extension?: string
+}
+
+type RuleConfig = {
+	stateKey: "localWindsurfRulesToggles" | "localCursorRulesToggles" | "localAgentsRulesToggles"
+	sources: RuleSource[]
+}
+
+/**
+ * Check if a directory is a sensitive location (home directory or Desktop)
+ * Returns true if the directory is safe to process rules from
+ */
+function isSafeDirectory(workingDirectory: string): boolean {
+	const normalizedPath = path.resolve(workingDirectory)
+	const homeDir = os.homedir()
+	const desktopDir = path.join(homeDir, "Desktop")
+
+	// Don't process rules from home directory or Desktop
+	if (normalizedPath === homeDir || normalizedPath === desktopDir) {
+		return false
+	}
+
+	return true
+}
+
+/**
+ * Helper to synchronize a single rule source
+ */
+async function syncRuleSource(
+	workingDirectory: string,
+	source: RuleSource,
+	currentToggles: ClineRulesToggles,
+): Promise<ClineRulesToggles> {
+	const fullPath = path.resolve(workingDirectory, source.filePath)
+	return await synchronizeRuleToggles(fullPath, currentToggles, source.extension)
+}
 
 /**
  * Refreshes the toggles for windsurf, cursor, and agents rules
@@ -24,36 +65,84 @@ export async function refreshExternalRulesToggles(
 	cursorLocalToggles: ClineRulesToggles
 	agentsLocalToggles: ClineRulesToggles
 }> {
-	// local windsurf toggles
-	const localWindsurfRulesToggles = controller.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
-	const localWindsurfRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.windsurfRules)
-	const updatedLocalWindsurfToggles = await synchronizeRuleToggles(localWindsurfRulesFilePath, localWindsurfRulesToggles)
-	controller.stateManager.setWorkspaceState("localWindsurfRulesToggles", updatedLocalWindsurfToggles)
+	// Safety check: Don't process rules from home directory or Desktop
+	if (!isSafeDirectory(workingDirectory)) {
+		// Return empty toggles for unsafe directories
+		return {
+			windsurfLocalToggles: {},
+			cursorLocalToggles: {},
+			agentsLocalToggles: {},
+		}
+	}
 
-	// local cursor toggles
-	const localCursorRulesToggles = controller.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
+	const configs: Record<string, RuleConfig> = {
+		windsurf: {
+			stateKey: "localWindsurfRulesToggles",
+			sources: [{ filePath: GlobalFileNames.windsurfRules }],
+		},
+		cursor: {
+			stateKey: "localCursorRulesToggles",
+			sources: [
+				{ filePath: GlobalFileNames.cursorRulesDir, extension: ".mdc" },
+				{ filePath: GlobalFileNames.cursorRulesFile },
+			],
+		},
+		agents: {
+			stateKey: "localAgentsRulesToggles",
+			sources: [{ filePath: GlobalFileNames.agentsRulesFile }],
+		},
+	}
 
-	// cursor has two valid locations for rules files, so we need to check both and combine
-	// synchronizeRuleToggles will drop whichever rules files are not in each given path, but combining the results will result in no data loss
-	let localCursorRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.cursorRulesDir)
-	const updatedLocalCursorToggles1 = await synchronizeRuleToggles(localCursorRulesFilePath, localCursorRulesToggles, ".mdc")
+	// Process windsurf
+	const windsurfConfig = configs.windsurf
+	const windsurfToggles = controller.stateManager.getWorkspaceStateKey(windsurfConfig.stateKey)
+	const windsurfLocalToggles = await syncRuleSource(workingDirectory, windsurfConfig.sources[0], windsurfToggles)
+	controller.stateManager.setWorkspaceState(windsurfConfig.stateKey, windsurfLocalToggles)
 
-	localCursorRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.cursorRulesFile)
-	const updatedLocalCursorToggles2 = await synchronizeRuleToggles(localCursorRulesFilePath, localCursorRulesToggles)
+	// Process cursor (combine results from both sources)
+	const cursorConfig = configs.cursor
+	const cursorToggles = controller.stateManager.getWorkspaceStateKey(cursorConfig.stateKey)
+	const [cursorToggles1, cursorToggles2] = await Promise.all([
+		syncRuleSource(workingDirectory, cursorConfig.sources[0], cursorToggles),
+		syncRuleSource(workingDirectory, cursorConfig.sources[1], cursorToggles),
+	])
+	const cursorLocalToggles = combineRuleToggles(cursorToggles1, cursorToggles2)
+	controller.stateManager.setWorkspaceState(cursorConfig.stateKey, cursorLocalToggles)
 
-	const updatedLocalCursorToggles = combineRuleToggles(updatedLocalCursorToggles1, updatedLocalCursorToggles2)
-	controller.stateManager.setWorkspaceState("localCursorRulesToggles", updatedLocalCursorToggles)
-
-	// local agents toggles
-	const localAgentsRulesToggles = controller.stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
-	const localAgentsRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.agentsRulesFile)
-	const updatedLocalAgentsToggles = await synchronizeRuleToggles(localAgentsRulesFilePath, localAgentsRulesToggles)
-	controller.stateManager.setWorkspaceState("localAgentsRulesToggles", updatedLocalAgentsToggles)
+	// Process agents
+	const agentsConfig = configs.agents
+	const agentsToggles = controller.stateManager.getWorkspaceStateKey(agentsConfig.stateKey)
+	const agentsLocalToggles = await syncRuleSource(workingDirectory, agentsConfig.sources[0], agentsToggles)
+	controller.stateManager.setWorkspaceState(agentsConfig.stateKey, agentsLocalToggles)
 
 	return {
-		windsurfLocalToggles: updatedLocalWindsurfToggles,
-		cursorLocalToggles: updatedLocalCursorToggles,
-		agentsLocalToggles: updatedLocalAgentsToggles,
+		windsurfLocalToggles,
+		cursorLocalToggles,
+		agentsLocalToggles,
+	}
+}
+
+/**
+ * Helper to read a single rule file
+ */
+async function readRuleFile(filePath: string, toggles: ClineRulesToggles): Promise<string | undefined> {
+	// Check if file exists and is enabled
+	if (!(await fileExistsAtPath(filePath))) {
+		return undefined
+	}
+	if (await isDirectory(filePath)) {
+		return undefined
+	}
+	if (filePath in toggles && toggles[filePath] === false) {
+		return undefined
+	}
+
+	try {
+		const content = (await fs.readFile(filePath, "utf8")).trim()
+		return content || undefined
+	} catch (error) {
+		console.error(`Failed to read rule file at ${filePath}:`, error)
+		return undefined
 	}
 }
 
@@ -61,70 +150,50 @@ export async function refreshExternalRulesToggles(
  * Gather formatted windsurf rules
  */
 export const getLocalWindsurfRules = async (cwd: string, toggles: ClineRulesToggles) => {
-	const windsurfRulesFilePath = path.resolve(cwd, GlobalFileNames.windsurfRules)
-
-	let windsurfRulesFileInstructions: string | undefined
-
-	if (await fileExistsAtPath(windsurfRulesFilePath)) {
-		if (!(await isDirectory(windsurfRulesFilePath))) {
-			try {
-				if (windsurfRulesFilePath in toggles && toggles[windsurfRulesFilePath] !== false) {
-					const ruleFileContent = (await fs.readFile(windsurfRulesFilePath, "utf8")).trim()
-					if (ruleFileContent) {
-						windsurfRulesFileInstructions = formatResponse.windsurfRulesLocalFileInstructions(cwd, ruleFileContent)
-					}
-				}
-			} catch {
-				console.error(`Failed to read .windsurfrules file at ${windsurfRulesFilePath}`)
-			}
-		}
+	// Safety check: Don't process rules from home directory or Desktop
+	if (!isSafeDirectory(cwd)) {
+		return undefined
 	}
 
-	return windsurfRulesFileInstructions
+	const filePath = path.resolve(cwd, GlobalFileNames.windsurfRules)
+	const content = await readRuleFile(filePath, toggles)
+
+	return content ? formatResponse.windsurfRulesLocalFileInstructions(cwd, content) : undefined
 }
 
 /**
  * Gather formatted cursor rules, which can come from two sources
  */
 export const getLocalCursorRules = async (cwd: string, toggles: ClineRulesToggles) => {
-	// we first check for the .cursorrules file
+	// Safety check: Don't process rules from home directory or Desktop
+	if (!isSafeDirectory(cwd)) {
+		return []
+	}
+
+	const results: (string | undefined)[] = []
+
+	// Check .cursorrules file
 	const cursorRulesFilePath = path.resolve(cwd, GlobalFileNames.cursorRulesFile)
-	let cursorRulesFileInstructions: string | undefined
-
-	if (await fileExistsAtPath(cursorRulesFilePath)) {
-		if (!(await isDirectory(cursorRulesFilePath))) {
-			try {
-				if (cursorRulesFilePath in toggles && toggles[cursorRulesFilePath] !== false) {
-					const ruleFileContent = (await fs.readFile(cursorRulesFilePath, "utf8")).trim()
-					if (ruleFileContent) {
-						cursorRulesFileInstructions = formatResponse.cursorRulesLocalFileInstructions(cwd, ruleFileContent)
-					}
-				}
-			} catch {
-				console.error(`Failed to read .cursorrules file at ${cursorRulesFilePath}`)
-			}
-		}
+	const fileContent = await readRuleFile(cursorRulesFilePath, toggles)
+	if (fileContent) {
+		results.push(formatResponse.cursorRulesLocalFileInstructions(cwd, fileContent))
 	}
 
-	// we then check for the .cursor/rules dir
+	// Check .cursor/rules directory
 	const cursorRulesDirPath = path.resolve(cwd, GlobalFileNames.cursorRulesDir)
-	let cursorRulesDirInstructions: string | undefined
-
-	if (await fileExistsAtPath(cursorRulesDirPath)) {
-		if (await isDirectory(cursorRulesDirPath)) {
-			try {
-				const rulesFilePaths = await readDirectoryRecursive(cursorRulesDirPath, ".mdc")
-				const rulesFilesTotalContent = await getRuleFilesTotalContent(rulesFilePaths, cwd, toggles)
-				if (rulesFilesTotalContent) {
-					cursorRulesDirInstructions = formatResponse.cursorRulesLocalDirectoryInstructions(cwd, rulesFilesTotalContent)
-				}
-			} catch {
-				console.error(`Failed to read .cursor/rules directory at ${cursorRulesDirPath}`)
+	if ((await fileExistsAtPath(cursorRulesDirPath)) && (await isDirectory(cursorRulesDirPath))) {
+		try {
+			const rulesFilePaths = await readDirectoryRecursive(cursorRulesDirPath, ".mdc")
+			const rulesFilesTotalContent = await getRuleFilesTotalContent(rulesFilePaths, cwd, toggles)
+			if (rulesFilesTotalContent) {
+				results.push(formatResponse.cursorRulesLocalDirectoryInstructions(cwd, rulesFilesTotalContent))
 			}
+		} catch (error) {
+			console.error(`Failed to read .cursor/rules directory at ${cursorRulesDirPath}:`, error)
 		}
 	}
 
-	return [cursorRulesFileInstructions, cursorRulesDirInstructions]
+	return results
 }
 
 /**
@@ -132,22 +201,18 @@ export const getLocalCursorRules = async (cwd: string, toggles: ClineRulesToggle
  * Only searches if a top-level agents.md file exists
  */
 async function findAgentsMdFiles(cwd: string): Promise<string[]> {
+	// First check if top-level agents.md exists
+	const topLevelAgentsPath = path.resolve(cwd, GlobalFileNames.agentsRulesFile)
+	if (!(await fileExistsAtPath(topLevelAgentsPath))) {
+		return []
+	}
+
 	try {
-		// First check if top-level agents.md exists
-		const topLevelAgentsPath = path.resolve(cwd, GlobalFileNames.agentsRulesFile)
-		const topLevelExists = await fileExistsAtPath(topLevelAgentsPath)
-
-		// Only search recursively if top-level agents.md exists
-		if (!topLevelExists) {
-			return []
-		}
-
 		// Search recursively for all agents.md files
 		const [allFiles] = await listFiles(cwd, true, 500)
-		return allFiles.filter((filePath) => {
-			const basename = path.basename(filePath).toLowerCase()
-			return basename === GlobalFileNames.agentsRulesFile.toLowerCase()
-		})
+		const agentsFileName = GlobalFileNames.agentsRulesFile.toLowerCase()
+
+		return allFiles.filter((filePath) => path.basename(filePath).toLowerCase() === agentsFileName)
 	} catch (error) {
 		console.error(`Failed to find agents.md files in ${cwd}:`, error)
 		return []
@@ -158,6 +223,11 @@ async function findAgentsMdFiles(cwd: string): Promise<string[]> {
  * Gather formatted agents rules - searches recursively and combines all agents.md files
  */
 export const getLocalAgentsRules = async (cwd: string, toggles: ClineRulesToggles) => {
+	// Safety check: Don't process rules from home directory or Desktop
+	if (!isSafeDirectory(cwd)) {
+		return undefined
+	}
+
 	const agentsRulesFilePath = path.resolve(cwd, GlobalFileNames.agentsRulesFile)
 
 	// Check if the top-level agents.md file is enabled
@@ -167,35 +237,33 @@ export const getLocalAgentsRules = async (cwd: string, toggles: ClineRulesToggle
 
 	try {
 		const agentsMdFiles = await findAgentsMdFiles(cwd)
-
 		if (agentsMdFiles.length === 0) {
 			return undefined
 		}
 
-		// Read and combine all agents.md files
-		const combinedContent = await Promise.all(
-			agentsMdFiles.map(async (filePath) => {
-				try {
-					const fullPath = path.resolve(cwd, filePath)
-					const content = (await fs.readFile(fullPath, "utf8")).trim()
-					if (content) {
-						const relativePath = path.relative(cwd, fullPath)
-						return `## ${relativePath}\n\n${content}`
-					}
-					return null
-				} catch (error) {
-					console.error(`Failed to read agents.md file at ${filePath}:`, error)
+		// Read and combine all agents.md files in parallel
+		const contentPromises = agentsMdFiles.map(async (filePath) => {
+			try {
+				const fullPath = path.resolve(cwd, filePath)
+				const content = (await fs.readFile(fullPath, "utf8")).trim()
+				if (!content) {
 					return null
 				}
-			}),
-		).then((contents) => contents.filter(Boolean).join("\n\n"))
 
-		if (combinedContent) {
-			return formatResponse.agentsRulesLocalFileInstructions(cwd, combinedContent)
-		}
+				const relativePath = path.relative(cwd, fullPath)
+				return `## ${relativePath}\n\n${content}`
+			} catch (error) {
+				console.error(`Failed to read agents.md file at ${filePath}:`, error)
+				return null
+			}
+		})
+
+		const contents = await Promise.all(contentPromises)
+		const combinedContent = contents.filter(Boolean).join("\n\n")
+
+		return combinedContent ? formatResponse.agentsRulesLocalFileInstructions(cwd, combinedContent) : undefined
 	} catch (error) {
 		console.error("Failed to read agents.md files:", error)
+		return undefined
 	}
-
-	return undefined
 }
