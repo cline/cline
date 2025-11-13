@@ -43,7 +43,7 @@ You can track and communicate your progress on the overall task using the task_p
 **How to use task_progress:**
 - include the task_progress parameter in your tool calls to provide an updated checklist
 - Use standard Markdown checklist format: "- [ ]" for incomplete items and "- [x]" for completed items
-- The task_progress parameter MUST be included as a seperate parameter in the tool, it should not be included inside other content or argument blocks.`
+- The task_progress parameter MUST be included as a separate parameter in the tool, it should not be included inside other content or argument blocks.`
 
 const UPDATING_TASK_PROGRESS_NATIVE_GPT5 = `UPDATING TASK PROGRESS
 
@@ -61,7 +61,7 @@ You can track and communicate your progress on the overall task using the task_p
 **How to use task_progress:**
 - include the task_progress parameter in your tool calls to provide an updated checklist
 - Use standard Markdown checklist format: "- [ ]" for incomplete items and "- [x]" for completed items
-- The task_progress parameter MUST be included as a seperate parameter in the tool, it should NOT be included inside other content or argument blocks.`
+- The task_progress parameter MUST be included as a separate parameter in the tool, it should NOT be included inside other content or argument blocks.`
 
 export async function getUpdatingTaskProgress(variant: PromptVariant, context: SystemPromptContext): Promise<string | undefined> {
 	if (!context.focusChainSettings?.enabled) {
