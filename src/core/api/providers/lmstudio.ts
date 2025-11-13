@@ -1,5 +1,5 @@
 import type { Anthropic } from "@anthropic-ai/sdk"
-import { type ModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
+import { type ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { fetch } from "@/shared/net"
@@ -13,6 +13,7 @@ interface LmStudioHandlerOptions extends CommonApiHandlerOptions {
 	lmStudioBaseUrl?: string
 	lmStudioModelId?: string
 	lmStudioMaxTokens?: string
+	lmStudioCanUseTools?: boolean
 }
 
 export class LmStudioHandler implements ApiHandler {
@@ -97,7 +98,10 @@ export class LmStudioHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const info = { ...openAiModelInfoSaneDefaults }
+		const info: OpenAiCompatibleModelInfo = {
+			...openAiModelInfoSaneDefaults,
+			canUseTools: this.options.lmStudioCanUseTools,
+		}
 		const maxTokens = Number(this.options.lmStudioMaxTokens)
 		if (!Number.isNaN(maxTokens)) {
 			info.contextWindow = maxTokens

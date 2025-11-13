@@ -112,6 +112,7 @@ export interface ApiHandlerOptions {
 	lmStudioBaseUrl?: string
 	lmStudioModelId?: string
 	lmStudioMaxTokens?: string
+	lmStudioCapabilities?: string
 	geminiBaseUrl?: string
 	requestyBaseUrl?: string
 	fireworksModelMaxCompletionTokens?: number
@@ -230,6 +231,7 @@ export interface ModelInfo {
 	name?: string
 	maxTokens?: number
 	contextWindow?: number
+	canUseTools?: boolean
 	supportsImages?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
 	inputPrice?: number // Keep for non-tiered input models
@@ -312,6 +314,7 @@ export const anthropicModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
+		canUseTools: true,
 	},
 	"claude-sonnet-4-5-20250929:1m": {
 		maxTokens: 8192,
@@ -323,6 +326,7 @@ export const anthropicModels = {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
+		canUseTools: true,
 	},
 	"claude-haiku-4-5-20251001": {
 		maxTokens: 8192,
@@ -333,6 +337,7 @@ export const anthropicModels = {
 		outputPrice: 5.0,
 		cacheWritesPrice: 1.25,
 		cacheReadsPrice: 0.1,
+		canUseTools: true,
 	},
 	"claude-sonnet-4-20250514": {
 		maxTokens: 8192,
@@ -343,6 +348,7 @@ export const anthropicModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
+		canUseTools: true,
 	},
 	"claude-sonnet-4-20250514:1m": {
 		maxTokens: 8192,
@@ -354,6 +360,7 @@ export const anthropicModels = {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 		tiers: CLAUDE_SONNET_1M_TIERS,
+		canUseTools: true,
 	},
 	"claude-opus-4-1-20250805": {
 		maxTokens: 8192,
@@ -364,6 +371,7 @@ export const anthropicModels = {
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
 		cacheReadsPrice: 1.5,
+		canUseTools: true,
 	},
 	"claude-opus-4-20250514": {
 		maxTokens: 8192,
@@ -374,6 +382,7 @@ export const anthropicModels = {
 		outputPrice: 75.0,
 		cacheWritesPrice: 18.75,
 		cacheReadsPrice: 1.5,
+		canUseTools: true,
 	},
 	"claude-3-7-sonnet-20250219": {
 		maxTokens: 8192,
@@ -733,6 +742,7 @@ export const openRouterDefaultModelInfo: ModelInfo = {
 	cacheReadsPrice: 0.3,
 	description:
 		"Claude Sonnet 4.5 delivers superior intelligence across coding, agentic search, and AI agent capabilities. It's a powerful choice for agentic coding, and can complete tasks across the entire software development lifecycle—from initial planning to bug fixes, maintenance to large refactors. It offers strong performance in both planning and solving for complex coding tasks, making it an ideal choice to power end-to-end software development processes.\n\nRead more in the [blog post here](https://www.anthropic.com/claude/sonnet)",
+	canUseTools: true,
 }
 
 export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; allow_fallbacks: boolean }> = {
@@ -1203,6 +1213,7 @@ export const geminiModels = {
 				cacheReadsPrice: 0.625,
 			},
 		],
+		canUseTools: true,
 	},
 	"gemini-2.5-flash-lite-preview-06-17": {
 		maxTokens: 64000,
@@ -1217,6 +1228,7 @@ export const geminiModels = {
 		thinkingConfig: {
 			maxBudget: 24576,
 		},
+		canUseTools: true,
 	},
 	"gemini-2.5-flash": {
 		maxTokens: 65536,
@@ -1230,6 +1242,7 @@ export const geminiModels = {
 			maxBudget: 24576,
 			outputPrice: 3.5,
 		},
+		canUseTools: true,
 	},
 	"gemini-2.0-flash-001": {
 		maxTokens: 8192,
@@ -1360,6 +1373,7 @@ export const openAiNativeModels = {
 		inputPrice: 1.25,
 		outputPrice: 10.0,
 		cacheReadsPrice: 0.125,
+		canUseTools: true,
 	},
 	"gpt-5-mini-2025-08-07": {
 		maxTokens: 8_192,
@@ -1369,6 +1383,7 @@ export const openAiNativeModels = {
 		inputPrice: 0.25,
 		outputPrice: 2.0,
 		cacheReadsPrice: 0.025,
+		canUseTools: true,
 	},
 	"gpt-5-nano-2025-08-07": {
 		maxTokens: 8_192,
@@ -1378,6 +1393,7 @@ export const openAiNativeModels = {
 		inputPrice: 0.05,
 		outputPrice: 0.4,
 		cacheReadsPrice: 0.005,
+		canUseTools: true,
 	},
 	"gpt-5-chat-latest": {
 		maxTokens: 8_192,
@@ -1387,6 +1403,7 @@ export const openAiNativeModels = {
 		inputPrice: 1.25,
 		outputPrice: 10,
 		cacheReadsPrice: 0.125,
+		canUseTools: true,
 	},
 	o3: {
 		maxTokens: 100_000,
@@ -2754,6 +2771,7 @@ export const xaiModels = {
 		cacheReadsPrice: 0.05,
 		outputPrice: 0.5,
 		description: "xAI's Grok 4 Fast (free) multimodal model with 2M context.",
+		canUseTools: true,
 	},
 	"grok-4": {
 		maxTokens: 8192,
@@ -2763,6 +2781,7 @@ export const xaiModels = {
 		inputPrice: 3.0, // will have different pricing for long context vs short context
 		cacheReadsPrice: 0.75,
 		outputPrice: 15.0,
+		canUseTools: true,
 	},
 	"grok-3-beta": {
 		maxTokens: 8192,
@@ -3855,6 +3874,7 @@ export const minimaxModels = {
 		outputPrice: 1.2,
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
+		canUseTools: true,
 	},
 } as const satisfies Record<string, ModelInfo>
 

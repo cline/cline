@@ -73,8 +73,8 @@ apply_patch <<"EOF"
 *** End Patch
 EOF`
 
-const NATIVE_GPT_5: ClineToolSpec = {
-	variant: ModelFamily.NATIVE_GPT_5,
+const GPT_5: ClineToolSpec = {
+	variant: ModelFamily.GPT_5,
 	id: ClineDefaultTool.APPLY_PATCH,
 	name: "apply_patch",
 	description: APPLY_PATCH_TOOL_DESC,
@@ -89,8 +89,4 @@ const NATIVE_GPT_5: ClineToolSpec = {
 	],
 }
 
-const GPT_5: ClineToolSpec = {
-	...NATIVE_GPT_5,
-	variant: ModelFamily.GPT_5,
-}
-export const apply_patch_variants = [NATIVE_GPT_5, GPT_5]
+export const apply_patch_variants = [GPT_5]

@@ -9,8 +9,9 @@ import type { ConfigOverride, PromptVariant, SystemPromptContext } from "../type
  */
 export class VariantBuilder {
 	private variant: Partial<PromptVariant> = {}
+	private readonly context: SystemPromptContext
 
-	constructor(family: ModelFamily) {
+	constructor(family: ModelFamily, context: SystemPromptContext) {
 		// Initialize with clean state
 		this.variant = {
 			...this.variant,
@@ -23,6 +24,7 @@ export class VariantBuilder {
 			placeholders: {},
 			toolOverrides: {},
 		}
+		this.context = context
 	}
 
 	/**
@@ -85,10 +87,10 @@ export class VariantBuilder {
 	 * Set the base template (optional)
 	 * If not provided, will be auto-generated from componentOrder
 	 */
-	template(baseTemplate: string): this {
+	template(baseTemplate: string | ((context: SystemPromptContext) => string)): this {
 		this.variant = {
 			...this.variant,
-			baseTemplate: baseTemplate,
+			baseTemplate: typeof baseTemplate === "string" ? baseTemplate : baseTemplate(this.context),
 		}
 		return this
 	}
@@ -96,10 +98,10 @@ export class VariantBuilder {
 	/**
 	 * Configure component order with type safety
 	 */
-	components(...sections: SystemPromptSection[]): this {
+	components(sections: SystemPromptSection[] | ((context: SystemPromptContext) => SystemPromptSection[])): this {
 		this.variant = {
 			...this.variant,
-			componentOrder: sections,
+			componentOrder: Array.isArray(sections) ? sections : sections(this.context),
 		}
 		return this
 	}
@@ -117,13 +119,23 @@ export class VariantBuilder {
 	}
 
 	/**
+	 * Override several components at once
+	 */
+	overrideComponents(overrides: PromptVariant["componentOverrides"]): this {
+		for (const [key, value] of Object.entries(overrides)) {
+			this.overrideComponent(key as SystemPromptSection, value)
+		}
+		return this
+	}
+
+	/**
 	 * Configure tools with type safety
 	 * If a tool is listed here but no variant was registered, it will fall back to the generic variant.
 	 */
-	tools(...tools: ClineDefaultTool[]): this {
+	tools(tools: ClineDefaultTool[] | ((context: SystemPromptContext) => ClineDefaultTool[])): this {
 		this.variant = {
 			...this.variant,
-			tools: tools,
+			tools: Array.isArray(tools) ? tools : tools(this.context),
 		}
 		return this
 	}
@@ -212,4 +224,4 @@ export class VariantBuilder {
 /**
  * Helper function to create a variant builder for any model family
  */
-export const createVariant = (family: ModelFamily) => new VariantBuilder(family)
+export const createVariant = (family: ModelFamily, context: SystemPromptContext) => new VariantBuilder(family, context)

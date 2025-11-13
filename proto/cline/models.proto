@@ -97,6 +97,7 @@ message OpenRouterModelInfo {
   optional bool supports_global_endpoint = 11;
   repeated ModelTier tiers = 12;
   optional string name = 13;
+  optional bool can_use_tools = 14;
 }
 
 // Shared response message for model information
@@ -222,6 +223,7 @@ message ModelsApiOptions {
   optional string minimax_api_line = 41;
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
+  optional string lm_studio_capabilities = 44;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -371,6 +373,8 @@ message OcaModelInfo {
   optional string banner = 16;
   // Canonical model identifier as reported by OCA
   string model_name = 17;
+  // Indicates whether the model has been trained on tool usage
+  optional bool can_use_tools = 18;
 }
 
 // Aggregated OCA model catalog keyed by model identifier
@@ -441,6 +445,7 @@ message OpenAiCompatibleModelInfo {
   repeated ModelTier tiers = 12;
   optional double temperature = 13;
   optional bool is_r1_format_required = 14;
+  optional bool can_use_tools = 15;
 }
 
 // Model info for LiteLLM models
@@ -458,6 +463,7 @@ message LiteLLMModelInfo {
   optional string description = 11;
   repeated ModelTier tiers = 12;
   optional double temperature = 13;
+  optional bool can_use_tools = 14;
 }
 
 // Main ApiConfiguration message
@@ -548,6 +554,7 @@ message ModelsApiConfiguration {
   optional string aihubmix_base_url = 83;
   optional string aihubmix_app_code = 84;
   optional string nous_research_api_key = 85;
+  optional string lm_studio_capabilities = 86;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;

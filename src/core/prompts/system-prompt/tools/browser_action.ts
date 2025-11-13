@@ -57,8 +57,8 @@ const GENERIC: ClineToolSpec = {
 	],
 }
 
-const NATIVE_NEXT_GEN: ClineToolSpec = {
-	variant: ModelFamily.NATIVE_NEXT_GEN,
+const NEXT_GEN: ClineToolSpec = {
+	variant: ModelFamily.NEXT_GEN,
 	id,
 	name: "browser_action",
 	description: `Request to interact with a Puppeteer-controlled browser. Every action, except \`close\`, will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action per message, and wait for the user's response including a screenshot and logs to determine the next action.
@@ -103,4 +103,4 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	],
 }
 
-export const browser_action_variants = [GENERIC, NATIVE_NEXT_GEN]
+export const browser_action_variants = [GENERIC, NEXT_GEN]

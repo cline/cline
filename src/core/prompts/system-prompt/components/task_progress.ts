@@ -1,4 +1,3 @@
-import { ModelFamily } from "@/shared/prompts"
 import { PromptVariant, SystemPromptContext, SystemPromptSection, TemplateEngine } from ".."
 
 const UPDATING_TASK_PROGRESS = `UPDATING TASK PROGRESS
@@ -58,7 +57,7 @@ export async function getUpdatingTaskProgress(variant: PromptVariant, context: S
 
 	// Select template based on model family
 	let template = UPDATING_TASK_PROGRESS
-	if (variant.id === ModelFamily.NATIVE_NEXT_GEN || variant.id === ModelFamily.NATIVE_GPT_5) {
+	if (context.providerInfo.model.info.canUseTools && context.enableNativeToolCalls) {
 		template = UPDATING_TASK_PROGRESS_NATIVE_NEXT_GEN
 	}
 

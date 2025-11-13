@@ -444,6 +444,7 @@ export class StateManager {
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
 			lmStudioMaxTokens,
+			lmStudioCapabilities,
 			anthropicBaseUrl,
 			geminiApiKey,
 			geminiBaseUrl,
@@ -673,6 +674,7 @@ export class StateManager {
 			ollamaApiOptionsCtxNum,
 			lmStudioBaseUrl,
 			lmStudioMaxTokens,
+			lmStudioCapabilities,
 			anthropicBaseUrl,
 			geminiBaseUrl,
 			azureApiVersion,
@@ -1058,6 +1060,7 @@ export class StateManager {
 				this.taskStateCache["ollamaApiOptionsCtxNum"] || this.globalStateCache["ollamaApiOptionsCtxNum"],
 			lmStudioBaseUrl: this.taskStateCache["lmStudioBaseUrl"] || this.globalStateCache["lmStudioBaseUrl"],
 			lmStudioMaxTokens: this.taskStateCache["lmStudioMaxTokens"] || this.globalStateCache["lmStudioMaxTokens"],
+			lmStudioCapabilities: this.taskStateCache["lmStudioCapabilities"] || this.globalStateCache["lmStudioCapabilities"],
 			anthropicBaseUrl: this.taskStateCache["anthropicBaseUrl"] || this.globalStateCache["anthropicBaseUrl"],
 			geminiBaseUrl: this.taskStateCache["geminiBaseUrl"] || this.globalStateCache["geminiBaseUrl"],
 			azureApiVersion:

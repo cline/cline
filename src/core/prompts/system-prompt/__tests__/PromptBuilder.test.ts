@@ -251,15 +251,15 @@ describe("PromptBuilder", () => {
 
 	describe("VariantBuilder auto-generation", () => {
 		it("should auto-generate baseTemplate from componentOrder when not provided", () => {
-			const config = createVariant(ModelFamily.GENERIC)
+			const config = createVariant(ModelFamily.GENERIC, mockContext)
 				.description("Test variant without explicit template")
 				.version(1)
-				.components(
+				.components([
 					SystemPromptSection.AGENT_ROLE,
 					SystemPromptSection.TOOL_USE,
 					SystemPromptSection.CAPABILITIES,
 					SystemPromptSection.RULES,
-				)
+				])
 				.matcher(() => true)
 				.build()
 
@@ -293,12 +293,12 @@ describe("PromptBuilder", () => {
 		it("should use explicit baseTemplate when provided", () => {
 			const customTemplate = "Custom template with {{AGENT_ROLE_SECTION}}"
 
-			const config = createVariant(ModelFamily.GENERIC)
+			const config = createVariant(ModelFamily.GENERIC, mockContext)
 				.description("Test variant with explicit template")
 				.version(1)
 				.template(customTemplate)
 				.matcher(() => true)
-				.components(SystemPromptSection.AGENT_ROLE, SystemPromptSection.TOOL_USE)
+				.components([SystemPromptSection.AGENT_ROLE, SystemPromptSection.TOOL_USE])
 				.build()
 
 			// Should use the explicitly provided template
@@ -307,11 +307,11 @@ describe("PromptBuilder", () => {
 
 		it("should throw error when componentOrder is empty", () => {
 			expect(() => {
-				createVariant(ModelFamily.GENERIC)
+				createVariant(ModelFamily.GENERIC, mockContext)
 					.description("Test variant with empty components")
 					.version(1)
 					.matcher(() => true)
-					.components() // Empty components
+					.components([]) // Empty components
 					.build()
 			}).to.throw("Component order is required")
 		})

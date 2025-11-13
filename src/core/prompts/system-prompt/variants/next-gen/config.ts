@@ -2,40 +2,95 @@ import { isGPT5ModelFamily, isLocalModel, isNextGenModelFamily, isNextGenModelPr
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
+import { PromptVariant, SystemPromptContext } from "../../types"
 import { createVariant } from "../variant-builder"
 import { validateVariant } from "../variant-validator"
-import { baseTemplate, rules_template } from "./template"
+import { TEMPLATE_OVERRIDES } from "./template"
 
 // Type-safe variant configuration using the builder pattern
-export const config = createVariant(ModelFamily.NEXT_GEN)
-	.description("Prompt tailored to newer frontier models with smarter agentic capabilities.")
-	.version(1)
-	.tags("next-gen", "advanced", "production")
-	.labels({
-		stable: 1,
-		production: 1,
-		advanced: 1,
-	})
-	.matcher((context) => {
-		// Match next-gen models
-		const providerInfo = context.providerInfo
-		if (isNextGenModelFamily(providerInfo.model.id) && !context.enableNativeToolCalls) {
-			return true
+export const config = (context: SystemPromptContext) => {
+	let componentOverrides: PromptVariant["componentOverrides"] = {}
+	if (context.providerInfo?.model?.info?.canUseTools && context.enableNativeToolCalls) {
+		componentOverrides = {
+			RULES_SECTION: {
+				template: TEMPLATE_OVERRIDES.RULES_NATIVETOOLS,
+			},
+			TOOL_USE_SECTION: {
+				template: TEMPLATE_OVERRIDES.TOOL_USE,
+			},
+			ACT_VS_PLAN_SECTION: {
+				template: TEMPLATE_OVERRIDES.ACT_VS_PLAN,
+			},
+			OBJECTIVE_SECTION: {
+				template: TEMPLATE_OVERRIDES.OBJECTIVE,
+			},
+			FEEDBACK_SECTION: {
+				template: TEMPLATE_OVERRIDES.FEEDBACK,
+			},
 		}
-		const modelId = providerInfo.model.id
-		return (
-			!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
-			!isNextGenModelProvider(providerInfo) &&
-			isNextGenModelFamily(modelId) &&
-			!(isGPT5ModelFamily(modelId) && !modelId.includes("chat"))
-		)
-	})
-	.template(baseTemplate)
-	.components(
+	} else {
+		componentOverrides = {
+			RULES_SECTION: {
+				template: TEMPLATE_OVERRIDES.RULES,
+			},
+		}
+	}
+
+	const variant = createVariant(ModelFamily.NEXT_GEN, context)
+		.description("Prompt tailored to newer frontier models with smarter agentic capabilities.")
+		.version(1)
+		.tags("next-gen", "advanced", "production")
+		.labels({
+			stable: 1,
+			production: 1,
+			advanced: 1,
+		})
+		.matcher((context) => {
+			// Match next-gen models
+			const providerInfo = context.providerInfo
+			if (isNextGenModelFamily(providerInfo.model.id) && !context.enableNativeToolCalls) {
+				return true
+			}
+			const modelId = providerInfo.model.id
+			return (
+				!(providerInfo.customPrompt === "compact" && isLocalModel(providerInfo)) &&
+				!isNextGenModelProvider(providerInfo) &&
+				isNextGenModelFamily(modelId) &&
+				!(isGPT5ModelFamily(modelId) && !modelId.includes("chat"))
+			)
+		})
+		.template(TEMPLATE_OVERRIDES.BASE)
+		.components(createComponentsFn)
+		.tools(createToolsFn)
+		.placeholders({
+			MODEL_FAMILY: ModelFamily.NEXT_GEN,
+		})
+		.config({})
+		// Override the RULES component with custom template
+		.overrideComponents(componentOverrides)
+		.build()
+
+	// Validation
+	const validationResult = validateVariant({ ...variant, id: ModelFamily.NEXT_GEN }, { strict: true })
+	if (!validationResult.isValid) {
+		console.error("Next-gen variant configuration validation failed:", validationResult.errors)
+		throw new Error(`Invalid next-gen variant configuration: ${validationResult.errors.join(", ")}`)
+	}
+
+	if (validationResult.warnings.length > 0) {
+		console.warn("Next-gen variant configuration warnings:", validationResult.warnings)
+	}
+
+	return variant
+}
+
+const createComponentsFn: (context: SystemPromptContext) => SystemPromptSection[] = (context: SystemPromptContext) => {
+	const inlineTools = !(context.providerInfo.model.info.canUseTools && context.enableNativeToolCalls)
+	const base = [
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
 		SystemPromptSection.TASK_PROGRESS,
-		SystemPromptSection.MCP,
+		inlineTools && SystemPromptSection.MCP,
 		SystemPromptSection.EDITING_FILES,
 		SystemPromptSection.ACT_VS_PLAN,
 		SystemPromptSection.CLI_SUBAGENTS,
@@ -45,8 +100,13 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		SystemPromptSection.SYSTEM_INFO,
 		SystemPromptSection.OBJECTIVE,
 		SystemPromptSection.USER_INSTRUCTIONS,
-	)
-	.tools(
+	]
+	return base.filter((x) => !!x)
+}
+
+const createToolsFn: (context: SystemPromptContext) => ClineDefaultTool[] = (context: SystemPromptContext) => {
+	const inlineTools = !(context.providerInfo.model.info.canUseTools && context.enableNativeToolCalls)
+	const base = [
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
 		ClineDefaultTool.FILE_NEW,
@@ -56,7 +116,7 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		ClineDefaultTool.LIST_CODE_DEF,
 		ClineDefaultTool.BROWSER,
 		ClineDefaultTool.WEB_FETCH,
-		ClineDefaultTool.MCP_USE,
+		inlineTools && ClineDefaultTool.MCP_USE,
 		ClineDefaultTool.MCP_ACCESS,
 		ClineDefaultTool.ASK,
 		ClineDefaultTool.ATTEMPT,
@@ -64,26 +124,8 @@ export const config = createVariant(ModelFamily.NEXT_GEN)
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
-	)
-	.placeholders({
-		MODEL_FAMILY: ModelFamily.NEXT_GEN,
-	})
-	.config({})
-	// Override the RULES component with custom template
-	.overrideComponent(SystemPromptSection.RULES, {
-		template: rules_template,
-	})
-	.build()
-
-// Compile-time validation
-const validationResult = validateVariant({ ...config, id: ModelFamily.NEXT_GEN }, { strict: true })
-if (!validationResult.isValid) {
-	console.error("Next-gen variant configuration validation failed:", validationResult.errors)
-	throw new Error(`Invalid next-gen variant configuration: ${validationResult.errors.join(", ")}`)
-}
-
-if (validationResult.warnings.length > 0) {
-	console.warn("Next-gen variant configuration warnings:", validationResult.warnings)
+	]
+	return base.filter((x) => !!x)
 }
 
 // Export type information for better IDE support

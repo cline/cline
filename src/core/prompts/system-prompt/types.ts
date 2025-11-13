@@ -132,6 +132,8 @@ export interface ComponentRegistry {
  */
 export type VariantConfig = Omit<PromptVariant, "id">
 
+export type VariantConfigList = Readonly<Partial<Record<ModelFamily, (context: SystemPromptContext) => VariantConfig>>>
+
 /**
  * Utility types for better type inference
  */

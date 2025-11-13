@@ -1,3 +1,4 @@
+import { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -31,6 +32,7 @@ interface LMStudioApiModel {
 	state?: string
 	max_context_length?: number
 	loaded_context_length?: number
+	capabilities?: string[]
 }
 
 /**
@@ -38,7 +40,7 @@ interface LMStudioApiModel {
  */
 export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const { handleFieldChange, handleFieldsChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
 	const { lmStudioModelId } = getModeSpecificFields(apiConfiguration, currentMode)
 
@@ -75,19 +77,33 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 
 	const lmStudioMaxTokens = currentLMStudioModel?.max_context_length?.toString()
 	const currentLoadedContext = currentLMStudioModel?.loaded_context_length?.toString()
+	const modelCapabilities = currentLMStudioModel?.capabilities?.toString()
 
 	useEffect(() => {
+		const changes: Partial<ApiConfiguration> = {}
+		// Available context
 		const curr = currentLMStudioModel?.loaded_context_length?.toString()
 		const max = currentLMStudioModel?.max_context_length?.toString()
 		const choice = apiConfiguration?.lmStudioMaxTokens ?? max
 		if (curr && curr !== choice) {
-			handleFieldChange("lmStudioMaxTokens", curr)
+			changes["lmStudioMaxTokens"] = curr
+		}
+		// Model capabilities
+		const capabilities = currentLMStudioModel?.capabilities?.toString()
+		if (capabilities && capabilities !== apiConfiguration?.lmStudioCapabilities) {
+			changes["lmStudioCapabilities"] = capabilities
+		}
+		// Handle changes
+		if (Object.entries(changes).length > 0) {
+			handleFieldsChange(changes)
 		}
 	}, [
 		currentLMStudioModel?.loaded_context_length,
 		currentLMStudioModel?.max_context_length,
+		currentLMStudioModel?.capabilities,
 		apiConfiguration?.lmStudioMaxTokens,
 		handleFieldChange,
+		handleFieldsChange,
 	])
 
 	useInterval(requestLmStudioModels, 6000)
@@ -149,6 +165,14 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				disabled={true}
 				title="Not editable - the value is returned by the connected endpoint"
 				value={String(currentLoadedContext ?? lmStudioMaxTokens ?? "0")}
+			/>
+
+			<div className="font-semibold">Model capabilities</div>
+			<VSCodeTextField
+				className="w-full pointer-events-none"
+				disabled={true}
+				title="Not editable - the value is returned by the connected endpoint"
+				value={String(modelCapabilities ?? "-")}
 			/>
 
 			<UseCustomPromptCheckbox providerId="lmstudio" />
