@@ -1392,7 +1392,7 @@ export const openAiNativeModels = {
 	},
 	"gpt-5.1-2025-11-13": {
 		maxTokens: 8_192,
-		contextWindow: 272000,
+		contextWindow: 400000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 1.25,
@@ -1401,7 +1401,7 @@ export const openAiNativeModels = {
 	},
 	"gpt-5.1": {
 		maxTokens: 8_192,
-		contextWindow: 272000,
+		contextWindow: 400000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 1.25,
