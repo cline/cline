@@ -3034,7 +3034,8 @@ export class Task {
 					// https://docs.claude.com/en/docs/build-with-claude/extended-thinking#preserving-thinking-blocks
 					...redactedThinkingContent,
 				]
-				if (reasoningMessage.trim().length > 0) {
+				// Append redacted reasoning block if signature exists
+				if (reasoningSignature) {
 					assistantContent.push({
 						type: "thinking",
 						thinking: reasoningMessage,

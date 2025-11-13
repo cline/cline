@@ -142,7 +142,7 @@ export class MinimaxHandler implements ApiHandler {
 				case "content_block_delta":
 					switch (chunk.delta.type) {
 						case "thinking_delta":
-							// 'reasoning' type just displays in the UI, but ant_thinking will be used to send the thinking traces back to the API
+							// 'reasoning' type just displays in the UI, but reasoning with signature will be used to send the thinking traces back to the API
 							yield {
 								type: "reasoning",
 								reasoning: chunk.delta.thinking,
