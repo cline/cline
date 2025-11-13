@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk"
 import { ClineStorageMessage } from "@/shared/messages/content"
 
 /**
@@ -8,11 +9,11 @@ export function sanitizeAnthropicMessages(
 	messages: Array<ClineStorageMessage>,
 	lastUserMsgIndex?: number,
 	secondLastMsgUserIndex?: number,
-): Array<ClineStorageMessage> {
+): Array<Anthropic.Messages.MessageParam> {
 	return messages.map((_message, index) => {
-		const message = removeReasoningDetails(_message)
+		const message = removeUnknownParams(_message)
 		const addCacheControl = lastUserMsgIndex !== undefined && secondLastMsgUserIndex !== undefined
-
+		// Construct message
 		if (addCacheControl && (index === lastUserMsgIndex || index === secondLastMsgUserIndex)) {
 			return {
 				...message,
@@ -56,22 +57,20 @@ export function sanitizeAnthropicMessages(
 }
 
 /**
- * Remove reasoning details from a single Anthropic message parameter
+ * Remove reasoning details and other known params that are not Anthropic specific.
  */
-function removeReasoningDetails(param: ClineStorageMessage): ClineStorageMessage {
-	if (Array.isArray(param.content)) {
-		return {
-			...param,
-			content: param.content.map((item) => {
-				if (item.type === "text") {
+function removeUnknownParams(param: ClineStorageMessage): Anthropic.Messages.MessageParam {
+	// Construct new content array with known Anthropic content blocks only.
+	return {
+		role: param.role === "user" ? "user" : "assistant",
+		content: Array.isArray(param.content)
+			? param.content.map((item) => {
 					return {
 						...item,
+						// Ensure reasoning_details is removed
 						reasoning_details: undefined,
 					}
-				}
-				return item
-			}),
-		}
+				})
+			: param.content, // String content remains unchanged
 	}
-	return param
 }
