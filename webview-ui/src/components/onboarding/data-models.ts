@@ -69,7 +69,7 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 					badge: "New",
 					score: 97,
 					latency: 3,
-					contextWindow: 400_000,
+					contextWindow: 272_000,
 					supportsImages: true,
 					supportsPromptCache: true,
 					inputPrice: 1.25,
