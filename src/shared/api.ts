@@ -141,6 +141,7 @@ export interface ApiHandlerOptions {
 	planModeApiModelId?: string
 	planModeThinkingBudgetTokens?: number
 	planModeReasoningEffort?: string
+	planModeVerbosity?: string
 	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
 	planModeAwsBedrockCustomSelected?: boolean
 	planModeAwsBedrockCustomModelBaseId?: string
@@ -179,6 +180,7 @@ export interface ApiHandlerOptions {
 	actModeApiModelId?: string
 	actModeThinkingBudgetTokens?: number
 	actModeReasoningEffort?: string
+	actModeVerbosity?: string
 	actModeVsCodeLmModelSelector?: LanguageModelChatSelector
 	actModeAwsBedrockCustomSelected?: boolean
 	actModeAwsBedrockCustomModelBaseId?: string
@@ -1388,6 +1390,33 @@ export const openAiNativeModels = {
 		outputPrice: 10,
 		cacheReadsPrice: 0.125,
 	},
+	"gpt-5.1-2025-11-13": {
+		maxTokens: 8_192,
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+	},
+	"gpt-5.1": {
+		maxTokens: 8_192,
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+	},
+	"gpt-5.1-chat-latest": {
+		maxTokens: 8_192,
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10,
+		cacheReadsPrice: 0.125,
+	},
 	o3: {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
@@ -1496,7 +1525,7 @@ export const openAiNativeModels = {
 		inputPrice: 5,
 		outputPrice: 15,
 	},
-} as const satisfies Record<string, ModelInfo>
+} as const satisfies Record<string, OpenAiCompatibleModelInfo>
 
 // Azure OpenAI
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
