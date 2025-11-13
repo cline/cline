@@ -124,7 +124,9 @@ export async function createOpenRouterStream(
 			maxTokens = 8_192
 			break
 	}
-
+	// NOTE: Extended thinking does not support non-1 temperature
+	// Some models do not support temperaturs, some do not support 0,
+	// so only set them for models that are known to support them.
 	let temperature: number | undefined = 0
 	let topP: number | undefined
 	if (
@@ -156,16 +158,18 @@ export async function createOpenRouterStream(
 			const budget_tokens = thinkingBudgetTokens || 0
 			const reasoningOn = budget_tokens !== 0
 			if (reasoningOn) {
-				temperature = undefined // extended thinking does not support non-1 temperature
 				reasoning = { max_tokens: budget_tokens }
 			}
 			break
 		default:
 			if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0) {
-				temperature = undefined // extended thinking does not support non-1 temperature
 				reasoning = { max_tokens: thinkingBudgetTokens }
 				break
 			}
+	}
+
+	if (!model?.info?.supportTemperature) {
+		temperature = undefined
 	}
 
 	const providerPreferences = OPENROUTER_PROVIDER_PREFERENCES[model.id]
@@ -177,7 +181,7 @@ export async function createOpenRouterStream(
 	const stream = await client.chat.completions.create({
 		model: model.id,
 		max_tokens: maxTokens,
-		temperature: temperature,
+		temperature,
 		top_p: topP,
 		messages: openAiMessages,
 		stream: true,
