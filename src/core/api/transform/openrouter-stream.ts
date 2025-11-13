@@ -34,6 +34,10 @@ export async function createOpenRouterStream(
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
 	}
 
+	const { supportTemperature, supportReasoning } = model.info
+	const budget_tokens = thinkingBudgetTokens || 0
+	const reasoningOn = budget_tokens !== 0
+
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
 	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
 	// handles direct model.id match logic
@@ -155,20 +159,21 @@ export async function createOpenRouterStream(
 		case "anthropic/claude-3.7-sonnet:thinking":
 		case "anthropic/claude-3-7-sonnet":
 		case "anthropic/claude-3-7-sonnet:beta":
-			const budget_tokens = thinkingBudgetTokens || 0
-			const reasoningOn = budget_tokens !== 0
 			if (reasoningOn) {
+				temperature = undefined
 				reasoning = { max_tokens: budget_tokens }
 			}
 			break
 		default:
 			if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0) {
 				reasoning = { max_tokens: thinkingBudgetTokens }
+				temperature = undefined
 				break
 			}
 	}
 
-	if (!model?.info?.supportTemperature) {
+	// Disable temperature when reasoning is on or not supported
+	if (supportReasoning || reasoningOn || !supportTemperature) {
 		temperature = undefined
 	}
 
