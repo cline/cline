@@ -34,7 +34,7 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	id: ClineDefaultTool.ASK,
 	name: "ask_followup_question",
 	description:
-		"Ask user a question for clarifying or gathering information needed to complete the task. For example, ask the user clarifying questions about a key implementation descision. You should only ask one question.",
+		"Ask user a question for clarifying or gathering information needed to complete the task. For example, ask the user clarifying questions about a key implementation decision. You should only ask one question.",
 	contextRequirements: (context) => !context.yoloModeToggled,
 	parameters: [
 		{
