@@ -20,6 +20,7 @@ import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
 import { AccessMcpResourceHandler } from "./tools/handlers/AccessMcpResourceHandler"
+import { ActModeRespondHandler } from "./tools/handlers/ActModeRespondHandler"
 import { ApplyPatchHandler } from "./tools/handlers/ApplyPatchHandler"
 import { AskFollowupQuestionToolHandler } from "./tools/handlers/AskFollowupQuestionToolHandler"
 import { AttemptCompletionHandler } from "./tools/handlers/AttemptCompletionHandler"
@@ -208,6 +209,7 @@ export class ToolExecutor {
 		this.coordinator.register(new AccessMcpResourceHandler())
 		this.coordinator.register(new LoadMcpDocumentationHandler())
 		this.coordinator.register(new PlanModeRespondHandler())
+		this.coordinator.register(new ActModeRespondHandler())
 		this.coordinator.register(new NewTaskHandler())
 		this.coordinator.register(new AttemptCompletionHandler())
 		this.coordinator.register(new CondenseHandler())
