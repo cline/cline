@@ -270,6 +270,20 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				}
 			}
 
+			// Run PreToolUse hook after approval but before execution
+			try {
+				const { ToolHookUtils } = await import("../utils/ToolHookUtils")
+				await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+			} catch (error) {
+				const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+				if (error instanceof PreToolUseHookCancellationError) {
+					await config.services.diffViewProvider.revertChanges()
+					await config.services.diffViewProvider.reset()
+					return formatResponse.toolDenied()
+				}
+				throw error
+			}
+
 			// Mark the file as edited by Cline
 			config.services.fileContextTracker.markFileAsEditedByCline(relPath)
 
