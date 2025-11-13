@@ -1,6 +1,5 @@
 import type { ToggleAgentsRuleRequest } from "@shared/proto/cline/file"
 import { ClineRulesToggles } from "@shared/proto/cline/file"
-import { GlobalFileNames } from "@/core/storage/disk"
 import type { Controller } from "../index"
 
 /**
@@ -20,12 +19,9 @@ export async function toggleAgentsRule(controller: Controller, request: ToggleAg
 		throw new Error("Missing or invalid parameters for toggleAgentsRule")
 	}
 
-	// Use a single toggle key for all agents.md files
-	const AGENTS_TOGGLE_KEY = GlobalFileNames.agentsRulesFile
-
-	// Update the toggle in workspace state (single toggle controls all agents.md files)
+	// Update the toggle in workspace state
 	const toggles = controller.stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
-	toggles[AGENTS_TOGGLE_KEY] = enabled
+	toggles[rulePath] = enabled
 	controller.stateManager.setWorkspaceState("localAgentsRulesToggles", toggles)
 
 	// Get the current state to return in the response

@@ -44,9 +44,10 @@ export async function refreshExternalRulesToggles(
 	const updatedLocalCursorToggles = combineRuleToggles(updatedLocalCursorToggles1, updatedLocalCursorToggles2)
 	controller.stateManager.setWorkspaceState("localCursorRulesToggles", updatedLocalCursorToggles)
 
-	// local agents toggles - search recursively for all agents.md files
+	// local agents toggles
 	const localAgentsRulesToggles = controller.stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
-	const updatedLocalAgentsToggles = await synchronizeAgentsRuleToggles(workingDirectory, localAgentsRulesToggles)
+	const localAgentsRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.agentsRulesFile)
+	const updatedLocalAgentsToggles = await synchronizeRuleToggles(localAgentsRulesFilePath, localAgentsRulesToggles)
 	controller.stateManager.setWorkspaceState("localAgentsRulesToggles", updatedLocalAgentsToggles)
 
 	return {
@@ -127,8 +128,8 @@ export const getLocalCursorRules = async (cwd: string, toggles: ClineRulesToggle
 }
 
 /**
- * Helper function to find all agents.md files in a directory (case-insensitive)
- * Only searches recursively if a top-level agents.md file exists
+ * Helper function to find all agents.md files recursively (case-insensitive)
+ * Only searches if a top-level agents.md file exists
  */
 async function findAgentsMdFiles(cwd: string): Promise<string[]> {
 	try {
@@ -142,7 +143,7 @@ async function findAgentsMdFiles(cwd: string): Promise<string[]> {
 		}
 
 		// Search recursively for all agents.md files
-		const [allFiles] = await listFiles(cwd, true, 1_000)
+		const [allFiles] = await listFiles(cwd, true, 500)
 		return allFiles.filter((filePath) => {
 			const basename = path.basename(filePath).toLowerCase()
 			return basename === GlobalFileNames.agentsRulesFile.toLowerCase()
@@ -154,42 +155,13 @@ async function findAgentsMdFiles(cwd: string): Promise<string[]> {
 }
 
 /**
- * Synchronize agents rule toggles - searches recursively for all agents.md files
- * Uses a single toggle key to control all agents.md files
- */
-async function synchronizeAgentsRuleToggles(
-	workingDirectory: string,
-	currentToggles: ClineRulesToggles,
-): Promise<ClineRulesToggles> {
-	const AGENTS_TOGGLE_KEY = GlobalFileNames.agentsRulesFile // Single toggle key for all agents.md files
-
-	try {
-		const agentsMdFiles = await findAgentsMdFiles(workingDirectory)
-
-		// If we found any agents.md files, ensure toggle exists (default to true)
-		if (agentsMdFiles.length > 0) {
-			if (!(AGENTS_TOGGLE_KEY in currentToggles)) {
-				return { [AGENTS_TOGGLE_KEY]: true }
-			}
-			return { [AGENTS_TOGGLE_KEY]: currentToggles[AGENTS_TOGGLE_KEY] }
-		}
-
-		// No agents.md files found, return empty toggles
-		return {}
-	} catch (error) {
-		console.error("Failed to synchronize agents rule toggles:", error)
-		return {}
-	}
-}
-
-/**
  * Gather formatted agents rules - searches recursively and combines all agents.md files
  */
 export const getLocalAgentsRules = async (cwd: string, toggles: ClineRulesToggles) => {
-	const AGENTS_TOGGLE_KEY = GlobalFileNames.agentsRulesFile
+	const agentsRulesFilePath = path.resolve(cwd, GlobalFileNames.agentsRulesFile)
 
-	// Check if agents.md is enabled via the single toggle
-	if (AGENTS_TOGGLE_KEY in toggles && toggles[AGENTS_TOGGLE_KEY] === false) {
+	// Check if the top-level agents.md file is enabled
+	if (agentsRulesFilePath in toggles && toggles[agentsRulesFilePath] === false) {
 		return undefined
 	}
 

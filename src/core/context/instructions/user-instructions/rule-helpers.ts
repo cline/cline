@@ -299,6 +299,10 @@ export async function deleteRuleFile(
 				const toggles = controller.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
 				delete toggles[rulePath]
 				controller.stateManager.setWorkspaceState("localWindsurfRulesToggles", toggles)
+			} else if (type === "agents") {
+				const toggles = controller.stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
+				delete toggles[rulePath]
+				controller.stateManager.setWorkspaceState("localAgentsRulesToggles", toggles)
 			} else {
 				const toggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 				delete toggles[rulePath]

@@ -29,7 +29,7 @@ export const GlobalFileNames = {
 	cursorRulesDir: ".cursor/rules",
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",
-	agentsRulesFile: "agents.md",
+	agentsRulesFile: "AGENTS.md",
 	taskMetadata: "task_metadata.json",
 	mcpMarketplaceCatalog: "mcp_marketplace_catalog.json",
 	remoteConfig: (orgId: string) => `remote_config_${orgId}.json`,
