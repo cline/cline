@@ -116,6 +116,11 @@ export interface TaskCallbacks {
 	applyLatestBrowserSettings: () => Promise<BrowserSession>
 
 	switchToActMode: () => Promise<boolean>
+
+	// Hook execution callbacks
+	setActiveHookExecution: (hookExecution: any) => Promise<void>
+	clearActiveHookExecution: () => Promise<void>
+	getActiveHookExecution: () => Promise<any>
 }
 
 /**
