@@ -145,6 +145,7 @@ const (
 	XAI = "xai"
 	CEREBRAS = "cerebras"
 	OCA = "oca"
+	HICAP = "hicap"
 	NOUSRESEARCH = "nousResearch"
 )
 
@@ -162,6 +163,7 @@ var AllProviders = []string{
 	"xai",
 	"cerebras",
 	"oca",
+	"hicap",
 	"nousResearch",
 }
 
@@ -1491,6 +1493,16 @@ func GetProviderDefinitions() (map[string]ProviderDefinition, error) {
 		SetupInstructions: `Configure Oca API credentials`,
 	}
 
+	// Hicap
+	definitions["hicap"] = ProviderDefinition{
+		ID:              "hicap",
+		Name:            "hicap",
+		RequiredFields:  getFieldsByProvider("hicap", configFields, true),
+		OptionalFields:  getFieldsByProvider("hicap", configFields, false),
+		Models:          modelDefinitions["hicap"],
+		DefaultModelID:  "",
+		HasDynamicModels: true,
+		SetupInstructions: `Configure Hicap API credentials`,
 	// NousResearch
 	definitions["nousResearch"] = ProviderDefinition{
 		ID:              "nousResearch",
@@ -1529,6 +1541,7 @@ func GetProviderDisplayName(providerID string) string {
 		"xai": "X AI (Grok)",
 		"cerebras": "Cerebras",
 		"oca": "Oca",
+		"hicap": "Hicap",
 		"nousResearch": "NousResearch",
 	}
 	
