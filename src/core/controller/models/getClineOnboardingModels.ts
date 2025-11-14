@@ -45,3 +45,7 @@ function mergeModelWithOverride(baseModel: OnboardingModel | undefined, override
 	// Return merged model, using base as foundation if available
 	return baseModel ? { ...baseModel, ...override, info: mergedInfo } : { ...override, info: mergedInfo }
 }
+
+export function clearOnboardingModelsCache(): void {
+	cached = null
+}

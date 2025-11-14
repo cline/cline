@@ -1,4 +1,4 @@
-import { getClineOnboardingModels } from "@/core/controller/models/getClineOnboardingModels"
+import { clearOnboardingModelsCache, getClineOnboardingModels } from "@/core/controller/models/getClineOnboardingModels"
 import type { OnboardingModel } from "@/shared/proto/cline/state"
 import { FEATURE_FLAGS, FeatureFlag, FeatureFlagDefaultValue } from "@/shared/services/feature-flags/feature-flags"
 import type { FeatureFlagPayload, IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
@@ -32,8 +32,8 @@ export class FeatureFlagsService {
 		// Do not update cache if last update was less than an hour ago
 		const timesNow = Date.now()
 		if (timesNow - this.cacheInfo.updateTime < DEFAULT_CACHE_TTL && this.cache.size) {
-			// If time is with TTL, only skip if user ID is unchanged.
-			// If user ID changed, we need to refresh cache regardless of time.
+			// If time is within TTL, only skip if user context (userId) is unchanged.
+			// If userId changed (including from/to undefined/null), refresh cache.
 			if (userId && this.cacheInfo.userId === userId) {
 				return
 			}
@@ -107,6 +107,7 @@ export class FeatureFlagsService {
 		if (payload && typeof payload === "object" && !Array.isArray(payload)) {
 			return payload.models as unknown as Record<string, OnboardingModel & { hidden?: boolean }>
 		}
+		clearOnboardingModelsCache()
 		return undefined
 	}
 
@@ -157,7 +158,7 @@ export class FeatureFlagsService {
 		if (userId && this.cacheInfo.userId === userId) {
 			return
 		}
-		this.cacheInfo = { updateTime: 0, userId: null }
+		this.cacheInfo = { updateTime: 0, userId: userId || null }
 		this.cache.clear()
 	}
 
