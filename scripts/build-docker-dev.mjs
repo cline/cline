@@ -44,12 +44,13 @@ function main() {
 	runCommand("docker build -f docker/Dockerfile -t cline-cli:dev .", "Building Docker image")
 
 	console.log("✅ Docker image built successfully!")
-	console.log("\nUsage:")
-	console.log("  docker run --rm cline-cli:dev --help")
-	console.log("  docker run --rm cline-cli:dev version")
-	console.log("  docker run --rm -it -v $(pwd):/workspace cline-cli:dev")
-	console.log("\nInteractive shell:")
-	console.log("  npm run docker:shell")
+	console.log("\n📋 Next steps:\n")
+	console.log("Interactive shell:")
+	console.log("  npm run docker:shell\n")
+	console.log("This opens a bash shell with:")
+	console.log("  • Current directory mounted at /workspace")
+	console.log("  • All CLI commands available (cline auth, cline task, etc.)")
+	console.log("  • Full access to your project files\n")
 }
 
 main()
