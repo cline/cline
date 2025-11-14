@@ -4,7 +4,7 @@ import {
 	ConversationRole as BedrockConversationRole,
 	type Message as BedrockMessage,
 } from "@aws-sdk/client-bedrock-runtime"
-import { ChatMessage, OrchestrationClient } from "@sap-ai-sdk/orchestration"
+import { ChatMessage, OrchestrationClient, OrchestrationModuleConfig } from "@sap-ai-sdk/orchestration"
 import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
 import axios from "axios"
 import OpenAI from "openai"
@@ -495,24 +495,26 @@ export class SapAiCoreHandler implements ApiHandler {
 			// Ensure AI Core environment variable is set up (only runs once)
 			this.ensureAiCoreEnvSetup()
 			const model = this.getModel()
-			const orchestrationClient = new OrchestrationClient(
-				{
-					promptTemplating: {
-						model: {
-							name: model.id,
-						},
-						prompt: {
-							template: [
-								{
-									role: "system",
-									content: systemPrompt,
-								},
-							],
-						},
+
+			const orchestrationConfig: OrchestrationModuleConfig = {
+				promptTemplating: {
+					model: {
+						name: model.id,
+					},
+					prompt: {
+						template: [
+							{
+								role: "system",
+								content: systemPrompt,
+							},
+						],
 					},
 				},
-				{ resourceGroup: this.options.sapAiResourceGroup || "default" },
-			)
+			}
+
+			const orchestrationClient = new OrchestrationClient(orchestrationConfig, {
+				resourceGroup: this.options.sapAiResourceGroup || "default",
+			})
 
 			const sapMessages = this.convertMessageParamToSAPMessages(messages)
 
