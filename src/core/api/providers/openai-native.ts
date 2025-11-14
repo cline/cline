@@ -3,6 +3,7 @@ import { ModelInfo, OpenAiNativeModelId, openAiNativeDefaultModelId, openAiNativ
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -31,6 +32,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 			try {
 				this.client = new OpenAI({
 					apiKey: this.options.openAiNativeApiKey,
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating OpenAI client: ${error.message}`)
@@ -113,6 +115,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 			case "gpt-5-2025-08-07":
 			case "gpt-5-mini-2025-08-07":
 			case "gpt-5-nano-2025-08-07":
+			case "gpt-5.1-2025-11-13":
+			case "gpt-5.1-chat-latest":
+			case "gpt-5.1": {
 				const stream = await client.chat.completions.create({
 					model: model.id,
 					temperature: 1,
@@ -146,6 +151,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					}
 				}
 				break
+			}
 			default: {
 				const stream = await client.chat.completions.create({
 					model: model.id,

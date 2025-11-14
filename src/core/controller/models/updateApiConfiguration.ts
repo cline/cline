@@ -112,14 +112,9 @@ export async function updateApiConfiguration(controller: Controller, request: Up
 					}
 
 					// If mode configs should be synced, also update the alternate mode field
-					console.log(`[updateApiConfiguration] separateModeConfigs: ${separateModeConfigs}`)
 					if (!separateModeConfigs) {
 						const alternateField = getAlternateModeField(key)
-						console.log(`[updateApiConfiguration] alternateField: ${alternateField}`)
 						if (alternateField) {
-							console.log(
-								`[updateApiConfiguration] Mode mirroring: ${key} → ${alternateField} (value: ${JSON.stringify(value)})`,
-							)
 							if (alternateField === "planModeApiProvider") {
 								options.planModeApiProvider = convertProtoToApiProvider(value)
 							} else if (alternateField === "actModeApiProvider") {

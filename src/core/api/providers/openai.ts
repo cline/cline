@@ -2,6 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { azureOpenAiDefaultApiVersion, ModelInfo, OpenAiCompatibleModelInfo, openAiModelInfoSaneDefaults } from "@shared/api"
 import OpenAI, { AzureOpenAI } from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -46,12 +47,14 @@ export class OpenAiHandler implements ApiHandler {
 						apiKey: this.options.openAiApiKey,
 						apiVersion: this.options.azureApiVersion || azureOpenAiDefaultApiVersion,
 						defaultHeaders: this.options.openAiHeaders,
+						fetch, // Use configured fetch with proxy support
 					})
 				} else {
 					this.client = new OpenAI({
 						baseURL: this.options.openAiBaseUrl,
 						apiKey: this.options.openAiApiKey,
 						defaultHeaders: this.options.openAiHeaders,
+						fetch, // Use configured fetch with proxy support
 					})
 				}
 			} catch (error: any) {
@@ -78,7 +81,13 @@ export class OpenAiHandler implements ApiHandler {
 			{ role: "system", content: systemPrompt },
 			...convertToOpenAiMessages(messages),
 		]
-		let temperature: number | undefined = this.options.openAiModelInfo?.temperature ?? openAiModelInfoSaneDefaults.temperature
+		let temperature: number | undefined
+		if (this.options.openAiModelInfo?.temperature !== undefined) {
+			const tempValue = Number(this.options.openAiModelInfo.temperature)
+			temperature = tempValue === 0 ? undefined : tempValue
+		} else {
+			temperature = openAiModelInfoSaneDefaults.temperature
+		}
 		let reasoningEffort: ChatCompletionReasoningEffort | undefined
 		let maxTokens: number | undefined
 

@@ -64,7 +64,16 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 				// Auto-approve flow
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-				telemetryService.captureToolUsage(config.ulid, "web_fetch", config.api.getModel().id, provider, true, true)
+				telemetryService.captureToolUsage(
+					config.ulid,
+					"web_fetch",
+					config.api.getModel().id,
+					provider,
+					true,
+					true,
+					undefined,
+					block.isNativeToolCall,
+				)
 			} else {
 				// Manual approval flow
 				showNotificationForApproval(
@@ -75,11 +84,41 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 
 				const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
 				if (!didApprove) {
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, provider, false, false)
+					telemetryService.captureToolUsage(
+						config.ulid,
+						block.name,
+						config.api.getModel().id,
+						provider,
+						false,
+						false,
+						undefined,
+						block.isNativeToolCall,
+					)
 					return formatResponse.toolDenied()
 				} else {
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, provider, false, true)
+					telemetryService.captureToolUsage(
+						config.ulid,
+						block.name,
+						config.api.getModel().id,
+						provider,
+						false,
+						true,
+						undefined,
+						block.isNativeToolCall,
+					)
 				}
+			}
+
+			// Run PreToolUse hook after approval but before execution
+			try {
+				const { ToolHookUtils } = await import("../utils/ToolHookUtils")
+				await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+			} catch (error) {
+				const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+				if (error instanceof PreToolUseHookCancellationError) {
+					return formatResponse.toolDenied()
+				}
+				throw error
 			}
 
 			// Execute the actual fetch

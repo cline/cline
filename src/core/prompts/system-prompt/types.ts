@@ -102,6 +102,7 @@ export interface SystemPromptContext {
 	readonly localCursorRulesFileInstructions?: string
 	readonly localCursorRulesDirInstructions?: string
 	readonly localWindsurfRulesFileInstructions?: string
+	readonly localAgentsRulesFileInstructions?: string
 	readonly clineIgnoreInstructions?: string
 	readonly preferredLanguageInstructions?: string
 	readonly browserSettings?: BrowserSettings
@@ -256,7 +257,7 @@ export interface VariantSchema {
 export const TASK_PROGRESS_PARAMETER = {
 	name: "task_progress",
 	required: false,
-	instruction: `A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)`,
+	instruction: `A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)`,
 	usage: "Checklist here (optional)",
 	dependencies: [ClineDefaultTool.TODO],
 }

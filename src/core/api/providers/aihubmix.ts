@@ -27,7 +27,7 @@ export class AIhubmixHandler implements ApiHandler {
 		const { baseURL, appCode, ...rest } = options
 		this.options = {
 			baseURL: baseURL ?? "https://aihubmix.com",
-			appCode: appCode ?? "KUWF9311", // 应用代码，享受折扣
+			appCode: appCode ?? "KUWF9311",
 			...rest,
 		}
 	}
@@ -81,7 +81,6 @@ export class AIhubmixHandler implements ApiHandler {
 				this.geminiClient = new GoogleGenAI({
 					apiKey: this.options.apiKey,
 					httpOptions: {
-						// AIhubmix Gemini 兼容网关，按 Google GenAI 路径规范
 						baseUrl: `${this.options.baseURL}/gemini`,
 						headers: {
 							// @ts-expect-error
@@ -97,9 +96,6 @@ export class AIhubmixHandler implements ApiHandler {
 		return this.geminiClient
 	}
 
-	/**
-	 * 根据模型名称路由到对应的客户端
-	 */
 	private routeModel(modelName: string): "anthropic" | "openai" | "gemini" | "openai-response" {
 		const id = modelName || ""
 		if (id.startsWith("claude")) {
@@ -114,9 +110,6 @@ export class AIhubmixHandler implements ApiHandler {
 		return "openai"
 	}
 
-	/**
-	 * 修复空工具时的 tool_choice 问题
-	 */
 	private fixToolChoice(requestBody: any): any {
 		if (requestBody.tools?.length === 0 && requestBody.tool_choice) {
 			delete requestBody.tool_choice
@@ -203,25 +196,21 @@ export class AIhubmixHandler implements ApiHandler {
 		const client = this.ensureOpenaiClient()
 		const modelId = this.options.modelId || "gpt-4o-mini"
 
-		// 将 Anthropic 风格消息转换为 Responses API 的 input 结构
 		const input = (messages || []).map((m: any) => {
 			const role = m.role || "user"
 			const contentArray = Array.isArray(m.content) ? m.content : [{ type: "text", text: m.content }]
 			const content = contentArray
 				.filter((c: any) => c != null)
 				.map((c: any) => {
-					// 图片
 					if (c.type === "image" || c.type === "input_image" || c.type === "image_url") {
 						return { type: "input_image", image_url: c.image_url || c.url || c.source?.url }
 					}
-					// 文本（用户 -> input_text，助手 -> output_text）
 					const text = c.text ?? (typeof c === "string" ? c : "")
 					return { type: role === "assistant" ? "output_text" : "input_text", text }
 				})
 			return { role, content }
 		})
 
-		// 使用 Responses 流式 API，以事件驱动产出
 		const stream = await (client as any).responses.stream({
 			model: modelId,
 			instructions: systemPrompt,
@@ -261,7 +250,6 @@ export class AIhubmixHandler implements ApiHandler {
 			stream: true,
 		}
 
-		// 修复空工具问题
 		const fixedRequestBody = this.fixToolChoice(requestBody)
 
 		const stream = await client.chat.completions.create(fixedRequestBody)

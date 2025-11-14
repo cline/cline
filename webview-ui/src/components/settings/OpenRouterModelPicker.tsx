@@ -51,9 +51,20 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
+		id: "openai/gpt-5.1",
+		description: "Latest flagship model from OpenAI with enhanced coding capabilities",
+		label: "New",
+	},
+	{
 		id: "z-ai/glm-4.6:exacto",
 		description: "Fast open-source model with improved performance in Cline",
 		label: "Trending",
+	},
+	{
+		id: "minimax/minimax-m2",
+		description: "Compact, high-efficiency model optimized for coding and agentic workflows",
+		label: "Free",
+		isFree: true,
 	},
 	{
 		id: "x-ai/grok-code-fast-1",
@@ -147,7 +158,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 				return !id.includes(":free")
 			})
 		}
-		// For OpenRouter provider: exclude Cline-specific models
+		// For OpenRouter and Vercel AI Gateway providers: exclude Cline-specific models
 		return unfilteredModelIds.filter((id) => !id.startsWith("cline/"))
 	}, [openRouterModels, modeFields.apiProvider])
 
@@ -423,7 +434,7 @@ const OpenRouterModelPicker: React.FC<OpenRouterModelPickerProps> = ({ isPopup, 
 						anthropic/claude-sonnet-4.5.
 					</VSCodeLink>
 					You can also try searching "free" for no-cost options currently available. OpenRouter presets can be used by
-					entering <strong>@preset/your-preset-name</strong>.
+					entering @preset/your-preset-name
 				</p>
 			)}
 		</div>

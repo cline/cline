@@ -28,8 +28,8 @@ class ClineEndpoint {
 	private environment: Environment = Environment.production
 
 	private constructor() {
-		// Set environment at module load
-		const _env = process?.env?.CLINE_ENVIRONMENT
+		// Set environment at module load. Use override if provided.
+		const _env = process?.env?.CLINE_ENVIRONMENT_OVERRIDE || process?.env?.CLINE_ENVIRONMENT
 		if (_env && Object.values(Environment).includes(_env as Environment)) {
 			this.environment = _env as Environment
 			return
@@ -62,7 +62,7 @@ class ClineEndpoint {
 					environment: Environment.staging,
 					appBaseUrl: "https://staging-app.cline.bot",
 					apiBaseUrl: "https://core-api.staging.int.cline.bot",
-					mcpBaseUrl: "https://api.cline.bot/v1/mcp",
+					mcpBaseUrl: "https://core-api.staging.int.cline.bot/v1/mcp",
 					firebase: {
 						apiKey: "AIzaSyASSwkwX1kSO8vddjZkE5N19QU9cVQ0CIk",
 						authDomain: "cline-staging.firebaseapp.com",

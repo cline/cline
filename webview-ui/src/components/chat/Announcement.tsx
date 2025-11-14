@@ -57,21 +57,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h4>
 			<ul style={ulStyle}>
 				<li>
-					Cline Teams is now available with unlimited seats. Includes JetBrains support, role-based access control, and
-					centralized billing.{" "}
-					<VSCodeLink
-						href="https://app.cline.bot/login/?utm_source=ext&utm_medium=banner&utm_campaign=free-teams"
-						style={linkStyle}>
-						Get started with Teams
-					</VSCodeLink>
+					<strong>GPT-5.1</strong> is now live with Cline-optimized prompts and enhanced plan mode & /deep-planning.
+					Enable Native Tool Calling for best performance.
 				</li>
 				<li>
-					Native tool calling is now the default for Claude 4+, Gemini 2.5, Grok 4/Code, and GPT-5. Reduces errors by
-					15% and enables parallel tool execution.
+					<strong>Nous Research provider</strong> added featuring Hermes 4 models with tailored system prompts.
 				</li>
 				<li>
-					Auto-approve is now always-on with a redesigned expanding menu. Settings simplified and notifications moved to
-					General Settings.
+					<strong>Smarter focus chain prompting</strong> for frontier models
 				</li>
 			</ul>
 			<div style={hrStyle} />

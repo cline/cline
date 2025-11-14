@@ -1,7 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ModelInfo, vercelAiGatewayDefaultModelId, vercelAiGatewayDefaultModelInfo } from "@shared/api"
+import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
@@ -10,8 +11,9 @@ import { createVercelAIGatewayStream } from "../transform/vercel-ai-gateway-stre
 
 interface VercelAIGatewayHandlerOptions extends CommonApiHandlerOptions {
 	vercelAiGatewayApiKey?: string
-	vercelAiGatewayModelId?: string
-	vercelAiGatewayModelInfo?: ModelInfo
+	openRouterModelId?: string
+	openRouterModelInfo?: ModelInfo
+	thinkingBudgetTokens?: number
 }
 
 export class VercelAIGatewayHandler implements ApiHandler {
@@ -35,6 +37,7 @@ export class VercelAIGatewayHandler implements ApiHandler {
 						"http-referer": "https://cline.bot",
 						"x-title": "Cline",
 					},
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Vercel AI Gateway client: ${error.message}`)
@@ -55,6 +58,7 @@ export class VercelAIGatewayHandler implements ApiHandler {
 				systemPrompt,
 				messages,
 				{ id: modelId, info: modelInfo },
+				this.options.thinkingBudgetTokens,
 				tools,
 			)
 			let didOutputUsage: boolean = false
@@ -72,6 +76,29 @@ export class VercelAIGatewayHandler implements ApiHandler {
 
 				if (delta?.tool_calls) {
 					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+				}
+
+				// Reasoning tokens are returned separately from the content
+				if ("reasoning" in delta && delta.reasoning) {
+					yield {
+						type: "reasoning",
+						// @ts-ignore-next-line
+						reasoning: delta.reasoning,
+					}
+				}
+
+				// Reasoning details that can be passed back in API requests to preserve reasoning traces
+				if (
+					"reasoning_details" in delta &&
+					delta.reasoning_details &&
+					// @ts-ignore-next-line
+					delta.reasoning_details.length // exists and non-0
+				) {
+					yield {
+						type: "reasoning",
+						reasoning: "",
+						details: delta.reasoning_details,
+					}
 				}
 
 				if (!didOutputUsage && chunk.usage) {
@@ -107,11 +134,11 @@ export class VercelAIGatewayHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.vercelAiGatewayModelId
-		const modelInfo = this.options.vercelAiGatewayModelInfo
+		const modelId = this.options.openRouterModelId
+		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
 		}
-		return { id: vercelAiGatewayDefaultModelId, info: vercelAiGatewayDefaultModelInfo }
+		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 }
