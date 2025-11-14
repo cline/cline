@@ -31,6 +31,7 @@ import { OllamaHandler } from "./providers/ollama"
 import { OpenAiHandler } from "./providers/openai"
 import { OpenAiNativeHandler } from "./providers/openai-native"
 import { OpenRouterHandler } from "./providers/openrouter"
+import { PoolsideHandler } from "./providers/poolside"
 import { QwenHandler } from "./providers/qwen"
 import { QwenCodeHandler } from "./providers/qwen-code"
 import { RequestyHandler } from "./providers/requesty"
@@ -424,6 +425,14 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				nousResearchApiKey: options.nousResearchApiKey,
 				apiModelId: mode === "plan" ? options.planModeNousResearchModelId : options.actModeNousResearchModelId,
+			})
+		case "poolside":
+			return new PoolsideHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				poolsideApiKey: options.poolsideApiKey,
+				poolsideBaseUrl: options.poolsideBaseUrl,
+				poolsideModelId: mode === "plan" ? options.planModePoolsideModelId : options.actModePoolsideModelId,
+				poolsideModelInfo: mode === "plan" ? options.planModePoolsideModelInfo : options.actModePoolsideModelInfo,
 			})
 		default:
 			return new AnthropicHandler({

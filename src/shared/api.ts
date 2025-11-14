@@ -41,6 +41,7 @@ export type ApiProvider =
 	| "minimax"
 	| "hicap"
 	| "nousResearch"
+	| "poolside"
 
 export interface ApiHandlerSecrets {
 	apiKey?: string // anthropic
@@ -85,6 +86,7 @@ export interface ApiHandlerSecrets {
 	minimaxApiKey?: string
 	hicapApiKey?: string
 	nousResearchApiKey?: string
+	poolsideApiKey?: string
 }
 
 export interface ApiHandlerOptions {
@@ -136,6 +138,8 @@ export interface ApiHandlerOptions {
 	ocaMode?: string
 	aihubmixBaseUrl?: string
 	aihubmixAppCode?: string
+	poolsideApiKey?: string
+	poolsideBaseUrl?: string
 
 	// Plan mode configurations
 	planModeApiModelId?: string
@@ -175,6 +179,8 @@ export interface ApiHandlerOptions {
 	planModeHicapModelId?: string
 	planModeHicapModelInfo?: ModelInfo
 	planModeNousResearchModelId?: string
+	planModePoolsideModelId?: string
+	planModePoolsideModelInfo?: OpenAiCompatibleModelInfo
 	// Act mode configurations
 
 	// Act mode configurations
@@ -215,6 +221,8 @@ export interface ApiHandlerOptions {
 	actModeHicapModelId?: string
 	actModeHicapModelInfo?: ModelInfo
 	actModeNousResearchModelId?: string
+	actModePoolsideModelId?: string
+	actModePoolsideModelInfo?: OpenAiCompatibleModelInfo
 }
 
 export type ApiConfiguration = ApiHandlerOptions &
@@ -4007,3 +4015,15 @@ export const nousResearchModels = {
 			"This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases.",
 	},
 } as const satisfies Record<string, ModelInfo>
+
+// poolside https://poolside.ai/
+export const poolsideModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
+	maxTokens: 8192,
+	contextWindow: 128_000,
+	supportsImages: false,
+	supportsPromptCache: false,
+	isR1FormatRequired: false,
+	inputPrice: 0,
+	outputPrice: 0,
+	temperature: 0,
+}

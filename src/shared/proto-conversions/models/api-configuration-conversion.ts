@@ -315,6 +315,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.HICAP
 		case "nousResearch":
 			return ProtoApiProvider.NOUSRESEARCH
+		case "poolside":
+			return ProtoApiProvider.POOLSIDE
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -403,6 +405,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "minimax"
 		case ProtoApiProvider.NOUSRESEARCH:
 			return "nousResearch"
+		case ProtoApiProvider.POOLSIDE:
+			return "poolside"
 		default:
 			return "anthropic"
 	}
@@ -494,6 +498,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		aihubmixAppCode: config.aihubmixAppCode,
 		hicapApiKey: config.hicapApiKey,
 		hicapModelId: config.hicapModelId,
+		poolsideApiKey: config.poolsideApiKey,
+		poolsideBaseUrl: config.poolsideBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -533,6 +539,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeHicapModelId: config.planModeHicapModelId,
 		planModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHicapModelInfo),
 		planModeNousResearchModelId: config.planModeNousResearchModelId,
+		planModePoolsideModelId: config.planModePoolsideModelId,
+		planModePoolsideModelInfo: convertModelInfoToProtoOpenRouter(config.planModePoolsideModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -572,6 +580,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeHicapModelId: config.actModeHicapModelId,
 		actModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHicapModelInfo),
 		actModeNousResearchModelId: config.actModeNousResearchModelId,
+		actModePoolsideModelId: config.actModePoolsideModelId,
+		actModePoolsideModelInfo: convertModelInfoToProtoOpenRouter(config.actModePoolsideModelInfo),
 	}
 }
 
@@ -661,6 +671,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		hicapApiKey: protoConfig.hicapApiKey,
 		hicapModelId: protoConfig.hicapModelId,
 		nousResearchApiKey: protoConfig.nousResearchApiKey,
+		poolsideApiKey: protoConfig.poolsideApiKey,
+		poolsideBaseUrl: protoConfig.poolsideBaseUrl,
 
 		// Plan mode configurations
 		planModeApiProvider:
@@ -703,6 +715,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeHicapModelId: protoConfig.planModeHicapModelId,
 		planModeHicapModelInfo: convertProtoToModelInfo(protoConfig.planModeHicapModelInfo),
 		planModeNousResearchModelId: protoConfig.planModeNousResearchModelId,
+		planModePoolsideModelId: protoConfig.planModePoolsideModelId,
+		planModePoolsideModelInfo: convertProtoToModelInfo(protoConfig.planModePoolsideModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -743,5 +757,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeHicapModelId: protoConfig.actModeHicapModelId,
 		actModeHicapModelInfo: convertProtoToModelInfo(protoConfig.actModeHicapModelInfo),
 		actModeNousResearchModelId: protoConfig.actModeNousResearchModelId,
+		actModePoolsideModelId: protoConfig.actModePoolsideModelId,
+		actModePoolsideModelInfo: convertProtoToModelInfo(protoConfig.actModePoolsideModelInfo),
 	}
 }

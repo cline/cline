@@ -159,6 +159,10 @@
 		{
 			"value": "nousResearch",
 			"label": "NousResearch"
+		},
+		{
+			"value": "poolside",
+			"label": "Poolside"
 		}
 	]
 }

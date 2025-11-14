@@ -225,6 +225,12 @@ message Settings {
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 131;
   optional string act_mode_aihubmix_model_id = 132;
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 133;
+  optional string poolside_api_key = 134;
+  optional string poolside_base_url = 135;
+  optional string plan_mode_poolside_model_id = 136;
+  optional string plan_mode_poolside_model_info = 137;
+  optional string act_mode_poolside_model_id = 138;
+  optional string act_mode_poolside_model_info = 139;
 }
 
 message DictationSettings {
