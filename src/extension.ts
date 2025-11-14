@@ -401,7 +401,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		context.secrets.onDidChange(async (event) => {
-			if (event.key === "clineAccountId" || event.key === "cline:clineAccountId") {
+			if (event.key === "cline:clineAccountId") {
 				// Check if the secret was removed (logout) or added/updated (login)
 				const secretValue = await context.secrets.get(event.key)
 				const activeWebview = WebviewProvider.getVisibleInstance()
