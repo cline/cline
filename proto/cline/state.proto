@@ -361,7 +361,7 @@ message UpdateSettingsRequest {
   optional int32 subagent_terminal_output_line_limit = 30;
   optional string cline_env = 31;
   optional bool native_tool_call_enabled = 32;
-  optional bool show_onboarding_flow = 33;
+  optional OnboardingModelGroup onboarding_models = 33;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
@@ -388,4 +388,18 @@ message OnboardingProgressRequest {
   optional string action = 2;
   optional bool completed = 3;
   optional string model_selected = 4;
+}
+
+message OnboardingModelGroup {
+  repeated OnboardingModel models = 1;
+}
+
+message OnboardingModel {
+  string id = 1;
+  string name = 2;
+  int32 score = 3;
+  int32 latency = 4;
+  string badge = 5;
+  string group = 6;
+  OpenRouterModelInfo info = 7;
 }
