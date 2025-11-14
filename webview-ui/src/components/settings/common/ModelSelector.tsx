@@ -50,19 +50,12 @@ export const ModelSelector = ({ models, selectedModelId, onChange, zIndex, label
 	return (
 		<DropdownContainer className="dropdown-container" zIndex={zIndex}>
 			<label htmlFor="model-id">
-				<span style={{ fontWeight: 500 }}>{label}</span>
+				<span className="font-medium">{label}</span>
 			</label>
-			<VSCodeDropdown id="model-id" onChange={onChange} style={{ width: "100%" }} value={selectedModelId}>
+			<VSCodeDropdown className="w-full" id="model-id" onChange={onChange} value={selectedModelId}>
 				<VSCodeOption value="">Select a model...</VSCodeOption>
 				{Object.keys(models).map((modelId) => (
-					<VSCodeOption
-						key={modelId}
-						style={{
-							whiteSpace: "normal",
-							wordWrap: "break-word",
-							maxWidth: "100%",
-						}}
-						value={modelId}>
+					<VSCodeOption className="break-words whitespace-normal max-w-full" key={modelId} value={modelId}>
 						{modelId}
 					</VSCodeOption>
 				))}

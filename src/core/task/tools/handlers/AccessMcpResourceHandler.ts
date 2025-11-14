@@ -4,7 +4,7 @@ import { ClineAsk, ClineAskUseMcpServer } from "@shared/ExtensionMessage"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
@@ -45,6 +45,11 @@ export class AccessMcpResourceHandler implements IFullyManagedTool {
 		const server_name: string | undefined = block.params.server_name
 		const uri: string | undefined = block.params.uri
 
+		// Extract provider using the proven pattern from ReportBugHandler
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
 		// Validate required parameters
 		if (!server_name) {
 			config.taskState.consecutiveMistakeCount++
@@ -73,32 +78,64 @@ export class AccessMcpResourceHandler implements IFullyManagedTool {
 			// Auto-approval flow
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "use_mcp_server")
 			await config.callbacks.say("use_mcp_server", completeMessage, undefined, undefined, false)
-			if (!config.yoloModeToggled) {
-				config.taskState.consecutiveAutoApprovedRequestsCount++
-			}
 
 			// Capture telemetry
-			telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				true,
+				true,
+				undefined,
+				block.isNativeToolCall,
+			)
 		} else {
 			// Manual approval flow
 			const notificationMessage = `Cline wants to access ${uri || "unknown resource"} on ${server_name || "unknown server"}`
 
 			// Show notification
-			showNotificationForApprovalIfAutoApprovalEnabled(
-				notificationMessage,
-				config.autoApprovalSettings.enabled,
-				config.autoApprovalSettings.enableNotifications,
-			)
+			showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)
 
 			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "use_mcp_server")
 
 			const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("use_mcp_server", completeMessage, config)
 			if (!didApprove) {
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
+				telemetryService.captureToolUsage(
+					config.ulid,
+					block.name,
+					config.api.getModel().id,
+					provider,
+					false,
+					false,
+					undefined,
+					block.isNativeToolCall,
+				)
 				return formatResponse.toolDenied()
 			} else {
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
+				telemetryService.captureToolUsage(
+					config.ulid,
+					block.name,
+					config.api.getModel().id,
+					provider,
+					false,
+					true,
+					undefined,
+					block.isNativeToolCall,
+				)
 			}
+		}
+
+		// Run PreToolUse hook after approval but before execution
+		try {
+			const { ToolHookUtils } = await import("../utils/ToolHookUtils")
+			await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		} catch (error) {
+			const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+			if (error instanceof PreToolUseHookCancellationError) {
+				return formatResponse.toolDenied()
+			}
+			throw error
 		}
 
 		await config.callbacks.say("mcp_server_request_started")

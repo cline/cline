@@ -11,6 +11,7 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 	const mapping: Record<AppClineAsk, ClineAsk> = {
 		followup: ClineAsk.FOLLOWUP,
 		plan_mode_respond: ClineAsk.PLAN_MODE_RESPOND,
+		act_mode_respond: ClineAsk.ACT_MODE_RESPOND,
 		command: ClineAsk.COMMAND,
 		command_output: ClineAsk.COMMAND_OUTPUT,
 		completion_result: ClineAsk.COMPLETION_RESULT,
@@ -19,7 +20,6 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 		resume_task: ClineAsk.RESUME_TASK,
 		resume_completed_task: ClineAsk.RESUME_COMPLETED_TASK,
 		mistake_limit_reached: ClineAsk.MISTAKE_LIMIT_REACHED,
-		auto_approval_max_req_reached: ClineAsk.AUTO_APPROVAL_MAX_REQ_REACHED,
 		browser_action_launch: ClineAsk.BROWSER_ACTION_LAUNCH,
 		use_mcp_server: ClineAsk.USE_MCP_SERVER,
 		new_task: ClineAsk.NEW_TASK,
@@ -45,6 +45,7 @@ function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 	const mapping: Record<Exclude<ClineAsk, ClineAsk.UNRECOGNIZED>, AppClineAsk> = {
 		[ClineAsk.FOLLOWUP]: "followup",
 		[ClineAsk.PLAN_MODE_RESPOND]: "plan_mode_respond",
+		[ClineAsk.ACT_MODE_RESPOND]: "act_mode_respond",
 		[ClineAsk.COMMAND]: "command",
 		[ClineAsk.COMMAND_OUTPUT]: "command_output",
 		[ClineAsk.COMPLETION_RESULT]: "completion_result",
@@ -53,7 +54,6 @@ function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 		[ClineAsk.RESUME_TASK]: "resume_task",
 		[ClineAsk.RESUME_COMPLETED_TASK]: "resume_completed_task",
 		[ClineAsk.MISTAKE_LIMIT_REACHED]: "mistake_limit_reached",
-		[ClineAsk.AUTO_APPROVAL_MAX_REQ_REACHED]: "auto_approval_max_req_reached",
 		[ClineAsk.BROWSER_ACTION_LAUNCH]: "browser_action_launch",
 		[ClineAsk.USE_MCP_SERVER]: "use_mcp_server",
 		[ClineAsk.NEW_TASK]: "new_task",
@@ -102,6 +102,8 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		info: ClineSay.INFO,
 		task_progress: ClineSay.TASK_PROGRESS,
 		error_retry: ClineSay.ERROR_RETRY,
+		hook: ClineSay.INFO,
+		hook_output: ClineSay.COMMAND_OUTPUT_SAY,
 	}
 
 	const result = mapping[say]
@@ -200,6 +202,7 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 		askQuestion: undefined,
 		askNewTask: undefined,
 		apiReqInfo: undefined,
+		modelInfo: message.modelInfo ?? undefined,
 	}
 
 	return protoMessage

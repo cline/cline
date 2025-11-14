@@ -94,6 +94,8 @@ const ENABLED_PROVIDERS = [
 	"gemini", // Google Gemini
 	"ollama", // Ollama local models
 	"cerebras", // Cerebras models
+	"oca", // Oracle Code Assist
+	"nousResearch", // NousResearch provider
 ]
 
 /**

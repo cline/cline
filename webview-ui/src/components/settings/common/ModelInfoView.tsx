@@ -1,6 +1,6 @@
 import { geminiModels, ModelInfo } from "@shared/api"
-import { Fragment, useState } from "react"
-import { ModelDescriptionMarkdown } from "../OpenRouterModelPicker"
+import { Fragment } from "react"
+import { ModelDescriptionMarkdown } from "../ModelDescriptionMarkdown"
 import {
 	formatPrice,
 	formatTokenLimit,
@@ -97,9 +97,6 @@ interface ModelInfoViewProps {
  * This component manages its own description expansion state
  */
 export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfoViewProps) => {
-	// Internal state management for description expansion
-	const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
-
 	const isGemini = Object.keys(geminiModels).includes(selectedModelId)
 	const hasThinkingConfig = hasThinkingBudget(modelInfo)
 	const hasTiers = !!modelInfo.tiers && modelInfo.tiers.length > 0
@@ -151,13 +148,7 @@ export const ModelInfoView = ({ selectedModelId, modelInfo, isPopup }: ModelInfo
 
 	const infoItems = [
 		modelInfo.description && (
-			<ModelDescriptionMarkdown
-				isExpanded={isDescriptionExpanded}
-				isPopup={isPopup}
-				key="description"
-				markdown={modelInfo.description}
-				setIsExpanded={setIsDescriptionExpanded}
-			/>
+			<ModelDescriptionMarkdown isPopup={isPopup} key="description" markdown={modelInfo.description} />
 		),
 		<ModelInfoSupportsItem
 			doesNotSupportLabel="Does not support images"

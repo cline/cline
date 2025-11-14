@@ -18,6 +18,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { telemetryService } from "../../../services/telemetry"
 import { BrowserSettings as SharedBrowserSettings } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
+import { accountLogoutClicked } from "../account/accountLogoutClicked"
 
 /**
  * Updates multiple extension settings in a single request
@@ -29,7 +30,7 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 	try {
 		if (request.clineEnv !== undefined) {
 			ClineEnv.setEnvironment(request.clineEnv)
-			await controller.handleSignOut()
+			await accountLogoutClicked(controller, Empty.create())
 		}
 
 		if (request.apiConfiguration) {
@@ -326,7 +327,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 		}
 
 		if (request.hooksEnabled !== undefined) {
-			controller.stateManager.setGlobalState("hooksEnabled", !!request.hooksEnabled)
+			const isEnabled = !!request.hooksEnabled
+
+			// Platform validation: Only allow enabling hooks on macOS and Linux
+			if (isEnabled && process.platform === "win32") {
+				throw new Error("Hooks are not yet supported on Windows")
+			}
+
+			controller.stateManager.setGlobalState("hooksEnabled", isEnabled)
 		}
 
 		if (request.subagentsEnabled !== undefined) {
@@ -346,6 +354,18 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				telemetryService.captureSubagentToggle(isEnabled)
 			}
 			controller.stateManager.setGlobalState("subagentsEnabled", !!request.subagentsEnabled)
+		}
+
+		if (request.nativeToolCallEnabled !== undefined) {
+			controller.stateManager.setGlobalState("nativeToolCallEnabled", !!request.nativeToolCallEnabled)
+			if (controller.task) {
+				telemetryService.captureFeatureToggle(
+					controller.task.ulid,
+					"native-tool-call",
+					request.nativeToolCallEnabled,
+					controller.task.api.getModel().id,
+				)
+			}
 		}
 
 		// Post updated state to webview

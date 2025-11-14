@@ -1,7 +1,7 @@
-import * as fs from "fs"
-import * as path from "path"
 import chalk from "chalk"
+import * as fs from "fs"
 import ora from "ora"
+import * as path from "path"
 import { ResultsDatabase } from "../db"
 import { generateMarkdownReport } from "../utils/markdown"
 
@@ -34,7 +34,6 @@ export async function reportHandler(options: ReportOptions): Promise<void> {
 		// Generate summary report
 		const summary = {
 			runs: runs.length,
-			models: [...new Set(runs.map((run) => run.model))],
 			benchmarks: [...new Set(runs.map((run) => run.benchmark))],
 			tasks: 0,
 			successRate: 0,
@@ -45,6 +44,10 @@ export async function reportHandler(options: ReportOptions): Promise<void> {
 			totalToolFailures: 0,
 			toolSuccessRate: 0,
 			toolUsage: {} as Record<string, { calls: number; failures: number }>,
+			totalTests: 0,
+			totalTestsPassed: 0,
+			totalTestsFailed: 0,
+			testSuccessRate: 0,
 		}
 
 		let totalTasks = 0
@@ -54,6 +57,9 @@ export async function reportHandler(options: ReportOptions): Promise<void> {
 		let totalDuration = 0
 		let totalToolCalls = 0
 		let totalToolFailures = 0
+		let totalTests = 0
+		let totalTestsPassed = 0
+		let totalTestsFailed = 0
 
 		for (const run of runs) {
 			const tasks = db.getRunTasks(run.id)
@@ -72,6 +78,14 @@ export async function reportHandler(options: ReportOptions): Promise<void> {
 
 				totalCost += metrics.find((m) => m.name === "cost")?.value || 0
 				totalDuration += metrics.find((m) => m.name === "duration")?.value || 0
+
+				// Collect test metrics
+				const testsPassed = metrics.find((m) => m.name === "testsPassed")?.value || 0
+				const testsFailed = metrics.find((m) => m.name === "testsFailed")?.value || 0
+				const testsTotal = metrics.find((m) => m.name === "testsTotal")?.value || 0
+				totalTestsPassed += testsPassed
+				totalTestsFailed += testsFailed
+				totalTests += testsTotal
 
 				// Collect tool call metrics
 				totalToolCalls += task.total_tool_calls || 0
@@ -99,6 +113,12 @@ export async function reportHandler(options: ReportOptions): Promise<void> {
 		summary.totalToolFailures = totalToolFailures
 		summary.toolSuccessRate = totalToolCalls > 0 ? 1 - totalToolFailures / totalToolCalls : 1.0
 
+		// Calculate test metrics
+		summary.totalTests = totalTests
+		summary.totalTestsPassed = totalTestsPassed
+		summary.totalTestsFailed = totalTestsFailed
+		summary.testSuccessRate = totalTests > 0 ? totalTestsPassed / totalTests : 0
+
 		summary.tasks = totalTasks
 		summary.successRate = totalTasks > 0 ? successfulTasks / totalTasks : 0
 		summary.averageTokens = totalTasks > 0 ? totalTokens / totalTasks : 0
@@ -112,12 +132,15 @@ export async function reportHandler(options: ReportOptions): Promise<void> {
 			const benchmarkRuns = runs.filter((run) => run.benchmark === benchmark)
 			const benchmarkSummary = {
 				runs: benchmarkRuns.length,
-				models: [...new Set(benchmarkRuns.map((run) => run.model))],
 				tasks: 0,
 				successRate: 0,
 				averageTokens: 0,
 				averageCost: 0,
 				averageDuration: 0,
+				totalTests: 0,
+				totalTestsPassed: 0,
+				totalTestsFailed: 0,
+				testSuccessRate: 0,
 			}
 
 			let benchmarkTasks = 0
@@ -125,6 +148,9 @@ export async function reportHandler(options: ReportOptions): Promise<void> {
 			let benchmarkTotalTokens = 0
 			let benchmarkTotalCost = 0
 			let benchmarkTotalDuration = 0
+			let benchmarkTotalTests = 0
+			let benchmarkTotalTestsPassed = 0
+			let benchmarkTotalTestsFailed = 0
 
 			for (const run of benchmarkRuns) {
 				const tasks = db.getRunTasks(run.id)
@@ -143,6 +169,14 @@ export async function reportHandler(options: ReportOptions): Promise<void> {
 
 					benchmarkTotalCost += metrics.find((m) => m.name === "cost")?.value || 0
 					benchmarkTotalDuration += metrics.find((m) => m.name === "duration")?.value || 0
+
+					// Collect test metrics
+					const testsPassed = metrics.find((m) => m.name === "testsPassed")?.value || 0
+					const testsFailed = metrics.find((m) => m.name === "testsFailed")?.value || 0
+					const testsTotal = metrics.find((m) => m.name === "testsTotal")?.value || 0
+					benchmarkTotalTestsPassed += testsPassed
+					benchmarkTotalTestsFailed += testsFailed
+					benchmarkTotalTests += testsTotal
 				}
 			}
 
@@ -151,58 +185,12 @@ export async function reportHandler(options: ReportOptions): Promise<void> {
 			benchmarkSummary.averageTokens = benchmarkTasks > 0 ? benchmarkTotalTokens / benchmarkTasks : 0
 			benchmarkSummary.averageCost = benchmarkTasks > 0 ? benchmarkTotalCost / benchmarkTasks : 0
 			benchmarkSummary.averageDuration = benchmarkTasks > 0 ? benchmarkTotalDuration / benchmarkTasks : 0
+			benchmarkSummary.totalTests = benchmarkTotalTests
+			benchmarkSummary.totalTestsPassed = benchmarkTotalTestsPassed
+			benchmarkSummary.totalTestsFailed = benchmarkTotalTestsFailed
+			benchmarkSummary.testSuccessRate = benchmarkTotalTests > 0 ? benchmarkTotalTestsPassed / benchmarkTotalTests : 0
 
 			benchmarkReports[benchmark] = benchmarkSummary
-		}
-
-		// Generate model-specific reports
-		const modelReports: Record<string, any> = {}
-
-		for (const model of summary.models) {
-			const modelRuns = runs.filter((run) => run.model === model)
-			const modelSummary = {
-				runs: modelRuns.length,
-				benchmarks: [...new Set(modelRuns.map((run) => run.benchmark))],
-				tasks: 0,
-				successRate: 0,
-				averageTokens: 0,
-				averageCost: 0,
-				averageDuration: 0,
-			}
-
-			let modelTasks = 0
-			let modelSuccessfulTasks = 0
-			let modelTotalTokens = 0
-			let modelTotalCost = 0
-			let modelTotalDuration = 0
-
-			for (const run of modelRuns) {
-				const tasks = db.getRunTasks(run.id)
-				modelTasks += tasks.length
-
-				for (const task of tasks) {
-					if (task.success) {
-						modelSuccessfulTasks++
-					}
-
-					const metrics = db.getTaskMetrics(task.id)
-
-					const tokensIn = metrics.find((m) => m.name === "tokensIn")?.value || 0
-					const tokensOut = metrics.find((m) => m.name === "tokensOut")?.value || 0
-					modelTotalTokens += tokensIn + tokensOut
-
-					modelTotalCost += metrics.find((m) => m.name === "cost")?.value || 0
-					modelTotalDuration += metrics.find((m) => m.name === "duration")?.value || 0
-				}
-			}
-
-			modelSummary.tasks = modelTasks
-			modelSummary.successRate = modelTasks > 0 ? modelSuccessfulTasks / modelTasks : 0
-			modelSummary.averageTokens = modelTasks > 0 ? modelTotalTokens / modelTasks : 0
-			modelSummary.averageCost = modelTasks > 0 ? modelTotalCost / modelTasks : 0
-			modelSummary.averageDuration = modelTasks > 0 ? modelTotalDuration / modelTasks : 0
-
-			modelReports[model] = modelSummary
 		}
 
 		// Save reports
@@ -217,14 +205,12 @@ export async function reportHandler(options: ReportOptions): Promise<void> {
 
 			fs.writeFileSync(path.join(reportDir, `benchmarks-${timestamp}.json`), JSON.stringify(benchmarkReports, null, 2))
 
-			fs.writeFileSync(path.join(reportDir, `models-${timestamp}.json`), JSON.stringify(modelReports, null, 2))
-
 			spinner.succeed(`JSON reports generated in ${reportDir}`)
 		} else {
 			// Generate markdown report
 			const outputPath = options.output || path.join(reportDir, `report-${timestamp}.md`)
 
-			generateMarkdownReport(summary, benchmarkReports, modelReports, outputPath)
+			generateMarkdownReport(summary, benchmarkReports, outputPath)
 
 			spinner.succeed(`Markdown report generated at ${outputPath}`)
 		}

@@ -35,12 +35,17 @@ export async function updateTaskSettings(controller: Controller, request: Update
 	}
 
 	try {
-		// Ensure we have an active task
-		if (!controller.task) {
-			throw new Error("No active task to update settings for")
+		// Get taskId from request first, otherwise fall back to current task
+		let taskId: string
+		if (request.taskId) {
+			taskId = request.taskId
+		} else {
+			// Use current task if no taskId is provided
+			if (!controller.task) {
+				throw new Error("No active task to update settings for")
+			}
+			taskId = controller.task.taskId
 		}
-
-		const taskId = controller.task.ulid
 
 		if (request.settings) {
 			// Extract all special case fields that need dedicated handlers
@@ -71,13 +76,9 @@ export async function updateTaskSettings(controller: Controller, request: Update
 				const mergedSettings = {
 					...currentAutoApprovalSettings,
 					...(autoApprovalSettings.version !== undefined && { version: autoApprovalSettings.version }),
-					...(autoApprovalSettings.enabled !== undefined && { enabled: autoApprovalSettings.enabled }),
-					...(autoApprovalSettings.maxRequests !== undefined && { maxRequests: autoApprovalSettings.maxRequests }),
 					...(autoApprovalSettings.enableNotifications !== undefined && {
 						enableNotifications: autoApprovalSettings.enableNotifications,
 					}),
-					...(autoApprovalSettings.favorites &&
-						autoApprovalSettings.favorites.length > 0 && { favorites: autoApprovalSettings.favorites }),
 					actions: {
 						...currentAutoApprovalSettings.actions,
 						...(autoApprovalSettings.actions

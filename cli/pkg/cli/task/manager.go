@@ -282,7 +282,6 @@ func (m *Manager) CheckSendEnabled(ctx context.Context) error {
 	errorTypes := []string{
 		string(types.AskTypeAPIReqFailed),           // "api_req_failed"
 		string(types.AskTypeMistakeLimitReached),    // "mistake_limit_reached"
-		string(types.AskTypeAutoApprovalMaxReached), // "auto_approval_max_req_reached"
 	}
 
 	isError := false
@@ -1014,10 +1013,8 @@ func (m *Manager) processStateUpdate(stateUpdate *cline.State, coordinator *Stre
 		case msg.Type == types.MessageTypeAsk:
 			msgKey := fmt.Sprintf("%d", msg.Timestamp)
 			// Only render if not already handled by partial stream
-			if !coordinator.IsProcessedInCurrentTurn(msgKey) {
-				fmt.Println()
+			if !msg.Partial && !coordinator.IsProcessedInCurrentTurn(msgKey) {
 				m.displayMessage(msg, false, false, i)
-
 				coordinator.MarkProcessedInCurrentTurn(msgKey)
 			}
 		}
@@ -1237,6 +1234,44 @@ func (m *Manager) updateMode(stateJson string) {
 	m.mu.Lock()
 	m.currentMode = mode
 	m.mu.Unlock()
+}
+
+// UpdateTaskAutoApprovalAction enables a specific auto-approval action for the current task
+func (m *Manager) UpdateTaskAutoApprovalAction(ctx context.Context, actionKey string) error {
+	boolPtr := func(b bool) *bool { return &b }
+	
+	settings := &cline.Settings{
+		AutoApprovalSettings: &cline.AutoApprovalSettings{
+			Actions: &cline.AutoApprovalActions{},
+		},
+	}
+
+	// Set the specific action to true based on actionKey
+	truePtr := boolPtr(true)
+	
+	switch actionKey {
+	case "read_files":
+		settings.AutoApprovalSettings.Actions.ReadFiles = truePtr
+	case "edit_files":
+		settings.AutoApprovalSettings.Actions.EditFiles = truePtr
+	case "execute_all_commands":
+		settings.AutoApprovalSettings.Actions.ExecuteAllCommands = truePtr
+	case "use_browser":
+		settings.AutoApprovalSettings.Actions.UseBrowser = truePtr
+	case "use_mcp":
+		settings.AutoApprovalSettings.Actions.UseMcp = truePtr
+	default:
+		return fmt.Errorf("unknown auto-approval action: %s", actionKey)
+	}
+
+	_, err := m.client.State.UpdateTaskSettings(ctx, &cline.UpdateTaskSettingsRequest{
+		Settings: settings,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update task settings: %w", err)
+	}
+
+	return nil
 }
 
 // Cleanup cleans up resources

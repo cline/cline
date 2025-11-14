@@ -1,4 +1,5 @@
 import type { ToolUse } from "@core/assistant-message"
+import { CLINE_MCP_TOOL_IDENTIFIER } from "@/shared/mcp"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../index"
 import type { TaskConfig } from "./types/TaskConfig"
@@ -66,6 +67,10 @@ export class ToolExecutorCoordinator {
 	 * Get a handler for the given tool name
 	 */
 	getHandler(toolName: string): IToolHandler | undefined {
+		// HACK: Normalize MCP tool names to the standard handler
+		if (toolName.includes(CLINE_MCP_TOOL_IDENTIFIER)) {
+			toolName = ClineDefaultTool.MCP_USE
+		}
 		return this.handlers.get(toolName)
 	}
 

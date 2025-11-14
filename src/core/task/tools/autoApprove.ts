@@ -62,30 +62,28 @@ export class AutoApprove {
 
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 
-		if (autoApprovalSettings.enabled) {
-			switch (toolName) {
-				case ClineDefaultTool.FILE_READ:
-				case ClineDefaultTool.LIST_FILES:
-				case ClineDefaultTool.LIST_CODE_DEF:
-				case ClineDefaultTool.SEARCH:
-					return [autoApprovalSettings.actions.readFiles, autoApprovalSettings.actions.readFilesExternally ?? false]
-				case ClineDefaultTool.NEW_RULE:
-				case ClineDefaultTool.FILE_NEW:
-				case ClineDefaultTool.FILE_EDIT:
-					return [autoApprovalSettings.actions.editFiles, autoApprovalSettings.actions.editFilesExternally ?? false]
-				case ClineDefaultTool.BASH:
-					return [
-						autoApprovalSettings.actions.executeSafeCommands ?? false,
-						autoApprovalSettings.actions.executeAllCommands ?? false,
-					]
-				case ClineDefaultTool.BROWSER:
-					return autoApprovalSettings.actions.useBrowser
-				case ClineDefaultTool.WEB_FETCH:
-					return autoApprovalSettings.actions.useBrowser
-				case ClineDefaultTool.MCP_ACCESS:
-				case ClineDefaultTool.MCP_USE:
-					return autoApprovalSettings.actions.useMcp
-			}
+		switch (toolName) {
+			case ClineDefaultTool.FILE_READ:
+			case ClineDefaultTool.LIST_FILES:
+			case ClineDefaultTool.LIST_CODE_DEF:
+			case ClineDefaultTool.SEARCH:
+				return [autoApprovalSettings.actions.readFiles, autoApprovalSettings.actions.readFilesExternally ?? false]
+			case ClineDefaultTool.NEW_RULE:
+			case ClineDefaultTool.FILE_NEW:
+			case ClineDefaultTool.FILE_EDIT:
+				return [autoApprovalSettings.actions.editFiles, autoApprovalSettings.actions.editFilesExternally ?? false]
+			case ClineDefaultTool.BASH:
+				return [
+					autoApprovalSettings.actions.executeSafeCommands ?? false,
+					autoApprovalSettings.actions.executeAllCommands ?? false,
+				]
+			case ClineDefaultTool.BROWSER:
+				return autoApprovalSettings.actions.useBrowser
+			case ClineDefaultTool.WEB_FETCH:
+				return autoApprovalSettings.actions.useBrowser
+			case ClineDefaultTool.MCP_ACCESS:
+			case ClineDefaultTool.MCP_USE:
+				return autoApprovalSettings.actions.useMcp
 		}
 		return false
 	}

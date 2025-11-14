@@ -6,11 +6,12 @@ import { VSCodeButton, VSCodeDivider, VSCodeDropdown, VSCodeOption, VSCodeTag } 
 import deepEqual from "fast-deep-equal"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useInterval } from "react-use"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { type ClineUser, handleSignOut } from "@/context/ClineAuthContext"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { cn } from "@/lib/utils"
 import { AccountServiceClient } from "@/services/grpc-client"
-import { getEnvironmentColor } from "@/utils/environmentColors"
-import HeroTooltip from "../common/HeroTooltip"
+import { getClineEnvironmentClassname } from "@/utils/environmentColors"
 import VSCodeButtonLink from "../common/VSCodeButtonLink"
 import { updateSetting } from "../settings/utils/settingsHandlers"
 import { AccountWelcomeView } from "./AccountWelcomeView"
@@ -43,17 +44,17 @@ const ClineEnvOptions = ["Production", "Staging", "Local"] as const
 
 const AccountView = ({ onDone, clineUser, organizations, activeOrganization }: AccountViewProps) => {
 	const { environment } = useExtensionState()
-	const titleColor = getEnvironmentColor(environment)
+	const titleColor = getClineEnvironmentClassname(environment)
 
 	return (
 		<div className="fixed inset-0 flex flex-col overflow-hidden pt-[10px] pl-[20px]">
 			<div className="flex justify-between items-center mb-[17px] pr-[17px]">
-				<h3 className="m-0" style={{ color: titleColor }}>
+				<h3 className={cn("text-(--vscode-foreground) m-0", titleColor)}>
 					Account {environment !== "production" ? ` - ${environment} environment` : ""}
 				</h3>
 				<VSCodeButton onClick={onDone}>Done</VSCodeButton>
 			</div>
-			<div className="flex-grow overflow-hidden pr-[8px] flex flex-col">
+			<div className="grow overflow-hidden pr-[8px] flex flex-col">
 				<div className="h-full mb-1.5">
 					{clineUser?.uid ? (
 						<ClineAccountView
@@ -317,21 +318,19 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 						{/* {user.photoUrl ? (
 								<img src={user.photoUrl} alt="Profile" className="size-16 rounded-full mr-4" />
 							) : ( */}
-						<div className="size-16 rounded-full bg-button-background flex items-center justify-center text-2xl text-[var(--vscode-button-foreground)] mr-4">
+						<div className="size-16 rounded-full bg-button-background flex items-center justify-center text-2xl text-button-foreground mr-4">
 							{displayName?.[0] || email?.[0] || "?"}
 						</div>
 						{/* )} */}
 
 						<div className="flex flex-col">
-							{displayName && (
-								<h2 className="text-foreground m-0 text-lg font-medium flex items-center">{displayName}</h2>
-							)}
+							{displayName && <h2 className="text-foreground m-0 text-lg font-medium">{displayName}</h2>}
 
-							{email && <div className="text-sm text-[var(--vscode-descriptionForeground)]">{email}</div>}
+							{email && <div className="text-sm text-description">{email}</div>}
 
 							<div className="flex gap-2 items-center mt-1">
-								{isLockedByRemoteConfig ? (
-									<HeroTooltip content="This cannot be changed while your organization has remote configuration enabled.">
+								<Tooltip>
+									<TooltipTrigger>
 										<VSCodeDropdown
 											className="w-full"
 											currentValue={dropdownValue}
@@ -346,23 +345,11 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 												</VSCodeOption>
 											))}
 										</VSCodeDropdown>
-									</HeroTooltip>
-								) : (
-									<VSCodeDropdown
-										className="w-full"
-										currentValue={dropdownValue}
-										disabled={isLoading}
-										onChange={handleOrganizationChange}>
-										<VSCodeOption key="personal" value={uid}>
-											Personal
-										</VSCodeOption>
-										{userOrganizations?.map((org: UserOrganization) => (
-											<VSCodeOption key={org.organizationId} value={org.organizationId}>
-												{org.name}
-											</VSCodeOption>
-										))}
-									</VSCodeDropdown>
-								)}
+									</TooltipTrigger>
+									<TooltipContent hidden={!isLockedByRemoteConfig}>
+										This cannot be changed while your organization has remote configuration enabled.
+									</TooltipContent>
+								</Tooltip>
 								{activeOrganization && (
 									<VSCodeTag className="text-xs p-2" title="Role">
 										{getMainRole(activeOrganization.roles)}
@@ -396,7 +383,7 @@ export const ClineAccountView = ({ clineUser, userOrganizations, activeOrganizat
 
 				<VSCodeDivider className="mt-6 mb-3 w-full" />
 
-				<div className="flex-grow flex flex-col min-h-0 pb-[0px]">
+				<div className="grow flex flex-col min-h-0 pb-[0px]">
 					<CreditsHistoryTable
 						isLoading={isLoading}
 						paymentsData={paymentsData}

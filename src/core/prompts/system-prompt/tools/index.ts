@@ -1,4 +1,6 @@
 export * from "./access_mcp_resource"
+export * from "./act_mode_respond"
+export * from "./apply_patch"
 export * from "./ask_followup_question"
 export * from "./attempt_completion"
 export * from "./browser_action"

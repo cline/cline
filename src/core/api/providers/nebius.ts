@@ -1,11 +1,14 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { type ModelInfo, type NebiusModelId, nebiusDefaultModelId, nebiusModels } from "@shared/api"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface NebiusHandlerOptions extends CommonApiHandlerOptions {
 	nebiusApiKey?: string
@@ -26,6 +29,7 @@ export class NebiusHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: "https://api.studio.nebius.ai/v1",
 					apiKey: this.options.nebiusApiKey,
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating Nebius client: ${error.message}`)
@@ -35,7 +39,7 @@ export class NebiusHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
@@ -49,7 +53,9 @@ export class NebiusHandler implements ApiHandler {
 			temperature: 0,
 			stream: true,
 			stream_options: { include_usage: true },
+			...getOpenAIToolParams(tools),
 		})
+		const toolCallProcessor = new ToolCallProcessor()
 		for await (const chunk of stream) {
 			const delta = chunk.choices[0]?.delta
 			if (delta?.content) {
@@ -57,6 +63,10 @@ export class NebiusHandler implements ApiHandler {
 					type: "text",
 					text: delta.content,
 				}
+			}
+
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 			}
 
 			if (delta && "reasoning_content" in delta && delta.reasoning_content) {

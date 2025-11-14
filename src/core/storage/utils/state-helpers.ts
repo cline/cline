@@ -2,6 +2,7 @@ import { ANTHROPIC_MIN_THINKING_BUDGET, ApiProvider, fireworksDefaultModelId, ty
 import { GlobalStateAndSettings, LocalState, SecretKey, Secrets } from "@shared/storage/state-keys"
 import { ExtensionContext } from "vscode"
 import { Controller } from "@/core/controller"
+import { getHooksEnabledSafe } from "@/core/hooks/hooks-utils"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@/shared/AutoApprovalSettings"
 import { DEFAULT_BROWSER_SETTINGS } from "@/shared/BrowserSettings"
 import { ClineRulesToggles } from "@/shared/cline-rules"
@@ -50,6 +51,11 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		authNonce,
 		ocaApiKey,
 		ocaRefreshToken,
+		minimaxApiKey,
+		hicapApiKey,
+		aihubmixApiKey,
+		mcpOAuthSecrets,
+		nousResearchApiKey,
 	] = await Promise.all([
 		context.secrets.get("apiKey") as Promise<Secrets["apiKey"]>,
 		context.secrets.get("openRouterApiKey") as Promise<Secrets["openRouterApiKey"]>,
@@ -89,6 +95,11 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		context.secrets.get("authNonce") as Promise<Secrets["authNonce"]>,
 		context.secrets.get("ocaApiKey") as Promise<string | undefined>,
 		context.secrets.get("ocaRefreshToken") as Promise<string | undefined>,
+		context.secrets.get("minimaxApiKey") as Promise<Secrets["minimaxApiKey"]>,
+		context.secrets.get("hicapApiKey") as Promise<Secrets["hicapApiKey"]>,
+		context.secrets.get("aihubmixApiKey") as Promise<Secrets["aihubmixApiKey"]>,
+		context.secrets.get("mcpOAuthSecrets") as Promise<Secrets["mcpOAuthSecrets"]>,
+		context.secrets.get("nousResearchApiKey") as Promise<Secrets["nousResearchApiKey"]>,
 	])
 
 	return {
@@ -130,6 +141,11 @@ export async function readSecretsFromDisk(context: ExtensionContext): Promise<Se
 		awsSessionToken,
 		ocaApiKey,
 		ocaRefreshToken,
+		minimaxApiKey,
+		hicapApiKey,
+		aihubmixApiKey,
+		mcpOAuthSecrets,
+		nousResearchApiKey,
 	}
 }
 
@@ -137,12 +153,14 @@ export async function readWorkspaceStateFromDisk(context: ExtensionContext): Pro
 	const localClineRulesToggles = context.workspaceState.get("localClineRulesToggles") as ClineRulesToggles | undefined
 	const localWindsurfRulesToggles = context.workspaceState.get("localWindsurfRulesToggles") as ClineRulesToggles | undefined
 	const localCursorRulesToggles = context.workspaceState.get("localCursorRulesToggles") as ClineRulesToggles | undefined
+	const localAgentsRulesToggles = context.workspaceState.get("localAgentsRulesToggles") as ClineRulesToggles | undefined
 	const localWorkflowToggles = context.workspaceState.get("workflowToggles") as ClineRulesToggles | undefined
 
 	return {
 		localClineRulesToggles: localClineRulesToggles || {},
 		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 		localCursorRulesToggles: localCursorRulesToggles || {},
+		localAgentsRulesToggles: localAgentsRulesToggles || {},
 		workflowToggles: localWorkflowToggles || {},
 	}
 }
@@ -200,6 +218,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const qwenApiLine = context.globalState.get<GlobalStateAndSettings["qwenApiLine"]>("qwenApiLine")
 		const moonshotApiLine = context.globalState.get<GlobalStateAndSettings["moonshotApiLine"]>("moonshotApiLine")
 		const zaiApiLine = context.globalState.get<GlobalStateAndSettings["zaiApiLine"]>("zaiApiLine")
+		const minimaxApiLine = context.globalState.get<GlobalStateAndSettings["minimaxApiLine"]>("minimaxApiLine")
 		const telemetrySetting = context.globalState.get<GlobalStateAndSettings["telemetrySetting"]>("telemetrySetting")
 		const asksageApiUrl = context.globalState.get<GlobalStateAndSettings["asksageApiUrl"]>("asksageApiUrl")
 		const planActSeparateModelsSettingRaw =
@@ -258,6 +277,9 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const autoCondenseThreshold =
 			context.globalState.get<GlobalStateAndSettings["autoCondenseThreshold"]>("autoCondenseThreshold") // number from 0 to 1
 		const hooksEnabled = context.globalState.get<GlobalStateAndSettings["hooksEnabled"]>("hooksEnabled")
+		const hicapModelId = context.globalState.get<GlobalStateAndSettings["hicapModelId"]>("hicapModelId")
+		const aihubmixBaseUrl = context.globalState.get<GlobalStateAndSettings["aihubmixBaseUrl"]>("aihubmixBaseUrl")
+		const aihubmixAppCode = context.globalState.get<GlobalStateAndSettings["aihubmixAppCode"]>("aihubmixAppCode")
 
 		// OpenTelemetry configuration
 		const openTelemetryEnabled =
@@ -355,13 +377,18 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["planModeBasetenModelId"]>("planModeBasetenModelId")
 		const planModeBasetenModelInfo =
 			context.globalState.get<GlobalStateAndSettings["planModeBasetenModelInfo"]>("planModeBasetenModelInfo")
-		const planModeVercelAiGatewayModelId =
-			context.globalState.get<GlobalStateAndSettings["planModeVercelAiGatewayModelId"]>("planModeVercelAiGatewayModelId")
-		const planModeVercelAiGatewayModelInfo = context.globalState.get<
-			GlobalStateAndSettings["planModeVercelAiGatewayModelInfo"]
-		>("planModeVercelAiGatewayModelInfo")
 		const planModeOcaModelId = context.globalState.get("planModeOcaModelId") as string | undefined
 		const planModeOcaModelInfo = context.globalState.get("planModeOcaModelInfo") as OcaModelInfo | undefined
+		const planModeHicapModelId =
+			context.globalState.get<GlobalStateAndSettings["planModeHicapModelId"]>("planModeHicapModelId")
+		const planModeHicapModelInfo =
+			context.globalState.get<GlobalStateAndSettings["planModeHicapModelInfo"]>("planModeHicapModelInfo")
+		const planModeAihubmixModelId =
+			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelId"]>("planModeAihubmixModelId")
+		const planModeAihubmixModelInfo =
+			context.globalState.get<GlobalStateAndSettings["planModeAihubmixModelInfo"]>("planModeAihubmixModelInfo")
+		const planModeNousResearchModelId =
+			context.globalState.get<GlobalStateAndSettings["planModeNousResearchModelId"]>("planModeNousResearchModelId")
 		// Act mode configurations
 		const actModeApiProvider = context.globalState.get<GlobalStateAndSettings["actModeApiProvider"]>("actModeApiProvider")
 		const actModeApiModelId = context.globalState.get<GlobalStateAndSettings["actModeApiModelId"]>("actModeApiModelId")
@@ -421,15 +448,19 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["actModeBasetenModelId"]>("actModeBasetenModelId")
 		const actModeBasetenModelInfo =
 			context.globalState.get<GlobalStateAndSettings["actModeBasetenModelInfo"]>("actModeBasetenModelInfo")
-		const actModeVercelAiGatewayModelId =
-			context.globalState.get<GlobalStateAndSettings["actModeVercelAiGatewayModelId"]>("actModeVercelAiGatewayModelId")
-		const actModeVercelAiGatewayModelInfo = context.globalState.get<
-			GlobalStateAndSettings["actModeVercelAiGatewayModelInfo"]
-		>("actModeVercelAiGatewayModelInfo")
 		const actModeOcaModelId = context.globalState.get("actModeOcaModelId") as string | undefined
 		const actModeOcaModelInfo = context.globalState.get("actModeOcaModelInfo") as OcaModelInfo | undefined
+		const actModeNousResearchModelId =
+			context.globalState.get<GlobalStateAndSettings["actModeNousResearchModelId"]>("actModeNousResearchModelId")
 		const sapAiCoreUseOrchestrationMode =
 			context.globalState.get<GlobalStateAndSettings["sapAiCoreUseOrchestrationMode"]>("sapAiCoreUseOrchestrationMode")
+		const actModeHicapModelId = context.globalState.get<GlobalStateAndSettings["actModeHicapModelId"]>("actModeHicapModelId")
+		const actModeHicapModelInfo =
+			context.globalState.get<GlobalStateAndSettings["actModeHicapModelInfo"]>("actModeHicapModelInfo")
+		const actModeAihubmixModelId =
+			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelId"]>("actModeAihubmixModelId")
+		const actModeAihubmixModelInfo =
+			context.globalState.get<GlobalStateAndSettings["actModeAihubmixModelInfo"]>("actModeAihubmixModelInfo")
 
 		let apiProvider: ApiProvider
 		if (planModeApiProvider) {
@@ -464,6 +495,11 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		 */
 		const primaryRootIndex = context.globalState.get<GlobalStateAndSettings["primaryRootIndex"]>("primaryRootIndex")
 		const multiRootEnabled = context.globalState.get<GlobalStateAndSettings["multiRootEnabled"]>("multiRootEnabled")
+		const nativeToolCallEnabled =
+			context.globalState.get<GlobalStateAndSettings["nativeToolCallEnabled"]>("nativeToolCallEnabled")
+		const remoteRulesToggles = context.globalState.get<GlobalStateAndSettings["remoteRulesToggles"]>("remoteRulesToggles")
+		const remoteWorkflowToggles =
+			context.globalState.get<GlobalStateAndSettings["remoteWorkflowToggles"]>("remoteWorkflowToggles")
 
 		return {
 			// api configuration fields
@@ -505,7 +541,11 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			difyBaseUrl,
 			sapAiCoreUseOrchestrationMode: sapAiCoreUseOrchestrationMode ?? true,
 			ocaBaseUrl,
+			minimaxApiLine,
 			ocaMode: ocaMode || "internal",
+			hicapModelId,
+			aihubmixBaseUrl,
+			aihubmixAppCode,
 			// Plan mode configurations
 			planModeApiProvider: planModeApiProvider || apiProvider,
 			planModeApiModelId,
@@ -538,10 +578,13 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			planModeHuaweiCloudMaasModelInfo,
 			planModeBasetenModelId,
 			planModeBasetenModelInfo,
-			planModeVercelAiGatewayModelId,
-			planModeVercelAiGatewayModelInfo,
 			planModeOcaModelId,
 			planModeOcaModelInfo,
+			planModeHicapModelId,
+			planModeHicapModelInfo,
+			planModeAihubmixModelId,
+			planModeAihubmixModelInfo,
+			planModeNousResearchModelId,
 			// Act mode configurations
 			actModeApiProvider: actModeApiProvider || apiProvider,
 			actModeApiModelId,
@@ -572,10 +615,13 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			actModeHuaweiCloudMaasModelInfo,
 			actModeBasetenModelId,
 			actModeBasetenModelInfo,
-			actModeVercelAiGatewayModelId,
-			actModeVercelAiGatewayModelInfo,
 			actModeOcaModelId,
 			actModeOcaModelInfo,
+			actModeHicapModelId,
+			actModeHicapModelInfo,
+			actModeAihubmixModelId,
+			actModeAihubmixModelInfo,
+			actModeNousResearchModelId,
 
 			// Other global fields
 			focusChainSettings: focusChainSettings || DEFAULT_FOCUS_CHAIN_SETTINGS,
@@ -611,12 +657,13 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			qwenCodeOauthPath,
 			customPrompt,
 			autoCondenseThreshold: autoCondenseThreshold || 0.75, // default to 0.75 if not set
-			// Hooks require explicit user opt-in
-			hooksEnabled: hooksEnabled ?? false,
+			// Hooks require explicit user opt-in and are only supported on macOS/Linux
+			hooksEnabled: getHooksEnabledSafe(hooksEnabled),
 			subagentsEnabled: subagentsEnabled ?? false,
 			lastDismissedInfoBannerVersion: lastDismissedInfoBannerVersion ?? 0,
 			lastDismissedModelBannerVersion: lastDismissedModelBannerVersion ?? 0,
 			lastDismissedCliBannerVersion: lastDismissedCliBannerVersion ?? 0,
+			nativeToolCallEnabled: nativeToolCallEnabled ?? false,
 			// Multi-root workspace support
 			workspaceRoots,
 			primaryRootIndex: primaryRootIndex ?? 0,
@@ -639,6 +686,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			openTelemetryLogBatchSize: openTelemetryLogBatchSize ?? 512,
 			openTelemetryLogBatchTimeout: openTelemetryLogBatchTimeout ?? 5000,
 			openTelemetryLogMaxQueueSize: openTelemetryLogMaxQueueSize ?? 2048,
+			remoteRulesToggles: remoteRulesToggles || {},
+			remoteWorkflowToggles: remoteWorkflowToggles || {},
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)
@@ -693,6 +742,11 @@ export async function resetGlobalState(controller: Controller) {
 		"difyApiKey",
 		"ocaApiKey",
 		"ocaRefreshToken",
+		"minimaxApiKey",
+		"hicapApiKey",
+		"aihubmixApiKey",
+		"mcpOAuthSecrets",
+		"nousResearchApiKey",
 	]
 	await Promise.all(secretKeys.map((key) => context.secrets.delete(key)))
 	await controller.stateManager.reInitialize()

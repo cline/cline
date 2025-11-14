@@ -101,10 +101,7 @@ see the manual page: man cline`,
 				if !isUserReadyToUse(ctx, instanceAddress) {
 					// Create renderer for welcome messages
 					renderer := display.NewRenderer(global.Config.OutputFormat)
-
-					markdown := "## hey there! looks like you're new here. let's get you set up"
-					rendered := renderer.RenderMarkdown(markdown)
-					fmt.Printf("\n%s\n\n", rendered)
+					fmt.Printf("\n%s\n\n", renderer.Dim("Hey there! Looks like you're new here. Let's get you set up"))
 
 					if err := auth.HandleAuthMenuNoArgs(ctx); err != nil {
 						// Check if user cancelled - exit cleanly
@@ -119,9 +116,7 @@ see the manual page: man cline`,
 						return fmt.Errorf("credentials still not configured - please run 'cline auth' to complete setup")
 					}
 
-					markdown = "## ✓ setup complete, you can now use the cline cli"
-					rendered = renderer.RenderMarkdown(markdown)
-					fmt.Printf("\n%s\n\n", rendered)
+					fmt.Printf("\n%s\n\n", renderer.Dim("✓ Setup complete, you can now use the Cline CLI"))
 				}
 			} else {
 				// User specified --address flag, use that
@@ -187,6 +182,7 @@ see the manual page: man cline`,
 	rootCmd.AddCommand(cli.NewVersionCommand())
 	rootCmd.AddCommand(cli.NewAuthCommand())
 	rootCmd.AddCommand(cli.NewLogsCommand())
+	// rootCmd.AddCommand(cli.NewDoctorCommand()) // Disabled for now
 
 	if err := rootCmd.ExecuteContext(context.Background()); err != nil {
 		os.Exit(1)
@@ -331,17 +327,20 @@ func getContentFromStdinAndArgs(args []string) (string, error) {
 
 	// Check if data is being piped to stdin
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		stdinBytes, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			return "", fmt.Errorf("failed to read from stdin: %w", err)
-		}
-
-		stdinContent := strings.TrimSpace(string(stdinBytes))
-		if stdinContent != "" {
-			if content.Len() > 0 {
-				content.WriteString(" ")
+		// Only try to read if there's actually data available
+		if stat.Size() > 0 {
+			stdinBytes, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				return "", fmt.Errorf("failed to read from stdin: %w", err)
 			}
-			content.WriteString(stdinContent)
+
+			stdinContent := strings.TrimSpace(string(stdinBytes))
+			if stdinContent != "" {
+				if content.Len() > 0 {
+					content.WriteString(" ")
+				}
+				content.WriteString(stdinContent)
+			}
 		}
 	}
 
