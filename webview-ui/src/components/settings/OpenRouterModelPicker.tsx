@@ -61,6 +61,12 @@ const featuredModels = [
 		label: "Trending",
 	},
 	{
+		id: "minimax/minimax-m2",
+		description: "Compact, high-efficiency model optimized for coding and agentic workflows",
+		label: "Free",
+		isFree: true,
+	},
+	{
 		id: "x-ai/grok-code-fast-1",
 		description: "Advanced model with 262K context for complex coding",
 		label: "Free",
