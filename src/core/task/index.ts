@@ -2061,8 +2061,6 @@ export class Task {
 			enableNativeToolCalls: nativeToolCallsGloballyEnabled || inferredNativeToolCalls,
 		}
 
-		console.log(this.stateManager.getGlobalSettingsKey("clineWebToolsEnabled"))
-
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
 		this.useNativeToolCalls = !!tools?.length
 
