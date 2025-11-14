@@ -12,6 +12,7 @@ import { DictationSettings } from "./DictationSettings"
 import { FocusChainSettings } from "./FocusChainSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
+import { ClineMessageModelInfo } from "./messages/content"
 import { Mode, OpenaiReasoningEffort } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
@@ -80,6 +81,7 @@ export interface ExtensionState {
 	localWindsurfRulesToggles: ClineRulesToggles
 	remoteRulesToggles?: ClineRulesToggles
 	remoteWorkflowToggles?: ClineRulesToggles
+	localAgentsRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
 	strictPlanModeEnabled?: boolean
 	yoloModeToggled?: boolean
@@ -119,11 +121,13 @@ export interface ClineMessage {
 	isOperationOutsideWorkspace?: boolean
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
+	modelInfo?: ClineMessageModelInfo
 }
 
 export type ClineAsk =
 	| "followup"
 	| "plan_mode_respond"
+	| "act_mode_respond"
 	| "command"
 	| "command_output"
 	| "completion_result"

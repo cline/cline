@@ -1,4 +1,4 @@
-import { isGPT5ModelFamily, isNextGenModelProvider } from "@utils/model-utils"
+import { isGPT5ModelFamily, isGPT51Model, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -26,7 +26,12 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		const modelId = providerInfo.model.id
 
 		// gpt-5-chat models do not support native tool use
-		return isGPT5ModelFamily(modelId) && !modelId.includes("chat") && isNextGenModelProvider(providerInfo)
+		return (
+			isGPT5ModelFamily(modelId) &&
+			!isGPT51Model(modelId) &&
+			!modelId.includes("chat") &&
+			isNextGenModelProvider(providerInfo)
+		)
 	})
 	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
 	.components(

@@ -1,8 +1,9 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { RuleFileRequest } from "@shared/proto/index.cline"
-import { PenIcon, Trash2Icon } from "lucide-react"
+import { InfoIcon, PenIcon, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
 
@@ -60,6 +61,20 @@ const RuleRow: React.FC<{
 						</g>
 					</svg>
 				)
+			case "agents":
+				return (
+					<svg
+						height="16"
+						style={{ verticalAlign: "middle" }}
+						viewBox="0 0 24 24"
+						width="16"
+						xmlns="http://www.w3.org/2000/svg">
+						<g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5">
+							<circle cx="12" cy="8" r="3" />
+							<path d="M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z" />
+						</g>
+					</svg>
+				)
 			default:
 				return null
 		}
@@ -90,39 +105,46 @@ const RuleRow: React.FC<{
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1" title={rulePath}>
 					{getRuleTypeIcon() && <span className="mr-1.5">{getRuleTypeIcon()}</span>}
 					<span className="ph-no-capture">{finalDisplayName}</span>
+					{ruleType === "agents" && (
+						<Tooltip>
+							<TooltipTrigger asChild className="items-center cursor-help">
+								<InfoIcon className="ml-1.5 opacity-70 size-2" />
+							</TooltipTrigger>
+							<TooltipContent>
+								Searches recursively for all AGENTS.md files in the workspace when a top-level AGENTS.md exists
+							</TooltipContent>
+						</Tooltip>
+					)}
 				</span>
 
 				{/* Toggle Switch */}
-				<div className="flex items-center space-x-2">
+				<div className="flex items-center space-x-2 gap-2">
 					<Switch
 						checked={enabled}
-						disabled={isDisabled}
+						className="mx-1"
+						disabled={isRemote}
 						key={rulePath}
 						onClick={() => toggleRule(rulePath, !enabled)}
 						title={isDisabled ? "This rule is required and cannot be disabled" : undefined}
 					/>
-					{!isRemote && (
-						<div>
-							<Button
-								aria-label="Edit rule file"
-								disabled={isDisabled}
-								onClick={handleEditClick}
-								size="xs"
-								title="Edit rule file"
-								variant="icon">
-								<PenIcon />
-							</Button>
-							<Button
-								aria-label="Delete rule file"
-								disabled={isDisabled}
-								onClick={handleDeleteClick}
-								size="xs"
-								title="Delete rule file"
-								variant="icon">
-								<Trash2Icon />
-							</Button>
-						</div>
-					)}
+					<Button
+						aria-label="Edit rule file"
+						disabled={isRemote}
+						onClick={handleEditClick}
+						size="xs"
+						title="Edit rule file"
+						variant="icon">
+						<PenIcon />
+					</Button>
+					<Button
+						aria-label="Delete rule file"
+						disabled={isRemote}
+						onClick={handleDeleteClick}
+						size="xs"
+						title="Delete rule file"
+						variant="icon">
+						<Trash2Icon />
+					</Button>
 				</div>
 			</div>
 		</div>
