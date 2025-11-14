@@ -74,10 +74,6 @@ export class FeatureFlagsService {
 		return this.cache.get(flagName) === true
 	}
 
-	public getWorkOsAuthEnabled(): boolean {
-		return this.getBooleanFlagEnabled(FeatureFlag.WORKOS_AUTH)
-	}
-
 	public getDoNothingFlag(): boolean {
 		return this.getBooleanFlagEnabled(FeatureFlag.DO_NOTHING)
 	}
