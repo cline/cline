@@ -2,8 +2,6 @@
 
 ## 3.37.1
 
-### Patch Changes
-
 - cf8dd1c: Comprehensive changes to better support GPT 5.1 - System prompt, tools, deep-planning, focus chain, etc.
 - 02abbcf: Add AGENTS.md support
 - 855db7d: feat(models): Add free minimax/mimax-m2 model to the model picker
