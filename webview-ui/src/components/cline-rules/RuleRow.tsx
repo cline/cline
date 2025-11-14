@@ -1,6 +1,7 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { RuleFileRequest } from "@shared/proto/index.cline"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { FileServiceClient } from "@/services/grpc-client"
 
 const RuleRow: React.FC<{
@@ -57,6 +58,20 @@ const RuleRow: React.FC<{
 						</g>
 					</svg>
 				)
+			case "agents":
+				return (
+					<svg
+						height="16"
+						style={{ verticalAlign: "middle" }}
+						viewBox="0 0 24 24"
+						width="16"
+						xmlns="http://www.w3.org/2000/svg">
+						<g fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5">
+							<circle cx="12" cy="8" r="3" />
+							<path d="M12 14c-4 0-6 2-6 4v2h12v-2c0-2-2-4-6-4z" />
+						</g>
+					</svg>
+				)
 			default:
 				return null
 		}
@@ -87,6 +102,18 @@ const RuleRow: React.FC<{
 				<span className="flex-1 overflow-hidden break-all whitespace-normal flex items-center mr-1" title={rulePath}>
 					{getRuleTypeIcon() && <span className="mr-1.5">{getRuleTypeIcon()}</span>}
 					<span className="ph-no-capture">{finalDisplayName}</span>
+					{ruleType === "agents" && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="mt-1 ml-1.5 cursor-help">
+									<i className="codicon codicon-info" style={{ fontSize: "12px", opacity: 0.7 }} />
+								</span>
+							</TooltipTrigger>
+							<TooltipContent>
+								Searches recursively for all AGENTS.md files in the workspace when a top-level AGENTS.md exists
+							</TooltipContent>
+						</Tooltip>
+					)}
 				</span>
 
 				{/* Toggle Switch */}

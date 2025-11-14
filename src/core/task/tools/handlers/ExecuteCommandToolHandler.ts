@@ -205,6 +205,18 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 			)
 		}
 
+		// Run PreToolUse hook after approval but before execution
+		try {
+			const { ToolHookUtils } = await import("../utils/ToolHookUtils")
+			await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		} catch (error) {
+			const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+			if (error instanceof PreToolUseHookCancellationError) {
+				return formatResponse.toolDenied()
+			}
+			throw error
+		}
+
 		// Setup timeout notification for long-running auto-approved commands
 		let timeoutId: NodeJS.Timeout | undefined
 		if (didAutoApprove && config.autoApprovalSettings.enableNotifications) {
