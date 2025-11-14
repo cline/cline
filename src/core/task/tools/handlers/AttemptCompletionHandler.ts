@@ -93,7 +93,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		}
 
 		// Remove any partial completion_result message that may exist
-		// PreToolUse hook inserts messages after the partial, so we need to search backwards to find it
+		// Search backwards since other messages may have been inserted after the partial
 		const clineMessages = config.messageState.getClineMessages()
 		const partialCompletionIndex = findLastIndex(
 			clineMessages,

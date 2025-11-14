@@ -25,6 +25,10 @@ export class ToolHookUtils {
 			return true // Hooks disabled, continue execution
 		}
 
+		if (block.name == "attempt_completion") {
+			return true // Skip this hook
+		}
+
 		// Import the hook executor dynamically
 		const { executeHook } = await import("@core/hooks/hook-executor")
 
