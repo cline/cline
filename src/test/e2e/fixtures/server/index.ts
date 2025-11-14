@@ -157,7 +157,7 @@ export class ClineApiServerMock {
 
 			// Authentication middleware
 			const authHeader = req.headers.authorization
-			const isAuthRequired = !path.startsWith("/.test/") && path !== "/health"
+			const isAuthRequired = !path.startsWith("/.test/") && path !== "/health" && path !== "/api/v1/auth/token"
 
 			if (isAuthRequired && (!authHeader || !authHeader.startsWith("Bearer "))) {
 				return sendApiError("Unauthorized", 401)
@@ -296,6 +296,71 @@ export class ClineApiServerMock {
 						return sendApiResponse("Account switched successfully")
 					}
 
+					// Auth token exchange endpoint
+					if (endpoint === "/auth/token" && method === "POST") {
+						const body = await readBody()
+						const parsed = JSON.parse(body)
+						const { code, grantType } = parsed
+
+						if (grantType !== "authorization_code" || !code) {
+							return sendApiError("Invalid request", 400)
+						}
+
+						const user = controller.API_USER.getUserByToken(code)
+						if (!user) {
+							return sendApiError("Invalid or expired authorization code", 400)
+						}
+
+						// Return format matching ClineAuthProvider expectations
+						return sendApiResponse({
+							accessToken: code + "_access",
+							refreshToken: code + "_refresh",
+							tokenType: "Bearer",
+							expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(), // 1 hour from now
+							userInfo: {
+								subject: user.id,
+								email: user.email,
+								name: user.displayName,
+								clineUserId: user.id,
+								accounts: null,
+								organizations: user.organizations,
+							},
+						})
+					}
+
+					// Auth refresh token endpoint
+					if (endpoint === "/auth/refresh" && method === "POST") {
+						const body = await readBody()
+						const parsed = JSON.parse(body)
+						const { refreshToken, grantType } = parsed
+
+						if (grantType !== "refresh_token" || !refreshToken) {
+							return sendApiError("Invalid request", 400)
+						}
+
+						// Extract original token from refresh token
+						const originalToken = refreshToken.replace("_refresh", "")
+						const user = controller.API_USER.getUserByToken(originalToken)
+						if (!user) {
+							return sendApiError("Invalid or expired refresh token", 400)
+						}
+
+						// Return format matching ClineAuthProvider expectations
+						return sendApiResponse({
+							accessToken: originalToken + "_access_refreshed",
+							refreshToken: refreshToken, // Keep same refresh token
+							tokenType: "Bearer",
+							expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(), // 1 hour from now
+							userInfo: {
+								subject: user.id,
+								email: user.email,
+								name: user.displayName,
+								clineUserId: user.id,
+								accounts: null,
+							},
+						})
+					}
+
 					// Chat completions endpoint
 					if (endpoint === "/chat/completions" && method === "POST") {
 						if (!controller.userHasOrganization && controller.userBalance <= 0) {
@@ -318,6 +383,12 @@ export class ClineApiServerMock {
 						}
 						if (body.includes("edit_request")) {
 							responseText = E2E_MOCK_API_RESPONSES.EDIT_REQUEST
+						}
+						if (body.includes("[diff.test.ts] Hello, Cline!")) {
+							// The playwright test in diff.test.ts needs the "API Request..." text
+							// to be on the screen long enough to detect it.  This worked at 100ms
+							// too, but setting to 500ms to cover slower CI boxes.
+							await new Promise((resolve) => setTimeout(resolve, 500))
 						}
 
 						const generationId = `gen_${++controller.generationCounter}_${Date.now()}`
@@ -512,8 +583,15 @@ export class ClineApiServerMock {
 		ClineApiServerMock.globalSockets.forEach((socket) => socket.destroy())
 		ClineApiServerMock.globalSockets.clear()
 
-		await new Promise<void>((resolve) => {
-			server.close(() => resolve())
+		await new Promise<void>((resolve, reject) => {
+			server.close((err) => {
+				if (err) {
+					console.error("Error closing server:", err)
+					reject(err)
+				}
+				log("Server closed successfully")
+				resolve()
+			})
 		})
 
 		ClineApiServerMock.globalSharedServer = null

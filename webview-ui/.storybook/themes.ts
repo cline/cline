@@ -28,6 +28,18 @@ const mockVSCodeDarkTheme = {
 	"--vscode-activityWarningBadge-background": "#F9C20B",
 	"--vscode-badge-background": "#007ACC",
 	"--vscode-badge-foreground": "#FFFFFF",
+	"--vscode-charts-green": "#73C991",
+	"--vscode-charts-yellow": "#F9C20B",
+	"--vscode-charts-red": "#F14C4C",
+	"--vscode-menu-background": "#252526",
+	"--vscode-menu-border": "#454545",
+	"--vscode-menu-foreground": "#CCCCCC",
+	"--vscode-menu-selectionBackground": "#062F4A",
+	"--vscode-menu-selectionForeground": "#FFFFFF",
+	"--vscode-inputValidation-errorBackground": "#eb1424",
+	"--vscode-inputValidation-errorForeground": "#fcd1c1",
+	"--vscode-editor-foldBackground": "#252526",
+	"--vscode-editor-foldPlaceholderForeground": "#454545",
 }
 
 const mockVSCodeLightTheme = {
@@ -60,6 +72,15 @@ const mockVSCodeLightTheme = {
 	"--vscode-activityWarningBadge-background": "#F9C20B",
 	"--vscode-badge-background": "#007ACC",
 	"--vscode-badge-foreground": "#FFFFFF",
+	"--vscode-charts-green": "#73C991",
+	"--vscode-charts-yellow": "#F9C20B",
+	"--vscode-menu-background": "#F3F3F3",
+	"--vscode-menu-border": "#D4D4D4",
+	"--vscode-menu-foreground": "#6F6F6F",
+	"--vscode-menu-selectionBackground": "#007ACC",
+	"--vscode-menu-selectionForeground": "#FFFFFF",
+	"--vscode-inputValidation-errorBackground": "#f48771",
+	"--vscode-inputValidation-errorForeground": "#c72e0f",
 }
 
 // Mock VSCode theme variables for Storybook

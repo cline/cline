@@ -1,6 +1,7 @@
 import { findLast } from "@shared/array"
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
+import { combineHookSequences } from "@shared/combineHookSequences"
 import type { ClineApiReqInfo, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics } from "@shared/getApiMetrics"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
@@ -51,13 +52,20 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		mode,
 		userInfo,
 		currentFocusChainChecklist,
+		hooksEnabled,
 	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
 
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
 	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
-	const modifiedMessages = useMemo(() => combineApiRequests(combineCommandSequences(messages.slice(1))), [messages])
+	const modifiedMessages = useMemo(() => {
+		const slicedMessages = messages.slice(1)
+		// Only combine hook sequences if hooks are enabled (both user setting and feature flag)
+		const areHooksEnabled = hooksEnabled?.user && hooksEnabled?.featureFlag
+		const withHooks = areHooksEnabled ? combineHookSequences(slicedMessages) : slicedMessages
+		return combineApiRequests(combineCommandSequences(withHooks))
+	}, [messages, hooksEnabled])
 	// has to be after api_req_finished are all reduced into api_req_started messages
 	const apiMetrics = useMemo(() => getApiMetrics(modifiedMessages), [modifiedMessages])
 
@@ -252,38 +260,34 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// Set up addToInput subscription
 	useEffect(() => {
-		const clientId = (window as { clineClientId?: string }).clineClientId
-		if (!clientId) {
-			console.error("Client ID not found in window object for addToInput subscription")
-			return
-		}
-
-		const request = StringRequest.create({ value: clientId })
-		const cleanup = UiServiceClient.subscribeToAddToInput(request, {
-			onResponse: (event) => {
-				if (event.value) {
-					setInputValue((prevValue) => {
-						const newText = event.value
-						const newTextWithNewline = newText + "\n"
-						return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
-					})
-					// Add scroll to bottom after state update
-					// Auto focus the input and start the cursor on a new line for easy typing
-					setTimeout(() => {
-						if (textAreaRef.current) {
-							textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
-							textAreaRef.current.focus()
-						}
-					}, 0)
-				}
+		const cleanup = UiServiceClient.subscribeToAddToInput(
+			{},
+			{
+				onResponse: (event) => {
+					if (event.value) {
+						setInputValue((prevValue) => {
+							const newText = event.value
+							const newTextWithNewline = newText + "\n"
+							return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
+						})
+						// Add scroll to bottom after state update
+						// Auto focus the input and start the cursor on a new line for easy typing
+						setTimeout(() => {
+							if (textAreaRef.current) {
+								textAreaRef.current.scrollTop = textAreaRef.current.scrollHeight
+								textAreaRef.current.focus()
+							}
+						}, 0)
+					}
+				},
+				onError: (error) => {
+					console.error("Error in addToInput subscription:", error)
+				},
+				onComplete: () => {
+					console.log("addToInput subscription completed")
+				},
 			},
-			onError: (error) => {
-				console.error("Error in addToInput subscription:", error)
-			},
-			onComplete: () => {
-				console.log("addToInput subscription completed")
-			},
-		})
+		)
 
 		return cleanup
 	}, [])
@@ -370,7 +374,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					/>
 				)}
 			</div>
-			<footer className="bg-[var(--vscode-sidebar-background)]" style={{ gridRow: "2" }}>
+			<footer className="bg-(--vscode-sidebar-background)" style={{ gridRow: "2" }}>
 				<AutoApproveBar />
 				<ActionButtons
 					chatState={chatState}
@@ -381,6 +385,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 						scrollToBottomSmooth: scrollBehavior.scrollToBottomSmooth,
 						disableAutoScrollRef: scrollBehavior.disableAutoScrollRef,
 						showScrollToBottom: scrollBehavior.showScrollToBottom,
+						virtuosoRef: scrollBehavior.virtuosoRef,
 					}}
 					task={task}
 				/>

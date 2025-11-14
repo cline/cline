@@ -7,20 +7,20 @@ e2e.describe("Diff Editor", () => {
 		e2e.extend({
 			workspaceType,
 		})(title, async ({ page, sidebar }) => {
-			await sidebar.getByRole("button", { name: "Get Started for Free" }).click({ delay: 100 })
+			await sidebar.getByRole("button", { name: "Login to Cline" }).click({ delay: 100 })
 			// Submit a message
 			await cleanChatView(page)
 
 			const inputbox = sidebar.getByTestId("chat-input")
 			await expect(inputbox).toBeVisible()
 
-			await inputbox.fill("Hello, Cline!")
-			await expect(inputbox).toHaveValue("Hello, Cline!")
-			await sidebar.getByTestId("send-button").click({ delay: 100 })
+			await inputbox.fill("[diff.test.ts] Hello, Cline!")
+			await expect(inputbox).toHaveValue("[diff.test.ts] Hello, Cline!")
+			await sidebar.getByTestId("send-button").click()
 			await expect(inputbox).toHaveValue("")
 
 			// Loading State initially
-			await expect(sidebar.getByText("API Request...")).toBeVisible()
+			await expect(sidebar.getByText("API Request...")).toBeVisible({ timeout: 10000 })
 
 			// Back to home page with history
 			await sidebar.getByRole("button", { name: "Start New Task" }).click()

@@ -1,5 +1,157 @@
 # Changelog
 
+## 3.37.1
+
+- cf8dd1c: Comprehensive changes to better support GPT 5.1 - System prompt, tools, deep-planning, focus chain, etc.
+- 02abbcf: Add AGENTS.md support
+- 855db7d: feat(models): Add free minimax/mimax-m2 model to the model picker
+
+## [3.37.0]
+
+## Added
+
+- GPT-5.1 with model-specific prompting: tailored system prompts, tool usage, focus chain, and deep-planning optimizations
+- Nous Research provider with Hermes 4 model family and custom system prompts
+- Switched to Aqua Voice's Avalon model in speech to text transcription
+- Added Linux support for speech to text
+- Model-family breakouts for deep-planning prompting, laying groundwork for enhanced slash commands
+- Expanded HTTP proxy support throughout the codebase
+- Improved focus chain prompting for frontier models (Anthropic, OpenAI, Gemini, xAI)
+
+## Fixed
+
+- Duplicate tool results prevention through existence checking
+- XML entity escaping in model content processor
+- Commit message generation in command palette
+- OpenAI Compatible provider temperature parameter type conversion
+
+## Documentation
+
+- Added missing proto generation step in CONTRIBUTING.md
+- New `npm run dev` script for streamlined terminal workflow (fixes #7335)
+
+## [3.36.1]
+
+- fix: remove native tool calling support from Gemini and XAI provider due to invalid tool names issues
+- fix: disable native tool callings for grok code models
+- Add MCP tool usage to GLM
+- Removes reasoning_details content field from Anthropic providers
+
+## [3.36.0]
+
+- Add: Hooks allow you to inject custom logic into Cline's workflow
+- Add: new provider AIhubmix
+- Add: Use http_proxy, https_proxy and no_proxy in JetBrains
+- Fix: Oca Token Refresh logic
+- Fix: issues where assistant message with empty content is added to conversation history
+- Fix: bug where the checkbox shows in the model selector dropdown
+- Fix: Switch from defaultUserAgentProvider to customUserAgent for Bedrock
+- Fix: support for `<think>` tags for better compatibility with open-source models
+- Fix: refinements to the GLM-4.6 system prompt
+
+## [3.35.1]
+
+- Add: Hicap API integration as provider
+- Fix: enable Add Header button in OpenAICompatibleProvider UI
+- Fix: Remove orphaned tool_results after truncation and empty content field issues in native tool call
+- Fix: render model description in markdown
+
+## [3.35.0]
+
+- Add native tool calling support with configurable setting.
+- Auto-approve is now always-on with a redesigned expanding menu. Settings simplified and notifications moved to General Settings.
+- added zai-glm-4.6 as a Cerebras model
+- Created GPT5 family specific system prompt template
+- Fix: show reasoning budget slider to models with valid thinking config
+- Requesty base URL, and API key fixes
+- Delete all Auth Tokens when logging out
+- Support for <think> tags for models that prefer that over <thinking>
+
+## [3.34.1]
+
+- Added support for MiniMax provider with MiniMax-M2 model
+- Remove Cline/code-supernova-1-million model
+- Changes to allow users to manually enter model names (eg. presets) when using OpenRouter
+
+## [3.34.0]
+
+- Cline Teams is now free through 2025 for unlimited users. Includes Jetbrains, RBAC, centralized billing and more.
+- Use the “exacto” versions of GLM-4.6, Kimi-K2, and Qwen3-Coder in the Cline provider for the best balance of cost, speed, accuracy and tool-calling.
+
+## [3.33.1]
+
+- Fix CLI installation copy text
+
+## [3.33.0]
+
+- Added Cline CLI (Preview)
+- Added Subagent support (Experimental)
+- Added Multi-Root Workspaces support (Enable in feature settings)
+- Add auto-retry with exponential backof for failed API requests
+
+## [3.32.8]
+
+- Add Claude Haiku 4.5 support
+
+## [3.32.7]
+
+- Add JP and Global inference profile options to AWS Bedrock
+- Adding Improvements to VSCode multi root workspaces
+- Added markdown support to focus chain text, allowing the model to display more interesting focus chains
+
+## [3.32.6]
+
+- Add experimental support for VSCode multi root workspaces
+- Add Claude Sonnet 4.5 to Claude Code provider
+- Add Glm 4.6 to Z AI provider
+
+## [3.32.5]
+
+- Improve thinking budget slider UI to take up less space
+- Fix Vercel provider cost note and sign-up url
+- Fix repeated API error 400 in SAP AI Core provider
+- Add us-west-1 to Amazon Bedrock regions
+- Fix OCA provider refresh logic
+
+## [3.32.4]
+
+- Add 1m context window support to Claude Sonnet 4.5
+- Add Claude Sonnet 4.5 to GCP Vertex
+- Add prompt caching support for OpenRouter accidental `anthropic/claude-4.5-sonnet` model ID
+
+## [3.32.3]
+
+- Add Claude Sonnet 4.5 to Bedrock provider
+- Add Alert banner for new Claude Sonnet 4.5 model
+
+## [3.32.2]
+
+- Add Claude Sonnet 4.5 to Cline/OpenRouter/Anthropic providers
+- Add /task deep link handler
+
+## [3.32.1]
+
+- Preserve reasoning traces for Cline/OpenRouter/Anthropic providers to maintain conversation integrity
+- Add automatically retry on rate limit errors with SAP AI Core provider
+- Fix Cline accounts using stale id token at refresh response
+- Minor UI improvements to Settings and Task Header
+
+## [3.32.0]
+
+- Added the new code-supernova-1-million stealth model, available for free and delivering a 1 million token context window
+- Changes to inform Cline about commands that are available on your system
+
+## [3.31.1]
+
+- Version bump
+
+## [3.31.0]
+
+- UI Improvements: New task header and focus chain design to take up less space for a cleaner experience
+- Voice Mode: Experimental feature that must be enabled in settings for hands-free coding
+- YOLO Mode: Enable in settings to let Cline approve all actions and automatically switch between plan/act mode
+- Fix Oracle Code Assist provider issues
+
 ## [3.30.3]
 
 - Add Oracle Code Assist provider

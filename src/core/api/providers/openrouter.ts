@@ -4,10 +4,13 @@ import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from 
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { fetch, getAxiosSettings } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import { ToolCallProcessor } from "../transform/tool-call-processor"
 import { OpenRouterErrorResponse } from "./types"
 
 interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
@@ -41,6 +44,7 @@ export class OpenRouterHandler implements ApiHandler {
 						"HTTP-Referer": "https://cline.bot", // Optional, for including your app on openrouter.ai rankings.
 						"X-Title": "Cline", // Optional. Shows in rankings on openrouter.ai.
 					},
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating OpenRouter client: ${error.message}`)
@@ -50,7 +54,7 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		this.lastGenerationId = undefined
 
@@ -62,9 +66,11 @@ export class OpenRouterHandler implements ApiHandler {
 			this.options.reasoningEffort,
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
+			tools,
 		)
 
 		let didOutputUsage: boolean = false
+		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
 			// openrouter returns an error object instead of the openai sdk throwing an error
@@ -112,13 +118,32 @@ export class OpenRouterHandler implements ApiHandler {
 				}
 			}
 
+			if (delta?.tool_calls) {
+				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+			}
+
 			// Reasoning tokens are returned separately from the content
 			// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
 			if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 				yield {
 					type: "reasoning",
-					// @ts-ignore-next-line
-					reasoning: delta.reasoning,
+					reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
+				}
+			}
+
+			// OpenRouter passes reasoning details that we can pass back unmodified in api requests to preserve reasoning traces for model
+			// See: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks
+			if (
+				"reasoning_details" in delta &&
+				delta.reasoning_details &&
+				// @ts-ignore-next-line
+				delta.reasoning_details.length && // exists and non-0
+				!shouldSkipReasoningForModel(this.options.openRouterModelId)
+			) {
+				yield {
+					type: "reasoning",
+					reasoning: "",
+					details: delta.reasoning_details,
 				}
 			}
 
@@ -178,6 +203,7 @@ export class OpenRouterHandler implements ApiHandler {
 					Authorization: `Bearer ${this.options.openRouterApiKey}`,
 				},
 				timeout: 15_000, // this request hangs sometimes
+				...getAxiosSettings(),
 			})
 			yield response.data?.data
 		} catch (error) {

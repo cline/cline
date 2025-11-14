@@ -1,17 +1,21 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
-import { WorkspaceRoot } from "../core/workspace"
+import { WorkspaceRoot } from "@shared/multi-root/types"
+import { RemoteConfigFields } from "@shared/storage/state-keys"
+import type { Environment } from "../config"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
 import { ApiConfiguration } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
+import { ClineFeatureSetting } from "./ClineFeatureSetting"
 import { ClineRulesToggles } from "./cline-rules"
+import { DictationSettings } from "./DictationSettings"
 import { FocusChainSettings } from "./FocusChainSettings"
 import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
+import { ClineMessageModelInfo } from "./messages/content"
 import { Mode, OpenaiReasoningEffort } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
-
 // webview will hold state
 export interface ExtensionMessage {
 	type: "grpc_response" // New type for gRPC responses
@@ -30,9 +34,12 @@ export type Platform = "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sun
 
 export const DEFAULT_PLATFORM = "unknown"
 
+export const COMMAND_CANCEL_TOKEN = "__cline_command_cancel__"
+
 export interface ExtensionState {
 	isNewUser: boolean
 	welcomeViewCompleted: boolean
+	showOnboardingFlow: boolean
 	apiConfiguration?: ApiConfiguration
 	autoApprovalSettings: AutoApprovalSettings
 	browserSettings: BrowserSettings
@@ -49,13 +56,20 @@ export interface ExtensionState {
 	planActSeparateModelsSetting: boolean
 	enableCheckpointsSetting?: boolean
 	platform: Platform
+	environment?: Environment
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
 	terminalReuseEnabled?: boolean
 	terminalOutputLineLimit: number
+	maxConsecutiveMistakes: number
+	subagentTerminalOutputLineLimit: number
 	defaultTerminalProfile?: string
+	vscodeTerminalExecutionMode: string
+	backgroundCommandRunning?: boolean
+	backgroundCommandTaskId?: string
+	lastCompletedCommandTs?: number
 	userInfo?: UserInfo
 	version: string
 	distinctId: string
@@ -65,17 +79,30 @@ export interface ExtensionState {
 	globalWorkflowToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
+	remoteRulesToggles?: ClineRulesToggles
+	remoteWorkflowToggles?: ClineRulesToggles
+	localAgentsRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
 	strictPlanModeEnabled?: boolean
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	focusChainSettings: FocusChainSettings
+	dictationSettings: DictationSettings
 	customPrompt?: string
+	autoCondenseThreshold?: number
 	favoritedModelIds: string[]
 	// NEW: Add workspace information
 	workspaceRoots: WorkspaceRoot[]
 	primaryRootIndex: number
 	isMultiRootWorkspace: boolean
+	multiRootSetting: ClineFeatureSetting
+	lastDismissedInfoBannerVersion: number
+	lastDismissedModelBannerVersion: number
+	lastDismissedCliBannerVersion: number
+	hooksEnabled?: ClineFeatureSetting
+	remoteConfigSettings?: Partial<RemoteConfigFields>
+	subagentsEnabled?: boolean
+	nativeToolCallSetting?: ClineFeatureSetting
 }
 
 export interface ClineMessage {
@@ -88,16 +115,19 @@ export interface ClineMessage {
 	images?: string[]
 	files?: string[]
 	partial?: boolean
+	commandCompleted?: boolean
 	lastCheckpointHash?: string
 	isCheckpointCheckedOut?: boolean
 	isOperationOutsideWorkspace?: boolean
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
+	modelInfo?: ClineMessageModelInfo
 }
 
 export type ClineAsk =
 	| "followup"
 	| "plan_mode_respond"
+	| "act_mode_respond"
 	| "command"
 	| "command_output"
 	| "completion_result"
@@ -106,7 +136,6 @@ export type ClineAsk =
 	| "resume_task"
 	| "resume_completed_task"
 	| "mistake_limit_reached"
-	| "auto_approval_max_req_reached"
 	| "browser_action_launch"
 	| "use_mcp_server"
 	| "new_task"
@@ -117,6 +146,7 @@ export type ClineAsk =
 export type ClineSay =
 	| "task"
 	| "error"
+	| "error_retry"
 	| "api_req_started"
 	| "api_req_finished"
 	| "text"
@@ -129,6 +159,7 @@ export type ClineSay =
 	| "command_output"
 	| "tool"
 	| "shell_integration_warning"
+	| "shell_integration_warning_with_suggestion"
 	| "browser_action_launch"
 	| "browser_action"
 	| "browser_action_result"
@@ -143,11 +174,14 @@ export type ClineSay =
 	| "load_mcp_documentation"
 	| "info" // Added for general informational messages like retry status
 	| "task_progress"
+	| "hook"
+	| "hook_output"
 
 export interface ClineSayTool {
 	tool:
 		| "editedExistingFile"
 		| "newFileCreated"
+		| "fileDeleted"
 		| "readFile"
 		| "listFilesTopLevel"
 		| "listFilesRecursive"
@@ -161,6 +195,34 @@ export interface ClineSayTool {
 	regex?: string
 	filePattern?: string
 	operationIsLocatedInWorkspace?: boolean
+}
+
+export interface ClineSayHook {
+	hookName: string // Name of the hook (e.g., "PreToolUse", "PostToolUse")
+	toolName?: string // Tool name if applicable (for PreToolUse/PostToolUse)
+	status: "running" | "completed" | "failed" | "cancelled" // Execution status
+	exitCode?: number // Exit code when completed
+	hasJsonResponse?: boolean // Whether a JSON response was parsed
+	// Pending tool information (only present during PreToolUse "running" status)
+	pendingToolInfo?: {
+		tool: string // Tool name (e.g., "write_to_file", "execute_command")
+		path?: string // File path for file operations
+		command?: string // Command for execute_command
+		content?: string // Content preview (first 200 chars)
+		diff?: string // Diff preview (first 200 chars)
+		regex?: string // Regex pattern for search_files
+		url?: string // URL for web_fetch or browser_action
+		mcpTool?: string // MCP tool name
+		mcpServer?: string // MCP server name
+		resourceUri?: string // MCP resource URI
+	}
+	// Structured error information (only present when status is "failed")
+	error?: {
+		type: "timeout" | "validation" | "execution" | "cancellation" // Type of error
+		message: string // User-friendly error message
+		details?: string // Technical details for expansion
+		scriptPath?: string // Path to the hook script
+	}
 }
 
 // must keep in sync with system prompt

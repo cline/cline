@@ -1,89 +1,64 @@
 import { expect } from "@playwright/test"
-import { E2E_WORKSPACE_TYPES, e2e } from "./utils/helpers"
+import { e2e } from "./utils/helpers"
 
-e2e.describe("Chat - can send messages and switch between modes", () => {
-	E2E_WORKSPACE_TYPES.forEach(({ title, workspaceType }) => {
-		e2e.extend({
-			workspaceType,
-		})(title, async ({ helper, sidebar, page }) => {
-			// Sign in
-			await helper.signin(sidebar)
+e2e("Chat - can send messages and switch between modes", async ({ helper, sidebar, page }) => {
+	// Sign in
+	await helper.signin(sidebar)
 
-			// Submit a message
-			const inputbox = sidebar.getByTestId("chat-input")
-			await expect(inputbox).toBeVisible()
-			await inputbox.fill("Hello, Cline!")
-			await expect(inputbox).toHaveValue("Hello, Cline!")
-			await sidebar.getByTestId("send-button").click({ delay: 100 })
-			await expect(inputbox).toHaveValue("")
+	// Submit a message
+	const inputbox = sidebar.getByTestId("chat-input")
+	await expect(inputbox).toBeVisible()
+	await inputbox.fill("Hello, Cline!")
+	await expect(inputbox).toHaveValue("Hello, Cline!")
+	await sidebar.getByTestId("send-button").click()
+	await expect(inputbox).toHaveValue("")
 
-			// Loading State initially
-			await expect(sidebar.getByText("API Request...")).toBeVisible()
+	// Starting a new task should clear the current chat view and show the recent tasks
+	await sidebar.getByRole("button", { name: "New Task", exact: true }).first().click()
+	await expect(sidebar.getByText("Recent Tasks")).toBeVisible()
+	await expect(sidebar.getByText("Hello, Cline!")).toBeVisible()
 
-			// The request should eventually fail
-			await expect(sidebar.getByText("API Request Failed")).toBeVisible()
+	// Makes sure the act and plan switches are working correctly
+	// Aria-checked state should be true for Act and false for Plan
+	const actButton = sidebar.getByRole("switch", { name: "Act" })
+	const planButton = sidebar.getByRole("switch", { name: "Plan" })
 
-			await expect(inputbox).toBeVisible()
+	// Act button should be active. It doesn't have c
+	await expect(actButton).toHaveAttribute("aria-checked", "true")
+	await expect(planButton).not.toHaveAttribute("aria-checked", "true")
 
-			await expect(sidebar.getByRole("button", { name: "Retry" })).toBeVisible()
-			await expect(sidebar.getByRole("button", { name: "Start New Task" })).toBeVisible()
+	await planButton.click()
+	await expect(planButton).toHaveAttribute("aria-checked", "true")
+	await expect(actButton).not.toHaveAttribute("aria-checked", "true")
 
-			// Starting a new task should clear the current chat view and show the recent tasks
-			await sidebar.getByRole("button", { name: "Start New Task" }).click()
-			await expect(sidebar.getByText("API Request Failed")).not.toBeVisible()
-			await expect(sidebar.getByText("Recent Tasks")).toBeVisible()
-			await expect(sidebar.getByText("Hello, Cline!")).toBeVisible()
+	// === slash commands preserve following text ===
+	await expect(inputbox).toHaveValue("")
+	// Type partial slash command to trigger menu
+	await inputbox.fill("/newt")
 
-			// Makes sure the act and plan switches are working correctly
-			// Aria-checked state should be true for Act and false for Plan
-			const actButton = sidebar.getByRole("switch", { name: "Act" })
-			const planButton = sidebar.getByRole("switch", { name: "Plan" })
+	// Wait for menu to be visible and click on menu item
+	await inputbox.focus()
+	await sidebar.getByText("newtask", { exact: false }).click()
+	await expect(inputbox).toHaveValue("/newtask ")
 
-			await expect(actButton).toBeChecked()
-			await expect(planButton).not.toBeChecked()
+	// Add following text to verify it works correctly
+	await inputbox.pressSequentially("following text should be preserved")
+	await expect(inputbox).toHaveValue("/newtask following text should be preserved")
 
-			await actButton.click()
-			await expect(actButton).not.toBeChecked()
-			await expect(planButton).toBeChecked()
+	// === @ mentions preserve following text ===
+	await inputbox.fill("")
+	await expect(inputbox).toHaveValue("")
 
-			await inputbox.fill("Plan mode submission")
-			await sidebar.getByTestId("send-button").click()
+	// Type partial @ mention to trigger menu
+	await inputbox.fill("@prob")
 
-			await expect(sidebar.getByText("API Request Failed")).toBeVisible()
+	// Wait for menu to be visible and click on menu item
+	await sidebar.getByText("Problems", { exact: false }).first().click()
+	await expect(inputbox).toHaveValue("@problems ")
 
-			// === slash commands preserve following text ===
-			await inputbox.fill("")
-			await expect(inputbox).toHaveValue("")
-			await inputbox.focus()
+	// Add following text to verify it works correctly
+	await inputbox.pressSequentially("following text should be preserved")
+	await expect(inputbox).toHaveValue("@problems following text should be preserved")
 
-			// Type partial slash command to trigger menu
-			await inputbox.pressSequentially("/new")
-
-			// Wait for menu to be visible and select first option with Tab
-			await inputbox.press("Tab")
-			await expect(inputbox).toHaveValue("/newtask ")
-
-			// Add following text to verify it works correctly
-			await inputbox.pressSequentially("following text should be preserved")
-			await expect(inputbox).toHaveValue("/newtask following text should be preserved")
-
-			// === @ mentions preserve following text ===
-			await inputbox.fill("")
-			await expect(inputbox).toHaveValue("")
-			await inputbox.focus()
-
-			// Type partial @ mention to trigger menu
-			await inputbox.pressSequentially("@prob")
-
-			// Wait for menu to be visible and select first option with Tab
-			await inputbox.press("Tab")
-			await expect(inputbox).toHaveValue("@problems ")
-
-			// Add following text to verify it works correctly
-			await inputbox.pressSequentially("following text should be preserved")
-			await expect(inputbox).toHaveValue("@problems following text should be preserved")
-
-			await page.close()
-		})
-	})
+	await page.close()
 })

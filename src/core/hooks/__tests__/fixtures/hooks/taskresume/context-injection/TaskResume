@@ -1,0 +1,9 @@
+#!/usr/bin/env node
+const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
+const taskId = input.taskResume?.taskMetadata?.taskId || 'unknown';
+
+console.log(JSON.stringify({
+  cancel: false,
+  contextModification: `WORKSPACE_RULES: Task ${taskId} resumed - review previous context`,
+  errorMessage: ""
+}));

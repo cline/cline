@@ -1,3 +1,4 @@
+import path from "node:path"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import type { ToolUse } from "@core/assistant-message"
 import { constructNewFileContent } from "@core/assistant-message/diff"
@@ -6,16 +7,16 @@ import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { fileExistsAtPath } from "@utils/fs"
-import { getReadablePath, isLocatedInWorkspace } from "@utils/path"
-import { fixModelHtmlEscaping, removeInvalidChars } from "@utils/string"
+import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
-import { showNotificationForApprovalIfAutoApprovalEnabled } from "../../utils"
+import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
@@ -25,11 +26,11 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	constructor(private validator: ToolValidator) {}
 
 	getDescription(block: ToolUse): string {
-		return `[${block.name} for '${block.params.path}']`
+		return `[${block.name} for '${block.params.path || block.params.absolutePath}']`
 	}
 
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
-		const rawRelPath = block.params.path
+		const rawRelPath = block.params.path || block.params.absolutePath
 		const rawContent = block.params.content // for write_to_file
 		const rawDiff = block.params.diff // for replace_in_file
 
@@ -48,12 +49,15 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		}
 
 		try {
-			const { relPath, fileExists, diff, content, newContent } = result
+			const { relPath, absolutePath, fileExists, diff, content, newContent } = result
 
 			// Create and show partial UI message
 			const sharedMessageProps: ClineSayTool = {
 				tool: fileExists ? "editedExistingFile" : "newFileCreated",
-				path: getReadablePath(config.cwd, uiHelpers.removeClosingTag(block, "path", relPath)),
+				path: getReadablePath(
+					config.cwd,
+					uiHelpers.removeClosingTag(block, block.params.path ? "path" : "absolutePath", relPath),
+				),
 				content: diff || content,
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 			}
@@ -71,7 +75,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			// CRITICAL: Open editor and stream content in real-time (from original code)
 			if (!config.services.diffViewProvider.isEditing) {
 				// Open the editor and prepare to stream content in
-				await config.services.diffViewProvider.open(relPath)
+				await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
 			}
 			// Editor is open, stream content in real-time (false = don't finalize yet)
 			await config.services.diffViewProvider.update(newContent, false)
@@ -84,15 +88,21 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	}
 
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
-		const rawRelPath = block.params.path
+		const rawRelPath = block.params.path || block.params.absolutePath
 		const rawContent = block.params.content // for write_to_file
 		const rawDiff = block.params.diff // for replace_in_file
+
+		// Extract provider information for telemetry
+		const { providerId, modelId } = this.getModelInfo(config)
 
 		// Validate required parameters based on tool type
 		if (!rawRelPath) {
 			config.taskState.consecutiveMistakeCount++
 			await config.services.diffViewProvider.reset()
-			return await config.callbacks.sayAndCreateMissingParamError(block.name, "path")
+			return await config.callbacks.sayAndCreateMissingParamError(
+				block.name,
+				block.params.absolutePath ? "absolutePath" : "path",
+			)
 		}
 
 		if (block.name === "replace_in_file" && !rawDiff) {
@@ -121,7 +131,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				return "" // can only happen if the sharedLogic adds an error to userMessages
 			}
 
-			const { relPath, fileExists, diff, content, newContent } = result
+			const { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext } = result
 
 			// Handle approval flow
 			const sharedMessageProps: ClineSayTool = {
@@ -137,7 +147,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// show gui message before showing edit animation
 				const partialMessage = JSON.stringify(sharedMessageProps)
 				await config.callbacks.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
-				await config.services.diffViewProvider.open(relPath)
+				await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
 			}
 			await config.services.diffViewProvider.update(newContent, true)
 			await setTimeoutPromise(300) // wait for diff view to update
@@ -160,10 +170,18 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// Auto-approval flow
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
 				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-				config.taskState.consecutiveAutoApprovedRequestsCount++
 
 				// Capture telemetry
-				telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, true, true)
+				telemetryService.captureToolUsage(
+					config.ulid,
+					block.name,
+					modelId,
+					providerId,
+					true,
+					true,
+					workspaceContext,
+					block.isNativeToolCall,
+				)
 
 				// we need an artificial delay to let the diagnostics catch up to the changes
 				await setTimeoutPromise(3_500)
@@ -172,11 +190,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				const notificationMessage = `Cline wants to ${fileExists ? "edit" : "create"} ${getWorkspaceBasename(relPath, "WriteToFile.notification")}`
 
 				// Show notification
-				showNotificationForApprovalIfAutoApprovalEnabled(
-					notificationMessage,
-					config.autoApprovalSettings.enabled,
-					config.autoApprovalSettings.enableNotifications,
-				)
+				showNotificationForApproval(notificationMessage, config.autoApprovalSettings.enableNotifications)
 
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
 
@@ -212,7 +226,16 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					// await config.services.diffViewProvider.reset()
 
 					config.taskState.didRejectTool = true
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, false)
+					telemetryService.captureToolUsage(
+						config.ulid,
+						block.name,
+						modelId,
+						providerId,
+						false,
+						false,
+						workspaceContext,
+						block.isNativeToolCall,
+					)
 
 					await config.services.diffViewProvider.revertChanges()
 					return `The user denied this operation. ${fileDeniedNote}`
@@ -234,8 +257,31 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						await config.callbacks.say("user_feedback", text, images, files)
 					}
 
-					telemetryService.captureToolUsage(config.ulid, block.name, config.api.getModel().id, false, true)
+					telemetryService.captureToolUsage(
+						config.ulid,
+						block.name,
+						modelId,
+						providerId,
+						false,
+						true,
+						workspaceContext,
+						block.isNativeToolCall,
+					)
 				}
+			}
+
+			// Run PreToolUse hook after approval but before execution
+			try {
+				const { ToolHookUtils } = await import("../utils/ToolHookUtils")
+				await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+			} catch (error) {
+				const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+				if (error instanceof PreToolUseHookCancellationError) {
+					await config.services.diffViewProvider.revertChanges()
+					await config.services.diffViewProvider.reset()
+					return formatResponse.toolDenied()
+				}
+				throw error
 			}
 
 			// Mark the file as edited by Cline
@@ -293,6 +339,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 	 * @param relPath The relative path to the target file
 	 * @param diff Optional diff content for replace operations
 	 * @param content Optional direct content for write operations
+	 * @param provider Optional provider string for telemetry (used when capturing diff edit failures)
 	 * @returns Object containing validated path, file existence status, diff/content, and constructed new content,
 	 *          or undefined if validation fails
 	 */
@@ -303,6 +350,15 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			typeof pathResult === "string"
 				? { absolutePath: pathResult, resolvedPath: relPath }
 				: { absolutePath: pathResult.absolutePath, resolvedPath: pathResult.resolvedPath }
+
+		// Determine workspace context for telemetry
+		const fallbackAbsolutePath = path.resolve(config.cwd, relPath)
+		const workspaceContext = {
+			isMultiRootEnabled: config.isMultiRootEnabled || false,
+			usedWorkspaceHint: typeof pathResult !== "string", // multi-root path result indicates hint usage
+			resolvedToNonPrimary: !arePathsEqual(absolutePath, fallbackAbsolutePath),
+			resolutionMethod: (typeof pathResult !== "string" ? "hint" : "primary_fallback") as "hint" | "primary_fallback",
+		}
 
 		// Check clineignore access first
 		const accessValidation = this.validator.checkClineIgnorePath(resolvedPath)
@@ -322,7 +378,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					config.taskState.didAlreadyUseTool = true
 				},
 				config.coordinator,
+				config.taskState.toolUseIdMap,
 			)
+
 			return
 		}
 
@@ -341,16 +399,13 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		if (diff) {
 			// Handle replace_in_file with diff construction
-			if (!config.api.getModel().id.includes("claude")) {
-				// deepseek models tend to use unescaped html entities in diffs
-				diff = fixModelHtmlEscaping(diff)
-				diff = removeInvalidChars(diff)
-			}
+			// Apply model-specific fixes (deepseek models tend to use unescaped html entities in diffs)
+			diff = applyModelContentFixes(diff, config.api.getModel().id, resolvedPath)
 
 			// open the editor if not done already.  This is to fix diff error when model provides correct search-replace text but Cline throws error
 			// because file is not open.
 			if (!config.services.diffViewProvider.isEditing) {
-				await config.services.diffViewProvider.open(relPath)
+				await config.services.diffViewProvider.open(absolutePath, { displayPath: relPath })
 			}
 
 			try {
@@ -363,6 +418,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				// Full original behavior - comprehensive error handling even for partial blocks
 				await config.callbacks.say("diff_error", relPath)
 
+				// Extract provider information for telemetry
+				const { providerId, modelId } = this.getModelInfo(config)
+
 				// Extract error type from error message if possible
 				const errorType =
 					error instanceof Error && error.message.includes("does not match anything")
@@ -370,7 +428,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						: "other_diff_error"
 
 				// Add telemetry for diff edit failure
-				telemetryService.captureDiffEditFailure(config.ulid, config.api.getModel().id, errorType)
+				const isNativeToolCall = block.isNativeToolCall === true
+				telemetryService.captureDiffEditFailure(config.ulid, modelId, providerId, errorType, isNativeToolCall)
 
 				// Push tool result with detailed error using existing utilities
 				const errorResponse = formatResponse.toolError(
@@ -387,6 +446,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						config.taskState.didAlreadyUseTool = true
 					},
 					config.coordinator,
+					config.taskState.toolUseIdMap,
 				)
 
 				// Revert changes and reset diff view
@@ -408,11 +468,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 			}
 
-			if (!config.api.getModel().id.includes("claude")) {
-				// it seems not just llama models are doing this, but also gemini and potentially others
-				newContent = fixModelHtmlEscaping(newContent)
-				newContent = removeInvalidChars(newContent)
-			}
+			// Apply model-specific fixes (llama, gemini, and other models may add escape characters)
+			newContent = applyModelContentFixes(newContent, config.api.getModel().id, resolvedPath)
 		} else {
 			// can't happen, since we already checked for content/diff above. but need to do this for type error
 			return
@@ -420,6 +477,15 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		newContent = newContent.trimEnd() // remove any trailing newlines, since it's automatically inserted by the editor
 
-		return { relPath, fileExists, diff, content, newContent }
+		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext }
+	}
+
+	private getModelInfo(config: TaskConfig) {
+		// Extract provider information for telemetry
+		const apiConfig = config.services.stateManager.getApiConfiguration()
+		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+		const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		const modelId = config.api.getModel().id
+		return { providerId, modelId }
 	}
 }

@@ -2,8 +2,8 @@ import { OcaAuthState, OcaUserInfo } from "@shared/proto/cline/oca_account"
 import axios from "axios"
 import { jwtDecode } from "jwt-decode"
 import { Controller } from "@/core/controller"
-import { getProxyAgents } from "@/services/auth/oca/utils/utils"
-
+import { getAxiosSettings } from "@/shared/net"
+import type { OcaConfig } from "../utils/types"
 import { generateCodeVerifier, generateRandomString, pkceChallengeFromVerifier } from "../utils/utils"
 
 type PkceState = {
@@ -32,17 +32,17 @@ export class OcaAuthProvider {
 	// Map state -> { code_verifier, nonce, createdAt }
 	private static pkceStateMap: Map<string, PkceState> = new Map()
 
-	protected _config: any
+	protected _config: OcaConfig
 
-	constructor(config: any) {
+	constructor(config: OcaConfig) {
 		this._config = config || {}
 	}
 
-	get config(): any {
+	get config(): OcaConfig {
 		return this._config
 	}
 
-	set config(value: any) {
+	set config(value: OcaConfig) {
 		this._config = value
 	}
 
@@ -85,15 +85,24 @@ export class OcaAuthProvider {
 	}
 
 	async retrieveOcaAuthState(controller: Controller): Promise<OcaAuthState | null> {
+		// First Check the existing access token
+		const existingAuthState = await this.getExistingAuthState(controller)
+		if (existingAuthState) {
+			return existingAuthState
+		}
+		// Otherwise, try to refresh using the refresh token
 		const userRefreshToken = controller.stateManager.getSecretKey("ocaRefreshToken")
 		if (!userRefreshToken) {
-			// Try getting the
 			console.error("No stored authentication credential found.")
 			return null
 		}
 		try {
-			const { idcs_url, client_id } = this._config
-			const discovery = await axios.get(`${idcs_url}/.well-known/openid-configuration`, { ...getProxyAgents() })
+			const ocaMode = controller.stateManager.getGlobalSettingsKey("ocaMode") || "internal"
+			const { idcs_url, client_id } = ocaMode === "internal" ? this._config.internal : this._config.external
+			if (!idcs_url || !client_id) {
+				throw new Error("IDCS URL or Client ID are not configured")
+			}
+			const discovery = await axios.get(`${idcs_url}/.well-known/openid-configuration`, getAxiosSettings())
 			const tokenEndpoint = discovery.data.token_endpoint
 			const params: any = {
 				grant_type: "refresh_token",
@@ -102,9 +111,17 @@ export class OcaAuthProvider {
 			}
 			const tokenResponse = await axios.post(tokenEndpoint, new URLSearchParams(params), {
 				headers: { "Content-Type": "application/x-www-form-urlencoded" },
-				...getProxyAgents(),
+				...getAxiosSettings(),
 			})
 			const accessToken = tokenResponse.data.access_token
+			const refreshToken = tokenResponse.data.refresh_token
+			if (refreshToken) {
+				controller.stateManager.setSecret("ocaRefreshToken", refreshToken)
+				controller.stateManager.setSecret("ocaApiKey", accessToken)
+			} else {
+				console.warn("No refresh token received during OCA token refresh.")
+				throw new OcaRefreshError("No refresh token received during OCA token refresh.")
+			}
 			const userInfo: OcaUserInfo = await this.getUserAccountInfo(accessToken)
 			return { user: userInfo, apiKey: accessToken }
 		} catch (err: unknown) {
@@ -122,8 +139,11 @@ export class OcaAuthProvider {
 	}
 
 	// Launch authentication flow: returns URL
-	getAuthUrl(callbackUrl: string): URL {
-		const { idcs_url, client_id, scopes } = this._config
+	getAuthUrl(callbackUrl: string, ocaMode: string): URL {
+		const { idcs_url, client_id, scopes } = ocaMode === "internal" ? this._config.internal : this._config.external
+		if (!idcs_url || !client_id || !scopes) {
+			throw new Error("IDCS URL, Client ID, or Scopes are not configured")
+		}
 		const code_verifier = generateCodeVerifier()
 		const code_challenge = pkceChallengeFromVerifier(code_verifier)
 		const state = generateRandomString(32)
@@ -152,14 +172,18 @@ export class OcaAuthProvider {
 	// signIn expects code and state from the callback!
 	async signIn(controller: Controller, code: string, state: string): Promise<OcaAuthState | null> {
 		try {
-			const { idcs_url, client_id } = this._config
+			const ocaMode = controller.stateManager.getGlobalSettingsKey("ocaMode") || "internal"
+			const { idcs_url, client_id } = ocaMode === "internal" ? this._config.internal : this._config.external
+			if (!idcs_url || !client_id) {
+				throw new Error("IDCS URL or Client ID are not configured")
+			}
 			const entry = OcaAuthProvider.pkceStateMap.get(state)
 			if (!entry) {
 				throw new Error("No PKCE verifier found for this state (possibly expired or flow not initiated)")
 			}
 			const { code_verifier, nonce, redirect_uri } = entry
 			OcaAuthProvider.pkceStateMap.delete(state)
-			const discovery = await axios.get(`${idcs_url}/.well-known/openid-configuration`, { ...getProxyAgents() })
+			const discovery = await axios.get(`${idcs_url}/.well-known/openid-configuration`, getAxiosSettings())
 			const tokenEndpoint = discovery.data.token_endpoint
 			const params: any = {
 				grant_type: "authorization_code",
@@ -170,7 +194,7 @@ export class OcaAuthProvider {
 			}
 			const tokenResponse = await axios.post(tokenEndpoint, new URLSearchParams(params), {
 				headers: { "Content-Type": "application/x-www-form-urlencoded" },
-				...getProxyAgents(),
+				...getAxiosSettings(),
 			})
 			// Step 1: Nonce validation
 			const idToken = tokenResponse.data.id_token
@@ -179,6 +203,8 @@ export class OcaAuthProvider {
 				if (decoded.nonce !== nonce) {
 					throw new Error("OIDC nonce verification failed")
 				}
+			} else {
+				throw new Error("No ID token received from OCA")
 			}
 
 			// Step 2: Get access_token (this is what you'll use for APIs)

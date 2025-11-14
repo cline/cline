@@ -1,4 +1,5 @@
 import { vertexGlobalModels, vertexModels } from "@shared/api"
+import VertexData from "@shared/providers/vertex.json"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -21,6 +22,8 @@ interface VertexProviderProps {
 
 // Vertex models that support thinking
 const SUPPORTED_THINKING_MODELS = [
+	"claude-haiku-4-5@20251001",
+	"claude-sonnet-4-5@20250929",
 	"claude-3-7-sonnet@20250219",
 	"claude-sonnet-4@20250514",
 	"claude-opus-4@20250514",
@@ -29,6 +32,8 @@ const SUPPORTED_THINKING_MODELS = [
 	"gemini-2.5-pro",
 	"gemini-2.5-flash-lite-preview-06-17",
 ]
+
+const REGIONS = VertexData.regions
 
 /**
  * The GCP Vertex AI provider configuration component
@@ -68,12 +73,11 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					style={{ width: "100%" }}
 					value={apiConfiguration?.vertexRegion || ""}>
 					<VSCodeOption value="">Select a region...</VSCodeOption>
-					<VSCodeOption value="us-east5">us-east5</VSCodeOption>
-					<VSCodeOption value="us-central1">us-central1</VSCodeOption>
-					<VSCodeOption value="europe-west1">europe-west1</VSCodeOption>
-					<VSCodeOption value="europe-west4">europe-west4</VSCodeOption>
-					<VSCodeOption value="asia-southeast1">asia-southeast1</VSCodeOption>
-					<VSCodeOption value="global">global</VSCodeOption>
+					{REGIONS.map((region) => (
+						<VSCodeOption key={region} value={region}>
+							{region}
+						</VSCodeOption>
+					))}
 				</VSCodeDropdown>
 			</DropdownContainer>
 

@@ -1,6 +1,6 @@
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "../logging/Logger"
-import { PostHogClientProvider } from "../posthog/PostHogClientProvider"
+import { PostHogClientProvider } from "../telemetry/providers/posthog/PostHogClientProvider"
 import type { IFeatureFlagsProvider } from "./providers/IFeatureFlagsProvider"
 import { PostHogFeatureFlagsProvider } from "./providers/PostHogFeatureFlagsProvider"
 

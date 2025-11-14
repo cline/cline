@@ -1,4 +1,4 @@
-import { VcsType, WorkspaceRoot } from "@core/workspace"
+import { VcsType, WorkspaceRoot } from "@shared/multi-root/types"
 import * as path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { getLatestGitCommitHash, isGitRepository } from "@/utils/git"

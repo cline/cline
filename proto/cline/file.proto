@@ -1,9 +1,12 @@
 syntax = "proto3";
 
 package cline;
+
 import "cline/common.proto";
-option java_package = "bot.cline.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
 option java_multiple_files = true;
+option java_package = "bot.cline.proto";
 
 // Service for file-related operations
 service FileService {
@@ -12,10 +15,10 @@ service FileService {
 
   // Opens a file in the editor
   rpc openFile(StringRequest) returns (Empty);
- 
+
   // Opens an image in the system viewer
   rpc openImage(StringRequest) returns (Empty);
-  
+
   // Opens a mention (file, path, git commit, problem, terminal, or URL)
   rpc openMention(StringRequest) returns (Empty);
 
@@ -24,34 +27,37 @@ service FileService {
 
   // Creates a rule file from either global or workspace rules directory
   rpc createRuleFile(RuleFileRequest) returns (RuleFile);
-  
+
   // Search git commits in the workspace
   rpc searchCommits(StringRequest) returns (GitCommits);
 
   // Select images and other files from the file system and returns as data URLs & paths respectively
   rpc selectFiles(BooleanRequest) returns (StringArrays);
-  
+
   // Convert URIs to workspace-relative paths
   rpc getRelativePaths(RelativePathsRequest) returns (RelativePaths);
 
   // Search for files in the workspace with fuzzy matching
   rpc searchFiles(FileSearchRequest) returns (FileSearchResults);
-  
+
   // Toggle a Cline rule (enable or disable)
   rpc toggleClineRule(ToggleClineRuleRequest) returns (ToggleClineRules);
 
   // Toggle a Cursor rule (enable or disable)
   rpc toggleCursorRule(ToggleCursorRuleRequest) returns (ClineRulesToggles);
-  
+
   // Toggle a Windsurf rule (enable or disable)
   rpc toggleWindsurfRule(ToggleWindsurfRuleRequest) returns (ClineRulesToggles);
-  
+
+  // Toggle an Agents rule (enable or disable)
+  rpc toggleAgentsRule(ToggleAgentsRuleRequest) returns (ClineRulesToggles);
+
   // Refreshes all rule toggles (Cline, External, and Workflows)
   rpc refreshRules(EmptyRequest) returns (RefreshedRules);
 
   // Opens a task's conversation history file on disk
-  rpc openTaskHistory(StringRequest) returns (Empty);
-  
+  rpc openDiskConversationHistory(StringRequest) returns (Empty);
+
   // Toggles a workflow on or off
   rpc toggleWorkflow(ToggleWorkflowRequest) returns (ClineRulesToggles);
 
@@ -60,7 +66,7 @@ service FileService {
 
   // Open a file in editor by a relative path
   rpc openFileRelativePath(StringRequest) returns (Empty);
-  
+
   // Opens or creates a focus chain checklist markdown file for editing
   rpc openFocusChainFile(StringRequest) returns (Empty);
 }
@@ -71,15 +77,23 @@ message RefreshedRules {
   ClineRulesToggles local_cline_rules_toggles = 2;
   ClineRulesToggles local_cursor_rules_toggles = 3;
   ClineRulesToggles local_windsurf_rules_toggles = 4;
-  ClineRulesToggles local_workflow_toggles = 5;
-  ClineRulesToggles global_workflow_toggles = 6;
+  ClineRulesToggles local_agents_rules_toggles = 5;
+  ClineRulesToggles local_workflow_toggles = 6;
+  ClineRulesToggles global_workflow_toggles = 7;
 }
 
 // Request to toggle a Windsurf rule
 message ToggleWindsurfRuleRequest {
   Metadata metadata = 1;
-  string rule_path = 2;   // Path to the rule file
-  bool enabled = 3;       // Whether to enable or disable the rule
+  string rule_path = 2; // Path to the rule file
+  bool enabled = 3; // Whether to enable or disable the rule
+}
+
+// Request to toggle an Agents rule
+message ToggleAgentsRuleRequest {
+  Metadata metadata = 1;
+  string rule_path = 2; // Path to the rule file
+  bool enabled = 3; // Whether to enable or disable the rule
 }
 
 // Request to convert a list of URIs to relative paths
@@ -102,23 +116,25 @@ enum FileSearchType {
 // Request for file search operations
 message FileSearchRequest {
   Metadata metadata = 1;
-  string query = 2;                  // Search query string
-  optional string mentions_request_id = 3;  // Optional request ID for tracking requests
-  optional int32 limit = 4;          // Optional limit for results (default: 20)
-  optional FileSearchType selected_type = 5;  // Optional selected type filter
+  string query = 2; // Search query string
+  optional string mentions_request_id = 3; // Optional request ID for tracking requests
+  optional int32 limit = 4; // Optional limit for results (default: 20)
+  optional FileSearchType selected_type = 5; // Optional selected type filter
+  optional string workspace_hint = 6; // Optional workspace name to search in
 }
 
 // Result for file search operations
 message FileSearchResults {
-  repeated FileInfo results = 1;     // Array of file/folder results
-  optional string mentions_request_id = 2;  // Echo of the request ID for tracking
+  repeated FileInfo results = 1; // Array of file/folder results
+  optional string mentions_request_id = 2; // Echo of the request ID for tracking
 }
 
 // File information structure for search results
 message FileInfo {
-  string path = 1;                   // Relative path from workspace root
-  string type = 2;                   // "file" or "folder"
-  optional string label = 3;         // Display name (usually basename)
+  string path = 1; // Relative path from workspace root
+  string type = 2; // "file" or "folder"
+  optional string label = 3; // Display name (usually basename)
+  optional string workspace_name = 4; // Workspace this result came from
 }
 
 // Response for searchCommits
@@ -138,25 +154,32 @@ message GitCommit {
 // Unified request for all rule file operations
 message RuleFileRequest {
   Metadata metadata = 1;
-  bool is_global = 2;            // Common field for all operations
+  bool is_global = 2; // Common field for all operations
   optional string rule_path = 3; // Path field for deleteRuleFile (optional)
-  optional string filename = 4;  // Filename field for createRuleFile (optional)
-  optional string type = 5;      // Type of the file to create (optional)
+  optional string filename = 4; // Filename field for createRuleFile (optional)
+  optional string type = 5; // Type of the file to create (optional)
 }
 
 // Result for rule file operations with meaningful data only
 message RuleFile {
-  string file_path = 1;     // Path to the rule file
-  string display_name = 2;  // Filename for display purposes
-  bool already_exists = 3;  // For createRuleFile, indicates if file already existed
+  string file_path = 1; // Path to the rule file
+  string display_name = 2; // Filename for display purposes
+  bool already_exists = 3; // For createRuleFile, indicates if file already existed
+}
+
+// Enum for rule scope (local, global, or remote)
+enum RuleScope {
+  LOCAL = 0;
+  GLOBAL = 1;
+  REMOTE = 2;
 }
 
 // Request to toggle a Cline rule
 message ToggleClineRuleRequest {
   Metadata metadata = 1;
-  bool is_global = 2;     // Whether this is a global rule or workspace rule
-  string rule_path = 3;   // Path to the rule file
-  bool enabled = 4;       // Whether to enable or disable the rule
+  RuleScope scope = 2; // Scope of the rule (local, global, or remote)
+  string rule_path = 3; // Path to the rule file
+  bool enabled = 4; // Whether to enable or disable the rule
 }
 
 // Maps from filepath to enabled/disabled status, matching app's ClineRulesToggles type
@@ -168,13 +191,14 @@ message ClineRulesToggles {
 message ToggleClineRules {
   ClineRulesToggles global_cline_rules_toggles = 1;
   ClineRulesToggles local_cline_rules_toggles = 2;
+  ClineRulesToggles remote_rules_toggles = 3;
 }
 
 // Request to toggle a Cursor rule
 message ToggleCursorRuleRequest {
   Metadata metadata = 1;
-  string rule_path = 2;   // Path to the rule file
-  bool enabled = 3;       // Whether to enable or disable the rule
+  string rule_path = 2; // Path to the rule file
+  bool enabled = 3; // Whether to enable or disable the rule
 }
 
 // Request to toggle a workflow on or off
@@ -182,5 +206,5 @@ message ToggleWorkflowRequest {
   Metadata metadata = 1;
   string workflow_path = 2;
   bool enabled = 3;
-  bool is_global = 4;
+  RuleScope scope = 4; // Scope of the workflow (local, global, or remote)
 }

@@ -1,21 +1,46 @@
 import { resolveWorkspacePath } from "@core/workspace"
-import { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
+import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { ClineDefaultTool } from "@shared/tools"
-import { getCwd, getDesktopDir, isLocatedInPath } from "@/utils/path"
+import { StateManager } from "@/core/storage/StateManager"
+import { HostProvider } from "@/hosts/host-provider"
+import { getCwd, getDesktopDir, isLocatedInPath, isLocatedInWorkspace } from "@/utils/path"
 
 export class AutoApprove {
-	autoApprovalSettings: AutoApprovalSettings
-	approveAll: boolean
+	private stateManager: StateManager
+	// Cache for workspace paths - populated on first access and reused for the task lifetime
+	// NOTE: This assumes that the task has a fixed set of workspace roots(which is currently true).
+	private workspacePathsCache: { paths: string[] } | null = null
+	private isMultiRootScenarioCache: boolean | null = null
 
-	constructor(autoApprovalSettings: AutoApprovalSettings, approveAll: boolean) {
-		this.autoApprovalSettings = autoApprovalSettings
-		this.approveAll = approveAll
+	constructor(stateManager: StateManager) {
+		this.stateManager = stateManager
+	}
+
+	/**
+	 * Get workspace information with caching to avoid repeated API calls
+	 * Cache is task-scoped since each task gets a new AutoApprove instance
+	 */
+	private async getWorkspaceInfo(): Promise<{
+		workspacePaths: { paths: string[] }
+		isMultiRootScenario: boolean
+	}> {
+		// Check if we already have cached values
+		if (this.workspacePathsCache === null || this.isMultiRootScenarioCache === null) {
+			// First time - fetch and cache for the lifetime of this task
+			this.workspacePathsCache = await HostProvider.workspace.getWorkspacePaths({})
+			this.isMultiRootScenarioCache = isMultiRootEnabled(this.stateManager) && this.workspacePathsCache.paths.length > 1
+		}
+
+		return {
+			workspacePaths: this.workspacePathsCache,
+			isMultiRootScenario: this.isMultiRootScenarioCache,
+		}
 	}
 
 	// Check if the tool should be auto-approved based on the settings
 	// Returns bool for most tools, and tuple for tools with nested settings
 	shouldAutoApproveTool(toolName: ClineDefaultTool): boolean | [boolean, boolean] {
-		if (this.approveAll) {
+		if (this.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
 			switch (toolName) {
 				case ClineDefaultTool.FILE_READ:
 				case ClineDefaultTool.LIST_FILES:
@@ -35,36 +60,30 @@ export class AutoApprove {
 			}
 		}
 
-		if (this.autoApprovalSettings.enabled) {
-			switch (toolName) {
-				case ClineDefaultTool.FILE_READ:
-				case ClineDefaultTool.LIST_FILES:
-				case ClineDefaultTool.LIST_CODE_DEF:
-				case ClineDefaultTool.SEARCH:
-					return [
-						this.autoApprovalSettings.actions.readFiles,
-						this.autoApprovalSettings.actions.readFilesExternally ?? false,
-					]
-				case ClineDefaultTool.NEW_RULE:
-				case ClineDefaultTool.FILE_NEW:
-				case ClineDefaultTool.FILE_EDIT:
-					return [
-						this.autoApprovalSettings.actions.editFiles,
-						this.autoApprovalSettings.actions.editFilesExternally ?? false,
-					]
-				case ClineDefaultTool.BASH:
-					return [
-						this.autoApprovalSettings.actions.executeSafeCommands ?? false,
-						this.autoApprovalSettings.actions.executeAllCommands ?? false,
-					]
-				case ClineDefaultTool.BROWSER:
-					return this.autoApprovalSettings.actions.useBrowser
-				case ClineDefaultTool.WEB_FETCH:
-					return this.autoApprovalSettings.actions.useBrowser
-				case ClineDefaultTool.MCP_ACCESS:
-				case ClineDefaultTool.MCP_USE:
-					return this.autoApprovalSettings.actions.useMcp
-			}
+		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+
+		switch (toolName) {
+			case ClineDefaultTool.FILE_READ:
+			case ClineDefaultTool.LIST_FILES:
+			case ClineDefaultTool.LIST_CODE_DEF:
+			case ClineDefaultTool.SEARCH:
+				return [autoApprovalSettings.actions.readFiles, autoApprovalSettings.actions.readFilesExternally ?? false]
+			case ClineDefaultTool.NEW_RULE:
+			case ClineDefaultTool.FILE_NEW:
+			case ClineDefaultTool.FILE_EDIT:
+				return [autoApprovalSettings.actions.editFiles, autoApprovalSettings.actions.editFilesExternally ?? false]
+			case ClineDefaultTool.BASH:
+				return [
+					autoApprovalSettings.actions.executeSafeCommands ?? false,
+					autoApprovalSettings.actions.executeAllCommands ?? false,
+				]
+			case ClineDefaultTool.BROWSER:
+				return autoApprovalSettings.actions.useBrowser
+			case ClineDefaultTool.WEB_FETCH:
+				return autoApprovalSettings.actions.useBrowser
+			case ClineDefaultTool.MCP_ACCESS:
+			case ClineDefaultTool.MCP_USE:
+				return autoApprovalSettings.actions.useMcp
 		}
 		return false
 	}
@@ -76,20 +95,29 @@ export class AutoApprove {
 		blockname: ClineDefaultTool,
 		autoApproveActionpath: string | undefined,
 	): Promise<boolean> {
-		if (this.approveAll) {
+		if (this.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
 			return true
 		}
 
 		let isLocalRead: boolean = false
 		if (autoApproveActionpath) {
-			const cwd = await getCwd(getDesktopDir())
-			// When called with a string cwd, resolveWorkspacePath returns a string
-			const absolutePath = resolveWorkspacePath(
-				cwd,
-				autoApproveActionpath,
-				"AutoApprove.shouldAutoApproveToolWithPath",
-			) as string
-			isLocalRead = isLocatedInPath(cwd, absolutePath)
+			// Use cached workspace info instead of fetching every time
+			const { isMultiRootScenario } = await this.getWorkspaceInfo()
+
+			if (isMultiRootScenario) {
+				// Multi-root: check if file is in ANY workspace
+				isLocalRead = await isLocatedInWorkspace(autoApproveActionpath)
+			} else {
+				// Single-root: use existing logic
+				const cwd = await getCwd(getDesktopDir())
+				// When called with a string cwd, resolveWorkspacePath returns a string
+				const absolutePath = resolveWorkspacePath(
+					cwd,
+					autoApproveActionpath,
+					"AutoApprove.shouldAutoApproveToolWithPath",
+				) as string
+				isLocalRead = isLocatedInPath(cwd, absolutePath)
+			}
 		} else {
 			// If we do not get a path for some reason, default to a (safer) false return
 			isLocalRead = false
@@ -106,13 +134,5 @@ export class AutoApprove {
 		} else {
 			return false
 		}
-	}
-
-	updateSettings(settings: AutoApprovalSettings): void {
-		this.autoApprovalSettings = settings
-	}
-
-	updateApproveAll(approveAll: boolean): void {
-		this.approveAll = approveAll
 	}
 }

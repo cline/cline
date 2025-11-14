@@ -47,14 +47,13 @@ let messageCatcherDisposable: vscode.Disposable | undefined
  * @param context The VSCode extension context
  * @param controller The webview provider instance
  */
-async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, controller?: Controller) {
+async function updateAutoApprovalSettings(controller?: Controller) {
 	try {
 		const autoApprovalSettings = controller?.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 
 		// Enable all actions
 		const updatedSettings: AutoApprovalSettings = {
 			...(autoApprovalSettings || DEFAULT_AUTO_APPROVAL_SETTINGS),
-			enabled: true,
 			actions: {
 				readFiles: true,
 				readFilesExternally: true,
@@ -65,7 +64,6 @@ async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, con
 				useBrowser: false, // Keep browser disabled for tests
 				useMcp: false, // Keep MCP disabled for tests
 			},
-			maxRequests: 10000, // Increase max requests for tests
 		}
 
 		controller?.stateManager.setGlobalState("autoApprovalSettings", updatedSettings)
@@ -85,7 +83,7 @@ async function updateAutoApprovalSettings(_context: vscode.ExtensionContext, con
  * @param webviewProvider The webview provider instance to use for message catching
  * @returns The created HTTP server instance
  */
-export function createTestServer(controller: Controller): http.Server {
+export async function createTestServer(controller: Controller): Promise<http.Server> {
 	// Try to show the Cline sidebar
 	Logger.log("[createTestServer] Opening Cline in sidebar...")
 	vscode.commands.executeCommand(`workbench.view.${ExtensionRegistryInfo.name}-ActivityBar`)
@@ -94,7 +92,7 @@ export function createTestServer(controller: Controller): http.Server {
 	vscode.commands.executeCommand(`${ExtensionRegistryInfo.views.Sidebar}.focus`)
 
 	// Update auto approval settings is available
-	updateAutoApprovalSettings(controller.context, controller)
+	await updateAutoApprovalSettings(controller)
 
 	const PORT = 9876
 
@@ -305,7 +303,7 @@ export function createTestServer(controller: Controller): http.Server {
 						let apiConversationHistory: any[] = []
 						try {
 							if (typeof taskId === "string") {
-								messages = await getSavedClineMessages(visibleWebview.controller.context, taskId)
+								messages = await getSavedClineMessages(taskId)
 							}
 						} catch (error) {
 							Logger.log(`Error getting saved Cline messages: ${error}`)
@@ -313,10 +311,7 @@ export function createTestServer(controller: Controller): http.Server {
 
 						try {
 							if (typeof taskId === "string") {
-								apiConversationHistory = await getSavedApiConversationHistory(
-									visibleWebview.controller.context,
-									taskId,
-								)
+								apiConversationHistory = await getSavedApiConversationHistory(taskId)
 							}
 						} catch (error) {
 							Logger.log(`Error getting saved API conversation history: ${error}`)

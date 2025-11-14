@@ -1,0 +1,137 @@
+{
+  "startTime": "2025-09-22T15:10:46.059Z",
+  "entries": [
+    {
+      "requestId": "f29285fe-7145-428c-93b9-3b85a963de87",
+      "service": "cline.AccountService",
+      "method": "accountLoginClicked",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {
+          "value": "http://localhost:7777/"
+        }
+      },
+      "duration": 13
+    },
+    {
+      "requestId": "695118da-1aa3-4754-9f48-b15ea99b9aab",
+      "service": "cline.AccountService",
+      "method": "getUserOrganizations",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {
+          "organizations": [
+            {
+              "active": false,
+              "memberId": "random-member-id",
+              "name": "Test Organization",
+              "organizationId": "random-org-id",
+              "roles": [
+                "member"
+              ]
+            }
+          ]
+        }
+      },
+      "duration": 3
+    },
+    {
+      "requestId": "bb14b7eb-fc62-40aa-9933-c71c8e5a20a3",
+      "service": "cline.TaskService",
+      "method": "newTask",
+      "isStreaming": false,
+      "request": {
+        "message": {
+          "text": "Hello, Cline!",
+          "images": [],
+          "files": []
+        }
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {}
+      },
+      "duration": 54
+    },
+    {
+      "requestId": "c010ac0c-e20e-45ab-9aeb-32873f471a40",
+      "service": "cline.TaskService",
+      "method": "clearTask",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {}
+      },
+      "duration": 2
+    },
+    {
+      "requestId": "29a66476-2e42-479e-a569-e49a5e2d290d",
+      "service": "cline.TaskService",
+      "method": "newTask",
+      "isStreaming": false,
+      "request": {
+        "message": {
+          "text": "edit_request",
+          "images": [],
+          "files": []
+        }
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": false
+      },
+      "response": {
+        "message": {}
+      },
+      "duration": 52
+    },
+    {
+      "requestId": "29a66476-2e42-479e-a569-e49a5e2d290d",
+      "service": "cline.StateService",
+      "method": "getLatestState",
+      "isStreaming": false,
+      "request": {
+        "message": {}
+      },
+      "status": "completed",
+      "meta": {
+        "synthetic": true
+      },
+      "response": {
+        "message": {
+          "stateJson": "{\"version\":\"3.30.3\",\"apiConfiguration\":{\"openAiHeaders\":{},\"sapAiCoreUseOrchestrationMode\":true,\"planModeApiProvider\":\"cline\",\"planModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\",\"actModeApiProvider\":\"cline\",\"actModeFireworksModelId\":\"accounts/fireworks/models/kimi-k2-instruct-0905\"},\"clineMessages\":[{\"ts\":1758625008035,\"type\":\"say\",\"say\":\"text\",\"text\":\"edit_request\",\"images\":[],\"files\":[],\"conversationHistoryIndex\":-1}],\"currentFocusChainChecklist\":null,\"autoApprovalSettings\":{\"version\":3,\"enabled\":true,\"actions\":{\"readFiles\":true,\"readFilesExternally\":false,\"editFiles\":false,\"editFilesExternally\":false,\"executeSafeCommands\":true,\"executeAllCommands\":false,\"useBrowser\":false,\"useMcp\":false},\"maxRequests\":20,\"enableNotifications\":false,\"favorites\":[\"enableAutoApprove\",\"readFiles\",\"editFiles\"]},\"browserSettings\":{\"viewport\":{\"width\":900,\"height\":600},\"remoteBrowserEnabled\":false,\"remoteBrowserHost\":\"http://localhost:9222\",\"chromeExecutablePath\":\"\",\"disableToolUse\":false,\"customArgs\":\"\"},\"focusChainSettings\":{\"enabled\":true,\"remindClineInterval\":6},\"dictationSettings\":{\"featureEnabled\":true,\"dictationEnabled\":false,\"dictationLanguage\":\"en\"},\"preferredLanguage\":\"English\",\"openaiReasoningEffort\":\"medium\",\"mode\":\"act\",\"strictPlanModeEnabled\":true,\"yoloModeToggled\":false,\"useAutoCondense\":false,\"mcpMarketplaceEnabled\":true,\"mcpDisplayMode\":\"plain\",\"telemetrySetting\":\"unset\",\"planActSeparateModelsSetting\":false,\"enableCheckpointsSetting\":true,\"distinctId\":\"fake-machine-id-Joses-MacBook-Pro.local\",\"globalClineRulesToggles\":{},\"localClineRulesToggles\":{},\"localWindsurfRulesToggles\":{},\"localCursorRulesToggles\":{},\"localWorkflowToggles\":{},\"globalWorkflowToggles\":{},\"shellIntegrationTimeout\":4000,\"terminalReuseEnabled\":true,\"defaultTerminalProfile\":\"default\",\"isNewUser\":true,\"welcomeViewCompleted\":true,\"mcpResponsesCollapsed\":false,\"terminalOutputLineLimit\":500,\"taskHistory\":[{\"id\":\"1758625007820\",\"ulid\":\"01K5V3G26C7MTGJG54HW6FMDJ0\",\"ts\":1758625007822,\"task\":\"Hello, Cline!\",\"tokensIn\":0,\"tokensOut\":0,\"totalCost\":0,\"size\":220,\"cwdOnTaskInitialization\":\"/var/folders/x3/5k62k0qj0rx84w8t_qh1z6gh0000gq/T/cline-test-workspace-HWum4j\",\"isFavorited\":false}],\"platform\":\"darwin\",\"shouldShowAnnouncement\":true,\"favoritedModelIds\":[],\"workspaceRoots\":[{\"path\":\"/var/folders/x3/5k62k0qj0rx84w8t_qh1z6gh0000gq/T/cline-test-workspace-HWum4j\",\"name\":\"cline-test-workspace-HWum4j\",\"vcs\":\"none\"}],\"primaryRootIndex\":0,\"isMultiRootWorkspace\":false}"
+        }
+      },
+      "duration": 0
+    }
+  ],
+  "stats": {
+    "totalRequests": 6,
+    "pendingRequests": 0,
+    "completedRequests": 6,
+    "errorRequests": 0
+  }
+}

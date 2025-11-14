@@ -3,15 +3,18 @@ import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from 
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
-import { clineEnvConfig } from "@/config"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { ClineEnv } from "@/config"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
+import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
-import { version as extensionVersion } from "../../../../package.json"
+import { fetch, getAxiosSettings } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import { ToolCallProcessor } from "../transform/tool-call-processor"
 import { OpenRouterErrorResponse } from "./types"
 
 interface ClineHandlerOptions extends CommonApiHandlerOptions {
@@ -30,7 +33,7 @@ export class ClineHandler implements ApiHandler {
 	private clineAccountService = ClineAccountService.getInstance()
 	private _authService: AuthService
 	private client: OpenAI | undefined
-	private readonly _baseUrl = clineEnvConfig.apiBaseUrl
+	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	lastGenerationId?: string
 	private lastRequestId?: string
 
@@ -46,15 +49,17 @@ export class ClineHandler implements ApiHandler {
 		}
 		if (!this.client) {
 			try {
+				const defaultHeaders: Record<string, string> = {
+					"HTTP-Referer": "https://cline.bot",
+					"X-Title": "Cline",
+					"X-Task-ID": this.options.ulid || "",
+				}
+				Object.assign(defaultHeaders, await buildClineExtraHeaders())
+
 				this.client = new OpenAI({
 					baseURL: `${this._baseUrl}/api/v1`,
 					apiKey: clineAccountAuthToken,
-					defaultHeaders: {
-						"HTTP-Referer": "https://cline.bot",
-						"X-Title": "Cline",
-						"X-Task-ID": this.options.ulid || "",
-						"X-Cline-Version": extensionVersion,
-					},
+					defaultHeaders,
 					// Capture real HTTP request ID from initial streaming response headers
 					fetch: async (...args: Parameters<typeof fetch>): Promise<Awaited<ReturnType<typeof fetch>>> => {
 						const [input, init] = args
@@ -91,7 +96,7 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		try {
 			const client = await this.ensureClient()
 
@@ -108,7 +113,10 @@ export class ClineHandler implements ApiHandler {
 				this.options.reasoningEffort,
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
+				tools,
 			)
+
+			const toolCallProcessor = new ToolCallProcessor()
 
 			for await (const chunk of stream) {
 				// openrouter returns an error object instead of the openai sdk throwing an error
@@ -148,13 +156,37 @@ export class ClineHandler implements ApiHandler {
 					}
 				}
 
+				if (delta?.tool_calls) {
+					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+				}
+
 				// Reasoning tokens are returned separately from the content
 				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
 				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
 					yield {
 						type: "reasoning",
-						// @ts-ignore-next-line
-						reasoning: delta.reasoning,
+						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
+					}
+				}
+
+				/* 
+				OpenRouter passes reasoning details that we can pass back unmodified in api requests to preserve reasoning traces for model
+				  - The reasoning_details array in each chunk may contain one or more reasoning objects
+				  - For encrypted reasoning, the content may appear as [REDACTED] in streaming responses
+				  - The complete reasoning sequence is built by concatenating all chunks in order
+				See: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks
+				*/
+				if (
+					"reasoning_details" in delta &&
+					delta.reasoning_details &&
+					// @ts-ignore-next-line
+					delta.reasoning_details.length && // exists and non-0
+					!shouldSkipReasoningForModel(this.options.openRouterModelId)
+				) {
+					yield {
+						type: "reasoning",
+						reasoning: "",
+						details: delta.reasoning_details,
 					}
 				}
 
@@ -162,11 +194,7 @@ export class ClineHandler implements ApiHandler {
 					// @ts-ignore-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
-					if (this.getModel().id === "cline/code-supernova") {
-						totalCost = 0
-					}
-
-					if (this.getModel().id === "x-ai/grok-code-fast-1") {
+					if (this.getModel().id === "x-ai/grok-code-fast-1" || this.getModel().id === "minimax/minimax-m2") {
 						totalCost = 0
 					}
 
@@ -176,8 +204,7 @@ export class ClineHandler implements ApiHandler {
 						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
 						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
 						outputTokens: chunk.usage.completion_tokens || 0,
-						// @ts-ignore-next-line
-						totalCost: totalCost,
+						totalCost,
 					}
 					didOutputUsage = true
 				}
@@ -200,17 +227,20 @@ export class ClineHandler implements ApiHandler {
 	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
 		if (this.lastGenerationId) {
 			try {
-				// TODO: replace this with firebase auth
-				// TODO: use global API Host
 				const clineAccountAuthToken = await this._authService.getAuthToken()
 				if (!clineAccountAuthToken) {
 					throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 				}
+				const headers: Record<string, string> = {
+					// Align with backend auth expectations
+					Authorization: `Bearer ${clineAccountAuthToken}`,
+				}
+				Object.assign(headers, await buildClineExtraHeaders())
+
 				const response = await axios.get(`${this.clineAccountService.baseUrl}/generation?id=${this.lastGenerationId}`, {
-					headers: {
-						Authorization: `Bearer ${clineAccountAuthToken}`,
-					},
+					headers,
 					timeout: 15_000, // this request hangs sometimes
+					...getAxiosSettings(),
 				})
 
 				const generation = response.data

@@ -6,7 +6,7 @@ export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
-{{${SystemPromptSection.TODO}}}
+{{${SystemPromptSection.TASK_PROGRESS}}}
 
 ====
 
@@ -22,7 +22,7 @@ export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 ====
 
-{{${SystemPromptSection.TASK_PROGRESS}}}
+{{${SystemPromptSection.CLI_SUBAGENTS}}}
 
 ====
 

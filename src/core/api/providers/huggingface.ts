@@ -2,10 +2,13 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { HuggingFaceModelId, huggingFaceDefaultModelId, huggingFaceModels, ModelInfo } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
+import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { ApiStream } from "../transform/stream"
+import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
 interface HuggingFaceHandlerOptions extends CommonApiHandlerOptions {
 	huggingFaceApiKey?: string
@@ -35,6 +38,7 @@ export class HuggingFaceHandler implements ApiHandler {
 					defaultHeaders: {
 						"User-Agent": "Cline/1.0",
 					},
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Hugging Face client: ${error.message}`)
@@ -65,7 +69,7 @@ export class HuggingFaceHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
 		try {
 			const client = this.ensureClient()
 			const model = this.getModel()
@@ -82,8 +86,10 @@ export class HuggingFaceHandler implements ApiHandler {
 				stream: true,
 				stream_options: { include_usage: true },
 				temperature: 0,
+				...getOpenAIToolParams(tools),
 			}
 
+			const toolCallProcessor = new ToolCallProcessor()
 			const stream = (await client.chat.completions.create(requestParams)) as any
 
 			let _chunkCount = 0
@@ -99,6 +105,10 @@ export class HuggingFaceHandler implements ApiHandler {
 						type: "text",
 						text: delta.content,
 					}
+				}
+
+				if (delta?.tool_calls) {
+					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
 				}
 
 				if (chunk.usage) {

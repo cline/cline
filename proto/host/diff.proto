@@ -1,10 +1,12 @@
 syntax = "proto3";
 
 package host;
-option java_package = "bot.cline.host.proto";
-option java_multiple_files = true;
 
 import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/host";
+option java_multiple_files = true;
+option java_package = "bot.cline.host.proto";
 
 // Provides methods for diff views.
 service DiffService {
@@ -53,7 +55,7 @@ message GetDocumentTextRequest {
 }
 
 message GetDocumentTextResponse {
-    optional string content = 1;
+  optional string content = 1;
 }
 
 message ReplaceTextRequest {

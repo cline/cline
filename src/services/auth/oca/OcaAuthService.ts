@@ -4,6 +4,7 @@ import type { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { AuthHandler } from "@/hosts/external/AuthHandler"
 import { openExternal } from "@/utils/env"
+import { LogoutReason } from "../types"
 import { OcaAuthProvider } from "./providers/OcaAuthProvider"
 import type { OcaConfig } from "./utils/types"
 import { getOcaConfig } from "./utils/utils"
@@ -133,14 +134,16 @@ export class OcaAuthService {
 			this.sendAuthStatusUpdate()
 			return ProtoString.create({ value: "Already authenticated" })
 		}
-		if (!this._config.idcs_url) {
+		const ocaMode = this.requireController().stateManager.getGlobalSettingsKey("ocaMode") || "internal"
+		const idcsUrl = ocaMode === "external" ? this._config.external.idcs_url : this._config.internal.idcs_url
+		if (!idcsUrl) {
 			throw new Error("IDCS URI is not configured")
 		}
 		// Start the auth handler
 		const authHandler = AuthHandler.getInstance()
 		authHandler.setEnabled(true)
 		const callbackUrl = `${await authHandler.getCallbackUrl()}/auth/oca`
-		const authUrl = this.requireProvider().getAuthUrl(callbackUrl!)
+		const authUrl = this.requireProvider().getAuthUrl(callbackUrl!, ocaMode)
 		const authUrlString = authUrl?.toString() || ""
 		if (!authUrlString) {
 			throw new Error("Failed to generate authentication URL")
@@ -149,7 +152,7 @@ export class OcaAuthService {
 		return ProtoString.create({ value: authUrlString })
 	}
 
-	async handleDeauth(): Promise<void> {
+	async handleDeauth(_: LogoutReason = LogoutReason.UNKNOWN): Promise<void> {
 		try {
 			this.clearAuth()
 			this._ocaAuthState = null
@@ -208,11 +211,23 @@ export class OcaAuthService {
 		await this.sendAuthStatusUpdate()
 
 		// Avoid repeated/looping login attempts
-		if (this._interactiveLoginPending) return
+		if (this._interactiveLoginPending) {
+			return
+		}
 		this._interactiveLoginPending = true
 		try {
 			// Kickstart interactive login (opens browser)
 			await this.createAuthRequest()
+			// Wait up to 60 seconds for user to complete login
+			const timeoutMs = 60_000
+			const pollMs = 250
+			const start = Date.now()
+			while (!this._authenticated && Date.now() - start < timeoutMs) {
+				await new Promise((r) => setTimeout(r, pollMs))
+			}
+			if (!this._authenticated) {
+				console.warn("Interactive OCA login timed out after 120 seconds")
+			}
 		} catch (e) {
 			console.error("Failed to initiate interactive OCA login:", e)
 		} finally {

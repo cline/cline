@@ -30,8 +30,8 @@ export class CondenseHandler implements IToolHandler, IPartialBlockHandler {
 
 		config.taskState.consecutiveMistakeCount = 0
 
-		// Show notification if auto-approval is enabled
-		if (config.autoApprovalSettings.enabled && config.autoApprovalSettings.enableNotifications) {
+		// Show notification if enabled
+		if (config.autoApprovalSettings.enableNotifications) {
 			showSystemNotification({
 				subtitle: "Cline wants to condense the conversation...",
 				message: `Cline is suggesting to condense your conversation with: ${context}`,
@@ -70,7 +70,7 @@ export class CondenseHandler implements IToolHandler, IPartialBlockHandler {
 			await config.messageState.saveClineMessagesAndUpdateHistory()
 			await config.services.contextManager.triggerApplyStandardContextTruncationNoticeChange(
 				Date.now(),
-				await ensureTaskDirectoryExists(config.context, config.taskId),
+				await ensureTaskDirectoryExists(config.taskId),
 				apiConversationHistory,
 			)
 

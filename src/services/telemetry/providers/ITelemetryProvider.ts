@@ -6,6 +6,32 @@
 import type { ClineAccountUserInfo } from "../../auth/AuthService"
 
 /**
+ * JSON-serializable primitive types for telemetry properties
+ */
+export type TelemetryPrimitive = string | number | boolean | null | undefined
+
+/**
+ * JSON-serializable value types for telemetry properties
+ * Ensures all telemetry data can be properly serialized
+ */
+export type TelemetryValue = TelemetryPrimitive | TelemetryObject | TelemetryArray
+
+/**
+ * JSON-serializable object for telemetry properties
+ */
+export type TelemetryObject = { [key: string]: TelemetryValue }
+
+/**
+ * JSON-serializable array for telemetry properties
+ */
+export type TelemetryArray = Array<TelemetryValue>
+
+/**
+ * Properties that can be safely passed to telemetry providers
+ */
+export type TelemetryProperties = TelemetryObject
+
+/**
  * Telemetry settings that control when and how telemetry is collected
  */
 export interface TelemetrySettings {
@@ -25,16 +51,24 @@ export interface ITelemetryProvider {
 	/**
 	 * Log an event with optional properties
 	 * @param event The event name to log
-	 * @param properties Optional properties to attach to the event
+	 * @param properties Optional JSON-serializable properties to attach to the event
 	 */
-	log(event: string, properties?: Record<string, unknown>): void
+	log(event: string, properties?: TelemetryProperties): void
+
+	/**
+	 * Log a required event that bypasses telemetry opt-out settings
+	 * Required events are critical for system health and error monitoring
+	 * @param event The event name to log
+	 * @param properties Optional JSON-serializable properties to attach to the event
+	 */
+	logRequired(event: string, properties?: TelemetryProperties): void
 
 	/**
 	 * Identify a user for tracking
 	 * @param userInfo The user's information
-	 * @param properties Optional additional properties
+	 * @param properties Optional additional JSON-serializable properties
 	 */
-	identifyUser(userInfo: ClineAccountUserInfo, properties?: Record<string, unknown>): void
+	identifyUser(userInfo: ClineAccountUserInfo, properties?: TelemetryProperties): void
 
 	/**
 	 * Update telemetry opt-in/out status
@@ -51,6 +85,24 @@ export interface ITelemetryProvider {
 	 * Get current telemetry settings
 	 */
 	getSettings(): TelemetrySettings
+
+	/**
+	 * (Optional) Increment a counter metric.
+	 * Providers that don't support metrics may implement this as a no-op.
+	 * @param name Metric name
+	 * @param value Amount to increment by (default 1)
+	 * @param attributes Optional metric attributes (JSON-serializable)
+	 */
+	incrementCounter?(name: string, value?: number, attributes?: TelemetryProperties): void
+
+	/**
+	 * (Optional) Record a value in a histogram metric.
+	 * Providers that don't support metrics may implement this as a no-op.
+	 * @param name Metric name
+	 * @param value Value to record
+	 * @param attributes Optional metric attributes (JSON-serializable)
+	 */
+	recordHistogram?(name: string, value: number, attributes?: TelemetryProperties): void
 
 	/**
 	 * Clean up resources when the provider is disposed

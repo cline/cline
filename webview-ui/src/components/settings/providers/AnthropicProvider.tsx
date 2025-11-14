@@ -1,10 +1,9 @@
-import { anthropicModels, CLAUDE_SONNET_4_1M_SUFFIX } from "@shared/api"
+import { anthropicModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
 import { Mode } from "@shared/storage/types"
-import { VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
+import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
@@ -15,9 +14,12 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
 	"claude-3-7-sonnet-20250219",
 	"claude-sonnet-4-20250514",
-	`claude-sonnet-4-20250514${CLAUDE_SONNET_4_1M_SUFFIX}`,
+	`claude-sonnet-4-20250514${CLAUDE_SONNET_1M_SUFFIX}`,
 	"claude-opus-4-20250514",
 	"claude-opus-4-1-20250805",
+	"claude-sonnet-4-5-20250929",
+	`claude-sonnet-4-5-20250929${CLAUDE_SONNET_1M_SUFFIX}`,
+	"claude-haiku-4-5-20251001",
 ]
 
 /**
@@ -39,24 +41,10 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 
-	// Check if the current model is Claude Sonnet 4 and determine the alternate variant
-	const claudeSonnet4Variant = useMemo(() => {
-		const SONNET_4_MODEL_ID = "claude-sonnet-4-20250514"
-		if (selectedModelId === SONNET_4_MODEL_ID) {
-			return {
-				current: SONNET_4_MODEL_ID,
-				alternate: `${SONNET_4_MODEL_ID}${CLAUDE_SONNET_4_1M_SUFFIX}`,
-				linkText: "Switch to 1M context window model",
-			}
-		} else if (selectedModelId === `${SONNET_4_MODEL_ID}${CLAUDE_SONNET_4_1M_SUFFIX}`) {
-			return {
-				current: `${SONNET_4_MODEL_ID}${CLAUDE_SONNET_4_1M_SUFFIX}`,
-				alternate: SONNET_4_MODEL_ID,
-				linkText: "Switch to 200K context window model",
-			}
-		}
-		return null
-	}, [selectedModelId])
+	// Helper function for model switching
+	const handleModelChange = (modelId: string) => {
+		handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, modelId, currentMode)
+	}
 
 	return (
 		<div>
@@ -89,25 +77,21 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 						selectedModelId={selectedModelId}
 					/>
 
-					{claudeSonnet4Variant && (
-						<div style={{ marginBottom: 2 }}>
-							<VSCodeLink
-								onClick={() =>
-									handleModeFieldChange(
-										{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-										claudeSonnet4Variant.alternate,
-										currentMode,
-									)
-								}
-								style={{
-									display: "inline",
-									fontSize: "10.5px",
-									color: "var(--vscode-textLink-foreground)",
-								}}>
-								{claudeSonnet4Variant.linkText}
-							</VSCodeLink>
-						</div>
-					)}
+					{/* Context window switcher for Claude Sonnet 4.5 */}
+					<ContextWindowSwitcher
+						base1mModelId={`claude-sonnet-4-5-20250929${CLAUDE_SONNET_1M_SUFFIX}`}
+						base200kModelId="claude-sonnet-4-5-20250929"
+						onModelChange={handleModelChange}
+						selectedModelId={selectedModelId}
+					/>
+
+					{/* Context window switcher for Claude Sonnet 4 */}
+					<ContextWindowSwitcher
+						base1mModelId={`claude-sonnet-4-20250514${CLAUDE_SONNET_1M_SUFFIX}`}
+						base200kModelId="claude-sonnet-4-20250514"
+						onModelChange={handleModelChange}
+						selectedModelId={selectedModelId}
+					/>
 
 					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />

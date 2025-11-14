@@ -42,7 +42,7 @@ Usage:
 Description: Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string. Do NOT use this tool to list the contents of a directory. Only use this tool on files.
 Parameters:
 - path: (required) The path of the file to read (relative to the current working directory /test/project)
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <read_file>
 <path>File path here</path>
@@ -54,7 +54,7 @@ Description: Request to write content to a file at the specified path. If the fi
 Parameters:
 - path: (required) The path of the file to write to (relative to the current working directory /test/project)
 - content: (required) The content to write to the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified.
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <write_to_file>
 <path>File path here</path>
@@ -90,7 +90,7 @@ Parameters:
   4. Special operations:
      * To move code: Use two SEARCH/REPLACE blocks (one to delete from original + one to insert at new location)
      * To delete code: Use empty REPLACE section
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <replace_in_file>
 <path>File path here</path>
@@ -104,7 +104,7 @@ Parameters:
 - path: (required) The path of the directory to search in (relative to the current working directory /test/project). This directory will be recursively searched.
 - regex: (required) The regular expression pattern to search for. Uses Rust regex syntax.
 - file_pattern: (optional) Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <search_files>
 <path>Directory path here</path>
@@ -118,7 +118,7 @@ Description: Request to list files and directories within the specified director
 Parameters:
 - path: (required) The path of the directory to list contents for (relative to the current working directory /test/project)
 - recursive: (optional) Whether to list files recursively. Use true for recursive listing, false or omit for top-level only.
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <list_files>
 <path>Directory path here</path>
@@ -130,7 +130,7 @@ Usage:
 Description: Request to list definition names (classes, functions, methods, etc.) used in source code files at the top level of the specified directory. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.
 Parameters:
 - path: (required) The path of the directory (relative to the current working directory /test/project) to list top level source code definitions for.
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <list_code_definition_names>
 <path>Directory path here</path>
@@ -182,7 +182,7 @@ Description: Fetches content from a specified URL and processes into markdown
 - This tool is read-only and does not modify any files
 Parameters:
 - url: (required) The URL to fetch content from
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <web_fetch>
 <url>https://example.com/docs</url>
@@ -195,7 +195,7 @@ Parameters:
 - server_name: (required) The name of the MCP server providing the tool
 - tool_name: (required) The name of the tool to execute
 - arguments: (required) A JSON object containing the tool's input parameters, following the tool's input schema
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <use_mcp_tool>
 <server_name>server name here</server_name>
@@ -214,7 +214,7 @@ Description: Request to access a resource provided by a connected MCP server. Re
 Parameters:
 - server_name: (required) The name of the MCP server providing the resource
 - uri: (required) The URI identifying the specific resource to access
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <access_mcp_resource>
 <server_name>server name here</server_name>
@@ -227,7 +227,7 @@ Description: Ask the user a question to gather additional information needed to 
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
 - options: (optional) An array of 2-5 options for the user to choose from. Each option should be a string describing a possible answer. You may not always need to provide options, but it may be helpful in many cases where it can save the user from having to type out a response manually. IMPORTANT: NEVER include an option to toggle to Act mode, as this would be something you need to direct the user to do manually themselves if needed.
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <ask_followup_question>
 <question>Your question here</question>
@@ -454,16 +454,31 @@ By waiting for and carefully considering the user's response after each tool use
 
 ====
 
-AUTOMATIC TODO LIST MANAGEMENT
+UPDATING TASK PROGRESS
 
-The system automatically manages todo lists to help track task progress:
+You can track and communicate your progress on the overall task using the task_progress parameter supported by every tool call. Using task_progress ensures you remain on task, and stay focused on completing the user's objective. This parameter can be used in any mode, and with any tool call.
 
-- Every 10th API request, you will be prompted to review and update the current todo list if one exists
-- When switching from PLAN MODE to ACT MODE, you should create a comprehensive todo list for the task
+- When switching from PLAN MODE to ACT MODE, you must create a comprehensive todo list for the task using the task_progress parameter
 - Todo list updates should be done silently using the task_progress parameter - do not announce these updates to the user
 - Use standard Markdown checklist format: "- [ ]" for incomplete items and "- [x]" for completed items
-- The system will automatically include todo list context in your prompts when appropriate
-- Focus on creating actionable, meaningful steps rather than granular technical details
+- Keep items focused on meaningful progress milestones rather than minor technical details. The checklist should not be so granular that minor implementation details clutter the progress tracking.
+- For simple tasks, short checklists with even a single item are acceptable. For complex tasks, avoid making the checklist too long or verbose.
+- If you are creating this checklist for the first time, and the tool use completes the first step in the checklist, make sure to mark it as completed in your task_progress parameter.
+- Provide the whole checklist of steps you intend to complete in the task, and keep the checkboxes updated as you make progress. It's okay to rewrite this checklist as needed if it becomes invalid due to scope changes or new information.
+- If a checklist is being used, be sure to update it any time a step has been completed.
+- The system will automatically include todo list context in your prompts when appropriate - these reminders are important.
+
+Example:
+<execute_command>
+<command>npm install react</command>
+<requires_approval>false</requires_approval>
+<task_progress>
+- [x] Set up project structure
+- [x] Install dependencies
+- [ ] Create components
+- [ ] Test application
+</task_progress>
+</execute_command>
 
 ====
 
@@ -535,8 +550,9 @@ You have access to two tools for working with files: **write_to_file** and **rep
 
 1. Before editing, assess the scope of your changes and decide which tool to use.
 2. For targeted edits, apply replace_in_file with carefully crafted SEARCH/REPLACE blocks. If you need multiple changes, you can stack multiple SEARCH/REPLACE blocks within a single replace_in_file call.
-3. For major overhauls or initial file creation, rely on write_to_file.
-4. Once the file has been edited with either write_to_file or replace_in_file, the system will provide you with the final state of the modified file. Use this updated content as the reference point for any subsequent SEARCH/REPLACE operations, since it reflects any auto-formatting or user-applied changes.
+3. IMPORTANT: When you determine that you need to make several changes to the same file, prefer to use a single replace_in_file call with multiple SEARCH/REPLACE blocks. DO NOT prefer to make multiple successive replace_in_file calls for the same file. For example, if you were to add a component to a file, you would use a single replace_in_file call with a SEARCH/REPLACE block to add the import statement and another SEARCH/REPLACE block to add the component usage, rather than making one replace_in_file call for the import statement and then another separate replace_in_file call for the component usage.
+4. For major overhauls or initial file creation, rely on write_to_file.
+5. Once the file has been edited with either write_to_file or replace_in_file, the system will provide you with the final state of the modified file. Use this updated content as the reference point for any subsequent SEARCH/REPLACE operations, since it reflects any auto-formatting or user-applied changes.
 By thoughtfully selecting between write_to_file and replace_in_file, you can make your file editing process smoother, safer, and more efficient.
 
 ====
@@ -558,32 +574,6 @@ In each user message, the environment_details will specify the current mode. The
 - Once you've gained more context about the user's request, you should architect a detailed plan for how you will accomplish the task. Present the plan to the user using the plan_mode_respond tool.
 - Then you might ask the user if they are pleased with this plan, or if they would like to make any changes. Think of this as a brainstorming session where you can discuss the task and plan the best way to accomplish it.
 - Finally once it seems like you've reached a good plan, ask the user to switch you back to ACT MODE to implement the solution.
-
-====
-
-UPDATING TASK PROGRESS
-
-Every tool use supports an optional task_progress parameter that allows you to provide an updated checklist to keep the user informed of your overall progress on the task. This should be used regularly throughout the task to keep the user informed of completed and remaining steps. Before using the attempt_completion tool, ensure the final checklist item is checked off to indicate task completion.
-
-- You probably wouldn't use this while in PLAN mode until the user has approved your plan and switched you to ACT mode.
-- Use standard Markdown checklist format: "- [ ]" for incomplete items and "- [x]" for completed items
-- Provide the whole checklist of steps you intend to complete in the task, and keep the checkboxes updated as you make progress. It's okay to rewrite this checklist as needed if it becomes invalid due to scope changes or new information.
-- Keep items focused on meaningful progress milestones rather than minor technical details. The checklist should not be so granular that minor implementation details clutter the progress tracking.
-- If you are creating this checklist for the first time, and the tool use completes the first step in the checklist, make sure to mark it as completed in your parameter input since this checklist will be displayed after this tool use is completed.
-- For simple tasks, short checklists with even a single item are acceptable. For complex tasks, avoid making the checklist too long or verbose.
-- If a checklist is being used, be sure to update it any time a step has been completed.
-
-Example:
-<execute_command>
-<command>npm install react</command>
-<requires_approval>false</requires_approval>
-<task_progress>
-- [x] Set up project structure
-- [x] Install dependencies
-- [ ] Create components
-- [ ] Test application
-</task_progress>
-</execute_command>
 
 ====
 

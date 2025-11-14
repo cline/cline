@@ -2,7 +2,8 @@ import { McpServer } from "@shared/mcp"
 import { StringRequest } from "@shared/proto/cline/common"
 import { McpDownloadResponse } from "@shared/proto/cline/mcp"
 import axios from "axios"
-import { clineEnvConfig } from "@/config"
+import { ClineEnv } from "@/config"
+import { getAxiosSettings } from "@/shared/net"
 import { Controller } from ".."
 import { sendChatButtonClickedEvent } from "../ui/subscribeToChatButtonClicked"
 
@@ -31,11 +32,12 @@ export async function downloadMcp(controller: Controller, request: StringRequest
 
 		// Fetch server details from marketplace
 		const response = await axios.post<McpDownloadResponse>(
-			`${clineEnvConfig.mcpBaseUrl}/download`,
+			`${ClineEnv.config().mcpBaseUrl}/download`,
 			{ mcpId },
 			{
 				headers: { "Content-Type": "application/json" },
 				timeout: 10000,
+				...getAxiosSettings(),
 			},
 		)
 
@@ -73,7 +75,7 @@ Here is the project's README to help you get started:\n\n${mcpDetails.readmeCont
 
 		// Initialize task and show chat view
 		await controller.initTask(task)
-		await sendChatButtonClickedEvent(controller.id)
+		await sendChatButtonClickedEvent()
 
 		// Return the download details directly
 		return McpDownloadResponse.create({

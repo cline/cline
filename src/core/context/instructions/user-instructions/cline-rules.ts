@@ -1,6 +1,7 @@
 import { getRuleFilesTotalContent, synchronizeRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
 import { formatResponse } from "@core/prompts/responses"
 import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
+import { StateManager } from "@core/storage/StateManager"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
@@ -8,25 +9,46 @@ import path from "path"
 import { Controller } from "@/core/controller"
 
 export const getGlobalClineRules = async (globalClineRulesFilePath: string, toggles: ClineRulesToggles) => {
+	let combinedContent = ""
+
+	// 1. Get file-based rules
 	if (await fileExistsAtPath(globalClineRulesFilePath)) {
 		if (await isDirectory(globalClineRulesFilePath)) {
 			try {
 				const rulesFilePaths = await readDirectory(globalClineRulesFilePath)
 				const rulesFilesTotalContent = await getRuleFilesTotalContent(rulesFilePaths, globalClineRulesFilePath, toggles)
 				if (rulesFilesTotalContent) {
-					const clineRulesFileInstructions = formatResponse.clineRulesGlobalDirectoryInstructions(
-						globalClineRulesFilePath,
-						rulesFilesTotalContent,
-					)
-					return clineRulesFileInstructions
+					combinedContent = rulesFilesTotalContent
 				}
 			} catch {
 				console.error(`Failed to read .clinerules directory at ${globalClineRulesFilePath}`)
 			}
 		} else {
 			console.error(`${globalClineRulesFilePath} is not a directory`)
-			return undefined
 		}
+	}
+
+	// 2. Append remote config rules
+	const stateManager = StateManager.get()
+	const remoteConfigSettings = stateManager.getRemoteConfigSettings()
+	const remoteRules = remoteConfigSettings.remoteGlobalRules || []
+	const remoteToggles = stateManager.getGlobalStateKey("remoteRulesToggles") || {}
+
+	for (const rule of remoteRules) {
+		// If alwaysEnabled, always include; otherwise check toggle
+		const isEnabled = rule.alwaysEnabled || remoteToggles[rule.name] !== false
+
+		if (isEnabled) {
+			if (combinedContent) {
+				combinedContent += "\n\n"
+			}
+			combinedContent += `${rule.name}\n${rule.contents}`
+		}
+	}
+
+	// 3. Return formatted instructions
+	if (combinedContent) {
+		return formatResponse.clineRulesGlobalDirectoryInstructions(globalClineRulesFilePath, combinedContent)
 	}
 
 	return undefined
@@ -40,7 +62,10 @@ export const getLocalClineRules = async (cwd: string, toggles: ClineRulesToggles
 	if (await fileExistsAtPath(clineRulesFilePath)) {
 		if (await isDirectory(clineRulesFilePath)) {
 			try {
-				const rulesFilePaths = await readDirectory(clineRulesFilePath, [[".clinerules", "workflows"]])
+				const rulesFilePaths = await readDirectory(clineRulesFilePath, [
+					[".clinerules", "workflows"],
+					[".clinerules", "hooks"],
+				])
 
 				const rulesFilesTotalContent = await getRuleFilesTotalContent(rulesFilePaths, cwd, toggles)
 				if (rulesFilesTotalContent) {
@@ -84,6 +109,7 @@ export async function refreshClineRulesToggles(
 	const localClineRulesFilePath = path.resolve(workingDirectory, GlobalFileNames.clineRules)
 	const updatedLocalToggles = await synchronizeRuleToggles(localClineRulesFilePath, localClineRulesToggles, "", [
 		[".clinerules", "workflows"],
+		[".clinerules", "hooks"],
 	])
 	controller.stateManager.setWorkspaceState("localClineRulesToggles", updatedLocalToggles)
 
