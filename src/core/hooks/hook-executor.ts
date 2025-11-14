@@ -242,11 +242,10 @@ async function updateHookMessage(
  * 4. Re-add the tool message at the end (after hook messages)
  */
 async function reorderHookAndToolMessages(messageStateHandler: MessageStateHandler): Promise<void> {
-	const { findLastIndex } = await import("@shared/array")
 	const clineMessages = messageStateHandler.getClineMessages()
 
 	// Find the most recent tool message
-	const lastToolMessageIndex = findLastIndex(clineMessages, (m: ClineMessage) => m.ask === "tool" || m.say === "tool")
+	const lastToolMessageIndex = clineMessages.map((m) => m.ask || m.say).lastIndexOf("tool")
 
 	if (lastToolMessageIndex === -1) {
 		return // No tool message found, nothing to reorder
