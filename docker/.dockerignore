@@ -9,8 +9,20 @@ npm-debug.log
 
 # Build artifacts
 dist
+dist-standalone
 build
 *.log
+
+# Generated code
+src/generated
+
+# CLI build artifacts
+cli/bin
+cli/dist
+
+# Webview build artifacts
+webview-ui/dist
+webview-ui/build
 
 # IDE
 .vscode

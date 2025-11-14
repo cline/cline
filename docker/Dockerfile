@@ -1,48 +1,44 @@
-# Simple Cline CLI Docker image using npm package
-# Using ARM64 architecture for better compatibility
+FROM node:22-slim
 
-FROM node:21
+# Docker automatically sets TARGETARCH to the build platform's architecture
+ARG TARGETARCH
 
-# Install runtime dependencies including GitHub CLI
+# Install only runtime dependencies
 RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    ca-certificates \
-    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-    && apt-get update \
-    && apt-get install -y gh \
+    git curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Cline CLI globally
-RUN npm install -g cline
+WORKDIR /opt/cline
 
-# Create workspace directory
-WORKDIR /workspace
+# Copy the entire pre-built distribution
+COPY dist-standalone/ ./
 
-# Clone the cline/cline repository
-RUN git clone https://github.com/cline/cline.git /workspace/cline
+# Create symlink for Linux native modules
+# Map Docker's TARGETARCH (arm64/amd64) to Node's platform naming (x64 for amd64)
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        ln -sf /opt/cline/binaries/linux-x64/node_modules/better-sqlite3 /opt/cline/node_modules/better-sqlite3; \
+    else \
+        ln -sf /opt/cline/binaries/linux-$TARGETARCH/node_modules/better-sqlite3 /opt/cline/node_modules/better-sqlite3; \
+    fi
 
-# Set working directory to the cloned repository
-WORKDIR /workspace/cline
+# Set up CLI binaries
+# The Linux binaries are already in /opt/cline/bin/ from dist-standalone
+# Just need to create symlinks to the platform-specific ones
+RUN cd /opt/cline/bin && \
+    ln -sf cline-linux-$TARGETARCH cline && \
+    ln -sf cline-host-linux-$TARGETARCH cline-host && \
+    chmod +x cline-linux-$TARGETARCH cline-host-linux-$TARGETARCH cline cline-host
 
-# Copy entrypoint script
-COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
-
-# Set environment variables
+# Add binaries to PATH
+ENV PATH="/opt/cline/bin:${PATH}"
 ENV NODE_ENV=production
 ENV CLINE_HOME=/root/.cline
 
-# Create Cline home directory
 RUN mkdir -p $CLINE_HOME
 
-# Expose port for potential web interface or API
-EXPOSE 8080
+WORKDIR /workspace
 
-# Set entrypoint
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+EXPOSE 8000
 
-# Default command (can be overridden)
+ENTRYPOINT ["/opt/cline/bin/cline"]
 CMD ["--help"]
