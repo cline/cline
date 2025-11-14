@@ -269,6 +269,19 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			this.appliedCommit = commit
 			this.config = config
 
+			// Run PreToolUse hook before applying changes
+			try {
+				const { ToolHookUtils } = await import("../utils/ToolHookUtils")
+				await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+			} catch (error) {
+				const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+				if (error instanceof PreToolUseHookCancellationError) {
+					await provider.reset()
+					return "The user denied this patch operation."
+				}
+				throw error
+			}
+
 			// Apply the commit
 			const applyResults = await this.applyCommit(commit)
 

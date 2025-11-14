@@ -267,6 +267,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			platform,
 			localWorkflowToggles,
 			globalWorkflowToggles,
+			remoteWorkflowToggles,
+			remoteConfigSettings,
 			showChatModelSelector: showModelSelector,
 			setShowChatModelSelector: setShowModelSelector,
 			dictationSettings,
@@ -517,6 +519,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								slashCommandsQuery,
 								localWorkflowToggles,
 								globalWorkflowToggles,
+								remoteWorkflowToggles,
+								remoteConfigSettings?.remoteGlobalWorkflows,
 							)
 
 							if (allCommands.length === 0) {
@@ -535,7 +539,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					if ((event.key === "Enter" || event.key === "Tab") && selectedSlashCommandsIndex !== -1) {
 						event.preventDefault()
-						const commands = getMatchingSlashCommands(slashCommandsQuery, localWorkflowToggles, globalWorkflowToggles)
+						const commands = getMatchingSlashCommands(
+							slashCommandsQuery,
+							localWorkflowToggles,
+							globalWorkflowToggles,
+							remoteWorkflowToggles,
+							remoteConfigSettings?.remoteGlobalWorkflows,
+						)
 						if (commands.length > 0) {
 							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
 						}
@@ -983,7 +993,13 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				// extract and validate the exact command text
 				const commandText = processedText.substring(slashIndex + 1, endIndex)
-				const isValidCommand = validateSlashCommand(commandText, localWorkflowToggles, globalWorkflowToggles)
+				const isValidCommand = validateSlashCommand(
+					commandText,
+					localWorkflowToggles,
+					globalWorkflowToggles,
+					remoteWorkflowToggles,
+					remoteConfigSettings?.remoteGlobalWorkflows,
+				)
 
 				if (isValidCommand) {
 					const fullCommand = processedText.substring(slashIndex, endIndex) // includes slash
@@ -1484,6 +1500,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								onMouseDown={handleMenuMouseDown}
 								onSelect={handleSlashCommandsSelect}
 								query={slashCommandsQuery}
+								remoteWorkflows={remoteConfigSettings?.remoteGlobalWorkflows}
+								remoteWorkflowToggles={remoteWorkflowToggles}
 								selectedIndex={selectedSlashCommandsIndex}
 								setSelectedIndex={setSelectedSlashCommandsIndex}
 							/>

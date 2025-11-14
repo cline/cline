@@ -103,6 +103,7 @@ export async function getTaskHistory(controller: Controller, request: GetTaskHis
 			tokensOut: item.tokensOut || 0,
 			cacheWrites: item.cacheWrites || 0,
 			cacheReads: item.cacheReads || 0,
+			modelId: item.modelId || "",
 		}))
 
 		return TaskHistoryArray.create({

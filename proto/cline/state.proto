@@ -31,6 +31,7 @@ service StateService {
   rpc installClineCli(EmptyRequest) returns (Empty);
   rpc checkCliInstallation(EmptyRequest) returns (Boolean);
   rpc getProcessInfo(EmptyRequest) returns (ProcessInfo);
+  rpc flushPendingState(EmptyRequest) returns (Empty);
 }
 
 message AutoApprovalActions {

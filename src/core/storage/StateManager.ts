@@ -843,6 +843,51 @@ export class StateManager {
 	}
 
 	/**
+	 * Private method to persist all pending state changes
+	 * Returns early if nothing is pending
+	 */
+	private async persistPendingState(): Promise<void> {
+		// Early return if nothing to persist
+		if (
+			this.pendingGlobalState.size === 0 &&
+			this.pendingSecrets.size === 0 &&
+			this.pendingWorkspaceState.size === 0 &&
+			this.pendingTaskState.size === 0
+		) {
+			return
+		}
+
+		// Execute all persistence operations in parallel
+		await Promise.all([
+			this.persistGlobalStateBatch(this.pendingGlobalState),
+			this.persistSecretsBatch(this.pendingSecrets),
+			this.persistWorkspaceStateBatch(this.pendingWorkspaceState),
+			this.persistTaskStateBatch(this.pendingTaskState),
+		])
+
+		// Clear pending sets after successful persistence
+		this.pendingGlobalState.clear()
+		this.pendingSecrets.clear()
+		this.pendingWorkspaceState.clear()
+		this.pendingTaskState.clear()
+	}
+
+	/**
+	 * Flush all pending state changes immediately to disk
+	 * Bypasses the debounced persistence and forces immediate writes
+	 */
+	public async flushPendingState(): Promise<void> {
+		// Cancel any pending timeout
+		if (this.persistenceTimeout) {
+			clearTimeout(this.persistenceTimeout)
+			this.persistenceTimeout = null
+		}
+
+		// Execute persistence immediately
+		await this.persistPendingState()
+	}
+
+	/**
 	 * Schedule debounced persistence - simple timeout-based persistence
 	 */
 	private scheduleDebouncedPersistence(): void {
@@ -854,18 +899,7 @@ export class StateManager {
 		// Schedule a new timeout to persist pending changes
 		this.persistenceTimeout = setTimeout(async () => {
 			try {
-				await Promise.all([
-					this.persistGlobalStateBatch(this.pendingGlobalState),
-					this.persistSecretsBatch(this.pendingSecrets),
-					this.persistWorkspaceStateBatch(this.pendingWorkspaceState),
-					this.persistTaskStateBatch(this.pendingTaskState),
-				])
-
-				// Clear pending sets on successful persistence
-				this.pendingGlobalState.clear()
-				this.pendingSecrets.clear()
-				this.pendingWorkspaceState.clear()
-				this.pendingTaskState.clear()
+				await this.persistPendingState()
 				this.persistenceTimeout = null
 			} catch (error) {
 				console.error("[StateManager] Failed to persist pending changes:", error)

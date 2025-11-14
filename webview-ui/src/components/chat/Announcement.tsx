@@ -57,20 +57,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h4>
 			<ul style={ulStyle}>
 				<li>
-					<strong>Hooks</strong> allow you to inject custom logic into Cline's workflow&nbsp; (
-					<a href="https://docs.cline.bot/features/hooks" style={linkStyle}>
-						Hooks Docs
-					</a>
-					)
+					<strong>GPT-5.1</strong> is now live with Cline-optimized prompts and enhanced plan mode & /deep-planning.
+					Enable Native Tool Calling for best performance.
 				</li>
 				<li>
-					Bug fixes and improvements, including support for <code>&lt;think&gt;</code> tags (for better compatibility
-					with open-source models), refinements to the GLM-4.6 system prompt, CLI auth & provider updates, and fixes for
-					the OpenAI Compatible provider.&nbsp; (
-					<a href="https://github.com/cline/cline/blob/main/CHANGELOG.md" style={linkStyle}>
-						View full changelog
-					</a>
-					)
+					<strong>Nous Research provider</strong> added featuring Hermes 4 models with tailored system prompts.
+				</li>
+				<li>
+					<strong>Smarter focus chain prompting</strong> for frontier models
 				</li>
 			</ul>
 			<div style={hrStyle} />

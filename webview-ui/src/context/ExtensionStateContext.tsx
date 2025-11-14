@@ -73,8 +73,11 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setLocalClineRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalCursorRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWindsurfRulesToggles: (toggles: Record<string, boolean>) => void
+	setLocalAgentsRulesToggles: (toggles: Record<string, boolean>) => void
 	setLocalWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setGlobalWorkflowToggles: (toggles: Record<string, boolean>) => void
+	setRemoteRulesToggles: (toggles: Record<string, boolean>) => void
+	setRemoteWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
 	setExpandTaskHeader: (value: boolean) => void
@@ -201,6 +204,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		localClineRulesToggles: {},
 		localCursorRulesToggles: {},
 		localWindsurfRulesToggles: {},
+		localAgentsRulesToggles: {},
 		localWorkflowToggles: {},
 		globalWorkflowToggles: {},
 		shellIntegrationTimeout: 4000,
@@ -677,8 +681,11 @@ export const ExtensionStateContextProvider: React.FC<{
 		localClineRulesToggles: state.localClineRulesToggles || {},
 		localCursorRulesToggles: state.localCursorRulesToggles || {},
 		localWindsurfRulesToggles: state.localWindsurfRulesToggles || {},
+		localAgentsRulesToggles: state.localAgentsRulesToggles || {},
 		localWorkflowToggles: state.localWorkflowToggles || {},
 		globalWorkflowToggles: state.globalWorkflowToggles || {},
+		remoteRulesToggles: state.remoteRulesToggles || {},
+		remoteWorkflowToggles: state.remoteWorkflowToggles || {},
 		enableCheckpointsSetting: state.enableCheckpointsSetting,
 		currentFocusChainChecklist: state.currentFocusChainChecklist,
 
@@ -732,6 +739,11 @@ export const ExtensionStateContextProvider: React.FC<{
 				...prevState,
 				localWindsurfRulesToggles: toggles,
 			})),
+		setLocalAgentsRulesToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				localAgentsRulesToggles: toggles,
+			})),
 		setLocalWorkflowToggles: (toggles) =>
 			setState((prevState) => ({
 				...prevState,
@@ -741,6 +753,16 @@ export const ExtensionStateContextProvider: React.FC<{
 			setState((prevState) => ({
 				...prevState,
 				globalWorkflowToggles: toggles,
+			})),
+		setRemoteRulesToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				remoteRulesToggles: toggles,
+			})),
+		setRemoteWorkflowToggles: (toggles) =>
+			setState((prevState) => ({
+				...prevState,
+				remoteWorkflowToggles: toggles,
 			})),
 		setMcpTab,
 		setTotalTasksSize,

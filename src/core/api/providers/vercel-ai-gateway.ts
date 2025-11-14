@@ -95,8 +95,9 @@ export class VercelAIGatewayHandler implements ApiHandler {
 					delta.reasoning_details.length // exists and non-0
 				) {
 					yield {
-						type: "reasoning_details",
-						reasoning_details: delta.reasoning_details,
+						type: "reasoning",
+						reasoning: "",
+						details: delta.reasoning_details,
 					}
 				}
 

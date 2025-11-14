@@ -629,6 +629,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 												)}
 											</div>
 										)}
+										{item.modelId && <div className="text-description">Model: {item.modelId}</div>}
 										{!!item.totalCost && (
 											<div
 												style={{

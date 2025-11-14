@@ -249,6 +249,9 @@ Otherwise, if you have not completed the task and do not need additional informa
 	cursorRulesLocalDirectoryInstructions: (cwd: string, content: string) =>
 		`# .cursor/rules\n\nThe following is provided by a root-level .cursor/rules directory where the user has specified instructions for this working directory (${cwd.toPosix()})\n\n${content}`,
 
+	agentsRulesLocalFileInstructions: (cwd: string, content: string) =>
+		`# AGENTS.md\n\nThe following is provided by AGENTS.md files found recursively throughout this working directory (${cwd.toPosix()}) where the user has specified instructions. Nested AGENTS.md will be combined below, and you should only apply the instructions for each AGENTS.md file that is directly applicable to the current task, i.e. if you are reading or writing to a file in that directory.\n\n${content}`,
+
 	fileContextWarning: (editedFiles: string[]): string => {
 		const fileCount = editedFiles.length
 		const fileVerb = fileCount === 1 ? "file has" : "files have"

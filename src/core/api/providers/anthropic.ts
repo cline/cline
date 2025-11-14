@@ -144,20 +144,21 @@ export class AnthropicHandler implements ApiHandler {
 			}
 		}
 
-		let thinkingDeltaAccumulator = ""
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 
 		for await (const chunk of stream) {
 			switch (chunk?.type) {
 				case "message_start":
-					// tells us cache reads/writes/input/output
-					const usage = chunk.message.usage
-					yield {
-						type: "usage",
-						inputTokens: usage.input_tokens || 0,
-						outputTokens: usage.output_tokens || 0,
-						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
-						cacheReadTokens: usage.cache_read_input_tokens || undefined,
+					{
+						// tells us cache reads/writes/input/output
+						const usage = chunk.message.usage
+						yield {
+							type: "usage",
+							inputTokens: usage.input_tokens || 0,
+							outputTokens: usage.output_tokens || 0,
+							cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
+							cacheReadTokens: usage.cache_read_input_tokens || undefined,
+						}
 					}
 					break
 				case "message_delta":
@@ -178,15 +179,7 @@ export class AnthropicHandler implements ApiHandler {
 							yield {
 								type: "reasoning",
 								reasoning: chunk.content_block.thinking || "",
-							}
-							const thinking = chunk.content_block.thinking
-							const signature = chunk.content_block.signature
-							if (thinking && signature) {
-								yield {
-									type: "ant_thinking",
-									thinking,
-									signature,
-								}
+								signature: chunk.content_block.signature,
 							}
 							break
 						case "redacted_thinking":
@@ -194,10 +187,7 @@ export class AnthropicHandler implements ApiHandler {
 							yield {
 								type: "reasoning",
 								reasoning: "[Redacted thinking block]",
-							}
-							yield {
-								type: "ant_redacted_thinking",
-								data: chunk.content_block.data,
+								redacted_data: chunk.content_block.data,
 							}
 							break
 						case "tool_use":
@@ -226,20 +216,19 @@ export class AnthropicHandler implements ApiHandler {
 				case "content_block_delta":
 					switch (chunk.delta.type) {
 						case "thinking_delta":
-							// 'reasoning' type just displays in the UI, but ant_thinking will be used to send the thinking traces back to the API
+							// 'reasoning' type just displays in the UI, but reasoning with signature will be used to send the thinking traces back to the API
 							yield {
 								type: "reasoning",
 								reasoning: chunk.delta.thinking,
 							}
-							thinkingDeltaAccumulator += chunk.delta.thinking
 							break
 						case "signature_delta":
 							// It's used when sending the thinking block back to the API
 							// API expects this in completed form, not as array of deltas
-							if (thinkingDeltaAccumulator && chunk.delta.signature) {
+							if (chunk.delta.signature) {
 								yield {
-									type: "ant_thinking",
-									thinking: thinkingDeltaAccumulator,
+									type: "reasoning",
+									reasoning: "", // reasoning text is already sent via thinking_delta
 									signature: chunk.delta.signature,
 								}
 							}

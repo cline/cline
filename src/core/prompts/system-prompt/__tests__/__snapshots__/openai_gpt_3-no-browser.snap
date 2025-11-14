@@ -42,7 +42,7 @@ Usage:
 Description: Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string. Do NOT use this tool to list the contents of a directory. Only use this tool on files.
 Parameters:
 - path: (required) The path of the file to read (relative to the current working directory /test/project)
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a seperate parameter inside of the parent tool call, it must be seperate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <read_file>
 <path>File path here</path>
@@ -54,7 +54,7 @@ Description: Request to write content to a file at the specified path. If the fi
 Parameters:
 - path: (required) The path of the file to write to (relative to the current working directory /test/project)
 - content: (required) The content to write to the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified.
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a seperate parameter inside of the parent tool call, it must be seperate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <write_to_file>
 <path>File path here</path>
@@ -90,7 +90,7 @@ Parameters:
   4. Special operations:
      * To move code: Use two SEARCH/REPLACE blocks (one to delete from original + one to insert at new location)
      * To delete code: Use empty REPLACE section
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a seperate parameter inside of the parent tool call, it must be seperate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <replace_in_file>
 <path>File path here</path>
@@ -104,7 +104,7 @@ Parameters:
 - path: (required) The path of the directory to search in (relative to the current working directory /test/project). This directory will be recursively searched.
 - regex: (required) The regular expression pattern to search for. Uses Rust regex syntax.
 - file_pattern: (optional) Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a seperate parameter inside of the parent tool call, it must be seperate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <search_files>
 <path>Directory path here</path>
@@ -118,7 +118,7 @@ Description: Request to list files and directories within the specified director
 Parameters:
 - path: (required) The path of the directory to list contents for (relative to the current working directory /test/project)
 - recursive: (optional) Whether to list files recursively. Use true for recursive listing, false or omit for top-level only.
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a seperate parameter inside of the parent tool call, it must be seperate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <list_files>
 <path>Directory path here</path>
@@ -130,7 +130,7 @@ Usage:
 Description: Request to list definition names (classes, functions, methods, etc.) used in source code files at the top level of the specified directory. This tool provides insights into the codebase structure and important constructs, encapsulating high-level concepts and relationships that are crucial for understanding the overall architecture.
 Parameters:
 - path: (required) The path of the directory (relative to the current working directory /test/project) to list top level source code definitions for.
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a seperate parameter inside of the parent tool call, it must be seperate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <list_code_definition_names>
 <path>Directory path here</path>
@@ -143,7 +143,7 @@ Parameters:
 - server_name: (required) The name of the MCP server providing the tool
 - tool_name: (required) The name of the tool to execute
 - arguments: (required) A JSON object containing the tool's input parameters, following the tool's input schema
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a seperate parameter inside of the parent tool call, it must be seperate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <use_mcp_tool>
 <server_name>server name here</server_name>
@@ -162,7 +162,7 @@ Description: Request to access a resource provided by a connected MCP server. Re
 Parameters:
 - server_name: (required) The name of the MCP server providing the resource
 - uri: (required) The URI identifying the specific resource to access
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a seperate parameter inside of the parent tool call, it must be seperate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <access_mcp_resource>
 <server_name>server name here</server_name>
@@ -175,7 +175,7 @@ Description: Ask the user a question to gather additional information needed to 
 Parameters:
 - question: (required) The question to ask the user. This should be a clear, specific question that addresses the information you need.
 - options: (optional) An array of 2-5 options for the user to choose from. Each option should be a string describing a possible answer. You may not always need to provide options, but it may be helpful in many cases where it can save the user from having to type out a response manually. IMPORTANT: NEVER include an option to toggle to Act mode, as this would be something you need to direct the user to do manually themselves if needed.
-- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a seperate parameter inside of the parent tool call, it must be seperate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
+- task_progress: (optional) A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)
 Usage:
 <ask_followup_question>
 <question>Your question here</question>

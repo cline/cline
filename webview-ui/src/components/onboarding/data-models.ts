@@ -63,6 +63,18 @@ export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]>
 					inputPrice: 1.25,
 					outputPrice: 10.0,
 				},
+				{
+					id: "openai/gpt-5.1",
+					name: "OpenAI: GPT-5.1",
+					badge: "New",
+					score: 97,
+					latency: 3,
+					contextWindow: 272_000,
+					supportsImages: true,
+					supportsPromptCache: true,
+					inputPrice: 1.25,
+					outputPrice: 10.0,
+				},
 			],
 		},
 		{

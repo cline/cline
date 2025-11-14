@@ -1,6 +1,7 @@
 import type { ApiProviderInfo } from "@/core/api"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt/types"
 import { getDeepPlanningRegistry } from "./registry"
+import { generateGPT51Template } from "./variants/gpt5"
 
 /**
  * Generates the deep-planning slash command response with model-family-aware variant selection
@@ -19,10 +20,15 @@ export function getDeepPlanningPrompt(focusChainSettings?: { enabled: boolean },
 	const registry = getDeepPlanningRegistry()
 	const variant = registry.get(context)
 
-	// Apply focus chain settings to template
-	let template = variant.template
+	// For variants with extensive focus chain prompting, generate template with focus chain flag
+	let template: string
+	if (variant.id === "gpt-5") {
+		template = generateGPT51Template(focusChainSettings?.enabled ?? false)
+	} else {
+		template = variant.template
+	}
 
-	// Replace the FOCUS_CHAIN_PARAM placeholder with actual content or empty string
+	// For variants with simpler focus chain prompting, Replace the FOCUS_CHAIN_PARAM placeholder with actual content
 	const focusChainParam = focusChainSettings?.enabled
 		? `**Task Progress Parameter:**
 When creating the new task, you must include a task_progress parameter that breaks down the implementation into trackable steps. This parameter should be included inside the tool call, but not located inside of other content/argument blocks. This should follow the standard Markdown checklist format with "- [ ]" for incomplete items.`

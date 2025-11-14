@@ -45,7 +45,7 @@ const NATIVE_GPT_5: ClineToolSpec = {
 			name: "command",
 			required: true,
 			instruction:
-				"The CLI command to execute. This should be valid for the current operating system. Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths.",
+				"The CLI command to execute. This should be valid for the current operating system. Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths. The command will be executed from the current workspace, you do not need to cd to the workspace.",
 		},
 		{
 			name: "requires_approval",
