@@ -54,6 +54,22 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 		},
 	},
 	{
+		group: "frontier",
+		id: "openai/gpt-5.1",
+		name: "OpenAI: GPT-5.1",
+		badge: "New",
+		score: 97,
+		latency: 3,
+		info: {
+			contextWindow: 272_000,
+			supportsImages: true,
+			supportsPromptCache: true,
+			inputPrice: 1.25,
+			outputPrice: 10.0,
+			tiers: [],
+		},
+	},
+	{
 		group: "open source",
 		id: "z-ai/glm-4.6:exacto",
 		name: "Z.AI: GLM 4.6 (exacto)",
