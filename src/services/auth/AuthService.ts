@@ -381,15 +381,14 @@ export class AuthService {
 		})
 
 		await Promise.all(streamSends)
-
 		// Identify the user in telemetry if available
 		if (this._clineAuthInfo?.userInfo?.id) {
 			telemetryService.identifyAccount(this._clineAuthInfo.userInfo)
 			// Reset feature flags to ensure they are fetched for the new/logged in user
-			featureFlagsService.reset()
+			featureFlagsService.reset(this._clineAuthInfo?.userInfo?.id)
 		}
 		// Poll feature flags to ensure they are up to date for all users
-		await featureFlagsService.poll()
+		await featureFlagsService.poll(this._clineAuthInfo?.userInfo?.id)
 
 		// Update state in webviews once per unique controller
 		await Promise.all(Array.from(uniqueControllers).map((c) => c.postStateToWebview()))
