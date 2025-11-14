@@ -273,5 +273,6 @@ export interface LocalState {
 	localClineRulesToggles: ClineRulesToggles
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
+	localAgentsRulesToggles: ClineRulesToggles
 	workflowToggles: ClineRulesToggles
 }
