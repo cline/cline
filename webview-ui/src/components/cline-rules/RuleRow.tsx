@@ -107,8 +107,8 @@ const RuleRow: React.FC<{
 					<span className="ph-no-capture">{finalDisplayName}</span>
 					{ruleType === "agents" && (
 						<Tooltip>
-							<TooltipTrigger asChild className="items-center cursor-help">
-								<InfoIcon className="ml-1.5 opacity-70 size-2" />
+							<TooltipTrigger asChild className="cursor-help">
+								<InfoIcon className="ml-1.5 opacity-70 size-[0.85rem]" />
 							</TooltipTrigger>
 							<TooltipContent>
 								Searches recursively for all AGENTS.md files in the workspace when a top-level AGENTS.md exists
