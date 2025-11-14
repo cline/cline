@@ -185,10 +185,10 @@ function findImmediateNextToolTimestamp(hookIndex: number, messages: ClineMessag
  * This map indicates which hooks should be moved to appear before which tools.
  * Only PreToolUse hooks are included; PostToolUse hooks stay in their original position.
  *
- * Key insight: A PreToolUse hook should only be mapped to a tool if the hook was
- * created AFTER the tool already exists in the message stream. This can happen when
- * hooks arrive late or out of order. If the hook timestamp < tool timestamp, it means
- * the hook naturally appears before the tool chronologically and should NOT be moved.
+ * A PreToolUse hook should only be mapped to a tool if the hook was created AFTER the
+ * tool already exists in the message stream. This can happen when hooks arrive late
+ * or out of order. If the hook timestamp < tool timestamp, it means the hook
+ * naturally appears before the tool chronologically and should NOT be moved.
  *
  * @param processedMessages Messages after filtering and combining
  * @param originalMessages Original messages array (used to find tools)

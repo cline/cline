@@ -236,7 +236,7 @@ async function updateHookMessage(
  * This is called immediately after a hook message is created.
  *
  * The algorithm:
- * 1. Find the most recent tool message (ask or say with type "tool")
+ * 1. Find the most recent tool message (ask or say with type "tool", "command", "use_mcp_server", or "browser_action_launch")
  * 2. Find any hook messages that came after it
  * 3. Delete the tool message
  * 4. Re-add the tool message at the end (after hook messages)
@@ -244,8 +244,18 @@ async function updateHookMessage(
 async function reorderHookAndToolMessages(messageStateHandler: MessageStateHandler): Promise<void> {
 	const clineMessages = messageStateHandler.getClineMessages()
 
+	// Define all message types that represent tool executions with PreToolUse hooks
+	const toolMessageTypes = ["tool", "command", "use_mcp_server", "browser_action_launch"]
+
 	// Find the most recent tool message
-	const lastToolMessageIndex = clineMessages.map((m) => m.ask || m.say).lastIndexOf("tool")
+	let lastToolMessageIndex = -1
+	for (let i = clineMessages.length - 1; i >= 0; i--) {
+		const msgType = clineMessages[i].ask || clineMessages[i].say
+		if (msgType && toolMessageTypes.includes(msgType)) {
+			lastToolMessageIndex = i
+			break
+		}
+	}
 
 	if (lastToolMessageIndex === -1) {
 		return // No tool message found, nothing to reorder
