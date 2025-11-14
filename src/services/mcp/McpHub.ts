@@ -46,6 +46,7 @@ export class McpHub {
 	private telemetryService: TelemetryService
 
 	private settingsWatcher?: FSWatcher
+	private projectSettingsWatcher?: FSWatcher
 	private fileWatchers: Map<string, FSWatcher> = new Map()
 	connections: McpConnection[] = []
 	isConnecting: boolean = false
@@ -77,6 +78,7 @@ export class McpHub {
 		this.clientVersion = clientVersion
 		this.telemetryService = telemetryService
 		this.watchMcpSettingsFile()
+		this.watchProjectMcpSettingsFile()
 		this.initializeMcpServers()
 	}
 
@@ -128,26 +130,82 @@ export class McpHub {
 		return mcpSettingsFilePath
 	}
 
+	/**
+	 * Get project MCP settings file path for current workspace
+	 * Returns undefined if no workspace is open
+	 */
+	private async getProjectMcpSettingsFilePath(): Promise<string | undefined> {
+		const workspacePath = await getCwd()
+		if (!workspacePath) {
+			return undefined
+		}
+		return path.join(workspacePath, ".cline", "mcp_settings.json")
+	}
+
+	/**
+	 * Read project MCP settings if they exist
+	 * Returns empty object if file doesn't exist or is invalid
+	 */
+	private async readProjectMcpSettings(): Promise<Record<string, McpServerConfig>> {
+		try {
+			const projectPath = await this.getProjectMcpSettingsFilePath()
+			if (!projectPath) {
+				return {}
+			}
+
+			const exists = await fileExistsAtPath(projectPath)
+			if (!exists) {
+				return {}
+			}
+
+			const content = await fs.readFile(projectPath, "utf-8")
+			const config = JSON.parse(content)
+
+			// Validate
+			const result = McpSettingsSchema.safeParse(config)
+			if (!result.success) {
+				console.warn("Invalid project MCP settings, using global only:", result.error)
+				return {}
+			}
+
+			return result.data.mcpServers || {}
+		} catch (error) {
+			console.warn("Failed to read project MCP settings:", error)
+			return {}
+		}
+	}
+
 	private async readAndValidateMcpSettingsFile(): Promise<z.infer<typeof McpSettingsSchema> | undefined> {
 		try {
-			const settingsPath = await this.getMcpSettingsFilePath()
-			const content = await fs.readFile(settingsPath, "utf-8")
+			// Read global settings
+			const globalSettingsPath = await this.getMcpSettingsFilePath()
+			const globalContent = await fs.readFile(globalSettingsPath, "utf-8")
+			let globalConfig: any
 
-			let config: any
-
-			// Parse JSON file content
+			// Parse global JSON file content
 			try {
-				config = JSON.parse(content)
+				globalConfig = JSON.parse(globalContent)
 			} catch (_error) {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
-					message: "Invalid MCP settings format. Please ensure your settings follow the correct JSON format.",
+					message: "Invalid global MCP settings format.",
 				})
 				return undefined
 			}
 
-			// Validate against schema
-			const result = McpSettingsSchema.safeParse(config)
+			// Read project settings (returns {} if not found/invalid)
+			const projectServers = await this.readProjectMcpSettings()
+
+			// Merge: project overrides global
+			const mergedConfig = {
+				mcpServers: {
+					...(globalConfig.mcpServers || {}),
+					...projectServers,
+				},
+			}
+
+			// Validate merged config
+			const result = McpSettingsSchema.safeParse(mergedConfig)
 			if (!result.success) {
 				HostProvider.window.showMessage({
 					type: ShowMessageType.ERROR,
@@ -190,6 +248,79 @@ export class McpHub {
 
 		this.settingsWatcher.on("error", (error) => {
 			console.error("Error watching MCP settings file:", error)
+		})
+	}
+
+	private async watchProjectMcpSettingsFile(): Promise<void> {
+		const projectPath = await this.getProjectMcpSettingsFilePath()
+		if (!projectPath) {
+			// No workspace open, skip project watcher
+			return
+		}
+
+		// Watch both the file and .cline directory (to detect file creation)
+		const clineDir = path.dirname(projectPath)
+		const watchPaths = [projectPath]
+
+		// Also watch directory if it exists
+		if (await fileExistsAtPath(clineDir)) {
+			watchPaths.push(clineDir)
+		}
+
+		this.projectSettingsWatcher = chokidar.watch(watchPaths, {
+			persistent: true,
+			ignoreInitial: true,
+			awaitWriteFinish: {
+				stabilityThreshold: 100,
+				pollInterval: 100,
+			},
+			atomic: true,
+		})
+
+		this.projectSettingsWatcher.on("change", async (path) => {
+			// Only react to changes to mcp_settings.json
+			if (path.endsWith("mcp_settings.json")) {
+				const settings = await this.readAndValidateMcpSettingsFile()
+				if (settings) {
+					try {
+						await this.updateServerConnections(settings.mcpServers)
+					} catch (error) {
+						console.error("Failed to process project MCP settings change:", error)
+					}
+				}
+			}
+		})
+
+		this.projectSettingsWatcher.on("add", async (path) => {
+			// Detect when mcp_settings.json is created
+			if (path.endsWith("mcp_settings.json")) {
+				const settings = await this.readAndValidateMcpSettingsFile()
+				if (settings) {
+					try {
+						await this.updateServerConnections(settings.mcpServers)
+					} catch (error) {
+						console.error("Failed to process new project MCP settings:", error)
+					}
+				}
+			}
+		})
+
+		this.projectSettingsWatcher.on("unlink", async (path) => {
+			// Detect when mcp_settings.json is deleted
+			if (path.endsWith("mcp_settings.json")) {
+				const settings = await this.readAndValidateMcpSettingsFile()
+				if (settings) {
+					try {
+						await this.updateServerConnections(settings.mcpServers)
+					} catch (error) {
+						console.error("Failed to process project MCP settings deletion:", error)
+					}
+				}
+			}
+		})
+
+		this.projectSettingsWatcher.on("error", (error) => {
+			console.error("Error watching project MCP settings file:", error)
 		})
 	}
 
@@ -1213,6 +1344,9 @@ export class McpHub {
 		this.connections = []
 		if (this.settingsWatcher) {
 			await this.settingsWatcher.close()
+		}
+		if (this.projectSettingsWatcher) {
+			await this.projectSettingsWatcher.close()
 		}
 	}
 }
