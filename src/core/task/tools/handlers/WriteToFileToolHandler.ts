@@ -16,6 +16,7 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { DiffUtils } from "../utils/DiffUtils"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -52,13 +53,20 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			const { relPath, absolutePath, fileExists, diff, content, newContent } = result
 
 			// Create and show partial UI message
+			// Create focused diff for the preview
+			const focusedDiff = DiffUtils.createFocusedDiff(
+				relPath,
+				config.services.diffViewProvider.originalContent || "",
+				newContent,
+			)
+
 			const sharedMessageProps: ClineSayTool = {
 				tool: fileExists ? "editedExistingFile" : "newFileCreated",
 				path: getReadablePath(
 					config.cwd,
 					uiHelpers.removeClosingTag(block, block.params.path ? "path" : "absolutePath", relPath),
 				),
-				content: diff || content,
+				content: focusedDiff || diff || content,
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 			}
 			const partialMessage = JSON.stringify(sharedMessageProps)
@@ -133,11 +141,18 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 			const { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext } = result
 
+			// Create focused diff for the preview
+			const focusedDiff = DiffUtils.createFocusedDiff(
+				relPath,
+				config.services.diffViewProvider.originalContent || "",
+				newContent,
+			)
+
 			// Handle approval flow
 			const sharedMessageProps: ClineSayTool = {
 				tool: fileExists ? "editedExistingFile" : "newFileCreated",
 				path: getReadablePath(config.cwd, relPath),
-				content: diff || content,
+				content: focusedDiff || diff || content,
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 			}
 			// if isEditingFile false, that means we have the full contents of the file already.
