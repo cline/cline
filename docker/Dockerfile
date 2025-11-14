@@ -1,6 +1,11 @@
 FROM node:22-slim
 
-# Docker automatically sets TARGETARCH to the build platform's architecture
+# TARGETARCH enables multi-architecture support without emulation warnings:
+# - Docker automatically sets TARGETARCH to the build platform's architecture
+# - On arm64 machines (Apple Silicon): TARGETARCH=arm64, uses linux-arm64 binaries
+# - On amd64 machines (Intel/AMD): TARGETARCH=amd64, uses linux-x64 binaries
+# The corresponding platform-specific binaries and native modules (better-sqlite3)
+# are pre-built by scripts/package-standalone.mjs during the build process.
 ARG TARGETARCH
 
 # Install only runtime dependencies
