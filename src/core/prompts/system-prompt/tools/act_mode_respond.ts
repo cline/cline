@@ -26,7 +26,7 @@ const NATIVE_GPT_5: ClineToolSpec = {
 	variant: ModelFamily.NATIVE_GPT_5,
 	id,
 	name: "act_mode_respond",
-	description: `Provide a progress update or preamble to the user during ACT MODE execution. This tool allows you to communicate your thought process and planned actions without interrupting the execution flow. After displaying your message, execution automatically continues, allowing you to proceed with subsequent tool calls immediately. This tool is only available in ACT MODE for OpenAI native models.
+	description: `Provide a progress update or preamble to the user during ACT MODE execution. This tool allows you to communicate your thought process and planned actions without interrupting the execution flow. After displaying your message, execution automatically continues, allowing you to proceed with subsequent tool calls immediately. This tool is only available in ACT MODE. This tool may not be called immediately after a previous act_mode_respond call.
 
 IMPORTANT: Use this tool frequently to create a better user experience. Since it's non-blocking, there's no performance penalty for frequent use.
 
@@ -40,7 +40,7 @@ Use this tool when:
 
 Do NOT use this tool when you have completed all required actions and are ready to present the final output; in that case, use the attempt_completion tool instead.
 
-After calling this tool, you must call a different tool in your next message to continue execution.`,
+CRITICAL CONSTRAINT: You MUST NOT call this tool more than once in a row. After using act_mode_respond, your next assistant message MUST either call a different tool or perform additional work without using act_mode_respond again. If you attempt to call act_mode_respond consecutively, the tool call will fail with an explicit error.`,
 	parameters: [
 		{
 			name: "response",
