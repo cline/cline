@@ -4,7 +4,7 @@ import {
 	ConversationRole as BedrockConversationRole,
 	type Message as BedrockMessage,
 } from "@aws-sdk/client-bedrock-runtime"
-import { ChatMessages, LlmModuleConfig, OrchestrationClient, TemplatingModuleConfig } from "@sap-ai-sdk/orchestration"
+import { ChatMessage, OrchestrationClient } from "@sap-ai-sdk/orchestration"
 import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
 import axios from "axios"
 import OpenAI from "openai"
@@ -495,22 +495,22 @@ export class SapAiCoreHandler implements ApiHandler {
 			// Ensure AI Core environment variable is set up (only runs once)
 			this.ensureAiCoreEnvSetup()
 			const model = this.getModel()
-
-			// Define the LLM to be used by the Orchestration pipeline
-			const llm: LlmModuleConfig = {
-				model_name: model.id,
-			}
-
-			const templating: TemplatingModuleConfig = {
-				template: [
-					{
-						role: "system",
-						content: systemPrompt,
-					},
-				],
-			}
 			const orchestrationClient = new OrchestrationClient(
-				{ llm, templating },
+				{
+					promptTemplating: {
+						model: {
+							name: model.id,
+						},
+						prompt: {
+							template: [
+								{
+									role: "system",
+									content: systemPrompt,
+								},
+							],
+						},
+					},
+				},
 				{ resourceGroup: this.options.sapAiResourceGroup || "default" },
 			)
 
@@ -1040,8 +1040,8 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 		return { id: sapAiCoreDefaultModelId, info: sapAiCoreModels[sapAiCoreDefaultModelId] }
 	}
-	private convertMessageParamToSAPMessages(messages: Anthropic.Messages.MessageParam[]): ChatMessages {
+	private convertMessageParamToSAPMessages(messages: Anthropic.Messages.MessageParam[]): ChatMessage[] {
 		// Use the existing OpenAI converter since the logic is identical
-		return convertToOpenAiMessages(messages) as ChatMessages
+		return convertToOpenAiMessages(messages) as ChatMessage[]
 	}
 }
