@@ -2,12 +2,7 @@
 
 ## 3.38.0
 
-### Minor Changes
-
 - b2a4395: upgrade sap ai-sdk-js packages major version
-
-### Patch Changes
-
 - 1ab4b3c: Fix for SAP provider - OrchestrationClient matches the OrchestrationModuleConfig type and no longer uses the invalid promptTemplating property
 - 1bfdce9: Removed new_task from system prompts, updated slash command prompt, added helper function for native tool calling checks
 
