@@ -569,7 +569,7 @@ export class Task {
 		askTs?: number
 	}> {
 		// Allow resume asks even when aborted to enable resume button after cancellation
-		if (this.taskState.abort && type !== "resume_task" && type !== "resume_completed_task") {
+		if ((this.taskState.abort || this.taskState.abandoned) && type !== "resume_task" && type !== "resume_completed_task") {
 			throw new Error("Cline instance aborted")
 		}
 		let askTs: number
@@ -704,7 +704,7 @@ export class Task {
 		partial?: boolean,
 	): Promise<number | undefined> {
 		// Allow hook messages even when aborted to enable proper cleanup
-		if (this.taskState.abort && type !== "hook" && type !== "hook_output") {
+		if ((this.taskState.abort || this.taskState.abandoned) && type !== "hook" && type !== "hook_output") {
 			throw new Error("Cline instance aborted")
 		}
 

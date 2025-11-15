@@ -616,10 +616,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				if (event.key === "Enter" && !event.shiftKey && !isComposing) {
 					event.preventDefault()
 
-					if (!sendingDisabled) {
-						setIsTextAreaFocused(false)
-						onSend()
-					}
+					// Always call onSend - let handleSendMessage decide whether to queue or send
+					setIsTextAreaFocused(false)
+					onSend()
 				}
 
 				if (event.key === "Backspace" && !isComposing) {
@@ -1695,10 +1694,9 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									)}
 									data-testid="send-button"
 									onClick={() => {
-										if (!sendingDisabled) {
-											setIsTextAreaFocused(false)
-											onSend()
-										}
+										// Always call onSend - let handleSendMessage decide whether to queue or send
+										setIsTextAreaFocused(false)
+										onSend()
 									}}
 								/>
 							)}
