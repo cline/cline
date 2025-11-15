@@ -8,6 +8,7 @@ import { ChatMessage, OrchestrationClient, OrchestrationModuleConfig } from "@sa
 import { ModelInfo, SapAiCoreModelId, sapAiCoreDefaultModelId, sapAiCoreModels } from "@shared/api"
 import axios from "axios"
 import OpenAI from "openai"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { getAxiosSettings } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -115,7 +116,7 @@ namespace Bedrock {
 	 * Formats messages for models using the Converse API specification
 	 * Used by both Anthropic and Nova models to avoid code duplication
 	 */
-	export function formatMessagesForConverseAPI(messages: Anthropic.Messages.MessageParam[]): BedrockMessage[] {
+	export function formatMessagesForConverseAPI(messages: ClineStorageMessage[]): BedrockMessage[] {
 		return messages.map((message) => {
 			// Determine role (user or assistant)
 			const role = message.role === "user" ? BedrockConversationRole.USER : BedrockConversationRole.ASSISTANT
@@ -315,7 +316,7 @@ namespace Gemini {
 	 */
 	export function prepareRequestPayload(
 		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
+		messages: ClineStorageMessage[],
 		model: { id: SapAiCoreModelId; info: ModelInfo },
 		thinkingBudgetTokens?: number,
 	): any {
@@ -458,7 +459,7 @@ export class SapAiCoreHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		if (this.options.sapAiCoreUseOrchestrationMode) {
 			yield* this.createMessageWithOrchestration(systemPrompt, messages)
 		} else {
@@ -490,7 +491,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		this.isAiCoreEnvSetup = true
 	}
 
-	private async *createMessageWithOrchestration(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	private async *createMessageWithOrchestration(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		try {
 			// Ensure AI Core environment variable is set up (only runs once)
 			this.ensureAiCoreEnvSetup()
@@ -540,7 +541,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 	}
 
-	private async *createMessageWithDeployments(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	private async *createMessageWithDeployments(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		const token = await this.getToken()
 		const headers = {
 			Authorization: `Bearer ${token}`,
@@ -1042,7 +1043,7 @@ export class SapAiCoreHandler implements ApiHandler {
 		}
 		return { id: sapAiCoreDefaultModelId, info: sapAiCoreModels[sapAiCoreDefaultModelId] }
 	}
-	private convertMessageParamToSAPMessages(messages: Anthropic.Messages.MessageParam[]): ChatMessage[] {
+	private convertMessageParamToSAPMessages(messages: ClineStorageMessage[]): ChatMessage[] {
 		// Use the existing OpenAI converter since the logic is identical
 		return convertToOpenAiMessages(messages) as ChatMessage[]
 	}
