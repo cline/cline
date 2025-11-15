@@ -1399,6 +1399,15 @@ export class Task {
 				}
 			}
 
+			// Cancel ongoing API request if using Ollama
+			if (this.api && typeof (this.api as any).abortCurrentRequest === "function") {
+				try {
+					;(this.api as any).abortCurrentRequest()
+				} catch (error) {
+					Logger.error("Failed to abort API request during task abort", error)
+				}
+			}
+
 			// PHASE 4: Run TaskCancel hook
 			// This allows the hook UI to appear in the webview
 			// Use the shouldRunTaskCancelHook value we captured in Phase 1
