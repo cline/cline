@@ -402,7 +402,7 @@ export const anthropicModels = {
 	"claude-3-5-haiku-20241022": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 0.8,
 		outputPrice: 4.0,
@@ -917,7 +917,7 @@ export const vertexModels = {
 	"claude-3-5-haiku@20241022": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
-		supportsImages: false,
+		supportsImages: true,
 		supportsPromptCache: true,
 		inputPrice: 1.0,
 		outputPrice: 5.0,
