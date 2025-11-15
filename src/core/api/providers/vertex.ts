@@ -1,8 +1,8 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { FunctionDeclaration as GoogleTool } from "@google/genai"
 import { ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { ClineTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -67,7 +67,7 @@ export class VertexHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: ClineTool[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[]): ApiStream {
 		const model = this.getModel()
 		const modelId = model.id
 

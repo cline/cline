@@ -1,4 +1,3 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
@@ -9,6 +8,7 @@ import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -96,7 +96,7 @@ export class ClineHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		try {
 			const client = await this.ensureClient()
 

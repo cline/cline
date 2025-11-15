@@ -1,115 +1,33 @@
-import type { ModelInfo } from "@shared/api"
-import { NEW_USER_TYPE } from "./data-steps"
+import type { OpenRouterModelInfo } from "@shared/proto/cline/models"
+import type { OnboardingModel, OnboardingModelGroup } from "@shared/proto/cline/state"
 
-export interface OnboardingModelOption extends ModelInfo {
-	id: string
-	name?: string
-	badge?: string
-	supported_parameters?: string[]
-	score?: number
-	latency?: number
+export interface OnboardingModelsByGroup {
+	free: ModelGroup[]
+	power: ModelGroup[]
 }
 
-type ModelGroup = {
+interface ModelGroup {
 	group: string
-	models: OnboardingModelOption[]
+	models: OnboardingModel[]
 }
 
-export const ONBOARDING_MODEL_SELECTIONS: Record<"free" | "power", ModelGroup[]> = {
-	[NEW_USER_TYPE.FREE]: [
-		{
-			group: "free",
-			models: [
-				{
-					id: "x-ai/grok-code-fast-1",
-					name: "xAI: Grok Code Fast 1",
-					score: 90,
-					latency: 1,
-					badge: "Best",
-					contextWindow: 256_000,
-					supportsImages: true,
-					supportsPromptCache: true,
-					inputPrice: 0,
-					outputPrice: 0,
-				},
-			],
-		},
-	],
-	[NEW_USER_TYPE.POWER]: [
-		{
-			group: "frontier",
-			models: [
-				{
-					id: "anthropic/claude-sonnet-4.5",
-					name: "Anthropic: Claude Sonnet 4.5",
-					badge: "Best",
-					score: 97,
-					latency: 3,
-					contextWindow: 200_000,
-					supportsImages: true,
-					supportsPromptCache: true,
-					inputPrice: 3.0,
-					outputPrice: 15.0,
-				},
-				{
-					id: "openai/gpt-5-codex",
-					name: "OpenAI: GPT-5 Codex",
-					badge: "Best",
-					score: 97,
-					latency: 7,
-					contextWindow: 400_000,
-					supportsImages: true,
-					supportsPromptCache: true,
-					inputPrice: 1.25,
-					outputPrice: 10.0,
-				},
-				{
-					id: "openai/gpt-5.1",
-					name: "OpenAI: GPT-5.1",
-					badge: "New",
-					score: 97,
-					latency: 3,
-					contextWindow: 272_000,
-					supportsImages: true,
-					supportsPromptCache: true,
-					inputPrice: 1.25,
-					outputPrice: 10.0,
-				},
-			],
-		},
-		{
-			group: "open source",
-			models: [
-				{
-					id: "z-ai/glm-4.6:exacto",
-					name: "Z.AI: GLM 4.6 (exacto)",
-					badge: "Trending",
-					score: 90,
-					latency: 2,
-					contextWindow: 202_752,
-					supportsImages: false,
-					supportsPromptCache: false,
-					inputPrice: 0.6,
-					outputPrice: 2.5,
-				},
-				{
-					id: "moonshotai/kimi-dev-72b:free",
-					name: "MoonshotAI: Kimi Dev 72B (free)",
-					badge: "Free",
-					score: 90,
-					latency: 1,
-					contextWindow: 131_072,
-					supportsImages: false,
-					supportsPromptCache: false,
-					inputPrice: 0,
-					outputPrice: 0,
-				},
-			],
-		},
-	],
+export function getClineUIOnboardingGroups(groupedModels: OnboardingModelGroup): OnboardingModelsByGroup {
+	const { models } = groupedModels
+
+	const freeModels = models.filter((m) => m.group === "free")
+	const frontierModels = models.filter((m) => m.group === "frontier")
+	const openSourceModels = models.filter((m) => m.group === "open source")
+
+	return {
+		free: freeModels.length > 0 ? [{ group: "free", models: freeModels }] : [],
+		power: [
+			...(frontierModels.length > 0 ? [{ group: "frontier", models: frontierModels }] : []),
+			...(openSourceModels.length > 0 ? [{ group: "open source", models: openSourceModels }] : []),
+		],
+	}
 }
 
-export function getPriceRange(modelInfo: ModelInfo): string {
+export function getPriceRange(modelInfo: OpenRouterModelInfo): string {
 	const prompt = Number(modelInfo.inputPrice ?? 0)
 	const completion = Number(modelInfo.outputPrice ?? 0)
 	const cost = prompt + completion
@@ -141,7 +59,7 @@ export function getOverviewLabel(overview: number): string {
 	return "Below Average"
 }
 
-export function getCapabilities(modelInfo: ModelInfo): string[] {
+export function getCapabilities(modelInfo: OpenRouterModelInfo): string[] {
 	const capabilities = new Set<string>()
 	if (modelInfo.supportsImages) {
 		capabilities.add("Images")

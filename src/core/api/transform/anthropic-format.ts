@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { ClineContent, ClineStorageMessage } from "@/shared/messages/content"
 
 /**
  * Sanitize Anthropic messages by removing reasoning details and adding ephemeral cache control
@@ -63,14 +63,22 @@ function removeUnknownParams(param: ClineStorageMessage): Anthropic.Messages.Mes
 	// Construct new content array with known Anthropic content blocks only.
 	return {
 		role: param.role === "user" ? "user" : "assistant",
-		content: Array.isArray(param.content)
-			? param.content.map((item) => {
-					return {
-						...item,
-						// Ensure reasoning_details is removed
-						reasoning_details: undefined,
-					}
-				})
-			: param.content, // String content remains unchanged
+		content: Array.isArray(param.content) ? param.content.map(sanitizeAnthropicContentBlock) : param.content, // String content remains unchanged
 	}
+}
+
+/**
+ * Clean a content block by removing Cline-specific fields and returning only provider-compatible fields
+ */
+function sanitizeAnthropicContentBlock(block: ClineContent): Anthropic.ContentBlock {
+	// Fast path: if no reasoning_details property exists, return as-is
+	// Including reasoning_details in non-openrouter/cline providers may cause API errors
+	if (!("reasoning_details" in block)) {
+		return block as Anthropic.ContentBlock
+	}
+
+	// Remove reasoning_details from text blocks
+	// biome-ignore lint/correctness/noUnusedVariables: intentional destructuring to remove property
+	const { reasoning_details, ...cleanBlock } = block
+	return cleanBlock as Anthropic.ContentBlock
 }
