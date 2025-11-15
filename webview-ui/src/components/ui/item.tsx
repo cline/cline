@@ -13,7 +13,7 @@ function ItemSeparator({ className, ...props }: React.ComponentProps<typeof Sepa
 }
 
 const itemVariants = cva(
-	"group/item [a]:hover:bg-accent/50 focus-visible:border-ring focus-visible:ring-ring/50 [a]:transition-colors flex flex-wrap items-center rounded-sm border border-transparent text-sm outline-none transition-colors duration-100 focus-visible:ring-[3px]",
+	"group/item [a]:hover:bg-accent/50 focus-visible:border-ring focus-visible:ring-ring/50 flex flex-wrap items-center rounded-sm border border-transparent text-sm outline-none focus-visible:ring-[3px]",
 	{
 		variants: {
 			variant: {
@@ -23,7 +23,7 @@ const itemVariants = cva(
 				muted: "bg-muted/50",
 			},
 			size: {
-				default: "gap-4 p-4 ",
+				default: "gap-1 p-2 ",
 				sm: "gap-2.5 px-4 py-3",
 			},
 		},
