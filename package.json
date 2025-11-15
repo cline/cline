@@ -307,7 +307,7 @@
 		"compile-cli-man-page": "pandoc cli/man/cline.1.md -s -t man -o cli/man/cline.1",
 		"build:npm": "scripts/build-npm-package.sh",
 		"build:docker:dev": "node scripts/build-docker-dev.mjs",
-		"docker:shell": "docker run --rm -it -v $(pwd):/workspace -w /workspace --entrypoint /bin/bash cline-cli:dev",
+		"docker:shell": "node scripts/docker-shell.mjs",
 		"test:install": "bash scripts/test-install.sh",
 		"dev:cli:watch": "node scripts/dev-cli-watch.mjs",
 		"postcompile-standalone": "node scripts/package-standalone.mjs",

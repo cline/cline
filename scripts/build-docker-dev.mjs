@@ -22,6 +22,14 @@ function runCommand(command, description) {
 	}
 }
 
+function getCommandOutput(command) {
+	try {
+		return execSync(command, { encoding: "utf-8" }).trim()
+	} catch (error) {
+		return ""
+	}
+}
+
 function buildPrerequisites() {
 	console.log("Building prerequisites...\n")
 
@@ -37,6 +45,18 @@ function buildPrerequisites() {
 function main() {
 	console.log("🐳 Building Cline CLI Docker Image\n")
 
+	// Remove existing container to ensure clean state after rebuild
+	const containerId = getCommandOutput(`docker ps -aq --filter "name=^cline-cli-dev$"`)
+	if (containerId) {
+		console.log("🗑️  Removing existing container to ensure fresh start...")
+		try {
+			execSync(`docker rm -f cline-cli-dev`, { stdio: "inherit" })
+			console.log("✓ Container removed\n")
+		} catch (error) {
+			console.log("Note: Container cleanup failed, continuing anyway\n")
+		}
+	}
+
 	buildPrerequisites()
 
 	// Build Docker image for native platform
@@ -47,10 +67,14 @@ function main() {
 	console.log("\n📋 Next steps:\n")
 	console.log("Interactive shell:")
 	console.log("  npm run docker:shell\n")
-	console.log("This opens a bash shell with:")
-	console.log("  • Current directory mounted at /workspace")
-	console.log("  • All CLI commands available (cline auth, cline task, etc.)")
-	console.log("  • Full access to your project files\n")
+	console.log("This will:")
+	console.log("  • Reuse existing 'cline-cli-dev' container if running")
+	console.log("  • Start stopped container if it exists")
+	console.log("  • Create new persistent container if none exists")
+	console.log("  • Mount current directory at /workspace")
+	console.log("  • Provide all CLI commands (cline auth, cline task, etc.)")
+	console.log("\nContainer persists between sessions. To remove:")
+	console.log("  docker rm -f cline-cli-dev\n")
 }
 
 main()
