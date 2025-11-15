@@ -481,47 +481,6 @@ func RemoveProviderPartial(ctx context.Context, manager *task.Manager, provider 
 	return nil
 }
 
-// setBaseURLField sets the appropriate base URL field in the config based on the field name
-func setBaseURLField(apiConfig *cline.ModelsApiConfiguration, fieldName string, value *string) {
-	switch fieldName {
-	case "ocaBaseUrl":
-		apiConfig.OcaBaseUrl = value
-	case "ollamaBaseUrl":
-		apiConfig.OllamaBaseUrl = value
-	case "openAiBaseUrl":
-		apiConfig.OpenAiBaseUrl = value
-	case "geminiBaseUrl":
-		apiConfig.GeminiBaseUrl = value
-	case "liteLlmBaseUrl":
-		apiConfig.LiteLlmBaseUrl = value
-	case "anthropicBaseUrl":
-		apiConfig.AnthropicBaseUrl = value
-	case "requestyBaseUrl":
-		apiConfig.RequestyBaseUrl = value
-	case "lmStudioBaseUrl":
-		apiConfig.LmStudioBaseUrl = value
-	case "oca":
-		apiConfig.OcaBaseUrl = value
-	}
-}
-
-// setRefreshTokenField sets the appropriate refresh token field in the config
-func setRefreshTokenField(apiConfig *cline.ModelsApiConfiguration, fieldName string, value *string) {
-	switch fieldName {
-	case "ocaRefreshToken":
-		apiConfig.OcaRefreshToken = value
-	}
-}
-
-// setModeField sets the appropriate mode field in the config
-func setModeField(apiConfig *cline.ModelsApiConfiguration, fieldName string, value *string) {
-	switch fieldName {
-	case "ocaMode":
-		apiConfig.OcaMode = value
-	}
-}
-
-// BedrockOptionalFields holds optional configuration fields for AWS Bedrock
 type BedrockOptionalFields struct {
 	SessionToken            *string // Optional: AWS session token for temporary credentials
 	Region                  *string // Optional: AWS region
