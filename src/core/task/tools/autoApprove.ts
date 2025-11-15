@@ -56,6 +56,7 @@ export class AutoApprove {
 				case ClineDefaultTool.WEB_FETCH:
 				case ClineDefaultTool.MCP_ACCESS:
 				case ClineDefaultTool.MCP_USE:
+				case ClineDefaultTool.ATTEMPT:
 					return true
 			}
 		}
