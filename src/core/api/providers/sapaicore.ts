@@ -684,7 +684,6 @@ export class SapAiCoreHandler implements ApiHandler {
 			const response = await axios.post(url, JSON.stringify(payload, null, 2), {
 				headers,
 				responseType: "stream",
-				...getAxiosSettings(),
 			})
 
 			if (model.id === "o3-mini") {
