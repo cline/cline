@@ -1,0 +1,81 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Debug cline (instance new)",
+			"type": "go",
+			"request": "launch",
+			"mode": "debug",
+			"program": "${workspaceFolder}/cmd/cline",
+			"args": [
+				"instance",
+				"new",
+				"--verbose",
+				"--hostPath",
+				"${workspaceFolder}/bin/cline-host",
+				"--corePath",
+				"${workspaceFolder}/../dist-standalone/cline-core.js"
+			],
+			"cwd": "${workspaceFolder}",
+			"console": "integratedTerminal",
+			"showLog": true,
+			"trace": "verbose"
+		},
+		{
+			"name": "Debug cline (task new with custom prompt)",
+			"type": "go",
+			"request": "launch",
+			"mode": "debug",
+			"program": "${workspaceFolder}/cmd/cline",
+			"args": [
+				"${input:userPrompt}",
+				"--hostPath",
+				"${workspaceFolder}/bin/cline-host",
+				"--corePath",
+				"${workspaceFolder}/../dist-standalone/cline-core.js"
+			],
+			"cwd": "${workspaceFolder}",
+			"console": "integratedTerminal",
+			"showLog": true,
+			"trace": "verbose"
+		},
+		{
+			"name": "Debug cline (auth)",
+			"type": "go",
+			"request": "launch",
+			"mode": "debug",
+			"program": "${workspaceFolder}/cmd/cline",
+			"args": [
+				"--hostPath",
+				"${workspaceFolder}/bin/cline-host",
+				"--corePath",
+				"${workspaceFolder}/../dist-standalone/cline-core.js",
+				"auth"
+			],
+			"cwd": "${workspaceFolder}",
+			"console": "integratedTerminal",
+			"showLog": true
+		},
+		{
+			"name": "Attach to Process",
+			"type": "go",
+			"request": "attach",
+			"mode": "local",
+			"processId": "${command:pickProcess}"
+		}
+	],
+	"inputs": [
+		{
+			"id": "userPrompt",
+			"type": "promptString",
+			"description": "Enter the prompt for Cline:",
+			"default": "Create a hello world program"
+		},
+		{
+			"id": "hostPort",
+			"type": "promptString",
+			"description": "Enter the port for cline-host:",
+			"default": "51052"
+		}
+	]
+}

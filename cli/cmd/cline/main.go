@@ -23,6 +23,9 @@ var (
 	coreAddress  string
 	verbose      bool
 	outputFormat string
+	configPath   string
+	hostPath     string
+	corePath     string
 
 	// Task creation flags (for root command)
 	images   []string
@@ -60,9 +63,12 @@ see the manual page: man cline`,
 			}
 
 			return global.InitializeGlobalConfig(&global.GlobalConfig{
+				ConfigPath:   configPath,
 				Verbose:      verbose,
 				OutputFormat: outputFormat,
 				CoreAddress:  coreAddress,
+				HostPath:     hostPath,
+				CorePath:     corePath,
 			})
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -166,6 +172,9 @@ see the manual page: man cline`,
 	rootCmd.PersistentFlags().StringVar(&coreAddress, "address", fmt.Sprintf("localhost:%d", common.DEFAULT_CLINE_CORE_PORT), "Cline Core gRPC address")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().StringVarP(&outputFormat, "output-format", "F", "rich", "output format (rich|json|plain)")
+	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "Path to Cline config directory")
+	rootCmd.PersistentFlags().StringVar(&hostPath, "hostPath", "", "Path to cline-host executable")
+	rootCmd.PersistentFlags().StringVar(&corePath, "corePath", "", "Path to cline-core.js file")
 
 	// Task creation flags (only apply when using root command with prompt)
 	rootCmd.Flags().StringSliceVarP(&images, "image", "i", nil, "attach image files")
