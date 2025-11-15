@@ -214,11 +214,9 @@ export class OpenRouterHandler implements ApiHandler {
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.openRouterModelId
-		const modelInfo = this.options.openRouterModelInfo
-		if (modelId && modelInfo) {
-			return { id: modelId, info: modelInfo }
+		return {
+			id: this.options.openRouterModelId || openRouterDefaultModelId,
+			info: this.options.openRouterModelInfo || openRouterDefaultModelInfo,
 		}
-		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}
 }
