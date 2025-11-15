@@ -82,6 +82,62 @@ export async function listFiles(dirPath: string, recursive: boolean, limit: numb
 	return [filePaths, filePaths.length >= limit]
 }
 
+/**
+ * List files using glob patterns with include/exclude filtering
+ * @param workspaceRoot - Absolute path to workspace root
+ * @param includePatterns - Glob patterns to include (e.g., ["src/**\/*.ts"])
+ * @param excludePatterns - Glob patterns to exclude (e.g., ["**\/*.test.ts"])
+ * @param maxCount - Maximum number of files to return
+ * @returns Tuple of [files, didHitLimit]
+ */
+export async function listFilesWithGlobFilter(
+	workspaceRoot: string,
+	includePatterns: string[],
+	excludePatterns: string[],
+	maxCount: number,
+): Promise<[string[], boolean]> {
+	// Do not allow listing files in root or home directory
+	if (isRestrictedPath(workspaceRoot)) {
+		return [[], false]
+	}
+
+	// Build combined exclude patterns (user patterns + defaults)
+	const defaultExcludes = DEFAULT_IGNORE_DIRECTORIES.map((dir) => `**/${dir}/**`)
+	const combinedExcludes = [...defaultExcludes, ...excludePatterns]
+
+	// Use include patterns if provided, otherwise default to all files
+	const patterns = includePatterns.length > 0 ? includePatterns : ["**/*"]
+
+	const options: Options = {
+		cwd: workspaceRoot,
+		dot: true, // include hidden files
+		absolute: true,
+		gitignore: true, // respect .gitignore
+		ignore: combinedExcludes,
+		onlyFiles: true, // only return files (not directories) for flat list
+		suppressErrors: true,
+		deep: 10, // limit recursion depth to prevent infinite loops
+	}
+
+	try {
+		// Timeout after 10 seconds and return partial results
+		const globbingProcess = async () => {
+			const files = await globby(patterns, options)
+			return files.slice(0, maxCount)
+		}
+
+		const timeoutPromise = new Promise<string[]>((_, reject) => {
+			setTimeout(() => reject(new Error("Globbing timeout")), 10_000)
+		})
+
+		const files = await Promise.race([globbingProcess(), timeoutPromise])
+		return [files, files.length >= maxCount]
+	} catch (error) {
+		console.warn("Globbing timed out or failed, returning empty results:", error)
+		return [[], false]
+	}
+}
+
 /*
 Breadth-first traversal of directory structure level by level up to a limit:
    - Queue-based approach ensures proper breadth-first traversal
