@@ -174,6 +174,7 @@ message ModelsApiSecrets {
   optional string oca_refresh_token = 37;
   optional string minimax_api_key = 38;
   optional string aihubmix_api_key = 39;
+  optional string burncloud_api_key = 40;
 }
 
 // API configuration options (non-secret settings)
@@ -222,6 +223,7 @@ message ModelsApiOptions {
   optional string minimax_api_line = 41;
   optional string aihubmix_base_url = 42;
   optional string aihubmix_app_code = 43;
+  optional string burncloud_base_url = 44;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -423,6 +425,7 @@ enum ApiProvider {
   HICAP = 37;
   AIHUBMIX = 38;
   NOUSRESEARCH = 39;
+  BURNCLOUD = 40;
 }
 
 // Model info for OpenAI-compatible models
@@ -548,6 +551,8 @@ message ModelsApiConfiguration {
   optional string aihubmix_base_url = 83;
   optional string aihubmix_app_code = 84;
   optional string nous_research_api_key = 85;
+  optional string burncloud_api_key = 86;
+  optional string burncloud_base_url = 87;
 
   // Plan mode configurations
   optional ApiProvider plan_mode_api_provider = 100;
@@ -588,6 +593,7 @@ message ModelsApiConfiguration {
   optional string plan_mode_aihubmix_model_id = 135;
   optional OpenAiCompatibleModelInfo plan_mode_aihubmix_model_info = 136;
   optional string plan_mode_nous_research_model_id = 137;
+  optional string plan_mode_burncloud_model_id = 138;
 
   // Act mode configurations
   optional ApiProvider act_mode_api_provider = 200;
@@ -628,4 +634,5 @@ message ModelsApiConfiguration {
   optional string act_mode_aihubmix_model_id = 235;
   optional OpenAiCompatibleModelInfo act_mode_aihubmix_model_info = 236;
   optional string act_mode_nous_research_model_id = 237;
+  optional string act_mode_burncloud_model_id = 238;
 }

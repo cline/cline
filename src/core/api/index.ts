@@ -7,6 +7,7 @@ import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
 import { BasetenHandler } from "./providers/baseten"
 import { AwsBedrockHandler } from "./providers/bedrock"
+import { BurnCloudHandler } from "./providers/burncloud"
 import { CerebrasHandler } from "./providers/cerebras"
 import { ClaudeCodeHandler } from "./providers/claude-code"
 import { ClineHandler } from "./providers/cline"
@@ -422,6 +423,13 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				nousResearchApiKey: options.nousResearchApiKey,
 				apiModelId: mode === "plan" ? options.planModeNousResearchModelId : options.actModeNousResearchModelId,
+			})
+		case "burncloud":
+			return new BurnCloudHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				burncloudApiKey: options.burncloudApiKey,
+				burncloudBaseUrl: options.burncloudBaseUrl,
+				apiModelId: mode === "plan" ? options.planModeBurncloudModelId : options.actModeBurncloudModelId,
 			})
 		default:
 			return new AnthropicHandler({

@@ -493,6 +493,8 @@ export class StateManager {
 			minimaxApiKey,
 			minimaxApiLine,
 			nousResearchApiKey,
+			burncloudApiKey,
+			burncloudBaseUrl,
 			requestTimeoutMs,
 			ocaBaseUrl,
 			ocaMode,
@@ -538,6 +540,7 @@ export class StateManager {
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
+			planModeBurncloudModelId,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -575,6 +578,7 @@ export class StateManager {
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
+			actModeBurncloudModelId,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -616,6 +620,7 @@ export class StateManager {
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
+			planModeBurncloudModelId,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -654,6 +659,7 @@ export class StateManager {
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
+			actModeBurncloudModelId,
 
 			// Global state updates
 			awsRegion,
@@ -699,6 +705,7 @@ export class StateManager {
 			hicapModelId,
 			aihubmixBaseUrl,
 			aihubmixAppCode,
+			burncloudBaseUrl,
 		})
 
 		// Batch update secrets
@@ -741,6 +748,7 @@ export class StateManager {
 			hicapApiKey,
 			aihubmixApiKey,
 			nousResearchApiKey,
+			burncloudApiKey,
 		})
 	}
 
@@ -1052,6 +1060,7 @@ export class StateManager {
 			minimaxApiKey: this.secretsCache["minimaxApiKey"],
 			hicapApiKey: this.secretsCache["hicapApiKey"],
 			aihubmixApiKey: this.secretsCache["aihubmixApiKey"],
+			burncloudApiKey: this.secretsCache["burncloudApiKey"],
 
 			// Global state (with remote config precedence for applicable fields)
 			awsRegion:
@@ -1126,6 +1135,7 @@ export class StateManager {
 			hicapModelId: this.globalStateCache["hicapModelId"],
 			aihubmixBaseUrl: this.taskStateCache["aihubmixBaseUrl"] || this.globalStateCache["aihubmixBaseUrl"],
 			aihubmixAppCode: this.taskStateCache["aihubmixAppCode"] || this.globalStateCache["aihubmixAppCode"],
+			burncloudBaseUrl: this.taskStateCache["burncloudBaseUrl"] || this.globalStateCache["burncloudBaseUrl"],
 
 			// Plan mode configurations
 			planModeApiProvider:
@@ -1197,6 +1207,8 @@ export class StateManager {
 				this.taskStateCache["planModeAihubmixModelInfo"] || this.globalStateCache["planModeAihubmixModelInfo"],
 			planModeNousResearchModelId:
 				this.taskStateCache["planModeNousResearchModelId"] || this.globalStateCache["planModeNousResearchModelId"],
+			planModeBurncloudModelId:
+				this.taskStateCache["planModeBurncloudModelId"] || this.globalStateCache["planModeBurncloudModelId"],
 
 			// Act mode configurations
 			actModeApiProvider:
@@ -1265,6 +1277,8 @@ export class StateManager {
 				this.taskStateCache["actModeAihubmixModelInfo"] || this.globalStateCache["actModeAihubmixModelInfo"],
 			actModeNousResearchModelId:
 				this.taskStateCache["actModeNousResearchModelId"] || this.globalStateCache["actModeNousResearchModelId"],
+			actModeBurncloudModelId:
+				this.taskStateCache["actModeBurncloudModelId"] || this.globalStateCache["actModeBurncloudModelId"],
 			nousResearchApiKey: this.secretsCache["nousResearchApiKey"],
 		}
 	}
