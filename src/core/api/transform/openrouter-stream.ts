@@ -34,6 +34,10 @@ export async function createOpenRouterStream(
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
 	}
 
+	const { supportsTemperature, supportsReasoning } = model.info
+	const budget_tokens = thinkingBudgetTokens || 0
+	const reasoningOn = budget_tokens !== 0
+
 	// prompt caching: https://openrouter.ai/docs/prompt-caching
 	// this was initially specifically for claude models (some models may 'support prompt caching' automatically without this)
 	// handles direct model.id match logic
@@ -124,7 +128,9 @@ export async function createOpenRouterStream(
 			maxTokens = 8_192
 			break
 	}
-
+	// NOTE: Extended thinking does not support non-1 temperature
+	// Some models do not support temperatures, some do not support 0,
+	// so only set them for models that are known to support them.
 	let temperature: number | undefined = 0
 	let topP: number | undefined
 	if (
@@ -153,19 +159,22 @@ export async function createOpenRouterStream(
 		case "anthropic/claude-3.7-sonnet:thinking":
 		case "anthropic/claude-3-7-sonnet":
 		case "anthropic/claude-3-7-sonnet:beta":
-			const budget_tokens = thinkingBudgetTokens || 0
-			const reasoningOn = budget_tokens !== 0
 			if (reasoningOn) {
-				temperature = undefined // extended thinking does not support non-1 temperature
+				temperature = undefined
 				reasoning = { max_tokens: budget_tokens }
 			}
 			break
 		default:
 			if (thinkingBudgetTokens && model.info?.thinkingConfig && thinkingBudgetTokens > 0) {
-				temperature = undefined // extended thinking does not support non-1 temperature
 				reasoning = { max_tokens: thinkingBudgetTokens }
+				temperature = undefined
 				break
 			}
+	}
+
+	// Disable temperature when reasoning is on or not supported
+	if (supportsReasoning || reasoningOn || !supportsTemperature) {
+		temperature = undefined
 	}
 
 	const providerPreferences = OPENROUTER_PROVIDER_PREFERENCES[model.id]
@@ -177,7 +186,7 @@ export async function createOpenRouterStream(
 	const stream = await client.chat.completions.create({
 		model: model.id,
 		max_tokens: maxTokens,
-		temperature: temperature,
+		temperature,
 		top_p: topP,
 		messages: openAiMessages,
 		stream: true,
