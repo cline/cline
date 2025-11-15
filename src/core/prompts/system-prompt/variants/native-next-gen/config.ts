@@ -55,7 +55,6 @@ export const config = createVariant(ModelFamily.NATIVE_NEXT_GEN)
 		ClineDefaultTool.WEB_FETCH,
 		ClineDefaultTool.MCP_ACCESS,
 		ClineDefaultTool.ATTEMPT,
-		ClineDefaultTool.NEW_TASK,
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,

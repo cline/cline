@@ -3242,7 +3242,7 @@ export class Task {
 								globalWorkflowToggles,
 								this.ulid,
 								this.stateManager.getGlobalSettingsKey("focusChainSettings"),
-								this.getCurrentProviderInfo(),
+								this.useNativeToolCalls
 							)
 
 							if (needsCheck) {
