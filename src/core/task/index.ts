@@ -546,6 +546,7 @@ export class Task {
 			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
 			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
 			this.switchToActModeCallback.bind(this),
+			this.cancelTask,
 			// Atomic hook state helpers for ToolExecutor
 			this.setActiveHookExecution.bind(this),
 			this.clearActiveHookExecution.bind(this),
@@ -823,10 +824,33 @@ export class Task {
 		return await this.controller.toggleActModeForYoloMode()
 	}
 
+	/**
+	 * Unified cancellation handler for hook-requested cancellations.
+	 * Ensures state is always saved before aborting, regardless of whether
+	 * the user clicked cancel or the hook returned {cancel: true}.
+	 *
+	 * @param hookName The name of the hook for logging
+	 * @param wasCancelled Whether user clicked cancel (vs hook returning cancel: true)
+	 */
+	private async handleHookCancellation(hookName: string, wasCancelled: boolean): Promise<void> {
+		// ALWAYS save state, regardless of cancellation source
+		this.taskState.didFinishAbortingStream = true
+
+		// Save conversation state to disk
+		await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+		await this.messageStateHandler.overwriteApiConversationHistory(this.messageStateHandler.getApiConversationHistory())
+
+		// Update UI
+		await this.postStateToWebview()
+
+		// Log for debugging/telemetry
+		console.log(`[Task ${this.taskId}] ${hookName} hook cancelled (userInitiated: ${wasCancelled})`)
+	}
+
 	private async runUserPromptSubmitHook(
 		userContent: ClineContent[],
 		_context: "initial_task" | "resume" | "feedback",
-	): Promise<{ cancel?: boolean; contextModification?: string; errorMessage?: string }> {
+	): Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }> {
 		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 
 		if (!hooksEnabled) {
@@ -949,17 +973,8 @@ export class Task {
 
 			// Handle cancellation from hook
 			if (taskStartResult.cancel === true) {
-				// If hook was cancelled by user, save state for resume
-				if (taskStartResult.wasCancelled) {
-					// Set flag to allow Controller.cancelTask() to proceed
-					this.taskState.didFinishAbortingStream = true
-					// Save BOTH clineMessages AND apiConversationHistory so Controller.cancelTask() can find the task
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-					await this.messageStateHandler.overwriteApiConversationHistory(
-						this.messageStateHandler.getApiConversationHistory(),
-					)
-					await this.postStateToWebview()
-				}
+				// UNIFIED: Always save state regardless of cancellation source
+				await this.handleHookCancellation("TaskStart", taskStartResult.wasCancelled)
 
 				// abortTask will handle cleanup
 				this.abortTask()
@@ -986,9 +1001,10 @@ export class Task {
 			return
 		}
 
-		// Handle hook cancellation - but DON'T call abortTask()
-		// Controller.cancelTask() already called it, calling again causes double TaskCancel
+		// Handle hook cancellation
 		if (userPromptHookResult.cancel === true) {
+			await this.handleHookCancellation("UserPromptSubmit", userPromptHookResult.wasCancelled ?? false)
+			this.abortTask()
 			return
 		}
 
