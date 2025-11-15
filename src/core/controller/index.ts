@@ -825,7 +825,13 @@ export class Controller {
 
 	async exportTaskWithId(id: string) {
 		const { historyItem, apiConversationHistory } = await this.getTaskWithId(id)
-		await downloadTask(historyItem.ts, apiConversationHistory)
+		await downloadTask(historyItem.ts, apiConversationHistory, {
+			tokensIn: historyItem.tokensIn,
+			tokensOut: historyItem.tokensOut,
+			cacheWrites: historyItem.cacheWrites,
+			cacheReads: historyItem.cacheReads,
+			totalCost: historyItem.totalCost,
+		})
 	}
 
 	async deleteTaskFromState(id: string) {
