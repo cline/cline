@@ -745,6 +745,8 @@ export async function resetGlobalState(controller: Controller) {
 		"difyApiKey",
 		"ocaApiKey",
 		"ocaRefreshToken",
+		"clineAccountId",
+		"cline:clineAccountId"
 		"minimaxApiKey",
 		"hicapApiKey",
 		"aihubmixApiKey",
