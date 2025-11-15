@@ -1,11 +1,11 @@
+import { UpdateApiConfigurationRequestNew } from "@shared/proto/index.cline"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { ModelsServiceClient } from "@/services/grpc-client"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-import { useDebouncedInput } from "../utils/useDebouncedInput"
 
 interface DifyProviderProps {
 	showModelOptions: boolean
@@ -15,16 +15,6 @@ interface DifyProviderProps {
 
 export const DifyProvider = ({ showModelOptions, isPopup, currentMode }: DifyProviderProps) => {
 	const { apiConfiguration } = useExtensionState()
-	const { handleFieldChange } = useApiConfigurationHandlers()
-
-	// Use debounced input for proper state management
-	const [baseUrlValue, setBaseUrlValue] = useDebouncedInput(apiConfiguration?.difyBaseUrl || "", (value) =>
-		handleFieldChange("difyBaseUrl", value),
-	)
-
-	const [apiKeyValue, setApiKeyValue] = useDebouncedInput(apiConfiguration?.difyApiKey || "", (value) =>
-		handleFieldChange("difyApiKey", value),
-	)
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
@@ -34,8 +24,17 @@ export const DifyProvider = ({ showModelOptions, isPopup, currentMode }: DifyPro
 			<div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 				<DebouncedTextField
 					initialValue={apiConfiguration?.difyBaseUrl || ""}
-					onChange={(value) => {
-						handleFieldChange("difyBaseUrl", value)
+					onChange={async (value) => {
+						await ModelsServiceClient.updateApiConfiguration(
+							UpdateApiConfigurationRequestNew.create({
+								updates: {
+									options: {
+										difyBaseUrl: value,
+									},
+								},
+								updateMask: ["options.difyBaseUrl"],
+							}),
+						)
 					}}
 					placeholder={"Enter base URL..."}
 					style={{ width: "100%", marginBottom: 10 }}
@@ -45,8 +44,17 @@ export const DifyProvider = ({ showModelOptions, isPopup, currentMode }: DifyPro
 
 				<ApiKeyField
 					initialValue={apiConfiguration?.difyApiKey || ""}
-					onChange={(value) => {
-						handleFieldChange("difyApiKey", value)
+					onChange={async (value) => {
+						await ModelsServiceClient.updateApiConfiguration(
+							UpdateApiConfigurationRequestNew.create({
+								updates: {
+									secrets: {
+										difyApiKey: value,
+									},
+								},
+								updateMask: ["secrets.difyApiKey"],
+							}),
+						)
 					}}
 					providerName="Dify"
 				/>
