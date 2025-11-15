@@ -3426,6 +3426,7 @@ export const moonshotModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.6,
 		outputPrice: 2.5,
+		temperature: 0.6,
 	},
 	"kimi-k2-0711-preview": {
 		maxTokens: 32_000,
@@ -3434,6 +3435,7 @@ export const moonshotModels = {
 		supportsPromptCache: false,
 		inputPrice: 0.6,
 		outputPrice: 2.5,
+		temperature: 0.6,
 	},
 	"kimi-k2-turbo-preview": {
 		maxTokens: 32_000,
@@ -3442,6 +3444,25 @@ export const moonshotModels = {
 		supportsPromptCache: false,
 		inputPrice: 2.4,
 		outputPrice: 10,
+		temperature: 0.6,
+	},
+	"kimi-k2-thinking": {
+		maxTokens: 32_000,
+		contextWindow: 262_144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+		temperature: 1.0,
+	},
+	"kimi-k2-thinking-turbo": {
+		maxTokens: 32_000,
+		contextWindow: 262_144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.4,
+		outputPrice: 10,
+		temperature: 1.0,
 	},
 	"moonshot-v1-128k-vision-preview": {
 		maxTokens: 32_000,
@@ -3451,15 +3472,7 @@ export const moonshotModels = {
 		inputPrice: 2,
 		outputPrice: 5,
 	},
-	"kimi-thinking-preview": {
-		maxTokens: 32_000,
-		contextWindow: 131_072,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 30,
-		outputPrice: 30,
-	},
-} as const satisfies Record<string, ModelInfo>
+} as const satisfies Record<string, OpenAiCompatibleModelInfo>
 export type MoonshotModelId = keyof typeof moonshotModels
 export const moonshotDefaultModelId = "kimi-k2-0905-preview" satisfies MoonshotModelId
 
