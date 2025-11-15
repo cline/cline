@@ -189,7 +189,11 @@ export async function refreshOpenRouterModels(controller: Controller): Promise<R
 						modelInfo.outputPrice = 3
 						modelInfo.contextWindow = 131_000
 						break
+					case "openai/gpt-5.1":
+					case "openai/gpt-5.1-codex":
+					case "openai/gpt-5.1-codex-mini":
 					case "openai/gpt-5":
+					case "openai/gpt-5-codex":
 					case "openai/gpt-5-chat":
 					case "openai/gpt-5-mini":
 					case "openai/gpt-5-nano":

@@ -66,7 +66,13 @@ import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
+import {
+	isClaude4PlusModelFamily,
+	isGPT5ModelFamily,
+	isLocalModel,
+	isNextGenModelFamily,
+	isNextGenModelProvider,
+} from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
@@ -75,7 +81,8 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
 import * as vscode from "vscode"
-import { getSystemPrompt, SystemPromptContext } from "@/core/prompts/system-prompt"
+import type { SystemPromptContext } from "@/core/prompts/system-prompt"
+import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
 import { isSubagentCommand, transformClineCommand } from "@/integrations/cli-subagents/subagent_command"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
@@ -458,10 +465,6 @@ export class Task {
 						// Post the updated state to the webview so the UI reflects the retry attempt
 						await this.postStateToWebview().catch((e) =>
 							console.error("Error posting state to webview in onRetryAttempt:", e),
-						)
-
-						console.log(
-							`[Task ${this.taskId}] API Auto-Retry Status Update: Attempt ${attempt}/${maxRetries}, Delay: ${delay}ms`,
 						)
 					} catch (e) {
 						console.error(`[Task ${this.taskId}] Error updating api_req_started with retryStatus:`, e)
@@ -947,7 +950,6 @@ export class Task {
 			if (taskStartResult.cancel === true) {
 				// If hook was cancelled by user, save state for resume
 				if (taskStartResult.wasCancelled) {
-					console.log(`[TaskStart Hook] User cancelled, saving messages for task ${this.taskId}`)
 					// Set flag to allow Controller.cancelTask() to proceed
 					this.taskState.didFinishAbortingStream = true
 					// Save BOTH clineMessages AND apiConversationHistory so Controller.cancelTask() can find the task
@@ -956,7 +958,6 @@ export class Task {
 						this.messageStateHandler.getApiConversationHistory(),
 					)
 					await this.postStateToWebview()
-					console.log(`[TaskStart Hook] Messages saved successfully, returning from hook`)
 				}
 
 				// abortTask will handle cleanup
@@ -2025,6 +2026,10 @@ export class Task {
 			maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes"),
 		})
 
+		const nativeToolCallsGloballyEnabled =
+			featureFlagsService.getNativeToolCallEnabled() && this.stateManager.getGlobalStateKey("nativeToolCallEnabled")
+		const inferredNativeToolCalls =
+			!nativeToolCallsGloballyEnabled && isNextGenModelProvider(providerInfo) && isNextGenModelFamily(providerInfo.model.id)
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
@@ -2045,8 +2050,7 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
-			enableNativeToolCalls:
-				featureFlagsService.getNativeToolCallEnabled() && this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
+			enableNativeToolCalls: nativeToolCallsGloballyEnabled || inferredNativeToolCalls,
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
@@ -2649,7 +2653,6 @@ export class Task {
 			let inputTokens = 0
 			let outputTokens = 0
 			let totalCost: number | undefined
-			let requestId: string | undefined
 
 			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
 				if (this.diffViewProvider.isEditing) {
@@ -2661,6 +2664,9 @@ export class Task {
 				if (lastMessage && lastMessage.partial) {
 					// lastMessage.ts = Date.now() DO NOT update ts since it is used as a key for virtuoso list
 					lastMessage.partial = false
+					// instead of streaming partialMessage events, we do a save and post like normal to persist to disk
+					console.log("updating partial message", lastMessage)
+					// await this.saveClineMessagesAndUpdateHistory()
 				}
 
 				// Let assistant know their response was interrupted for when task is resumed
@@ -2678,8 +2684,6 @@ export class Task {
 								}]`,
 						},
 					],
-					modelInfo,
-					id: requestId,
 				})
 
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
@@ -2711,6 +2715,7 @@ export class Task {
 						cacheReadTokens,
 						totalCost,
 					},
+					this.useNativeToolCalls, // For assistant turn only.
 				)
 
 				// signals to provider that it can retrieve the saved messages from disk, as abortTask can not be awaited on in nature
@@ -2733,29 +2738,26 @@ export class Task {
 			this.taskState.toolUseIdMap.clear()
 
 			const { toolUseHandler, reasonsHandler } = this.streamHandler.getHandlers()
-
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 			let assistantMessage = "" // For UI display (includes XML)
 			let assistantTextOnly = "" // For API history (text only, no tool XML)
 			let reasoningMessage = ""
-			let reasoningID = ""
 			const reasoningDetails = []
 			const redactedThinkingContent: ClineAssistantRedactedThinkingBlock[] = []
-			const reasoningSignature = ""
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
+			const reasoningSignature = ""
+
+			let reasoningID = ""
 
 			try {
 				for await (const chunk of stream) {
 					if (!chunk) {
 						continue
 					}
-
 					switch (chunk.type) {
 						case "usage":
-							if (!requestId && chunk.id) {
-								requestId = chunk.id
-							}
+							this.streamHandler.setRequestId(chunk.id)
 
 							didReceiveUsageChunk = true
 							inputTokens += chunk.inputTokens
@@ -2819,7 +2821,6 @@ export class Task {
 								},
 								chunk.tool_call.call_id,
 							)
-
 							// Extract and store tool_use_id for creating proper ToolResultBlockParam
 							if (chunk.tool_call.function?.id && chunk.tool_call.function?.name) {
 								this.taskState.toolUseIdMap.set(chunk.tool_call.function.name, chunk.tool_call.function.id)
@@ -3026,20 +3027,29 @@ export class Task {
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			await this.postStateToWebview()
 
-			const reasonHandler = this.streamHandler.getHandlers().reasonsHandler
-
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
 			let didEndLoop = false
 			if (assistantMessage.length > 0 || this.useNativeToolCalls) {
 				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
-				telemetryService.captureConversationTurnEvent(this.ulid, providerId, model.id, "assistant", currentMode, {
-					tokensIn: inputTokens,
-					tokensOut: outputTokens,
-					cacheWriteTokens,
-					cacheReadTokens,
-					totalCost,
-				})
+				telemetryService.captureConversationTurnEvent(
+					this.ulid,
+					providerId,
+					model.id,
+					"assistant",
+					currentMode,
+					{
+						tokensIn: inputTokens,
+						tokensOut: outputTokens,
+						cacheWriteTokens,
+						cacheReadTokens,
+						totalCost,
+					},
+					this.useNativeToolCalls,
+				)
+
+				const { reasonsHandler } = this.streamHandler.getHandlers()
+				const requestId = this.streamHandler.requestId
 
 				// Get finalized tool use blocks from the handler
 				const toolUseBlocks = toolUseHandler.getAllFinalizedToolUses()
@@ -3072,7 +3082,7 @@ export class Task {
 				}
 
 				// Get the current reasoning state to ensure we have the latest details
-				const currentReasoning = reasonHandler.getCurrentReasoning()
+				const currentReasoning = reasonsHandler.getCurrentReasoning()
 				const currentReasoningDetails = currentReasoning?.details || reasoningDetails
 
 				// Only add text block if there's actual text (not just tool XML)
@@ -3145,6 +3155,7 @@ export class Task {
 					provider: providerId,
 					errorMessage: "empty_assistant_message",
 					requestId: reqId,
+					isNativeToolCall: this.useNativeToolCalls,
 				})
 
 				const baseErrorMessage =
@@ -3161,7 +3172,7 @@ export class Task {
 						},
 					],
 					modelInfo,
-					id: requestId,
+					id: this.streamHandler.requestId,
 				})
 
 				let response: ClineAskResponse
