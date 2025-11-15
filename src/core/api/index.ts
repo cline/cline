@@ -1,8 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
-import { ClineTool } from "@/shared/tools"
-import { AIhubmixHandler } from "./providers/aihubmix"
+import { AIStupidLevelHandler } from "./providers/aistupidlevel"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
 import { BasetenHandler } from "./providers/baseten"
@@ -394,16 +393,10 @@ function createHandlerForProvider(
 						: options.actModeOcaModelInfo?.supportsPromptCache,
 				taskId: options.ulid,
 			})
-		case "aihubmix":
-			return new AIhubmixHandler({
+		case "aistupidlevel":
+			return new AIStupidLevelHandler({
 				onRetryAttempt: options.onRetryAttempt,
-				apiKey: options.aihubmixApiKey,
-				baseURL: options.aihubmixBaseUrl,
-				appCode: options.aihubmixAppCode,
-				modelId: mode === "plan" ? (options as any).planModeAihubmixModelId : (options as any).actModeAihubmixModelId,
-				modelInfo:
-					mode === "plan" ? (options as any).planModeAihubmixModelInfo : (options as any).actModeAihubmixModelInfo,
-			})
+				aiStupidLevelApiKey: options.aiStupidLevelApiKey,
 		case "minimax":
 			return new MinimaxHandler({
 				onRetryAttempt: options.onRetryAttempt,
