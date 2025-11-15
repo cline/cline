@@ -2,7 +2,11 @@ import type { ToolUse } from "@core/assistant-message"
 import { JSONParser } from "@streamparser/json"
 import { McpHub } from "@/services/mcp/McpHub"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@/shared/mcp"
-import { ClineAssistantToolUseBlock } from "@/shared/messages/content"
+import {
+	ClineAssistantRedactedThinkingBlock,
+	ClineAssistantThinkingBlock,
+	ClineAssistantToolUseBlock,
+} from "@/shared/messages/content"
 import { ClineDefaultTool } from "@/shared/tools"
 
 export interface PendingToolUse {
@@ -21,6 +25,22 @@ interface ToolUseDeltaBlock {
 	input?: string
 }
 
+export interface ReasoningDelta {
+	id?: string
+	reasoning?: string
+	signature?: string
+	details?: any[]
+	redacted_data?: any
+}
+
+export interface PendingReasoning {
+	id: string
+	content: string
+	signature: string
+	details: any[]
+	redactedThinking: ClineAssistantRedactedThinkingBlock[]
+}
+
 const ESCAPE_MAP: Record<string, string> = {
 	"\\n": "\n",
 	"\\t": "\t",
@@ -31,10 +51,39 @@ const ESCAPE_MAP: Record<string, string> = {
 
 const ESCAPE_PATTERN = /\\[ntr"\\]/g
 
+export class StreamResponseHandler {
+	private toolUseHandler = new ToolUseHandler()
+	private reasoningHandler = new ReasoningHandler()
+
+	private _requestId: string | undefined
+
+	public setRequestId(id?: string) {
+		if (!this._requestId && id) {
+			this._requestId = id
+		}
+	}
+
+	public get requestId() {
+		return this._requestId
+	}
+
+	public getHandlers() {
+		return {
+			toolUseHandler: this.toolUseHandler,
+			reasonsHandler: this.reasoningHandler,
+		}
+	}
+
+	public reset() {
+		this.toolUseHandler = new ToolUseHandler()
+		this.reasoningHandler = new ReasoningHandler()
+	}
+}
+
 /**
  * Handles streaming native tool use blocks and converts them to ClineAssistantToolUseBlock format
  */
-export class ToolUseHandler {
+class ToolUseHandler {
 	private pendingToolUses = new Map<string, PendingToolUse>()
 
 	processToolUseDelta(delta: ToolUseDeltaBlock, call_id?: string): void {
@@ -82,6 +131,7 @@ export class ToolUseHandler {
 			id: pending.id,
 			name: pending.name,
 			input,
+			call_id: pending.call_id,
 		}
 	}
 
@@ -131,6 +181,7 @@ export class ToolUseHandler {
 					},
 					partial: true,
 					isNativeToolCall: true,
+					call_id: pending.call_id,
 				})
 			} else {
 				const params: Record<string, string> = {}
@@ -145,6 +196,7 @@ export class ToolUseHandler {
 					params: params as any,
 					partial: true,
 					isNativeToolCall: true,
+					call_id: pending.call_id,
 				})
 			}
 		}
@@ -188,5 +240,85 @@ export class ToolUseHandler {
 		}
 
 		return result
+	}
+}
+
+/**
+ * Handles streaming reasoning content and converts it to the appropriate message format
+ */
+class ReasoningHandler {
+	private pendingReasoning: PendingReasoning | null = null
+
+	processReasoningDelta(delta: ReasoningDelta): void {
+		if (!delta.id && !this.pendingReasoning) {
+			return
+		}
+
+		// Initialize pending reasoning if we have an ID but no pending reasoning yet
+		if (delta.id && !this.pendingReasoning) {
+			this.pendingReasoning = {
+				id: delta.id,
+				content: "",
+				signature: "",
+				details: [],
+				redactedThinking: [],
+			}
+		}
+
+		if (!this.pendingReasoning) {
+			return
+		}
+
+		// Update fields from delta
+		if (delta.reasoning) {
+			this.pendingReasoning.content += delta.reasoning
+		}
+		if (delta.signature) {
+			this.pendingReasoning.signature = delta.signature
+		}
+		if (delta.details) {
+			if (Array.isArray(delta.details)) {
+				this.pendingReasoning.details.push(...delta.details)
+			} else {
+				this.pendingReasoning.details.push(delta.details)
+			}
+		}
+		if (delta.redacted_data) {
+			this.pendingReasoning.redactedThinking.push({
+				type: "redacted_thinking",
+				data: delta.redacted_data,
+				call_id: delta.id || this.pendingReasoning.id,
+			})
+		}
+	}
+
+	getCurrentReasoning(): { content: string; details: any[]; redactedThinking: ClineAssistantRedactedThinkingBlock[] } | null {
+		if (!this.pendingReasoning) {
+			return null
+		}
+		return {
+			content: this.pendingReasoning.content,
+			details: this.pendingReasoning.details,
+			redactedThinking: this.pendingReasoning.redactedThinking,
+		}
+	}
+
+	getThinkingBlock(): ClineAssistantThinkingBlock | null {
+		if (!this.pendingReasoning) {
+			return null
+		}
+		return {
+			type: "thinking",
+			thinking: this.pendingReasoning.content,
+			signature: this.pendingReasoning.signature,
+		}
+	}
+
+	getRedactedThinking(): ClineAssistantRedactedThinkingBlock[] {
+		return this.pendingReasoning?.redactedThinking || []
+	}
+
+	reset(): void {
+		this.pendingReasoning = null
 	}
 }

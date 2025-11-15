@@ -17,28 +17,41 @@ export interface ClineReasoningDetailParam {
 	index: number
 }
 
+interface ClineSharedMessageParam {
+	// The id of the response that the block belongs to
+	call_id?: string
+}
+
+export const REASONING_DETAILS_PROVIDERS = ["cline", "openrouter"]
+
 /**
  * An extension of Anthropic.MessageParam that includes Cline-specific fields: reasoning_details.
  * This ensures backward compatibility where the messages were stored in Anthropic format with addtional
  * fields unknown to Anthropic SDK.
  */
 export interface ClineTextContentBlock extends Anthropic.Messages.TextBlockParam {
-	// reasoning_details only exists for cline/openrouter providers
+	// reasoning_details only exists for providers listed in REASONING_DETAILS_PROVIDERS
 	reasoning_details?: ClineReasoningDetailParam[]
 }
 
-export interface ClineImageContentBlock extends Anthropic.ImageBlockParam {}
+export interface ClineImageContentBlock extends Anthropic.ImageBlockParam, ClineSharedMessageParam {}
 
-export interface ClineDocumentContentBlock extends Anthropic.DocumentBlockParam {}
+export interface ClineDocumentContentBlock extends Anthropic.DocumentBlockParam, ClineSharedMessageParam {}
 
-export interface ClineUserToolResultContentBlock extends Anthropic.ToolResultBlockParam {}
+export interface ClineUserToolResultContentBlock extends Anthropic.ToolResultBlockParam, ClineSharedMessageParam {}
 
-// Assistant only content types
-export interface ClineAssistantToolUseBlock extends Anthropic.ToolUseBlockParam {}
+/**
+ * Assistant only content types
+ */
+export interface ClineAssistantToolUseBlock extends Anthropic.ToolUseBlockParam, ClineSharedMessageParam {}
 
-export interface ClineAssistantThinkingBlock extends Anthropic.Messages.ThinkingBlock {}
+export interface ClineAssistantThinkingBlock extends Anthropic.Messages.ThinkingBlock, ClineSharedMessageParam {
+	summary?: unknown[]
+}
 
-export interface ClineAssistantRedactedThinkingBlock extends Anthropic.Messages.RedactedThinkingBlockParam {}
+export interface ClineAssistantRedactedThinkingBlock
+	extends Anthropic.Messages.RedactedThinkingBlockParam,
+		ClineSharedMessageParam {}
 
 export type ClineToolResponseContent = ClinePromptInputContent | Array<ClineTextContentBlock | ClineImageContentBlock>
 
@@ -65,7 +78,50 @@ export type ClineContent = ClineUserContent | ClineAssistantContent
  * added by ignoring the type checking for those fields.
  */
 export interface ClineStorageMessage extends Anthropic.MessageParam {
+	id?: string
 	role: ClineMessageRole
 	content: ClinePromptInputContent | ClineContent[]
+	/**
+	 * NOTE: model information used when generating this message.
+	 * Internal use for message conversion only.
+	 * MUST be removed before sending message to any LLM provider.
+	 */
 	modelInfo?: ClineMessageModelInfo
+}
+
+/**
+ * Converts ClineStorageMessage to Anthropic.MessageParam by removing Cline-specific fields
+ * Cline-specific fields (like modelInfo, reasoning_details) are properly omitted.
+ */
+export function convertClineStorageToAnthropicMessage(
+	clineMessage: ClineStorageMessage,
+	provider = "anthropic",
+): Anthropic.MessageParam {
+	const { role, content } = clineMessage
+
+	// Handle string content - fast path
+	if (typeof content === "string") {
+		return { role, content }
+	}
+
+	// Handle array content - strip Cline-specific fields for non-reasoning_details providers
+	const shouldCleanContent = !REASONING_DETAILS_PROVIDERS.includes(provider)
+	const cleanedContent = shouldCleanContent ? content.map(cleanContentBlock) : (content as Anthropic.MessageParam["content"])
+
+	return { role, content: cleanedContent }
+}
+
+/**
+ * Clean a content block by removing Cline-specific fields and returning only Anthropic-compatible fields
+ */
+export function cleanContentBlock(block: ClineContent): Anthropic.ContentBlock {
+	// Fast path: if no reasoning_details property exists, return as-is
+	if (!("reasoning_details" in block)) {
+		return block as Anthropic.ContentBlock
+	}
+
+	// Remove reasoning_details from text blocks
+	// biome-ignore lint/correctness/noUnusedVariables: intentional destructuring to remove property
+	const { reasoning_details, ...cleanBlock } = block as ClineTextContentBlock
+	return cleanBlock as Anthropic.ContentBlock
 }

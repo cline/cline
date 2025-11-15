@@ -6,7 +6,7 @@ import { ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@s
 import { ClineTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
-import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
+import { convertToAnthropicMessage } from "../transform/anthropic-format"
 import { ApiStream } from "../transform/stream"
 import { GeminiHandler } from "./gemini"
 
@@ -103,13 +103,6 @@ export class VertexHandler implements ApiHandler {
 			case "claude-3-5-haiku@20241022":
 			case "claude-3-opus@20240229":
 			case "claude-3-haiku@20240307": {
-				// Find indices of user messages for cache control
-				const userMsgIndices = messages.reduce(
-					(acc, msg, index) => (msg.role === "user" ? [...acc, index] : acc),
-					[] as number[],
-				)
-				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
-				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
 				stream = await clientAnthropic.beta.messages.create(
 					{
 						model: modelId,
@@ -123,7 +116,7 @@ export class VertexHandler implements ApiHandler {
 								cache_control: { type: "ephemeral" },
 							},
 						],
-						messages: sanitizeAnthropicMessages(messages, lastUserMsgIndex, secondLastMsgUserIndex),
+						messages: convertToAnthropicMessage(messages, true),
 						stream: true,
 						tools: tools?.length ? (tools as AnthropicTool[]) : undefined,
 						// tool_choice options:
@@ -149,7 +142,7 @@ export class VertexHandler implements ApiHandler {
 							type: "text",
 						},
 					],
-					messages: sanitizeAnthropicMessages(messages),
+					messages: convertToAnthropicMessage(messages, false),
 					stream: true,
 					tools: tools?.length ? (tools as AnthropicTool[]) : undefined,
 					// tool_choice options:

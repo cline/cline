@@ -473,7 +473,7 @@
 		"ollama": "^0.5.13",
 		"open": "^10.1.2",
 		"open-graph-scraper": "^6.9.0",
-		"openai": "^4.83.0",
+		"openai": "^6.8.1",
 		"os-name": "^6.0.0",
 		"p-mutex": "^1.0.0",
 		"p-timeout": "^6.1.4",

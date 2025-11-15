@@ -53,7 +53,7 @@ export class ToolResultUtils {
 	private static createToolResultBlock(content: ToolResponse, id?: string) {
 		// If id is "cline", we treat it as a plain text result for backward compatibility
 		// as we cannot find any existing tool call that matches this id.
-		if (id === "cline") {
+		if (id === "cline" || !id) {
 			return {
 				type: "text",
 				text: typeof content === "string" ? content : JSON.stringify(content, null, 2),

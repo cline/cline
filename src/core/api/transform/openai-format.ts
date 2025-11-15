@@ -339,29 +339,30 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 	}
 	try {
 		if (openAiMessage?.tool_calls?.length) {
-			anthropicMessage.content.push(
-				...openAiMessage.tool_calls
-					.map((toolCall): Anthropic.ToolUseBlock => {
-						const parsedName = toolCall.type === "function" && toolCall.function.name
-						let parsedInput = toolCall.function.arguments
+			const functionCalls = openAiMessage.tool_calls.filter((tc: any) => tc?.type === "function" && tc.function)
+			if (functionCalls.length > 0) {
+				anthropicMessage.content.push(
+					...functionCalls.map((toolCall: any): Anthropic.ToolUseBlock => {
+						let parsedInput = {}
 						try {
-							parsedInput = JSON.parse(toolCall.function.arguments || "{}")
+							parsedInput = JSON.parse(toolCall.function?.arguments || "{}")
 						} catch (error) {
 							console.error("Failed to parse tool arguments:", error)
 						}
 						return {
 							type: "tool_use",
 							id: toolCall.id,
-							name: parsedName || UNIQUE_ERROR_TOOL_NAME,
+							name: toolCall.function?.name || UNIQUE_ERROR_TOOL_NAME,
 							input: parsedInput,
 						}
-					})
-					// Filter out any tool uses with the UNIQUE_ERROR_TOOL_NAME, which indicates a parsing error
-					.filter((toolUse) => toolUse.name !== UNIQUE_ERROR_TOOL_NAME),
-			)
+					}),
+				)
+			}
+
+			return anthropicMessage
 		}
 	} catch (error) {
-		console.error("Failed to process tool calls:", error)
+		console.error("Error converting OpenAI message to Anthropic format:", error)
 	}
 
 	return anthropicMessage
