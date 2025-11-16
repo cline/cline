@@ -1,15 +1,18 @@
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { ClineAsk, ClineSayTool } from "@shared/ExtensionMessage"
 import { ClineDefaultTool } from "@shared/tools"
+import axios from "axios"
+import { ClineEnv } from "@/config"
+import { AuthService } from "@/services/auth/AuthService"
+import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { telemetryService } from "@/services/telemetry"
+import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
+import { getAxiosSettings } from "@/shared/net"
 import { ToolUse } from "../../../assistant-message"
 import { formatResponse } from "../../../prompts/responses"
 import { ToolResponse } from "../.."
-import { showNotificationForApproval } from "../../utils"
 import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
-import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 export class WebFetchToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.WEB_FETCH
@@ -20,17 +23,17 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 
 	async handlePartialBlock(block: ToolUse, uiHelpers: StronglyTypedUIHelpers): Promise<void> {
 		const url = block.params.url || ""
+		const prompt = block.params.prompt || ""
+
 		const sharedMessageProps: ClineSayTool = {
 			tool: "webFetch",
 			path: uiHelpers.removeClosingTag(block, "url", url),
-			content: `Fetching URL: ${uiHelpers.removeClosingTag(block, "url", url)}`,
+			content: `Fetching URL: ${uiHelpers.removeClosingTag(block, "url", url)}\nPrompt: ${uiHelpers.removeClosingTag(block, "prompt", prompt)}`,
 			operationIsLocatedInWorkspace: false, // web_fetch is always external
 		} satisfies ClineSayTool
 
 		const partialMessage = JSON.stringify(sharedMessageProps)
 
-		// For partial blocks, we'll let the ToolExecutor handle auto-approval logic
-		// Just stream the UI update for now
 		await uiHelpers.removeLastPartialMessageIfExistsWithType("say", "tool")
 		await uiHelpers.ask("tool" as ClineAsk, partialMessage, block.partial).catch(() => {})
 	}
@@ -38,76 +41,54 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 	async execute(config: TaskConfig, block: ToolUse): Promise<ToolResponse> {
 		try {
 			const url: string | undefined = block.params.url
+			const prompt: string | undefined = block.params.prompt
 
-			// Extract provider information for telemetry
+			// Extract provider information for validation and telemetry
 			const apiConfig = config.services.stateManager.getApiConfiguration()
 			const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
 			const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
 
-			// Validate required parameter
+			// Ensure feature is enabled
+			const clineWebToolsEnabled = config.services.stateManager.getGlobalSettingsKey("clineWebToolsEnabled")
+			if (provider !== "cline" || !clineWebToolsEnabled) {
+				return formatResponse.toolError("Cline web tools are currently disabled.")
+			}
+
 			if (!url) {
 				config.taskState.consecutiveMistakeCount++
 				return await config.callbacks.sayAndCreateMissingParamError(this.name, "url")
 			}
+
+			if (!prompt) {
+				config.taskState.consecutiveMistakeCount++
+				return await config.callbacks.sayAndCreateMissingParamError(this.name, "prompt")
+			}
+
 			config.taskState.consecutiveMistakeCount = 0
 
 			// Create message for approval
 			const sharedMessageProps: ClineSayTool = {
 				tool: "webFetch",
 				path: url,
-				content: `Fetching URL: ${url}`,
+				content: `Fetching URL: ${url}\nPrompt: ${prompt}`,
 				operationIsLocatedInWorkspace: false,
 			}
 			const completeMessage = JSON.stringify(sharedMessageProps)
 
-			if (config.callbacks.shouldAutoApproveTool(this.name)) {
-				// Auto-approve flow
-				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
-				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
-				telemetryService.captureToolUsage(
-					config.ulid,
-					"web_fetch",
-					config.api.getModel().id,
-					provider,
-					true,
-					true,
-					undefined,
-					block.isNativeToolCall,
-				)
-			} else {
-				// Manual approval flow
-				showNotificationForApproval(
-					`Cline wants to fetch content from ${url}`,
-					config.autoApprovalSettings.enableNotifications,
-				)
-				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")
+			// Web tools are toggleable, so not checking approvals
+			await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
+			await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
 
-				const didApprove = await ToolResultUtils.askApprovalAndPushFeedback("tool", completeMessage, config)
-				if (!didApprove) {
-					telemetryService.captureToolUsage(
-						config.ulid,
-						block.name,
-						config.api.getModel().id,
-						provider,
-						false,
-						false,
-						undefined,
-						block.isNativeToolCall,
-					)
-					return formatResponse.toolDenied()
-				} else {
-					telemetryService.captureToolUsage(
-						config.ulid,
-						block.name,
-						config.api.getModel().id,
-						provider,
-						false,
-						true,
-						undefined,
-						block.isNativeToolCall,
-					)
-				}
-			}
+			telemetryService.captureToolUsage(
+				config.ulid,
+				"web_fetch",
+				config.api.getModel().id,
+				provider,
+				true, // autoApproved
+				true, // didUserApprove
+				undefined,
+				block.isNativeToolCall,
+			)
 
 			// Run PreToolUse hook after approval but before execution
 			try {
@@ -122,24 +103,35 @@ export class WebFetchToolHandler implements IFullyManagedTool {
 			}
 
 			// Execute the actual fetch
-			const urlContentFetcher = config.services?.urlContentFetcher as UrlContentFetcher
+			const baseUrl = ClineEnv.config().apiBaseUrl
+			const authToken = await AuthService.getInstance().getAuthToken()
 
-			await urlContentFetcher.launchBrowser()
-			try {
-				// Fetch Markdown content
-				const markdownContent = await urlContentFetcher.urlToMarkdown(url)
-
-				// TODO: Implement secondary AI call to process markdownContent with prompt
-				// For now, returning markdown directly.
-				// This will be a significant sub-task.
-				// Placeholder for processed summary:
-				const processedSummary = `Fetched Markdown for ${url}:\n\n${markdownContent}`
-
-				return formatResponse.toolResult(processedSummary)
-			} finally {
-				// Ensure browser is closed even on error
-				await urlContentFetcher.closeBrowser()
+			if (!authToken) {
+				throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 			}
+
+			const response = await axios.post(
+				`${baseUrl}/api/v1/search/webfetch`,
+				{
+					Url: url,
+					Prompt: prompt,
+				},
+				{
+					headers: {
+						Authorization: `Bearer ${authToken}`,
+						"Content-Type": "application/json",
+						...(await buildClineExtraHeaders()),
+					},
+					timeout: 15000,
+					...getAxiosSettings(),
+				},
+			)
+
+			// Parse response
+			// Axios will throw on non-200 status, so no need to check fetchStatus
+			const result = response.data.data.result
+
+			return formatResponse.toolResult(result)
 		} catch (error) {
 			return `Error fetching web content: ${(error as Error).message}`
 		}

@@ -830,11 +830,7 @@ export const ChatRowContent = memo(
 									style={{ color: normalColor, marginBottom: "-1.5px" }}></span>
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This URL is external")}
-								<span style={{ fontWeight: "bold" }}>
-									{message.type === "ask"
-										? "Cline wants to fetch content from this URL:"
-										: "Cline fetched content from this URL:"}
-								</span>
+								<span style={{ fontWeight: "bold" }}>Cline is fetching content from this URL:</span>
 							</div>
 							<div
 								onClick={() => {
