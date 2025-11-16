@@ -498,6 +498,7 @@ export class StateManager {
 			ocaMode,
 			hicapApiKey,
 			hicapModelId,
+			avalaiApiKey,
 			aihubmixApiKey,
 			aihubmixBaseUrl,
 			aihubmixAppCode,
@@ -538,6 +539,8 @@ export class StateManager {
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
+			planModeAvalaiModelId,
+			planModeAvalaiModelInfo,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -575,6 +578,8 @@ export class StateManager {
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
+			actModeAvalaiModelId,
+			actModeAvalaiModelInfo,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -616,6 +621,8 @@ export class StateManager {
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
+			planModeAvalaiModelId,
+			planModeAvalaiModelInfo,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -654,6 +661,8 @@ export class StateManager {
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
+			actModeAvalaiModelId,
+			actModeAvalaiModelInfo,
 
 			// Global state updates
 			awsRegion,
@@ -739,6 +748,7 @@ export class StateManager {
 			zaiApiKey,
 			minimaxApiKey,
 			hicapApiKey,
+			avalaiApiKey,
 			aihubmixApiKey,
 			nousResearchApiKey,
 		})
@@ -1051,6 +1061,7 @@ export class StateManager {
 			zaiApiKey: this.secretsCache["zaiApiKey"],
 			minimaxApiKey: this.secretsCache["minimaxApiKey"],
 			hicapApiKey: this.secretsCache["hicapApiKey"],
+			avalaiApiKey: this.secretsCache["avalaiApiKey"],
 			aihubmixApiKey: this.secretsCache["aihubmixApiKey"],
 
 			// Global state (with remote config precedence for applicable fields)
@@ -1197,6 +1208,9 @@ export class StateManager {
 				this.taskStateCache["planModeAihubmixModelInfo"] || this.globalStateCache["planModeAihubmixModelInfo"],
 			planModeNousResearchModelId:
 				this.taskStateCache["planModeNousResearchModelId"] || this.globalStateCache["planModeNousResearchModelId"],
+			planModeAvalaiModelId: this.taskStateCache["planModeAvalaiModelId"] || this.globalStateCache["planModeAvalaiModelId"],
+			planModeAvalaiModelInfo:
+				this.taskStateCache["planModeAvalaiModelInfo"] || this.globalStateCache["planModeAvalaiModelInfo"],
 
 			// Act mode configurations
 			actModeApiProvider:
@@ -1265,6 +1279,9 @@ export class StateManager {
 				this.taskStateCache["actModeAihubmixModelInfo"] || this.globalStateCache["actModeAihubmixModelInfo"],
 			actModeNousResearchModelId:
 				this.taskStateCache["actModeNousResearchModelId"] || this.globalStateCache["actModeNousResearchModelId"],
+			actModeAvalaiModelId: this.taskStateCache["actModeAvalaiModelId"] || this.globalStateCache["actModeAvalaiModelId"],
+			actModeAvalaiModelInfo:
+				this.taskStateCache["actModeAvalaiModelInfo"] || this.globalStateCache["actModeAvalaiModelInfo"],
 			nousResearchApiKey: this.secretsCache["nousResearchApiKey"],
 		}
 	}

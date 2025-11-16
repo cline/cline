@@ -36,6 +36,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	onboardingModels: OnboardingModelGroup | undefined
 	openRouterModels: Record<string, ModelInfo>
 	hicapModels: Record<string, ModelInfo>
+	avalaiModels: Record<string, ModelInfo>
 	openAiModels: string[]
 	requestyModels: Record<string, ModelInfo>
 	groqModels: Record<string, ModelInfo>
@@ -87,6 +88,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	// Refresh functions
 	refreshOpenRouterModels: () => void
 	refreshHicapModels: () => void
+	refreshAvalaiModels: () => void
 	setUserInfo: (userInfo?: UserInfo) => void
 
 	// Navigation state setters
@@ -250,6 +252,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		[openRouterDefaultModelId]: openRouterDefaultModelInfo,
 	})
 	const [hicapModels, setHicapModels] = useState<Record<string, ModelInfo>>({})
+	const [avalaiModels, setAvalaiModels] = useState<Record<string, ModelInfo>>({})
 	const [totalTasksSize, setTotalTasksSize] = useState<number | null>(null)
 	const [availableTerminalProfiles, setAvailableTerminalProfiles] = useState<TerminalProfile[]>([])
 
@@ -654,6 +657,17 @@ export const ExtensionStateContextProvider: React.FC<{
 			.catch((error: Error) => console.error("Failed to refresh Hicap models:", error))
 	}, [])
 
+	const refreshAvalaiModels = useCallback(() => {
+		ModelsServiceClient.refreshAvalaiModels(EmptyRequest.create({}))
+			.then((response: OpenRouterCompatibleModelInfo) => {
+				const models = response.models
+				setAvalaiModels({
+					...models,
+				})
+			})
+			.catch((error: Error) => console.error("Failed to refresh AvalAI models:", error))
+	}, [])
+
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
@@ -661,6 +675,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		onboardingModels,
 		openRouterModels,
 		hicapModels,
+		avalaiModels,
 		openAiModels,
 		requestyModels,
 		groqModels: groqModelsState,
@@ -768,6 +783,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setTotalTasksSize,
 		refreshOpenRouterModels,
 		refreshHicapModels,
+		refreshAvalaiModels,
 		onRelinquishControl,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,

@@ -315,6 +315,8 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.HICAP
 		case "nousResearch":
 			return ProtoApiProvider.NOUSRESEARCH
+		case "avalai":
+			return ProtoApiProvider.AVALAI
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -403,6 +405,8 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "minimax"
 		case ProtoApiProvider.NOUSRESEARCH:
 			return "nousResearch"
+		case ProtoApiProvider.AVALAI:
+			return "avalai"
 		default:
 			return "anthropic"
 	}
@@ -494,6 +498,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		aihubmixAppCode: config.aihubmixAppCode,
 		hicapApiKey: config.hicapApiKey,
 		hicapModelId: config.hicapModelId,
+		avalaiApiKey: config.avalaiApiKey,
 
 		// Plan mode configurations
 		planModeApiProvider: config.planModeApiProvider ? convertApiProviderToProto(config.planModeApiProvider) : undefined,
@@ -532,6 +537,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeHicapModelId: config.planModeHicapModelId,
 		planModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.planModeHicapModelInfo),
 		planModeNousResearchModelId: config.planModeNousResearchModelId,
+		planModeAvalaiModelId: config.planModeAvalaiModelId,
+		planModeAvalaiModelInfo: convertModelInfoToProtoOpenRouter(config.planModeAvalaiModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -570,6 +577,8 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeHicapModelId: config.actModeHicapModelId,
 		actModeHicapModelInfo: convertModelInfoToProtoOpenRouter(config.actModeHicapModelInfo),
 		actModeNousResearchModelId: config.actModeNousResearchModelId,
+		actModeAvalaiModelId: config.actModeAvalaiModelId,
+		actModeAvalaiModelInfo: convertModelInfoToProtoOpenRouter(config.actModeAvalaiModelInfo),
 	}
 }
 
@@ -659,6 +668,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		hicapApiKey: protoConfig.hicapApiKey,
 		hicapModelId: protoConfig.hicapModelId,
 		nousResearchApiKey: protoConfig.nousResearchApiKey,
+		avalaiApiKey: protoConfig.avalaiApiKey,
 
 		// Plan mode configurations
 		planModeApiProvider:
@@ -700,6 +710,8 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeHicapModelId: protoConfig.planModeHicapModelId,
 		planModeHicapModelInfo: convertProtoToModelInfo(protoConfig.planModeHicapModelInfo),
 		planModeNousResearchModelId: protoConfig.planModeNousResearchModelId,
+		planModeAvalaiModelId: protoConfig.planModeAvalaiModelId,
+		planModeAvalaiModelInfo: convertProtoToModelInfo(protoConfig.planModeAvalaiModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -739,5 +751,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeHicapModelId: protoConfig.actModeHicapModelId,
 		actModeHicapModelInfo: convertProtoToModelInfo(protoConfig.actModeHicapModelInfo),
 		actModeNousResearchModelId: protoConfig.actModeNousResearchModelId,
+		actModeAvalaiModelId: protoConfig.actModeAvalaiModelId,
+		actModeAvalaiModelInfo: convertProtoToModelInfo(protoConfig.actModeAvalaiModelInfo),
 	}
 }

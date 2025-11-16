@@ -5,6 +5,7 @@ import { ClineTool } from "@/shared/tools"
 import { AIhubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
+import { AvalaiHandler } from "./providers/avalai"
 import { BasetenHandler } from "./providers/baseten"
 import { AwsBedrockHandler } from "./providers/bedrock"
 import { CerebrasHandler } from "./providers/cerebras"
@@ -422,6 +423,12 @@ function createHandlerForProvider(
 				onRetryAttempt: options.onRetryAttempt,
 				nousResearchApiKey: options.nousResearchApiKey,
 				apiModelId: mode === "plan" ? options.planModeNousResearchModelId : options.actModeNousResearchModelId,
+			})
+		case "avalai":
+			return new AvalaiHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				avalaiApiKey: options.avalaiApiKey,
+				avalaiModelId: mode === "plan" ? options.planModeAvalaiModelId : options.actModeAvalaiModelId,
 			})
 		default:
 			return new AnthropicHandler({
