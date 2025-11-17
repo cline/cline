@@ -2849,6 +2849,12 @@ export class Task {
 							assistantMessage += toolBlocks.map((block) => JSON.stringify(block)).join("\n")
 							this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 
+							// Reset index to the first tool block position so they can be executed during streaming
+							// This ensures presentAssistantMessage processes tool blocks instead of text blocks
+							if (toolBlocks.length > 0) {
+								this.taskState.currentStreamingContentIndex = textBlocks.length
+							}
+
 							// If we added new content blocks OR we're streaming arguments for existing tool use
 							// Reset userMessageContentReady to ensure UI updates continue
 							if (
