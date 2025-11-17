@@ -35,9 +35,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		const rawDiff = block.params.diff // for replace_in_file
 
 		// Early return if we don't even have the path yet
-		// Need at least the path to do anything
 		if (!rawRelPath || (!rawContent && !rawDiff)) {
-			// Need at least the path to do anything
 			return
 		}
 
