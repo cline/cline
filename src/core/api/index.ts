@@ -1,6 +1,6 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { ClineTool } from "@/shared/tools"
 import { AIhubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
@@ -48,8 +48,16 @@ export type CommonApiHandlerOptions = {
 	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]
 }
 
+export interface ApiRequestArgs {
+	systemPrompt: string
+	messages: ClineStorageMessage[]
+	tools?: ClineTool[]
+	useResponseApi?: boolean
+}
+
 export interface ApiHandler {
-	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: ClineTool[]): ApiStream
+	// createMessage(args: ApiRequestArgs): ApiStream
+	createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[], useResponseApi?: boolean): ApiStream
 	getModel(): ApiHandlerModel
 	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
 }

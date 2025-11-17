@@ -82,7 +82,6 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
 import * as vscode from "vscode"
-import { ToolUseHandler } from "@/core/api/transform/tool-use-handler"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
@@ -108,6 +107,7 @@ import { Controller } from "../controller"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
+import { StreamResponseHandler } from "./StreamHandler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
@@ -218,7 +218,7 @@ export class Task {
 	 * because of the expected format from the tool calls is different.
 	 */
 	private useNativeToolCalls: boolean = false
-	private toolUseHandler: ToolUseHandler
+	private streamHandler: StreamResponseHandler
 
 	private terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	private activeBackgroundCommand?: {
@@ -332,7 +332,7 @@ export class Task {
 		this.browserSession = new BrowserSession(stateManager)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
-		this.toolUseHandler = new ToolUseHandler()
+		this.streamHandler = new StreamResponseHandler()
 		this.cwd = cwd
 		this.stateManager = stateManager
 		this.workspaceManager = workspaceManager
@@ -2758,18 +2758,22 @@ export class Task {
 			this.taskState.presentAssistantMessageHasPendingUpdates = false
 			this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			await this.diffViewProvider.reset()
-			this.toolUseHandler.reset()
+			this.streamHandler.reset()
 			this.taskState.toolUseIdMap.clear()
 
+			const { toolUseHandler, reasonsHandler } = this.streamHandler.getHandlers()
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
 			let assistantMessage = "" // For UI display (includes XML)
 			let assistantTextOnly = "" // For API history (text only, no tool XML)
+
 			let reasoningMessage = ""
 			const reasoningDetails = []
+			const reasoningSignature = ""
+			let reasoningID = ""
 			const redactedThinkingContent: ClineAssistantRedactedThinkingBlock[] = []
+
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
-			let reasoningSignature = ""
 
 			try {
 				for await (const chunk of stream) {
@@ -2778,6 +2782,7 @@ export class Task {
 					}
 					switch (chunk.type) {
 						case "usage":
+							this.streamHandler.setRequestId(chunk.id)
 							didReceiveUsageChunk = true
 							inputTokens += chunk.inputTokens
 							outputTokens += chunk.outputTokens
@@ -2785,49 +2790,61 @@ export class Task {
 							cacheReadTokens += chunk.cacheReadTokens ?? 0
 							totalCost = chunk.totalCost
 							break
-						case "reasoning":
-							// reasoning will always come before assistant message chunks
-							if (chunk.reasoning) {
-								reasoningMessage += chunk.reasoning
+						case "reasoning": {
+							// Process the reasoning delta through the handler
+							// Ensure details is always an array
+							const details = chunk.details ? (Array.isArray(chunk.details) ? chunk.details : [chunk.details]) : []
+							reasonsHandler.processReasoningDelta({
+								id: chunk.id,
+								reasoning: chunk.reasoning,
+								signature: chunk.signature,
+								details,
+								redacted_data: chunk.redacted_data,
+							})
+
+							// Capture reasoning ID for use when storing the message
+							if (chunk.id) {
+								reasoningID = chunk.id
 							}
+
+							// Get the current reasoning state
+							const reasoningState = reasonsHandler.getCurrentReasoning()
+							if (reasoningState) {
+								reasoningMessage = reasoningState.content
+								reasoningDetails.push(...reasoningState.details)
+							}
+
 							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
 							if (!this.taskState.abort) {
-								await this.say("reasoning", reasoningMessage, undefined, undefined, true)
-							}
-							if (chunk.signature) {
-								reasoningSignature = chunk.signature
-								break
-							}
-							if (chunk.details) {
-								// reasoning_details may be an array of 0 or 1 items depending on how openrouter returns it
-								if (Array.isArray(chunk.details)) {
-									reasoningDetails.push(...chunk.details)
-								} else {
-									reasoningDetails.push(chunk.details)
+								const thinkingBlock = reasonsHandler.getThinkingBlock()
+								if (thinkingBlock) {
+									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
 								}
 							}
 
-							if (chunk.redacted_data) {
-								redactedThinkingContent.push({
-									type: "redacted_thinking",
-									data: chunk.redacted_data,
-								})
+							// Get any redacted thinking content
+							const newRedactedThinking = reasonsHandler.getRedactedThinking()
+							if (newRedactedThinking.length > 0) {
+								redactedThinkingContent.push(...newRedactedThinking)
 							}
 
 							break
+						}
 						case "tool_calls": {
 							if (!chunk.tool_call) {
 								console.log("no tool call in chunk, skipping...", chunk)
 								break
 							}
 							// Accumulate tool use blocks in proper Anthropic format
-							this.toolUseHandler.processToolUseDelta({
-								id: chunk.tool_call.function?.id,
-								type: "tool_use",
-								name: chunk.tool_call.function?.name,
-								input: chunk.tool_call.function?.arguments,
-							})
-
+							toolUseHandler.processToolUseDelta(
+								{
+									id: chunk.tool_call.function?.id,
+									type: "tool_use",
+									name: chunk.tool_call.function?.name,
+									input: chunk.tool_call.function?.arguments,
+								},
+								chunk.tool_call.call_id,
+							)
 							// Extract and store tool_use_id for creating proper ToolResultBlockParam
 							if (chunk.tool_call.function?.id && chunk.tool_call.function?.name) {
 								this.taskState.toolUseIdMap.set(chunk.tool_call.function.name, chunk.tool_call.function.id)
@@ -2846,7 +2863,7 @@ export class Task {
 							const textBlocks: AssistantMessageContent[] = textContent
 								? [{ type: "text", content: textContent, partial: false }]
 								: []
-							const toolBlocks = this.toolUseHandler.getPartialToolUsesAsContent()
+							const toolBlocks = toolUseHandler.getPartialToolUsesAsContent()
 							assistantMessage += toolBlocks.map((block) => JSON.stringify(block)).join("\n")
 							this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 
@@ -2914,9 +2931,7 @@ export class Task {
 						: []
 
 					// Get all finalized tool uses and mark as complete
-					const toolBlocks = this.toolUseHandler
-						.getPartialToolUsesAsContent()
-						.map((block) => ({ ...block, partial: false }))
+					const toolBlocks = toolUseHandler.getPartialToolUsesAsContent().map((block) => ({ ...block, partial: false }))
 
 					this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 
@@ -3057,8 +3072,11 @@ export class Task {
 					this.useNativeToolCalls,
 				)
 
+				const { reasonsHandler } = this.streamHandler.getHandlers()
+				const requestId = this.streamHandler.requestId
+
 				// Get finalized tool use blocks from the handler
-				const toolUseBlocks = this.toolUseHandler.getAllFinalizedToolUses()
+				const toolUseBlocks = toolUseHandler.getAllFinalizedToolUses()
 
 				// Build content array with thinking blocks, text (if any), and tool use blocks
 				const assistantContent: Array<ClineAssistantContent> = [
@@ -3067,21 +3085,35 @@ export class Task {
 					// https://docs.claude.com/en/docs/build-with-claude/extended-thinking#preserving-thinking-blocks
 					...redactedThinkingContent,
 				]
-				// Append redacted reasoning block if signature exists
-				if (reasoningSignature) {
+				// Add thinking block from the reasoning handler if available
+				const thinkingBlock = reasonsHandler.getThinkingBlock()
+				if (thinkingBlock) {
+					assistantContent.push({
+						...thinkingBlock,
+						summary: reasoningDetails.length > 0 ? reasoningDetails : undefined,
+						call_id: reasoningID,
+					})
+				} else if (reasoningSignature || reasoningMessage || reasoningDetails.length) {
+					// Fallback to legacy reasoning handling if needed
 					assistantContent.push({
 						type: "thinking",
 						thinking: reasoningMessage,
 						signature: reasoningSignature,
+						summary: reasoningDetails.length > 0 ? reasoningDetails : undefined,
+						call_id: reasoningID,
 					})
 				}
+
+				// Get the current reasoning state to ensure we have the latest details
+				const currentReasoning = reasonsHandler.getCurrentReasoning()
+				const currentReasoningDetails = currentReasoning?.details || reasoningDetails
 				// Only add text block if there's actual text (not just tool XML)
 				if (assistantTextOnly.trim().length > 0) {
 					assistantContent.push({
 						type: "text",
 						text: assistantTextOnly,
 						// reasoning_details only exists for cline/openrouter providers
-						reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
+						reasoning_details: currentReasoningDetails.length > 0 ? currentReasoningDetails : undefined,
 					})
 				}
 
@@ -3096,6 +3128,7 @@ export class Task {
 						role: "assistant",
 						content: assistantContent,
 						modelInfo,
+						id: requestId,
 					})
 				}
 
@@ -3161,6 +3194,7 @@ export class Task {
 						},
 					],
 					modelInfo,
+					id: this.streamHandler.requestId,
 				})
 
 				let response: ClineAskResponse
@@ -3258,7 +3292,7 @@ export class Task {
 								globalWorkflowToggles,
 								this.ulid,
 								this.stateManager.getGlobalSettingsKey("focusChainSettings"),
-								this.useNativeToolCalls
+								this.useNativeToolCalls,
 							)
 
 							if (needsCheck) {

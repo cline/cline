@@ -10,6 +10,15 @@ import {
 	ClineUserToolResultContentBlock,
 } from "@/shared/messages/content"
 
+/**
+ * Converts an array of ClineStorageMessage objects to OpenAI's Completions API format.
+ *
+ * Handles conversion of Cline-specific content types (tool uses, tool results, images, reasoning details)
+ * into OpenAI's expected message structure, including tool_calls and tool_call_id fields.
+ *
+ * @param anthropicMessages - Array of ClineStorageMessage objects to be converted
+ * @returns Array of OpenAI.Chat.ChatCompletionMessageParam objects
+ */
 export function convertToOpenAiMessages(
 	anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[],
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
@@ -339,29 +348,30 @@ export function convertToAnthropicMessage(completion: OpenAI.Chat.Completions.Ch
 	}
 	try {
 		if (openAiMessage?.tool_calls?.length) {
-			anthropicMessage.content.push(
-				...openAiMessage.tool_calls
-					.map((toolCall): Anthropic.ToolUseBlock => {
-						const parsedName = toolCall.type === "function" && toolCall.function.name
-						let parsedInput = toolCall.function.arguments
+			const functionCalls = openAiMessage.tool_calls.filter((tc: any) => tc?.type === "function" && tc.function)
+			if (functionCalls.length > 0) {
+				anthropicMessage.content.push(
+					...functionCalls.map((toolCall: any): Anthropic.ToolUseBlock => {
+						let parsedInput = {}
 						try {
-							parsedInput = JSON.parse(toolCall.function.arguments || "{}")
+							parsedInput = JSON.parse(toolCall.function?.arguments || "{}")
 						} catch (error) {
 							console.error("Failed to parse tool arguments:", error)
 						}
 						return {
 							type: "tool_use",
 							id: toolCall.id,
-							name: parsedName || UNIQUE_ERROR_TOOL_NAME,
+							name: toolCall.function?.name || UNIQUE_ERROR_TOOL_NAME,
 							input: parsedInput,
 						}
-					})
-					// Filter out any tool uses with the UNIQUE_ERROR_TOOL_NAME, which indicates a parsing error
-					.filter((toolUse) => toolUse.name !== UNIQUE_ERROR_TOOL_NAME),
-			)
+					}),
+				)
+			}
+
+			return anthropicMessage
 		}
 	} catch (error) {
-		console.error("Failed to process tool calls:", error)
+		console.error("Error converting OpenAI message to Anthropic format:", error)
 	}
 
 	return anthropicMessage

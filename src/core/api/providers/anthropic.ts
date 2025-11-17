@@ -2,9 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
 import { AnthropicModelId, anthropicDefaultModelId, anthropicModels, CLAUDE_SONNET_1M_SUFFIX, ModelInfo } from "@shared/api"
-import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
-import { ClineTool } from "@/shared/tools"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
@@ -44,7 +42,7 @@ export class AnthropicHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: AnthropicTool[]): ApiStream {
 		const client = this.ensureClient()
 
 		const model = this.getModel()
@@ -75,19 +73,7 @@ export class AnthropicHandler implements ApiHandler {
 			case "claude-opus-4-1-20250805":
 			case "claude-3-opus-20240229":
 			case "claude-3-haiku-20240307": {
-				/*
-				The latest message will be the new user message, one before will be the assistant message from a previous request, and the user message before that will be a previously cached user message. So we need to mark the latest user message as ephemeral to cache it for the next request, and mark the second to last user message as ephemeral to let the server know the last message to retrieve from the cache for the current request..
-				*/
-				const userMsgIndices = messages.reduce((acc, msg, index) => {
-					if (msg.role === "user") {
-						acc.push(index)
-					}
-					return acc
-				}, [] as number[])
-				const lastUserMsgIndex = userMsgIndices[userMsgIndices.length - 1] ?? -1
-				const secondLastMsgUserIndex = userMsgIndices[userMsgIndices.length - 2] ?? -1
-
-				const anthropicMessages = sanitizeAnthropicMessages(messages, lastUserMsgIndex, secondLastMsgUserIndex)
+				const anthropicMessages = sanitizeAnthropicMessages(messages, true)
 
 				stream = await client.messages.create(
 					{
@@ -107,7 +93,7 @@ export class AnthropicHandler implements ApiHandler {
 						messages: anthropicMessages,
 						// tools, // cache breakpoints go from tools > system > messages, and since tools dont change, we can just set the breakpoint at the end of system (this avoids having to set a breakpoint at the end of tools which by itself does not meet min requirements for haiku caching)
 						stream: true,
-						tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
+						tools: nativeToolsOn ? tools : undefined,
 						// tool_choice options:
 						// - none: disables tool use, even if tools are provided. Claude will not call any tools.
 						// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
@@ -136,9 +122,9 @@ export class AnthropicHandler implements ApiHandler {
 					max_tokens: model.info.maxTokens || 8192,
 					temperature: 0,
 					system: [{ text: systemPrompt, type: "text" }],
-					messages: sanitizeAnthropicMessages(messages),
-					// tools,
-					// tool_choice: { type: "auto" },
+					messages: sanitizeAnthropicMessages(messages, false),
+					tools: nativeToolsOn ? tools : undefined,
+					tool_choice: { type: "auto" },
 					stream: true,
 				})
 				break
@@ -217,7 +203,7 @@ export class AnthropicHandler implements ApiHandler {
 				case "content_block_delta":
 					switch (chunk.delta.type) {
 						case "thinking_delta":
-							// 'reasoning' type just displays in the UI, but reasoning with signature will be used to send the thinking traces back to the API
+							// 'reasoning' type just displays in the UI, but ant_thinking will be used to send the thinking traces back to the API
 							yield {
 								type: "reasoning",
 								reasoning: chunk.delta.thinking,
