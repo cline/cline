@@ -34,13 +34,17 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		const rawContent = block.params.content // for write_to_file
 		const rawDiff = block.params.diff // for replace_in_file
 
-		// Early return if we don't have enough data yet
+		// Early return if we don't even have the path yet
+		// Need at least the path to do anything
 		if (!rawRelPath || (!rawContent && !rawDiff)) {
-			// Wait until we have the path and either content or diff
+			// Need at least the path to do anything
 			return
 		}
 
 		const config = uiHelpers.getConfig()
+
+		// Allow empty content/diff for partial blocks - we'll stream it as it arrives
+		// For complete blocks, the execute() method will validate required params
 
 		// Creates file if it doesn't exist, and opens editor to stream content in. We don't want to handle this in the try/catch below since the error handler for it resets the diff view, which wouldn't be open if this failed.
 		const result = await this.validateAndPrepareFileOperation(config, block, rawRelPath, rawDiff, rawContent)
@@ -58,7 +62,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					config.cwd,
 					uiHelpers.removeClosingTag(block, block.params.path ? "path" : "absolutePath", relPath),
 				),
-				content: diff || content,
+				content: diff || content || "", // Allow empty content for streaming
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 			}
 			const partialMessage = JSON.stringify(sharedMessageProps)

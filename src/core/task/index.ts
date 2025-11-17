@@ -2263,6 +2263,8 @@ export class Task {
 			throw new Error("Cline instance aborted")
 		}
 
+		// If we're locked, mark that we have pending updates and return
+		// The currently executing presentAssistantMessage will pick up these changes
 		if (this.taskState.presentAssistantMessageLocked) {
 			this.taskState.presentAssistantMessageHasPendingUpdates = true
 			return
@@ -2352,7 +2354,7 @@ export class Task {
 		}
 
 		/*
-		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present. 
+		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present.
 		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
 		*/
 		this.taskState.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
@@ -2773,9 +2775,6 @@ export class Task {
 
 			try {
 				for await (const chunk of stream) {
-					if (!chunk) {
-						continue
-					}
 					switch (chunk.type) {
 						case "usage":
 							didReceiveUsageChunk = true
@@ -2817,8 +2816,8 @@ export class Task {
 							break
 						case "tool_calls": {
 							if (!chunk.tool_call) {
-								console.log("no tool call in chunk, skipping...", chunk)
-								break
+								Logger.debug("no tool call in chunk, skipping..." + JSON.stringify(chunk))
+								continue
 							}
 							// Accumulate tool use blocks in proper Anthropic format
 							this.toolUseHandler.processToolUseDelta({
@@ -2850,7 +2849,12 @@ export class Task {
 							assistantMessage += toolBlocks.map((block) => JSON.stringify(block)).join("\n")
 							this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 
-							if (this.taskState.assistantMessageContent.length > prevLength) {
+							// If we added new content blocks OR we're streaming arguments for existing tool use
+							// Reset userMessageContentReady to ensure UI updates continue
+							if (
+								this.taskState.assistantMessageContent.length > prevLength ||
+								chunk.tool_call.function?.arguments
+							) {
 								this.taskState.userMessageContentReady = false
 							}
 							this.presentAssistantMessage()
@@ -3258,7 +3262,7 @@ export class Task {
 								globalWorkflowToggles,
 								this.ulid,
 								this.stateManager.getGlobalSettingsKey("focusChainSettings"),
-								this.useNativeToolCalls
+								this.useNativeToolCalls,
 							)
 
 							if (needsCheck) {
