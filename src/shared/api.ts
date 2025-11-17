@@ -3532,6 +3532,17 @@ export interface BasetenModelInfo extends ModelInfo {
 }
 
 export const basetenModels = {
+	"moonshotai/Kimi-K2-Thinking": {
+		maxTokens: 163800,
+		contextWindow: 262000,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.6,
+		outputPrice: 2.5,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Kimi K2 Thinking - A model with enhanced reasoning capabilities from Kimi K2",
+	},
 	"zai-org/GLM-4.6": {
 		maxTokens: 200000,
 		contextWindow: 200000,
@@ -3543,17 +3554,6 @@ export const basetenModels = {
 		cacheReadsPrice: 0,
 		description: "Frontier open model with advanced agentic, reasoning and coding capabilities",
 	},
-	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
-		maxTokens: 262144,
-		contextWindow: 262144,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.22,
-		outputPrice: 0.8,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
-		description: "Mixture-of-experts LLM with math and reasoning capabilities",
-	},
 	"deepseek-ai/DeepSeek-R1": {
 		maxTokens: 131072,
 		contextWindow: 163840,
@@ -3564,6 +3564,17 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "DeepSeek's first-generation reasoning model",
+	},
+	"deepseek-ai/DeepSeek-R1-0528": {
+		maxTokens: 131072,
+		contextWindow: 163840,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 2.55,
+		outputPrice: 5.95,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "The latest revision of DeepSeek's first-generation reasoning model",
 	},
 	"deepseek-ai/DeepSeek-V3-0324": {
 		maxTokens: 131072,
@@ -3586,6 +3597,17 @@ export const basetenModels = {
 		cacheWritesPrice: 0,
 		cacheReadsPrice: 0,
 		description: "Extremely capable general-purpose LLM with hybrid reasoning capabilities and advanced tool calling",
+	},
+	"Qwen/Qwen3-235B-A22B-Instruct-2507": {
+		maxTokens: 262144,
+		contextWindow: 262144,
+		supportsImages: false,
+		supportsPromptCache: false,
+		inputPrice: 0.22,
+		outputPrice: 0.8,
+		cacheWritesPrice: 0,
+		cacheReadsPrice: 0,
+		description: "Mixture-of-experts LLM with math and reasoning capabilities",
 	},
 	"Qwen/Qwen3-Coder-480B-A35B-Instruct": {
 		maxTokens: 262144,
@@ -3620,20 +3642,9 @@ export const basetenModels = {
 		cacheReadsPrice: 0,
 		description: "State of the art language model for agentic and coding tasks. Septemeber Update.",
 	},
-	"deepseek-ai/DeepSeek-R1-0528": {
-		maxTokens: 131072,
-		contextWindow: 163840,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 2.55,
-		outputPrice: 5.95,
-		cacheWritesPrice: 0,
-		cacheReadsPrice: 0,
-		description: "The latest revision of DeepSeek's first-generation reasoning model",
-	},
 } as const satisfies Record<string, ModelInfo>
 export type BasetenModelId = keyof typeof basetenModels
-export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
+export const basetenDefaultModelId = "moonshotai/Kimi-K2-Thinking" satisfies BasetenModelId
 
 // Z AI
 // https://docs.z.ai/guides/llm/glm-4.5
