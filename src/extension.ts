@@ -31,7 +31,7 @@ import { HookDiscoveryCache } from "./core/hooks/HookDiscoveryCache"
 import { HookProcessRegistry } from "./core/hooks/HookProcessRegistry"
 import { workspaceResolver } from "./core/workspace"
 import { focusChatInput, getContextForCommand } from "./hosts/vscode/commandUtils"
-import { abortCommitGeneration, generateCommitMessage } from "./hosts/vscode/commit-message-generator"
+import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
 import { VscodeDiffViewProvider } from "./hosts/vscode/VscodeDiffViewProvider"
 import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { ExtensionRegistryInfo } from "./registry"
@@ -392,7 +392,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register the generateGitCommitMessage command handler
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.GenerateCommit, async (scm) => {
-			generateCommitMessage(webview.controller.stateManager, scm)
+			generateCommitMsg(webview.controller.stateManager, scm)
 		}),
 		vscode.commands.registerCommand(commands.AbortCommit, () => {
 			abortCommitGeneration()
@@ -401,7 +401,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		context.secrets.onDidChange(async (event) => {
-			if (event.key === "clineAccountId" || event.key === "cline:clineAccountId") {
+			if (event.key === "cline:clineAccountId") {
 				// Check if the secret was removed (logout) or added/updated (login)
 				const secretValue = await context.secrets.get(event.key)
 				const activeWebview = WebviewProvider.getVisibleInstance()

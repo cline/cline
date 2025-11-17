@@ -64,6 +64,9 @@ export const TASK_CALLBACKS_KEYS = [
 	"cancelTask",
 	"updateTaskHistory",
 	"switchToActMode",
+	"setActiveHookExecution",
+	"clearActiveHookExecution",
+	"getActiveHookExecution",
 ] as const
 
 /**

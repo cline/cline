@@ -61,6 +61,11 @@ export function isGPT5ModelFamily(id: string): boolean {
 	return modelId.includes("gpt-5") || modelId.includes("gpt5")
 }
 
+export function isGPT51Model(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("gpt-5.1") || modelId.includes("gpt-5-1")
+}
+
 export function isGLMModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return (
@@ -74,6 +79,20 @@ export function isGLMModelFamily(id: string): boolean {
 export function isMinimaxModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("minimax")
+}
+
+export function isHermesModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return (
+		modelId.includes("hermes-4") ||
+		modelId.includes("hermes4") ||
+		modelId.includes("nous/hermes-4") ||
+		modelId.includes("nous/hermes4") ||
+		modelId.includes("nous-hermes-4") ||
+		modelId.includes("nous/hermes4") ||
+		modelId.includes("nousresearch/hermes-4") ||
+		modelId.includes("nousresearch/hermes4")
+	)
 }
 
 export function isNextGenModelFamily(id: string): boolean {
@@ -107,6 +126,24 @@ export function parsePrice(priceString: string | undefined): number {
 	}
 	// Convert from per-token to per-million-tokens (multiply by 1,000,000)
 	return parsed * 1_000_000
+}
+
+/**
+ * Determines if the given provider and model combination will use native tool calling.
+ * Helpful if we need to quickly check this for prompts or other logic.
+ * @param providerInfo The provider and model information
+ * @param enableNativeToolCalls Whether the native tool calls setting is enabled
+ * @returns true if the model will use native tool calling, false otherwise
+ */
+export function isNativeToolCallingConfig(providerInfo: ApiProviderInfo, enableNativeToolCalls: boolean): boolean {
+	if (!enableNativeToolCalls) {
+		return false
+	}
+	if (!isNextGenModelProvider(providerInfo)) {
+		return false
+	}
+	const modelId = providerInfo.model.id.toLowerCase()
+	return isNextGenModelFamily(modelId)
 }
 
 function normalize(text: string): string {

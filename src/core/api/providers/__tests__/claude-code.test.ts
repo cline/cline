@@ -1,8 +1,8 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import sinon from "sinon"
 import "should"
 import { ClaudeCodeHandler } from "@core/api/providers/claude-code"
+import { ClineStorageMessage } from "@/shared/messages/content"
 
 describe("ClaudeCodeHandler", () => {
 	let handler: ClaudeCodeHandler
@@ -71,7 +71,7 @@ describe("ClaudeCodeHandler", () => {
 			runClaudeCodeStub.returns(mockGenerator() as any)
 
 			const systemPrompt = "You are a helpful assistant."
-			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+			const messages: ClineStorageMessage[] = [{ role: "user", content: "Hello" }]
 
 			const usageData: any[] = []
 
@@ -140,7 +140,7 @@ describe("ClaudeCodeHandler", () => {
 			runClaudeCodeStub.returns(mockGenerator() as any)
 
 			const systemPrompt = "You are a helpful assistant."
-			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+			const messages: ClineStorageMessage[] = [{ role: "user", content: "Hello" }]
 
 			const usageData: any[] = []
 
@@ -199,7 +199,7 @@ describe("ClaudeCodeHandler", () => {
 			runClaudeCodeStub.returns(mockGenerator() as any)
 
 			const systemPrompt = "You are a helpful assistant."
-			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+			const messages: ClineStorageMessage[] = [{ role: "user", content: "Hello" }]
 
 			const usageData: any[] = []
 

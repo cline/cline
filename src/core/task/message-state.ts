@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk"
 import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
 import getFolderSize from "get-folder-size"
 import Mutex from "p-mutex"
@@ -8,6 +7,7 @@ import { combineCommandSequences } from "@/shared/combineCommandSequences"
 import { ClineMessage } from "@/shared/ExtensionMessage"
 import { getApiMetrics } from "@/shared/getApiMetrics"
 import { HistoryItem } from "@/shared/HistoryItem"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { getCwd, getDesktopDir } from "@/utils/path"
 import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
 import { TaskState } from "./TaskState"
@@ -22,7 +22,7 @@ interface MessageStateHandlerParams {
 }
 
 export class MessageStateHandler {
-	private apiConversationHistory: Anthropic.MessageParam[] = []
+	private apiConversationHistory: ClineStorageMessage[] = []
 	private clineMessages: ClineMessage[] = []
 	private taskIsFavorited: boolean
 	private checkpointTracker: CheckpointTracker | undefined
@@ -58,11 +58,11 @@ export class MessageStateHandler {
 		return await this.stateMutex.withLock(fn)
 	}
 
-	getApiConversationHistory(): Anthropic.MessageParam[] {
+	getApiConversationHistory(): ClineStorageMessage[] {
 		return this.apiConversationHistory
 	}
 
-	setApiConversationHistory(newHistory: Anthropic.MessageParam[]): void {
+	setApiConversationHistory(newHistory: ClineStorageMessage[]): void {
 		this.apiConversationHistory = newHistory
 	}
 
@@ -93,6 +93,7 @@ export class MessageStateHandler {
 						(message) => !(message.ask === "resume_task" || message.ask === "resume_completed_task"),
 					)
 				]
+			const lastModelInfo = [...this.apiConversationHistory].reverse().find((msg) => msg.modelInfo !== undefined)
 			const taskDir = await ensureTaskDirectoryExists(this.taskId)
 			let taskDirSize = 0
 			try {
@@ -119,6 +120,7 @@ export class MessageStateHandler {
 				conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
 				isFavorited: this.taskIsFavorited,
 				checkpointManagerErrorMessage: this.taskState.checkpointManagerErrorMessage,
+				modelId: lastModelInfo?.modelInfo?.modelId,
 			})
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)
@@ -135,7 +137,7 @@ export class MessageStateHandler {
 		})
 	}
 
-	async addToApiConversationHistory(message: Anthropic.MessageParam) {
+	async addToApiConversationHistory(message: ClineStorageMessage) {
 		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
 		return await this.withStateLock(async () => {
 			this.apiConversationHistory.push(message)
@@ -143,7 +145,7 @@ export class MessageStateHandler {
 		})
 	}
 
-	async overwriteApiConversationHistory(newHistory: Anthropic.MessageParam[]): Promise<void> {
+	async overwriteApiConversationHistory(newHistory: ClineStorageMessage[]): Promise<void> {
 		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
 		return await this.withStateLock(async () => {
 			this.apiConversationHistory = newHistory

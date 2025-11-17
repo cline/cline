@@ -134,6 +134,18 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 			}
 		}
 
+		// Run PreToolUse hook after approval but before execution
+		try {
+			const { ToolHookUtils } = await import("../utils/ToolHookUtils")
+			await ToolHookUtils.runPreToolUseIfEnabled(config, block)
+		} catch (error) {
+			const { PreToolUseHookCancellationError } = await import("@core/hooks/PreToolUseHookCancellationError")
+			if (error instanceof PreToolUseHookCancellationError) {
+				return formatResponse.toolDenied()
+			}
+			throw error
+		}
+
 		return result
 	}
 }
