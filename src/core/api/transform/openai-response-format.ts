@@ -90,27 +90,39 @@ export function convertToOpenAIResponsesInput(messages: ClineStorageMessage[]): 
 			for (const part of m.content) {
 				switch (part.type) {
 					case "thinking":
-						if (part.thinking && part.call_id && part.call_id.length > 0) {
+						// Include reasoning item if it has a call_id, even if thinking is empty
+						// This is required because the API expects reasoning items to be paired with
+						// their corresponding function_calls, and will error if a function_call
+						// references a reasoning item that wasn't sent
+						if (part.call_id && part.call_id.length > 0) {
 							assistantItems.push({
 								id: part.call_id,
 								type: "reasoning",
-								summary: [
-									{
-										type: "summary_text",
-										text: part.thinking,
-									},
-								],
+								summary: part.thinking
+									? [
+											{
+												type: "summary_text",
+												text: part.thinking,
+											},
+										]
+									: [],
 							} as ResponseReasoningItem)
 						}
 						break
 					case "redacted_thinking":
-						if (part.data && part.call_id && part.call_id.length > 0) {
-							assistantItems.push({
+						// Include reasoning item with encrypted content if it has a call_id
+						// Even if data is missing, we need to maintain the reasoning-function_call pairing
+						if (part.call_id && part.call_id.length > 0) {
+							const reasoningItem: any = {
 								id: part.call_id,
 								type: "reasoning",
-								encrypted_content: part.data,
 								summary: [],
-							} as ResponseReasoningItem)
+							}
+							// Only include encrypted_content if data exists
+							if (part.data) {
+								reasoningItem.encrypted_content = part.data
+							}
+							assistantItems.push(reasoningItem as ResponseReasoningItem)
 						}
 						break
 					case "text":

@@ -75,6 +75,7 @@ export class StreamResponseHandler {
 	}
 
 	public reset() {
+		this._requestId = undefined
 		this.toolUseHandler = new ToolUseHandler()
 		this.reasoningHandler = new ReasoningHandler()
 	}

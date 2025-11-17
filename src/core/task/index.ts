@@ -2774,10 +2774,10 @@ export class Task {
 			let assistantMessage = "" // For UI display (includes XML)
 			let assistantTextOnly = "" // For API history (text only, no tool XML)
 
+			let reasoningID = ""
 			let reasoningMessage = ""
 			const reasoningDetails = []
 			const reasoningSignature = ""
-			let reasoningID = ""
 			const redactedThinkingContent: ClineAssistantRedactedThinkingBlock[] = []
 
 			this.taskState.isStreaming = true
@@ -2882,9 +2882,11 @@ export class Task {
 							break
 						}
 						case "text": {
-							if (reasoningMessage && assistantMessage.length === 0) {
-								// complete reasoning message
-								await this.say("reasoning", reasoningMessage, undefined, undefined, false)
+							// If we have reasoning content, finalize it before processing text (only once)
+							const currentReasoning = reasonsHandler.getCurrentReasoning()
+							if (currentReasoning && currentReasoning.content && assistantMessage.length === 0) {
+								// Complete the reasoning message (only once)
+								await this.say("reasoning", currentReasoning.content, undefined, undefined, false)
 							}
 							assistantMessage += chunk.text
 							assistantTextOnly += chunk.text // Accumulate text separately

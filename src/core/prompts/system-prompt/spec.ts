@@ -327,7 +327,7 @@ export function openAIToolToAnthropic(openAITool: OpenAITool): AnthropicTool {
 		description: openAITool.custom.description || "",
 		input_schema: {
 			type: "object",
-			required: true,
+			required: openAITool.custom.format?.type === "text" ? ["text"] : [],
 			properties:
 				openAITool.custom.format?.type === "text" ? { text: { type: "string" } } : { grammar: { type: "object" } },
 		},
