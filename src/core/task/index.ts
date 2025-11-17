@@ -973,11 +973,11 @@ export class Task {
 
 			// Handle cancellation from hook
 			if (taskStartResult.cancel === true) {
-				// UNIFIED: Always save state regardless of cancellation source
+				// Always save state regardless of cancellation source
 				await this.handleHookCancellation("TaskStart", taskStartResult.wasCancelled)
 
-				// abortTask will handle cleanup
-				this.abortTask()
+				// Let Controller handle the cancellation (it will call abortTask)
+				await this.cancelTask()
 				return
 			}
 
@@ -993,6 +993,12 @@ export class Task {
 			}
 		}
 
+		// Defensive check: Verify task wasn't aborted during hook execution before continuing
+		// Must be OUTSIDE the hooksEnabled block to prevent UserPromptSubmit from running
+		if (this.taskState.abort) {
+			return
+		}
+
 		// Run UserPromptSubmit hook for initial task (after TaskStart for UI ordering)
 		const userPromptHookResult = await this.runUserPromptSubmitHook(userContent, "initial_task")
 
@@ -1004,7 +1010,7 @@ export class Task {
 		// Handle hook cancellation
 		if (userPromptHookResult.cancel === true) {
 			await this.handleHookCancellation("UserPromptSubmit", userPromptHookResult.wasCancelled ?? false)
-			this.abortTask()
+			await this.cancelTask()
 			return
 		}
 
@@ -1115,19 +1121,11 @@ export class Task {
 
 			// Handle cancellation from hook
 			if (taskResumeResult.cancel === true) {
-				// If hook was cancelled by user, save state for resume
-				if (taskResumeResult.wasCancelled) {
-					// Set flag to allow Controller.cancelTask() to proceed
-					this.taskState.didFinishAbortingStream = true
-					// Save BOTH clineMessages AND apiConversationHistory so Controller.cancelTask() can find the task
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-					await this.messageStateHandler.overwriteApiConversationHistory(
-						this.messageStateHandler.getApiConversationHistory(),
-					)
-					await this.postStateToWebview()
-				}
+				// UNIFIED: Always save state regardless of cancellation source
+				await this.handleHookCancellation("TaskResume", taskResumeResult.wasCancelled)
 
-				// Return without continuing task - Controller.cancelTask() will handle showing resume button
+				// Let Controller handle the cancellation (it will call abortTask)
+				await this.cancelTask()
 				return
 			}
 
@@ -1139,6 +1137,13 @@ export class Task {
 				})
 			}
 		}
+
+		// Defensive check: Verify task wasn't aborted during hook execution before continuing
+		// Must be OUTSIDE the hooksEnabled block to prevent UserPromptSubmit from running
+		if (this.taskState.abort) {
+			return
+		}
+
 		let responseText: string | undefined
 		let responseImages: string[] | undefined
 		let responseFiles: string[] | undefined
@@ -1267,7 +1272,7 @@ export class Task {
 		// Handle hook cancellation request
 		if (userPromptHookResult.cancel === true) {
 			// The hook already updated its status to "cancelled" internally and saved state
-			this.abortTask()
+			await this.cancelTask()
 			return
 		}
 
@@ -3258,7 +3263,7 @@ export class Task {
 								globalWorkflowToggles,
 								this.ulid,
 								this.stateManager.getGlobalSettingsKey("focusChainSettings"),
-								this.useNativeToolCalls
+								this.useNativeToolCalls,
 							)
 
 							if (needsCheck) {
