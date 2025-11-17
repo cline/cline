@@ -110,6 +110,7 @@ export interface Settings {
 	strictPlanModeEnabled: boolean
 	yoloModeToggled: boolean
 	useAutoCondense: boolean
+	clineWebToolsEnabled: boolean
 	preferredLanguage: string
 	openaiReasoningEffort: OpenaiReasoningEffort
 	mode: Mode
