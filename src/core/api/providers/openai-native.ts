@@ -65,9 +65,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 		systemPrompt: string,
 		messages: ClineStorageMessage[],
 		tools?: ChatCompletionTool[],
-		// Whether to use the Responses API format.
-		// NOTE: should be controlled by feature flag before it goes live
-		useResponseFormat = true, // TODO: SET TO FALSE BEFORE RELEASE - HARD CODED TRUE FOR TESTING ONLY
+		useResponseFormat = false,
 	): ApiStream {
 		if (useResponseFormat) {
 			yield* this.createResponseStream(systemPrompt, messages, tools)
