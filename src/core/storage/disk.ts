@@ -465,3 +465,121 @@ export async function getWorkspaceHooksDirs(): Promise<string[]> {
 		)
 	).filter((path): path is string => Boolean(path))
 }
+
+/**
+ * Writes the API conversation history to a temporary file for hook consumption.
+ * The file is created in the task's directory with a unique timestamp-based name.
+ * Returns the absolute path to the created file.
+ *
+ * @param taskId The task ID
+ * @param apiConversationHistory The conversation history to write
+ * @param timestamp Optional timestamp to use for the filename (defaults to Date.now())
+ * @returns The absolute path to the temporary file
+ */
+export async function writeConversationHistoryForHook(
+	taskId: string,
+	apiConversationHistory: Anthropic.MessageParam[],
+	timestamp?: number,
+): Promise<string> {
+	const taskDir = await ensureTaskDirectoryExists(taskId)
+	const fileTimestamp = timestamp ?? Date.now()
+	const tempFileName = `conversation_history_${fileTimestamp}.json`
+	const tempFilePath = path.join(taskDir, tempFileName)
+
+	try {
+		await fs.writeFile(tempFilePath, JSON.stringify(apiConversationHistory, null, 2))
+		return tempFilePath
+	} catch (error) {
+		console.error("Failed to write conversation history for hook:", error)
+		throw error
+	}
+}
+
+/**
+ * Cleans up a temporary conversation history file created for hook execution.
+ * Silently handles errors (file already deleted, permissions, etc.)
+ *
+ * @param filePath The path to the temporary file to delete
+ */
+export async function cleanupConversationHistoryFile(filePath: string): Promise<void> {
+	try {
+		if (await fileExistsAtPath(filePath)) {
+			await fs.unlink(filePath)
+		}
+	} catch (error) {
+		// Silently handle errors - this is cleanup, not critical
+		console.debug("Failed to cleanup conversation history file:", filePath, error)
+	}
+}
+
+/**
+ * Writes the conversation history in human-readable format to a temporary file for hook consumption.
+ * This formats the conversation history (user and assistant messages) in a readable text format,
+ * making it easy to analyze the conversation flow without parsing JSON.
+ *
+ * @param taskId The task ID
+ * @param conversationHistory The conversation history messages
+ * @param timestamp Optional timestamp to use for the filename (defaults to Date.now())
+ * @returns The absolute path to the temporary file
+ */
+export async function writeFullContextForHook(
+	taskId: string,
+	conversationHistory: Anthropic.MessageParam[],
+	timestamp?: number,
+): Promise<string> {
+	const taskDir = await ensureTaskDirectoryExists(taskId)
+	const fileTimestamp = timestamp ?? Date.now()
+	const tempFileName = `conversation_history_${fileTimestamp}.txt`
+	const tempFilePath = path.join(taskDir, tempFileName)
+
+	try {
+		// Build the formatted conversation history (excluding system prompt)
+		let fullContext = "=== CONVERSATION HISTORY ===\n\n"
+
+		// Format each message in the conversation
+		for (let i = 0; i < conversationHistory.length; i++) {
+			const message = conversationHistory[i]
+			fullContext += `--- Message ${i + 1} (${message.role.toUpperCase()}) ---\n`
+
+			// Handle content which can be a string or array
+			if (typeof message.content === "string") {
+				fullContext += message.content
+			} else if (Array.isArray(message.content)) {
+				for (const block of message.content) {
+					if (block.type === "text") {
+						fullContext += block.text
+					} else if (block.type === "image") {
+						fullContext += `[IMAGE: ${block.source?.type || "unknown"}]`
+					} else if (block.type === "tool_use") {
+						fullContext += `[TOOL USE: ${block.name}]\n`
+						fullContext += `Input: ${JSON.stringify(block.input, null, 2)}`
+					} else if (block.type === "tool_result") {
+						fullContext += `[TOOL RESULT: ${block.tool_use_id}]\n`
+						if (typeof block.content === "string") {
+							fullContext += block.content
+						} else if (Array.isArray(block.content)) {
+							for (const resultBlock of block.content) {
+								if (resultBlock.type === "text") {
+									fullContext += resultBlock.text
+								} else if (resultBlock.type === "image") {
+									fullContext += `[IMAGE]`
+								}
+							}
+						}
+					}
+					fullContext += "\n\n"
+				}
+			}
+
+			fullContext += "\n"
+		}
+
+		fullContext += "=== END OF CONTEXT ===\n"
+
+		await fs.writeFile(tempFilePath, fullContext, "utf8")
+		return tempFilePath
+	} catch (error) {
+		console.error("Failed to write full context for hook:", error)
+		throw error
+	}
+}

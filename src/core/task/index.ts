@@ -827,6 +827,54 @@ export class Task {
 		console.log(`[Task ${this.taskId}] ${hookName} hook cancelled (userInitiated: ${wasCancelled})`)
 	}
 
+	/**
+	 * Extract token usage from a previous API request message
+	 */
+	private extractTokenUsageFromApiRequest(previousRequest: ClineMessage): {
+		tokensIn: number
+		tokensOut: number
+		tokensInCache: number
+		tokensOutCache: number
+		totalTokens: number
+	} {
+		const defaultUsage = { tokensIn: 0, tokensOut: 0, tokensInCache: 0, tokensOutCache: 0, totalTokens: 0 }
+
+		if (!previousRequest?.text) {
+			return defaultUsage
+		}
+
+		try {
+			const { tokensIn, tokensOut, cacheWrites, cacheReads } = JSON.parse(previousRequest.text)
+			const parsedTokensIn = tokensIn || 0
+			const parsedTokensOut = tokensOut || 0
+			const parsedCacheWrites = cacheWrites || 0
+			const parsedCacheReads = cacheReads || 0
+			const total = parsedTokensIn + parsedTokensOut + parsedCacheWrites + parsedCacheReads
+
+			return {
+				tokensIn: parsedTokensIn,
+				tokensOut: parsedTokensOut,
+				tokensInCache: parsedCacheWrites,
+				tokensOutCache: parsedCacheReads,
+				totalTokens: total,
+			}
+		} catch (error) {
+			console.error("Failed to parse API request token usage:", error)
+			return defaultUsage
+		}
+	}
+
+	/**
+	 * Determine the truncation strategy based on token usage
+	 */
+	private determineTruncationStrategy(totalTokens: number): "quarter" | "half" {
+		const { contextWindow } = getContextWindowInfo(this.api)
+		const maxAllowedSize = contextWindow * 0.9
+
+		// Use quarter strategy if half the tokens already exceed the threshold
+		return totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
+	}
+
 	private async runUserPromptSubmitHook(
 		userContent: ClineContent[],
 		_context: "initial_task" | "resume" | "feedback",
@@ -1979,9 +2027,157 @@ export class Task {
 		return apiLike.getLastRequestId?.() ?? apiLike.lastGenerationId
 	}
 
+	/**
+	 * Execute PreCompact hook before context window truncation
+	 * Returns true if hook cancelled the operation, false otherwise
+	 */
+	private async executePreCompactHook(apiConversationHistory: ClineStorageMessage[]): Promise<{ cancelled: boolean }> {
+		const { executeHook } = await import("../hooks/hook-executor")
+		const { writeConversationHistoryForHook, writeFullContextForHook, cleanupConversationHistoryFile } = await import(
+			"../storage/disk"
+		)
+
+		let contextJsonPath: string | undefined
+		let contextRawPath: string | undefined
+
+		try {
+			// Get current active context (respects previous compactions)
+			const currentContext = this.contextManager.getTruncatedMessages(
+				apiConversationHistory,
+				this.taskState.conversationHistoryDeletedRange,
+			)
+
+			// Generate single timestamp for both files to ensure they match
+			const hookTimestamp = Date.now()
+
+			// Write context files for hook access
+			contextJsonPath = await writeConversationHistoryForHook(this.taskId, currentContext, hookTimestamp)
+			contextRawPath = await writeFullContextForHook(this.taskId, currentContext, hookTimestamp)
+
+			// Extract token usage from the most recent API request
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const previousApiReqIndex = findLastIndex(clineMessages, (m) => m.say === "api_req_started")
+
+			let tokenUsage = { tokensIn: 0, tokensOut: 0, tokensInCache: 0, tokensOutCache: 0, totalTokens: 0 }
+			if (previousApiReqIndex !== -1) {
+				const previousRequest = clineMessages[previousApiReqIndex]
+				tokenUsage = this.extractTokenUsageFromApiRequest(previousRequest)
+			}
+
+			// Calculate what the new deleted range will be
+			const newDeletedRange = this.contextManager.getNextTruncationRange(
+				apiConversationHistory,
+				this.taskState.conversationHistoryDeletedRange,
+				"quarter", // Force aggressive truncation on error
+			)
+
+			const [deletedRangeStart, deletedRangeEnd] = newDeletedRange || [0, 0]
+
+			// Execute the hook
+			const preCompactResult = await executeHook({
+				hookName: "PreCompact",
+				hookInput: {
+					preCompact: {
+						taskId: this.taskId,
+						ulid: this.ulid,
+						contextSize: currentContext.length,
+						compactionStrategy: "standard-truncation-quarter",
+						previousApiReqIndex: previousApiReqIndex,
+						tokensIn: tokenUsage.tokensIn,
+						tokensOut: tokenUsage.tokensOut,
+						tokensInCache: tokenUsage.tokensInCache,
+						tokensOutCache: tokenUsage.tokensOutCache,
+						deletedRangeStart: deletedRangeStart,
+						deletedRangeEnd: deletedRangeEnd,
+						contextJsonPath: contextJsonPath,
+						contextRawPath: contextRawPath,
+					},
+				},
+				isCancellable: true,
+				say: this.say.bind(this),
+				setActiveHookExecution: this.setActiveHookExecution.bind(this),
+				clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
+				messageStateHandler: this.messageStateHandler,
+				taskId: this.taskId,
+				hooksEnabled: true,
+			})
+
+			// Clean up temporary files
+			await cleanupConversationHistoryFile(contextJsonPath)
+			await cleanupConversationHistoryFile(contextRawPath)
+			contextJsonPath = undefined
+			contextRawPath = undefined
+
+			// Handle cancellation from hook
+			if (preCompactResult.cancel === true) {
+				const message = preCompactResult.wasCancelled
+					? "⚠️ Context compaction was cancelled by user. Aborting task..."
+					: "⚠️ Context compaction was cancelled by the PreCompact hook. Aborting task..."
+
+				await this.say("text", message)
+
+				// Save state before cancelling
+				this.taskState.didFinishAbortingStream = true
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				await this.messageStateHandler.overwriteApiConversationHistory(
+					this.messageStateHandler.getApiConversationHistory(),
+				)
+				await this.postStateToWebview()
+
+				// Trigger full cancellation flow
+				await this.cancelTask()
+
+				return { cancelled: true }
+			}
+
+			// Hook completed successfully
+			if (preCompactResult.contextModification) {
+				console.log(`[PreCompact] Hook provided context modification for task ${this.taskId}`)
+			}
+
+			return { cancelled: false }
+		} catch (error) {
+			// Clean up temporary files on error
+			if (contextJsonPath) {
+				const { cleanupConversationHistoryFile } = await import("../storage/disk")
+				await cleanupConversationHistoryFile(contextJsonPath).catch(() => {})
+			}
+			if (contextRawPath) {
+				const { cleanupConversationHistoryFile } = await import("../storage/disk")
+				await cleanupConversationHistoryFile(contextRawPath).catch(() => {})
+			}
+
+			throw error
+		}
+	}
+
 	private async handleContextWindowExceededError(): Promise<void> {
 		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
+		// Run PreCompact hook before truncation
+		const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
+		if (hooksEnabled) {
+			try {
+				const result = await this.executePreCompactHook(apiConversationHistory)
+				if (result.cancelled) {
+					throw new Error("Context compaction cancelled by hook")
+				}
+			} catch (error) {
+				// If this is the cancellation error, re-throw it
+				if (error instanceof Error && error.message === "Context compaction cancelled by hook") {
+					throw error
+				}
+
+				// Graceful degradation: Log error but continue with truncation
+				console.error("[PreCompact] Hook execution failed:", error)
+				await this.say(
+					"text",
+					"⚠️ PreCompact hook encountered an error but context truncation will proceed. Check logs for details.",
+				)
+			}
+		}
+
+		// Proceed with standard truncation
 		this.taskState.conversationHistoryDeletedRange = this.contextManager.getNextTruncationRange(
 			apiConversationHistory,
 			this.taskState.conversationHistoryDeletedRange,
@@ -2540,22 +2736,16 @@ export class Task {
 			// No explicit UI message here, error message will be in ExtensionState.
 		}
 
-		// Get content based on user input before running condense check.
-		// TODO: Extract commands to confirm if there are commands before loading full context.
+		// Determine if we should compact context window
+		// Note: We delay context loading until we know if we're compacting (performance optimization)
 		const useCompactPrompt = customPrompt === "compact" && isLocalModel(this.getCurrentProviderInfo())
-		let [parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
-			userContent,
-			includeFileDetails,
-			useCompactPrompt,
-		)
-
-		// Separate logic when using the auto-condense context management vs the original context management methods
 		let shouldCompact = false
 		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
+
 		if (useAutoCondense && isNextGenModelFamily(this.api.getModel().id)) {
-			// when we initially trigger the context cleanup, we will be increasing the context window size, so we need some state `currentlySummarizing`
-			// to store whether we have already started the context summarization flow, so we don't attempt to summarize again. additionally, immediately
-			// post summarizing we need to increment the conversationHistoryDeletedRange to mask out the summarization-trigger user & assistant response messaages
+			// When we initially trigger context cleanup, we increase the context window size, so we need state `currentlySummarizing`
+			// to track if we've already started the context summarization flow. After summarizing, we increment
+			// conversationHistoryDeletedRange to mask out the summarization-trigger user & assistant response messages
 			if (this.taskState.currentlySummarizing) {
 				this.taskState.currentlySummarizing = false
 
@@ -2581,20 +2771,15 @@ export class Task {
 					autoCondenseThreshold,
 				)
 
-				// There is an edge case where the summarize_task tool call completes but the user cancels the next request before it finishes
-				// this will result in this.taskState.currentlySummarizing being false, and we also failed to update the context window token
-				// estimate, which require a full new message to be completed along with gathering the latest usage block. A proxy for whether
-				// we just summarized would be to check the number of in-range messages, which itself has some extreme edge case (e.g. what if
-				// first+second user messages take up entire context-window, but in this case there's already an issue). TODO: Examine other
-				// approaches such as storing this.taskState.currentlySummarizing on disk in the clineMessages. This was intentionally not done
-				// for now to prevent additional disk from needing to be used.
-				// The worse case scenario is effectively cline summarizing a summary, which is bad UX, but doesn't break other logic.
+				// Edge case: summarize_task tool call completes but user cancels next request before it finishes.
+				// This results in currentlySummarizing being false, and we fail to update the context window token estimate.
+				// Check active message count to avoid summarizing a summary (bad UX but doesn't break logic).
 				if (shouldCompact && this.taskState.conversationHistoryDeletedRange) {
 					const apiHistory = this.messageStateHandler.getApiConversationHistory()
 					const activeMessageCount = apiHistory.length - this.taskState.conversationHistoryDeletedRange[1] - 1
 
-					// IMPORTANT - we didn't append this next user message yet so the last message in this array is an assistant message
-					// that's why we are comparing to an even number of messages (0, 2) rather than odd (1, 3)
+					// IMPORTANT: We haven't appended the next user message yet, so the last message is an assistant message.
+					// That's why we compare to even numbers (0, 2) rather than odd (1, 3).
 					if (activeMessageCount <= 2) {
 						shouldCompact = false
 					}
@@ -2611,14 +2796,27 @@ export class Task {
 					)
 				}
 			}
+		}
 
-			// when summarizing the context window, we do not want to inject updated to the context
-			if (shouldCompact) {
-				parsedUserContent = userContent
-				environmentDetails = ""
-				clinerulesError = false
-				this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
-			}
+		// NOW load context based on compaction decision
+		// This optimization avoids expensive context loading when using summarize_task
+		let parsedUserContent: ClineContent[]
+		let environmentDetails: string
+		let clinerulesError: boolean
+
+		if (shouldCompact) {
+			// When compacting, skip full context loading (use summarize_task instead)
+			parsedUserContent = userContent
+			environmentDetails = ""
+			clinerulesError = false
+			this.taskState.lastAutoCompactTriggerIndex = previousApiReqIndex
+		} else {
+			// When NOT compacting, load full context with mentions parsing and slash commands
+			;[parsedUserContent, environmentDetails, clinerulesError] = await this.loadContext(
+				userContent,
+				includeFileDetails,
+				useCompactPrompt,
+			)
 		}
 
 		// error handling if the user uses the /newrule command & their .clinerules is a file, for file read operations didnt work properly

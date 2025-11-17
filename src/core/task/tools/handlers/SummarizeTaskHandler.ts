@@ -4,6 +4,7 @@ import { formatResponse } from "@core/prompts/responses"
 import { ensureTaskDirectoryExists } from "@core/storage/disk"
 import { resolveWorkspacePath } from "@core/workspace"
 import { extractFileContent } from "@integrations/misc/extract-file-content"
+import { findLastIndex } from "@shared/array"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -33,6 +34,149 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			}
 
 			config.taskState.consecutiveMistakeCount = 0
+
+			// Run PreCompact hook right before showing the condensing message
+			const hooksEnabled = config.services.stateManager.getGlobalSettingsKey("hooksEnabled")
+			if (hooksEnabled) {
+				let contextJsonPath: string | undefined
+				let contextRawPath: string | undefined
+				try {
+					const { executeHook } = await import("../../../hooks/hook-executor")
+					const { writeConversationHistoryForHook, writeFullContextForHook, cleanupConversationHistoryFile } =
+						await import("../../../storage/disk")
+
+					const apiHistory = config.messageState.getApiConversationHistory()
+
+					// Get current active context (respects previous compactions)
+					const currentContext = config.services.contextManager.getTruncatedMessages(
+						apiHistory,
+						config.taskState.conversationHistoryDeletedRange,
+					)
+
+					const contextSize = currentContext.length
+
+					// Generate single timestamp for both files to ensure they match
+					const hookTimestamp = Date.now()
+
+					// Write conversation history to temporary file for hook access
+					contextJsonPath = await writeConversationHistoryForHook(config.taskId, currentContext, hookTimestamp)
+
+					// Write formatted conversation history to temporary file
+					contextRawPath = await writeFullContextForHook(config.taskId, currentContext, hookTimestamp)
+
+					// Extract token usage from the most recent API request
+					const clineMessages = config.messageState.getClineMessages()
+					const previousApiReqIndex = findLastIndex(clineMessages, (m) => m.say === "api_req_started")
+
+					let tokensIn = 0
+					let tokensOut = 0
+					let tokensInCache = 0
+					let tokensOutCache = 0
+
+					if (previousApiReqIndex !== -1) {
+						const previousRequest = clineMessages[previousApiReqIndex]
+						if (previousRequest?.text) {
+							try {
+								const apiReqInfo = JSON.parse(previousRequest.text)
+								tokensIn = apiReqInfo.tokensIn || 0
+								tokensOut = apiReqInfo.tokensOut || 0
+								tokensInCache = apiReqInfo.cacheWrites || 0
+								tokensOutCache = apiReqInfo.cacheReads || 0
+							} catch (error) {
+								console.error("[PreCompact] Failed to parse previous API request info:", error)
+							}
+						}
+					}
+
+					// Extract truncation range if it exists
+					let deletedRangeStart = 0
+					let deletedRangeEnd = 0
+					if (config.taskState.conversationHistoryDeletedRange) {
+						;[deletedRangeStart, deletedRangeEnd] = config.taskState.conversationHistoryDeletedRange
+					}
+
+					// Determine compaction strategy
+					const useAutoCondense = config.services.stateManager.getGlobalSettingsKey("useAutoCondense")
+					const strategy = useAutoCondense ? "auto-condense" : "standard-truncation"
+
+					const preCompactResult = await executeHook({
+						hookName: "PreCompact",
+						hookInput: {
+							preCompact: {
+								taskId: config.taskId,
+								ulid: config.ulid,
+								contextSize,
+								compactionStrategy: strategy,
+								previousApiReqIndex,
+								tokensIn,
+								tokensOut,
+								tokensInCache,
+								tokensOutCache,
+								deletedRangeStart,
+								deletedRangeEnd,
+								contextJsonPath: contextJsonPath,
+								contextRawPath: contextRawPath,
+							},
+						},
+						isCancellable: true,
+						say: config.callbacks.say,
+						setActiveHookExecution: config.callbacks.setActiveHookExecution,
+						clearActiveHookExecution: config.callbacks.clearActiveHookExecution,
+						messageStateHandler: config.messageState,
+						taskId: config.taskId,
+						hooksEnabled,
+					})
+
+					// Clean up the temporary conversation history file
+					await cleanupConversationHistoryFile(contextJsonPath)
+					contextJsonPath = undefined
+
+					// Clean up the temporary full context file
+					await cleanupConversationHistoryFile(contextRawPath)
+					contextRawPath = undefined
+
+					// Handle cancellation from hook
+					if (preCompactResult.cancel === true) {
+						// Log cancellation for debugging (hook UI already shows cancellation status)
+						const cancellationSource = preCompactResult.wasCancelled ? "user" : "PreCompact hook"
+						console.log(
+							`[PreCompact] Context compaction cancelled by ${cancellationSource} for task ${config.taskId}`,
+						)
+
+						// Save state before cancelling (required for proper task resumption)
+						config.taskState.didFinishAbortingStream = true
+						await config.messageState.saveClineMessagesAndUpdateHistory()
+						await config.messageState.overwriteApiConversationHistory(config.messageState.getApiConversationHistory())
+						await config.callbacks.postStateToWebview()
+
+						// Trigger full cancellation flow (shows Resume Task button)
+						await config.callbacks.cancelTask()
+
+						// Return early - don't execute the summarization
+						return "Context compaction was cancelled. Task has been aborted."
+					}
+
+					// Hook completed successfully - add context modification if provided
+					if (preCompactResult.contextModification) {
+						// The context modification will be added to the tool result below
+						console.log(`[PreCompact] Hook provided context modification for task ${config.taskId}`)
+					}
+				} catch (error) {
+					// Clean up the temporary file if it exists (error path)
+					if (contextJsonPath) {
+						const { cleanupConversationHistoryFile } = await import("../../../storage/disk")
+						await cleanupConversationHistoryFile(contextJsonPath)
+					}
+					if (contextRawPath) {
+						const { cleanupConversationHistoryFile } = await import("../../../storage/disk")
+						await cleanupConversationHistoryFile(contextRawPath)
+					}
+
+					// Graceful degradation: Log error but continue with compaction
+					// Hook UI already shows "Failed" status with error details
+					console.error("[PreCompact] Hook execution failed, continuing with compaction:", error)
+				}
+			}
 
 			// Show completed summary in tool UI
 			const completeMessage = JSON.stringify({
