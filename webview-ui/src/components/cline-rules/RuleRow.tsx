@@ -23,7 +23,7 @@ const RuleRow: React.FC<{
 
 	// For remote rules, the rulePath is already the display name
 	const finalDisplayName = isRemote ? rulePath : displayName
-	const isDisabled = !enabled || (isRemote && alwaysEnabled)
+	const isDisabled = isRemote && alwaysEnabled
 
 	const getRuleTypeIcon = () => {
 		switch (ruleType) {
