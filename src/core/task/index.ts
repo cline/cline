@@ -842,6 +842,21 @@ export class Task {
 		console.log(`[Task ${this.taskId}] ${hookName} hook cancelled (userInitiated: ${wasCancelled})`)
 	}
 
+	/**
+	 * Helper method to determine the compaction strategy being used
+	 * @returns A string describing the strategy: "auto-condense", "quarter", "half", or "none"
+	 */
+	private getCompactionStrategy(): string {
+		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
+		if (useAutoCondense && isNextGenModelFamily(this.api.getModel().id)) {
+			return "auto-condense"
+		}
+
+		// For non-auto-condense, check if we're using quarter or half truncation
+		// This is determined by the context manager's logic
+		return "standard-truncation"
+	}
+
 	private async runUserPromptSubmitHook(
 		userContent: ClineContent[],
 		_context: "initial_task" | "resume" | "feedback",
@@ -2612,6 +2627,53 @@ export class Task {
 					// IMPORTANT - we didn't append this next user message yet so the last message in this array is an assistant message
 					// that's why we are comparing to an even number of messages (0, 2) rather than odd (1, 3)
 					if (activeMessageCount <= 2) {
+						shouldCompact = false
+					}
+				}
+			}
+
+			let parsedUserContent: ClineContent[]
+			let environmentDetails: string
+			let clinerulesError: boolean
+
+			// Run PreCompact hook if compaction is about to happen
+			if (shouldCompact) {
+				const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
+				if (hooksEnabled) {
+					const { executeHook } = await import("../hooks/hook-executor")
+
+					const apiHistory = this.messageStateHandler.getApiConversationHistory()
+					const contextSize = apiHistory.length
+					const strategy = this.getCompactionStrategy()
+
+					const preCompactResult = await executeHook({
+						hookName: "PreCompact",
+						hookInput: {
+							preCompact: {
+								taskMetadata: {
+									taskId: this.taskId,
+									ulid: this.ulid,
+								},
+								contextState: {
+									contextSize: contextSize.toString(),
+									compactionStrategy: strategy,
+									previousApiReqIndex: previousApiReqIndex.toString(),
+								},
+							},
+						},
+						isCancellable: true,
+						say: this.say.bind(this),
+						setActiveHookExecution: this.setActiveHookExecution.bind(this),
+						clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
+						messageStateHandler: this.messageStateHandler,
+						taskId: this.taskId,
+						hooksEnabled,
+					})
+
+					// Handle cancellation from hook
+					if (preCompactResult.cancel === true) {
+						// Compaction was cancelled - show simple warning and continue without compacting
+						await this.say("text", "⚠️ Context compaction was cancelled.")
 						shouldCompact = false
 					}
 				}

@@ -77,7 +77,6 @@ message TaskCompleteData {
 
 // Data for PreCompact hook
 message PreCompactData {
-  int64 context_size = 1;
-  int32 messages_to_compact = 2;
-  string compaction_strategy = 3;
+  map<string, string> task_metadata = 1;
+  map<string, string> context_state = 2;
 }
