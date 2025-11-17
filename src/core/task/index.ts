@@ -973,7 +973,7 @@ export class Task {
 
 			// Handle cancellation from hook
 			if (taskStartResult.cancel === true) {
-				// UNIFIED: Always save state regardless of cancellation source
+				// Always save state regardless of cancellation source
 				await this.handleHookCancellation("TaskStart", taskStartResult.wasCancelled)
 
 				// abortTask will handle cleanup
@@ -1115,19 +1115,11 @@ export class Task {
 
 			// Handle cancellation from hook
 			if (taskResumeResult.cancel === true) {
-				// If hook was cancelled by user, save state for resume
-				if (taskResumeResult.wasCancelled) {
-					// Set flag to allow Controller.cancelTask() to proceed
-					this.taskState.didFinishAbortingStream = true
-					// Save BOTH clineMessages AND apiConversationHistory so Controller.cancelTask() can find the task
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-					await this.messageStateHandler.overwriteApiConversationHistory(
-						this.messageStateHandler.getApiConversationHistory(),
-					)
-					await this.postStateToWebview()
-				}
+				// UNIFIED: Always save state regardless of cancellation source
+				await this.handleHookCancellation("TaskResume", taskResumeResult.wasCancelled)
 
-				// Return without continuing task - Controller.cancelTask() will handle showing resume button
+				// abortTask will handle cleanup and showing resume button
+				this.abortTask()
 				return
 			}
 
@@ -3258,7 +3250,7 @@ export class Task {
 								globalWorkflowToggles,
 								this.ulid,
 								this.stateManager.getGlobalSettingsKey("focusChainSettings"),
-								this.useNativeToolCalls
+								this.useNativeToolCalls,
 							)
 
 							if (needsCheck) {
