@@ -498,17 +498,19 @@ export class SapAiCoreHandler implements ApiHandler {
 			const model = this.getModel()
 
 			const orchestrationConfig: OrchestrationModuleConfig = {
-				promptTemplating: {
-					model: {
-						name: model.id,
-					},
-					prompt: {
-						template: [
-							{
-								role: "system",
-								content: systemPrompt,
-							},
-						],
+				templating: {
+					template: [
+						{
+							role: "system",
+							content: systemPrompt,
+						},
+					],
+				},
+				llm: {
+					model_name: model.id,
+					model_params: {
+						max_tokens: model.info.maxTokens,
+						temperature: 0.0,
 					},
 				},
 			}
