@@ -2924,7 +2924,13 @@ export class Task {
 
 					this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 
-					if (this.taskState.assistantMessageContent.length > prevLength) {
+					// Reset index to the first tool block position so they can be executed
+					// This fixes the issue where tools remain unexecuted because the index
+					// advanced past them or was out of bounds during streaming
+					if (toolBlocks.length > 0) {
+						this.taskState.currentStreamingContentIndex = textBlocks.length
+						this.taskState.userMessageContentReady = false
+					} else if (this.taskState.assistantMessageContent.length > prevLength) {
 						this.taskState.userMessageContentReady = false
 					}
 					this.presentAssistantMessage()
