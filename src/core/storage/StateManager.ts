@@ -492,6 +492,7 @@ export class StateManager {
 			zaiApiKey,
 			minimaxApiKey,
 			minimaxApiLine,
+			nousResearchApiKey,
 			requestTimeoutMs,
 			ocaBaseUrl,
 			ocaMode,
@@ -536,6 +537,7 @@ export class StateManager {
 			planModeHicapModelInfo,
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
+			planModeNousResearchModelId,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -572,6 +574,7 @@ export class StateManager {
 			actModeHicapModelInfo,
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
+			actModeNousResearchModelId,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -612,6 +615,7 @@ export class StateManager {
 			planModeHicapModelInfo,
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
+			planModeNousResearchModelId,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -649,6 +653,7 @@ export class StateManager {
 			actModeHicapModelInfo,
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
+			actModeNousResearchModelId,
 
 			// Global state updates
 			awsRegion,
@@ -735,6 +740,7 @@ export class StateManager {
 			minimaxApiKey,
 			hicapApiKey,
 			aihubmixApiKey,
+			nousResearchApiKey,
 		})
 	}
 
@@ -837,6 +843,51 @@ export class StateManager {
 	}
 
 	/**
+	 * Private method to persist all pending state changes
+	 * Returns early if nothing is pending
+	 */
+	private async persistPendingState(): Promise<void> {
+		// Early return if nothing to persist
+		if (
+			this.pendingGlobalState.size === 0 &&
+			this.pendingSecrets.size === 0 &&
+			this.pendingWorkspaceState.size === 0 &&
+			this.pendingTaskState.size === 0
+		) {
+			return
+		}
+
+		// Execute all persistence operations in parallel
+		await Promise.all([
+			this.persistGlobalStateBatch(this.pendingGlobalState),
+			this.persistSecretsBatch(this.pendingSecrets),
+			this.persistWorkspaceStateBatch(this.pendingWorkspaceState),
+			this.persistTaskStateBatch(this.pendingTaskState),
+		])
+
+		// Clear pending sets after successful persistence
+		this.pendingGlobalState.clear()
+		this.pendingSecrets.clear()
+		this.pendingWorkspaceState.clear()
+		this.pendingTaskState.clear()
+	}
+
+	/**
+	 * Flush all pending state changes immediately to disk
+	 * Bypasses the debounced persistence and forces immediate writes
+	 */
+	public async flushPendingState(): Promise<void> {
+		// Cancel any pending timeout
+		if (this.persistenceTimeout) {
+			clearTimeout(this.persistenceTimeout)
+			this.persistenceTimeout = null
+		}
+
+		// Execute persistence immediately
+		await this.persistPendingState()
+	}
+
+	/**
 	 * Schedule debounced persistence - simple timeout-based persistence
 	 */
 	private scheduleDebouncedPersistence(): void {
@@ -848,18 +899,7 @@ export class StateManager {
 		// Schedule a new timeout to persist pending changes
 		this.persistenceTimeout = setTimeout(async () => {
 			try {
-				await Promise.all([
-					this.persistGlobalStateBatch(this.pendingGlobalState),
-					this.persistSecretsBatch(this.pendingSecrets),
-					this.persistWorkspaceStateBatch(this.pendingWorkspaceState),
-					this.persistTaskStateBatch(this.pendingTaskState),
-				])
-
-				// Clear pending sets on successful persistence
-				this.pendingGlobalState.clear()
-				this.pendingSecrets.clear()
-				this.pendingWorkspaceState.clear()
-				this.pendingTaskState.clear()
+				await this.persistPendingState()
 				this.persistenceTimeout = null
 			} catch (error) {
 				console.error("[StateManager] Failed to persist pending changes:", error)
@@ -1155,6 +1195,8 @@ export class StateManager {
 				this.taskStateCache["planModeAihubmixModelId"] || this.globalStateCache["planModeAihubmixModelId"],
 			planModeAihubmixModelInfo:
 				this.taskStateCache["planModeAihubmixModelInfo"] || this.globalStateCache["planModeAihubmixModelInfo"],
+			planModeNousResearchModelId:
+				this.taskStateCache["planModeNousResearchModelId"] || this.globalStateCache["planModeNousResearchModelId"],
 
 			// Act mode configurations
 			actModeApiProvider:
@@ -1221,6 +1263,9 @@ export class StateManager {
 				this.taskStateCache["actModeAihubmixModelId"] || this.globalStateCache["actModeAihubmixModelId"],
 			actModeAihubmixModelInfo:
 				this.taskStateCache["actModeAihubmixModelInfo"] || this.globalStateCache["actModeAihubmixModelInfo"],
+			actModeNousResearchModelId:
+				this.taskStateCache["actModeNousResearchModelId"] || this.globalStateCache["actModeNousResearchModelId"],
+			nousResearchApiKey: this.secretsCache["nousResearchApiKey"],
 		}
 	}
 }
