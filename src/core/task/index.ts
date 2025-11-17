@@ -107,7 +107,7 @@ import { Controller } from "../controller"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
-import { StreamResponseHandler } from "./StreamHandler"
+import { StreamResponseHandler } from "./StreamResponseHandler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
@@ -2096,7 +2096,15 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
-		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory, tools)
+		// Response API requires native tool calls to be enabled
+		const useResponseApi = this.useNativeToolCalls && featureFlagsService.isResponseApiEnabled()
+
+		const stream = this.api.createMessage(
+			systemPrompt,
+			contextManagementMetadata.truncatedConversationHistory,
+			tools,
+			useResponseApi,
+		)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
