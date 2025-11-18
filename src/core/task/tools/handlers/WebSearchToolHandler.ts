@@ -196,10 +196,6 @@ export class WebSearchToolHandler implements IFullyManagedTool {
 				})
 			}
 
-			if (data.durationMs) {
-				resultText += `\n(Search took ${data.durationMs}ms)`
-			}
-
 			return formatResponse.toolResult(resultText)
 		} catch (error) {
 			return `Error performing web search: ${(error as Error).message}`
