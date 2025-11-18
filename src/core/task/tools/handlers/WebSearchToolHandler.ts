@@ -154,19 +154,19 @@ export class WebSearchToolHandler implements IFullyManagedTool {
 			}
 
 			const requestBody: {
-				Query: string
-				AllowedDomains?: string[]
-				BlockedDomains?: string[]
+				query: string
+				allowed_domains?: string[]
+				blocked_domains?: string[]
 			} = {
-				Query: query,
+				query: query,
 			}
 
 			// Only include domain filters if they have values
 			if (allowedDomains.length > 0) {
-				requestBody.AllowedDomains = allowedDomains
+				requestBody.allowed_domains = allowedDomains
 			}
 			if (blockedDomains.length > 0) {
-				requestBody.BlockedDomains = blockedDomains
+				requestBody.blocked_domains = blockedDomains
 			}
 
 			const response = await axios.post(`${baseUrl}/api/v1/search/websearch`, requestBody, {
@@ -188,7 +188,7 @@ export class WebSearchToolHandler implements IFullyManagedTool {
 			const results = data.results || []
 			const resultCount = results.length
 
-			let resultText = `Search completed for "${data.query || query}" (${resultCount} results found)`
+			let resultText = `Search completed (${resultCount} results found)`
 			if (results.length > 0) {
 				resultText += ":\n\n"
 				results.forEach((result: { title: string; url: string }, index: number) => {
