@@ -122,9 +122,9 @@ export function convertClineStorageToAnthropicMessage(
  */
 export function cleanContentBlock(block: ClineContent): Anthropic.ContentBlock {
 	// Remove Cline-specific fields: reasoning_details, call_id, summary
-	if ("reasoning_details" in block || "call_id" in block || "summary" in block || "signature" in block) {
+	if ("reasoning_details" in block || "call_id" in block || "summary" in block) {
 		// biome-ignore lint/correctness/noUnusedVariables: intentional destructuring to remove properties
-		const { reasoning_details, call_id, summary, signature, ...cleanBlock } = block as any
+		const { reasoning_details, call_id, summary, ...cleanBlock } = block as any
 		return cleanBlock as Anthropic.ContentBlock
 	}
 

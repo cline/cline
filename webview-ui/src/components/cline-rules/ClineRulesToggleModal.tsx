@@ -81,7 +81,15 @@ const ClineRulesToggleModal: React.FC = () => {
 					console.error("Failed to refresh rules:", error)
 				})
 		}
-	}, [isVisible])
+	}, [
+		isVisible,
+		setGlobalClineRulesToggles,
+		setLocalClineRulesToggles,
+		setGlobalWorkflowToggles,
+		setLocalCursorRulesToggles,
+		setLocalWindsurfRulesToggles,
+		setLocalWorkflowToggles,
+	])
 
 	// Format global rules for display with proper typing
 	const globalRules = Object.entries(globalClineRulesToggles || {})
@@ -286,11 +294,9 @@ const ClineRulesToggleModal: React.FC = () => {
 						<VSCodeButton
 							appearance="icon"
 							aria-label={isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows"}
-							className="flex items-center"
+							className="p-0 m-0 flex items-center"
 							onClick={() => setIsVisible(!isVisible)}>
-							<div className="flex items-center text-xs w-full cursor-pointer">
-								<i className="codicon codicon-law" style={{ fontSize: "14px" }} />
-							</div>
+							<i className="codicon codicon-law" style={{ fontSize: "12.5px" }} />
 						</VSCodeButton>
 					</TooltipTrigger>
 				</Tooltip>
@@ -298,7 +304,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 			{isVisible && (
 				<div
-					className="fixed left-[15px] right-[15px] border border-(--vscode-editorGroup-border) p-3 rounded z-1000 overflow-y-auto"
+					className="fixed left-[15px] right-[15px] border border-editor-group-border pb-3 px-2 rounded z-1000"
 					style={{
 						bottom: `calc(100vh - ${menuPosition}px + 6px)`,
 						background: CODE_BLOCK_BG_COLOR,
@@ -306,7 +312,7 @@ const ClineRulesToggleModal: React.FC = () => {
 						overscrollBehavior: "contain",
 					}}>
 					<div
-						className="fixed w-[10px] h-[10px] z-[-1] rotate-45 border-r border-b border-(--vscode-editorGroup-border)"
+						className="fixed h-2.5 w-2.5 z-[-1] rotate-45 border-r border-b border-editor-group-border"
 						style={{
 							bottom: `calc(100vh - ${menuPosition}px)`,
 							right: arrowPosition,
@@ -337,19 +343,19 @@ const ClineRulesToggleModal: React.FC = () => {
 					</div>
 
 					{/* Remote config banner */}
-					{((currentView === "rules" && hasRemoteRules) || (currentView === "workflows" && hasRemoteWorkflows)) && (
+					{(currentView === "rules" && hasRemoteRules) || (currentView === "workflows" && hasRemoteWorkflows) ? (
 						<div className="flex items-center gap-2 px-5 py-3 mb-4 bg-vscode-textBlockQuote-background border-l-[3px] border-vscode-textLink-foreground">
 							<i className="codicon codicon-lock text-sm" />
-							<span className="text-[13px]">
+							<span className="text-base">
 								{currentView === "rules"
 									? "Your organization manages some rules"
 									: "Your organization manages some workflows"}
 							</span>
 						</div>
-					)}
+					) : null}
 
 					{/* Description text */}
-					<div className="text-xs text-(--vscode-descriptionForeground) mb-4">
+					<div className="text-xs text-description mb-4">
 						{currentView === "rules" ? (
 							<p>
 								Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way to
@@ -365,16 +371,10 @@ const ClineRulesToggleModal: React.FC = () => {
 							<p>
 								Workflows allow you to define a series of steps to guide Cline through a repetitive set of tasks,
 								such as deploying a service or submitting a PR. To invoke a workflow, type{" "}
-								<span
-									className=" 
-								text-(--vscode-foreground) font-bold">
-									/workflow-name
-								</span>{" "}
-								in the chat.{" "}
+								<span className="text-foreground font-bold">/workflow-name</span> in the chat.{" "}
 								<VSCodeLink
-									className="text-xs"
-									href="https://docs.cline.bot/features/slash-commands/workflows"
-									style={{ display: "inline" }}>
+									className="text-xs inline"
+									href="https://docs.cline.bot/features/slash-commands/workflows">
 									Docs
 								</VSCodeLink>
 							</p>
