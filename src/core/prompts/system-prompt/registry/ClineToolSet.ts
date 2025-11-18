@@ -192,7 +192,7 @@ export function mcpToolToClineToolSpec(family: ModelFamily, server: McpServer): 
 			// NOTE: When the name is too long, the provider API will reject the tool registration with the following error:
 			// `Invalid 'tools[n].name': string too long. Expected a string with maximum length 64, but got a string with length n instead.`
 			// To avoid this, we skip registering tools with names that are too long.
-			if (mcpToolName?.length < 64) {
+			if (mcpToolName?.length <= 64) {
 				return {
 					variant: family,
 					id: ClineDefaultTool.MCP_USE,
