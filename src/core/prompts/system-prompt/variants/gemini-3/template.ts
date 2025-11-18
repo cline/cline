@@ -20,9 +20,6 @@ export const baseTemplate = `{{${SystemPromptSection.AGENT_ROLE}}}
 
 {{${SystemPromptSection.EDITING_FILES}}}
 
-====
-
-{{${SystemPromptSection.MCP}}}
 
 ====
 

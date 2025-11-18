@@ -203,18 +203,6 @@ You can track and communicate your progress on the overall task using the task_p
 - If a checklist is being used, be sure to update it any time a step has been completed.
 - The system will automatically include todo list context in your prompts when appropriate - these reminders are important.
 
-Example:
-<execute_command>
-<command>npm install react</command>
-<requires_approval>false</requires_approval>
-<task_progress>
-- [x] Set up project structure
-- [x] Install dependencies
-- [ ] Create components
-- [ ] Test application
-</task_progress>
-</execute_command>
-
 ====
 
 FEEDBACK

@@ -209,6 +209,21 @@ During Act Mode, focus on efficient execution:
 3. Use tools directly - save explanations for the attempt_completion summary
 4. Test each feature after implementation to verify it works correctly${context.yoloModeToggled !== true ? "\n5. Verify with the user that the feature works as expected before using attempt_completion\n6. Use attempt_completion when confirmed complete, including your summary within the tool call itself" : "\n5. Use attempt_completion when the task is done, including your summary within the tool call itself"}`
 
+const GEMINI_3_UPDATING_TASK_PROGRESS_TEMPLATE = (context: SystemPromptContext) => `UPDATING TASK PROGRESS
+
+You can track and communicate your progress on the overall task using the task_progress parameter supported by every tool call. Using task_progress ensures you remain on task, and stay focused on completing the user's objective. This parameter can be used in any mode, and with any tool call.
+
+- When switching from PLAN MODE to ACT MODE, you must create a comprehensive todo list for the task using the task_progress parameter
+- Todo list updates should be done silently using the task_progress parameter - do not announce these updates to the user
+- Use standard Markdown checklist format: "- [ ]" for incomplete items and "- [x]" for completed items
+- Keep items focused on meaningful progress milestones rather than minor technical details. The checklist should not be so granular that minor implementation details clutter the progress tracking.
+- For simple tasks, short checklists with even a single item are acceptable. For complex tasks, avoid making the checklist too long or verbose.
+- If you are creating this checklist for the first time, and the tool use completes the first step in the checklist, make sure to mark it as completed in your task_progress parameter.
+- Provide the whole checklist of steps you intend to complete in the task, and keep the checkboxes updated as you make progress. It's okay to rewrite this checklist as needed if it becomes invalid due to scope changes or new information.
+- If a checklist is being used, be sure to update it any time a step has been completed.
+- The system will automatically include todo list context in your prompts when appropriate - these reminders are important.
+`
+
 export const gemini3ComponentOverrides: PromptVariant["componentOverrides"] = {
 	[SystemPromptSection.AGENT_ROLE]: {
 		template: GEMINI_3_AGENT_ROLE_TEMPLATE,
@@ -230,5 +245,8 @@ export const gemini3ComponentOverrides: PromptVariant["componentOverrides"] = {
 	},
 	[SystemPromptSection.ACT_VS_PLAN]: {
 		template: GEMINI_3_ACT_VS_PLAN_TEMPLATE,
+	},
+	[SystemPromptSection.TASK_PROGRESS]: {
+		template: GEMINI_3_UPDATING_TASK_PROGRESS_TEMPLATE,
 	},
 }
