@@ -26,7 +26,7 @@ export const REASONING_DETAILS_PROVIDERS = ["cline", "openrouter"]
 
 /**
  * An extension of Anthropic.MessageParam that includes Cline-specific fields: reasoning_details.
- * This ensures backward compatibility where the messages were stored in Anthropic format with addtional
+ * This ensures backward compatibility where the messages were stored in Anthropic format with additional
  * fields unknown to Anthropic SDK.
  */
 export interface ClineTextContentBlock extends Anthropic.TextBlockParam {
