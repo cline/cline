@@ -56,6 +56,8 @@ export function fromProtobufModelInfo(protoInfo: OpenRouterModelInfo): ModelInfo
 		thinkingConfig: convertThinkingConfig(protoInfo.thinkingConfig),
 		supportsGlobalEndpoint: protoInfo.supportsGlobalEndpoint,
 		tiers: protoInfo.tiers.length > 0 ? protoInfo.tiers : undefined,
+		supportsReasoning: protoInfo.supportsReasoning,
+		supportsTemperature: protoInfo.supportsTemperature,
 	}
 }
 
@@ -76,6 +78,8 @@ export function toProtobufModelInfo(modelInfo: ModelInfo): OpenRouterModelInfo {
 		thinkingConfig: toProtobufThinkingConfig(modelInfo.thinkingConfig),
 		supportsGlobalEndpoint: modelInfo.supportsGlobalEndpoint,
 		tiers: modelInfo.tiers || [],
+		supportsReasoning: modelInfo.supportsReasoning,
+		supportsTemperature: modelInfo.supportsTemperature,
 	})
 }
 
