@@ -240,6 +240,7 @@ export interface ModelInfo {
 		maxBudget?: number // Max allowed thinking budget tokens
 		outputPrice?: number // Output price per million tokens when budget > 0
 		outputPriceTiers?: PriceTier[] // Optional: Tiered output price when budget > 0
+		thinkingLevel?: "low" | "high" // Optional: preset thinking level
 	}
 	supportsGlobalEndpoint?: boolean // Whether the model supports a global endpoint with Vertex AI
 	cacheWritesPrice?: number
@@ -1201,7 +1202,9 @@ export const geminiModels = {
 		outputPrice: 18.0,
 		cacheReadsPrice: 0.4,
 		thinkingConfig: {
-			maxBudget: 32767,
+			// If you don't specify a thinking level, Gemini will use the model's default
+			// dynamic thinking level, "high", for Gemini 3 Pro Preview.
+			thinkingLevel: "high",
 		},
 		tiers: [
 			{

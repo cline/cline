@@ -110,7 +110,6 @@ export class ClineToolSet {
 	public static getNativeConverter(providerId: string, modelId?: string) {
 		switch (providerId) {
 			case "minimax":
-				return toolSpecInputSchema
 			case "anthropic":
 				return toolSpecInputSchema
 			case "gemini":
@@ -121,6 +120,7 @@ export class ClineToolSet {
 				}
 				return toolSpecInputSchema
 			default:
+				// Default to OpenAI Compatible converter
 				return toolSpecFunctionDefinition
 		}
 	}

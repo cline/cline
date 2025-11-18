@@ -54,6 +54,7 @@ export interface ToolUse {
 	partial: boolean
 	// Whether this tool use was initiated by a native tool call
 	isNativeToolCall?: boolean
+	signature?: string
 }
 
 export interface ReasoningStreamContent {
