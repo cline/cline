@@ -1,10 +1,12 @@
-# create-xson-cline-app
+# @xjson/create-cline-app
 
 Create XSON Cline applications with a single command.
 
 ## Quick Start
 
 ```bash
+npx @xjson/create-cline-app my-app
+# or
 npx create-xson-cline-app my-app
 cd my-app
 npm run dev
@@ -15,7 +17,7 @@ npm run dev
 ### Interactive Mode
 
 ```bash
-npx create-xson-cline-app
+npx @xjson/create-cline-app
 ```
 
 The CLI will prompt you for:
@@ -28,7 +30,7 @@ The CLI will prompt you for:
 ### Command Line Mode
 
 ```bash
-npx create-xson-cline-app <project-name> [options]
+npx @xjson/create-cline-app <project-name> [options]
 ```
 
 #### Options
@@ -42,16 +44,16 @@ npx create-xson-cline-app <project-name> [options]
 
 ```bash
 # Create a default app
-npx create-xson-cline-app my-app
+npx @xjson/create-cline-app my-app
 
 # Create an MCP server
-npx create-xson-cline-app my-mcp-server --template mcp-server
+npx @xjson/create-cline-app my-mcp-server --template mcp-server
 
 # Create a CLI tool with yarn
-npx create-xson-cline-app my-cli --template cli-tool --package-manager yarn
+npx @xjson/create-cline-app my-cli --template cli-tool --package-manager yarn
 
 # Create without installing dependencies
-npx create-xson-cline-app my-app --no-install
+npx @xjson/create-cline-app my-app --no-install
 ```
 
 ## Templates
@@ -66,7 +68,7 @@ A basic Cline-integrated application. Perfect for getting started or building cu
 - Rapid prototyping
 
 ```bash
-npx create-xson-cline-app my-app --template default
+npx @xjson/create-cline-app my-app --template default
 ```
 
 ### MCP Server
@@ -85,7 +87,7 @@ A template for building custom Model Context Protocol (MCP) servers that extend 
 - Ready for Cline integration
 
 ```bash
-npx create-xson-cline-app my-mcp-server --template mcp-server
+npx @xjson/create-cline-app my-mcp-server --template mcp-server
 ```
 
 ### CLI Tool
@@ -104,7 +106,7 @@ A command-line tool template with common CLI patterns.
 - Inquirer for prompts
 
 ```bash
-npx create-xson-cline-app my-cli --template cli-tool
+npx @xjson/create-cline-app my-cli --template cli-tool
 ```
 
 ### VS Code Extension
@@ -123,7 +125,7 @@ A template for building VS Code extensions integrated with Cline.
 - Ready to debug (F5)
 
 ```bash
-npx create-xson-cline-app my-extension --template vscode-extension
+npx @xjson/create-cline-app my-extension --template vscode-extension
 ```
 
 ## What's Included?
@@ -158,7 +160,7 @@ my-app/
 
 1. **Create your project**
    ```bash
-   npx create-xson-cline-app my-app
+   npx @xjson/create-cline-app my-app
    cd my-app
    ```
 

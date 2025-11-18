@@ -1,10 +1,11 @@
 {
-  "name": "create-xson-cline-app",
+  "name": "@xjson/create-cline-app",
   "version": "1.0.0",
   "description": "Create XSON Cline applications with a single command",
   "main": "dist/index.js",
   "bin": {
-    "create-xson-cline-app": "./dist/index.js"
+    "create-xson-cline-app": "./dist/index.js",
+    "create-cline-app": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -27,7 +28,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cline/cline",
+    "url": "https://github.com/cannaseedus-bot/cline",
     "directory": "packages/create-xson-cline-app"
   },
   "engines": {
