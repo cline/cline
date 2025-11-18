@@ -1861,30 +1861,45 @@ export class Task {
 	}
 
 	public async cancelBackgroundCommand(): Promise<boolean> {
-		if (this.terminalExecutionMode !== "backgroundExec") {
+		if (this.terminalExecutionMode !== "backgroundExec" || !this.activeBackgroundCommand) {
 			return false
 		}
-		if (!this.activeBackgroundCommand) {
-			return false
-		}
-		const { process } = this.activeBackgroundCommand
+
+		const { process, command } = this.activeBackgroundCommand
 		this.activeBackgroundCommand = undefined
 		this.controller.updateBackgroundCommandState(false, this.taskId)
+
 		try {
-			if (typeof (process as any).terminate === "function") {
-				;(process as any).terminate()
-			} else {
-				;(process as any).continue?.()
+			// Try to terminate the process if the method exists
+			if (typeof process.terminate === "function") {
+				try {
+					await process.terminate()
+					Logger.info(`Terminated background command: ${command}`)
+				} catch (error) {
+					Logger.error(`Error terminating background command: ${command}`, error)
+				}
 			}
+
+			// Ensure any pending operations complete
+			if (typeof process.continue === "function") {
+				try {
+					process.continue()
+				} catch (error) {
+					Logger.error(`Error continuing background command: ${command}`, error)
+				}
+			}
+
+			return true
 		} catch (error) {
-			Logger.error("Failed to terminate background command", error)
+			Logger.error("Error in cancelBackgroundCommand", error)
+			return false
+		} finally {
+			try {
+				await this.say("command_output", "Command execution has been cancelled.")
+			} catch (error) {
+				Logger.error("Failed to send cancellation notification", error)
+			}
 		}
-		try {
-			await this.say("command_output", "Command cancelled. Background execution has been terminated.")
-		} catch (error) {
-			Logger.error("Failed to notify command cancellation", error)
-		}
-		return true
 	}
 
 	/**
