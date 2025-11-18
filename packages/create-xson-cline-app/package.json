@@ -1,0 +1,51 @@
+{
+  "name": "create-xson-cline-app",
+  "version": "1.0.0",
+  "description": "Create XSON Cline applications with a single command",
+  "main": "dist/index.js",
+  "bin": {
+    "create-xson-cline-app": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build",
+    "test": "node dist/index.js test-app"
+  },
+  "keywords": [
+    "cline",
+    "xson",
+    "cli",
+    "scaffold",
+    "template",
+    "create-app",
+    "boilerplate",
+    "ai",
+    "assistant"
+  ],
+  "author": "Cline Bot Inc.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cline/cline",
+    "directory": "packages/create-xson-cline-app"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.0.0",
+    "fs-extra": "^11.2.0",
+    "inquirer": "^9.2.15",
+    "ora": "^8.0.1",
+    "validate-npm-package-name": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^20.11.0",
+    "@types/validate-npm-package-name": "^4.0.2",
+    "typescript": "^5.3.3"
+  }
+}

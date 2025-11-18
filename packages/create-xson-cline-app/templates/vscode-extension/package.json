@@ -1,0 +1,32 @@
+{
+  "name": "my-xson-cline-app",
+  "displayName": "XSON Cline Extension",
+  "description": "A VS Code extension powered by Cline",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "xson-cline.helloWorld",
+        "title": "XSON: Hello World"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.84.0",
+    "@types/node": "^20.11.0",
+    "@vscode/vsce": "^3.6.0",
+    "typescript": "^5.3.3"
+  }
+}

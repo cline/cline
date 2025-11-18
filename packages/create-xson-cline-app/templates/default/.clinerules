@@ -1,0 +1,22 @@
+# Cline Rules for XSON App
+
+## Project Guidelines
+
+- Follow TypeScript best practices
+- Use async/await for asynchronous operations
+- Implement proper error handling
+- Write tests for critical functionality
+- Keep functions small and focused
+
+## Code Style
+
+- Use 2 spaces for indentation
+- Use single quotes for strings
+- Add semicolons at the end of statements
+- Use meaningful variable and function names
+
+## MCP Integration
+
+- Place MCP server configurations in `.cline/mcp.json`
+- Document all custom tools and their parameters
+- Handle tool errors gracefully
