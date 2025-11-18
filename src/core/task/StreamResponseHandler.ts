@@ -140,6 +140,7 @@ class ToolUseHandler {
 			name: pending.name,
 			input,
 			signature: pending.signature,
+			call_id: pending.call_id,
 		}
 	}
 
@@ -195,6 +196,7 @@ class ToolUseHandler {
 					partial: true,
 					isNativeToolCall: true,
 					signature: pending.signature,
+					call_id: pending.call_id,
 				})
 			} else {
 				const params: Record<string, string> = {}
@@ -210,6 +212,7 @@ class ToolUseHandler {
 					partial: true,
 					signature: pending.signature,
 					isNativeToolCall: true,
+					call_id: pending.call_id,
 				})
 			}
 		}
