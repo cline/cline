@@ -119,12 +119,10 @@ export class GeminiHandler implements ApiHandler {
 		const _thinkingBudget = this.options.thinkingBudgetTokens ?? 0
 		const maxBudget = info.thinkingConfig?.maxBudget ?? 24576
 		const thinkingBudget = Math.min(_thinkingBudget, maxBudget)
+		const thinkLevel = info.thinkingConfig?.thinkingLevel
 
-		const thinkingLevel = info.thinkingConfig
-			? info.thinkingConfig?.thinkingLevel === "low"
-				? ThinkingLevel.LOW
-				: ThinkingLevel.HIGH
-			: undefined
+		const thinkingLevel =
+			thinkingBudget && thinkLevel ? (thinkLevel === "low" ? ThinkingLevel.LOW : ThinkingLevel.HIGH) : undefined
 
 		// Set up base generation config
 		const requestConfig: GenerateContentConfig = {
@@ -143,7 +141,7 @@ export class GeminiHandler implements ApiHandler {
 			// Turn on dynamic thinking:
 			// thinkingBudget: -1
 			// Turn on fixed thinking budget:
-			thinkingBudget,
+			thinkingBudget: thinkingLevel ? undefined : thinkingBudget,
 			thinkingLevel,
 			includeThoughts: thinkingBudget > 0,
 		}
