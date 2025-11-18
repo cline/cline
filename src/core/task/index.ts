@@ -2842,10 +2842,11 @@ export class Task {
 							// reasoning will always come before assistant message chunks
 							if (chunk.reasoning) {
 								reasoningMessage += chunk.reasoning
-							}
-							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
-							if (!this.taskState.abort) {
-								await this.say("reasoning", reasoningMessage, undefined, undefined, true)
+								// Only call say when we actually have new reasoning content to display
+								// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
+								if (!this.taskState.abort) {
+									await this.say("reasoning", reasoningMessage, undefined, undefined, true)
+								}
 							}
 							if (chunk.signature) {
 								reasoningSignature = chunk.signature
@@ -3128,7 +3129,7 @@ export class Task {
 					...redactedThinkingContent,
 				]
 				// Append redacted reasoning block if signature exists
-				if (reasoningSignature) {
+				if (reasoningSignature || reasoningMessage) {
 					assistantContent.push({
 						type: "thinking",
 						thinking: reasoningMessage,
