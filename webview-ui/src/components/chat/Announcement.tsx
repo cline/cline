@@ -57,14 +57,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h4>
 			<ul style={ulStyle}>
 				<li>
-					<strong>GPT-5.1</strong> is now live with Cline-optimized prompts and enhanced plan mode & /deep-planning.
-					Enable Native Tool Calling for best performance.
+					<strong>MiniMax-M2</strong> is currently free to use in Cline!
 				</li>
 				<li>
-					<strong>Nous Research provider</strong> added featuring Hermes 4 models with tailored system prompts.
+					<strong>Gemini 3 Pro Preview</strong> is now available with SOTA reasoning and coding capabilities.
 				</li>
 				<li>
-					<strong>Smarter focus chain prompting</strong> for frontier models
+					<strong>AquaVoice's Avalon</strong> model scores 97.3% accuracy on AISpeak and now powers voice-to-text
+					dictation.
 				</li>
 			</ul>
 			<div style={hrStyle} />
