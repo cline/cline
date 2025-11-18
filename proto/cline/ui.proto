@@ -26,13 +26,13 @@ enum ClineAsk {
   RESUME_TASK = 7;
   RESUME_COMPLETED_TASK = 8;
   MISTAKE_LIMIT_REACHED = 9;
-  AUTO_APPROVAL_MAX_REQ_REACHED = 10;
-  BROWSER_ACTION_LAUNCH = 11;
-  USE_MCP_SERVER = 12;
-  NEW_TASK = 13;
-  CONDENSE = 14;
-  REPORT_BUG = 15;
-  SUMMARIZE_TASK = 16;
+  BROWSER_ACTION_LAUNCH = 10;
+  USE_MCP_SERVER = 11;
+  NEW_TASK = 12;
+  CONDENSE = 13;
+  REPORT_BUG = 14;
+  SUMMARIZE_TASK = 15;
+  ACT_MODE_RESPOND = 16;
 }
 
 // Enum for ClineSay types
@@ -78,6 +78,7 @@ enum ClineSayToolType {
   LIST_CODE_DEFINITION_NAMES = 5;
   SEARCH_FILES = 6;
   WEB_FETCH = 7;
+  FILE_DELETED = 8;
 }
 
 // Enum for browser actions
@@ -184,6 +185,11 @@ message ClineApiReqInfo {
   ApiReqRetryStatus retry_status = 9;
 }
 
+message ClineModelInfo {
+  string provider_id = 1;
+  string model_id = 2;
+}
+
 // Main ClineMessage type
 message ClineMessage {
   int64 ts = 1;
@@ -210,6 +216,7 @@ message ClineMessage {
   ClineAskQuestion ask_question = 20;
   ClineAskNewTask ask_new_task = 21;
   ClineApiReqInfo api_req_info = 22;
+  ClineModelInfo model_info = 23;
 }
 
 // UiService provides methods for managing UI interactions

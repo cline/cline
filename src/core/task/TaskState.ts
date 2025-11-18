@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { AssistantMessageContent } from "@core/assistant-message"
 import { ClineAskResponse } from "@shared/WebviewMessage"
+import type { HookExecution } from "./types/HookExecution"
 
 export class TaskState {
 	// Streaming flags
@@ -39,9 +40,6 @@ export class TaskState {
 	didAlreadyUseTool = false
 	didEditFile: boolean = false
 
-	// Consecutive request tracking
-	consecutiveAutoApprovedRequestsCount: number = 0
-
 	// Error tracking
 	consecutiveMistakeCount: number = 0
 	didAutomaticallyRetryFailedApiRequest = false
@@ -63,6 +61,9 @@ export class TaskState {
 	abort: boolean = false
 	didFinishAbortingStream = false
 	abandoned = false
+
+	// Hook execution tracking for cancellation
+	activeHookExecution?: HookExecution
 
 	// Auto-context summarization
 	currentlySummarizing: boolean = false

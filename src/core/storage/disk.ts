@@ -21,6 +21,7 @@ export const GlobalFileNames = {
 	vercelAiGatewayModels: "vercel_ai_gateway_models.json",
 	groqModels: "groq_models.json",
 	basetenModels: "baseten_models.json",
+	hicapModels: "hicap_models.json",
 	mcpSettings: "cline_mcp_settings.json",
 	clineRules: ".clinerules",
 	workflows: ".clinerules/workflows",
@@ -28,6 +29,7 @@ export const GlobalFileNames = {
 	cursorRulesDir: ".cursor/rules",
 	cursorRulesFile: ".cursorrules",
 	windsurfRules: ".windsurfrules",
+	agentsRulesFile: "AGENTS.md",
 	taskMetadata: "task_metadata.json",
 	mcpMarketplaceCatalog: "mcp_marketplace_catalog.json",
 	remoteConfig: (orgId: string) => `remote_config_${orgId}.json`,
@@ -107,16 +109,14 @@ export async function ensureMcpServersDirectoryExists(): Promise<string> {
 }
 
 export async function ensureHooksDirectoryExists(): Promise<string> {
-	const rulesDir = await ensureRulesDirectoryExists()
-	const clineHooksDir = path.join(rulesDir, "Hooks")
+	const userDocumentsPath = await getDocumentsPath()
+	const clineHooksDir = path.join(userDocumentsPath, "Cline", "Hooks")
 	try {
 		await fs.mkdir(clineHooksDir, { recursive: true })
-		return clineHooksDir
 	} catch (_error) {
-		// If mkdir fails, return a fallback path based on the Rules directory fallback
-		// This matches the pattern of other ensure*DirectoryExists functions
-		return path.join(rulesDir, "Hooks")
+		return path.join(os.homedir(), "Documents", "Cline", "Hooks") // in case creating a directory in documents fails for whatever reason (e.g. permissions) - this is fine because we will fail gracefully with a path that does not exist
 	}
+	return clineHooksDir
 }
 
 export async function ensureSettingsDirectoryExists(): Promise<string> {

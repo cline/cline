@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+echo "TaskResume running inside local cline/.clinerules/hooks/ directory"
+
+input=$(cat)
+echo $input | jq .
+
+for i in {1..5}; do
+  sleep 1
+  echo "$i"
+done
+
+cat <<EOF
+{
+  "cancel": false,
+  "contextModification": "TaskResume response from the local cline/.clinerules/hooks/ directory.",
+  "errorMessage": "TaskResume hook custom errorMessage"
+}
+EOF

@@ -1,9 +1,10 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, XAIModelId, xaiDefaultModelId, xaiModels } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
+import { ClineStorageMessage } from "@/shared/messages/content"
+import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -33,6 +34,7 @@ export class XAIHandler implements ApiHandler {
 				this.client = new OpenAI({
 					baseURL: "https://api.x.ai/v1",
 					apiKey: this.options.xaiApiKey,
+					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating xAI client: ${error.message}`)
@@ -42,7 +44,7 @@ export class XAIHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[], tools?: OpenAITool[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const modelId = this.getModel().id
 		// ensure reasoning effort is either "low" or "high" for grok-3-mini

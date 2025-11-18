@@ -1,8 +1,17 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import {
+	ClineAssistantRedactedThinkingBlock,
+	ClineAssistantThinkingBlock,
+	ClineAssistantToolUseBlock,
+	ClineImageContentBlock,
+	ClineStorageMessage,
+	ClineTextContentBlock,
+	ClineUserToolResultContentBlock,
+} from "@/shared/messages/content"
 
 export function convertToOpenAiMessages(
-	anthropicMessages: Anthropic.Messages.MessageParam[],
+	anthropicMessages: Omit<ClineStorageMessage, "modelInfo">[],
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
 	const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = []
 
@@ -23,8 +32,8 @@ export function convertToOpenAiMessages(
          */
 			if (anthropicMessage.role === "user") {
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
-					toolMessages: Anthropic.ToolResultBlockParam[]
+					nonToolMessages: (ClineTextContentBlock | ClineImageContentBlock)[]
+					toolMessages: ClineUserToolResultContentBlock[]
 				}>(
 					(acc, part) => {
 						if (part.type === "tool_result") {
@@ -38,7 +47,7 @@ export function convertToOpenAiMessages(
 				)
 
 				// Process tool result messages FIRST since they must follow the tool use messages
-				const toolResultImages: Anthropic.Messages.ImageBlockParam[] = []
+				const toolResultImages: ClineImageContentBlock[] = []
 				toolMessages.forEach((toolMessage) => {
 					// The Anthropic SDK allows tool results to be a string or an array of text and image blocks, enabling rich and structured content. In contrast, the OpenAI SDK only supports tool results as a single string, so we map the Anthropic tool result parts into one concatenated string to maintain compatibility.
 					let content: string
@@ -102,8 +111,13 @@ export function convertToOpenAiMessages(
 				}
 			} else if (anthropicMessage.role === "assistant") {
 				const { nonToolMessages, toolMessages } = anthropicMessage.content.reduce<{
-					nonToolMessages: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam)[]
-					toolMessages: Anthropic.ToolUseBlockParam[]
+					nonToolMessages: (
+						| ClineTextContentBlock
+						| ClineImageContentBlock
+						| ClineAssistantThinkingBlock
+						| ClineAssistantRedactedThinkingBlock
+					)[]
+					toolMessages: ClineAssistantToolUseBlock[]
 				}>(
 					(acc, part) => {
 						if (part.type === "tool_use") {
@@ -119,6 +133,7 @@ export function convertToOpenAiMessages(
 				// Process non-tool messages
 				let content: string | undefined
 				const reasoningDetails: any[] = []
+				const thinkingBlock = []
 				if (nonToolMessages.length > 0) {
 					nonToolMessages.forEach((part) => {
 						// @ts-ignore-next-line
@@ -134,13 +149,16 @@ export function convertToOpenAiMessages(
 							// @ts-ignore-next-line
 							// delete part.reasoning_details
 						}
+						if (part.type === "thinking" && part.thinking) {
+							thinkingBlock.push(part)
+						}
 					})
 					content = nonToolMessages
 						.map((part) => {
-							if (part.type === "image") {
-								return "" // impossible as the assistant cannot send images
+							if (part.type === "text" && part.text) {
+								return part.text
 							}
-							return part.text
+							return ""
 						})
 						.join("\n")
 				}
@@ -156,9 +174,14 @@ export function convertToOpenAiMessages(
 					},
 				}))
 
+				// Set content to blank when tool_calls are present but content has no text, per OpenAI API spec
+				const hasToolCalls = tool_calls.length > 0
+				const hasMeaningfulContent = content !== undefined && content.trim() !== ""
+				const finalContent = hasMeaningfulContent ? content : hasToolCalls ? null : undefined
+
 				openAiMessages.push({
 					role: "assistant",
-					content,
+					content: finalContent,
 					// Cannot be an empty array. API expects an array with minimum length 1, and will respond with an error if it's empty
 					tool_calls: tool_calls?.length > 0 ? tool_calls : undefined,
 					// @ts-ignore-next-line

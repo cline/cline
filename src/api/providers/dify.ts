@@ -1,5 +1,6 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo } from "@shared/api"
+import { ClineStorageMessage } from "@/shared/messages/content"
+import { fetch } from "@/shared/net"
 import { ApiHandler } from "../../core/api/index"
 import { ApiStream } from "../../core/api/transform/stream"
 
@@ -32,7 +33,7 @@ export class DifyHandler implements ApiHandler {
 		}
 	}
 
-	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[]): ApiStream {
 		console.log("[DIFY DEBUG] createMessage called with:", {
 			systemPromptLength: systemPrompt?.length || 0,
 			messagesCount: messages?.length || 0,
@@ -254,7 +255,7 @@ export class DifyHandler implements ApiHandler {
 		}
 	}
 
-	private convertMessagesToQuery(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): string {
+	private convertMessagesToQuery(systemPrompt: string, messages: ClineStorageMessage[]): string {
 		// Dify's context is managed by `conversation_id`. The `query` should be the last user message.
 		// The system prompt is typically configured in the Dify App itself.
 		const lastUserMessage = messages.filter((m) => m.role === "user").pop()

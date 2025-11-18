@@ -102,9 +102,6 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 							const { absolutePath, displayPath } =
 								typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relPath } : pathResult
 
-							// Increment counter for successful auto-approved read
-							config.taskState.consecutiveAutoApprovedRequestsCount++
-
 							// Read file content, we dont allow images to be read here
 							// This throws if an image or if we can't read the file, implicitly skipping
 							const fileContent = await extractFileContent(absolutePath, false)
@@ -174,9 +171,15 @@ export class SummarizeTaskHandler implements IToolHandler, IPartialBlockHandler 
 			)
 
 			if (telemetryData) {
+				// Extract provider information for telemetry
+				const apiConfig = config.services.stateManager.getApiConfiguration()
+				const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
+				const provider = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+
 				telemetryService.captureSummarizeTask(
 					config.ulid,
 					config.api.getModel().id,
+					provider,
 					telemetryData.tokensUsed,
 					telemetryData.maxContextWindow,
 				)

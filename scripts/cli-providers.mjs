@@ -95,6 +95,7 @@ const ENABLED_PROVIDERS = [
 	"ollama", // Ollama local models
 	"cerebras", // Cerebras models
 	"oca", // Oracle Code Assist
+	"nousResearch", // NousResearch provider
 ]
 
 /**

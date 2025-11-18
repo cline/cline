@@ -57,15 +57,14 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			</h4>
 			<ul style={ulStyle}>
 				<li>
-					Cline Teams is now free through the end of the year for unlimited users. Includes Jetbrains, RBAC, centralized
-					billing and more.{" "}
-					<VSCodeLink href="https://app.cline.bot/login" style={linkStyle}>
-						Start using teams
-					</VSCodeLink>
+					<strong>GPT-5.1</strong> is now live with Cline-optimized prompts and enhanced plan mode & /deep-planning.
+					Enable Native Tool Calling for best performance.
 				</li>
 				<li>
-					Use the “exacto” versions of GLM-4.6, Kimi-K2, and Qwen3-Coder in the Cline provider model picker for the best
-					balance of cost, speed, accuracy and tool-calling.
+					<strong>Nous Research provider</strong> added featuring Hermes 4 models with tailored system prompts.
+				</li>
+				<li>
+					<strong>Smarter focus chain prompting</strong> for frontier models
 				</li>
 			</ul>
 			<div style={hrStyle} />

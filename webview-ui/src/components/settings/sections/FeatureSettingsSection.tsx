@@ -33,6 +33,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		hooksEnabled,
 		remoteConfigSettings,
 		subagentsEnabled,
+		nativeToolCallSetting,
 	} = useExtensionState()
 
 	const [isClineCliInstalled, setIsClineCliInstalled] = useState(false)
@@ -371,21 +372,43 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							</p>
 						</div>
 					)}
-					{hooksEnabled?.featureFlag && (
-						<div className="mt-2.5">
-							<VSCodeCheckbox
-								checked={hooksEnabled.user}
-								onChange={(e: any) => {
-									const checked = e.target.checked === true
-									updateSetting("hooksEnabled", checked)
-								}}>
-								Enable Hooks
-							</VSCodeCheckbox>
+					<div className="mt-2.5">
+						<VSCodeCheckbox
+							checked={hooksEnabled?.user}
+							disabled={!isMacOSOrLinux()}
+							onChange={(e: any) => {
+								const checked = e.target.checked === true
+								updateSetting("hooksEnabled", checked)
+							}}>
+							Enable Hooks
+						</VSCodeCheckbox>
+						{!isMacOSOrLinux() ? (
+							<p className="text-xs mt-1" style={{ color: "var(--vscode-inputValidation-warningForeground)" }}>
+								Hooks are not yet supported on Windows. This feature is currently available on macOS and Linux
+								only.
+							</p>
+						) : (
 							<p className="text-xs">
 								<span className="text-(--vscode-errorForeground)">Experimental: </span>{" "}
 								<span className="text-description">
 									Allows execution of hooks from .clinerules/hooks/ directory.
 								</span>
+							</p>
+						)}
+					</div>
+					{nativeToolCallSetting?.featureFlag && (
+						<div className="mt-2.5">
+							<VSCodeCheckbox
+								checked={nativeToolCallSetting?.user}
+								onChange={(e) => {
+									const enabled = (e?.target as HTMLInputElement).checked
+									updateSetting("nativeToolCallEnabled", enabled)
+								}}>
+								Enable Native Tool Call
+							</VSCodeCheckbox>
+							<p className="text-xs">
+								<span className="text-[var(--vscode-errorForeground)]">Experimental: </span>{" "}
+								<span className="text-description">Allows Cline to call tools through the native API.</span>
 							</p>
 						</div>
 					)}

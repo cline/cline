@@ -1,8 +1,8 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import type { ToolUse } from "@core/assistant-message"
 import { JSONParser } from "@streamparser/json"
 import { McpHub } from "@/services/mcp/McpHub"
 import { CLINE_MCP_TOOL_IDENTIFIER } from "@/shared/mcp"
+import { ClineAssistantToolUseBlock } from "@/shared/messages/content"
 import { ClineDefaultTool } from "@/shared/tools"
 
 export interface PendingToolUse {
@@ -32,7 +32,7 @@ const ESCAPE_MAP: Record<string, string> = {
 const ESCAPE_PATTERN = /\\[ntr"\\]/g
 
 /**
- * Handles streaming tool use blocks and converts them to Anthropic.ToolUseBlockParam format
+ * Handles streaming native tool use blocks and converts them to ClineAssistantToolUseBlock format
  */
 export class ToolUseHandler {
 	private pendingToolUses = new Map<string, PendingToolUse>()
@@ -55,12 +55,12 @@ export class ToolUseHandler {
 			try {
 				pending.jsonParser?.write(delta.input)
 			} catch {
-				// Expected during streaming
+				// Expected during streaming - JSONParser may not have complete JSON yet
 			}
 		}
 	}
 
-	getFinalizedToolUse(id: string): Anthropic.ToolUseBlockParam | undefined {
+	getFinalizedToolUse(id: string): ClineAssistantToolUseBlock | undefined {
 		const pending = this.pendingToolUses.get(id)
 		if (!pending?.name) {
 			return undefined
@@ -85,8 +85,8 @@ export class ToolUseHandler {
 		}
 	}
 
-	getAllFinalizedToolUses(): Anthropic.ToolUseBlockParam[] {
-		const results: Anthropic.ToolUseBlockParam[] = []
+	getAllFinalizedToolUses(): ClineAssistantToolUseBlock[] {
+		const results: ClineAssistantToolUseBlock[] = []
 		for (const id of this.pendingToolUses.keys()) {
 			const toolUse = this.getFinalizedToolUse(id)
 			if (toolUse) {
@@ -102,19 +102,24 @@ export class ToolUseHandler {
 
 	getPartialToolUsesAsContent(): ToolUse[] {
 		const results: ToolUse[] = []
+		const pendingToolUses = this.pendingToolUses.values()
 
-		for (const pending of this.pendingToolUses.values()) {
+		for (const pending of pendingToolUses) {
 			if (!pending.name) {
 				continue
 			}
 
+			// Try to get the most up-to-date parsed input
+			// Priority: parsedInput (from JSONParser) > fallback to manual parsing
 			let input: any = {}
 			if (pending.parsedInput != null) {
 				input = pending.parsedInput
 			} else if (pending.input) {
+				// Try full JSON parse first
 				try {
 					input = JSON.parse(pending.input)
 				} catch {
+					// Fall back to extracting partial fields from incomplete JSON
 					input = this.extractPartialJsonFields(pending.input)
 				}
 			}
@@ -130,10 +135,11 @@ export class ToolUseHandler {
 						arguments: JSON.stringify(input),
 					},
 					partial: true,
+					isNativeToolCall: true,
 				})
 			} else {
 				const params: Record<string, string> = {}
-				if (typeof input === "object") {
+				if (typeof input === "object" && input !== null) {
 					for (const [key, value] of Object.entries(input)) {
 						params[key] = typeof value === "string" ? value : JSON.stringify(value)
 					}
@@ -143,11 +149,12 @@ export class ToolUseHandler {
 					name: pending.name as ClineDefaultTool,
 					params: params as any,
 					partial: true,
+					isNativeToolCall: true,
 				})
 			}
 		}
-
-		return results
+		// Ensure all returned tool uses are marked as partial
+		return results.map((t) => ({ ...t, partial: true }))
 	}
 
 	reset(): void {

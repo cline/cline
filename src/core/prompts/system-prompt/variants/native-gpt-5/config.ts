@@ -1,4 +1,4 @@
-import { isGPT5ModelFamily, isNextGenModelProvider } from "@utils/model-utils"
+import { isGPT5ModelFamily, isGPT51Model, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { ClineDefaultTool } from "@/shared/tools"
 import { SystemPromptSection } from "../../templates/placeholders"
@@ -26,13 +26,18 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		const modelId = providerInfo.model.id
 
 		// gpt-5-chat models do not support native tool use
-		return isGPT5ModelFamily(modelId) && !modelId.includes("chat") && isNextGenModelProvider(providerInfo)
+		return (
+			isGPT5ModelFamily(modelId) &&
+			!isGPT51Model(modelId) &&
+			!modelId.includes("chat") &&
+			isNextGenModelProvider(providerInfo)
+		)
 	})
 	.template(GPT_5_TEMPLATE_OVERRIDES.BASE)
 	.components(
 		SystemPromptSection.AGENT_ROLE,
 		SystemPromptSection.TOOL_USE,
-		SystemPromptSection.TODO,
+		SystemPromptSection.TASK_PROGRESS,
 		SystemPromptSection.ACT_VS_PLAN,
 		SystemPromptSection.CLI_SUBAGENTS,
 		SystemPromptSection.CAPABILITIES,
@@ -45,8 +50,10 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 	.tools(
 		ClineDefaultTool.BASH,
 		ClineDefaultTool.FILE_READ,
-		ClineDefaultTool.FILE_NEW,
-		ClineDefaultTool.FILE_EDIT,
+		// Should disable FILE_NEW and FILE_EDIT when enabled
+		// ClineDefaultTool.APPLY_PATCH,
+		ClineDefaultTool.FILE_NEW, // Replaced by APPLY_PATCH
+		ClineDefaultTool.FILE_EDIT, // Replaced by APPLY_PATCH
 		ClineDefaultTool.SEARCH,
 		ClineDefaultTool.LIST_FILES,
 		ClineDefaultTool.LIST_CODE_DEF,
@@ -55,7 +62,6 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 		ClineDefaultTool.MCP_ACCESS,
 		ClineDefaultTool.ASK,
 		ClineDefaultTool.ATTEMPT,
-		ClineDefaultTool.NEW_TASK,
 		ClineDefaultTool.PLAN_MODE,
 		ClineDefaultTool.MCP_DOCS,
 		ClineDefaultTool.TODO,
@@ -79,6 +85,9 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5)
 	})
 	.overrideComponent(SystemPromptSection.FEEDBACK, {
 		template: GPT_5_TEMPLATE_OVERRIDES.FEEDBACK,
+	})
+	.overrideComponent(SystemPromptSection.EDITING_FILES, {
+		enabled: false,
 	})
 	.build()
 
