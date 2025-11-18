@@ -109,7 +109,7 @@ export class McpHub {
 				return existingKey
 			}
 		}
-		// Generate a 118 bytes unique ID for the server
+		// Generate a short 6-character unique ID for the server
 		// Add c prefix to ensure it starts with a letter (for compatibility with Gemini)
 		// Only use the first 5 characters of nanoid to keep it short
 		const uid = "c" + nanoid(5)
