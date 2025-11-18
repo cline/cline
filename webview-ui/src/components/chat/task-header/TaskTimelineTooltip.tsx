@@ -39,6 +39,8 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								return `Delete File: ${toolData.path || "Unknown file"}`
 							} else if (toolData.tool === "webFetch") {
 								return `Web Fetch: ${toolData.path || "Unknown URL"}`
+							} else if (toolData.tool === "webSearch") {
+								return `Web Search: ${toolData.path || "Unknown Query"}`
 							}
 							return `Tool: ${toolData.tool}`
 						} catch (_e) {
@@ -87,6 +89,8 @@ const TaskTimelineTooltip = ({ message, children }: TaskTimelineTooltipProps) =>
 								return `File Deletion Approval: ${toolData.path || "Unknown file"}`
 							} else if (toolData.tool === "webFetch") {
 								return `Web Fetch: ${toolData.path || "Unknown URL"}`
+							} else if (toolData.tool === "webSearch") {
+								return `Web Search: ${toolData.path || "Unknown Query"}`
 							}
 							return `Tool Approval: ${toolData.tool}`
 						} catch (_e) {
