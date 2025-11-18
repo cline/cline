@@ -126,7 +126,7 @@ export class GeminiHandler implements ApiHandler {
 			...{ systemInstruction: systemPrompt },
 			// Set temperature (default to 0)
 			// Gemini 3.0 recommends 1.0
-			temperature: info.temperature ?? 0,
+			temperature: info.temperature ?? 1,
 		}
 
 		// Add thinking config if the model supports it
