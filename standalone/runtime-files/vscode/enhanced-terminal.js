@@ -542,7 +542,7 @@ class StandaloneTerminalManager {
 			}
 		}
 
-		// CRITICAL FIX: Ensure terminate() is accessible on the merged promise
+		// Ensure terminate() is accessible on the merged promise
 		// This allows Task.cancelBackgroundCommand() to kill the process
 		if (process.terminate && typeof process.terminate === "function") {
 			Object.defineProperty(process, "terminate", {
