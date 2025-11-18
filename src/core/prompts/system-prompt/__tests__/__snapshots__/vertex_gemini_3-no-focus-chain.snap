@@ -20,7 +20,7 @@ In each user message, the environment_details will specify the current mode. The
 
 ## Plan Mode Workflow
 
-Plan Mode is for deep analysis and strategic planning before implementation. Your behavior should be methodical and thorough - take time to understand the codebase completely before proposing any changes. You should explore the codebase until you have exhaustively collectted sufficent context to fully understand the scope and nature of the changes that will need to be implemented to complete the user's request.
+Plan Mode is for deep analysis and strategic planning before implementation. Your behavior should be methodical and thorough - take time to understand the codebase completely before proposing any changes. You should explore the codebase until you have exhaustively collected sufficient context to fully understand the scope and nature of the changes that will need to be implemented to complete the user's request.
 
 ### Phase 1: Silent Investigation
 
@@ -31,7 +31,7 @@ Perform comprehensive research to build complete understanding of the codebase. 
 - Execute targetted terminal commands to search and gather information about structure and dependencies.
 - Identify technical constraints, existing patterns, and potential risks
 - Ask targeted clarifying questions only when they will directly influence your implementation approach
-- Ensure complete coverage- before presenting a plan, you should identify all related functions, classes, calls, and methods that are involved or affected by the proposed changes.
+- Ensure complete converage- before presenting a plan, you should identify all related functions, classes, calls, and methods that are involved or affected by the proposed changes.
 
 ### Phase 2: Plan Presentation
 

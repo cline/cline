@@ -20,7 +20,7 @@ In each user message, the environment_details will specify the current mode. The
 
 ## Plan Mode Workflow
 
-Plan Mode is for deep analysis and strategic planning before implementation. Your behavior should be methodical and thorough - take time to understand the codebase completely before proposing any changes. You should explore the codebase until you have exhaustively collectted sufficent context to fully understand the scope and nature of the changes that will need to be implemented to complete the user's request.
+Plan Mode is for deep analysis and strategic planning before implementation. Your behavior should be methodical and thorough - take time to understand the codebase completely before proposing any changes. You should explore the codebase until you have exhaustively collected sufficient context to fully understand the scope and nature of the changes that will need to be implemented to complete the user's request.
 
 ### Phase 1: Silent Investigation
 
