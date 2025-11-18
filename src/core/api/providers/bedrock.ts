@@ -680,25 +680,7 @@ export class AwsBedrockHandler implements ApiHandler {
 				}
 			}
 		} catch (error) {
-			console.error("Error processing Converse API response:", error)
-
-			// Check if this is a context window error and re-throw it for retry handling
-			const errorMessage = error instanceof Error ? error.message : String(error)
-			const errorName = (error as any)?.name || ""
-			const isContextError =
-				errorName === "ValidationException" &&
-				/input.*too long|context.*exceed|maximum.*token|input length.*max.*tokens/i.test(errorMessage)
-
-			if (isContextError) {
-				// Re-throw so context management can handle it
-				throw error
-			}
-
-			// Otherwise yield as error text
-			yield {
-				type: "text",
-				text: `[ERROR] Failed to process response: ${errorMessage}`,
-			}
+			throw error
 		}
 	}
 
