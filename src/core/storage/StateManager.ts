@@ -583,6 +583,7 @@ export class StateManager {
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
+			geminiPlanModeThinkingLevel,
 			// Act mode configurations
 			actModeApiProvider,
 			actModeApiModelId,
@@ -620,6 +621,7 @@ export class StateManager {
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
+			geminiActModeThinkingLevel,
 		} = apiConfiguration
 
 		// Batch update global state keys
@@ -661,6 +663,7 @@ export class StateManager {
 			planModeAihubmixModelId,
 			planModeAihubmixModelInfo,
 			planModeNousResearchModelId,
+			geminiPlanModeThinkingLevel,
 
 			// Act mode configuration updates
 			actModeApiProvider,
@@ -699,6 +702,7 @@ export class StateManager {
 			actModeAihubmixModelId,
 			actModeAihubmixModelInfo,
 			actModeNousResearchModelId,
+			geminiActModeThinkingLevel,
 
 			// Global state updates
 			awsRegion,
@@ -1242,6 +1246,8 @@ export class StateManager {
 				this.taskStateCache["planModeAihubmixModelInfo"] || this.globalStateCache["planModeAihubmixModelInfo"],
 			planModeNousResearchModelId:
 				this.taskStateCache["planModeNousResearchModelId"] || this.globalStateCache["planModeNousResearchModelId"],
+			geminiPlanModeThinkingLevel:
+				this.taskStateCache["geminiPlanModeThinkingLevel"] || this.globalStateCache["geminiPlanModeThinkingLevel"],
 
 			// Act mode configurations
 			actModeApiProvider:
@@ -1310,6 +1316,8 @@ export class StateManager {
 				this.taskStateCache["actModeAihubmixModelInfo"] || this.globalStateCache["actModeAihubmixModelInfo"],
 			actModeNousResearchModelId:
 				this.taskStateCache["actModeNousResearchModelId"] || this.globalStateCache["actModeNousResearchModelId"],
+			geminiActModeThinkingLevel:
+				this.taskStateCache["geminiActModeThinkingLevel"] || this.globalStateCache["geminiActModeThinkingLevel"],
 			nousResearchApiKey: this.secretsCache["nousResearchApiKey"],
 		}
 	}
