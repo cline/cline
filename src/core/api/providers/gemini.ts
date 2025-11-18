@@ -120,9 +120,9 @@ export class GeminiHandler implements ApiHandler {
 		const maxBudget = info.thinkingConfig?.maxBudget ?? 24576
 		const thinkingBudget = Math.min(_thinkingBudget, maxBudget)
 		const thinkLevel = info.thinkingConfig?.thinkingLevel
-
-		const thinkingLevel =
-			thinkingBudget && thinkLevel ? (thinkLevel === "low" ? ThinkingLevel.LOW : ThinkingLevel.HIGH) : undefined
+		// When ThinkingLevel is defineded, thinking budget cannot be zero
+		// and only level is used to control thinking behavior.
+		const thinkingLevel = thinkLevel ? (thinkLevel === "low" ? ThinkingLevel.LOW : ThinkingLevel.HIGH) : undefined
 
 		// Set up base generation config
 		const requestConfig: GenerateContentConfig = {
