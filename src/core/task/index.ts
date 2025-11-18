@@ -1898,6 +1898,14 @@ export class Task {
 				})
 			}
 
+			// Add cancellation information to the API conversation history
+			// This ensures the agent knows the command was cancelled in the next request
+			const cancellationMessage = `Command "${command}" was cancelled by the user.`
+			this.taskState.userMessageContent.push({
+				type: "text",
+				text: cancellationMessage,
+			})
+
 			return true
 		} catch (error) {
 			Logger.error("Error in cancelBackgroundCommand", error)
