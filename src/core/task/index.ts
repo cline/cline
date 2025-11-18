@@ -220,6 +220,7 @@ export class Task {
 			terminate?: () => void
 		}
 		command: string
+		outputLines: string[]
 	}
 
 	// Metadata tracking
@@ -1566,7 +1567,7 @@ export class Task {
 		this.controller.updateBackgroundCommandState(true, this.taskId)
 
 		if (this.terminalExecutionMode === "backgroundExec") {
-			this.activeBackgroundCommand = { process: process as any, command }
+			this.activeBackgroundCommand = { process: process as any, command, outputLines: [] }
 		}
 
 		const clearCommandState = async () => {
@@ -1689,6 +1690,11 @@ export class Task {
 				return
 			}
 			outputLines.push(line)
+
+			// Track output in activeBackgroundCommand for cancellation
+			if (this.terminalExecutionMode === "backgroundExec" && this.activeBackgroundCommand) {
+				this.activeBackgroundCommand.outputLines.push(line)
+			}
 
 			// Apply buffered streaming for both vscodeTerminal and backgroundExec modes
 			if (!didContinue) {
@@ -1862,30 +1868,69 @@ export class Task {
 	}
 
 	public async cancelBackgroundCommand(): Promise<boolean> {
-		if (this.terminalExecutionMode !== "backgroundExec") {
+		if (this.terminalExecutionMode !== "backgroundExec" || !this.activeBackgroundCommand) {
 			return false
 		}
-		if (!this.activeBackgroundCommand) {
-			return false
-		}
-		const { process } = this.activeBackgroundCommand
+
+		const { process, command, outputLines } = this.activeBackgroundCommand
 		this.activeBackgroundCommand = undefined
 		this.controller.updateBackgroundCommandState(false, this.taskId)
+
 		try {
-			if (typeof (process as any).terminate === "function") {
-				;(process as any).terminate()
-			} else {
-				;(process as any).continue?.()
+			// Try to terminate the process if the method exists
+			if (typeof process.terminate === "function") {
+				try {
+					await process.terminate()
+					Logger.info(`Terminated background command: ${command}`)
+				} catch (error) {
+					Logger.error(`Error terminating background command: ${command}`, error)
+				}
 			}
+
+			// Ensure any pending operations complete
+			if (typeof process.continue === "function") {
+				try {
+					process.continue()
+				} catch (error) {
+					Logger.error(`Error continuing background command: ${command}`, error)
+				}
+			}
+
+			// Mark the command message as completed in the UI
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const lastCommandIndex = findLastIndex(clineMessages, (m) => m.ask === "command" || m.say === "command")
+			if (lastCommandIndex !== -1) {
+				await this.messageStateHandler.updateClineMessage(lastCommandIndex, {
+					commandCompleted: true,
+				})
+			}
+
+			// Process the captured output to include in the cancellation message
+			const processedOutput = this.terminalManager.processOutput(outputLines, undefined, false)
+
+			// Add cancellation information to the API conversation history
+			// This ensures the agent knows the command was cancelled in the next request
+			let cancellationMessage = `Command "${command}" was cancelled by the user.`
+			if (processedOutput.length > 0) {
+				cancellationMessage += `\n\nOutput captured before cancellation:\n${processedOutput}`
+			}
+
+			this.taskState.userMessageContent.push({
+				type: "text",
+				text: cancellationMessage,
+			})
+
+			return true
 		} catch (error) {
-			Logger.error("Failed to terminate background command", error)
+			Logger.error("Error in cancelBackgroundCommand", error)
+			return false
+		} finally {
+			try {
+				await this.say("command_output", "Command execution has been cancelled.")
+			} catch (error) {
+				Logger.error("Failed to send cancellation notification", error)
+			}
 		}
-		try {
-			await this.say("command_output", "Command cancelled. Background execution has been terminated.")
-		} catch (error) {
-			Logger.error("Failed to notify command cancellation", error)
-		}
-		return true
 	}
 
 	/**
