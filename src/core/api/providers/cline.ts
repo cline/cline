@@ -154,10 +154,12 @@ export class ClineHandler implements ApiHandler {
 						type: "text",
 						text: delta.content,
 					}
+					continue
 				}
 
 				if (delta?.tool_calls) {
 					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
+					continue
 				}
 
 				// Reasoning tokens are returned separately from the content
@@ -167,6 +169,7 @@ export class ClineHandler implements ApiHandler {
 						type: "reasoning",
 						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
 					}
+					continue
 				}
 
 				/* 
@@ -188,6 +191,7 @@ export class ClineHandler implements ApiHandler {
 						reasoning: "",
 						details: delta.reasoning_details,
 					}
+					continue
 				}
 
 				if (!didOutputUsage && chunk.usage) {

@@ -149,50 +149,61 @@ export class ClineToolSet {
  */
 export function mcpToolToClineToolSpec(family: ModelFamily, server: McpServer): ClineToolSpec[] {
 	const tools = server.tools || []
-	return tools.map((mcpTool) => {
-		let parameters: any[] = []
+	return tools
+		.map((mcpTool) => {
+			let parameters: any[] = []
 
-		if (mcpTool.inputSchema && "properties" in mcpTool.inputSchema) {
-			const schema = mcpTool.inputSchema as any
-			const requiredFields = new Set(schema.required || [])
+			if (mcpTool.inputSchema && "properties" in mcpTool.inputSchema) {
+				const schema = mcpTool.inputSchema as any
+				const requiredFields = new Set(schema.required || [])
 
-			parameters = Object.entries(schema.properties as Record<string, any>).map(([name, propSchema]) => {
-				// Preserve the full schema, not just basic fields
-				const param: any = {
-					name,
-					instruction: propSchema.description || "",
-					type: propSchema.type || "string",
-					required: requiredFields.has(name),
-				}
-
-				// Preserve items for array types
-				if (propSchema.items) {
-					param.items = propSchema.items
-				}
-
-				// Preserve properties for object types
-				if (propSchema.properties) {
-					param.properties = propSchema.properties
-				}
-
-				// Preserve other JSON Schema fields (enum, format, minimum, maximum, etc.)
-				for (const key in propSchema) {
-					if (!["type", "description", "items", "properties"].includes(key)) {
-						param[key] = propSchema[key]
+				parameters = Object.entries(schema.properties as Record<string, any>).map(([name, propSchema]) => {
+					// Preserve the full schema, not just basic fields
+					const param: any = {
+						name,
+						instruction: propSchema.description || "",
+						type: propSchema.type || "string",
+						required: requiredFields.has(name),
 					}
+
+					// Preserve items for array types
+					if (propSchema.items) {
+						param.items = propSchema.items
+					}
+
+					// Preserve properties for object types
+					if (propSchema.properties) {
+						param.properties = propSchema.properties
+					}
+
+					// Preserve other JSON Schema fields (enum, format, minimum, maximum, etc.)
+					for (const key in propSchema) {
+						if (!["type", "description", "items", "properties"].includes(key)) {
+							param[key] = propSchema[key]
+						}
+					}
+
+					return param
+				})
+			}
+
+			const mcpToolName = server.uid + CLINE_MCP_TOOL_IDENTIFIER + mcpTool.name
+
+			// NOTE: When the name is too long, the provider API will reject the tool registration with the following error:
+			// `Invalid 'tools[n].name': string too long. Expected a string with maximum length 64, but got a string with length n instead.`
+			// To avoid this, we skip registering tools with names that are too long.
+			if (mcpToolName?.length <= 64) {
+				return {
+					variant: family,
+					id: ClineDefaultTool.MCP_USE,
+					// We will use the identifier to reconstruct the MCP server and tool name later
+					name: mcpToolName,
+					description: `${server.name}: ${mcpTool.description || mcpTool.name}`,
+					parameters,
 				}
+			}
 
-				return param
-			})
-		}
-
-		return {
-			variant: family,
-			id: ClineDefaultTool.MCP_USE,
-			// We will use the identifier to reconstruct the MCP server and tool name later
-			name: server.uid + CLINE_MCP_TOOL_IDENTIFIER + mcpTool.name,
-			description: `${server.name}: ${mcpTool.description || mcpTool.name}`,
-			parameters,
-		}
-	})
+			return undefined
+		})
+		.filter((t) => t !== undefined)
 }

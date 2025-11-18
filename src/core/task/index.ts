@@ -973,11 +973,11 @@ export class Task {
 
 			// Handle cancellation from hook
 			if (taskStartResult.cancel === true) {
-				// UNIFIED: Always save state regardless of cancellation source
+				// Always save state regardless of cancellation source
 				await this.handleHookCancellation("TaskStart", taskStartResult.wasCancelled)
 
-				// abortTask will handle cleanup
-				this.abortTask()
+				// Let Controller handle the cancellation (it will call abortTask)
+				await this.cancelTask()
 				return
 			}
 
@@ -993,6 +993,12 @@ export class Task {
 			}
 		}
 
+		// Defensive check: Verify task wasn't aborted during hook execution before continuing
+		// Must be OUTSIDE the hooksEnabled block to prevent UserPromptSubmit from running
+		if (this.taskState.abort) {
+			return
+		}
+
 		// Run UserPromptSubmit hook for initial task (after TaskStart for UI ordering)
 		const userPromptHookResult = await this.runUserPromptSubmitHook(userContent, "initial_task")
 
@@ -1004,7 +1010,7 @@ export class Task {
 		// Handle hook cancellation
 		if (userPromptHookResult.cancel === true) {
 			await this.handleHookCancellation("UserPromptSubmit", userPromptHookResult.wasCancelled ?? false)
-			this.abortTask()
+			await this.cancelTask()
 			return
 		}
 
@@ -1115,19 +1121,11 @@ export class Task {
 
 			// Handle cancellation from hook
 			if (taskResumeResult.cancel === true) {
-				// If hook was cancelled by user, save state for resume
-				if (taskResumeResult.wasCancelled) {
-					// Set flag to allow Controller.cancelTask() to proceed
-					this.taskState.didFinishAbortingStream = true
-					// Save BOTH clineMessages AND apiConversationHistory so Controller.cancelTask() can find the task
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-					await this.messageStateHandler.overwriteApiConversationHistory(
-						this.messageStateHandler.getApiConversationHistory(),
-					)
-					await this.postStateToWebview()
-				}
+				// UNIFIED: Always save state regardless of cancellation source
+				await this.handleHookCancellation("TaskResume", taskResumeResult.wasCancelled)
 
-				// Return without continuing task - Controller.cancelTask() will handle showing resume button
+				// Let Controller handle the cancellation (it will call abortTask)
+				await this.cancelTask()
 				return
 			}
 
@@ -1139,6 +1137,13 @@ export class Task {
 				})
 			}
 		}
+
+		// Defensive check: Verify task wasn't aborted during hook execution before continuing
+		// Must be OUTSIDE the hooksEnabled block to prevent UserPromptSubmit from running
+		if (this.taskState.abort) {
+			return
+		}
+
 		let responseText: string | undefined
 		let responseImages: string[] | undefined
 		let responseFiles: string[] | undefined
@@ -1267,7 +1272,7 @@ export class Task {
 		// Handle hook cancellation request
 		if (userPromptHookResult.cancel === true) {
 			// The hook already updated its status to "cancelled" internally and saved state
-			this.abortTask()
+			await this.cancelTask()
 			return
 		}
 
@@ -2263,10 +2268,18 @@ export class Task {
 			throw new Error("Cline instance aborted")
 		}
 
-		if (this.taskState.presentAssistantMessageLocked) {
+		// Check if we have a complete tool block before acquiring the lock
+		// This allows tool execution to proceed during streaming without waiting for the lock
+		const currentBlock = this.taskState.assistantMessageContent[this.taskState.currentStreamingContentIndex]
+		const isCompleteToolBlock = currentBlock?.type === "tool_use" && !currentBlock.partial
+
+		// If we're locked and this is NOT a complete tool block, mark pending and return
+		// Complete tool blocks can proceed to acquire the lock and execute
+		if (this.taskState.presentAssistantMessageLocked && !isCompleteToolBlock) {
 			this.taskState.presentAssistantMessageHasPendingUpdates = true
 			return
 		}
+
 		this.taskState.presentAssistantMessageLocked = true
 		this.taskState.presentAssistantMessageHasPendingUpdates = false
 
@@ -2352,7 +2365,7 @@ export class Task {
 		}
 
 		/*
-		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present. 
+		Seeing out of bounds is fine, it means that the next tool call is being built up and ready to add to assistantMessageContent to present.
 		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
 		*/
 		this.taskState.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
@@ -2773,9 +2786,6 @@ export class Task {
 
 			try {
 				for await (const chunk of stream) {
-					if (!chunk) {
-						continue
-					}
 					switch (chunk.type) {
 						case "usage":
 							didReceiveUsageChunk = true
@@ -2816,10 +2826,6 @@ export class Task {
 
 							break
 						case "tool_calls": {
-							if (!chunk.tool_call) {
-								console.log("no tool call in chunk, skipping...", chunk)
-								break
-							}
 							// Accumulate tool use blocks in proper Anthropic format
 							this.toolUseHandler.processToolUseDelta({
 								id: chunk.tool_call.function?.id,
@@ -2850,7 +2856,12 @@ export class Task {
 							assistantMessage += toolBlocks.map((block) => JSON.stringify(block)).join("\n")
 							this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 
-							if (this.taskState.assistantMessageContent.length > prevLength) {
+							// Reset index to the first tool block position so they can be executed during streaming
+							// This ensures presentAssistantMessage processes tool blocks instead of text blocks
+							if (toolBlocks.length > 0) {
+								this.taskState.currentStreamingContentIndex = textBlocks.length
+								this.taskState.userMessageContentReady = false
+							} else if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false
 							}
 							this.presentAssistantMessage()
@@ -2920,7 +2931,13 @@ export class Task {
 
 					this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 
-					if (this.taskState.assistantMessageContent.length > prevLength) {
+					// Reset index to the first tool block position so they can be executed
+					// This fixes the issue where tools remain unexecuted because the index
+					// advanced past them or was out of bounds during streaming
+					if (toolBlocks.length > 0) {
+						this.taskState.currentStreamingContentIndex = textBlocks.length
+						this.taskState.userMessageContentReady = false
+					} else if (this.taskState.assistantMessageContent.length > prevLength) {
 						this.taskState.userMessageContentReady = false
 					}
 					this.presentAssistantMessage()
@@ -3258,7 +3275,7 @@ export class Task {
 								globalWorkflowToggles,
 								this.ulid,
 								this.stateManager.getGlobalSettingsKey("focusChainSettings"),
-								this.useNativeToolCalls
+								this.useNativeToolCalls,
 							)
 
 							if (needsCheck) {

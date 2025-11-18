@@ -55,7 +55,7 @@ export class ToolUseHandler {
 			try {
 				pending.jsonParser?.write(delta.input)
 			} catch {
-				// Expected during streaming
+				// Expected during streaming - JSONParser may not have complete JSON yet
 			}
 		}
 	}
@@ -102,19 +102,24 @@ export class ToolUseHandler {
 
 	getPartialToolUsesAsContent(): ToolUse[] {
 		const results: ToolUse[] = []
+		const pendingToolUses = this.pendingToolUses.values()
 
-		for (const pending of this.pendingToolUses.values()) {
+		for (const pending of pendingToolUses) {
 			if (!pending.name) {
 				continue
 			}
 
+			// Try to get the most up-to-date parsed input
+			// Priority: parsedInput (from JSONParser) > fallback to manual parsing
 			let input: any = {}
 			if (pending.parsedInput != null) {
 				input = pending.parsedInput
 			} else if (pending.input) {
+				// Try full JSON parse first
 				try {
 					input = JSON.parse(pending.input)
 				} catch {
+					// Fall back to extracting partial fields from incomplete JSON
 					input = this.extractPartialJsonFields(pending.input)
 				}
 			}
@@ -134,7 +139,7 @@ export class ToolUseHandler {
 				})
 			} else {
 				const params: Record<string, string> = {}
-				if (typeof input === "object") {
+				if (typeof input === "object" && input !== null) {
 					for (const [key, value] of Object.entries(input)) {
 						params[key] = typeof value === "string" ? value : JSON.stringify(value)
 					}
@@ -148,8 +153,8 @@ export class ToolUseHandler {
 				})
 			}
 		}
-
-		return results
+		// Ensure all returned tool uses are marked as partial
+		return results.map((t) => ({ ...t, partial: true }))
 	}
 
 	reset(): void {
