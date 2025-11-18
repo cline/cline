@@ -1889,6 +1889,15 @@ export class Task {
 				}
 			}
 
+			// Mark the command message as completed in the UI
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const lastCommandIndex = findLastIndex(clineMessages, (m) => m.ask === "command" || m.say === "command")
+			if (lastCommandIndex !== -1) {
+				await this.messageStateHandler.updateClineMessage(lastCommandIndex, {
+					commandCompleted: true,
+				})
+			}
+
 			return true
 		} catch (error) {
 			Logger.error("Error in cancelBackgroundCommand", error)
