@@ -1404,27 +1404,6 @@ export class Task {
 			const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 			if (hooksEnabled && shouldRunTaskCancelHook) {
 				try {
-					const { executeHook } = await import("../hooks/hook-executor")
-
-					const taskCancelResult = await executeHook({
-						hookName: "TaskCancel",
-						hookInput: {
-							taskCancel: {
-								taskMetadata: {
-									taskId: this.taskId,
-									ulid: this.ulid,
-									completionStatus: this.taskState.abandoned ? "abandoned" : "cancelled",
-								},
-							},
-						},
-						isCancellable: false, // TaskCancel is NOT cancellable
-						say: this.say.bind(this),
-						// No setActiveHookExecution or clearActiveHookExecution for non-cancellable hooks
-						messageStateHandler: this.messageStateHandler,
-						taskId: this.taskId,
-						hooksEnabled,
-					})
-
 					// TaskCancel completed successfully
 					// Present resume button after successful TaskCancel hook
 					const lastClineMessage = this.messageStateHandler
@@ -1516,6 +1495,13 @@ export class Task {
 
 		if (transformClineCommand(command) !== command && isSubagent) {
 			command = transformClineCommand(command)
+		}
+
+		// Strip leading `cd` to workspace from command
+		// TODO - feed this back to the model to discourage redundant `cd` usage in subsequent commands. For now we re just stripping it for better UX
+		const workspaceCdPrefix = `cd ${this.cwd} && `
+		if (command.startsWith(workspaceCdPrefix)) {
+			command = command.substring(workspaceCdPrefix.length)
 		}
 
 		const subAgentStartTime = isSubagent ? performance.now() : 0
@@ -3276,6 +3262,7 @@ export class Task {
 								this.ulid,
 								this.stateManager.getGlobalSettingsKey("focusChainSettings"),
 								this.useNativeToolCalls,
+								this.getCurrentProviderInfo(),
 							)
 
 							if (needsCheck) {

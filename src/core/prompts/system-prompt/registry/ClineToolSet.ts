@@ -112,13 +112,13 @@ export class ClineToolSet {
 			case "minimax":
 			case "anthropic":
 				return toolSpecInputSchema
+			case "gemini":
+				return toolSpecFunctionDeclarations
 			case "vertex":
 				if (modelId?.includes("gemini")) {
 					return toolSpecFunctionDeclarations
 				}
 				return toolSpecInputSchema
-			case "gemini":
-				return toolSpecFunctionDeclarations
 			default:
 				// Default to OpenAI Compatible converter
 				return toolSpecFunctionDefinition
@@ -143,10 +143,7 @@ export class ClineToolSet {
 		const mcpTools = mcpServers?.flatMap((server) => mcpToolToClineToolSpec(variant.family, server))
 
 		const enabledTools = [...toolConfigs, ...mcpTools]
-
-		const providerId = context.providerInfo.providerId
-		const modelId = context.providerInfo.model.id
-		const converter = ClineToolSet.getNativeConverter(providerId, modelId)
+		const converter = ClineToolSet.getNativeConverter(context.providerInfo.providerId, context.providerInfo.model.id)
 
 		return enabledTools.map((tool) => converter(tool, context))
 	}
