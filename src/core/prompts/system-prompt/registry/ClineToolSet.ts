@@ -116,10 +116,10 @@ export class ClineToolSet {
 			case "gemini":
 				return toolSpecFunctionDeclarations
 			case "vertex":
-				if (modelId && !modelId.includes("gemini-3")) {
-					return toolSpecInputSchema
+				if (modelId?.includes("gemini")) {
+					return toolSpecFunctionDeclarations
 				}
-				return toolSpecFunctionDeclarations
+				return toolSpecInputSchema
 			default:
 				return toolSpecFunctionDefinition
 		}
