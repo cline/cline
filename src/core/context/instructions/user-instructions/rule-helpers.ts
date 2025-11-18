@@ -1,5 +1,6 @@
 import { ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { ClineRulesToggles } from "@shared/cline-rules"
+import { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
 import fs from "fs/promises"
 import * as path from "path"
@@ -96,6 +97,36 @@ export async function synchronizeRuleToggles(
 		}
 	} catch (error) {
 		console.error(`Failed to synchronize rule toggles for path: ${rulesDirectoryPath}`, error)
+	}
+
+	return updatedToggles
+}
+
+/**
+ * Synchronizes remote rule toggles with current remote config
+ * Removes toggles for rules that no longer exist, adds defaults for new rules
+ */
+export function synchronizeRemoteRuleToggles(
+	remoteRules: GlobalInstructionsFile[],
+	currentToggles: ClineRulesToggles,
+): ClineRulesToggles {
+	const updatedToggles: ClineRulesToggles = {}
+
+	// Create set of current remote rule names
+	const existingRuleNames = new Set(remoteRules.map((rule) => rule.name))
+
+	// Keep toggles only for rules that still exist
+	for (const [ruleName, enabled] of Object.entries(currentToggles)) {
+		if (existingRuleNames.has(ruleName)) {
+			updatedToggles[ruleName] = enabled
+		}
+	}
+
+	// Add default toggles for new rules (default to enabled)
+	for (const rule of remoteRules) {
+		if (!(rule.name in updatedToggles)) {
+			updatedToggles[rule.name] = true
+		}
 	}
 
 	return updatedToggles
@@ -268,6 +299,10 @@ export async function deleteRuleFile(
 				const toggles = controller.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
 				delete toggles[rulePath]
 				controller.stateManager.setWorkspaceState("localWindsurfRulesToggles", toggles)
+			} else if (type === "agents") {
+				const toggles = controller.stateManager.getWorkspaceStateKey("localAgentsRulesToggles")
+				delete toggles[rulePath]
+				controller.stateManager.setWorkspaceState("localAgentsRulesToggles", toggles)
 			} else {
 				const toggles = controller.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 				delete toggles[rulePath]

@@ -1,8 +1,8 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { ModelInfo, OpenAiNativeModelId, openAiNativeDefaultModelId, openAiNativeModels } from "@shared/api"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import type { ChatCompletionReasoningEffort, ChatCompletionTool } from "openai/resources/chat/completions"
+import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -59,11 +59,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 	}
 
 	@withRetry()
-	async *createMessage(
-		systemPrompt: string,
-		messages: Anthropic.Messages.MessageParam[],
-		tools?: ChatCompletionTool[],
-	): ApiStream {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ChatCompletionTool[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
 		const toolCallProcessor = new ToolCallProcessor()
@@ -115,6 +111,9 @@ export class OpenAiNativeHandler implements ApiHandler {
 			case "gpt-5-2025-08-07":
 			case "gpt-5-mini-2025-08-07":
 			case "gpt-5-nano-2025-08-07":
+			case "gpt-5.1-2025-11-13":
+			case "gpt-5.1-chat-latest":
+			case "gpt-5.1": {
 				const stream = await client.chat.completions.create({
 					model: model.id,
 					temperature: 1,
@@ -148,6 +147,7 @@ export class OpenAiNativeHandler implements ApiHandler {
 					}
 				}
 				break
+			}
 			default: {
 				const stream = await client.chat.completions.create({
 					model: model.id,

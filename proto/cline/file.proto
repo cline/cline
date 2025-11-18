@@ -49,6 +49,9 @@ service FileService {
   // Toggle a Windsurf rule (enable or disable)
   rpc toggleWindsurfRule(ToggleWindsurfRuleRequest) returns (ClineRulesToggles);
 
+  // Toggle an Agents rule (enable or disable)
+  rpc toggleAgentsRule(ToggleAgentsRuleRequest) returns (ClineRulesToggles);
+
   // Refreshes all rule toggles (Cline, External, and Workflows)
   rpc refreshRules(EmptyRequest) returns (RefreshedRules);
 
@@ -74,12 +77,20 @@ message RefreshedRules {
   ClineRulesToggles local_cline_rules_toggles = 2;
   ClineRulesToggles local_cursor_rules_toggles = 3;
   ClineRulesToggles local_windsurf_rules_toggles = 4;
-  ClineRulesToggles local_workflow_toggles = 5;
-  ClineRulesToggles global_workflow_toggles = 6;
+  ClineRulesToggles local_agents_rules_toggles = 5;
+  ClineRulesToggles local_workflow_toggles = 6;
+  ClineRulesToggles global_workflow_toggles = 7;
 }
 
 // Request to toggle a Windsurf rule
 message ToggleWindsurfRuleRequest {
+  Metadata metadata = 1;
+  string rule_path = 2; // Path to the rule file
+  bool enabled = 3; // Whether to enable or disable the rule
+}
+
+// Request to toggle an Agents rule
+message ToggleAgentsRuleRequest {
   Metadata metadata = 1;
   string rule_path = 2; // Path to the rule file
   bool enabled = 3; // Whether to enable or disable the rule
@@ -156,10 +167,17 @@ message RuleFile {
   bool already_exists = 3; // For createRuleFile, indicates if file already existed
 }
 
+// Enum for rule scope (local, global, or remote)
+enum RuleScope {
+  LOCAL = 0;
+  GLOBAL = 1;
+  REMOTE = 2;
+}
+
 // Request to toggle a Cline rule
 message ToggleClineRuleRequest {
   Metadata metadata = 1;
-  bool is_global = 2; // Whether this is a global rule or workspace rule
+  RuleScope scope = 2; // Scope of the rule (local, global, or remote)
   string rule_path = 3; // Path to the rule file
   bool enabled = 4; // Whether to enable or disable the rule
 }
@@ -173,6 +191,7 @@ message ClineRulesToggles {
 message ToggleClineRules {
   ClineRulesToggles global_cline_rules_toggles = 1;
   ClineRulesToggles local_cline_rules_toggles = 2;
+  ClineRulesToggles remote_rules_toggles = 3;
 }
 
 // Request to toggle a Cursor rule
@@ -187,5 +206,5 @@ message ToggleWorkflowRequest {
   Metadata metadata = 1;
   string workflow_path = 2;
   bool enabled = 3;
-  bool is_global = 4;
+  RuleScope scope = 4; // Scope of the workflow (local, global, or remote)
 }

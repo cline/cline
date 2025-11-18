@@ -77,24 +77,25 @@ const NATIVE_NEXT_GEN: ClineToolSpec = {
 	id,
 	name: "attempt_completion",
 	description:
-		"Once you've completed the user's task, use this tool to present the final result to the user, including a summary of the task and what was done to resolve it.",
+		"Once you've completed the user's task, use this tool to present the final result to the user, including a brief and very short (1-2 paragraph) summary of the task and what was done to resolve it. Provide the basics, hitting the highlights, but do delve into the specifics. You should only call this tool when you have completed all tasks in the task_progress list, and completed all changes that are necessary to satisfy the user's request. You should not provide the contents of the task_progress list in the result parameter, it must be included in the task_progress parameter.",
 	parameters: [
 		{
 			name: "result",
 			required: true,
-			instruction: "A clear, specific description of the final result of the task.",
+			instruction: "A clear, brief and very short (1-2 paragraph) summary of the final result of the task.",
 		},
 		{
 			name: "command",
 			required: false,
 			instruction:
-				"An actionable terminal command that is non-verbose that allows user to review the result of your work. For example, use \`open index.html\` to display a created html website, or \`open localhost:3000\` to display a locally running development server. Commands like \`echo\` or \`cat\` that merely print text are not allowed. Ensure the command is properly formatted for user's OS and does not contain any harmful instructions",
+				"An actionable terminal command that is non-verbose that allows user to review the result of your work. For example, use \`start localhost:3000\` to start a locally running development server. Commands like \`echo\` or \`cat\` that merely print text or open a file are not allowed. Ensure the command is properly formatted for user's OS and does not contain any harmful instructions",
 		},
 		{
 			name: "task_progress",
 			required: false,
 			dependencies: [ClineDefaultTool.TODO],
-			instruction: "A checklist showing task progress with the latest status of each subtasks included previously if any.",
+			instruction:
+				"A checklist showing task progress with the latest status of each subtasks included previously, if any. If you are calling attempt completion, and all items in this list have been completed, they must be marked as completed in this response.",
 		},
 	],
 }
