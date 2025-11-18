@@ -73,9 +73,9 @@ function removeUnknownParams(param: ClineStorageMessage): Anthropic.Messages.Mes
 function sanitizeAnthropicContentBlock(block: ClineContent): Anthropic.ContentBlock {
 	// Fast path: if no reasoning_details property exists, return as-is
 	// Including reasoning_details in non-openrouter/cline providers may cause API errors
-	if ("reasoning_details" in block || "call_id" in block || "summary" in block || "signature" in block) {
+	if ("reasoning_details" in block || "call_id" in block || "summary" in block) {
 		// biome-ignore lint/correctness/noUnusedVariables: intentional destructuring to remove properties
-		const { reasoning_details, call_id, summary, signature, ...cleanBlock } = block as any
+		const { reasoning_details, call_id, summary, ...cleanBlock } = block as any
 		return cleanBlock as Anthropic.ContentBlock
 	}
 
