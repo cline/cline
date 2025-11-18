@@ -94,6 +94,7 @@ export class VertexHandler implements ApiHandler {
 		switch (modelId) {
 			case "claude-haiku-4-5@20251001":
 			case "claude-sonnet-4-5@20250929":
+			case "claude-sonnet-4-5@20250929[1m]":
 			case "claude-sonnet-4@20250514":
 			case "claude-opus-4-1@20250805":
 			case "claude-opus-4@20250514":
