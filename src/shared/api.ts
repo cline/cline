@@ -1191,7 +1191,8 @@ export const geminiModels = {
 		cacheReadsPrice: 0.4,
 		thinkingConfig: {
 			maxBudget: 32767,
-			// If you don't specify a thinking level, Gemini will use the model's default dynamic thinking level, "high", for Gemini 3 Pro Preview.
+			// If you don't specify a thinking level, Gemini will use the model's default
+			// dynamic thinking level, "high", for Gemini 3 Pro Preview.
 			thinkingLevel: "high",
 		},
 		tiers: [

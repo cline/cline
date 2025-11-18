@@ -155,7 +155,7 @@ const TaskTimeline: React.FC<TaskTimelineProps> = ({ messages, onBlockClick }) =
 	}
 
 	return (
-		<div className="relative w-full h-full mb-1" ref={containerRef}>
+		<div className="relative w-full mb-1" ref={containerRef}>
 			<style>
 				{`
 					/* Hide scrollbar for Chrome, Safari and Opera */
