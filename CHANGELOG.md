@@ -1,5 +1,10 @@
 # Changelog
 
+## [3.38.1]
+
+### Fixed
+- Fixed handling of 'signature' field in sanitizeAnthropicContentBlock to properly preserve it when thinking is enabled, as required by Anthropic's API.
+
 ## [3.38.0]
 
 ### Added
