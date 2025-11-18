@@ -105,7 +105,7 @@ export function isHermesModelFamily(id: string): boolean {
 
 export function isGemini3ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
-	return modelId.includes("gemini3") || modelId.includes("gemini-3") || modelId.includes("gemini-3.0")
+	return modelId.includes("gemini3") || modelId.includes("gemini-3")
 }
 
 export function isNextGenModelFamily(id: string): boolean {
