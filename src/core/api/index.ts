@@ -47,16 +47,7 @@ import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 export type CommonApiHandlerOptions = {
 	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]
 }
-
-export interface ApiRequestArgs {
-	systemPrompt: string
-	messages: ClineStorageMessage[]
-	tools?: ClineTool[]
-	useResponseApi?: boolean
-}
-
 export interface ApiHandler {
-	// createMessage(args: ApiRequestArgs): ApiStream
 	createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[], useResponseApi?: boolean): ApiStream
 	getModel(): ApiHandlerModel
 	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>

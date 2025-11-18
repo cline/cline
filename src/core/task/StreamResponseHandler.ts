@@ -14,6 +14,7 @@ export interface PendingToolUse {
 	name: string
 	input: string
 	parsedInput?: unknown
+	signature?: string
 	jsonParser?: JSONParser
 	call_id?: string
 }
@@ -23,6 +24,7 @@ interface ToolUseDeltaBlock {
 	type?: string
 	name?: string
 	input?: string
+	signature?: string
 }
 
 export interface ReasoningDelta {
@@ -100,12 +102,17 @@ class ToolUseHandler {
 		if (delta.name) {
 			pending.name = delta.name
 		}
+
+		if (delta.signature) {
+			pending.signature = delta.signature
+		}
+
 		if (delta.input) {
 			pending.input += delta.input
 			try {
 				pending.jsonParser?.write(delta.input)
 			} catch {
-				// Expected during streaming
+				// Expected during streaming - JSONParser may not have complete JSON yet
 			}
 		}
 	}
@@ -132,7 +139,7 @@ class ToolUseHandler {
 			id: pending.id,
 			name: pending.name,
 			input,
-			call_id: pending.call_id,
+			signature: pending.signature,
 		}
 	}
 
@@ -153,19 +160,24 @@ class ToolUseHandler {
 
 	getPartialToolUsesAsContent(): ToolUse[] {
 		const results: ToolUse[] = []
+		const pendingToolUses = this.pendingToolUses.values()
 
-		for (const pending of this.pendingToolUses.values()) {
+		for (const pending of pendingToolUses) {
 			if (!pending.name) {
 				continue
 			}
 
+			// Try to get the most up-to-date parsed input
+			// Priority: parsedInput (from JSONParser) > fallback to manual parsing
 			let input: any = {}
 			if (pending.parsedInput != null) {
 				input = pending.parsedInput
 			} else if (pending.input) {
+				// Try full JSON parse first
 				try {
 					input = JSON.parse(pending.input)
 				} catch {
+					// Fall back to extracting partial fields from incomplete JSON
 					input = this.extractPartialJsonFields(pending.input)
 				}
 			}
@@ -182,11 +194,11 @@ class ToolUseHandler {
 					},
 					partial: true,
 					isNativeToolCall: true,
-					call_id: pending.call_id,
+					signature: pending.signature,
 				})
 			} else {
 				const params: Record<string, string> = {}
-				if (typeof input === "object") {
+				if (typeof input === "object" && input !== null) {
 					for (const [key, value] of Object.entries(input)) {
 						params[key] = typeof value === "string" ? value : JSON.stringify(value)
 					}
@@ -196,13 +208,13 @@ class ToolUseHandler {
 					name: pending.name as ClineDefaultTool,
 					params: params as any,
 					partial: true,
+					signature: pending.signature,
 					isNativeToolCall: true,
-					call_id: pending.call_id,
 				})
 			}
 		}
-
-		return results
+		// Ensure all returned tool uses are marked as partial
+		return results.map((t) => ({ ...t, partial: true }))
 	}
 
 	reset(): void {
@@ -218,6 +230,7 @@ class ToolUseHandler {
 			parsedInput: undefined,
 			jsonParser,
 			call_id,
+			signature: undefined,
 		}
 
 		jsonParser.onValue = (info: any) => {

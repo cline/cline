@@ -60,6 +60,10 @@ export interface ToolUse {
 	 * The call / response ID this tool use is associated with.
 	 */
 	call_id?: string // optional call ID for tracking tool use calls
+	/**
+	 * Thought signature associated with this tool use, used by Gemini
+	 */
+	signature?: string
 }
 
 export interface ReasoningStreamContent {
