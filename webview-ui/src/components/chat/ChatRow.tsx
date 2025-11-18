@@ -886,7 +886,9 @@ export const ChatRowContent = memo(
 								{tool.operationIsLocatedInWorkspace === false &&
 									toolIcon("sign-out", "yellow", -90, "This search is external")}
 								<span style={{ fontWeight: "bold" }}>
-									{message.type === "ask" ? "Cline wants to search the web:" : "Cline searched the web:"}
+									{message.type === "ask"
+										? "Cline wants to search the web for:"
+										: "Cline searched the web for:"}
 								</span>
 							</div>
 							<div
