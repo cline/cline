@@ -124,7 +124,7 @@ export class GeminiHandler implements ApiHandler {
 			? info.thinkingConfig?.thinkingLevel === "low"
 				? ThinkingLevel.LOW
 				: ThinkingLevel.HIGH
-			: ThinkingLevel.THINKING_LEVEL_UNSPECIFIED
+			: undefined
 
 		// Set up base generation config
 		const requestConfig: GenerateContentConfig = {
@@ -136,15 +136,15 @@ export class GeminiHandler implements ApiHandler {
 		}
 
 		// Add thinking config if the model supports it
-
 		requestConfig.thinkingConfig = {
-			thinkingBudget,
-			thinkingLevel,
-			includeThoughts: thinkingBudget > 0,
 			// Turn off thinking:
 			// thinkingBudget: 0
 			// Turn on dynamic thinking:
 			// thinkingBudget: -1
+			// Turn on fixed thinking budget:
+			thinkingBudget,
+			thinkingLevel,
+			includeThoughts: thinkingBudget > 0,
 		}
 
 		// Generate content using the configured parameters
@@ -208,7 +208,7 @@ export class GeminiHandler implements ApiHandler {
 					}
 					if (part.functionCall) {
 						const functionCall = part.functionCall
-						const args = Object.entries(functionCall.args || {}).filter(([_key, val]) => val !== undefined)
+						const args = Object.entries(functionCall.args || {}).filter(([_key, val]) => !!val)
 						if (functionCall.args && args.length > 0) {
 							yield {
 								type: "tool_calls",
