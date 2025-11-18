@@ -122,7 +122,10 @@ export class GeminiHandler implements ApiHandler {
 		// Set up base generation config
 		const requestConfig: GenerateContentConfig = {
 			// Add base URL if configured
-			httpOptions: this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined,
+			httpOptions: {
+				...(this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : {}),
+				headers: { referer: "https://textfx.withgoogle.com/" },
+			},
 			...{ systemInstruction: systemPrompt },
 			// Set temperature (default to 0)
 			temperature: 0,
