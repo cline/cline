@@ -125,7 +125,8 @@ export class GeminiHandler implements ApiHandler {
 			httpOptions: this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined,
 			...{ systemInstruction: systemPrompt },
 			// Set temperature (default to 0)
-			temperature: 0,
+			// Gemini 3.0 recommends 1.0
+			temperature: info.temperature ?? 1,
 		}
 
 		// Add thinking config if the model supports it
