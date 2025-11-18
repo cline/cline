@@ -8,8 +8,6 @@
 
 ### Fixed
 - Automatic context truncation when AWS Bedrock token usage rate limits are exceeded
-- SAP AI SDK JS packages upgraded to latest major version
-- SAP provider OrchestrationClient now matches OrchestrationModuleConfig type and no longer uses invalid promptTemplating property
 - Removed new_task tool from system prompts, updated slash command prompts, and added helper function for native tool calling validation
 
 
