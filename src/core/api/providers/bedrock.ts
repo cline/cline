@@ -681,9 +681,23 @@ export class AwsBedrockHandler implements ApiHandler {
 			}
 		} catch (error) {
 			console.error("Error processing Converse API response:", error)
+
+			// Check if this is a context window error and re-throw it for retry handling
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			const errorName = (error as any)?.name || ""
+			const isContextError =
+				errorName === "ValidationException" &&
+				/input.*too long|context.*exceed|maximum.*token|input length.*max.*tokens/i.test(errorMessage)
+
+			if (isContextError) {
+				// Re-throw so context management can handle it
+				throw error
+			}
+
+			// Otherwise yield as error text
 			yield {
 				type: "text",
-				text: `[ERROR] Failed to process response: ${error instanceof Error ? error.message : String(error)}`,
+				text: `[ERROR] Failed to process response: ${errorMessage}`,
 			}
 		}
 	}
@@ -703,9 +717,20 @@ export class AwsBedrockHandler implements ApiHandler {
 				text: `[ERROR] Model stream error: ${chunk.modelStreamErrorException.message}`,
 			}
 		} else if (chunk.validationException) {
+			// Check if this is a context window error - if so, throw it
+			// so the retry mechanism can handle truncation
+			const message = chunk.validationException.message || ""
+			const isContextError = /input.*too long|context.*exceed|maximum.*token|input length.*max.*tokens/i.test(message)
+
+			if (isContextError) {
+				// Throw as exception so context management can handle it
+				throw chunk.validationException
+			}
+
+			// Otherwise yield as error text
 			yield {
 				type: "text",
-				text: `[ERROR] Validation error: ${chunk.validationException.message}`,
+				text: `[ERROR] Validation error: ${message}`,
 			}
 		} else if (chunk.throttlingException) {
 			yield {
