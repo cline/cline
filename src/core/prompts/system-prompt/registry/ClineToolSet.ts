@@ -107,14 +107,18 @@ export class ClineToolSet {
 	/**
 	 * Get the appropriate native tool converter for the given provider
 	 */
-	public static getNativeConverter(providerId: string) {
+	public static getNativeConverter(providerId: string, modelId?: string) {
 		switch (providerId) {
 			case "minimax":
 				return toolSpecInputSchema
 			case "anthropic":
 				return toolSpecInputSchema
 			case "gemini":
+				return toolSpecFunctionDeclarations
 			case "vertex":
+				if (modelId && !modelId.includes("gemini-3")) {
+					return toolSpecInputSchema
+				}
 				return toolSpecFunctionDeclarations
 			default:
 				return toolSpecFunctionDefinition
@@ -139,7 +143,7 @@ export class ClineToolSet {
 		const mcpTools = mcpServers?.flatMap((server) => mcpToolToClineToolSpec(variant.family, server))
 
 		const enabledTools = [...toolConfigs, ...mcpTools]
-		const converter = ClineToolSet.getNativeConverter(context.providerInfo.providerId)
+		const converter = ClineToolSet.getNativeConverter(context.providerInfo.providerId, context.providerInfo.model.id)
 
 		return enabledTools.map((tool) => converter(tool, context))
 	}
