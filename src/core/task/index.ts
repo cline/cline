@@ -226,6 +226,7 @@ export class Task {
 			terminate?: () => void
 		}
 		command: string
+		outputLines: string[]
 	}
 
 	// Metadata tracking
@@ -1565,7 +1566,7 @@ export class Task {
 		this.controller.updateBackgroundCommandState(true, this.taskId)
 
 		if (this.terminalExecutionMode === "backgroundExec") {
-			this.activeBackgroundCommand = { process: process as any, command }
+			this.activeBackgroundCommand = { process: process as any, command, outputLines: [] }
 		}
 
 		const clearCommandState = async () => {
@@ -1688,6 +1689,11 @@ export class Task {
 				return
 			}
 			outputLines.push(line)
+
+			// Track output in activeBackgroundCommand for cancellation
+			if (this.terminalExecutionMode === "backgroundExec" && this.activeBackgroundCommand) {
+				this.activeBackgroundCommand.outputLines.push(line)
+			}
 
 			// Apply buffered streaming for both vscodeTerminal and backgroundExec modes
 			if (!didContinue) {
@@ -1865,7 +1871,7 @@ export class Task {
 			return false
 		}
 
-		const { process, command } = this.activeBackgroundCommand
+		const { process, command, outputLines } = this.activeBackgroundCommand
 		this.activeBackgroundCommand = undefined
 		this.controller.updateBackgroundCommandState(false, this.taskId)
 
@@ -1898,9 +1904,16 @@ export class Task {
 				})
 			}
 
+			// Process the captured output to include in the cancellation message
+			const processedOutput = this.terminalManager.processOutput(outputLines, undefined, false)
+
 			// Add cancellation information to the API conversation history
 			// This ensures the agent knows the command was cancelled in the next request
-			const cancellationMessage = `Command "${command}" was cancelled by the user.`
+			let cancellationMessage = `Command "${command}" was cancelled by the user.`
+			if (processedOutput.length > 0) {
+				cancellationMessage += `\n\nOutput captured before cancellation:\n${processedOutput}`
+			}
+
 			this.taskState.userMessageContent.push({
 				type: "text",
 				text: cancellationMessage,
