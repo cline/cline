@@ -153,8 +153,8 @@ export class ToolUseHandler {
 				})
 			}
 		}
-
-		return results
+		// Ensure all returned tool uses are marked as partial
+		return results.map((t) => ({ ...t, partial: true }))
 	}
 
 	reset(): void {

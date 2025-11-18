@@ -2263,12 +2263,18 @@ export class Task {
 			throw new Error("Cline instance aborted")
 		}
 
-		// If we're locked, mark that we have pending updates and return
-		// The currently executing presentAssistantMessage will pick up these changes
-		if (this.taskState.presentAssistantMessageLocked) {
+		// Check if we have a complete tool block before acquiring the lock
+		// This allows tool execution to proceed during streaming without waiting for the lock
+		const currentBlock = this.taskState.assistantMessageContent[this.taskState.currentStreamingContentIndex]
+		const isCompleteToolBlock = currentBlock?.type === "tool_use" && !currentBlock.partial
+
+		// If we're locked and this is NOT a complete tool block, mark pending and return
+		// Complete tool blocks can proceed to acquire the lock and execute
+		if (this.taskState.presentAssistantMessageLocked && !isCompleteToolBlock) {
 			this.taskState.presentAssistantMessageHasPendingUpdates = true
 			return
 		}
+
 		this.taskState.presentAssistantMessageLocked = true
 		this.taskState.presentAssistantMessageHasPendingUpdates = false
 
@@ -2815,10 +2821,6 @@ export class Task {
 
 							break
 						case "tool_calls": {
-							if (!chunk.tool_call) {
-								Logger.debug("no tool call in chunk, skipping..." + JSON.stringify(chunk))
-								continue
-							}
 							// Accumulate tool use blocks in proper Anthropic format
 							this.toolUseHandler.processToolUseDelta({
 								id: chunk.tool_call.function?.id,
@@ -2853,14 +2855,8 @@ export class Task {
 							// This ensures presentAssistantMessage processes tool blocks instead of text blocks
 							if (toolBlocks.length > 0) {
 								this.taskState.currentStreamingContentIndex = textBlocks.length
-							}
-
-							// If we added new content blocks OR we're streaming arguments for existing tool use
-							// Reset userMessageContentReady to ensure UI updates continue
-							if (
-								this.taskState.assistantMessageContent.length > prevLength ||
-								chunk.tool_call.function?.arguments
-							) {
+								this.taskState.userMessageContentReady = false
+							} else if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false
 							}
 							this.presentAssistantMessage()
