@@ -2775,14 +2775,18 @@ export class Task {
 			this.taskState.toolUseIdMap.clear()
 
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
+
 			let assistantMessage = "" // For UI display (includes XML)
 			let assistantTextOnly = "" // For API history (text only, no tool XML)
+			let assistantTextSignature: string | undefined
+
 			let reasoningMessage = ""
+			let reasoningSignature = ""
 			const reasoningDetails = []
 			const redactedThinkingContent: ClineAssistantRedactedThinkingBlock[] = []
+
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
-			let reasoningSignature = ""
 
 			try {
 				for await (const chunk of stream) {
@@ -2832,6 +2836,7 @@ export class Task {
 								type: "tool_use",
 								name: chunk.tool_call.function?.name,
 								input: chunk.tool_call.function?.arguments,
+								signature: chunk?.signature,
 							})
 
 							// Extract and store tool_use_id for creating proper ToolResultBlockParam
@@ -2871,6 +2876,9 @@ export class Task {
 							if (reasoningMessage && assistantMessage.length === 0) {
 								// complete reasoning message
 								await this.say("reasoning", reasoningMessage, undefined, undefined, false)
+							}
+							if (chunk.signature) {
+								assistantTextSignature = chunk.signature
 							}
 							assistantMessage += chunk.text
 							assistantTextOnly += chunk.text // Accumulate text separately
@@ -3085,7 +3093,7 @@ export class Task {
 					...redactedThinkingContent,
 				]
 				// Append redacted reasoning block if signature exists
-				if (reasoningSignature) {
+				if (reasoningSignature || reasoningMessage) {
 					assistantContent.push({
 						type: "thinking",
 						thinking: reasoningMessage,
@@ -3099,6 +3107,7 @@ export class Task {
 						text: assistantTextOnly,
 						// reasoning_details only exists for cline/openrouter providers
 						reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
+						signature: assistantTextSignature,
 					})
 				}
 

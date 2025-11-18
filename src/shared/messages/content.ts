@@ -17,28 +17,44 @@ export interface ClineReasoningDetailParam {
 	index: number
 }
 
+interface ClineSharedMessageParam {
+	// The id of the response that the block belongs to
+	call_id?: string
+}
+
+export const REASONING_DETAILS_PROVIDERS = ["cline", "openrouter"]
+
 /**
  * An extension of Anthropic.MessageParam that includes Cline-specific fields: reasoning_details.
  * This ensures backward compatibility where the messages were stored in Anthropic format with addtional
  * fields unknown to Anthropic SDK.
  */
-export interface ClineTextContentBlock extends Anthropic.Messages.TextBlockParam {
-	// reasoning_details only exists for cline/openrouter providers
+export interface ClineTextContentBlock extends Anthropic.TextBlockParam {
+	// reasoning_details only exists for providers listed in REASONING_DETAILS_PROVIDERS
 	reasoning_details?: ClineReasoningDetailParam[]
+	// Thought Signature associates with Gemini
+	signature?: string
 }
 
-export interface ClineImageContentBlock extends Anthropic.ImageBlockParam {}
+export interface ClineImageContentBlock extends Anthropic.ImageBlockParam, ClineSharedMessageParam {}
 
-export interface ClineDocumentContentBlock extends Anthropic.DocumentBlockParam {}
+export interface ClineDocumentContentBlock extends Anthropic.DocumentBlockParam, ClineSharedMessageParam {}
 
-export interface ClineUserToolResultContentBlock extends Anthropic.ToolResultBlockParam {}
+export interface ClineUserToolResultContentBlock extends Anthropic.ToolResultBlockParam, ClineSharedMessageParam {}
 
-// Assistant only content types
-export interface ClineAssistantToolUseBlock extends Anthropic.ToolUseBlockParam {}
+/**
+ * Assistant only content types
+ */
+export interface ClineAssistantToolUseBlock extends Anthropic.ToolUseBlockParam, ClineSharedMessageParam {
+	// Thought Signature associates with Gemini
+	signature?: string
+}
 
-export interface ClineAssistantThinkingBlock extends Anthropic.Messages.ThinkingBlock {}
+export interface ClineAssistantThinkingBlock extends Anthropic.ThinkingBlock, ClineSharedMessageParam {
+	summary?: unknown[]
+}
 
-export interface ClineAssistantRedactedThinkingBlock extends Anthropic.Messages.RedactedThinkingBlockParam {}
+export interface ClineAssistantRedactedThinkingBlock extends Anthropic.RedactedThinkingBlockParam, ClineSharedMessageParam {}
 
 export type ClineToolResponseContent = ClinePromptInputContent | Array<ClineTextContentBlock | ClineImageContentBlock>
 
@@ -65,7 +81,16 @@ export type ClineContent = ClineUserContent | ClineAssistantContent
  * added by ignoring the type checking for those fields.
  */
 export interface ClineStorageMessage extends Anthropic.MessageParam {
+	/**
+	 * Response ID associated with this message
+	 */
+	id?: string
 	role: ClineMessageRole
 	content: ClinePromptInputContent | ClineContent[]
+	/**
+	 * NOTE: model information used when generating this message.
+	 * Internal use for message conversion only.
+	 * MUST be removed before sending message to any LLM provider.
+	 */
 	modelInfo?: ClineMessageModelInfo
 }

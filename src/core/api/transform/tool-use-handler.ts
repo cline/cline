@@ -10,6 +10,7 @@ export interface PendingToolUse {
 	name: string
 	input: string
 	parsedInput?: unknown
+	signature?: string
 	jsonParser?: JSONParser
 	call_id?: string
 }
@@ -19,6 +20,7 @@ interface ToolUseDeltaBlock {
 	type?: string
 	name?: string
 	input?: string
+	signature?: string
 }
 
 const ESCAPE_MAP: Record<string, string> = {
@@ -50,6 +52,11 @@ export class ToolUseHandler {
 		if (delta.name) {
 			pending.name = delta.name
 		}
+
+		if (delta.signature) {
+			pending.signature = delta.signature
+		}
+
 		if (delta.input) {
 			pending.input += delta.input
 			try {
@@ -82,6 +89,7 @@ export class ToolUseHandler {
 			id: pending.id,
 			name: pending.name,
 			input,
+			signature: pending.signature,
 		}
 	}
 
@@ -136,6 +144,7 @@ export class ToolUseHandler {
 					},
 					partial: true,
 					isNativeToolCall: true,
+					signature: pending.signature,
 				})
 			} else {
 				const params: Record<string, string> = {}
@@ -149,6 +158,7 @@ export class ToolUseHandler {
 					name: pending.name as ClineDefaultTool,
 					params: params as any,
 					partial: true,
+					signature: pending.signature,
 					isNativeToolCall: true,
 				})
 			}
@@ -170,6 +180,7 @@ export class ToolUseHandler {
 			parsedInput: undefined,
 			jsonParser,
 			call_id,
+			signature: undefined,
 		}
 
 		jsonParser.onValue = (info: any) => {

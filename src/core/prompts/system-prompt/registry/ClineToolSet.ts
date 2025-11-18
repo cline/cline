@@ -107,15 +107,20 @@ export class ClineToolSet {
 	/**
 	 * Get the appropriate native tool converter for the given provider
 	 */
-	public static getNativeConverter(providerId: string) {
+	public static getNativeConverter(providerId: string, modelId?: string) {
 		switch (providerId) {
 			case "minimax":
-				return toolSpecInputSchema
 			case "anthropic":
+				return toolSpecInputSchema
+			case "vertex":
+				if (modelId?.includes("gemini")) {
+					return toolSpecFunctionDeclarations
+				}
 				return toolSpecInputSchema
 			case "gemini":
 				return toolSpecFunctionDeclarations
 			default:
+				// Default to OpenAI Compatible converter
 				return toolSpecFunctionDefinition
 		}
 	}
@@ -138,7 +143,10 @@ export class ClineToolSet {
 		const mcpTools = mcpServers?.flatMap((server) => mcpToolToClineToolSpec(variant.family, server))
 
 		const enabledTools = [...toolConfigs, ...mcpTools]
-		const converter = ClineToolSet.getNativeConverter(context.providerInfo.providerId)
+
+		const providerId = context.providerInfo.providerId
+		const modelId = context.providerInfo.model.id
+		const converter = ClineToolSet.getNativeConverter(providerId, modelId)
 
 		return enabledTools.map((tool) => converter(tool, context))
 	}
