@@ -125,7 +125,6 @@ export class BasetenHandler implements ApiHandler {
 		let didOutputUsage = false
 
 		for await (const chunk of stream) {
-			console.log("Baseten chunk:", chunk)
 			const delta = chunk?.choices?.[0]?.delta
 
 			// Handle reasoning field if present (for reasoning models with parsed output)
