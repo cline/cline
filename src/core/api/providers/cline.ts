@@ -7,6 +7,7 @@ import { ClineEnv } from "@/config"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
+import { Logger } from "@/services/logging/Logger"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
@@ -149,17 +150,17 @@ export class ClineHandler implements ApiHandler {
 				}
 
 				const delta = choice?.delta
+				Logger.debug("Cline chunk delta:" + JSON.stringify(delta))
+
 				if (delta?.content) {
 					yield {
 						type: "text",
 						text: delta.content,
 					}
-					continue
 				}
 
 				if (delta?.tool_calls) {
 					yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
-					continue
 				}
 
 				// Reasoning tokens are returned separately from the content
@@ -169,7 +170,6 @@ export class ClineHandler implements ApiHandler {
 						type: "reasoning",
 						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
 					}
-					continue
 				}
 
 				/* 
@@ -183,7 +183,7 @@ export class ClineHandler implements ApiHandler {
 					"reasoning_details" in delta &&
 					delta.reasoning_details &&
 					// @ts-ignore-next-line
-					delta.reasoning_details.length && // exists and non-0
+					delta?.reasoning_details?.length && // exists and non-0
 					!shouldSkipReasoningForModel(this.options.openRouterModelId)
 				) {
 					yield {
@@ -191,7 +191,6 @@ export class ClineHandler implements ApiHandler {
 						reasoning: "",
 						details: delta.reasoning_details,
 					}
-					continue
 				}
 
 				if (!didOutputUsage && chunk.usage) {
