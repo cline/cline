@@ -97,6 +97,10 @@ export class FeatureFlagsService {
 		return this.getBooleanFlagEnabled(FeatureFlag.NATIVE_TOOL_CALLS_NEXT_GEN_MODELS)
 	}
 
+	public isResponseApiEnabled(): boolean {
+		return this.getBooleanFlagEnabled(FeatureFlag.OPENAI_NATIVE_RESPONSE_API)
+	}
+
 	public getOnboardingOverrides() {
 		const payload = this.cache.get(FeatureFlag.ONBOARDING_MODELS)
 		// Check if payload is object

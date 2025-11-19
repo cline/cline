@@ -94,3 +94,39 @@ export interface ClineStorageMessage extends Anthropic.MessageParam {
 	 */
 	modelInfo?: ClineMessageModelInfo
 }
+
+/**
+ * Converts ClineStorageMessage to Anthropic.MessageParam by removing Cline-specific fields
+ * Cline-specific fields (like modelInfo, reasoning_details) are properly omitted.
+ */
+export function convertClineStorageToAnthropicMessage(
+	clineMessage: ClineStorageMessage,
+	provider = "anthropic",
+): Anthropic.MessageParam {
+	const { role, content } = clineMessage
+
+	// Handle string content - fast path
+	if (typeof content === "string") {
+		return { role, content }
+	}
+
+	// Handle array content - strip Cline-specific fields for non-reasoning_details providers
+	const shouldCleanContent = !REASONING_DETAILS_PROVIDERS.includes(provider)
+	const cleanedContent = shouldCleanContent ? content.map(cleanContentBlock) : (content as Anthropic.MessageParam["content"])
+
+	return { role, content: cleanedContent }
+}
+
+/**
+ * Clean a content block by removing Cline-specific fields and returning only Anthropic-compatible fields
+ */
+export function cleanContentBlock(block: ClineContent): Anthropic.ContentBlock {
+	// Remove Cline-specific fields: reasoning_details, call_id, summary
+	if ("reasoning_details" in block || "call_id" in block || "summary" in block) {
+		// biome-ignore lint/correctness/noUnusedVariables: intentional destructuring to remove properties
+		const { reasoning_details, call_id, summary, ...cleanBlock } = block as any
+		return cleanBlock as Anthropic.ContentBlock
+	}
+
+	return block as Anthropic.ContentBlock
+}
