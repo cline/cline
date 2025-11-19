@@ -159,6 +159,8 @@ export function convertToOpenAiMessages(
 							// delete part.reasoning_details
 						}
 						if (part.type === "thinking" && part.thinking) {
+							// Reasoning details should have been moved to the text block
+							part.reasoning_details = undefined
 							thinkingBlock.push(part)
 						}
 					})

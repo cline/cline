@@ -1,7 +1,7 @@
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
-import { AssistantMessageContent, parseAssistantMessageV2 } from "@core/assistant-message"
+import { AssistantMessageContent, parseAssistantMessageV2, ToolUse } from "@core/assistant-message"
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
@@ -2805,8 +2805,6 @@ export class Task {
 			let assistantTextSignature: string | undefined
 
 			let reasoningID = ""
-			let reasoningMessage = ""
-			const reasoningDetails = []
 			const redactedThinkingContent: ClineAssistantRedactedThinkingBlock[] = []
 
 			this.taskState.isStreaming = true
@@ -2842,24 +2840,13 @@ export class Task {
 							}
 
 							// Get the current reasoning state
-							const reasoningState = reasonsHandler.getCurrentReasoning()
-							if (reasoningState) {
-								reasoningMessage = reasoningState.content
-								reasoningDetails.push(...reasoningState.details)
-							}
+							const thinkingBlock = reasonsHandler.getCurrentReasoning()
 
 							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
 							if (!this.taskState.abort) {
-								const thinkingBlock = reasonsHandler.getThinkingBlock()
-								if (thinkingBlock?.thinking) {
+								if (thinkingBlock?.type === "thinking" && thinkingBlock.thinking) {
 									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
 								}
-							}
-
-							// Get any redacted thinking content
-							const newRedactedThinking = reasonsHandler.getRedactedThinking()
-							if (newRedactedThinking.length > 0) {
-								redactedThinkingContent.push(...newRedactedThinking)
 							}
 
 							break
@@ -2887,34 +2874,15 @@ export class Task {
 								}
 							}
 
-							const prevLength = this.taskState.assistantMessageContent.length
-
-							// Combine any text content with tool uses
-							const textContent = assistantTextOnly.trim()
-							const textBlocks: AssistantMessageContent[] = textContent
-								? [{ type: "text", content: textContent, partial: false }]
-								: []
-							const toolBlocks = toolUseHandler.getPartialToolUsesAsContent()
-							assistantMessage += toolBlocks.map((block) => JSON.stringify(block)).join("\n")
-							this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
-
-							// Reset index to the first tool block position so they can be executed during streaming
-							// This ensures presentAssistantMessage processes tool blocks instead of text blocks
-							if (toolBlocks.length > 0) {
-								this.taskState.currentStreamingContentIndex = textBlocks.length
-								this.taskState.userMessageContentReady = false
-							} else if (this.taskState.assistantMessageContent.length > prevLength) {
-								this.taskState.userMessageContentReady = false
-							}
-							await this.presentAssistantMessage()
+							this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
 							break
 						}
 						case "text": {
 							// If we have reasoning content, finalize it before processing text (only once)
 							const currentReasoning = reasonsHandler.getCurrentReasoning()
-							if (currentReasoning && currentReasoning.content && assistantMessage.length === 0) {
+							if (currentReasoning && currentReasoning.thinking && assistantMessage.length === 0) {
 								// Complete the reasoning message (only once)
-								await this.say("reasoning", currentReasoning.content, undefined, undefined, false)
+								await this.say("reasoning", currentReasoning.thinking, undefined, undefined, false)
 							}
 							if (chunk.signature) {
 								assistantTextSignature = chunk.signature
@@ -2929,14 +2897,16 @@ export class Task {
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
-							// present content to user
-							await this.presentAssistantMessage()
 							break
 						}
 					}
 
+					// present content to user - we don't want the stream to break if present fails, so we catch errors here
+					await this.presentAssistantMessage().catch((error) =>
+						Logger.debug("[Task] Failed to present message: " + error),
+					)
+
 					if (this.taskState.abort) {
-						console.log("aborting stream...")
 						if (!this.taskState.abandoned) {
 							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
 							await abortStream("user_cancelled")
@@ -2958,34 +2928,6 @@ export class Task {
 							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
 						break
 					}
-				}
-
-				// Finalize any remaining tool calls at the end of the stream
-				if (this.useNativeToolCalls) {
-					// For native tool calls, mark all pending tool uses as complete
-					const prevLength = this.taskState.assistantMessageContent.length
-
-					// Get finalized tool uses and mark them as complete
-					const textContent = assistantTextOnly.trim()
-					const textBlocks: AssistantMessageContent[] = textContent
-						? [{ type: "text", content: textContent, partial: false }]
-						: []
-
-					// Get all finalized tool uses and mark as complete
-					const toolBlocks = toolUseHandler.getPartialToolUsesAsContent().map((block) => ({ ...block, partial: false }))
-
-					this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
-
-					// Reset index to the first tool block position so they can be executed
-					// This fixes the issue where tools remain unexecuted because the index
-					// advanced past them or was out of bounds during streaming
-					if (toolBlocks.length > 0) {
-						this.taskState.currentStreamingContentIndex = textBlocks.length
-						this.taskState.userMessageContentReady = false
-					} else if (this.taskState.assistantMessageContent.length > prevLength) {
-						this.taskState.userMessageContentReady = false
-					}
-					await this.presentAssistantMessage()
 				}
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
@@ -3041,6 +2983,8 @@ export class Task {
 				this.taskState.isStreaming = false
 			}
 
+			// Finalize any remaining tool calls at the end of the stream
+
 			// OpenRouter/Cline may not return token usage as part of the stream (since it may abort early), so we fetch after the stream is finished
 			// (updateApiReq below will update the api_req_started message with the usage details. we do this async so it updates the api_req_started message in the background)
 			if (!didReceiveUsageChunk) {
@@ -3052,20 +2996,22 @@ export class Task {
 						cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
 						totalCost = apiStreamUsage.totalCost
 					}
-					await updateApiReqMsg({
-						messageStateHandler: this.messageStateHandler,
-						lastApiReqIndex,
-						inputTokens,
-						outputTokens,
-						cacheWriteTokens,
-						cacheReadTokens,
-						api: this.api,
-						totalCost,
-					})
-					await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-					await this.postStateToWebview()
 				})
 			}
+
+			// Update the api_req_started message with final usage and cost details
+			await updateApiReqMsg({
+				messageStateHandler: this.messageStateHandler,
+				lastApiReqIndex,
+				inputTokens,
+				outputTokens,
+				cacheWriteTokens,
+				cacheReadTokens,
+				api: this.api,
+				totalCost,
+			})
+			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+			this.postStateToWebview()
 
 			// need to call here in case the stream was aborted
 			if (this.taskState.abort) {
@@ -3080,23 +3026,17 @@ export class Task {
 			partialBlocks.forEach((block) => {
 				block.partial = false
 			})
-			// this.assistantMessageContent.forEach((e) => (e.partial = false)) // can't just do this bc a tool could be in the middle of executing ()
+			// in case there are native tool calls pending
+			const partialToolBlocks = toolUseHandler.getPartialToolUsesAsContent()?.map((block) => ({ ...block, partial: false }))
+			this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
+
 			if (partialBlocks.length > 0) {
 				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
 			}
 
-			await updateApiReqMsg({
-				messageStateHandler: this.messageStateHandler,
-				lastApiReqIndex,
-				inputTokens,
-				outputTokens,
-				cacheWriteTokens,
-				cacheReadTokens,
-				api: this.api,
-				totalCost,
+			await this.presentAssistantMessage().catch((error) => {
+				console.error("Error presenting final assistant message:", error)
 			})
-			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-			await this.postStateToWebview()
 
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
@@ -3133,34 +3073,22 @@ export class Task {
 					...redactedThinkingContent,
 				]
 				// Add thinking block from the reasoning handler if available
-				const thinkingBlock = reasonsHandler.getThinkingBlock()
+				const thinkingBlock = reasonsHandler.getCurrentReasoning()
 				if (thinkingBlock) {
 					assistantContent.push({
 						...thinkingBlock,
-						summary: reasoningDetails.length > 0 ? reasoningDetails : undefined,
-						call_id: reasoningID,
-					})
-				} else if (reasoningMessage || reasoningDetails.length) {
-					// Fallback to legacy reasoning handling if needed
-					assistantContent.push({
-						type: "thinking",
-						thinking: reasoningMessage,
-						signature: "",
-						summary: reasoningDetails.length > 0 ? reasoningDetails : undefined,
+						summary: thinkingBlock.summary, // reasoning_details are only stored on text blocks
 						call_id: reasoningID,
 					})
 				}
 
-				// Get the current reasoning state to ensure we have the latest details
-				const currentReasoning = reasonsHandler.getCurrentReasoning()
-				const currentReasoningDetails = currentReasoning?.details || reasoningDetails
 				// Only add text block if there's actual text (not just tool XML)
 				if (assistantTextOnly.trim().length > 0) {
 					assistantContent.push({
 						type: "text",
 						text: assistantTextOnly,
 						// reasoning_details only exists for cline/openrouter providers
-						reasoning_details: currentReasoningDetails.length > 0 ? currentReasoningDetails : undefined,
+						reasoning_details: thinkingBlock?.summary as any[],
 						signature: assistantTextSignature,
 					})
 				}
@@ -3213,12 +3141,6 @@ export class Task {
 				const reqId = this.getApiRequestIdSafe()
 
 				// Minimal diagnostics: structured log and telemetry
-				console.error("[EmptyAssistantMessage]", {
-					ulid: this.ulid,
-					providerId,
-					modelId: model.id,
-					requestId: reqId,
-				})
 				telemetryService.captureProviderApiError({
 					ulid: this.ulid,
 					model: model.id,
@@ -3387,6 +3309,30 @@ export class Task {
 
 		// Return all results
 		return [processedUserContent, environmentDetails, clinerulesError]
+	}
+
+	processNativeToolCalls(assistantTextOnly: string, toolBlocks: ToolUse[]) {
+		if (!toolBlocks?.length) {
+			return
+		}
+		// For native tool calls, mark all pending tool uses as complete
+		const prevLength = this.taskState.assistantMessageContent.length
+
+		// Get finalized tool uses and mark them as complete
+		const textContent = assistantTextOnly.trim()
+		const textBlocks: AssistantMessageContent[] = textContent ? [{ type: "text", content: textContent, partial: false }] : []
+
+		this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
+
+		// Reset index to the first tool block position so they can be executed
+		// This fixes the issue where tools remain unexecuted because the index
+		// advanced past them or was out of bounds during streaming
+		if (toolBlocks.length > 0) {
+			this.taskState.currentStreamingContentIndex = textBlocks.length
+			this.taskState.userMessageContentReady = false
+		} else if (this.taskState.assistantMessageContent.length > prevLength) {
+			this.taskState.userMessageContentReady = false
+		}
 	}
 
 	/**
