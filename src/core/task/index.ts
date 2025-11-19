@@ -2960,6 +2960,20 @@ export class Task {
 					}
 				}
 
+				// Update UI with final usage after stream is complete
+				await updateApiReqMsg({
+					messageStateHandler: this.messageStateHandler,
+					lastApiReqIndex,
+					inputTokens,
+					outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+					api: this.api,
+					totalCost,
+				})
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				await this.postStateToWebview()
+
 				// Finalize any remaining tool calls at the end of the stream
 				if (this.useNativeToolCalls) {
 					// For native tool calls, mark all pending tool uses as complete
