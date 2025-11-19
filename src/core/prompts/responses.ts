@@ -272,7 +272,10 @@ const formatImagesIntoBlocks = (images?: string[]): Anthropic.ImageBlockParam[] 
 		? images.map((dataUrl) => {
 				// data:image/png;base64,base64string
 				const [rest, base64] = dataUrl.split(",")
-				const mimeType = rest.split(":")[1].split(";")[0]
+				const parts = rest.split(":")
+				const mimeTypePart = parts.length > 1 ? parts[1] : ""
+				const mimeTypeParts = mimeTypePart.split(";")
+				const mimeType = mimeTypeParts.length > 0 ? mimeTypeParts[0] : "image/png"
 				return {
 					type: "image",
 					source: {
