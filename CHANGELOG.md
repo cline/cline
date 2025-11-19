@@ -1,14 +1,30 @@
 # Changelog
 
-## 3.37.1
+## [3.38.1]
 
-- cf8dd1c: Comprehensive changes to better support GPT 5.1 - System prompt, tools, deep-planning, focus chain, etc.
-- 02abbcf: Add AGENTS.md support
-- 855db7d: feat(models): Add free minimax/mimax-m2 model to the model picker
+### Fixed
+- Fixed handling of 'signature' field in sanitizeAnthropicContentBlock to properly preserve it when thinking is enabled, as required by Anthropic's API.
+
+## [3.38.0]
+
+### Added
+- Gemini 3 Pro Preview model
+- AquaVoice Avalon model for voice-to-text dictation
+
+### Fixed
+- Automatic context truncation when AWS Bedrock token usage rate limits are exceeded
+- Removed new_task tool from system prompts, updated slash command prompts, and added helper function for native tool calling validation
+
+
+## [3.37.1]
+
+- Comprehensive changes to better support GPT 5.1 - System prompt, tools, deep-planning, focus chain, etc.
+- Add AGENTS.md support
+- feat(models): Add free minimax/mimax-m2 model to the model picker
 
 ## [3.37.0]
 
-## Added
+### Added
 
 - GPT-5.1 with model-specific prompting: tailored system prompts, tool usage, focus chain, and deep-planning optimizations
 - Nous Research provider with Hermes 4 model family and custom system prompts
@@ -18,7 +34,7 @@
 - Expanded HTTP proxy support throughout the codebase
 - Improved focus chain prompting for frontier models (Anthropic, OpenAI, Gemini, xAI)
 
-## Fixed
+### Fixed
 
 - Duplicate tool results prevention through existence checking
 - XML entity escaping in model content processor

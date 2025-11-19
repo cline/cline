@@ -39,6 +39,22 @@ export const CLINE_ONBOARDING_MODELS: OnboardingModel[] = [
 	},
 	{
 		group: "frontier",
+		id: "google/gemini-3-pro-preview",
+		name: "Gemini 3.0 Pro",
+		badge: "Preview",
+		score: 97,
+		latency: 3,
+		info: {
+			contextWindow: 1_048_576,
+			supportsImages: true,
+			supportsPromptCache: true,
+			inputPrice: 4.0,
+			outputPrice: 18.0,
+			tiers: [],
+		},
+	},
+	{
+		group: "frontier",
 		id: "openai/gpt-5-codex",
 		name: "OpenAI: GPT-5 Codex",
 		badge: "Best",

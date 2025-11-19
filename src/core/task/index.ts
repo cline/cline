@@ -67,13 +67,7 @@ import { CLINE_MCP_TOOL_IDENTIFIER } from "@shared/mcp"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { ClineDefaultTool } from "@shared/tools"
 import { ClineAskResponse } from "@shared/WebviewMessage"
-import {
-	isClaude4PlusModelFamily,
-	isGPT5ModelFamily,
-	isLocalModel,
-	isNextGenModelFamily,
-	isNextGenModelProvider,
-} from "@utils/model-utils"
+import { isClaude4PlusModelFamily, isGPT5ModelFamily, isLocalModel, isNextGenModelFamily } from "@utils/model-utils"
 import { arePathsEqual, getDesktopDir } from "@utils/path"
 import { filterExistingFiles } from "@utils/tabFiltering"
 import cloneDeep from "clone-deep"
@@ -82,7 +76,6 @@ import pWaitFor from "p-wait-for"
 import * as path from "path"
 import { ulid } from "ulid"
 import * as vscode from "vscode"
-import { ToolUseHandler } from "@/core/api/transform/tool-use-handler"
 import type { SystemPromptContext } from "@/core/prompts/system-prompt"
 import { getSystemPrompt } from "@/core/prompts/system-prompt"
 import { HostProvider } from "@/hosts/host-provider"
@@ -108,6 +101,7 @@ import { Controller } from "../controller"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
 import { MessageStateHandler } from "./message-state"
+import { StreamResponseHandler } from "./StreamResponseHandler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
@@ -218,7 +212,7 @@ export class Task {
 	 * because of the expected format from the tool calls is different.
 	 */
 	private useNativeToolCalls: boolean = false
-	private toolUseHandler: ToolUseHandler
+	private streamHandler: StreamResponseHandler
 
 	private terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	private activeBackgroundCommand?: {
@@ -226,6 +220,7 @@ export class Task {
 			terminate?: () => void
 		}
 		command: string
+		outputLines: string[]
 	}
 
 	// Metadata tracking
@@ -332,7 +327,7 @@ export class Task {
 		this.browserSession = new BrowserSession(stateManager)
 		this.contextManager = new ContextManager()
 		this.diffViewProvider = HostProvider.get().createDiffViewProvider()
-		this.toolUseHandler = new ToolUseHandler()
+		this.streamHandler = new StreamResponseHandler()
 		this.cwd = cwd
 		this.stateManager = stateManager
 		this.workspaceManager = workspaceManager
@@ -1410,27 +1405,6 @@ export class Task {
 			const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 			if (hooksEnabled && shouldRunTaskCancelHook) {
 				try {
-					const { executeHook } = await import("../hooks/hook-executor")
-
-					const taskCancelResult = await executeHook({
-						hookName: "TaskCancel",
-						hookInput: {
-							taskCancel: {
-								taskMetadata: {
-									taskId: this.taskId,
-									ulid: this.ulid,
-									completionStatus: this.taskState.abandoned ? "abandoned" : "cancelled",
-								},
-							},
-						},
-						isCancellable: false, // TaskCancel is NOT cancellable
-						say: this.say.bind(this),
-						// No setActiveHookExecution or clearActiveHookExecution for non-cancellable hooks
-						messageStateHandler: this.messageStateHandler,
-						taskId: this.taskId,
-						hooksEnabled,
-					})
-
 					// TaskCancel completed successfully
 					// Present resume button after successful TaskCancel hook
 					const lastClineMessage = this.messageStateHandler
@@ -1524,6 +1498,13 @@ export class Task {
 			command = transformClineCommand(command)
 		}
 
+		// Strip leading `cd` to workspace from command
+		// TODO - feed this back to the model to discourage redundant `cd` usage in subsequent commands. For now we re just stripping it for better UX
+		const workspaceCdPrefix = `cd ${this.cwd} && `
+		if (command.startsWith(workspaceCdPrefix)) {
+			command = command.substring(workspaceCdPrefix.length)
+		}
+
 		const subAgentStartTime = isSubagent ? performance.now() : 0
 
 		Logger.info("IS_TEST: " + isInTestMode())
@@ -1565,7 +1546,7 @@ export class Task {
 		this.controller.updateBackgroundCommandState(true, this.taskId)
 
 		if (this.terminalExecutionMode === "backgroundExec") {
-			this.activeBackgroundCommand = { process: process as any, command }
+			this.activeBackgroundCommand = { process: process as any, command, outputLines: [] }
 		}
 
 		const clearCommandState = async () => {
@@ -1688,6 +1669,11 @@ export class Task {
 				return
 			}
 			outputLines.push(line)
+
+			// Track output in activeBackgroundCommand for cancellation
+			if (this.terminalExecutionMode === "backgroundExec" && this.activeBackgroundCommand) {
+				this.activeBackgroundCommand.outputLines.push(line)
+			}
 
 			// Apply buffered streaming for both vscodeTerminal and backgroundExec modes
 			if (!didContinue) {
@@ -1861,30 +1847,69 @@ export class Task {
 	}
 
 	public async cancelBackgroundCommand(): Promise<boolean> {
-		if (this.terminalExecutionMode !== "backgroundExec") {
+		if (this.terminalExecutionMode !== "backgroundExec" || !this.activeBackgroundCommand) {
 			return false
 		}
-		if (!this.activeBackgroundCommand) {
-			return false
-		}
-		const { process } = this.activeBackgroundCommand
+
+		const { process, command, outputLines } = this.activeBackgroundCommand
 		this.activeBackgroundCommand = undefined
 		this.controller.updateBackgroundCommandState(false, this.taskId)
+
 		try {
-			if (typeof (process as any).terminate === "function") {
-				;(process as any).terminate()
-			} else {
-				;(process as any).continue?.()
+			// Try to terminate the process if the method exists
+			if (typeof process.terminate === "function") {
+				try {
+					await process.terminate()
+					Logger.info(`Terminated background command: ${command}`)
+				} catch (error) {
+					Logger.error(`Error terminating background command: ${command}`, error)
+				}
 			}
+
+			// Ensure any pending operations complete
+			if (typeof process.continue === "function") {
+				try {
+					process.continue()
+				} catch (error) {
+					Logger.error(`Error continuing background command: ${command}`, error)
+				}
+			}
+
+			// Mark the command message as completed in the UI
+			const clineMessages = this.messageStateHandler.getClineMessages()
+			const lastCommandIndex = findLastIndex(clineMessages, (m) => m.ask === "command" || m.say === "command")
+			if (lastCommandIndex !== -1) {
+				await this.messageStateHandler.updateClineMessage(lastCommandIndex, {
+					commandCompleted: true,
+				})
+			}
+
+			// Process the captured output to include in the cancellation message
+			const processedOutput = this.terminalManager.processOutput(outputLines, undefined, false)
+
+			// Add cancellation information to the API conversation history
+			// This ensures the agent knows the command was cancelled in the next request
+			let cancellationMessage = `Command "${command}" was cancelled by the user.`
+			if (processedOutput.length > 0) {
+				cancellationMessage += `\n\nOutput captured before cancellation:\n${processedOutput}`
+			}
+
+			this.taskState.userMessageContent.push({
+				type: "text",
+				text: cancellationMessage,
+			})
+
+			return true
 		} catch (error) {
-			Logger.error("Failed to terminate background command", error)
+			Logger.error("Error in cancelBackgroundCommand", error)
+			return false
+		} finally {
+			try {
+				await this.say("command_output", "Command execution has been cancelled.")
+			} catch (error) {
+				Logger.error("Failed to send cancellation notification", error)
+			}
 		}
-		try {
-			await this.say("command_output", "Command cancelled. Background execution has been terminated.")
-		} catch (error) {
-			Logger.error("Failed to notify command cancellation", error)
-		}
-		return true
 	}
 
 	/**
@@ -2053,10 +2078,6 @@ export class Task {
 			maxConsecutiveMistakes: this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes"),
 		})
 
-		const nativeToolCallsGloballyEnabled =
-			featureFlagsService.getNativeToolCallEnabled() && this.stateManager.getGlobalStateKey("nativeToolCallEnabled")
-		const inferredNativeToolCalls =
-			!nativeToolCallsGloballyEnabled && isNextGenModelProvider(providerInfo) && isNextGenModelFamily(providerInfo.model.id)
 		const promptContext: SystemPromptContext = {
 			cwd: this.cwd,
 			ide,
@@ -2079,7 +2100,8 @@ export class Task {
 			workspaceRoots,
 			isSubagentsEnabledAndCliInstalled,
 			isCliSubagent,
-			enableNativeToolCalls: nativeToolCallsGloballyEnabled || inferredNativeToolCalls,
+			enableNativeToolCalls:
+				featureFlagsService.getNativeToolCallEnabled() && this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 		}
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
@@ -2101,7 +2123,15 @@ export class Task {
 			// saves task history item which we use to keep track of conversation history deleted range
 		}
 
-		const stream = this.api.createMessage(systemPrompt, contextManagementMetadata.truncatedConversationHistory, tools)
+		// Response API requires native tool calls to be enabled
+		const useResponseApi = this.useNativeToolCalls && featureFlagsService.isResponseApiEnabled()
+
+		const stream = this.api.createMessage(
+			systemPrompt,
+			contextManagementMetadata.truncatedConversationHistory,
+			tools,
+			useResponseApi,
+		)
 
 		const iterator = stream[Symbol.asyncIterator]()
 
@@ -2268,10 +2298,13 @@ export class Task {
 			throw new Error("Cline instance aborted")
 		}
 
+		// If we're locked, mark pending and return
+		// Complete tool blocks can proceed to acquire the lock and execute
 		if (this.taskState.presentAssistantMessageLocked) {
 			this.taskState.presentAssistantMessageHasPendingUpdates = true
 			return
 		}
+
 		this.taskState.presentAssistantMessageLocked = true
 		this.taskState.presentAssistantMessageHasPendingUpdates = false
 
@@ -2357,7 +2390,7 @@ export class Task {
 		}
 
 		/*
-		Seeing out of bounds is fine, it means that the next too call is being built up and ready to add to assistantMessageContent to present. 
+		Seeing out of bounds is fine, it means that the next tool call is being built up and ready to add to assistantMessageContent to present.
 		When you see the UI inactive during this, it means that a tool is breaking without presenting any UI. For example the write_to_file tool was breaking when relpath was undefined, and for invalid relpath it never presented UI.
 		*/
 		this.taskState.presentAssistantMessageLocked = false // this needs to be placed here, if not then calling this.presentAssistantMessage below would fail (sometimes) since it's locked
@@ -2375,15 +2408,13 @@ export class Task {
 
 			if (this.taskState.currentStreamingContentIndex < this.taskState.assistantMessageContent.length) {
 				// there are already more content blocks to stream, so we'll call this function ourselves
-				// await this.presentAssistantContent()
-
-				this.presentAssistantMessage()
+				await this.presentAssistantMessage()
 				return
 			}
 		}
 		// block is partial, but the read stream may have finished
 		if (this.taskState.presentAssistantMessageHasPendingUpdates) {
-			this.presentAssistantMessage()
+			await this.presentAssistantMessage()
 		}
 	}
 
@@ -2763,26 +2794,29 @@ export class Task {
 			this.taskState.presentAssistantMessageHasPendingUpdates = false
 			this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			await this.diffViewProvider.reset()
-			this.toolUseHandler.reset()
+			this.streamHandler.reset()
 			this.taskState.toolUseIdMap.clear()
 
+			const { toolUseHandler, reasonsHandler } = this.streamHandler.getHandlers()
 			const stream = this.attemptApiRequest(previousApiReqIndex) // yields only if the first chunk is successful, otherwise will allow the user to retry the request (most likely due to rate limit error, which gets thrown on the first chunk)
+
 			let assistantMessage = "" // For UI display (includes XML)
 			let assistantTextOnly = "" // For API history (text only, no tool XML)
+			let assistantTextSignature: string | undefined
+
+			let reasoningID = ""
 			let reasoningMessage = ""
 			const reasoningDetails = []
 			const redactedThinkingContent: ClineAssistantRedactedThinkingBlock[] = []
+
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
-			let reasoningSignature = ""
 
 			try {
 				for await (const chunk of stream) {
-					if (!chunk) {
-						continue
-					}
 					switch (chunk.type) {
 						case "usage":
+							this.streamHandler.setRequestId(chunk.id)
 							didReceiveUsageChunk = true
 							inputTokens += chunk.inputTokens
 							outputTokens += chunk.outputTokens
@@ -2790,49 +2824,58 @@ export class Task {
 							cacheReadTokens += chunk.cacheReadTokens ?? 0
 							totalCost = chunk.totalCost
 							break
-						case "reasoning":
-							// reasoning will always come before assistant message chunks
-							if (chunk.reasoning) {
-								reasoningMessage += chunk.reasoning
+						case "reasoning": {
+							// Process the reasoning delta through the handler
+							// Ensure details is always an array
+							const details = chunk.details ? (Array.isArray(chunk.details) ? chunk.details : [chunk.details]) : []
+							reasonsHandler.processReasoningDelta({
+								id: chunk.id,
+								reasoning: chunk.reasoning,
+								signature: chunk.signature,
+								details,
+								redacted_data: chunk.redacted_data,
+							})
+
+							// Capture reasoning ID for use when storing the message
+							if (chunk.id) {
+								reasoningID = chunk.id
 							}
+
+							// Get the current reasoning state
+							const reasoningState = reasonsHandler.getCurrentReasoning()
+							if (reasoningState) {
+								reasoningMessage = reasoningState.content
+								reasoningDetails.push(...reasoningState.details)
+							}
+
 							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
 							if (!this.taskState.abort) {
-								await this.say("reasoning", reasoningMessage, undefined, undefined, true)
-							}
-							if (chunk.signature) {
-								reasoningSignature = chunk.signature
-								break
-							}
-							if (chunk.details) {
-								// reasoning_details may be an array of 0 or 1 items depending on how openrouter returns it
-								if (Array.isArray(chunk.details)) {
-									reasoningDetails.push(...chunk.details)
-								} else {
-									reasoningDetails.push(chunk.details)
+								const thinkingBlock = reasonsHandler.getThinkingBlock()
+								if (thinkingBlock?.thinking) {
+									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
 								}
 							}
 
-							if (chunk.redacted_data) {
-								redactedThinkingContent.push({
-									type: "redacted_thinking",
-									data: chunk.redacted_data,
-								})
+							// Get any redacted thinking content
+							const newRedactedThinking = reasonsHandler.getRedactedThinking()
+							if (newRedactedThinking.length > 0) {
+								redactedThinkingContent.push(...newRedactedThinking)
 							}
 
 							break
+						}
 						case "tool_calls": {
-							if (!chunk.tool_call) {
-								console.log("no tool call in chunk, skipping...", chunk)
-								break
-							}
 							// Accumulate tool use blocks in proper Anthropic format
-							this.toolUseHandler.processToolUseDelta({
-								id: chunk.tool_call.function?.id,
-								type: "tool_use",
-								name: chunk.tool_call.function?.name,
-								input: chunk.tool_call.function?.arguments,
-							})
-
+							toolUseHandler.processToolUseDelta(
+								{
+									id: chunk.tool_call.function?.id,
+									type: "tool_use",
+									name: chunk.tool_call.function?.name,
+									input: chunk.tool_call.function?.arguments,
+									signature: chunk?.signature,
+								},
+								chunk.tool_call.call_id,
+							)
 							// Extract and store tool_use_id for creating proper ToolResultBlockParam
 							if (chunk.tool_call.function?.id && chunk.tool_call.function?.name) {
 								this.taskState.toolUseIdMap.set(chunk.tool_call.function.name, chunk.tool_call.function.id)
@@ -2851,20 +2894,30 @@ export class Task {
 							const textBlocks: AssistantMessageContent[] = textContent
 								? [{ type: "text", content: textContent, partial: false }]
 								: []
-							const toolBlocks = this.toolUseHandler.getPartialToolUsesAsContent()
+							const toolBlocks = toolUseHandler.getPartialToolUsesAsContent()
 							assistantMessage += toolBlocks.map((block) => JSON.stringify(block)).join("\n")
 							this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 
-							if (this.taskState.assistantMessageContent.length > prevLength) {
+							// Reset index to the first tool block position so they can be executed during streaming
+							// This ensures presentAssistantMessage processes tool blocks instead of text blocks
+							if (toolBlocks.length > 0) {
+								this.taskState.currentStreamingContentIndex = textBlocks.length
+								this.taskState.userMessageContentReady = false
+							} else if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false
 							}
-							this.presentAssistantMessage()
+							await this.presentAssistantMessage()
 							break
 						}
 						case "text": {
-							if (reasoningMessage && assistantMessage.length === 0) {
-								// complete reasoning message
-								await this.say("reasoning", reasoningMessage, undefined, undefined, false)
+							// If we have reasoning content, finalize it before processing text (only once)
+							const currentReasoning = reasonsHandler.getCurrentReasoning()
+							if (currentReasoning && currentReasoning.content && assistantMessage.length === 0) {
+								// Complete the reasoning message (only once)
+								await this.say("reasoning", currentReasoning.content, undefined, undefined, false)
+							}
+							if (chunk.signature) {
+								assistantTextSignature = chunk.signature
 							}
 							assistantMessage += chunk.text
 							assistantTextOnly += chunk.text // Accumulate text separately
@@ -2877,7 +2930,7 @@ export class Task {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
 							// present content to user
-							this.presentAssistantMessage()
+							await this.presentAssistantMessage()
 							break
 						}
 					}
@@ -2907,6 +2960,20 @@ export class Task {
 					}
 				}
 
+				// Update UI with final usage after stream is complete
+				await updateApiReqMsg({
+					messageStateHandler: this.messageStateHandler,
+					lastApiReqIndex,
+					inputTokens,
+					outputTokens,
+					cacheWriteTokens,
+					cacheReadTokens,
+					api: this.api,
+					totalCost,
+				})
+				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
+				await this.postStateToWebview()
+
 				// Finalize any remaining tool calls at the end of the stream
 				if (this.useNativeToolCalls) {
 					// For native tool calls, mark all pending tool uses as complete
@@ -2919,16 +2986,20 @@ export class Task {
 						: []
 
 					// Get all finalized tool uses and mark as complete
-					const toolBlocks = this.toolUseHandler
-						.getPartialToolUsesAsContent()
-						.map((block) => ({ ...block, partial: false }))
+					const toolBlocks = toolUseHandler.getPartialToolUsesAsContent().map((block) => ({ ...block, partial: false }))
 
 					this.taskState.assistantMessageContent = [...textBlocks, ...toolBlocks]
 
-					if (this.taskState.assistantMessageContent.length > prevLength) {
+					// Reset index to the first tool block position so they can be executed
+					// This fixes the issue where tools remain unexecuted because the index
+					// advanced past them or was out of bounds during streaming
+					if (toolBlocks.length > 0) {
+						this.taskState.currentStreamingContentIndex = textBlocks.length
+						this.taskState.userMessageContentReady = false
+					} else if (this.taskState.assistantMessageContent.length > prevLength) {
 						this.taskState.userMessageContentReady = false
 					}
-					this.presentAssistantMessage()
+					await this.presentAssistantMessage()
 				}
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
@@ -3025,7 +3096,7 @@ export class Task {
 			})
 			// this.assistantMessageContent.forEach((e) => (e.partial = false)) // can't just do this bc a tool could be in the middle of executing ()
 			if (partialBlocks.length > 0) {
-				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
+				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
 			}
 
 			await updateApiReqMsg({
@@ -3062,8 +3133,11 @@ export class Task {
 					this.useNativeToolCalls,
 				)
 
+				const { reasonsHandler } = this.streamHandler.getHandlers()
+				const requestId = this.streamHandler.requestId
+
 				// Get finalized tool use blocks from the handler
-				const toolUseBlocks = this.toolUseHandler.getAllFinalizedToolUses()
+				const toolUseBlocks = toolUseHandler.getAllFinalizedToolUses()
 
 				// Build content array with thinking blocks, text (if any), and tool use blocks
 				const assistantContent: Array<ClineAssistantContent> = [
@@ -3072,21 +3146,36 @@ export class Task {
 					// https://docs.claude.com/en/docs/build-with-claude/extended-thinking#preserving-thinking-blocks
 					...redactedThinkingContent,
 				]
-				// Append redacted reasoning block if signature exists
-				if (reasoningSignature) {
+				// Add thinking block from the reasoning handler if available
+				const thinkingBlock = reasonsHandler.getThinkingBlock()
+				if (thinkingBlock) {
+					assistantContent.push({
+						...thinkingBlock,
+						summary: reasoningDetails.length > 0 ? reasoningDetails : undefined,
+						call_id: reasoningID,
+					})
+				} else if (reasoningMessage || reasoningDetails.length) {
+					// Fallback to legacy reasoning handling if needed
 					assistantContent.push({
 						type: "thinking",
 						thinking: reasoningMessage,
-						signature: reasoningSignature,
+						signature: "",
+						summary: reasoningDetails.length > 0 ? reasoningDetails : undefined,
+						call_id: reasoningID,
 					})
 				}
+
+				// Get the current reasoning state to ensure we have the latest details
+				const currentReasoning = reasonsHandler.getCurrentReasoning()
+				const currentReasoningDetails = currentReasoning?.details || reasoningDetails
 				// Only add text block if there's actual text (not just tool XML)
 				if (assistantTextOnly.trim().length > 0) {
 					assistantContent.push({
 						type: "text",
 						text: assistantTextOnly,
 						// reasoning_details only exists for cline/openrouter providers
-						reasoning_details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
+						reasoning_details: currentReasoningDetails.length > 0 ? currentReasoningDetails : undefined,
+						signature: assistantTextSignature,
 					})
 				}
 
@@ -3101,6 +3190,7 @@ export class Task {
 						role: "assistant",
 						content: assistantContent,
 						modelInfo,
+						id: requestId,
 					})
 				}
 
@@ -3166,6 +3256,7 @@ export class Task {
 						},
 					],
 					modelInfo,
+					id: this.streamHandler.requestId,
 				})
 
 				let response: ClineAskResponse
@@ -3264,6 +3355,7 @@ export class Task {
 								this.ulid,
 								this.stateManager.getGlobalSettingsKey("focusChainSettings"),
 								this.useNativeToolCalls,
+								this.getCurrentProviderInfo(),
 							)
 
 							if (needsCheck) {

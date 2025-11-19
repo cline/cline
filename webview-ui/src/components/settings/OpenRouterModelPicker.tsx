@@ -51,13 +51,13 @@ const featuredModels = [
 		label: "Best",
 	},
 	{
-		id: "openai/gpt-5.1",
-		description: "Latest flagship model from OpenAI with enhanced coding capabilities",
+		id: "google/gemini-3-pro-preview",
+		description: "Google's latest reasoning model with 1M context window",
 		label: "New",
 	},
 	{
-		id: "z-ai/glm-4.6:exacto",
-		description: "Fast open-source model with improved performance in Cline",
+		id: "openai/gpt-5.1",
+		description: "Latest flagship model from OpenAI with enhanced coding capabilities",
 		label: "Trending",
 	},
 	{
