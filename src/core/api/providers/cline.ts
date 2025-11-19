@@ -151,6 +151,8 @@ export class ClineHandler implements ApiHandler {
 				}
 
 				const delta = choice?.delta
+				Logger.debug("Cline chunk delta:" + JSON.stringify(delta))
+
 				if (delta?.content) {
 					yield {
 						type: "text",
@@ -182,7 +184,7 @@ export class ClineHandler implements ApiHandler {
 					"reasoning_details" in delta &&
 					delta.reasoning_details &&
 					// @ts-ignore-next-line
-					delta.reasoning_details.length && // exists and non-0
+					delta?.reasoning_details?.length && // exists and non-0
 					!shouldSkipReasoningForModel(this.options.openRouterModelId)
 				) {
 					yield {
