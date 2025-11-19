@@ -304,7 +304,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 			{isVisible && (
 				<div
-					className="fixed left-[15px] right-[15px] border border-editor-group-border pb-3 px-2 rounded z-1000"
+					className="fixed left-[15px] right-[15px] border border-editor-group-border pb-3 px-2 rounded z-1000 overflow-y-auto"
 					style={{
 						bottom: `calc(100vh - ${menuPosition}px + 6px)`,
 						background: CODE_BLOCK_BG_COLOR,
