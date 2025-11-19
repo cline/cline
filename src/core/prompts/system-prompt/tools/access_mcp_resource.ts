@@ -44,7 +44,36 @@ const generic: ClineToolSpec = {
 	],
 }
 
+const NATIVE_GPT_5: ClineToolSpec = {
+	variant: ModelFamily.NATIVE_GPT_5,
+	id: ClineDefaultTool.MCP_ACCESS,
+	name: "access_mcp_resource",
+	description:
+		"Request to access a resource provided by a connected MCP server. Resources represent data sources that can be used as context, such as files, API responses, or system information. You must only use this tool if you have been informed of the MCP server and the resource you are trying to access.",
+	contextRequirements: (context) => context.mcpHub !== undefined && context.mcpHub !== null,
+	parameters: [
+		{
+			name: "server_name",
+			required: true,
+			instruction: "The name of the MCP server providing the resource",
+			usage: "server name here",
+		},
+		{
+			name: "uri",
+			required: true,
+			instruction: "The URI identifying the specific resource to access",
+			usage: "resource URI here",
+		},
+		TASK_PROGRESS_PARAMETER,
+	],
+}
+
 const nextGen = { ...generic, variant: ModelFamily.NEXT_GEN }
 const gpt = { ...generic, variant: ModelFamily.GPT }
 
-export const access_mcp_resource_variants = [generic, nextGen, gpt]
+const NATIVE_NEXT_GEN: ClineToolSpec = {
+	...NATIVE_GPT_5,
+	variant: ModelFamily.NATIVE_NEXT_GEN,
+}
+
+export const access_mcp_resource_variants = [generic, nextGen, gpt, NATIVE_GPT_5, NATIVE_NEXT_GEN]

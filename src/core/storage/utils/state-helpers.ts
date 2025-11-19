@@ -153,12 +153,14 @@ export async function readWorkspaceStateFromDisk(context: ExtensionContext): Pro
 	const localClineRulesToggles = context.workspaceState.get("localClineRulesToggles") as ClineRulesToggles | undefined
 	const localWindsurfRulesToggles = context.workspaceState.get("localWindsurfRulesToggles") as ClineRulesToggles | undefined
 	const localCursorRulesToggles = context.workspaceState.get("localCursorRulesToggles") as ClineRulesToggles | undefined
+	const localAgentsRulesToggles = context.workspaceState.get("localAgentsRulesToggles") as ClineRulesToggles | undefined
 	const localWorkflowToggles = context.workspaceState.get("workflowToggles") as ClineRulesToggles | undefined
 
 	return {
 		localClineRulesToggles: localClineRulesToggles || {},
 		localWindsurfRulesToggles: localWindsurfRulesToggles || {},
 		localCursorRulesToggles: localCursorRulesToggles || {},
+		localAgentsRulesToggles: localAgentsRulesToggles || {},
 		workflowToggles: localWorkflowToggles || {},
 	}
 }
@@ -170,6 +172,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			context.globalState.get<GlobalStateAndSettings["strictPlanModeEnabled"]>("strictPlanModeEnabled")
 		const yoloModeToggled = context.globalState.get<GlobalStateAndSettings["yoloModeToggled"]>("yoloModeToggled")
 		const useAutoCondense = context.globalState.get<GlobalStateAndSettings["useAutoCondense"]>("useAutoCondense")
+		const clineWebToolsEnabled =
+			context.globalState.get<GlobalStateAndSettings["clineWebToolsEnabled"]>("clineWebToolsEnabled")
 		const isNewUser = context.globalState.get<GlobalStateAndSettings["isNewUser"]>("isNewUser")
 		const welcomeViewCompleted =
 			context.globalState.get<GlobalStateAndSettings["welcomeViewCompleted"]>("welcomeViewCompleted")
@@ -495,6 +499,9 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 		const multiRootEnabled = context.globalState.get<GlobalStateAndSettings["multiRootEnabled"]>("multiRootEnabled")
 		const nativeToolCallEnabled =
 			context.globalState.get<GlobalStateAndSettings["nativeToolCallEnabled"]>("nativeToolCallEnabled")
+		const remoteRulesToggles = context.globalState.get<GlobalStateAndSettings["remoteRulesToggles"]>("remoteRulesToggles")
+		const remoteWorkflowToggles =
+			context.globalState.get<GlobalStateAndSettings["remoteWorkflowToggles"]>("remoteWorkflowToggles")
 
 		return {
 			// api configuration fields
@@ -624,6 +631,7 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			strictPlanModeEnabled: strictPlanModeEnabled ?? true,
 			yoloModeToggled: yoloModeToggled ?? false,
 			useAutoCondense: useAutoCondense ?? false,
+			clineWebToolsEnabled: clineWebToolsEnabled ?? true,
 			isNewUser: isNewUser ?? true,
 			welcomeViewCompleted,
 			lastShownAnnouncementId,
@@ -681,6 +689,8 @@ export async function readGlobalStateFromDisk(context: ExtensionContext): Promis
 			openTelemetryLogBatchSize: openTelemetryLogBatchSize ?? 512,
 			openTelemetryLogBatchTimeout: openTelemetryLogBatchTimeout ?? 5000,
 			openTelemetryLogMaxQueueSize: openTelemetryLogMaxQueueSize ?? 2048,
+			remoteRulesToggles: remoteRulesToggles || {},
+			remoteWorkflowToggles: remoteWorkflowToggles || {},
 		}
 	} catch (error) {
 		console.error("[StateHelpers] Failed to read global state:", error)

@@ -141,6 +141,7 @@ export interface ApiHandlerOptions {
 	planModeApiModelId?: string
 	planModeThinkingBudgetTokens?: number
 	planModeReasoningEffort?: string
+	planModeVerbosity?: string
 	planModeVsCodeLmModelSelector?: LanguageModelChatSelector
 	planModeAwsBedrockCustomSelected?: boolean
 	planModeAwsBedrockCustomModelBaseId?: string
@@ -179,6 +180,7 @@ export interface ApiHandlerOptions {
 	actModeApiModelId?: string
 	actModeThinkingBudgetTokens?: number
 	actModeReasoningEffort?: string
+	actModeVerbosity?: string
 	actModeVsCodeLmModelSelector?: LanguageModelChatSelector
 	actModeAwsBedrockCustomSelected?: boolean
 	actModeAwsBedrockCustomModelBaseId?: string
@@ -238,6 +240,7 @@ export interface ModelInfo {
 		maxBudget?: number // Max allowed thinking budget tokens
 		outputPrice?: number // Output price per million tokens when budget > 0
 		outputPriceTiers?: PriceTier[] // Optional: Tiered output price when budget > 0
+		thinkingLevel?: "low" | "high" // Optional: preset thinking level
 	}
 	supportsGlobalEndpoint?: boolean // Whether the model supports a global endpoint with Vertex AI
 	cacheWritesPrice?: number
@@ -250,6 +253,7 @@ export interface ModelInfo {
 		cacheWritesPrice?: number
 		cacheReadsPrice?: number
 	}[]
+	temperature?: number
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
@@ -750,7 +754,7 @@ export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; 
 		allow_fallbacks: false,
 	},
 	"qwen/qwen3-coder:exacto": {
-		order: ["baseten", "cerebras"],
+		order: ["baseten"],
 		allow_fallbacks: false,
 	},
 	"openai/gpt-oss-120b:exacto": {
@@ -825,8 +829,19 @@ export const OPENROUTER_PROVIDER_PREFERENCES: Record<string, { order: string[]; 
 // https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude
 // https://cloud.google.com/vertex-ai/generative-ai/pricing#partner-models
 export type VertexModelId = keyof typeof vertexModels
-export const vertexDefaultModelId: VertexModelId = "claude-sonnet-4@20250514" // TODO: update to 4-5
+export const vertexDefaultModelId: VertexModelId = "gemini-3-pro-preview"
 export const vertexModels = {
+	"gemini-3-pro-preview": {
+		maxTokens: 8192,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		supportsGlobalEndpoint: true,
+		inputPrice: 2.0,
+		outputPrice: 12.0,
+		description: "Gemini 3.0 Pro",
+		temperature: 1.0,
+	},
 	"claude-sonnet-4-5@20250929": {
 		maxTokens: 8192,
 		contextWindow: 200_000,
@@ -1176,8 +1191,36 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 // Gemini
 // https://ai.google.dev/gemini-api/docs/models/gemini
 export type GeminiModelId = keyof typeof geminiModels
-export const geminiDefaultModelId: GeminiModelId = "gemini-2.5-pro"
+export const geminiDefaultModelId: GeminiModelId = "gemini-3-pro-preview"
 export const geminiModels = {
+	"gemini-3-pro-preview": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 4.0,
+		outputPrice: 18.0,
+		cacheReadsPrice: 0.4,
+		thinkingConfig: {
+			// If you don't specify a thinking level, Gemini will use the model's default
+			// dynamic thinking level, "high", for Gemini 3 Pro Preview.
+			thinkingLevel: "high",
+		},
+		tiers: [
+			{
+				contextWindow: 200000,
+				inputPrice: 2.0,
+				outputPrice: 12.0,
+				cacheReadsPrice: 0.2,
+			},
+			{
+				contextWindow: Infinity,
+				inputPrice: 4.0,
+				outputPrice: 18.0,
+				cacheReadsPrice: 0.4,
+			},
+		],
+	},
 	"gemini-2.5-pro": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
@@ -1388,6 +1431,33 @@ export const openAiNativeModels = {
 		outputPrice: 10,
 		cacheReadsPrice: 0.125,
 	},
+	"gpt-5.1-2025-11-13": {
+		maxTokens: 8_192,
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+	},
+	"gpt-5.1": {
+		maxTokens: 8_192,
+		contextWindow: 272000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10.0,
+		cacheReadsPrice: 0.125,
+	},
+	"gpt-5.1-chat-latest": {
+		maxTokens: 8_192,
+		contextWindow: 400000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 1.25,
+		outputPrice: 10,
+		cacheReadsPrice: 0.125,
+	},
 	o3: {
 		maxTokens: 100_000,
 		contextWindow: 200_000,
@@ -1496,7 +1566,7 @@ export const openAiNativeModels = {
 		inputPrice: 5,
 		outputPrice: 15,
 	},
-} as const satisfies Record<string, ModelInfo>
+} as const satisfies Record<string, OpenAiCompatibleModelInfo>
 
 // Azure OpenAI
 // https://learn.microsoft.com/en-us/azure/ai-services/openai/api-version-deprecation
@@ -3043,26 +3113,6 @@ export const cerebrasModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		description: "Intelligent general purpose model with 3,000 tokens/s",
-	},
-	"qwen-3-coder-480b-free": {
-		maxTokens: 40000,
-		contextWindow: 64000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description:
-			"SOTA coding model with ~2000 tokens/s ($0 free tier)\n\n• Use this if you don't have a Cerebras subscription\n• 64K context window\n• Rate limits: 150K TPM, 1M TPH/TPD, 10 RPM, 100 RPH/RPD\n\nUpgrade for higher limits: [https://cloud.cerebras.ai/?utm=cline](https://cloud.cerebras.ai/?utm=cline)",
-	},
-	"qwen-3-coder-480b": {
-		maxTokens: 40000,
-		contextWindow: 128000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0,
-		outputPrice: 0,
-		description:
-			"SOTA coding model with ~2000 tokens/s ($50/$250 paid tiers)\n\n• Use this if you have a Cerebras subscription\n• 131K context window with higher rate limits",
 	},
 	"qwen-3-235b-a22b-instruct-2507": {
 		maxTokens: 64000,

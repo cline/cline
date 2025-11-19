@@ -4,5 +4,6 @@
 
 export { createAnthropicVariant } from "./anthropic"
 export { createGeminiVariant } from "./gemini"
+export { createGemini3Variant } from "./gemini3"
 export { createGenericVariant } from "./generic"
-export { createGPT5Variant } from "./gpt5"
+export { createGPT51Variant } from "./gpt5"

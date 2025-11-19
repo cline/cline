@@ -20,6 +20,9 @@ eslint-rules/**
 .husky/**
 .env
 
+# cli
+cli/**
+
 # Custom
 **/demo.gif
 .nvmrc

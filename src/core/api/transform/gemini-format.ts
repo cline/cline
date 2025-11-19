@@ -1,7 +1,8 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Content, GenerateContentResponse, Part } from "@google/genai"
+import { ClineStorageMessage } from "@/shared/messages/content"
 
-export function convertAnthropicContentToGemini(content: string | Anthropic.ContentBlockParam[]): Part[] {
+export function convertAnthropicContentToGemini(content: string | ClineStorageMessage["content"]): Part[] {
 	if (typeof content === "string") {
 		return [{ text: content }]
 	}
@@ -9,7 +10,7 @@ export function convertAnthropicContentToGemini(content: string | Anthropic.Cont
 		.flatMap((block): Part | undefined => {
 			switch (block.type) {
 				case "text":
-					return { text: block.text }
+					return { text: block.text, thoughtSignature: block.signature }
 				case "image":
 					if (block.source.type !== "base64") {
 						throw new Error("Unsupported image source type")
@@ -26,6 +27,7 @@ export function convertAnthropicContentToGemini(content: string | Anthropic.Cont
 							name: block.name,
 							args: block.input as Record<string, unknown>,
 						},
+						thoughtSignature: block.signature,
 					}
 				case "tool_result":
 					return {

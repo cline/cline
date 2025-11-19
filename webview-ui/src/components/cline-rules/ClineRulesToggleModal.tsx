@@ -2,6 +2,8 @@ import { EmptyRequest } from "@shared/proto/cline/common"
 import {
 	ClineRulesToggles,
 	RefreshedRules,
+	RuleScope,
+	ToggleAgentsRuleRequest,
 	ToggleClineRuleRequest,
 	ToggleCursorRuleRequest,
 	ToggleWindsurfRuleRequest,
@@ -15,6 +17,7 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient } from "@/services/grpc-client"
+import RuleRow from "./RuleRow"
 import RulesToggleList from "./RulesToggleList"
 
 const ClineRulesToggleModal: React.FC = () => {
@@ -23,14 +26,21 @@ const ClineRulesToggleModal: React.FC = () => {
 		localClineRulesToggles = {},
 		localCursorRulesToggles = {},
 		localWindsurfRulesToggles = {},
+		localAgentsRulesToggles = {},
 		localWorkflowToggles = {},
 		globalWorkflowToggles = {},
+		remoteRulesToggles = {},
+		remoteWorkflowToggles = {},
+		remoteConfigSettings = {},
 		setGlobalClineRulesToggles,
 		setLocalClineRulesToggles,
 		setLocalCursorRulesToggles,
 		setLocalWindsurfRulesToggles,
+		setLocalAgentsRulesToggles,
 		setLocalWorkflowToggles,
 		setGlobalWorkflowToggles,
+		setRemoteRulesToggles,
+		setRemoteWorkflowToggles,
 	} = useExtensionState()
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
@@ -57,6 +67,9 @@ const ClineRulesToggleModal: React.FC = () => {
 					if (response.localWindsurfRulesToggles?.toggles) {
 						setLocalWindsurfRulesToggles(response.localWindsurfRulesToggles.toggles)
 					}
+					if (response.localAgentsRulesToggles?.toggles) {
+						setLocalAgentsRulesToggles(response.localAgentsRulesToggles.toggles)
+					}
 					if (response.localWorkflowToggles?.toggles) {
 						setLocalWorkflowToggles(response.localWorkflowToggles.toggles)
 					}
@@ -68,7 +81,15 @@ const ClineRulesToggleModal: React.FC = () => {
 					console.error("Failed to refresh rules:", error)
 				})
 		}
-	}, [isVisible])
+	}, [
+		isVisible,
+		setGlobalClineRulesToggles,
+		setLocalClineRulesToggles,
+		setGlobalWorkflowToggles,
+		setLocalCursorRulesToggles,
+		setLocalWindsurfRulesToggles,
+		setLocalWorkflowToggles,
+	])
 
 	// Format global rules for display with proper typing
 	const globalRules = Object.entries(globalClineRulesToggles || {})
@@ -88,6 +109,10 @@ const ClineRulesToggleModal: React.FC = () => {
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
+	const agentsRules = Object.entries(localAgentsRulesToggles || {})
+		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
+		.sort(([a], [b]) => a.localeCompare(b))
+
 	const localWorkflows = Object.entries(localWorkflowToggles || {})
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
@@ -96,11 +121,19 @@ const ClineRulesToggleModal: React.FC = () => {
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
+	// Get remote rules and workflows from remote config
+	const remoteGlobalRules = remoteConfigSettings.remoteGlobalRules || []
+	const remoteGlobalWorkflows = remoteConfigSettings.remoteGlobalWorkflows || []
+
+	// Check if we have any remote rules or workflows
+	const hasRemoteRules = remoteGlobalRules.length > 0
+	const hasRemoteWorkflows = remoteGlobalWorkflows.length > 0
+
 	// Handle toggle rule using gRPC
 	const toggleRule = (isGlobal: boolean, rulePath: string, enabled: boolean) => {
 		FileServiceClient.toggleClineRule(
 			ToggleClineRuleRequest.create({
-				isGlobal,
+				scope: isGlobal ? RuleScope.GLOBAL : RuleScope.LOCAL,
 				rulePath,
 				enabled,
 			}),
@@ -112,6 +145,9 @@ const ClineRulesToggleModal: React.FC = () => {
 				}
 				if (response.localClineRulesToggles?.toggles) {
 					setLocalClineRulesToggles(response.localClineRulesToggles.toggles)
+				}
+				if (response.remoteRulesToggles?.toggles) {
+					setRemoteRulesToggles(response.remoteRulesToggles.toggles)
 				}
 			})
 			.catch((error) => {
@@ -154,12 +190,29 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 	}
 
+	const toggleAgentsRule = (rulePath: string, enabled: boolean) => {
+		FileServiceClient.toggleAgentsRule(
+			ToggleAgentsRuleRequest.create({
+				rulePath,
+				enabled,
+			} as ToggleAgentsRuleRequest),
+		)
+			.then((response: ClineRulesToggles) => {
+				if (response.toggles) {
+					setLocalAgentsRulesToggles(response.toggles)
+				}
+			})
+			.catch((error) => {
+				console.error("Error toggling Agents rule:", error)
+			})
+	}
+
 	const toggleWorkflow = (isGlobal: boolean, workflowPath: string, enabled: boolean) => {
 		FileServiceClient.toggleWorkflow(
 			ToggleWorkflowRequest.create({
 				workflowPath,
 				enabled,
-				isGlobal,
+				scope: isGlobal ? RuleScope.GLOBAL : RuleScope.LOCAL,
 			}),
 		)
 			.then((response) => {
@@ -173,6 +226,45 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 			.catch((err: Error) => {
 				console.error("Failed to toggle workflow:", err)
+			})
+	}
+
+	// Handle toggle for remote rules
+	const toggleRemoteRule = (ruleName: string, enabled: boolean) => {
+		FileServiceClient.toggleClineRule(
+			ToggleClineRuleRequest.create({
+				scope: RuleScope.REMOTE,
+				rulePath: ruleName,
+				enabled,
+			}),
+		)
+			.then((response) => {
+				// Update the local state with the response
+				if (response.remoteRulesToggles?.toggles) {
+					setRemoteRulesToggles(response.remoteRulesToggles.toggles)
+				}
+			})
+			.catch((error) => {
+				console.error("Error toggling remote rule:", error)
+			})
+	}
+
+	// Handle toggle for remote workflows
+	const toggleRemoteWorkflow = (workflowName: string, enabled: boolean) => {
+		FileServiceClient.toggleWorkflow(
+			ToggleWorkflowRequest.create({
+				workflowPath: workflowName,
+				enabled,
+				scope: RuleScope.REMOTE,
+			}),
+		)
+			.then((response) => {
+				if (response.toggles) {
+					setRemoteWorkflowToggles(response.toggles)
+				}
+			})
+			.catch((error) => {
+				console.error("Error toggling remote workflow:", error)
 			})
 	}
 
@@ -202,11 +294,9 @@ const ClineRulesToggleModal: React.FC = () => {
 						<VSCodeButton
 							appearance="icon"
 							aria-label={isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows"}
-							className="flex items-center"
+							className="p-0 m-0 flex items-center"
 							onClick={() => setIsVisible(!isVisible)}>
-							<div className="flex items-center text-xs w-full cursor-pointer">
-								<i className="codicon codicon-law" style={{ fontSize: "14px" }} />
-							</div>
+							<i className="codicon codicon-law" style={{ fontSize: "12.5px" }} />
 						</VSCodeButton>
 					</TooltipTrigger>
 				</Tooltip>
@@ -214,7 +304,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 			{isVisible && (
 				<div
-					className="fixed left-[15px] right-[15px] border border-(--vscode-editorGroup-border) p-3 rounded z-1000 overflow-y-auto"
+					className="fixed left-[15px] right-[15px] border border-editor-group-border pb-3 px-2 rounded z-1000 overflow-y-auto"
 					style={{
 						bottom: `calc(100vh - ${menuPosition}px + 6px)`,
 						background: CODE_BLOCK_BG_COLOR,
@@ -222,7 +312,7 @@ const ClineRulesToggleModal: React.FC = () => {
 						overscrollBehavior: "contain",
 					}}>
 					<div
-						className="fixed w-[10px] h-[10px] z-[-1] rotate-45 border-r border-b border-(--vscode-editorGroup-border)"
+						className="fixed h-2.5 w-2.5 z-[-1] rotate-45 border-r border-b border-editor-group-border"
 						style={{
 							bottom: `calc(100vh - ${menuPosition}px)`,
 							right: arrowPosition,
@@ -252,8 +342,20 @@ const ClineRulesToggleModal: React.FC = () => {
 						</div>
 					</div>
 
+					{/* Remote config banner */}
+					{(currentView === "rules" && hasRemoteRules) || (currentView === "workflows" && hasRemoteWorkflows) ? (
+						<div className="flex items-center gap-2 px-5 py-3 mb-4 bg-vscode-textBlockQuote-background border-l-[3px] border-vscode-textLink-foreground">
+							<i className="codicon codicon-lock text-sm" />
+							<span className="text-base">
+								{currentView === "rules"
+									? "Your organization manages some rules"
+									: "Your organization manages some workflows"}
+							</span>
+						</div>
+					) : null}
+
 					{/* Description text */}
-					<div className="text-xs text-(--vscode-descriptionForeground) mb-4">
+					<div className="text-xs text-description mb-4">
 						{currentView === "rules" ? (
 							<p>
 								Rules allow you to provide Cline with system-level guidance. Think of them as a persistent way to
@@ -261,7 +363,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								<VSCodeLink
 									className="text-xs"
 									href="https://docs.cline.bot/features/cline-rules"
-									style={{ display: "inline" }}>
+									style={{ display: "inline", fontSize: "inherit" }}>
 									Docs
 								</VSCodeLink>
 							</p>
@@ -269,16 +371,10 @@ const ClineRulesToggleModal: React.FC = () => {
 							<p>
 								Workflows allow you to define a series of steps to guide Cline through a repetitive set of tasks,
 								such as deploying a service or submitting a PR. To invoke a workflow, type{" "}
-								<span
-									className=" 
-								text-(--vscode-foreground) font-bold">
-									/workflow-name
-								</span>{" "}
-								in the chat.{" "}
+								<span className="text-foreground font-bold">/workflow-name</span> in the chat.{" "}
 								<VSCodeLink
-									className="text-xs"
-									href="https://docs.cline.bot/features/slash-commands/workflows"
-									style={{ display: "inline" }}>
+									className="text-xs inline"
+									href="https://docs.cline.bot/features/slash-commands/workflows">
 									Docs
 								</VSCodeLink>
 							</p>
@@ -287,9 +383,35 @@ const ClineRulesToggleModal: React.FC = () => {
 
 					{currentView === "rules" ? (
 						<>
+							{/* Remote Rules Section */}
+							{hasRemoteRules && (
+								<div className="mb-3">
+									<div className="text-sm font-normal mb-2">Enterprise Rules</div>
+									<div className="flex flex-col gap-0">
+										{remoteGlobalRules.map((rule) => {
+											const enabled = rule.alwaysEnabled || remoteRulesToggles[rule.name] === true
+											return (
+												<RuleRow
+													alwaysEnabled={rule.alwaysEnabled}
+													enabled={enabled}
+													isGlobal={false}
+													isRemote={true}
+													key={rule.name}
+													rulePath={rule.name}
+													ruleType="cline"
+													toggleRule={toggleRemoteRule}
+												/>
+											)
+										})}
+									</div>
+								</div>
+							)}
+
 							{/* Global Rules Section */}
 							<div className="mb-3">
 								<div className="text-sm font-normal mb-2">Global Rules</div>
+
+								{/* File-based Global Rules */}
 								<RulesToggleList
 									isGlobal={true}
 									listGap="small"
@@ -313,6 +435,7 @@ const ClineRulesToggleModal: React.FC = () => {
 									showNoRules={false}
 									toggleRule={(rulePath, enabled) => toggleRule(false, rulePath, enabled)}
 								/>
+
 								<RulesToggleList
 									isGlobal={false}
 									listGap="small"
@@ -327,17 +450,53 @@ const ClineRulesToggleModal: React.FC = () => {
 									listGap="small"
 									rules={windsurfRules}
 									ruleType={"windsurf"}
-									showNewRule={true}
+									showNewRule={false}
 									showNoRules={false}
 									toggleRule={toggleWindsurfRule}
+								/>
+								<RulesToggleList
+									isGlobal={false}
+									listGap="small"
+									rules={agentsRules}
+									ruleType={"agents"}
+									showNewRule={true}
+									showNoRules={false}
+									toggleRule={toggleAgentsRule}
 								/>
 							</div>
 						</>
 					) : (
 						<>
+							{/* Remote Workflows Section */}
+							{hasRemoteWorkflows && (
+								<div className="mb-3">
+									<div className="text-sm font-normal mb-2">Enterprise Workflows</div>
+									<div className="flex flex-col gap-0">
+										{remoteGlobalWorkflows.map((workflow) => {
+											const enabled =
+												workflow.alwaysEnabled || remoteWorkflowToggles[workflow.name] === true
+											return (
+												<RuleRow
+													alwaysEnabled={workflow.alwaysEnabled}
+													enabled={enabled}
+													isGlobal={false}
+													isRemote={true}
+													key={workflow.name}
+													rulePath={workflow.name}
+													ruleType="workflow"
+													toggleRule={toggleRemoteWorkflow}
+												/>
+											)
+										})}
+									</div>
+								</div>
+							)}
+
 							{/* Global Workflows Section */}
 							<div className="mb-3">
 								<div className="text-sm font-normal mb-2">Global Workflows</div>
+
+								{/* File-based Global Workflows */}
 								<RulesToggleList
 									isGlobal={true}
 									listGap="small"

@@ -706,6 +706,7 @@ export class TelemetryService {
 			cacheReadTokens?: number
 			totalCost?: number
 		} = {},
+		isNativeToolCall?: boolean,
 	) {
 		// Ensure required parameters are provided
 		if (!ulid || !provider || !model || !source) {
@@ -723,6 +724,7 @@ export class TelemetryService {
 				mode,
 				timestamp: new Date().toISOString(), // Add timestamp for message sequencing
 				...tokenUsage,
+				isNativeToolCall,
 			},
 		})
 
@@ -1243,6 +1245,7 @@ export class TelemetryService {
 		provider?: string
 		errorStatus?: number | undefined
 		requestId?: string | undefined
+		isNativeToolCall?: boolean
 	}) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.PROVIDER_API_ERROR,

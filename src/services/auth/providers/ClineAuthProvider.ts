@@ -116,6 +116,7 @@ export class ClineAuthProvider implements IAuthProvider {
 				const authInfo = await this.refreshToken(storedAuthData.refreshToken)
 				const newAuthInfoString = JSON.stringify(authInfo)
 				if (newAuthInfoString !== storedAuthDataString) {
+					controller.stateManager.setSecret("clineAccountId", undefined) // cleanup old key
 					controller.stateManager.setSecret("cline:clineAccountId", newAuthInfoString)
 				}
 				return authInfo || null
