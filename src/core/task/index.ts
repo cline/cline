@@ -3505,7 +3505,10 @@ export class Task {
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
-			}).catch(() => {})
+			}).catch((err) => {
+				// Timeout waiting for terminals to cool down - continuing anyway
+				console.warn("[Task] Timeout waiting for terminals to finish (15s), continuing...", err.message)
+			})
 		}
 
 		this.taskState.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals

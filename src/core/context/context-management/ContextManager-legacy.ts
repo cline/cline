@@ -23,10 +23,30 @@ class ContextManager {
 
 				// This is the most reliable way to know when we're close to hitting the context window.
 				if (totalTokens >= maxAllowedSize) {
-					// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
-					// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
-					// FIXME: truncating the conversation in a way that is optimal for prompt caching AND takes into account multi-context window complexity is something we need to improve
-					const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
+					// Calculate optimal truncation strategy based on current usage vs target context window
+					// Goal: Keep conversation within maxAllowedSize with buffer for new messages
+					// Strategy: Adaptive truncation that accounts for model switching and prompt cache efficiency
+					const utilizationRatio = totalTokens / maxAllowedSize
+
+					// Determine how much to keep based on utilization:
+					// - If slightly over (1.0-1.5x): Keep half (removes 50%)
+					// - If moderately over (1.5-2.0x): Keep quarter (removes 75%)
+					// - If severely over (2.0x+): Keep eighth (removes 87.5%)
+					// This handles model switches better (e.g., Claude 200k → Deepseek 64k)
+					let keep: "half" | "quarter" | "eighth"
+					if (utilizationRatio >= 2.0) {
+						keep = "eighth" // Very aggressive truncation for severe overflow
+					} else if (utilizationRatio >= 1.5) {
+						keep = "quarter" // Moderate truncation
+					} else {
+						keep = "half" // Standard truncation
+					}
+
+					console.log(
+						`[ContextManager] Context window exceeded: ${totalTokens}/${maxAllowedSize} tokens ` +
+							`(${(utilizationRatio * 100).toFixed(1)}% utilization). ` +
+							`Truncation strategy: keep ${keep} of conversation.`,
+					)
 
 					// NOTE: it's okay that we overwriteConversationHistory in resume task since we're only ever removing the last user message and not anything in the middle which would affect this range
 					conversationHistoryDeletedRange = this.getNextTruncationRange(
@@ -53,7 +73,7 @@ class ContextManager {
 	public getNextTruncationRange(
 		apiMessages: Anthropic.Messages.MessageParam[],
 		currentDeletedRange: [number, number] | undefined,
-		keep: "half" | "quarter",
+		keep: "half" | "quarter" | "eighth",
 	): [number, number] {
 		// Since we always keep the first message, currentDeletedRange[0] will always be 1 (for now until we have a smarter truncation algorithm)
 		const rangeStartIndex = 1
@@ -66,12 +86,17 @@ class ContextManager {
 			// After flooring, we multiply by 2 to get the number of messages.
 			// Note that this will also always be an even number.
 			messagesToRemove = Math.floor((apiMessages.length - startOfRest) / 4) * 2 // Keep even number
-		} else {
+		} else if (keep === "quarter") {
 			// Remove 3/4 of remaining user-assistant pairs
 			// We calculate 3/4ths of the messages then divide by 2 to get the number of pairs.
 			// After flooring, we multiply by 2 to get the number of messages.
 			// Note that this will also always be an even number.
 			messagesToRemove = Math.floor(((apiMessages.length - startOfRest) * 3) / 4 / 2) * 2
+		} else {
+			// keep === "eighth": Remove 7/8 of remaining user-assistant pairs
+			// Very aggressive truncation for severe context window overflow
+			// Calculate 7/8ths of messages, divide by 2 for pairs, floor and multiply by 2
+			messagesToRemove = Math.floor(((apiMessages.length - startOfRest) * 7) / 8 / 2) * 2
 		}
 
 		let rangeEndIndex = startOfRest + messagesToRemove - 1
