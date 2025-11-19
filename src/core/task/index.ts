@@ -2839,12 +2839,10 @@ export class Task {
 								reasoningID = chunk.id
 							}
 
-							// Get the current reasoning state
-							const thinkingBlock = reasonsHandler.getCurrentReasoning()
-
 							// fixes bug where cancelling task > aborts task > for loop may be in middle of streaming reasoning > say function throws error before we get a chance to properly clean up and cancel the task.
 							if (!this.taskState.abort) {
-								if (thinkingBlock?.type === "thinking" && thinkingBlock.thinking) {
+								const thinkingBlock = reasonsHandler.getCurrentReasoning()
+								if (thinkingBlock?.thinking && chunk.reasoning) {
 									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
 								}
 							}
@@ -2880,7 +2878,7 @@ export class Task {
 						case "text": {
 							// If we have reasoning content, finalize it before processing text (only once)
 							const currentReasoning = reasonsHandler.getCurrentReasoning()
-							if (currentReasoning && currentReasoning.thinking && assistantMessage.length === 0) {
+							if (currentReasoning?.thinking && assistantMessage.length === 0) {
 								// Complete the reasoning message (only once)
 								await this.say("reasoning", currentReasoning.thinking, undefined, undefined, false)
 							}
@@ -3062,9 +3060,6 @@ export class Task {
 				const { reasonsHandler } = this.streamHandler.getHandlers()
 				const requestId = this.streamHandler.requestId
 
-				// Get finalized tool use blocks from the handler
-				const toolUseBlocks = toolUseHandler.getAllFinalizedToolUses()
-
 				// Build content array with thinking blocks, text (if any), and tool use blocks
 				const assistantContent: Array<ClineAssistantContent> = [
 					// This is critical for maintaining the model's reasoning flow and conversation integrity.
@@ -3083,7 +3078,8 @@ export class Task {
 				}
 
 				// Only add text block if there's actual text (not just tool XML)
-				if (assistantTextOnly.trim().length > 0) {
+				const hasAssistantText = assistantTextOnly.trim().length > 0
+				if (hasAssistantText) {
 					assistantContent.push({
 						type: "text",
 						text: assistantTextOnly,
@@ -3093,6 +3089,12 @@ export class Task {
 					})
 				}
 
+				// Get finalized tool use blocks from the handler
+				const toolUseBlocks = toolUseHandler.getAllFinalizedToolUses(
+					// NOTE: If there is no assistant text but there is a thinking block, we attach the summary to the tool use blocks
+					// for providers that required reasoning traces included with assistant content.
+					hasAssistantText ? undefined : thinkingBlock?.summary,
+				)
 				// Append tool use blocks if any exist
 				if (toolUseBlocks.length > 0) {
 					assistantContent.push(...toolUseBlocks)

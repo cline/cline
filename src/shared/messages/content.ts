@@ -46,6 +46,8 @@ export interface ClineUserToolResultContentBlock extends Anthropic.ToolResultBlo
  * Assistant only content types
  */
 export interface ClineAssistantToolUseBlock extends Anthropic.ToolUseBlockParam, ClineSharedMessageParam {
+	// reasoning_details only exists for providers listed in REASONING_DETAILS_PROVIDERS
+	reasoning_details?: unknown[] | ClineReasoningDetailParam[]
 	// Thought Signature associates with Gemini
 	signature?: string
 }

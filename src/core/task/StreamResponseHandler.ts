@@ -145,12 +145,12 @@ class ToolUseHandler {
 		}
 	}
 
-	getAllFinalizedToolUses(): ClineAssistantToolUseBlock[] {
+	getAllFinalizedToolUses(summary?: ClineAssistantToolUseBlock["reasoning_details"]): ClineAssistantToolUseBlock[] {
 		const results: ClineAssistantToolUseBlock[] = []
 		for (const id of this.pendingToolUses.keys()) {
 			const toolUse = this.getFinalizedToolUse(id)
 			if (toolUse) {
-				results.push(toolUse)
+				results.push({ ...toolUse, reasoning_details: summary })
 			}
 		}
 		return results
