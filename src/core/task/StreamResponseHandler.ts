@@ -36,7 +36,7 @@ export interface ReasoningDelta {
 }
 
 export interface PendingReasoning {
-	id: string
+	id?: string
 	content: string
 	signature: string
 	details: any[]
@@ -267,12 +267,8 @@ class ReasoningHandler {
 	private pendingReasoning: PendingReasoning | null = null
 
 	processReasoningDelta(delta: ReasoningDelta): void {
-		if (!delta.id && !this.pendingReasoning) {
-			return
-		}
-
 		// Initialize pending reasoning if we have an ID but no pending reasoning yet
-		if (delta.id && !this.pendingReasoning) {
+		if (!this.pendingReasoning) {
 			this.pendingReasoning = {
 				id: delta.id,
 				content: "",
