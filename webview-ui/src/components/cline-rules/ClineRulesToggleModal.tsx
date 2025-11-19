@@ -32,6 +32,7 @@ const ClineRulesToggleModal: React.FC = () => {
 		remoteRulesToggles = {},
 		remoteWorkflowToggles = {},
 		remoteConfigSettings = {},
+		hooksEnabled,
 		setGlobalClineRulesToggles,
 		setLocalClineRulesToggles,
 		setLocalCursorRulesToggles,
@@ -48,7 +49,7 @@ const ClineRulesToggleModal: React.FC = () => {
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [menuPosition, setMenuPosition] = useState(0)
-	const [currentView, setCurrentView] = useState<"rules" | "workflows">("rules")
+	const [currentView, setCurrentView] = useState<"rules" | "workflows" | "hooks">("rules")
 
 	useEffect(() => {
 		if (isVisible) {
@@ -339,6 +340,11 @@ const ClineRulesToggleModal: React.FC = () => {
 							<TabButton isActive={currentView === "workflows"} onClick={() => setCurrentView("workflows")}>
 								Workflows
 							</TabButton>
+							{hooksEnabled?.featureFlag && (
+								<TabButton isActive={currentView === "hooks"} onClick={() => setCurrentView("hooks")}>
+									Hooks
+								</TabButton>
+							)}
 						</div>
 					</div>
 
@@ -367,7 +373,7 @@ const ClineRulesToggleModal: React.FC = () => {
 									Docs
 								</VSCodeLink>
 							</p>
-						) : (
+						) : currentView === "workflows" ? (
 							<p>
 								Workflows allow you to define a series of steps to guide Cline through a repetitive set of tasks,
 								such as deploying a service or submitting a PR. To invoke a workflow, type{" "}
@@ -377,6 +383,11 @@ const ClineRulesToggleModal: React.FC = () => {
 									href="https://docs.cline.bot/features/slash-commands/workflows">
 									Docs
 								</VSCodeLink>
+							</p>
+						) : (
+							<p>
+								Hooks allow you to execute custom scripts at specific points in Cline's execution lifecycle,
+								enabling automation and integration with external tools.
 							</p>
 						)}
 					</div>
@@ -465,7 +476,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								/>
 							</div>
 						</>
-					) : (
+					) : currentView === "workflows" ? (
 						<>
 							{/* Remote Workflows Section */}
 							{hasRemoteWorkflows && (
@@ -520,6 +531,13 @@ const ClineRulesToggleModal: React.FC = () => {
 									showNoRules={false}
 									toggleRule={(rulePath, enabled) => toggleWorkflow(false, rulePath, enabled)}
 								/>
+							</div>
+						</>
+					) : (
+						<>
+							{/* Hooks content will be defined here */}
+							<div className="text-sm text-description">
+								<p>Hooks content coming soon...</p>
 							</div>
 						</>
 					)}
