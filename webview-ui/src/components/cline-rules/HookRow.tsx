@@ -1,5 +1,5 @@
 import { StringRequest } from "@shared/proto/cline/common"
-import { DeleteHookRequest } from "@shared/proto/cline/file"
+import { DeleteHookRequest, HooksToggles } from "@shared/proto/cline/file"
 import { PenIcon, Trash2Icon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -13,7 +13,7 @@ interface HookRowProps {
 	isWindows: boolean
 	workspaceName?: string
 	onToggle: (hookName: string, newEnabled: boolean) => void
-	onDelete: () => void
+	onDelete: (hooksToggles: HooksToggles) => void
 }
 
 const HookRow: React.FC<HookRowProps> = ({
@@ -40,8 +40,10 @@ const HookRow: React.FC<HookRowProps> = ({
 				workspaceName,
 			}),
 		)
-			.then(() => {
-				onDelete()
+			.then((response) => {
+				if (response.hooksToggles) {
+					onDelete(response.hooksToggles)
+				}
 			})
 			.catch((err) => console.error("Failed to delete hook:", err))
 	}

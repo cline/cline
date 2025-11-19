@@ -99,42 +99,41 @@ const ClineRulesToggleModal: React.FC = () => {
 		setLocalWorkflowToggles,
 	])
 
-	// Refresh hooks every time the hooks tab becomes visible
-	useEffect(() => {
-		if (isVisible && currentView === "hooks") {
-			// Always refresh when tab is opened to catch filesystem changes
-			FileServiceClient.refreshHooks({} as EmptyRequest)
-				.then((response) => {
-					setGlobalHooks(response.globalHooks || [])
-					setWorkspaceHooks(response.workspaceHooks || [])
-					setIsWindows(response.isWindows || false)
-				})
-				.catch((error) => {
-					console.error("Failed to refresh hooks:", error)
-				})
-		}
-	}, [isVisible, currentView])
-
-	// Set up polling to watch for filesystem changes while hooks tab is visible
+	// Refresh hooks when hooks tab becomes visible
 	useEffect(() => {
 		if (!isVisible || currentView !== "hooks") {
 			return
 		}
 
-		// Poll every 1 second to detect filesystem changes
-		const pollInterval = setInterval(() => {
+		const abortController = new AbortController()
+
+		// Initial refresh when tab opens
+		const refreshHooks = () => {
+			if (abortController.signal.aborted) return
+
 			FileServiceClient.refreshHooks({} as EmptyRequest)
 				.then((response) => {
-					setGlobalHooks(response.globalHooks || [])
-					setWorkspaceHooks(response.workspaceHooks || [])
-					setIsWindows(response.isWindows || false)
+					if (!abortController.signal.aborted) {
+						setGlobalHooks(response.globalHooks || [])
+						setWorkspaceHooks(response.workspaceHooks || [])
+						setIsWindows(response.isWindows || false)
+					}
 				})
 				.catch((error) => {
-					console.error("Failed to refresh hooks during polling:", error)
+					if (!abortController.signal.aborted) {
+						console.error("Failed to refresh hooks:", error)
+					}
 				})
-		}, 1000)
+		}
+
+		// Refresh immediately
+		refreshHooks()
+
+		// Poll every 1 second to detect filesystem changes
+		const pollInterval = setInterval(refreshHooks, 1000)
 
 		return () => {
+			abortController.abort()
 			clearInterval(pollInterval)
 		}
 	}, [isVisible, currentView])
@@ -600,7 +599,6 @@ const ClineRulesToggleModal: React.FC = () => {
 						</>
 					) : (
 						<>
-							{/* Hooks Tab */}
 							<div className="text-xs text-description mb-4">
 								<p>
 									Toggle to enable/disable (chmod +x/-x).{" "}
@@ -612,6 +610,17 @@ const ClineRulesToggleModal: React.FC = () => {
 									</VSCodeLink>
 								</p>
 							</div>
+							{/* Hooks Tab */}
+							{/* Windows warning banner */}
+							{isWindows && (
+								<div className="flex items-center gap-2 px-5 py-3 mb-4 bg-vscode-inputValidation-warningBackground border-l-[3px] border-vscode-inputValidation-warningBorder">
+									<i className="codicon codicon-warning text-sm" />
+									<span className="text-base">
+										Hook toggling is not supported on Windows. Hooks can be created, edited, and deleted, but
+										cannot be enabled/disabled and will not execute.
+									</span>
+								</div>
+							)}
 
 							{/* Global Hooks */}
 							<div className="mb-3">
@@ -627,16 +636,11 @@ const ClineRulesToggleModal: React.FC = () => {
 												isGlobal={true}
 												isWindows={isWindows}
 												key={hook.name}
-												onDelete={() => {
-													// Refresh hooks to get updated state after deletion
-													FileServiceClient.refreshHooks({} as EmptyRequest)
-														.then((response) => {
-															setGlobalHooks(response.globalHooks || [])
-															setWorkspaceHooks(response.workspaceHooks || [])
-														})
-														.catch((error) => {
-															console.error("Failed to refresh hooks after delete:", error)
-														})
+												onDelete={(hooksToggles) => {
+													// Use response data directly, no need to refresh
+													setGlobalHooks(hooksToggles.globalHooks || [])
+													setWorkspaceHooks(hooksToggles.workspaceHooks || [])
+													setIsWindows(hooksToggles.isWindows || false)
 												}}
 												onToggle={(name: string, newEnabled: boolean) =>
 													toggleHook(true, name, newEnabled)
@@ -664,16 +668,11 @@ const ClineRulesToggleModal: React.FC = () => {
 													isGlobal={false}
 													isWindows={isWindows}
 													key={hook.absolutePath}
-													onDelete={() => {
-														// Refresh hooks to get updated state after deletion
-														FileServiceClient.refreshHooks({} as EmptyRequest)
-															.then((response) => {
-																setGlobalHooks(response.globalHooks || [])
-																setWorkspaceHooks(response.workspaceHooks || [])
-															})
-															.catch((error) => {
-																console.error("Failed to refresh hooks after delete:", error)
-															})
+													onDelete={(hooksToggles) => {
+														// Use response data directly, no need to refresh
+														setGlobalHooks(hooksToggles.globalHooks || [])
+														setWorkspaceHooks(hooksToggles.workspaceHooks || [])
+														setIsWindows(hooksToggles.isWindows || false)
 													}}
 													onToggle={(name: string, newEnabled: boolean) =>
 														toggleHook(false, name, newEnabled, workspace.workspaceName)

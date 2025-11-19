@@ -3,18 +3,8 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { VALID_HOOK_TYPES } from "../../hooks/utils"
 import { Controller } from ".."
-
-const ALL_HOOK_TYPES = [
-	"TaskStart",
-	"TaskResume",
-	"TaskCancel",
-	"TaskComplete",
-	"PreToolUse",
-	"PostToolUse",
-	"UserPromptSubmit",
-	"PreCompact",
-]
 
 export async function refreshHooks(_controller: Controller): Promise<HooksToggles> {
 	const globalHooksDir = path.join(os.homedir(), "Documents", "Cline", "Hooks")
@@ -22,7 +12,7 @@ export async function refreshHooks(_controller: Controller): Promise<HooksToggle
 
 	// Collect global hooks
 	const globalHooks: HookInfo[] = []
-	for (const hookName of ALL_HOOK_TYPES) {
+	for (const hookName of VALID_HOOK_TYPES) {
 		const hookPath = path.join(globalHooksDir, hookName)
 		try {
 			const stat = await fs.stat(hookPath)
@@ -48,7 +38,7 @@ export async function refreshHooks(_controller: Controller): Promise<HooksToggle
 		const workspaceHooksDir = path.join(workspacePath, ".clinerules", "hooks")
 		const hooks: HookInfo[] = []
 
-		for (const hookName of ALL_HOOK_TYPES) {
+		for (const hookName of VALID_HOOK_TYPES) {
 			const hookPath = path.join(workspaceHooksDir, hookName)
 			try {
 				const stat = await fs.stat(hookPath)

@@ -223,20 +223,20 @@ message ToggleWorkflowRequest {
 
 // Maps from hook name to enabled/disabled status
 message HookInfo {
-	string name = 1;
-	bool enabled = 2;
-	string absolute_path = 3;
+  string name = 1;
+  bool enabled = 2;
+  string absolutePath = 3;
 }
 
 message WorkspaceHooks {
-	string workspace_name = 1;
-	repeated HookInfo hooks = 2;
+  string workspace_name = 1;
+  repeated HookInfo hooks = 2;
 }
 
 message HooksToggles {
-	repeated HookInfo global_hooks = 1;
-	repeated WorkspaceHooks workspace_hooks = 2;
-	bool is_windows = 3; // Whether the system is Windows (toggles disabled)
+  repeated HookInfo global_hooks = 1;
+  repeated WorkspaceHooks workspace_hooks = 2;
+  bool is_windows = 3; // Whether the system is Windows (toggles disabled)
 }
 
 // Request to toggle a hook

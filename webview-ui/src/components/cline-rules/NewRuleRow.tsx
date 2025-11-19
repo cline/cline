@@ -5,6 +5,7 @@ import { useClickAway } from "react-use"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
+import "@/styles/accessibility.css"
 
 interface NewRuleRowProps {
 	isGlobal: boolean
@@ -137,34 +138,46 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHoo
 						},
 					)}>
 					{ruleType === "hook" ? (
-						<select
-							className="flex-1 bg-input-background text-input-foreground border-0 outline-0 rounded focus:outline-none focus:ring-0 focus:border-transparent px-2 cursor-pointer"
-							disabled={availableHookTypes.length === 0}
-							onChange={(e) => {
-								if (e.target.value) {
-									handleCreateHook(e.target.value)
-									// Reset selection after creating
-									e.target.value = ""
-								}
-							}}
-							style={{
-								fontStyle: "italic",
-								appearance: "none",
-								backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23cccccc' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
-								backgroundRepeat: "no-repeat",
-								backgroundPosition: "right 8px center",
-								paddingRight: "24px",
-							}}
-							value="">
-							<option disabled value="">
-								{availableHookTypes.length === 0 ? "All hooks created" : "New hook..."}
-							</option>
-							{availableHookTypes.map((hook) => (
-								<option key={hook.name} title={hook.description} value={hook.name}>
-									{hook.name}
+						<>
+							<label className="sr-only" htmlFor="hook-type-select">
+								Select hook type to create
+							</label>
+							<span className="sr-only" id="hook-select-description">
+								Choose a hook type to create. Hooks execute at specific points in Cline's lifecycle. Available:{" "}
+								{availableHookTypes.map((h) => h.name).join(", ")}
+							</span>
+							<select
+								aria-describedby="hook-select-description"
+								aria-label="Select hook type to create"
+								className="flex-1 bg-input-background text-input-foreground border-0 outline-0 rounded focus:outline-none focus:ring-0 focus:border-transparent px-2 cursor-pointer"
+								disabled={availableHookTypes.length === 0}
+								id="hook-type-select"
+								onChange={(e) => {
+									if (e.target.value) {
+										handleCreateHook(e.target.value)
+										// Reset selection after creating
+										e.target.value = ""
+									}
+								}}
+								style={{
+									fontStyle: "italic",
+									appearance: "none",
+									backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23cccccc' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+									backgroundRepeat: "no-repeat",
+									backgroundPosition: "right 8px center",
+									paddingRight: "24px",
+								}}
+								value="">
+								<option disabled value="">
+									{availableHookTypes.length === 0 ? "All hooks created" : "New hook..."}
 								</option>
-							))}
-						</select>
+								{availableHookTypes.map((hook) => (
+									<option key={hook.name} title={hook.description} value={hook.name}>
+										{hook.name}
+									</option>
+								))}
+							</select>
+						</>
 					) : (
 						<form className="flex flex-1 items-center" onSubmit={handleSubmit}>
 							<input
