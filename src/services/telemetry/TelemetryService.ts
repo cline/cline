@@ -188,6 +188,8 @@ export class TelemetryService {
 			AUTO_CONDENSE_TOGGLED: "task.auto_condense_toggled",
 			// Tracks when yolo mode setting is toggled on/off
 			YOLO_MODE_TOGGLED: "task.yolo_mode_toggled",
+			// Tracks when Cline web tools setting is toggled on/off
+			CLINE_WEB_TOOLS_TOGGLED: "task.cline_web_tools_toggled",
 			// Tracks task initialization timing
 			INITIALIZATION: "task.initialization",
 			// Terminal execution telemetry events
@@ -1255,6 +1257,21 @@ export class TelemetryService {
 	public captureYoloModeToggle(ulid: string, enabled: boolean) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.YOLO_MODE_TOGGLED,
+			properties: {
+				ulid,
+				enabled,
+			},
+		})
+	}
+
+	/**
+	 * Records when Cline web tools are enabled/disabled by the user
+	 * @param ulid Unique identifier for the task
+	 * @param enabled Whether Cline web tools are enabled (true) or disabled (false)
+	 */
+	public captureClineWebToolsToggle(ulid: string, enabled: boolean) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.CLINE_WEB_TOOLS_TOGGLED,
 			properties: {
 				ulid,
 				enabled,
