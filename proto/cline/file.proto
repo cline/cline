@@ -236,6 +236,7 @@ message WorkspaceHooks {
 message HooksToggles {
 	repeated HookInfo global_hooks = 1;
 	repeated WorkspaceHooks workspace_hooks = 2;
+	bool is_windows = 3; // Whether the system is Windows (toggles disabled)
 }
 
 // Request to toggle a hook

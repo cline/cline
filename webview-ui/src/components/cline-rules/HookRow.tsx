@@ -10,12 +10,22 @@ interface HookRowProps {
 	enabled: boolean
 	absolutePath: string
 	isGlobal: boolean
+	isWindows: boolean
 	workspaceName?: string
-	onToggle: (hookName: string, enabled: boolean, workspaceName?: string) => void
+	onToggle: (hookName: string, newEnabled: boolean) => void
 	onDelete: () => void
 }
 
-const HookRow: React.FC<HookRowProps> = ({ hookName, enabled, absolutePath, isGlobal, workspaceName, onToggle, onDelete }) => {
+const HookRow: React.FC<HookRowProps> = ({
+	hookName,
+	enabled,
+	absolutePath,
+	isGlobal,
+	isWindows,
+	workspaceName,
+	onToggle,
+	onDelete,
+}) => {
 	const handleEditClick = () => {
 		FileServiceClient.openFile(StringRequest.create({ value: absolutePath })).catch((err) =>
 			console.error("Failed to open file:", err),
@@ -45,12 +55,21 @@ const HookRow: React.FC<HookRowProps> = ({ hookName, enabled, absolutePath, isGl
 
 				{/* Toggle Switch */}
 				<div className="flex items-center space-x-2 gap-2">
-					<Switch
-						checked={enabled}
-						className="mx-1"
-						key={hookName}
-						onClick={() => onToggle(hookName, !enabled, workspaceName)}
-					/>
+					<div
+						title={
+							isWindows
+								? "Hook toggling not supported on Windows. Hooks can be edited and deleted, but won't execute."
+								: undefined
+						}>
+						<Switch
+							checked={enabled}
+							className="mx-1"
+							disabled={isWindows}
+							key={hookName}
+							onClick={() => onToggle(hookName, !enabled)}
+							style={isWindows ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+						/>
+					</div>
 					<Button aria-label="Edit hook file" onClick={handleEditClick} size="xs" title="Edit hook file" variant="icon">
 						<PenIcon />
 					</Button>

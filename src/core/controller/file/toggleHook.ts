@@ -41,13 +41,12 @@ export async function toggleHook(controller: Controller, request: ToggleHookRequ
 		throw new Error(`Hook ${hookName} does not exist at ${hookPath}`)
 	}
 
-	// Windows doesn't support chmod
-	if (process.platform === "win32") {
-		throw new Error("Toggling hooks is not supported on Windows")
+	// On Windows, we can't use chmod, so we just return the current state
+	// without modifying the file. The frontend will disable the toggle.
+	if (process.platform !== "win32") {
+		// Toggle executable bit (Unix-like systems only)
+		await fs.chmod(hookPath, enabled ? 0o755 : 0o644)
 	}
-
-	// Toggle executable bit
-	await fs.chmod(hookPath, enabled ? 0o755 : 0o644)
 
 	// Invalidate cache
 	await HookDiscoveryCache.getInstance().invalidateAll()

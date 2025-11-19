@@ -18,6 +18,7 @@ const ALL_HOOK_TYPES = [
 
 export async function refreshHooks(_controller: Controller): Promise<HooksToggles> {
 	const globalHooksDir = path.join(os.homedir(), "Documents", "Cline", "Hooks")
+	const isWindows = process.platform === "win32"
 
 	// Collect global hooks
 	const globalHooks: HookInfo[] = []
@@ -79,6 +80,7 @@ export async function refreshHooks(_controller: Controller): Promise<HooksToggle
 	return HooksToggles.create({
 		globalHooks,
 		workspaceHooks: workspaceHooksList,
+		isWindows,
 	})
 }
 

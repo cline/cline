@@ -49,6 +49,7 @@ const ClineRulesToggleModal: React.FC = () => {
 	const [workspaceHooks, setWorkspaceHooks] = useState<
 		Array<{ workspaceName: string; hooks: Array<{ name: string; enabled: boolean; absolutePath: string }> }>
 	>([])
+	const [isWindows, setIsWindows] = useState(false)
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 	const modalRef = useRef<HTMLDivElement>(null)
@@ -106,6 +107,7 @@ const ClineRulesToggleModal: React.FC = () => {
 				.then((response) => {
 					setGlobalHooks(response.globalHooks || [])
 					setWorkspaceHooks(response.workspaceHooks || [])
+					setIsWindows(response.isWindows || false)
 				})
 				.catch((error) => {
 					console.error("Failed to refresh hooks:", error)
@@ -125,6 +127,7 @@ const ClineRulesToggleModal: React.FC = () => {
 				.then((response) => {
 					setGlobalHooks(response.globalHooks || [])
 					setWorkspaceHooks(response.workspaceHooks || [])
+					setIsWindows(response.isWindows || false)
 				})
 				.catch((error) => {
 					console.error("Failed to refresh hooks during polling:", error)
@@ -622,6 +625,7 @@ const ClineRulesToggleModal: React.FC = () => {
 												enabled={hook.enabled}
 												hookName={hook.name}
 												isGlobal={true}
+												isWindows={isWindows}
 												key={hook.name}
 												onDelete={() => {
 													// Refresh hooks to get updated state after deletion
@@ -658,6 +662,7 @@ const ClineRulesToggleModal: React.FC = () => {
 													enabled={hook.enabled}
 													hookName={hook.name}
 													isGlobal={false}
+													isWindows={isWindows}
 													key={hook.absolutePath}
 													onDelete={() => {
 														// Refresh hooks to get updated state after deletion
