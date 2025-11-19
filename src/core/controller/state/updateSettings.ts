@@ -191,6 +191,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("yoloModeToggled", request.yoloModeToggled)
 		}
 
+		// Update cline web tools setting
+		if (request.clineWebToolsEnabled !== undefined) {
+			controller.stateManager.setGlobalState("clineWebToolsEnabled", request.clineWebToolsEnabled)
+		}
+
 		if (request.dictationSettings !== undefined) {
 			// Convert from protobuf format (snake_case) to TypeScript format (camelCase)
 			const dictationSettings = {
