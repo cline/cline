@@ -848,7 +848,7 @@ export class Task {
 
 	/**
 	 * Helper method to determine the compaction strategy being used
-	 * @returns A string describing the strategy: "auto-condense", "quarter", "half", or "none"
+	 * @returns A string describing the strategy: "auto-condense", "standard-truncation-quarter", "standard-truncation-half", or "none"
 	 */
 	private getCompactionStrategy(): string {
 		const useAutoCondense = this.stateManager.getGlobalSettingsKey("useAutoCondense")
@@ -856,9 +856,36 @@ export class Task {
 			return "auto-condense"
 		}
 
-		// For non-auto-condense, check if we're using quarter or half truncation
-		// This is determined by the context manager's logic
-		return "standard-truncation"
+		// For standard truncation, determine if we would use quarter or half strategy
+		// This matches the logic in attemptApiRequest where truncation is triggered
+		const clineMessages = this.messageStateHandler.getClineMessages()
+		const previousApiReqIndex = findLastIndex(clineMessages, (m) => m.say === "api_req_started")
+
+		if (previousApiReqIndex !== -1) {
+			const previousRequest = clineMessages[previousApiReqIndex]
+			if (previousRequest?.text) {
+				try {
+					const { tokensIn, tokensOut, cacheWrites, cacheReads } = JSON.parse(previousRequest.text || "{}")
+					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+
+					const { contextWindow } = getContextWindowInfo(this.api)
+					const maxAllowedSize = contextWindow * 0.9 // Match the threshold used in attemptApiRequest
+
+					// Determine strategy based on token usage
+					if (totalTokens / 2 > maxAllowedSize) {
+						return "standard-truncation-quarter"
+					} else {
+						return "standard-truncation-half"
+					}
+				} catch (error) {
+					// If we can't parse the previous request, default to half
+					return "standard-truncation-half"
+				}
+			}
+		}
+
+		// Default to half if we can't determine from previous request
+		return "standard-truncation-half"
 	}
 
 	private async runUserPromptSubmitHook(
@@ -2659,41 +2686,147 @@ export class Task {
 			if (shouldCompact) {
 				const hooksEnabled = this.stateManager.getGlobalSettingsKey("hooksEnabled")
 				if (hooksEnabled) {
-					const { executeHook } = await import("../hooks/hook-executor")
+					try {
+						const { executeHook } = await import("../hooks/hook-executor")
 
-					const apiHistory = this.messageStateHandler.getApiConversationHistory()
-					const contextSize = apiHistory.length
-					const strategy = this.getCompactionStrategy()
+						const apiHistory = this.messageStateHandler.getApiConversationHistory()
+						const contextSize = apiHistory.length
+						const strategy = this.getCompactionStrategy()
 
-					const preCompactResult = await executeHook({
-						hookName: "PreCompact",
-						hookInput: {
-							preCompact: {
-								taskMetadata: {
+						// Extract token usage from previous API request
+						let tokensIn = 0
+						let tokensOut = 0
+						let tokensInCache = 0
+						let tokensOutCache = 0
+
+						if (previousApiReqIndex !== -1) {
+							const clineMessages = this.messageStateHandler.getClineMessages()
+							const previousRequest = clineMessages[previousApiReqIndex]
+							if (previousRequest?.text) {
+								try {
+									const apiReqInfo: ClineApiReqInfo = JSON.parse(previousRequest.text)
+									tokensIn = apiReqInfo.tokensIn || 0
+									tokensOut = apiReqInfo.tokensOut || 0
+									tokensInCache = apiReqInfo.cacheWrites || 0
+									tokensOutCache = apiReqInfo.cacheReads || 0
+								} catch (error) {
+									console.error("[PreCompact] Failed to parse previous API request info:", error)
+								}
+							}
+						}
+
+						// Extract truncation range if it exists
+						let deletedRangeStart = 0
+						let deletedRangeEnd = 0
+						if (this.taskState.conversationHistoryDeletedRange) {
+							;[deletedRangeStart, deletedRangeEnd] = this.taskState.conversationHistoryDeletedRange
+						}
+
+						const preCompactResult = await executeHook({
+							hookName: "PreCompact",
+							hookInput: {
+								preCompact: {
 									taskId: this.taskId,
 									ulid: this.ulid,
-								},
-								contextState: {
-									contextSize: contextSize.toString(),
+									contextSize,
 									compactionStrategy: strategy,
-									previousApiReqIndex: previousApiReqIndex.toString(),
+									previousApiReqIndex,
+									tokensIn,
+									tokensOut,
+									tokensInCache,
+									tokensOutCache,
+									deletedRangeStart,
+									deletedRangeEnd,
 								},
 							},
-						},
-						isCancellable: true,
-						say: this.say.bind(this),
-						setActiveHookExecution: this.setActiveHookExecution.bind(this),
-						clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
-						messageStateHandler: this.messageStateHandler,
-						taskId: this.taskId,
-						hooksEnabled,
-					})
+							isCancellable: true,
+							say: this.say.bind(this),
+							setActiveHookExecution: this.setActiveHookExecution.bind(this),
+							clearActiveHookExecution: this.clearActiveHookExecution.bind(this),
+							messageStateHandler: this.messageStateHandler,
+							taskId: this.taskId,
+							hooksEnabled,
+						})
 
-					// Handle cancellation from hook
-					if (preCompactResult.cancel === true) {
-						// Compaction was cancelled - show simple warning and continue without compacting
-						await this.say("text", "⚠️ Context compaction was cancelled.")
-						shouldCompact = false
+						// Handle cancellation from hook
+						if (preCompactResult.cancel === true) {
+							// Provide detailed feedback based on cancellation source
+							if (preCompactResult.wasCancelled) {
+								await this.say(
+									"text",
+									"⚠️ Context compaction was cancelled by user. The conversation will continue without compacting, but may exceed context limits in future requests.",
+								)
+							} else {
+								await this.say(
+									"text",
+									"⚠️ Context compaction was cancelled by the PreCompact hook. The conversation will continue without compacting.",
+								)
+							}
+
+							// Capture telemetry for cancellation
+							telemetryService.capture({
+								event: "hook.executed",
+								properties: {
+									ulid: this.ulid,
+									hookName: "PreCompact",
+									status: "cancelled",
+									wasCancelled: preCompactResult.wasCancelled,
+									contextSize,
+									strategy,
+									tokensIn,
+									tokensOut,
+								},
+							})
+
+							shouldCompact = false
+						} else {
+							// Hook completed successfully
+							telemetryService.capture({
+								event: "hook.executed",
+								properties: {
+									ulid: this.ulid,
+									hookName: "PreCompact",
+									status: "completed",
+									contextSize,
+									strategy,
+									tokensIn,
+									tokensOut,
+									hadContextModification: !!preCompactResult.contextModification,
+								},
+							})
+
+							// Log successful execution for debugging
+							console.log(
+								`[PreCompact] Hook executed successfully for task ${this.taskId}. Context size: ${contextSize}, Strategy: ${strategy}`,
+							)
+						}
+					} catch (error) {
+						// Graceful degradation: Log error but continue with compaction
+						console.error("[PreCompact] Hook execution failed:", error)
+
+						// Capture telemetry for error
+						const errorMessage = error instanceof Error ? error.message : String(error)
+						const apiHistory = this.messageStateHandler.getApiConversationHistory()
+						telemetryService.capture({
+							event: "hook.executed",
+							properties: {
+								ulid: this.ulid,
+								hookName: "PreCompact",
+								status: "error",
+								errorMessage,
+								contextSize: apiHistory.length,
+								strategy: this.getCompactionStrategy(),
+							},
+						})
+
+						// Notify user but don't block compaction
+						await this.say(
+							"text",
+							"⚠️ PreCompact hook encountered an error but compaction will proceed. Check logs for details.",
+						)
+
+						// Continue with compaction despite hook error
+						// shouldCompact remains true
 					}
 				}
 			}
