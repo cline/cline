@@ -2413,15 +2413,13 @@ export class Task {
 
 			if (this.taskState.currentStreamingContentIndex < this.taskState.assistantMessageContent.length) {
 				// there are already more content blocks to stream, so we'll call this function ourselves
-				// await this.presentAssistantContent()
-
-				this.presentAssistantMessage()
+				await this.presentAssistantMessage()
 				return
 			}
 		}
 		// block is partial, but the read stream may have finished
 		if (this.taskState.presentAssistantMessageHasPendingUpdates) {
-			this.presentAssistantMessage()
+			await this.presentAssistantMessage()
 		}
 	}
 
@@ -2910,10 +2908,10 @@ export class Task {
 							if (toolBlocks.length > 0) {
 								this.taskState.currentStreamingContentIndex = textBlocks.length
 								this.taskState.userMessageContentReady = false
+								await this.presentAssistantMessage()
 							} else if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false
 							}
-							this.presentAssistantMessage()
 							break
 						}
 						case "text": {
@@ -2935,9 +2933,9 @@ export class Task {
 
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
+								// present content to user
+								await this.presentAssistantMessage()
 							}
-							// present content to user
-							this.presentAssistantMessage()
 							break
 						}
 					}
