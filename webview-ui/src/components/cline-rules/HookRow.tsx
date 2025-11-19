@@ -10,11 +10,12 @@ interface HookRowProps {
 	enabled: boolean
 	absolutePath: string
 	isGlobal: boolean
-	onToggle: (hookName: string, enabled: boolean) => void
+	workspaceName?: string
+	onToggle: (hookName: string, enabled: boolean, workspaceName?: string) => void
 	onDelete: () => void
 }
 
-const HookRow: React.FC<HookRowProps> = ({ hookName, enabled, absolutePath, isGlobal, onToggle, onDelete }) => {
+const HookRow: React.FC<HookRowProps> = ({ hookName, enabled, absolutePath, isGlobal, workspaceName, onToggle, onDelete }) => {
 	const handleEditClick = () => {
 		FileServiceClient.openFile(StringRequest.create({ value: absolutePath })).catch((err) =>
 			console.error("Failed to open file:", err),
@@ -26,6 +27,7 @@ const HookRow: React.FC<HookRowProps> = ({ hookName, enabled, absolutePath, isGl
 			DeleteHookRequest.create({
 				hookName,
 				isGlobal,
+				workspaceName,
 			}),
 		)
 			.then(() => {
@@ -43,7 +45,12 @@ const HookRow: React.FC<HookRowProps> = ({ hookName, enabled, absolutePath, isGl
 
 				{/* Toggle Switch */}
 				<div className="flex items-center space-x-2 gap-2">
-					<Switch checked={enabled} className="mx-1" key={hookName} onClick={() => onToggle(hookName, !enabled)} />
+					<Switch
+						checked={enabled}
+						className="mx-1"
+						key={hookName}
+						onClick={() => onToggle(hookName, !enabled, workspaceName)}
+					/>
 					<Button aria-label="Edit hook file" onClick={handleEditClick} size="xs" title="Edit hook file" variant="icon">
 						<PenIcon />
 					</Button>

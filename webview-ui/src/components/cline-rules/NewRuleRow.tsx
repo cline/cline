@@ -1,6 +1,6 @@
 import { CreateHookRequest, RuleFileRequest } from "@shared/proto/index.cline"
 import { PlusIcon } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useClickAway } from "react-use"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -9,6 +9,8 @@ import { FileServiceClient } from "@/services/grpc-client"
 interface NewRuleRowProps {
 	isGlobal: boolean
 	ruleType?: string
+	existingHooks?: string[]
+	workspaceName?: string
 }
 
 const HOOK_TYPES = [
@@ -22,15 +24,16 @@ const HOOK_TYPES = [
 	{ name: "PreCompact", description: "Executes before conversation compaction" },
 ]
 
-const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
+const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType, existingHooks = [], workspaceName }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 	const [filename, setFilename] = useState("")
 	const inputRef = useRef<HTMLInputElement>(null)
 	const [error, setError] = useState<string | null>(null)
-	const [showHookSelector, setShowHookSelector] = useState(false)
-	const [selectedHook, setSelectedHook] = useState<string | null>(null)
 
 	const componentRef = useRef<HTMLDivElement>(null)
+
+	// Calculate available hook types by filtering out existing hooks
+	const availableHookTypes = useMemo(() => HOOK_TYPES.filter((type) => !existingHooks.includes(type.name)), [existingHooks])
 
 	// Focus the input when expanded
 	useEffect(() => {
@@ -60,15 +63,16 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 	}
 
 	const handleCreateHook = async (hookName: string) => {
+		if (!hookName) return
+
 		try {
 			await FileServiceClient.createHook(
 				CreateHookRequest.create({
 					hookName,
 					isGlobal,
+					workspaceName,
 				}),
 			)
-			setShowHookSelector(false)
-			setSelectedHook(null)
 		} catch (err) {
 			console.error("Error creating hook:", err)
 		}
@@ -76,12 +80,6 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault()
-
-		// Handle hook creation
-		if (ruleType === "hook") {
-			setShowHookSelector(true)
-			return
-		}
 
 		if (filename.trim()) {
 			const trimmedFilename = filename.trim()
@@ -138,115 +136,85 @@ const NewRuleRow: React.FC<NewRuleRowProps> = ({ isGlobal, ruleType }) => {
 							"shadow-sm": isExpanded,
 						},
 					)}>
-					<form className="flex flex-1 items-center" onSubmit={handleSubmit}>
-						<input
-							className={cn(
-								"flex-1 bg-input-background text-input-foreground border-0 outline-0 rounded focus:outline-none focus:ring-0 focus:border-transparent",
-								{
-									italic: !isExpanded,
-								},
-							)}
-							onChange={(e) => setFilename(e.target.value)}
-							placeholder={
-								isExpanded
-									? ruleType === "workflow"
-										? "workflow-name (.md, .txt, or no extension)"
-										: ruleType === "hook"
-											? "Select hook type..."
-											: "rule-name (.md, .txt, or no extension)"
-									: ruleType === "workflow"
-										? "New workflow file..."
-										: ruleType === "hook"
-											? "New hook..."
-											: "New rule file..."
-							}
-							readOnly={ruleType === "hook"}
-							ref={inputRef}
-							type="text"
-							value={isExpanded && ruleType !== "hook" ? filename : ""}
-						/>
-
-						<Button
-							aria-label={
-								isExpanded
-									? "Create file"
-									: ruleType === "workflow"
-										? "New workflow file..."
-										: ruleType === "hook"
-											? "New hook..."
-											: "New rule file..."
-							}
-							className="mx-0.5"
-							onClick={(e) => {
-								e.stopPropagation()
-								if (!isExpanded && ruleType !== "hook") {
-									setIsExpanded(true)
-								} else if (ruleType === "hook") {
-									setShowHookSelector(true)
+					{ruleType === "hook" ? (
+						<select
+							className="flex-1 bg-input-background text-input-foreground border-0 outline-0 rounded focus:outline-none focus:ring-0 focus:border-transparent px-2 cursor-pointer"
+							disabled={availableHookTypes.length === 0}
+							onChange={(e) => {
+								if (e.target.value) {
+									handleCreateHook(e.target.value)
+									// Reset selection after creating
+									e.target.value = ""
 								}
 							}}
-							size="icon"
-							title={isExpanded ? "Create file" : ruleType === "hook" ? "New hook" : "New file"}
-							type={isExpanded && ruleType !== "hook" ? "submit" : "button"}
-							variant="icon">
-							<PlusIcon />
-						</Button>
-					</form>
+							style={{
+								fontStyle: "italic",
+								appearance: "none",
+								backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23cccccc' d='M6 9L1 4h10z'/%3E%3C/svg%3E")`,
+								backgroundRepeat: "no-repeat",
+								backgroundPosition: "right 8px center",
+								paddingRight: "24px",
+							}}
+							value="">
+							<option disabled value="">
+								{availableHookTypes.length === 0 ? "All hooks created" : "New hook..."}
+							</option>
+							{availableHookTypes.map((hook) => (
+								<option key={hook.name} title={hook.description} value={hook.name}>
+									{hook.name}
+								</option>
+							))}
+						</select>
+					) : (
+						<form className="flex flex-1 items-center" onSubmit={handleSubmit}>
+							<input
+								className={cn(
+									"flex-1 bg-input-background text-input-foreground border-0 outline-0 rounded focus:outline-none focus:ring-0 focus:border-transparent",
+									{
+										italic: !isExpanded,
+									},
+								)}
+								onChange={(e) => setFilename(e.target.value)}
+								placeholder={
+									isExpanded
+										? ruleType === "workflow"
+											? "workflow-name (.md, .txt, or no extension)"
+											: "rule-name (.md, .txt, or no extension)"
+										: ruleType === "workflow"
+											? "New workflow file..."
+											: "New rule file..."
+								}
+								ref={inputRef}
+								type="text"
+								value={isExpanded ? filename : ""}
+							/>
+
+							<Button
+								aria-label={
+									isExpanded
+										? "Create file"
+										: ruleType === "workflow"
+											? "New workflow file..."
+											: "New rule file..."
+								}
+								className="mx-0.5"
+								onClick={(e) => {
+									e.stopPropagation()
+									if (!isExpanded) {
+										setIsExpanded(true)
+									}
+								}}
+								size="icon"
+								title={isExpanded ? "Create file" : "New file"}
+								type={isExpanded ? "submit" : "button"}
+								variant="icon">
+								<PlusIcon />
+							</Button>
+						</form>
+					)}
 				</div>
 				{isExpanded && error && <div className="text-error text-xs mt-1 ml-2">{error}</div>}
 			</div>
-
-			{/* Hook Selector Modal */}
-			{showHookSelector && (
-				<div
-					className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1001]"
-					onClick={() => setShowHookSelector(false)}>
-					<div
-						className="bg-vscode-editor-background border border-vscode-panel-border rounded p-4 max-w-lg w-full mx-4"
-						onClick={(e) => e.stopPropagation()}>
-						<h3 className="text-lg font-semibold mb-3">Create {isGlobal ? "Global" : "Workspace"} Hook</h3>
-
-						<div className="mb-4 text-xs text-description">Select which hook type to create:</div>
-
-						<div className="flex flex-col gap-2 max-h-96 overflow-y-auto mb-4">
-							{HOOK_TYPES.map((hook) => (
-								<div
-									className={cn(
-										"p-3 border rounded cursor-pointer transition-colors",
-										selectedHook === hook.name
-											? "border-vscode-focusBorder bg-vscode-list-activeSelectionBackground"
-											: "border-vscode-panel-border hover:bg-vscode-list-hoverBackground",
-									)}
-									key={hook.name}
-									onClick={() => setSelectedHook(hook.name)}>
-									<div className="font-medium">{hook.name}</div>
-									<div className="text-xs text-description">{hook.description}</div>
-								</div>
-							))}
-						</div>
-
-						<div className="flex gap-2 justify-end">
-							<Button
-								onClick={() => {
-									setShowHookSelector(false)
-									setSelectedHook(null)
-								}}
-								variant="secondary">
-								Cancel
-							</Button>
-							<Button
-								disabled={!selectedHook}
-								onClick={() => {
-									if (selectedHook) {
-										handleCreateHook(selectedHook)
-									}
-								}}>
-								Create Hook
-							</Button>
-						</div>
-					</div>
-				</div>
-			)}
 		</>
 	)
 }

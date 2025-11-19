@@ -65,17 +65,15 @@ export async function refreshHooks(_controller: Controller): Promise<HooksToggle
 			}
 		}
 
-		// Only add workspace if it has hooks
-		if (hooks.length > 0) {
-			// Extract workspace name from path (last directory component)
-			const workspaceName = path.basename(workspacePath)
-			workspaceHooksList.push(
-				WorkspaceHooks.create({
-					workspaceName,
-					hooks,
-				}),
-			)
-		}
+		// Add all workspaces, even if they have no hooks yet
+		// This allows users to create their first hook via the dropdown
+		const workspaceName = path.basename(workspacePath)
+		workspaceHooksList.push(
+			WorkspaceHooks.create({
+				workspaceName,
+				hooks,
+			}),
+		)
 	}
 
 	return HooksToggles.create({

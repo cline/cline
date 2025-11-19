@@ -119,7 +119,7 @@ const ClineRulesToggleModal: React.FC = () => {
 			return
 		}
 
-		// Poll every 2 seconds to detect filesystem changes
+		// Poll every 1 second to detect filesystem changes
 		const pollInterval = setInterval(() => {
 			FileServiceClient.refreshHooks({} as EmptyRequest)
 				.then((response) => {
@@ -129,7 +129,7 @@ const ClineRulesToggleModal: React.FC = () => {
 				.catch((error) => {
 					console.error("Failed to refresh hooks during polling:", error)
 				})
-		}, 2000)
+		}, 1000)
 
 		return () => {
 			clearInterval(pollInterval)
@@ -253,12 +253,13 @@ const ClineRulesToggleModal: React.FC = () => {
 	}
 
 	// Toggle hook handler
-	const toggleHook = (isGlobal: boolean, hookName: string, enabled: boolean) => {
+	const toggleHook = (isGlobal: boolean, hookName: string, enabled: boolean, workspaceName?: string) => {
 		FileServiceClient.toggleHook({
 			metadata: {} as any,
 			hookName,
 			isGlobal,
 			enabled,
+			workspaceName,
 		})
 			.then((response) => {
 				setGlobalHooks(response.hooksToggles?.globalHooks || [])
@@ -638,7 +639,7 @@ const ClineRulesToggleModal: React.FC = () => {
 												}
 											/>
 										))}
-									<NewRuleRow isGlobal={true} ruleType="hook" />
+									<NewRuleRow existingHooks={globalHooks.map((h) => h.name)} isGlobal={true} ruleType="hook" />
 								</div>
 							</div>
 
@@ -647,7 +648,7 @@ const ClineRulesToggleModal: React.FC = () => {
 								<div
 									key={workspace.workspaceName}
 									style={{ marginBottom: index === workspaceHooks.length - 1 ? -10 : 12 }}>
-									<div className="text-sm font-normal mb-2">{workspace.workspaceName} (.clinerules/hooks/)</div>
+									<div className="text-sm font-normal mb-2">{workspace.workspaceName}/.clinerules/hooks/</div>
 									<div className="flex flex-col gap-0">
 										{workspace.hooks
 											.sort((a, b) => a.name.localeCompare(b.name))
@@ -670,24 +671,20 @@ const ClineRulesToggleModal: React.FC = () => {
 															})
 													}}
 													onToggle={(name: string, newEnabled: boolean) =>
-														toggleHook(false, name, newEnabled)
+														toggleHook(false, name, newEnabled, workspace.workspaceName)
 													}
+													workspaceName={workspace.workspaceName}
 												/>
 											))}
-										<NewRuleRow isGlobal={false} ruleType="hook" />
+										<NewRuleRow
+											existingHooks={workspace.hooks.map((h) => h.name)}
+											isGlobal={false}
+											ruleType="hook"
+											workspaceName={workspace.workspaceName}
+										/>
 									</div>
 								</div>
 							))}
-
-							{/* Show "New hook" button for workspace even if no workspace hooks exist yet */}
-							{workspaceHooks.length === 0 && (
-								<div style={{ marginBottom: -10 }}>
-									<div className="text-sm font-normal mb-2">Workspace Hooks (.clinerules/hooks/)</div>
-									<div className="flex flex-col gap-0">
-										<NewRuleRow isGlobal={false} ruleType="hook" />
-									</div>
-								</div>
-							)}
 						</>
 					)}
 				</div>

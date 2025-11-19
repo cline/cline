@@ -244,6 +244,7 @@ message ToggleHookRequest {
   string hook_name = 2; // Name of the hook (e.g., "TaskStart")
   bool is_global = 3; // Whether this is a global or workspace hook
   bool enabled = 4; // Whether to enable (chmod +x) or disable (chmod -x)
+  optional string workspace_name = 5; // For multi-root workspaces, specifies which workspace
 }
 
 // Response for toggleHook operation
@@ -256,6 +257,7 @@ message CreateHookRequest {
   Metadata metadata = 1;
   string hook_name = 2; // Name of the hook to create
   bool is_global = 3; // Whether to create in global or workspace hooks directory
+  optional string workspace_name = 4; // For multi-root workspaces, specifies which workspace
 }
 
 // Response for createHook operation
@@ -268,6 +270,7 @@ message DeleteHookRequest {
   Metadata metadata = 1;
   string hook_name = 2; // Name of the hook to delete
   bool is_global = 3; // Whether this is a global or workspace hook
+  optional string workspace_name = 4; // For multi-root workspaces, specifies which workspace
 }
 
 // Response for deleteHook operation
