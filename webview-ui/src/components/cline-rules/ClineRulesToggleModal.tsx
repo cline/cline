@@ -17,6 +17,8 @@ import { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { FileServiceClient } from "@/services/grpc-client"
+import HookRow from "./HookRow"
+import NewRuleRow from "./NewRuleRow"
 import RuleRow from "./RuleRow"
 import RulesToggleList from "./RulesToggleList"
 
@@ -43,6 +45,10 @@ const ClineRulesToggleModal: React.FC = () => {
 		setRemoteRulesToggles,
 		setRemoteWorkflowToggles,
 	} = useExtensionState()
+	const [globalHooks, setGlobalHooks] = useState<Array<{ name: string; enabled: boolean; absolutePath: string }>>([])
+	const [workspaceHooks, setWorkspaceHooks] = useState<
+		Array<{ workspaceName: string; hooks: Array<{ name: string; enabled: boolean; absolutePath: string }> }>
+	>([])
 	const [isVisible, setIsVisible] = useState(false)
 	const buttonRef = useRef<HTMLDivElement>(null)
 	const modalRef = useRef<HTMLDivElement>(null)
@@ -91,6 +97,44 @@ const ClineRulesToggleModal: React.FC = () => {
 		setLocalWindsurfRulesToggles,
 		setLocalWorkflowToggles,
 	])
+
+	// Refresh hooks every time the hooks tab becomes visible
+	useEffect(() => {
+		if (isVisible && currentView === "hooks") {
+			// Always refresh when tab is opened to catch filesystem changes
+			FileServiceClient.refreshHooks({} as EmptyRequest)
+				.then((response) => {
+					setGlobalHooks(response.globalHooks || [])
+					setWorkspaceHooks(response.workspaceHooks || [])
+				})
+				.catch((error) => {
+					console.error("Failed to refresh hooks:", error)
+				})
+		}
+	}, [isVisible, currentView])
+
+	// Set up polling to watch for filesystem changes while hooks tab is visible
+	useEffect(() => {
+		if (!isVisible || currentView !== "hooks") {
+			return
+		}
+
+		// Poll every 2 seconds to detect filesystem changes
+		const pollInterval = setInterval(() => {
+			FileServiceClient.refreshHooks({} as EmptyRequest)
+				.then((response) => {
+					setGlobalHooks(response.globalHooks || [])
+					setWorkspaceHooks(response.workspaceHooks || [])
+				})
+				.catch((error) => {
+					console.error("Failed to refresh hooks during polling:", error)
+				})
+		}, 2000)
+
+		return () => {
+			clearInterval(pollInterval)
+		}
+	}, [isVisible, currentView])
 
 	// Format global rules for display with proper typing
 	const globalRules = Object.entries(globalClineRulesToggles || {})
@@ -205,6 +249,23 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 			.catch((error) => {
 				console.error("Error toggling Agents rule:", error)
+			})
+	}
+
+	// Toggle hook handler
+	const toggleHook = (isGlobal: boolean, hookName: string, enabled: boolean) => {
+		FileServiceClient.toggleHook({
+			metadata: {} as any,
+			hookName,
+			isGlobal,
+			enabled,
+		})
+			.then((response) => {
+				setGlobalHooks(response.hooksToggles?.globalHooks || [])
+				setWorkspaceHooks(response.hooksToggles?.workspaceHooks || [])
+			})
+			.catch((error) => {
+				console.error("Error toggling hook:", error)
 			})
 	}
 
@@ -535,10 +596,98 @@ const ClineRulesToggleModal: React.FC = () => {
 						</>
 					) : (
 						<>
-							{/* Hooks content will be defined here */}
-							<div className="text-sm text-description">
-								<p>Hooks content coming soon...</p>
+							{/* Hooks Tab */}
+							<div className="text-xs text-description mb-4">
+								<p>
+									Toggle to enable/disable (chmod +x/-x).{" "}
+									<VSCodeLink
+										className="text-xs"
+										href="https://docs.cline.bot/features/hooks"
+										style={{ display: "inline", fontSize: "inherit" }}>
+										Docs
+									</VSCodeLink>
+								</p>
 							</div>
+
+							{/* Global Hooks */}
+							<div className="mb-3">
+								<div className="text-sm font-normal mb-2">Global Hooks</div>
+								<div className="flex flex-col gap-0">
+									{globalHooks
+										.sort((a, b) => a.name.localeCompare(b.name))
+										.map((hook) => (
+											<HookRow
+												absolutePath={hook.absolutePath}
+												enabled={hook.enabled}
+												hookName={hook.name}
+												isGlobal={true}
+												key={hook.name}
+												onDelete={() => {
+													// Refresh hooks to get updated state after deletion
+													FileServiceClient.refreshHooks({} as EmptyRequest)
+														.then((response) => {
+															setGlobalHooks(response.globalHooks || [])
+															setWorkspaceHooks(response.workspaceHooks || [])
+														})
+														.catch((error) => {
+															console.error("Failed to refresh hooks after delete:", error)
+														})
+												}}
+												onToggle={(name: string, newEnabled: boolean) =>
+													toggleHook(true, name, newEnabled)
+												}
+											/>
+										))}
+									<NewRuleRow isGlobal={true} ruleType="hook" />
+								</div>
+							</div>
+
+							{/* Workspace Hooks - one section per workspace */}
+							{workspaceHooks.map((workspace, index) => (
+								<div
+									key={workspace.workspaceName}
+									style={{ marginBottom: index === workspaceHooks.length - 1 ? -10 : 12 }}>
+									<div className="text-sm font-normal mb-2">{workspace.workspaceName} (.clinerules/hooks/)</div>
+									<div className="flex flex-col gap-0">
+										{workspace.hooks
+											.sort((a, b) => a.name.localeCompare(b.name))
+											.map((hook) => (
+												<HookRow
+													absolutePath={hook.absolutePath}
+													enabled={hook.enabled}
+													hookName={hook.name}
+													isGlobal={false}
+													key={hook.absolutePath}
+													onDelete={() => {
+														// Refresh hooks to get updated state after deletion
+														FileServiceClient.refreshHooks({} as EmptyRequest)
+															.then((response) => {
+																setGlobalHooks(response.globalHooks || [])
+																setWorkspaceHooks(response.workspaceHooks || [])
+															})
+															.catch((error) => {
+																console.error("Failed to refresh hooks after delete:", error)
+															})
+													}}
+													onToggle={(name: string, newEnabled: boolean) =>
+														toggleHook(false, name, newEnabled)
+													}
+												/>
+											))}
+										<NewRuleRow isGlobal={false} ruleType="hook" />
+									</div>
+								</div>
+							))}
+
+							{/* Show "New hook" button for workspace even if no workspace hooks exist yet */}
+							{workspaceHooks.length === 0 && (
+								<div style={{ marginBottom: -10 }}>
+									<div className="text-sm font-normal mb-2">Workspace Hooks (.clinerules/hooks/)</div>
+									<div className="flex flex-col gap-0">
+										<NewRuleRow isGlobal={false} ruleType="hook" />
+									</div>
+								</div>
+							)}
 						</>
 					)}
 				</div>

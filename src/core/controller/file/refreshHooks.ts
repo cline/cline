@@ -1,0 +1,99 @@
+import { HookInfo, HooksToggles, WorkspaceHooks } from "@shared/proto/cline/file"
+import fs from "fs/promises"
+import os from "os"
+import path from "path"
+import { HostProvider } from "@/hosts/host-provider"
+import { Controller } from ".."
+
+const ALL_HOOK_TYPES = [
+	"TaskStart",
+	"TaskResume",
+	"TaskCancel",
+	"TaskComplete",
+	"PreToolUse",
+	"PostToolUse",
+	"UserPromptSubmit",
+	"PreCompact",
+]
+
+export async function refreshHooks(_controller: Controller): Promise<HooksToggles> {
+	const globalHooksDir = path.join(os.homedir(), "Documents", "Cline", "Hooks")
+
+	// Collect global hooks
+	const globalHooks: HookInfo[] = []
+	for (const hookName of ALL_HOOK_TYPES) {
+		const hookPath = path.join(globalHooksDir, hookName)
+		try {
+			const stat = await fs.stat(hookPath)
+			if (stat.isFile()) {
+				globalHooks.push(
+					HookInfo.create({
+						name: hookName,
+						enabled: await isExecutable(hookPath),
+						absolutePath: hookPath,
+					}),
+				)
+			}
+		} catch {
+			// File doesn't exist, skip
+		}
+	}
+
+	// Collect workspace hooks from all workspace folders
+	const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
+	const workspaceHooksList: WorkspaceHooks[] = []
+
+	for (const workspacePath of workspacePaths.paths) {
+		const workspaceHooksDir = path.join(workspacePath, ".clinerules", "hooks")
+		const hooks: HookInfo[] = []
+
+		for (const hookName of ALL_HOOK_TYPES) {
+			const hookPath = path.join(workspaceHooksDir, hookName)
+			try {
+				const stat = await fs.stat(hookPath)
+				if (stat.isFile()) {
+					hooks.push(
+						HookInfo.create({
+							name: hookName,
+							enabled: await isExecutable(hookPath),
+							absolutePath: hookPath,
+						}),
+					)
+				}
+			} catch {
+				// File doesn't exist, skip
+			}
+		}
+
+		// Only add workspace if it has hooks
+		if (hooks.length > 0) {
+			// Extract workspace name from path (last directory component)
+			const workspaceName = path.basename(workspacePath)
+			workspaceHooksList.push(
+				WorkspaceHooks.create({
+					workspaceName,
+					hooks,
+				}),
+			)
+		}
+	}
+
+	return HooksToggles.create({
+		globalHooks,
+		workspaceHooks: workspaceHooksList,
+	})
+}
+
+async function isExecutable(filePath: string): Promise<boolean> {
+	if (process.platform === "win32") {
+		// On Windows, files are "enabled" if they exist
+		return true
+	}
+
+	try {
+		await fs.access(filePath, fs.constants.X_OK)
+		return true
+	} catch {
+		return false
+	}
+}
