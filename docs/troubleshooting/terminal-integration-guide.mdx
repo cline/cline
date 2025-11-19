@@ -82,23 +82,65 @@ graph TD
 
 #### Windows
 
--   **Use PowerShell 7**
+<Warning>
+**Windows Shell Integration Limitations**
 
-    1. Install from Microsoft Store
-    2. Go to Cline Settings
-    3. Left-Click the **"Terminal Settings"** tab
-    4. Navigate to **"Default Terminal Profile"** and select **"PowerShell 7"** from the drop-down menu
+VSCode's shell integration only supports **PowerShell 7+ (pwsh.exe)** on Windows. The following shells have **no shell integration support**:
+- Windows PowerShell 5.x (`powershell.exe`) ❌
+- Command Prompt (`cmd.exe`) ❌
+- Git Bash ❌
 
--   **Disable Windows ConPTY**
+Without shell integration, Cline will:
+- Use a 3-second timeout for commands
+- Not reliably detect command completion
+- Unable to reuse terminals
+- Have degraded terminal performance
+
+**Recommended:** Install PowerShell 7+ for the best experience.
+</Warning>
+
+-   **Use PowerShell 7+ (Recommended)**
+
+    PowerShell 7+ is the only Windows shell with full VSCode shell integration support.
+
+    1. Install PowerShell 7+ from one of these sources:
+       - Microsoft Store (search "PowerShell")
+       - Direct download: https://aka.ms/powershell
+       - Windows Package Manager: `winget install Microsoft.PowerShell`
+    2. Restart VSCode after installation
+    3. Go to Cline Settings
+    4. Left-Click the **"Terminal Settings"** tab
+    5. Navigate to **"Default Terminal Profile"** and select **"PowerShell 7"** from the drop-down menu
+
+-   **Verify Shell Integration**
+
+    After switching to PowerShell 7+:
+    1. Open a new terminal in VSCode (Ctrl+Shift+`)
+    2. You should see shell integration decorations (small icons) next to your command prompt
+    3. If not visible, wait a few seconds for shell integration to activate
+
+-   **Fallback: Use Git Bash**
+
+    If PowerShell 7+ is not an option, Git Bash provides better compatibility than cmd.exe:
+    1. Install Git for Windows (includes Git Bash)
+    2. Go to Cline Settings → Terminal Settings
+    3. Select "Git Bash" from the terminal profile dropdown
+
+    Note: Git Bash also lacks shell integration but has better command compatibility.
+
+-   **Disable Windows ConPTY (If Issues Persist)**
 
     1. Navigate to your VSCode Settings
     2. Enter "Integrated: Windows Enable Conpty" into the Settings searchbar
     3. Uncheck the option
+    4. Restart VSCode
 
--   **Try Command Prompt**
-    1. Go to Cline Settings
-    2. Left-Click the **"Terminal Settings"** tab
-    3. Navigate to **"Default Terminal Profile"** and select **"Command Prompt"** from the drop-down menu
+-   **Avoid Command Prompt**
+
+    Command Prompt has the most limitations and should be avoided. It lacks:
+    - Shell integration support
+    - Modern command-line features
+    - Proper UTF-8 encoding in some cases
 
 #### Linux
 
