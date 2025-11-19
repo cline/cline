@@ -2298,14 +2298,9 @@ export class Task {
 			throw new Error("Cline instance aborted")
 		}
 
-		// Check if we have a complete tool block before acquiring the lock
-		// This allows tool execution to proceed during streaming without waiting for the lock
-		const currentBlock = this.taskState.assistantMessageContent[this.taskState.currentStreamingContentIndex]
-		const isCompleteToolBlock = currentBlock?.type === "tool_use" && !currentBlock.partial
-
-		// If we're locked and this is NOT a complete tool block, mark pending and return
+		// If we're locked, mark pending and return
 		// Complete tool blocks can proceed to acquire the lock and execute
-		if (this.taskState.presentAssistantMessageLocked && !isCompleteToolBlock) {
+		if (this.taskState.presentAssistantMessageLocked) {
 			this.taskState.presentAssistantMessageHasPendingUpdates = true
 			return
 		}
@@ -2908,10 +2903,10 @@ export class Task {
 							if (toolBlocks.length > 0) {
 								this.taskState.currentStreamingContentIndex = textBlocks.length
 								this.taskState.userMessageContentReady = false
-								await this.presentAssistantMessage()
 							} else if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false
 							}
+							await this.presentAssistantMessage()
 							break
 						}
 						case "text": {
@@ -2933,9 +2928,9 @@ export class Task {
 
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
-								// present content to user
-								await this.presentAssistantMessage()
 							}
+							// present content to user
+							await this.presentAssistantMessage()
 							break
 						}
 					}
@@ -2990,7 +2985,7 @@ export class Task {
 					} else if (this.taskState.assistantMessageContent.length > prevLength) {
 						this.taskState.userMessageContentReady = false
 					}
-					this.presentAssistantMessage()
+					await this.presentAssistantMessage()
 				}
 			} catch (error) {
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
@@ -3087,7 +3082,7 @@ export class Task {
 			})
 			// this.assistantMessageContent.forEach((e) => (e.partial = false)) // can't just do this bc a tool could be in the middle of executing ()
 			if (partialBlocks.length > 0) {
-				this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
+				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
 			}
 
 			await updateApiReqMsg({
